@@ -29,7 +29,12 @@ export const SidebarManagerProvider: React.FC<PropsWithChildren<unknown>> = ({
   children,
 }) => {
   const [activeSidebar, setActiveSidebarState] = useState<ActiveSidebar>(() => {
-    if (typeof window !== "undefined") {
+    // Only a docked sidebar comes back on the next visit; on a phone or
+    // tablet it would open over the page before it is read.
+    if (
+      typeof window !== "undefined" &&
+      window.matchMedia("(width >= 64rem)").matches
+    ) {
       const stored = window.localStorage.getItem(SIDEBAR_LOCALSTORAGE_KEY);
       if (stored === "llm" || stored === "comments" || stored === "toc") {
         return stored as ActiveSidebar;

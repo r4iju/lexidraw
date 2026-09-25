@@ -2,30 +2,47 @@
 
 import * as React from "react";
 import * as DropdownMenuPrimitive from "@radix-ui/react-dropdown-menu";
-import { Check, ChevronRight } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight } from "lucide-react";
+import { flushSync } from "react-dom";
 
 import { leaveThen } from "~/lib/leave-guard";
 import { cn } from "~/lib/utils";
 import { usePathname, useRouter } from "next/navigation";
+import {
+  InSheet,
+  floating,
+  floatingMotion,
+  menuRow,
+  sheet,
+  useInSheet,
+  useSheet,
+} from "./overlay";
 
 const DropdownMenuContext = React.createContext<{
   open: boolean;
-  setOpen: React.Dispatch<React.SetStateAction<boolean>>;
+  setOpen: (open: boolean) => void;
   router: ReturnType<typeof useRouter>;
 } | null>(null);
 
 const DropdownMenu = ({
   children,
+  open: openProp,
+  onOpenChange,
   ...props
 }: React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Root>) => {
-  const [open, setOpen] = React.useState(false);
+  const [uncontrolled, setUncontrolled] = React.useState(false);
+  const open = openProp ?? uncontrolled;
+  const setOpen = (next: boolean) => {
+    if (openProp === undefined) setUncontrolled(next);
+    onOpenChange?.(next);
+  };
   const pathname = usePathname();
   const router = useRouter();
 
   React.useEffect(() => {
     // Reference pathname so linter recognizes this effect depends on it
     void pathname;
-    setOpen(false);
+    setUncontrolled(false);
   }, [pathname]);
 
   return (
@@ -45,10 +62,28 @@ const DropdownMenuTrigger = ({
   if (context === null) {
     throw new Error("DropdownMenuTrigger must be used within a DropdownMenu");
   }
-  const { open } = context;
+  const { open, setOpen } = context;
+  const phone = useSheet();
+  const onRelease = React.useRef(false);
 
   return (
-    <DropdownMenuPrimitive.Trigger {...props} aria-expanded={open}>
+    <DropdownMenuPrimitive.Trigger
+      {...props}
+      aria-expanded={open}
+      // A finger, or any pointer on a phone, opens it as it lifts: opened as
+      // it lands, the menu or sheet would be under it for the click after.
+      onPointerDown={(event) => {
+        props.onPointerDown?.(event);
+        onRelease.current = phone || event.pointerType !== "mouse";
+        if (onRelease.current) event.preventDefault();
+      }}
+      onClick={(event) => {
+        props.onClick?.(event);
+        if (!onRelease.current || event.defaultPrevented) return;
+        onRelease.current = false;
+        setOpen(!open);
+      }}
+    >
       {children}
     </DropdownMenuPrimitive.Trigger>
   );
@@ -60,33 +95,88 @@ const DropdownMenuGroup = DropdownMenuPrimitive.Group;
 
 const DropdownMenuPortal = DropdownMenuPrimitive.Portal;
 
-const DropdownMenuSub = DropdownMenuPrimitive.Sub;
+const SubContext = React.createContext<{
+  close: () => void;
+  setTrigger: (node: HTMLDivElement | null) => void;
+} | null>(null);
+
+const DropdownMenuSub = ({
+  open: openProp,
+  defaultOpen = false,
+  onOpenChange,
+  ...props
+}: React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Sub>) => {
+  const [uncontrolled, setUncontrolled] = React.useState(defaultOpen);
+  const open = openProp ?? uncontrolled;
+  const setOpen = (next: boolean) => {
+    if (openProp === undefined) setUncontrolled(next);
+    onOpenChange?.(next);
+  };
+  const trigger = React.useRef<HTMLDivElement>(null);
+  const close = () => {
+    // The parent sheet is hidden until the submenu closes; it must show
+    // before its trigger can take focus.
+    flushSync(() => setOpen(false));
+    trigger.current?.focus();
+  };
+  const setTrigger = (node: HTMLDivElement | null) => {
+    trigger.current = node;
+  };
+  return (
+    <SubContext.Provider value={{ close, setTrigger }}>
+      <DropdownMenuPrimitive.Sub
+        open={open}
+        onOpenChange={setOpen}
+        {...props}
+      />
+    </SubContext.Provider>
+  );
+};
 
 const DropdownMenuRadioGroup = DropdownMenuPrimitive.RadioGroup;
 
 type DropdownMenuSubTriggerProps = React.ComponentPropsWithRef<
   typeof DropdownMenuPrimitive.SubTrigger
-> & { inset?: boolean; chevronClassName?: string };
+> & { chevronClassName?: string };
 
 const DropdownMenuSubTrigger = ({
   className,
   chevronClassName,
-  inset,
   children,
+  ref,
+  onPointerMove,
+  onPointerLeave,
   ...props
-}: DropdownMenuSubTriggerProps) => (
-  <DropdownMenuPrimitive.SubTrigger
-    className={cn(
-      "flex cursor-default select-none items-center rounded-sm px-2 py-2.5 md:py-1.5 text-label outline-hidden focus:bg-accent data-[state=open]:bg-accent",
-      inset && "pl-8",
-      className,
-    )}
-    {...props}
-  >
-    {children}
-    <ChevronRight className={cn("ml-auto h-4 w-4", chevronClassName)} />
-  </DropdownMenuPrimitive.SubTrigger>
-);
+}: DropdownMenuSubTriggerProps) => {
+  const sub = React.useContext(SubContext);
+  const inSheet = useInSheet();
+  return (
+    <DropdownMenuPrimitive.SubTrigger
+      ref={(node) => {
+        sub?.setTrigger(node);
+        if (typeof ref === "function") return ref(node);
+        if (ref) ref.current = node;
+      }}
+      // In a sheet the submenu covers its parent; only a tap opens it.
+      onPointerMove={(event) => {
+        onPointerMove?.(event);
+        if (inSheet) event.preventDefault();
+      }}
+      onPointerLeave={(event) => {
+        onPointerLeave?.(event);
+        if (inSheet) event.preventDefault();
+      }}
+      className={cn(menuRow, "data-[state=open]:bg-accent", className)}
+      {...props}
+    >
+      {children}
+      <ChevronRight
+        data-chevron=""
+        className={cn("ml-auto text-muted-foreground", chevronClassName)}
+      />
+    </DropdownMenuPrimitive.SubTrigger>
+  );
+};
 
 DropdownMenuSubTrigger.displayName =
   DropdownMenuPrimitive.SubTrigger.displayName;
@@ -97,29 +187,66 @@ type DropdownMenuSubContentProps = React.ComponentPropsWithRef<
 
 const DropdownMenuSubContent = ({
   className,
+  children,
+  collisionPadding = 8,
   ...props
-}: DropdownMenuSubContentProps) => (
-  <DropdownMenuPrimitive.SubContent
-    className={cn(
-      "z-50 min-w-32 overflow-y-auto rounded-lg border border-border-subtle bg-popover p-1 text-popover-foreground shadow-[var(--elevation-overlay)] data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2",
-      className,
-    )}
-    {...props}
-  />
-);
+}: DropdownMenuSubContentProps) => {
+  const inSheet = useInSheet();
+  const sub = React.useContext(SubContext);
+  return (
+    <DropdownMenuPrimitive.SubContent
+      data-sheet={inSheet ? "" : undefined}
+      collisionPadding={collisionPadding}
+      className={cn(
+        floating,
+        "min-w-32 p-1",
+        inSheet
+          ? sheet
+          : cn(
+              floatingMotion,
+              "max-h-(--radix-dropdown-menu-content-available-height) overflow-y-auto",
+            ),
+        className,
+        inSheet && "w-screen max-w-none",
+      )}
+      {...props}
+    >
+      {inSheet && sub && (
+        <DropdownMenuPrimitive.Item
+          className={cn(menuRow, "text-muted-foreground")}
+          onSelect={(event) => {
+            event.preventDefault();
+            sub.close();
+          }}
+        >
+          <ChevronLeft />
+          Back
+        </DropdownMenuPrimitive.Item>
+      )}
+      {children}
+    </DropdownMenuPrimitive.SubContent>
+  );
+};
 
 DropdownMenuSubContent.displayName =
   DropdownMenuPrimitive.SubContent.displayName;
 
 type DropdownMenuContentProps = React.ComponentPropsWithRef<
   typeof DropdownMenuPrimitive.Content
->;
+> & {
+  /** Whether it may open as a bottom sheet on a phone. */
+  sheet?: boolean;
+};
 
 const DropdownMenuContent = ({
   className,
   sideOffset = 4,
+  collisionPadding = 8,
+  sheet: sheetWanted = true,
+  children,
   ...props
 }: DropdownMenuContentProps) => {
+  const asSheet = useSheet(sheetWanted);
   // Close synchronously on navigation-intent inside the menu
   const context = React.useContext(DropdownMenuContext);
   if (context === null) {
@@ -145,11 +272,21 @@ const DropdownMenuContent = ({
     <DropdownMenuPrimitive.Portal>
       <DropdownMenuPrimitive.Content
         sideOffset={sideOffset}
+        collisionPadding={collisionPadding}
         // Links here navigate after the menu closes; see `lib/leave-guard.ts`.
         data-asks-before-leaving
+        data-sheet={asSheet ? "" : undefined}
         className={cn(
-          "max-h-[min(80vh,var(--radix-dropdown-menu-content-available-height))] overflow-y-auto z-50 min-w-32 rounded-lg border border-border-subtle bg-popover p-1 text-popover-foreground shadow-[var(--elevation-overlay)] data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2",
+          floating,
+          "min-w-32 p-1",
+          asSheet
+            ? sheet
+            : cn(
+                floatingMotion,
+                "max-h-(--radix-dropdown-menu-content-available-height) overflow-y-auto",
+              ),
           className,
+          asSheet && "w-screen max-w-none",
         )}
         onCloseAutoFocus={(e) => {
           // Avoid focusing trigger after close which can conflict with route change
@@ -215,7 +352,9 @@ const DropdownMenuContent = ({
           if (!e.defaultPrevented) context.setOpen(false);
         }}
         {...props}
-      />
+      >
+        <InSheet.Provider value={asSheet}>{children}</InSheet.Provider>
+      </DropdownMenuPrimitive.Content>
     </DropdownMenuPrimitive.Portal>
   );
 };
@@ -224,21 +363,10 @@ DropdownMenuContent.displayName = DropdownMenuPrimitive.Content.displayName;
 
 type DropdownMenuItemProps = React.ComponentPropsWithRef<
   typeof DropdownMenuPrimitive.Item
-> & { inset?: boolean };
+>;
 
-const DropdownMenuItem = ({
-  className,
-  inset,
-  ...props
-}: DropdownMenuItemProps) => (
-  <DropdownMenuPrimitive.Item
-    className={cn(
-      "relative flex font-medium cursor-default select-none items-center rounded-sm px-2 py-2.5 md:py-1.5 text-label outline-hidden transition-colors focus:bg-accent focus:text-accent-foreground data-disabled:pointer-events-none data-disabled:opacity-50",
-      inset && "pl-8",
-      className,
-    )}
-    {...props}
-  />
+const DropdownMenuItem = ({ className, ...props }: DropdownMenuItemProps) => (
+  <DropdownMenuPrimitive.Item className={cn(menuRow, className)} {...props} />
 );
 
 DropdownMenuItem.displayName = DropdownMenuPrimitive.Item.displayName;
@@ -254,14 +382,11 @@ const DropdownMenuCheckboxItem = ({
   ...props
 }: DropdownMenuCheckboxItemProps) => (
   <DropdownMenuPrimitive.CheckboxItem
-    className={cn(
-      "relative flex font-medium cursor-default select-none items-center rounded-sm py-2.5 md:py-1.5 pl-8 pr-2 text-label outline-hidden transition-colors focus:bg-accent focus:text-accent-foreground data-disabled:pointer-events-none data-disabled:opacity-50",
-      className,
-    )}
+    className={cn(menuRow, className)}
     checked={checked}
     {...props}
   >
-    <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
+    <span className="absolute left-2 flex size-4 items-center justify-center">
       <DropdownMenuPrimitive.ItemIndicator>
         <Check className="h-4 w-4" />
       </DropdownMenuPrimitive.ItemIndicator>
@@ -283,13 +408,10 @@ const DropdownMenuRadioItem = ({
   ...props
 }: DropdownMenuRadioItemProps) => (
   <DropdownMenuPrimitive.RadioItem
-    className={cn(
-      "relative flex font-medium cursor-default select-none items-center rounded-sm py-2.5 md:py-1.5 pl-8 pr-2 text-label outline-hidden transition-colors focus:bg-accent focus:text-accent-foreground data-disabled:pointer-events-none data-disabled:opacity-50",
-      className,
-    )}
+    className={cn(menuRow, className)}
     {...props}
   >
-    <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
+    <span className="absolute left-2 flex size-4 items-center justify-center">
       <DropdownMenuPrimitive.ItemIndicator>
         <Check className="h-4 w-4" />
       </DropdownMenuPrimitive.ItemIndicator>
@@ -302,17 +424,12 @@ DropdownMenuRadioItem.displayName = DropdownMenuPrimitive.RadioItem.displayName;
 
 type DropdownMenuLabelProps = React.ComponentPropsWithRef<
   typeof DropdownMenuPrimitive.Label
-> & { inset?: boolean };
+>;
 
-const DropdownMenuLabel = ({
-  className,
-  inset,
-  ...props
-}: DropdownMenuLabelProps) => (
+const DropdownMenuLabel = ({ className, ...props }: DropdownMenuLabelProps) => (
   <DropdownMenuPrimitive.Label
     className={cn(
-      "px-2 py-2.5 md:py-1.5 text-label font-medium",
-      inset && "pl-8",
+      "px-2 py-1.5 text-label font-medium text-muted-foreground",
       className,
     )}
     {...props}
@@ -330,7 +447,7 @@ const DropdownMenuSeparator = ({
   ...props
 }: DropdownMenuSeparatorProps) => (
   <DropdownMenuPrimitive.Separator
-    className={cn("-mx-1 my-1 h-px bg-muted", className)}
+    className={cn("-mx-1 my-1 h-px bg-border", className)}
     {...props}
   />
 );
@@ -343,7 +460,10 @@ const DropdownMenuShortcut = ({
 }: React.HTMLAttributes<HTMLSpanElement>) => {
   return (
     <span
-      className={cn("ml-auto text-xs tracking-widest opacity-60", className)}
+      className={cn(
+        "ml-auto pl-4 text-xs tracking-widest text-muted-foreground",
+        className,
+      )}
       {...props}
     />
   );

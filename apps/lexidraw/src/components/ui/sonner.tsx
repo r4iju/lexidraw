@@ -12,6 +12,13 @@ const Toaster = ({ ...props }: ToasterProps) => {
     <Sonner
       theme={theme as ToasterProps["theme"]}
       className="toaster group"
+      // Bottom centre, above the phone's editing bar and keyboard; globals.css
+      // moves it clear of a docked sidebar.
+      position="bottom-center"
+      mobileOffset={{
+        bottom:
+          "calc(var(--bottom-bar-height, 0px) + var(--keyboard-inset, 0px) + max(16px, env(safe-area-inset-bottom)))",
+      }}
       toastOptions={{
         classNames: {
           toast:

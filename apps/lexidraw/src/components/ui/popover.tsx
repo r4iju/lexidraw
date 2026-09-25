@@ -6,6 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 
 import { leaveThen } from "~/lib/leave-guard";
 import { cn } from "~/lib/utils";
+import { floating, floatingMotion, sheet, useSheet } from "./overlay";
 
 const PopoverContext = React.createContext<{
   onOpenChange: (open: boolean) => void;
@@ -61,14 +62,23 @@ const PopoverAnchor = PopoverPrimitive.Anchor;
 
 type PopoverContentProps = React.ComponentPropsWithRef<
   typeof PopoverPrimitive.Content
->;
+> & {
+  /**
+   * How it opens on a phone: as a bottom sheet, a half-height one, or beside
+   * its trigger (`false`) for content tied to what it points at.
+   */
+  sheet?: boolean | "half";
+};
 
 const PopoverContent = ({
   className,
   align = "center",
   sideOffset = 4,
+  collisionPadding = 8,
+  sheet: sheetWanted = true,
   ...props
 }: PopoverContentProps) => {
+  const asSheet = useSheet(sheetWanted !== false);
   const context = React.useContext(PopoverContext);
 
   const handleNavigation = React.useEffectEvent(
@@ -93,9 +103,21 @@ const PopoverContent = ({
         // Links here navigate after the popover closes; see `lib/leave-guard.ts`.
         data-asks-before-leaving
         sideOffset={sideOffset}
+        collisionPadding={collisionPadding}
+        data-sheet={asSheet ? "" : undefined}
         className={cn(
-          "z-50 w-72 rounded-lg border border-border-subtle bg-popover p-4 text-popover-foreground shadow-[var(--elevation-overlay)] outline-hidden data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2",
+          floating,
+          "w-72 p-4",
+          asSheet
+            ? sheet
+            : cn(
+                floatingMotion,
+                "max-h-(--radix-popover-content-available-height) overflow-y-auto",
+              ),
           className,
+          asSheet &&
+            "w-screen max-w-none pb-[max(1rem,env(safe-area-inset-bottom))]",
+          asSheet && sheetWanted === "half" && "h-[50dvh]",
         )}
         onCloseAutoFocus={(e) => e.preventDefault()}
         onClickCapture={(e) => {

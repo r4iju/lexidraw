@@ -207,6 +207,7 @@
   --elevation-modal: 0 16px 48px oklch(0 0 0 / 0.18);
   --radius: 0.875rem;
   --dynamic-viewport-height: 100dvh;
+  --keyboard-inset: 0px;
   --chart-1: oklch(0.60 0.15 45);
   --chart-2: oklch(0.55 0.13 160);
   --chart-3: oklch(0.55 0.14 250);
@@ -497,5 +498,26 @@ p {
     --color-sticky-orange: oklch(.78 .09 65);
     --color-sticky-purple: oklch(.76 .07 300);
     --color-sticky-gray: oklch(.76 .005 285);
+  }
+}
+/* A menu, select or popover opened as a sheet leaves its trigger for the
+   bottom of the screen; the positioning Radix writes inline gives way. */
+[data-radix-popper-content-wrapper]:has(> [data-sheet]) {
+  position: fixed !important;
+  inset: auto 0 var(--keyboard-inset) 0 !important;
+  transform: none !important;
+  min-width: 0 !important;
+}
+/* A submenu drills down: it takes its parent's place until Back. */
+[data-sheet]:has([aria-haspopup="menu"][data-state="open"]) {
+  visibility: hidden;
+}
+[data-sheet] [data-sheet] {
+  visibility: visible;
+}
+
+@media (width > 600px) {
+  [data-sonner-toaster][data-x-position="center"] {
+    left: calc(50% - var(--docked-sidebar-width, 0px) / 2) !important;
   }
 }

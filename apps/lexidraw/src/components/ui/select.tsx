@@ -5,6 +5,7 @@ import * as SelectPrimitive from "@radix-ui/react-select";
 import { Check, ChevronDown, ChevronUp } from "lucide-react";
 
 import { cn } from "~/lib/utils";
+import { floating, floatingMotion, menuRow, sheet, useSheet } from "./overlay";
 
 type SelectProps = React.ComponentPropsWithoutRef<typeof SelectPrimitive.Root>;
 
@@ -118,14 +119,20 @@ SelectScrollDownButton.displayName =
 
 type SelectContentProps = React.ComponentPropsWithRef<
   typeof SelectPrimitive.Content
->;
+> & {
+  /** Whether it may open as a bottom sheet on a phone. */
+  sheet?: boolean;
+};
 
 const SelectContent = ({
   className,
   children,
   position = "popper",
+  collisionPadding = 8,
+  sheet: sheetWanted = true,
   ...props
 }: SelectContentProps) => {
+  const asSheet = useSheet(sheetWanted) && position === "popper";
   const context = React.useContext(SelectContext);
   if (context === null) {
     throw new Error("SelectContent must be used within Select");
@@ -136,13 +143,23 @@ const SelectContent = ({
   return (
     <SelectPrimitive.Portal>
       <SelectPrimitive.Content
+        data-sheet={asSheet ? "" : undefined}
         className={cn(
-          "relative z-50 max-h-96 min-w-[8rem] overflow-hidden rounded-lg border border-border-subtle bg-popover text-popover-foreground shadow-[var(--elevation-overlay)] data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2",
-          position === "popper" &&
-            "data-[side=bottom]:translate-y-1 data-[side=left]:-translate-x-1 data-[side=right]:translate-x-1 data-[side=top]:-translate-y-1",
+          floating,
+          "relative min-w-32 overflow-hidden",
+          asSheet
+            ? sheet
+            : cn(
+                floatingMotion,
+                "max-h-(--radix-select-content-available-height)",
+                position === "popper" &&
+                  "data-[side=bottom]:translate-y-1 data-[side=left]:-translate-x-1 data-[side=right]:translate-x-1 data-[side=top]:-translate-y-1",
+              ),
           className,
+          asSheet && "w-screen max-w-none",
         )}
         position={position}
+        collisionPadding={position === "popper" ? collisionPadding : undefined}
         onClickCapture={(e) => {
           props.onClickCapture?.(e);
           if (e.defaultPrevented) return;
@@ -186,6 +203,7 @@ const SelectContent = ({
           className={cn(
             "p-1",
             position === "popper" &&
+              !asSheet &&
               "h-(--radix-select-trigger-height) w-full min-w-(--radix-select-trigger-width)",
           )}
         >
@@ -205,7 +223,10 @@ type SelectLabelProps = React.ComponentPropsWithRef<
 
 const SelectLabel = ({ className, ...props }: SelectLabelProps) => (
   <SelectPrimitive.Label
-    className={cn("py-1.5 pl-8 pr-2 text-label font-medium", className)}
+    className={cn(
+      "py-1.5 pl-8 pr-2 text-label font-medium text-muted-foreground",
+      className,
+    )}
     {...props}
   />
 );
@@ -215,14 +236,8 @@ SelectLabel.displayName = SelectPrimitive.Label.displayName;
 type SelectItemProps = React.ComponentPropsWithRef<typeof SelectPrimitive.Item>;
 
 const SelectItem = ({ className, children, ...props }: SelectItemProps) => (
-  <SelectPrimitive.Item
-    className={cn(
-      "relative flex w-full cursor-default select-none items-center rounded-sm py-2.5 md:py-1.5 pl-8 pr-2 text-sm outline-hidden focus:bg-accent focus:text-accent-foreground data-disabled:pointer-events-none data-disabled:opacity-50",
-      className,
-    )}
-    {...props}
-  >
-    <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
+  <SelectPrimitive.Item className={cn(menuRow, "w-full", className)} {...props}>
+    <span className="absolute left-2 flex size-4 items-center justify-center">
       <SelectPrimitive.ItemIndicator>
         <Check className="h-4 w-4" />
       </SelectPrimitive.ItemIndicator>
@@ -239,7 +254,7 @@ type SelectSeparatorProps = React.ComponentPropsWithRef<
 
 const SelectSeparator = ({ className, ...props }: SelectSeparatorProps) => (
   <SelectPrimitive.Separator
-    className={cn("-mx-1 my-1 h-px bg-muted", className)}
+    className={cn("-mx-1 my-1 h-px bg-border", className)}
     {...props}
   />
 );

@@ -25,8 +25,10 @@ function readingLine(): number {
 
 function TableOfContentsList({
   tableOfContents,
+  onNavigate,
 }: {
   tableOfContents: TableOfContentsEntry[];
+  onNavigate?: () => void;
 }): React.JSX.Element {
   const [editor] = useLexicalComposerContext();
   const [current, setCurrent] = useState<NodeKey | null>(null);
@@ -49,6 +51,7 @@ function TableOfContentsList({
         ? "instant"
         : "smooth",
     });
+    onNavigate?.();
   };
 
   // External system: the page's scroll position.
@@ -105,7 +108,7 @@ function TableOfContentsList({
                   onClick={() => jump(key)}
                   style={{ "--level": level } as CSSProperties}
                   className={cn(
-                    "block w-full truncate rounded-r-sm py-1 pr-2 pl-[calc(14px+var(--level)*14px)] text-left leading-5 transition-colors hover:text-foreground focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring",
+                    "block w-full truncate rounded-r-sm py-1 pr-2 pointer-coarse:py-3 pl-[calc(14px+var(--level)*14px)] text-left leading-5 transition-colors hover:text-foreground focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring",
                     level === 0
                       ? "text-sm font-semibold text-foreground"
                       : "text-[13px] text-muted-foreground",
@@ -125,8 +128,17 @@ function TableOfContentsList({
   );
 }
 
-/** The contents, less a leading `# title`, which the header already shows. */
-function TocPluginWrapper({ title }: { title: string }) {
+/**
+ * The contents, less a leading `# title`, which the header already shows.
+ * `onNavigate` follows a jump to a heading.
+ */
+function TocPluginWrapper({
+  title,
+  onNavigate,
+}: {
+  title: string;
+  onNavigate?: () => void;
+}) {
   const [editor] = useLexicalComposerContext();
   return (
     <LexicalTableOfContentsPlugin>
@@ -139,6 +151,7 @@ function TocPluginWrapper({ title }: { title: string }) {
             tableOfContents={tableOfContents.filter(
               ([key]) => key !== titleKey,
             )}
+            onNavigate={onNavigate}
           />
         );
       }}

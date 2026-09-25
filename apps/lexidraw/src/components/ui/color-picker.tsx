@@ -271,7 +271,7 @@ export function ColorPickerButton({
         </PopoverTrigger>
         <TooltipContent>{title}</TooltipContent>
       </Tooltip>
-      <PopoverContent align="start" className="w-auto p-3">
+      <PopoverContent align="start" sheet="half" className="w-auto p-3">
         <h3 className="mb-3 text-label font-medium">{title}</h3>
         <ColorPickerContent
           color={color}

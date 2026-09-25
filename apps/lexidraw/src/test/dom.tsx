@@ -47,6 +47,7 @@ export function installDom(url = "https://app.test/") {
     element.hasPointerCapture ??= () => false;
     element.releasePointerCapture ??= () => {};
     globals.IS_REACT_ACT_ENVIRONMENT = true;
+    setScreen({ width: 1280 });
   }
   afterAll(async () => {
     // Radix hands focus back on a timer after closing; let those run first.
@@ -56,6 +57,42 @@ export function installDom(url = "https://app.test/") {
     delete globals.ResizeObserver;
     delete globals.IS_REACT_ACT_ENVIRONMENT;
   });
+}
+
+/**
+ * A screen for `matchMedia`, which jsdom lacks: its width and whether the
+ * pointer is a finger. Answers the width, pointer and hover queries the app
+ * asks; anything else does not match. A file starts on a desktop with a mouse.
+ */
+export function setScreen(screen: { width: number; coarse?: boolean }) {
+  const current = { coarse: false, ...screen };
+  const answer = (query: string) => {
+    const width = query.match(/\(width\s*(<|>=)\s*([\d.]+)rem\)/);
+    if (width) {
+      const px = Number(width[2]) * 16;
+      return width[1] === "<" ? current.width < px : current.width >= px;
+    }
+    if (query.includes("pointer: coarse") || query.includes("hover: none"))
+      return current.coarse;
+    if (query.includes("pointer: fine") || query.includes("hover: hover"))
+      return !current.coarse;
+    return false;
+  };
+  (window as unknown as { matchMedia: unknown }).matchMedia = (
+    query: string,
+  ) => ({
+    get matches() {
+      return answer(query);
+    },
+    media: query,
+    addEventListener() {},
+    removeEventListener() {},
+    addListener() {},
+    removeListener() {},
+  });
+  (window as unknown as { innerWidth: number }).innerWidth = current.width;
+  return (next: { width: number; coarse?: boolean }) =>
+    Object.assign(current, { coarse: false, ...next });
 }
 
 export async function render(node: ReactNode) {

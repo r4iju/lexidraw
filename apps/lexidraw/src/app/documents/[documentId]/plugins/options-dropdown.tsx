@@ -32,6 +32,10 @@ import { revalidate } from "../actions";
 import { useRouter } from "next/navigation";
 import { api } from "~/trpc/react";
 import { useSignedIn } from "../context/signed-in-context";
+import Link from "next/link";
+import { ThemeRadioItems } from "~/components/theme/dark-mode-toggle";
+import { useLayoutClass } from "~/hooks/use-media-query";
+import { ListenItems } from "./TtsToolbar";
 
 type PdfPaper = "A4" | "Letter";
 type PdfOrientation = "portrait" | "landscape";
@@ -82,6 +86,8 @@ export default function OptionsDropdown({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const signedIn = useSignedIn();
   const utils = api.useUtils();
+  // A phone's app bar holds only this menu, so it takes what the bar leaves out.
+  const phone = useLayoutClass() === "phone";
 
   const handleExportPdf = useCallback(
     async (paper: PdfPaper, orientation: PdfOrientation) => {
@@ -258,6 +264,44 @@ export default function OptionsDropdown({
             {onShare && (
               <DropdownMenuItem onClick={onShare}>Share…</DropdownMenuItem>
             )}
+          </DropdownMenuGroup>
+          {phone && (
+            <>
+              {(canEdit || onShare) && <DropdownMenuSeparator />}
+              <DropdownMenuGroup>
+                <DropdownMenuCheckboxItem
+                  checked={activeSidebar === "toc"}
+                  onCheckedChange={() => toggleSidebar("toc")}
+                >
+                  Table of contents
+                </DropdownMenuCheckboxItem>
+                <DropdownMenuCheckboxItem
+                  checked={activeSidebar === "comments"}
+                  onCheckedChange={() => toggleSidebar("comments")}
+                >
+                  Comments
+                </DropdownMenuCheckboxItem>
+                {signedIn && (
+                  <DropdownMenuCheckboxItem
+                    checked={activeSidebar === "llm"}
+                    onCheckedChange={() => toggleSidebar("llm")}
+                  >
+                    AI assistant
+                  </DropdownMenuCheckboxItem>
+                )}
+                {signedIn && (
+                  <DropdownMenuSub>
+                    <DropdownMenuSubTrigger>Listen</DropdownMenuSubTrigger>
+                    <DropdownMenuSubContent>
+                      <ListenItems withPlay />
+                    </DropdownMenuSubContent>
+                  </DropdownMenuSub>
+                )}
+              </DropdownMenuGroup>
+            </>
+          )}
+          {phone && <DropdownMenuSeparator />}
+          <DropdownMenuGroup>
             <DropdownMenuItem onClick={() => window.print()}>
               Print…
             </DropdownMenuItem>
@@ -312,22 +356,6 @@ export default function OptionsDropdown({
               </DropdownMenuSub>
             )}
           </DropdownMenuGroup>
-          {/* On a phone the app bar has no room for the reading tools. */}
-          <DropdownMenuGroup className="sm:hidden">
-            <DropdownMenuSeparator />
-            <DropdownMenuCheckboxItem
-              checked={activeSidebar === "comments"}
-              onCheckedChange={() => toggleSidebar("comments")}
-            >
-              Comments
-            </DropdownMenuCheckboxItem>
-            <DropdownMenuCheckboxItem
-              checked={activeSidebar === "toc"}
-              onCheckedChange={() => toggleSidebar("toc")}
-            >
-              Table of contents
-            </DropdownMenuCheckboxItem>
-          </DropdownMenuGroup>
           {canEdit && (
             <>
               <DropdownMenuSeparator />
@@ -347,6 +375,28 @@ export default function OptionsDropdown({
               >
                 Auto-save
               </DropdownMenuCheckboxItem>
+            </>
+          )}
+          {phone && (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuGroup>
+                <DropdownMenuSub>
+                  <DropdownMenuSubTrigger>Theme</DropdownMenuSubTrigger>
+                  <DropdownMenuSubContent>
+                    <ThemeRadioItems />
+                  </DropdownMenuSubContent>
+                </DropdownMenuSub>
+                {signedIn && (
+                  <DropdownMenuItem asChild>
+                    <Link href="/settings">Settings</Link>
+                  </DropdownMenuItem>
+                )}
+              </DropdownMenuGroup>
+            </>
+          )}
+          {canEdit && (
+            <>
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 onClick={() => setIsDeleteOpen(true)}

@@ -8,13 +8,15 @@ import {
   useRef,
 } from "react";
 import { createPortal } from "react-dom";
+import { useLayoutClass } from "~/hooks/use-media-query";
 import { placeFloating } from "~/lib/place-floating";
 import { cn } from "~/lib/utils";
 
 /**
  * The menu under the caret that `:` and `@` open: one row per option, the
  * picture then the label, kept inside the viewport and flipped above the
- * line when there is no room below.
+ * line when there is no room below. On a phone it is a strip of chips above
+ * the keyboard, over the editing bar.
  */
 export function TypeaheadMenu<Option extends MenuOption>({
   anchor,
@@ -36,10 +38,11 @@ export function TypeaheadMenu<Option extends MenuOption>({
   name: (option: Option) => string;
 }) {
   const menu = useRef<HTMLDivElement>(null);
+  const strip = useLayoutClass() === "phone";
 
   const place = useCallback(() => {
     const element = menu.current;
-    if (!element || !anchor) return;
+    if (!element || !anchor || strip) return;
     const caret = anchor.getBoundingClientRect();
     const { left, top } = placeFloating(
       caret,
@@ -59,7 +62,7 @@ export function TypeaheadMenu<Option extends MenuOption>({
     element.style.left = `${left - origin.left}px`;
     element.style.top = `${top - origin.top}px`;
     element.style.visibility = "visible";
-  }, [anchor]);
+  }, [anchor, strip]);
 
   useLayoutEffect(place);
   // Lexical's anchor is the listbox the editor's aria-activedescendant points
@@ -81,9 +84,16 @@ export function TypeaheadMenu<Option extends MenuOption>({
 
   if (!anchor || options.length === 0) return null;
   return createPortal(
+    // biome-ignore lint/a11y/noStaticElementInteractions: keeps the caret, and the keyboard, in the editor
     <div
       ref={menu}
-      className="invisible fixed z-50 max-h-72 w-max max-w-[min(20rem,calc(100vw-16px))] min-w-48 overflow-y-auto rounded-lg border border-border-subtle bg-popover p-1 text-popover-foreground shadow-[var(--elevation-overlay)]"
+      onMouseDown={(event) => event.preventDefault()}
+      className={cn(
+        "fixed z-50 bg-popover text-popover-foreground",
+        strip
+          ? "inset-x-0 bottom-(--keyboard-inset) flex h-[calc(2.75rem+env(safe-area-inset-bottom))] items-start gap-1 overflow-x-auto overscroll-x-contain border-t border-border px-2 pb-[env(safe-area-inset-bottom)] [scrollbar-width:none]"
+          : "invisible max-h-72 w-max max-w-[min(20rem,calc(100vw-16px))] min-w-48 overflow-y-auto rounded-lg border border-border-subtle p-1 shadow-[var(--elevation-overlay)]",
+      )}
     >
       <span id={labelId} hidden>
         {label}
@@ -100,7 +110,10 @@ export function TypeaheadMenu<Option extends MenuOption>({
           onMouseEnter={() => onHighlight(index)}
           onClick={() => onSelect(option, index)}
           className={cn(
-            "flex cursor-default items-center gap-2 rounded-sm px-2 py-1.5 text-label select-none",
+            "flex cursor-default items-center gap-2 select-none",
+            strip
+              ? "h-11 min-w-11 shrink-0 justify-center rounded-full px-3 text-sm"
+              : "rounded-sm px-2 py-1.5 text-label",
             selectedIndex === index && "bg-accent text-accent-foreground",
           )}
         >
@@ -110,7 +123,9 @@ export function TypeaheadMenu<Option extends MenuOption>({
           >
             {picture(option)}
           </span>
-          <span className="truncate">{name(option)}</span>
+          <span className={cn("truncate", strip && "max-w-40")}>
+            {name(option)}
+          </span>
         </div>
       ))}
     </div>,
