@@ -991,9 +991,7 @@ function EditorScaffold({
     openDocument,
   });
   const canEdit = mayEdit(renderMode, entity.accessLevel);
-  const saveBeforeLeaving = canEdit
-    ? saveAndExport.saveBeforeLeaving
-    : undefined;
+  const saveBeforeLeaving = canEdit ? saveAndExport.saveBeforeLeaving : null;
   const handleSave = canEdit ? saveAndExport.handleSave : () => {};
   const handleSilentSave = canEdit ? saveAndExport.handleSilentSave : () => {};
 
