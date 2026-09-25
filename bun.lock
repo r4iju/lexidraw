@@ -32,20 +32,6 @@
         "typescript": "^7.0.2",
       },
     },
-    "apps/collaborator": {
-      "name": "@apps/collaborator",
-      "version": "1.0.0",
-      "dependencies": {
-        "@packages/drizzle": "workspace:*",
-        "@packages/lib": "workspace:*",
-        "ws": "^8.21.3",
-      },
-      "devDependencies": {
-        "@packages/types": "workspace:*",
-        "@types/ws": "^8.18.1",
-        "@typescript/native-preview": "^7.0.0-dev.20260707.2",
-      },
-    },
     "apps/cron-runner": {
       "name": "@apps/cron-runner",
       "version": "1.0.0",
@@ -409,8 +395,6 @@
     "@apps/cli": ["@apps/cli@workspace:apps/cli"],
 
     "@apps/code-runner": ["@apps/code-runner@workspace:apps/code-runner"],
-
-    "@apps/collaborator": ["@apps/collaborator@workspace:apps/collaborator"],
 
     "@apps/cron-runner": ["@apps/cron-runner@workspace:apps/cron-runner"],
 
