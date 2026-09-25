@@ -42,43 +42,69 @@ const serve =
   });
 
 describe("which addresses a probe may reach", () => {
-  test("private, loopback, link-local, metadata and reserved addresses are refused", () => {
-    for (const address of [
-      "0.0.0.0",
-      "10.1.2.3",
-      "100.64.0.1",
-      "127.0.0.1",
-      "169.254.169.254",
-      "172.16.5.4",
-      "172.31.255.255",
-      "192.168.1.1",
-      "198.18.0.1",
-      "224.0.0.1",
-      "255.255.255.255",
-      "::",
-      "::1",
-      "fe80::1",
-      "fc00::1",
-      "fd00:ec2::254",
-      "ff02::1",
-      "::ffff:127.0.0.1",
-      "::ffff:a9fe:a9fe",
-      "64:ff9b::a9fe:a9fe",
-      "2001:db8::1",
-    ])
-      expect([address, isPublicAddress(address)]).toEqual([address, false]);
-  });
+  // Every special-purpose range in IANA's IPv4 and IPv6 registries that is
+  // not globally reachable, and every IPv6 form that can carry an IPv4
+  // address, which is judged by that address or refused outright.
+  const ADDRESSES: [address: string, reachable: boolean, why: string][] = [
+    ["93.184.215.14", true, "public IPv4"],
+    ["8.8.8.8", true, "public IPv4"],
+    ["172.32.0.1", true, "just past 172.16/12"],
+    ["0.0.0.0", false, "this network"],
+    ["10.1.2.3", false, "private"],
+    ["100.64.0.1", false, "shared address space"],
+    ["127.0.0.1", false, "loopback"],
+    ["169.254.169.254", false, "link-local, the metadata service"],
+    ["172.16.5.4", false, "private"],
+    ["172.31.255.255", false, "private"],
+    ["192.0.0.8", false, "IETF protocol assignments"],
+    ["192.0.2.1", false, "documentation"],
+    ["192.88.99.1", false, "deprecated 6to4 relay anycast"],
+    ["192.168.1.1", false, "private"],
+    ["198.18.0.1", false, "benchmarking"],
+    ["198.51.100.1", false, "documentation"],
+    ["203.0.113.1", false, "documentation"],
+    ["224.0.0.1", false, "multicast"],
+    ["240.0.0.1", false, "reserved"],
+    ["255.255.255.255", false, "broadcast"],
+    ["2606:4700:4700::1111", true, "public IPv6"],
+    ["2001:4860:4860::8888", true, "public IPv6 in 2001::/16"],
+    ["::ffff:8.8.8.8", true, "IPv4-mapped, public inside"],
+    ["64:ff9b::808:808", true, "NAT64, public inside"],
+    ["::", false, "unspecified"],
+    ["::1", false, "loopback"],
+    ["::ffff:127.0.0.1", false, "IPv4-mapped loopback"],
+    ["::ffff:a9fe:a9fe", false, "IPv4-mapped metadata"],
+    ["64:ff9b::a9fe:a9fe", false, "NAT64 metadata"],
+    ["::7f00:1", false, "IPv4-compatible"],
+    ["::127.0.0.1", false, "IPv4-compatible, dotted"],
+    ["::808:808", false, "IPv4-compatible, even public inside"],
+    ["::ffff:0:7f00:1", false, "SIIT, IPv4-translated"],
+    ["::ffff:0:808:808", false, "SIIT, even public inside"],
+    ["64:ff9b:1::7f00:1", false, "local-use NAT64"],
+    ["64:ff9b:1::808:808", false, "local-use NAT64, even public inside"],
+    ["100::1", false, "discard-only"],
+    ["2001::1", false, "Teredo"],
+    ["2001:0:4136:e378:8000:63bf:3fff:fdd2", false, "Teredo"],
+    ["2001:2::1", false, "benchmarking"],
+    ["2001:20::1", false, "ORCHIDv2"],
+    ["2001:db8::1", false, "documentation"],
+    ["2002:7f00:1::1", false, "6to4"],
+    ["2002:808:808::1", false, "6to4, even public inside"],
+    ["3fff::1", false, "documentation"],
+    ["5f00::1", false, "SRv6 SIDs"],
+    ["fc00::1", false, "unique local"],
+    ["fd00:ec2::254", false, "unique local, the metadata service"],
+    ["fe80::1", false, "link-local"],
+    ["fe80::1%en0", false, "link-local, scoped"],
+    ["fec0::1", false, "site-local"],
+    ["ff02::1", false, "multicast"],
+    ["not an address", false, "not an address"],
+  ];
 
-  test("public addresses are allowed", () => {
-    for (const address of [
-      "93.184.215.14",
-      "8.8.8.8",
-      "172.32.0.1",
-      "2606:4700:4700::1111",
-      "::ffff:8.8.8.8",
-    ])
-      expect([address, isPublicAddress(address)]).toEqual([address, true]);
-  });
+  for (const [address, reachable, why] of ADDRESSES)
+    test(`${address}: ${why}`, () => {
+      expect(isPublicAddress(address)).toBe(reachable);
+    });
 });
 
 describe("a picture's size, probed on the network", () => {
@@ -159,6 +185,23 @@ describe("a picture's size, probed on the network", () => {
     expect(asked).toEqual([]);
   });
 
+  test("never looks up a name reserved for this machine", async () => {
+    const asked: string[] = [];
+    const resolve: Resolve = async (host) => {
+      asked.push(host);
+      return [{ address: "93.184.215.14", family: 4 }];
+    };
+    for (const src of [
+      "http://localhost/a.png",
+      "http://LOCALHOST./a.png",
+      "http://images.localhost/a.png",
+    ])
+      expect(
+        await probeImageSize(src, { resolve, transport: network({}) }),
+      ).toBeUndefined();
+    expect(asked).toEqual([]);
+  });
+
   test("follows a redirect to a public host, but not to a private one, and not forever", async () => {
     const asked: string[] = [];
     const resolve: Resolve = async (host) => [
@@ -223,6 +266,18 @@ describe("a picture's size, probed on the network", () => {
     });
     expect(stalled).toBeUndefined();
     expect(Date.now() - started).toBeLessThan(1000);
+
+    let lookup: AbortSignal | undefined;
+    const unanswered = await probeImageSize("https://images.example/dns.png", {
+      resolve: (_host, signal) => {
+        lookup = signal;
+        return new Promise(() => {});
+      },
+      timeoutMs: 50,
+      transport: network({}),
+    });
+    expect(unanswered).toBeUndefined();
+    expect(lookup?.aborted).toBe(true);
 
     const missing = await probeImageSize("https://images.example/gone.png", {
       resolve: PUBLIC,

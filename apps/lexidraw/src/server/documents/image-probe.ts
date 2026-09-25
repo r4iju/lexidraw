@@ -1,4 +1,4 @@
-import { lookup } from "node:dns/promises";
+import { Resolver } from "node:dns/promises";
 import * as http from "node:http";
 import * as https from "node:https";
 import { isIP } from "node:net";
@@ -6,7 +6,11 @@ import type { NaturalSize } from "@packages/lexical-nodes";
 import { imageSizeOf } from "./image-size";
 
 export type Address = { address: string; family: number };
-export type Resolve = (hostname: string) => Promise<Address[]>;
+/** The addresses of `hostname`, given up on once `signal` aborts. */
+export type Resolve = (
+  hostname: string,
+  signal: AbortSignal,
+) => Promise<Address[]>;
 export type Fetched = {
   status: number;
   location?: string;
@@ -80,7 +84,7 @@ async function follow(
 ) {
   let url = reachable(src);
   for (let hop = 0; url && hop <= maxRedirects; hop++) {
-    const address = await publicAddress(url, resolve);
+    const address = await publicAddress(url, resolve, signal);
     if (!address || signal.aborted) return undefined;
     const response = await transport(url, address, signal);
     try {
@@ -114,10 +118,14 @@ function reachable(src: string): URL | undefined {
 async function publicAddress(
   url: URL,
   resolve: Resolve,
+  signal: AbortSignal,
 ): Promise<Address | undefined> {
-  const host = url.hostname.replace(/^\[|\]$/g, "");
+  const host = url.hostname.replace(/^\[|\]$/g, "").replace(/\.$/, "");
+  if (host === "localhost" || host.endsWith(".localhost")) return undefined;
   const family = isIP(host);
-  const addresses = family ? [{ address: host, family }] : await resolve(host);
+  const addresses = family
+    ? [{ address: host, family }]
+    : await resolve(host, signal);
   if (addresses.length === 0) return undefined;
   if (!addresses.every(({ address }) => isPublicAddress(address)))
     return undefined;
@@ -142,8 +150,33 @@ async function readSize(
   return imageSizeOf(bytes);
 }
 
-const systemResolve: Resolve = (hostname) =>
-  lookup(hostname, { all: true, verbatim: true });
+/**
+ * Asks DNS directly rather than the system resolver, whose lookups hold a
+ * libuv thread until they finish and cannot be cancelled.
+ */
+const systemResolve: Resolve = async (hostname, signal) => {
+  const resolver = new Resolver({ tries: 1 });
+  const cancel = () => resolver.cancel();
+  signal.addEventListener("abort", cancel, { once: true });
+  try {
+    const [v4, v6] = await Promise.allSettled([
+      resolver.resolve4(hostname),
+      resolver.resolve6(hostname),
+    ]);
+    return [
+      ...(v4.status === "fulfilled" ? v4.value : []).map((address) => ({
+        address,
+        family: 4,
+      })),
+      ...(v6.status === "fulfilled" ? v6.value : []).map((address) => ({
+        address,
+        family: 6,
+      })),
+    ];
+  } finally {
+    signal.removeEventListener("abort", cancel);
+  }
+};
 
 const nodeTransport: Transport = (url, address, signal) =>
   new Promise((settle, fail) => {
@@ -184,22 +217,36 @@ export function isPublicAddress(address: string): boolean {
   if (isIP(address) === 4) return isPublicV4(v4(address));
   if (isIP(address) !== 6) return false;
   const words = v6(address);
-  const embedded = ((words[6] ?? 0) << 16) | (words[7] ?? 0);
-  const leading = (count: number, value: number[]) =>
-    value.every((word, index) => words[index] === word) &&
-    words.slice(value.length, count).every((word) => word === 0);
-  // ::ffff:a.b.c.d and the NAT64 prefix 64:ff9b::/96 carry an IPv4 address.
-  if (leading(5, []) && words[5] === 0xffff) return isPublicV4(embedded >>> 0);
-  if (leading(6, [0x64, 0xff9b])) return isPublicV4(embedded >>> 0);
-  const first = words[0] ?? 0;
-  if (words.every((word, index) => word === (index === 7 ? word : 0)))
-    return false; // ::, ::1 and the deprecated IPv4-compatible range
-  if ((first & 0xfe00) === 0xfc00) return false; // unique local
-  if ((first & 0xffc0) === 0xfe80) return false; // link-local
-  if ((first & 0xff00) === 0xff00) return false; // multicast
-  if (first === 0x2001 && words[1] === 0x0db8) return false; // documentation
-  return true;
+  const within = ([base, bits]: [string, number]) => {
+    const prefix = v6(base);
+    return words.every((word, index) => {
+      const kept = Math.max(0, Math.min(16, bits - index * 16));
+      const mask = (0xffff << (16 - kept)) & 0xffff;
+      return (word & mask) === ((prefix[index] ?? 0) & mask);
+    });
+  };
+  if (V6_CARRYING_V4.some(within))
+    return isPublicV4((((words[6] ?? 0) << 16) | (words[7] ?? 0)) >>> 0);
+  return within(["2000::", 3]) && !V6_BLOCKED.some(within);
 }
+
+/** Prefixes whose last 32 bits are an IPv4 address, judged as that. */
+const V6_CARRYING_V4: [string, number][] = [
+  ["::ffff:0:0", 96],
+  ["64:ff9b::", 96],
+];
+
+/**
+ * The special-purpose ranges inside global unicast (2000::/3), the only
+ * space a public host has. Everything outside it, IPv4-compatible,
+ * IPv4-translated and local-use NAT64 included, is refused already.
+ */
+const V6_BLOCKED: [string, number][] = [
+  ["2001::", 23], // IETF protocol assignments, Teredo among them
+  ["2001:db8::", 32], // documentation
+  ["2002::", 16], // 6to4
+  ["3fff::", 20], // documentation
+];
 
 const v4 = (address: string) =>
   address
@@ -215,6 +262,7 @@ const V4_BLOCKED: [string, number][] = [
   ["172.16.0.0", 12],
   ["192.0.0.0", 24],
   ["192.0.2.0", 24],
+  ["192.88.99.0", 24],
   ["192.168.0.0", 16],
   ["198.18.0.0", 15],
   ["198.51.100.0", 24],
