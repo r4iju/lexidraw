@@ -15,6 +15,9 @@ const env = createEnv({
       z.boolean(),
     ),
     SHARED_KEY: z.string(),
+    // Signs the room tokens the signaling server checks; the same value goes
+    // in that server's environment. Unset, clients join rooms without one.
+    SIGNALING_SECRET: z.string().min(32).optional(),
     CRON_SECRET: z.string(),
     NEXTAUTH_SECRET: z.string(),
     NEXTAUTH_URL: z.preprocess(
@@ -113,6 +116,7 @@ const env = createEnv({
     NEXT_PUBLIC_WS_SERVER: process.env.NEXT_PUBLIC_WS_SERVER,
     ICE_SERVER_CONFIG: process.env.ICE_SERVER_CONFIG,
     SHARED_KEY: process.env.SHARED_KEY,
+    SIGNALING_SECRET: process.env.SIGNALING_SECRET,
     CRON_SECRET: process.env.CRON_SECRET,
     TURSO_URL: process.env.TURSO_URL,
     TRUST_HOST: process.env.TRUST_HOST,

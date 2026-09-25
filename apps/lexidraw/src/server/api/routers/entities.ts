@@ -1,4 +1,5 @@
 import { queueThumbnail } from "~/server/entities/queue-thumbnail";
+import { issueRoomToken } from "~/server/auth/room-token";
 import { z } from "zod";
 import {
   revalidateEntities,
@@ -511,6 +512,26 @@ export const entityRouter = createTRPCRouter({
       if (!revision) throw notFound();
       return revision;
     }),
+  /**
+   * A token that lets the caller into the entity's room on the signaling
+   * server, as `peer`, telling the room whether they may edit. Null while the
+   * app has no `SIGNALING_SECRET`, and the client then connects without one.
+   */
+  roomToken: publicProcedure
+    .input(z.object({ id: z.string(), peer: z.string().min(1).max(128) }))
+    .output(z.object({ token: z.string().nullable() }))
+    .query(({ input, ctx }) =>
+      issueRoomToken(
+        ctx.drizzle,
+        {
+          entityId: input.id,
+          peer: input.peer,
+          userId: ctx.session?.user?.id ?? "",
+          mayWrite: ctx.auth?.kind !== "token" || ctx.auth.scope === "write",
+        },
+        env.SIGNALING_SECRET,
+      ),
+    ),
   /**
    * What the pages around an entity show of it: its title, where it is, and
    * whether the caller owns it. Whose it is otherwise, and who else has it,

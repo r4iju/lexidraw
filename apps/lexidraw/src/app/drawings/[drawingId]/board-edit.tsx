@@ -21,6 +21,7 @@ import { useIsDarkTheme } from "~/components/theme/theme-provider";
 import { useUserIdOrGuestId } from "~/hooks/use-user-id-or-guest-id";
 import { debounce } from "@packages/lib";
 import { useWebRtcService } from "~/hooks/communication-service/use-web-rtc";
+import { useRoomToken } from "~/hooks/communication-service/use-room-token";
 import { Theme, type MessageStructure } from "@packages/types";
 import { DrawingBoardMenu } from "./dropdown";
 import { useUnsavedChanges } from "~/hooks/use-unsaved-changes";
@@ -52,6 +53,7 @@ const ExcalidrawWrapper: React.FC<Props> = ({
 }) => {
   const isDarkTheme = useIsDarkTheme();
   const userId = useUserIdOrGuestId();
+  const roomToken = useRoomToken(drawing.id, userId);
   const [excalidrawApi, setExcalidrawApi] =
     useState<ExcalidrawImperativeAPI | null>(null);
   const openDrawing = useOpenEntityContext();
@@ -135,6 +137,7 @@ const ExcalidrawWrapper: React.FC<Props> = ({
       drawingId: drawing.id,
       userId,
       iceServers,
+      getRoomToken: roomToken,
     },
     {
       onMessage: handleMessage,
