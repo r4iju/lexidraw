@@ -27,7 +27,7 @@ export async function entityFrame(id: string): Promise<EntityFrame> {
     appBarAccount(),
     api.entities.getMetadata.query({ id }).catch(() => null),
   ]);
-  const isOwner = Boolean(account && entity?.isOwner);
+  const isOwner = Boolean(account && entity?.access === "owner");
   return {
     account,
     isOwner,

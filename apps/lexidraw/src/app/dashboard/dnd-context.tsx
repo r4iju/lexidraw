@@ -14,7 +14,9 @@ import {
 } from "@dnd-kit/core";
 import { api } from "~/trpc/react";
 import type { RouterOutputs } from "~/trpc/shared";
+import { mayDrop } from "~/lib/entity-access";
 import { besidePointer } from "./beside-pointer";
+import { type DropFolder, draggedEntity } from "./drop";
 import { revalidateDashboard } from "./server-actions";
 import { EntityThumbnail } from "./thumbnail-client";
 
@@ -99,7 +101,6 @@ export function DraggingContext({ children, sortBy, sortOrder }: Props) {
       };
     },
     onError: (_error, vars, context) => {
-      console.log("rollback to previous data");
       if (!context) return;
       const element = document.getElementById(`entity-${vars.id}`);
       if (!element) return;
@@ -128,13 +129,15 @@ export function DraggingContext({ children, sortBy, sortOrder }: Props) {
 
   const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event;
+    const entity = draggedEntity(active?.data.current);
+    const folder = (over?.data.current as { folder?: DropFolder } | undefined)
+      ?.folder;
 
-    if (active?.id && over?.id && active.id !== over.id) {
-      const parentId = over.id === "null" ? null : String(over.id);
+    if (entity && folder !== undefined && mayDrop(entity, folder)) {
       updateEntity({
-        id: String(active.id),
-        parentId,
-        prevParentId: active.data.current?.entity.parentId,
+        id: entity.id,
+        parentId: folder?.id ?? null,
+        prevParentId: entity.parentId,
       });
     }
 

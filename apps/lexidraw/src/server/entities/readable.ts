@@ -11,6 +11,12 @@ import {
 } from "@packages/drizzle";
 import { AccessLevel, PublicAccess } from "@packages/types";
 import { TRPCError } from "@trpc/server";
+import {
+  ACTION_NEEDS,
+  accessOf,
+  type EntityAccess,
+  type EntityAction,
+} from "~/lib/entity-access";
 
 type Db = typeof drizzle;
 
@@ -34,20 +40,14 @@ const entityColumns = {
   elements: schema.entities.elements,
 };
 
-type CallersAccess = {
-  ownerId: string | null;
-  sharedAccessLevel: string | null;
-  publicAccess: string;
-};
-
 /**
  * Whether `userId` may edit an entity they reached: its owner, someone it was
  * shared with for editing, or anyone, when anyone may.
  */
-export const canEdit = (entity: CallersAccess, userId: string) =>
-  entity.ownerId === userId ||
-  entity.sharedAccessLevel === AccessLevel.EDIT ||
-  entity.publicAccess === PublicAccess.EDIT;
+export const canEdit = (
+  entity: Parameters<typeof accessOf>[0],
+  userId: string,
+) => accessOf(entity, userId) !== "read";
 
 /**
  * The share row joined in, narrowed to `userId` first, so `sharedAccessLevel`
@@ -85,14 +85,25 @@ async function findEntity(
   return rows[0] ?? null;
 }
 
+/** Who reaches an entity with at least each access. */
+const reachWith: Record<EntityAccess, (userId: string) => SQL | undefined> = {
+  read: (userId) =>
+    or(
+      eq(schema.entities.userId, userId),
+      eq(schema.sharedEntities.userId, userId),
+      ne(schema.entities.publicAccess, PublicAccess.PRIVATE),
+    ),
+  edit: (userId) =>
+    or(
+      eq(schema.entities.userId, userId),
+      eq(schema.sharedEntities.accessLevel, AccessLevel.EDIT),
+      eq(schema.entities.publicAccess, PublicAccess.EDIT),
+    ),
+  owner: (userId) => eq(schema.entities.userId, userId),
+};
+
 /** Who may read an entity: its owner, a share, or anyone when it is not private. */
-function readableBy(userId: string): SQL | undefined {
-  return or(
-    eq(schema.entities.userId, userId),
-    eq(schema.sharedEntities.userId, userId),
-    ne(schema.entities.publicAccess, PublicAccess.PRIVATE),
-  );
-}
+const readableBy = reachWith.read;
 
 /**
  * The entity when `userId` may read it: they own it, it is shared with them,
@@ -102,19 +113,53 @@ export async function findReadableEntity(db: Db, id: string, userId: string) {
   return findEntity(db, id, userId, readableBy(userId));
 }
 
+/** What the access rules know of the live entity `id` that `reach` admits. */
+async function findFacts(
+  db: Db,
+  id: string,
+  userId: string,
+  reach: SQL | undefined,
+) {
+  const rows = await db
+    .select(entityFacts)
+    .from(schema.entities)
+    .where(live(id, reach))
+    .leftJoin(schema.sharedEntities, callersShare(userId))
+    .leftJoin(schema.users, eq(schema.users.id, schema.entities.userId))
+    .execute();
+  return rows[0] ?? null;
+}
+
 /**
  * {@link findReadableEntity} without the content, for a caller that only
  * needs to know what the entity is and where.
  */
 export async function findReadableFacts(db: Db, id: string, userId: string) {
-  const rows = await db
-    .select(entityFacts)
-    .from(schema.entities)
-    .where(live(id, readableBy(userId)))
-    .leftJoin(schema.sharedEntities, callersShare(userId))
-    .leftJoin(schema.users, eq(schema.users.id, schema.entities.userId))
-    .execute();
-  return rows[0] ?? null;
+  return findFacts(db, id, userId, readableBy(userId));
+}
+
+/**
+ * The entity, without its content, when `userId` may do `action` to it, as
+ * `ACTION_NEEDS` has it. One who may not is told it does not exist rather
+ * than that it exists and is out of reach.
+ */
+export async function findEntityFor(
+  db: Db,
+  id: string,
+  userId: string,
+  action: EntityAction,
+) {
+  return findEntityWith(db, id, userId, ACTION_NEEDS[action]);
+}
+
+/** The entity, without its content, when `userId` has at least `access` to it. */
+export async function findEntityWith(
+  db: Db,
+  id: string,
+  userId: string,
+  access: EntityAccess,
+) {
+  return findFacts(db, id, userId, reachWith[access](userId));
 }
 
 /**
@@ -138,16 +183,7 @@ export async function findReadableRevision(db: Db, id: string, userId: string) {
  * than that it exists and is out of reach.
  */
 export async function findWritableEntity(db: Db, id: string, userId: string) {
-  return findEntity(
-    db,
-    id,
-    userId,
-    or(
-      eq(schema.entities.userId, userId),
-      eq(schema.sharedEntities.accessLevel, AccessLevel.EDIT),
-      eq(schema.entities.publicAccess, PublicAccess.EDIT),
-    ),
-  );
+  return findEntity(db, id, userId, reachWith.edit(userId));
 }
 
 /** The directory `id` when `userId` may write into it, otherwise null. */
@@ -221,13 +257,17 @@ export async function resolveMoveDestination(
  * as a stranger.
  */
 export async function findOwnedEntity(db: Db, id: string, userId: string) {
-  return findEntity(db, id, userId, eq(schema.entities.userId, userId));
+  return findEntity(db, id, userId, reachWith.owner(userId));
 }
 
 // Directory nesting is user-made, so the walk is bounded rather than trusted.
 const MAX_PATH_DEPTH = 64;
 
-export type EntityAncestor = { id: string; title: string };
+export type EntityAncestor = {
+  id: string;
+  title: string;
+  access: EntityAccess;
+};
 
 /** `id` and the entities above it, nearest first, whoever may read them. */
 async function parentChain(
@@ -250,19 +290,25 @@ async function parentChain(
 }
 
 /**
- * The title of each of `ids` that `userId` may read, by id. The rest are left
- * out: a folder someone else keeps above a file they shared is theirs, and so
- * is its name.
+ * The title of each of `ids` that `userId` may read, and their access to it,
+ * by id. The rest are left out: a folder someone else keeps above a file they
+ * shared is theirs, and so is its name.
  */
-export async function readableTitles(
+async function readableFolders(
   db: Db,
   ids: Iterable<string | null>,
   userId: string,
-): Promise<Map<string, string>> {
+): Promise<Map<string, { title: string; access: EntityAccess }>> {
   const wanted = [...new Set(ids)].filter((id): id is string => !!id);
   if (wanted.length === 0) return new Map();
   const rows = await db
-    .selectDistinct({ id: schema.entities.id, title: schema.entities.title })
+    .selectDistinct({
+      id: schema.entities.id,
+      title: schema.entities.title,
+      ownerId: schema.entities.userId,
+      sharedAccessLevel: schema.sharedEntities.accessLevel,
+      publicAccess: schema.entities.publicAccess,
+    })
     .from(schema.entities)
     .where(
       and(
@@ -273,7 +319,12 @@ export async function readableTitles(
     )
     .leftJoin(schema.sharedEntities, callersShare(userId))
     .execute();
-  return new Map(rows.map((row) => [row.id, row.title]));
+  return new Map(
+    rows.map((row) => [
+      row.id,
+      { title: row.title, access: accessOf(row, userId) },
+    ]),
+  );
 }
 
 /**
@@ -288,14 +339,14 @@ export async function inReadableFolders<
   rows: Row[],
   userId: string,
 ): Promise<(Row & { folderTitle: string | null })[]> {
-  const titles = await readableTitles(
+  const folders = await readableFolders(
     db,
     rows.map((row) => row.parentId),
     userId,
   );
   return rows.map((row) => {
     const folderTitle = row.parentId
-      ? (titles.get(row.parentId) ?? null)
+      ? (folders.get(row.parentId)?.title ?? null)
       : null;
     return {
       ...row,
@@ -316,14 +367,14 @@ export async function entityAncestors(
   userId: string,
 ): Promise<EntityAncestor[]> {
   const chain = await parentChain(db, parentId);
-  const titles = await readableTitles(
+  const folders = await readableFolders(
     db,
     chain.map((link) => link.id),
     userId,
   );
   return chain.flatMap((link) => {
-    const title = titles.get(link.id);
-    return title === undefined ? [] : [{ id: link.id, title }];
+    const folder = folders.get(link.id);
+    return folder === undefined ? [] : [{ id: link.id, ...folder }];
   });
 }
 

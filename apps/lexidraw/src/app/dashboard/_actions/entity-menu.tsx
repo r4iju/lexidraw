@@ -23,15 +23,17 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "~/components/ui/dropdown-menu";
+import { type EntityAccess, may } from "~/lib/entity-access";
 
 type Props = {
   title: string;
   /** Where the file opens. */
   href: string;
+  /** The viewer's access, which decides what the menu offers them. */
+  access: EntityAccess;
   favorited: boolean;
   archived: boolean;
-  /** Only for the file's owner. */
-  onShare?: () => void;
+  onShare: () => void;
   onCopyLink: () => void;
   onRename: () => void;
   onTags: () => void;
@@ -43,11 +45,13 @@ type Props = {
 
 /**
  * A file's ⋯ menu: opening and sharing it, then organising it, then putting
- * it away, and deleting it last, set apart.
+ * it away, and deleting it last, set apart. It offers only what `access`
+ * allows, by the rule the server holds each action to.
  */
 export function EntityMenu({
   title,
   href,
+  access,
   favorited,
   archived,
   onShare,
@@ -81,7 +85,7 @@ export function EntityMenu({
               Open in new tab
             </a>
           </DropdownMenuItem>
-          {onShare && (
+          {may(access, "share") && (
             <DropdownMenuItem onSelect={onShare}>
               <ShareIcon aria-hidden="true" />
               Share…
@@ -94,18 +98,24 @@ export function EntityMenu({
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
         <DropdownMenuGroup>
-          <DropdownMenuItem onSelect={onRename}>
-            <PencilIcon aria-hidden="true" />
-            Rename…
-          </DropdownMenuItem>
-          <DropdownMenuItem onSelect={onTags}>
-            <TagIcon aria-hidden="true" />
-            Tags…
-          </DropdownMenuItem>
-          <DropdownMenuItem onSelect={onThumbnail}>
-            <ImageIcon aria-hidden="true" />
-            Change thumbnail…
-          </DropdownMenuItem>
+          {may(access, "rename") && (
+            <DropdownMenuItem onSelect={onRename}>
+              <PencilIcon aria-hidden="true" />
+              Rename…
+            </DropdownMenuItem>
+          )}
+          {may(access, "tags") && (
+            <DropdownMenuItem onSelect={onTags}>
+              <TagIcon aria-hidden="true" />
+              Tags…
+            </DropdownMenuItem>
+          )}
+          {may(access, "thumbnail") && (
+            <DropdownMenuItem onSelect={onThumbnail}>
+              <ImageIcon aria-hidden="true" />
+              Change thumbnail…
+            </DropdownMenuItem>
+          )}
           <DropdownMenuItem onSelect={onToggleFavorite}>
             {favorited ? (
               <HeartOffIcon aria-hidden="true" />
@@ -124,14 +134,18 @@ export function EntityMenu({
           )}
           {archived ? "Unarchive" : "Archive"}
         </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem
-          onSelect={onDelete}
-          className="text-destructive focus:text-destructive"
-        >
-          <TrashIcon aria-hidden="true" />
-          Delete…
-        </DropdownMenuItem>
+        {may(access, "delete") && (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              onSelect={onDelete}
+              className="text-destructive focus:text-destructive"
+            >
+              <TrashIcon aria-hidden="true" />
+              Delete…
+            </DropdownMenuItem>
+          </>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   );

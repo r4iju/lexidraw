@@ -16,6 +16,7 @@ function props(overrides: Partial<Props> = {}): Props {
   return {
     title: "Launch plan",
     href: "/documents/d1",
+    access: "owner",
     favorited: false,
     archived: false,
     onShare: () => {},
@@ -69,15 +70,41 @@ describe("a file's ⋯ menu", () => {
     await view.unmount();
   });
 
-  test("offers Share only to the file's owner", async () => {
-    const view = await open({ onShare: undefined });
-    const labels = menu().map((item) =>
-      typeof item === "string" ? item : item.textContent?.trim(),
-    );
-    expect(labels.slice(0, 3)).toEqual(["Open in new tab", "Copy link", "|"]);
-    expect(labels).not.toContain("Share…");
-    await view.unmount();
-  });
+  // What `ACTION_NEEDS` allows each, which `entity-actions.test.ts` holds the
+  // server to.
+  test.each([
+    [
+      "a reader",
+      "read",
+      ["Open in new tab", "Copy link", "|", "Add to favorites", "|", "Archive"],
+    ],
+    [
+      "an editor",
+      "edit",
+      [
+        "Open in new tab",
+        "Copy link",
+        "|",
+        "Rename…",
+        "Tags…",
+        "Change thumbnail…",
+        "Add to favorites",
+        "|",
+        "Archive",
+      ],
+    ],
+  ] as const)(
+    "offers %s only what they may do",
+    async (_, access, expected) => {
+      const view = await open({ access });
+      expect(
+        menu().map((item) =>
+          typeof item === "string" ? item : item.textContent?.trim(),
+        ),
+      ).toEqual([...expected]);
+      await view.unmount();
+    },
+  );
 
   test("gives every item an icon", async () => {
     const view = await open();

@@ -2,6 +2,7 @@ import { LayoutGrid, Rows3 } from "lucide-react";
 import Link from "next/link";
 import type { AppBarAccount } from "~/components/app-bar/account-menu";
 import { Button } from "~/components/ui/button";
+import { may } from "~/lib/entity-access";
 import { cn } from "~/lib/utils";
 import { api } from "~/trpc/server";
 import type { RouterOutputs } from "~/trpc/shared";
@@ -112,10 +113,11 @@ export async function Dashboard({
           directory && {
             id: directory.id,
             title: directory.title,
-            canRename: directory.isOwner,
-            ancestors: directory.ancestors.map(({ id, title }) => ({
+            canRename: may(directory.access, "rename"),
+            ancestors: directory.ancestors.map(({ id, title, access }) => ({
               id,
               title,
+              access,
             })),
           }
         }

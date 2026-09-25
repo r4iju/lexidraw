@@ -716,18 +716,24 @@ describe("who a file is shared with, over the API", () => {
     },
   );
 
-  test("a listing says whether each item is the caller's, and not whose", async () => {
-    const shared = await get(SHAREE_TOKENS.reader, "/entities");
-    expect(shared.response.status).toBe(200);
-    expect(
-      (shared.body as Json[]).map((item) => [item.id, item.isOwner]),
-    ).toEqual([["rest_shared", false]]);
-    const owned = await get(WRITE_TOKEN, "/entities");
-    expect(
-      (owned.body as Json[]).find((item) => item.id === "rest_shared")?.isOwner,
-    ).toBe(true);
-    for (const listing of [shared.body, owned.body]) {
-      expect(JSON.stringify(listing)).not.toContain(OWNER);
+  test("a listing says what the caller may do with each item, and not whose it is", async () => {
+    const listings = {
+      owner: await get(WRITE_TOKEN, "/entities"),
+      editor: await get(SHAREE_TOKENS.editor, "/entities"),
+      reader: await get(SHAREE_TOKENS.reader, "/entities"),
+    };
+    const access = Object.fromEntries(
+      Object.entries(listings).map(([role, { response, body }]) => {
+        expect(response.status).toBe(200);
+        return [
+          role,
+          (body as Json[]).find((item) => item.id === "rest_shared")?.access,
+        ];
+      }),
+    );
+    expect(access).toEqual({ owner: "owner", editor: "edit", reader: "read" });
+    for (const { body } of Object.values(listings)) {
+      expect(JSON.stringify(body)).not.toContain(OWNER);
     }
   });
 });

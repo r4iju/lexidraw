@@ -100,9 +100,11 @@ and existence stays private.
 Who an entity is shared with is its owner's to know and to change. `GET`,
 `POST`, `PATCH` and `DELETE` under `/entities/{id}/shares` answer only the
 owner; to anyone else, a user it is shared with for editing included, they are
-`NOT_FOUND`, as for a stranger. A listing says
-`isOwner` for each item rather than naming its owner, and `GET /entities/{id}`
-says only `shared`, whether anyone has been given it.
+`NOT_FOUND`, as for a stranger. A listing gives the caller's own `access` to
+each item (`owner`, `edit` or `read`) rather than naming its owner, and
+`GET /entities/{id}` says only `shared`, whether anyone has been given it.
+Deleting and sharing take `owner`; renaming, tags, a thumbnail and moving take
+`edit`; favorites and the archive are the caller's own and take `read`.
 
 `PATCH` and `DELETE /entities/{id}/shares/{userId}` answer `{ success, message }`
 only when they changed or removed a share that was there. A user who holds no
