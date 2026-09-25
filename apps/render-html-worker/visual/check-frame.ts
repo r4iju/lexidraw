@@ -389,6 +389,61 @@ async function checkDocument(page: Page, emptyId: string) {
     "Edit | Read shows the current mode with labels",
   );
 
+  // Reading, at any size, keeps its tools in the reading pill and has no
+  // formatting strip; editing brings the strip back.
+  const tools = () =>
+    page.evaluate(() => {
+      const shown = (element: Element | null) =>
+        Boolean(element && element.getClientRects().length > 0);
+      const pill = document.querySelector(
+        '[role="toolbar"][aria-label="Reading"]',
+      );
+      return {
+        formatting: shown(
+          document.querySelector('[role="toolbar"][aria-label="Formatting"]'),
+        ),
+        pill: shown(pill)
+          ? [...(pill?.querySelectorAll("button") ?? [])].map(
+              (button) =>
+                button.getAttribute("aria-label") ??
+                button.textContent?.trim() ??
+                "",
+            )
+          : null,
+      };
+    });
+  const switchTo = async (label: "Edit" | "Read") => {
+    await page.$$eval(
+      `${APP_BAR} fieldset label`,
+      (labels, label) =>
+        (
+          labels.find((option) => option.textContent?.trim() === label) as
+            | HTMLElement
+            | undefined
+        )?.click(),
+      label,
+    );
+    await pause(300);
+  };
+  for (const [width, height] of [
+    [768, 1024],
+    [1280, 900],
+  ] as const) {
+    await page.setViewport({ width, height });
+    await switchTo("Read");
+    const reading = await tools();
+    assert(!reading.formatting, `${width}: reading has no formatting strip`);
+    assert.deepEqual(
+      reading.pill,
+      ["Listen", "Play from cursor", "Contents"],
+      `${width}: reading has the pill, with Listen and Contents`,
+    );
+    await switchTo("Edit");
+    const editing = await tools();
+    assert(editing.formatting, `${width}: editing has the formatting strip`);
+    assert.equal(editing.pill, null, `${width}: editing has no reading pill`);
+  }
+
   // Saving: typing is unsaved, then saving, then saved; Cmd+S saves now.
   const autoSaved = await setAutoSave(page, true);
   await recordStatus(page);

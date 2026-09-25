@@ -299,8 +299,11 @@ function EditorHandler({
   const [currentSidebarWidth, setCurrentSidebarWidth] = useState(SIDEBAR_WIDTH);
   const sidebarRef = useRef<HTMLElement>(null);
   const phone = useLayoutClass() === "phone";
-  const readingOnPhone = onScreen && phone && !(canEdit && !reading);
-  const barScrolledAway = useScrolledAway(readingOnPhone);
+  const editing = canEdit && !reading;
+  // Reading, at every size, reads from the reading pill; the formatting
+  // strip is only for editing.
+  const readingOnScreen = onScreen && !editing;
+  const barScrolledAway = useScrolledAway(readingOnScreen && phone);
 
   const { markDirty, markPristine, dirty } = useUnsavedChanges();
   const debouncedAutoSaveRef = useRef<ReturnType<typeof debounce> | null>(null);
@@ -546,7 +549,7 @@ function EditorHandler({
                       <DocumentFontsPlugin lang={detectedLanguage} />
                       <TextLanguagePlugin lang={detectedLanguage} />
                       <SlidePlugin />
-                      <EditabilityPlugin editable={canEdit && !reading} />
+                      <EditabilityPlugin editable={editing} />
                       {!onScreen && <RenderReadyPlugin />}
                       <ListenWhenSignedIn signedIn={signedIn}>
                         {/* The page itself scrolls: see globals.css. */}
@@ -555,7 +558,7 @@ function EditorHandler({
                           className={cn(
                             "page-frame flex min-h-dvh flex-col overflow-x-clip pb-[calc(env(safe-area-inset-bottom)+var(--bottom-bar-height,0px))]",
                             // The reading pill floats over the page's end.
-                            readingOnPhone &&
+                            readingOnScreen &&
                               "pb-[calc(env(safe-area-inset-bottom)+5rem)]",
                           )}
                         >
@@ -622,30 +625,27 @@ function EditorHandler({
                                   }
                                 />
                               )}
-                              {/* The formatting strip is for editing; a
-                                reader signed in keeps listening (#93). */}
-                              <div
-                                className={cn(
-                                  // A phone's formatting is in its bottom bar.
-                                  "flex items-center border-b border-border py-1 max-sm:hidden",
-                                  "pl-[max(--spacing(4),env(safe-area-inset-left))] pr-[max(--spacing(4),env(safe-area-inset-right))]",
-                                  "sm:pl-[max(--spacing(6),env(safe-area-inset-left))] sm:pr-[max(--spacing(6),env(safe-area-inset-right))]",
-                                  "lg:pl-[max(--spacing(8),env(safe-area-inset-left))] lg:pr-[max(--spacing(8),env(safe-area-inset-right))]",
-                                  !(canEdit && !reading) &&
-                                    !signedIn &&
-                                    "hidden",
-                                )}
-                              >
-                                <ShortcutsPlugin
-                                  editor={editor}
-                                  setIsLinkEditMode={setIsLinkEditMode}
-                                />
-                                <TooltipProvider>
-                                  <ToolbarPlugin
+                              {editing && (
+                                <div
+                                  className={cn(
+                                    // A phone's formatting is in its bottom bar.
+                                    "flex items-center border-b border-border py-1 max-sm:hidden",
+                                    "pl-[max(--spacing(4),env(safe-area-inset-left))] pr-[max(--spacing(4),env(safe-area-inset-right))]",
+                                    "sm:pl-[max(--spacing(6),env(safe-area-inset-left))] sm:pr-[max(--spacing(6),env(safe-area-inset-right))]",
+                                    "lg:pl-[max(--spacing(8),env(safe-area-inset-left))] lg:pr-[max(--spacing(8),env(safe-area-inset-right))]",
+                                  )}
+                                >
+                                  <ShortcutsPlugin
+                                    editor={editor}
                                     setIsLinkEditMode={setIsLinkEditMode}
                                   />
-                                </TooltipProvider>
-                              </div>
+                                  <TooltipProvider>
+                                    <ToolbarPlugin
+                                      setIsLinkEditMode={setIsLinkEditMode}
+                                    />
+                                  </TooltipProvider>
+                                </div>
+                              )}
                               {frame?.isOwner && (
                                 <ShareDialog
                                   entity={{
@@ -836,14 +836,15 @@ function EditorHandler({
                           </div>
 
                           {onScreen && <ConditionalCommentInputBoxRenderer />}
-                          {readingOnPhone && (
+                          {readingOnScreen && (
                             <ReadingPill
                               signedIn={signedIn}
                               contentsOpen={activeSidebar === "toc"}
                               onContents={() => toggleSidebar("toc")}
                             />
                           )}
-                          {onScreen && phone && signedIn && !readingOnPhone && (
+                          {/* A phone edits from its bottom bar, and plays from Listen in the ⋯ menu. */}
+                          {onScreen && phone && signedIn && editing && (
                             <ListenPlayer withTrigger={false} />
                           )}
                         </div>
@@ -897,7 +898,7 @@ function useScrolledAway(enabled: boolean) {
   return enabled && away;
 }
 
-/** A phone reader's tools, off the page: listening and the contents. */
+/** A reader's tools, off the page: listening, when signed in, and the contents. */
 function ReadingPill({
   signedIn,
   contentsOpen,
