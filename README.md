@@ -7,6 +7,11 @@ The Web-RTC based collaboration feature is currently not reliable.
 
 Setup a database, configure connect string with the .env.example, and run `pnpm install`, then `pnpm dev`
 
+### Read aloud on dev
+
+- A new account reads in OpenAI's `alloy`, which needs a valid `OPENAI_API_KEY`. Google voices need a `GOOGLE_API_KEY` with the Text-to-Speech API enabled.
+- Kokoro voices come from the shared Kokoro-FastAPI server: set `KOKORO_URL=http://127.0.0.1:8880` in the root `.env.development`, which the scripts load. Production has no `KOKORO_URL`, and so no Kokoro voices.
+
 ## How do I deploy this?
 
 Follow t3-stack deployment guides for [Vercel](https://create.t3.gg/en/deployment/vercel), [Netlify](https://create.t3.gg/en/deployment/netlify) and [Docker](https://create.t3.gg/en/deployment/docker) for more information.

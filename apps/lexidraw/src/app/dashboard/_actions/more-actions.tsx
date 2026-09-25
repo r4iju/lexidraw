@@ -95,9 +95,10 @@ export const MoreActions = ({ entity, currentAccess }: Props) => {
       <EntityMenu
         title={entity.title}
         href={entityHref(entity.entityType, entity.id)}
+        access={entity.access}
         favorited={Boolean(entity.favoritedAt)}
         archived={Boolean(entity.archivedAt)}
-        onShare={entity.isOwner ? () => setOpenDialog("share") : undefined}
+        onShare={() => setOpenDialog("share")}
         onCopyLink={() => copyEntityLink(entity, currentAccess)}
         onRename={() => setOpenDialog("rename")}
         onTags={() => setOpenDialog("tag")}

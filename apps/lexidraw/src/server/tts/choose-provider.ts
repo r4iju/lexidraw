@@ -1,3 +1,4 @@
+import { defaultVoice } from "~/app/settings/schema";
 import type { TtsProviderName } from "./types";
 
 // Kokoro picks its language pipeline from the voice id prefix.
@@ -40,7 +41,5 @@ export function chooseProvider(
 }
 
 export function defaultKokoroVoice(languageCode?: string): string {
-  return (languageCode || "").toLowerCase().startsWith("ja")
-    ? "jf_alpha"
-    : "af_heart";
+  return defaultVoice("kokoro", languageCode);
 }

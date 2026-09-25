@@ -509,7 +509,6 @@ export function DocumentHeader({
     >
       {cover && (
         <figure className="document-cover">
-          {/* biome-ignore lint/performance/noImgElement: any address a writer gives */}
           <img
             src={cover.src}
             alt={cover.alt ?? ""}

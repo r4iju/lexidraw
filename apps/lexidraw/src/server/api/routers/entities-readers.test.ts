@@ -168,15 +168,15 @@ describe("who has a file is for its owner to change", () => {
   });
 });
 
-describe("a listing says whether each file is the caller's, not whose it is", () => {
+describe("a listing says what the caller may do with each file, not whose it is", () => {
   test("to its owner, and to someone it is shared with", async () => {
     const owned = await callerOf(OWNER).list({ parentId: PRIVATE });
     expect(owned.length).toBeGreaterThan(0);
-    expect(owned.every((entry) => entry.isOwner)).toBe(true);
+    expect(owned.every((entry) => entry.access === "owner")).toBe(true);
 
     const shared = await callerOf(READER).list({ parentId: "erd_shared" });
-    expect(shared.map((entry) => [entry.id, entry.isOwner])).toEqual([
-      ["erd_doc", false],
+    expect(shared.map((entry) => [entry.id, entry.access])).toEqual([
+      ["erd_doc", "read"],
     ]);
     for (const listed of [owned, shared]) {
       expect(mentions(listed, OWNER)).toBe(false);
@@ -187,7 +187,7 @@ describe("a listing says whether each file is the caller's, not whose it is", ()
 describe("a file's details say whose it is only to its owner", () => {
   test("the owner is told it is theirs", async () => {
     const details = await callerOf(OWNER).getMetadata({ id: "erd_doc" });
-    expect(details.isOwner).toBe(true);
+    expect(details.access).toBe("owner");
     expect(details.parentId).toBe("erd_shared");
   });
 
@@ -195,7 +195,7 @@ describe("a file's details say whose it is only to its owner", () => {
     for (const userId of [READER, null]) {
       const id = userId ? "erd_doc" : "erd_public";
       const details = await callerOf(userId).getMetadata({ id });
-      expect(details.isOwner).toBe(false);
+      expect(details.access).toBe("read");
       expect(mentions(details, OWNER)).toBe(false);
       expect(mentions(details, EDITOR)).toBe(false);
     }

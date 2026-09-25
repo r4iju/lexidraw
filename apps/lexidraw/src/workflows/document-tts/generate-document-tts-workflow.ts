@@ -97,8 +97,14 @@ export async function generateDocumentTtsWorkflow(
         )
         .map((r) => r.value);
       if (successes.length === 0) {
+        // Why they failed, which the job's error is all its reader sees.
+        const reasons = batch
+          .filter((r): r is PromiseRejectedResult => r.status === "rejected")
+          .map((r) =>
+            r.reason instanceof Error ? r.reason.message : String(r.reason),
+          );
         throw new Error(
-          `All chunks in batch ${i}-${Math.min(i + BATCH - 1, planned.length - 1)} failed`,
+          `All chunks in batch ${i}-${Math.min(i + BATCH - 1, planned.length - 1)} failed: ${[...new Set(reasons)].join("; ")}`,
         );
       }
       results.push(...successes);

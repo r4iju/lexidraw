@@ -42,10 +42,8 @@ export class CollapsibleContentNode extends ElementNode {
     const outer = document.createElement("div");
     outer.dataset.slot = "accordion-content";
     outer.dataset.state = isOpen ? "open" : "closed"; // Initial state
-    outer.className =
-      "overflow-hidden text-base " +
-      "data-[state=open]:animate-accordion-down " +
-      "data-[state=closed]:animate-accordion-up";
+    // Drawn in its state; it animates once toggled, see `SECTION_MOTION`.
+    outer.className = "overflow-hidden text-base";
 
     // If closed, set height to 0 immediately to prevent visual expansion
     if (!isOpen) {

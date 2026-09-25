@@ -2,6 +2,7 @@
 
 import { useDraggable, type UniqueIdentifier } from "@dnd-kit/core";
 import type { ReactNode } from "react";
+import { may } from "~/lib/entity-access";
 import { cn } from "~/lib/utils";
 import type { RouterOutputs } from "~/trpc/shared";
 
@@ -14,6 +15,7 @@ export function Drag({ entity, children }: DragProps) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: entity.id as UniqueIdentifier,
     data: { entity },
+    disabled: !may(entity.access, "move"),
   });
   // We rely on sensors in `dnd-context` for activation constraints, so
   // dragging should not start on simple clicks.

@@ -2,6 +2,7 @@ import { z } from "zod";
 import { drizzle, schema } from "@packages/drizzle";
 import { and, eq, or, isNull, ne, desc } from "drizzle-orm";
 import { createTRPCRouter, protectedProcedure } from "~/server/api/trpc";
+import { listenSettings } from "~/app/settings/schema";
 import { computeDocKey, computeArticleKey } from "~/server/tts/id";
 import { generateDocumentTtsWorkflow } from "~/workflows/document-tts/generate-document-tts-workflow";
 import { generateArticleTtsWorkflow } from "~/workflows/article-tts/generate-article-tts-workflow";
@@ -95,6 +96,26 @@ async function assertCanAccessArticleOrThrow(
   }
 }
 
+type TtsRequest = {
+  provider?: string;
+  voiceId?: string;
+  speed?: number;
+  format?: "mp3" | "ogg" | "wav";
+  languageCode?: string;
+  sampleRate?: number;
+};
+
+/**
+ * The voice a job reads in: what the call asks for, else the caller's
+ * read-aloud settings, as the settings show them.
+ */
+function ttsConfigFor(input: TtsRequest, stored?: Record<string, unknown>) {
+  const asked = Object.fromEntries(
+    Object.entries(input).filter(([, value]) => value !== undefined),
+  ) as TtsRequest;
+  return { ...listenSettings(stored), ...asked };
+}
+
 export const ttsRouter = createTRPCRouter({
   startDocumentTts: protectedProcedure
     .input(
@@ -117,18 +138,7 @@ export const ttsRouter = createTRPCRouter({
         where: (users, { eq }) => eq(users.id, userId),
         columns: { config: true },
       });
-      const userCfg = user?.config?.tts ?? {};
-      const cfg = {
-        provider: input.provider ?? (userCfg.provider as string) ?? "kokoro",
-        voiceId: input.voiceId ?? (userCfg.voiceId as string) ?? "Alva",
-        speed: input.speed ?? (userCfg.speed as number) ?? 1,
-        format:
-          input.format ?? (userCfg.format as "mp3" | "ogg" | "wav") ?? "mp3",
-        languageCode:
-          input.languageCode ?? (userCfg.languageCode as string) ?? "en-US",
-        sampleRate:
-          input.sampleRate ?? (userCfg.sampleRate as number | undefined),
-      };
+      const cfg = ttsConfigFor(input, user?.config?.tts);
       const docKey = computeDocKey(input.documentId, cfg);
 
       // Cancel prior non-terminal jobs for this document and user
@@ -359,18 +369,7 @@ export const ttsRouter = createTRPCRouter({
         where: (users, { eq }) => eq(users.id, userId),
         columns: { config: true },
       });
-      const userCfg = user?.config?.tts ?? {};
-      const cfg = {
-        provider: input.provider ?? (userCfg.provider as string) ?? "kokoro",
-        voiceId: input.voiceId ?? (userCfg.voiceId as string) ?? "Alva",
-        speed: input.speed ?? (userCfg.speed as number) ?? 1,
-        format:
-          input.format ?? (userCfg.format as "mp3" | "ogg" | "wav") ?? "mp3",
-        languageCode:
-          input.languageCode ?? (userCfg.languageCode as string) ?? "en-US",
-        sampleRate:
-          input.sampleRate ?? (userCfg.sampleRate as number | undefined),
-      };
+      const cfg = ttsConfigFor(input, user?.config?.tts);
       const articleKey = computeArticleKey(input.articleId, cfg);
 
       // Cancel prior non-terminal jobs for this article and user

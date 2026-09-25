@@ -43,7 +43,7 @@ import {
 } from "@packages/types";
 import { useImageGeneration } from "~/hooks/use-image-generation";
 import { useUnsplashImage } from "~/hooks/use-image-insertion";
-import { useEffect, useMemo } from "react";
+import { useMemo } from "react";
 import {
   DEFAULT_TEXT_NODE_ORIGINAL_KEY,
   EMPTY_CONTENT,
@@ -137,10 +137,6 @@ export const useSlideTools = () => {
   const { generateImageData, uploadImageData } = useImageGeneration();
   const { searchImage, trackDownload } = useUnsplashImage();
 
-  useEffect(() => {
-    console.log("🔄 useSlideTools re-rendered");
-  }, []);
-
   const tools = useMemo(() => {
     async function updateSlideDeckExecutor<
       O extends Record<string, unknown>, // Represents specific options for the mutator
@@ -204,7 +200,6 @@ export const useSlideTools = () => {
         const latestState = baseEditor.getEditorState();
         const stateJson = latestState.toJSON();
 
-        console.log(`✅ [${toolName}] Success: ${assertedResult.summary}`);
         return {
           success: true,
           content: {
@@ -790,10 +785,6 @@ export const useSlideTools = () => {
     ) => {
       type MutatorOptions = Omit<typeof options, "deckNodeKey" | "editorKey">;
 
-      console.log(
-        `[_addImageToSlidePage] START: Invoked by '${invokingToolName}' for slide '${options.slideId}' in deck '${options.deckNodeKey}'. Image URL: ${options.imageUrl}`,
-      );
-
       const result = await updateSlideDeckExecutor<
         MutatorOptions,
         typeof options
@@ -851,10 +842,6 @@ export const useSlideTools = () => {
           50,
         )}...) to slide ${slideId} in deck ${options.deckNodeKey}.`;
 
-        console.log(
-          `[_addImageToSlidePage] MUTATOR: Successfully created new image element spec with ID ${newImageGeneratedId}.`,
-        );
-
         return {
           newData: {
             ...currentData,
@@ -864,19 +851,6 @@ export const useSlideTools = () => {
           newNodeKey: newImageGeneratedId,
         };
       });
-
-      console.log(
-        `[_addImageToSlidePage] END: Result for '${invokingToolName}' on slide '${
-          options.slideId
-        }':`,
-        result.success
-          ? {
-              success: true,
-              summary: result.content?.summary,
-              newNodeKey: result.content?.newNodeKey,
-            }
-          : { success: false, error: result.error },
-      );
 
       return result;
     };
@@ -903,10 +877,6 @@ export const useSlideTools = () => {
       inputSchema: SharedAddChartToSlidePageSchema,
       execute: async (options) => {
         type MutatorOptions = Omit<typeof options, "deckNodeKey" | "editorKey">;
-
-        console.log(
-          `[addChartToSlidePage] START: Executing for slide '${options.slideId}' in deck '${options.deckNodeKey}'. Chart type: ${options.chartType}`,
-        );
 
         const result = await updateSlideDeckExecutor<
           MutatorOptions,
@@ -974,10 +944,6 @@ export const useSlideTools = () => {
 
           const summary = `Added new ${chartType} chart (ID: ${newChartGeneratedId}) to slide ${slideId} in deck ${options.deckNodeKey}.`;
 
-          console.log(
-            `[addChartToSlidePage] MUTATOR: Successfully created new chart element spec with ID ${newChartGeneratedId}.`,
-          );
-
           return {
             newData: {
               ...currentData,
@@ -987,17 +953,6 @@ export const useSlideTools = () => {
             newNodeKey: newChartGeneratedId,
           };
         });
-
-        console.log(
-          `[addChartToSlidePage] END: Result for slide '${options.slideId}':`,
-          result.success
-            ? {
-                success: true,
-                summary: result.content?.summary,
-                newNodeKey: result.content?.newNodeKey,
-              }
-            : { success: false, error: result.error },
-        );
 
         return result;
       },

@@ -101,4 +101,45 @@ describe("Settings", () => {
     expect(temperature?.value).toBe("0.5");
     await view.unmount();
   });
+
+  test("a voice saved for a service that is gone shows the default service and voice", async () => {
+    const view = await render(
+      <SettingsForm
+        {...props({
+          user: {
+            ...props().user,
+            // Saved before macOS `say` was removed; the type no longer has it.
+            config: { tts: { provider: "apple_say", voiceId: "Alva" } },
+          } as unknown as Props["user"],
+        })}
+      />,
+    );
+    const service = document.querySelector("[aria-label='Voice service']");
+    const voice = document.querySelector<HTMLInputElement>(
+      "input[name='tts.voiceId']",
+    );
+    expect({ service: service?.textContent, voice: voice?.value }).toEqual({
+      service: "Default (OpenAI)",
+      voice: "",
+    });
+    await view.unmount();
+  });
+
+  test("an unset voice shows the default voice of the service chosen", async () => {
+    const view = await render(
+      <SettingsForm
+        {...props({
+          user: {
+            ...props().user,
+            config: { tts: { provider: "google" } },
+          } as Props["user"],
+        })}
+      />,
+    );
+    const voice = document.querySelector<HTMLInputElement>(
+      "input[name='tts.voiceId']",
+    );
+    expect(voice?.placeholder).toBe("Default (en-US-Standard-C)");
+    await view.unmount();
+  });
 });

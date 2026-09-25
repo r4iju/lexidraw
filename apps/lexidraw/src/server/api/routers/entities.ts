@@ -39,8 +39,16 @@ import {
 import { measureImages } from "~/server/documents/measure-images";
 import { StaleDocumentError } from "~/server/documents/conflict";
 import {
+  accessOf,
+  ENTITY_ACCESS,
+  type EntityAction,
+  may,
+} from "~/lib/entity-access";
+import {
   canEdit,
   entityAncestors,
+  findEntityFor,
+  findEntityWith,
   findOwnedEntity,
   findReadableEntity,
   findReadableFacts,
@@ -92,9 +100,9 @@ const entityListItem = z.object({
   thumbnailStatus: z.enum(["pending", "ready", "error"]).nullable(),
   thumbnailVersion: z.string().nullable(),
   thumbnailUpdatedAt: isoDate.nullable(),
-  // Whether it is the caller's, rather than whose it is: someone it was
-  // shared with has no use for the owner's id.
-  isOwner: z.boolean(),
+  // What the caller may do with it, rather than whose it is: someone it was
+  // shared with has no use for the owner's id. See `ACTION_NEEDS`.
+  access: z.enum(ENTITY_ACCESS),
   publicAccess: z.enum(PublicAccess),
   parentId: z.string().nullable(),
   favoritedAt: isoDate.nullable(),
@@ -515,7 +523,7 @@ export const entityRouter = createTRPCRouter({
     }),
   /**
    * What the pages around an entity show of it: its title, where it is, and
-   * whether the caller owns it. Whose it is otherwise, and who else has it,
+   * what the caller may do with it. Whose it is otherwise, and who else has it,
    * stay with its owner and the share dialog.
    */
   getMetadata: publicProcedure
@@ -535,7 +543,7 @@ export const entityRouter = createTRPCRouter({
         entityType: entity.entityType,
         publicAccess: entity.publicAccess,
         parentId: placed?.parentId ?? null,
-        isOwner: entity.ownerId === userId,
+        access: accessOf(entity, userId),
         ancestors: ancestors.reverse(),
       };
     }),
@@ -621,6 +629,10 @@ export const entityRouter = createTRPCRouter({
           thumbnailVersion: schema.entities.thumbnailVersion,
           thumbnailUpdatedAt: schema.entities.thumbnailUpdatedAt,
           ownerId: schema.entities.userId,
+          // The caller's own share, among everyone's joined in for the count.
+          sharedAccessLevel: sql<
+            string | null
+          >`max(case when ${schema.sharedEntities.userId} = ${ctx.session.user.id} then ${schema.sharedEntities.accessLevel} end)`,
           publicAccess: schema.entities.publicAccess,
           parentId: schema.entities.parentId,
           favoritedAt: schema.userEntityPrefs.favoritedAt,
@@ -632,7 +644,6 @@ export const entityRouter = createTRPCRouter({
           childCount: sql<number>`(select cast(count(*) as int) from Entities as child where child.parentId = ${schema.entities.id} and child.deletedAt is null and (child.userId = ${ctx.session.user.id} or exists (select 1 from SharedEntities as share where share.entityId = child.id and share.userId = ${ctx.session.user.id})))`,
         })
         .from(schema.entities)
-        .leftJoin(schema.users, eq(schema.entities.userId, schema.users.id))
         .leftJoin(
           schema.sharedEntities,
           eq(schema.entities.id, schema.sharedEntities.entityId),
@@ -691,9 +702,12 @@ export const entityRouter = createTRPCRouter({
         (typeof entities)[number],
         "title" | "updatedAt" | "createdAt"
       >(entities, input.sortOrder, input.sortBy).map(
-        ({ ownerId, ...entity }) => ({
+        ({ ownerId, sharedAccessLevel, ...entity }) => ({
           ...entity,
-          isOwner: ownerId === ctx.session.user.id,
+          access: accessOf(
+            { ownerId, sharedAccessLevel, publicAccess: entity.publicAccess },
+            ctx.session.user.id,
+          ),
           tags: entity.tags ? entity.tags.split(",").filter(Boolean) : [],
         }),
       );
@@ -708,8 +722,17 @@ export const entityRouter = createTRPCRouter({
     )
     .mutation(async ({ ctx, input }) => {
       const userId = ctx.session.user.id;
-      if (!(await findReadableFacts(ctx.drizzle, input.entityId, userId))) {
-        throw notFound();
+      // A call that changes neither still needs a file you can open.
+      const actions = [
+        ...(input.favorite === undefined ? [] : ["favorite" as const]),
+        ...(input.archive === undefined ? [] : ["archive" as const]),
+      ];
+      for (const action of actions.length ? actions : ["favorite" as const]) {
+        if (
+          !(await findEntityFor(ctx.drizzle, input.entityId, userId, action))
+        ) {
+          throw notFound();
+        }
       }
 
       const existing = (
@@ -889,7 +912,7 @@ export const entityRouter = createTRPCRouter({
     .output(z.object({ id: z.string(), tags: z.array(z.string()) }))
     .mutation(async ({ ctx, input }) => {
       const userId = ctx.session.user.id;
-      const entity = await findWritableEntity(ctx.drizzle, input.id, userId);
+      const entity = await findEntityFor(ctx.drizzle, input.id, userId, "tags");
       if (!entity) throw notFound();
 
       await replaceOwnTags(ctx.drizzle, input.id, userId, input.tagNames);
@@ -924,10 +947,11 @@ export const entityRouter = createTRPCRouter({
       ),
     )
     .query(async ({ ctx, input }) => {
-      const entity = await findOwnedEntity(
+      const entity = await findEntityFor(
         ctx.drizzle,
         input.id,
         ctx.session.user.id,
+        "share",
       );
       if (!entity) throw notFound();
 
@@ -962,10 +986,11 @@ export const entityRouter = createTRPCRouter({
     .input(z.object({ id: z.string() }))
     .output(z.object({ id: z.string() }))
     .mutation(async ({ input, ctx }) => {
-      const entity = await findOwnedEntity(
+      const entity = await findEntityFor(
         ctx.drizzle,
         input.id,
         ctx.session.user.id,
+        "delete",
       );
       if (!entity) throw notFound();
 
@@ -1010,21 +1035,36 @@ export const entityRouter = createTRPCRouter({
     .output(z.object({ id: z.string() }))
     .mutation(async ({ input, ctx }) => {
       const userId = ctx.session?.user.id ?? "";
-      const entity = await findWritableEntity(ctx.drizzle, input.id, userId);
+      const entity = await findEntityWith(
+        ctx.drizzle,
+        input.id,
+        userId,
+        "edit",
+      );
       if (!entity) throw notFound();
-      // Who may see the entity is the owner's call, not an editor's; they can
-      // already read it, so saying so is not a leak.
-      if ("publicAccess" in input && entity.ownerId !== userId) {
+      // Checked only when it changes, so a caller echoing the parent back
+      // with a rename is not asked whether they may write into it.
+      const moving =
+        input.parentId !== undefined && input.parentId !== entity.parentId;
+      const actions: EntityAction[] = [
+        ...("title" in input ? (["rename"] as const) : []),
+        ...(input.screenShotLight !== undefined ||
+        input.screenShotDark !== undefined
+          ? (["thumbnail"] as const)
+          : []),
+        ...(moving ? (["move"] as const) : []),
+        ...("publicAccess" in input ? (["publicAccess"] as const) : []),
+      ];
+      // An editor asking for more than editing, such as who may see the
+      // entity, is refused outright; they can already read it, so saying so
+      // is not a leak.
+      const access = accessOf(entity, userId);
+      if (actions.some((action) => !may(access, action))) {
         throw new TRPCError({
           code: "FORBIDDEN",
           message: "Only the owner can change public access",
         });
       }
-
-      // Checked only when it changes, so a caller echoing the parent back
-      // with a rename is not asked whether they may write into it.
-      const moving =
-        input.parentId !== undefined && input.parentId !== entity.parentId;
       const columns = {
         ...("title" in input ? { title: input.title } : {}),
         ...("publicAccess" in input
@@ -1094,10 +1134,11 @@ export const entityRouter = createTRPCRouter({
     )
     .output(z.object({ success: z.boolean(), message: z.string() }))
     .mutation(async ({ input, ctx }) => {
-      const entity = await findOwnedEntity(
+      const entity = await findEntityFor(
         ctx.drizzle,
         input.id,
         ctx.session.user.id,
+        "share",
       );
       if (!entity) throw notFound();
 
@@ -1151,10 +1192,11 @@ export const entityRouter = createTRPCRouter({
     )
     .output(z.object({ success: z.boolean(), message: z.string() }))
     .mutation(async ({ input, ctx }) => {
-      const entity = await findOwnedEntity(
+      const entity = await findEntityFor(
         ctx.drizzle,
         input.id,
         ctx.session.user.id,
+        "share",
       );
       if (!entity) throw notFound();
 
@@ -1187,10 +1229,11 @@ export const entityRouter = createTRPCRouter({
     .input(z.object({ id: z.string(), userId: z.string() }))
     .output(z.object({ success: z.boolean(), message: z.string() }))
     .mutation(async ({ input, ctx }) => {
-      const entity = await findOwnedEntity(
+      const entity = await findEntityFor(
         ctx.drizzle,
         input.id,
         ctx.session.user.id,
+        "share",
       );
       if (!entity) throw notFound();
 

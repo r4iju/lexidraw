@@ -2,6 +2,7 @@ import "server-only";
 import type { TtsProvider, TtsSynthesizeInput } from "../types";
 import { CHIRP3_HD_VOICES } from "~/server/tts/google-voices";
 import { FatalError } from "workflow";
+import { refusal } from "./refusal";
 import env from "@packages/env";
 
 type GoogleTtsRequest = {
@@ -84,13 +85,7 @@ export function createGoogleTtsProvider(
         body: JSON.stringify(payload),
       });
       if (!res.ok) {
-        const text = await res.text();
-        console.warn("[tts][google] error", {
-          status: res.status,
-          statusText: res.statusText,
-          body: text.slice(0, 500),
-        });
-        const msg = `Google TTS error: ${res.status} ${res.statusText} ${text}`;
+        const msg = await refusal("Google", res);
         if (res.status >= 400 && res.status < 500) {
           throw new FatalError(msg);
         }

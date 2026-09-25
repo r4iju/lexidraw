@@ -59,7 +59,6 @@ export const ChatDispatchCtx = createContext<
 export const LlmChatProvider: React.FC<React.PropsWithChildren> = ({
   children,
 }) => {
-  console.log("🔄 LlmChatProvider re-rendered");
   const documentId = useEntityId();
   const prevModeRef = useRef<ChatState["mode"] | null>(null);
   const prevMessagesRef = useRef<ChatState["messages"]>([]);

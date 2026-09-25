@@ -261,6 +261,36 @@ export function ListenPlayer({
   );
 }
 
+/**
+ * The control that opened the player from `focused`, what had the focus as
+ * it opened: a menu's item goes with its menu, and a submenu with the menu it
+ * is in, so it is the button of the menu that was opened first.
+ */
+function openerOf(focused: Element | null): HTMLElement | null {
+  let opener = focused;
+  for (
+    let menu = opener?.closest("[role=menu]");
+    menu;
+    menu = opener?.closest("[role=menu]")
+  ) {
+    opener = document.getElementById(
+      menu.getAttribute("aria-labelledby") ?? "",
+    );
+  }
+  return opener instanceof HTMLElement ? opener : null;
+}
+
+/** Whether a key pressed at `target` is being typed into the page. */
+function typingOutside(target: EventTarget | null) {
+  return (
+    target instanceof HTMLElement &&
+    !target.closest("[data-listen-player]") &&
+    target.closest(
+      'input, textarea, select, [contenteditable]:not([contenteditable="false"])',
+    ) !== null
+  );
+}
+
 function DraggablePopoverContent({
   position,
   loading,
@@ -276,6 +306,8 @@ function DraggablePopoverContent({
     useDraggable({
       id: "tts-popover",
     });
+  // What opened the player, which has the focus back when it closes.
+  const opener = useRef<HTMLElement | null>(null);
 
   // Local playback index, initialized from initialIndex
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -309,9 +341,19 @@ function DraggablePopoverContent({
         side="bottom"
         align="end"
         sideOffset={8}
+        data-listen-player
+        onOpenAutoFocus={() => {
+          opener.current = openerOf(document.activeElement);
+        }}
         onEscapeKeyDown={(e) => {
-          // Prevent closing on Escape key
+          // Escape while writing is the editor's, and the audio plays on.
+          if (typingOutside(e.target)) e.preventDefault();
+        }}
+        onCloseAutoFocus={(e) => {
           e.preventDefault();
+          const back = opener.current;
+          opener.current = null;
+          if (back?.isConnected && !back.closest("[inert]")) back.focus();
         }}
         onInteractOutside={(e) => {
           // Prevent closing on outside click

@@ -34,7 +34,10 @@ export function DashboardEntities({
   const files = entities.filter((entity) => entity.entityType !== "directory");
   const item = (entity: Entity, index: number) => (
     <Drag entity={entity} key={entity.id}>
-      <Drop parentId={entity.id} disabled={entity.entityType !== "directory"}>
+      <Drop
+        folder={{ id: entity.id, access: entity.access }}
+        disabled={entity.entityType !== "directory"}
+      >
         {flex === "flex-col" ? (
           <EntityCardCol
             entity={entity}

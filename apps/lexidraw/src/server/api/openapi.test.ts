@@ -52,6 +52,16 @@ describe("openApiDocument", () => {
     expect(problems).toEqual([]);
   });
 
+  // The CLI's tests read the document from a file rather than a server, so a
+  // change to the API that leaves the file behind tests the CLI against an
+  // API that is gone. `bun run openapi:fixture` in apps/lexidraw rewrites it.
+  it("is the document the CLI's tests are written against", async () => {
+    const fixture = await Bun.file(
+      join(import.meta.dir, "../../../../cli/test/fixtures/openapi.json"),
+    ).json();
+    expect(fixture).toEqual(document);
+  });
+
   it("sends readers to where tokens are made", () => {
     expect(document.info.description).toContain("/settings#api-tokens");
   });

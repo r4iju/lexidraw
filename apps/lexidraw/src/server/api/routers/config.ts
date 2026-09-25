@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { autoSaveEnabled } from "~/lib/auto-save";
-import { TTS_DEFAULTS, TTS_PROVIDERS } from "~/app/settings/schema";
+import { listenSettings, TTS_PROVIDERS } from "~/app/settings/schema";
 import {
   type createTRPCContext,
   createTRPCRouter,
@@ -196,10 +196,6 @@ const TtsConfigSchema = z.object({
   sampleRate: z.number().int().positive().optional(),
 });
 const TtsPatchSchema = TtsConfigSchema.partial();
-// Stored configs can still name the removed "apple_say" and "xtts" providers.
-const StoredTtsConfigSchema = TtsConfigSchema.extend({
-  provider: TtsConfigSchema.shape.provider.catch(TTS_DEFAULTS.provider),
-});
 
 const ArticleConfigSchema = z.object({
   languageCode: z.string(),
@@ -208,8 +204,6 @@ const ArticleConfigSchema = z.object({
   autoGenerateAudioOnImport: z.boolean(),
 });
 const ArticlePatchSchema = ArticleConfigSchema.partial();
-
-const defaultTts: z.infer<typeof TtsConfigSchema> = { ...TTS_DEFAULTS };
 
 const defaultArticles: z.infer<typeof ArticleConfigSchema> = {
   languageCode: "en-US",
@@ -765,8 +759,7 @@ export const configRouter = createTRPCRouter({
   // --- User TTS config ---
   getTtsConfig: publicProcedure.query(async ({ ctx }) => {
     const config = await storedConfig(ctx);
-    const tts = { ...defaultTts, ...(config?.tts ?? {}) };
-    return StoredTtsConfigSchema.parse(tts);
+    return TtsConfigSchema.parse(listenSettings(config?.tts));
   }),
   updateTtsConfig: protectedProcedure
     .input(TtsPatchSchema)
@@ -775,12 +768,12 @@ export const configRouter = createTRPCRouter({
         where: eq(schema.users.id, ctx.session.user.id),
         columns: { config: true },
       });
-      const next = { ...defaultTts, ...(current?.config?.tts ?? {}), ...input };
+      const next = { ...listenSettings(current?.config?.tts), ...input };
       await ctx.drizzle
         .update(schema.users)
         .set({ config: { ...(current?.config ?? {}), tts: next } })
         .where(eq(schema.users.id, ctx.session.user.id));
-      return StoredTtsConfigSchema.parse(next);
+      return TtsConfigSchema.parse(next);
     }),
 
   // --- Article config ---

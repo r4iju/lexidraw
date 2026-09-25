@@ -135,6 +135,17 @@ describe("favouriting a file needs one you can open", () => {
       .where(eq(schema.userEntityPrefs.userId, OTHER));
     expect(prefs).toEqual([]);
   });
+
+  test("even when it changes nothing", async () => {
+    await expect(
+      callerOf(OTHER).updateUserPrefs({ entityId: "etrash_live" }),
+    ).rejects.toMatchObject(notFound);
+    const prefs = await db
+      .select()
+      .from(schema.userEntityPrefs)
+      .where(eq(schema.userEntityPrefs.userId, OTHER));
+    expect(prefs).toEqual([]);
+  });
 });
 
 test("someone a file is shared with for editing can ask for a new thumbnail", async () => {

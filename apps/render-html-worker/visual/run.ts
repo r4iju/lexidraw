@@ -6,7 +6,11 @@ import pixelmatch from "pixelmatch";
 import puppeteer from "puppeteer";
 import { appUrl } from "./app-url";
 import { checkRichBlocks } from "./check-rich-blocks";
-import { checkFrame } from "./check-frame";
+import { checkFrame, checkHomeToolbar } from "./check-frame";
+import {
+  CLOSED_SECTIONS_MARKDOWN,
+  checkClosedSections,
+} from "./check-closed-sections";
 import { checkFirstPaint } from "./check-first-paint";
 import { BANNER, checkReservedSizes } from "./check-reserved-sizes";
 import { checkExcalidrawAssets, DRAWN_LABELS } from "./check-excalidraw-assets";
@@ -58,6 +62,19 @@ async function cli(...args: string[]) {
   return JSON.parse(stdout);
 }
 
+/** The text of a document as it prints, from its PDF saved as `name`. */
+async function printedText(id: string, name: string) {
+  const pdfPath = resolve(output, name);
+  await cli("doc", "render", id, "--format", "pdf", "--out", pdfPath);
+  const pdfText = Bun.spawn(["pdftotext", pdfPath, "-"], {
+    stdout: "pipe",
+    stderr: "pipe",
+  });
+  const text = await new Response(pdfText.stdout).text();
+  if (await pdfText.exited) throw new Error(`pdftotext failed on ${name}`);
+  return text;
+}
+
 // Rebuild from source every run, so changing a fixture is enough to test it.
 const markdown = (
   await readFile(resolve(here, "fixtures/kitchen-sink.md"), "utf8")
@@ -102,6 +119,17 @@ await cli(
 
 // A throwaway empty document, for what a blank page offers.
 const empty = await cli("doc", "create", "--title", "Visual suite · empty");
+// A throwaway document of sections saved open and closed.
+const closedPath = resolve(output, "closed-sections.md");
+await writeFile(closedPath, CLOSED_SECTIONS_MARKDOWN);
+const closed = await cli(
+  "doc",
+  "create",
+  "--title",
+  "Visual suite · closed sections",
+  "--file",
+  closedPath,
+);
 // A throwaway document with a drawing, a photo and a diagram near the top,
 // none measured yet, as a document written through the API has them.
 const sized = await cli("doc", "create", "--title", "Visual suite · sizes");
@@ -343,6 +371,7 @@ try {
     emptyId: empty.id,
     drawingId: drawing.id,
   });
+  await checkHomeToolbar(page);
   await checkFirstPaint(page, {
     fixtureId,
     emptyId: empty.id,
@@ -351,6 +380,10 @@ try {
   await checkEditorControls(page, fixtureId, output);
   await checkOverlays(page, fixtureId, output);
   await checkReservedSizes(page, { sizedId: sized.id, emptyId: empty.id });
+  await checkClosedSections(page, {
+    closedId: closed.id,
+    printedText: (id) => printedText(id, "closed-sections.pdf"),
+  });
   await checkExcalidrawAssets(page, drawn.id);
   await checkMotion(page, fixtureId);
   await checkRenderReady(page, lazy);
@@ -358,20 +391,14 @@ try {
   await browser.close();
   await cli("doc", "delete", empty.id);
   await cli("doc", "delete", sized.id);
+  await cli("doc", "delete", closed.id);
   await cli("doc", "delete", drawn.id);
   await cli("drawing", "delete", drawing.id);
   for (const { id } of lazy) await cli("doc", "delete", id);
 }
 
-const pdfPath = resolve(output, "kitchen-sink.pdf");
-await cli("doc", "render", fixtureId, "--format", "pdf", "--out", pdfPath);
-const pdfText = Bun.spawn(["pdftotext", pdfPath, "-"], {
-  stdout: "pipe",
-  stderr: "pipe",
-});
-const text = await new Response(pdfText.stdout).text();
+const text = await printedText(fixtureId, "kitchen-sink.pdf");
 if (
-  (await pdfText.exited) ||
   !text.includes("Osaka") ||
   !text.includes("3 votes total") ||
   text.includes("Skip to content")

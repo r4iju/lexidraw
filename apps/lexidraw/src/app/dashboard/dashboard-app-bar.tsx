@@ -3,13 +3,14 @@
 import { EditableTitle } from "~/components/app-bar/editable-title";
 import { AppBar, Crumb, CrumbLink } from "~/components/app-bar/app-bar";
 import type { AppBarAccount } from "~/components/app-bar/account-menu";
+import type { EntityAccess } from "~/lib/entity-access";
 import { Drop } from "./drop";
 
 type Folder = {
   id: string;
   title: string;
   /** The ones above it the viewer can open, from the top down, without Home. */
-  ancestors: { id: string; title: string }[];
+  ancestors: { id: string; title: string; access: EntityAccess }[];
   canRename: boolean;
 };
 
@@ -32,14 +33,14 @@ export function DashboardAppBar({
     <AppBar
       account={account}
       wrapHome={
-        folder ? (home) => <Drop parentId={null}>{home}</Drop> : undefined
+        folder ? (home) => <Drop folder={null}>{home}</Drop> : undefined
       }
       crumbs={
         folder && (
           <>
             {folder.ancestors.map((ancestor) => (
               <Crumb key={ancestor.id}>
-                <Drop parentId={ancestor.id}>
+                <Drop folder={ancestor}>
                   <CrumbLink href={`/dashboard/${ancestor.id}${suffix}`}>
                     {ancestor.title || "Untitled"}
                   </CrumbLink>

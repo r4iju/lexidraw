@@ -5,7 +5,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { v4 as uuidv4 } from "uuid";
+import { uploadGeneratedImage } from "~/lib/media-upload";
 import { toast } from "sonner";
 import { api } from "~/trpc/react";
 import { useImageUpload } from "~/hooks/use-media-upload";
@@ -51,11 +51,6 @@ export const ImageGenerationProvider = ({
   const [isLoading, setIsLoading] = useState(false);
   const isConfigured = !!genStatus?.isConfigured;
 
-  const sanitizeFilename = useCallback(
-    (name: string) => name.replace(/[^a-z0-9_\-.]/gi, "_").substring(0, 50),
-    [],
-  );
-
   const generateImageData = useCallback(
     async (
       prompt: string,
@@ -95,16 +90,9 @@ export const ImageGenerationProvider = ({
   );
 
   const uploadImageData = useCallback(
-    async (imageData: Uint8Array, mimeType: string, prompt: string) => {
-      const fileName = `${sanitizeFilename(prompt)}_${uuidv4()}.png`;
-      toast.info("Uploading Image…", { description: fileName });
-      const url = await uploadImage(
-        new File([new Uint8Array(imageData)], fileName, { type: mimeType }),
-      );
-      if (url) toast.success("Upload Successful", { description: fileName });
-      return url;
-    },
-    [uploadImage, sanitizeFilename],
+    (imageData: Uint8Array, mimeType: string, prompt: string) =>
+      uploadGeneratedImage(imageData, mimeType, prompt, uploadImage),
+    [uploadImage],
   );
 
   return (

@@ -151,8 +151,7 @@ export default function InlineImagePlugin(): React.JSX.Element | null {
       target &&
       target instanceof HTMLElement &&
       !target.closest("code, span.editor-image") &&
-      target.parentElement &&
-      target.parentElement.closest("div.ContentEditable__root")
+      target.parentElement?.closest("div.ContentEditable__root")
     );
   }, []);
 

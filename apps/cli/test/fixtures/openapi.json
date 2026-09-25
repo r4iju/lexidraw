@@ -376,6 +376,25 @@
           },
           {
             "in": "query",
+            "name": "onlyArchived",
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "string",
+                  "const": "true"
+                },
+                {
+                  "type": "string",
+                  "const": "false"
+                }
+              ]
+            }
+          },
+          {
+            "in": "query",
             "name": "entityTypes",
             "schema": {
               "anyOf": [
@@ -461,8 +480,9 @@
                           }
                         ]
                       },
-                      "isOwner": {
-                        "type": "boolean"
+                      "access": {
+                        "type": "string",
+                        "enum": ["read", "edit", "owner"]
                       },
                       "publicAccess": {
                         "type": "string",
@@ -524,7 +544,7 @@
                       "thumbnailStatus",
                       "thumbnailVersion",
                       "thumbnailUpdatedAt",
-                      "isOwner",
+                      "access",
                       "publicAccess",
                       "parentId",
                       "favoritedAt",
@@ -1154,6 +1174,26 @@
                             "type": "null"
                           }
                         ]
+                      },
+                      "folderTitle": {
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "snippet": {
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
                       }
                     },
                     "required": [
@@ -1163,7 +1203,9 @@
                       "screenShotLight",
                       "screenShotDark",
                       "updatedAt",
-                      "parentId"
+                      "parentId",
+                      "folderTitle",
+                      "snippet"
                     ],
                     "additionalProperties": false
                   }
@@ -2024,6 +2066,13 @@
                         },
                         "content": {
                           "type": "string"
+                        },
+                        "losses": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          },
+                          "description": "What this markdown leaves out of the stored document, and what a replace from it keeps or drops. Empty when the markdown carries everything."
                         }
                       },
                       "required": [
@@ -2033,7 +2082,8 @@
                         "updatedAt",
                         "tags",
                         "format",
-                        "content"
+                        "content",
+                        "losses"
                       ],
                       "additionalProperties": false
                     },
@@ -2065,6 +2115,13 @@
                         },
                         "content": {
                           "type": "string"
+                        },
+                        "losses": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          },
+                          "description": "What this markdown leaves out of the stored document, and what a replace from it keeps or drops. Empty when the markdown carries everything."
                         }
                       },
                       "required": [
@@ -2074,7 +2131,8 @@
                         "updatedAt",
                         "tags",
                         "format",
-                        "content"
+                        "content",
+                        "losses"
                       ],
                       "additionalProperties": false
                     },
@@ -2243,9 +2301,20 @@
                     "id": {
                       "type": "string"
                     },
+                    "title": {
+                      "type": "string",
+                      "description": "The title after the write: front matter sets it, and so does a leading # heading on an untitled document."
+                    },
                     "updatedAt": {
                       "format": "date-time",
                       "type": "string"
+                    },
+                    "notes": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "description": "How the markdown was read, where the writer may have meant something else: what front matter set, a leading heading that became the title, callout aliases rewritten, image attributes not kept, footnote markers without a note, tables that will scroll on phones. Empty when nothing needs saying."
                     },
                     "blocks": {
                       "type": "number"
@@ -2259,7 +2328,9 @@
                   },
                   "required": [
                     "id",
+                    "title",
                     "updatedAt",
+                    "notes",
                     "blocks",
                     "restoredPlaceholders",
                     "removedPlaceholders"
@@ -2394,15 +2465,32 @@
                     "id": {
                       "type": "string"
                     },
+                    "title": {
+                      "type": "string",
+                      "description": "The title after the write: front matter sets it, and so does a leading # heading on an untitled document."
+                    },
                     "updatedAt": {
                       "format": "date-time",
                       "type": "string"
+                    },
+                    "notes": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "description": "How the markdown was read, where the writer may have meant something else: what front matter set, a leading heading that became the title, callout aliases rewritten, image attributes not kept, footnote markers without a note, tables that will scroll on phones. Empty when nothing needs saying."
                     },
                     "appendedBlocks": {
                       "type": "number"
                     }
                   },
-                  "required": ["id", "updatedAt", "appendedBlocks"],
+                  "required": [
+                    "id",
+                    "title",
+                    "updatedAt",
+                    "notes",
+                    "appendedBlocks"
+                  ],
                   "additionalProperties": false
                 }
               }
@@ -2549,9 +2637,20 @@
                     "id": {
                       "type": "string"
                     },
+                    "title": {
+                      "type": "string",
+                      "description": "The title after the write: front matter sets it, and so does a leading # heading on an untitled document."
+                    },
                     "updatedAt": {
                       "format": "date-time",
                       "type": "string"
+                    },
+                    "notes": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "description": "How the markdown was read, where the writer may have meant something else: what front matter set, a leading heading that became the title, callout aliases rewritten, image attributes not kept, footnote markers without a note, tables that will scroll on phones. Empty when nothing needs saying."
                     },
                     "insertedBlocks": {
                       "type": "number"
@@ -2562,7 +2661,9 @@
                   },
                   "required": [
                     "id",
+                    "title",
                     "updatedAt",
+                    "notes",
                     "insertedBlocks",
                     "blockIndex"
                   ],
@@ -2648,7 +2749,7 @@
       "get": {
         "operationId": "documents-render",
         "summary": "Render a document as PNG or PDF",
-        "description": "Returns the file in the JSON body, base64-encoded in `data`. PNG defaults to width 1280 and light theme; width and theme select its viewport. PNGs over 16 megapixels are refused. `paper` and `orientation` set the page; the document prints light whatever theme its reader uses. A file over 3 MB encoded is refused with 413, and 503 means this server has no page renderer to print with.",
+        "description": "Returns the file in the JSON body, base64-encoded in `data`. PNG defaults to width 1280, light theme and a mouse; width, theme and `touch` (a touch screen, as a phone or tablet has) select its viewport. A PNG is as wide as the page lays out, so one wider than `width` shows the page scrolls sideways. PNGs over 16 megapixels are refused. `paper` and `orientation` set the page; the document prints light whatever theme its reader uses. A file over 3 MB encoded is refused with 413, and 503 means this server has no page renderer to print with.",
         "tags": ["documents"],
         "security": [
           {
@@ -2679,7 +2780,7 @@
             "schema": {
               "default": 1280,
               "type": "integer",
-              "minimum": 1,
+              "minimum": 320,
               "maximum": 4096
             }
           },
@@ -2690,6 +2791,25 @@
               "default": "light",
               "type": "string",
               "enum": ["light", "dark"]
+            }
+          },
+          {
+            "in": "query",
+            "name": "touch",
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "string",
+                  "const": "true"
+                },
+                {
+                  "type": "string",
+                  "const": "false"
+                }
+              ]
             }
           },
           {

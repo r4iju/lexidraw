@@ -28,6 +28,7 @@ import FileInput, { UploadingNote } from "~/components/ui/file-input";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
 import { useImageUpload } from "~/hooks/use-media-upload";
+import { insertUploads } from "~/lib/media-upload";
 import { usePickedUpload } from "~/hooks/use-picked-upload";
 import { useEntityId } from "~/hooks/use-entity-id";
 import { INSERT_IMAGE_COMMAND } from "./commands";
@@ -527,6 +528,14 @@ export default function ImagePlugin({
       return null;
     };
 
+    const insertInline = (src: string, file: File) =>
+      editor.dispatchCommand(INSERT_INLINE_IMAGE_COMMAND, {
+        src,
+        altText: (file.name || "image").replace(/\.[^/.]+$/, ""),
+        position: "left",
+        showCaption: false,
+      });
+
     const unregisterDragOver = editor.registerCommand<DragEvent>(
       DRAGOVER_COMMAND,
       (event) => {
@@ -558,29 +567,7 @@ export default function ImagePlugin({
         if (range) rangeSelection.applyDOMRange(range);
         $setSelection(rangeSelection);
 
-        void (async () => {
-          for (const file of imageFiles) {
-            try {
-              const url = await uploadImage(file);
-              if (!url) continue;
-              const altText = (file.name || "image").replace(/\.[^/.]+$/, "");
-              editor.dispatchCommand(INSERT_INLINE_IMAGE_COMMAND, {
-                src: url,
-                altText,
-                position: "left",
-                showCaption: false,
-              });
-            } catch (err) {
-              const msg = err instanceof Error ? err.message : "Unknown error";
-              toast.error("Upload failed", { description: msg });
-            }
-          }
-          toast.success(
-            imageFiles.length > 1
-              ? `Inserted ${imageFiles.length} images`
-              : "Image inserted",
-          );
-        })();
+        void insertUploads(imageFiles, uploadImage, insertInline);
         return true;
       },
       COMMAND_PRIORITY_LOW,
@@ -603,25 +590,7 @@ export default function ImagePlugin({
             const file = item.getAsFile();
             if (!file) continue;
             event.preventDefault();
-            toast.info("Uploading image…");
-            void (async () => {
-              try {
-                const url = await uploadImage(file);
-                if (!url) return;
-                const altText = (file.name || "image").replace(/\.[^/.]+$/, "");
-                editor.dispatchCommand(INSERT_INLINE_IMAGE_COMMAND, {
-                  src: url,
-                  altText,
-                  position: "left",
-                  showCaption: false,
-                });
-                toast.success("Image inserted");
-              } catch (err) {
-                const msg =
-                  err instanceof Error ? err.message : "Unknown error";
-                toast.error("Upload failed", { description: msg });
-              }
-            })();
+            void insertUploads([file], uploadImage, insertInline);
             return true;
           }
         }
