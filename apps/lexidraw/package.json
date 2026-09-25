@@ -4,8 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "../../build.sh; node scripts/check-server-externals.mjs && next build --turbopack",
-    "dev": "next dev --hostname 0.0.0.0 --port 3025 --turbopack",
+    "build": "../../build.sh; node scripts/check-server-externals.mjs && bun scripts/excalidraw-assets.ts && next build --turbopack",
+    "dev": "bun scripts/excalidraw-assets.ts && next dev --hostname 0.0.0.0 --port 3025 --turbopack",
     "fonts:sync": "bun run scripts/sync-excalidraw-fonts.ts",
     "lint": "bun scripts/check-design-tokens.ts && bun x @biomejs/biome check .",
     "test:ts": "tsgo --noEmit",

@@ -9,6 +9,7 @@ import { checkRichBlocks } from "./check-rich-blocks";
 import { checkFrame } from "./check-frame";
 import { checkFirstPaint } from "./check-first-paint";
 import { BANNER, checkReservedSizes } from "./check-reserved-sizes";
+import { checkExcalidrawAssets, DRAWN_LABELS } from "./check-excalidraw-assets";
 import { checkMedia } from "./check-media";
 import { checkPage } from "./check-page";
 import { checkTables } from "./check-tables";
@@ -182,6 +183,80 @@ await cli(
   "--json",
   await readFile(sizedPath, "utf8"),
 );
+// A throwaway document embedding a drawing with a label in each of two of
+// Excalidraw's fonts.
+const drawn = await cli("doc", "create", "--title", "Visual suite · drawn");
+const drawnPath = resolve(output, "drawn.json");
+await writeFile(
+  drawnPath,
+  JSON.stringify({
+    elements: JSON.stringify({
+      root: {
+        ...emptyRoot,
+        children: [
+          paragraph("A drawing with words in it."),
+          {
+            type: "excalidraw",
+            version: 1,
+            width: "inherit",
+            height: "inherit",
+            data: JSON.stringify({
+              elements: DRAWN_LABELS.map((label, index) => ({
+                id: `visual-suite-label-${index}`,
+                type: "text",
+                x: 0,
+                y: index * 50,
+                width: 280,
+                height: 35,
+                angle: 0,
+                strokeColor: "#1e1e1e",
+                backgroundColor: "transparent",
+                fillStyle: "solid",
+                strokeWidth: 2,
+                strokeStyle: "solid",
+                roughness: 1,
+                opacity: 100,
+                groupIds: [],
+                frameId: null,
+                roundness: null,
+                seed: index + 1,
+                version: 1,
+                versionNonce: index + 1,
+                isDeleted: false,
+                boundElements: null,
+                updated: 1,
+                link: null,
+                locked: false,
+                text: label,
+                originalText: label,
+                fontSize: 28,
+                // Excalifont, then Nunito.
+                fontFamily: index === 0 ? 5 : 6,
+                textAlign: "left",
+                verticalAlign: "top",
+                containerId: null,
+                autoResize: true,
+                lineHeight: 1.25,
+              })),
+              files: {},
+              appState: {},
+            }),
+          },
+        ],
+      },
+    }),
+    appState: JSON.stringify({ defaultFontFamily: null, lang: null }),
+    ifUnmodifiedSince: (await cli("doc", "get", drawn.id, "--format", "json"))
+      .updatedAt,
+  }),
+);
+await cli(
+  "api",
+  "PUT",
+  `/entities/${drawn.id}`,
+  "--json",
+  await readFile(drawnPath, "utf8"),
+);
 // A throwaway drawing whose one shape sits far off the first screen.
 const shapesPath = resolve(output, "drawing.json");
 await writeFile(
@@ -254,10 +329,12 @@ try {
   await checkEditorControls(page, fixtureId, output);
   await checkOverlays(page, fixtureId, output);
   await checkReservedSizes(page, { sizedId: sized.id, emptyId: empty.id });
+  await checkExcalidrawAssets(page, drawn.id);
 } finally {
   await browser.close();
   await cli("doc", "delete", empty.id);
   await cli("doc", "delete", sized.id);
+  await cli("doc", "delete", drawn.id);
   await cli("drawing", "delete", drawing.id);
 }
 

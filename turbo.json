@@ -72,6 +72,7 @@
         ".next/**",
         "!.next/cache/**",
         "dist/**",
+        "public/excalidraw-assets/**",
         "packages/lexical/packages/*/dist/**"
       ]
     },

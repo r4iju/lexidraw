@@ -35,6 +35,7 @@
       "!**/dist",
       "!**/coverage",
       "!apps/lexidraw/public/scripts",
+      "!apps/lexidraw/public/excalidraw-assets",
       "!apps/lexidraw/src/styles/globals.css",
       "!postcss.config.js",
       "!tailwind.config.cjs",
