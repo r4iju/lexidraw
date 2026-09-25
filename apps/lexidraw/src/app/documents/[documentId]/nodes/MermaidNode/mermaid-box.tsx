@@ -35,11 +35,5 @@ export const DIAGRAM_FRAME = "group/node relative inline-block max-w-full";
  * drawn at last time, or 16:9 before then.
  */
 export function DiagramLoading(box: DiagramBox) {
-  return (
-    <BlockLoading
-      size={box.natural}
-      className="document-diagram"
-      style={diagramStyle(box)}
-    />
-  );
+  return <BlockLoading size={box.natural} style={diagramStyle(box)} />;
 }

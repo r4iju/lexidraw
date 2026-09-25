@@ -100,8 +100,8 @@ await cli(
 
 // A throwaway empty document, for what a blank page offers.
 const empty = await cli("doc", "create", "--title", "Visual suite · empty");
-// A throwaway document with a photo and a diagram near the top, neither
-// measured yet, as a document written through the API has them.
+// A throwaway document with a drawing, a photo and a diagram near the top,
+// none measured yet, as a document written through the API has them.
 const sized = await cli("doc", "create", "--title", "Visual suite · sizes");
 const paragraph = (value: string) => ({
   children: [
@@ -131,6 +131,54 @@ const emptyRoot = {
   type: "root",
   version: 1,
 };
+// A drawing with a label in each of two of Excalidraw's fonts.
+const labelledDrawing = {
+  type: "excalidraw",
+  version: 1,
+  width: "inherit",
+  height: "inherit",
+  data: JSON.stringify({
+    elements: DRAWN_LABELS.map((label, index) => ({
+      id: `visual-suite-label-${index}`,
+      type: "text",
+      x: 0,
+      y: index * 50,
+      width: 280,
+      height: 35,
+      angle: 0,
+      strokeColor: "#1e1e1e",
+      backgroundColor: "transparent",
+      fillStyle: "solid",
+      strokeWidth: 2,
+      strokeStyle: "solid",
+      roughness: 1,
+      opacity: 100,
+      groupIds: [],
+      frameId: null,
+      roundness: null,
+      seed: index + 1,
+      version: 1,
+      versionNonce: index + 1,
+      isDeleted: false,
+      boundElements: null,
+      updated: 1,
+      link: null,
+      locked: false,
+      text: label,
+      originalText: label,
+      fontSize: 28,
+      // Excalifont, then Nunito.
+      fontFamily: index === 0 ? 5 : 6,
+      textAlign: "left",
+      verticalAlign: "top",
+      containerId: null,
+      autoResize: true,
+      lineHeight: 1.25,
+    })),
+    files: {},
+    appState: {},
+  }),
+};
 const sizedPath = resolve(output, "sized.json");
 await writeFile(
   sizedPath,
@@ -139,6 +187,8 @@ await writeFile(
       root: {
         ...emptyRoot,
         children: [
+          paragraph("Before the drawing."),
+          labelledDrawing,
           paragraph("Before the photo."),
           {
             ...paragraph(""),
@@ -183,8 +233,7 @@ await cli(
   "--json",
   await readFile(sizedPath, "utf8"),
 );
-// A throwaway document embedding a drawing with a label in each of two of
-// Excalidraw's fonts.
+// A throwaway document embedding the labelled drawing.
 const drawn = await cli("doc", "create", "--title", "Visual suite · drawn");
 const drawnPath = resolve(output, "drawn.json");
 await writeFile(
@@ -193,56 +242,7 @@ await writeFile(
     elements: JSON.stringify({
       root: {
         ...emptyRoot,
-        children: [
-          paragraph("A drawing with words in it."),
-          {
-            type: "excalidraw",
-            version: 1,
-            width: "inherit",
-            height: "inherit",
-            data: JSON.stringify({
-              elements: DRAWN_LABELS.map((label, index) => ({
-                id: `visual-suite-label-${index}`,
-                type: "text",
-                x: 0,
-                y: index * 50,
-                width: 280,
-                height: 35,
-                angle: 0,
-                strokeColor: "#1e1e1e",
-                backgroundColor: "transparent",
-                fillStyle: "solid",
-                strokeWidth: 2,
-                strokeStyle: "solid",
-                roughness: 1,
-                opacity: 100,
-                groupIds: [],
-                frameId: null,
-                roundness: null,
-                seed: index + 1,
-                version: 1,
-                versionNonce: index + 1,
-                isDeleted: false,
-                boundElements: null,
-                updated: 1,
-                link: null,
-                locked: false,
-                text: label,
-                originalText: label,
-                fontSize: 28,
-                // Excalifont, then Nunito.
-                fontFamily: index === 0 ? 5 : 6,
-                textAlign: "left",
-                verticalAlign: "top",
-                containerId: null,
-                autoResize: true,
-                lineHeight: 1.25,
-              })),
-              files: {},
-              appState: {},
-            }),
-          },
-        ],
+        children: [paragraph("A drawing with words in it."), labelledDrawing],
       },
     }),
     appState: JSON.stringify({ defaultFontFamily: null, lang: null }),

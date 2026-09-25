@@ -6,6 +6,7 @@ import { signInToDev } from "./check-typography";
 
 const CONTENT = '[id^="lexical-content-"]';
 const IMAGE = 'img[alt="A banner"]';
+const DRAWING = "img.excalidraw-embed";
 export const BANNER = "/images/banner.png";
 
 type Box = { left: number; top: number; width: number; height: number };
@@ -83,8 +84,8 @@ async function box(page: Page, selector: string): Promise<Box> {
   return found;
 }
 
-/** Waits for the image to be drawn, not only fetched. */
-async function imageShown(page: Page) {
+/** Waits for an image to be drawn, not only fetched. */
+async function imageShown(page: Page, selector = IMAGE) {
   await page.waitForFunction(
     (selector) => {
       const image = document.querySelector<HTMLImageElement>(selector);
@@ -93,13 +94,13 @@ async function imageShown(page: Page) {
       );
     },
     { timeout: 20_000 },
-    IMAGE,
+    selector,
   );
 }
 
 /**
- * Media keeps its place while it loads: an image, and a diagram, reserve the
- * box they will fill, from the natural size stored the first time they
+ * Media keeps its place while it loads: an image, a diagram and a drawing
+ * reserve the box they will fill, from the natural size stored the first time they
  * loaded, or 16:9 before anyone has seen them; and a button keeps its width
  * while it shows a spinner.
  */
@@ -130,6 +131,7 @@ export async function checkReservedSizes(
     first.release();
     await imageShown(first.tab);
     await first.tab.waitForSelector("img[data-mermaid]");
+    await imageShown(first.tab, DRAWING);
     // The measurement saves like an edit, after auto-save's pause.
     await pause(2500);
     await first.tab.close();
@@ -146,6 +148,7 @@ export async function checkReservedSizes(
       const reserved = await box(slow.tab, '.editor-image [aria-busy="true"]');
       slow.release();
       await imageShown(slow.tab);
+      await imageShown(slow.tab, DRAWING);
       await pause(300);
       const shown = await box(slow.tab, IMAGE);
       for (const key of ["left", "top", "width", "height"] as const)

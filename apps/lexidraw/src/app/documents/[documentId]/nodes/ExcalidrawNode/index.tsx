@@ -1,11 +1,12 @@
 import {
   $getFigure,
+  $getNaturalSize,
   ExcalidrawNode as HeadlessExcalidrawNode,
 } from "@packages/lexical-nodes";
 import * as React from "react";
 import { Suspense } from "react";
-import { BlockLoading, storedSize } from "../common/BlockLoading";
 import { FigureFrame } from "../common/Figure";
+import { DRAWING_FRAME, DrawingLoading } from "./excalidraw-box";
 
 export type { SerializedExcalidrawNode } from "@packages/lexical-nodes";
 
@@ -18,11 +19,20 @@ export class ExcalidrawNode extends HeadlessExcalidrawNode {
   static importJSON = HeadlessExcalidrawNode.importJSON;
 
   decorate(): React.JSX.Element {
+    const natural = $getNaturalSize(this);
     return (
       <FigureFrame nodeKey={this.getKey()} figure={$getFigure(this)}>
         <Suspense
           fallback={
-            <BlockLoading size={storedSize(this.__width, this.__height)} />
+            <div className={DRAWING_FRAME}>
+              <div className="relative inline-block max-w-full">
+                <DrawingLoading
+                  width={this.__width}
+                  height={this.__height}
+                  natural={natural}
+                />
+              </div>
+            </div>
           }
         >
           <ExcalidrawComponent
@@ -31,6 +41,7 @@ export class ExcalidrawNode extends HeadlessExcalidrawNode {
             defaultOpen={this.__justInserted}
             width={this.__width}
             height={this.__height}
+            natural={natural}
           />
         </Suspense>
       </FigureFrame>
