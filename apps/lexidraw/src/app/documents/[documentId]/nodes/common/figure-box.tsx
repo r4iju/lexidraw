@@ -4,7 +4,10 @@ import { BlockLoading } from "./BlockLoading";
 
 export type Dimension = number | "inherit";
 
-/** Where a drawn figure goes: the size it was given, and the one it was last drawn at. */
+/**
+ * Where a drawn figure goes: the size it was given, and the one it was last
+ * drawn at, from which its shape is known before its picture decodes.
+ */
 export type FigureBox = {
   width: Dimension;
   height: Dimension;
@@ -16,8 +19,7 @@ export const FIGURE_FRAME = "group/node relative inline-block max-w-full";
 
 /**
  * Where a drawing sits: the width it was given, or a quarter wider than it
- * exports at, and never past the column; its shape is known before its
- * picture decodes.
+ * exports at, and never past the column.
  */
 export function drawingStyle({
   width,
@@ -41,8 +43,7 @@ export function drawingStyle({
 
 /**
  * Where a diagram sits: the width it was given or drawn at, never below four
- * fifths of it (a smaller one scrolls instead), and never past the column;
- * its shape is known before its picture decodes.
+ * fifths of it (a smaller one scrolls instead), and never past the column.
  */
 export function diagramStyle({
   width,

@@ -5,9 +5,8 @@
  * Generated rather than checked in, so a bump cannot leave them behind; `dev`
  * and `build` run it first.
  *
- * The worker is the package's own module and every chunk it imports: bundled,
- * it cannot start, because Turbopack gives it a `file://` address, so the
- * bundled copy is pointed here instead (`excalidraw-worker-loader.cjs`).
+ * The worker is the package's own module and every chunk it imports, which
+ * the bundled copy is pointed at (`excalidraw-worker-loader.cjs` says why).
  */
 import { cp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";

@@ -79,6 +79,7 @@ export const SidebarWrapper = forwardRef<HTMLElement, SidebarWrapperProps>(
     // Closing plays the way out first; the page unmounts it once it has.
     const [closing, setClosing] = useState(false);
     const close = useCallback(() => setClosing(true), []);
+    // Waits on the browser's animations of the sidebar's way out.
     useEffect(() => {
       if (!closing) return;
       let cancelled = false;

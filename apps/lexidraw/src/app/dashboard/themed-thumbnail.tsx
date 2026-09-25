@@ -98,6 +98,7 @@ function scroller(element: Element) {
 function useNear(initially: boolean) {
   const [near, setNear] = useState(initially);
   const sentinel = useRef<HTMLSpanElement>(null);
+  // Watches the browser's intersection observer until the sentinel comes near.
   useEffect(() => {
     const target = sentinel.current;
     if (near || !target) return;
