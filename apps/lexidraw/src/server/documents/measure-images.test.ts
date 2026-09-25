@@ -129,4 +129,36 @@ describe("a document's pictures are measured as it is written", () => {
     await measureImages(elements, { probe, failures, now: () => now });
     expect(asked).toHaveLength(2);
   });
+
+  test("only the latest failures are remembered", async () => {
+    const failures = new Map<string, number>();
+    const probe = async () => undefined;
+    for (const name of ["a", "b", "c", "d", "e"])
+      await measureImages(
+        documentOf(paragraph(image(`https://images.example/${name}.png`))),
+        { probe, failures, remember: 3 },
+      );
+    expect([...failures.keys()]).toEqual([
+      "https://images.example/c.png",
+      "https://images.example/d.png",
+      "https://images.example/e.png",
+    ]);
+  });
+
+  test("an address longer than a sane URL is neither asked for nor remembered", async () => {
+    const failures = new Map<string, number>();
+    const asked: string[] = [];
+    const long = `https://images.example/${"a".repeat(2048)}.png`;
+    const elements = documentOf(paragraph(image(long)));
+    const written = await measureImages(elements, {
+      failures,
+      probe: async (src) => {
+        asked.push(src);
+        return undefined;
+      },
+    });
+    expect(written).toBe(elements);
+    expect(asked).toEqual([]);
+    expect(failures.size).toBe(0);
+  });
 });

@@ -13,10 +13,13 @@ type Options = {
   /** How many addresses one write measures; the rest wait for a reader. */
   limit?: number;
   failures?: Map<string, number>;
+  /** How many failed addresses are kept; the oldest go first. */
+  remember?: number;
   now?: () => number;
 };
 
 const RETRY_AFTER = 10 * 60 * 1000;
+const LONGEST_URL = 2048;
 const recentFailures = new Map<string, number>();
 
 /**
@@ -33,6 +36,7 @@ export async function measureImages(
     probe = probeImageSize,
     limit = 8,
     failures = recentFailures,
+    remember = 1000,
     now = Date.now,
   }: Options = {},
 ): Promise<string> {
@@ -49,6 +53,7 @@ export async function measureImages(
     if (
       node.type === "image" &&
       typeof node.src === "string" &&
+      node.src.length <= LONGEST_URL &&
       /^https?:\/\//i.test(node.src) &&
       !measured(node)
     )
@@ -70,7 +75,12 @@ export async function measureImages(
   sources.forEach((src, index) => {
     const size = sizes[index];
     if (!size) {
+      failures.delete(src);
       failures.set(src, now() + RETRY_AFTER);
+      for (const oldest of failures.keys()) {
+        if (failures.size <= remember) break;
+        failures.delete(oldest);
+      }
       return;
     }
     for (const node of unmeasured.get(src) ?? []) {
