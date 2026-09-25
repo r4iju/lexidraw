@@ -628,3 +628,106 @@ describe("a document rendered to PDF", () => {
     expect(rendered).toEqual([]);
   });
 });
+
+describe("who a file is shared with, over the API", () => {
+  const SHAREE_TOKENS = {
+    reader: "lxd_rest_sharee_reader",
+    editor: "lxd_rest_sharee_editor",
+  } as const;
+
+  beforeAll(async () => {
+    await db.insert(schema.users).values([
+      {
+        id: "rest_sharee_reader",
+        name: "Sharee reader",
+        email: "rest-sharee-reader@example.test",
+      },
+      {
+        id: "rest_sharee_editor",
+        name: "Sharee editor",
+        email: "rest-sharee-editor@example.test",
+      },
+    ]);
+    await db.insert(schema.apiTokens).values([
+      {
+        id: "tok_rest_sharee_reader",
+        userId: "rest_sharee_reader",
+        name: "read",
+        tokenHash: hashApiToken(SHAREE_TOKENS.reader),
+        scope: "read",
+      },
+      {
+        id: "tok_rest_sharee_editor",
+        userId: "rest_sharee_editor",
+        name: "write",
+        tokenHash: hashApiToken(SHAREE_TOKENS.editor),
+        scope: "write",
+      },
+    ]);
+    await db
+      .insert(schema.entities)
+      .values(row("rest_shared", "Shared plan", "{}", "document"));
+    await db.insert(schema.sharedEntities).values([
+      {
+        id: "share_rest_shared_reader",
+        entityId: "rest_shared",
+        userId: "rest_sharee_reader",
+        accessLevel: "READ",
+      },
+      {
+        id: "share_rest_shared_editor",
+        entityId: "rest_shared",
+        userId: "rest_sharee_editor",
+        accessLevel: "EDIT",
+      },
+    ]);
+  });
+
+  async function get(token: string, path: string) {
+    const response = await GET(
+      new Request(`http://lexidraw.test/api/v1${path}`, {
+        headers: { authorization: `Bearer ${token}` },
+      }),
+    );
+    return { response, body: (await response.json()) as Json };
+  }
+
+  test("is listed to its owner", async () => {
+    const { response, body } = await get(
+      WRITE_TOKEN,
+      "/entities/rest_shared/shares",
+    );
+    expect(response.status).toBe(200);
+    expect((body as Json[]).map((share) => share.email).toSorted()).toEqual([
+      "rest-sharee-editor@example.test",
+      "rest-sharee-reader@example.test",
+    ]);
+  });
+
+  test.each(Object.entries(SHAREE_TOKENS))(
+    "is not found for someone it is shared with (%s), as for a stranger",
+    async (_role, token) => {
+      const { response, body } = await get(
+        token,
+        "/entities/rest_shared/shares",
+      );
+      expect(response.status).toBe(404);
+      expect(body.message).toBe("Entity not found");
+    },
+  );
+
+  test("a listing says whether each item is the caller's, and not whose", async () => {
+    const shared = await get(SHAREE_TOKENS.reader, "/entities");
+    expect(shared.response.status).toBe(200);
+    expect(
+      (shared.body as Json[]).map((item) => [item.id, item.isOwner]),
+    ).toEqual([["rest_shared", false]]);
+    const owned = await get(WRITE_TOKEN, "/entities");
+    expect(
+      (owned.body as Json[]).find((item) => item.id === "rest_shared")?.isOwner,
+    ).toBe(true);
+    for (const listing of [shared.body, owned.body]) {
+      expect(JSON.stringify(listing)).not.toContain(OWNER);
+    }
+  });
+});

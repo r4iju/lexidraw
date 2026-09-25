@@ -93,7 +93,9 @@ const entityListItem = z.object({
   thumbnailStatus: z.enum(["pending", "ready", "error"]).nullable(),
   thumbnailVersion: z.string().nullable(),
   thumbnailUpdatedAt: isoDate.nullable(),
-  userId: z.string(),
+  // Whether it is the caller's, rather than whose it is: someone it was
+  // shared with has no use for the owner's id.
+  isOwner: z.boolean(),
   publicAccess: z.enum(PublicAccess),
   parentId: z.string().nullable(),
   favoritedAt: isoDate.nullable(),
@@ -639,7 +641,7 @@ export const entityRouter = createTRPCRouter({
           thumbnailStatus: schema.entities.thumbnailStatus,
           thumbnailVersion: schema.entities.thumbnailVersion,
           thumbnailUpdatedAt: schema.entities.thumbnailUpdatedAt,
-          userId: schema.entities.userId,
+          ownerId: schema.entities.userId,
           publicAccess: schema.entities.publicAccess,
           parentId: schema.entities.parentId,
           favoritedAt: schema.userEntityPrefs.favoritedAt,
@@ -709,10 +711,13 @@ export const entityRouter = createTRPCRouter({
       return sortArrOfObjects<
         (typeof entities)[number],
         "title" | "updatedAt" | "createdAt"
-      >(entities, input.sortOrder, input.sortBy).map((entity) => ({
-        ...entity,
-        tags: entity.tags ? entity.tags.split(",").filter(Boolean) : [],
-      }));
+      >(entities, input.sortOrder, input.sortBy).map(
+        ({ ownerId, ...entity }) => ({
+          ...entity,
+          isOwner: ownerId === ctx.session.user.id,
+          tags: entity.tags ? entity.tags.split(",").filter(Boolean) : [],
+        }),
+      );
     }),
   updateUserPrefs: protectedProcedure
     .input(
@@ -923,7 +928,7 @@ export const entityRouter = createTRPCRouter({
         method: "GET",
         path: "/entities/{id}/shares",
         tags: ["entities"],
-        summary: "List the users an entity is shared with",
+        summary: "List the users an entity is shared with; only its owner may",
         protect: true,
       },
     })
@@ -940,15 +945,14 @@ export const entityRouter = createTRPCRouter({
       ),
     )
     .query(async ({ ctx, input }) => {
-      const userId = ctx.session.user.id;
-      const entity = await findReadableEntity(ctx.drizzle, input.id, userId);
-      // The rows carry emails and names, so a public link is not enough.
-      if (
-        !entity ||
-        (entity.ownerId !== userId && entity.sharedWithId !== userId)
-      ) {
-        throw notFound();
-      }
+      // The rows carry emails and names, which are the owner's to see: to
+      // anyone else, whatever it was shared with them for, it isn't there.
+      const entity = await findOwnedEntity(
+        ctx.drizzle,
+        input.id,
+        ctx.session.user.id,
+      );
+      if (!entity) throw notFound();
 
       const sharedDrawings = await ctx.drizzle
         .select({

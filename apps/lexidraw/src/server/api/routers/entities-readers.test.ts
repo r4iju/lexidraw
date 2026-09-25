@@ -117,6 +117,40 @@ describe("who else has a file is for those who can edit it", () => {
   });
 });
 
+describe("who a file is shared with is for its owner to see", () => {
+  test("its owner sees everyone it is shared with, by name and email", async () => {
+    const shares = await callerOf(OWNER).getSharedInfo({ id: "erd_doc" });
+    expect(shares.map((s) => s.email).toSorted()).toEqual([
+      "erd-editor@example.test",
+      "erd-reader@example.test",
+    ]);
+  });
+
+  test("someone it is shared with, to edit or to read, is told it isn't there", async () => {
+    for (const userId of [EDITOR, READER]) {
+      await expect(
+        callerOf(userId).getSharedInfo({ id: "erd_doc" }),
+      ).rejects.toMatchObject({ code: "NOT_FOUND" });
+    }
+  });
+});
+
+describe("a listing says whether each file is the caller's, not whose it is", () => {
+  test("to its owner, and to someone it is shared with", async () => {
+    const owned = await callerOf(OWNER).list({ parentId: PRIVATE });
+    expect(owned.length).toBeGreaterThan(0);
+    expect(owned.every((entry) => entry.isOwner)).toBe(true);
+
+    const shared = await callerOf(READER).list({ parentId: "erd_shared" });
+    expect(shared.map((entry) => [entry.id, entry.isOwner])).toEqual([
+      ["erd_doc", false],
+    ]);
+    for (const listed of [owned, shared]) {
+      expect(mentions(listed, OWNER)).toBe(false);
+    }
+  });
+});
+
 describe("a file's details say whose it is only to its owner", () => {
   test("the owner is told it is theirs", async () => {
     const details = await callerOf(OWNER).getMetadata({ id: "erd_doc" });

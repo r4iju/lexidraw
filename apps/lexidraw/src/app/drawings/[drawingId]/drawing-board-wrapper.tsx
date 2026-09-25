@@ -93,9 +93,6 @@ export default function DrawingBoardWithSave({
               title: drawing.title,
               entityType: drawing.entityType,
               publicAccess: drawing.publicAccess,
-              parentId: frame.parentId,
-              // Only the owner is offered Share.
-              userId: frame.account?.id ?? "",
             }}
             open={sharing}
             onOpenChange={setSharing}

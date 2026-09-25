@@ -69,6 +69,16 @@ describe("a file's ⋯ menu", () => {
     await view.unmount();
   });
 
+  test("offers Share only to the file's owner", async () => {
+    const view = await open({ onShare: undefined });
+    const labels = menu().map((item) =>
+      typeof item === "string" ? item : item.textContent?.trim(),
+    );
+    expect(labels.slice(0, 3)).toEqual(["Open in new tab", "Copy link", "|"]);
+    expect(labels).not.toContain("Share…");
+    await view.unmount();
+  });
+
   test("gives every item an icon", async () => {
     const view = await open();
     for (const item of menu()) {

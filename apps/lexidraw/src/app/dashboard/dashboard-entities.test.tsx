@@ -30,7 +30,7 @@ const entity = (overrides: Partial<Entity>): Entity => ({
   thumbnailStatus: "ready",
   thumbnailVersion: "1",
   thumbnailUpdatedAt: null,
-  userId: "u1",
+  isOwner: true,
   publicAccess: PublicAccess.PRIVATE,
   parentId: null,
   favoritedAt: null,

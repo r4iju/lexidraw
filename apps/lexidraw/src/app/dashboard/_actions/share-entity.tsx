@@ -15,8 +15,15 @@ const PENDING_SHARE_ID = "temp-id";
 
 type SharedInfo = RouterOutputs["entities"]["getSharedInfo"];
 
+/** What the dialog reads of the file, which a listing row and an open file both have. */
+export type Shareable = Pick<
+  RouterOutputs["entities"]["list"][number],
+  "id" | "title" | "entityType" | "publicAccess"
+>;
+
+/** Only the owner is offered this: who else has the file is theirs to see. */
 type Props = {
-  entity: RouterOutputs["entities"]["list"][number];
+  entity: Shareable;
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
 };
@@ -123,17 +130,13 @@ export default function ShareEntity({ entity, isOpen, onOpenChange }: Props) {
     onSuccess: refresh,
   });
 
-  const isOwner = entity.userId === session?.user?.id;
-  const yourShare = shares.find((row) => row.userId === session?.user?.id);
-  const people: SharePerson[] = shares
-    .filter((row) => row.userId !== session?.user?.id)
-    .map((row) => ({
-      userId: row.userId,
-      name: row.name,
-      email: row.email,
-      accessLevel: row.accessLevel,
-      pending: row.userId === PENDING_SHARE_ID,
-    }));
+  const people: SharePerson[] = shares.map((row) => ({
+    userId: row.userId,
+    name: row.name,
+    email: row.email,
+    accessLevel: row.accessLevel,
+    pending: row.userId === PENDING_SHARE_ID,
+  }));
 
   const remove = (userId: string) => {
     const person = shares.find((row) => row.userId === userId);
@@ -169,7 +172,6 @@ export default function ShareEntity({ entity, isOpen, onOpenChange }: Props) {
       you={{
         name: session?.user?.name ?? null,
         email: session?.user?.email ?? null,
-        role: isOwner ? "owner" : (yourShare?.accessLevel ?? AccessLevel.READ),
       }}
       people={people}
       publicAccess={publicAccess}

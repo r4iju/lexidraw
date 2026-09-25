@@ -97,6 +97,11 @@ anything else — a document, a directory of someone else's, nothing at all — 
 `NOT_FOUND`, so the foreign key never fails with the statement in its message
 and existence stays private.
 
+Who an entity is shared with is its owner's to know. `GET
+/entities/{id}/shares` answers only the owner; to anyone else, a user it is
+shared with included, it is `NOT_FOUND`, as for a stranger. A listing says
+`isOwner` for each item rather than naming its owner.
+
 `PATCH` and `DELETE /entities/{id}/shares/{userId}` answer `{ success, message }`
 only when they changed or removed a share that was there. A user who holds no
 share on the entity is `NOT_FOUND` ("Share not found"), so a revoke that answers

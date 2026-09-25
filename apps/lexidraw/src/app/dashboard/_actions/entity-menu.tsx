@@ -30,7 +30,8 @@ type Props = {
   href: string;
   favorited: boolean;
   archived: boolean;
-  onShare: () => void;
+  /** Only for the file's owner: who else has it is theirs to see and change. */
+  onShare?: () => void;
   onCopyLink: () => void;
   onRename: () => void;
   onTags: () => void;
@@ -80,10 +81,12 @@ export function EntityMenu({
               Open in new tab
             </a>
           </DropdownMenuItem>
-          <DropdownMenuItem onSelect={onShare}>
-            <ShareIcon aria-hidden="true" />
-            Share…
-          </DropdownMenuItem>
+          {onShare && (
+            <DropdownMenuItem onSelect={onShare}>
+              <ShareIcon aria-hidden="true" />
+              Share…
+            </DropdownMenuItem>
+          )}
           <DropdownMenuItem onSelect={onCopyLink}>
             <LinkIcon aria-hidden="true" />
             Copy link
