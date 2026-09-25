@@ -23,7 +23,7 @@ const failureOf = (call: Promise<unknown>) =>
   );
 
 describe("a speech provider's failure, as the job's error shows it", () => {
-  test("Kokoro says the shared Kokoro server did not answer, not only that a fetch failed", async () => {
+  test("Kokoro says its server did not answer, not only that a fetch failed, and not where the server is", async () => {
     fetchAnswers(async () => {
       throw new TypeError("fetch failed", {
         cause: Object.assign(new Error("connect ECONNREFUSED 127.0.0.1:8880"), {
@@ -35,9 +35,10 @@ describe("a speech provider's failure, as the job's error shows it", () => {
 
     const failure = await failureOf(kokoro.synthesize(HELLO));
 
-    expect(failure).toContain("Kokoro server at http://127.0.0.1:8880");
+    expect(failure).toContain("Kokoro server did not answer");
     expect(failure).toContain("ECONNREFUSED");
-    expect(failure).toContain("KOKORO_URL");
+    expect(failure).not.toContain("127.0.0.1");
+    expect(failure).not.toContain("KOKORO_URL");
     expect(failure).not.toContain("kokoro-service");
   });
 

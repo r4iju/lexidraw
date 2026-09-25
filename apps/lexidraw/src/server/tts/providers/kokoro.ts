@@ -43,7 +43,7 @@ export function createKokoroTtsProvider(baseUrl: string): TtsProvider {
         const cause = (error as { cause?: { code?: string; message?: string } })
           ?.cause;
         throw new Error(
-          `Kokoro server at ${server} did not answer (${cause?.code ?? cause?.message ?? String(error)}); start the shared Kokoro-FastAPI server KOKORO_URL points at, or choose another voice`,
+          `Kokoro server did not answer (${cause?.code ?? cause?.message ?? String(error)}); choose another voice`,
         );
       });
 

@@ -722,10 +722,12 @@ export const entityRouter = createTRPCRouter({
     )
     .mutation(async ({ ctx, input }) => {
       const userId = ctx.session.user.id;
-      for (const action of [
+      // A call that changes neither still needs a file you can open.
+      const actions = [
         ...(input.favorite === undefined ? [] : ["favorite" as const]),
         ...(input.archive === undefined ? [] : ["archive" as const]),
-      ]) {
+      ];
+      for (const action of actions.length ? actions : ["favorite" as const]) {
         if (
           !(await findEntityFor(ctx.drizzle, input.entityId, userId, action))
         ) {
