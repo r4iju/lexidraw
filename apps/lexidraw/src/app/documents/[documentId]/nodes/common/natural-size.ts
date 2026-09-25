@@ -15,16 +15,25 @@ import { useCallback } from "react";
  */
 export const MEASURED_TAG = "measured";
 
-/** Keeps the natural size a block was drawn at, when it has changed. */
-export function useKeepNaturalSize(nodeKey: NodeKey) {
+/**
+ * Keeps the natural size a block was drawn at, when it has changed; with
+ * `replace: false`, only when it has none.
+ */
+export function useKeepNaturalSize(
+  nodeKey: NodeKey,
+  { replace = true }: { replace?: boolean } = {},
+) {
   const [editor] = useLexicalComposerContext();
   return useCallback(
     (size: NaturalSize) => {
       const same = editor.getEditorState().read(() => {
         const node = $getNodeByKey(nodeKey);
-        const kept = node && $getNaturalSize(node);
+        if (!node) return true;
+        const kept = $getNaturalSize(node);
         return (
-          !node || (kept?.width === size.width && kept.height === size.height)
+          kept !== undefined &&
+          (!replace ||
+            (kept.width === size.width && kept.height === size.height))
         );
       });
       if (same) return;
@@ -36,6 +45,6 @@ export function useKeepNaturalSize(nodeKey: NodeKey) {
         { tag: [HISTORY_MERGE_TAG, MEASURED_TAG] },
       );
     },
-    [editor, nodeKey],
+    [editor, nodeKey, replace],
   );
 }

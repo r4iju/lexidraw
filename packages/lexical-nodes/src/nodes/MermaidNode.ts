@@ -6,8 +6,13 @@ import type {
   SerializedLexicalNode,
   Spread,
 } from "lexical";
-import { $create, DecoratorNode } from "lexical";
-import { $importNodeState, figureDOM, nodeStateJSON } from "../figure.js";
+import { $create, $setState, DecoratorNode } from "lexical";
+import {
+  $importNodeState,
+  figureDOM,
+  naturalSizeState,
+  nodeStateJSON,
+} from "../figure.js";
 
 /** Stored in the editor state */
 export type SerializedMermaidNode = Spread<
@@ -54,8 +59,12 @@ export class MermaidNode extends DecoratorNode<unknown> {
     return this.__schema;
   }
 
+  /** A new source drops the size the old one was drawn at. */
   setSchema(s: string): void {
-    this.getWritable().__schema = s;
+    if (s === this.getLatest().__schema) return;
+    const writable = this.getWritable();
+    writable.__schema = s;
+    $setState(writable, naturalSizeState, undefined);
   }
 
   getWidth(): number | "inherit" {

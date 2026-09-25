@@ -47,7 +47,10 @@ export default function MermaidComponent({
   natural: NaturalSize | undefined;
 }) {
   const [editor] = useLexicalComposerContext();
-  const keepNaturalSize = useKeepNaturalSize(nodeKey);
+  // Mermaid lays a diagram out with the fonts of the machine drawing it, so
+  // each reader's copy measures a little differently; the first measure of a
+  // source stands, and editing the source drops it.
+  const keepNaturalSize = useKeepNaturalSize(nodeKey, { replace: false });
 
   /* refs & local state */
   const containerRef = useRef<HTMLDivElement>(null);

@@ -68,4 +68,24 @@ describe("a figure's natural size", () => {
       }),
     ).toBeUndefined();
   });
+
+  test("a diagram's size goes with the source it was drawn from", () => {
+    const writer = editor();
+    let kept: unknown;
+    let dropped: unknown;
+    writer.update(
+      () => {
+        const node = MermaidNode.$createMermaidNode("graph TD; A-->B");
+        $setNaturalSize(node, { width: 120, height: 310.5 });
+        $getRoot().append(node);
+        node.setSchema("graph TD; A-->B");
+        kept = $getNaturalSize(node);
+        node.setSchema("graph TD; A-->B-->C");
+        dropped = $getNaturalSize(node);
+      },
+      { discrete: true },
+    );
+    expect(kept).toEqual({ width: 120, height: 310.5 });
+    expect(dropped).toBeUndefined();
+  });
 });
