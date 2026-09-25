@@ -169,6 +169,15 @@
     --doc-gutter: 96px;
   }
 }
+/* Room for the drag handle (its + and grip) beside the text it moves. */
+@media (pointer: fine) {
+  @container (min-width: 640px) and (max-width: 1279px) {
+    .document-viewport:has(.document-content[contenteditable="true"])
+      :is(.document-content, .document-placeholder, .document-header) {
+      --doc-gutter: 56px;
+    }
+  }
+}
 
 /* Cover, title, subtitle, properties and contents, in the text column. */
 .document-header {
@@ -388,6 +397,20 @@
   font-family: var(--font-sans);
   font-size: 13px;
   cursor: pointer;
+}
+@media (pointer: coarse) {
+  .document-header-action {
+    min-height: 44px;
+  }
+  .document-property-edit {
+    min-width: 44px;
+  }
+  .document-property dd a,
+  .document-contents a {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+  }
 }
 .document-header-action:hover,
 .document-header-action[aria-pressed="true"] {
@@ -737,8 +760,11 @@
   .document-table tr:hover > td {
     background-color: var(--accent);
   }
-  /* The cell menu's trigger sits in the top end corner; text wraps around
-     it there rather than every cell being wider to leave it room. */
+}
+/* The cell menu's trigger sits in the top end corner; text wraps around it
+   there rather than every cell being wider to leave it room. A phone keeps
+   the menu in its editing bar instead. */
+@media screen and (width >= 40rem) {
   .document-content[contenteditable="true"]
     .document-table
     :is(td, th)::before {

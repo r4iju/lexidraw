@@ -3,6 +3,7 @@
 import { Share2Icon } from "lucide-react";
 import ShareEntity from "~/app/dashboard/_actions/share-entity";
 import { Button } from "~/components/ui/button";
+import { cn } from "~/lib/utils";
 import type { RouterOutputs } from "~/trpc/shared";
 
 export type Shareable = Pick<
@@ -43,10 +44,13 @@ export function ShareButton({
       variant="ghost"
       size="sm"
       onClick={onClick}
-      className={className ?? "h-9 gap-1.5 px-2.5"}
+      className={cn(
+        "justify-center pointer-coarse:min-w-11",
+        className ?? "h-9 gap-1.5 px-2.5",
+      )}
     >
       <Share2Icon className="size-4" aria-hidden />
-      <span className="max-sm:sr-only">Share</span>
+      <span className="max-lg:sr-only">Share</span>
     </Button>
   );
 }

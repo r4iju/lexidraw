@@ -55,27 +55,20 @@ import {
 import {
   type Dispatch,
   type JSX,
-  type ReactNode,
   useCallback,
   useEffect,
   useState,
 } from "react";
 import {
   ColorPickerButton,
-  type ColorPreset,
   HIGHLIGHT_PRESETS,
   TEXT_COLOUR_PRESETS,
 } from "~/components/ui/color-picker";
 import {
   DropdownMenuCheckboxItem,
   DropdownMenuItem,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
-  DropdownMenuShortcut,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
 } from "~/components/ui/dropdown-menu";
+import { useLayoutClass } from "~/hooks/use-media-query";
 import useModal from "~/hooks/useModal";
 import { useDeveloperFlag } from "~/lib/developer-flag";
 import { useDocumentSettings } from "../../context/document-settings-context";
@@ -84,7 +77,7 @@ import type { rootTypeToRootName } from "../../context/toolbar-context";
 import { IS_APPLE } from "../../shared/environment";
 import { useGetSelectedNode } from "../../utils/getSelectedNode";
 import { useSanitizeUrl } from "../../utils/url";
-import { ListenControls, ListenItems, ListenProvider } from "../TtsToolbar";
+import { ListenControls, ListenItems } from "../TtsToolbar";
 import { AiItems, AiMenu, DeveloperItems, DeveloperMenu } from "./ai-menu";
 import { $blockTypeOf, BlockActionItems } from "./block-actions";
 import {
@@ -98,8 +91,9 @@ import { AlignItems, ElementFormatDropdown } from "./element-format";
 import { FontDropDown, FontItems } from "./font";
 import FontSize from "./font-size";
 import { InsertItems, InsertMenu } from "./insert-item";
+import { ColourItems, MoreSub, ShortcutHint } from "./menu-parts";
+import { PhoneBar } from "./phone-bar";
 import {
-  formatShortcut,
   Toolbar,
   ToolbarButton,
   type ToolbarGroup,
@@ -146,71 +140,6 @@ const SCRIPTS: typeof MARKS = [
 
 const REDO_SHORTCUT = IS_APPLE ? "Mod+Shift+Z" : "Mod+Y";
 
-/** A folded group in More: its label opens what the group offers. */
-function MoreSub({
-  label,
-  icon: Icon,
-  children,
-  disabled,
-}: {
-  label: string;
-  icon?: LucideIcon;
-  children: ReactNode;
-  disabled?: boolean;
-}) {
-  return (
-    <DropdownMenuSub>
-      <DropdownMenuSubTrigger className="gap-2" disabled={disabled}>
-        {Icon && <Icon className="size-4" />}
-        {label}
-      </DropdownMenuSubTrigger>
-      <DropdownMenuSubContent className="min-w-52">
-        {children}
-      </DropdownMenuSubContent>
-    </DropdownMenuSub>
-  );
-}
-
-function ShortcutHint({ shortcut }: { shortcut: string }) {
-  return (
-    <DropdownMenuShortcut aria-hidden="true">
-      {formatShortcut(shortcut).label}
-    </DropdownMenuShortcut>
-  );
-}
-
-function ColourItems({
-  value,
-  presets,
-  onChange,
-}: {
-  value: string;
-  presets: ColorPreset[];
-  onChange: (value: string, skipHistoryStack: boolean) => void;
-}) {
-  return (
-    <DropdownMenuRadioGroup
-      value={value}
-      onValueChange={(next) => onChange(next, false)}
-    >
-      {[{ label: "Automatic", value: "" }, ...presets].map((preset) => (
-        <DropdownMenuRadioItem
-          key={preset.value || "automatic"}
-          value={preset.value}
-          className="gap-2"
-        >
-          <span
-            aria-hidden="true"
-            className="size-3.5 rounded-full border border-border"
-            style={{ background: preset.value || undefined }}
-          />
-          {preset.label}
-        </DropdownMenuRadioItem>
-      ))}
-    </DropdownMenuRadioGroup>
-  );
-}
-
 export default function ToolbarPlugin({
   setIsLinkEditMode,
   className,
@@ -221,6 +150,8 @@ export default function ToolbarPlugin({
   const [editor] = useLexicalComposerContext();
   const signedIn = useSignedIn();
   const developer = useDeveloperFlag();
+  // A phone edits from a bar above its keyboard instead.
+  const phone = useLayoutClass() === "phone";
   const [activeEditor, setActiveEditor] = useState(editor);
   const [blockType, setBlockType] = useState<BlockType>("paragraph");
   const [rootType, setRootType] =
@@ -605,6 +536,16 @@ export default function ToolbarPlugin({
       ),
     },
     {
+      id: "insert",
+      label: "Insert",
+      content: <InsertMenu editor={activeEditor} showModal={showModal} />,
+      menu: (
+        <MoreSub label="Insert">
+          <InsertItems editor={activeEditor} showModal={showModal} />
+        </MoreSub>
+      ),
+    },
+    {
       id: "colour",
       label: "Colour",
       content: (
@@ -644,16 +585,6 @@ export default function ToolbarPlugin({
             />
           </MoreSub>
         </>
-      ),
-    },
-    {
-      id: "insert",
-      label: "Insert",
-      content: <InsertMenu editor={activeEditor} showModal={showModal} />,
-      menu: (
-        <MoreSub label="Insert">
-          <InsertItems editor={activeEditor} showModal={showModal} />
-        </MoreSub>
       ),
     },
     {
@@ -805,11 +736,38 @@ export default function ToolbarPlugin({
       ),
     });
 
-  const toolbar = (
+  if (phone)
+    return (
+      <>
+        {isEditable && (
+          <PhoneBar
+            editor={activeEditor}
+            formats={formats}
+            inCode={inCode}
+            isLink={isLink}
+            toggleLink={toggleLink}
+            blockType={blockType}
+            canUndo={canUndo}
+            canRedo={canRedo}
+            fontValue={fontValue}
+            fontSize={fontSize}
+            fontColor={fontColor}
+            bgColor={bgColor}
+            onFontColorSelect={onFontColorSelect}
+            onBgColorSelect={onBgColorSelect}
+            elementFormat={elementFormat}
+            isRTL={isRTL}
+            signedIn={signedIn}
+            showModal={showModal}
+          />
+        )}
+        {modal}
+      </>
+    );
+  return (
     <>
       <Toolbar label="Formatting" groups={groups} className={className} />
       {modal}
     </>
   );
-  return signedIn ? <ListenProvider>{toolbar}</ListenProvider> : toolbar;
 }

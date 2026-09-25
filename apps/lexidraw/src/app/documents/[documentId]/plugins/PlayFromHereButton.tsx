@@ -22,6 +22,7 @@ import { type HeadingNode, $isHeadingNode } from "@lexical/rich-text";
 import { Button } from "~/components/ui/button";
 import {
   Popover,
+  PopoverAnchor,
   PopoverContent,
   PopoverTrigger,
 } from "~/components/ui/popover";
@@ -63,10 +64,13 @@ export function PlayFromHereButton({
   documentId,
   open,
   onOpenChange,
+  withTrigger = true,
 }: {
   documentId: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** Without one, the player opens from Listen in a menu, at the bottom. */
+  withTrigger?: boolean;
 }) {
   const [editor] = useLexicalComposerContext();
   const [segments, setSegments] = useState<TtsSegment[]>([]);
@@ -246,18 +250,22 @@ export function PlayFromHereButton({
 
   return (
     <Popover open={open} onOpenChange={handleOpenChange}>
-      <ToolbarTooltip label="Play from cursor">
-        <PopoverTrigger asChild>
-          <Button
-            size="icon"
-            variant="ghost"
-            aria-label="Play from cursor"
-            className="size-8 shrink-0 pointer-coarse:size-11"
-          >
-            <PlayIcon />
-          </Button>
-        </PopoverTrigger>
-      </ToolbarTooltip>
+      {withTrigger ? (
+        <ToolbarTooltip label="Play from cursor">
+          <PopoverTrigger asChild>
+            <Button
+              size="icon"
+              variant="ghost"
+              aria-label="Play from cursor"
+              className="size-8 shrink-0 pointer-coarse:size-11"
+            >
+              <PlayIcon />
+            </Button>
+          </PopoverTrigger>
+        </ToolbarTooltip>
+      ) : (
+        <PopoverAnchor className="fixed bottom-0 right-4" />
+      )}
       <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
         <DraggablePopoverContent
           position={position}
@@ -313,7 +321,8 @@ function DraggablePopoverContent({
       }}
     >
       <PopoverContent
-        className="w-full min-w-[320px] max-w-2xl px-4 pt-0 max-h-[40vh] overflow-y-auto overflow-x-hidden gap-4"
+        // The page stays usable while it plays, so a sheet has no scrim.
+        className="w-full min-w-[320px] max-w-2xl px-4 pt-0 max-h-[40vh] overflow-y-auto overflow-x-hidden gap-4 max-sm:min-w-0 max-sm:shadow-(--elevation-modal)"
         side="bottom"
         align="end"
         sideOffset={8}

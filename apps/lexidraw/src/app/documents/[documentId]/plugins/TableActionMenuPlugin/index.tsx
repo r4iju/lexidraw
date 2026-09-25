@@ -43,8 +43,17 @@ import {
 import { createPortal } from "react-dom";
 
 import useModal from "~/hooks/useModal";
+import { cn } from "~/lib/utils";
 import { ColorPickerContent } from "~/components/ui/color-picker";
-import { ChevronDown } from "lucide-react";
+import {
+  ChevronDown,
+  Columns3,
+  PaintBucket,
+  Rows3,
+  Trash2,
+  type LucideIcon,
+} from "lucide-react";
+import { useLayoutClass } from "~/hooks/use-media-query";
 import { Button } from "~/components/ui/button";
 import {
   DropdownMenu,
@@ -63,6 +72,8 @@ type TableCellActionMenuProps = Readonly<{
   ) => void;
   tableCellNode: TableCellNode;
   cellMerge: boolean;
+  /** Which of its actions it offers: all of them, or one group. */
+  part?: "all" | "rows" | "columns" | "cell" | "delete";
 }>;
 
 function TableActionMenu({
@@ -70,7 +81,9 @@ function TableActionMenu({
   tableCellNode: _tableCellNode,
   cellMerge,
   showColorPickerModal,
+  part = "all",
 }: TableCellActionMenuProps) {
+  const shows = (group: typeof part) => part === "all" || part === group;
   const [editor] = useLexicalComposerContext();
   const [tableCellNode, updateTableCellNode] = useState(_tableCellNode);
   const [selectionCounts, updateSelectionCounts] = useState({
@@ -472,95 +485,112 @@ function TableActionMenu({
       side="right"
       align="start"
       sideOffset={4}
-      collisionPadding={8}
-      className="max-h-[var(--radix-dropdown-menu-content-available-height)] overflow-y-auto"
       onClick={(e) => {
         e.stopPropagation();
       }}
     >
-      {mergeCellButton}
-      <DropdownMenuItem
-        onClick={() =>
-          showColorPickerModal("Cell background color", () => (
-            <ColorPickerContent
-              color={backgroundColor}
-              onChange={handleCellBackgroundColor}
-              className="min-w-[300px]"
-            />
-          ))
-        }
-      >
-        <span className="text">Background color</span>
-      </DropdownMenuItem>
-      <DropdownMenuItem onClick={() => insertTableRowAtSelection(false)}>
-        <span className="text">
-          Insert{" "}
-          {selectionCounts.rows === 1 ? "row" : `${selectionCounts.rows} rows`}{" "}
-          above
-        </span>
-      </DropdownMenuItem>
-      <DropdownMenuItem onClick={() => insertTableRowAtSelection(true)}>
-        <span className="text">
-          Insert{" "}
-          {selectionCounts.rows === 1 ? "row" : `${selectionCounts.rows} rows`}{" "}
-          below
-        </span>
-      </DropdownMenuItem>
-      <DropdownMenuSeparator />
-      <DropdownMenuItem onClick={() => insertTableColumnAtSelection(false)}>
-        <span className="text">
-          Insert{" "}
-          {selectionCounts.columns === 1
-            ? "column"
-            : `${selectionCounts.columns} columns`}{" "}
-          left
-        </span>
-      </DropdownMenuItem>
-      <DropdownMenuItem onClick={() => insertTableColumnAtSelection(true)}>
-        <span className="text">
-          Insert{" "}
-          {selectionCounts.columns === 1
-            ? "column"
-            : `${selectionCounts.columns} columns`}{" "}
-          right
-        </span>
-      </DropdownMenuItem>
-      <DropdownMenuSeparator />
-      <DropdownMenuCheckboxItem
-        checked={
-          (tableCellNode.__headerState & TableCellHeaderStates.ROW) !== 0
-        }
-        onCheckedChange={toggleTableRowIsHeader}
-      >
-        Header row
-      </DropdownMenuCheckboxItem>
-      <DropdownMenuCheckboxItem
-        checked={
-          (tableCellNode.__headerState & TableCellHeaderStates.COLUMN) !== 0
-        }
-        onCheckedChange={toggleTableColumnIsHeader}
-      >
-        Header column
-      </DropdownMenuCheckboxItem>
-      <DropdownMenuSeparator />
-      <DropdownMenuItem
-        className="text-destructive focus:text-destructive"
-        onClick={deleteTableColumnAtSelection}
-      >
-        Delete column
-      </DropdownMenuItem>
-      <DropdownMenuItem
-        className="text-destructive focus:text-destructive"
-        onClick={deleteTableRowAtSelection}
-      >
-        Delete row
-      </DropdownMenuItem>
-      <DropdownMenuItem
-        className="text-destructive focus:text-destructive"
-        onClick={deleteTableAtSelection}
-      >
-        Delete table
-      </DropdownMenuItem>
+      {shows("cell") && (
+        <>
+          {mergeCellButton}
+          <DropdownMenuItem
+            onClick={() =>
+              showColorPickerModal("Cell background color", () => (
+                <ColorPickerContent
+                  color={backgroundColor}
+                  onChange={handleCellBackgroundColor}
+                />
+              ))
+            }
+          >
+            <span className="text">Background color</span>
+          </DropdownMenuItem>
+        </>
+      )}
+      {part === "all" && <DropdownMenuSeparator />}
+      {shows("rows") && (
+        <>
+          <DropdownMenuItem onClick={() => insertTableRowAtSelection(false)}>
+            <span className="text">
+              Insert{" "}
+              {selectionCounts.rows === 1
+                ? "row"
+                : `${selectionCounts.rows} rows`}{" "}
+              above
+            </span>
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => insertTableRowAtSelection(true)}>
+            <span className="text">
+              Insert{" "}
+              {selectionCounts.rows === 1
+                ? "row"
+                : `${selectionCounts.rows} rows`}{" "}
+              below
+            </span>
+          </DropdownMenuItem>
+          <DropdownMenuCheckboxItem
+            checked={
+              (tableCellNode.__headerState & TableCellHeaderStates.ROW) !== 0
+            }
+            onCheckedChange={toggleTableRowIsHeader}
+          >
+            Header row
+          </DropdownMenuCheckboxItem>
+        </>
+      )}
+      {part === "all" && <DropdownMenuSeparator />}
+      {shows("columns") && (
+        <>
+          <DropdownMenuItem onClick={() => insertTableColumnAtSelection(false)}>
+            <span className="text">
+              Insert{" "}
+              {selectionCounts.columns === 1
+                ? "column"
+                : `${selectionCounts.columns} columns`}{" "}
+              left
+            </span>
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => insertTableColumnAtSelection(true)}>
+            <span className="text">
+              Insert{" "}
+              {selectionCounts.columns === 1
+                ? "column"
+                : `${selectionCounts.columns} columns`}{" "}
+              right
+            </span>
+          </DropdownMenuItem>
+          <DropdownMenuCheckboxItem
+            checked={
+              (tableCellNode.__headerState & TableCellHeaderStates.COLUMN) !== 0
+            }
+            onCheckedChange={toggleTableColumnIsHeader}
+          >
+            Header column
+          </DropdownMenuCheckboxItem>
+        </>
+      )}
+      {part === "all" && <DropdownMenuSeparator />}
+      {shows("delete") && (
+        <>
+          <DropdownMenuItem
+            className="text-destructive focus:text-destructive"
+            onClick={deleteTableColumnAtSelection}
+          >
+            Delete column
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            className="text-destructive focus:text-destructive"
+            onClick={deleteTableRowAtSelection}
+          >
+            Delete row
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            className="text-destructive focus:text-destructive"
+            onClick={deleteTableAtSelection}
+          >
+            Delete table
+          </DropdownMenuItem>
+        </>
+      )}
     </DropdownMenuContent>
   );
 }
@@ -709,6 +739,91 @@ function TableCellActionMenuContainer({
   );
 }
 
+const TABLE_PARTS: {
+  part: "rows" | "columns" | "cell" | "delete";
+  label: string;
+  icon: LucideIcon;
+}[] = [
+  { part: "rows", label: "Rows", icon: Rows3 },
+  { part: "columns", label: "Columns", icon: Columns3 },
+  { part: "cell", label: "Cell", icon: PaintBucket },
+  { part: "delete", label: "Delete", icon: Trash2 },
+];
+
+function TablePartMenu({
+  tableCellNode,
+  showColorPickerModal,
+  ...part
+}: (typeof TABLE_PARTS)[number] &
+  Pick<TableCellActionMenuProps, "tableCellNode" | "showColorPickerModal">) {
+  const [open, setOpen] = useState(false);
+  const Icon = part.icon;
+  return (
+    <DropdownMenu open={open} onOpenChange={setOpen}>
+      <DropdownMenuTrigger asChild>
+        <Button
+          type="button"
+          variant="ghost"
+          className={cn(
+            "h-11 shrink-0 gap-1.5 px-3",
+            part.part === "delete" && "text-destructive",
+          )}
+        >
+          <Icon className="size-5" />
+          {part.label}
+        </Button>
+      </DropdownMenuTrigger>
+      {open && (
+        <TableActionMenu
+          part={part.part}
+          onClose={() => setOpen(false)}
+          tableCellNode={tableCellNode}
+          cellMerge
+          showColorPickerModal={showColorPickerModal}
+        />
+      )}
+    </DropdownMenu>
+  );
+}
+
+/** The phone's editing bar in a table cell: its actions, one group a sheet. */
+export function TableBarItems() {
+  const [editor] = useLexicalComposerContext();
+  const [tableCellNode, setTableCellNode] = useState<TableCellNode | null>(
+    null,
+  );
+  const [colorPickerModal, showColorPickerModal] = useModal();
+  useEffect(() => {
+    const read = () =>
+      editor.getEditorState().read(() => {
+        const selection = $getSelection();
+        // With nothing selected, one of these menus has focus: the cell stays.
+        if (!selection) return;
+        setTableCellNode(
+          $isRangeSelection(selection) || $isTableSelection(selection)
+            ? $getTableCellNodeFromLexicalNode(selection.anchor.getNode())
+            : null,
+        );
+      });
+    read();
+    return editor.registerUpdateListener(read);
+  }, [editor]);
+  if (!tableCellNode) return null;
+  return (
+    <>
+      {TABLE_PARTS.map((part) => (
+        <TablePartMenu
+          key={part.part}
+          {...part}
+          tableCellNode={tableCellNode}
+          showColorPickerModal={showColorPickerModal}
+        />
+      ))}
+      {colorPickerModal}
+    </>
+  );
+}
+
 export default function TableActionMenuPlugin({
   cellMerge = false,
 }: {
@@ -716,8 +831,12 @@ export default function TableActionMenuPlugin({
   cellMerge?: boolean;
 }): null | ReactPortal {
   const isEditable = useLexicalEditable();
+  // A phone offers these from its editing bar instead.
+  const phone = useLayoutClass() === "phone";
   return createPortal(
-    isEditable ? <TableCellActionMenuContainer cellMerge={cellMerge} /> : null,
+    isEditable && !phone ? (
+      <TableCellActionMenuContainer cellMerge={cellMerge} />
+    ) : null,
     document.body,
   );
 }

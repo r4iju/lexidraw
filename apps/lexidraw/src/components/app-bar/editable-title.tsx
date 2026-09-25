@@ -90,7 +90,7 @@ export function EditableTitle({
       aria-label={`Rename ${shown || "Untitled"}`}
       title="Rename"
       onClick={() => setDraft(shown)}
-      className="block max-w-full truncate rounded-md px-1.5 py-1 text-left font-medium text-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      className="block max-w-full truncate rounded-md px-1.5 py-1 pointer-coarse:py-3 text-left font-medium text-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >
       {shown || "Untitled"}
     </button>

@@ -53,7 +53,7 @@ import { InsertTableDialog } from "../TablePlugin";
 import { OPEN_INSERT_VIDEO_DIALOG_COMMAND } from "../VideoPlugin";
 import { ToolbarMenu } from "./toolbar";
 
-type ShowModal = (
+export type ShowModal = (
   title: string,
   content: (onClose: () => void) => JSX.Element,
 ) => void;
@@ -76,9 +76,12 @@ function icon(Icon: LucideIcon) {
 export function InsertItems({
   editor,
   showModal,
+  query = "",
 }: {
   editor: LexicalEditor;
   showModal: ShowModal;
+  /** Leaves out what doesn't match. */
+  query?: string;
 }) {
   const embeds = useEmbedConfigs();
   const dialog =
@@ -251,7 +254,23 @@ export function InsertItems({
     ],
   ];
 
-  return groups.map(([label, items], index) => (
+  const wanted = query.trim().toLowerCase();
+  const shown = groups
+    .map(
+      ([label, items]) =>
+        [
+          label,
+          items.filter((item) => item.label.toLowerCase().includes(wanted)),
+        ] as const,
+    )
+    .filter(([, items]) => items.length > 0);
+  if (shown.length === 0)
+    return (
+      <p className="px-2 py-3 text-sm text-muted-foreground">
+        Nothing to insert matches “{query.trim()}”.
+      </p>
+    );
+  return shown.map(([label, items], index) => (
     <Fragment key={label}>
       {index > 0 && <DropdownMenuSeparator />}
       <DropdownMenuGroup aria-label={label}>

@@ -31,7 +31,7 @@ import {
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from "~/components/ui/dropdown-menu";
-import { useFinePointer } from "~/hooks/use-media-query";
+import { useFinePointer, useLayoutClass } from "~/hooks/use-media-query";
 import { Point } from "../../utils/point";
 import { Rect } from "../../utils/rect";
 import { $blockTypeOf, BlockActionItems } from "../ToolbarPlugin/block-actions";
@@ -565,7 +565,7 @@ function DraggableBlockMenu({
 /**
  * A handle beside the block under the mouse: drag it to move the block,
  * click it for the block's actions. Touch has those in the toolbar's Block
- * menu instead.
+ * menu instead, and a phone in its editing bar.
  */
 export default function DraggableBlockPlugin({
   anchorElem = document.body,
@@ -574,7 +574,8 @@ export default function DraggableBlockPlugin({
 }): React.JSX.Element | null {
   const [editor] = useLexicalComposerContext();
   const fine = useFinePointer();
-  return fine ? (
+  const phone = useLayoutClass() === "phone";
+  return fine && !phone ? (
     <DraggableBlockMenu editor={editor} anchorElem={anchorElem} />
   ) : null;
 }

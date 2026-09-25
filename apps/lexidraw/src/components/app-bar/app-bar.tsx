@@ -1,5 +1,6 @@
 "use client";
 
+import { ArrowLeftIcon } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { AppIcon } from "~/components/icons/app";
@@ -42,7 +43,7 @@ export function CrumbLink({
   return (
     <Link
       href={href}
-      className="block max-w-40 truncate rounded-md px-1.5 py-1 text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      className="block max-w-40 truncate rounded-md px-1.5 py-1 pointer-coarse:py-3 text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >
       {children}
     </Link>
@@ -65,6 +66,7 @@ export function AppBar({
   wrapHome = (home) => home,
   status,
   actions,
+  back,
   className,
 }: {
   /** Undefined while the page is still finding out who is signed in. */
@@ -73,6 +75,11 @@ export function AppBar({
   wrapHome?: (home: ReactNode) => ReactNode;
   status?: ReactNode;
   actions?: ReactNode;
+  /**
+   * Where a phone's compact bar goes back to. It takes the logo's place, and
+   * the theme and account move into the page's own menu.
+   */
+  back?: { href: string; label: string };
   className?: string;
 }) {
   const home = account === null ? "/" : "/dashboard";
@@ -87,13 +94,25 @@ export function AppBar({
         className,
       )}
     >
+      {back && (
+        <Link
+          href={back.href}
+          aria-label={back.label}
+          className="-ml-2 flex size-9 shrink-0 items-center justify-center rounded-md text-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring pointer-coarse:size-11 sm:hidden"
+        >
+          <ArrowLeftIcon aria-hidden className="size-5" />
+        </Link>
+      )}
       <Link
         href={home}
         aria-label="Lexidraw"
-        className="flex shrink-0 items-center gap-1.5 rounded-md text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className={cn(
+          "flex shrink-0 items-center justify-center gap-1.5 rounded-md text-foreground pointer-coarse:h-11 pointer-coarse:min-w-11 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+          back && "max-sm:hidden",
+        )}
       >
         <AppIcon aria-hidden className="size-6" />
-        <span className="font-brand text-lg max-sm:hidden">Lexidraw</span>
+        <span className="font-brand text-lg max-lg:hidden">Lexidraw</span>
       </Link>
       <nav aria-label="Breadcrumb" className="min-w-0 flex-1 sm:pl-2">
         <ol className="flex min-w-0 items-center">
@@ -103,7 +122,7 @@ export function AppBar({
                 href={home}
                 aria-current={crumbs ? undefined : "page"}
                 className={cn(
-                  "block rounded-md px-1.5 py-1 hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                  "block rounded-md px-1.5 py-1 pointer-coarse:py-3 hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                   crumbs
                     ? "text-muted-foreground hover:text-foreground"
                     : "font-medium text-foreground",
@@ -119,8 +138,10 @@ export function AppBar({
       <div className="flex shrink-0 items-center gap-1">
         {status}
         {actions}
-        <ModeToggle />
-        <AccountMenu account={account} />
+        <div className={cn("flex items-center gap-1", back && "max-sm:hidden")}>
+          <ModeToggle />
+          <AccountMenu account={account} />
+        </div>
       </div>
     </header>
   );

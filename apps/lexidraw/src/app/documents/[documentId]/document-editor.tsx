@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  type ReactNode,
   type RefObject,
   useCallback,
   useEffect,
@@ -170,6 +171,12 @@ import { ChartNode } from "./nodes/ChartNode";
 import MobileCheckListPlugin from "./plugins/MobileCheckListPlugin";
 import ArticlePlugin from "./plugins/ArticlePlugin";
 import { ArticleNode } from "./nodes/ArticleNode/ArticleNode";
+import { useLayoutClass } from "~/hooks/use-media-query";
+import {
+  ListenControls,
+  ListenPlayer,
+  ListenProvider,
+} from "./plugins/TtsToolbar";
 
 const SIDEBAR_WIDTH = 360;
 
@@ -291,6 +298,9 @@ function EditorHandler({
   const developer = useDeveloperFlag();
   const [currentSidebarWidth, setCurrentSidebarWidth] = useState(SIDEBAR_WIDTH);
   const sidebarRef = useRef<HTMLElement>(null);
+  const phone = useLayoutClass() === "phone";
+  const readingOnPhone = onScreen && phone && !(canEdit && !reading);
+  const barScrolledAway = useScrolledAway(readingOnPhone);
 
   const { markDirty, markPristine, dirty } = useUnsavedChanges();
   const debouncedAutoSaveRef = useRef<ReturnType<typeof debounce> | null>(null);
@@ -538,263 +548,309 @@ function EditorHandler({
                       <SlidePlugin />
                       <EditabilityPlugin editable={canEdit && !reading} />
                       {!onScreen && <RenderReadyPlugin />}
-                      {/* The page itself scrolls: see globals.css. */}
-                      <div
-                        data-scroll-root="page"
-                        className="page-frame flex min-h-dvh flex-col overflow-x-clip pb-[env(safe-area-inset-bottom)]"
-                      >
-                        {onScreen && (
-                          <div
-                            ref={toolbarRef}
-                            className="ui-toolbar sticky top-0 left-0 z-10 w-full shrink-0 bg-card pt-[env(safe-area-inset-top)] print:hidden"
-                            data-component-name="Toolbar"
-                          >
-                            {frame && (
-                              <EntityAppBar
-                                frame={frame}
-                                entity={entity}
-                                canRename={canEdit}
-                                actions={
-                                  <>
-                                    {frame.isOwner && (
-                                      <ShareButton
-                                        onClick={() => setSharing(true)}
-                                        className="h-9 gap-1.5 px-2.5 max-sm:hidden"
+                      <ListenWhenSignedIn signedIn={signedIn}>
+                        {/* The page itself scrolls: see globals.css. */}
+                        <div
+                          data-scroll-root="page"
+                          className={cn(
+                            "page-frame flex min-h-dvh flex-col overflow-x-clip pb-[calc(env(safe-area-inset-bottom)+var(--bottom-bar-height,0px))]",
+                            // The reading pill floats over the page's end.
+                            readingOnPhone &&
+                              "pb-[calc(env(safe-area-inset-bottom)+5rem)]",
+                          )}
+                        >
+                          {onScreen && (
+                            <div
+                              ref={toolbarRef}
+                              className={cn(
+                                "ui-toolbar sticky top-0 left-0 z-10 w-full shrink-0 bg-card pt-[env(safe-area-inset-top)] transition-transform duration-200 motion-reduce:transition-none print:hidden",
+                                barScrolledAway && "-translate-y-full",
+                              )}
+                              data-component-name="Toolbar"
+                            >
+                              {frame && (
+                                <EntityAppBar
+                                  frame={frame}
+                                  entity={entity}
+                                  canRename={canEdit}
+                                  compactOnPhone
+                                  actions={
+                                    <>
+                                      {frame.isOwner && (
+                                        <ShareButton
+                                          onClick={() => setSharing(true)}
+                                          className="h-9 gap-1.5 px-2.5 max-sm:hidden"
+                                        />
+                                      )}
+                                      <SidebarToggle
+                                        label="Comments"
+                                        Icon={MessageSquareTextIcon}
+                                        on={activeSidebar === "comments"}
+                                        onClick={() =>
+                                          toggleSidebar("comments")
+                                        }
                                       />
-                                    )}
-                                    <SidebarToggle
-                                      label="Comments"
-                                      Icon={MessageSquareTextIcon}
-                                      on={activeSidebar === "comments"}
-                                      onClick={() => toggleSidebar("comments")}
-                                    />
-                                    <SidebarToggle
-                                      label="Table of contents"
-                                      Icon={ListTreeIcon}
-                                      on={activeSidebar === "toc"}
-                                      onClick={() => toggleSidebar("toc")}
-                                    />
-                                    {canEdit && (
-                                      <EditReadSwitch
-                                        reading={reading}
-                                        onChange={setReading}
+                                      <SidebarToggle
+                                        label="Table of contents"
+                                        Icon={ListTreeIcon}
+                                        on={activeSidebar === "toc"}
+                                        onClick={() => toggleSidebar("toc")}
                                       />
-                                    )}
-                                    <OptionsDropdown
-                                      className="size-9"
-                                      onSave={saveNow}
-                                      onShare={
-                                        frame.isOwner
-                                          ? () => setSharing(true)
+                                      {canEdit && (
+                                        <EditReadSwitch
+                                          reading={reading}
+                                          onChange={setReading}
+                                        />
+                                      )}
+                                      <OptionsDropdown
+                                        className="size-9"
+                                        onSave={saveNow}
+                                        onShare={
+                                          frame.isOwner
+                                            ? () => setSharing(true)
+                                            : undefined
+                                        }
+                                        onExportMarkdown={exportMarkdown}
+                                        onImportMarkdown={handleImportMarkdown}
+                                        entity={{
+                                          id: entity.id,
+                                          title: entity.title,
+                                          accessLevel: entity.accessLevel,
+                                        }}
+                                      />
+                                    </>
+                                  }
+                                />
+                              )}
+                              {/* The formatting strip is for editing; a
+                                reader signed in keeps listening (#93). */}
+                              <div
+                                className={cn(
+                                  // A phone's formatting is in its bottom bar.
+                                  "flex items-center border-b border-border py-1 max-sm:hidden",
+                                  "pl-[max(--spacing(4),env(safe-area-inset-left))] pr-[max(--spacing(4),env(safe-area-inset-right))]",
+                                  "sm:pl-[max(--spacing(6),env(safe-area-inset-left))] sm:pr-[max(--spacing(6),env(safe-area-inset-right))]",
+                                  "lg:pl-[max(--spacing(8),env(safe-area-inset-left))] lg:pr-[max(--spacing(8),env(safe-area-inset-right))]",
+                                  !(canEdit && !reading) &&
+                                    !signedIn &&
+                                    "hidden",
+                                )}
+                              >
+                                <ShortcutsPlugin
+                                  editor={editor}
+                                  setIsLinkEditMode={setIsLinkEditMode}
+                                />
+                                <TooltipProvider>
+                                  <ToolbarPlugin
+                                    setIsLinkEditMode={setIsLinkEditMode}
+                                  />
+                                </TooltipProvider>
+                              </div>
+                              {frame?.isOwner && (
+                                <ShareDialog
+                                  entity={{
+                                    id: entity.id,
+                                    title: entity.title,
+                                    entityType: entity.entityType,
+                                    publicAccess: entity.publicAccess,
+                                    parentId: frame.parentId,
+                                    // Only the owner is offered Share.
+                                    userId: frame.account?.id ?? "",
+                                  }}
+                                  open={sharing}
+                                  onOpenChange={setSharing}
+                                />
+                              )}
+                            </div>
+                          )}
+
+                          {/* editor + sidebar container */}
+                          <div className="flex flex-1 items-start bg-background">
+                            {/* editor */}
+                            <div className="min-w-0 flex-1 self-stretch flex flex-col">
+                              <DisableChecklistSpacebarPlugin />
+                              <EmojiPickerPlugin />
+                              <LayoutPlugin />
+                              {onScreen && <LLMWidget />}
+                              <ListPlugin />
+                              <ListMaxIndentLevelPlugin />
+                              <CheckListPlugin />
+                              <MobileCheckListPlugin />
+                              <MarkdownShortcutPlugin />
+                              <PageBreakPlugin />
+                              <CollapsiblePlugin />
+                              <CalloutPlugin />
+                              <PollPlugin />
+                              <CodeHighlightPlugin />
+                              <TabIndentationPlugin />
+                              {isEditable && autocomplete && signedIn && (
+                                <AutocompletePlugin title={entity.title} />
+                              )}
+                              <AutoEmbedPlugin />
+                              <AutoLinkPlugin />
+                              <HorizontalRulePlugin />
+                              <DocumentTablesPlugin />
+                              {isEditable && <TableCellResizer />}
+                              <ImagePlugin />
+                              <InlineImagePlugin />
+                              <VideoPlugin />
+                              <LinkPlugin />
+                              <ClickableLinkPlugin disabled={isEditable} />
+                              <TwitterPlugin />
+                              <YouTubePlugin />
+                              <ExcalidrawPlugin />
+                              <MermaidPlugin />
+                              <ChartPlugin />
+                              <FigmaPlugin />
+                              <EquationsPlugin />
+                              <ArticlePlugin />
+                              <RichTextPlugin
+                                contentEditable={
+                                  <main
+                                    id="main-content"
+                                    tabIndex={-1}
+                                    ref={onRef}
+                                    className="relative document-viewport outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+                                  >
+                                    <DocumentHeader
+                                      entityId={entity.id}
+                                      title={entity.title}
+                                      lang={detectedLanguage}
+                                      canRename={onScreen}
+                                      fontFamily={
+                                        documentFont(defaultFontFamily).family
+                                      }
+                                    />
+                                    {/* The placeholder sits over the first line. */}
+                                    <div className="relative">
+                                      <ContentEditable
+                                        id={`lexical-content-${entity.id}`}
+                                        aria-label="Document content"
+                                        aria-placeholder={PLACEHOLDER}
+                                        placeholder={(editable) =>
+                                          editable ? (
+                                            <div
+                                              className="document-placeholder"
+                                              style={{
+                                                fontFamily:
+                                                  documentFont(
+                                                    defaultFontFamily,
+                                                  ).family,
+                                              }}
+                                            >
+                                              <div>{PLACEHOLDER}</div>
+                                            </div>
+                                          ) : null
+                                        }
+                                        lang={detectedLanguage}
+                                        style={{
+                                          fontFamily:
+                                            documentFont(defaultFontFamily)
+                                              .family,
+                                        }}
+                                        className="document-content document-typography outline-none"
+                                      />
+                                    </div>
+                                  </main>
+                                }
+                                ErrorBoundary={LexicalErrorBoundary}
+                              />
+                              <OnChangePlugin onChange={onChange} />
+                              <HistoryPlugin />
+                              {isEditable && <AutoFocusPlugin />}
+                              <CodeActionMenuPlugin />
+                              {isEditable && floatingAnchorElem && (
+                                <>
+                                  <DraggableBlockPlugin
+                                    anchorElem={floatingAnchorElem}
+                                  />
+                                  <FloatingLinkEditorPlugin
+                                    anchorElem={floatingAnchorElem}
+                                    isLinkEditMode={isLinkEditMode}
+                                    setIsLinkEditMode={setIsLinkEditMode}
+                                  />
+                                  <TableActionMenuPlugin
+                                    anchorElem={floatingAnchorElem}
+                                    cellMerge={true}
+                                  />
+                                  <FloatingTextFormatToolbarPlugin
+                                    setIsLinkEditMode={setIsLinkEditMode}
+                                  />
+                                </>
+                              )}
+                              {isEditable && <ContextMenuPlugin />}
+                            </div>
+                            {/* A chat left open by an earlier sign-in, or the tree once the developer flag is off, stays shut. */}
+                            {onScreen &&
+                              activeSidebar &&
+                              (signedIn || activeSidebar !== "llm") &&
+                              (developer || activeSidebar !== "tree") && (
+                                <SidebarWrapper
+                                  key={activeSidebar}
+                                  ref={sidebarRef}
+                                  className="print:hidden"
+                                  onClose={() => {
+                                    setActiveSidebar(null);
+                                  }}
+                                  title={getSidebarTitle(activeSidebar)}
+                                  // Reading tools keep one width; the chat's
+                                  // width is the reader's to choose.
+                                  resizable={activeSidebar === "llm"}
+                                  drawerWidth={
+                                    activeSidebar === "llm" ? 400 : 360
+                                  }
+                                  phoneHeight={
+                                    activeSidebar === "llm" ? "full" : "half"
+                                  }
+                                  initialWidth={
+                                    activeSidebar === "llm"
+                                      ? currentSidebarWidth
+                                      : SIDEBAR_WIDTH
+                                  }
+                                  minWidth={200}
+                                  maxWidth={800}
+                                  onWidthChange={
+                                    activeSidebar === "llm"
+                                      ? setCurrentSidebarWidth
+                                      : undefined
+                                  }
+                                >
+                                  {activeSidebar === "llm" && <LlmChatPlugin />}
+                                  {activeSidebar === "comments" && (
+                                    <CommentUI />
+                                  )}
+                                  {activeSidebar === "toc" && (
+                                    <TableOfContentsPlugin
+                                      title={entity.title}
+                                      // On a phone the sheet covers what was
+                                      // jumped to.
+                                      onNavigate={
+                                        phone
+                                          ? () => setActiveSidebar(null)
                                           : undefined
                                       }
-                                      onExportMarkdown={exportMarkdown}
-                                      onImportMarkdown={handleImportMarkdown}
-                                      entity={{
-                                        id: entity.id,
-                                        title: entity.title,
-                                        accessLevel: entity.accessLevel,
-                                      }}
                                     />
-                                  </>
-                                }
-                              />
-                            )}
-                            {/* The formatting strip is for editing; a
-                                reader signed in keeps listening (#93). */}
-                            <div
-                              className={cn(
-                                "flex items-center border-b border-border py-1",
-                                "pl-[max(--spacing(4),env(safe-area-inset-left))] pr-[max(--spacing(4),env(safe-area-inset-right))]",
-                                "sm:pl-[max(--spacing(6),env(safe-area-inset-left))] sm:pr-[max(--spacing(6),env(safe-area-inset-right))]",
-                                "lg:pl-[max(--spacing(8),env(safe-area-inset-left))] lg:pr-[max(--spacing(8),env(safe-area-inset-right))]",
-                                !(canEdit && !reading) && !signedIn && "hidden",
+                                  )}
+                                  {activeSidebar === "tree" && (
+                                    <TreeViewPlugin />
+                                  )}
+                                </SidebarWrapper>
                               )}
-                            >
-                              <ShortcutsPlugin
-                                editor={editor}
-                                setIsLinkEditMode={setIsLinkEditMode}
-                              />
-                              <TooltipProvider>
-                                <ToolbarPlugin
-                                  setIsLinkEditMode={setIsLinkEditMode}
-                                />
-                              </TooltipProvider>
-                            </div>
-                            {frame?.isOwner && (
-                              <ShareDialog
-                                entity={{
-                                  id: entity.id,
-                                  title: entity.title,
-                                  entityType: entity.entityType,
-                                  publicAccess: entity.publicAccess,
-                                  parentId: frame.parentId,
-                                  // Only the owner is offered Share.
-                                  userId: frame.account?.id ?? "",
-                                }}
-                                open={sharing}
-                                onOpenChange={setSharing}
-                              />
-                            )}
                           </div>
-                        )}
 
-                        {/* editor + sidebar container */}
-                        <div className="flex flex-1 items-start bg-background">
-                          {/* editor */}
-                          <div className="min-w-0 flex-1 self-stretch flex flex-col">
-                            <DisableChecklistSpacebarPlugin />
-                            <EmojiPickerPlugin />
-                            <LayoutPlugin />
-                            {onScreen && <LLMWidget />}
-                            <ListPlugin />
-                            <ListMaxIndentLevelPlugin />
-                            <CheckListPlugin />
-                            <MobileCheckListPlugin />
-                            <MarkdownShortcutPlugin />
-                            <PageBreakPlugin />
-                            <CollapsiblePlugin />
-                            <CalloutPlugin />
-                            <PollPlugin />
-                            <CodeHighlightPlugin />
-                            <TabIndentationPlugin />
-                            {isEditable && autocomplete && signedIn && (
-                              <AutocompletePlugin title={entity.title} />
-                            )}
-                            <AutoEmbedPlugin />
-                            <AutoLinkPlugin />
-                            <HorizontalRulePlugin />
-                            <DocumentTablesPlugin />
-                            {isEditable && <TableCellResizer />}
-                            <ImagePlugin />
-                            <InlineImagePlugin />
-                            <VideoPlugin />
-                            <LinkPlugin />
-                            <ClickableLinkPlugin disabled={isEditable} />
-                            <TwitterPlugin />
-                            <YouTubePlugin />
-                            <ExcalidrawPlugin />
-                            <MermaidPlugin />
-                            <ChartPlugin />
-                            <FigmaPlugin />
-                            <EquationsPlugin />
-                            <ArticlePlugin />
-                            <RichTextPlugin
-                              contentEditable={
-                                <main
-                                  id="main-content"
-                                  tabIndex={-1}
-                                  ref={onRef}
-                                  className="relative document-viewport outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
-                                >
-                                  <DocumentHeader
-                                    entityId={entity.id}
-                                    title={entity.title}
-                                    lang={detectedLanguage}
-                                    canRename={onScreen}
-                                    fontFamily={
-                                      documentFont(defaultFontFamily).family
-                                    }
-                                  />
-                                  {/* The placeholder sits over the first line. */}
-                                  <div className="relative">
-                                    <ContentEditable
-                                      id={`lexical-content-${entity.id}`}
-                                      aria-label="Document content"
-                                      aria-placeholder={PLACEHOLDER}
-                                      placeholder={(editable) =>
-                                        editable ? (
-                                          <div
-                                            className="document-placeholder"
-                                            style={{
-                                              fontFamily:
-                                                documentFont(defaultFontFamily)
-                                                  .family,
-                                            }}
-                                          >
-                                            <div>{PLACEHOLDER}</div>
-                                          </div>
-                                        ) : null
-                                      }
-                                      lang={detectedLanguage}
-                                      style={{
-                                        fontFamily:
-                                          documentFont(defaultFontFamily)
-                                            .family,
-                                      }}
-                                      className="document-content document-typography outline-none"
-                                    />
-                                  </div>
-                                </main>
-                              }
-                              ErrorBoundary={LexicalErrorBoundary}
+                          {onScreen && <ConditionalCommentInputBoxRenderer />}
+                          {readingOnPhone && (
+                            <ReadingPill
+                              signedIn={signedIn}
+                              contentsOpen={activeSidebar === "toc"}
+                              onContents={() => toggleSidebar("toc")}
                             />
-                            <OnChangePlugin onChange={onChange} />
-                            <HistoryPlugin />
-                            {isEditable && <AutoFocusPlugin />}
-                            <CodeActionMenuPlugin />
-                            {isEditable && floatingAnchorElem && (
-                              <>
-                                <DraggableBlockPlugin
-                                  anchorElem={floatingAnchorElem}
-                                />
-                                <FloatingLinkEditorPlugin
-                                  anchorElem={floatingAnchorElem}
-                                  isLinkEditMode={isLinkEditMode}
-                                  setIsLinkEditMode={setIsLinkEditMode}
-                                />
-                                <TableActionMenuPlugin
-                                  anchorElem={floatingAnchorElem}
-                                  cellMerge={true}
-                                />
-                                <FloatingTextFormatToolbarPlugin
-                                  setIsLinkEditMode={setIsLinkEditMode}
-                                />
-                              </>
-                            )}
-                            {isEditable && <ContextMenuPlugin />}
-                          </div>
-                          {/* A chat left open by an earlier sign-in, or the tree once the developer flag is off, stays shut. */}
-                          {onScreen &&
-                            activeSidebar &&
-                            (signedIn || activeSidebar !== "llm") &&
-                            (developer || activeSidebar !== "tree") && (
-                              <SidebarWrapper
-                                key={activeSidebar}
-                                ref={sidebarRef}
-                                className="print:hidden"
-                                onClose={() => {
-                                  setActiveSidebar(null);
-                                }}
-                                title={getSidebarTitle(activeSidebar)}
-                                // Reading tools keep one width; the chat's
-                                // width is the reader's to choose.
-                                resizable={activeSidebar === "llm"}
-                                initialWidth={
-                                  activeSidebar === "llm"
-                                    ? currentSidebarWidth
-                                    : SIDEBAR_WIDTH
-                                }
-                                minWidth={200}
-                                maxWidth={800}
-                                onWidthChange={
-                                  activeSidebar === "llm"
-                                    ? setCurrentSidebarWidth
-                                    : undefined
-                                }
-                              >
-                                {activeSidebar === "llm" && <LlmChatPlugin />}
-                                {activeSidebar === "comments" && <CommentUI />}
-                                {activeSidebar === "toc" && (
-                                  <TableOfContentsPlugin title={entity.title} />
-                                )}
-                                {activeSidebar === "tree" && <TreeViewPlugin />}
-                              </SidebarWrapper>
-                            )}
+                          )}
+                          {onScreen && phone && signedIn && !readingOnPhone && (
+                            <ListenPlayer withTrigger={false} />
+                          )}
                         </div>
-
-                        {onScreen && <ConditionalCommentInputBoxRenderer />}
-                      </div>
+                      </ListenWhenSignedIn>
                     </CommentPluginProvider>
                   </LexicalImageProvider>
                 </ImageProvider>
@@ -808,6 +864,73 @@ function EditorHandler({
 }
 
 const PLACEHOLDER = "Start writing…";
+
+/** Read-aloud's state, shared by the toolbar, the ⋯ menu and the reading pill. */
+function ListenWhenSignedIn({
+  signedIn,
+  children,
+}: {
+  signedIn: boolean;
+  children: ReactNode;
+}) {
+  return signedIn ? <ListenProvider>{children}</ListenProvider> : children;
+}
+
+/**
+ * Whether the page has scrolled down since it last scrolled up, for a bar
+ * that gets out of a reader's way; never while `enabled` is false.
+ */
+function useScrolledAway(enabled: boolean) {
+  const [away, setAway] = useState(false);
+  useEffect(() => {
+    if (!enabled) return;
+    let last = window.scrollY;
+    const onScroll = () => {
+      const y = window.scrollY;
+      if (Math.abs(y - last) < 8) return;
+      setAway(y > last && y > 64);
+      last = y;
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      setAway(false);
+    };
+  }, [enabled]);
+  return enabled && away;
+}
+
+/** A phone reader's tools, off the page: listening and the contents. */
+function ReadingPill({
+  signedIn,
+  contentsOpen,
+  onContents,
+}: {
+  signedIn: boolean;
+  contentsOpen: boolean;
+  onContents: () => void;
+}) {
+  return (
+    <TooltipProvider>
+      <div
+        role="toolbar"
+        aria-label="Reading"
+        className="fixed bottom-[max(1rem,env(safe-area-inset-bottom))] left-1/2 z-30 flex -translate-x-1/2 items-center gap-1 rounded-full border border-border bg-card p-1 shadow-(--elevation-overlay) print:hidden"
+      >
+        {signedIn && <ListenControls />}
+        <Button
+          variant={contentsOpen ? "on" : "ghost"}
+          aria-pressed={contentsOpen}
+          onClick={onContents}
+          className="h-11 gap-2 rounded-full px-4"
+        >
+          <ListTreeIcon className="size-5" aria-hidden />
+          Contents
+        </Button>
+      </div>
+    </TooltipProvider>
+  );
+}
 
 /** Opens or closes a reading tool's sidebar; in the ⋯ menu on phones. */
 function SidebarToggle({

@@ -31,8 +31,8 @@ export function SaveStatus() {
               : "size-4"
         }
       />
-      {/* Phones keep the icon; the words are for everyone else. */}
-      <span className="max-sm:sr-only whitespace-nowrap">{label}</span>
+      {/* Below a desktop the icon says it; the words leave the title room. */}
+      <span className="max-lg:sr-only whitespace-nowrap">{label}</span>
     </span>
   );
 }

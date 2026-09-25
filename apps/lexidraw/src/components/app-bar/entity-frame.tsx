@@ -21,18 +21,32 @@ export function EntityAppBar({
   entity,
   canRename,
   actions,
+  compactOnPhone = false,
   className,
 }: {
   frame: EntityFrame;
   entity: { id: string; title: string };
   canRename: boolean;
   actions?: ReactNode;
+  /** Whether a phone gets the compact bar: back, title, status and actions. */
+  compactOnPhone?: boolean;
   className?: string;
 }) {
+  const parent = frame.ancestors.at(-1);
   return (
     <AppBar
       account={frame.account}
       className={className}
+      back={
+        compactOnPhone && frame.account
+          ? parent
+            ? {
+                href: `/dashboard/${parent.id}`,
+                label: `Back to ${parent.title || "Untitled"}`,
+              }
+            : { href: "/dashboard", label: "Back to Home" }
+          : undefined
+      }
       crumbs={
         <>
           {frame.ancestors.map((ancestor) => (
