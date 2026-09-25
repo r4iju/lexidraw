@@ -12,7 +12,6 @@ import {
 } from "lexical";
 import type * as React from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ErrorBoundary } from "react-error-boundary";
 
 import EquationEditor from "~/components/ui/equation-editor";
 import KatexRenderer from "~/components/ui/katex-renderer";
@@ -125,26 +124,19 @@ export default function EquationComponent({
           ref={inputRef}
         />
       ) : (
-        <ErrorBoundary
-          onError={(e) =>
-            editor._onError(e instanceof Error ? e : new Error(String(e)))
+        <KatexRenderer
+          equation={equationValue}
+          inline={inline}
+          onDoubleClick={() => setShowEquationEditor(true)}
+          onClick={
+            coarse
+              ? () => {
+                  setTapped(true);
+                  setShowEquationEditor(true);
+                }
+              : undefined
           }
-          fallback={null}
-        >
-          <KatexRenderer
-            equation={equationValue}
-            inline={inline}
-            onDoubleClick={() => setShowEquationEditor(true)}
-            onClick={
-              coarse
-                ? () => {
-                    setTapped(true);
-                    setShowEquationEditor(true);
-                  }
-                : undefined
-            }
-          />
-        </ErrorBoundary>
+        />
       )}
     </>
   );

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Suspense } from "react";
 import { AuthCard } from "~/components/auth-card";
 import { Button } from "~/components/ui/button";
 
@@ -29,15 +30,25 @@ const FALLBACK = "Something went wrong while signing you in.";
 
 type Props = { searchParams: Promise<{ error?: string | string[] }> };
 
-export default async function SignInErrorPage({ searchParams }: Props) {
+async function Reason({ searchParams }: Props) {
   const { error } = await searchParams;
-  const reason =
+  return (
     (typeof error === "string" && Object.hasOwn(REASONS, error)
       ? REASONS[error]
-      : undefined) ?? FALLBACK;
+      : undefined) ?? FALLBACK
+  );
+}
 
+export default function SignInErrorPage({ searchParams }: Props) {
   return (
-    <AuthCard title="We couldn’t sign you in" description={reason}>
+    <AuthCard
+      title="We couldn’t sign you in"
+      description={
+        <Suspense fallback={<span className="invisible">{FALLBACK}</span>}>
+          <Reason searchParams={searchParams} />
+        </Suspense>
+      }
+    >
       <div className="flex flex-col gap-3">
         <Button asChild className="w-full">
           <Link href="/signin">Try again</Link>

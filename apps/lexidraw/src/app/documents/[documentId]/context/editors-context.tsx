@@ -25,7 +25,7 @@ import type {
   KeyedSerializedEditorState,
   SerializedNodeWithKey,
 } from "../types";
-import { NESTED_EDITOR_NODES } from "../nodes/SlideNode/SlideDeckEditor";
+import { NESTED_EDITOR_NODES } from "../nodes/SlideNode/nested-editor-nodes";
 
 export type EditorRegistryEntry = {
   editor: LexicalEditor;

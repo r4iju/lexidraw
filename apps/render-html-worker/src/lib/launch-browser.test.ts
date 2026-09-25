@@ -69,10 +69,7 @@ beforeEach(() => {
   mkdirSync(lambdaTmp);
   mkdirSync(path.join(task, "fonts"), { recursive: true });
   for (const font of RENDER_FONTS)
-    writeFileSync(
-      path.join(task, "fonts", font.file),
-      `bytes of ${font.file}`,
-    );
+    writeFileSync(path.join(task, "fonts", font.file), `bytes of ${font.file}`);
   process.chdir(task);
   env.TMPDIR = lambdaTmp;
   env.VERCEL = "1";

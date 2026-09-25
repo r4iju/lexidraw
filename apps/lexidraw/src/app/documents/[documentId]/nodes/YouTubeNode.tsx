@@ -1,6 +1,7 @@
 import {
   $getFigure,
   YouTubeNode as HeadlessYouTubeNode,
+  parseNaturalSize,
 } from "@packages/lexical-nodes";
 import type { EditorConfig, LexicalEditor } from "lexical";
 import * as React from "react";
@@ -26,7 +27,16 @@ export class YouTubeNode extends HeadlessYouTubeNode {
     };
     return (
       <FigureFrame nodeKey={this.getKey()} figure={$getFigure(this)}>
-        <Suspense fallback={<BlockLoading />}>
+        <Suspense
+          fallback={
+            <BlockLoading
+              size={parseNaturalSize({
+                width: this.__width,
+                height: this.__height,
+              })}
+            />
+          }
+        >
           <YouTubeComponent
             className={className}
             format={this.__format}

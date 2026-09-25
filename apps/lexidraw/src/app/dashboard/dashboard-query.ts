@@ -1,8 +1,7 @@
 import { cookies } from "next/headers";
 import { z } from "zod";
+import { DASHBOARD_PREFS_COOKIE, parseDashboardPrefs } from "./dashboard-prefs";
 import { DASHBOARD_VIEWS, type DashboardView } from "./view-filter";
-
-const DASHBOARD_PREFS_COOKIE = "ld_dash_prefs";
 
 const Query = z.object({
   sortBy: z.enum(["updatedAt", "createdAt", "title"]).catch("updatedAt"),
@@ -13,18 +12,6 @@ const Query = z.object({
 });
 
 export type DashboardQuery = z.infer<typeof Query>;
-
-const Prefs = z
-  .object({
-    sortBy: z.string(),
-    sortOrder: z.string(),
-    flex: z.string(),
-    tags: z.string(),
-    view: z.string(),
-    // Written before views existed.
-    onlyFavorites: z.boolean(),
-  })
-  .partial();
 
 type Params = Record<string, string | string[] | undefined>;
 
@@ -45,13 +32,9 @@ function legacyView(onlyFavorites: unknown): DashboardView | undefined {
 export async function resolveDashboardQuery(
   params: Params,
 ): Promise<DashboardQuery> {
-  let prefs: z.infer<typeof Prefs> = {};
-  try {
-    const raw = (await cookies()).get(DASHBOARD_PREFS_COOKIE)?.value;
-    if (raw) prefs = Prefs.parse(JSON.parse(decodeURIComponent(raw)));
-  } catch {
-    // An unreadable cookie is the same as none.
-  }
+  const prefs = parseDashboardPrefs(
+    (await cookies()).get(DASHBOARD_PREFS_COOKIE)?.value,
+  );
   const pick = (key: keyof DashboardQuery) =>
     key in params ? first(params[key]) : prefs[key];
 

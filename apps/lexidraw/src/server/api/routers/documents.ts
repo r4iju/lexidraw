@@ -21,6 +21,7 @@ import {
   drizzleDocumentStore,
   nextUpdatedAt,
 } from "~/server/documents/document-store";
+import { measureImages } from "~/server/documents/measure-images";
 import { StaleDocumentError } from "~/server/documents/conflict";
 import {
   DuplicatePlaceholderError,
@@ -188,6 +189,10 @@ export const documentRouter = createTRPCRouter({
   create: protectedProcedure
     .input(CreateDocument)
     .mutation(async ({ input, ctx }) => {
+      const elements =
+        typeof input.elements === "string"
+          ? await measureImages(input.elements)
+          : input.elements;
       const created = await ctx.drizzle
         .insert(schema.entities)
         .values({
@@ -199,7 +204,7 @@ export const documentRouter = createTRPCRouter({
           userId: ctx.session?.user.id,
           entityType: "document",
           publicAccess: PublicAccess.PRIVATE,
-          elements: input.elements,
+          elements,
         })
         .onConflictDoNothing()
         .returning();

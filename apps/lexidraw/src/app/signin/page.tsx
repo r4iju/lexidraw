@@ -7,14 +7,19 @@ import SignInForm from "./form";
 
 type Props = { searchParams: Promise<{ error?: string | string[] }> };
 
-export default async function SignInPage({ searchParams }: Props) {
-  // A GitHub sign-in that fails comes back here with a code; the error page
-  // is the one that explains it.
+/**
+ * A GitHub sign-in that fails comes back here with a code; the error page is
+ * the one that explains it.
+ */
+async function RedirectFailedSignIn({ searchParams }: Props) {
   const { error } = await searchParams;
   if (typeof error === "string") {
     redirect(`/signin-error?${new URLSearchParams({ error })}`);
   }
+  return null;
+}
 
+export default function SignInPage({ searchParams }: Props) {
   return (
     <AuthCard
       title="Sign in"
@@ -30,6 +35,9 @@ export default async function SignInPage({ searchParams }: Props) {
         </>
       }
     >
+      <Suspense fallback={null}>
+        <RedirectFailedSignIn searchParams={searchParams} />
+      </Suspense>
       <Suspense fallback={<FormSkeleton />}>
         <SignInForm />
       </Suspense>

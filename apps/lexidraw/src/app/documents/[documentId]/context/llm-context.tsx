@@ -3,17 +3,15 @@
 import { createContext, useCallback, useState, useContext } from "react";
 import type { PropsWithChildren } from "react";
 
-import {
+import type {
   generateText,
-  type LanguageModel,
-  type StepResult,
-  type tool,
-  type ToolCallRepairFunction,
-  type ToolChoice,
-  type ModelMessage,
+  LanguageModel,
+  StepResult,
+  tool,
+  ToolCallRepairFunction,
+  ToolChoice,
+  ModelMessage,
 } from "ai";
-import { createOpenAI } from "@ai-sdk/openai";
-import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { api } from "~/trpc/react";
 import type {
   LlmBaseConfigSchema,
@@ -127,6 +125,26 @@ type LLMContextValue = {
   ) => Promise<void>;
   chatState: ChatLLMState;
 };
+
+/**
+ * The agent's model, reached through the app's proxy. The SDKs load with the
+ * first request, not with every document.
+ */
+async function proxiedModel(
+  provider: string,
+  modelId: string,
+): Promise<LanguageModel> {
+  const options = { baseURL: `/api/llm/proxy/${provider}`, apiKey: "proxy" };
+  if (provider === "openai") {
+    const { createOpenAI } = await import("@ai-sdk/openai");
+    return createOpenAI(options)(modelId);
+  }
+  if (provider === "google") {
+    const { createGoogleGenerativeAI } = await import("@ai-sdk/google");
+    return createGoogleGenerativeAI(options)(modelId);
+  }
+  throw new Error("Unsupported provider for client orchestration");
+}
 
 const LLMContext = createContext<LLMContextValue | null>(null);
 
@@ -317,35 +335,17 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
         toolCalls: undefined,
       }));
 
-      // Instantiate provider client-side with proxy baseURL
-      let model: ReturnType<
-        | ReturnType<typeof createOpenAI>
-        | ReturnType<typeof createGoogleGenerativeAI>
-      > | null = null;
-      const provider = llmConfig.agent.provider;
-      const modelId = llmConfig.agent.modelId;
-      if (provider === "openai") {
-        const openai = createOpenAI({
-          baseURL: "/api/llm/proxy/openai",
-          apiKey: "proxy",
-        });
-        model = openai(modelId);
-      } else if (provider === "google") {
-        const google = createGoogleGenerativeAI({
-          baseURL: "/api/llm/proxy/google",
-          apiKey: "proxy",
-        });
-        model = google(modelId);
-      } else {
-        throw new Error("Unsupported provider for client orchestration");
-      }
+      const model = await proxiedModel(
+        llmConfig.agent.provider,
+        llmConfig.agent.modelId,
+      );
 
       const baseMessages: ModelMessage[] = (messages ?? []).length
         ? (messages as ModelMessage[])
         : ([{ role: "user", content: prompt }] as ModelMessage[]);
 
       const genOptions = {
-        model: model as unknown as LanguageModel,
+        model,
         messages: baseMessages,
         allowSystemInMessages: true,
         system,
@@ -359,6 +359,7 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
         toolNames: Object.keys(tools ?? {}),
         maxSteps,
       });
+      const { generateText } = await import("ai");
       const result = await generateText(genOptions);
       console.log("[agent] generateText (client) ← result", {
         toolCallsCount: (result.toolCalls ?? []).length,

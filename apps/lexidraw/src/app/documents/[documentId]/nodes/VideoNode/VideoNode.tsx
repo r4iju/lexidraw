@@ -1,6 +1,7 @@
 import {
   $getFigure,
   VideoNode as HeadlessVideoNode,
+  parseNaturalSize,
 } from "@packages/lexical-nodes";
 import type { EditorConfig, LexicalEditor } from "lexical";
 import * as React from "react";
@@ -22,7 +23,16 @@ export class VideoNode extends HeadlessVideoNode {
 
   decorate(_editor: LexicalEditor, _config: EditorConfig): React.JSX.Element {
     return (
-      <Suspense fallback={<BlockLoading />}>
+      <Suspense
+        fallback={
+          <BlockLoading
+            size={parseNaturalSize({
+              width: this.__width,
+              height: this.__height,
+            })}
+          />
+        }
+      >
         <VideoComponent
           src={this.__src}
           nodeKey={this.getKey()}

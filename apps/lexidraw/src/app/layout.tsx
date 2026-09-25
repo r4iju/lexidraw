@@ -65,25 +65,27 @@ export default async function RootLayout({ children }: Props) {
         </a>
         <LeaveGuardListener />
         <SessionProvider>
-          <Suspense fallback={<div className="min-h-[100vh]" />}>
-            <TRPCProviderWrapper>
-              <ThemeProvider
-                attribute="class"
-                defaultTheme="system"
-                enableSystem
-                disableTransitionOnChange
-              >
-                <TooltipProvider>
-                  {children}
+          <TRPCProviderWrapper>
+            <ThemeProvider
+              attribute="class"
+              defaultTheme="system"
+              enableSystem
+              disableTransitionOnChange
+            >
+              <TooltipProvider>
+                {children}
+                <Suspense fallback={null}>
                   <ImpersonationBanner />
-                  <Toaster />
-                  <LayoutListener />
+                </Suspense>
+                <Toaster />
+                <LayoutListener />
+                <Suspense fallback={null}>
                   <DashboardCacheInvalidator />
-                  <Analytics />
-                </TooltipProvider>
-              </ThemeProvider>
-            </TRPCProviderWrapper>
-          </Suspense>
+                </Suspense>
+                <Analytics />
+              </TooltipProvider>
+            </ThemeProvider>
+          </TRPCProviderWrapper>
         </SessionProvider>
       </body>
     </html>

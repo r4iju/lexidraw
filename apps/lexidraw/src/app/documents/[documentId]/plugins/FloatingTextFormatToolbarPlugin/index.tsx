@@ -196,7 +196,7 @@ function SelectionToolbar({
   return (
     <div
       ref={ref}
-      className="fixed top-0 left-0 z-50 rounded-lg border border-border-subtle bg-popover px-1 opacity-0 shadow-[var(--elevation-overlay)] transition-opacity duration-150 motion-reduce:transition-none"
+      className="fixed top-0 left-0 z-50 rounded-lg border border-border-subtle bg-popover px-1 opacity-0 shadow-[var(--elevation-overlay)] transition-opacity duration-base motion-reduce:transition-none"
     >
       <Toolbar
         label="Selection formatting"

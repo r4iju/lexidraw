@@ -84,6 +84,7 @@ import {
   DropdownMenuTrigger,
 } from "~/components/ui/dropdown-menu";
 import { useUserNameOrGuestName } from "~/hooks/use-user-name-or-guest-name";
+import { scrollMotion } from "~/lib/scroll-motion";
 
 export const INSERT_INLINE_COMMAND: LexicalCommand<void> = createCommand(
   "INSERT_INLINE_COMMAND",
@@ -360,7 +361,7 @@ export function CommentInputBox({
   return createPortal(
     <div
       data-component-name="CommentInputBox"
-      className="absolute w-64 min-h-20 left-0 top-0 elevation-overlay rounded-lg z-20 animate-in slide-in-from-right-5"
+      className="absolute w-64 min-h-20 left-0 top-0 elevation-overlay rounded-lg z-20 animate-in fade-in slide-in-from-right-5 duration-base ease-enter"
       ref={boxRef}
     >
       {/* arrow div */}
@@ -755,9 +756,7 @@ function CommentsPanelList({
           if (activeElem instanceof HTMLElement) activeElem.focus();
           editor.getElementByKey(firstKey)?.scrollIntoView({
             block: "center",
-            behavior: matchMedia("(prefers-reduced-motion: reduce)").matches
-              ? "auto"
-              : "smooth",
+            behavior: scrollMotion(),
           });
         },
       },

@@ -1,5 +1,4 @@
 import { DocumentCodeNode } from "@packages/lexical-nodes";
-import { normalizeCodeLanguage } from "@lexical/code-shiki";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { useLexicalEditable } from "@lexical/react/useLexicalEditable";
 import {
@@ -13,6 +12,7 @@ import { createPortal } from "react-dom";
 import {
   CODE_LANGUAGE_OPTIONS,
   getCodeLanguageFriendlyName,
+  normalizeCodeLanguage,
 } from "../code-language";
 import { CopyButton } from "./copy-button";
 import { PrettierButton } from "./prettier-button";

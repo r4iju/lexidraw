@@ -48,7 +48,6 @@ type Props = {
 };
 
 export default async function DocumentPage(props: Props) {
-  console.log("🔄 DocumentPage re-rendered");
   const param = await props.params;
   const { documentId } = Params.parse(param);
 
@@ -67,17 +66,16 @@ export default async function DocumentPage(props: Props) {
   // document on screen until it expires.
   cacheTag(entityTag(documentId));
 
-  // A missing document, or one this caller may not read, is a 404.
-  const document = await api.entities.load
-    .query({ id: documentId })
-    .catch(notFoundOr);
-  const [iceServers, initialLlmConfig, session, frame] = await Promise.all([
-    api.auth.iceServers.query(),
-    // A visitor without an account reads the defaults.
-    api.config.getConfig.query(),
-    auth(),
-    entityFrame(documentId),
-  ]);
+  const [document, iceServers, initialLlmConfig, session, frame] =
+    await Promise.all([
+      // A missing document, or one this caller may not read, is a 404.
+      api.entities.load.query({ id: documentId }).catch(notFoundOr),
+      api.auth.iceServers.query(),
+      // A visitor without an account reads the defaults.
+      api.config.getConfig.query(),
+      auth(),
+      entityFrame(documentId),
+    ]);
 
   try {
     return (

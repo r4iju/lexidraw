@@ -1,11 +1,12 @@
 /// <reference types="bun" />
-import { beforeEach, describe, expect, test } from "bun:test";
+import { afterEach, beforeEach, describe, expect, spyOn, test } from "bun:test";
 import { createClient } from "@libsql/client";
 import * as schema from "@packages/drizzle/drizzle-schema";
 import { drizzle, type LibSQLDatabase } from "drizzle-orm/libsql";
 import { PublicAccess } from "@packages/types";
 import type { DocumentStore } from "./write";
 import { drizzleDocumentStore } from "./document-store";
+import * as imageProbe from "./image-probe";
 
 // The Entities columns as `schema.entities` declares them, without the
 // foreign keys, so the table stands on its own in memory.
@@ -88,7 +89,41 @@ beforeEach(async () => {
   db = drizzle(client, { schema });
 });
 
+afterEach(() => {
+  (imageProbe.probeImageSize as { mockRestore?: () => void }).mockRestore?.();
+});
+
 describe("drizzleDocumentStore", () => {
+  test("a written document's outside pictures are stored with their size", async () => {
+    await seed({ id: "doc_1", updatedAt: AT });
+    const probe = spyOn(imageProbe, "probeImageSize").mockImplementation(
+      async () => ({ width: 1200, height: 1500 }),
+    );
+    const store = drizzleDocumentStore(db, "user_1");
+    const image = {
+      type: "image",
+      version: 1,
+      src: "https://images.example/tall.jpg",
+      altText: "",
+      width: 0,
+      height: 0,
+    };
+    const elements = JSON.stringify({
+      root: {
+        type: "root",
+        children: [{ type: "paragraph", children: [image] }],
+      },
+    });
+
+    await mustWrite(store, elements, AT);
+
+    expect(probe).toHaveBeenCalledWith("https://images.example/tall.jpg");
+    const stored = JSON.parse((await store.read("doc_1"))?.elements ?? "{}");
+    expect(stored.root.children[0].children[0].$).toEqual({
+      natural: { width: 1200, height: 1500 },
+    });
+  });
+
   test("a deleted document reads as gone", async () => {
     await seed({ id: "doc_1", updatedAt: AT });
     await seed({ id: "doc_2", updatedAt: AT, deletedAt: new Date() });

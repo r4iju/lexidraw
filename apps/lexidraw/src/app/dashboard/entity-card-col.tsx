@@ -11,9 +11,10 @@ import {
   getItemUrl,
 } from "./entity-card-utils";
 import { EntityThumbnail } from "./thumbnail-client";
+import type { DashboardQuery } from "./dashboard-query";
 
 type Props = EntityCardBaseProps & {
-  flex?: "flex-row" | "flex-col";
+  flex?: DashboardQuery["flex"];
 };
 
 /** A file as a row in the list: picture, name, what it is, and when. */
@@ -21,6 +22,7 @@ export function EntityCardCol({
   entity,
   sortBy = "updatedAt",
   sortOrder = "desc",
+  eager = true,
   flex = "flex-col",
 }: Props) {
   const href = getItemUrl({
@@ -45,7 +47,7 @@ export function EntityCardCol({
         draggable={false}
         className="flex min-w-0 flex-1 items-center gap-3 self-stretch rounded-md outline-offset-2"
       >
-        <EntityThumbnail entity={entity} variant="row" />
+        <EntityThumbnail entity={entity} variant="row" eager={eager} />
         <span className="flex min-w-0 flex-col">
           <span className="truncate text-row font-medium select-none">
             {entity.title}

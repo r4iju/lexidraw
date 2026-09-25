@@ -1,13 +1,11 @@
 import { EquationNode as HeadlessEquationNode } from "@packages/lexical-nodes";
-import katex from "katex";
 import type { DOMExportOutput } from "lexical";
-import * as React from "react";
+import type * as React from "react";
 import { Suspense } from "react";
-import { BlockLoading } from "./common/BlockLoading";
+import { katexOptions, loadedKatex } from "~/lib/katex";
+import EquationComponent from "./EquationComponent";
 
 export type { SerializedEquationNode } from "@packages/lexical-nodes";
-
-const EquationComponent = React.lazy(() => import("./EquationComponent"));
 
 /** React half of the package's EquationNode; see ImageNode. */
 export class EquationNode extends HeadlessEquationNode {
@@ -17,21 +15,20 @@ export class EquationNode extends HeadlessEquationNode {
 
   exportDOM(): DOMExportOutput {
     const output = super.exportDOM();
-    const element = output.element as HTMLElement;
-    katex.render(this.__equation, element, {
-      displayMode: !this.__inline, // true === block display //
-      errorColor: "var(--destructive)",
-      output: "html",
-      strict: "warn",
-      throwOnError: false,
-      trust: false,
-    });
+    // By the time anything is copied or exported, the equations on screen
+    // have loaded KaTeX; before then the source stands in.
+    loadedKatex()?.render(
+      this.__equation,
+      output.element as HTMLElement,
+      katexOptions(this.__inline),
+    );
     return output;
   }
 
   decorate(): React.JSX.Element {
     return (
-      <Suspense fallback={<BlockLoading />}>
+      // Only while KaTeX is still on its way; see `blocksReady`.
+      <Suspense fallback={<span aria-busy="true" />}>
         <EquationComponent
           equation={this.__equation}
           inline={this.__inline}

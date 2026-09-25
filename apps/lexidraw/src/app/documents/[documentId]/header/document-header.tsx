@@ -25,6 +25,7 @@ import { toast } from "sonner";
 import { useImageUpload } from "~/hooks/use-media-upload";
 import { propertyValueParts } from "~/lib/document-properties";
 import { api } from "~/trpc/react";
+import { scrollMotion } from "~/lib/scroll-motion";
 import { CoverForm } from "./cover-form";
 
 const sameJSON = (a: unknown, b: unknown) =>
@@ -397,10 +398,7 @@ function Contents({
                 event.preventDefault();
                 editor.getElementByKey(entry.key)?.scrollIntoView({
                   block: "start",
-                  behavior: matchMedia("(prefers-reduced-motion: reduce)")
-                    .matches
-                    ? "instant"
-                    : "smooth",
+                  behavior: scrollMotion(),
                 });
               }}
             >

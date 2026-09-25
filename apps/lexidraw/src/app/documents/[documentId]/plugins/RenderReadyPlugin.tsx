@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { captureHeld } from "~/lib/capture-hold";
 
 declare global {
   interface Window {
@@ -16,8 +17,8 @@ const GIVE_UP_MS = 20_000;
 
 /**
  * Tells a page renderer when the document is ready to capture: once its
- * fonts have loaded, no block is marked busy, every image has loaded, and
- * nothing has changed for a moment. A block that never settles costs a slow
+ * fonts have loaded, no block is marked busy, no work holds the capture,
+ * every image has loaded, and nothing has changed for a moment. A block that never settles costs a slow
  * capture rather than none.
  */
 export default function RenderReadyPlugin() {
@@ -45,6 +46,7 @@ export default function RenderReadyPlugin() {
         fontsLoaded &&
         document.querySelector("[id^='lexical-content-']") !== null &&
         document.querySelector("[aria-busy='true']") === null &&
+        !captureHeld() &&
         [...document.images].every((image) => image.complete) &&
         now - lastChange >= QUIET_MS;
       if (settled || now - started >= GIVE_UP_MS) {

@@ -2,6 +2,7 @@ import * as schema from "@packages/drizzle/drizzle-schema";
 import { and, eq, isNull, sql } from "drizzle-orm";
 import type { LibSQLDatabase } from "drizzle-orm/libsql";
 import { ownTagNames, replaceOwnTags } from "~/server/entities/tags";
+import { measureImages } from "./measure-images";
 import type { DocumentStore } from "./write";
 
 // The schema module rather than the @packages/drizzle barrel: the barrel
@@ -49,7 +50,7 @@ export function drizzleDocumentStore(
       const rows = await db
         .update(schema.entities)
         .set({
-          elements,
+          elements: await measureImages(elements),
           ...(title !== undefined ? { title } : {}),
           ...(appState !== undefined ? { appState } : {}),
           updatedAt: nextUpdatedAt(),

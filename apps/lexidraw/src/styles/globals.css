@@ -12,6 +12,22 @@
   }
 }
 
+/* A theme the reader chose over their system's, which a <picture> cannot see. */
+@custom-variant chosen-dark {
+  @media screen and (prefers-color-scheme: light) {
+    &:is(.dark *) {
+      @slot;
+    }
+  }
+}
+@custom-variant chosen-light {
+  @media screen and (prefers-color-scheme: dark) {
+    &:is(.light *) {
+      @slot;
+    }
+  }
+}
+
 @custom-variant details-open (&[open] &);
 @custom-variant details-open-summary (details[open] > summary &);
 @custom-variant details-open-content (details[open] > &);
@@ -29,6 +45,7 @@
   --list-style-type-lower-roman: lower-roman;
 
   --color-desk: var(--desk);
+  --color-drawing-canvas: var(--drawing-canvas);
   --color-surface-1: var(--surface-1);
   --color-surface-2: var(--surface-2);
   --color-surface-3: var(--surface-3);
@@ -107,8 +124,22 @@
   --text-row: 0.9375rem;
   --text-title: 1.375rem;
 
-  --animate-accordion-down: accordion-down 0.2s ease-out;
-  --animate-accordion-up: accordion-up 0.2s ease-out;
+  /* Motion: hover, press and focus are fast; tooltips, menus, popovers and
+     floating toolbars base; dialogs and accordions moderate; sheets and
+     sidebars slow. What enters decelerates; what leaves accelerates. */
+  --transition-duration-fast: 100ms;
+  --transition-duration-base: 150ms;
+  --transition-duration-moderate: 200ms;
+  --transition-duration-slow: 250ms;
+  --default-transition-duration: var(--transition-duration-fast);
+  --ease-enter: cubic-bezier(0, 0, 0.2, 1);
+  --ease-exit: cubic-bezier(0.4, 0, 1, 1);
+
+  --animate-accordion-down: accordion-down var(--transition-duration-moderate) var(--ease-enter);
+  --animate-accordion-up: accordion-up var(--transition-duration-moderate) var(--ease-exit);
+  /* A placeholder shows only once a load has taken a moment, then breathes. */
+  --animate-skeleton: skeleton-in var(--transition-duration-base) var(--ease-enter) 300ms both, skeleton-pulse 2s ease-in-out 450ms infinite;
+  --animate-content-in: content-in var(--transition-duration-base) var(--ease-enter);
 
   --font-fredoka: var(--font-fredoka);
   --font-mplus: var(--font-mplus);
@@ -132,10 +163,49 @@
       height: 0;
     }
   }
+  @keyframes skeleton-in {
+    from {
+      opacity: 0;
+    }
+  }
+  @keyframes skeleton-pulse {
+    50% {
+      opacity: 0.55;
+    }
+  }
+  @keyframes content-in {
+    from {
+      opacity: 0;
+    }
+  }
 
   /* Typography rhythm */
   --leading-normal: 1.625;
   --paragraph-spacing: 0.5rem;
+}
+
+/* Asked for less motion, things still fade in and out, but nothing travels,
+   zooms or pulses, a spinner turns slowly, and a scroll jumps. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    --tw-enter-translate-x: 0;
+    --tw-enter-translate-y: 0;
+    --tw-enter-scale: 1;
+    --tw-enter-rotate: 0;
+    --tw-exit-translate-x: 0;
+    --tw-exit-translate-y: 0;
+    --tw-exit-scale: 1;
+    --tw-exit-rotate: 0;
+    scroll-behavior: auto;
+  }
+  .animate-skeleton {
+    animation: skeleton-in var(--transition-duration-base) var(--ease-enter) 300ms both;
+  }
+  .animate-spin {
+    animation-duration: 3s;
+  }
 }
 
 @utility container {
@@ -158,6 +228,8 @@
   --diagram-paper-muted: oklch(0.49 0.012 285);
   color-scheme: light;
   --desk: oklch(0.96 0.004 285);
+  /* Excalidraw's paper, which its dark theme inverts. */
+  --drawing-canvas: oklch(1 0 0);
   --background: oklch(0.985 0.002 285);
   --foreground: oklch(0.23 0.01 285);
   --heading: oklch(0.17 0.01 285);
@@ -241,6 +313,25 @@
   --doc-highlight-red: oklch(0.93 0.04 27);
 }
 
+/* Before any script, or without one, a dark system gets a dark page; the
+   theme's script then names the theme on <html> and this steps aside. */
+@media screen and (prefers-color-scheme: dark) {
+  :root:not(.light, .dark) {
+    color-scheme: dark;
+    --desk: oklch(0.145 0.004 285);
+    --drawing-canvas: oklch(0.182 0 0);
+    --background: oklch(0.17 0.006 285);
+    --surface-1: oklch(0.205 0.008 285);
+    --surface-2: oklch(0.245 0.01 285);
+    --surface-3: oklch(0.29 0.012 285);
+    --foreground: oklch(0.92 0.005 285);
+    --heading: oklch(0.97 0.003 285);
+    --muted-foreground: oklch(0.72 0.01 285);
+    --border: oklch(0.31 0.008 285);
+    --input: oklch(0.37 0.01 285);
+  }
+}
+
 /* Paper is white; the screen's off-white page would print as a grey sheet. */
 @media print {
   :root {
@@ -253,6 +344,7 @@
     --code-background: var(--surface-1);
     color-scheme: dark;
     --desk: oklch(0.145 0.004 285);
+    --drawing-canvas: oklch(0.182 0 0);
     --background: oklch(0.17 0.006 285);
     --surface-1: oklch(0.205 0.008 285);
     --surface-2: oklch(0.245 0.01 285);

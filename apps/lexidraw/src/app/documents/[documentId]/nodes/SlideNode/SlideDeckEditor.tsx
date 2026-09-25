@@ -35,32 +35,9 @@ import {
 import {
   type EditorState,
   createEditor,
-  ParagraphNode,
-  TextNode,
-  LineBreakNode,
   type LexicalEditor,
   $getNodeByKey,
 } from "lexical";
-import { HeadingNode, QuoteNode } from "@lexical/rich-text";
-import { AutoLinkNode, LinkNode } from "@lexical/link";
-import { ListItemNode, ListNode } from "@lexical/list";
-import {
-  LayoutContainerNode,
-  LayoutItemNode,
-  KeywordNode,
-  EmojiNode,
-  CollapsibleContainerNode,
-  CollapsibleContentNode,
-  CollapsibleTitleNode,
-  AutocompleteNode,
-  CORE_NODES,
-} from "@packages/lexical-nodes";
-import { HashtagNode } from "@lexical/hashtag";
-import { ImageNode } from "../ImageNode/ImageNode";
-import { InlineImageNode } from "../InlineImageNode/InlineImageNode";
-import { VideoNode } from "../VideoNode/VideoNode";
-import { PollNode } from "../PollNode";
-import { TableNode, TableRowNode, TableCellNode } from "@lexical/table";
 import { LexicalNestedComposer } from "@lexical/react/LexicalNestedComposer";
 import { RichTextPlugin } from "@lexical/react/LexicalRichTextPlugin";
 import { ContentEditable } from "@lexical/react/LexicalContentEditable";
@@ -68,15 +45,9 @@ import { HistoryPlugin } from "@lexical/react/LexicalHistoryPlugin";
 // import { OnChangePlugin } from "@lexical/react/LexicalOnChangePlugin";
 import MarkdownShortcutPlugin from "../../plugins/MarkdownShortcutPlugin";
 import { HorizontalRulePlugin } from "@lexical/react/LexicalHorizontalRulePlugin";
-import { HorizontalRuleNode } from "@lexical/react/LexicalHorizontalRuleNode";
 import TwitterPlugin from "../../plugins/TwitterPlugin";
 import YouTubePlugin from "../../plugins/YouTubePlugin";
-import { TweetNode } from "../TweetNode";
-import { YouTubeNode } from "../YouTubeNode";
 import ExcalidrawPlugin from "../../plugins/ExcalidrawPlugin";
-import { ExcalidrawNode } from "../ExcalidrawNode";
-import { FigmaNode } from "../FigmaNode";
-import { EquationNode } from "../EquationNode";
 import FigmaPlugin from "../../plugins/FigmaPlugin";
 import EquationsPlugin from "../../plugins/EquationsPlugin";
 import { LexicalErrorBoundary } from "@lexical/react/LexicalErrorBoundary";
@@ -126,12 +97,6 @@ import {
   DialogTitle,
   DialogHeader,
 } from "~/components/ui/dialog";
-import { MarkNode } from "@lexical/mark";
-import { ThreadNode } from "../ThreadNode";
-import { CommentNode } from "../CommentNode";
-import { MermaidNode } from "../MermaidNode";
-import { PageBreakNode } from "../PageBreakNode";
-import { StickyNode } from "../StickyNode";
 import PageBreakPlugin from "../../plugins/PageBreakPlugin";
 import MermaidPlugin from "../../plugins/MermaidPlugin";
 import AutocompletePlugin from "../../plugins/AutocompletePlugin";
@@ -144,8 +109,6 @@ import {
   InsertImageDialog,
   type InsertImagePayload,
 } from "../../plugins/ImagePlugin";
-import { ArticleNode } from "../ArticleNode/ArticleNode";
-import { ChartNode } from "../ChartNode";
 import DynamicChartRenderer from "../ChartNode/DynamicChartRenderer";
 import type { ChartConfig } from "~/components/ui/chart";
 import SlideChartEditModal from "./SlideChartEditModal";
@@ -163,53 +126,7 @@ import { useKeyedSerialization } from "../../plugins/LlmChatPlugin/use-serialize
 import { isEqual } from "@packages/lib";
 import { BlurPlugin } from "./BlurPlugin";
 import { useEmptyContent } from "../../initial-content";
-
-export const NESTED_EDITOR_NODES = [
-  // Every transformer in PLAYGROUND_TRANSFORMERS depends on a node in this
-  // set, and MarkdownShortcutPlugin runs in here too; the React subclasses
-  // after it take over their types, as in document-editor.
-  ...CORE_NODES,
-  SlideNode,
-  ArticleNode,
-  ChartNode,
-  MarkNode,
-  AutocompleteNode,
-  CommentNode,
-  ThreadNode,
-  PageBreakNode,
-  StickyNode,
-  MermaidNode,
-  HeadingNode,
-  QuoteNode,
-  ListItemNode,
-  ListNode,
-  LinkNode,
-  ParagraphNode,
-  TextNode,
-  LineBreakNode,
-  KeywordNode,
-  HashtagNode,
-  EmojiNode,
-  ImageNode,
-  InlineImageNode,
-  VideoNode,
-  TableNode,
-  TableRowNode,
-  TableCellNode,
-  AutoLinkNode,
-  HorizontalRuleNode,
-  EquationNode,
-  TweetNode,
-  YouTubeNode,
-  ExcalidrawNode,
-  FigmaNode,
-  LayoutContainerNode,
-  LayoutItemNode,
-  CollapsibleContainerNode,
-  CollapsibleContentNode,
-  CollapsibleTitleNode,
-  PollNode,
-];
+import { NESTED_EDITOR_NODES } from "./nested-editor-nodes";
 
 interface CornerHandleProps {
   corner: "nw" | "ne" | "sw" | "se";
@@ -623,7 +540,7 @@ const DraggableBoxWrapper: React.FC<DraggableBoxWrapperProps> = ({
       </div>
       <div
         className={cn(
-          "absolute inset-0 rounded pointer-events-none transition-all duration-100",
+          "absolute inset-0 rounded pointer-events-none transition-opacity",
           isSelected
             ? "ring-2 ring-primary/90 opacity-100"
             : "opacity-0 group-hover:opacity-100 group-hover:ring-2 group-hover:ring-primary/40",

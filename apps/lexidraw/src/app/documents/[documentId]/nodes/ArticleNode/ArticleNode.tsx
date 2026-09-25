@@ -1,14 +1,9 @@
 import { ArticleNode as HeadlessArticleNode } from "@packages/lexical-nodes";
 import type { EditorConfig, LexicalEditor } from "lexical";
-import * as React from "react";
-import { Suspense } from "react";
-import { BlockLoading } from "../common/BlockLoading";
+import type * as React from "react";
+import { ArticleBlock } from "./ArticleBlock";
 
 export type { SerializedArticleNode } from "@packages/lexical-nodes";
-
-const ArticleBlock = React.lazy(() =>
-  import("./ArticleBlock").then((mod) => ({ default: mod.ArticleBlock })),
-);
 
 /** React half of the package's ArticleNode; see ImageNode. */
 export class ArticleNode extends HeadlessArticleNode {
@@ -23,13 +18,11 @@ export class ArticleNode extends HeadlessArticleNode {
       focus: embedBlockTheme.focus || "",
     };
     return (
-      <Suspense fallback={<BlockLoading />}>
-        <ArticleBlock
-          className={className}
-          nodeKey={this.getKey()}
-          data={this.__data}
-        />
-      </Suspense>
+      <ArticleBlock
+        className={className}
+        nodeKey={this.getKey()}
+        data={this.__data}
+      />
     );
   }
 }

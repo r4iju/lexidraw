@@ -27,21 +27,28 @@ import MermaidImage from "./MermaidImage";
 import { NodeEditButton } from "../common/NodeEditButton";
 import MermaidModal from "./MermaidModal";
 import { cn } from "~/lib/utils";
-
-type Dimension = number | "inherit";
+import type { NaturalSize } from "@packages/lexical-nodes";
+import { useKeepNaturalSize } from "../common/natural-size";
+import { type Dimension, FIGURE_FRAME } from "../common/figure-box";
 
 export default function MermaidComponent({
   nodeKey,
   schema,
   width,
   height,
+  natural,
 }: {
   nodeKey: NodeKey;
   schema: string;
   width: Dimension;
   height: Dimension;
+  natural: NaturalSize | undefined;
 }) {
   const [editor] = useLexicalComposerContext();
+  // Mermaid lays a diagram out with the fonts of the machine drawing it, so
+  // each reader's copy measures a little differently; the first measure of a
+  // source stands, and editing the source drops it.
+  const keepNaturalSize = useKeepNaturalSize(nodeKey, { replace: false });
 
   /* refs & local state */
   const containerRef = useRef<HTMLDivElement>(null);
@@ -145,7 +152,7 @@ export default function MermaidComponent({
   return (
     <>
       <div
-        className={cn("group/node relative inline-block max-w-full", {
+        className={cn(FIGURE_FRAME, {
           "cursor-move":
             isFocused && !isResizing && $isNodeSelection(selection),
         })}
@@ -156,6 +163,8 @@ export default function MermaidComponent({
           schema={schema}
           width={width}
           height={height}
+          natural={natural}
+          onMeasured={keepNaturalSize}
           className={cn(
             typeof width === "number" && "w-full",
             typeof height === "number" && "h-full",

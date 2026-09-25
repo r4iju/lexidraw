@@ -35,7 +35,7 @@ import type { TRPCClientErrorLike } from "@trpc/client";
 import type { AppRouter } from "~/server/api/root";
 import { api } from "~/trpc/react";
 import { toast } from "sonner";
-import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { LinkNode } from "@lexical/link";
 import { useLexicalImageInsertion } from "~/hooks/use-image-insertion";
 import type { RouterOutputs } from "~/trpc/shared";
@@ -340,15 +340,8 @@ export function InsertImageGeneratedDialogBody({
         <Button type="button" variant="ghost" onClick={onCancel}>
           Cancel
         </Button>
-        <Button type="submit" disabled={isDisabled}>
-          {isLoading ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Generating...
-            </>
-          ) : (
-            "Generate Image"
-          )}
+        <Button type="submit" disabled={isDisabled} pending={isLoading}>
+          Generate Image
         </Button>
       </DialogFooter>
     </form>

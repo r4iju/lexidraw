@@ -1,10 +1,11 @@
 import {
   $getFigure,
+  $getNaturalSize,
   ImageNode as HeadlessImageNode,
 } from "@packages/lexical-nodes";
 import * as React from "react";
 import { Suspense } from "react";
-import { BlockLoading } from "../common/BlockLoading";
+import { ImageLoading } from "./image-box";
 
 export type {
   ImagePayload,
@@ -25,8 +26,22 @@ export class ImageNode extends HeadlessImageNode {
   static importJSON = HeadlessImageNode.importJSON;
 
   decorate(): React.JSX.Element {
+    const figureWidth = $getFigure(this).width;
+    const natural = $getNaturalSize(this);
     return (
-      <Suspense fallback={<BlockLoading />}>
+      <Suspense
+        fallback={
+          <div className="relative inline-block document-figure">
+            <ImageLoading
+              altText={this.__altText}
+              natural={natural}
+              width={this.__width}
+              height={this.__height}
+              fill={figureWidth !== undefined}
+            />
+          </div>
+        }
+      >
         <ImageComponent
           src={this.__src}
           altText={this.__altText}
@@ -37,7 +52,8 @@ export class ImageNode extends HeadlessImageNode {
           showCaption={this.__showCaption}
           caption={this.__caption}
           captionsEnabled={this.__captionsEnabled}
-          figureWidth={$getFigure(this).width}
+          figureWidth={figureWidth}
+          natural={natural}
           resizable={true}
         />
       </Suspense>

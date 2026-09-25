@@ -181,7 +181,7 @@ function DragChip({
       }}
       className="flex h-12 w-max max-w-64 cursor-grabbing items-center gap-2.5 rounded-lg border border-border bg-popover py-1 pr-3.5 pl-1 text-popover-foreground shadow-lg"
     >
-      <EntityThumbnail entity={entity} variant="row" />
+      <EntityThumbnail entity={entity} variant="row" eager />
       <span className="truncate text-row font-medium select-none">
         {entity.title}
       </span>

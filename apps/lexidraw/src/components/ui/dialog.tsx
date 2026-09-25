@@ -43,10 +43,20 @@ const sizes = {
   full: "sm:max-w-none sm:w-[95vw] sm:h-[95dvh]",
 };
 
+/**
+ * A dialog opens in 200ms and closes in 150ms, its backdrop in step; one that
+ * is a sheet on a phone takes a sheet's 250ms and 200ms.
+ */
+const timing = {
+  dialog:
+    "data-[state=open]:duration-moderate data-[state=open]:ease-enter data-[state=closed]:duration-base data-[state=closed]:ease-exit",
+  sheet:
+    "max-sm:data-[state=open]:duration-slow max-sm:data-[state=closed]:duration-moderate",
+};
+
 /** Small dialogs rise from the bottom of a phone; editors take the screen. */
 const phone = {
-  sheet:
-    "max-sm:inset-x-0 max-sm:top-auto max-sm:bottom-(--keyboard-inset) max-sm:w-full max-sm:max-h-[calc(var(--dynamic-viewport-height)-var(--keyboard-inset)-3rem)] max-sm:rounded-b-none max-sm:rounded-t-xl max-sm:border-x-0 max-sm:border-b-0 max-sm:p-4 max-sm:pb-[max(1rem,env(safe-area-inset-bottom))] max-sm:data-[state=open]:slide-in-from-bottom-8 max-sm:data-[state=open]:zoom-in-100 max-sm:data-[state=closed]:zoom-out-100",
+  sheet: `max-sm:inset-x-0 max-sm:top-auto max-sm:bottom-(--keyboard-inset) max-sm:w-full max-sm:max-h-[calc(var(--dynamic-viewport-height)-var(--keyboard-inset)-3rem)] max-sm:rounded-b-none max-sm:rounded-t-xl max-sm:border-x-0 max-sm:border-b-0 max-sm:p-4 max-sm:pb-[max(1rem,env(safe-area-inset-bottom))] max-sm:data-[state=open]:slide-in-from-bottom max-sm:data-[state=closed]:slide-out-to-bottom max-sm:data-[state=open]:zoom-in-100 max-sm:data-[state=closed]:zoom-out-100 ${timing.sheet}`,
   screen:
     "max-sm:inset-x-0 max-sm:top-0 max-sm:w-full max-sm:h-[calc(var(--dynamic-viewport-height)-var(--keyboard-inset))] max-sm:max-h-none max-sm:rounded-none max-sm:border-0 max-sm:p-4 max-sm:pt-[max(1rem,env(safe-area-inset-top))] max-sm:pb-[max(1rem,env(safe-area-inset-bottom))]",
 };
@@ -85,9 +95,18 @@ const DialogContent = ({
   ...props
 }: DialogContentProps) => {
   const nested = useContext(InsideDialog);
+  const asSheet = size !== "xl" && size !== "full";
   return (
     <DialogPortal>
-      {!nested && <DialogOverlay className={overlayClassName} />}
+      {!nested && (
+        <DialogOverlay
+          className={cn(
+            timing.dialog,
+            asSheet && timing.sheet,
+            overlayClassName,
+          )}
+        />
+      )}
       <DialogPrimitive.Content
         ref={(node) => {
           // A field that takes focus on a touch screen raises the keyboard
@@ -105,11 +124,12 @@ const DialogContent = ({
           (event.target as HTMLElement | null)?.focus();
         }}
         className={cn(
-          "fixed left-[50%] top-[50%] z-50 grid translate-x-[-50%] translate-y-[-50%] gap-4 elevation-modal p-6 duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 rounded-lg outline-hidden",
+          "fixed left-[50%] top-[50%] z-50 grid translate-x-[-50%] translate-y-[-50%] gap-4 elevation-modal p-6 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 rounded-lg outline-hidden",
           "w-[calc(100vw-2rem)] max-h-[calc(var(--dynamic-viewport-height)-2rem)] overflow-y-auto overscroll-contain",
           "max-sm:translate-x-0 max-sm:translate-y-0 max-sm:left-0",
           sizes[size],
-          size === "xl" || size === "full" ? phone.screen : phone.sheet,
+          timing.dialog,
+          asSheet ? phone.sheet : phone.screen,
           // Long words wrap whole; only a token or URL too long for a line breaks.
           "min-w-0 overflow-x-hidden break-words",
           className,

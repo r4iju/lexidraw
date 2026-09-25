@@ -1,7 +1,7 @@
 "use client";
 
 import { AccessLevel, PublicAccess } from "@packages/types";
-import { LinkIcon, LoaderCircleIcon } from "lucide-react";
+import { LinkIcon } from "lucide-react";
 import { type FormEvent, useRef, useState } from "react";
 import { Button } from "~/components/ui/button";
 import {
@@ -172,12 +172,9 @@ export function SharePanel({
               </Select>
               <Button
                 type="submit"
-                className="gap-2"
                 disabled={inviting || !email.trim()}
+                pending={inviting}
               >
-                {inviting && (
-                  <LoaderCircleIcon className="size-4 animate-spin" />
-                )}
                 Share
               </Button>
             </div>

@@ -1,15 +1,12 @@
 import { PollNode as HeadlessPollNode } from "@packages/lexical-nodes";
-import * as React from "react";
-import { Suspense } from "react";
-import { BlockLoading } from "./common/BlockLoading";
+import type * as React from "react";
+import PollComponent from "./PollComponent";
 
 export type {
   Option,
   Options,
   SerializedPollNode,
 } from "@packages/lexical-nodes";
-
-const PollComponent = React.lazy(() => import("./PollComponent"));
 
 /** React half of the package's PollNode; see ImageNode. */
 export class PollNode extends HeadlessPollNode {
@@ -19,13 +16,11 @@ export class PollNode extends HeadlessPollNode {
 
   decorate(): React.JSX.Element {
     return (
-      <Suspense fallback={<BlockLoading />}>
-        <PollComponent
-          question={this.__question}
-          options={this.__options}
-          nodeKey={this.__key}
-        />
-      </Suspense>
+      <PollComponent
+        question={this.__question}
+        options={this.__options}
+        nodeKey={this.__key}
+      />
     );
   }
 }

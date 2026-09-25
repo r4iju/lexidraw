@@ -8,7 +8,7 @@ export const Radio = ({ className, ...props }: RadioProps) => (
   <input
     type="radio"
     className={cn(
-      "size-4 shrink-0 cursor-pointer appearance-none rounded-full border border-input bg-background transition-[border-width] checked:border-[5px] checked:border-primary focus-visible:outline-hidden disabled:cursor-not-allowed",
+      "size-4 shrink-0 cursor-pointer appearance-none rounded-full border border-input bg-background transition-colors checked:border-[5px] checked:border-primary focus-visible:outline-hidden disabled:cursor-not-allowed",
       className,
     )}
     {...props}

@@ -3,6 +3,7 @@ import nextBundleAnalyzer from "@next/bundle-analyzer";
 import env from "@packages/env";
 import { withWorkflow } from "workflow/next";
 import { reactCompiler } from "./react-compiler";
+import { EXCALIDRAW_ASSETS } from "./src/lib/excalidraw-assets";
 
 const withBundleAnalyzer = nextBundleAnalyzer({
   enabled: env.ANALYZE,
@@ -62,6 +63,15 @@ const config = {
     "**": ["./src/server/drawings/fonts/*.ttf"],
   },
   productionBrowserSourceMaps: true,
+  // Named by their content, so a font never changes under its address.
+  headers: async () => [
+    {
+      source: `${EXCALIDRAW_ASSETS}fonts/:path*`,
+      headers: [
+        { key: "Cache-Control", value: "public, max-age=31536000, immutable" },
+      ],
+    },
+  ],
   cacheComponents: true,
   // `next dev` otherwise writes AGENTS.md/CLAUDE.md into the app; the repo keeps
   // its own at the root.
@@ -73,6 +83,16 @@ const config = {
   turbopack: {
     resolveAlias: {
       "~/*": ["./src/*"],
+    },
+    rules: {
+      "**/@excalidraw/excalidraw/dist/*/subset-worker.chunk.js": {
+        loaders: [
+          {
+            loader: "./excalidraw-worker-loader.cjs",
+            options: { url: `${EXCALIDRAW_ASSETS}subset-worker.chunk.js` },
+          },
+        ],
+      },
     },
     // minify: false,
     // treeShaking: true,

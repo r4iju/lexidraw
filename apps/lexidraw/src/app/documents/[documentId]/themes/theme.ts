@@ -41,9 +41,9 @@ export const theme = {
   table: "document-table",
   tableScrollableWrapper: "document-table-region",
   tableAddColumns:
-    "absolute top-0 right-[-25px] w-5 h-full bg-muted hover:bg-accent transition",
+    "absolute top-0 right-[-25px] w-5 h-full bg-muted hover:bg-accent transition-colors",
   tableAddRows:
-    "absolute left-0 bottom-[-25px] h-5 w-[calc(100%-25px)] bg-muted hover:bg-accent transition",
+    "absolute left-0 bottom-[-25px] h-5 w-[calc(100%-25px)] bg-muted hover:bg-accent transition-colors",
   tableCell: "relative outline-hidden",
   tableCellHeader: "font-semibold",
   tableCellSelected: "bg-primary/10",

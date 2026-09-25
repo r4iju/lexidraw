@@ -37,6 +37,7 @@ import {
   drizzleDocumentStore,
   nextUpdatedAt,
 } from "~/server/documents/document-store";
+import { measureImages } from "~/server/documents/measure-images";
 import { StaleDocumentError } from "~/server/documents/conflict";
 import {
   canEdit,
@@ -227,6 +228,10 @@ export const entityRouter = createTRPCRouter({
         ctx.session.user.id,
         input.entityType,
       );
+      const elements =
+        input.entityType === "document"
+          ? await measureImages(input.elements)
+          : input.elements;
       const [created] = await ctx.drizzle
         .insert(schema.entities)
         .values({
@@ -238,7 +243,7 @@ export const entityRouter = createTRPCRouter({
           userId: ctx.session?.user.id,
           entityType: input.entityType,
           publicAccess: PublicAccess.PRIVATE,
-          elements: input.elements,
+          elements,
           parentId,
           appState: JSON.stringify({}),
         })
@@ -254,7 +259,7 @@ export const entityRouter = createTRPCRouter({
       if (created) {
         await queueThumbnail(ctx.drizzle, {
           ...created,
-          elements: input.elements,
+          elements,
           appState: "{}",
         });
         await revalidateEntitiesAndParents(
@@ -340,7 +345,12 @@ export const entityRouter = createTRPCRouter({
           id: input.id,
           title: input.title,
           ...(appState !== undefined ? { appState } : {}),
-          elements: input.elements,
+          // The browser measures its own pictures as they load, and saves
+          // again soon after, so only a caller without one waits on the network.
+          elements:
+            entity.entityType === "document" && ctx.auth.kind === "token"
+              ? await measureImages(input.elements)
+              : input.elements,
           ...(parentId !== undefined ? { parentId } : {}),
           // Strictly increasing, so a compare-and-set caller can tell this save
           // apart from its own; see nextUpdatedAt.

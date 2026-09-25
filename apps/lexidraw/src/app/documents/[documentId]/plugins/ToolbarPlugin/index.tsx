@@ -1,5 +1,5 @@
 import { $isCodeNode } from "@lexical/code";
-import { normalizeCodeLanguage } from "@lexical/code-shiki";
+import { normalizeCodeLanguage } from "../code-language";
 import { $isLinkNode, TOGGLE_LINK_COMMAND } from "@lexical/link";
 import { $isListNode, ListNode } from "@lexical/list";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";

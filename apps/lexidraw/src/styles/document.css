@@ -503,7 +503,7 @@
   visibility: hidden;
   opacity: 0;
   pointer-events: none;
-  transition: opacity 120ms;
+  transition: opacity var(--transition-duration-base);
 }
 .footnote-preview-number {
   color: var(--muted-foreground);
@@ -1033,7 +1033,6 @@
      already sets it apart, where a frame would box it in. */
   .dark :is(.document-content .document-image, .document-cover img) {
     filter: brightness(0.88);
-    transition: filter 150ms;
   }
   .dark .document-content .document-image {
     outline: none;

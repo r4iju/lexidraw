@@ -1,8 +1,10 @@
 "use client";
 
 import {
+  lazy,
   type ReactNode,
   type RefObject,
+  Suspense,
   useCallback,
   useEffect,
   useMemo,
@@ -28,14 +30,15 @@ import { HorizontalRulePlugin } from "@lexical/react/LexicalHorizontalRulePlugin
 import { DocumentTablesPlugin } from "./plugins/DocumentTablesPlugin";
 import { ClickableLinkPlugin } from "@lexical/react/LexicalClickableLinkPlugin";
 import CodeHighlightPlugin from "./plugins/code-highlight-plugin";
-import CodeActionMenuPlugin from "./plugins/CodeActionMenuPlugin";
 import AutocompletePlugin from "./plugins/AutocompletePlugin";
+import CodeActionMenuPlugin from "./plugins/CodeActionMenuPlugin";
 import { AutoFocusPlugin } from "@lexical/react/LexicalAutoFocusPlugin";
 import AutoLinkPlugin from "./plugins/AutoLinkPlugin";
 import { HistoryPlugin } from "@lexical/react/LexicalHistoryPlugin";
 import LinkPlugin from "./plugins/LinkPlugin";
 import { RichTextPlugin } from "@lexical/react/LexicalRichTextPlugin";
 import { OnChangePlugin } from "@lexical/react/LexicalOnChangePlugin";
+import { MEASURED_TAG } from "./nodes/common/natural-size";
 import DraggableBlockPlugin from "./plugins/DraggableBlockPlugin";
 import ToolbarPlugin from "./plugins/ToolbarPlugin";
 import { LexicalComposer } from "@lexical/react/LexicalComposer";
@@ -45,7 +48,7 @@ import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext
 import { theme } from "./themes/theme";
 import OptionsDropdown from "./plugins/options-dropdown";
 import type { EditorState, Klass, LexicalNode } from "lexical";
-import { $getRoot, COLLABORATION_TAG } from "lexical";
+import { $getRoot, COLLABORATION_TAG, HISTORY_MERGE_TAG } from "lexical";
 import { useWebRtcService } from "~/hooks/communication-service/use-web-rtc";
 import { useRoomToken } from "~/hooks/communication-service/use-room-token";
 import type { RouterOutputs } from "~/trpc/shared";
@@ -60,6 +63,7 @@ import ImagePlugin from "./plugins/ImagePlugin";
 import InlineImagePlugin from "./plugins/InlineImagePlugin";
 import { InlineImageNode } from "./nodes/InlineImageNode/InlineImageNode";
 import { CORE_NODES } from "@packages/lexical-nodes";
+import { Skeleton } from "~/components/ui/skeleton";
 import TwitterPlugin from "./plugins/TwitterPlugin";
 import YouTubePlugin from "./plugins/YouTubePlugin";
 import { TweetNode } from "./nodes/TweetNode";
@@ -116,7 +120,6 @@ import { EditReadSwitch } from "./edit-read-switch";
 import { DocumentTitleProvider } from "./context/document-title-context";
 import { EditabilityPlugin, mayEdit, type RenderMode } from "./editability";
 import RenderReadyPlugin from "./plugins/RenderReadyPlugin";
-import { LlmChatPlugin } from "./plugins/LlmChatPlugin";
 import type { StoredLlmConfig } from "~/server/api/routers/config";
 import {
   SidebarManagerProvider,
@@ -432,6 +435,9 @@ function EditorHandler({
   ) => {
     // A collaborator's state: theirs to send and to save.
     if (tags.has(COLLABORATION_TAG)) return;
+    // Lexical's own passes are redrawn on every load; a block's measurement
+    // is kept with the document.
+    if (tags.has(HISTORY_MERGE_TAG) && !tags.has(MEASURED_TAG)) return;
     // Someone who cannot edit changes nothing worth keeping or sending: what
     // moves here is a block measuring itself, or a poll vote, which saves on
     // its own.
@@ -558,7 +564,7 @@ function EditorHandler({
                             <div
                               ref={toolbarRef}
                               className={cn(
-                                "ui-toolbar sticky top-0 left-0 z-10 w-full shrink-0 bg-card pt-[env(safe-area-inset-top)] transition-transform duration-200 motion-reduce:transition-none print:hidden",
+                                "ui-toolbar sticky top-0 left-0 z-10 w-full shrink-0 bg-card pt-[env(safe-area-inset-top)] transition-transform duration-moderate motion-reduce:transition-none print:hidden",
                                 barScrolledAway && "-translate-y-full",
                               )}
                               data-component-name="Toolbar"
@@ -711,7 +717,13 @@ function EditorHandler({
                                       }
                                     />
                                     {/* The placeholder sits over the first line. */}
-                                    <div className="relative">
+                                    <div
+                                      className={cn(
+                                        "relative",
+                                        // Renderers capture it at once.
+                                        onScreen && "animate-content-in",
+                                      )}
+                                    >
                                       <ContentEditable
                                         id={`lexical-content-${entity.id}`}
                                         aria-label="Document content"
@@ -744,7 +756,10 @@ function EditorHandler({
                                 }
                                 ErrorBoundary={LexicalErrorBoundary}
                               />
-                              <OnChangePlugin onChange={onChange} />
+                              <OnChangePlugin
+                                onChange={onChange}
+                                ignoreHistoryMergeTagChange={false}
+                              />
                               <HistoryPlugin />
                               {isEditable && <AutoFocusPlugin />}
                               <CodeActionMenuPlugin />
@@ -804,7 +819,11 @@ function EditorHandler({
                                       : undefined
                                   }
                                 >
-                                  {activeSidebar === "llm" && <LlmChatPlugin />}
+                                  {activeSidebar === "llm" && (
+                                    <Suspense fallback={<SidebarLoading />}>
+                                      <LlmChatPlugin />
+                                    </Suspense>
+                                  )}
                                   {activeSidebar === "comments" && (
                                     <CommentUI />
                                   )}
@@ -850,6 +869,22 @@ function EditorHandler({
 }
 
 const PLACEHOLDER = "Start writing…";
+
+// The chat brings the AI SDKs and every tool, so it loads when first opened.
+const LlmChatPlugin = lazy(() =>
+  import("./plugins/LlmChatPlugin").then((module) => ({
+    default: module.LlmChatPlugin,
+  })),
+);
+
+function SidebarLoading() {
+  return (
+    <div aria-busy="true" className="flex flex-col gap-3 p-4">
+      <Skeleton className="h-4 w-3/4" />
+      <Skeleton className="h-4 w-1/2" />
+    </div>
+  );
+}
 
 /** Read-aloud's state, shared by the toolbar, the ⋯ menu and the reading pill. */
 function ListenWhenSignedIn({
@@ -1032,8 +1067,6 @@ export default function DocumentEditor({
   renderMode = "view",
   frame,
 }: Props) {
-  console.log("🔄 DocumentEditor re-rendered");
-
   const editorStateRef = useRef<EditorState | undefined>(undefined);
   const setEditorStateRef = useCallback((editorState: EditorState) => {
     editorStateRef.current = editorState;

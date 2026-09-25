@@ -14,15 +14,27 @@ export const useInSheet = () => useContext(InSheet);
 export const floating =
   "z-50 rounded-lg border border-border-subtle bg-popover text-popover-foreground shadow-(--elevation-overlay) outline-hidden";
 
+/** A menu, select or popover opens in 150ms from its anchor, and closes in 100ms. */
 export const floatingMotion =
-  "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2";
+  "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 data-[state=open]:duration-base data-[state=open]:ease-enter data-[state=closed]:duration-fast data-[state=closed]:ease-exit";
+
+const edgeTiming =
+  "data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:duration-slow data-[state=open]:ease-enter data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:duration-moderate data-[state=closed]:ease-exit";
+
+/** A sheet rises from the bottom edge in 250ms, and drops back in 200ms. */
+export const sheetMotion = `${edgeTiming} data-[state=open]:slide-in-from-bottom data-[state=closed]:slide-out-to-bottom`;
+
+/** A drawer slides in from the right edge in 250ms, and back in 200ms. */
+export const drawerMotion = `${edgeTiming} data-[state=open]:slide-in-from-right data-[state=closed]:slide-out-to-right`;
+
+/** The scrim behind a sheet or drawer fades in step with it. */
+export const scrimMotion = edgeTiming;
 
 /**
  * A bottom sheet over a scrim, above the keyboard and the home indicator.
  * globals.css pins its popper wrapper (`[data-sheet]`) to the bottom edge.
  */
-export const sheet =
-  "w-screen max-w-none min-w-0 max-h-[min(85dvh,calc(var(--dynamic-viewport-height)-var(--keyboard-inset)-3rem))] rounded-b-none rounded-t-xl border-x-0 border-b-0 pb-[max(0.5rem,env(safe-area-inset-bottom))] shadow-[0_0_0_100vmax_var(--scrim)] overflow-y-auto overscroll-contain data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:slide-in-from-bottom-8 data-[state=closed]:animate-out data-[state=closed]:fade-out-0";
+export const sheet = `w-screen max-w-none min-w-0 max-h-[min(85dvh,calc(var(--dynamic-viewport-height)-var(--keyboard-inset)-3rem))] rounded-b-none rounded-t-xl border-x-0 border-b-0 pb-[max(0.5rem,env(safe-area-inset-bottom))] shadow-[0_0_0_100vmax_var(--scrim)] overflow-y-auto overscroll-contain ${sheetMotion}`;
 
 /** A 32px row, 44px under a finger, with a 16px slot for its icon even when it has none. */
 export const menuRow =

@@ -12,7 +12,6 @@ import { Button } from "~/components/ui/button";
 import { RHFTextField } from "~/components/hook-form";
 import { toast } from "sonner";
 import { getDefaults } from "@packages/lib";
-import { LoaderCircleIcon } from "lucide-react";
 import { GitHubMark } from "~/components/github-mark";
 import { AuthDivider } from "~/components/auth-card";
 import { signIn } from "next-auth/react";
@@ -94,9 +93,9 @@ export default function SignUpForm() {
         <Button
           disabled={isPending}
           type="submit"
-          className="mt-6 w-full gap-2"
+          className="mt-6 w-full"
+          pending={isPending}
         >
-          {isPending && <LoaderCircleIcon className="size-4 animate-spin" />}
           Create account
         </Button>
         {submitError && (

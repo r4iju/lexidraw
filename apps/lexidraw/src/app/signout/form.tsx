@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { signOut } from "next-auth/react";
 import { useState } from "react";
-import { LoaderCircleIcon } from "lucide-react";
 import { Button } from "~/components/ui/button";
 
 export default function SignOutForm() {
@@ -18,8 +17,7 @@ export default function SignOutForm() {
       <Button asChild variant="outline">
         <Link href="/dashboard">Cancel</Link>
       </Button>
-      <Button onClick={handleSignOut} disabled={pending} className="gap-2">
-        {pending && <LoaderCircleIcon className="size-4 animate-spin" />}
+      <Button onClick={handleSignOut} disabled={pending} pending={pending}>
         Sign out
       </Button>
     </div>

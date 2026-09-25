@@ -13,10 +13,11 @@ type Props = {
   entity: Entity;
   /** 40×40 in a list row, or 4:3 across the top of a grid card. */
   variant: "row" | "card";
+  eager: boolean;
 };
 
 /** A file's picture, in the page's theme, or a quiet stand-in for its type. */
-export function EntityThumbnail({ entity, variant }: Props) {
+export function EntityThumbnail({ entity, variant, eager }: Props) {
   // Folders have no picture of their own, so theirs never stops pending.
   const pending =
     entity.entityType !== "directory" && entity.thumbnailStatus === "pending";
@@ -47,6 +48,7 @@ export function EntityThumbnail({ entity, variant }: Props) {
             entity.entityType === "url" ? "object-cover object-top" : undefined
           }
           fallback={<Placeholder type={entity.entityType} variant={variant} />}
+          deferred={!eager}
         />
       )}
     </div>

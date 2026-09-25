@@ -24,6 +24,9 @@ import type { BinaryFiles, AppState } from "@excalidraw/excalidraw/types";
 import { NodeEditButton } from "../common/NodeEditButton";
 import { cn } from "~/lib/utils";
 import ExcalidrawModal from "./ExcalidrawModal";
+import type { NaturalSize } from "@packages/lexical-nodes";
+import { useKeepNaturalSize } from "../common/natural-size";
+import { FIGURE_FRAME } from "../common/figure-box";
 
 export default function ExcalidrawComponent({
   nodeKey,
@@ -31,13 +34,16 @@ export default function ExcalidrawComponent({
   defaultOpen,
   width,
   height,
+  natural,
 }: {
   data: string;
   nodeKey: NodeKey;
   defaultOpen?: boolean;
   width: number | "inherit";
   height: number | "inherit";
+  natural: NaturalSize | undefined;
 }): JSX.Element {
+  const keepNaturalSize = useKeepNaturalSize(nodeKey);
   const [editor] = useLexicalComposerContext();
   const isEditable = useLexicalEditable();
   const [modalRequested, setIsOpen] = useState<boolean>(defaultOpen ?? false);
@@ -220,7 +226,7 @@ export default function ExcalidrawComponent({
       {elements.length > 0 && (
         <div
           ref={frameRef}
-          className={cn("group/node relative inline-block max-w-full", {
+          className={cn(FIGURE_FRAME, {
             selected: isEditable && isSelected,
           })}
         >
@@ -238,6 +244,8 @@ export default function ExcalidrawComponent({
             appState={appState}
             width={width}
             height={height}
+            natural={natural}
+            onMeasured={keepNaturalSize}
           >
             {((isEditable && isSelected) || isResizing) && (
               <ImageResizer

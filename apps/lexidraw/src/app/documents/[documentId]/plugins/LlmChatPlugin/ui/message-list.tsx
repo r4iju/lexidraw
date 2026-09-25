@@ -22,6 +22,7 @@ import {
 } from "~/components/ui/accordion";
 import { CheckCircle, AlertCircle, Loader2 } from "lucide-react";
 import type { AppToolCall, AppToolResult } from "../../../context/llm-context";
+import { scrollMotion } from "~/lib/scroll-motion";
 
 type Message = ChatState["messages"][number];
 
@@ -156,7 +157,7 @@ export const MessageList: React.FC<{ className?: string }> = ({
 
     scrollableContainer.scrollTo({
       top: scrollableContainer.scrollHeight,
-      behavior: "smooth",
+      behavior: scrollMotion(),
     });
   }, [mode]);
 

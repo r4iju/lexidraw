@@ -1,6 +1,7 @@
 import type * as React from "react";
 import { Slot } from "@radix-ui/react-slot";
 import { cva, type VariantProps } from "class-variance-authority";
+import { LoaderCircleIcon } from "lucide-react";
 
 import { cn } from "~/lib/utils";
 
@@ -39,26 +40,67 @@ const buttonVariants = cva(
 // with ref
 export type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> &
   VariantProps<typeof buttonVariants> & {
-    asChild?: boolean;
     ref?: React.Ref<HTMLButtonElement>;
-  };
+  } & (
+    | { asChild: true; pending?: never }
+    | {
+        asChild?: false;
+        /**
+         * Working: a spinner shows over the label, which keeps the button's
+         * size and its name. A button that can be pending says so from the
+         * start, even as false, so its content is laid out the same either
+         * way.
+         */
+        pending?: boolean;
+      }
+  );
 
 const Button = ({
   className,
   variant,
   size,
-  asChild = false,
+  asChild,
   ref,
+  pending,
+  children,
   ...props
 }: ButtonProps) => {
-  const Comp = asChild ? Slot : "button";
+  if (asChild || pending === undefined) {
+    const Comp = asChild ? Slot : "button";
+    return (
+      <Comp
+        ref={ref}
+        data-variant={variant ?? "default"}
+        className={cn(buttonVariants({ variant, size, className }))}
+        {...props}
+      >
+        {children}
+      </Comp>
+    );
+  }
   return (
-    <Comp
+    <button
       ref={ref}
       data-variant={variant ?? "default"}
-      className={cn(buttonVariants({ variant, size, className }))}
+      aria-busy={pending || undefined}
+      className={cn("relative", buttonVariants({ variant, size, className }))}
       {...props}
-    />
+    >
+      <span
+        className={cn(
+          "inline-flex items-center justify-center gap-[inherit]",
+          pending && "opacity-0",
+        )}
+      >
+        {children}
+      </span>
+      {pending && (
+        <LoaderCircleIcon
+          aria-hidden="true"
+          className="absolute inset-0 m-auto size-4 animate-spin"
+        />
+      )}
+    </button>
   );
 };
 

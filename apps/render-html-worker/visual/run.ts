@@ -7,8 +7,13 @@ import puppeteer from "puppeteer";
 import { appUrl } from "./app-url";
 import { checkRichBlocks } from "./check-rich-blocks";
 import { checkFrame } from "./check-frame";
+import { checkFirstPaint } from "./check-first-paint";
+import { BANNER, checkReservedSizes } from "./check-reserved-sizes";
+import { checkExcalidrawAssets, DRAWN_LABELS } from "./check-excalidraw-assets";
 import { checkMedia } from "./check-media";
+import { checkMotion } from "./check-motion";
 import { checkPage } from "./check-page";
+import { checkRenderReady, lazyBlockDocuments } from "./check-render-ready";
 import { checkTables } from "./check-tables";
 import { checkEditorControls } from "./check-editor-controls";
 import { checkOverlays } from "./check-overlays";
@@ -97,6 +102,163 @@ await cli(
 
 // A throwaway empty document, for what a blank page offers.
 const empty = await cli("doc", "create", "--title", "Visual suite · empty");
+// A throwaway document with a drawing, a photo and a diagram near the top,
+// none measured yet, as a document written through the API has them.
+const sized = await cli("doc", "create", "--title", "Visual suite · sizes");
+const paragraph = (value: string) => ({
+  children: [
+    {
+      detail: 0,
+      format: 0,
+      mode: "normal",
+      style: "",
+      text: value,
+      type: "text",
+      version: 1,
+    },
+  ],
+  direction: null,
+  format: "",
+  indent: 0,
+  type: "paragraph",
+  version: 1,
+  textFormat: 0,
+  textStyle: "",
+});
+const emptyRoot = {
+  children: [],
+  direction: null,
+  format: "",
+  indent: 0,
+  type: "root",
+  version: 1,
+};
+// A drawing with a label in each of two of Excalidraw's fonts.
+const labelledDrawing = {
+  type: "excalidraw",
+  version: 1,
+  width: "inherit",
+  height: "inherit",
+  data: JSON.stringify({
+    elements: DRAWN_LABELS.map((label, index) => ({
+      id: `visual-suite-label-${index}`,
+      type: "text",
+      x: 0,
+      y: index * 50,
+      width: 280,
+      height: 35,
+      angle: 0,
+      strokeColor: "#1e1e1e",
+      backgroundColor: "transparent",
+      fillStyle: "solid",
+      strokeWidth: 2,
+      strokeStyle: "solid",
+      roughness: 1,
+      opacity: 100,
+      groupIds: [],
+      frameId: null,
+      roundness: null,
+      seed: index + 1,
+      version: 1,
+      versionNonce: index + 1,
+      isDeleted: false,
+      boundElements: null,
+      updated: 1,
+      link: null,
+      locked: false,
+      text: label,
+      originalText: label,
+      fontSize: 28,
+      // Excalifont, then Nunito.
+      fontFamily: index === 0 ? 5 : 6,
+      textAlign: "left",
+      verticalAlign: "top",
+      containerId: null,
+      autoResize: true,
+      lineHeight: 1.25,
+    })),
+    files: {},
+    appState: {},
+  }),
+};
+const sizedPath = resolve(output, "sized.json");
+await writeFile(
+  sizedPath,
+  JSON.stringify({
+    elements: JSON.stringify({
+      root: {
+        ...emptyRoot,
+        children: [
+          paragraph("Before the drawing."),
+          labelledDrawing,
+          paragraph("Before the photo."),
+          {
+            ...paragraph(""),
+            children: [
+              {
+                type: "image",
+                version: 1,
+                altText: "A banner",
+                src: `${appUrl}${BANNER}`,
+                width: 0,
+                height: 0,
+                maxWidth: 800,
+                showCaption: false,
+                caption: { editorState: { root: emptyRoot } },
+              },
+            ],
+          },
+          paragraph("After the photo."),
+          {
+            type: "mermaid",
+            version: 1,
+            schema: "flowchart TD\n  A[One] --> B[Two] --> C[Three]",
+            width: "inherit",
+            height: "inherit",
+          },
+          paragraph("After the diagram."),
+          ...Array.from({ length: 12 }, (_, index) =>
+            paragraph(`Paragraph ${index + 1}, below the fold on a phone.`),
+          ),
+        ],
+      },
+    }),
+    appState: JSON.stringify({ defaultFontFamily: null, lang: null }),
+    ifUnmodifiedSince: (await cli("doc", "get", sized.id, "--format", "json"))
+      .updatedAt,
+  }),
+);
+await cli(
+  "api",
+  "PUT",
+  `/entities/${sized.id}`,
+  "--json",
+  await readFile(sizedPath, "utf8"),
+);
+// A throwaway document embedding the labelled drawing.
+const drawn = await cli("doc", "create", "--title", "Visual suite · drawn");
+const drawnPath = resolve(output, "drawn.json");
+await writeFile(
+  drawnPath,
+  JSON.stringify({
+    elements: JSON.stringify({
+      root: {
+        ...emptyRoot,
+        children: [paragraph("A drawing with words in it."), labelledDrawing],
+      },
+    }),
+    appState: JSON.stringify({ defaultFontFamily: null, lang: null }),
+    ifUnmodifiedSince: (await cli("doc", "get", drawn.id, "--format", "json"))
+      .updatedAt,
+  }),
+);
+await cli(
+  "api",
+  "PUT",
+  `/entities/${drawn.id}`,
+  "--json",
+  await readFile(drawnPath, "utf8"),
+);
 // A throwaway drawing whose one shape sits far off the first screen.
 const shapesPath = resolve(output, "drawing.json");
 await writeFile(
@@ -139,6 +301,26 @@ const drawing = await cli(
   "--file",
   shapesPath,
 );
+// A throwaway document for each block that loads its own code, alone.
+const lazy = [];
+for (const { name, elements } of lazyBlockDocuments(doc.content.root)) {
+  const created = await cli(
+    "doc",
+    "create",
+    "--title",
+    `Visual suite · ${name}`,
+  );
+  const lazyPath = resolve(output, `lazy-${name}.json`);
+  await writeFile(lazyPath, JSON.stringify({ elements }));
+  await cli(
+    "api",
+    "PUT",
+    `/entities/${created.id}`,
+    "--json",
+    await readFile(lazyPath, "utf8"),
+  );
+  lazy.push({ name, id: created.id as string });
+}
 
 const browser = await puppeteer.launch({
   headless: true,
@@ -161,12 +343,24 @@ try {
     emptyId: empty.id,
     drawingId: drawing.id,
   });
+  await checkFirstPaint(page, {
+    fixtureId,
+    emptyId: empty.id,
+    drawingId: drawing.id,
+  });
   await checkEditorControls(page, fixtureId, output);
   await checkOverlays(page, fixtureId, output);
+  await checkReservedSizes(page, { sizedId: sized.id, emptyId: empty.id });
+  await checkExcalidrawAssets(page, drawn.id);
+  await checkMotion(page, fixtureId);
+  await checkRenderReady(page, lazy);
 } finally {
   await browser.close();
   await cli("doc", "delete", empty.id);
+  await cli("doc", "delete", sized.id);
+  await cli("doc", "delete", drawn.id);
   await cli("drawing", "delete", drawing.id);
+  for (const { id } of lazy) await cli("doc", "delete", id);
 }
 
 const pdfPath = resolve(output, "kitchen-sink.pdf");

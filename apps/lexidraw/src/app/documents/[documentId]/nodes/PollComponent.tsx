@@ -83,8 +83,10 @@ function PollOptionComponent({
         />
         <div
           aria-hidden="true"
-          className="absolute inset-y-0 left-0 bg-primary/10"
-          style={{ width: `${votes === 0 ? 0 : (votes / totalVotes) * 100}%` }}
+          className="absolute inset-0 origin-left bg-primary/10 transition-transform duration-slow"
+          style={{
+            transform: `scaleX(${votes === 0 ? 0 : votes / totalVotes})`,
+          }}
         />
         {isEditable ? (
           <Input

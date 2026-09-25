@@ -6,12 +6,12 @@ import { AuthCard } from "~/components/auth-card";
 import SignUpForm from "./form";
 import FormSkeleton from "./skeleton";
 
-export default async function SignUpPage() {
-  const session = await auth();
-  if (session) {
-    return redirect("/dashboard");
-  }
+async function RedirectSignedIn() {
+  if (await auth()) redirect("/dashboard");
+  return null;
+}
 
+export default function SignUpPage() {
   return (
     <AuthCard
       title="Create your account"
@@ -27,6 +27,9 @@ export default async function SignUpPage() {
         </>
       }
     >
+      <Suspense fallback={null}>
+        <RedirectSignedIn />
+      </Suspense>
       <Suspense fallback={<FormSkeleton />}>
         <SignUpForm />
       </Suspense>

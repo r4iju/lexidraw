@@ -10,6 +10,7 @@ import {
 } from "~/components/ui/command";
 import { Button } from "~/components/ui/button";
 import { LocalTime } from "~/components/ui/local-time";
+import { Skeleton } from "~/components/ui/skeleton";
 import {
   EntityTypeIcon,
   entityHref,
@@ -146,10 +147,10 @@ export function SearchResults({
                 key={index}
                 className="flex items-center gap-3 px-2 py-2"
               >
-                <div className="size-10 animate-pulse rounded-md bg-muted" />
+                <Skeleton className="size-10" />
                 <div className="flex grow flex-col gap-2">
-                  <div className="h-4 w-3/4 animate-pulse rounded-sm bg-muted" />
-                  <div className="h-3 w-1/2 animate-pulse rounded-sm bg-muted" />
+                  <Skeleton className="h-4 w-3/4 rounded-sm" />
+                  <Skeleton className="h-3 w-1/2 rounded-sm" />
                 </div>
               </div>
             ))}

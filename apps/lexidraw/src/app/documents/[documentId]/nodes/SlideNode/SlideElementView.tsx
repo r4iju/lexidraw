@@ -7,7 +7,7 @@ import { ContentEditable } from "@lexical/react/LexicalContentEditable";
 import { LexicalErrorBoundary } from "@lexical/react/LexicalErrorBoundary";
 import type { SlideElementSpec } from "./SlideNode";
 import { theme as editorTheme } from "../../themes/theme";
-import { NESTED_EDITOR_NODES } from "./SlideDeckEditor";
+import { NESTED_EDITOR_NODES } from "./nested-editor-nodes";
 import DynamicChartRenderer from "../ChartNode/DynamicChartRenderer";
 import type { ChartConfig } from "~/components/ui/chart";
 import { useLexicalTransformation } from "../../context/editors-context";

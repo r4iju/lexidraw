@@ -4,15 +4,19 @@ import { EntityCardCol } from "./entity-card-col";
 import { EntityCardRow } from "./entity-card-row";
 import type { Entity } from "./entity-card-utils";
 import { FolderCard } from "./folder-card";
+import type { DashboardQuery } from "./dashboard-query";
 
 type Props = {
   entities: Entity[];
-  flex: "flex-row" | "flex-col";
-  sortBy: "updatedAt" | "createdAt" | "title";
-  sortOrder: "asc" | "desc";
+  flex: DashboardQuery["flex"];
+  sortBy: DashboardQuery["sortBy"];
+  sortOrder: DashboardQuery["sortOrder"];
 };
 
 const GRID = "grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 xl:grid-cols-4";
+
+/** How many files a first screen shows at most: a phone's list, two rows of the grid. */
+const FIRST_SCREEN = 8;
 
 /**
  * What's in Home or a folder, folders first. In the grid they are their own
@@ -28,12 +32,13 @@ export function DashboardEntities({
     (entity) => entity.entityType === "directory",
   );
   const files = entities.filter((entity) => entity.entityType !== "directory");
-  const item = (entity: Entity) => (
+  const item = (entity: Entity, index: number) => (
     <Drag entity={entity} key={entity.id}>
       <Drop parentId={entity.id} disabled={entity.entityType !== "directory"}>
         {flex === "flex-col" ? (
           <EntityCardCol
             entity={entity}
+            eager={index < FIRST_SCREEN}
             flex={flex}
             sortBy={sortBy}
             sortOrder={sortOrder}
@@ -43,6 +48,7 @@ export function DashboardEntities({
         ) : (
           <EntityCardRow
             entity={entity}
+            eager={index < FIRST_SCREEN}
             flex={flex}
             sortBy={sortBy}
             sortOrder={sortOrder}

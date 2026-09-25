@@ -1,20 +1,28 @@
 "use client";
 import mermaid from "mermaid";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { cn } from "~/lib/utils";
 import { Dialog, DialogContent, DialogTitle } from "~/components/ui/dialog";
+import type { NaturalSize } from "@packages/lexical-nodes";
+import {
+  type Dimension,
+  diagramStyle,
+  FigureLoading,
+} from "../common/figure-box";
 
-type Dimension = number | "inherit";
 interface Props {
   schema: string;
   width: Dimension;
   height: Dimension;
+  /** The size it was drawn at last time, which it keeps while it redraws. */
+  natural: NaturalSize | undefined;
+  onMeasured?: (size: NaturalSize) => void;
   className?: string;
 }
 type Diagram =
   | { status: "loading" }
   | { status: "error" }
-  | { status: "ready"; src: string; print: string; width: number };
+  | { status: "ready"; src: string; print: string; size: NaturalSize };
 // Mermaid's configuration is global, so initialize and render each diagram together.
 let renderQueue: Promise<unknown> = Promise.resolve();
 
@@ -22,11 +30,14 @@ export default function MermaidImage({
   schema,
   width,
   height,
+  natural,
+  onMeasured,
   className,
 }: Props) {
   const [diagram, setDiagram] = useState<Diagram>({ status: "loading" });
   const [isLightboxOpen, setIsLightboxOpen] = useState(false);
   const container = useRef<HTMLElement>(null);
+  const measured = useEffectEvent((size: NaturalSize) => onMeasured?.(size));
   // The document's theme and font are DOM properties; SVG images cannot inherit them.
   useEffect(() => {
     let generation = 0;
@@ -99,7 +110,7 @@ export default function MermaidImage({
         element.setAttribute("height", String(box[3]));
         return {
           svg: new XMLSerializer().serializeToString(element),
-          width: box[2],
+          size: { width: box[2], height: box[3] },
         };
       };
       renderQueue = renderQueue
@@ -116,8 +127,10 @@ export default function MermaidImage({
             urls.forEach(URL.revokeObjectURL);
             urls = next;
             const [src, print] = next;
-            if (src && print)
-              setDiagram({ status: "ready", src, print, width: screen.width });
+            if (src && print) {
+              setDiagram({ status: "ready", src, print, size: screen.size });
+              measured(screen.size);
+            }
           } catch {
             if (current === generation) setDiagram({ status: "error" });
           }
@@ -160,13 +173,11 @@ export default function MermaidImage({
                 "select-none object-contain block document-diagram",
                 className,
               )}
-              style={{
-                width: typeof width === "number" ? width : diagram.width,
-                minWidth: diagram.width * 0.8,
-                height: "auto",
-                maxWidth: "100%",
-                maxHeight: typeof height === "number" ? height : undefined,
-              }}
+              style={diagramStyle({
+                width,
+                height,
+                natural: diagram.size,
+              })}
               onDoubleClick={(event) => {
                 event.stopPropagation();
                 setIsLightboxOpen(true);
@@ -187,14 +198,16 @@ export default function MermaidImage({
             </DialogContent>
           </Dialog>
         </>
+      ) : diagram.status === "loading" ? (
+        <FigureLoading
+          place={diagramStyle}
+          width={width}
+          height={height}
+          natural={natural}
+        />
       ) : (
-        <div
-          aria-busy={diagram.status === "loading"}
-          className="bg-muted/20 text-muted-foreground text-xs p-2 rounded"
-        >
-          {diagram.status === "loading"
-            ? "Rendering diagram…"
-            : "Failed to render diagram"}
+        <div className="bg-muted/20 text-muted-foreground text-xs p-2 rounded">
+          Failed to render diagram
         </div>
       )}
     </section>

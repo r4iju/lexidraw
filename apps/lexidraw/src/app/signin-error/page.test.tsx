@@ -1,12 +1,13 @@
 import { describe, expect, test } from "bun:test";
-import { renderToStaticMarkup } from "react-dom/server";
+import { prerender } from "react-dom/static";
 import SignInErrorPage from "./page";
 
+/** The page once the reason, which waits for the address, has arrived. */
 async function render(error?: string) {
-  const page = await SignInErrorPage({
-    searchParams: Promise.resolve(error ? { error } : {}),
-  });
-  return renderToStaticMarkup(page);
+  const { prelude } = await prerender(
+    <SignInErrorPage searchParams={Promise.resolve(error ? { error } : {})} />,
+  );
+  return new Response(prelude).text();
 }
 
 describe("sign-in error page", () => {

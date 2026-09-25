@@ -15,6 +15,7 @@ import { Button } from "~/components/ui/button";
 import { Maximize2, Minimize2, X } from "lucide-react";
 import { useLayoutClass } from "~/hooks/use-media-query";
 import { cn } from "~/lib/utils";
+import { drawerMotion, scrimMotion, sheetMotion } from "./overlay";
 
 interface SidebarWrapperProps {
   onClose: () => void;
@@ -75,6 +76,23 @@ export const SidebarWrapper = forwardRef<HTMLElement, SidebarWrapperProps>(
     const layout = useLayoutClass();
     const docked = layout === "desktop";
     const [tall, setTall] = useState(phoneHeight === "full");
+    // Closing plays the way out first; the page unmounts it once it has.
+    const [closing, setClosing] = useState(false);
+    const close = useCallback(() => setClosing(true), []);
+    // Waits on the browser's animations of the sidebar's way out.
+    useEffect(() => {
+      if (!closing) return;
+      let cancelled = false;
+      const animations = componentSidebarRef.current?.getAnimations?.() ?? [];
+      void Promise.allSettled(animations.map(({ finished }) => finished)).then(
+        () => {
+          if (!cancelled) onClose();
+        },
+      );
+      return () => {
+        cancelled = true;
+      };
+    }, [closing, onClose]);
 
     const handleMove = useCallback(
       (clientX: number) => {
@@ -249,9 +267,11 @@ export const SidebarWrapper = forwardRef<HTMLElement, SidebarWrapperProps>(
             type="button"
             tabIndex={-1}
             aria-label={`Close ${title}`}
-            onClick={onClose}
+            onClick={close}
+            data-state={closing ? "closed" : "open"}
             className={cn(
               "fixed inset-0 z-40 bg-scrim print:hidden",
+              scrimMotion,
               tall && layout === "phone" && phoneHeight === "full" && "hidden",
             )}
           />
@@ -274,12 +294,14 @@ export const SidebarWrapper = forwardRef<HTMLElement, SidebarWrapperProps>(
               event.currentTarget.contains(event.target as Node)
             ) {
               event.stopPropagation();
-              onClose();
+              close();
             }
           }}
           style={{ width: layout === "phone" ? undefined : `${shownWidth}px` }}
+          data-state={closing ? "closed" : "open"}
           className={cn(
             "flex flex-col bg-card outline-hidden",
+            layout === "phone" ? sheetMotion : drawerMotion,
             // Docked beside the page, pinned under its toolbar as it scrolls.
             docked &&
               "sticky top-(--page-toolbar-height,0px) h-[calc(var(--dynamic-viewport-height)-var(--page-toolbar-height,0px))] shrink-0 border-l border-border pb-[env(safe-area-inset-bottom)]",
@@ -310,7 +332,7 @@ export const SidebarWrapper = forwardRef<HTMLElement, SidebarWrapperProps>(
               aria-label="Resize sidebar"
               tabIndex={0}
             >
-              <div className="h-full w-[2px] bg-transparent group-hover:bg-primary transition-colors duration-200 mx-auto pointer-events-none"></div>
+              <div className="h-full w-[2px] bg-transparent group-hover:bg-primary transition-colors mx-auto pointer-events-none"></div>
             </div>
           )}
 
@@ -334,7 +356,7 @@ export const SidebarWrapper = forwardRef<HTMLElement, SidebarWrapperProps>(
             <Button
               variant="ghost"
               size="icon"
-              onClick={onClose}
+              onClick={close}
               aria-label={`Close ${title}`}
             >
               <X className="h-5 w-5" />

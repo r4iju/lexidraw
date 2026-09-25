@@ -10,6 +10,8 @@ import { type JSX, type RefObject, useEffect, useState } from "react";
 import { cn } from "~/lib/utils";
 import { Dialog, DialogContent, DialogTitle } from "~/components/ui/dialog";
 import { Theme } from "@packages/types/enums";
+import type { NaturalSize } from "@packages/lexical-nodes";
+import { drawingStyle, FigureLoading } from "../common/figure-box";
 
 type ImageType = "svg" | "canvas";
 
@@ -32,6 +34,9 @@ type Props = {
   width?: number | null | "inherit";
   /* The height of the image to be rendered */
   height?: number | null | "inherit";
+  /** The size it was exported at last time, which it keeps while it exports. */
+  natural?: NaturalSize;
+  onMeasured?: (size: NaturalSize) => void;
   children?: React.ReactNode;
 };
 
@@ -46,11 +51,13 @@ export default function ExcalidrawImage({
   appState,
   width,
   height,
+  natural,
+  onMeasured,
   rootClassName = null,
   children,
 }: Props): JSX.Element {
   const [url, setUrl] = useState<string | undefined>(undefined);
-  const [naturalWidth, setNaturalWidth] = useState<number>();
+  const [measured, setMeasured] = useState<NaturalSize>();
   const [isLightboxOpen, setIsLightboxOpen] = useState(false);
 
   // Excalidraw owns the SVG export; release its browser URL on replacement.
@@ -88,27 +95,33 @@ export default function ExcalidrawImage({
     };
   }, [elements, appState, files]);
 
+  const box = {
+    width: typeof width === "number" ? width : "inherit",
+    height: typeof height === "number" ? height : "inherit",
+    natural: measured ?? natural,
+  } as const;
+
+  if (url === undefined)
+    return (
+      <div className="relative inline-block max-w-full">
+        <FigureLoading place={drawingStyle} {...box} />
+      </div>
+    );
+
   return (
-    <div
-      className="relative inline-block max-w-full"
-      aria-busy={url === undefined}
-    >
+    <div className="relative inline-block max-w-full">
       <img
         src={url}
-        onLoad={(event) => setNaturalWidth(event.currentTarget.naturalWidth)}
-        alt="Excalidraw"
-        style={{
-          width:
-            typeof width === "number"
-              ? width
-              : naturalWidth
-                ? naturalWidth * 1.25
-                : "auto",
-          height: "auto",
-          maxWidth: "100%",
-          maxHeight: typeof height === "number" ? height : undefined,
-          objectFit: "contain",
+        onLoad={(event) => {
+          const size = {
+            width: event.currentTarget.naturalWidth,
+            height: event.currentTarget.naturalHeight,
+          };
+          setMeasured(size);
+          onMeasured?.(size);
         }}
+        alt="Excalidraw"
+        style={drawingStyle(box)}
         className={cn("document-diagram excalidraw-embed", rootClassName)}
         ref={imageContainerRef as RefObject<HTMLImageElement>}
         onDoubleClick={(e) => {

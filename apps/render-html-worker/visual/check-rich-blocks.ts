@@ -20,11 +20,10 @@ export async function checkRichBlocks(
   ] as const) {
     await page.setViewport({ width, height });
     for (const theme of ["light", "dark"]) {
-      await page.evaluate(
-        (theme) =>
-          document.documentElement.classList.toggle("dark", theme === "dark"),
-        theme,
-      );
+      await page.evaluate((theme) => {
+        for (const name of ["light", "dark"])
+          document.documentElement.classList.toggle(name, name === theme);
+      }, theme);
       const result = await page.evaluate(() => {
         const root = document.querySelector<HTMLElement>(".document-content")!;
         const inline = [...root.querySelectorAll(".editor-equation")].find(

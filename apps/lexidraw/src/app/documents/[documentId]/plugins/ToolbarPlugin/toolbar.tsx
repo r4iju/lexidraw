@@ -289,7 +289,7 @@ export function Toolbar({
   const folded = overflow ? groups.slice(shown) : [];
 
   return (
-    <TooltipProvider delayDuration={400}>
+    <TooltipProvider>
       <div
         ref={bar}
         role="toolbar"

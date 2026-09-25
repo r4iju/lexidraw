@@ -12,7 +12,8 @@ export async function checkTokens(page: Page) {
   });
   for (const theme of ["light", "dark"]) {
     await page.evaluate((value) => {
-      document.documentElement.classList.toggle("dark", value === "dark");
+      for (const name of ["light", "dark"])
+        document.documentElement.classList.toggle(name, name === value);
     }, theme);
     const result = await page.evaluate(() => {
       const probe = document.createElement("div");

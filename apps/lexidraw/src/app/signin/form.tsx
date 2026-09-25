@@ -10,7 +10,6 @@ import FormProvider from "~/components/hook-form";
 import { RHFTextField } from "~/components/hook-form";
 import { Button } from "~/components/ui/button";
 import { getDefaults } from "@packages/lib";
-import { LoaderCircleIcon } from "lucide-react";
 import { GitHubMark } from "~/components/github-mark";
 import { AuthDivider } from "~/components/auth-card";
 
@@ -93,9 +92,9 @@ export default function SignInForm() {
         <Button
           disabled={isLoading}
           type="submit"
-          className="mt-6 w-full gap-2"
+          className="mt-6 w-full"
+          pending={isLoading}
         >
-          {isLoading && <LoaderCircleIcon className="size-4 animate-spin" />}
           Sign in
         </Button>
         {submitError && (

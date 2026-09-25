@@ -22,6 +22,23 @@ const colourData = [
   "app/layout.tsx",
   "app/opengraph-image.tsx",
 ];
+// Motion animates colour, opacity or transform only, on the duration and easing tokens.
+const motionProperties = new Set([
+  "color",
+  "background-color",
+  "border-color",
+  "outline-color",
+  "text-decoration-color",
+  "fill",
+  "stroke",
+  "opacity",
+  "transform",
+  "translate",
+  "scale",
+  "rotate",
+]);
+const durationToken =
+  /^var\(--transition-duration-(?:fast|base|moderate|slow)\)$/;
 let failures = 0;
 const requested = process.argv.slice(2);
 const files = requested.length
@@ -49,6 +66,36 @@ for (const file of files) {
       ),
     );
     for (const c of classes) {
+      const utility = c.slice(c.lastIndexOf(":") + 1);
+      if (
+        /^transition(?:-all|-shadow)?$/.test(utility) ||
+        (/^transition-\[/.test(utility) &&
+          !utility
+            .slice(12, -1)
+            .split(",")
+            .every((property) => motionProperties.has(property)))
+      )
+        report(
+          position,
+          `transition: \`${c}\` should animate colour, opacity or transform only`,
+        );
+      if (/^duration-(?:[1-9]\d*|\[)/.test(utility))
+        report(
+          position,
+          `duration: \`${c}\` should be fast, base, moderate or slow`,
+        );
+      if (
+        /^ease-(?:in|out|in-out|\[)/.test(utility) &&
+        !/^ease-(?:enter|exit)$/.test(utility)
+      )
+        report(position, `easing: \`${c}\` should be ease-enter or ease-exit`);
+      if (utility === "animate-pulse")
+        report(
+          position,
+          `skeleton: \`${c}\` pulses at once; use Skeleton, which waits before it shows`,
+        );
+    }
+    for (const c of classes) {
       if (
         !/(?:^|:)border(?:-[xytrblse])?(?:-(?:[1-9]\d*|\[[\d.]+px\]))?$/.test(c)
       )
@@ -65,7 +112,9 @@ for (const file of files) {
     }
   }
   if (file.endsWith(".css")) {
-    const declarations = source.replace(/\/\*[\s\S]*?\*\//g, "");
+    const declarations = source.replace(/\/\*[\s\S]*?\*\//g, (comment) =>
+      comment.replace(/[^\n]/g, " "),
+    );
     for (const match of declarations.matchAll(
       /([\w-]+)\s*:\s*([^;{}]+)[;}]?/g,
     )) {
@@ -77,6 +126,22 @@ for (const file of files) {
         !/var\(|transparent|currentColor/.test(match[2] ?? "")
       )
         report(match.index, "border colour: use a semantic token");
+      if (match[1] === "transition" && match[2]?.trim() !== "none")
+        for (const transition of match[2]?.split(/,(?![^(]*\))/) ?? []) {
+          const [property, ...timing] = transition
+            .trim()
+            .split(/\s+(?![^(]*\))/);
+          if (!property || !motionProperties.has(property))
+            report(
+              match.index,
+              `transition: \`${transition.trim()}\` should name colour, opacity or transform`,
+            );
+          if (timing[0] && !durationToken.test(timing[0]))
+            report(
+              match.index,
+              `duration: \`${timing[0]}\` should be a --transition-duration token`,
+            );
+        }
     }
     continue;
   }
