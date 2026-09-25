@@ -14,7 +14,6 @@ import {
   eq,
   exists,
   isNull,
-  ne,
   or,
   schema,
   sql,
@@ -136,6 +135,31 @@ const entitySummary = z.object({
 
 const notFound = () =>
   new TRPCError({ code: "NOT_FOUND", message: "Entity not found" });
+
+/** The entity `userId` may write, or not found when there is none. */
+async function writableOrNotFound(
+  db: typeof drizzle,
+  id: string,
+  userId: string,
+) {
+  const entity = await findWritableEntity(db, id, userId);
+  if (!entity) throw notFound();
+  return entity;
+}
+
+/**
+ * The cookie `userId` keeps for the site `url` is on, which a fetch made on
+ * their behalf carries. The caller's own, never the entity owner's: an editor
+ * fetching into someone's document signs in as themselves.
+ */
+async function cookieFor(db: typeof drizzle, userId: string, url: string) {
+  const [user] = await db
+    .select({ config: schema.users.config })
+    .from(schema.users)
+    .where(eq(schema.users.id, userId));
+  const host = new URL(url).host.replace("www.", "");
+  return user?.config?.cookies?.find((cookie) => cookie.name === host);
+}
 
 const shareNotFound = () =>
   new TRPCError({ code: "NOT_FOUND", message: "Share not found" });
@@ -544,6 +568,17 @@ export const entityRouter = createTRPCRouter({
     )
     .output(z.array(entityListItem))
     .query(async ({ ctx, input }) => {
+      // A directory the caller cannot open, or one in the trash, is not
+      // there to list, whatever in it was shared with them.
+      if (input.parentId !== undefined) {
+        const parent = await findReadableFacts(
+          ctx.drizzle,
+          input.parentId,
+          ctx.session.user.id,
+        );
+        if (parent?.entityType !== "directory") throw notFound();
+      }
+
       // Step 1: Get matching entity IDs if tag names are provided
       let tagFilteredEntityIds: string[] | undefined;
 
@@ -650,20 +685,13 @@ export const entityRouter = createTRPCRouter({
         .execute();
 
       // Step 3: Sort and format the output
-      const placed = await inReadableFolders(
-        ctx.drizzle,
-        entities,
-        ctx.session.user.id,
-      );
       return sortArrOfObjects<
-        (typeof placed)[number],
+        (typeof entities)[number],
         "title" | "updatedAt" | "createdAt"
-      >(placed, input.sortOrder, input.sortBy).map(
-        ({ folderTitle: _, ...entity }) => ({
-          ...entity,
-          tags: entity.tags ? entity.tags.split(",").filter(Boolean) : [],
-        }),
-      );
+      >(entities, input.sortOrder, input.sortBy).map((entity) => ({
+        ...entity,
+        tags: entity.tags ? entity.tags.split(",").filter(Boolean) : [],
+      }));
     }),
   updateUserPrefs: protectedProcedure
     .input(
@@ -675,6 +703,9 @@ export const entityRouter = createTRPCRouter({
     )
     .mutation(async ({ ctx, input }) => {
       const userId = ctx.session.user.id;
+      if (!(await findReadableFacts(ctx.drizzle, input.entityId, userId))) {
+        throw notFound();
+      }
 
       const existing = (
         await ctx.drizzle
@@ -1299,23 +1330,11 @@ export const entityRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ input, ctx }) => {
-      const entity = (
-        await ctx.drizzle
-          .select({
-            id: ctx.schema.entities.id,
-            userId: ctx.schema.entities.userId,
-            publicAccess: ctx.schema.entities.publicAccess,
-          })
-          .from(schema.entities)
-          .where(eq(schema.entities.id, input.entityId))
-      )[0];
-      if (!entity)
-        throw new TRPCError({ code: "NOT_FOUND", message: "Entity not found" });
-
-      const isOwner = entity.userId === ctx.session?.user.id;
-      const anyOneCanEdit = entity.publicAccess === PublicAccess.EDIT;
-      if (!isOwner && !anyOneCanEdit)
-        throw new TRPCError({ code: "UNAUTHORIZED", message: "Forbidden" });
+      await writableOrNotFound(
+        ctx.drizzle,
+        input.entityId,
+        ctx.session.user.id,
+      );
 
       /* --- generate client token ----------------------------------- */
       const extension = input.contentType.split("/")[1]?.replace(/\+.*$/, "");
@@ -1369,23 +1388,11 @@ export const entityRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ input, ctx }) => {
-      const entity = (
-        await ctx.drizzle
-          .select({
-            id: ctx.schema.entities.id,
-            userId: ctx.schema.entities.userId,
-            publicAccess: ctx.schema.entities.publicAccess,
-          })
-          .from(schema.entities)
-          .where(eq(schema.entities.id, input.entityId))
-      )[0];
-      if (!entity)
-        throw new TRPCError({ code: "NOT_FOUND", message: "Entity not found" });
-
-      const isOwner = entity.userId === ctx.session?.user.id;
-      const anyOneCanEdit = entity.publicAccess === PublicAccess.EDIT;
-      if (!isOwner && !anyOneCanEdit)
-        throw new TRPCError({ code: "UNAUTHORIZED", message: "Forbidden" });
+      await writableOrNotFound(
+        ctx.drizzle,
+        input.entityId,
+        ctx.session.user.id,
+      );
 
       const extension = input.contentType.split("/")[1]?.replace(/\+.*$/, "");
       if (!extension)
@@ -1428,41 +1435,12 @@ export const entityRouter = createTRPCRouter({
     .input(z.object({ url: z.string(), entityId: z.string() }))
     .mutation(async ({ input, ctx }) => {
       const { url, entityId } = input;
-      // check user has access to entity
-      const entity = (
-        await ctx.drizzle
-          .select({
-            id: ctx.schema.entities.id,
-            userId: ctx.schema.entities.userId,
-            publicAccess: ctx.schema.entities.publicAccess,
-            config: ctx.schema.users.config,
-          })
-          .from(schema.entities)
-          .leftJoin(schema.users, eq(schema.entities.userId, schema.users.id))
-          .where(eq(schema.entities.id, input.entityId))
-      )[0];
-
-      if (!entity) {
-        console.error("entity not found");
-        throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "Entity not found",
-        });
-      }
-
-      const isOwner = entity.userId === ctx.session?.user.id;
-      const anyOneCanEdit = entity.publicAccess === PublicAccess.EDIT;
-
-      if (!isOwner && !anyOneCanEdit) {
-        throw new TRPCError({
-          code: "UNAUTHORIZED",
-          message: "You are not authorized to edit this entity",
-        });
-      }
-
-      const cookiesConfig = entity.config?.cookies;
-      const host = new URL(url).host.replace("www.", "");
-      const cookies = cookiesConfig?.find((cookie) => cookie.name === host);
+      await writableOrNotFound(
+        ctx.drizzle,
+        input.entityId,
+        ctx.session.user.id,
+      );
+      const cookies = await cookieFor(ctx.drizzle, ctx.session.user.id, url);
 
       console.log("downloading and uploading by url", {
         url,
@@ -1511,49 +1489,26 @@ export const entityRouter = createTRPCRouter({
   getDownloadUrlByRequestId: protectedProcedure
     .input(z.object({ requestId: z.string(), entityId: z.string() }))
     .query(async ({ input, ctx }) => {
-      // check user has access to entity
-      const entity = (
-        await ctx.drizzle
-          .select({
-            id: ctx.schema.entities.id,
-            userId: ctx.schema.entities.userId,
-            publicAccess: ctx.schema.entities.publicAccess,
-            status: schema.uploadedVideos.status,
-            signedDownloadUrl: schema.uploadedVideos.signedDownloadUrl,
-            errorMessage: schema.uploadedVideos.errorMessage,
-          })
-          .from(schema.entities)
-          .leftJoin(
-            schema.uploadedVideos,
-            eq(schema.entities.id, schema.uploadedVideos.entityId),
-          )
-          .where(
-            and(
-              eq(schema.entities.id, input.entityId),
-              eq(schema.uploadedVideos.requestId, input.requestId),
-            ),
-          )
-      )[0];
-
-      if (!entity) {
-        console.error("entity not found");
-        throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "Entity not found",
-        });
-      }
-
-      const isOwner = entity.userId === ctx.session?.user.id;
-      const anyOneCanEdit = entity.publicAccess === PublicAccess.EDIT;
-
-      if (!isOwner && !anyOneCanEdit) {
-        throw new TRPCError({
-          code: "UNAUTHORIZED",
-          message: "You are not authorized to view this drawing",
-        });
-      }
-
-      return entity;
+      await writableOrNotFound(
+        ctx.drizzle,
+        input.entityId,
+        ctx.session.user.id,
+      );
+      const [video] = await ctx.drizzle
+        .select({
+          status: schema.uploadedVideos.status,
+          signedDownloadUrl: schema.uploadedVideos.signedDownloadUrl,
+          errorMessage: schema.uploadedVideos.errorMessage,
+        })
+        .from(schema.uploadedVideos)
+        .where(
+          and(
+            eq(schema.uploadedVideos.entityId, input.entityId),
+            eq(schema.uploadedVideos.requestId, input.requestId),
+          ),
+        );
+      if (!video) throw notFound();
+      return video;
     }),
   // searches for tags or content
   deepSearch: protectedProcedure
@@ -1656,27 +1611,11 @@ export const entityRouter = createTRPCRouter({
     .input(z.object({ id: z.string(), force: z.boolean().optional() }))
     .mutation(async ({ input, ctx }) => {
       // 1) Load entity and verify access
-      const entity = (
-        await ctx.drizzle
-          .select({
-            id: schema.entities.id,
-            userId: schema.entities.userId,
-            publicAccess: schema.entities.publicAccess,
-            elements: schema.entities.elements,
-            title: schema.entities.title,
-            config: schema.users.config,
-          })
-          .from(schema.entities)
-          .leftJoin(schema.users, eq(schema.entities.userId, schema.users.id))
-          .where(eq(schema.entities.id, input.id))
-      )[0];
-
-      if (!entity)
-        throw new TRPCError({ code: "NOT_FOUND", message: "Entity not found" });
-      const isOwner = entity.userId === ctx.session?.user.id;
-      const anyOneCanEdit = entity.publicAccess === PublicAccess.EDIT;
-      if (!isOwner && !anyOneCanEdit)
-        throw new TRPCError({ code: "UNAUTHORIZED", message: "Forbidden" });
+      const entity = await writableOrNotFound(
+        ctx.drizzle,
+        input.id,
+        ctx.session.user.id,
+      );
 
       // 2) Parse existing elements
       let elementsJson: Record<string, unknown> = {};
@@ -1697,13 +1636,9 @@ export const entityRouter = createTRPCRouter({
       }
 
       // 3) Run extractor with optional per-domain cookies
-      let cookiesHeader: string | undefined;
-      const host = new URL(url).host.replace("www.", "");
-      const cookiesConfig = entity?.config?.cookies;
-      const cookieForHost = cookiesConfig?.find(
-        (cookie) => cookie.name === host,
-      );
-      if (cookieForHost?.value) cookiesHeader = cookieForHost.value;
+      const cookiesHeader =
+        (await cookieFor(ctx.drizzle, ctx.session.user.id, url))?.value ||
+        undefined;
 
       let distilled = await extractAndSanitizeArticle({
         url,
@@ -1851,25 +1786,11 @@ export const entityRouter = createTRPCRouter({
   regenerateThumbnail: protectedProcedure
     .input(z.object({ id: z.string() }))
     .mutation(async ({ input, ctx }) => {
-      const entity = (
-        await ctx.drizzle
-          .select({
-            id: ctx.schema.entities.id,
-            userId: ctx.schema.entities.userId,
-            publicAccess: ctx.schema.entities.publicAccess,
-            elements: ctx.schema.entities.elements,
-            appState: ctx.schema.entities.appState,
-          })
-          .from(schema.entities)
-          .where(eq(schema.entities.id, input.id))
-      )[0];
-      if (!entity)
-        throw new TRPCError({ code: "NOT_FOUND", message: "Entity not found" });
-
-      const isOwner = entity.userId === ctx.session?.user.id;
-      const anyOneCanEdit = entity.publicAccess === PublicAccess.EDIT;
-      if (!isOwner && !anyOneCanEdit)
-        throw new TRPCError({ code: "UNAUTHORIZED", message: "Forbidden" });
+      const entity = await writableOrNotFound(
+        ctx.drizzle,
+        input.id,
+        ctx.session.user.id,
+      );
 
       const crypto = await import("node:crypto");
       const version = crypto

@@ -5,7 +5,7 @@ import { cacheTag } from "next/cache";
 import { redirect } from "next/navigation";
 import { entityTag } from "~/server/api/entity-cache";
 import { verifyPrintToken } from "~/server/auth/print-token";
-import { drizzle as db, schema, eq } from "@packages/drizzle";
+import { and, drizzle as db, eq, isNull, schema } from "@packages/drizzle";
 import type { EntityType, PublicAccess } from "@packages/types";
 import { AccessLevel } from "@packages/types";
 import DocumentEditor from "../document-editor-client";
@@ -40,7 +40,12 @@ export async function generateMetadata(props: Props): Promise<Metadata> {
     await db
       .select({ title: schema.entities.title })
       .from(schema.entities)
-      .where(eq(schema.entities.id, documentId))
+      .where(
+        and(
+          eq(schema.entities.id, documentId),
+          isNull(schema.entities.deletedAt),
+        ),
+      )
   )[0];
   return row ? { title: { absolute: row.title } } : {};
 }
@@ -85,7 +90,12 @@ export default async function PrintDocumentPage(props: Props) {
         updatedAt: schema.entities.updatedAt,
       })
       .from(schema.entities)
-      .where(eq(schema.entities.id, documentId))
+      .where(
+        and(
+          eq(schema.entities.id, documentId),
+          isNull(schema.entities.deletedAt),
+        ),
+      )
   )[0];
   if (!row) return redirect("/dashboard");
 

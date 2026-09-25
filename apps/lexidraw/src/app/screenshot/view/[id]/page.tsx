@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { verifyScreenshotToken } from "~/server/auth/screenshot-token";
 import { api } from "~/trpc/server";
 import DocumentEditor from "../../../documents/[documentId]/document-editor-client";
-import { drizzle as db, schema, eq } from "@packages/drizzle";
+import { and, drizzle as db, eq, isNull, schema } from "@packages/drizzle";
 import { INITIAL_LLM_CONFIG_FOR_PUBLIC_RENDER } from "~/server/llm/initial-llm-config";
 import {
   AccessLevel,
@@ -44,7 +44,7 @@ export default async function ScreenshotDocumentPage(props: Props) {
         entityType: schema.entities.entityType,
       })
       .from(schema.entities)
-      .where(eq(schema.entities.id, id))
+      .where(and(eq(schema.entities.id, id), isNull(schema.entities.deletedAt)))
   )[0];
   if (!row) return redirect("/dashboard");
 

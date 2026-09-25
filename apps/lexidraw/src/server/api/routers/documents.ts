@@ -6,7 +6,7 @@ import {
 import { createTRPCRouter, protectedProcedure, publicProcedure } from "../trpc";
 import { AfterHeading, CreateDocument, MarkdownBody } from "./documents-schema";
 import { PublicAccess } from "@packages/types";
-import { and, eq, schema } from "@packages/drizzle";
+import { eq, schema } from "@packages/drizzle";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { ownTagNames } from "~/server/entities/tags";
@@ -474,18 +474,6 @@ export const documentRouter = createTRPCRouter({
         throwAsDocumentWriteError(error);
       }
     }),
-  list: protectedProcedure.query(async ({ ctx }) => {
-    return await ctx.drizzle
-      .select()
-      .from(schema.entities)
-      .where(
-        and(
-          eq(schema.entities.userId, ctx.session?.user.id),
-          eq(schema.entities.entityType, "document"),
-        ),
-      )
-      .execute();
-  }),
   /**
    * Rewrites a whole document from markdown for agents and the CLI. Blocks
    * with no markdown form travel as placeholder comments: one the caller left

@@ -157,13 +157,10 @@ describe("a folder someone can't open is not named by its id either", () => {
     expect(mentions(deep, PRIVATE)).toBe(false);
   });
 
-  test("in a listing", async () => {
-    const listed = await callerOf(READER).list({ parentId: PRIVATE });
-    expect(listed.map((entry) => entry.id).toSorted()).toEqual([
-      "erd_loose",
-      "erd_shared",
-    ]);
-    expect(listed.every((entry) => entry.parentId === null)).toBe(true);
+  test("which can't be listed either", async () => {
+    await expect(
+      callerOf(READER).list({ parentId: PRIVATE }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
   });
 
   test("while the owner still sees where everything is", async () => {
