@@ -18,6 +18,18 @@ type SerializedCollapsibleContainerNode = Spread<
   SerializedElementNode
 >;
 
+/**
+ * How a section's content folds and unfolds. It is added the first time the
+ * section is opened or closed by hand: on a section drawn for the first time,
+ * the closing animation would play from its full height (and the opening one
+ * from none), painting a closed section open and then folding it, which moves
+ * everything below it.
+ */
+const SECTION_MOTION = [
+  "data-[state=open]:animate-accordion-down",
+  "data-[state=closed]:animate-accordion-up",
+];
+
 export function $convertAccordionItemElement(
   domNode: HTMLElement,
 ): DOMConversionOutput | null {
@@ -61,8 +73,12 @@ export class CollapsibleContainerNode extends ElementNode {
     return root;
   }
 
-  /** keep trigger & content in lock‑step with this.__open */
-  private syncChildState(dom: HTMLElement) {
+  /**
+   * Keeps the trigger and content in step with `__open`. A section `toggled`
+   * by hand folds or unfolds; one showing for the first time is drawn in its
+   * state, with nothing to animate from.
+   */
+  private syncChildState(dom: HTMLElement, toggled: boolean) {
     const trigger = dom.querySelector<HTMLElement>(
       "[data-slot='accordion-trigger']",
     );
@@ -89,6 +105,7 @@ export class CollapsibleContainerNode extends ElementNode {
       content.style.height = "0";
     }
 
+    if (toggled) content.classList.add(...SECTION_MOTION);
     // Set data-state after height is configured to ensure proper animation
     content.dataset.state = stateStr;
   }
@@ -96,12 +113,12 @@ export class CollapsibleContainerNode extends ElementNode {
   updateDOM(prev: this, dom: HTMLElement) {
     if (prev.__open !== this.__open) {
       dom.dataset.state = this.__open ? "open" : "closed";
-      this.syncChildState(dom);
+      this.syncChildState(dom, true);
     }
     // Ensure child state is synced after children are first mounted by Lexical
     // This might be better handled after initial render if children are not immediately available
     if (dom.dataset.lexicalInitialRender === undefined) {
-      this.syncChildState(dom);
+      this.syncChildState(dom, false);
       dom.dataset.lexicalInitialRender = "done"; // Mark to avoid re-running excessively
     }
     return false; // DOM skeleton itself never changes
