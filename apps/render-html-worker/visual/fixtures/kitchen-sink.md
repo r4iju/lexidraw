@@ -90,9 +90,14 @@ one line, no numbers
 
 | Mode | Best for | 日本語 |
 | --- | --- | --- |
-| Crisp | Anything you would deep-fry: karaage, fries and yakitori | クリスプ |
+| Crisp | Anything you would deep-fry: karaage, fries and yakitori, crackly outside and juicy inside | クリスプ |
 | Recrisp | Reviving cold fried food, bread and 惣菜 | リクリスプ |
 | Bake/Roast | Meat, fish, bread and cakes, gentler and more even | ベイク・ロースト |
+
+| Pot | Mon | Tue | Wed | Thu | Fri | Sat | Sun |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| L · 大 | Karaage | Negima | Focaccia | Karaage | Negima | Focaccia | Recrisp |
+| S · 小 | Salmon · 鮭 | Cheesecake | Salmon · 鮭 | Cheesecake | Salmon · 鮭 | Cheesecake | Keep warm |
 
 Inline math $E=mc^2$ and a block:
 

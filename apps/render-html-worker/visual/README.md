@@ -45,7 +45,7 @@ Each render goes through the same `GET /documents/{id}/render` operation as the
 CLI and MCP, at 375/768/1280px in light/dark. PNGs retain 1:1 pixels, capped at
 6000px high to bound repository growth (all six currently reach the cap, so
 the end of the fixture is not captured). The six committed images total about
-**4.0 MB**. Pixelmatch ignores minor
+**4.2 MB**. Pixelmatch ignores minor
 antialiasing changes with a per-pixel threshold of 0.15 and permits at most
 0.5% differing pixels. A changed image size always fails. Actual images and
 failure diffs go in `.playwright-mcp/document-snapshots/`, never in the baseline
@@ -65,8 +65,10 @@ reload. Only localhost is used.
 
 Table cases cover key/value tokens, GFM alignment, a six-column mixed-language
 comparison, a three-column table with sentences whose labels together are too
-wide for a phone, and the 80% numeric threshold. Browser checks assert content
-widths from the text column's edge, the 1024px limit, short tables fitting a
+wide for a phone, a week of labels too wide for the text column, and the 80%
+numeric threshold. Browser checks assert that a table starts at the text's
+edge and is no wider than it unless its content cannot wrap to fit, the 1024px
+limit, short tables fitting a
 phone while editing and reading, sentences wrapping there while labels, tokens
 and Japanese words stay whole (in a heading too; the widest label gives way
 between its words), labelled keyboard scroll regions, the pinned
@@ -77,7 +79,7 @@ Media cases include a 2000px portrait image, a missing image with alt text,
 columns in the text column and written wide, unsized diagrams/video/charts,
 voted polls, and empty charts and slides. Browser checks cover 375×812, 768×1024 and 1280×900 in both themes,
 plus a narrowed desktop container. They check media bounds and aspect ratios,
-centering, theme treatment (photos dimmed a little in dark), half-column
+centering, theme treatment (photos dimmed a little and unframed in dark), half-column
 figures filling a phone, footnote markers and the way back after a wrapped
 note, placeholders, poll results and print break rules. On touch, property
 Edit buttons wait for the header's one Edit properties action.

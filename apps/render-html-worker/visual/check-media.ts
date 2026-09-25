@@ -39,6 +39,7 @@ export async function checkMedia(
             center: rect.x + rect.width / 2,
             columnCenter: root.x + root.width / 2,
             filter: getComputedStyle(image).filter,
+            frame: getComputedStyle(image).outlineStyle,
           };
         },
       );
@@ -60,6 +61,11 @@ export async function checkMedia(
           ? /brightness\(0\.\d+\)/.test(hero.filter)
           : hero.filter === "none",
         `A photo is dimmed a little in dark mode only: ${hero.filter}`,
+      );
+      assert.equal(
+        hero.frame,
+        theme === "dark" ? "none" : "solid",
+        "A photo is framed against the light page, not boxed in on the dark one",
       );
 
       const layout = await page.evaluate(() => {

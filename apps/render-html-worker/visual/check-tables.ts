@@ -16,9 +16,18 @@ export async function checkTables(page: Page, fixtureId: string) {
       const cell = table.querySelector("td");
       if (!region || !cell)
         throw new Error("Missing table cells or scroll region");
+      const measure = (width: string) => {
+        table.style.width = width;
+        const measured = table.getBoundingClientRect().width;
+        table.style.width = "";
+        return measured;
+      };
       return {
         left: table.getBoundingClientRect().left,
         width: table.getBoundingClientRect().width,
+        minContent: measure("0px"),
+        regionLeft: region.getBoundingClientRect().left,
+        regionRight: region.getBoundingClientRect().right,
         regionWidth: region.getBoundingClientRect().width,
         role: region.getAttribute("role"),
         label: region.getAttribute("aria-label"),
@@ -36,17 +45,27 @@ export async function checkTables(page: Page, fixtureId: string) {
     tables.every((table) => !table.storedWidths),
     "Opening an unsized table must not write column widths",
   );
-  const textLeft = await page.$eval(
-    '[id^="lexical-content-"] > p',
-    (paragraph) => paragraph.getBoundingClientRect().left,
+  const text = await page.$eval('[id^="lexical-content-"] > p', (paragraph) =>
+    paragraph.getBoundingClientRect().toJSON(),
   );
   for (const table of tables) {
+    const detail = JSON.stringify({ table, text });
     assert(table.regionWidth <= 1024.5, "A table grows no wider than 1024px");
-    if (table.width < 704)
-      assert(
-        Math.abs(table.left - textLeft) < 1,
-        `A table narrower than the text starts where it does: ${table.left} vs ${textLeft}`,
-      );
+    assert(
+      table.width <= Math.max(text.width, table.minContent) + 1,
+      `A table grows past the text only when it cannot wrap to fit it: ${detail}`,
+    );
+    const left =
+      table.width <= text.width + 1
+        ? text.left
+        : Math.max(
+            table.regionLeft,
+            Math.min(text.left, table.regionRight - table.width),
+          );
+    assert(
+      Math.abs(table.left - left) < 1,
+      `A table starts at the text, and a wider one slides left only as far as the wide column needs: ${detail}`,
+    );
     assert.equal(table.role, "region");
     assert(table.label);
     assert.equal(table.tabIndex, 0);
@@ -58,9 +77,13 @@ export async function checkTables(page: Page, fixtureId: string) {
     `A short table is as wide as its content: ${tables[1]?.width}`,
   );
   assert(
-    (tables[2]?.regionWidth ?? 0) > 704 &&
-      Math.abs((tables[2]?.width ?? 0) - (tables[2]?.regionWidth ?? 0)) < 1,
-    `A table wider than the text grows past it before it wraps or scrolls: ${JSON.stringify(tables[2])}`,
+    Math.abs((tables[3]?.width ?? 0) - text.width) < 1,
+    `A table with sentences is as wide as the text, wrapping them: ${JSON.stringify(tables[3])}`,
+  );
+  assert(
+    (tables[4]?.width ?? 0) > text.width + 1 &&
+      Math.abs((tables[4]?.width ?? 0) - (tables[4]?.minContent ?? 0)) < 1,
+    `A table of labels too many for the text grows past it: ${JSON.stringify(tables[4])}`,
   );
   const numeric = await page.$$eval(
     ".document-content table:nth-of-type(1)",

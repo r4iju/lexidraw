@@ -600,14 +600,19 @@
   max-width: min(var(--doc-wide), 100%);
 }
 
-/* The region starts at the text column, so a table narrower than the text
-   lines up with it, and grows to the wide column. The table inside is as wide
-   as its content: sentences wrap before the region scrolls. */
+/* The region spans the wide column and the table starts at the text. It is
+   as wide as its content up to the text's width, wrapping sentences to fit;
+   only a table that cannot fit grows past it, rightwards until the wide
+   column ends, then leftwards as the spacer gives way, then it scrolls. */
 .document-content > .document-table-region {
-  width: fit-content;
-  min-width: min(var(--doc-measure), 100%);
-  max-width: min(var(--doc-wide), 100%);
+  display: flex;
+  width: min(var(--doc-wide), 100%);
+  max-width: none;
   margin-block: 1.75em;
+}
+.document-content > .document-table-region::before {
+  content: "";
+  flex: 0 1 max(0px, (100% - var(--doc-measure)) / 2);
 }
 .document-table-region {
   overflow: auto;
@@ -632,14 +637,31 @@
   background-repeat: no-repeat;
   background-attachment: scroll;
 }
+/* A table that fits shows the keyboard focus on itself, not the region's
+   empty stretch of the wide column. */
+.document-table-region:focus-visible:not(
+  [data-scroll-left],
+  [data-scroll-right]
+) {
+  outline: none;
+}
+.document-table-region:focus-visible:not(
+    [data-scroll-left],
+    [data-scroll-right]
+  )
+  > .document-table {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+}
 /* A table that scrolls keeps its frame on the region, above what scrolls. */
 .document-table-region:is([data-scroll-left], [data-scroll-right]) {
   outline: 1px solid var(--border);
   outline-offset: -1px;
 }
 .document-table {
+  flex: none;
   width: auto;
-  max-width: none;
+  max-width: min(var(--doc-measure), 100%);
   table-layout: auto;
   border: 1px solid var(--border);
   border-radius: 6px;
@@ -705,6 +727,7 @@
 }
 .document-table[data-sized="true"] {
   width: max-content;
+  max-width: none;
   table-layout: fixed;
 }
 .document-table[data-print-table] {
@@ -958,10 +981,14 @@
     filter: invert(93%) hue-rotate(180deg);
   }
   /* A photo on a white ground would glare on the dark page; it is dimmed a
-     little, and shown as it is while pointed at or selected. */
+     little, and shown as it is while pointed at or selected. The dark page
+     already sets it apart, where a frame would box it in. */
   .dark :is(.document-content .document-image, .document-cover img) {
     filter: brightness(0.88);
     transition: filter 150ms;
+  }
+  .dark .document-content .document-image {
+    outline: none;
   }
   .dark
     :is(.document-content .document-image, .document-cover img):is(

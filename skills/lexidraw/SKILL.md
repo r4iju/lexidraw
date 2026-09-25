@@ -195,7 +195,7 @@ read, edited and replaced keeps its structure.
 | `> [!NOTE]`, `[!TIP]`, `[!IMPORTANT]`, `[!WARNING]`, `[!CAUTION]` | a callout of that kind, tinted in its colour; any text after the marker is its title, and every following `>` line is its body, which can hold any blocks |
 | `<details>` + `<summary>Title</summary>` … `</details>` | a collapsible section; `<details open>` starts open |
 | `<columns>` + one `<column>` … `</column>` each … `</columns>` | side-by-side columns of equal width in the text column, stacked on phones; `<columns wide>` uses the wide column |
-| a GFM table (`\| a \| b \|` + `\| --- \| ---: \|`) | a table as wide as its content; sentences in cells wrap first, and short labels, numbers and dates only between words once a phone has no room left; alignment colons are kept |
+| a GFM table (`\| a \| b \|` + `\| --- \| ---: \|`) | a table as wide as its content, up to the text column: sentences in cells wrap to fit it, and only a table whose labels cannot fit grows wider, into the wide column; short labels, numbers and dates wrap only between words, once a phone has no room left; alignment colons are kept |
 | ```` ```lang ```` fence | a code block with syntax highlighting |
 | `$x^2$` | inline math: the `$` hug the formula, no space inside and no digit after |
 | `$$x^2$$` on its own line, or `$$` lines around it | a block equation |
