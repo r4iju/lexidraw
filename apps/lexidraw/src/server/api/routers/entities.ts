@@ -345,8 +345,10 @@ export const entityRouter = createTRPCRouter({
           id: input.id,
           title: input.title,
           ...(appState !== undefined ? { appState } : {}),
+          // The browser measures its own pictures as they load, and saves
+          // again soon after, so only a caller without one waits on the network.
           elements:
-            entity.entityType === "document"
+            entity.entityType === "document" && ctx.auth.kind === "token"
               ? await measureImages(input.elements)
               : input.elements,
           ...(parentId !== undefined ? { parentId } : {}),

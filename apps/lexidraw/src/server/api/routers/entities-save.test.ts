@@ -32,6 +32,10 @@ const context = {
 } as never;
 const caller = entityRouter.createCaller(context);
 const documents = documentRouter.createCaller(context);
+const agent = entityRouter.createCaller({
+  ...(context as object),
+  auth: { kind: "token", tokenId: "esave_token", scope: "write" },
+} as never);
 
 beforeAll(async () => {
   await db
@@ -82,37 +86,39 @@ describe("a document written without a browser stores its pictures' sizes", () =
     (imageProbe.probeImageSize as { mockRestore?: () => void }).mockRestore?.();
   });
 
-  const withPicture = JSON.stringify({
-    root: {
-      type: "root",
-      children: [
-        {
-          type: "paragraph",
-          children: [
-            {
-              type: "image",
-              version: 1,
-              src: "https://images.example/cover.jpg",
-              altText: "",
-              width: 0,
-              height: 0,
-            },
-          ],
-        },
-      ],
-    },
-  });
+  const pictureAt = (src: string) =>
+    JSON.stringify({
+      root: {
+        type: "root",
+        children: [
+          {
+            type: "paragraph",
+            children: [
+              {
+                type: "image",
+                version: 1,
+                src,
+                altText: "",
+                width: 0,
+                height: 0,
+              },
+            ],
+          },
+        ],
+      },
+    });
+  const withPicture = pictureAt("https://images.example/cover.jpg");
   const storedSize = async (id: string) =>
     JSON.parse((await stored(id)) ?? "{}").root?.children[0].children[0].$
       ?.natural;
 
-  test("a save, a create and an import each measure an unmeasured outside picture", async () => {
+  test("an agent's save, a create and an import each measure an unmeasured outside picture", async () => {
     spyOn(imageProbe, "probeImageSize").mockImplementation(async () => ({
       width: 1080,
       height: 1350,
     }));
 
-    await caller.save({ id: "esave_doc", elements: withPicture });
+    await agent.save({ id: "esave_doc", elements: withPicture });
     await caller.create({
       id: "esave_created",
       title: "Created",
@@ -137,7 +143,17 @@ describe("a document written without a browser stores its pictures' sizes", () =
     spyOn(imageProbe, "probeImageSize").mockImplementation(
       async () => undefined,
     );
-    await caller.save({ id: "esave_doc", elements: withPicture });
+    await agent.save({ id: "esave_doc", elements: withPicture });
     expect(await stored("esave_doc")).toBe(withPicture);
+  });
+
+  test("the browser's save stores what it sent without asking the network", async () => {
+    const probe = spyOn(imageProbe, "probeImageSize").mockImplementation(
+      async () => ({ width: 1080, height: 1350 }),
+    );
+    const typed = pictureAt("https://images.example/typed.jpg");
+    await caller.save({ id: "esave_doc", elements: typed });
+    expect(probe).not.toHaveBeenCalled();
+    expect(await stored("esave_doc")).toBe(typed);
   });
 });
