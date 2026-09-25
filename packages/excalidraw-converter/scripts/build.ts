@@ -5,9 +5,12 @@ import { join } from "node:path";
 const root = join(import.meta.dir, "..");
 const stub = join(root, "src", "react-stub.ts");
 const unused = join(root, "src", "unused-stub.ts");
+const resize = join(root, "src", "resize-stub.ts");
 
 /** Reached only from the editor's Mermaid dialog, never from a conversion. */
 const UNUSED = /^@excalidraw\/mermaid-to-excalidraw(\/.*)?$/;
+/** Reached only when an image dropped onto the editor is shrunk. */
+const RESIZE = /^(pica|image-blob-reduce)$/;
 
 await rm(join(root, "dist"), { recursive: true, force: true });
 
@@ -29,6 +32,7 @@ const result = await Bun.build({
           path: stub,
         }));
         build.onResolve({ filter: UNUSED }, () => ({ path: unused }));
+        build.onResolve({ filter: RESIZE }, () => ({ path: resize }));
       },
     },
   ],
