@@ -65,9 +65,8 @@ const env = createEnv({
     OPENROUTER_API_KEY: z.string().optional(),
     // Google Custom Search (required org-level for server-side proxy)
     GOOGLE_SEARCH_ENGINE_ID: z.string().min(1),
-    // Kokoro sidecar (optional; used in local/dev or when configured)
+    // OpenAI-shaped Kokoro server (optional; local dev)
     KOKORO_URL: z.url().optional(),
-    KOKORO_BEARER: z.string().optional(),
     // Optional pricing/budget controls (USD values as strings)
     TTS_PRICE_OPENAI_PER_MILLION_CHARS: z.string().optional(),
     TTS_PRICE_GOOGLE_PER_MILLION_CHARS: z.string().optional(),
@@ -134,7 +133,6 @@ const env = createEnv({
     OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY,
     GOOGLE_SEARCH_ENGINE_ID: process.env.GOOGLE_SEARCH_ENGINE_ID,
     KOKORO_URL: process.env.KOKORO_URL,
-    KOKORO_BEARER: process.env.KOKORO_BEARER,
     TTS_PRICE_OPENAI_PER_MILLION_CHARS:
       process.env.TTS_PRICE_OPENAI_PER_MILLION_CHARS,
     TTS_PRICE_GOOGLE_PER_MILLION_CHARS:

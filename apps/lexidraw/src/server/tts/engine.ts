@@ -13,38 +13,7 @@ import type { TtsRequest, TtsResult, TtsProviderName } from "./types";
 import { createOpenAiTtsProvider } from "./providers/openai";
 import { createGoogleTtsProvider } from "./providers/google";
 import { createKokoroTtsProvider } from "./providers/kokoro";
-
-type ChooseProviderArgs = {
-  // Allow arbitrary strings here so the UI can request local adapters
-  // like "apple_say" or "xtts" which are routed via the kokoro sidecar.
-  requested?: string | TtsProviderName;
-  languageCode?: string;
-};
-
-function chooseProvider({
-  requested,
-  languageCode,
-}: ChooseProviderArgs): TtsProviderName {
-  // Route explicit local adapters (apple_say, xtts) via kokoro sidecar
-  if (requested === "apple_say" || requested === "xtts") return "kokoro";
-  if (
-    requested === "openai" ||
-    requested === "google" ||
-    requested === "kokoro"
-  )
-    return requested;
-  const hasSidecar = !!process.env.KOKORO_URL;
-  const lang = (languageCode || "").toLowerCase();
-  // Route JA/SV via sidecar when available
-  if (hasSidecar) {
-    if (lang.startsWith("ja")) return "kokoro"; // XTTS under the hood
-    if (lang.startsWith("sv")) return "kokoro"; // Apple say under the hood
-  }
-  // Prefer local Kokoro in development when configured
-  if (process.env.NODE_ENV !== "production" && hasSidecar) return "kokoro";
-  if (languageCode && !lang.startsWith("en")) return "google";
-  return "openai";
-}
+import { chooseProvider, defaultKokoroVoice } from "./choose-provider";
 
 function stableHash(
   parts: (string | number | boolean | null | undefined)[],
@@ -58,21 +27,14 @@ function stableHash(
 }
 
 export function precomputeTtsKey(req: TtsRequest) {
-  const providerName = chooseProvider({
-    requested: req.provider,
-    languageCode: req.languageCode,
-  });
+  const providerName = chooseProvider(req.provider, req.languageCode);
   const format = req.format ?? "mp3";
   const voiceId =
     req.voiceId ??
     (() => {
       if (providerName === "google") return "en-US-Standard-C";
-      if (providerName === "kokoro") {
-        const lang = (req.languageCode || "").toLowerCase();
-        if (lang.startsWith("sv")) return "Erik"; // Apple say default
-        if (lang.startsWith("ja")) return "ja_female"; // expects speaker wav
-        return "af_heart";
-      }
+      if (providerName === "kokoro")
+        return defaultKokoroVoice(req.languageCode);
       return "alloy";
     })();
   const speed = req.speed ?? 1.0;
@@ -93,10 +55,7 @@ export function precomputeTtsKey(req: TtsRequest) {
 export async function synthesizeArticleOrText(
   req: TtsRequest & { titleHint?: string },
 ): Promise<TtsResult> {
-  const providerName = chooseProvider({
-    requested: req.provider,
-    languageCode: req.languageCode,
-  });
+  const providerName = chooseProvider(req.provider, req.languageCode);
   const format = req.format ?? "mp3";
   const stitchWithFfmpeg = process.env.TTS_STITCH_WITH_FFMPEG === "true";
   const segmentFormat: "mp3" | "ogg" | "wav" = stitchWithFfmpeg
@@ -162,7 +121,7 @@ export async function synthesizeArticleOrText(
     providerName === "google"
       ? createGoogleTtsProvider(env.GOOGLE_API_KEY)
       : providerName === "kokoro"
-        ? createKokoroTtsProvider(env.KOKORO_URL ?? "", env.KOKORO_BEARER)
+        ? createKokoroTtsProvider(env.KOKORO_URL ?? "")
         : createOpenAiTtsProvider(env.OPENAI_API_KEY);
 
   const chunks = chunkTextByParagraphs(sourceText, {
@@ -222,7 +181,7 @@ export async function synthesizeArticleOrText(
           providerName === "google"
             ? createOpenAiTtsProvider(env.OPENAI_API_KEY)
             : env.KOKORO_URL
-              ? createKokoroTtsProvider(env.KOKORO_URL, env.KOKORO_BEARER)
+              ? createKokoroTtsProvider(env.KOKORO_URL)
               : createGoogleTtsProvider(env.GOOGLE_API_KEY);
         const targetProviderName: TtsProviderName =
           providerName === "google"
