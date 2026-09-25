@@ -13,6 +13,7 @@ import { checkExcalidrawAssets, DRAWN_LABELS } from "./check-excalidraw-assets";
 import { checkMedia } from "./check-media";
 import { checkMotion } from "./check-motion";
 import { checkPage } from "./check-page";
+import { checkRenderReady, lazyBlockDocuments } from "./check-render-ready";
 import { checkTables } from "./check-tables";
 import { checkEditorControls } from "./check-editor-controls";
 import { checkOverlays } from "./check-overlays";
@@ -300,6 +301,26 @@ const drawing = await cli(
   "--file",
   shapesPath,
 );
+// A throwaway document for each block that loads its own code, alone.
+const lazy = [];
+for (const { name, elements } of lazyBlockDocuments(doc.content.root)) {
+  const created = await cli(
+    "doc",
+    "create",
+    "--title",
+    `Visual suite · ${name}`,
+  );
+  const lazyPath = resolve(output, `lazy-${name}.json`);
+  await writeFile(lazyPath, JSON.stringify({ elements }));
+  await cli(
+    "api",
+    "PUT",
+    `/entities/${created.id}`,
+    "--json",
+    await readFile(lazyPath, "utf8"),
+  );
+  lazy.push({ name, id: created.id as string });
+}
 
 const browser = await puppeteer.launch({
   headless: true,
@@ -332,12 +353,14 @@ try {
   await checkReservedSizes(page, { sizedId: sized.id, emptyId: empty.id });
   await checkExcalidrawAssets(page, drawn.id);
   await checkMotion(page, fixtureId);
+  await checkRenderReady(page, lazy);
 } finally {
   await browser.close();
   await cli("doc", "delete", empty.id);
   await cli("doc", "delete", sized.id);
   await cli("doc", "delete", drawn.id);
   await cli("drawing", "delete", drawing.id);
+  for (const { id } of lazy) await cli("doc", "delete", id);
 }
 
 const pdfPath = resolve(output, "kitchen-sink.pdf");
