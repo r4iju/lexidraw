@@ -9,6 +9,7 @@ import { PublicAccess } from "@packages/types";
 import { and, eq, schema } from "@packages/drizzle";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
+import { ownTagNames } from "~/server/entities/tags";
 import {
   appendMarkdownToDocument,
   DocumentGoneError,
@@ -40,7 +41,6 @@ import {
 import { documentHeaderOf } from "@packages/lexical-nodes";
 import {
   entityPath,
-  entityTagNames,
   findOwnedEntity,
   findReadableEntity,
   findWritableEntity,
@@ -243,7 +243,7 @@ export const documentRouter = createTRPCRouter({
       }
       const [path, tags] = await Promise.all([
         entityPath(ctx.drizzle, entity, userId),
-        entityTagNames(ctx.drizzle, entity.id),
+        ownTagNames(ctx.drizzle, entity.id, userId),
       ]);
       const meta = {
         id: entity.id,
@@ -336,7 +336,11 @@ export const documentRouter = createTRPCRouter({
           ),
           {
             ...entity,
-            tags: await entityTagNames(ctx.drizzle, entity.id),
+            tags: await ownTagNames(
+              ctx.drizzle,
+              entity.id,
+              ctx.session.user.id,
+            ),
           },
           input.markdown,
           input.ifUnmodifiedSince,
@@ -453,7 +457,11 @@ export const documentRouter = createTRPCRouter({
           ),
           {
             ...entity,
-            tags: await entityTagNames(ctx.drizzle, entity.id),
+            tags: await ownTagNames(
+              ctx.drizzle,
+              entity.id,
+              ctx.session.user.id,
+            ),
           },
           input.markdown,
           input.placement,
@@ -533,7 +541,11 @@ export const documentRouter = createTRPCRouter({
           ),
           {
             ...entity,
-            tags: await entityTagNames(ctx.drizzle, entity.id),
+            tags: await ownTagNames(
+              ctx.drizzle,
+              entity.id,
+              ctx.session.user.id,
+            ),
           },
           input.markdown,
           input.ifUnmodifiedSince,

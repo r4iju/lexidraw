@@ -23,7 +23,7 @@ import {
 } from "@packages/drizzle";
 import type { AppState } from "@excalidraw/excalidraw/types";
 import { v4 as uuidV4 } from "uuid";
-import { replaceOwnTags } from "~/server/entities/tags";
+import { ownTagNames, replaceOwnTags } from "~/server/entities/tags";
 import { extractAndSanitizeArticle } from "~/server/extractors/article";
 import { entityText, snippetAround } from "~/lib/entity-text";
 import env from "@packages/env";
@@ -133,27 +133,6 @@ const entitySummary = z.object({
   createdAt: isoDate,
   updatedAt: isoDate,
 });
-
-/** The tag names `userId` has put on `entityId`, sorted. */
-async function ownTagNames(
-  db: typeof drizzle,
-  entityId: string,
-  userId: string,
-): Promise<string[]> {
-  const rows = await db
-    .select({ name: schema.tags.name })
-    .from(schema.entityTags)
-    .innerJoin(schema.tags, eq(schema.entityTags.tagId, schema.tags.id))
-    .where(
-      and(
-        eq(schema.entityTags.entityId, entityId),
-        eq(schema.entityTags.userId, userId),
-      ),
-    )
-    .orderBy(schema.tags.name)
-    .execute();
-  return rows.map((row) => row.name);
-}
 
 const notFound = () =>
   new TRPCError({ code: "NOT_FOUND", message: "Entity not found" });
@@ -1605,10 +1584,13 @@ export const entityRouter = createTRPCRouter({
           schema.sharedEntities,
           eq(schema.entities.id, schema.sharedEntities.entityId),
         )
-        // Join with tags
+        // The searcher's own tags: tags are per user.
         .leftJoin(
           schema.entityTags,
-          eq(schema.entities.id, schema.entityTags.entityId),
+          and(
+            eq(schema.entities.id, schema.entityTags.entityId),
+            eq(schema.entityTags.userId, userId),
+          ),
         )
         .leftJoin(schema.tags, eq(schema.entityTags.tagId, schema.tags.id))
         .where(

@@ -336,14 +336,3 @@ export async function entityPath(
   const ancestors = await entityAncestors(db, entity.parentId, userId);
   return [...ancestors.reverse().map((a) => a.title), entity.title].join("/");
 }
-
-export async function entityTagNames(db: Db, id: string): Promise<string[]> {
-  const rows = await db
-    .select({ name: schema.tags.name })
-    .from(schema.entityTags)
-    .innerJoin(schema.tags, eq(schema.entityTags.tagId, schema.tags.id))
-    .where(eq(schema.entityTags.entityId, id))
-    .orderBy(schema.tags.name)
-    .execute();
-  return rows.map((row) => row.name);
-}

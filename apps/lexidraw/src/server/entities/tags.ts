@@ -8,6 +8,30 @@ import { v4 as uuidV4 } from "uuid";
 type Db = LibSQLDatabase<typeof schema>;
 
 /**
+ * The tag names `userId` has put on `entityId`, sorted. Tags are per user, so
+ * these are the only ones a reader of the entity is shown.
+ */
+export async function ownTagNames(
+  db: Db,
+  entityId: string,
+  userId: string,
+): Promise<string[]> {
+  const rows = await db
+    .select({ name: schema.tags.name })
+    .from(schema.entityTags)
+    .innerJoin(schema.tags, eq(schema.entityTags.tagId, schema.tags.id))
+    .where(
+      and(
+        eq(schema.entityTags.entityId, entityId),
+        eq(schema.entityTags.userId, userId),
+      ),
+    )
+    .orderBy(schema.tags.name)
+    .execute();
+  return rows.map((row) => row.name);
+}
+
+/**
  * Makes `names` the tags `userId` has on `entityId`. Tags are per user:
  * another user's associations with the entity are neither read nor touched.
  */
