@@ -4,33 +4,39 @@ import { useLayoutEffect, useRef, useSyncExternalStore } from "react";
 import { AppBar, Crumb } from "~/components/app-bar/app-bar";
 import { Skeleton } from "~/components/ui/skeleton";
 import { cn } from "~/lib/utils";
+import { DASHBOARD_PREFS_COOKIE, readDashboardPrefs } from "./dashboard-prefs";
 
 const GUTTER = "w-full px-4 sm:px-6 lg:px-8";
 const GRID = "grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 xl:grid-cols-4";
 const CONTROL = "h-10 pointer-coarse:h-11";
 
 /**
- * The layout Home will show: the address's, else the one chosen last time
- * (the prefs cookie), else the list. Written to run as it is, inline, before
- * the page paints, as well as from React.
+ * The layout Home will show, from its `flex`: the address's, else the one
+ * chosen last time (the prefs cookie); the list if neither says grid.
  */
-function readView() {
-  const fromAddress = new URLSearchParams(location.search).get("flex");
-  let chosen = fromAddress;
-  if (!chosen) {
-    const cookie = document.cookie
-      .split("; ")
-      .find((row) => row.startsWith("ld_dash_prefs="));
+const viewOf = (flex: string | null | undefined) =>
+  flex === "flex-row" ? "grid" : "list";
+
+/**
+ * The same, run inline as the server's HTML is parsed, before the page's
+ * scripts, Zod's included, have loaded; so it reads the one field itself.
+ */
+function readViewBeforeScripts(cookieName: string) {
+  let flex = new URLSearchParams(location.search).get("flex");
+  const row = document.cookie
+    .split("; ")
+    .find((row) => row.startsWith(`${cookieName}=`));
+  if (!flex && row) {
     try {
-      chosen = cookie
-        ? JSON.parse(decodeURIComponent(cookie.slice(14))).flex
-        : null;
+      flex = JSON.parse(
+        decodeURIComponent(row.slice(cookieName.length + 1)),
+      ).flex;
     } catch {}
   }
-  return chosen === "flex-row" ? "grid" : "list";
+  return flex === "flex-row" ? "grid" : "list";
 }
 
-const setViewBeforePaint = `document.currentScript.parentElement.dataset.view=(${readView.toString()})()`;
+const setViewBeforePaint = `document.currentScript.parentElement.dataset.view=(${readViewBeforeScripts.toString()})(${JSON.stringify(DASHBOARD_PREFS_COOKIE)})`;
 
 const subscribeToNothing = () => () => {};
 
@@ -51,7 +57,11 @@ export function DashboardSkeleton({ folder = false }: { folder?: boolean }) {
   );
   // A navigation in the browser has its address by the time this commits.
   useLayoutEffect(() => {
-    if (root.current) root.current.dataset.view = readView();
+    if (!root.current) return;
+    root.current.dataset.view = viewOf(
+      new URLSearchParams(location.search).get("flex") ||
+        readDashboardPrefs(document.cookie).flex,
+    );
   }, []);
 
   return (
