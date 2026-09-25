@@ -57,8 +57,6 @@ const env = createEnv({
       ),
     ),
     ANALYZE: z.preprocess((val) => val === "true", z.boolean()),
-    MEDIA_DOWNLOADER_PORT: z.coerce.number().optional(),
-    MEDIA_DOWNLOADER_URL: z.url(),
     // Optional org/global LLM keys used as fallbacks when user-level keys are absent
     OPENAI_API_KEY: z.string().optional(),
     GOOGLE_API_KEY: z.string().optional(),
@@ -126,8 +124,6 @@ const env = createEnv({
     VERCEL_BLOB_STORAGE_HOST_DEV: process.env.VERCEL_BLOB_STORAGE_HOST_DEV,
     GITHUB_CLIENT_ID: process.env.GITHUB_CLIENT_ID,
     GITHUB_CLIENT_SECRET: process.env.GITHUB_CLIENT_SECRET,
-    MEDIA_DOWNLOADER_PORT: process.env.MEDIA_DOWNLOADER_PORT,
-    MEDIA_DOWNLOADER_URL: process.env.MEDIA_DOWNLOADER_URL,
     OPENAI_API_KEY: process.env.OPENAI_API_KEY,
     GOOGLE_API_KEY: process.env.GOOGLE_API_KEY,
     OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY,

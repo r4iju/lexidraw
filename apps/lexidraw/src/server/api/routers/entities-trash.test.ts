@@ -103,18 +103,6 @@ describe("a file in the trash is not found, even by its owner", () => {
         mode: "direct",
       }),
     ).rejects.toMatchObject(notFound);
-    await expect(
-      owner.downloadAndUploadByUrl({
-        entityId: "etrash_doc",
-        url: "https://example.test/clip",
-      }),
-    ).rejects.toMatchObject(notFound);
-    await expect(
-      owner.getDownloadUrlByRequestId({
-        entityId: "etrash_doc",
-        requestId: "etrash_request",
-      }),
-    ).rejects.toMatchObject(notFound);
     await expect(owner.distillUrl({ id: "etrash_url" })).rejects.toMatchObject(
       notFound,
     );

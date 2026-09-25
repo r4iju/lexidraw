@@ -50,7 +50,6 @@ export async function installServerRuntime(): Promise<
   const installed = (globalThis as { db?: LibSQLDatabase<typeof schema> }).db;
   if (installed) return installed;
   const runtimeEnv = process.env as Record<string, string | undefined>;
-  runtimeEnv.MEDIA_DOWNLOADER_URL ??= "http://media-downloader.test";
   // `bun test` sets NODE_ENV itself; a plain `bun` run of a harness does not.
   runtimeEnv.NODE_ENV ??= "test";
 

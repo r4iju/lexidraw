@@ -9,7 +9,7 @@ import {
   type LexicalEditor,
   createCommand,
 } from "lexical";
-import { useEffect, useState, useCallback, useId } from "react";
+import { useEffect, useState, useCallback } from "react";
 import type * as React from "react";
 import {
   Dialog,
@@ -35,9 +35,6 @@ import { z } from "zod";
 import { Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Textarea } from "~/components/ui/textarea";
-import type { TRPCClientErrorLike } from "@trpc/client";
-import type { AppRouter } from "~/server/api/root";
-import { Label } from "~/components/ui/label";
 
 function InsertVideoUploadedDialogBody({
   onClick,
@@ -73,85 +70,12 @@ function InsertVideoUploadedDialogBody({
   );
 }
 
-function InsertVideoByUrlDialogBody({
-  onStartProcessing,
-  onCancel,
-}: {
-  onStartProcessing: (requestId: string, url: string) => void;
-  onCancel: () => void;
-}) {
-  const entityId = useEntityId();
-  const [url, setUrl] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const { mutate: downloadAndUploadByUrl } =
-    api.entities.downloadAndUploadByUrl.useMutation();
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    setLoading(true);
-    try {
-      downloadAndUploadByUrl(
-        { url, entityId },
-        {
-          onSuccess: (data) => {
-            onStartProcessing(data.requestId, url);
-          },
-          onError: (err) => {
-            setLoading(false);
-            setError(`Failed to start video download: ${err.message}`);
-          },
-          onSettled: () => {
-            // Note: setLoading(false) is handled in onSuccess/onError
-            // because we want to keep it loading until the callback is triggered.
-          },
-        },
-      );
-    } catch {
-      // This catch block might be redundant if the mutation's onError handles it,
-      // but kept for safety against unexpected synchronous errors.
-      setLoading(false);
-      setError("Failed to start video download.");
-    }
-  };
-
-  const videoUrlInputId = useId();
-
-  return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <div className="flex flex-col gap-2">
-        <Label htmlFor={videoUrlInputId}>Video link</Label>
-        <Input
-          id={videoUrlInputId}
-          placeholder="Paste a link to a video (YouTube, X and more)"
-          value={url}
-          onChange={(e) => setUrl(e.target.value)}
-          required
-          disabled={loading}
-        />
-        {error && <p className="text-sm text-destructive">{error}</p>}
-      </div>
-      <DialogFooter>
-        <Button type="button" variant="ghost" onClick={onCancel}>
-          Cancel
-        </Button>
-        <Button type="submit" disabled={loading || !url}>
-          {loading ? "Starting..." : "Insert by URL"}
-        </Button>
-      </DialogFooter>
-    </form>
-  );
-}
-
 export function InsertVideoDialog({
   activeEditor,
   onClose,
-  onStartProcessing,
 }: {
   activeEditor: LexicalEditor;
   onClose: () => void;
-  onStartProcessing: (requestId: string, url: string) => void;
 }): React.JSX.Element {
   const [tab, setTab] = useState("upload");
   const insertVideo = useCallback(
@@ -168,9 +92,6 @@ export function InsertVideoDialog({
         <TabsTrigger className="flex-1" value="upload">
           Upload
         </TabsTrigger>
-        <TabsTrigger className="flex-1" value="url">
-          From a link
-        </TabsTrigger>
         <TabsTrigger className="flex-1" value="settings">
           Download settings
         </TabsTrigger>
@@ -181,14 +102,8 @@ export function InsertVideoDialog({
           onCancel={onClose}
         />
       </TabsContent>
-      <TabsContent value="url">
-        <InsertVideoByUrlDialogBody
-          onStartProcessing={onStartProcessing}
-          onCancel={onClose}
-        />
-      </TabsContent>
       <TabsContent value="settings">
-        <VideoDownloadSettings onClose={() => setTab("url")} />
+        <VideoDownloadSettings onClose={() => setTab("upload")} />
       </TabsContent>
     </Tabs>
   );
@@ -200,93 +115,9 @@ export function InsertVideoDialog({
 export const OPEN_INSERT_VIDEO_DIALOG_COMMAND: LexicalCommand<unknown> =
   createCommand("OPEN_INSERT_VIDEO_DIALOG_COMMAND");
 
-interface ProcessingJob {
-  url: string;
-  toastId: string | number;
-}
-
-// Helper component to monitor a single video processing job
-function VideoProcessingMonitor({
-  requestId,
-  entityId,
-  processingJobs,
-  onComplete,
-  onError,
-}: {
-  requestId: string;
-  entityId: string | null;
-  processingJobs: Record<string, ProcessingJob>;
-  onComplete: (src: string) => void;
-  onError: (error: TRPCClientErrorLike<AppRouter>) => void;
-}) {
-  const { data: download, error: queryError } =
-    api.entities.getDownloadUrlByRequestId.useQuery(
-      {
-        requestId,
-        entityId: entityId ?? "", // Should ideally not be null here
-      },
-      {
-        enabled: !!requestId && !!entityId,
-        refetchInterval: 2000,
-        refetchIntervalInBackground: true,
-        staleTime: 0,
-        // Don't retry on error, let the onError handle it
-        retry: false,
-      },
-    );
-
-  useEffect(() => {
-    // Handle successful query result (might still indicate processing or failure)
-    if (download) {
-      const { status, signedDownloadUrl, errorMessage } = download;
-      const job = processingJobs[requestId]; // Access parent state
-
-      if (status === "UPLOADED" && signedDownloadUrl) {
-        onComplete(signedDownloadUrl);
-      } else if (status === "FAILED") {
-        // Use TRPCClientErrorLike structure for consistency with queryError
-        const syntheticError: TRPCClientErrorLike<AppRouter> = {
-          message: errorMessage ?? "Processing failed.",
-          // Add other properties if needed, or adjust onError type
-          // name: "TRPCClientError", // Example
-          // shape: undefined, // Example
-        } as TRPCClientErrorLike<AppRouter>;
-        onError(syntheticError);
-      } else if (
-        (status === "DOWNLOADING" || status === "UPLOADING") &&
-        job?.toastId
-      ) {
-        // Update toast message based on status
-        const message =
-          status === "DOWNLOADING"
-            ? "Downloading video..."
-            : "Uploading video...";
-        toast.loading(`${message} ${job.url.substring(0, 30)}...`, {
-          id: job.toastId,
-        });
-      }
-      // No action needed if status is null or otherwise unexpected here, polling continues
-    }
-  }, [download, onComplete, onError, processingJobs, requestId]); // Include processingJobs and requestId
-
-  useEffect(() => {
-    // Handle actual query error (network issue, backend error during query itself)
-    if (queryError) {
-      onError(queryError);
-    }
-  }, [queryError, onError]);
-
-  // This component doesn't render anything itself
-  return null;
-}
-
 export default function VideoPlugin(): React.JSX.Element | null {
   const [editor] = useLexicalComposerContext();
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [processingJobs, setProcessingJobs] = useState<
-    Record<string, ProcessingJob>
-  >({});
-  const entityId = useEntityId(); // Get entityId once here
 
   useEffect(() => {
     if (!editor.hasNodes([VideoNode])) {
@@ -327,100 +158,17 @@ export default function VideoPlugin(): React.JSX.Element | null {
     setIsModalOpen(false);
   }, []);
 
-  const handleStartProcessing = useCallback(
-    (requestId: string, url: string) => {
-      const toastId = toast.loading(
-        `Processing video: ${url.substring(0, 50)}...`,
-      );
-      setProcessingJobs((prev) => ({
-        ...prev,
-        [requestId]: { url, toastId },
-      }));
-      closeModal();
-    },
-    [closeModal],
-  );
-
-  const handleProcessingComplete = useCallback(
-    (requestId: string, src: string) => {
-      setProcessingJobs((prev) => {
-        const job = prev[requestId];
-        if (job) {
-          toast.success(`Video processed: ${job.url.substring(0, 50)}...`, {
-            id: job.toastId,
-          });
-          editor.dispatchCommand(INSERT_VIDEO_COMMAND, {
-            src,
-            showCaption: true,
-          });
-        }
-
-        const { [requestId]: _, ...rest } = prev; // Remove the completed job
-        return rest;
-      });
-    },
-    [editor],
-  );
-
-  const handleProcessingError = useCallback(
-    (requestId: string, error: TRPCClientErrorLike<AppRouter>) => {
-      setProcessingJobs((prev) => {
-        const job = prev[requestId];
-        if (job) {
-          toast.error(
-            `Error processing video: ${job.url.substring(0, 50)}...`,
-            {
-              id: job.toastId,
-              description: error.message,
-              duration: Infinity,
-            },
-          );
-        }
-
-        const { [requestId]: _, ...rest } = prev; // Remove the failed job
-        return rest;
-      });
-    },
-    [],
-  );
-
-  if (!isModalOpen && Object.keys(processingJobs).length === 0) {
-    // Only render monitors if there are active jobs, otherwise return null
-    // (We don't need the Dialog if modal is closed)
-    return null;
-  }
+  if (!isModalOpen) return null;
 
   return (
-    <>
-      {/* Render monitors for active jobs */}
-      {Object.keys(processingJobs).map((requestId) => (
-        <VideoProcessingMonitor
-          key={requestId}
-          requestId={requestId}
-          entityId={entityId}
-          processingJobs={processingJobs}
-          onComplete={(src) => handleProcessingComplete(requestId, src)}
-          onError={(error: TRPCClientErrorLike<AppRouter>) =>
-            handleProcessingError(requestId, error)
-          }
-        />
-      ))}
-      {/* Render the dialog if it's open */}
-      {isModalOpen && (
-        <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Insert video</DialogTitle>
-            </DialogHeader>
-            <InsertVideoDialog
-              activeEditor={editor}
-              onClose={closeModal}
-              onStartProcessing={handleStartProcessing}
-            />
-          </DialogContent>
-        </Dialog>
-      )}
-    </>
+    <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Insert video</DialogTitle>
+        </DialogHeader>
+        <InsertVideoDialog activeEditor={editor} onClose={closeModal} />
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -515,8 +263,8 @@ function VideoDownloadSettings({ onClose }: { onClose: () => void }) {
   return (
     <FormProvider methods={methods} onSubmit={handleSubmit(onSubmit)}>
       <p className="text-sm text-muted-foreground">
-        Some sites only share video with a signed-in viewer. Paste the site's
-        cookies.txt export to download from a link there.
+        Some sites only show their pages to a signed-in viewer. Paste a site's
+        cookies.txt export so links you save from it can be read.
       </p>
       <div className="flex flex-col gap-4">
         {fields.map((_field, index) => (
