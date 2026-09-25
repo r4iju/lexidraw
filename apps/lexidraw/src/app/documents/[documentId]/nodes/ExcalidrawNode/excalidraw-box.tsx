@@ -11,7 +11,8 @@ export type DrawingBox = {
 
 /**
  * Where a drawing sits: the width it was given, or a quarter wider than it
- * exports at, and never past the column.
+ * exports at, and never past the column; its shape is known before its
+ * picture decodes.
  */
 export function drawingStyle({
   width,
@@ -26,6 +27,7 @@ export function drawingStyle({
           ? natural.width * 1.25
           : undefined,
     height: "auto",
+    aspectRatio: natural && `auto ${natural.width} / ${natural.height}`,
     maxWidth: "100%",
     maxHeight: typeof height === "number" ? height : undefined,
     objectFit: "contain",

@@ -11,7 +11,8 @@ export type DiagramBox = {
 
 /**
  * Where a diagram sits: the width it was given or drawn at, never below four
- * fifths of it (a smaller one scrolls instead), and never past the column.
+ * fifths of it (a smaller one scrolls instead), and never past the column;
+ * its shape is known before its picture decodes.
  */
 export function diagramStyle({
   width,
@@ -22,6 +23,7 @@ export function diagramStyle({
     width: typeof width === "number" ? width : natural?.width,
     minWidth: natural && natural.width * 0.8,
     height: "auto",
+    aspectRatio: natural && `auto ${natural.width} / ${natural.height}`,
     maxWidth: "100%",
     maxHeight: typeof height === "number" ? height : undefined,
   };
