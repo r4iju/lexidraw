@@ -1,7 +1,15 @@
-import katex from "katex";
 import type * as React from "react";
-import { useEffect, useRef } from "react";
+import { use } from "react";
+import { katexOptions, loadKatex, loadedKatex } from "~/lib/katex";
 
+/**
+ * An empty image either side keeps Android from composing the equation's text
+ * into what is typed next; a data address, so it asks the server for nothing.
+ */
+const SPACER =
+  "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
+
+/** An equation, drawn as it first renders so its size is right from the start. */
 export default function KatexRenderer({
   equation,
   inline,
@@ -13,39 +21,22 @@ export default function KatexRenderer({
   onDoubleClick: () => void;
   onClick?: () => void;
 }>): React.JSX.Element {
-  const katexElementRef = useRef(null);
-
-  useEffect(() => {
-    const katexElement = katexElementRef.current;
-
-    if (katexElement !== null) {
-      katex.render(equation, katexElement, {
-        displayMode: !inline, // true === block display //
-        errorColor: "var(--destructive)",
-        output: "html",
-        strict: "warn",
-        throwOnError: false,
-        trust: false,
-      });
-    }
-  }, [equation, inline]);
-
+  const katex = loadedKatex() ?? use(loadKatex());
   return (
-    // We use an empty image tag either side to ensure Android doesn't try and compose from the
-    // inner text from Katex. There didn't seem to be any other way of making this work,
-    // without having a physical space.
     <>
-      <img src="#" alt="" />
+      <img src={SPACER} alt="" width={0} height={0} />
       <button
         type="button"
         tabIndex={-1}
         onDoubleClick={onDoubleClick}
         onClick={onClick}
-        ref={katexElementRef}
         aria-label="Rendered equation"
+        // biome-ignore lint/security/noDangerouslySetInnerHtml: KaTeX's own markup, with `trust` off
+        dangerouslySetInnerHTML={{
+          __html: katex.renderToString(equation, katexOptions(inline)),
+        }}
       />
-
-      <img src="#" alt="" />
+      <img src={SPACER} alt="" width={0} height={0} />
     </>
   );
 }

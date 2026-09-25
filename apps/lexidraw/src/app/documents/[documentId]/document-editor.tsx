@@ -1,8 +1,10 @@
 "use client";
 
 import {
+  lazy,
   type ReactNode,
   type RefObject,
+  Suspense,
   useCallback,
   useEffect,
   useMemo,
@@ -28,8 +30,8 @@ import { HorizontalRulePlugin } from "@lexical/react/LexicalHorizontalRulePlugin
 import { DocumentTablesPlugin } from "./plugins/DocumentTablesPlugin";
 import { ClickableLinkPlugin } from "@lexical/react/LexicalClickableLinkPlugin";
 import CodeHighlightPlugin from "./plugins/code-highlight-plugin";
-import CodeActionMenuPlugin from "./plugins/CodeActionMenuPlugin";
 import AutocompletePlugin from "./plugins/AutocompletePlugin";
+import CodeActionMenuPlugin from "./plugins/CodeActionMenuPlugin";
 import { AutoFocusPlugin } from "@lexical/react/LexicalAutoFocusPlugin";
 import AutoLinkPlugin from "./plugins/AutoLinkPlugin";
 import { HistoryPlugin } from "@lexical/react/LexicalHistoryPlugin";
@@ -60,6 +62,7 @@ import ImagePlugin from "./plugins/ImagePlugin";
 import InlineImagePlugin from "./plugins/InlineImagePlugin";
 import { InlineImageNode } from "./nodes/InlineImageNode/InlineImageNode";
 import { CORE_NODES } from "@packages/lexical-nodes";
+import { Skeleton } from "~/components/ui/skeleton";
 import TwitterPlugin from "./plugins/TwitterPlugin";
 import YouTubePlugin from "./plugins/YouTubePlugin";
 import { TweetNode } from "./nodes/TweetNode";
@@ -116,7 +119,6 @@ import { EditReadSwitch } from "./edit-read-switch";
 import { DocumentTitleProvider } from "./context/document-title-context";
 import { EditabilityPlugin, mayEdit, type RenderMode } from "./editability";
 import RenderReadyPlugin from "./plugins/RenderReadyPlugin";
-import { LlmChatPlugin } from "./plugins/LlmChatPlugin";
 import type { StoredLlmConfig } from "~/server/api/routers/config";
 import {
   SidebarManagerProvider,
@@ -810,7 +812,11 @@ function EditorHandler({
                                       : undefined
                                   }
                                 >
-                                  {activeSidebar === "llm" && <LlmChatPlugin />}
+                                  {activeSidebar === "llm" && (
+                                    <Suspense fallback={<SidebarLoading />}>
+                                      <LlmChatPlugin />
+                                    </Suspense>
+                                  )}
                                   {activeSidebar === "comments" && (
                                     <CommentUI />
                                   )}
@@ -856,6 +862,22 @@ function EditorHandler({
 }
 
 const PLACEHOLDER = "Start writing…";
+
+// The chat brings the AI SDKs and every tool, so it loads when first opened.
+const LlmChatPlugin = lazy(() =>
+  import("./plugins/LlmChatPlugin").then((module) => ({
+    default: module.LlmChatPlugin,
+  })),
+);
+
+function SidebarLoading() {
+  return (
+    <div aria-busy="true" className="flex flex-col gap-3 p-4">
+      <Skeleton className="h-4 w-3/4" />
+      <Skeleton className="h-4 w-1/2" />
+    </div>
+  );
+}
 
 /** Read-aloud's state, shared by the toolbar, the ⋯ menu and the reading pill. */
 function ListenWhenSignedIn({

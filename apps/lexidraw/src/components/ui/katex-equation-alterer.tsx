@@ -2,7 +2,7 @@ import "./katex-equation-alterer.css";
 
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import type * as React from "react";
-import { useCallback, useState } from "react";
+import { Suspense, useCallback, useState } from "react";
 import { ErrorBoundary } from "react-error-boundary";
 
 import { Button } from "./button";
@@ -75,11 +75,13 @@ export default function KatexEquationAlterer({
           }
           fallback={null}
         >
-          <KatexRenderer
-            equation={equation}
-            inline={false}
-            onDoubleClick={() => null}
-          />
+          <Suspense fallback={null}>
+            <KatexRenderer
+              equation={equation}
+              inline={false}
+              onDoubleClick={() => null}
+            />
+          </Suspense>
         </ErrorBoundary>
       </div>
       <DialogFooter>

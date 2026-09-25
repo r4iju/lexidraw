@@ -1,5 +1,6 @@
 import { $createCodeHighlightNode, CodeNode } from "@lexical/code";
-import { registerCodeHighlighting, type Tokenizer } from "@lexical/code-shiki";
+import type { Tokenizer } from "@lexical/code-shiki";
+import { DocumentCodeNode } from "@packages/lexical-nodes";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import {
   $createLineBreakNode,
@@ -10,11 +11,7 @@ import {
   tokenizeRawText,
 } from "lexical";
 import { useEffect } from "react";
-import {
-  bundledLanguages,
-  createHighlighter,
-  type BundledLanguage,
-} from "shiki";
+import type { BundledLanguage, Highlighter } from "shiki";
 
 export default function CodeHighlightPlugin(): null {
   const [editor] = useLexicalComposerContext();
@@ -22,16 +19,24 @@ export default function CodeHighlightPlugin(): null {
   useEffect(() => {
     let disposed = false;
     let unregister: (() => void) | undefined;
+    let highlighter: Highlighter | undefined;
     const pending = new Set<string>();
-    const ready = createHighlighter({
-      themes: ["github-light", "github-dark-default"],
-      langs: [],
-    });
-    void ready.then((highlighter) => {
+    // Shiki is large, so it loads with the first code block, not the editor.
+    const start = async () => {
+      const [
+        { bundledLanguages, createHighlighter },
+        { registerCodeHighlighting },
+      ] = await Promise.all([import("shiki"), import("@lexical/code-shiki")]);
+      if (disposed) return;
+      const loaded = await createHighlighter({
+        themes: ["github-light", "github-dark-default"],
+        langs: [],
+      });
       if (disposed) {
-        highlighter.dispose();
+        loaded.dispose();
         return;
       }
+      highlighter = loaded;
       const tokenizer: Tokenizer = {
         defaultLanguage: null,
         defaultTheme: "none",
@@ -43,11 +48,11 @@ export default function CodeHighlightPlugin(): null {
             : null;
           if (
             supported &&
-            !highlighter.getLoadedLanguages().includes(supported) &&
+            !loaded.getLoadedLanguages().includes(supported) &&
             !pending.has(supported)
           ) {
             pending.add(supported);
-            void highlighter.loadLanguage(supported).then(() => {
+            void loaded.loadLanguage(supported).then(() => {
               if (!disposed)
                 editor.update(
                   () => {
@@ -63,9 +68,9 @@ export default function CodeHighlightPlugin(): null {
                 );
             });
           }
-          const tokens = highlighter.codeToTokens(node.getTextContent(), {
+          const tokens = loaded.codeToTokens(node.getTextContent(), {
             lang:
-              supported && highlighter.getLoadedLanguages().includes(supported)
+              supported && loaded.getLoadedLanguages().includes(supported)
                 ? supported
                 : "text",
             themes: { light: "github-light", dark: "github-dark-default" },
@@ -95,11 +100,21 @@ export default function CodeHighlightPlugin(): null {
         },
         { tag: HISTORY_MERGE_TAG },
       );
-    });
+    };
+    let started = false;
+    const stopWatching = editor.registerMutationListener(
+      DocumentCodeNode,
+      (mutations) => {
+        if (started || ![...mutations.values()].includes("created")) return;
+        started = true;
+        void start();
+      },
+    );
     return () => {
       disposed = true;
+      stopWatching();
       unregister?.();
-      void ready.then((h) => h.dispose());
+      highlighter?.dispose();
     };
   }, [editor]);
   return null;
