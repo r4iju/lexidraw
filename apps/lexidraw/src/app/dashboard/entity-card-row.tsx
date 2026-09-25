@@ -12,9 +12,10 @@ import {
   getItemUrl,
 } from "./entity-card-utils";
 import { EntityThumbnail } from "./thumbnail-client";
+import type { DashboardQuery } from "./dashboard-query";
 
 type Props = EntityCardBaseProps & {
-  flex?: "flex-row" | "flex-col";
+  flex?: DashboardQuery["flex"];
 };
 
 /** A file as a card in the grid: its picture first, then its name. */

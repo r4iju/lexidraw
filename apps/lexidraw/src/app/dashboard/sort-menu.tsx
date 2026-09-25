@@ -11,13 +11,14 @@ import {
 } from "~/components/ui/select";
 import { TooltipButton } from "~/components/ui/tooltip-button";
 import { cn } from "~/lib/utils";
+import type { DashboardQuery } from "./dashboard-query";
 import { replaceSearchParam } from "./utils";
 
 const ORDERS = {
   updatedAt: "Last edited",
   createdAt: "Date created",
   title: "Name",
-} as const;
+} as const satisfies Record<DashboardQuery["sortBy"], string>;
 
 /** The listing's order, as the server resolved it from the address and prefs. */
 export function SortMenu({
@@ -25,8 +26,8 @@ export function SortMenu({
   sortOrder,
   className,
 }: {
-  sortBy: keyof typeof ORDERS;
-  sortOrder: "asc" | "desc";
+  sortBy: DashboardQuery["sortBy"];
+  sortOrder: DashboardQuery["sortOrder"];
   className?: string;
 }) {
   const searchParams = useSearchParams();

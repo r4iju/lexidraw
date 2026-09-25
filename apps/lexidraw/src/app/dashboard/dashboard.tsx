@@ -23,13 +23,14 @@ import {
   ViewFilter,
   viewFilters,
 } from "./view-filter";
+import type { DashboardQuery } from "./dashboard-query";
 
 type Props = {
   account: AppBarAccount | null;
   directory?: RouterOutputs["entities"]["getMetadata"];
-  sortBy: "updatedAt" | "createdAt" | "title";
-  sortOrder: "asc" | "desc";
-  flex: "flex-row" | "flex-col";
+  sortBy: DashboardQuery["sortBy"];
+  sortOrder: DashboardQuery["sortOrder"];
+  flex: DashboardQuery["flex"];
   tags?: string;
   view: DashboardView;
 };

@@ -1,13 +1,14 @@
 import type { EntityType } from "@packages/types";
 import type { RouterOutputs } from "~/trpc/shared";
 import { entityHref } from "~/lib/entity-types";
+import type { DashboardQuery } from "./dashboard-query";
 
 export type Entity = RouterOutputs["entities"]["list"][number];
 
 export type EntityCardBaseProps = {
   entity: Entity;
-  sortBy?: "updatedAt" | "createdAt" | "title";
-  sortOrder?: "asc" | "desc";
+  sortBy?: DashboardQuery["sortBy"];
+  sortOrder?: DashboardQuery["sortOrder"];
   /** On the first screen, so its picture loads straight away. */
   eager?: boolean;
 };
@@ -17,9 +18,9 @@ export function buildSearchParams({
   sortBy,
   sortOrder,
 }: {
-  flex?: "flex-row" | "flex-col";
-  sortBy?: "updatedAt" | "createdAt" | "title";
-  sortOrder?: "asc" | "desc";
+  flex?: DashboardQuery["flex"];
+  sortBy?: DashboardQuery["sortBy"];
+  sortOrder?: DashboardQuery["sortOrder"];
 }) {
   return new URLSearchParams({
     ...(flex ? { flex } : {}),

@@ -2,11 +2,12 @@
 
 import { useEffect, useEffectEvent } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
+import type { DashboardQuery } from "./dashboard-query";
 
 type Canonical = {
-  sortBy: "updatedAt" | "createdAt" | "title";
-  sortOrder: "asc" | "desc";
-  flex: "flex-row" | "flex-col";
+  sortBy: DashboardQuery["sortBy"];
+  sortOrder: DashboardQuery["sortOrder"];
+  flex: DashboardQuery["flex"];
   tags?: string;
   view: string;
 };
