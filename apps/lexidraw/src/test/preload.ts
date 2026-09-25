@@ -1,4 +1,8 @@
 /// <reference types="bun" />
+// Next's request storages look for AsyncLocalStorage on the global once, as
+// they load, and settle for a stand-in that throws on use when it is missing;
+// the components below load them. This is where a Next server puts it.
+import "next/dist/server/node-environment-baseline";
 import { afterEach } from "bun:test";
 import { JSDOM } from "jsdom";
 

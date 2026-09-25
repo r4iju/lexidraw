@@ -8,23 +8,20 @@ import { revalidateTag } from "next/cache";
  * directory, so a child appearing, leaving, or changing its title drops the
  * listing too.
  *
- * **These tags do not currently invalidate anything.** Every page they cover
- * is `"use cache: private"`, and Next stores a private entry in the Resume
- * Data Cache rather than in a cache handler (see the comment on `isPrivate` in
- * `next/dist/server/use-cache/use-cache-wrapper.js`), where `revalidateTag`
- * cannot reach it. The API that does reach a private entry is `updateTag` or
- * `refresh`, and both are legal only in a Server Action — which a REST or MCP
- * request is not. The staleness a browser actually sees is the client Router
- * cache, which no server-side call can drop at all; that is tracked as a
- * client refresh signal in issue #61.
+ * Every page they cover is `"use cache: private"`. In production Next keeps a
+ * private entry only in the Resume Data Cache of the request that made it
+ * (see the comment on `isPrivate` in
+ * `next/dist/server/use-cache/use-cache-wrapper.js`), so there is nothing
+ * across requests to drop. The dev server keeps them in a built-in in-memory
+ * handler and serves them to the next load of the page, and a tag drop does
+ * reach that handler. The staleness a browser sees beyond that is the client
+ * Router cache, which no server-side call can drop at all; that is tracked as
+ * a client refresh signal in issue #61.
  *
- * The pair exists anyway — `cacheTag` in the render, `revalidateEntities` in
- * the write — because it is the invariant this app wants: a write that never
- * went through the browser holding the render must drop it. Written down and
- * pinned by tests, it becomes load-bearing the day a page stops being private
- * or Next reaches private entries; left out, the same conclusion has to be
- * rediscovered from scratch. So every writer of an entity row calls one of
- * these three functions, browser-only or not, and a new writer is a new call.
+ * The invariant: a write that never went through the browser holding the
+ * render drops it — `cacheTag` in the render, `revalidateEntities` in the
+ * write. So every writer of an entity row calls one of these three functions,
+ * browser-only or not, and a new writer is a new call.
  */
 export function entityTag(id: string): string {
   return `entity:${id}`;
@@ -51,9 +48,12 @@ function revalidate(
   for (const id of new Set(ids)) {
     if (!id) continue;
     try {
-      // "max" is the longest cache profile, so every entry carrying the tag
-      // is stale however long-lived it was.
-      revalidateTag(entityTag(id), "max");
+      // Expired rather than stale: a profile such as "max" only marks the
+      // entry stale, and a stale entry is served once more while a fresh one
+      // renders behind it, so the first load after a write would show the
+      // entity from before it. `updateTag` expires too, but only in a Server
+      // Action, which a REST or MCP write is not.
+      revalidateTag(entityTag(id), { expire: 0 });
     } catch (error) {
       const code = nextErrorCode(error);
       if (code === undefined || !tolerated.has(code)) throw error;
