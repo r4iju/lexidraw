@@ -316,13 +316,12 @@ export async function checkMotion(page: Page, fixtureId: string) {
         };
         return {
           skeleton: probe("animate-skeleton"),
-          pulse: probe("animate-pulse"),
           spin: probe("animate-spin"),
         };
       });
       if (reduced) {
         assert(
-          ![...idle.skeleton, ...idle.pulse].some(({ infinite }) => infinite),
+          !idle.skeleton.some(({ infinite }) => infinite),
           `Nothing pulses (${JSON.stringify(idle)})`,
         );
         assert(

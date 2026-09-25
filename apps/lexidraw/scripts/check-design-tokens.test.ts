@@ -86,3 +86,11 @@ test("checks CSS transitions as well as classes", async () => {
   expect(accepted.output).not.toMatch(/transition|duration/);
   expect(accepted.code).toBe(0);
 });
+
+test("rejects a placeholder that pulses at once instead of the shared skeleton", async () => {
+  const result = await lint(
+    'export const view = <div className="size-10 animate-pulse rounded-md bg-muted" />;',
+  );
+  expect(result.code).toBe(1);
+  expect(result.output).toContain("skeleton: `animate-pulse`");
+});

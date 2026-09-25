@@ -89,6 +89,11 @@ for (const file of files) {
         !/^ease-(?:enter|exit)$/.test(utility)
       )
         report(position, `easing: \`${c}\` should be ease-enter or ease-exit`);
+      if (utility === "animate-pulse")
+        report(
+          position,
+          `skeleton: \`${c}\` pulses at once; use Skeleton, which waits before it shows`,
+        );
     }
     for (const c of classes) {
       if (

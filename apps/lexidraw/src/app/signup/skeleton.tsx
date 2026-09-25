@@ -1,17 +1,17 @@
+import { Skeleton } from "~/components/ui/skeleton";
+
 export default function FormSkeleton() {
   return (
-    <div className="animate-pulse space-y-8 py-2">
-      <div className="min-h-[42px] w-full rounded bg-muted text-sm font-bold text-paper-white"></div>
-      {Array.from({ length: 3 }).map((_, i) => (
-        <div
-          key={`signup-skeleton-input-${
-            // biome-ignore lint/suspicious/noArrayIndexKey: fine for skeleton
-            i
-          }`}
-          className="min-h-[42px] w-full rounded border border-input bg-card text-foreground"
-        ></div>
+    <div className="space-y-8 py-2">
+      <Skeleton className="h-[42px] w-full" />
+      {Array.from({ length: 3 }, (_, i) => (
+        <Skeleton
+          // biome-ignore lint/suspicious/noArrayIndexKey: placeholder fields
+          key={i}
+          className="h-[42px] w-full"
+        />
       ))}
-      <div className="min-h-[42px] w-full rounded bg-muted text-sm font-bold text-paper-white"></div>
+      <Skeleton className="h-[42px] w-full" />
     </div>
   );
 }

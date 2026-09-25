@@ -19,7 +19,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { toast } from "sonner";
 import { useImageGeneration } from "~/hooks/use-image-generation";
 import { useUnsplashImage } from "~/hooks/use-image-insertion";
-import { cn } from "~/lib/utils";
+import { Skeleton } from "~/components/ui/skeleton";
 import { api } from "~/trpc/react";
 import type { RouterOutputs } from "~/trpc/shared";
 import { revalidateDashboard } from "../server-actions";
@@ -43,7 +43,6 @@ const ThumbnailModal = ({ entity, isOpen, onOpenChange }: Props) => {
   const { generateImageData, isLoading: isGenerating } = useImageGeneration();
   const { searchImage, isLoading: isSearching } = useUnsplashImage();
   const [isUploading, setIsUploading] = useState(false);
-  const isLoading = isGenerating || isSearching || isUploading;
   const router = useRouter();
 
   const handleSearch = async (event: React.FormEvent) => {
@@ -235,18 +234,17 @@ const ThumbnailModal = ({ entity, isOpen, onOpenChange }: Props) => {
             </TabsContent>
           </Tabs>
           <div className="w-full h-full flex items-center justify-center py-6">
-            <Image
-              src={selectedThumbnail ?? ""}
-              alt="Thumbnail"
-              width={100}
-              height={100}
-              className={cn(
-                "w-full h-full object-cover max-w-64 max-h-64 rounded-md",
-                {
-                  "animate-pulse": isLoading,
-                },
-              )}
-            />
+            {isGenerating || isSearching ? (
+              <Skeleton className="aspect-square w-full max-w-64" />
+            ) : (
+              <Image
+                src={selectedThumbnail ?? ""}
+                alt="Thumbnail"
+                width={100}
+                height={100}
+                className="w-full h-full object-cover max-w-64 max-h-64 rounded-md"
+              />
+            )}
           </div>
         </div>
         <DialogFooter>

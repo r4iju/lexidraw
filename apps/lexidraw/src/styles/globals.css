@@ -184,9 +184,6 @@
     --tw-exit-rotate: 0;
     scroll-behavior: auto;
   }
-  .animate-pulse {
-    animation: none;
-  }
   .animate-skeleton {
     animation: skeleton-in var(--transition-duration-base) var(--ease-enter) 300ms both;
   }
