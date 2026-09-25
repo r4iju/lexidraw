@@ -165,6 +165,10 @@ export async function checkRenderReady(
       await tab.close();
     }
   }
+  await page.bringToFront();
+  console.log(
+    "Render ready: a print waits for late code, equations, diagrams, charts and drawings to draw",
+  );
 }
 
 declare global {
