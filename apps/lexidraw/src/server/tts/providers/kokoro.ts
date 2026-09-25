@@ -2,6 +2,7 @@ import "server-only";
 import type { TtsProvider, TtsSynthesizeInput } from "../types";
 import { RetryableError, FatalError } from "workflow";
 import env from "@packages/env";
+import { refusal } from "./refusal";
 
 export function createKokoroTtsProvider(baseUrl: string): TtsProvider {
   if (!baseUrl) {
@@ -22,7 +23,8 @@ export function createKokoroTtsProvider(baseUrl: string): TtsProvider {
             }
           : undefined;
 
-      const res = await fetch(`${baseUrl.replace(/\/$/, "")}/v1/audio/speech`, {
+      const server = baseUrl.replace(/\/$/, "");
+      const res = await fetch(`${server}/v1/audio/speech`, {
         method: "POST",
         headers: {
           "content-type": "application/json",
@@ -36,11 +38,17 @@ export function createKokoroTtsProvider(baseUrl: string): TtsProvider {
           response_format: input.format === "ogg" ? "opus" : input.format,
           speed: input.speed,
         }),
+      }).catch((error: unknown) => {
+        // Nothing answered, as when the shared Kokoro-FastAPI server is down.
+        const cause = (error as { cause?: { code?: string; message?: string } })
+          ?.cause;
+        throw new Error(
+          `Kokoro server at ${server} did not answer (${cause?.code ?? cause?.message ?? String(error)}); start the shared Kokoro-FastAPI server KOKORO_URL points at, or choose another voice`,
+        );
       });
 
       if (!res.ok) {
-        const text = await res.text();
-        const msg = `Kokoro TTS error: ${res.status} ${res.statusText} ${text}`;
+        const msg = await refusal("Kokoro", res);
         if (res.status === 429) {
           // Rate limited → retry with backoff from Retry-After header
           const retryAfterHeader = res.headers.get("Retry-After");

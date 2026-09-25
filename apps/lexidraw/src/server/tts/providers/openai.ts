@@ -1,6 +1,7 @@
 import "server-only";
 import type { TtsProvider, TtsSynthesizeInput } from "../types";
 import env from "@packages/env";
+import { refusal } from "./refusal";
 
 export function createOpenAiTtsProvider(
   apiKeyFromUser?: string | null,
@@ -34,12 +35,7 @@ export function createOpenAiTtsProvider(
           speed,
         }),
       });
-      if (!res.ok) {
-        const text = await res.text();
-        throw new Error(
-          `OpenAI TTS error: ${res.status} ${res.statusText} ${text}`,
-        );
-      }
+      if (!res.ok) throw new Error(await refusal("OpenAI", res));
       const arrayBuf = await res.arrayBuffer();
       const audio = Buffer.from(new Uint8Array(arrayBuf));
       return { audio };
