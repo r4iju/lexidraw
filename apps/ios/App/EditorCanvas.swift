@@ -332,6 +332,24 @@ final class EditorCanvasView: UIView, UIGestureRecognizerDelegate, UITextViewDel
   override func didMoveToWindow() {
     super.didMoveToWindow()
     if window != nil { becomeFirstResponder() }
+    holdBackSwipe(window != nil)
+  }
+
+  /// The swipe back from anywhere in the content takes every stroke drawn
+  /// to the right, so it is off while the canvas shows; the swipe from the
+  /// screen's edge still goes back.
+  private weak var backSwipe: UIGestureRecognizer?
+
+  private func holdBackSwipe(_ holding: Bool) {
+    if holding {
+      var responder = next
+      while let current = responder, !(current is UIViewController) { responder = current.next }
+      backSwipe = (responder as? UIViewController)?.navigationController?.interactiveContentPopGestureRecognizer
+      backSwipe?.isEnabled = false
+    } else {
+      backSwipe?.isEnabled = true
+      backSwipe = nil
+    }
   }
 
   override var undoManager: UndoManager? { undo }
