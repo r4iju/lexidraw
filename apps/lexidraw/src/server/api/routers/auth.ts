@@ -220,8 +220,9 @@ export const authRouter = createTRPCRouter({
       scope: ctx.auth.kind === "token" ? ctx.auth.scope : null,
     })),
   /**
-   * Deletes the caller's account for good. A read-only token is refused like
-   * any mutation; the app's own token may write, so it reaches this too.
+   * Deletes the caller's account for good. Any token that may write can call
+   * it, whichever app or script holds it; a read-only token is refused like
+   * any mutation.
    */
   deleteAccount: protectedProcedure
     .meta({

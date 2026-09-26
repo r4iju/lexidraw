@@ -17,12 +17,14 @@ import {
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
 import { api } from "~/trpc/react";
-import { confirmsDeletion, deletionConfirmation } from "./schema";
-
-type Account = { email: string | null; name: string };
+import {
+  type AccountIdentity,
+  confirmsDeletion,
+  deletionConfirmation,
+} from "./schema";
 
 /** Lives inside the dialog's content, so closing the dialog clears it. */
-function ConfirmDeletion({ account }: { account: Account }) {
+function ConfirmDeletion({ account }: { account: AccountIdentity }) {
   const [typed, setTyped] = useState("");
   const remove = api.auth.deleteAccount.useMutation();
   const expected = deletionConfirmation(account);
@@ -85,7 +87,11 @@ function ConfirmDeletion({ account }: { account: Account }) {
   );
 }
 
-export function DeleteAccountSection({ account }: { account: Account }) {
+export function DeleteAccountSection({
+  account,
+}: {
+  account: AccountIdentity;
+}) {
   return (
     <section
       id="delete-account"

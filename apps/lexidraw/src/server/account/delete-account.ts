@@ -1,6 +1,5 @@
 import "server-only";
 import {
-  type AnyColumn,
   and,
   type drizzle,
   eq,
@@ -22,9 +21,8 @@ type Db = typeof drizzle;
  *
  * The rows go in one atomic batch, which also reads which blobs they point
  * at, so a failure leaves the account whole rather than half gone. The blobs
- * go once the rows are, so nothing left can point at a missing one. A blob
- * that fails to go is no longer referenced, and the hourly `bucket-cleanup`
- * cron deletes those.
+ * go once the rows are, so nothing left can point at a missing one; any that
+ * stay behind are orphans to `bucket-cleanup`.
  *
  * Deleting the user row and its entities cascades to what hangs off them:
  * sign-ins, sessions, tokens, shares either way, tags, preferences, uploads,
@@ -41,8 +39,18 @@ export async function deleteAccount(db: Db, userId: string): Promise<void> {
     .from(schema.entities)
     .where(ne(schema.entities.userId, userId));
   const emailOf = sql<string>`(select ${schema.users.email} from ${schema.users} where ${schema.users.id} = ${userId})`;
-  const ownerOf = (entityId: AnyColumn) =>
-    sql<string>`(select ${schema.entities.userId} from ${schema.entities} where ${schema.entities.id} = ${entityId})`;
+  const handToFileOwner = (
+    table:
+      | typeof schema.uploadedImages
+      | typeof schema.uploadedVideos
+      | typeof schema.ttsJobs,
+  ) =>
+    db
+      .update(table)
+      .set({
+        userId: sql<string>`(select ${schema.entities.userId} from ${schema.entities} where ${schema.entities.id} = ${table.entityId})`,
+      })
+      .where(and(eq(table.userId, userId), inArray(table.entityId, others)));
 
   const [entities, rehomed, images, videos, audio] = await db.batch([
     db
@@ -79,33 +87,9 @@ export async function deleteAccount(db: Db, userId: string): Promise<void> {
       .from(schema.ttsJobs)
       .where(inArray(schema.ttsJobs.entityId, own)),
     // What this account added to someone else's file is part of that file now.
-    db
-      .update(schema.uploadedImages)
-      .set({ userId: ownerOf(schema.uploadedImages.entityId) })
-      .where(
-        and(
-          eq(schema.uploadedImages.userId, userId),
-          inArray(schema.uploadedImages.entityId, others),
-        ),
-      ),
-    db
-      .update(schema.uploadedVideos)
-      .set({ userId: ownerOf(schema.uploadedVideos.entityId) })
-      .where(
-        and(
-          eq(schema.uploadedVideos.userId, userId),
-          inArray(schema.uploadedVideos.entityId, others),
-        ),
-      ),
-    db
-      .update(schema.ttsJobs)
-      .set({ userId: ownerOf(schema.ttsJobs.entityId) })
-      .where(
-        and(
-          eq(schema.ttsJobs.userId, userId),
-          inArray(schema.ttsJobs.entityId, others),
-        ),
-      ),
+    handToFileOwner(schema.uploadedImages),
+    handToFileOwner(schema.uploadedVideos),
+    handToFileOwner(schema.ttsJobs),
     // Tag names are shared, so only those nobody else uses go with it.
     db.delete(schema.tags).where(
       and(

@@ -39,9 +39,7 @@ mock.module("@vercel/blob", () => ({
 }));
 
 const { appRouter } = await import("~/server/api/root");
-const { POST: rest, GET: restGet } = await import(
-  "~/app/api/v1/[...trpc]/route"
-);
+const restRoute = await import("~/app/api/v1/[...trpc]/route");
 const { GET: authGet } = await import("~/app/api/auth/[...nextauth]/route");
 const { encode } = await import("next-auth/jwt");
 const { NextRequest } = await import("next/server");
@@ -207,21 +205,21 @@ async function seed(prefix: string) {
   return ids;
 }
 
-function restAs(token: string, path: string, body?: unknown) {
-  const headers = {
-    authorization: `Bearer ${token}`,
-    "content-type": "application/json",
-  };
-  const url = `http://lexidraw.test/api/v1${path}`;
-  return body === undefined
-    ? restGet(new Request(url, { headers }))
-    : rest(
-        new Request(url, {
-          method: "POST",
-          headers,
-          body: JSON.stringify(body),
-        }),
-      );
+const restUrl = (path: string) => `http://lexidraw.test/api/v1${path}`;
+const bearer = (token: string) => ({ authorization: `Bearer ${token}` });
+
+function getAs(token: string, path: string) {
+  return restRoute.GET(new Request(restUrl(path), { headers: bearer(token) }));
+}
+
+function postAs(token: string, path: string, body: unknown) {
+  return restRoute.POST(
+    new Request(restUrl(path), {
+      method: "POST",
+      headers: { ...bearer(token), "content-type": "application/json" },
+      body: JSON.stringify(body),
+    }),
+  );
 }
 
 const notFound = { code: "NOT_FOUND" };
@@ -245,7 +243,7 @@ describe("deleting your account from Settings", () => {
 
     await callerOf(ids.user).auth.deleteAccount({ confirmation: ids.email });
 
-    expect((await restAs(ids.writeToken, "/me")).status).toBe(401);
+    expect((await getAs(ids.writeToken, "/me")).status).toBe(401);
     const linked = await db
       .select()
       .from(schema.accounts)
@@ -275,7 +273,7 @@ describe("deleting an account needs it confirmed", () => {
     }
 
     await callerOf(ids.reader).entities.load({ id: ids.doc });
-    expect((await restAs(ids.writeToken, "/me")).status).toBe(200);
+    expect((await getAs(ids.writeToken, "/me")).status).toBe(200);
   });
 });
 
@@ -283,19 +281,19 @@ describe("deleting an account from the app, over the API", () => {
   test("is refused to a read-only token, which removes nothing", async () => {
     const ids = await seed("delread");
 
-    const response = await restAs(ids.readToken, "/me/delete", {
+    const response = await postAs(ids.readToken, "/me/delete", {
       confirmation: ids.email,
     });
 
     expect(response.status).toBe(403);
     await callerOf(ids.reader).entities.load({ id: ids.doc });
-    expect((await restAs(ids.writeToken, "/me")).status).toBe(200);
+    expect((await getAs(ids.writeToken, "/me")).status).toBe(200);
   });
 
   test("works with a token that may write", async () => {
     const ids = await seed("delwrite");
 
-    const response = await restAs(ids.writeToken, "/me/delete", {
+    const response = await postAs(ids.writeToken, "/me/delete", {
       confirmation: ids.email,
     });
 
@@ -303,7 +301,7 @@ describe("deleting an account from the app, over the API", () => {
     await expect(
       callerOf(ids.reader).entities.load({ id: ids.doc }),
     ).rejects.toMatchObject(notFound);
-    expect((await restAs(ids.writeToken, "/me")).status).toBe(401);
+    expect((await getAs(ids.writeToken, "/me")).status).toBe(401);
   });
 });
 
