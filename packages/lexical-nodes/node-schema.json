@@ -3835,7 +3835,6 @@
       }
     }
   ],
-  "undeclared": [],
   "traits": {
     "article": {
       "kind": "decorator",

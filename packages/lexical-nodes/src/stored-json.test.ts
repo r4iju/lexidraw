@@ -1,7 +1,11 @@
 import { expect, test } from "bun:test";
 import { createHeadlessEditor } from "@lexical/headless";
 import { $dfs } from "@lexical/utils";
-import { $getRoot, type SerializedEditorState } from "lexical";
+import {
+  $getRoot,
+  ArtificialNode__DO_NOT_USE,
+  type SerializedEditorState,
+} from "lexical";
 import { SCHEMA_NODES } from "./nodes.js";
 
 /** A stored document, as the nodes wrote it before they declared their JSON. */
@@ -71,6 +75,22 @@ const comment = {
   direction: null,
   children: [],
 };
+
+test("the stored document holds every node a document can", () => {
+  const types = new Set<string>();
+  const collect = (node: { type: string; children?: unknown[] }) => {
+    types.add(node.type);
+    for (const child of node.children ?? []) collect(child as typeof node);
+  };
+  collect(EVERY_NODE.root);
+
+  expect(
+    [...editor()._nodes.keys()].filter(
+      (type) =>
+        type !== ArtificialNode__DO_NOT_USE.getType() && !types.has(type),
+    ),
+  ).toEqual([]);
+});
 
 test("a stored document with every node reads and writes back unchanged", () => {
   const reader = editor();

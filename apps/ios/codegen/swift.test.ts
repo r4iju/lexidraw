@@ -17,7 +17,6 @@ test("names each node's Swift type and case after its Lexical class", () => {
         state: {},
       },
     ],
-    undeclared: [],
     traits: {},
   });
 
@@ -82,7 +81,7 @@ const marker = {
 } satisfies NodeDescription;
 
 test("an object is a struct named after its field, which keeps the keys it doesn't declare", () => {
-  const swift = swiftForNodeSchema({ nodes: [marker], undeclared: [], traits: {} });
+  const swift = swiftForNodeSchema({ nodes: [marker], traits: {} });
 
   expect(swift).toContain("public struct Note: DeclaredObject {");
   expect(swift).toContain("  static let isOpen = true");
@@ -97,7 +96,7 @@ test("an object is a struct named after its field, which keeps the keys it doesn
 });
 
 test("an object that doesn't keep the keys it doesn't declare drops them, as Lexical does", () => {
-  const swift = swiftForNodeSchema({ nodes: [marker], undeclared: [], traits: {} });
+  const swift = swiftForNodeSchema({ nodes: [marker], traits: {} });
   const board = swift.slice(swift.indexOf("public struct Board"));
   const note = swift.slice(swift.indexOf("public struct Note"));
 
@@ -106,7 +105,7 @@ test("an object that doesn't keep the keys it doesn't declare drops them, as Lex
 });
 
 test("a transform reads through the Swift function of the same name", () => {
-  const swift = swiftForNodeSchema({ nodes: [marker], undeclared: [], traits: {} });
+  const swift = swiftForNodeSchema({ nodes: [marker], traits: {} });
 
   expect(swift).toContain(
     '    static let figure: FieldSchema<String> = .optional(.transform(.string(default: ""), Transforms.figureWidth))',
@@ -114,7 +113,7 @@ test("a transform reads through the Swift function of the same name", () => {
 });
 
 test("state nested under $ is read from there, beside the state it doesn't declare", () => {
-  const swift = swiftForNodeSchema({ nodes: [marker], undeclared: [], traits: {} });
+  const swift = swiftForNodeSchema({ nodes: [marker], traits: {} });
 
   expect(swift).toContain("    var state = fields.takeState()");
   expect(swift).toContain('    figure = state.take("figure", Schema.figure)');
@@ -132,7 +131,6 @@ test("state is left out where it is its default, as Lexical leaves it out", () =
         },
       },
     ],
-    undeclared: [],
     traits: {},
   });
 
@@ -146,7 +144,7 @@ test("state is left out where it is its default, as Lexical leaves it out", () =
 });
 
 test("a node that writes children has them, element or not", () => {
-  const swift = swiftForNodeSchema({ nodes: [marker], undeclared: [], traits: {} });
+  const swift = swiftForNodeSchema({ nodes: [marker], traits: {} });
 
   expect(swift).toContain(
     "public struct SerializedMarkerNode: ParentNodePayload {",
@@ -164,9 +162,7 @@ test("objects that share a name have to be the same object", () => {
     state: {},
   } satisfies NodeDescription;
 
-  expect(() =>
-    swiftForNodeSchema({ nodes: [marker, clash], undeclared: [], traits: {} }),
-  ).toThrow(/Note/);
+  expect(() => swiftForNodeSchema({ nodes: [marker, clash], traits: {} })).toThrow(/Note/);
 });
 
 test("a field that can only be null is a Never that is null or absent", () => {
@@ -181,7 +177,6 @@ test("a field that can only be null is a Never that is null or absent", () => {
         state: {},
       },
     ],
-    undeclared: [],
     traits: {},
   });
 
@@ -211,7 +206,7 @@ const sized = {
 } satisfies NodeDescription;
 
 test("a union is an enum with a case for each member, in Lexical's order", () => {
-  const swift = swiftForNodeSchema({ nodes: [sized], undeclared: [], traits: {} });
+  const swift = swiftForNodeSchema({ nodes: [sized], traits: {} });
 
   expect(swift).toContain("public enum Size: JSONUnion {");
   expect(swift).toContain("  case number(Double)");
@@ -249,7 +244,6 @@ test("an object in a union is the case its one constant field names", () => {
         },
       },
     ],
-    undeclared: [],
     traits: {},
   });
 
@@ -271,7 +265,5 @@ test("an enum, a struct and a union can't share a name", () => {
     fields: { board: { kind: "enum", values: ["a", "b"], default: "a" } },
   } satisfies NodeDescription;
 
-  expect(() =>
-    swiftForNodeSchema({ nodes: [marker, board], undeclared: [], traits: {} }),
-  ).toThrow(/Board/);
+  expect(() => swiftForNodeSchema({ nodes: [marker, board], traits: {} })).toThrow(/Board/);
 });

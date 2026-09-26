@@ -15,7 +15,7 @@ import Testing
     #expect(try reference.snapshot().state == Self.everyNode)
   }
 
-  @Test func theSyntheticDocumentHasEveryDeclaredNode() throws {
+  @Test func theSyntheticDocumentHasEveryNode() throws {
     let schema = try JSONDecoder().decode(JSONValue.self, from: Data(contentsOf: Support.nodeSchema))
     let declared = Set(schema["nodes"]?.arrayValue?.compactMap { $0["type"]?.stringValue } ?? [])
     let present = Set(Self.everyNode.nodePaths().compactMap {

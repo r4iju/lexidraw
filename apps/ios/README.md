@@ -6,6 +6,9 @@ project isn't committed. To point a build at a local server, build with
 built with `CODE_SIGNING_ALLOWED=NO` can't keep its token in the Keychain, so
 it can't sign in. The simulator's ad-hoc signing is enough.
 
+LexicalSwift follows the Lexical version the web editor uses. To upgrade
+Lexical, see [Upgrading Lexical](../../docs/lexical-upgrade.md).
+
 ## Corpus check
 
 `bun run test:corpus` loads and saves every document an account owns with

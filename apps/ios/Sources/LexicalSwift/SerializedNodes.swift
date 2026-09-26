@@ -270,7 +270,7 @@ public enum SerializedNode: Equatable, Sendable {
 }
 
 extension NodeTraits {
-  /// Every registered node's, declared or not, by type.
+  /// Every registered node's, by type.
   public static let byType: [String: NodeTraits] = [
     "article": NodeTraits(kind: .decorator, inline: .fixed(false), shadowRoot: .fixed(false), canBeEmpty: .fixed(false)),
     "autocomplete": NodeTraits(kind: .text, inline: .fixed(true), shadowRoot: .fixed(false), canBeEmpty: .fixed(false)),

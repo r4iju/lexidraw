@@ -210,7 +210,7 @@ function traitsTable(traits: Record<string, NodeTraits>): string[] {
       : `.field(${swiftString(value.field)})`;
   return [
     "extension NodeTraits {",
-    "  /// Every registered node's, declared or not, by type.",
+    "  /// Every registered node's, by type.",
     "  public static let byType: [String: NodeTraits] = [",
     ...Object.entries(traits)
       .sort(([a], [b]) => byCodeUnits(a, b))

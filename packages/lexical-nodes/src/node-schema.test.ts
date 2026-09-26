@@ -92,13 +92,13 @@ test("covers every registered node but Lexical's never-stored artificial one", (
   ].filter((type) => type !== ArtificialNode__DO_NOT_USE.getType());
   const declared = schema.nodes.map((described) => described.type);
 
-  expect([...declared, ...schema.undeclared].sort()).toEqual(registered.sort());
+  expect(declared.sort()).toEqual(registered.sort());
   expect(declared).toEqual(
     expect.arrayContaining(["root", "paragraph", "text", "table", "link"]),
   );
 });
 
-test("lists a node that doesn't declare its JSON as undeclared, by type", () => {
+test("refuses a node that doesn't declare its JSON, by type", () => {
   class LegacyNode extends DecoratorNode<null> {
     static getType() {
       return "legacy";
@@ -111,31 +111,10 @@ test("lists a node that doesn't declare its JSON as undeclared, by type", () => 
     }
   }
 
-  expect(exportNodeSchema([LegacyNode]).undeclared).toEqual(["legacy"]);
+  expect(() => exportNodeSchema([LegacyNode])).toThrow(/^legacy: /);
 });
 
-test("the light custom nodes declare their JSON", () => {
-  const light = [
-    "emoji",
-    "keyword",
-    "mention",
-    "autocomplete",
-    "callout",
-    "collapsible-container",
-    "collapsible-content",
-    "collapsible-title",
-    "layout-container",
-    "layout-item",
-    "page-break",
-    "footnote-reference",
-    "footnote-definition",
-    "comment",
-    "thread",
-    "sticky",
-    "poll",
-  ];
-
-  expect(light.filter((type) => schema.undeclared.includes(type))).toEqual([]);
+test("describes the light custom nodes' figures and open data", () => {
   expect(node("emoji")?.fields.className).toEqual({
     kind: "string",
     default: "",
@@ -151,25 +130,7 @@ test("the light custom nodes declare their JSON", () => {
   expect(node("thread")?.children).toBe(true);
 });
 
-test("the heavy decorator nodes declare their JSON", () => {
-  const heavy = [
-    "image",
-    "inline-image",
-    "video",
-    "youtube",
-    "tweet",
-    "figma",
-    "mermaid",
-    "equation",
-    "chart",
-    "excalidraw",
-    "slide-deck",
-    "article",
-    "code",
-  ];
-
-  expect(heavy.filter((type) => schema.undeclared.includes(type))).toEqual([]);
-  expect(schema.undeclared).toEqual([]);
+test("describes the heavy decorator nodes' sizes, unions and dropped theme", () => {
   // What the image writes for a width it takes from the page.
   expect(node("image")?.fields.width).toEqual({ kind: "number", default: 0 });
   expect(node("image")?.state.natural?.value).toMatchObject({

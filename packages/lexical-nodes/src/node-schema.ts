@@ -22,9 +22,7 @@ import { isOpenObject, transformName } from "./schema-values.js";
  */
 export type NodeSchema = {
   nodes: NodeDescription[];
-  /** Types whose JSON isn't declared yet, so no other side can type them. */
-  undeclared: string[];
-  /** How each registered node, declared or not, sits in a document. */
+  /** How each registered node sits in a document. */
   traits: Record<string, NodeTraits>;
 };
 
@@ -107,9 +105,9 @@ export function nodeSchemaFile(schema: NodeSchema): string {
 const ENVELOPE = new Set(["type", "version", "children", "$", "$slots"]);
 
 /**
- * Describes every node registered alongside `nodes`. A node is declared when
- * its class states its JSON through `$config`, which is how Lexical's own
- * nodes do it; the rest are listed as undeclared.
+ * Describes every node registered alongside `nodes`. Each must state its JSON
+ * through `$config`, as Lexical's own nodes do: a node that doesn't would be
+ * one no other side can read.
  */
 export function exportNodeSchema(nodes: Klass<LexicalNode>[]): NodeSchema {
   const editor = createEditor({
@@ -119,28 +117,26 @@ export function exportNodeSchema(nodes: Klass<LexicalNode>[]): NodeSchema {
     },
   });
   const described: NodeDescription[] = [];
-  const undeclared: string[] = [];
   const traits: Record<string, NodeTraits> = {};
   for (const [type, { klass }] of editor._nodes) {
     // Lexical registers it in every editor, but it never reaches stored JSON.
     if (klass === ArtificialNode__DO_NOT_USE) continue;
+    if (!getStaticNodeConfig(klass).declaresOwnConfig) {
+      throw new Error(
+        `${type}: ${klass.name} doesn't declare its JSON through $config`,
+      );
+    }
     editor.update(
       () => {
-        if (getStaticNodeConfig(klass).declaresOwnConfig) {
-          const description = describe(type, klass);
-          described.push(description);
-          traits[type] = describeTraits(klass, declaredBooleans(description));
-        } else {
-          undeclared.push(type);
-          traits[type] = describeTraits(klass, []);
-        }
+        const description = describe(type, klass);
+        described.push(description);
+        traits[type] = describeTraits(klass, declaredBooleans(description));
       },
       { discrete: true },
     );
   }
   return {
     nodes: described.sort((a, b) => byCodeUnits(a.type, b.type)),
-    undeclared: undeclared.sort(byCodeUnits),
     traits: Object.fromEntries(
       Object.entries(traits).sort(([a], [b]) => byCodeUnits(a, b)),
     ),
