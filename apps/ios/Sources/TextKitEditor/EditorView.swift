@@ -1,5 +1,6 @@
 #if canImport(UIKit)
 import EditorModelInterface
+import OSLog
 import UIKit
 
 /// A document edited through an `EditorModel`. What UIKit's text input asks
@@ -8,9 +9,10 @@ import UIKit
 ///
 /// Text an input method is still composing lives only here, over the
 /// selection it replaces, and reaches the model as one `insertText` when it
-/// is committed: the web editor saves the same document for a composition as
-/// for typing its result, and history keeps it as one step.
+/// is committed.
 public final class EditorView: UIScrollView, UITextInput {
+  private static let log = Logger(subsystem: "TextKitEditor", category: "EditorView")
+
   private let model: any EditorModel
   private let document: DocumentText
   private let storage = NSTextStorage()
@@ -29,6 +31,9 @@ public final class EditorView: UIScrollView, UITextInput {
   /// When the model last heard from the view, for the time its history
   /// merges edits by.
   private var lastCommand = ProcessInfo.processInfo.systemUptime
+
+  /// Called after each call a keyboard's input method makes.
+  public var onInput: ((TextInputRecord) -> Void)?
 
   public weak var inputDelegate: (any UITextInputDelegate)?
   public var markedTextStyle: [NSAttributedString.Key: Any]?
@@ -54,11 +59,7 @@ public final class EditorView: UIScrollView, UITextInput {
     surface.addInteraction(interaction)
     isAccessibilityElement = true
     registerForTraitChanges([UITraitUserInterfaceStyle.self]) { (view: EditorView, _) in view.redraw() }
-    registerForTraitChanges([UITraitPreferredContentSizeCategory.self]) { (view: EditorView, _) in
-      guard view.composition == nil else { return }
-      try? view.editText { try view.document.reload(view.storage) }
-    }
-    try? editText { try document.reload(storage) }
+    render(nil)
   }
 
   required init?(coder: NSCoder) { fatalError("EditorView is made in code") }
@@ -69,26 +70,70 @@ public final class EditorView: UIScrollView, UITextInput {
   /// model refuses leaves the document as it was, so there is nothing to show.
   /// UIKit's own input calls expect the text and selection they asked for
   /// without being told; anything else tells the input delegate.
-  @discardableResult
-  private func perform(_ command: EditorCommand, fromInput: Bool) -> Bool {
+  private func perform(_ command: EditorCommand, fromInput: Bool) {
     let now = ProcessInfo.processInfo.systemUptime
     let elapsed = Int((now - lastCommand) * 1000)
     lastCommand = now
-    if elapsed > 0 { _ = try? model.apply(.wait(milliseconds: elapsed)) }
-    guard let change = try? model.apply(command) else { return false }
-    if !fromInput { inputDelegate?.textWillChange(self) }
-    do {
-      try editText { try document.update(storage, after: change) }
-    } catch {
-      try? editText { try document.reload(storage) }
+    if elapsed > 0 {
+      do { try model.apply(.wait(milliseconds: elapsed)) } catch { failed("The model refused to wait", error) }
     }
+    let change: ChangeSet
+    do {
+      change = try model.apply(command)
+    } catch EditorError.unsupported(let what) {
+      Self.log.notice("The model can't \(command.name, privacy: .public) here yet: \(what, privacy: .public)")
+      return
+    } catch {
+      failed("The model refused \(command.name)", error)
+      return
+    }
+    if !fromInput { inputDelegate?.textWillChange(self) }
+    render(change)
     if !fromInput { inputDelegate?.textDidChange(self) }
     showModelSelection(fromInput: fromInput)
-    return true
+  }
+
+  /// Something the view relies on the model for went wrong: a bug in one or
+  /// the other, so it stops a debug build.
+  private func failed(_ what: String, _ error: any Error) {
+    Self.log.fault("\(what, privacy: .public): \(String(describing: error), privacy: .public)")
+    assertionFailure("\(what): \(error)")
+  }
+
+  /// Brings the text up to date with `change`, or renders it afresh.
+  private func render(_ change: ChangeSet?) {
+    contentStorage.performEditingTransaction {
+      do {
+        if let change {
+          try document.update(storage, after: change)
+        } else {
+          try document.reload(storage)
+        }
+      } catch {
+        failed("The model's update couldn't be shown", error)
+        if change != nil {
+          do { try document.reload(storage) } catch { failed("The document couldn't be shown", error) }
+        }
+      }
+    }
+    setNeedsLayout()
+  }
+
+  /// A change to the text that is only the view's, as composition is.
+  private func editStorage(_ body: () -> Void) {
+    contentStorage.performEditingTransaction(body)
+    setNeedsLayout()
+  }
+
+  private func modelSelection() -> Selection? {
+    do { return try model.selection() } catch {
+      failed("The model has no document", error)
+      return nil
+    }
   }
 
   private func showModelSelection(fromInput: Bool) {
-    guard let selection = try? model.selection(), let anchor = document.offset(of: selection.anchor),
+    guard let selection = modelSelection(), let anchor = document.offset(of: selection.anchor),
       let focus = document.offset(of: selection.focus)
     else { return }
     if !fromInput { inputDelegate?.selectionWillChange(self) }
@@ -104,6 +149,15 @@ public final class EditorView: UIScrollView, UITextInput {
     perform(.setSelection(anchor: document.point(at: anchor), focus: document.point(at: focus)), fromInput: true)
   }
 
+  /// Tells the model the view's selection unless it already has it. Placing
+  /// a selection anew would reset the format a caret types in, which a
+  /// shortcut such as ⌘B may just have set.
+  private func syncSelection() {
+    guard let selection = modelSelection(), document.offset(of: selection.anchor) == anchor,
+      document.offset(of: selection.focus) == focus
+    else { return sendSelection() }
+  }
+
   /// Text typed or pasted, each newline a new paragraph as Return makes.
   private func insert(_ text: String, fromInput: Bool) {
     let lines = text.split(omittingEmptySubsequences: false, whereSeparator: \.isNewline)
@@ -113,27 +167,27 @@ public final class EditorView: UIScrollView, UITextInput {
     }
   }
 
-  private func editText(_ body: () throws -> Void) throws {
-    var failure: (any Error)?
-    contentStorage.performEditingTransaction {
-      do { try body() } catch { failure = error }
-    }
-    setNeedsLayout()
-    if let failure { throw failure }
-  }
-
   // MARK: UIKeyInput
 
   public var hasText: Bool { storage.length > 1 }
 
   public func insertText(_ text: String) {
-    if composition != nil { return commit(text) }
-    insert(text, fromInput: true)
+    if composition != nil {
+      commit(text)
+    } else {
+      insert(text, fromInput: true)
+    }
+    report(.insertText(text))
   }
 
   public func deleteBackward() {
-    if composition != nil { unmarkText() }
+    commitMarkedText()
     perform(.deleteCharacter(backward: true), fromInput: true)
+    report(.deleteBackward)
+  }
+
+  private func report(_ call: TextInputRecord.Call) {
+    onInput?(TextInputRecord(call: call, text: storage.string, marked: composition?.marked))
   }
 
   public override var canBecomeFirstResponder: Bool { true }
@@ -142,7 +196,7 @@ public final class EditorView: UIScrollView, UITextInput {
   /// somewhere to go.
   public override func becomeFirstResponder() -> Bool {
     guard super.becomeFirstResponder() else { return false }
-    if (try? model.selection()) == nil { sendSelection() }
+    if modelSelection() == nil { sendSelection() }
     return true
   }
 
@@ -160,50 +214,60 @@ public final class EditorView: UIScrollView, UITextInput {
 
   public func setMarkedText(_ markedText: String?, selectedRange: NSRange) {
     let text = markedText ?? ""
-    let replaced = selectedRange
+    let replaced = selected
     var composition =
       self.composition
       ?? Composition(replaced: replaced, original: storage.attributedSubstring(from: replaced), marked: replaced)
-    var attributes = document.attributes(
-      at: composition.replaced.location, format: (try? model.selection())?.format ?? [])
+    var attributes = document.attributes(at: composition.replaced.location, format: modelSelection()?.format ?? [])
     attributes.merge(markedTextStyle ?? [.underlineStyle: NSUnderlineStyle.single.rawValue]) { $1 }
     let marked = composition.marked
-    try? editText { storage.replaceCharacters(in: marked, with: NSAttributedString(string: text, attributes: attributes)) }
+    editStorage { storage.replaceCharacters(in: marked, with: NSAttributedString(string: text, attributes: attributes)) }
     composition.marked.length = text.utf16.count
     self.composition = composition
     let start = composition.marked.location + min(selectedRange.location, composition.marked.length)
     anchor = start
     focus = min(start + selectedRange.length, NSMaxRange(composition.marked))
     scrollToCaret()
+    report(.setMarkedText(text, selectedRange: selectedRange))
   }
 
   public func unmarkText() {
+    commitMarkedText()
+    report(.unmarkText)
+  }
+
+  private func commitMarkedText() {
     guard let composition else { return }
     commit(storage.attributedSubstring(from: composition.marked).string)
   }
 
+  /// Ends the composition with `text` in place of what it replaced, which
+  /// only then reaches the model.
   private func commit(_ text: String) {
     guard let composition else { return }
     self.composition = nil
-    try? editText { storage.replaceCharacters(in: composition.marked, with: composition.original) }
+    editStorage { storage.replaceCharacters(in: composition.marked, with: composition.original) }
     anchor = composition.replaced.location
     focus = NSMaxRange(composition.replaced)
     if text.isEmpty, composition.replaced.length == 0 { return }
+    syncSelection()
     insert(text, fromInput: true)
   }
 
   // MARK: Selection
 
-  private var selectedRange: NSRange { NSRange(location: min(anchor, focus), length: abs(focus - anchor)) }
+  /// The view's selection in the document, which during a composition is
+  /// inside the marked text.
+  private var selected: NSRange { NSRange(location: min(anchor, focus), length: abs(focus - anchor)) }
 
   public var selectedTextRange: UITextRange? {
-    get { TextRange(selectedRange) }
+    get { TextRange(selected) }
     set {
       guard let range = newValue as? TextRange else { return }
-      let selected = wholeCharacters(range.range)
-      guard composition != nil || selected != selectedRange else { return }
-      anchor = selected.location
-      focus = NSMaxRange(selected)
+      let snapped = wholeCharacters(range.range)
+      guard composition != nil || snapped != selected else { return }
+      anchor = snapped.location
+      focus = NSMaxRange(snapped)
       if composition == nil { sendSelection() }
       scrollToCaret()
     }
@@ -238,7 +302,7 @@ public final class EditorView: UIScrollView, UITextInput {
 
   public func replace(_ range: UITextRange, withText text: String) {
     guard let range = range as? TextRange else { return }
-    if composition != nil { unmarkText() }
+    commitMarkedText()
     let replaced = wholeCharacters(range.range)
     anchor = replaced.location
     focus = NSMaxRange(replaced)
@@ -300,7 +364,12 @@ public final class EditorView: UIScrollView, UITextInput {
     -> NSWritingDirection
   { .natural }
 
-  public func setBaseWritingDirection(_ writingDirection: NSWritingDirection, for range: UITextRange) {}
+  /// Refused: each paragraph reads in the direction of its own text, as on
+  /// the web, and neither editor sets one yet (#149).
+  public func setBaseWritingDirection(_ writingDirection: NSWritingDirection, for range: UITextRange) {
+    guard writingDirection != .natural else { return }
+    Self.log.notice("Setting a writing direction isn't supported yet (#149)")
+  }
 
   /// The offset one user-perceived character on, so a joined emoji or flag
   /// is passed over whole.
@@ -433,21 +502,27 @@ public final class EditorView: UIScrollView, UITextInput {
       command(UIKeyCommand.inputRightArrow, .shift, #selector(extendRight)),
       command(UIKeyCommand.inputUpArrow, .shift, #selector(extendUp)),
       command(UIKeyCommand.inputDownArrow, .shift, #selector(extendDown)),
-      command("\u{8}", .alternate, #selector(deleteWordBackward)),
-      command("\u{8}", .command, #selector(deleteLineBackward)),
-      command(UIKeyCommand.inputDelete, [], #selector(deleteForward)),
-      command(UIKeyCommand.inputDelete, .alternate, #selector(deleteWordForward)),
+      command(UIKeyCommand.inputLeftArrow, .command, #selector(moveToLineStart)),
+      command(UIKeyCommand.inputRightArrow, .command, #selector(moveToLineEnd)),
+      command(UIKeyCommand.inputDelete, .alternate, #selector(deleteWordBackward)),
+      command(UIKeyCommand.inputDelete, .command, #selector(deleteLineBackward)),
+      command(Self.forwardDelete, [], #selector(deleteForward)),
+      command(Self.forwardDelete, .alternate, #selector(deleteWordForward)),
     ]
   }
+
+  /// What the Forward Delete key gives; `UIKeyCommand.inputDelete` is
+  /// Backspace.
+  private static let forwardDelete = "\u{7F}"
 
   @objc private func insertLineBreak() { perform(.insertLineBreak, fromInput: false) }
 
   @objc private func moveLeft() {
-    move(to: anchor == focus ? character(before: focus) : selectedRange.location, extending: false)
+    move(to: anchor == focus ? character(before: focus) : selected.location, extending: false)
   }
 
   @objc private func moveRight() {
-    move(to: anchor == focus ? character(after: focus) : NSMaxRange(selectedRange), extending: false)
+    move(to: anchor == focus ? character(after: focus) : NSMaxRange(selected), extending: false)
   }
 
   @objc private func moveUp() { move(to: line(from: focus, .up) ?? 0, extending: false) }
@@ -456,6 +531,8 @@ public final class EditorView: UIScrollView, UITextInput {
   @objc private func extendRight() { move(to: character(after: focus), extending: true) }
   @objc private func extendUp() { move(to: line(from: focus, .up) ?? 0, extending: true) }
   @objc private func extendDown() { move(to: line(from: focus, .down) ?? lastOffset, extending: true) }
+  @objc private func moveToLineStart() { move(to: lineBoundary(backward: true) ?? focus, extending: false) }
+  @objc private func moveToLineEnd() { move(to: lineBoundary(backward: false) ?? focus, extending: false) }
   @objc private func deleteWordBackward() { perform(.deleteWord(backward: true), fromInput: false) }
   @objc private func deleteWordForward() { perform(.deleteWord(backward: false), fromInput: false) }
   @objc private func deleteForward() { perform(.deleteCharacter(backward: false), fromInput: false) }
@@ -484,12 +561,21 @@ public final class EditorView: UIScrollView, UITextInput {
 
   // MARK: Edit menu and formatting
 
+  private lazy var history = ModelHistory(
+    undo: { [unowned self] in perform(.undo, fromInput: false) },
+    redo: { [unowned self] in perform(.redo, fromInput: false) })
+
+  /// The model's history, which ⌘Z, ⇧⌘Z and the system's undo gestures
+  /// reach through.
+  public override var undoManager: UndoManager? { history }
+
   public override func canPerformAction(_ action: Selector, withSender sender: Any?) -> Bool {
     switch action {
     case #selector(toggleBoldface(_:)), #selector(toggleItalics(_:)), #selector(toggleUnderline(_:)),
-      #selector(selectAll(_:)), #selector(paste(_:)):
+      #selector(selectAll(_:)):
       true
-    case #selector(copy(_:)), #selector(cut(_:)): anchor != focus
+    case #selector(makeTextWritingDirectionLeftToRight(_:)), #selector(makeTextWritingDirectionRightToLeft(_:)):
+      false
     default: super.canPerformAction(action, withSender: sender)
     }
   }
@@ -498,23 +584,6 @@ public final class EditorView: UIScrollView, UITextInput {
   public override func toggleItalics(_ sender: Any?) { perform(.formatText(.italic), fromInput: false) }
   public override func toggleUnderline(_ sender: Any?) { perform(.formatText(.underline), fromInput: false) }
   public override func selectAll(_ sender: Any?) { perform(.selectAll, fromInput: false) }
-
-  /// The selection as plain text, a line break a newline and whatever has
-  /// no text left out.
-  public override func copy(_ sender: Any?) {
-    UIPasteboard.general.string = (storage.string as NSString).substring(with: selectedRange)
-      .replacingOccurrences(of: "\u{2028}", with: "\n").replacingOccurrences(of: "\u{FFFC}", with: "")
-  }
-
-  public override func cut(_ sender: Any?) {
-    copy(sender)
-    perform(.deleteCharacter(backward: true), fromInput: false)
-  }
-
-  public override func paste(_ sender: Any?) {
-    guard let text = UIPasteboard.general.string else { return }
-    insert(text, fromInput: false)
-  }
 
   // MARK: Layout
 
@@ -557,9 +626,9 @@ public final class EditorView: UIScrollView, UITextInput {
 
   /// Body text in the system font, formats as the web editor shows them.
   nonisolated public static func defaultStyle(_ blockType: String, _ format: TextFormat) -> [NSAttributedString.Key: Any] {
-    let body = UIFont.preferredFont(forTextStyle: blockType == "heading" ? .title2 : .body)
+    let body = UIFont.preferredFont(forTextStyle: .body)
     var traits = body.fontDescriptor.symbolicTraits
-    if format.contains(.bold) || blockType == "heading" { traits.insert(.traitBold) }
+    if format.contains(.bold) { traits.insert(.traitBold) }
     if format.contains(.italic) { traits.insert(.traitItalic) }
     var font =
       format.contains(.code)
@@ -685,5 +754,24 @@ final class SelectionRect: UITextSelectionRect {
   override var containsStart: Bool { isStart }
   override var containsEnd: Bool { isEnd }
   override var isVertical: Bool { false }
+}
+
+/// An undo manager that is only a way to the model's undo and redo. The
+/// model doesn't say whether there is anything to undo; with nothing, undo
+/// changes nothing.
+private final class ModelHistory: UndoManager {
+  private let undoEdit: () -> Void
+  private let redoEdit: () -> Void
+
+  init(undo: @escaping () -> Void, redo: @escaping () -> Void) {
+    undoEdit = undo
+    redoEdit = redo
+    super.init()
+  }
+
+  override var canUndo: Bool { true }
+  override var canRedo: Bool { true }
+  override func undo() { undoEdit() }
+  override func redo() { redoEdit() }
 }
 #endif

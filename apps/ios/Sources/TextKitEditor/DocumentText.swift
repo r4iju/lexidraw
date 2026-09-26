@@ -79,11 +79,11 @@ public final class DocumentText {
     let start = starts[blockIndex]
     switch point.type {
     case .text:
-      guard span.isText, point.offset <= span.end - span.start else { return nil }
+      guard case .text = span.kind, point.offset <= span.end - span.start else { return nil }
       return start + span.start + point.offset
     case .element:
-      guard point.offset <= span.childCount else { return nil }
-      if point.offset == span.childCount { return start + span.end }
+      guard case .element(let childCount) = span.kind, point.offset <= childCount else { return nil }
+      if point.offset == childCount { return start + span.end }
       return block.spans[path + [point.offset]].map { start + $0.start }
     }
   }
@@ -97,17 +97,20 @@ public final class DocumentText {
     let blockIndex = block(at: offset)
     let local = offset - starts[blockIndex]
     let spans = blocks[blockIndex].spans
-    let texts = spans.filter(\.value.isText)
+    let texts = spans.filter { if case .text = $0.value.kind { true } else { false } }
     if let (path, span) = texts.first(where: { $0.value.start < local && local <= $0.value.end })
       ?? texts.first(where: { $0.value.start == local })
     {
       return Point(path: [blockIndex] + path, offset: local - span.start, type: .text)
     }
-    let around = spans.filter { !$0.value.isText && $0.value.isElement && $0.value.start <= local && local <= $0.value.end }
-    guard let (path, _) = around.max(by: { $0.key.count < $1.key.count }) else {
+    let around = spans.compactMap { path, span -> (path: [Int], childCount: Int)? in
+      guard case .element(let childCount) = span.kind, span.start <= local, local <= span.end else { return nil }
+      return (path, childCount)
+    }
+    guard let (path, childCount) = around.max(by: { $0.path.count < $1.path.count }) else {
       return Point(path: [], offset: local == 0 ? blockIndex : blockIndex + 1, type: .element)
     }
-    let children = (0..<(spans[path]?.childCount ?? 0)).filter { (spans[path + [$0]]?.end ?? .max) <= local }
+    let children = (0..<childCount).filter { (spans[path + [$0]]?.end ?? .max) <= local }
     return Point(path: [blockIndex] + path, offset: children.count, type: .element)
   }
 
@@ -163,9 +166,14 @@ public final class DocumentText {
   private struct Span {
     var start: Int
     var end: Int
-    var isText: Bool
-    var isElement: Bool
-    var childCount: Int
+    var kind: Kind
+
+    enum Kind {
+      case text
+      case element(childCount: Int)
+      /// A line break, or a node with no text of its own.
+      case character
+    }
   }
 
   private struct Renderer {
@@ -186,18 +194,21 @@ public final class DocumentText {
           }
           add(child, at: path + [index])
         }
-        spans[path] = Span(start: start, end: text.length, isText: false, isElement: true, childCount: children.count)
+        spans[path] = Span(start: start, end: text.length, kind: .element(childCount: children.count))
         return
       }
-      let isText = node["text"]?.stringValue != nil && node["type"] != "linebreak"
+      let kind: Span.Kind
       if node["type"] == "linebreak" {
         append("\u{2028}", format: [])
+        kind = .character
       } else if let string = node["text"]?.stringValue {
         append(string, format: TextFormat(rawValue: node["format"]?.intValue ?? 0))
+        kind = .text
       } else {
         append("\u{FFFC}", format: [])
+        kind = .character
       }
-      spans[path] = Span(start: start, end: text.length, isText: isText, isElement: false, childCount: 0)
+      spans[path] = Span(start: start, end: text.length, kind: kind)
     }
 
     private static func isBlock(_ node: JSONValue) -> Bool {

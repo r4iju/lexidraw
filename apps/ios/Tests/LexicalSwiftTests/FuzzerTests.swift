@@ -3,16 +3,21 @@ import LexicalSwift
 import Testing
 
 @Suite struct FuzzerTests {
-  /// LexicalSwift with a plausible bug: it loses the last character typed
-  /// when that character isn't ASCII.
-  final class DropsTypedNonASCII: EditorModel {
+  /// LexicalSwift with a change to what `apply` does, for a bug to find.
+  class LexicalSwiftWith: EditorModel {
     let editor = Editor()
     func load(_ state: JSONValue) throws { try editor.load(state) }
     func snapshot() throws -> Snapshot { try editor.snapshot() }
     func selection() throws -> Selection? { try editor.selection() }
     func node(at path: [Int]) throws -> JSONValue { try editor.node(at: path) }
     func childKeys(at path: [Int]) throws -> [String] { try editor.childKeys(at: path) }
-    func apply(_ command: EditorCommand) throws -> ChangeSet {
+    func apply(_ command: EditorCommand) throws -> ChangeSet { try editor.apply(command) }
+  }
+
+  /// LexicalSwift with a plausible bug: it loses the last character typed
+  /// when that character isn't ASCII.
+  final class DropsTypedNonASCII: LexicalSwiftWith {
+    override func apply(_ command: EditorCommand) throws -> ChangeSet {
       if case .insertText(let text) = command, let last = text.last, !last.isASCII {
         return try editor.apply(.insertText(String(text.dropLast())))
       }
@@ -40,14 +45,8 @@ import Testing
   }
 
   /// LexicalSwift that edits correctly but tells a view nothing changed.
-  final class ReportsNoChanges: EditorModel {
-    let editor = Editor()
-    func load(_ state: JSONValue) throws { try editor.load(state) }
-    func snapshot() throws -> Snapshot { try editor.snapshot() }
-    func selection() throws -> Selection? { try editor.selection() }
-    func node(at path: [Int]) throws -> JSONValue { try editor.node(at: path) }
-    func childKeys(at path: [Int]) throws -> [String] { try editor.childKeys(at: path) }
-    func apply(_ command: EditorCommand) throws -> ChangeSet {
+  final class ReportsNoChanges: LexicalSwiftWith {
+    override func apply(_ command: EditorCommand) throws -> ChangeSet {
       try editor.apply(command)
       return ChangeSet()
     }
@@ -64,14 +63,8 @@ import Testing
   }
 
   /// LexicalSwift that refuses what Lexical refuses, but for another reason.
-  final class RefusesAsUnsupported: EditorModel {
-    let editor = Editor()
-    func load(_ state: JSONValue) throws { try editor.load(state) }
-    func snapshot() throws -> Snapshot { try editor.snapshot() }
-    func selection() throws -> Selection? { try editor.selection() }
-    func node(at path: [Int]) throws -> JSONValue { try editor.node(at: path) }
-    func childKeys(at path: [Int]) throws -> [String] { try editor.childKeys(at: path) }
-    func apply(_ command: EditorCommand) throws -> ChangeSet {
+  final class RefusesAsUnsupported: LexicalSwiftWith {
+    override func apply(_ command: EditorCommand) throws -> ChangeSet {
       do {
         return try editor.apply(command)
       } catch {

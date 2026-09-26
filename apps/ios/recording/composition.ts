@@ -1,29 +1,25 @@
 /**
- * Records what the web editor saves after Japanese composition, for the iOS
- * editor's UI tests to compare with. Each case opens a throwaway document on
- * a local dev stack, types the marked text the iOS Japanese keyboard produces
- * for the same keys through Chrome's IME input, saves, and reads back what
- * the server stored.
+ * Records what the web editor saves for each composition iOS recorded in
+ * web-composition.json: the UI script writes the calls the Japanese keyboard
+ * made on the editor, and this makes the same calls through Chrome's IME
+ * input on a throwaway document on a local dev stack, saves, and adds what
+ * the server stored. `bun run record:composition` runs both.
  *
  * Needs the dev app running (LEXIDRAW_DEV_URL, http://localhost:3025 by
  * default), the dev account in ~/.lexidraw-dev-account and the CLI's dev
  * keychain token, as the render worker's visual suite does.
  */
 import { readFile, writeFile } from "node:fs/promises";
-import { homedir } from "node:os";
 import { fileURLToPath } from "node:url";
-import puppeteer, {
-  type CDPSession,
-  type KeyInput,
-  type Page,
-} from "puppeteer";
+import { devCli, signInToDev } from "@packages/dev-stack";
+import puppeteer, { type CDPSession, type Page } from "puppeteer";
 import { z } from "zod";
 
 const appUrl = process.env.LEXIDRAW_DEV_URL ?? "http://localhost:3025";
 if (!["localhost", "127.0.0.1"].includes(new URL(appUrl).hostname))
   throw new Error("Composition fixtures only record against a local stack");
+const cli = devCli(appUrl);
 
-const root = fileURLToPath(new URL("../../../", import.meta.url));
 const fixturePath = fileURLToPath(
   new URL("../EditorUITests/Fixtures/web-composition.json", import.meta.url),
 );
@@ -36,89 +32,6 @@ type JSONValue =
   | JSONValue[]
   | { [key: string]: JSONValue };
 
-const paragraph = (children: JSONValue[]): JSONValue => ({
-  type: "paragraph",
-  version: 1,
-  children,
-  direction: null,
-  format: "",
-  indent: 0,
-  textFormat: 0,
-  textStyle: "",
-});
-
-const document = (...children: JSONValue[]): JSONValue => ({
-  root: {
-    type: "root",
-    version: 1,
-    children,
-    direction: null,
-    format: "",
-    indent: 0,
-  },
-});
-
-const plainText = (text: string): JSONValue => ({
-  type: "text",
-  version: 1,
-  text,
-  detail: 0,
-  format: 0,
-  mode: "normal",
-  style: "",
-});
-
-/**
- * What the iOS Japanese (Romaji) keyboard sends for "nihonn" and the 日本
- * candidate: the marked text after each key, then the candidate, committed.
- */
-const nihon = {
-  keys: ["n", "i", "h", "o", "n", "n"],
-  candidate: "日本",
-  marked: ["n", "に", "にh", "にほ", "にほn", "にほん", "日本"],
-};
-
-type Case = {
-  name: string;
-  start: JSONValue;
-  /** Hardware shortcuts pressed at the caret before composing. */
-  shortcuts: KeyInput[];
-};
-
-const cases: Case[] = [
-  {
-    name: "after-text",
-    start: document(paragraph([plainText("今日は")])),
-    shortcuts: [],
-  },
-  { name: "empty-paragraph", start: document(paragraph([])), shortcuts: [] },
-  {
-    name: "after-bold-shortcut",
-    start: document(paragraph([plainText("今日は")])),
-    shortcuts: ["b"],
-  },
-];
-
-async function cli(...args: string[]): Promise<unknown> {
-  const child = Bun.spawn(
-    ["bun", `${root}apps/cli/src/main.ts`, "--profile", "dev", ...args],
-    {
-      cwd: root,
-      stdout: "pipe",
-      stderr: "pipe",
-      // Never let a shell override send this to production.
-      env: { ...process.env, LEXIDRAW_URL: appUrl, LEXIDRAW_TOKEN: undefined },
-    },
-  );
-  const [stdout, stderr, status] = await Promise.all([
-    new Response(child.stdout).text(),
-    new Response(child.stderr).text(),
-    child.exited,
-  ]);
-  if (status) throw new Error(stderr);
-  return stdout.trim() ? JSON.parse(stdout) : null;
-}
-
 const jsonValue: z.ZodType<JSONValue> = z.lazy(() =>
   z.union([
     z.null(),
@@ -129,41 +42,38 @@ const jsonValue: z.ZodType<JSONValue> = z.lazy(() =>
     z.record(z.string(), jsonValue),
   ]),
 );
+/** A call the iOS keyboard made on the editor, as TextInputRecord codes it. */
+const call = z.discriminatedUnion("name", [
+  z.object({
+    name: z.literal("setMarkedText"),
+    text: z.string(),
+    selectedRange: z.tuple([z.number(), z.number()]),
+  }),
+  z.object({ name: z.literal("unmarkText") }),
+  z.object({ name: z.literal("insertText"), text: z.string() }),
+  z.object({ name: z.literal("deleteBackward") }),
+]);
+const shortcut = z.enum(["⌘b", "←"]);
+const fixture = z.object({
+  recordedOn: z.string(),
+  recordedWith: z.string().optional(),
+  cases: z.array(
+    z.object({
+      name: z.string(),
+      start: jsonValue,
+      shortcuts: z.array(shortcut),
+      input: z.array(call),
+      saved: jsonValue.optional(),
+    }),
+  ),
+});
+type Case = z.infer<typeof fixture>["cases"][number];
+
 const storedDocument = z.object({ content: jsonValue, updatedAt: z.string() });
 const createdDocument = z.object({ id: z.string() });
 
 async function stored(id: string) {
   return storedDocument.parse(await cli("doc", "get", id, "--format", "json"));
-}
-
-async function signIn(page: Page) {
-  await page.goto(`${appUrl}/signin`, { waitUntil: "networkidle2" });
-  const signedIn = await page.evaluate(async () => {
-    const session: { user?: unknown } | null = await fetch(
-      "/api/auth/session",
-    ).then((r) => r.json());
-    return Boolean(session?.user);
-  });
-  if (signedIn) return;
-  const credentials = Object.fromEntries(
-    (await readFile(`${homedir()}/.lexidraw-dev-account`, "utf8"))
-      .trim()
-      .split("\n")
-      .map((line) => {
-        const separator = line.indexOf("=");
-        return [
-          line.slice(0, separator).trim(),
-          line
-            .slice(separator + 1)
-            .trim()
-            .replace(/^['"]|['"]$/g, ""),
-        ];
-      }),
-  );
-  await page.locator('input[name="email"]').fill(credentials.email ?? "");
-  await page.locator('input[name="password"]').fill(credentials.password ?? "");
-  await page.locator('button[type="submit"]').click();
-  await page.waitForFunction(() => location.pathname === "/dashboard");
 }
 
 /** The caret at the end of the document's last block, as a click puts it. */
@@ -234,24 +144,48 @@ async function record(page: Page, testCase: Case) {
     );
     await caretAtEnd(page);
     for (const key of testCase.shortcuts) {
-      await page.keyboard.down("Meta");
-      await page.keyboard.press(key);
-      await page.keyboard.up("Meta");
+      if (key === "⌘b") {
+        await page.keyboard.down("Meta");
+        await page.keyboard.press("b");
+        await page.keyboard.up("Meta");
+      } else {
+        await page.keyboard.press("ArrowLeft");
+      }
       await pause(100);
     }
     const client = await page.createCDPSession();
-    for (const text of nihon.marked) {
-      await imeKey(client, () =>
-        client.send("Input.imeSetComposition", {
-          text,
-          selectionStart: text.length,
-          selectionEnd: text.length,
-        }),
-      );
+    let marked = "";
+    for (const input of testCase.input) {
+      switch (input.name) {
+        case "setMarkedText": {
+          const [location, length] = input.selectedRange;
+          marked = input.text;
+          await imeKey(client, () =>
+            client.send("Input.imeSetComposition", {
+              text: input.text,
+              selectionStart: location,
+              selectionEnd: location + length,
+            }),
+          );
+          break;
+        }
+        case "unmarkText": {
+          const text = marked;
+          await imeKey(client, () => client.send("Input.insertText", { text }));
+          marked = "";
+          break;
+        }
+        case "insertText":
+          await imeKey(client, () =>
+            client.send("Input.insertText", { text: input.text }),
+          );
+          marked = "";
+          break;
+        case "deleteBackward":
+          await page.keyboard.press("Backspace");
+          break;
+      }
     }
-    await imeKey(client, () =>
-      client.send("Input.insertText", { text: nihon.candidate }),
-    );
     await pause(300);
     await page.keyboard.down("Meta");
     await page.keyboard.press("s");
@@ -268,28 +202,21 @@ async function record(page: Page, testCase: Case) {
   }
 }
 
+const recorded = fixture.parse(JSON.parse(await readFile(fixturePath, "utf8")));
 const browser = await puppeteer.launch();
 try {
   const page = await browser.newPage();
   await page.setViewport({ width: 1280, height: 900 });
-  await signIn(page);
-  const recorded = [];
-  for (const testCase of cases) {
-    recorded.push({
-      name: testCase.name,
-      start: testCase.start,
-      shortcuts: testCase.shortcuts,
-      saved: await record(page, testCase),
-    });
-  }
-  const fixture = {
+  await signInToDev(page, appUrl);
+  const cases: Case[] = [];
+  for (const testCase of recorded.cases)
+    cases.push({ ...testCase, saved: await record(page, testCase) });
+  const written = {
+    ...recorded,
     recordedWith: await browser.version(),
-    keys: nihon.keys,
-    candidate: nihon.candidate,
-    marked: nihon.marked,
-    cases: recorded,
+    cases,
   };
-  await writeFile(fixturePath, `${JSON.stringify(fixture, null, 2)}\n`);
+  await writeFile(fixturePath, `${JSON.stringify(written, null, 2)}\n`);
 } finally {
   await browser.close();
 }

@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
 import type { ElementHandle, Page } from "puppeteer";
-import { signInToDev } from "./check-typography";
+import { signInToDev } from "@packages/dev-stack";
 import { appUrl } from "./app-url";
 
 const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 export async function checkTables(page: Page, fixtureId: string) {
-  await signInToDev(page);
+  await signInToDev(page, appUrl);
   await page.setViewport({ width: 1280, height: 900 });
   await page.goto(`${appUrl}/documents/${fixtureId}`, {
     waitUntil: "networkidle2",

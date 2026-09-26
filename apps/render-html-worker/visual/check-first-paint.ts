@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import type { Page } from "puppeteer";
 import { appUrl } from "./app-url";
-import { signInToDev } from "./check-typography";
+import { signInToDev } from "@packages/dev-stack";
 
 type Box = { left: number; top: number; width: number; height: number };
 
@@ -121,7 +121,7 @@ export async function checkFirstPaint(
   }: { fixtureId: string; emptyId: string; drawingId: string },
 ) {
   await page.bringToFront();
-  await signInToDev(page);
+  await signInToDev(page, appUrl);
   const theme = await page.evaluate(() => localStorage.getItem("theme"));
   const routes = {
     home: "/dashboard?flex=flex-col",

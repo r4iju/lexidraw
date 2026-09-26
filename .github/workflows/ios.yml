@@ -25,8 +25,12 @@ jobs:
           -skipPackagePluginValidation
           CODE_SIGNING_ALLOWED=NO
         working-directory: apps/ios
-      - run: bun run test:ui CODE_SIGNING_ALLOWED=NO
+      # The composite action installed xcodegen and built the packages; the
+      # runner image has jq. The script checks both and builds the reference.
+      - name: Editor UI scripts
+        run: bun run test:ui CODE_SIGNING_ALLOWED=NO
         working-directory: apps/ios
+        timeout-minutes: 45
       - if: failure()
         uses: actions/upload-artifact@v4
         with:

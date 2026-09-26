@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import type { Page } from "puppeteer";
 import { appUrl } from "./app-url";
-import { signInToDev } from "./check-typography";
+import { signInToDev } from "@packages/dev-stack";
 
 const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -68,7 +68,7 @@ export async function checkPage(
   fixtureId: string,
   emptyId: string,
 ) {
-  await signInToDev(page);
+  await signInToDev(page, appUrl);
   await page.setViewport({ width: 1280, height: 900 });
   await open(page, fixtureId);
 

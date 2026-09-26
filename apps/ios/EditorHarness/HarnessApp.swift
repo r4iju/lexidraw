@@ -7,9 +7,9 @@ import TextKitEditor
 
 /// A document from a bundled fixture in the TextKit editor, for trying the
 /// editor and for the UI scripts. The launch environment picks the model
-/// (`EDITOR_MODEL`, `lexicalswift` or `reference`), the document
-/// (`EDITOR_DOCUMENT`, serialized editor state) and where Save writes it
-/// (`EDITOR_SAVE_PATH`).
+/// (`EDITOR_MODEL`, an `EditorModelChoice`), the document (`EDITOR_DOCUMENT`,
+/// serialized editor state), where Save writes it (`EDITOR_SAVE_PATH`) and
+/// where Save also writes each call the keyboard made (`EDITOR_INPUT_LOG`).
 @main
 struct HarnessApp: App {
   var body: some Scene {
@@ -47,29 +47,33 @@ struct HarnessView: View {
 final class Harness {
   let model: any EditorModel
   let title: String
+  private(set) var inputs: [TextInputRecord] = []
   private let saveURL: URL
+  private let inputLogURL: URL?
 
-  private init(model: any EditorModel, title: String, saveURL: URL) {
+  private init(model: any EditorModel, title: String, saveURL: URL, inputLogURL: URL?) {
     self.model = model
     self.title = title
     self.saveURL = saveURL
+    self.inputLogURL = inputLogURL
   }
 
   static func open() throws -> Harness {
     let environment = ProcessInfo.processInfo.environment
+    let name = environment["EDITOR_MODEL"] ?? EditorModelChoice.lexicalSwift.rawValue
+    guard let choice = EditorModelChoice(rawValue: name) else { throw HarnessError("No model named \(name)") }
     let model: any EditorModel
     let title: String
-    switch environment["EDITOR_MODEL"] ?? "lexicalswift" {
-    case "reference":
+    switch choice {
+    case .lexicalSwift:
+      model = Editor()
+      title = "LexicalSwift"
+    case .reference:
       guard let script = Bundle.main.url(forResource: "lexical-reference", withExtension: "js") else {
         throw HarnessError("The JS reference isn't in the app; run `bun run build:reference` and build again")
       }
       model = try ReferenceEditor(scriptURL: script)
       title = "Lexical (JS)"
-    case let name:
-      guard name == "lexicalswift" else { throw HarnessError("No model named \(name)") }
-      model = Editor()
-      title = "LexicalSwift"
     }
     let document: Data
     if let given = environment["EDITOR_DOCUMENT"] {
@@ -83,12 +87,17 @@ final class Harness {
     let saveURL =
       environment["EDITOR_SAVE_PATH"].map { URL(fileURLWithPath: $0) }
       ?? URL.documentsDirectory.appending(path: "saved.json")
-    return Harness(model: model, title: title, saveURL: saveURL)
+    return Harness(
+      model: model, title: title, saveURL: saveURL,
+      inputLogURL: environment["EDITOR_INPUT_LOG"].map { URL(fileURLWithPath: $0) })
   }
+
+  func record(_ input: TextInputRecord) { inputs.append(input) }
 
   func save() throws {
     let encoder = JSONEncoder()
     encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+    if let inputLogURL { try encoder.encode(inputs).write(to: inputLogURL, options: .atomic) }
     try encoder.encode(try model.snapshot().state).write(to: saveURL, options: .atomic)
   }
 }
@@ -104,22 +113,9 @@ struct EditorRepresentable: UIViewRepresentable {
   func makeUIView(context: Context) -> EditorView {
     let view = EditorView(model: harness.model)
     view.accessibilityIdentifier = "editor"
+    view.onInput = { [harness] in harness.record($0) }
     return view
   }
 
   func updateUIView(_ view: EditorView, context: Context) {}
-}
-
-extension View {
-  /// An alert up for as long as there is a `message`; dismissing it clears it.
-  func alert(_ title: LocalizedStringKey, message: Binding<String?>) -> some View {
-    alert(
-      title,
-      isPresented: Binding(get: { message.wrappedValue != nil }, set: { if !$0 { message.wrappedValue = nil } })
-    ) {
-      Button("OK") {}
-    } message: {
-      Text(message.wrappedValue ?? "")
-    }
-  }
 }

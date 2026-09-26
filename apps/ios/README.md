@@ -34,17 +34,22 @@ editor (`Sources/TextKitEditor`), for trying the editor on a simulator. It
 edits with LexicalSwift, or with the JS reference when launched with
 `EDITOR_MODEL=reference` (run `bun run build:reference` before building).
 Save writes the document to `EDITOR_SAVE_PATH`, or `saved.json` in its
-Documents.
+Documents, and each call the keyboard made on the editor to
+`EDITOR_INPUT_LOG`.
 
-`bun run test:ui` runs the scheme's UI scripts, `EditorUITests`, on a
-simulator it makes, boots with the Japanese (Romaji) keyboard first and
-deletes after. They type through the simulator's keyboards, once with each
-model, and end by comparing the document the harness saves. The Japanese
-script taps n-i-h-o-n-n on the software keyboard and the 日本 candidate, and
-expects what the web editor saved for the same composition.
-`bun run record:composition` records that, in
-`EditorUITests/Fixtures/web-composition.json`, by driving Chrome's IME input
-on a local dev stack (`LEXIDRAW_DEV_URL`) with the dev account.
+`bun run test:ui` runs the scheme's tests on a simulator it makes and
+deletes after (`scripts/test-ui.sh`): the UI scripts, `EditorUITests`, and
+`TextKitEditorTests` on iOS, where `EditorViewTests` run the hardware keys
+XCUITest can't press. The UI scripts type through the simulator's keyboards,
+once with each model, and compare the document the harness saves. The
+Japanese script composes on the software keyboard and checks three things:
+that the keyboard made the calls recorded in
+`EditorUITests/Fixtures/web-composition.json`, that the view showed each
+composition where the caret was, and that the harness saved what the web
+editor saved for the same calls. `bun run record:composition` records both
+sides: the UI script writes the calls, then `recording/composition.ts` makes
+them through Chrome's IME input on a local dev stack (`LEXIDRAW_DEV_URL`)
+with the dev account and adds what the web saved.
 
 ## TestFlight
 
@@ -99,4 +104,4 @@ hand:
   by node key; keys stay out of `ChangeSet`, which the fuzzer compares.
 - A line break is U+2028 in the editor's text, which breaks the line without
   ending the paragraph as TextKit sees it.
-- The editor has no undo UI yet. The model's `undo` and `redo` work.
+- Copy, cut and paste come with #118, which owns the clipboard.

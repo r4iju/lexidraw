@@ -1,58 +1,101 @@
 {
-  "recordedWith": "Chrome/153.0.8010.36",
-  "keys": [
-    "n",
-    "i",
-    "h",
-    "o",
-    "n",
-    "n"
-  ],
-  "candidate": "日本",
-  "marked": [
-    "n",
-    "に",
-    "にh",
-    "にほ",
-    "にほn",
-    "にほん",
-    "日本"
-  ],
+  "recordedOn": "iOS 27.0",
   "cases": [
     {
       "name": "after-text",
       "start": {
         "root": {
-          "type": "root",
-          "version": 1,
           "children": [
             {
-              "type": "paragraph",
-              "version": 1,
               "children": [
                 {
-                  "type": "text",
-                  "version": 1,
-                  "text": "今日は",
                   "detail": 0,
                   "format": 0,
                   "mode": "normal",
-                  "style": ""
+                  "style": "",
+                  "text": "今日は",
+                  "type": "text",
+                  "version": 1
                 }
               ],
               "direction": null,
               "format": "",
               "indent": 0,
               "textFormat": 0,
-              "textStyle": ""
+              "textStyle": "",
+              "type": "paragraph",
+              "version": 1
             }
           ],
           "direction": null,
           "format": "",
-          "indent": 0
+          "indent": 0,
+          "type": "root",
+          "version": 1
         }
       },
       "shortcuts": [],
+      "input": [
+        {
+          "name": "setMarkedText",
+          "text": "n",
+          "selectedRange": [
+            1,
+            0
+          ]
+        },
+        {
+          "name": "setMarkedText",
+          "text": "に",
+          "selectedRange": [
+            1,
+            0
+          ]
+        },
+        {
+          "name": "setMarkedText",
+          "text": "にh",
+          "selectedRange": [
+            2,
+            0
+          ]
+        },
+        {
+          "name": "setMarkedText",
+          "text": "にほ",
+          "selectedRange": [
+            2,
+            0
+          ]
+        },
+        {
+          "name": "setMarkedText",
+          "text": "にほn",
+          "selectedRange": [
+            3,
+            0
+          ]
+        },
+        {
+          "name": "setMarkedText",
+          "text": "にほん",
+          "selectedRange": [
+            3,
+            0
+          ]
+        },
+        {
+          "name": "setMarkedText",
+          "text": "日本",
+          "selectedRange": [
+            2,
+            0
+          ]
+        },
+        {
+          "name": "unmarkText"
+        }
+      ],
       "saved": {
         "root": {
           "children": [
@@ -89,26 +132,87 @@
       "name": "empty-paragraph",
       "start": {
         "root": {
-          "type": "root",
-          "version": 1,
           "children": [
             {
-              "type": "paragraph",
-              "version": 1,
               "children": [],
               "direction": null,
               "format": "",
               "indent": 0,
               "textFormat": 0,
-              "textStyle": ""
+              "textStyle": "",
+              "type": "paragraph",
+              "version": 1
             }
           ],
           "direction": null,
           "format": "",
-          "indent": 0
+          "indent": 0,
+          "type": "root",
+          "version": 1
         }
       },
       "shortcuts": [],
+      "input": [
+        {
+          "name": "setMarkedText",
+          "text": "n",
+          "selectedRange": [
+            1,
+            0
+          ]
+        },
+        {
+          "name": "setMarkedText",
+          "text": "に",
+          "selectedRange": [
+            1,
+            0
+          ]
+        },
+        {
+          "name": "setMarkedText",
+          "text": "にh",
+          "selectedRange": [
+            2,
+            0
+          ]
+        },
+        {
+          "name": "setMarkedText",
+          "text": "にほ",
+          "selectedRange": [
+            2,
+            0
+          ]
+        },
+        {
+          "name": "setMarkedText",
+          "text": "にほn",
+          "selectedRange": [
+            3,
+            0
+          ]
+        },
+        {
+          "name": "setMarkedText",
+          "text": "にほん",
+          "selectedRange": [
+            3,
+            0
+          ]
+        },
+        {
+          "name": "setMarkedText",
+          "text": "日本",
+          "selectedRange": [
+            2,
+            0
+          ]
+        },
+        {
+          "name": "unmarkText"
+        }
+      ],
       "saved": {
         "root": {
           "children": [
@@ -145,37 +249,98 @@
       "name": "after-bold-shortcut",
       "start": {
         "root": {
-          "type": "root",
-          "version": 1,
           "children": [
             {
-              "type": "paragraph",
-              "version": 1,
               "children": [
                 {
-                  "type": "text",
-                  "version": 1,
-                  "text": "今日は",
                   "detail": 0,
                   "format": 0,
                   "mode": "normal",
-                  "style": ""
+                  "style": "",
+                  "text": "今日は",
+                  "type": "text",
+                  "version": 1
                 }
               ],
               "direction": null,
               "format": "",
               "indent": 0,
               "textFormat": 0,
-              "textStyle": ""
+              "textStyle": "",
+              "type": "paragraph",
+              "version": 1
             }
           ],
           "direction": null,
           "format": "",
-          "indent": 0
+          "indent": 0,
+          "type": "root",
+          "version": 1
         }
       },
       "shortcuts": [
-        "b"
+        "⌘b"
+      ],
+      "input": [
+        {
+          "name": "setMarkedText",
+          "text": "n",
+          "selectedRange": [
+            1,
+            0
+          ]
+        },
+        {
+          "name": "setMarkedText",
+          "text": "に",
+          "selectedRange": [
+            1,
+            0
+          ]
+        },
+        {
+          "name": "setMarkedText",
+          "text": "にh",
+          "selectedRange": [
+            2,
+            0
+          ]
+        },
+        {
+          "name": "setMarkedText",
+          "text": "にほ",
+          "selectedRange": [
+            2,
+            0
+          ]
+        },
+        {
+          "name": "setMarkedText",
+          "text": "にほn",
+          "selectedRange": [
+            3,
+            0
+          ]
+        },
+        {
+          "name": "setMarkedText",
+          "text": "にほん",
+          "selectedRange": [
+            3,
+            0
+          ]
+        },
+        {
+          "name": "setMarkedText",
+          "text": "日本",
+          "selectedRange": [
+            2,
+            0
+          ]
+        },
+        {
+          "name": "unmarkText"
+        }
       ],
       "saved": {
         "root": {
@@ -217,6 +382,520 @@
           "version": 1
         }
       }
+    },
+    {
+      "name": "mid-text",
+      "start": {
+        "root": {
+          "children": [
+            {
+              "children": [
+                {
+                  "detail": 0,
+                  "format": 0,
+                  "mode": "normal",
+                  "style": "",
+                  "text": "今日は",
+                  "type": "text",
+                  "version": 1
+                }
+              ],
+              "direction": null,
+              "format": "",
+              "indent": 0,
+              "textFormat": 0,
+              "textStyle": "",
+              "type": "paragraph",
+              "version": 1
+            }
+          ],
+          "direction": null,
+          "format": "",
+          "indent": 0,
+          "type": "root",
+          "version": 1
+        }
+      },
+      "shortcuts": [
+        "←"
+      ],
+      "input": [
+        {
+          "name": "setMarkedText",
+          "text": "n",
+          "selectedRange": [
+            1,
+            0
+          ]
+        },
+        {
+          "name": "setMarkedText",
+          "text": "に",
+          "selectedRange": [
+            1,
+            0
+          ]
+        },
+        {
+          "name": "setMarkedText",
+          "text": "にh",
+          "selectedRange": [
+            2,
+            0
+          ]
+        },
+        {
+          "name": "setMarkedText",
+          "text": "にほ",
+          "selectedRange": [
+            2,
+            0
+          ]
+        },
+        {
+          "name": "setMarkedText",
+          "text": "にほn",
+          "selectedRange": [
+            3,
+            0
+          ]
+        },
+        {
+          "name": "setMarkedText",
+          "text": "にほん",
+          "selectedRange": [
+            3,
+            0
+          ]
+        },
+        {
+          "name": "setMarkedText",
+          "text": "日本",
+          "selectedRange": [
+            2,
+            0
+          ]
+        },
+        {
+          "name": "unmarkText"
+        }
+      ],
+      "saved": {
+        "root": {
+          "children": [
+            {
+              "children": [
+                {
+                  "detail": 0,
+                  "format": 0,
+                  "mode": "normal",
+                  "style": "",
+                  "text": "今日日本は",
+                  "type": "text",
+                  "version": 1
+                }
+              ],
+              "direction": null,
+              "format": "",
+              "indent": 0,
+              "textFormat": 0,
+              "textStyle": "",
+              "type": "paragraph",
+              "version": 1
+            }
+          ],
+          "direction": null,
+          "format": "",
+          "indent": 0,
+          "type": "root",
+          "version": 1
+        }
+      }
+    },
+    {
+      "name": "multi-clause",
+      "start": {
+        "root": {
+          "children": [
+            {
+              "children": [],
+              "direction": null,
+              "format": "",
+              "indent": 0,
+              "textFormat": 0,
+              "textStyle": "",
+              "type": "paragraph",
+              "version": 1
+            }
+          ],
+          "direction": null,
+          "format": "",
+          "indent": 0,
+          "type": "root",
+          "version": 1
+        }
+      },
+      "shortcuts": [],
+      "input": [
+        {
+          "name": "setMarkedText",
+          "text": "k",
+          "selectedRange": [
+            1,
+            0
+          ]
+        },
+        {
+          "name": "setMarkedText",
+          "text": "ky",
+          "selectedRange": [
+            2,
+            0
+          ]
+        },
+        {
+          "name": "setMarkedText",
+          "text": "きょ",
+          "selectedRange": [
+            2,
+            0
+          ]
+        },
+        {
+          "name": "setMarkedText",
+          "text": "きょう",
+          "selectedRange": [
+            3,
+            0
+          ]
+        },
+        {
+          "name": "setMarkedText",
+          "text": "きょうh",
+          "selectedRange": [
+            4,
+            0
+          ]
+        },
+        {
+          "name": "setMarkedText",
+          "text": "きょうは",
+          "selectedRange": [
+            4,
+            0
+          ]
+        },
+        {
+          "name": "setMarkedText",
+          "text": "きょうはい",
+          "selectedRange": [
+            5,
+            0
+          ]
+        },
+        {
+          "name": "setMarkedText",
+          "text": "きょうはいい",
+          "selectedRange": [
+            6,
+            0
+          ]
+        },
+        {
+          "name": "setMarkedText",
+          "text": "きょうはいいt",
+          "selectedRange": [
+            7,
+            0
+          ]
+        },
+        {
+          "name": "setMarkedText",
+          "text": "きょうはいいて",
+          "selectedRange": [
+            7,
+            0
+          ]
+        },
+        {
+          "name": "setMarkedText",
+          "text": "きょうはいいてn",
+          "selectedRange": [
+            8,
+            0
+          ]
+        },
+        {
+          "name": "setMarkedText",
+          "text": "きょうはいいてんk",
+          "selectedRange": [
+            9,
+            0
+          ]
+        },
+        {
+          "name": "setMarkedText",
+          "text": "きょうはいいてんき",
+          "selectedRange": [
+            9,
+            0
+          ]
+        },
+        {
+          "name": "setMarkedText",
+          "text": "今日は",
+          "selectedRange": [
+            3,
+            0
+          ]
+        },
+        {
+          "name": "unmarkText"
+        },
+        {
+          "name": "setMarkedText",
+          "text": "いいてんき",
+          "selectedRange": [
+            5,
+            0
+          ]
+        },
+        {
+          "name": "setMarkedText",
+          "text": "いい天気",
+          "selectedRange": [
+            4,
+            0
+          ]
+        },
+        {
+          "name": "unmarkText"
+        }
+      ],
+      "saved": {
+        "root": {
+          "children": [
+            {
+              "children": [
+                {
+                  "detail": 0,
+                  "format": 0,
+                  "mode": "normal",
+                  "style": "",
+                  "text": "今日はいい天気",
+                  "type": "text",
+                  "version": 1
+                }
+              ],
+              "direction": null,
+              "format": "",
+              "indent": 0,
+              "textFormat": 0,
+              "textStyle": "",
+              "type": "paragraph",
+              "version": 1
+            }
+          ],
+          "direction": null,
+          "format": "",
+          "indent": 0,
+          "type": "root",
+          "version": 1
+        }
+      }
+    },
+    {
+      "name": "partial-commit",
+      "start": {
+        "root": {
+          "children": [
+            {
+              "children": [],
+              "direction": null,
+              "format": "",
+              "indent": 0,
+              "textFormat": 0,
+              "textStyle": "",
+              "type": "paragraph",
+              "version": 1
+            }
+          ],
+          "direction": null,
+          "format": "",
+          "indent": 0,
+          "type": "root",
+          "version": 1
+        }
+      },
+      "shortcuts": [],
+      "input": [
+        {
+          "name": "setMarkedText",
+          "text": "k",
+          "selectedRange": [
+            1,
+            0
+          ]
+        },
+        {
+          "name": "setMarkedText",
+          "text": "ky",
+          "selectedRange": [
+            2,
+            0
+          ]
+        },
+        {
+          "name": "setMarkedText",
+          "text": "きょ",
+          "selectedRange": [
+            2,
+            0
+          ]
+        },
+        {
+          "name": "setMarkedText",
+          "text": "きょう",
+          "selectedRange": [
+            3,
+            0
+          ]
+        },
+        {
+          "name": "setMarkedText",
+          "text": "きょうh",
+          "selectedRange": [
+            4,
+            0
+          ]
+        },
+        {
+          "name": "setMarkedText",
+          "text": "きょうは",
+          "selectedRange": [
+            4,
+            0
+          ]
+        },
+        {
+          "name": "setMarkedText",
+          "text": "きょうはい",
+          "selectedRange": [
+            5,
+            0
+          ]
+        },
+        {
+          "name": "setMarkedText",
+          "text": "きょうはいい",
+          "selectedRange": [
+            6,
+            0
+          ]
+        },
+        {
+          "name": "setMarkedText",
+          "text": "きょうはいいt",
+          "selectedRange": [
+            7,
+            0
+          ]
+        },
+        {
+          "name": "setMarkedText",
+          "text": "きょうはいいて",
+          "selectedRange": [
+            7,
+            0
+          ]
+        },
+        {
+          "name": "setMarkedText",
+          "text": "きょうはいいてn",
+          "selectedRange": [
+            8,
+            0
+          ]
+        },
+        {
+          "name": "setMarkedText",
+          "text": "きょうはいいてんk",
+          "selectedRange": [
+            9,
+            0
+          ]
+        },
+        {
+          "name": "setMarkedText",
+          "text": "きょうはいいてんき",
+          "selectedRange": [
+            9,
+            0
+          ]
+        },
+        {
+          "name": "setMarkedText",
+          "text": "今日は",
+          "selectedRange": [
+            3,
+            0
+          ]
+        },
+        {
+          "name": "unmarkText"
+        },
+        {
+          "name": "setMarkedText",
+          "text": "いいてんき",
+          "selectedRange": [
+            5,
+            0
+          ]
+        },
+        {
+          "name": "setMarkedText",
+          "text": "いいてんき",
+          "selectedRange": [
+            5,
+            0
+          ]
+        },
+        {
+          "name": "unmarkText"
+        }
+      ],
+      "saved": {
+        "root": {
+          "children": [
+            {
+              "children": [
+                {
+                  "detail": 0,
+                  "format": 0,
+                  "mode": "normal",
+                  "style": "",
+                  "text": "今日はいいてんき",
+                  "type": "text",
+                  "version": 1
+                }
+              ],
+              "direction": null,
+              "format": "",
+              "indent": 0,
+              "textFormat": 0,
+              "textStyle": "",
+              "type": "paragraph",
+              "version": 1
+            }
+          ],
+          "direction": null,
+          "format": "",
+          "indent": 0,
+          "type": "root",
+          "version": 1
+        }
+      }
     }
-  ]
+  ],
+  "recordedWith": "Chrome/153.0.8010.36"
 }

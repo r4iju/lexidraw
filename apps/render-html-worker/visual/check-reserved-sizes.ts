@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import type { HTTPRequest, Page } from "puppeteer";
 import { appUrl } from "./app-url";
 import { setAutoSave } from "./check-frame";
-import { signInToDev } from "./check-typography";
+import { signInToDev } from "@packages/dev-stack";
 
 const CONTENT = '[id^="lexical-content-"]';
 const IMAGE = 'img[alt="A banner"]';
@@ -109,7 +109,7 @@ export async function checkReservedSizes(
   { sizedId, emptyId }: { sizedId: string; emptyId: string },
 ) {
   await page.bringToFront();
-  await signInToDev(page);
+  await signInToDev(page, appUrl);
   const path = `${appUrl}/documents/${sizedId}`;
   // Not the sized document: opening it is what measures it.
   const elsewhere = `${appUrl}/documents/${emptyId}`;

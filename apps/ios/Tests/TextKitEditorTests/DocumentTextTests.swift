@@ -6,17 +6,6 @@ import Testing
 import TextKitEditor
 
 @Suite struct DocumentTextTests {
-  enum Model: String, CaseIterable {
-    case lexicalSwift, reference
-
-    func make() throws -> any EditorModel {
-      switch self {
-      case .lexicalSwift: return Editor()
-      case .reference: return try Support.referenceEditor()
-      }
-    }
-  }
-
   /// Format bits as the only attribute, so a wrong run shows as a difference.
   static func style(_ blockType: String, _ format: TextFormat) -> [NSAttributedString.Key: Any] {
     [.lexicalFormat: format.rawValue]
@@ -45,9 +34,9 @@ import TextKitEditor
     #expect(text.offset(of: Point(path: [], offset: 2, type: .element)) == 8)
   }
 
-  @Test(arguments: Model.allCases)
-  func keepsTheTextAFreshRenderWouldGiveAfterEveryCommand(_ kind: Model) throws {
-    let model = try kind.make()
+  @Test(arguments: EditorModelChoice.allCases)
+  func keepsTheTextAFreshRenderWouldGiveAfterEveryCommand(_ choice: EditorModelChoice) throws {
+    let model = try choice.make(referenceScript: Support.referenceScript)
     for (name, start, commands) in try Self.scripts() {
       try model.load(start)
       let text = DocumentText(model: model, style: Self.style)
@@ -70,10 +59,10 @@ import TextKitEditor
     }
   }
 
-  @Test(arguments: Model.allCases)
-  func givesEachBlockAsTheStateSavesIt(_ kind: Model) throws {
-    let model = try kind.make()
-    for (name, start, _) in try Self.scripts() {
+  @Test(arguments: EditorModelChoice.allCases)
+  func givesEachBlockAsTheStateSavesIt(_ choice: EditorModelChoice) throws {
+    let model = try choice.make(referenceScript: Support.referenceScript)
+    for (name, start) in try Self.scripts().map({ ($0.0, $0.1) }) + Self.storedDocuments() {
       try model.load(start)
       let saved = try model.snapshot().state["root"]?["children"]?.arrayValue ?? []
       #expect(try model.childKeys(at: []).count == saved.count, "\(name)")
@@ -81,6 +70,51 @@ import TextKitEditor
         #expect(try model.node(at: [index]) == block, "\(name), block \(index)")
       }
     }
+  }
+
+  @Test func showsANodeWithNoTextAsOneCharacter() throws {
+    let model = Editor()
+    try model.load(
+      LexicalJSON.document([
+        LexicalJSON.paragraph([
+          LexicalJSON.text("a"), ["type": "equation", "version": 1, "equation": "x", "inline": true], LexicalJSON.text("b"),
+        ]),
+        ["type": "page-break", "version": 1],
+        ["type": "not-a-lexidraw-node", "version": 1],
+      ]))
+    let text = DocumentText(model: model, style: Self.style)
+    let storage = NSMutableAttributedString()
+
+    try text.reload(storage)
+
+    #expect(storage.string == "a\u{FFFC}b\n\u{FFFC}\n\u{FFFC}\n")
+    #expect(text.point(at: 2) == .text([0, 2], 0))
+    #expect(text.point(at: 4) == Point(path: [], offset: 1, type: .element))
+  }
+
+  @Test(arguments: EditorModelChoice.allCases)
+  func reachesEveryPlaceInEveryStoredNode(_ choice: EditorModelChoice) throws {
+    let model = try choice.make(referenceScript: Support.referenceScript)
+    let stored = try Self.storedDocuments()
+    var unreachable: [String] = []
+    for (name, document) in stored {
+      try model.load(document)
+      let text = DocumentText(model: model, style: Self.style)
+      let storage = NSMutableAttributedString()
+      try text.reload(storage)
+      if (0..<storage.length).contains(where: { text.offset(of: text.point(at: $0)) != $0 }) { unreachable.append(name) }
+    }
+
+    #expect(stored.count > 4000)
+    #expect(unreachable == [])
+  }
+
+  /// Every node the web has stored and could read, in a document of its own.
+  static func storedDocuments() throws -> [(String, JSONValue)] {
+    try JSONValue(parsing: String(contentsOf: Support.storedBytes, encoding: .utf8)).arrayValue?.compactMap { entry in
+      guard entry["threw"] != true, let name = entry["name"]?.stringValue, let node = entry["node"] else { return nil }
+      return (name, LexicalJSON.document([node]))
+    } ?? []
   }
 
   static func scripts() throws -> [(String, JSONValue, [EditorCommand])] {
@@ -114,9 +148,10 @@ enum Support {
   static let iosRoot = URL(fileURLWithPath: #filePath)
     .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
 
-  static func referenceEditor() throws -> ReferenceEditor {
-    try ReferenceEditor(scriptURL: iosRoot.appending(path: "reference/dist/lexical-reference.js"))
-  }
+  static let referenceScript = iosRoot.appending(path: "reference/dist/lexical-reference.js")
+
+  /// The web's saves of every stored node, from @packages/lexical-nodes.
+  static let storedBytes = iosRoot.appending(path: "../../packages/lexical-nodes/test/stored-bytes.json")
 }
 
 extension NSAttributedString.Key {

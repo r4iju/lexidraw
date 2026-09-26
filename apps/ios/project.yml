@@ -60,6 +60,7 @@ targets:
     platform: iOS
     sources:
       - EditorHarness
+      - App/MessageAlert.swift
       # Built by `bun run build:reference`; without it only LexicalSwift runs.
       - path: reference/dist/lexical-reference.js
         buildPhase: resources
@@ -87,6 +88,8 @@ targets:
       - package: LexidrawIOS
         product: EditorModelInterface
       - package: LexidrawIOS
+        product: TextKitEditor
+      - package: LexidrawIOS
         product: LexicalFuzz
     settings:
       base:
@@ -105,3 +108,4 @@ schemes:
     test:
       targets:
         - EditorUITests
+        - package: LexidrawIOS/TextKitEditorTests
