@@ -95,6 +95,7 @@ cookie session and no token, whatever the request carries.
 | ------ | --------------------------------- | ---------------------------- |
 | GET    | `/me`                             | `auth.me`                    |
 | POST   | `/me/token/revoke`                | `tokens.revokeCurrent`       |
+| POST   | `/me/delete`                      | `auth.deleteAccount`         |
 | GET    | `/entities`                       | `entities.list`              |
 | POST   | `/entities`                       | `entities.create`            |
 | GET    | `/entities/search`                | `entities.search`            |
@@ -106,6 +107,7 @@ cookie session and no token, whatever the request carries.
 | DELETE | `/entities/{id}`                  | `entities.delete`            |
 | GET    | `/entities/{id}/metadata`         | `entities.getMetadata`       |
 | POST   | `/entities/{id}/restore`          | `entities.restore`           |
+| POST   | `/entities/{id}/move`             | `entities.move`              |
 | GET    | `/entities/{id}/tags`             | `entities.getEntityTags`     |
 | PUT    | `/entities/{id}/tags`             | `entities.updateEntityTags`  |
 | GET    | `/entities/{id}/shares`           | `entities.getSharedInfo`     |
@@ -148,6 +150,20 @@ caller may open, from the top down, which is what a breadcrumb shows.
 the caller's own entities that carry it, and `POST /entities/{id}/restore`
 takes one back out: into the folder it left when its owner may still write
 there, or else to the top of Home. Both are the owner's, as the delete is.
+
+`POST /entities/{id}/move` puts an entity into the folder its `parentId` names,
+or at the top of Home when it names none. `PATCH /entities/{id}` moves too, but
+reads a missing `parentId` as "leave it where it is", so only an explicit null
+takes a file home there, which a client that drops nulls cannot send.
+
+`POST /entities` without `elements` starts the entity as the editor opens a
+new one: an empty paragraph for a document, no elements for a drawing, and
+`{}` for a directory. A url has no empty state, so it needs its `elements`.
+Without a `parentId` the entity goes at the top of Home, as with a null one.
+
+`POST /me/delete` deletes the caller's account once it is confirmed with the
+account's email, or its name when it has none; `GET /me` gives that as
+`deletionConfirmation`, so an app asks for what the server will accept.
 
 A `parentId` on a create is resolved before the insert, by `POST /entities` as
 by `POST /drawings`: it has to be a directory the caller may write to, and

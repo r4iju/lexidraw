@@ -43,7 +43,7 @@ struct FolderView: View {
         if browser.tags.isEmpty {
           ContentUnavailableView(
             "Nothing here yet", systemImage: folder == nil ? "doc" : "folder",
-            description: Text("Files you make on the web show up here."))
+            description: Text("Files you make here or on the web show up here."))
         } else {
           ContentUnavailableView(
             "No files tagged \(browser.tags.sorted().formatted(.list(type: .and)))",
@@ -64,9 +64,14 @@ struct FolderView: View {
       ToolbarItem {
         TagFilter(ownTags: ownTags)
       }
+      if mayCreate {
+        ToolbarItem {
+          NewMenu(folder: folder)
+        }
+      }
       if folder == nil {
         ToolbarItem {
-          AccountMenu()
+          SettingsButton()
         }
       }
     }
@@ -76,6 +81,9 @@ struct FolderView: View {
   }
 
   private var title: String { place?.title ?? folder?.title ?? "Home" }
+
+  /// Anyone may make files at Home; in a folder, only who may edit it.
+  private var mayCreate: Bool { folder == nil || place.map { $0.access >= .edit } == true }
 
   private struct LoadKey: Equatable {
     let reloads: Int
@@ -151,6 +159,7 @@ private struct ListingSections: View {
             }
             .buttonStyle(.borderless)
             .tint(.primary)
+            .fileActions(for: folder)
           }
         }
       }
@@ -165,8 +174,26 @@ private struct ListingSections: View {
           } label: {
             EntryRow(entry: file)
           }
+          .fileActions(for: file)
         }
       }
+    }
+  }
+}
+
+private struct NewMenu: View {
+  let folder: Place.Folder?
+  @Environment(FileActions.self) private var actions
+
+  var body: some View {
+    Menu {
+      ForEach(NewFile.allCases, id: \.self) { file in
+        Button(file.kind.label, systemImage: file.kind.systemImage) {
+          Task { await actions.create(file, in: folder) }
+        }
+      }
+    } label: {
+      Label("New", systemImage: "plus")
     }
   }
 }

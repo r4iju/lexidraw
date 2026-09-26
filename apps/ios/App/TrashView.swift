@@ -5,6 +5,7 @@ import SwiftUI
 struct TrashView: View {
   let session: Session
   @Environment(Browser.self) private var browser
+  @Environment(FileActions.self) private var actions
   @Environment(\.colorScheme) private var colorScheme
   @State private var trash: [TrashedEntry]?
   @State private var failure: String?
@@ -19,6 +20,17 @@ struct TrashView: View {
             Text("Deleted \(entry.deletedAt, format: .relative(presentation: .named))")
               .font(.caption)
               .foregroundStyle(.secondary)
+          }
+        }
+        .swipeActions {
+          Button("Restore", systemImage: "arrow.uturn.backward") {
+            Task { await actions.restore(entry) }
+          }
+          .tint(.blue)
+        }
+        .contextMenu {
+          Button("Restore", systemImage: "arrow.uturn.backward") {
+            Task { await actions.restore(entry) }
           }
         }
       }
@@ -37,7 +49,7 @@ struct TrashView: View {
       } else if trash?.isEmpty == true {
         ContentUnavailableView(
           "The trash is empty", systemImage: "trash",
-          description: Text("Files you delete go here."))
+          description: Text("Files you delete go here, until you restore them."))
       }
     }
     .navigationTitle("Trash")

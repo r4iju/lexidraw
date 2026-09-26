@@ -3,9 +3,17 @@ import { z } from "zod";
 export const CreateEntity = z.object({
   id: z.string(),
   title: z.string(),
-  elements: z.string(),
+  elements: z
+    .string()
+    .optional()
+    .describe(
+      "Omitted starts the entity empty, as the editor opens a new one. A url needs it: its address is its content.",
+    ),
   entityType: z.enum(["drawing", "document", "directory", "url"]),
-  parentId: z.string().nullable(),
+  parentId: z
+    .string()
+    .nullish()
+    .describe("The folder it goes into; omitted or null is Home"),
 });
 
 export type CreateEntity = z.infer<typeof CreateEntity>;

@@ -11,5 +11,12 @@ filter:
     - entities-trash
     - entities-getMetadata
     - entities-getUserTags
+    - entities-create
+    - entities-update
+    - entities-move
+    - entities-delete
+    - entities-restore
+    - auth-me
+    - auth-deleteAccount
     - nativeSignIn-exchange
     - tokens-revokeCurrent

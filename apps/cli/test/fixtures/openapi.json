@@ -57,9 +57,19 @@
                           "type": "null"
                         }
                       ]
+                    },
+                    "deletionConfirmation": {
+                      "type": "string",
+                      "description": "What POST /me/delete takes to confirm deleting it"
                     }
                   },
-                  "required": ["userId", "email", "authKind", "scope"],
+                  "required": [
+                    "userId",
+                    "email",
+                    "authKind",
+                    "scope",
+                    "deletionConfirmation"
+                  ],
                   "additionalProperties": false
                 }
               }
@@ -232,6 +242,7 @@
                     "type": "string"
                   },
                   "elements": {
+                    "description": "Omitted starts the entity empty, as the editor opens a new one. A url needs it: its address is its content.",
                     "type": "string"
                   },
                   "entityType": {
@@ -239,6 +250,7 @@
                     "enum": ["drawing", "document", "directory", "url"]
                   },
                   "parentId": {
+                    "description": "The folder it goes into; omitted or null is Home",
                     "anyOf": [
                       {
                         "type": "string"
@@ -249,13 +261,7 @@
                     ]
                   }
                 },
-                "required": [
-                  "id",
-                  "title",
-                  "elements",
-                  "entityType",
-                  "parentId"
-                ]
+                "required": ["id", "title", "entityType"]
               }
             }
           }
@@ -2362,6 +2368,152 @@
             "required": true
           }
         ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "entityType": {
+                      "type": "string",
+                      "enum": ["drawing", "document", "directory", "url"]
+                    },
+                    "parentId": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "createdAt": {
+                      "format": "date-time",
+                      "type": "string"
+                    },
+                    "updatedAt": {
+                      "format": "date-time",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "title",
+                    "entityType",
+                    "parentId",
+                    "createdAt",
+                    "updatedAt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authorization not provided",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient access",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/entities/{id}/move": {
+      "post": {
+        "operationId": "entities-move",
+        "summary": "Move an entity into a folder, or to the top of Home",
+        "tags": ["entities"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "parentId": {
+                    "description": "The folder it goes into; omitted or null is Home",
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "Successful response",

@@ -1,6 +1,5 @@
 import { registerAppTool } from "@modelcontextprotocol/ext-apps/server";
 import type { McpServer } from "@modelcontextprotocol/server";
-import { EMPTY_CONTENT } from "@packages/lexical-nodes";
 import { v4 as uuidV4 } from "uuid";
 import { z } from "zod";
 
@@ -196,7 +195,13 @@ export function registerLexidrawTools(
       inputSchema: z.object({}),
       annotations: { readOnlyHint: true },
     },
-    () => call(() => caller.auth.me({})),
+    () =>
+      call(async () => {
+        // Deleting the account is not an agent's to do, so it is not told
+        // what confirms it.
+        const { deletionConfirmation: _, ...me } = await caller.auth.me({});
+        return me;
+      }),
   );
 
   server.registerTool(
@@ -258,7 +263,6 @@ export function registerLexidrawTools(
           id: uuidV4(),
           title: input.title,
           entityType: "document",
-          elements: JSON.stringify(EMPTY_CONTENT),
           parentId: input.parentId ?? null,
         }),
       ),

@@ -19,6 +19,9 @@ public struct Entry: Sendable, Hashable, Identifiable {
   public let kind: Kind
   public let updatedAt: Date
   public let access: Access
+  /// The folder it is in; nil at the top of Home, or when the caller may not
+  /// open that folder.
+  public let parentId: String?
   /// The caller's own tags on it; nobody else's are ever sent.
   public let tags: [String]
   /// How many things directly inside a folder the caller can see.
@@ -35,14 +38,14 @@ extension Entry {
   init(_ item: Operations.EntitiesList.Output.Ok.Body.JsonPayloadPayload) {
     self.init(
       id: item.id, title: item.title, kind: Kind(item.entityType), updatedAt: item.updatedAt,
-      access: Access(item.access), tags: item.tags, itemCount: Int(item.childCount),
+      access: Access(item.access), parentId: item.parentId, tags: item.tags, itemCount: Int(item.childCount),
       pictures: Pictures(light: item.screenShotLight, dark: item.screenShotDark))
   }
 
   init(_ item: Operations.EntitiesSharedWithMe.Output.Ok.Body.JsonPayloadPayload) {
     self.init(
       id: item.id, title: item.title, kind: Kind(item.entityType), updatedAt: item.updatedAt,
-      access: Access(item.access), tags: item.tags, itemCount: Int(item.childCount),
+      access: Access(item.access), parentId: item.parentId, tags: item.tags, itemCount: Int(item.childCount),
       pictures: Pictures(light: item.screenShotLight, dark: item.screenShotDark))
   }
 }

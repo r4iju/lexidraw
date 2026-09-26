@@ -2,7 +2,8 @@ import LexidrawKit
 import SwiftUI
 
 /// What others shared with the caller, wherever they keep it, so a file in a
-/// folder nobody gave them is still reachable.
+/// folder nobody gave them is still reachable. Where each is kept is its
+/// owner's to arrange, so nothing here moves.
 struct SharedView: View {
   let session: Session
   @Environment(Browser.self) private var browser
@@ -16,12 +17,14 @@ struct SharedView: View {
           NavigationLink(value: Place.Folder(id: entry.id, title: entry.title)) {
             EntryRow(entry: entry)
           }
+          .fileActions(for: entry, movable: false)
         } else {
           NavigationLink {
             NotYet(title: entry.title, systemImage: entry.kind.systemImage, feature: "Files open")
           } label: {
             EntryRow(entry: entry)
           }
+          .fileActions(for: entry, movable: false)
         }
       }
     }

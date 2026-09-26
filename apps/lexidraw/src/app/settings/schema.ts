@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { RouterOutputs } from "~/trpc/shared";
+import type { schema } from "@packages/drizzle";
 
 /**
  * What Settings saves. Every override is nullable: null means "follow the
@@ -43,8 +43,9 @@ export const SettingsSchema = z.object({
 
 export type SettingsInput = z.infer<typeof SettingsSchema>;
 
+// Read from the table, not the router's outputs: the router computes it.
 export type AccountIdentity = Pick<
-  RouterOutputs["auth"]["getProfile"],
+  typeof schema.users.$inferSelect,
   "email" | "name"
 >;
 

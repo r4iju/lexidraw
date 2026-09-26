@@ -100,6 +100,9 @@ describe("moving a file checks where it goes", () => {
     await expect(
       owner.save({ id: "emove_doc", elements: "{}", parentId }),
     ).rejects.toMatchObject({ code: "NOT_FOUND" });
+    await expect(
+      owner.move({ id: "emove_doc", parentId }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
     expect(await parentOf("emove_doc")).toBe("emove_home");
   });
 
@@ -130,5 +133,35 @@ describe("moving a file checks where it goes", () => {
       parentId: "emove_inner",
     });
     expect(await parentOf("emove_doc")).toBe("emove_inner");
+  });
+});
+
+describe("the move of its own", () => {
+  test("puts a file where it names, and at the top of Home when it names nowhere", async () => {
+    const moved = await owner.move({
+      id: "emove_other_doc",
+      parentId: "emove_team",
+    });
+    expect([moved.parentId, await parentOf("emove_other_doc")]).toEqual([
+      "emove_team",
+      "emove_team",
+    ]);
+
+    await owner.move({ id: "emove_other_doc" });
+    expect(await parentOf("emove_other_doc")).toBeNull();
+  });
+
+  test("is refused to someone who may only read the file", async () => {
+    await db.insert(schema.sharedEntities).values({
+      id: "emove_share_read",
+      entityId: "emove_other_doc",
+      userId: OTHER,
+      accessLevel: AccessLevel.READ,
+    });
+
+    await expect(
+      callerOf(OTHER).move({ id: "emove_other_doc", parentId: "emove_others" }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+    expect(await parentOf("emove_other_doc")).toBeNull();
   });
 });

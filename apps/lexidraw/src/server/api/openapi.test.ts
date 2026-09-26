@@ -114,6 +114,7 @@ describe("openApiDocument", () => {
     ["/entities/{id}", "delete", "entities"],
     ["/entities/{id}/metadata", "get", "entities"],
     ["/entities/{id}/restore", "post", "entities"],
+    ["/entities/{id}/move", "post", "entities"],
     ["/entities/{id}/tags", "get", "entities"],
     ["/entities/{id}/tags", "put", "entities"],
     ["/entities/{id}/shares", "get", "entities"],

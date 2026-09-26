@@ -33,10 +33,18 @@ final class Browser {
 
 struct BrowserView: View {
   let session: Session
-  @State private var browser = Browser()
+  @State private var browser: Browser
+  @State private var actions: FileActions
   @State private var column = NavigationSplitViewColumn.detail
   @State private var away = false
   @Environment(\.scenePhase) private var scenePhase
+
+  init(session: Session) {
+    self.session = session
+    let browser = Browser()
+    _browser = State(initialValue: browser)
+    _actions = State(initialValue: FileActions(session: session, browser: browser))
+  }
 
   var body: some View {
     @Bindable var browser = browser
@@ -56,7 +64,9 @@ struct BrowserView: View {
         }
       }
     }
+    .fileActionPresenters(actions)
     .environment(browser)
+    .environment(actions)
     // Changes made on the web while the app was away show on return.
     .onChange(of: scenePhase) { _, phase in
       switch phase {

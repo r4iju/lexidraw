@@ -7,6 +7,7 @@ import {
 import { createTRPCRouter, protectedProcedure, publicProcedure } from "../trpc";
 import { CreateEntity, SaveEntity } from "./entities-schema";
 import { PublicAccess, AccessLevel } from "@packages/types";
+import { EMPTY_CONTENT } from "@packages/lexical-nodes";
 import { TRPCError } from "@trpc/server";
 import {
   and,
@@ -327,6 +328,24 @@ async function listedEntities(
   }));
 }
 
+const BLANK = {
+  document: JSON.stringify(EMPTY_CONTENT),
+  drawing: "[]",
+  directory: "{}",
+};
+
+/** What `input` is created with: its elements, or its kind's blank. */
+function createdElements(input: CreateEntity) {
+  if (input.elements !== undefined) return input.elements;
+  if (input.entityType === "url") {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: "A url needs its elements: its address is its content",
+    });
+  }
+  return BLANK[input.entityType];
+}
+
 export const entityRouter = createTRPCRouter({
   create: protectedProcedure
     .meta({
@@ -344,6 +363,7 @@ export const entityRouter = createTRPCRouter({
     .input(CreateEntity)
     .output(entitySummary)
     .mutation(async ({ input, ctx }) => {
+      const given = createdElements(input);
       const parentId = await resolveParentDirectory(
         ctx.drizzle,
         input.parentId,
@@ -351,9 +371,7 @@ export const entityRouter = createTRPCRouter({
         input.entityType,
       );
       const elements =
-        input.entityType === "document"
-          ? await measureImages(input.elements)
-          : input.elements;
+        input.entityType === "document" ? await measureImages(given) : given;
       const [created] = await ctx.drizzle
         .insert(schema.entities)
         .values({
@@ -1192,6 +1210,63 @@ export const entityRouter = createTRPCRouter({
         parentId,
       );
       return restored;
+    }),
+  move: protectedProcedure
+    .meta({
+      openapi: {
+        method: "POST",
+        path: "/entities/{id}/move",
+        tags: ["entities"],
+        summary: "Move an entity into a folder, or to the top of Home",
+        protect: true,
+        // A POST has no 404 by default; an entity or folder the caller may
+        // not write is one.
+        errorResponses: [400, 401, 403, 404, 500],
+      },
+    })
+    .input(
+      z.object({
+        id: z.string(),
+        parentId: z
+          .string()
+          .nullable()
+          .optional()
+          .describe("The folder it goes into; omitted or null is Home"),
+      }),
+    )
+    .output(entitySummary)
+    .mutation(async ({ input, ctx }) => {
+      const userId = ctx.session.user.id;
+      const entity = await findEntityFor(ctx.drizzle, input.id, userId, "move");
+      if (!entity) throw notFound();
+
+      const parentId = await resolveMoveDestination(
+        ctx.drizzle,
+        entity,
+        input.parentId ?? null,
+        userId,
+      );
+      const [moved] = await ctx.drizzle
+        .update(schema.entities)
+        .set({ parentId, updatedAt: new Date() })
+        .where(eq(schema.entities.id, input.id))
+        .returning({
+          id: schema.entities.id,
+          title: schema.entities.title,
+          entityType: schema.entities.entityType,
+          parentId: schema.entities.parentId,
+          createdAt: schema.entities.createdAt,
+          updatedAt: schema.entities.updatedAt,
+        });
+      if (!moved) throw notFound();
+
+      await revalidateEntitiesAndParents(
+        ctx.drizzle,
+        input.id,
+        entity.parentId,
+        parentId,
+      );
+      return moved;
     }),
   update: publicProcedure
     .meta({

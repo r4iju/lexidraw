@@ -305,6 +305,39 @@ describe("deleting an account from the app, over the API", () => {
   });
 });
 
+describe("what confirms deleting an account", () => {
+  test("is its email, which /me tells the app to ask for", async () => {
+    const ids = await seed("delask");
+
+    const me = await (await getAs(ids.writeToken, "/me")).json();
+
+    expect(me.deletionConfirmation).toBe(ids.email);
+  });
+
+  test("is its name when it has no email", async () => {
+    const token = "lxd_delnameless_write";
+    await db
+      .insert(schema.users)
+      .values({ id: "delnameless_user", name: "Nameless", email: null });
+    await db.insert(schema.apiTokens).values({
+      userId: "delnameless_user",
+      name: "phone",
+      scope: "write",
+      tokenHash: hashApiToken(token),
+    });
+
+    const me = await (await getAs(token, "/me")).json();
+    const response = await postAs(token, "/me/delete", {
+      confirmation: me.deletionConfirmation,
+    });
+
+    expect([me.deletionConfirmation, response.status]).toEqual([
+      "Nameless",
+      200,
+    ]);
+  });
+});
+
 describe("deleting an account leaves other people's work alone", () => {
   test("a file someone kept in its folder moves to their top level", async () => {
     const ids = await seed("delkeep");

@@ -17,6 +17,11 @@ final class FakeServer: ClientTransport, Sendable {
     var json: [String: String] {
       (try? JSONSerialization.jsonObject(with: body ?? Data()) as? [String: String]) ?? [:]
     }
+
+    /// The body's keys, for telling a field sent as null from one left out.
+    var keys: Set<String> {
+      Set(((try? JSONSerialization.jsonObject(with: body ?? Data())) as? [String: Any] ?? [:]).keys)
+    }
   }
 
   typealias Answer = @Sendable (Request) throws -> (status: Int, body: String)
