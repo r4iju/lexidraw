@@ -11,6 +11,7 @@ export function downloadScene(
     source: window.location.href,
     elements: excalidraw.getSceneElements(),
     appState: excalidraw.getAppState(),
+    files: excalidraw.getFiles(),
   });
   const url = URL.createObjectURL(
     new Blob([data], { type: "application/json" }),

@@ -1,0 +1,30 @@
+[
+  {
+    "id": "box",
+    "type": "rectangle",
+    "x": 200,
+    "y": 150,
+    "width": 160,
+    "height": 100,
+    "angle": 1.2793395323170298,
+    "strokeColor": "#1e1e1e",
+    "backgroundColor": "#a5d8ff",
+    "fillStyle": "solid",
+    "strokeWidth": 2,
+    "strokeStyle": "solid",
+    "roughness": 1,
+    "opacity": 100,
+    "groupIds": [],
+    "frameId": null,
+    "index": "a0",
+    "roundness": null,
+    "seed": 7,
+    "version": 4,
+    "versionNonce": 1867013301,
+    "isDeleted": false,
+    "boundElements": [],
+    "updated": 1790435684718,
+    "link": null,
+    "locked": false
+  }
+]

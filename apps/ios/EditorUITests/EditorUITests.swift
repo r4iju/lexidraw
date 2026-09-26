@@ -17,7 +17,7 @@ class EditorUITests: XCTestCase {
   private var editor: XCUIElement!
   private var savedURL: URL!
   private var inputLogURL: URL!
-  private var hasPressedAKey = false
+  private var keyboard: HardwareKeyboard!
 
   override func setUp() {
     continueAfterFailure = false
@@ -54,7 +54,7 @@ class EditorUITests: XCTestCase {
     open(LexicalJSON.document([LexicalJSON.paragraph([LexicalJSON.text("Hello")])]))
 
     // With Shift held, XCUIKeyboardKey.return never reaches the app; "\n" does.
-    press("\n", .shift)
+    keyboard.press("\n", .shift)
     editor.typeText("World")
 
     XCTAssertEqual(
@@ -67,13 +67,13 @@ class EditorUITests: XCTestCase {
   func testBoldItalicAndUnderlineFromTheHardwareKeyboard() throws {
     open(LexicalJSON.document([LexicalJSON.paragraph([LexicalJSON.text("Plain ")])]))
 
-    press("b", .command)
+    keyboard.press("b", .command)
     editor.typeText("bold")
-    press("b", .command)
-    press("i", .command)
+    keyboard.press("b", .command)
+    keyboard.press("i", .command)
     editor.typeText("italic")
-    press("i", .command)
-    press("u", .command)
+    keyboard.press("i", .command)
+    keyboard.press("u", .command)
     editor.typeText("under")
 
     XCTAssertEqual(
@@ -92,7 +92,7 @@ class EditorUITests: XCTestCase {
         LexicalJSON.paragraph([LexicalJSON.text("Hello")]), LexicalJSON.paragraph([LexicalJSON.text("World")]),
       ]))
 
-    press("a", .command)
+    keyboard.press("a", .command)
     editor.typeText("x")
 
     XCTAssertEqual(try saved(), LexicalJSON.document([LexicalJSON.paragraph([LexicalJSON.text("x")])]))
@@ -102,23 +102,23 @@ class EditorUITests: XCTestCase {
     open(LexicalJSON.document([LexicalJSON.paragraph([LexicalJSON.text("Hello")])]))
     editor.typeText(" world")
 
-    press("z", .command)
+    keyboard.press("z", .command)
     XCTAssertEqual(try saved(), LexicalJSON.document([LexicalJSON.paragraph([LexicalJSON.text("Hello")])]))
 
-    press("z", [.command, .shift])
+    keyboard.press("z", [.command, .shift])
     XCTAssertEqual(try saved(), LexicalJSON.document([LexicalJSON.paragraph([LexicalJSON.text("Hello world")])]))
   }
 
   func testMovingByWordAndLine() throws {
     open(LexicalJSON.document([LexicalJSON.paragraph([LexicalJSON.text("one two three")])]))
 
-    press(.leftArrow, .option)
+    keyboard.press(.leftArrow, .option)
     editor.typeText("X")
-    press(.leftArrow, .command)
+    keyboard.press(.leftArrow, .command)
     editor.typeText("Y")
-    press(.rightArrow, .option)
+    keyboard.press(.rightArrow, .option)
     editor.typeText("Z")
-    press(.rightArrow, .command)
+    keyboard.press(.rightArrow, .command)
     editor.typeText("!")
 
     XCTAssertEqual(
@@ -131,9 +131,9 @@ class EditorUITests: XCTestCase {
         LexicalJSON.paragraph([LexicalJSON.text("1234")]), LexicalJSON.paragraph([LexicalJSON.text("5678")]),
       ]))
 
-    press(.upArrow)
+    keyboard.press(.upArrow)
     editor.typeText("X")
-    press(.downArrow)
+    keyboard.press(.downArrow)
     editor.typeText("Y")
 
     XCTAssertEqual(
@@ -146,8 +146,8 @@ class EditorUITests: XCTestCase {
   func testShiftExtendsTheSelection() throws {
     open(LexicalJSON.document([LexicalJSON.paragraph([LexicalJSON.text("Hello")])]))
 
-    press(.leftArrow, .shift)
-    press(.leftArrow, .shift)
+    keyboard.press(.leftArrow, .shift)
+    keyboard.press(.leftArrow, .shift)
     editor.typeText("p!")
 
     XCTAssertEqual(try saved(), LexicalJSON.document([LexicalJSON.paragraph([LexicalJSON.text("Help!")])]))
@@ -157,8 +157,8 @@ class EditorUITests: XCTestCase {
     open(LexicalJSON.document([LexicalJSON.paragraph([LexicalJSON.text("👨‍👩‍👧👍🏽")])]))
 
     editor.typeText("🇯🇵")
-    press(.leftArrow)
-    press(.leftArrow)
+    keyboard.press(.leftArrow)
+    keyboard.press(.leftArrow)
     editor.typeText("x")
     editor.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: 2))
 
@@ -168,10 +168,10 @@ class EditorUITests: XCTestCase {
   func testJoinedEmojiMoveRightAsOneCharacter() throws {
     open(LexicalJSON.document([LexicalJSON.paragraph([LexicalJSON.text("👨‍👩‍👧👍🏽🇯🇵")])]))
 
-    for _ in 0..<3 { press(.leftArrow) }
-    press(.rightArrow)
+    for _ in 0..<3 { keyboard.press(.leftArrow) }
+    keyboard.press(.rightArrow)
     editor.typeText("x")
-    press(.rightArrow)
+    keyboard.press(.rightArrow)
     editor.typeText("y")
 
     XCTAssertEqual(
@@ -201,7 +201,7 @@ class EditorUITests: XCTestCase {
     for script in CompositionScript.all {
       try XCTContext.runActivity(named: script.name) { _ in
         open(script.start)
-        for shortcut in script.shortcuts { press(shortcut.key, shortcut.modifiers) }
+        for shortcut in script.shortcuts { keyboard.press(shortcut.key, shortcut.modifiers) }
         XCTAssertTrue(app.keys["ー"].waitForExistence(timeout: 5), "The Japanese keyboard isn't up; scripts/test-ui.sh puts it first")
         for key in script.keys { app.keys[key].tap() }
         for candidate in script.candidates { tapCandidate(candidate) }
@@ -235,33 +235,9 @@ class EditorUITests: XCTestCase {
     editor = app.textViews["editor"]
     XCTAssertTrue(editor.waitForExistence(timeout: 10))
     editor.tap()
-    hasPressedAKey = false
-  }
-
-  /// Presses `key` on the hardware keyboard, the first time once the
-  /// keyboard is ready for it. Only then: once a hardware key is down, the
-  /// Japanese keyboard types a space as U+3000.
-  private func press(_ key: XCUIKeyboardKey, _ modifiers: XCUIElement.KeyModifierFlags = []) {
-    press(key.rawValue, modifiers)
-  }
-
-  private func press(_ key: String, _ modifiers: XCUIElement.KeyModifierFlags = []) {
-    if !hasPressedAKey { readyTheHardwareKeyboard() }
-    hasPressedAKey = true
-    editor.typeKey(key, modifierFlags: modifiers)
-  }
-
-  /// The simulator drops the first shortcut after the software keyboard
-  /// comes up, from a UITextView too, and now and then takes the modifiers
-  /// off the next one: Shift+Left arrives as Left. So a Shift goes first,
-  /// then Shift+F13, which does nothing with its modifier or without, and
-  /// the script waits for the harness to have been given it.
-  private func readyTheHardwareKeyboard() {
-    editor.typeKey(XCUIKeyboardKey.shift.rawValue, modifierFlags: [])
-    editor.typeKey(XCUIKeyboardKey.F13.rawValue, modifierFlags: .shift)
-    let given = XCTNSPredicateExpectation(
-      predicate: NSPredicate(format: "label != '0'"), object: app.staticTexts["hardware keys"])
-    XCTAssertEqual(XCTWaiter.wait(for: [given], timeout: 10), .completed, "The harness was never given Shift+F13")
+    // Readied only by the first key a script presses: once a hardware key is
+    // down, the Japanese keyboard types a space as U+3000.
+    keyboard = HardwareKeyboard(app, typingInto: editor)
   }
 
   /// Taps `candidate` in the keyboard's candidate bar, or in the full list

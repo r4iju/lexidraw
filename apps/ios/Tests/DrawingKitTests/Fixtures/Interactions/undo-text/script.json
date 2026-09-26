@@ -1,0 +1,30 @@
+{
+  "before": [],
+  "steps": [
+    {
+      "tool": "text"
+    },
+    {
+      "down": [
+        150,
+        200
+      ],
+      "pointer": "touch"
+    },
+    {
+      "up": [
+        150,
+        200
+      ]
+    },
+    {
+      "type": "Gone"
+    },
+    {
+      "press": "Escape"
+    },
+    {
+      "press": "undo"
+    }
+  ]
+}

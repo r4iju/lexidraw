@@ -41,14 +41,26 @@ extension FileRow {
   }
 }
 
+extension EnvironmentValues {
+  /// The signed-in session, for screens a list opens.
+  @Entry var session: Session?
+}
+
 /// Opens a folder in the browser, and a file where the app will open it.
 struct OpenLink<Label: View>: View {
   let file: any FileItem
   @ViewBuilder let label: Label
+  @Environment(\.session) private var session
 
   var body: some View {
     if file.kind == .folder {
       NavigationLink(value: Place.Folder(id: file.id, title: file.title)) { label }
+    } else if file.kind == .drawing, let session {
+      NavigationLink {
+        DrawingScreen(session: session, id: file.id, title: file.title)
+      } label: {
+        label
+      }
     } else {
       NavigationLink {
         NotYet(title: file.title, systemImage: file.kind.systemImage, feature: "Files open")

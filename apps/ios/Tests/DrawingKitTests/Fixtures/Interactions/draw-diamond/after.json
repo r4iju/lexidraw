@@ -1,0 +1,32 @@
+[
+  {
+    "id": "tKDumQuJ7AUD-zz5FrfR-",
+    "type": "diamond",
+    "x": 100,
+    "y": 120,
+    "width": 210,
+    "height": 120,
+    "angle": 0,
+    "strokeColor": "#1e1e1e",
+    "backgroundColor": "transparent",
+    "fillStyle": "solid",
+    "strokeWidth": 2,
+    "strokeStyle": "solid",
+    "roughness": 1,
+    "opacity": 100,
+    "groupIds": [],
+    "frameId": null,
+    "index": "a0",
+    "roundness": {
+      "type": 2
+    },
+    "seed": 1459719895,
+    "version": 5,
+    "versionNonce": 163625945,
+    "isDeleted": false,
+    "boundElements": null,
+    "updated": 1790435679889,
+    "link": null,
+    "locked": false
+  }
+]

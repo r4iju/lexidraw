@@ -16,6 +16,7 @@ import { useIsDarkTheme } from "~/components/theme/theme-provider";
 import { useOpenEntity, useOpenEntitySync } from "~/hooks/use-open-entity-sync";
 import { useSyncedExcalidraw } from "./use-synced-excalidraw";
 import { useFitOnOpen } from "./use-fit-on-open";
+import { useSceneFiles } from "./use-scene-files";
 import type { RouterOutputs } from "~/trpc/shared";
 
 type Props = {
@@ -37,6 +38,9 @@ const ExcalidrawViewWrapper: React.FC<Props> = ({
   const openDrawing = useOpenEntity(drawing, "drawing");
   useOpenEntitySync(openDrawing, { editor: synced.editor });
   const isDarkTheme = useIsDarkTheme();
+  const filesChanged = useSceneFiles(excalidrawApi, drawing.id, {
+    canUpload: false,
+  });
 
   const options = {
     excalidrawAPI: (api) => setExcalidrawAPI(api),
@@ -64,8 +68,9 @@ const ExcalidrawViewWrapper: React.FC<Props> = ({
       },
     },
     // Keeps the scene the server stores in step with what shows.
-    onChange: (elements, state) => {
+    onChange: (elements, state, files) => {
       synced.needsSave(elements, state);
+      filesChanged(elements, files);
     },
     // isCollaborating: true,
   } satisfies ExcalidrawProps;

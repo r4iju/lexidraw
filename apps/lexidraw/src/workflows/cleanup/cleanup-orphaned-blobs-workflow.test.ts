@@ -50,6 +50,26 @@ test("the cleanup deletes only blobs nothing refers to", async () => {
     publicAccess: PublicAccess.PRIVATE,
     screenShotLight: `${HOST}/thumbnails/${DOC}/light-1.png`,
   });
+  const image = (fileId: string, isDeleted: boolean) => ({
+    type: "image",
+    id: `cleanup-${fileId}`,
+    fileId,
+    isDeleted,
+  });
+  await db.insert(schema.entities).values({
+    id: "cleanup_drawing",
+    title: "Drawing",
+    // A deleted element stays in the saved drawing, where undo finds it.
+    elements: JSON.stringify([
+      image("cleanup-file", false),
+      image("cleanup-undone", true),
+    ]),
+    entityType: "drawing",
+    userId: "cleanup_user",
+    publicAccess: PublicAccess.PRIVATE,
+    // In the trash, from where it can come back with its images.
+    deletedAt: new Date(),
+  });
   await db.insert(schema.uploadedImages).values({
     id: "cleanup_img",
     userId: "cleanup_user",
@@ -80,12 +100,16 @@ test("the cleanup deletes only blobs nothing refers to", async () => {
     // manifests rather than rows, so the cleanup cannot tell they are unused.
     "tts/chunks/cleanup-chunk.mp3",
     "backups/turso/lexidraw/2026/09/01/00-00-00-000.sqlite.gz",
+    "drawings/cleanup_drawing/files/cleanup-file.png",
+    "drawings/cleanup_drawing/files/cleanup-undone.png",
   ];
   const orphans = [
     `thumbnails/${DOC}/light-0.png`,
     "cleanup_gone-picture.png",
     "tts/doc/cleanup_gone/manifest.json",
     "tts/article/cleanup_gone/manifest.json",
+    "drawings/cleanup_gone/files/cleanup-file.png",
+    "drawings/cleanup_drawing/files/cleanup-unused.png",
   ];
   for (const pathname of [...live, ...orphans]) {
     stored.set(pathname, LONG_AGO);
@@ -93,10 +117,13 @@ test("the cleanup deletes only blobs nothing refers to", async () => {
   // A new thumbnail is stored before its row points at it.
   const unrecorded = `thumbnails/${DOC}/light-2.png`;
   stored.set(unrecorded, new Date());
+  // A file is stored before the element that shows it is saved.
+  const unsaved = "drawings/cleanup_drawing/files/cleanup-unsaved.png";
+  stored.set(unsaved, new Date(Date.now() - 2 * 60 * 60 * 1000));
 
   await cleanupOrphanedBlobsWorkflow();
 
   expect([...stored.keys()].toSorted()).toEqual(
-    [...live, unrecorded].toSorted(),
+    [...live, unrecorded, unsaved].toSorted(),
   );
 });

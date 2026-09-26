@@ -1,0 +1,49 @@
+[
+  {
+    "id": "0lpATM3B3_mflfn2w_VTc",
+    "type": "line",
+    "x": 140,
+    "y": 160,
+    "width": 240,
+    "height": 40,
+    "angle": 0,
+    "strokeColor": "#1e1e1e",
+    "backgroundColor": "transparent",
+    "fillStyle": "solid",
+    "strokeWidth": 2,
+    "strokeStyle": "solid",
+    "roughness": 1,
+    "opacity": 100,
+    "groupIds": [],
+    "frameId": null,
+    "index": "a0",
+    "roundness": null,
+    "seed": 9,
+    "version": 4,
+    "versionNonce": 1031561234,
+    "isDeleted": false,
+    "boundElements": [],
+    "updated": 1790435690471,
+    "link": null,
+    "locked": false,
+    "points": [
+      [
+        0,
+        0
+      ],
+      [
+        120,
+        40
+      ],
+      [
+        240,
+        0
+      ]
+    ],
+    "lastCommittedPoint": null,
+    "startBinding": null,
+    "endBinding": null,
+    "startArrowhead": null,
+    "endArrowhead": null
+  }
+]

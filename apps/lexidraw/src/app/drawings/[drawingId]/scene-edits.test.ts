@@ -2,7 +2,12 @@
 import { describe, expect, test } from "bun:test";
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import { JSDOM } from "jsdom";
-import { SceneEdits, sceneKey, watchPageInput } from "./scene-edits";
+import {
+  SceneEdits,
+  sceneKey,
+  sceneToSave,
+  watchPageInput,
+} from "./scene-edits";
 
 /** A stored rectangle, as far as a scene key reads it. */
 const box = (version: number, more: Partial<ExcalidrawElement> = {}) =>
@@ -137,4 +142,17 @@ describe("what the page tells a drawing about the user's input", () => {
     expect(edits.changed("r@2")).toBe(false);
     stop();
   });
+});
+
+test("a save writes the deleted elements too, as autosave does", () => {
+  const live = box(2);
+  const deleted = box(3, { id: "image", isDeleted: true });
+  const saved = sceneToSave({
+    getSceneElements: () => [live],
+    getSceneElementsIncludingDeleted: () => [live, deleted],
+    getAppState: () => view,
+  });
+  // Undoing the deletion then finds the image's file still stored.
+  expect(saved.elements).toEqual([live, deleted]);
+  expect(saved.appState).toBe(view);
 });

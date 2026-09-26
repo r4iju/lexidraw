@@ -1,0 +1,79 @@
+{
+  "before": [
+    {
+      "id": "picture",
+      "type": "image",
+      "x": 200,
+      "y": 150,
+      "width": 160,
+      "height": 100,
+      "angle": 0,
+      "strokeColor": "transparent",
+      "backgroundColor": "transparent",
+      "fillStyle": "solid",
+      "strokeWidth": 2,
+      "strokeStyle": "solid",
+      "roughness": 1,
+      "opacity": 100,
+      "groupIds": [],
+      "frameId": null,
+      "index": "a0",
+      "roundness": null,
+      "seed": 7,
+      "version": 2,
+      "versionNonce": 1,
+      "isDeleted": false,
+      "boundElements": [],
+      "updated": 1,
+      "link": null,
+      "locked": false,
+      "status": "saved",
+      "fileId": "photo",
+      "scale": [
+        1,
+        1
+      ],
+      "crop": null
+    }
+  ],
+  "steps": [
+    {
+      "down": [
+        280,
+        200
+      ],
+      "pointer": "touch"
+    },
+    {
+      "up": [
+        280,
+        200
+      ]
+    },
+    {
+      "down": [
+        370,
+        200
+      ],
+      "pointer": "touch"
+    },
+    {
+      "move": [
+        340,
+        210
+      ]
+    },
+    {
+      "move": [
+        300,
+        220
+      ]
+    },
+    {
+      "up": [
+        300,
+        220
+      ]
+    }
+  ]
+}

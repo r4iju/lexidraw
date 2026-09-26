@@ -4,6 +4,7 @@ import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { inflateSync } from "node:zlib";
+import { Resvg } from "@resvg/resvg-js";
 
 import { EXCALIDRAW_FONT_FAMILIES } from "./fonts.generated";
 
@@ -61,6 +62,7 @@ function spawn(
   file: string,
   format: string,
   scale?: number,
+  files?: unknown,
 ) {
   return Bun.spawnSync({
     cmd: [
@@ -69,7 +71,10 @@ function spawn(
       JSON.stringify(elements),
       file,
       format,
-      ...(scale === undefined ? [] : [String(scale)]),
+      ...(scale === undefined && files === undefined
+        ? []
+        : [String(scale ?? 1)]),
+      ...(files === undefined ? [] : [JSON.stringify(files)]),
     ],
     stdout: "pipe",
     stderr: "pipe",
@@ -79,13 +84,17 @@ function spawn(
 function renderElements(
   elements: unknown,
   format: string,
-  { scale, name }: { scale?: number; name?: string } = {},
+  {
+    scale,
+    name,
+    files,
+  }: { scale?: number; name?: string; files?: unknown } = {},
 ): Rendered {
   const file = join(
     directory,
     `${name ?? `${format}-${scale ?? 1}`}.${format}`,
   );
-  const result = spawn(elements, file, format, scale);
+  const result = spawn(elements, file, format, scale, files);
   if (result.exitCode !== 0) {
     throw new Error(`rendering failed: ${result.stderr}`);
   }
@@ -315,6 +324,51 @@ describe("font families", () => {
     // drawing uses, so a viewer with the real font installed picks it up.
     expect(svg).toContain('font-family="Cascadia,');
     expect(svg).not.toContain("Cascadia Code");
+  });
+});
+
+describe("images", () => {
+  const RED = new Resvg(
+    '<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40"><rect width="40" height="40" fill="#ff0000"/></svg>',
+  )
+    .render()
+    .asPng();
+  const dataURL = `data:image/png;base64,${Buffer.from(RED).toString("base64")}`;
+  const picture = {
+    type: "image",
+    id: "picture",
+    x: 0,
+    y: 0,
+    width: 100,
+    height: 100,
+    fileId: "red",
+    status: "saved",
+    scale: [1, 1],
+    crop: null,
+    version: 1,
+    versionNonce: 1,
+    seed: 1,
+  };
+  const files = {
+    red: { id: "red", mimeType: "image/png", dataURL, created: 1 },
+  };
+
+  it("draws a stored image where its element is", async () => {
+    const rendered = renderElements([picture], "png", {
+      name: "image",
+      files,
+    });
+    const image = decode(await Bun.file(rendered.file).bytes());
+    // The middle of the element, past the export padding.
+    expect(pixel(image, 60, 60)).toEqual([255, 0, 0]);
+  });
+
+  it("carries the image in the SVG", async () => {
+    const rendered = renderElements([picture], "svg", {
+      name: "image-svg",
+      files,
+    });
+    expect(await Bun.file(rendered.file).text()).toContain(dataURL);
   });
 });
 

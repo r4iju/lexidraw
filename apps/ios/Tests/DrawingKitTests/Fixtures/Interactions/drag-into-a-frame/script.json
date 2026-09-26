@@ -1,0 +1,88 @@
+{
+  "before": [
+    {
+      "id": "frame",
+      "type": "frame",
+      "x": 300,
+      "y": 100,
+      "width": 400,
+      "height": 300,
+      "angle": 0,
+      "strokeColor": "#1e1e1e",
+      "backgroundColor": "transparent",
+      "fillStyle": "solid",
+      "strokeWidth": 2,
+      "strokeStyle": "solid",
+      "roughness": 1,
+      "opacity": 100,
+      "groupIds": [],
+      "frameId": null,
+      "index": "a0",
+      "roundness": null,
+      "seed": 1681207443,
+      "version": 2,
+      "versionNonce": 1,
+      "isDeleted": false,
+      "boundElements": [],
+      "updated": 1,
+      "link": null,
+      "locked": false,
+      "name": null
+    },
+    {
+      "id": "loose",
+      "type": "rectangle",
+      "x": 80,
+      "y": 150,
+      "width": 120,
+      "height": 80,
+      "angle": 0,
+      "strokeColor": "#1e1e1e",
+      "backgroundColor": "transparent",
+      "fillStyle": "solid",
+      "strokeWidth": 2,
+      "strokeStyle": "solid",
+      "roughness": 1,
+      "opacity": 100,
+      "groupIds": [],
+      "frameId": null,
+      "index": "a1",
+      "roundness": null,
+      "seed": 22,
+      "version": 2,
+      "versionNonce": 1,
+      "isDeleted": false,
+      "boundElements": [],
+      "updated": 1,
+      "link": null,
+      "locked": false
+    }
+  ],
+  "steps": [
+    {
+      "down": [
+        80,
+        190
+      ],
+      "pointer": "touch"
+    },
+    {
+      "move": [
+        240,
+        220
+      ]
+    },
+    {
+      "move": [
+        380,
+        250
+      ]
+    },
+    {
+      "up": [
+        380,
+        250
+      ]
+    }
+  ]
+}

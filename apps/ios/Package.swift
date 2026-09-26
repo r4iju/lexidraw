@@ -11,6 +11,7 @@ let package = Package(
     .library(name: "LexicalFuzz", targets: ["LexicalFuzz"]),
     .library(name: "TextKitEditor", targets: ["TextKitEditor"]),
     .library(name: "LexidrawKit", targets: ["LexidrawKit"]),
+    .library(name: "DrawingKit", targets: ["DrawingKit"]),
   ],
   dependencies: [
     .package(url: "https://github.com/apple/swift-collections", from: "1.1.0"),
@@ -21,9 +22,10 @@ let package = Package(
   ],
   targets: [
     .target(
-      name: "EditorModelInterface",
+      name: "LexidrawJSON",
       dependencies: [.product(name: "OrderedCollections", package: "swift-collections")]
     ),
+    .target(name: "EditorModelInterface", dependencies: ["LexidrawJSON"]),
     .target(
       name: "LexicalSwift",
       dependencies: [
@@ -47,6 +49,7 @@ let package = Package(
     .target(
       name: "LexidrawKit",
       dependencies: [
+        "LexidrawJSON",
         .product(name: "HTTPTypes", package: "swift-http-types"),
         .product(name: "OpenAPIRuntime", package: "swift-openapi-runtime"),
         .product(name: "OpenAPIURLSession", package: "swift-openapi-urlsession"),
@@ -60,6 +63,16 @@ let package = Package(
         .product(name: "HTTPTypes", package: "swift-http-types"),
         .product(name: "OpenAPIRuntime", package: "swift-openapi-runtime"),
       ],
+      resources: [.copy("Fixtures")]
+    ),
+    .target(
+      name: "DrawingKit",
+      dependencies: ["LexidrawJSON"],
+      resources: [.copy("Fonts")]
+    ),
+    .testTarget(
+      name: "DrawingKitTests",
+      dependencies: ["DrawingKit"],
       resources: [.copy("Fixtures")]
     ),
   ]

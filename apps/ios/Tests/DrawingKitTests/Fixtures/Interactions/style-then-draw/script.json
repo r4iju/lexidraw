@@ -1,0 +1,57 @@
+{
+  "before": [],
+  "steps": [
+    {
+      "tool": "ellipse"
+    },
+    {
+      "style": "strokeColor",
+      "value": "#1971c2"
+    },
+    {
+      "style": "backgroundColor",
+      "value": "#b2f2bb"
+    },
+    {
+      "style": "fillStyle",
+      "value": "hachure"
+    },
+    {
+      "style": "strokeWidth",
+      "value": 1
+    },
+    {
+      "style": "strokeStyle",
+      "value": "dotted"
+    },
+    {
+      "style": "roughness",
+      "value": 2
+    },
+    {
+      "down": [
+        100,
+        120
+      ],
+      "pointer": "touch"
+    },
+    {
+      "move": [
+        200,
+        180
+      ]
+    },
+    {
+      "move": [
+        300,
+        240
+      ]
+    },
+    {
+      "up": [
+        300,
+        240
+      ]
+    }
+  ]
+}

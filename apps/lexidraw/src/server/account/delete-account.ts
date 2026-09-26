@@ -12,6 +12,7 @@ import {
 import env from "@packages/env";
 import { del, list } from "@vercel/blob";
 import { revalidateEntities } from "~/server/api/entity-cache";
+import { drawingFilesPrefix } from "~/server/drawings/files";
 import { blobErrorCode, isThumbnailOf } from "~/server/entities/thumbnail";
 
 type Db = typeof drizzle;
@@ -56,6 +57,7 @@ export async function deleteAccount(db: Db, userId: string): Promise<void> {
     db
       .select({
         id: schema.entities.id,
+        entityType: schema.entities.entityType,
         parentId: schema.entities.parentId,
         light: schema.entities.screenShotLight,
         dark: schema.entities.screenShotDark,
@@ -138,9 +140,17 @@ export async function deleteAccount(db: Db, userId: string): Promise<void> {
       ...images.map((image) => image.pathname),
       ...videos.map((video) => video.pathname),
     ],
-    // Only a document's or an article's own audio: the chunks under
-    // `tts/chunks/` are shared by every document that reads the same text.
-    audio.flatMap((job) => [`tts/doc/${job.id}/`, `tts/article/${job.id}/`]),
+    [
+      ...entities
+        .filter((entity) => entity.entityType === "drawing")
+        .map((drawing) => drawingFilesPrefix(drawing.id)),
+      // Only a document's or an article's own audio: the chunks under
+      // `tts/chunks/` are shared by every document that reads the same text.
+      ...audio.flatMap((job) => [
+        `tts/doc/${job.id}/`,
+        `tts/article/${job.id}/`,
+      ]),
+    ],
   );
 }
 

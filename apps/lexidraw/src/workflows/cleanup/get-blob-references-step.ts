@@ -8,6 +8,12 @@ export type BlobReferences = {
   pathnames: string[];
   /** Jobs whose audio lives under `tts/doc/<id>/` or `tts/article/<id>/`. */
   ttsJobIds: string[];
+  /**
+   * Every drawing there is, trashed ones too, which come back with their
+   * images when restored, and the files under `drawings/<id>/files/` that its
+   * saved image elements name, deleted elements included.
+   */
+  drawingFiles: Record<string, string[]>;
   /** When they were read, in epoch milliseconds. */
   readAt: number;
 };
@@ -25,7 +31,7 @@ export async function getBlobReferencesStep(): Promise<BlobReferences> {
   "use step";
 
   const readAt = Date.now();
-  const [thumbnails, images, videos, jobs] = await Promise.all([
+  const [thumbnails, images, videos, jobs, drawings] = await Promise.all([
     drizzle
       .select({
         light: schema.entities.screenShotLight,
@@ -48,6 +54,17 @@ export async function getBlobReferencesStep(): Promise<BlobReferences> {
       })
       .from(schema.uploadedVideos),
     drizzle.select({ id: schema.ttsJobs.id }).from(schema.ttsJobs),
+    drizzle.all<{ id: string; fileId: unknown }>(sql`
+      SELECT ${schema.entities.id} AS id,
+        json_extract(element.value, '$.fileId') AS fileId
+      FROM ${schema.entities}
+      LEFT JOIN json_each(
+        CASE WHEN json_valid(${schema.entities.elements})
+          THEN ${schema.entities.elements} ELSE '[]' END
+      ) AS element
+        ON json_extract(element.value, '$.type') = 'image'
+      WHERE ${schema.entities.entityType} = 'drawing'
+    `),
   ]);
 
   const pathnames = new Set<string>();
@@ -62,9 +79,17 @@ export async function getBlobReferencesStep(): Promise<BlobReferences> {
     if (pathname) pathnames.add(pathname);
   }
 
+  const drawingFiles: Record<string, string[]> = {};
+  for (const { id, fileId } of drawings) {
+    const files = drawingFiles[id] ?? [];
+    if (typeof fileId === "string") files.push(fileId);
+    drawingFiles[id] = files;
+  }
+
   return {
     pathnames: [...pathnames],
     ttsJobIds: jobs.map((job) => job.id),
+    drawingFiles,
     readAt,
   };
 }

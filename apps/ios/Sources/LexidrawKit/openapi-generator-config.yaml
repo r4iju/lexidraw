@@ -9,7 +9,11 @@ filter:
     - entities-search
     - entities-sharedWithMe
     - entities-trash
+    - entities-load
+    - entities-save
     - entities-getMetadata
+    - drawings-files
+    - drawings-putFile
     - entities-getUserTags
     - entities-create
     - entities-update

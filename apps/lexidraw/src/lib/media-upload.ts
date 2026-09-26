@@ -1,5 +1,5 @@
 import { toast } from "sonner";
-import { IMAGE, type MediaKind } from "./media-kinds";
+import { IMAGE, IMAGE_EXTENSIONS, type MediaKind } from "./media-kinds";
 
 /**
  * Uploads a file and answers its address, or null once the reason it could
@@ -115,14 +115,6 @@ export async function insertUploads(
         : `Inserted ${inserted} images`,
   );
 }
-
-const IMAGE_EXTENSIONS: Record<(typeof IMAGE.types)[number], string> = {
-  "image/png": "png",
-  "image/jpeg": "jpg",
-  "image/svg+xml": "svg",
-  "image/webp": "webp",
-  "image/avif": "avif",
-};
 
 /**
  * Uploads an image a model made from `prompt`, named after it with the

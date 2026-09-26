@@ -1,0 +1,92 @@
+{
+  "before": [
+    {
+      "id": "box",
+      "type": "rectangle",
+      "x": 200,
+      "y": 150,
+      "width": 160,
+      "height": 100,
+      "angle": 0,
+      "strokeColor": "#1e1e1e",
+      "backgroundColor": "#a5d8ff",
+      "fillStyle": "solid",
+      "strokeWidth": 2,
+      "strokeStyle": "solid",
+      "roughness": 1,
+      "opacity": 100,
+      "groupIds": [],
+      "frameId": null,
+      "index": "a0",
+      "roundness": null,
+      "seed": 7,
+      "version": 2,
+      "versionNonce": 1,
+      "isDeleted": false,
+      "boundElements": [
+        {
+          "type": "text",
+          "id": "0lpATM3B3_mflfn2w_VTc"
+        }
+      ],
+      "updated": 1,
+      "link": null,
+      "locked": false
+    },
+    {
+      "id": "0lpATM3B3_mflfn2w_VTc",
+      "type": "text",
+      "x": 228.54002380371094,
+      "y": 175,
+      "width": 102.91995239257812,
+      "height": 50,
+      "angle": 0,
+      "strokeColor": "#1e1e1e",
+      "backgroundColor": "transparent",
+      "fillStyle": "solid",
+      "strokeWidth": 2,
+      "strokeStyle": "solid",
+      "roughness": 1,
+      "opacity": 100,
+      "groupIds": [],
+      "frameId": null,
+      "index": "a1",
+      "roundness": null,
+      "seed": 1,
+      "version": 3,
+      "versionNonce": 1,
+      "isDeleted": false,
+      "boundElements": [],
+      "updated": 1,
+      "link": null,
+      "locked": false,
+      "text": "Hello there\nfriend",
+      "fontSize": 20,
+      "fontFamily": 5,
+      "textAlign": "center",
+      "verticalAlign": "middle",
+      "containerId": "box",
+      "originalText": "Hello there friend",
+      "autoResize": true,
+      "lineHeight": 1.25
+    }
+  ],
+  "steps": [
+    {
+      "down": [
+        230,
+        170
+      ],
+      "pointer": "touch"
+    },
+    {
+      "up": [
+        230,
+        170
+      ]
+    },
+    {
+      "press": "Delete"
+    }
+  ]
+}

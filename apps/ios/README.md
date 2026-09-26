@@ -51,6 +51,21 @@ sides: the UI script writes the calls, then `recording/composition.ts` makes
 them through Chrome's IME input on a local dev stack (`LEXIDRAW_DEV_URL`)
 with the dev account and adds what the web saved.
 
+## Drawing harness and UI tests
+
+The **DrawingHarness** scheme is an app with the drawing editor on a bundled
+drawing, `DrawingHarness/drawing.json`, and no server: it answers the
+editor's calls itself and keeps saves in memory. `bun run test:drawing-ui`
+runs its UI tests, `DrawingUITests`, on a simulator it makes and deletes
+after (`scripts/test-drawing-ui.sh`). They press keys on the simulator's
+hardware keyboard, and once one is pressed no software keyboard comes up
+until the next boot, so the tests that check the software keyboard run
+first, alone, on the fresh boot. Both harnesses show how many hardware keys
+reached them unhandled, and both UI test targets press keys through
+`UITestSupport/HardwareKeyboard.swift`, which waits for that count before
+the first real key. `scripts/simulator.sh` makes the simulators for both
+scripts.
+
 ## TestFlight
 
 The **iOS TestFlight** workflow runs by hand on `master`. It tests, archives,
@@ -78,8 +93,8 @@ hand:
 - The TestFlight group is set up by hand, as above.
 - A new file asks for its name straight away, as a new folder in Files does.
   The web opens the new file instead, which the app cannot do yet.
-- The app doesn't save files yet, so the save messages that name the file and
-  say what to do next belong to #130, which brings editing.
+- Documents aren't saved yet, so the save messages that name the file and say
+  what to do next belong to #130, which brings document editing.
 - The share extension signs in with the app's token through a Keychain
   access group named for the app's own App ID, the group the token was
   already kept in. So it needs no app group and no capability in the portal,
@@ -105,3 +120,68 @@ hand:
 - A line break is U+2028 in the editor's text, which breaks the line without
   ending the paragraph as TextKit sees it.
 - Copy, cut and paste come with #118, which owns the clipboard.
+- Drawings are drawn by `DrawingKit`, a port of Excalidraw's renderer with
+  its Rough.js and perfect-freehand, and checked against what web Excalidraw
+  draws: `bun run record:drawings` exports the scenes in
+  `reference/drawings/scenes.ts` with Playwright, and the tests compare every
+  canvas call and the pixels, in both themes. A test drawn with other random numbers must fail the pixel
+  comparison, which shows its tolerance still sees a moved stroke.
+- An embedded web page shows as its outline, without the name the web writes
+  in it.
+- CJK text draws in the system's font. The web's Xiaolai is too large to
+  bundle, as it is for the server's thumbnails.
+- Drawings open for editing when the user may edit them, and read-only
+  otherwise. `DrawingEditor` is a port of Excalidraw 0.18.1's editor, gesture
+  by gesture. `bun run record:drawings` also plays the scripts in
+  `reference/drawings/interactions.ts` in web Excalidraw, with touch as on an
+  iPad, and the tests play them here and compare the element JSON, leaving
+  out ids, seeds, nonces and times.
+- Text is measured as Chrome measures it, to the bit, since a label wraps
+  where its width says and a width off by a hair wraps a line differently.
+- Two fingers pan and pinch, and a second finger takes back what the first
+  had begun. With Only Draw with Apple Pencil on, a finger moves the drawing
+  when a drawing tool is chosen. The web instead turns on its pen mode once
+  it sees a pen; the app follows the system setting.
+- Text is written in a text box over the canvas, as the web writes it in a
+  textarea, so while it is being written its glyphs are the system's layout
+  of the font.
+- Edits save once they pause for a second, each against the revision the last
+  save made. A save refused because someone else saved in between asks
+  whether to keep these changes or take theirs.
+- An element is in the frame it is begun in, and a placed image in the one
+  the middle of the screen is in, as a dropped file is in the one it is
+  dropped on. A shape let go over a frame joins it, and one let go outside
+  leaves it, even while it still overlaps, as on the web. A frame moves with
+  what it holds, keeps what its new box holds once resized, and grouping
+  takes shapes out of their frames unless all are in the same one.
+- An arrow bound to a shape follows it, and an elbow arrow is routed around
+  the shapes again as the web routes it, also when a shape it is bound to is
+  deleted; the app draws no elbow arrows of its own.
+- Entering or leaving a group to edit one of its elements is a step to
+  undo, as on the web.
+- The style panel offers the web's first five colours of each kind, and the
+  system's colour picker for any other. Its sections and the toolbar's
+  buttons are the editor's own, so the interaction tests press what a user
+  presses.
+- A picked image is prepared as the web prepares a dropped file: shrunk to
+  1440 pixels a side, and named by the SHA-1 of the bytes stored, the only
+  name the server takes. A photo in a kind the server doesn't store, such as
+  HEIC, becomes a JPEG, or a PNG when it has transparency. It is placed in
+  the middle of the screen and uploaded straight away; an upload that fails
+  is tried again after the next edit, and one the server refuses, for what
+  it is or because the drawing is full, is marked as the web marks it.
+- The file types a drawing stores and the largest file it stores are
+  generated from the server's by `bun run codegen`, into
+  `Sources/LexidrawJSON/DrawingFiles.swift`.
+- An SVG image is drawn by WebKit onto a canvas, as the web draws it, since
+  ImageIO doesn't read SVG. An SVG file placed from Files is normalized as
+  the web normalizes one, and written out as Chrome writes it, so it is
+  stored as the same bytes under the same id.
+- A drawing opens fitted to the screen, where the web opens it at 100%.
+- The style panel has only the sections #138 asks for: stroke, fill,
+  colour, width and roughness.
+- A drawing deleted in the app goes to the Trash, which offers only Restore;
+  neither the app nor the web deletes one permanently.
+- The tools keep the bottom bar to themselves, and what acts on a selection
+  joins the top bar, which on a phone folds what doesn't fit into More. The
+  web's phone layout likewise keeps the tools in a bar of their own.

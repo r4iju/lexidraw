@@ -1,0 +1,37 @@
+[
+  {
+    "id": "f2r9bBJ4hc4vNqeo6BvjK",
+    "type": "image",
+    "x": 340,
+    "y": 260,
+    "width": 120,
+    "height": 80,
+    "angle": 0,
+    "strokeColor": "transparent",
+    "backgroundColor": "transparent",
+    "fillStyle": "solid",
+    "strokeWidth": 2,
+    "strokeStyle": "solid",
+    "roughness": 1,
+    "opacity": 100,
+    "groupIds": [],
+    "frameId": null,
+    "index": "a0",
+    "roundness": null,
+    "seed": 786518797,
+    "version": 5,
+    "versionNonce": 1005818659,
+    "isDeleted": false,
+    "boundElements": null,
+    "updated": 1790442074369,
+    "link": null,
+    "locked": false,
+    "status": "pending",
+    "fileId": "90d11725bdad42d592e35b7e1c2defd5be096e9c",
+    "scale": [
+      1,
+      1
+    ],
+    "crop": null
+  }
+]

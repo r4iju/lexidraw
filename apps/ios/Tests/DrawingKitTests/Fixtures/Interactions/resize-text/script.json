@@ -1,0 +1,81 @@
+{
+  "before": [
+    {
+      "id": "0lpATM3B3_mflfn2w_VTc",
+      "type": "text",
+      "x": 200,
+      "y": 150,
+      "width": 81.27993774414062,
+      "height": 25,
+      "angle": 0,
+      "strokeColor": "#1e1e1e",
+      "backgroundColor": "transparent",
+      "fillStyle": "solid",
+      "strokeWidth": 2,
+      "strokeStyle": "solid",
+      "roughness": 1,
+      "opacity": 100,
+      "groupIds": [],
+      "frameId": null,
+      "index": "a0",
+      "roundness": null,
+      "seed": 1,
+      "version": 2,
+      "versionNonce": 1,
+      "isDeleted": false,
+      "boundElements": [],
+      "updated": 1,
+      "link": null,
+      "locked": false,
+      "text": "Scale me",
+      "fontSize": 20,
+      "fontFamily": 5,
+      "textAlign": "left",
+      "verticalAlign": "top",
+      "containerId": null,
+      "originalText": "Scale me",
+      "autoResize": true,
+      "lineHeight": 1.25
+    }
+  ],
+  "steps": [
+    {
+      "down": [
+        230,
+        160
+      ],
+      "pointer": "touch"
+    },
+    {
+      "up": [
+        230,
+        160
+      ]
+    },
+    {
+      "down": [
+        290,
+        180
+      ],
+      "pointer": "touch"
+    },
+    {
+      "move": [
+        320,
+        190
+      ]
+    },
+    {
+      "move": [
+        350,
+        210
+      ]
+    },
+    {
+      "up": [
+        350,
+        210
+      ]
+    }
+  ]
+}

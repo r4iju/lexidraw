@@ -1,0 +1,231 @@
+{
+  "before": [
+    {
+      "id": "frame",
+      "type": "frame",
+      "x": 300,
+      "y": 100,
+      "width": 400,
+      "height": 300,
+      "angle": 0,
+      "strokeColor": "#1e1e1e",
+      "backgroundColor": "transparent",
+      "fillStyle": "solid",
+      "strokeWidth": 2,
+      "strokeStyle": "solid",
+      "roughness": 1,
+      "opacity": 100,
+      "groupIds": [],
+      "frameId": null,
+      "index": "a0",
+      "roundness": null,
+      "seed": 263196094,
+      "version": 2,
+      "versionNonce": 1,
+      "isDeleted": false,
+      "boundElements": [],
+      "updated": 1,
+      "link": null,
+      "locked": false,
+      "name": null
+    }
+  ],
+  "steps": [
+    {
+      "tool": "rectangle"
+    },
+    {
+      "down": [
+        340,
+        140
+      ],
+      "pointer": "touch"
+    },
+    {
+      "move": [
+        400,
+        180
+      ]
+    },
+    {
+      "move": [
+        440,
+        220
+      ]
+    },
+    {
+      "up": [
+        440,
+        220
+      ]
+    },
+    {
+      "tool": "ellipse"
+    },
+    {
+      "down": [
+        620,
+        330
+      ],
+      "pointer": "touch"
+    },
+    {
+      "move": [
+        700,
+        400
+      ]
+    },
+    {
+      "move": [
+        760,
+        450
+      ]
+    },
+    {
+      "up": [
+        760,
+        450
+      ]
+    },
+    {
+      "tool": "rectangle"
+    },
+    {
+      "down": [
+        80,
+        440
+      ],
+      "pointer": "touch"
+    },
+    {
+      "move": [
+        130,
+        480
+      ]
+    },
+    {
+      "move": [
+        180,
+        520
+      ]
+    },
+    {
+      "up": [
+        180,
+        520
+      ]
+    },
+    {
+      "tool": "line"
+    },
+    {
+      "down": [
+        350,
+        300
+      ],
+      "pointer": "touch"
+    },
+    {
+      "move": [
+        400,
+        330
+      ]
+    },
+    {
+      "move": [
+        450,
+        360
+      ]
+    },
+    {
+      "up": [
+        450,
+        360
+      ]
+    },
+    {
+      "tool": "arrow"
+    },
+    {
+      "down": [
+        120,
+        300
+      ],
+      "pointer": "touch"
+    },
+    {
+      "move": [
+        250,
+        290
+      ]
+    },
+    {
+      "move": [
+        420,
+        270
+      ]
+    },
+    {
+      "up": [
+        420,
+        270
+      ]
+    },
+    {
+      "tool": "freedraw"
+    },
+    {
+      "down": [
+        500,
+        250
+      ],
+      "pointer": "touch"
+    },
+    {
+      "move": [
+        530,
+        270
+      ]
+    },
+    {
+      "move": [
+        560,
+        260
+      ]
+    },
+    {
+      "move": [
+        590,
+        290
+      ]
+    },
+    {
+      "up": [
+        590,
+        290
+      ]
+    },
+    {
+      "tool": "text"
+    },
+    {
+      "down": [
+        360,
+        360
+      ],
+      "pointer": "touch"
+    },
+    {
+      "up": [
+        360,
+        360
+      ]
+    },
+    {
+      "type": "Framed"
+    },
+    {
+      "press": "Escape"
+    }
+  ]
+}

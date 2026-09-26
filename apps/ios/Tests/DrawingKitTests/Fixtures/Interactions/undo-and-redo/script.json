@@ -1,0 +1,58 @@
+{
+  "before": [],
+  "steps": [
+    {
+      "tool": "rectangle"
+    },
+    {
+      "down": [
+        100,
+        100
+      ],
+      "pointer": "touch"
+    },
+    {
+      "move": [
+        200,
+        180
+      ]
+    },
+    {
+      "up": [
+        200,
+        180
+      ]
+    },
+    {
+      "tool": "ellipse"
+    },
+    {
+      "down": [
+        300,
+        100
+      ],
+      "pointer": "touch"
+    },
+    {
+      "move": [
+        400,
+        180
+      ]
+    },
+    {
+      "up": [
+        400,
+        180
+      ]
+    },
+    {
+      "press": "undo"
+    },
+    {
+      "press": "undo"
+    },
+    {
+      "press": "redo"
+    }
+  ]
+}

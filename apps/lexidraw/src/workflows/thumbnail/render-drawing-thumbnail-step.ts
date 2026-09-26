@@ -1,24 +1,26 @@
 import "server-only";
 
+import { loadDrawingFiles } from "~/server/drawings/files";
 import { renderDrawingThumbnail } from "~/server/drawings/render";
 import type { CanonicalElement } from "~/server/drawings/skeleton-schema";
 
 /**
- * A drawing's thumbnail in one theme, drawn from its stored scene by the same
- * export the render endpoint uses, as a PNG.
+ * A drawing's thumbnails, light and dark, drawn from its stored scene by the
+ * same export the render endpoint uses, as PNGs.
  */
-export async function renderDrawingThumbnailStep(
+export async function renderDrawingThumbnailsStep(
+  drawingId: string,
   elements: string,
   appState: string | null,
-  theme: "light" | "dark",
-): Promise<Uint8Array> {
+): Promise<[light: Uint8Array, dark: Uint8Array]> {
   "use step";
 
-  const { png } = await renderDrawingThumbnail(parseScene(elements), {
-    theme,
-    background: backgroundOf(appState),
-  });
-  return png;
+  const scene = parseScene(elements);
+  const files = await loadDrawingFiles(drawingId, scene);
+  const background = backgroundOf(appState);
+  const render = async (theme: "light" | "dark") =>
+    (await renderDrawingThumbnail(scene, { theme, background, files })).png;
+  return Promise.all([render("light"), render("dark")]);
 }
 
 function parseScene(elements: string): CanonicalElement[] {
