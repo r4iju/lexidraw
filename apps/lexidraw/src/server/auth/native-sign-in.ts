@@ -101,13 +101,29 @@ export async function issueNativeSignInCode(
   return callback;
 }
 
+/** Whether the exchange presents the verifier and callback the code is bound to. */
+function presentsBinding(
+  code: { codeChallenge: string; redirectUri: string },
+  input: NativeSignInExchange,
+): boolean {
+  return (
+    code.redirectUri === input.redirectUri &&
+    timingSafeEqual(
+      Buffer.from(s256(input.codeVerifier)),
+      Buffer.from(code.codeChallenge),
+    )
+  );
+}
+
 /**
  * Trades a code for a write token named for the device, or answers null.
  *
  * Any attempt spends the code, a wrong verifier included, so an intercepted
- * code gets one guess. A code that was already spent revokes the token it
- * bought (RFC 6749 §4.1.2): two parties holding one code means one of them
- * should not have it, and nothing tells which.
+ * code gets one guess. A spent code presented again with its verifier revokes
+ * the token it bought (RFC 6749 §4.1.2): two parties holding the verifier
+ * means one of them should not have it, and nothing tells which. Without the
+ * verifier a replay revokes nothing, so the code alone is no way to sign a
+ * device out.
  */
 export async function exchangeNativeSignInCode(
   db: Db,
@@ -130,7 +146,7 @@ export async function exchangeNativeSignInCode(
 
     if (!claimed) {
       const [spent] = await tx
-        .select({ tokenId: schema.nativeSignInCodes.tokenId })
+        .select()
         .from(schema.nativeSignInCodes)
         .where(
           and(
@@ -138,7 +154,7 @@ export async function exchangeNativeSignInCode(
             isNotNull(schema.nativeSignInCodes.usedAt),
           ),
         );
-      if (spent?.tokenId) {
+      if (spent?.tokenId && presentsBinding(spent, input)) {
         await tx
           .update(schema.apiTokens)
           .set({ revokedAt: now })
@@ -152,13 +168,7 @@ export async function exchangeNativeSignInCode(
       return null;
     }
 
-    const verified =
-      claimed.redirectUri === input.redirectUri &&
-      timingSafeEqual(
-        Buffer.from(s256(input.codeVerifier)),
-        Buffer.from(claimed.codeChallenge),
-      );
-    if (!verified) return null;
+    if (!presentsBinding(claimed, input)) return null;
 
     const token = await createApiToken(tx, {
       userId: claimed.userId,

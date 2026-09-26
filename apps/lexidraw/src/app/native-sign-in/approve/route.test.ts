@@ -175,6 +175,24 @@ describe("a code", () => {
     expect(me.response.status).toBe(401);
   });
 
+  test("replayed without the verifier is refused and leaves the token alone", async () => {
+    const code = await codeFor();
+    const first = await exchange(code);
+    expect(first.response.status).toBe(200);
+
+    const withoutTheBinding: Record<string, string>[] = [
+      { codeVerifier: "a-different-verifier-that-is-long-enough-1234" },
+      { redirectUri: "lexidraw://other/callback" },
+    ];
+    for (const overrides of withoutTheBinding) {
+      const replay = await exchange(code, overrides);
+      expect(replay.response.status).toBe(400);
+    }
+
+    const me = await call("GET", "/me", { token: first.body.token });
+    expect(me.response.status).toBe(200);
+  });
+
   test("needs the verifier behind its challenge, and is spent by a wrong one", async () => {
     const code = await codeFor();
     const wrong = await exchange(code, {

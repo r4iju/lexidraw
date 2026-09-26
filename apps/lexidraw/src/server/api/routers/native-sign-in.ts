@@ -19,7 +19,7 @@ export const nativeSignInRouter = createTRPCRouter({
         tags: ["auth"],
         summary: "Trade a native sign-in code for a personal access token",
         description:
-          "The code arrives at the app's callback after the user approves at /native-sign-in; it is single-use and expires a minute after it is issued. `codeVerifier` is the PKCE verifier behind the S256 challenge sent there, and `redirectUri` the callback it was sent with. Answers a write-scope token named for the device. Every failure is the same 400, and a code presented twice also revokes the token it was first traded for.",
+          "The code arrives at the app's callback after the user approves at /native-sign-in; it is single-use and expires a minute after it is issued. `codeVerifier` is the PKCE verifier behind the S256 challenge sent there, and `redirectUri` the callback it was sent with. Answers a write-scope token named for the device. Every failure is the same 400, and a spent code presented again with its verifier revokes the token it was first traded for.",
         protect: false,
       },
     })

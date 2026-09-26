@@ -47,10 +47,11 @@ the token never appears in a URL:
    43–128 character verifier. A request that fails either is refused on the
    page and never redirected anywhere.
 2. Someone not signed in goes through `/signin`, any provider, and comes back.
-   The signed-in user then approves the device by name. The approval is a
-   same-origin POST to `/native-sign-in/approve`, and the page refuses to be
-   framed, so no other site can approve on the user's behalf; a GET never
-   issues a code.
+   The signed-in user then approves in the page's own words; the device name
+   is shown only as what the app says, since any app can claim the scheme and
+   send any name. The approval is a same-origin POST to
+   `/native-sign-in/approve`, and the page refuses to be framed, so no other
+   site can approve on the user's behalf; a GET never issues a code.
 3. The approval redirects (303) to `redirectUri?code=…`. The code is random,
    stored hashed in `NativeSignInCodes`, bound to the user, the challenge, the
    callback and the device name, and expires after 60 seconds.
@@ -61,12 +62,13 @@ the token never appears in a URL:
    revoked in Settings like any other.
 
 Every attempt spends the code, a wrong verifier included, and every failure is
-the same 400. Presenting a spent code again also revokes the token it bought,
-since two holders of one code means one of them should not have it; a spent
-code is remembered for a day for that. This is the one operation the OpenAPI
-document publishes without security, and the REST route serves it with an
-anonymous context: no cookie session and no token, whatever the request
-carries.
+the same 400. Presenting a spent code again with its verifier and callback
+also revokes the token it bought, since two holders of the verifier means one
+of them should not have it; without them a replay revokes nothing, so a code
+intercepted on its own cannot sign the device out. A spent code is remembered
+for a day for that. This is the one operation the OpenAPI document publishes
+without security, and the REST route serves it with an anonymous context: no
+cookie session and no token, whatever the request carries.
 
 ## Transports
 

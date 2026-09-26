@@ -48,19 +48,24 @@ async function Consent({ searchParams }: Props) {
     redirect(`/signin?${new URLSearchParams({ callbackUrl: here })}`);
   }
 
-  const { deviceName } = request.data;
   const who = session.user.email ?? session.user.name;
+  // Any app can claim the callback's scheme and send any device name, so the
+  // question is ours and the name is only shown as what the app said.
   return (
     <AuthCard
-      title={`Sign in on ${deviceName}?`}
+      title="Allow the Lexidraw app to access your account?"
       description={
         <>
-          {deviceName} will be able to open, edit and delete your files
-          {who ? ` as ${who}` : ""}. You can revoke it at any time under API
-          tokens in Settings.
+          It will be able to open, edit and delete your files
+          {who ? ` as ${who}` : ""}. Continue only if you just started signing
+          in from the Lexidraw app. You can revoke its access at any time under
+          API tokens in Settings.
         </>
       }
     >
+      <p className="truncate text-xs text-muted-foreground">
+        The app calls this device “{request.data.deviceName}”
+      </p>
       <form method="post" action="/native-sign-in/approve">
         {Object.entries(request.data).map(([name, value]) => (
           <input key={name} type="hidden" name={name} value={value} />
