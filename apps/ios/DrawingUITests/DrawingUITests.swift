@@ -101,3 +101,38 @@ final class CanvasKeysUITests: DrawingUITestCase {
     XCTAssertTrue(waitUntil { !redo.isEnabled })
   }
 }
+
+final class ToolbarUITests: DrawingUITestCase {
+  /// A group and a shape beside it take the most actions: Group, Ungroup
+  /// and Delete. On an iPhone they didn't fit in a bar with the tools, which
+  /// then went into a menu that showed nothing.
+  func testTheToolsStayInTheirBarWhileShapesAreSelected() {
+    selectEverything()
+    XCTAssertTrue(waitUntil { self.app.buttons["Delete"].exists || self.app.buttons["More"].exists })
+
+    for tool in ["Select", "Rectangle", "Diamond", "Ellipse", "Arrow", "Line", "Draw", "Text"] {
+      XCTAssertTrue(app.buttons[tool].isHittable, "\(tool) left the bar")
+    }
+    XCTAssertTrue(reachable("Ungroup").exists)
+  }
+
+  func testTheSelectionIsDeletedFromTheBar() {
+    selectEverything()
+    XCTAssertTrue(waitUntil { self.app.buttons["Delete"].exists || self.app.buttons["More"].exists })
+    XCTAssertFalse(app.buttons["Redo"].isEnabled)
+    reachable("Delete").tap()
+    XCTAssertTrue(waitUntil { !self.app.buttons["Delete"].exists })
+    app.buttons["Undo"].tap()
+    XCTAssertTrue(waitUntil { self.app.buttons["Redo"].isEnabled })
+  }
+
+  /// A toolbar button, from the "More" menu when the bar hasn't room for it.
+  private func reachable(_ title: String) -> XCUIElement {
+    let button = app.buttons[title]
+    if !(button.exists && button.isHittable) {
+      app.buttons["More"].tap()
+      XCTAssertTrue(button.waitForExistence(timeout: 3), "\(title) is in neither the bar nor its menu")
+    }
+    return button
+  }
+}

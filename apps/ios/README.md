@@ -178,3 +178,6 @@ hand:
   colour, width and roughness.
 - A drawing deleted in the app goes to the Trash, which offers only Restore;
   neither the app nor the web deletes one permanently.
+- The tools keep the bottom bar to themselves, and what acts on a selection
+  joins the top bar, which on a phone folds what doesn't fit into More. The
+  web's phone layout likewise keeps the tools in a bar of their own.

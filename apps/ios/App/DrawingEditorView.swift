@@ -170,6 +170,7 @@ struct DrawingEditorScreen: View {
             Button("Try Saving Again", systemImage: "arrow.clockwise") { editing.saveNow() }
           }
           buttons(editing.historyButtons)
+          buttons(editing.selectionButtons)
           Menu("Insert Image", systemImage: "photo.badge.plus") {
             Button("Photo Library", systemImage: "photo.on.rectangle") { photosShown = true }
             Button("Files", systemImage: "folder") { filesShown = true }
@@ -188,7 +189,6 @@ struct DrawingEditorScreen: View {
           }
           .pickerStyle(.segmented)
           .fixedSize()
-          buttons(editing.selectionButtons)
         }
       }
       .alert("Someone else changed this drawing", isPresented: .constant(editing.status == .conflict)) {
