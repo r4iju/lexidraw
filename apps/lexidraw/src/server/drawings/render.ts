@@ -1,3 +1,4 @@
+import type { BinaryFiles } from "@excalidraw/excalidraw/types";
 import { excalidraw } from "./converter";
 import { withDomShimAsync } from "./dom-shim";
 import { excalidrawFontFiles } from "./fonts";
@@ -47,6 +48,8 @@ export type RenderOptions = {
   scale?: number;
   /** The drawing's canvas colour, as its appState stored it. */
   background?: string | null;
+  /** What its image elements show; one without its file draws a placeholder. */
+  files?: BinaryFiles;
 };
 
 export type DrawingRender =
@@ -83,7 +86,7 @@ export async function renderDrawing(
   elements: readonly CanonicalElement[],
   options: RenderOptions,
 ): Promise<DrawingRender> {
-  const svg = await toSvg(elements, options.background);
+  const svg = await toSvg(elements, options.background, options.files);
   if (options.format === "svg") return svg;
 
   const scale = options.scale ?? 1;
@@ -118,13 +121,17 @@ const COLOUR = /^(#[0-9a-f]{3,8}|[a-z]+)$/i;
  */
 export async function renderDrawingThumbnail(
   elements: readonly CanonicalElement[],
-  options: { theme: "light" | "dark"; background?: string | null },
+  options: {
+    theme: "light" | "dark";
+    background?: string | null;
+    files?: BinaryFiles;
+  },
 ): Promise<{ width: number; height: number; png: Uint8Array }> {
   const canvas =
     options.background && COLOUR.test(options.background)
       ? options.background
       : DEFAULT_BACKGROUND;
-  const drawing = await toSvg(elements, canvas);
+  const drawing = await toSvg(elements, canvas, options.files);
   const { width, height } = THUMBNAIL_SIZE;
   const zoom = Math.min(
     1,
@@ -151,6 +158,7 @@ export async function renderDrawingThumbnail(
 async function toSvg(
   elements: readonly CanonicalElement[],
   background: string | null | undefined,
+  files: BinaryFiles | undefined,
 ): Promise<Extract<DrawingRender, { format: "svg" }>> {
   const loaded = await excalidraw();
   const element = await withDomShimAsync(() =>
@@ -160,7 +168,7 @@ async function toSvg(
       // check, so a deleted element left in would draw nothing and still
       // stretch the canvas out to wherever it was sitting.
       elements: elements.filter(isVisible),
-      files: null,
+      files: files ?? null,
       appState: {
         exportBackground: true,
         viewBackgroundColor: background ?? DEFAULT_BACKGROUND,

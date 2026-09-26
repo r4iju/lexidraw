@@ -22,13 +22,15 @@ public final class PreparedScene: @unchecked Sendable {
   public let contentBounds: Bounds
   let elements: [DrawingElement]
   let geometry: SceneGeometry
+  let images: [String: DrawingImage]
   private let drawing = NSLock()
 
   public init(
     _ elements: [DrawingElement], theme: DrawingTheme, canvasBackgroundColor: String = "#ffffff",
-    measurer: TextMeasuring, shapes: ShapeCache? = nil
+    images: [String: DrawingImage] = [:], measurer: TextMeasuring, shapes: ShapeCache? = nil
   ) {
     self.theme = theme
+    self.images = images
     var prepared: [DrawingElement] = []
     for element in elements where !element.isDeleted {
       if element.isFrameLike {
@@ -93,7 +95,7 @@ public final class PreparedScene: @unchecked Sendable {
     }
     let renderer = ElementRenderer(
       geometry: geometry, canvas: canvas, scrollX: scrollX, scrollY: scrollY, theme: theme,
-      layerScale: layerScale)
+      layerScale: layerScale, images: images)
     var checkedGroups: [String: Bool] = [:]
     let iframeLike = { (element: DrawingElement) in
       element.type == "iframe" || element.type == "embeddable"
@@ -183,6 +185,14 @@ private struct ElementRenderer {
   let scrollY: Double
   let theme: DrawingTheme
   let layerScale: Double
+  let images: [String: DrawingImage]
+
+  /// `shouldResetImageFilter`: a raster file shows in its own colours in
+  /// the dark theme, while a vector file and a placeholder are themed.
+  private func showsOwnColors(_ element: DrawingElement) -> Bool {
+    guard theme == .dark, let fileId = element.fileId, let image = images[fileId] else { return false }
+    return image.mimeType != "image/svg+xml"
+  }
 
   func clip(to frame: DrawingElement) {
     canvas.translate(frame.x + scrollX, frame.y + scrollY)
@@ -234,6 +244,7 @@ private struct ElementRenderer {
       }
       canvas.save()
       canvas.translate(cx, cy)
+      if element.type == "image" && showsOwnColors(element) { canvas.filter = "none" }
       if element.type == "arrow", let text = geometry.boundText(of: element) {
         drawWithLabelCutOut(element, text, c)
       } else {
@@ -286,8 +297,27 @@ private struct ElementRenderer {
       canvas.fill(svgPath: geometry.outline(element))
       canvas.restore()
     case "image":
-      canvas.fillStyle = "#E7E7E7"
-      canvas.fillRect(0, 0, element.width, element.height)
+      guard let fileId = element.fileId, let image = images[fileId], image.bitmap != nil else {
+        canvas.fillStyle = "#E7E7E7"
+        canvas.fillRect(0, 0, element.width, element.height)
+        let shorter = min(element.width, element.height)
+        let size = min(shorter, min(shorter * 0.4, 100))
+        canvas.drawImage(
+          element.status == "error" ? .errorPlaceholder : .placeholder,
+          element.width / 2 - size / 2, element.height / 2 - size / 2, size, size)
+        return
+      }
+      if element.roundness != nil {
+        canvas.beginPath()
+        canvas.roundRect(
+          0, 0, element.width, element.height,
+          cornerRadius(min(element.width, element.height), element))
+        canvas.clip()
+      }
+      let source = element.crop ?? (0, 0, image.naturalSize.width, image.naturalSize.height)
+      canvas.drawImage(
+        .bitmap(image), source.x, source.y, source.width, source.height, 0, 0, element.width,
+        element.height)
     case "text":
       canvas.save()
       canvas.font = FontMetrics.fontString(size: element.fontSize, family: element.fontFamily)

@@ -8,6 +8,7 @@ extension DrawingEditor {
     self.gesture = nil
     store = gesture.before.store
     selectedIds = gesture.before.selectedIds
+    editingGroupId = gesture.before.editingGroupId
     tool = gesture.before.tool
     originalContainerHeights = gesture.before.heights
     editing = nil
@@ -85,6 +86,11 @@ extension DrawingEditor {
       let b = geometry.commonBounds(selected)
       overlay.commonBox = Bounds(
         minX: b.minX - padding, minY: b.minY - padding, maxX: b.maxX + padding, maxY: b.maxY + padding)
+    }
+    if selectedElements.count > 1 {
+      overlay.handles = selectionHandles(pointer: pointer).map {
+        EditorOverlay.Handle(name: $0.key, bounds: $0.value, angle: 0)
+      }
     } else if let element = selected.first, showsBoundingBox(element) {
       overlay.handles = transformHandles(of: element.id, pointer: pointer).map {
         EditorOverlay.Handle(name: $0.key, bounds: $0.value, angle: element.angle)

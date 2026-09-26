@@ -123,6 +123,8 @@ cookie session and no token, whatever the request carries.
 | GET    | `/drawings/{id}`                  | `drawings.get`               |
 | PUT    | `/drawings/{id}`                  | `drawings.put`               |
 | GET    | `/drawings/{id}/render`           | `drawings.render`            |
+| GET    | `/drawings/{id}/files`            | `drawings.files`             |
+| PUT    | `/drawings/{id}/files/{fileId}`   | `drawings.putFile`           |
 | POST   | `/drawings`                       | `drawings.create`            |
 | POST   | `/native-sign-in/token`           | `nativeSignIn.exchange`      |
 
@@ -578,7 +580,9 @@ been checked against the route and not against a real deployment or host.
   `PUT /drawings/{id}` (precondition mandatory, as for a markdown replace),
   `GET /drawings/{id}/render` and `POST /drawings`, and `lexidraw drawing
   get|put|create|render`, whose `put` takes `--if-unmodified-since
-  <iso|latest>`.
+  <iso|latest>`. The files image elements show are `drawings.files|putFile`
+  as `GET /drawings/{id}/files` and `PUT /drawings/{id}/files/{fileId}`; see
+  [Images](drawing-format.md#images).
 - Render is `exportToSvg` from the same pinned `@excalidraw/excalidraw` 0.18.1
   bundle, under the same DOM shim; `@excalidraw/utils` is not published in a
   version that matches. Its signature has changed across releases, so the call

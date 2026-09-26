@@ -123,11 +123,13 @@ async function processSingleJob(
   const [light, dark] = isDrawing
     ? await Promise.all([
         renderDrawingThumbnailStep(
+          validation.entityId,
           validation.elements,
           validation.appState,
           "light",
         ),
         renderDrawingThumbnailStep(
+          validation.entityId,
           validation.elements,
           validation.appState,
           "dark",

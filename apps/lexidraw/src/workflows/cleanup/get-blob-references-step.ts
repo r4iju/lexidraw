@@ -1,6 +1,6 @@
 import "server-only";
 
-import { drizzle, schema, sql } from "@packages/drizzle";
+import { drizzle, eq, schema, sql } from "@packages/drizzle";
 
 /** What the database refers to, in the terms `isOrphan` judges blobs by. */
 export type BlobReferences = {
@@ -8,6 +8,11 @@ export type BlobReferences = {
   pathnames: string[];
   /** Jobs whose audio lives under `tts/doc/<id>/` or `tts/article/<id>/`. */
   ttsJobIds: string[];
+  /**
+   * Drawings whose files live under `drawings/<id>/files/`: every one there
+   * is, trashed ones too, which come back with their images when restored.
+   */
+  drawingIds: string[];
   /** When they were read, in epoch milliseconds. */
   readAt: number;
 };
@@ -25,7 +30,7 @@ export async function getBlobReferencesStep(): Promise<BlobReferences> {
   "use step";
 
   const readAt = Date.now();
-  const [thumbnails, images, videos, jobs] = await Promise.all([
+  const [thumbnails, images, videos, jobs, drawings] = await Promise.all([
     drizzle
       .select({
         light: schema.entities.screenShotLight,
@@ -48,6 +53,10 @@ export async function getBlobReferencesStep(): Promise<BlobReferences> {
       })
       .from(schema.uploadedVideos),
     drizzle.select({ id: schema.ttsJobs.id }).from(schema.ttsJobs),
+    drizzle
+      .select({ id: schema.entities.id })
+      .from(schema.entities)
+      .where(eq(schema.entities.entityType, "drawing")),
   ]);
 
   const pathnames = new Set<string>();
@@ -65,6 +74,7 @@ export async function getBlobReferencesStep(): Promise<BlobReferences> {
   return {
     pathnames: [...pathnames],
     ttsJobIds: jobs.map((job) => job.id),
+    drawingIds: drawings.map((drawing) => drawing.id),
     readAt,
   };
 }

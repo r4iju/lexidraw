@@ -115,6 +115,16 @@ final class SceneGeometry {
     return AbsoluteCoords(x1: x1, y1: y1, x2: x2, y2: y2, cx: (x1 + x2) / 2, cy: (y1 + y2) / 2)
   }
 
+  /// `getElementPointsCoords`: the bounds of `points` drawn as the line
+  /// `element` is, in scene coordinates.
+  func pointsCoords(_ element: DrawingElement, _ points: [Point2D]) -> Bounds {
+    let options = generateRoughOptions(element)
+    let drawn =
+      element.roundness == nil ? RoughGenerator.linearPath(points, options) : RoughGenerator.curve(points, options)
+    let b = curveBounds(curvePathOps(drawn), transform: nil)
+    return Bounds(minX: b.minX + element.x, minY: b.minY + element.y, maxX: b.maxX + element.x, maxY: b.maxY + element.y)
+  }
+
   private func pointBounds(_ points: [Point2D]) -> Bounds {
     var b = Bounds(minX: .infinity, minY: .infinity, maxX: -.infinity, maxY: -.infinity)
     for p in points {

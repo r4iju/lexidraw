@@ -50,6 +50,16 @@ test("the cleanup deletes only blobs nothing refers to", async () => {
     publicAccess: PublicAccess.PRIVATE,
     screenShotLight: `${HOST}/thumbnails/${DOC}/light-1.png`,
   });
+  await db.insert(schema.entities).values({
+    id: "cleanup_drawing",
+    title: "Drawing",
+    elements: "[]",
+    entityType: "drawing",
+    userId: "cleanup_user",
+    publicAccess: PublicAccess.PRIVATE,
+    // In the trash, from where it can come back with its images.
+    deletedAt: new Date(),
+  });
   await db.insert(schema.uploadedImages).values({
     id: "cleanup_img",
     userId: "cleanup_user",
@@ -80,12 +90,14 @@ test("the cleanup deletes only blobs nothing refers to", async () => {
     // manifests rather than rows, so the cleanup cannot tell they are unused.
     "tts/chunks/cleanup-chunk.mp3",
     "backups/turso/lexidraw/2026/09/01/00-00-00-000.sqlite.gz",
+    "drawings/cleanup_drawing/files/cleanup-file.png",
   ];
   const orphans = [
     `thumbnails/${DOC}/light-0.png`,
     "cleanup_gone-picture.png",
     "tts/doc/cleanup_gone/manifest.json",
     "tts/article/cleanup_gone/manifest.json",
+    "drawings/cleanup_gone/files/cleanup-file.png",
   ];
   for (const pathname of [...live, ...orphans]) {
     stored.set(pathname, LONG_AGO);

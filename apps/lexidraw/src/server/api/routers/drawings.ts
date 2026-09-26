@@ -26,7 +26,18 @@ import {
   findWritableDrawing,
   replaceDrawingElements,
 } from "~/server/drawings/store";
+import {
+  listDrawingFiles,
+  loadDrawingFiles,
+  storeDrawingFile,
+} from "~/server/drawings/files";
 import { resolveParentDirectory } from "~/server/entities/readable";
+import {
+  DRAWING_FILE_ID,
+  DRAWING_FILE_TYPES,
+  MAX_DRAWING_FILE_BYTES,
+  readDrawingFile,
+} from "~/lib/drawing-files";
 import {
   type CanonicalElement,
   DrawingElements,
@@ -52,6 +63,16 @@ const mermaid = z
   .meta({ description: `Rejected: ${MERMAID_REJECTION}` });
 
 const Iso = z.iso.datetime();
+
+const StoredFile = z.object({
+  id: z.string(),
+  mimeType: z.enum(DRAWING_FILE_TYPES),
+  url: z.url(),
+  created: z
+    .number()
+    .int()
+    .meta({ description: "When the file was stored, in epoch milliseconds." }),
+});
 
 /**
  * A write adds two statuses a read cannot reach: the 409 its precondition
@@ -264,10 +285,12 @@ export const drawingRouter = createTRPCRouter({
       if (!drawing) throw notFound();
       const appState = parseAppState(drawing.appState);
       const background = appState?.viewBackgroundColor;
-      const rendered = await renderOrThrow(parseElements(drawing.elements), {
+      const elements = parseElements(drawing.elements);
+      const rendered = await renderOrThrow(elements, {
         format: input.format,
         scale: input.scale,
         background: typeof background === "string" ? background : null,
+        files: await loadDrawingFiles(drawing.id, elements),
       });
       const data =
         rendered.format === "svg"
@@ -354,6 +377,72 @@ export const drawingRouter = createTRPCRouter({
       } catch (error) {
         throwAsDrawingWriteError(error);
       }
+    }),
+  /**
+   * Stores one file an image element of the drawing shows, under the id the
+   * element names it by. The elements are saved as ever, by `put` or the
+   * editor; this touches neither them nor `updatedAt`.
+   */
+  putFile: protectedProcedure
+    .meta({
+      openapi: {
+        method: "PUT",
+        path: "/drawings/{id}/files/{fileId}",
+        tags: ["drawings"],
+        summary: "Store a file an image element of a drawing shows",
+        description: `\`dataURL\` is the file as a base64 data URL of \`mimeType\`, one of ${DRAWING_FILE_TYPES.join(", ")}, decoding to at most ${MAX_DRAWING_FILE_BYTES / (1024 * 1024)} MiB. \`fileId\` is the \`fileId\` the image element carries; Excalidraw makes it the SHA-1 of the bytes, so sending a file again stores nothing new.`,
+        protect: true,
+        errorResponses: WRITE_ERRORS,
+      },
+    })
+    .input(
+      z.object({
+        id: z.string(),
+        fileId: z.string().regex(DRAWING_FILE_ID),
+        mimeType: z.string(),
+        dataURL: z.string(),
+      }),
+    )
+    .output(StoredFile.omit({ url: true }))
+    .mutation(async ({ input, ctx }) => {
+      const drawing = await findWritableDrawing(
+        ctx.drizzle,
+        input.id,
+        ctx.session.user.id,
+      );
+      if (!drawing) throw notFound();
+      const file = readDrawingFile(input.mimeType, input.dataURL);
+      if (!file.ok) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: file.reason });
+      }
+      return storeDrawingFile(drawing.id, {
+        id: input.fileId,
+        mimeType: file.mimeType,
+        bytes: Buffer.from(file.base64, "base64"),
+      });
+    }),
+  /** Every file the drawing stores, each to be fetched from its `url`. */
+  files: protectedProcedure
+    .meta({
+      openapi: {
+        method: "GET",
+        path: "/drawings/{id}/files",
+        tags: ["drawings"],
+        summary: "List the files a drawing's image elements show",
+        protect: true,
+        errorResponses: READ_ERRORS,
+      },
+    })
+    .input(z.object({ id: z.string() }))
+    .output(z.object({ files: z.array(StoredFile) }))
+    .query(async ({ input, ctx }) => {
+      const drawing = await findReadableDrawing(
+        ctx.drizzle,
+        input.id,
+        ctx.session.user.id,
+      );
+      if (!drawing) throw notFound();
+      return { files: await listDrawingFiles(drawing.id) };
     }),
   /**
    * A new drawing owned by the caller, with the defaults the browser opens a

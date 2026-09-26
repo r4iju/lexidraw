@@ -190,3 +190,51 @@ import Testing
     #expect(try Self.sentElements(last) == [["id": "a"], ["id": "b"]])
   }
 }
+
+@Suite struct DrawingFileTests {
+  /// The images a drawing shows are stored apart from it, each under the
+  /// id its image elements carry.
+  @Test func listsTheFilesADrawingShows() async throws {
+    let server = FakeServer { _ in
+      (
+        200,
+        #"{"files":[{"id":"abc","mimeType":"image/png","url":"https://blob.test/drawings/d1/files/abc.png","created":1}]}"#
+      )
+    }
+    let session = try TestServer.session(server)
+
+    let files = try await session.files(ofDrawing: "d1")
+
+    #expect(files == [DrawingFileLink(id: "abc", mimeType: "image/png", url: URL(string: "https://blob.test/drawings/d1/files/abc.png")!)])
+    #expect(try #require(server.requests.only).url.path == "/api/v1/drawings/d1/files")
+  }
+
+  /// A file's bytes come from where it is stored, which is not the server,
+  /// so the token isn't sent there.
+  @Test func fetchesAFileWithoutTheToken() async throws {
+    let server = FakeServer { _ in (200, "picture bytes") }
+    let session = try TestServer.session(server)
+    let link = DrawingFileLink(
+      id: "abc", mimeType: "image/png", url: URL(string: "https://blob.test/drawings/d1/files/abc.png?v=1")!)
+
+    let data = try await session.data(of: link)
+
+    #expect(data == Data("picture bytes".utf8))
+    let request = try #require(server.requests.only)
+    #expect(request.url.string == "https://blob.test/drawings/d1/files/abc.png?v=1")
+    #expect(request.authorization == nil)
+  }
+
+  /// A file is sent as the web sends it: a data URL of its type.
+  @Test func storesAFileAsADataURL() async throws {
+    let server = FakeServer { _ in (200, #"{"id":"abc","mimeType":"image/png","created":1}"#) }
+    let session = try TestServer.session(server)
+
+    try await session.store(Data([1, 2, 3]), as: "abc", mimeType: "image/png", inDrawing: "d1")
+
+    let request = try #require(server.requests.only)
+    #expect(request.method == .put)
+    #expect(request.url.path == "/api/v1/drawings/d1/files/abc")
+    #expect(request.json == ["mimeType": "image/png", "dataURL": "data:image/png;base64,AQID"])
+  }
+}

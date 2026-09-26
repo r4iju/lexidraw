@@ -1,5 +1,8 @@
 import Foundation
 
+/// `Math.sign`.
+func mathSign(_ value: Double) -> Double { value > 0 ? 1 : value < 0 ? -1 : 0 }
+
 /// `String(number)` as JavaScript writes it. Excalidraw builds SVG path data
 /// by string interpolation and then trims digits with a regular expression,
 /// so the digits it trims are these.

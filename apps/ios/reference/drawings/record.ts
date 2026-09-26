@@ -7,12 +7,14 @@
  *     scene.json          the canonical elements the scene converts to
  *     <theme>.events.json every canvas call the export made
  *     <theme>.png         the export itself, at scale 2
+ *     files/<fileId>.png  the images the scene shows, if any
  *
  * and what the web editor does with each script in `interactions.ts`:
  *
  *   Tests/DrawingKitTests/Fixtures/Interactions/<script>/
  *     script.json         the steps, and the elements they start from
  *     after.json          every element the editor ends with, deleted ones too
+ *     files/<name>.png    the images the steps drop, if any
  *
  * Run with `bun run record:drawings` after bumping `@excalidraw/excalidraw`;
  * it needs Playwright's Chromium (`bunx playwright install chromium`). The
@@ -23,8 +25,30 @@ import { mkdir, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { chromium, type Page } from "playwright";
 
-import { INTERACTIONS, type Step } from "./interactions.js";
+import { INTERACTIONS, type Step, type Style } from "./interactions.js";
 import { SCENES } from "./scenes.js";
+
+const SHORTCUTS: Record<string, string> = {
+  undo: "ControlOrMeta+z",
+  redo: "ControlOrMeta+Shift+z",
+  group: "ControlOrMeta+g",
+  ungroup: "ControlOrMeta+Shift+G",
+};
+
+/** The control in the editor's style panel that sets `style` to `value`. */
+function styleControl(style: Style, value: string | number) {
+  switch (style) {
+    case "strokeColor":
+    case "backgroundColor":
+      return `[data-testid="color-top-pick-${value}"]`;
+    case "fillStyle":
+      return `[data-testid="fill-${value}"]`;
+    case "strokeWidth":
+      return `label:has([data-testid="strokeWidth-${{ 1: "thin", 2: "bold", 4: "extraBold" }[value]}"])`;
+    case "roughness":
+      return `label[title="${{ 0: "Architect", 1: "Artist", 2: "Cartoonist" }[value]}"]`;
+  }
+}
 
 const here = import.meta.dir;
 const tests = join(here, "..", "..", "Tests", "DrawingKitTests", "Fixtures");
@@ -40,6 +64,10 @@ const build = await Bun.build({
   target: "browser",
   format: "esm",
   conditions: ["production"],
+  // Merging modules renames clashing names, and Bun's picks can clash with
+  // the short names the editor's own minified build already uses, which
+  // breaks binding an arrow's end; minifying names afresh avoids both.
+  minify: { identifiers: true },
   define: { "process.env.NODE_ENV": '"production"' },
 });
 for (const message of build.logs) console.error(String(message));
@@ -108,22 +136,24 @@ try {
       join(directory, "scene.json"),
       `${JSON.stringify(elements, null, 2)}\n`,
     );
+    const files = await page.evaluate(
+      (files) => window.drawFiles(files),
+      scene.files ?? {},
+    );
+    for (const [id, dataURL] of Object.entries(files)) {
+      await mkdir(join(directory, "files"), { recursive: true });
+      await writeFile(join(directory, "files", `${id}.png`), pngBytes(dataURL));
+    }
     for (const theme of ["light", "dark"] as const) {
       const result = await page.evaluate(
-        ([elements, theme]) => window.record(elements, theme),
-        [elements, theme] as const,
+        ([elements, theme, files]) => window.record(elements, theme, files),
+        [elements, theme, files] as const,
       );
       await writeFile(
         join(directory, `${theme}.events.json`),
         JSON.stringify(result.events),
       );
-      await writeFile(
-        join(directory, `${theme}.png`),
-        Buffer.from(
-          result.png.replace(/^data:image\/png;base64,/, ""),
-          "base64",
-        ),
-      );
+      await writeFile(join(directory, `${theme}.png`), pngBytes(result.png));
     }
     console.log(scene.name);
   }
@@ -143,6 +173,14 @@ try {
     await page.goto(new URL("/editor", server.url).href);
     await page.waitForFunction(() => typeof window.play === "function");
     await page.evaluate((elements) => window.load(elements), before);
+    const files = await page.evaluate(
+      (files) => window.useFiles(files),
+      interaction.files ?? {},
+    );
+    for (const [id, dataURL] of Object.entries(files)) {
+      await mkdir(join(directory, "files"), { recursive: true });
+      await writeFile(join(directory, "files", `${id}.png`), pngBytes(dataURL));
+    }
     for (const step of interaction.steps) await play(page, step);
     await writeFile(
       join(directory, "script.json"),
@@ -168,13 +206,9 @@ async function play(page: Page, step: Step) {
   if ("type" in step) {
     await page.keyboard.type(step.type);
   } else if ("press" in step) {
-    await page.keyboard.press(
-      step.press === "undo"
-        ? "ControlOrMeta+z"
-        : step.press === "redo"
-          ? "ControlOrMeta+Shift+z"
-          : step.press,
-    );
+    await page.keyboard.press(SHORTCUTS[step.press] ?? step.press);
+  } else if ("style" in step) {
+    await page.locator(styleControl(step.style, step.value)).click();
   } else {
     await page.evaluate((step) => window.play(step), step);
     return;
@@ -185,4 +219,8 @@ async function play(page: Page, step: Step) {
         requestAnimationFrame(() => requestAnimationFrame(resolve)),
       ),
   );
+}
+
+function pngBytes(dataURL: string): Buffer {
+  return Buffer.from(dataURL.replace(/^data:image\/png;base64,/, ""), "base64");
 }

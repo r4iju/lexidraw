@@ -1,7 +1,7 @@
 import Foundation
 
 public enum DrawingTool: String, CaseIterable, Sendable {
-  case selection, rectangle, diamond, ellipse, line, freedraw, text
+  case selection, rectangle, diamond, ellipse, arrow, line, freedraw, text
 }
 
 public enum PointerKind: String, Sendable {
@@ -47,6 +47,8 @@ public struct ElementStyle: Equatable, Sendable {
   public var fontSize = 20.0
   public var fontFamily = 5.0
   public var textAlign = "left"
+  public var startArrowhead: String? = nil
+  public var endArrowhead: String? = "arrow"
 
   public init() {}
 }
@@ -76,6 +78,8 @@ public final class DrawingEditor {
   let environment: EditorEnvironment
   var gesture: Gesture?
   var editing: (id: String, isNew: Bool)?
+  /// The group being edited, whose elements are selected one by one.
+  public internal(set) var editingGroupId: String?
   /// `originalContainerCache`: a container's height before a label grew it,
   /// which it shrinks back to as the label is cut.
   var originalContainerHeights: [String: Double] = [:]
@@ -107,7 +111,7 @@ public final class DrawingEditor {
 
   // MARK: Order
 
-  private func syncInvalidIndices() {
+  func syncInvalidIndices() {
     let indices = store.map(\.index)
     let updates = FractionalIndex.generate(indices, groups: FractionalIndex.invalidGroups(indices))
     for (position, key) in updates { environment.mutate(&store[position], ["index": .string(key)]) }
@@ -175,7 +179,9 @@ public final class DrawingEditor {
     if pointer == .touch, let gesture, case .freedraw = gesture.action { return }
     var gesture = Gesture(
       origin: point, pointer: pointer, last: point,
-      before: .init(store: store, selectedIds: selectedIds, tool: tool, heights: originalContainerHeights),
+      before: .init(
+        store: store, selectedIds: selectedIds, editingGroupId: editingGroupId, tool: tool,
+        heights: originalContainerHeights),
       originals: Dictionary(
         store.filter { !$0.isDeleted }.map { ($0.id, $0) }, uniquingKeysWith: { $1 }),
       hitCommonBox: hitsCommonBounds(point))
@@ -186,13 +192,18 @@ public final class DrawingEditor {
     case .text:
       pressWithText(&gesture)
       tool = .selection
-    case .line:
-      var element = newElement("line", at: point, roundness: roundness(for: "line"))
+    case .line, .arrow:
+      let isArrow = tool == .arrow
+      if isArrow { gesture.startBound = hoveredForBinding(point)?.id }
+      var element = newElement(
+        tool.rawValue, at: point, roundness: isArrow ? ["type": 2] : roundness(for: tool.rawValue))
       element.merge(
         [
           "points": [], "lastCommittedPoint": nil, "startBinding": nil, "endBinding": nil,
-          "startArrowhead": nil, "endArrowhead": nil,
+          "startArrowhead": isArrow ? style.startArrowhead.map(JSONValue.string) ?? nil : nil,
+          "endArrowhead": isArrow ? style.endArrowhead.map(JSONValue.string) ?? nil : nil,
         ], uniquingKeysWith: { $1 })
+      if isArrow { element["elbowed"] = false }
       environment.mutate(&element, ["points": .points([Point2D(0, 0)])])
       insert(element)
       gesture.action = .line(element.id)
@@ -228,7 +239,7 @@ public final class DrawingEditor {
       return
     case .rotate:
       gesture.last = point
-      rotate(to: point)
+      rotate(gesture, to: point)
       return
     default:
       break
@@ -294,6 +305,7 @@ public final class DrawingEditor {
       return
     case .line(let id):
       if gesture.dragged {
+        if element(id)?.type == "arrow" { bindNewArrow(id, startingOn: gesture.startBound, at: point) }
         tool = .selection
         selectedIds = [id]
       } else if let position = position(of: id) {
@@ -335,13 +347,16 @@ public final class DrawingEditor {
     }
     if let hit = gesture.hit, !gesture.dragged, !resizing, hitsBoundingBoxOnly(hit, gesture.origin) {
       selectedIds = []
+      editingGroupId = nil
     } else if gesture.hit == nil, !gesture.dragged, !resizing, gesture.hitCommonBox {
       selectedIds = []
+      editingGroupId = nil
     }
     if case .create(let id) = gesture.action {
       selectedIds.insert(id)
       tool = .selection
     }
+    if gesture.dragged || resizing { rebindSelectedLines() }
     capture()
   }
 
@@ -357,35 +372,27 @@ public final class DrawingEditor {
       }
       return
     }
+    if let b = selectionBounds(), let handle = selectionHandle(at: gesture.origin, pointer: gesture.pointer) {
+      gesture.center = Point2D((b.minX + b.maxX) / 2, (b.minY + b.maxY) / 2)
+      gesture.action = handle == "rotation" ? .rotate : .resize(handle, offset: selectionResizeOffset(handle, b, gesture.origin))
+      return
+    }
     gesture.hit = elementAt(gesture.origin)
     gesture.allHits = elementsAt(gesture.origin)
     let someHitSelected = gesture.allHits.contains { selectedIds.contains($0) }
     if (gesture.hit == nil || !someHitSelected) && !gesture.hitCommonBox {
+      // `clearSelection`: a press on another element of the group being
+      // edited stays in it.
       selectedIds = []
+      if let editingGroupId, !(gesture.hit.flatMap(element).map { groupIds($0).contains(editingGroupId) } ?? false) {
+        self.editingGroupId = nil
+      }
     }
     if let hit = gesture.hit, !selectedIds.contains(hit), !someHitSelected, !gesture.hitCommonBox {
       selectedIds = withGroups(selectedIds.union([hit]))
       gesture.wasAddedToSelection = true
     }
     if gesture.hit == nil { gesture.action = .box }
-  }
-
-  /// `selectGroupsForSelectedElements`: a selected element selects the
-  /// rest of its outermost group.
-  func withGroups(_ ids: Set<String>) -> Set<String> {
-    var groups: Set<String> = []
-    for element in store where ids.contains(element.id) {
-      if let last = element["groupIds"]?.arrayValue?.last?.stringValue { groups.insert(last) }
-    }
-    guard !groups.isEmpty else { return ids }
-    var members: [String: [String]] = [:]
-    for element in store where !element.isDeleted {
-      let elementGroups = element["groupIds"]?.arrayValue?.compactMap(\.stringValue) ?? []
-      if let group = elementGroups.first(where: groups.contains) {
-        members[group, default: []].append(element.id)
-      }
-    }
-    return ids.union(members.values.flatMap { $0 })
   }
 
   private func selectWithin(from origin: Point2D, to point: Point2D, gesture: Gesture) {
@@ -403,6 +410,7 @@ public final class DrawingEditor {
     }.map(\.id)
     var next = Set(within)
     if let hit = gesture.hit, within.isEmpty { next.insert(hit) }
+    editingGroupId = nil
     selectedIds = withGroups(next)
   }
 
@@ -423,26 +431,29 @@ public final class DrawingEditor {
   }
 
   /// `dragSelectedElements`: each selected element, and the text it holds,
-  /// moved from where it was when the drag began.
+  /// moved from where it was when the drag began, and the arrows bound to
+  /// it following.
   private func drag(_ gesture: Gesture, by offset: Point2D) {
-    var moved: [String] = []
-    for element in selectedElements {
-      moved.append(element.id)
-      if element.type != "arrow",
-        let text = element["boundElements"]?.arrayValue?.first(where: { $0["type"] == "text" })?["id"]?
-          .stringValue
-      {
-        moved.append(text)
-      }
-    }
-    for id in moved {
-      guard let original = gesture.originals[id] ?? element(id) else { continue }
+    let selected = selectedElements
+    let ids = Set(selected.map(\.id))
+    // `calculateOffset`: the offset as the selection's corner moves by it.
+    let originals = makeGeometry(of: selected.map { gesture.originals[$0.id] ?? $0 })
+    let corner = originals.commonBounds(Array(originals.elements.values))
+    let offset = Point2D(corner.minX + offset.x - corner.minX, corner.minY + offset.y - corner.minY)
+    func move(_ id: String) {
+      guard let original = gesture.originals[id] ?? element(id) else { return }
       mutate(
-        id,
-        [
-          "x": .number(original.number("x") + offset.x),
-          "y": .number(original.number("y") + offset.y),
-        ])
+        id, ["x": .number(original.number("x") + offset.x), "y": .number(original.number("y") + offset.y)])
+    }
+    for element in selected {
+      move(element.id)
+      guard element.type != "arrow" else { continue }
+      if let text = element["boundElements"]?.arrayValue?.first(where: { $0["type"] == "text" })?["id"]?
+        .stringValue, self.element(text).map({ !$0.isDeleted }) ?? false
+      {
+        move(text)
+      }
+      updateBoundElements(of: element.id, simultaneouslyUpdated: ids)
     }
   }
 
@@ -467,9 +478,38 @@ public final class DrawingEditor {
         environment.update(&store[position], ["isDeleted": true])
       }
     }
+    unbindDeleted()
     selectedIds = []
+    if let group = editingGroupId { selectAfterDeletingIn(group) }
     tool = .selection
     capture()
+  }
+
+  /// What `deleteSelectedElements` and `handleGroupEditingState` select
+  /// after deleting inside a group: what is left of it, and the group
+  /// around it once one element is left.
+  private func selectAfterDeletingIn(_ group: String) {
+    let left = store.filter { !$0.isDeleted && groupIds($0).contains(group) }
+    if left.count > 1 {
+      selectedIds = [left[0].id]
+    } else {
+      editingGroupId = nil
+      if let only = left.first {
+        selectedIds = [only.id]
+        let groups = groupIds(only)
+        if let index = groups.firstIndex(of: group), index + 1 < groups.count {
+          let outer = store.filter { !$0.isDeleted && groupIds($0).contains(groups[index + 1]) }
+          if outer.count > 1 {
+            editingGroupId = groups[index + 1]
+            selectedIds.formUnion(outer.map(\.id))
+          }
+        }
+      }
+    }
+    selectedIds = withGroups(selectedIds)
+    if let group = editingGroupId, let first = store.first(where: { !$0.isDeleted && groupIds($0).contains(group) }) {
+      selectedIds = [first.id]
+    }
   }
 
   // MARK: History
@@ -497,6 +537,7 @@ struct Gesture {
   struct Before {
     var store: [RawElement]
     var selectedIds: Set<String>
+    var editingGroupId: String?
     var tool: DrawingTool
     var heights: [String: Double]
   }
@@ -519,6 +560,11 @@ struct Gesture {
   var allHits: [String] = []
   var wasAddedToSelection = false
   var dragged = false
+  /// The shape a new arrow was begun on, which its start binds to.
+  var startBound: String?
+  /// The middle of the selection when the gesture began, which a selection
+  /// of several elements turns around.
+  var center = Point2D(0, 0)
 
   func hitsSelected(_ selection: Set<String>) -> Bool { allHits.contains(where: selection.contains) }
 }

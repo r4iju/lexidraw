@@ -84,17 +84,17 @@ extension DrawingEditor {
 
   /// `handleBindTextResize`: the label of a resized container wrapped to
   /// its new width, growing the container when it no longer fits.
-  func layOutLabel(of containerId: String, handle: String) {
+  func layOutLabel(of containerId: String, handle: String?, maintainAspectRatio: Bool = false) {
     guard let container = element(containerId),
       let textId = container["boundElements"]?.arrayValue?.first(where: { $0["type"] == "text" })?["id"]?
         .stringValue,
-      let label = element(textId), !(label["text"]?.stringValue ?? "").isEmpty
+      let label = element(textId), !label.isDeleted, !(label["text"]?.stringValue ?? "").isEmpty
     else { return }
     originalContainerHeights[containerId] = nil
     var text = label["text"]?.stringValue ?? ""
     var width = label.number("width")
     var height = label.number("height")
-    if handle != "n" && handle != "s" {
+    if maintainAspectRatio || (handle != "n" && handle != "s") {
       text = TextWrapping.wrap(
         label["originalText"]?.stringValue ?? text, font: font(of: label),
         maxWidth: labelMaxWidth(container, label), widths: characterWidths)
@@ -107,7 +107,7 @@ extension DrawingEditor {
     if height > labelMaxHeight(container, label) {
       let containerHeight = containerDimension(for: height, container.type)
       let grown = containerHeight - container.number("height")
-      let fromTop = container.type != "arrow" && ["ne", "nw", "n"].contains(handle)
+      let fromTop = container.type != "arrow" && ["ne", "nw", "n"].contains(handle ?? "")
       mutate(
         containerId,
         [

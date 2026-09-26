@@ -59,7 +59,10 @@ public struct DrawingElement: Sendable {
   public var lineHeight = 1.25
 
   public var fileId: String?
+  public var status = "pending"
   public var scale = [1.0, 1.0]
+  /// The part of the file shown, in the file's pixels.
+  public var crop: (x: Double, y: Double, width: Double, height: Double)?
 
   public var name: String?
 
@@ -181,6 +184,11 @@ public struct DrawingElement: Sendable {
       simulatePressure = raw["simulatePressure"]?.boolValue ?? false
     case "image":
       fileId = string("fileId")
+      status = string("status").flatMap { $0.isEmpty ? nil : $0 } ?? "pending"
+      if let crop = raw["crop"]?.objectValue {
+        let value = { (key: String) in crop[key]?.numberValue ?? 0 }
+        self.crop = (value("x"), value("y"), value("width"), value("height"))
+      }
       if let scale = raw["scale"]?.arrayValue?.compactMap(\.numberValue), scale.count == 2 {
         self.scale = scale
       }

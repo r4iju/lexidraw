@@ -111,8 +111,8 @@ hand:
   `reference/drawings/scenes.ts` with Playwright, and the tests compare every
   canvas call and the pixels, in both themes. A test drawn with other random numbers must fail the pixel
   comparison, which shows its tolerance still sees a moved stroke.
-- An image in a drawing shows as a grey box until #138 loads images, and an
-  embedded web page as its outline, without the name the web writes in it.
+- An embedded web page shows as its outline, without the name the web writes
+  in it.
 - CJK text draws in the system's font. The web's Xiaolai is too large to
   bundle, as it is for the server's thumbnails.
 - Drawings open for editing when the user may edit them, and read-only
@@ -133,6 +133,19 @@ hand:
 - Edits save once they pause for a second, each against the revision the last
   save made. A save refused because someone else saved in between asks
   whether to keep these changes or take theirs.
-- New elements aren't put in frames, and several selected elements are moved
-  but not resized or rotated together; groups, which need that, come with
-  #138.
+- New elements and placed images aren't put in frames, and grouping leaves
+  frames alone.
+- An arrow bound to a shape follows it, but an elbow arrow keeps its elbows
+  where they were; the app draws no elbow arrows of its own.
+- Entering a group to edit one of its elements isn't a step to undo.
+- The style panel offers the web's first five colours of each kind, and the
+  system's colour picker for any other.
+- A picked image is prepared as the web prepares a dropped file: named by
+  the SHA-1 of the bytes picked, and shrunk to 1440 pixels a side. A photo
+  in a kind the server doesn't store, such as HEIC, becomes a JPEG, or a PNG
+  when it has transparency. It is placed in the middle of the screen and
+  uploaded straight away; an upload that fails is tried again after the next
+  edit.
+- An SVG image made on the web is drawn by WebKit onto a canvas, as the web
+  draws it, since ImageIO doesn't read SVG. For the same reason an SVG file
+  can't be placed from the app.

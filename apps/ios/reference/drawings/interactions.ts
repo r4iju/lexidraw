@@ -7,7 +7,7 @@
  * Points are in scene coordinates, which are the page's own: the editor sits
  * at the top left, unscrolled and unzoomed.
  */
-import type { Skeleton } from "./scenes.js";
+import type { ImageFile, Skeleton } from "./scenes.js";
 
 type Point = [number, number];
 type Pointer = "mouse" | "pen" | "touch";
@@ -20,6 +20,7 @@ export type Step =
         | "diamond"
         | "ellipse"
         | "line"
+        | "arrow"
         | "freedraw"
         | "text";
     }
@@ -28,11 +29,23 @@ export type Step =
   | { up: Point }
   | { doubleTap: Point }
   | { type: string }
-  | { press: "Escape" | "Delete" | "undo" | "redo" };
+  | { press: "Escape" | "Delete" | "undo" | "redo" | "group" | "ungroup" }
+  | { style: Style; value: string | number }
+  | { drop: Point; file: string };
+
+/** What the style panel changes, as the web's `currentItem…` names it. */
+export type Style =
+  | "strokeColor"
+  | "backgroundColor"
+  | "fillStyle"
+  | "strokeWidth"
+  | "roughness";
 
 export type Interaction = {
   name: string;
   before?: Skeleton[];
+  /** Images the steps drop, recorded beside the fixture as scenes' are. */
+  files?: Record<string, ImageFile>;
   steps: Step[];
 };
 
@@ -62,6 +75,69 @@ const filled: Skeleton = {
   fillStyle: "solid",
   seed: 7,
 };
+
+const picture: Skeleton = {
+  type: "image",
+  id: "picture",
+  x: 200,
+  y: 150,
+  width: 160,
+  height: 100,
+  fileId: "photo",
+  status: "saved",
+  seed: 7,
+};
+
+/** Two outlined shapes an arrow can join, and a filled one. */
+const left: Skeleton = {
+  type: "rectangle",
+  id: "left",
+  x: 100,
+  y: 150,
+  width: 120,
+  height: 80,
+  seed: 11,
+};
+const right: Skeleton = {
+  type: "ellipse",
+  id: "right",
+  x: 400,
+  y: 170,
+  width: 120,
+  height: 80,
+  seed: 12,
+};
+const diamond: Skeleton = {
+  type: "diamond",
+  id: "diamond",
+  x: 250,
+  y: 330,
+  width: 120,
+  height: 100,
+  seed: 13,
+};
+
+/** An arrow from near the rectangle's right side to inside the ellipse's left. */
+const joinLeftToRight: Step[] = [
+  { tool: "arrow" },
+  ...drag(
+    [215, 190],
+    [
+      [260, 195],
+      [350, 205],
+      [405, 210],
+    ],
+  ),
+];
+
+/** Selects every shape the scripts start from, with a box around them. */
+const selectAll: Step[] = drag(
+  [60, 60],
+  [
+    [300, 300],
+    [620, 460],
+  ],
+);
 
 /** A pencil stroke whose pressure rises and falls along a wave. */
 const stroke: Step[] = [
@@ -363,6 +439,284 @@ export const INTERACTIONS: Interaction[] = [
       { press: "undo" },
       { press: "undo" },
       { press: "redo" },
+    ],
+  },
+  {
+    name: "draw-arrow",
+    steps: [
+      { tool: "arrow" },
+      ...drag(
+        [100, 100],
+        [
+          [180, 140],
+          [320, 210],
+        ],
+      ),
+    ],
+  },
+  { name: "bind-arrow", before: [left, right], steps: joinLeftToRight },
+  {
+    name: "bind-arrow-from-a-filled-box-to-a-diamond",
+    before: [filled, diamond],
+    steps: [
+      { tool: "arrow" },
+      ...drag(
+        [280, 200],
+        [
+          [300, 280],
+          [310, 336],
+        ],
+      ),
+    ],
+  },
+  {
+    name: "arrow-follows-a-moved-shape",
+    before: [left, right],
+    steps: [
+      ...joinLeftToRight,
+      ...drag(
+        [519, 210],
+        [
+          [530, 240],
+          [560, 300],
+        ],
+      ),
+    ],
+  },
+  {
+    name: "arrow-follows-a-resized-shape",
+    before: [left, right],
+    steps: [
+      ...joinLeftToRight,
+      ...tap([100, 190]),
+      ...drag(
+        [230, 240],
+        [
+          [245, 260],
+          [260, 290],
+        ],
+      ),
+    ],
+  },
+  {
+    name: "arrow-follows-a-rotated-shape",
+    before: [left, right],
+    steps: [
+      ...joinLeftToRight,
+      ...tap([100, 190]),
+      ...drag(
+        [160, 120],
+        [
+          [200, 130],
+          [260, 170],
+        ],
+      ),
+    ],
+  },
+  {
+    name: "arrow-dragged-away-lets-go",
+    before: [left, right],
+    steps: [
+      ...joinLeftToRight,
+      ...drag(
+        [250, 194],
+        [
+          [250, 254],
+          [250, 324],
+        ],
+      ),
+    ],
+  },
+  {
+    name: "arrow-nudged-stays-bound",
+    before: [left, right],
+    steps: [
+      ...joinLeftToRight,
+      ...drag(
+        [250, 194],
+        [
+          [250, 198],
+          [250, 202],
+        ],
+      ),
+    ],
+  },
+  {
+    name: "delete-a-bound-shape",
+    before: [left, right],
+    steps: [...joinLeftToRight, ...tap([519, 210]), { press: "Delete" }],
+  },
+  {
+    name: "group-and-move",
+    before: [left, right, diamond],
+    steps: [
+      ...drag(
+        [60, 60],
+        [
+          [300, 200],
+          [560, 290],
+        ],
+      ),
+      { press: "group" },
+      ...tap([700, 600]),
+      ...tap([100, 190]),
+      ...drag(
+        [100, 190],
+        [
+          [120, 220],
+          [140, 260],
+        ],
+      ),
+    ],
+  },
+  {
+    name: "ungroup",
+    before: [left, right, diamond],
+    steps: [
+      ...drag(
+        [60, 60],
+        [
+          [300, 200],
+          [560, 290],
+        ],
+      ),
+      { press: "group" },
+      ...tap([700, 600]),
+      ...tap([100, 190]),
+      { press: "ungroup" },
+    ],
+  },
+  {
+    name: "resize-a-selection",
+    before: [left, right, diamond],
+    steps: [
+      ...selectAll,
+      ...drag(
+        [533, 443],
+        [
+          [560, 470],
+          [600, 520],
+        ],
+      ),
+    ],
+  },
+  {
+    name: "resize-a-selection-from-a-side",
+    before: [left, right, diamond],
+    steps: [
+      ...selectAll,
+      ...drag(
+        [533, 290],
+        [
+          [500, 290],
+          [440, 290],
+        ],
+      ),
+    ],
+  },
+  {
+    name: "rotate-a-selection",
+    before: [left, right, diamond],
+    steps: [
+      ...selectAll,
+      ...drag(
+        [310, 128],
+        [
+          [360, 130],
+          [420, 170],
+        ],
+      ),
+    ],
+  },
+  {
+    name: "resize-a-selection-with-an-arrow",
+    before: [left, right],
+    steps: [
+      ...joinLeftToRight,
+      ...drag(
+        [60, 60],
+        [
+          [300, 200],
+          [560, 290],
+        ],
+      ),
+      ...drag(
+        [533, 263],
+        [
+          [560, 290],
+          [600, 330],
+        ],
+      ),
+    ],
+  },
+  {
+    name: "restyle-a-shape",
+    before: [{ ...filled, label: { text: "Styled" } }],
+    steps: [
+      ...tap([280, 200]),
+      { style: "strokeColor", value: "#e03131" },
+      { style: "backgroundColor", value: "#ffec99" },
+      { style: "fillStyle", value: "cross-hatch" },
+      { style: "strokeWidth", value: 4 },
+      { style: "roughness", value: 0 },
+    ],
+  },
+  {
+    name: "style-then-draw",
+    steps: [
+      { tool: "ellipse" },
+      { style: "strokeColor", value: "#1971c2" },
+      { style: "backgroundColor", value: "#b2f2bb" },
+      { style: "fillStyle", value: "hachure" },
+      { style: "strokeWidth", value: 1 },
+      { style: "roughness", value: 2 },
+      ...drag(
+        [100, 120],
+        [
+          [200, 180],
+          [300, 240],
+        ],
+      ),
+    ],
+  },
+  {
+    // Taller than the editor allows a placed image to be, so it is shrunk.
+    name: "place-an-image",
+    files: {
+      photo: {
+        width: 960,
+        height: 640,
+        colors: ["#e03131", "#2f9e44", "#1971c2", "#f08c00"],
+      },
+    },
+    steps: [{ drop: [400, 300], file: "photo" }],
+  },
+  {
+    name: "resize-an-image-from-a-corner",
+    before: [picture],
+    steps: [
+      ...tap([280, 200]),
+      ...drag(
+        [190, 140],
+        [
+          [170, 150],
+          [140, 160],
+        ],
+      ),
+    ],
+  },
+  {
+    name: "resize-an-image-from-a-side",
+    before: [picture],
+    steps: [
+      ...tap([280, 200]),
+      ...drag(
+        [370, 200],
+        [
+          [340, 210],
+          [300, 220],
+        ],
+      ),
     ],
   },
 ];

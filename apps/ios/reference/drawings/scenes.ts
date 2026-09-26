@@ -10,9 +10,21 @@
 
 export type Skeleton = Record<string, unknown> & { type: string };
 
+/**
+ * An image a scene shows, drawn by the recorder as four flat quadrants in
+ * these colours (top left, top right, bottom left, bottom right) and saved
+ * as a PNG beside the fixture, so both renderers are given the same pixels.
+ */
+export type ImageFile = {
+  width: number;
+  height: number;
+  colors: [string, string, string, string];
+};
+
 export type Scene = {
   name: string;
   elements: Skeleton[];
+  files?: Record<string, ImageFile>;
 };
 
 let nextSeed = 1;
@@ -734,6 +746,84 @@ export const SCENES: Scene[] = [
       }),
       freedraw("underline", 280, 100, wave(24, 200, 6), {
         strokeColor: "#9c36b5",
+      }),
+    ],
+  },
+  {
+    name: "images",
+    files: {
+      photo: {
+        width: 64,
+        height: 48,
+        colors: ["#e03131", "#2f9e44", "#1971c2", "#f08c00"],
+      },
+    },
+    elements: [
+      seeded({
+        type: "image",
+        x: 20,
+        y: 20,
+        width: 160,
+        height: 120,
+        fileId: "photo",
+        status: "saved",
+      }),
+      seeded({
+        type: "image",
+        x: 220,
+        y: 30,
+        width: 120,
+        height: 90,
+        angle: 0.3,
+        roundness: { type: 3 },
+        fileId: "photo",
+        status: "saved",
+      }),
+      seeded({
+        type: "image",
+        x: 380,
+        y: 20,
+        width: 120,
+        height: 90,
+        scale: [-1, 1],
+        crop: {
+          x: 16,
+          y: 12,
+          width: 32,
+          height: 24,
+          naturalWidth: 64,
+          naturalHeight: 48,
+        },
+        fileId: "photo",
+        status: "saved",
+      }),
+      seeded({
+        type: "image",
+        x: 20,
+        y: 180,
+        width: 120,
+        height: 90,
+        fileId: "not-uploaded",
+        status: "pending",
+      }),
+      seeded({
+        type: "image",
+        x: 180,
+        y: 180,
+        width: 120,
+        height: 90,
+        fileId: "not-uploaded",
+        status: "error",
+      }),
+      seeded({
+        type: "image",
+        x: 340,
+        y: 180,
+        width: 120,
+        height: 90,
+        opacity: 50,
+        fileId: "photo",
+        status: "saved",
       }),
     ],
   },

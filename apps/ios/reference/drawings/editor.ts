@@ -16,15 +16,21 @@ import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import { createElement } from "react";
 import { createRoot } from "react-dom/client";
 
+import { drawImageFiles } from "./image-file.js";
 import type { Step } from "./interactions.js";
+import type { ImageFile } from "./scenes.js";
 
-type Played = Exclude<Step, { type: string } | { press: string }>;
+type Played = Exclude<
+  Step,
+  { type: string } | { press: string } | { style: string }
+>;
 
 declare global {
   interface Window {
     EXCALIDRAW_ASSET_PATH?: string;
     load: (elements: unknown[]) => Promise<void>;
     play: (step: Played) => Promise<void>;
+    useFiles: (files: Record<string, ImageFile>) => Record<string, string>;
     elements: () => unknown[];
   }
 }
@@ -43,6 +49,12 @@ const nextFrame = () =>
   );
 
 let api: ExcalidrawImperativeAPI | undefined;
+let files: Record<string, string> = {};
+
+window.useFiles = (specs) => {
+  files = drawImageFiles(specs);
+  return files;
+};
 let pointer = { type: "touch", pressure: 0.5 };
 
 window.load = async (elements) => {
@@ -119,10 +131,45 @@ window.play = async (step) => {
       ?.dispatchEvent(
         new MouseEvent("dblclick", { bubbles: true, clientX: x, clientY: y }),
       );
+  } else if ("drop" in step) {
+    await drop(step.drop, step.file);
+    return;
   } else {
     dispatch("pointerup", step.up);
   }
   await nextFrame();
 };
+
+/**
+ * Drops an image as dragging a file in does, and waits for the editor to
+ * read it and give the image its size.
+ */
+async function drop([x, y]: [number, number], name: string) {
+  const dataURL = files[name];
+  if (!dataURL) throw new Error(`No file ${name}`);
+  const bytes = Uint8Array.from(atob(dataURL.split(",")[1] ?? ""), (c) =>
+    c.charCodeAt(0),
+  );
+  const transfer = new DataTransfer();
+  transfer.items.add(new File([bytes], `${name}.png`, { type: "image/png" }));
+  const before = api?.getSceneElementsIncludingDeleted().length ?? 0;
+  document.querySelector(".excalidraw-container")?.dispatchEvent(
+    new DragEvent("drop", {
+      bubbles: true,
+      cancelable: true,
+      clientX: x,
+      clientY: y,
+      dataTransfer: transfer,
+    }),
+  );
+  for (let frame = 0; frame < 300; frame++) {
+    await nextFrame();
+    const image = api?.getSceneElementsIncludingDeleted()[before];
+    if (image && "fileId" in image && image.fileId && image.width !== 100) {
+      break;
+    }
+  }
+  await nextFrame();
+}
 
 window.elements = () => [...(api?.getSceneElementsIncludingDeleted() ?? [])];

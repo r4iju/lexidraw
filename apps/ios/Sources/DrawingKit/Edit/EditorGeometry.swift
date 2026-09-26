@@ -14,7 +14,7 @@ private func handleSize(_ pointer: PointerKind) -> Double {
 }
 
 /// `normalizeRadians`.
-private func normalizeRadians(_ angle: Double) -> Double {
+func normalizeRadians(_ angle: Double) -> Double {
   if angle < 0 { return angle.truncatingRemainder(dividingBy: 2 * .pi) + 2 * .pi }
   if angle >= 2 * .pi { return angle.truncatingRemainder(dividingBy: 2 * .pi) }
   return angle
@@ -44,7 +44,7 @@ private func rescalePoints(_ dimension: KeyPath<Point2D, Double>, _ size: Double
   }
 }
 
-private func rescaled(_ points: [Point2D], width: Double, height: Double, normalize: Bool) -> [Point2D] {
+func rescaled(_ points: [Point2D], width: Double, height: Double, normalize: Bool) -> [Point2D] {
   rescalePoints(\.x, width, rescalePoints(\.y, height, points, normalize: normalize), normalize: normalize)
 }
 
@@ -227,6 +227,11 @@ extension DrawingEditor {
     return (testsInside(element) && shape.contains(p)) || shape.isNear(p, threshold)
   }
 
+  /// `isPointOnShape`.
+  func isOnOutline(_ p: Point2D, _ element: DrawingElement, _ geometry: SceneGeometry, tolerance: Double) -> Bool {
+    shape(element, geometry).isNear(p, tolerance)
+  }
+
   func selectionBox(_ element: DrawingElement, _ geometry: SceneGeometry, padding: Double) -> [Point2D] {
     let c = geometry.absoluteCoords(element)
     let center = Point2D(c.cx, c.cy)
@@ -319,14 +324,23 @@ extension DrawingEditor {
     }
     let margin = element.isLinear ? 2.0 + 8 : element.type == "image" ? 0 : 2
     let spacing = element.type == "image" ? 0.0 : 2
-    let c = geometry.absoluteCoords(element)
+    var handles = handlesAround(
+      geometry.absoluteCoords(element), angle: element.angle, margin: margin, spacing: spacing, pointer: pointer)
+    for key in omit { handles[key] = nil }
+    return handles
+  }
+
+  /// `getTransformHandlesFromCoords`.
+  private func handlesAround(
+    _ c: AbsoluteCoords, angle: Double, margin: Double, spacing: Double, pointer: PointerKind
+  ) -> [String: Bounds] {
     let size = handleSize(pointer)
     let handle = size / zoom
     let dashedLineMargin = margin / zoom
     let centering = (size - spacing * 2) / (2 * zoom)
     let center = Point2D(c.cx, c.cy)
     func place(_ x: Double, _ y: Double) -> Bounds {
-      let middle = Point2D(x + handle / 2, y + handle / 2).rotated(around: center, by: element.angle)
+      let middle = Point2D(x + handle / 2, y + handle / 2).rotated(around: center, by: angle)
       return Bounds(
         minX: middle.x - handle / 2, minY: middle.y - handle / 2, maxX: middle.x + handle / 2,
         maxY: middle.y + handle / 2)
@@ -351,8 +365,33 @@ extension DrawingEditor {
       handles["w"] = place(left, c.y1 + height / 2 - handle / 2)
       handles["e"] = place(right, c.y1 + height / 2 - handle / 2)
     }
-    for key in omit { handles[key] = nil }
     return handles
+  }
+
+  /// The common box of what is selected, when that is more than one
+  /// element.
+  func selectionBounds() -> Bounds? {
+    let selected = selectedElements
+    guard selected.count > 1 else { return nil }
+    let geometry = makeGeometry()
+    return geometry.commonBounds(selected.compactMap { geometry.elements[$0.id] })
+  }
+
+  /// The handles round a selection of several elements, which never turn.
+  public func selectionHandles(pointer: PointerKind) -> [String: Bounds] {
+    guard let b = selectionBounds() else { return [:] }
+    let c = AbsoluteCoords(
+      x1: b.minX, y1: b.minY, x2: b.maxX, y2: b.maxY, cx: (b.minX + b.maxX) / 2, cy: (b.minY + b.maxY) / 2)
+    return handlesAround(c, angle: 0, margin: 4, spacing: 2, pointer: pointer)
+  }
+
+  /// `getTransformHandleTypeFromCoords`: the handle of a selection of
+  /// several elements under a press.
+  func selectionHandle(at p: Point2D, pointer: PointerKind) -> String? {
+    let handles = selectionHandles(pointer: pointer)
+    return ["nw", "ne", "sw", "se", "rotation", "n", "s", "w", "e"].first { key in
+      handles[key].map { p.x >= $0.minX && p.x <= $0.maxX && p.y >= $0.minY && p.y <= $0.maxY } ?? false
+    }
   }
 
   /// `resizeTest`: the handle of the selected element under a press.
@@ -393,9 +432,9 @@ extension DrawingEditor {
 
   /// `rotateSingleElement`: the element turns to face the finger, and the
   /// text it holds turns with it.
-  func rotate(to p: Point2D) {
-    guard let raw = selectedElements.first, selectedElements.count == 1, raw.type != "arrow" || true
-    else { return }
+  func rotate(_ gesture: Gesture, to p: Point2D) {
+    if selectedElements.count > 1 { return rotateSelection(gesture, to: p) }
+    guard let raw = selectedElements.first, selectedElements.count == 1 else { return }
     let geometry = makeGeometry()
     guard let element = geometry.elements[raw.id] else { return }
     let c = geometry.absoluteCoords(element)
@@ -404,6 +443,7 @@ extension DrawingEditor {
     let angle = element.isFrameLike ? 0 : normalizeRadians(5 * .pi / 2 + atan2(p.y - cy, p.x - cx))
     mutate(raw.id, ["angle": .number(angle)])
     if let text = element.boundTextId, element.type != "arrow" { mutate(text, ["angle": .number(angle)]) }
+    updateBoundElements(of: raw.id)
   }
 
   /// `getResizedElementAbsoluteCoords`.
@@ -422,6 +462,7 @@ extension DrawingEditor {
   }
 
   func resize(_ gesture: Gesture, handle: String, to p: Point2D) {
+    if selectedElements.count > 1 { return resizeSelection(gesture, handle: handle, to: p) }
     guard selectedElements.count == 1, let raw = selectedElements.first,
       let original = gesture.originals[raw.id]
     else { return }
@@ -435,6 +476,7 @@ extension DrawingEditor {
       } else {
         resizeText(latest, geometry, handle: handle, to: p)
       }
+      updateBoundElements(of: raw.id)
       return
     }
     // `getNextSingleWidthAndHeightFromPointer`.
@@ -452,6 +494,19 @@ extension DrawingEditor {
     if handle.contains("n") { scaleY = (s.y2 - rotated.y) / currentHeight }
     var nextWidth = latest.width * scaleX
     var nextHeight = latest.height * scaleY
+    let keepsAspectRatio = latest.type == "image"
+    if keepsAspectRatio {
+      let widthRatio = abs(nextWidth) / start.width
+      let heightRatio = abs(nextHeight) / start.height
+      if handle.count == 1 {
+        nextHeight *= widthRatio
+        nextWidth *= heightRatio
+      } else {
+        let ratio = max(widthRatio, heightRatio)
+        nextWidth = start.width * ratio * mathSign(nextWidth)
+        nextHeight = start.height * ratio * mathSign(nextHeight)
+      }
+    }
 
     // `resizeSingleElement`.
     let label = geometry.boundText(of: latest)
@@ -469,7 +524,8 @@ extension DrawingEditor {
       previousOrigin = Point2D(b.minX, b.minY)
     }
     var origin = resizedOrigin(
-      previousOrigin, start.width, start.height, nextWidth, nextHeight, start.angle, handle)
+      previousOrigin, start.width, start.height, nextWidth, nextHeight, start.angle,
+      anchor: resizeAnchor(handle, keepsAspectRatio: keepsAspectRatio))
     var nextPoints = points
     if start.isLinear, let scaled = points {
       origin.x += start.x - previousOrigin.x + scaled[0].x
@@ -494,33 +550,64 @@ extension DrawingEditor {
     ]
     if let nextPoints { updates["points"] = .points(nextPoints) }
     mutate(raw.id, updates)
+    updateBoundElements(of: raw.id, newSize: (nextWidth, nextHeight))
     if let label, let fontSize = gesture.originals[label.id]?["fontSize"] {
       mutate(label.id, ["fontSize": fontSize])
     }
     layOutLabel(of: raw.id, handle: handle)
   }
 
-  /// `getResizedOrigin`, for a handle dragged without keeping the aspect
-  /// ratio or the centre.
+  /// `getResizeAnchor`: what stays put as a handle is dragged, which is
+  /// the middle of the opposite side when a side handle keeps the aspect
+  /// ratio.
+  private func resizeAnchor(_ handle: String, keepsAspectRatio: Bool) -> String {
+    if keepsAspectRatio, let side = ["n": "south-side", "e": "west-side", "s": "north-side", "w": "east-side"][handle] {
+      return side
+    }
+    switch handle {
+    case "e", "se", "s": return "top-left"
+    case "n", "nw", "w": return "bottom-right"
+    case "ne": return "bottom-left"
+    default: return "top-right"
+    }
+  }
+
+  /// `getResizedOrigin`, for a resize that doesn't keep the centre.
   private func resizedOrigin(
     _ origin: Point2D, _ prevWidth: Double, _ prevHeight: Double, _ newWidth: Double,
-    _ newHeight: Double, _ angle: Double, _ handle: String
+    _ newHeight: Double, _ angle: Double, anchor: String
   ) -> Point2D {
     let (x, y) = (origin.x, origin.y)
     let (c, s) = (cos(angle), sin(angle))
-    switch handle {
-    case "e", "se", "s":
+    switch anchor {
+    case "top-left":
       return Point2D(
         x + (prevWidth - newWidth) / 2 + (newWidth - prevWidth) / 2 * c + (prevHeight - newHeight) / 2 * s,
         y + (prevHeight - newHeight) / 2 + (newWidth - prevWidth) / 2 * s + (newHeight - prevHeight) / 2 * c)
-    case "n", "nw", "w":
+    case "bottom-right":
       return Point2D(
         x + (prevWidth - newWidth) / 2 * (c + 1) + (newHeight - prevHeight) / 2 * s,
         y + (prevHeight - newHeight) / 2 * (c + 1) + (prevWidth - newWidth) / 2 * s)
-    case "ne":
+    case "bottom-left":
       return Point2D(
         x + (prevWidth - newWidth) / 2 * (1 - c) + (newHeight - prevHeight) / 2 * s,
         y + (prevHeight - newHeight) / 2 * (c + 1) + (newWidth - prevWidth) / 2 * s)
+    case "east-side":
+      return Point2D(
+        x + (prevWidth - newWidth) / 2 * (c + 1),
+        y + (prevWidth - newWidth) / 2 * s + (prevHeight - newHeight) / 2)
+    case "west-side":
+      return Point2D(
+        x + (prevWidth - newWidth) / 2 * (1 - c),
+        y + (newWidth - prevWidth) / 2 * s + (prevHeight - newHeight) / 2)
+    case "north-side":
+      return Point2D(
+        x + (prevWidth - newWidth) / 2 + (prevHeight - newHeight) / 2 * s,
+        y + (newHeight - prevHeight) / 2 * (c - 1))
+    case "south-side":
+      return Point2D(
+        x + (prevWidth - newWidth) / 2 + (newHeight - prevHeight) / 2 * s,
+        y + (prevHeight - newHeight) / 2 * (c + 1))
     default:
       return Point2D(
         x + (prevWidth - newWidth) / 2 * (c + 1) + (prevHeight - newHeight) / 2 * s,

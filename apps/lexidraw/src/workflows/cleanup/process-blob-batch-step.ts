@@ -2,6 +2,7 @@ import "server-only";
 
 import { list, del, type ListBlobResult } from "@vercel/blob";
 import { RetryableError } from "workflow";
+import { drawingOfFile } from "~/server/drawings/files";
 import type { BlobReferences } from "./get-blob-references-step";
 
 const OWN_AUDIO = /^tts\/(?:doc|article)\/([^/]+)\//;
@@ -14,18 +15,22 @@ const UNRECORDED_FOR = 60 * 60 * 1000;
 
 /**
  * Whether nothing refers to a blob any more. Only the kinds of blob a row
- * refers to directly are judged: thumbnails, uploads, and a document's or an
- * article's own audio. Anything else, such as audio chunks shared through
- * manifests or database backups, is never an orphan here.
+ * refers to directly are judged: thumbnails, uploads, a document's or an
+ * article's own audio, and a drawing's files. Anything else, such as audio
+ * chunks shared through manifests or database backups, is never an orphan
+ * here.
  */
 function isOrphan(
   pathname: string,
   pathnames: ReadonlySet<string>,
   ttsJobIds: ReadonlySet<string>,
+  drawingIds: ReadonlySet<string>,
 ): boolean {
   if (pathname.startsWith("thumbnails/") || !pathname.includes("/")) {
     return !pathnames.has(pathname);
   }
+  const drawing = drawingOfFile(pathname);
+  if (drawing !== null) return !drawingIds.has(drawing);
   const audioOf = OWN_AUDIO.exec(pathname)?.[1];
   return audioOf !== undefined && !ttsJobIds.has(audioOf);
 }
@@ -42,6 +47,7 @@ export async function processBlobBatchStep(
 
   const pathnames = new Set(references.pathnames);
   const ttsJobIds = new Set(references.ttsJobIds);
+  const drawingIds = new Set(references.drawingIds);
 
   try {
     const listResult: ListBlobResult = await list({ cursor, limit: 500 });
@@ -51,7 +57,7 @@ export async function processBlobBatchStep(
     for (const blob of listResult.blobs) {
       if (
         new Date(blob.uploadedAt).getTime() < judgedBefore &&
-        isOrphan(blob.pathname, pathnames, ttsJobIds)
+        isOrphan(blob.pathname, pathnames, ttsJobIds, drawingIds)
       ) {
         urlsToDelete.push(blob.url);
       }

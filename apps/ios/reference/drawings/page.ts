@@ -17,6 +17,9 @@ import {
   restoreElements,
 } from "@excalidraw/excalidraw";
 
+import { drawImageFiles } from "./image-file.js";
+import type { ImageFile } from "./scenes.js";
+
 type Event = Record<string, unknown>;
 
 const logs = new WeakMap<CanvasRenderingContext2D, Event[]>();
@@ -208,6 +211,7 @@ wrap("drawImage", (context, image: CanvasImageSource, ...rest: number[]) => {
   }
   return {
     op: "drawImage",
+    ...(rest.length === 8 && { source: rest.slice(0, 4).map(round) }),
     quad: quad(context, x, y, w ?? 0, h ?? 0),
     ...paint(context),
   };
@@ -228,13 +232,19 @@ declare global {
     record: (
       elements: unknown[],
       theme: "light" | "dark",
+      files: Record<string, string>,
     ) => Promise<{ events: Event[]; png: string }>;
+    drawFiles: (files: Record<string, ImageFile>) => Record<string, string>;
   }
 }
 
 window.EXCALIDRAW_ASSET_PATH = `${window.location.origin}/`;
 
-async function exportScene(elements: unknown[], theme: "light" | "dark") {
+async function exportScene(
+  elements: unknown[],
+  theme: "light" | "dark",
+  files: Record<string, string> = {},
+) {
   return await exportToCanvas({
     elements: elements as Parameters<typeof exportToCanvas>[0]["elements"],
     appState: {
@@ -243,7 +253,12 @@ async function exportScene(elements: unknown[], theme: "light" | "dark") {
       exportBackground: true,
       viewBackgroundColor: "#ffffff",
     },
-    files: null,
+    files: Object.fromEntries(
+      Object.entries(files).map(([id, dataURL]) => [
+        id,
+        { id, dataURL, mimeType: "image/png", created: 1 },
+      ]),
+    ) as Parameters<typeof exportToCanvas>[0]["files"],
     exportPadding: 10,
     getDimensions: (width: number, height: number) => ({
       width: width * 2,
@@ -314,8 +329,10 @@ window.convert = async (skeleton) => {
   return convert();
 };
 
-window.record = async (elements, theme) => {
-  const canvas = await exportScene(elements, theme);
+window.drawFiles = drawImageFiles;
+
+window.record = async (elements, theme, files) => {
+  const canvas = await exportScene(elements, theme, files);
   const context = canvas.getContext("2d");
   return {
     events: context ? log(context) : [],

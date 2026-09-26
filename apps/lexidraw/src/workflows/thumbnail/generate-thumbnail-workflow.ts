@@ -39,8 +39,8 @@ export async function generateThumbnailWorkflow(
   if (validation.entityType === "drawing") {
     const { elements, appState } = validation;
     [light, dark] = await Promise.all([
-      renderDrawingThumbnailStep(elements, appState, "light"),
-      renderDrawingThumbnailStep(elements, appState, "dark"),
+      renderDrawingThumbnailStep(entityId, elements, appState, "light"),
+      renderDrawingThumbnailStep(entityId, elements, appState, "dark"),
     ]);
     format = "png";
   } else {

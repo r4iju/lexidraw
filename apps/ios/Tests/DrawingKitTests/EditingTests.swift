@@ -59,6 +59,46 @@ import Testing
     #expect(events(elements, cache) == events(elements, nil))
   }
 
+  /// A placed image is marked stored once its upload ends, which, as on
+  /// the web, is not a step to undo.
+  @Test func storingAnImageIsNotAStepToUndo() throws {
+    let editor = DrawingEditor(elements: [], measurer: FontLibrary.shared, environment: .counting)
+    let photo = try #require(
+      try fixtureFiles(interactionFixtures.appending(path: "place-an-image"), as: ImageFile.init(data:))["photo"])
+    let id = editor.placeImage(photo, at: Point2D(400, 300), viewportHeight: 800)
+    editor.setStatus("saved", ofImagesShowing: photo.id)
+    editor.pointerDown(Point2D(400, 300), pointer: .touch, pressure: 0.5)
+    editor.pointerMove(Point2D(450, 300), pressure: 0.5)
+    editor.pointerUp(Point2D(450, 300), pressure: 0)
+
+    editor.undo()
+
+    let image = try #require(editor.elements.first { $0["id"]?.stringValue == id })
+    #expect(image["x"] == 100)
+    #expect(image["status"] == "saved")
+  }
+
+  /// The style panel offers what the selection can take, or else what the
+  /// tool draws with.
+  @Test func stylesOfferedFollowTheSelection() {
+    let image: JSONValue = [
+      "id": "image", "type": "image", "x": 0, "y": 0, "width": 100, "height": 80, "fileId": "f",
+    ]
+    let editor = DrawingEditor(
+      elements: [Self.box, image], measurer: FontLibrary.shared, environment: .counting)
+    editor.tool = .rectangle
+    var controls = editor.styleControls
+    #expect(controls.showsStrokeColor && controls.showsBackgroundColor && !controls.showsFillStyle)
+    #expect(controls.strokeWidth == 2)
+
+    editor.tool = .selection
+    editor.pointerDown(Point2D(50, 40), pointer: .touch, pressure: 0.5)
+    editor.pointerUp(Point2D(50, 40), pressure: 0)
+    controls = editor.styleControls
+    #expect(editor.selectedIds == ["image"])
+    #expect(!controls.showsStrokeColor && !controls.showsBackgroundColor && !controls.showsStrokeWidth)
+  }
+
   private func events(_ elements: [JSONValue], _ cache: ShapeCache?) -> [JSONValue] {
     let scene = PreparedScene(
       restoreElements(elements), theme: .light, measurer: FontLibrary.shared, shapes: cache)

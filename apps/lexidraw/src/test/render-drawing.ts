@@ -9,7 +9,7 @@
  * stayed behind.
  *
  * Usage: render-drawing.ts <elements json> <out file>
- *        <svg|png|thumbnail-light|thumbnail-dark> [scale]
+ *        <svg|png|thumbnail-light|thumbnail-dark> [scale] [files json]
  */
 import { normalizeDrawingElements } from "~/server/drawings/normalize";
 import { drawingTools } from "~/server/drawings/converter";
@@ -33,7 +33,7 @@ const WATCHED = [
 ];
 const defined = () => WATCHED.filter((name) => name in globalThis);
 
-const [payload, out, format, scale] = process.argv.slice(2);
+const [payload, out, format, scale, files] = process.argv.slice(2);
 const before = defined();
 const elements = await normalizeDrawingElements(
   DrawingElements.parse(JSON.parse(payload as string)),
@@ -47,11 +47,15 @@ const rendered = theme
   ? {
       format: "png" as const,
       contentType: "image/png",
-      ...(await renderDrawingThumbnail(elements, { theme })),
+      ...(await renderDrawingThumbnail(elements, {
+        theme,
+        files: files === undefined ? undefined : JSON.parse(files),
+      })),
     }
   : await renderDrawing(elements, {
       format: format as RenderFormat,
       scale: scale === undefined ? undefined : Number(scale),
+      files: files === undefined ? undefined : JSON.parse(files),
     });
 await Bun.write(
   out as string,

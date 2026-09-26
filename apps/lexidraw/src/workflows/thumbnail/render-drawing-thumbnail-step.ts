@@ -1,5 +1,6 @@
 import "server-only";
 
+import { loadDrawingFiles } from "~/server/drawings/files";
 import { renderDrawingThumbnail } from "~/server/drawings/render";
 import type { CanonicalElement } from "~/server/drawings/skeleton-schema";
 
@@ -8,15 +9,18 @@ import type { CanonicalElement } from "~/server/drawings/skeleton-schema";
  * export the render endpoint uses, as a PNG.
  */
 export async function renderDrawingThumbnailStep(
+  drawingId: string,
   elements: string,
   appState: string | null,
   theme: "light" | "dark",
 ): Promise<Uint8Array> {
   "use step";
 
-  const { png } = await renderDrawingThumbnail(parseScene(elements), {
+  const scene = parseScene(elements);
+  const { png } = await renderDrawingThumbnail(scene, {
     theme,
     background: backgroundOf(appState),
+    files: await loadDrawingFiles(drawingId, scene),
   });
   return png;
 }

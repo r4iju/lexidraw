@@ -25,7 +25,8 @@ extension DrawingEditor {
   /// A second tap where the first was: writes in the text or shape there,
   /// or starts new text, as the web's double click does.
   public func doubleTap(_ point: Point2D) {
-    guard editing == nil, gesture == nil else { return }
+    guard editing == nil, gesture == nil, tool == .selection else { return }
+    if enterGroup(at: point) { return }
     var point = point
     let container = textContainer(at: point)
     if let container, let element = element(container) {

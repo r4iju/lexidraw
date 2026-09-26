@@ -1,0 +1,32 @@
+[
+  {
+    "id": "5NEErw136oG_d6Z8hODpZ",
+    "type": "ellipse",
+    "x": 100,
+    "y": 120,
+    "width": 200,
+    "height": 120,
+    "angle": 0,
+    "strokeColor": "#1971c2",
+    "backgroundColor": "#b2f2bb",
+    "fillStyle": "hachure",
+    "strokeWidth": 1,
+    "strokeStyle": "solid",
+    "roughness": 2,
+    "opacity": 100,
+    "groupIds": [],
+    "frameId": null,
+    "index": "a0",
+    "roundness": {
+      "type": 2
+    },
+    "seed": 832675500,
+    "version": 4,
+    "versionNonce": 1051911084,
+    "isDeleted": false,
+    "boundElements": null,
+    "updated": 1790438710804,
+    "link": null,
+    "locked": false
+  }
+]

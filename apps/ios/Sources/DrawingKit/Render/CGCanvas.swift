@@ -168,6 +168,53 @@ public final class CGCanvas: Canvas2D {
     }
   }
 
+  public override func drawImage(
+    _ image: CanvasImage, _ x: Double, _ y: Double, _ width: Double, _ height: Double
+  ) {
+    switch image {
+    case .bitmap(let file):
+      let size = file.naturalSize
+      drawImage(image, 0, 0, size.width, size.height, x, y, width, height)
+    case .placeholder, .errorPlaceholder:
+      let icon = if case .placeholder = image { placeholderIcon } else { errorPlaceholderIcon }
+      save()
+      translate(x, y)
+      scale(width / icon.side, height / icon.side)
+      fillStyle = "#888"
+      for (d, offset, scale) in icon.paths {
+        save()
+        translate(offset.x, offset.y)
+        self.scale(scale, scale)
+        fill(svgPath: d)
+        restore()
+      }
+      restore()
+    }
+  }
+
+  /// The source rectangle, in the image's own pixels, is stretched over
+  /// the destination one, and what falls outside it clipped away.
+  public override func drawImage(
+    _ image: CanvasImage, _ sx: Double, _ sy: Double, _ sw: Double, _ sh: Double, _ x: Double,
+    _ y: Double, _ width: Double, _ height: Double
+  ) {
+    guard case .bitmap(let file) = image, sw != 0, sh != 0,
+      let bitmap = colorFilters.allSatisfy(\.isIdentity)
+        ? file.bitmap : file.filtered(by: colorFilters)
+    else { return }
+    let kx = width / (sw * file.scale)
+    let ky = height / (sh * file.scale)
+    paint {
+      context.concatenate(affine)
+      context.clip(to: CGRect(x: x, y: y, width: width, height: height))
+      context.translateBy(
+        x: x - sx * file.scale * kx, y: y - sy * file.scale * ky + Double(bitmap.height) * ky)
+      context.scaleBy(x: 1, y: -1)
+      context.draw(
+        bitmap, in: CGRect(x: 0, y: 0, width: Double(bitmap.width) * kx, height: Double(bitmap.height) * ky))
+    }
+  }
+
   /// A layer is drawn into this canvas under this canvas's filter. The
   /// filter maps each colour on its own and compositing mixes colours
   /// linearly, so the layer paints with the filter already applied instead.
@@ -205,9 +252,11 @@ extension DrawingTheme {
 /// theme uses. Each maps a colour on its own, so a solid colour can be
 /// mapped before it is drawn rather than filtering what it drew.
 struct ColorFilter {
+  let css: String
   private var steps: [(matrix: [Double], offset: Double)] = []
 
   init(_ css: String) {
+    self.css = css
     for match in css.matches(of: /([a-z-]+)\(\s*(-?[0-9.]+)(%|deg)?\s*\)/) {
       guard let amount = Double(match.output.2) else { continue }
       switch match.output.1 {
@@ -235,6 +284,8 @@ struct ColorFilter {
     }
   }
 
+  var isIdentity: Bool { steps.isEmpty }
+
   func apply(_ color: CSSColor) -> CSSColor {
     var (r, g, b) = (color.red, color.green, color.blue)
     for (m, offset) in steps {
@@ -247,3 +298,25 @@ struct ColorFilter {
     return CSSColor(red: r, green: g, blue: b, alpha: color.alpha)
   }
 }
+
+/// The icons `drawImagePlaceholder` draws: SVG paths in a square view box,
+/// each placed by an offset and a scale.
+private struct PlaceholderIcon {
+  let side: Double
+  let paths: [(d: String, offset: Point2D, scale: Double)]
+}
+
+private let pictureOutline =
+  "M464 448H48c-26.51 0-48-21.49-48-48V112c0-26.51 21.49-48 48-48h416c26.51 0 48 21.49 48 48v288c0 26.51-21.49 48-48 48zM112 120c-30.928 0-56 25.072-56 56s25.072 56 56 56 56-25.072 56-56-25.072-56-56-56zM64 384h384V272l-87.515-87.515c-4.686-4.686-12.284-4.686-16.971 0L208 320l-55.515-55.515c-4.686-4.686-12.284-4.686-16.971 0L64 336v48z"
+
+private let placeholderIcon = PlaceholderIcon(side: 512, paths: [(pictureOutline, Point2D(0, 0), 1)])
+
+private let errorPlaceholderIcon = PlaceholderIcon(
+  side: 668,
+  paths: [
+    (pictureOutline, Point2D(124.825, 145.825), 0.81709),
+    (
+      "M256 8C119.034 8 8 119.033 8 256c0 136.967 111.034 248 248 248s248-111.034 248-248S392.967 8 256 8Zm130.108 117.892c65.448 65.448 70 165.481 20.677 235.637L150.47 105.216c70.204-49.356 170.226-44.735 235.638 20.676ZM125.892 386.108c-65.448-65.448-70-165.481-20.677-235.637L361.53 406.784c-70.203 49.356-170.226 44.736-235.638-20.676Z",
+      Point2D(506.822, 60.065), 0.30366
+    ),
+  ])

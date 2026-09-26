@@ -31,3 +31,12 @@ export const VIDEO = {
   allowed: "MP4, WEBM, OGG",
   max: "100MB",
 } as const satisfies MediaKind<string>;
+
+/** The extension a stored image of each type is named with. */
+export const IMAGE_EXTENSIONS: Record<(typeof IMAGE.types)[number], string> = {
+  "image/png": "png",
+  "image/jpeg": "jpg",
+  "image/svg+xml": "svg",
+  "image/webp": "webp",
+  "image/avif": "avif",
+};

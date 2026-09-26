@@ -64,6 +64,10 @@ final class EditorCanvasView: UIView, UIGestureRecognizerDelegate, UITextViewDel
       self?.setNeedsDisplay()
       self?.showTextBox()
     }
+    editing.viewport = { [weak self] in
+      guard let self else { return (Point2D(0, 0), 800) }
+      return (scenePoint(CGPoint(x: bounds.midX, y: bounds.midY)), bounds.height)
+    }
 
     let pan = UIPanGestureRecognizer(target: self, action: #selector(pan(_:)))
     pan.minimumNumberOfTouches = 2
@@ -144,8 +148,8 @@ final class EditorCanvasView: UIView, UIGestureRecognizerDelegate, UITextViewDel
     // The text being written shows in its text box instead, as on the web.
     if let id = editor.textBox?.id { shown.removeAll { $0["id"]?.stringValue == id } }
     let scene = PreparedScene(
-      restoreElements(shown), theme: theme, canvasBackgroundColor: background, measurer: FontLibrary.shared,
-      shapes: shapes)
+      restoreElements(shown), theme: theme, canvasBackgroundColor: background, images: editing.images,
+      measurer: FontLibrary.shared, shapes: shapes)
     let width = bounds.width / zoom
     let height = bounds.height / zoom
     context.saveGState()
@@ -334,8 +338,14 @@ final class EditorCanvasView: UIView, UIGestureRecognizerDelegate, UITextViewDel
       UIKeyCommand(title: "Delete", action: #selector(deleteSelection), input: "\u{8}"),
       UIKeyCommand(title: "Delete", action: #selector(deleteSelection), input: UIKeyCommand.inputDelete),
       UIKeyCommand(title: "Deselect", action: #selector(escape), input: UIKeyCommand.inputEscape),
+      UIKeyCommand(title: "Group", action: #selector(group), input: "g", modifierFlags: .command),
+      UIKeyCommand(title: "Ungroup", action: #selector(ungroup), input: "g", modifierFlags: [.command, .shift]),
     ]
   }
+
+  @objc private func group() { editing.group() }
+
+  @objc private func ungroup() { editing.ungroup() }
 
   @objc private func chooseTool(_ command: UIKeyCommand) {
     guard let name = command.propertyList as? String, let tool = DrawingTool(rawValue: name) else { return }

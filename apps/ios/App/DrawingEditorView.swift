@@ -1,5 +1,6 @@
 import DrawingKit
 import LexidrawKit
+import PhotosUI
 import SwiftUI
 
 /// A drawing being edited: the editor, and the saving of what it changes.
@@ -9,19 +10,103 @@ import SwiftUI
   private(set) var canUndo = false
   private(set) var canRedo = false
   private(set) var hasSelection = false
+  private(set) var canGroup = false
+  private(set) var canUngroup = false
+  private(set) var styles = StyleControls()
   private(set) var status = DrawingSaver.Status.saved
+  /// Something about an image that went wrong, to tell the user.
+  var imageProblem: String?
+  /// The files the drawing's images show, by id.
+  @ObservationIgnored private(set) var images: [String: DrawingImage] = [:]
   /// Draws the canvas again; the canvas sets it.
   @ObservationIgnored var redraw: () -> Void = {}
+  /// The middle of what is on screen, in the drawing's units, and the
+  /// screen's height in points; the canvas sets it.
+  @ObservationIgnored var viewport: () -> (center: Point2D, height: Double) = { (Point2D(0, 0), 800) }
+  @ObservationIgnored private let session: Session
+  @ObservationIgnored private let drawingId: String
   @ObservationIgnored private let saver: DrawingSaver
   @ObservationIgnored private var saved: [JSONValue]
   /// The last hand-over to the saver, which the next one waits for, so
   /// the saver gets the edits in the order they were made.
   @ObservationIgnored private var sending: Task<Void, Never>?
+  /// Placed images whose upload failed, sent again after the next edit.
+  @ObservationIgnored private var unsent: [String: ImageFile] = [:]
+  @ObservationIgnored private var uploading = false
 
   init(session: Session, drawing: StoredDrawing) {
     editor = DrawingEditor(elements: drawing.elements, measurer: FontLibrary.shared)
     saved = editor.elements
+    self.session = session
+    drawingId = drawing.id
     saver = DrawingSaver(session: session, drawing: drawing.id, readAt: drawing.updatedAt)
+  }
+
+  func loadImages() async {
+    await DrawingImages.load(for: editor.elements, drawing: drawingId, session: session) { id, image in
+      images[id] = image
+      redraw()
+    }
+  }
+
+  /// Places a picked image in the middle of the screen, and stores its
+  /// file, as the web does with a dropped one.
+  func place(_ picked: Data) async {
+    let file: ImageFile
+    do {
+      file = try await Task.detached { try ImageFile(data: picked) }.value
+    } catch is ImageFile.TooLarge {
+      imageProblem = "This image is too large to place, even when shrunk."
+      return
+    } catch {
+      imageProblem = "This file isn’t an image that can be placed."
+      return
+    }
+    images[file.id] = await DrawingImages.decode(file.data, mimeType: file.mimeType)
+    let viewport = viewport()
+    editor.tool = .selection
+    editor.placeImage(file, at: viewport.center, viewportHeight: viewport.height)
+    edited()
+    unsent[file.id] = file
+    await sendImages()
+  }
+
+  /// Uploads what was placed and not yet stored, marking each image stored
+  /// or refused, as the web marks them.
+  private func sendImages() async {
+    guard !uploading else { return }
+    uploading = true
+    defer { uploading = false }
+    for (id, file) in unsent {
+      do {
+        try await session.store(file.data, as: id, mimeType: file.mimeType, inDrawing: drawingId)
+        unsent[id] = nil
+        editor.setStatus("saved", ofImagesShowing: id)
+      } catch let refusal as Refusal where refusal.status == 400 {
+        unsent[id] = nil
+        editor.setStatus("error", ofImagesShowing: id)
+        imageProblem = refusal.message
+      } catch {
+        imageProblem = "An image couldn’t be uploaded. It’s tried again after your next change."
+        return
+      }
+      edited()
+    }
+  }
+
+  func changeStyle(_ change: StyleChange) {
+    editor.changeStyle(change)
+    edited()
+  }
+
+  func group() {
+    editor.group()
+    edited()
+  }
+
+  func ungroup() {
+    editor.ungroup()
+    edited()
   }
 
   /// Follows the saver's status for as long as the caller waits.
@@ -58,12 +143,16 @@ import SwiftUI
     canUndo = editor.canUndo
     canRedo = editor.canRedo
     hasSelection = !editor.selectedIds.isEmpty
+    canGroup = editor.canGroup
+    canUngroup = editor.canUngroup
+    styles = editor.styleControls
     redraw()
   }
 
   /// After an edit is made: changed elements are handed to the saver too.
   func edited() {
     changing()
+    if !unsent.isEmpty { Task { await sendImages() } }
     let elements = editor.elements
     guard elements != saved else { return }
     saved = elements
@@ -90,6 +179,10 @@ struct DrawingEditorScreen: View {
   let theme: DrawingTheme
   let reload: () async -> Void
   @State private var editing: DrawingEditing
+  @State private var stylesShown = false
+  @State private var photo: PhotosPickerItem?
+  @State private var photosShown = false
+  @State private var filesShown = false
   @Environment(\.scenePhase) private var scenePhase
 
   init(session: Session, drawing: StoredDrawing, theme: DrawingTheme, reload: @escaping () async -> Void) {
@@ -112,6 +205,15 @@ struct DrawingEditorScreen: View {
             .disabled(!editing.canUndo)
           Button("Redo", systemImage: "arrow.uturn.forward") { editing.redo() }
             .disabled(!editing.canRedo)
+          Menu("Insert Image", systemImage: "photo.badge.plus") {
+            Button("Photo Library", systemImage: "photo.on.rectangle") { photosShown = true }
+            Button("Files", systemImage: "folder") { filesShown = true }
+          }
+          Button("Style", systemImage: "paintpalette") { stylesShown = true }
+            .popover(isPresented: $stylesShown) {
+              StyleInspector(controls: editing.styles, theme: theme) { editing.changeStyle($0) }
+                .presentationCompactAdaptation(.popover)
+            }
         }
         ToolbarItemGroup(placement: .bottomBar) {
           Picker("Tool", selection: Binding(get: { editing.tool }, set: { editing.select($0) })) {
@@ -121,6 +223,12 @@ struct DrawingEditorScreen: View {
           }
           .pickerStyle(.segmented)
           .fixedSize()
+          if editing.canGroup {
+            Button("Group", systemImage: "rectangle.3.group") { editing.group() }
+          }
+          if editing.canUngroup {
+            Button("Ungroup", systemImage: "square.on.square.dashed") { editing.ungroup() }
+          }
           if editing.hasSelection {
             Button("Delete", systemImage: "trash", role: .destructive) { editing.deleteSelection() }
           }
@@ -132,6 +240,36 @@ struct DrawingEditorScreen: View {
       } message: {
         Text("It was saved elsewhere while you were editing it. Your changes can replace theirs, or be discarded.")
       }
+      .photosPicker(isPresented: $photosShown, selection: $photo, matching: .images)
+      .onChange(of: photo) {
+        guard let photo else { return }
+        self.photo = nil
+        Task {
+          if let data = try? await photo.loadTransferable(type: Data.self) {
+            await editing.place(data)
+          } else {
+            editing.imageProblem = "The photo couldn’t be read."
+          }
+        }
+      }
+      .fileImporter(isPresented: $filesShown, allowedContentTypes: [.image]) { result in
+        guard case .success(let url) = result else { return }
+        let reading = url.startAccessingSecurityScopedResource()
+        defer { if reading { url.stopAccessingSecurityScopedResource() } }
+        guard let data = try? Data(contentsOf: url) else {
+          editing.imageProblem = "The file couldn’t be read."
+          return
+        }
+        Task { await editing.place(data) }
+      }
+      .alert(
+        "Image", isPresented: Binding(get: { editing.imageProblem != nil }, set: { if !$0 { editing.imageProblem = nil } })
+      ) {
+        Button("OK") {}
+      } message: {
+        Text(editing.imageProblem ?? "")
+      }
+      .task { await editing.loadImages() }
       .task { await editing.followSaving() }
       .onDisappear { editing.saveNow() }
       .onChange(of: scenePhase) { if scenePhase != .active { editing.saveNow() } }
@@ -155,6 +293,7 @@ extension DrawingTool {
     case .rectangle: "Rectangle"
     case .diamond: "Diamond"
     case .ellipse: "Ellipse"
+    case .arrow: "Arrow"
     case .line: "Line"
     case .freedraw: "Draw"
     case .text: "Text"
@@ -167,6 +306,7 @@ extension DrawingTool {
     case .rectangle: "rectangle"
     case .diamond: "diamond"
     case .ellipse: "circle"
+    case .arrow: "arrow.up.right"
     case .line: "line.diagonal"
     case .freedraw: "pencil.tip"
     case .text: "textformat"
@@ -180,6 +320,7 @@ extension DrawingTool {
     case .rectangle: "r"
     case .diamond: "d"
     case .ellipse: "o"
+    case .arrow: "a"
     case .line: "l"
     case .freedraw: "p"
     case .text: "t"

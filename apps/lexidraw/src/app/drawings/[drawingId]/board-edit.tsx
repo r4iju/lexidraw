@@ -32,6 +32,7 @@ import {
 } from "~/hooks/use-open-entity-sync";
 import { useSyncedExcalidraw } from "./use-synced-excalidraw";
 import { useFitOnOpen } from "./use-fit-on-open";
+import { useSceneFiles } from "./use-scene-files";
 import { useSaveShortcut } from "~/hooks/use-save-shortcut";
 import { toast } from "sonner";
 
@@ -224,6 +225,9 @@ const ExcalidrawWrapper: React.FC<Props> = ({
   }, [excalidrawApi, saveScene]);
   useSaveShortcut(saveNow);
   useFitOnOpen(excalidrawApi);
+  const filesChanged = useSceneFiles(excalidrawApi, drawing.id, {
+    canUpload: true,
+  });
 
   const sendUpdateIfNeeded = useCallback(
     ({ elements, appState }: SendUpdateProps) => {
@@ -253,8 +257,10 @@ const ExcalidrawWrapper: React.FC<Props> = ({
     (
       elements: readonly ExcalidrawElement[],
       state: AppState,
-      _: BinaryFiles,
+      files: BinaryFiles,
     ) => {
+      // A peer's image included, so its file is fetched once it is stored.
+      filesChanged(elements, files);
       if (!needsSave(elements, state)) {
         // Nothing the server lacks, like the scene a reload just showed or
         // an edit undone: a save still waiting would only write back.
@@ -279,6 +285,7 @@ const ExcalidrawWrapper: React.FC<Props> = ({
       }
     },
     [
+      filesChanged,
       isRemoteUpdate,
       isCollaborating,
       sendUpdateIfNeeded,

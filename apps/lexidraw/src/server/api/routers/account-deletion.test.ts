@@ -178,6 +178,7 @@ async function seed(prefix: string) {
   ]);
   for (const pathname of [
     `thumbnails/${ids.doc}/light-1.png`,
+    `drawings/${ids.publicDrawing}/files/${prefix}-picture.png`,
     `${ids.neighbourDoc}-given.png`,
     `${ids.doc}-taken.png`,
     `${ids.doc}-clip.mp4`,
@@ -372,7 +373,7 @@ describe("deleting an account leaves other people's work alone", () => {
 });
 
 describe("deleting an account empties the store of its files", () => {
-  test("of their thumbnails, uploads and audio, and nothing else", async () => {
+  test("of their thumbnails, uploads, drawings' images and audio, and nothing else", async () => {
     const ids = await seed("delblobs");
     deleted.length = 0;
 
@@ -382,6 +383,7 @@ describe("deleting an account empties the store of its files", () => {
       [
         `${ids.doc}-clip.mp4`,
         `${ids.doc}-taken.png`,
+        `drawings/${ids.publicDrawing}/files/delblobs-picture.png`,
         `thumbnails/${ids.doc}/light-1.png`,
         `tts/doc/delblobs_tts_own/full.mp3`,
         `tts/doc/delblobs_tts_own/manifest.json`,

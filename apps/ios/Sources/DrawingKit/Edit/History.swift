@@ -58,6 +58,11 @@ struct History {
     self.selection = selection
   }
 
+  /// Takes `element` as it is now without a step to undo.
+  mutating func adopt(_ element: RawElement) {
+    snapshot[element.id] = element
+  }
+
   mutating func undo(_ store: inout [RawElement], selection: inout Set<String>, environment: EditorEnvironment) {
     perform(&store, &selection, environment, from: \.undoStack, to: \.redoStack)
   }

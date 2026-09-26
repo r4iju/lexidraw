@@ -10,13 +10,14 @@ struct DrawingCanvas: UIViewRepresentable {
   let elements: [JSONValue]
   let background: String
   let theme: DrawingTheme
+  var images: [String: DrawingImage] = [:]
 
   func makeUIView(context: Context) -> DrawingScrollView {
     DrawingScrollView(elements: restoreElements(elements), background: background)
   }
 
   func updateUIView(_ view: DrawingScrollView, context: Context) {
-    view.show(theme)
+    view.show(theme, images: images)
   }
 }
 
@@ -28,6 +29,7 @@ final class DrawingScrollView: UIScrollView, UIScrollViewDelegate {
   private let elements: [DrawingElement]
   private let background: String
   private var theme: DrawingTheme?
+  private var images: [String: DrawingImage] = [:]
 
   init(elements: [DrawingElement], background: String) {
     self.elements = elements
@@ -44,12 +46,14 @@ final class DrawingScrollView: UIScrollView, UIScrollViewDelegate {
 
   required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
 
-  func show(_ theme: DrawingTheme) {
-    guard theme != self.theme else { return }
+  func show(_ theme: DrawingTheme, images: [String: DrawingImage]) {
+    guard theme != self.theme || Set(images.keys) != Set(self.images.keys) else { return }
     let fitsAgain = self.theme == nil
     self.theme = theme
+    self.images = images
     let scene = PreparedScene(
-      elements, theme: theme, canvasBackgroundColor: background, measurer: FontLibrary.shared)
+      elements, theme: theme, canvasBackgroundColor: background, images: images,
+      measurer: FontLibrary.shared)
     let bounds = scene.contentBounds
     let size = CGSize(
       width: bounds.maxX - bounds.minX + Self.margin * 2,

@@ -1,0 +1,122 @@
+[
+  {
+    "id": "left",
+    "type": "rectangle",
+    "x": 100,
+    "y": 150,
+    "width": 139.14285714285717,
+    "height": 133.6,
+    "angle": 0,
+    "strokeColor": "#1e1e1e",
+    "backgroundColor": "transparent",
+    "fillStyle": "solid",
+    "strokeWidth": 2,
+    "strokeStyle": "solid",
+    "roughness": 1,
+    "opacity": 100,
+    "groupIds": [],
+    "frameId": null,
+    "index": "a0",
+    "roundness": null,
+    "seed": 11,
+    "version": 5,
+    "versionNonce": 1360855695,
+    "isDeleted": false,
+    "boundElements": [
+      {
+        "id": "eKRnz6T-PSvHRQvWtv-yQ",
+        "type": "arrow"
+      }
+    ],
+    "updated": 1790438709393,
+    "link": null,
+    "locked": false
+  },
+  {
+    "id": "right",
+    "type": "ellipse",
+    "x": 447.8571428571429,
+    "y": 183.4,
+    "width": 139.14285714285717,
+    "height": 133.6,
+    "angle": 0,
+    "strokeColor": "#1e1e1e",
+    "backgroundColor": "transparent",
+    "fillStyle": "solid",
+    "strokeWidth": 2,
+    "strokeStyle": "solid",
+    "roughness": 1,
+    "opacity": 100,
+    "groupIds": [],
+    "frameId": null,
+    "index": "a1",
+    "roundness": null,
+    "seed": 12,
+    "version": 5,
+    "versionNonce": 741248449,
+    "isDeleted": false,
+    "boundElements": [
+      {
+        "id": "eKRnz6T-PSvHRQvWtv-yQ",
+        "type": "arrow"
+      }
+    ],
+    "updated": 1790438709393,
+    "link": null,
+    "locked": false
+  },
+  {
+    "id": "eKRnz6T-PSvHRQvWtv-yQ",
+    "type": "arrow",
+    "x": 233.3452380952381,
+    "y": 216.8,
+    "width": 220.30952380952382,
+    "height": 33.4,
+    "angle": 0,
+    "strokeColor": "#1e1e1e",
+    "backgroundColor": "transparent",
+    "fillStyle": "solid",
+    "strokeWidth": 2,
+    "strokeStyle": "solid",
+    "roughness": 1,
+    "opacity": 100,
+    "groupIds": [],
+    "frameId": null,
+    "index": "a2",
+    "roundness": {
+      "type": 2
+    },
+    "seed": 804120783,
+    "version": 16,
+    "versionNonce": 447554881,
+    "isDeleted": false,
+    "boundElements": null,
+    "updated": 1790438709411,
+    "link": null,
+    "locked": false,
+    "points": [
+      [
+        0,
+        0
+      ],
+      [
+        220.30952380952382,
+        33.4
+      ]
+    ],
+    "lastCommittedPoint": null,
+    "startBinding": {
+      "elementId": "left",
+      "focus": -0.12500000000000003,
+      "gap": 5.797619047619065
+    },
+    "endBinding": {
+      "elementId": "right",
+      "focus": -0.1249999999999992,
+      "gap": 5.797619047619065
+    },
+    "startArrowhead": null,
+    "endArrowhead": "arrow",
+    "elbowed": false
+  }
+]

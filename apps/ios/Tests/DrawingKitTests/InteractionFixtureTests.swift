@@ -24,16 +24,22 @@ let fixtureInteractions = try! FileManager.default.contentsOfDirectory(
     let editor = DrawingEditor(
       elements: script["before"]?.arrayValue ?? [], measurer: FontLibrary.shared,
       environment: .counting)
+    let files = try fixtureFiles(directory, as: ImageFile.init(data:))
     var pressed = 0.5
-    for step in script["steps"]?.arrayValue ?? [] { play(step, in: editor, pressed: &pressed) }
+    for step in script["steps"]?.arrayValue ?? [] {
+      play(step, in: editor, files: files, pressed: &pressed)
+    }
 
-    #expect(elementDifference(expected, editor.elements) == nil)
+    let difference = elementDifference(expected, editor.elements)
+    #expect(difference == nil, "\(difference ?? "")")
   }
 
   /// A step as the recorder plays it in the browser, where a move or a lift
   /// reports the pressure of the press unless it names its own, and a lift
   /// reports none.
-  private func play(_ step: JSONValue, in editor: DrawingEditor, pressed: inout Double) {
+  private func play(
+    _ step: JSONValue, in editor: DrawingEditor, files: [String: ImageFile], pressed: inout Double
+  ) {
     func point(_ value: JSONValue?) -> Point2D {
       let pair = value?.arrayValue?.compactMap(\.numberValue) ?? []
       return Point2D(pair.first ?? 0, pair.last ?? 0)
@@ -52,6 +58,10 @@ let fixtureInteractions = try! FileManager.default.contentsOfDirectory(
       editor.pointerUp(point(step["up"]), pressure: 0)
     } else if step["doubleTap"] != nil {
       editor.doubleTap(point(step["doubleTap"]))
+    } else if let style = step["style"]?.stringValue, let value = step["value"] {
+      editor.changeStyle(styleChange(style, value))
+    } else if let name = step["file"]?.stringValue, let file = files[name] {
+      editor.placeImage(file, at: point(step["drop"]), viewportHeight: recorderViewportHeight)
     } else if let text = step["type"]?.stringValue {
       for character in text { editor.editText((editor.editingText ?? "") + String(character)) }
     } else {
@@ -60,15 +70,30 @@ let fixtureInteractions = try! FileManager.default.contentsOfDirectory(
       case "Delete": editor.deleteSelection()
       case "undo": editor.undo()
       case "redo": editor.redo()
+      case "group": editor.group()
+      case "ungroup": editor.ungroup()
       default: Issue.record("Unknown step \(describe(step))")
       }
     }
   }
 }
 
-/// Where two element lists differ, ignoring what is random on the web: ids,
-/// compared by the order they first appear in, and the seed, version nonce
-/// and timestamp.
+/// The height of the web editor the recorder plays scripts in.
+private let recorderViewportHeight = 800.0
+
+private func styleChange(_ style: String, _ value: JSONValue) -> StyleChange {
+  switch style {
+  case "strokeColor": .strokeColor(value.stringValue!)
+  case "backgroundColor": .backgroundColor(value.stringValue!)
+  case "fillStyle": .fillStyle(value.stringValue!)
+  case "strokeWidth": .strokeWidth(value.numberValue!)
+  default: .roughness(value.numberValue!)
+  }
+}
+
+/// Where two element lists differ, ignoring what is random on the web: ids
+/// and group ids, compared by the order they first appear in, and the
+/// seed, version nonce and timestamp.
 func elementDifference(_ expected: [JSONValue], _ actual: [JSONValue]) -> String? {
   let e = normalized(expected)
   let a = normalized(actual)
@@ -86,6 +111,9 @@ private func normalized(_ elements: [JSONValue]) -> [JSONValue] {
   var ids: [String: String] = [:]
   for element in elements {
     if let id = element["id"]?.stringValue, ids[id] == nil { ids[id] = "#\(ids.count)" }
+  }
+  for group in elements.flatMap({ $0["groupIds"]?.arrayValue ?? [] }).compactMap(\.stringValue) where ids[group] == nil {
+    ids[group] = "group #\(ids.count)"
   }
   func rename(_ value: JSONValue) -> JSONValue {
     switch value {

@@ -16,8 +16,27 @@ func sceneElements(_ scene: String) throws -> [JSONValue] {
   return try JSONDecoder().decode([JSONValue].self, from: data)
 }
 
-func prepared(_ elements: [JSONValue], _ theme: DrawingTheme) -> PreparedScene {
-  PreparedScene(restoreElements(elements), theme: theme, measurer: FontLibrary.shared)
+/// The images a fixture's scene shows, by file id.
+func sceneImages(_ scene: String) throws -> [String: DrawingImage] {
+  try fixtureFiles(drawingFixtures.appending(path: scene)) { DrawingImage(data: $0, mimeType: "image/png") }
+}
+
+/// The PNGs a fixture keeps in `files/`, by name.
+func fixtureFiles<File>(_ fixture: URL, as read: (Data) throws -> File) throws -> [String: File] {
+  let directory = fixture.appending(path: "files")
+  guard FileManager.default.fileExists(atPath: directory.path) else { return [:] }
+  var files: [String: File] = [:]
+  for name in try FileManager.default.contentsOfDirectory(atPath: directory.path) {
+    files[(name as NSString).deletingPathExtension] = try read(
+      Data(contentsOf: directory.appending(path: name)))
+  }
+  return files
+}
+
+func prepared(
+  _ elements: [JSONValue], _ theme: DrawingTheme, images: [String: DrawingImage] = [:]
+) -> PreparedScene {
+  PreparedScene(restoreElements(elements), theme: theme, images: images, measurer: FontLibrary.shared)
 }
 
 /// The recorder's export settings.
@@ -149,6 +168,20 @@ final class RecordingCanvas: Canvas2D {
         "m": .array([t.a, t.b, t.c, t.d].map { .number($0) }), "font": .string(font),
         "align": .string(textAlign), "baseline": "alphabetic", "style": .string(fillStyle),
       ].merging(paint) { a, _ in a })
+  }
+
+  override func drawImage(_ image: CanvasImage, _ x: Double, _ y: Double, _ width: Double, _ height: Double) {
+    log("drawImage", ["quad": quadValue(x, y, width, height)].merging(paint) { a, _ in a })
+  }
+
+  override func drawImage(
+    _ image: CanvasImage, _ sx: Double, _ sy: Double, _ sw: Double, _ sh: Double, _ x: Double,
+    _ y: Double, _ width: Double, _ height: Double
+  ) {
+    log(
+      "drawImage",
+      ["source": .array([sx, sy, sw, sh].map { .number($0) }), "quad": quadValue(x, y, width, height)]
+        .merging(paint) { a, _ in a })
   }
 
   override func makeLayer(width: Int, height: Int) -> Canvas2D { RecordingCanvas() }
@@ -301,8 +334,10 @@ func mismatchShare(_ a: Pixels, _ b: Pixels, radius: Int = 1, tolerance: Int = 6
   return Double(max(unmatched(a, b), unmatched(b, a))) / total
 }
 
-func renderImage(_ elements: [JSONValue], _ theme: DrawingTheme) -> CGImage {
-  let scene = prepared(elements, theme)
+func renderImage(
+  _ elements: [JSONValue], _ theme: DrawingTheme, images: [String: DrawingImage] = [:]
+) -> CGImage {
+  let scene = prepared(elements, theme, images: images)
   let size = scene.exportPixelSize(padding: exportPadding, scale: exportScale)
   let canvas = CGCanvas(width: size.width, height: size.height, fonts: FontLibrary.shared)
   scene.export(on: canvas, padding: exportPadding, scale: exportScale, background: "#ffffff")

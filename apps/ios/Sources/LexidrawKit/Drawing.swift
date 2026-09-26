@@ -1,4 +1,5 @@
 import Foundation
+import HTTPTypes
 import LexidrawJSON
 
 /// A drawing as the server stores it. The elements are kept as the JSON they
@@ -138,5 +139,53 @@ public actor DrawingSaver {
     }
     set(.unsaved)
     await saveNow()
+  }
+}
+
+/// Where a file an image element shows is stored.
+public struct DrawingFileLink: Sendable, Equatable {
+  public let id: String
+  public let mimeType: String
+  public let url: URL
+
+  public init(id: String, mimeType: String, url: URL) {
+    self.id = id
+    self.mimeType = mimeType
+    self.url = url
+  }
+}
+
+extension Session {
+  public func files(ofDrawing id: String) async throws -> [DrawingFileLink] {
+    try await ask { try await $0.drawingsFiles(path: .init(id: id)) }.ok.body.json.files.compactMap { file in
+      URL(string: file.url).map { DrawingFileLink(id: file.id, mimeType: file.mimeType.rawValue, url: $0) }
+    }
+  }
+
+  /// The file's bytes, from the store the server keeps them in. The token
+  /// is for the server alone, so this goes past the client that adds it.
+  public func data(of file: DrawingFileLink) async throws -> Data {
+    guard let components = URLComponents(url: file.url, resolvingAgainstBaseURL: false),
+      var origin = URLComponents(string: "\(components.scheme ?? "https")://\(components.host ?? "")")
+    else { throw URLError(.badURL) }
+    origin.port = components.port
+    let path = components.percentEncodedPath + (components.percentEncodedQuery.map { "?\($0)" } ?? "")
+    let (response, body) = try await connection.transport.send(
+      HTTPRequest(method: .get, scheme: nil, authority: nil, path: path), body: nil,
+      baseURL: origin.url!, operationID: "drawings-fileData")
+    guard response.status.kind == .successful else {
+      throw Refusal(status: response.status.code, message: "The file couldn’t be fetched.")
+    }
+    guard let body else { return Data() }
+    return try await Data(collecting: body, upTo: 16 << 20)
+  }
+
+  /// Stores a file under the id its image elements carry.
+  public func store(_ data: Data, as fileId: String, mimeType: String, inDrawing id: String) async throws {
+    _ = try await ask {
+      try await $0.drawingsPutFile(
+        path: .init(id: id, fileId: fileId),
+        body: .json(.init(mimeType: mimeType, dataURL: "data:\(mimeType);base64,\(data.base64EncodedString())")))
+    }.ok
   }
 }

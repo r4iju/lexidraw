@@ -9,6 +9,7 @@ struct DrawingScreen: View {
   let id: String
   let title: String
   @State private var drawing: Loaded<StoredDrawing> = .loading
+  @State private var images: [String: DrawingImage] = [:]
   @Environment(\.colorScheme) private var colorScheme
 
   var body: some View {
@@ -19,9 +20,14 @@ struct DrawingScreen: View {
           DrawingEditorScreen(session: session, drawing: stored, theme: theme, reload: load)
             .id(stored.updatedAt)
         } else {
-          DrawingCanvas(elements: stored.elements, background: stored.background, theme: theme)
+          DrawingCanvas(elements: stored.elements, background: stored.background, theme: theme, images: images)
             .id(stored.updatedAt)
             .ignoresSafeArea(edges: .bottom)
+            .task(id: stored.updatedAt) {
+              await DrawingImages.load(for: stored.elements, drawing: stored.id, session: session) {
+                images[$0] = $1
+              }
+            }
         }
       } else {
         Color.clear

@@ -244,6 +244,13 @@ open class Canvas2D {
   }
 
   /// An SVG path's elements in device space under the current transform.
+  open func drawImage(_ image: CanvasImage, _ x: Double, _ y: Double, _ width: Double, _ height: Double) {}
+
+  open func drawImage(
+    _ image: CanvasImage, _ sx: Double, _ sy: Double, _ sw: Double, _ sh: Double, _ x: Double,
+    _ y: Double, _ width: Double, _ height: Double
+  ) {}
+
   public func devicePath(svg d: String) -> [PathElement] {
     let t = state.transform
     var elements: [PathElement] = []
