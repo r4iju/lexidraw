@@ -1,0 +1,817 @@
+{
+  "nodes": [
+    {
+      "type": "artificial",
+      "version": 1,
+      "children": true,
+      "fields": {
+        "direction": {
+          "kind": "enum",
+          "values": [null, "ltr", "rtl"],
+          "default": null
+        },
+        "format": {
+          "kind": "enum",
+          "values": ["", "left", "start", "center", "right", "end", "justify"],
+          "default": ""
+        },
+        "indent": {
+          "kind": "number",
+          "min": 0,
+          "integer": true,
+          "default": 0
+        },
+        "textFormat": {
+          "kind": "number",
+          "default": 0
+        },
+        "textStyle": {
+          "kind": "string",
+          "default": ""
+        }
+      },
+      "state": {}
+    },
+    {
+      "type": "autolink",
+      "version": 1,
+      "children": true,
+      "fields": {
+        "direction": {
+          "kind": "enum",
+          "values": [null, "ltr", "rtl"],
+          "default": null
+        },
+        "format": {
+          "kind": "enum",
+          "values": ["", "left", "start", "center", "right", "end", "justify"],
+          "default": ""
+        },
+        "indent": {
+          "kind": "number",
+          "min": 0,
+          "integer": true,
+          "default": 0
+        },
+        "isUnlinked": {
+          "kind": "boolean",
+          "default": false
+        },
+        "rel": {
+          "kind": "nullable",
+          "inner": {
+            "kind": "string",
+            "default": ""
+          },
+          "defaultAsNull": true,
+          "default": null
+        },
+        "target": {
+          "kind": "nullable",
+          "inner": {
+            "kind": "string",
+            "default": ""
+          },
+          "defaultAsNull": true,
+          "default": null
+        },
+        "textFormat": {
+          "kind": "number",
+          "default": 0
+        },
+        "textStyle": {
+          "kind": "string",
+          "default": ""
+        },
+        "title": {
+          "kind": "nullable",
+          "inner": {
+            "kind": "string",
+            "default": ""
+          },
+          "defaultAsNull": true,
+          "default": null
+        },
+        "url": {
+          "kind": "string",
+          "default": ""
+        }
+      },
+      "state": {}
+    },
+    {
+      "type": "code-highlight",
+      "version": 1,
+      "children": false,
+      "fields": {
+        "detail": {
+          "kind": "aliased",
+          "inner": {
+            "kind": "number",
+            "default": 0
+          },
+          "aliases": {
+            "directionless": 1,
+            "unmergeable": 2
+          },
+          "default": 0
+        },
+        "format": {
+          "kind": "aliased",
+          "inner": {
+            "kind": "number",
+            "default": 0
+          },
+          "aliases": {
+            "bold": 1,
+            "capitalize": 1024,
+            "code": 16,
+            "highlight": 128,
+            "italic": 2,
+            "lowercase": 256,
+            "strikethrough": 4,
+            "subscript": 32,
+            "superscript": 64,
+            "underline": 8,
+            "uppercase": 512
+          },
+          "default": 0
+        },
+        "highlightType": {
+          "kind": "optional",
+          "inner": {
+            "kind": "nullable",
+            "inner": {
+              "kind": "string",
+              "default": ""
+            },
+            "default": null
+          }
+        },
+        "mode": {
+          "kind": "enum",
+          "values": ["normal", "token", "segmented"],
+          "default": "normal"
+        },
+        "style": {
+          "kind": "string",
+          "default": ""
+        },
+        "text": {
+          "kind": "string",
+          "default": ""
+        }
+      },
+      "state": {}
+    },
+    {
+      "type": "heading",
+      "version": 1,
+      "children": true,
+      "fields": {
+        "direction": {
+          "kind": "enum",
+          "values": [null, "ltr", "rtl"],
+          "default": null
+        },
+        "format": {
+          "kind": "enum",
+          "values": ["", "left", "start", "center", "right", "end", "justify"],
+          "default": ""
+        },
+        "indent": {
+          "kind": "number",
+          "min": 0,
+          "integer": true,
+          "default": 0
+        },
+        "tag": {
+          "kind": "enum",
+          "values": ["h1", "h2", "h3", "h4", "h5", "h6"],
+          "default": "h1"
+        },
+        "textFormat": {
+          "kind": "number",
+          "default": 0
+        },
+        "textStyle": {
+          "kind": "string",
+          "default": ""
+        }
+      },
+      "state": {}
+    },
+    {
+      "type": "horizontalrule",
+      "version": 1,
+      "children": false,
+      "fields": {},
+      "state": {}
+    },
+    {
+      "type": "linebreak",
+      "version": 1,
+      "children": false,
+      "fields": {},
+      "state": {}
+    },
+    {
+      "type": "link",
+      "version": 1,
+      "children": true,
+      "fields": {
+        "direction": {
+          "kind": "enum",
+          "values": [null, "ltr", "rtl"],
+          "default": null
+        },
+        "format": {
+          "kind": "enum",
+          "values": ["", "left", "start", "center", "right", "end", "justify"],
+          "default": ""
+        },
+        "indent": {
+          "kind": "number",
+          "min": 0,
+          "integer": true,
+          "default": 0
+        },
+        "rel": {
+          "kind": "nullable",
+          "inner": {
+            "kind": "string",
+            "default": ""
+          },
+          "defaultAsNull": true,
+          "default": null
+        },
+        "target": {
+          "kind": "nullable",
+          "inner": {
+            "kind": "string",
+            "default": ""
+          },
+          "defaultAsNull": true,
+          "default": null
+        },
+        "textFormat": {
+          "kind": "number",
+          "default": 0
+        },
+        "textStyle": {
+          "kind": "string",
+          "default": ""
+        },
+        "title": {
+          "kind": "nullable",
+          "inner": {
+            "kind": "string",
+            "default": ""
+          },
+          "defaultAsNull": true,
+          "default": null
+        },
+        "url": {
+          "kind": "string",
+          "default": ""
+        }
+      },
+      "state": {}
+    },
+    {
+      "type": "list",
+      "version": 1,
+      "children": true,
+      "fields": {
+        "direction": {
+          "kind": "enum",
+          "values": [null, "ltr", "rtl"],
+          "default": null
+        },
+        "format": {
+          "kind": "enum",
+          "values": ["", "left", "start", "center", "right", "end", "justify"],
+          "default": ""
+        },
+        "indent": {
+          "kind": "number",
+          "min": 0,
+          "integer": true,
+          "default": 0
+        },
+        "listType": {
+          "kind": "aliased",
+          "inner": {
+            "kind": "enum",
+            "values": ["number", "bullet", "check"],
+            "default": "number"
+          },
+          "aliases": {
+            "ol": "number",
+            "ul": "bullet"
+          },
+          "default": "number"
+        },
+        "start": {
+          "kind": "number",
+          "default": 1
+        },
+        "tag": {
+          "kind": "enum",
+          "values": ["ul", "ol"],
+          "default": "ul"
+        },
+        "textFormat": {
+          "kind": "number",
+          "default": 0
+        },
+        "textStyle": {
+          "kind": "string",
+          "default": ""
+        }
+      },
+      "state": {}
+    },
+    {
+      "type": "listitem",
+      "version": 1,
+      "children": true,
+      "fields": {
+        "checked": {
+          "kind": "optional",
+          "inner": {
+            "kind": "boolean",
+            "default": false
+          }
+        },
+        "direction": {
+          "kind": "enum",
+          "values": [null, "ltr", "rtl"],
+          "default": null
+        },
+        "format": {
+          "kind": "enum",
+          "values": ["", "left", "start", "center", "right", "end", "justify"],
+          "default": ""
+        },
+        "indent": {
+          "kind": "number",
+          "min": 0,
+          "max": 128,
+          "integer": true,
+          "clamp": true,
+          "default": 0
+        },
+        "textFormat": {
+          "kind": "number",
+          "default": 0
+        },
+        "textStyle": {
+          "kind": "string",
+          "default": ""
+        },
+        "value": {
+          "kind": "number",
+          "default": 1
+        }
+      },
+      "state": {}
+    },
+    {
+      "type": "mark",
+      "version": 1,
+      "children": true,
+      "fields": {
+        "direction": {
+          "kind": "enum",
+          "values": [null, "ltr", "rtl"],
+          "default": null
+        },
+        "format": {
+          "kind": "enum",
+          "values": ["", "left", "start", "center", "right", "end", "justify"],
+          "default": ""
+        },
+        "ids": {
+          "kind": "array",
+          "item": {
+            "kind": "string",
+            "default": ""
+          },
+          "default": []
+        },
+        "indent": {
+          "kind": "number",
+          "min": 0,
+          "integer": true,
+          "default": 0
+        },
+        "textFormat": {
+          "kind": "number",
+          "default": 0
+        },
+        "textStyle": {
+          "kind": "string",
+          "default": ""
+        }
+      },
+      "state": {}
+    },
+    {
+      "type": "paragraph",
+      "version": 1,
+      "children": true,
+      "fields": {
+        "direction": {
+          "kind": "enum",
+          "values": [null, "ltr", "rtl"],
+          "default": null
+        },
+        "format": {
+          "kind": "enum",
+          "values": ["", "left", "start", "center", "right", "end", "justify"],
+          "default": ""
+        },
+        "indent": {
+          "kind": "number",
+          "min": 0,
+          "integer": true,
+          "default": 0
+        },
+        "textFormat": {
+          "kind": "number",
+          "default": 0
+        },
+        "textStyle": {
+          "kind": "string",
+          "default": ""
+        }
+      },
+      "state": {}
+    },
+    {
+      "type": "quote",
+      "version": 1,
+      "children": true,
+      "fields": {
+        "direction": {
+          "kind": "enum",
+          "values": [null, "ltr", "rtl"],
+          "default": null
+        },
+        "format": {
+          "kind": "enum",
+          "values": ["", "left", "start", "center", "right", "end", "justify"],
+          "default": ""
+        },
+        "indent": {
+          "kind": "number",
+          "min": 0,
+          "integer": true,
+          "default": 0
+        },
+        "textFormat": {
+          "kind": "number",
+          "default": 0
+        },
+        "textStyle": {
+          "kind": "string",
+          "default": ""
+        }
+      },
+      "state": {
+        "shadowRoot": {
+          "flat": true,
+          "value": {
+            "kind": "boolean",
+            "default": false
+          }
+        }
+      }
+    },
+    {
+      "type": "root",
+      "version": 1,
+      "children": true,
+      "fields": {
+        "direction": {
+          "kind": "enum",
+          "values": [null, "ltr", "rtl"],
+          "default": null
+        },
+        "format": {
+          "kind": "enum",
+          "values": ["", "left", "start", "center", "right", "end", "justify"],
+          "default": ""
+        },
+        "indent": {
+          "kind": "number",
+          "min": 0,
+          "integer": true,
+          "default": 0
+        },
+        "textFormat": {
+          "kind": "number",
+          "default": 0
+        },
+        "textStyle": {
+          "kind": "string",
+          "default": ""
+        }
+      },
+      "state": {}
+    },
+    {
+      "type": "tab",
+      "version": 1,
+      "children": false,
+      "fields": {
+        "detail": {
+          "kind": "number",
+          "default": 2
+        },
+        "format": {
+          "kind": "aliased",
+          "inner": {
+            "kind": "number",
+            "default": 0
+          },
+          "aliases": {
+            "bold": 1,
+            "capitalize": 1024,
+            "code": 16,
+            "highlight": 128,
+            "italic": 2,
+            "lowercase": 256,
+            "strikethrough": 4,
+            "subscript": 32,
+            "superscript": 64,
+            "underline": 8,
+            "uppercase": 512
+          },
+          "default": 0
+        },
+        "mode": {
+          "kind": "enum",
+          "values": ["normal"],
+          "default": "normal"
+        },
+        "style": {
+          "kind": "string",
+          "default": ""
+        },
+        "text": {
+          "kind": "string",
+          "default": "\t"
+        }
+      },
+      "state": {}
+    },
+    {
+      "type": "table",
+      "version": 1,
+      "children": true,
+      "fields": {
+        "colWidths": {
+          "kind": "optional",
+          "inner": {
+            "kind": "array",
+            "item": {
+              "kind": "number",
+              "default": 0
+            },
+            "default": []
+          }
+        },
+        "direction": {
+          "kind": "enum",
+          "values": [null, "ltr", "rtl"],
+          "default": null
+        },
+        "format": {
+          "kind": "enum",
+          "values": ["", "left", "start", "center", "right", "end", "justify"],
+          "default": ""
+        },
+        "frozenColumnCount": {
+          "kind": "number",
+          "default": 0
+        },
+        "frozenRowCount": {
+          "kind": "number",
+          "default": 0
+        },
+        "indent": {
+          "kind": "number",
+          "min": 0,
+          "integer": true,
+          "default": 0
+        },
+        "rowStriping": {
+          "kind": "boolean",
+          "default": false
+        },
+        "textFormat": {
+          "kind": "number",
+          "default": 0
+        },
+        "textStyle": {
+          "kind": "string",
+          "default": ""
+        }
+      },
+      "state": {}
+    },
+    {
+      "type": "tablecell",
+      "version": 1,
+      "children": true,
+      "fields": {
+        "backgroundColor": {
+          "kind": "nullable",
+          "inner": {
+            "kind": "string",
+            "default": ""
+          },
+          "defaultAsNull": true,
+          "default": null
+        },
+        "colSpan": {
+          "kind": "number",
+          "min": 1,
+          "integer": true,
+          "default": 1
+        },
+        "direction": {
+          "kind": "enum",
+          "values": [null, "ltr", "rtl"],
+          "default": null
+        },
+        "format": {
+          "kind": "enum",
+          "values": ["", "left", "start", "center", "right", "end", "justify"],
+          "default": ""
+        },
+        "headerState": {
+          "kind": "number",
+          "default": 0
+        },
+        "indent": {
+          "kind": "number",
+          "min": 0,
+          "integer": true,
+          "default": 0
+        },
+        "rowSpan": {
+          "kind": "number",
+          "min": 1,
+          "integer": true,
+          "default": 1
+        },
+        "textFormat": {
+          "kind": "number",
+          "default": 0
+        },
+        "textStyle": {
+          "kind": "string",
+          "default": ""
+        },
+        "verticalAlign": {
+          "kind": "enum",
+          "values": ["middle", "bottom"]
+        },
+        "width": {
+          "kind": "optional",
+          "inner": {
+            "kind": "number",
+            "default": 0
+          },
+          "omitDefault": true
+        }
+      },
+      "state": {}
+    },
+    {
+      "type": "tablerow",
+      "version": 1,
+      "children": true,
+      "fields": {
+        "direction": {
+          "kind": "enum",
+          "values": [null, "ltr", "rtl"],
+          "default": null
+        },
+        "format": {
+          "kind": "enum",
+          "values": ["", "left", "start", "center", "right", "end", "justify"],
+          "default": ""
+        },
+        "height": {
+          "kind": "optional",
+          "inner": {
+            "kind": "number",
+            "default": 0
+          }
+        },
+        "indent": {
+          "kind": "number",
+          "min": 0,
+          "integer": true,
+          "default": 0
+        },
+        "textFormat": {
+          "kind": "number",
+          "default": 0
+        },
+        "textStyle": {
+          "kind": "string",
+          "default": ""
+        }
+      },
+      "state": {}
+    },
+    {
+      "type": "text",
+      "version": 1,
+      "children": false,
+      "fields": {
+        "detail": {
+          "kind": "aliased",
+          "inner": {
+            "kind": "number",
+            "default": 0
+          },
+          "aliases": {
+            "directionless": 1,
+            "unmergeable": 2
+          },
+          "default": 0
+        },
+        "format": {
+          "kind": "aliased",
+          "inner": {
+            "kind": "number",
+            "default": 0
+          },
+          "aliases": {
+            "bold": 1,
+            "capitalize": 1024,
+            "code": 16,
+            "highlight": 128,
+            "italic": 2,
+            "lowercase": 256,
+            "strikethrough": 4,
+            "subscript": 32,
+            "superscript": 64,
+            "underline": 8,
+            "uppercase": 512
+          },
+          "default": 0
+        },
+        "mode": {
+          "kind": "enum",
+          "values": ["normal", "token", "segmented"],
+          "default": "normal"
+        },
+        "style": {
+          "kind": "string",
+          "default": ""
+        },
+        "text": {
+          "kind": "string",
+          "default": ""
+        }
+      },
+      "state": {}
+    }
+  ],
+  "undeclared": [
+    "article",
+    "autocomplete",
+    "callout",
+    "chart",
+    "code",
+    "collapsible-container",
+    "collapsible-content",
+    "collapsible-title",
+    "comment",
+    "equation",
+    "excalidraw",
+    "figma",
+    "footnote-definition",
+    "footnote-reference",
+    "image",
+    "inline-image",
+    "layout-container",
+    "layout-item",
+    "mermaid",
+    "page-break",
+    "poll",
+    "slide-deck",
+    "sticky",
+    "thread",
+    "tweet",
+    "video",
+    "youtube"
+  ]
+}
