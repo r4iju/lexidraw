@@ -11,7 +11,7 @@
     "test:ts": "tsgo --noEmit",
     "start": "next start --hostname 0.0.0.0 --port 3025",
     "test": "bun test",
-    "openapi:fixture": "bun --preload ./src/test/stub-env.ts ./src/test/print-openapi.ts > ../cli/test/fixtures/openapi.json && bun x @biomejs/biome format --write ../cli/test/fixtures/openapi.json"
+    "openapi:fixture": "bun --preload ./src/test/stub-env.ts ./src/test/write-openapi-copies.ts"
   },
   "dependencies": {
     "@ai-sdk/google": "^4.0.77",

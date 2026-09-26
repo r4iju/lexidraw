@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { RouterOutputs } from "~/trpc/shared";
 
 /**
  * What Settings saves. Every override is nullable: null means "follow the
@@ -41,6 +42,27 @@ export const SettingsSchema = z.object({
 });
 
 export type SettingsInput = z.infer<typeof SettingsSchema>;
+
+export type AccountIdentity = Pick<
+  RouterOutputs["auth"]["getProfile"],
+  "email" | "name"
+>;
+
+/**
+ * What someone types to confirm deleting their account: its email, or its
+ * name when it has none. Settings and the procedure both read it from here.
+ */
+export function deletionConfirmation(user: AccountIdentity): string {
+  return user.email ?? user.name;
+}
+
+export function confirmsDeletion(
+  user: AccountIdentity,
+  typed: string,
+): boolean {
+  const expected = deletionConfirmation(user).trim().toLowerCase();
+  return expected !== "" && typed.trim().toLowerCase() === expected;
+}
 
 /** The read-aloud settings a new account starts with. */
 export const TTS_DEFAULTS = {

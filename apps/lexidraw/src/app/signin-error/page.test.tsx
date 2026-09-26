@@ -15,7 +15,7 @@ describe("sign-in error page", () => {
     const html = await render("OAuthAccountNotLinked");
     expect(html).toContain("We couldn’t sign you in");
     expect(html).toContain(
-      "This email already has an account that signs in with a password.",
+      "This email is already used by another account. If it’s yours, sign in the way you did before, then connect this sign-in method in Settings.",
     );
   });
 

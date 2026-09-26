@@ -35,6 +35,22 @@ const env = createEnv({
     VERCEL_BLOB_STORAGE_HOST_DEV: z.url(),
     GITHUB_CLIENT_ID: z.string().min(1),
     GITHUB_CLIENT_SECRET: z.string().min(1),
+    // The only URLs native sign-in hands a one-time code to, compared exactly.
+    NATIVE_SIGN_IN_CALLBACKS: z
+      .string()
+      .default("lexidraw://auth/callback")
+      .transform((value) =>
+        value
+          .split(",")
+          .map((url) => url.trim())
+          .filter(Boolean),
+      )
+      .pipe(z.array(z.url()).min(1)),
+    // Sign in with Apple; see `appleCredentials`
+    AUTH_APPLE_ID: z.string().optional(),
+    APPLE_TEAM_ID: z.string().optional(),
+    APPLE_KEY_ID: z.string().optional(),
+    APPLE_PRIVATE_KEY: z.string().optional(),
     ICE_SERVER_CONFIG: z.preprocess(
       (val) => {
         if (typeof val === "string") {
@@ -124,6 +140,11 @@ const env = createEnv({
     VERCEL_BLOB_STORAGE_HOST_DEV: process.env.VERCEL_BLOB_STORAGE_HOST_DEV,
     GITHUB_CLIENT_ID: process.env.GITHUB_CLIENT_ID,
     GITHUB_CLIENT_SECRET: process.env.GITHUB_CLIENT_SECRET,
+    NATIVE_SIGN_IN_CALLBACKS: process.env.NATIVE_SIGN_IN_CALLBACKS,
+    AUTH_APPLE_ID: process.env.AUTH_APPLE_ID,
+    APPLE_TEAM_ID: process.env.APPLE_TEAM_ID,
+    APPLE_KEY_ID: process.env.APPLE_KEY_ID,
+    APPLE_PRIVATE_KEY: process.env.APPLE_PRIVATE_KEY,
     OPENAI_API_KEY: process.env.OPENAI_API_KEY,
     GOOGLE_API_KEY: process.env.GOOGLE_API_KEY,
     OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY,

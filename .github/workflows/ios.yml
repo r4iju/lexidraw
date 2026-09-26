@@ -1,0 +1,32 @@
+name: iOS
+
+on:
+  pull_request:
+    paths:
+      - apps/ios/**
+      - packages/**
+      - bun.lock
+      - .github/actions/ios-app/**
+      - .github/workflows/ios.yml
+
+jobs:
+  lexical-swift:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/ios-app
+        with:
+          fuzz-steps: "20000"
+      - run: >-
+          xcodebuild build
+          -project Lexidraw.xcodeproj -scheme Lexidraw
+          -destination 'generic/platform=iOS Simulator'
+          -skipPackagePluginValidation
+          CODE_SIGNING_ALLOWED=NO
+        working-directory: apps/ios
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fuzz-fixtures
+          path: apps/ios/Tests/LexicalSwiftTests/Fixtures/fuzz-*.json
+          if-no-files-found: ignore

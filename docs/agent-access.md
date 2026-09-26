@@ -33,7 +33,45 @@ loading tool schemas into the agent's context until they are needed.
   `read`, mutations need `write`. Admin procedures never accept tokens.
 - UI: new `/settings/tokens` page (create, name, expiry, scope, last used,
   revoke). Admin area lists and revokes any user's tokens.
+- A token revokes itself with `POST /me/token/revoke`, which is how a device
+  signs out. It takes only a token, never a browser session, and revokes the
+  one presented and no other. A token of either scope may call it.
 - No rate limiting in v1. Add at the context check if ever needed.
+
+### Native sign-in
+
+A native app gets its own token through the system browser, PKCE-style, so
+the token never appears in a URL:
+
+1. The app opens `/native-sign-in?redirectUri=…&codeChallenge=…&codeChallengeMethod=S256&deviceName=…`
+   in `ASWebAuthenticationSession`. `redirectUri` must be one of
+   `NATIVE_SIGN_IN_CALLBACKS` exactly (comma-separated, default
+   `lexidraw://auth/callback`); `codeChallenge` is the base64url SHA-256 of a
+   43–128 character verifier. A request that fails either is refused on the
+   page and never redirected anywhere.
+2. Someone not signed in goes through `/signin`, any provider, and comes back.
+   The signed-in user then approves in the page's own words; the device name
+   is shown only as what the app says, since any app can claim the scheme and
+   send any name. The approval is a same-origin POST to
+   `/native-sign-in/approve`, and the page refuses to be framed, so no other
+   site can approve on the user's behalf; a GET never issues a code.
+3. The approval redirects (303) to `redirectUri?code=…`. The code is random,
+   stored hashed in `NativeSignInCodes`, bound to the user, the challenge, the
+   callback and the device name, and expires after 60 seconds.
+4. The app calls `POST /api/v1/native-sign-in/token` with
+   `{ code, codeVerifier, redirectUri }` and no token, and gets
+   `{ token, name, scope: "write" }` with `Cache-Control: no-store`. The token
+   is an ordinary `lxd_` token without expiry, named for the device, listed and
+   revoked in Settings like any other.
+
+Every attempt spends the code, a wrong verifier included, and every failure is
+the same 400. Presenting a spent code again with its verifier and callback
+also revokes the token it bought, since two holders of the verifier means one
+of them should not have it; without them a replay revokes nothing, so a code
+intercepted on its own cannot sign the device out. A spent code is remembered
+for a day for that. This is the one operation the OpenAPI document publishes
+without security, and the REST route serves it with an anonymous context: no
+cookie session and no token, whatever the request carries.
 
 ## Transports
 
@@ -46,7 +84,8 @@ loading tool schemas into the agent's context until they are needed.
 - Document served unauthenticated at `/api/v1/openapi.json`.
 - Live: the entity subset below — list/load/create/save/update/delete/search,
   tags, share, and directory listing — plus the four markdown procedures, a
-  document's PDF, and the drawing procedures, render included. Nothing further is planned. Admin,
+  document's PDF, the drawing procedures, render included, and a token revoking
+  itself. Nothing further is planned. Admin,
   TTS, backups, snapshot, image generation, and LLM procedures stay tRPC-only.
 
 #### Paths (live)
@@ -54,6 +93,7 @@ loading tool schemas into the agent's context until they are needed.
 | Method | Path                              | Procedure                    |
 | ------ | --------------------------------- | ---------------------------- |
 | GET    | `/me`                             | `auth.me`                    |
+| POST   | `/me/token/revoke`                | `tokens.revokeCurrent`       |
 | GET    | `/entities`                       | `entities.list`              |
 | POST   | `/entities`                       | `entities.create`            |
 | GET    | `/entities/search`                | `entities.search`            |
@@ -77,6 +117,7 @@ loading tool schemas into the agent's context until they are needed.
 | PUT    | `/drawings/{id}`                  | `drawings.put`               |
 | GET    | `/drawings/{id}/render`           | `drawings.render`            |
 | POST   | `/drawings`                       | `drawings.create`            |
+| POST   | `/native-sign-in/token`           | `nativeSignIn.exchange`      |
 
 A directory listing is `GET /entities?parentId={directoryId}`; omitting
 `parentId` lists the root. `/entities/search` is registered before

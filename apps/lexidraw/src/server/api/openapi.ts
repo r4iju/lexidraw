@@ -1,7 +1,7 @@
 import { generateOpenApiDocument, type OpenAPIObject } from "trpc-to-openapi";
 
 import { API_ERROR_CODES } from "./error-codes";
-import { portableJsonSchema } from "./portable-schema";
+import { inDialect, type SchemaDialect } from "./schema-dialect";
 import { appRouter } from "./root";
 import type { HeadingCandidate } from "~/server/documents/markdown";
 
@@ -143,10 +143,14 @@ document.components = {
   },
 };
 
+/** The document spelled for a reader of `dialect`; see schema-dialect.ts. */
+export const openApiDocumentIn = (dialect: SchemaDialect) =>
+  inDialect(document, dialect);
+
 /**
  * Published portably: a generated client is only as good as the dialect its
  * generator reads, and zod writes a nullable as `type: ["string", "null"]`,
  * which a reader that takes `type` for a string turns into a field that
  * refuses every null it is allowed to carry.
  */
-export const openApiDocument = portableJsonSchema(document);
+export const openApiDocument = openApiDocumentIn("portable");

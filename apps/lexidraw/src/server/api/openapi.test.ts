@@ -6,8 +6,10 @@ import {
   type OpenAPIObject,
 } from "trpc-to-openapi";
 
+import { OPENAPI_COPIES } from "~/test/openapi-copies";
 import { unportable } from "~/test/unportable";
 import { API_ERROR_CODES, API_ERROR_STATUS } from "./error-codes";
+import type { SchemaDialect } from "./schema-dialect";
 
 const testDir = join(import.meta.dir, "..", "..", "test");
 
@@ -17,13 +19,14 @@ const testDir = join(import.meta.dir, "..", "..", "test");
  * process-global, so they run in a child process rather than leaking into
  * every other test file in the suite.
  */
-function generate(): OpenAPIObject {
+function generate(dialect: SchemaDialect = "portable"): OpenAPIObject {
   const result = Bun.spawnSync({
     cmd: [
       "bun",
       "--preload",
       join(testDir, "stub-env.ts"),
       join(testDir, "print-openapi.ts"),
+      `--dialect=${dialect}`,
     ],
     stdout: "pipe",
     stderr: "pipe",
@@ -52,15 +55,20 @@ describe("openApiDocument", () => {
     expect(problems).toEqual([]);
   });
 
-  // The CLI's tests read the document from a file rather than a server, so a
-  // change to the API that leaves the file behind tests the CLI against an
-  // API that is gone. `bun run openapi:fixture` in apps/lexidraw rewrites it.
-  it("is the document the CLI's tests are written against", async () => {
-    const fixture = await Bun.file(
-      join(import.meta.dir, "../../../../cli/test/fixtures/openapi.json"),
-    ).json();
-    expect(fixture).toEqual(document);
-  });
+  // Copies read from a file rather than a server: the CLI's tests are written
+  // against one, and the iOS app's client is generated from the other. A
+  // change to the API that leaves a copy behind tests the CLI against an API
+  // that is gone, or ships an app calling one. `bun run openapi:fixture` in
+  // apps/lexidraw rewrites them all.
+  it.each(OPENAPI_COPIES)(
+    "is the copy $reader read",
+    async ({ dialect, path }) => {
+      const copy = await Bun.file(path).json();
+      expect(copy).toEqual(
+        dialect === "portable" ? document : generate(dialect),
+      );
+    },
+  );
 
   it("sends readers to where tokens are made", () => {
     expect(document.info.description).toContain("/settings#api-tokens");
@@ -93,6 +101,8 @@ describe("openApiDocument", () => {
   // The v1 surface, as docs/agent-access.md promises it.
   const expectedOperations = [
     ["/me", "get", "auth"],
+    ["/me/delete", "post", "auth"],
+    ["/me/token/revoke", "post", "auth"],
     ["/entities", "get", "entities"],
     ["/entities", "post", "entities"],
     ["/entities/search", "get", "entities"],
@@ -125,15 +135,23 @@ describe("openApiDocument", () => {
     expect(operation?.security).toEqual([{ bearerAuth: [] }]);
   });
 
+  it("publishes the native sign-in exchange without security", () => {
+    const operation = document.paths?.["/native-sign-in/token"]?.post;
+    expect(operation).toBeDefined();
+    expect(operation?.tags).toEqual(["auth"]);
+    expect(operation?.security).toBeUndefined();
+  });
+
   it("exposes nothing else", () => {
     const operations = Object.entries(document.paths ?? {}).flatMap(
       ([path, item]) =>
         Object.keys(item ?? {}).map((method) => `${method} ${path}`),
     );
     expect(operations.toSorted()).toEqual(
-      expectedOperations
-        .map(([path, method]) => `${method} ${path}`)
-        .toSorted(),
+      [
+        ...expectedOperations.map(([path, method]) => `${method} ${path}`),
+        "post /native-sign-in/token",
+      ].toSorted(),
     );
   });
 
@@ -176,7 +194,7 @@ describe("openApiDocument", () => {
         data: {
           properties: {
             // Published as `anyOf` rather than `type: [...]`; see
-            // portable-schema.ts.
+            // schema-dialect.ts.
             currentUpdatedAt: {
               anyOf: [{ type: "string" }, { type: "null" }],
               format: "date-time",

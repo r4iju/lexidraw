@@ -43,7 +43,15 @@ describe("Settings", () => {
     const view = await render(<SettingsNav />);
     expect(
       [...document.querySelectorAll("nav a")].map((link) => link.textContent),
-    ).toEqual(["Account", "Editor", "AI", "Read aloud", "API tokens"]);
+    ).toEqual([
+      "Account",
+      "Editor",
+      "AI",
+      "Read aloud",
+      "Sign-in methods",
+      "API tokens",
+      "Delete account",
+    ]);
     await view.unmount();
   });
 

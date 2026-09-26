@@ -1,16 +1,20 @@
 import { Suspense } from "react";
 import { Skeleton } from "~/components/ui/skeleton";
+import { offeredProviders } from "~/server/auth";
 import { api } from "~/trpc/server";
 import { ApiTokensSection } from "./api-tokens";
+import { DeleteAccountSection } from "./delete-account";
 import { SettingsFormSection } from "./settings-form";
 import { SettingsNav } from "./settings-nav";
+import { SignInMethodsSection } from "./sign-in-methods";
 
 async function SettingsContent() {
-  const [user, policies, autoSave, tokens] = await Promise.all([
+  const [user, policies, autoSave, tokens, linked] = await Promise.all([
     api.auth.getProfile.query(),
     api.adminLlm.policies.getDefaults.query(),
     api.config.getAutoSaveConfig.query(),
     api.tokens.list.query(),
+    api.auth.signInProviders.query(),
   ]);
   return (
     <>
@@ -19,7 +23,14 @@ async function SettingsContent() {
         policies={policies}
         autoSave={autoSave.enabled}
       />
+      <SignInMethodsSection
+        methods={offeredProviders.map((provider) => ({
+          provider,
+          connected: linked.includes(provider),
+        }))}
+      />
       <ApiTokensSection tokens={tokens} />
+      <DeleteAccountSection account={user} />
     </>
   );
 }

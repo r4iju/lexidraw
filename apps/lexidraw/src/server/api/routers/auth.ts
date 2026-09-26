@@ -1,7 +1,7 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { getSignUpSchema } from "~/app/signup/schema";
-import { SettingsSchema } from "~/app/settings/schema";
+import { confirmsDeletion, SettingsSchema } from "~/app/settings/schema";
 import env from "@packages/env";
 import {
   createTRPCRouter,
@@ -9,9 +9,10 @@ import {
   publicProcedure,
 } from "~/server/api/trpc";
 import { schema } from "@packages/drizzle";
-import { eq, inArray } from "@packages/drizzle";
+import { eq, inArray, sql } from "@packages/drizzle";
 import { errorCode } from "~/server/auth/error-code";
 import { hashPassword } from "~/server/auth/password";
+import { deleteAccount } from "~/server/account/delete-account";
 
 /**
  * Lays a settings change over what is stored: a value replaces, null removes
@@ -68,6 +69,14 @@ export const authRouter = createTRPCRouter({
       });
     }
     return user;
+  }),
+  /** The providers linked to the caller's account. */
+  signInProviders: protectedProcedure.query(async ({ ctx }) => {
+    const rows = await ctx.drizzle
+      .select({ provider: schema.accounts.provider })
+      .from(schema.accounts)
+      .where(eq(schema.accounts.userId, ctx.session.user.id));
+    return rows.map((row) => row.provider);
   }),
   getLlmConfig: protectedProcedure.query(async ({ ctx }) => {
     const users = await ctx.drizzle
@@ -182,6 +191,8 @@ export const authRouter = createTRPCRouter({
         .set({
           name: input.name,
           email: input.email,
+          // A proof covers the address it was made for, never a new one.
+          emailVerified: sql`case when ${schema.users.email} = ${input.email} then ${schema.users.emailVerified} end`,
           config:
             nextConfig as unknown as (typeof schema.users.$inferInsert)["config"],
         })
@@ -218,6 +229,45 @@ export const authRouter = createTRPCRouter({
       authKind: ctx.auth.kind,
       scope: ctx.auth.kind === "token" ? ctx.auth.scope : null,
     })),
+  /**
+   * Deletes the caller's account for good. Any token that may write can call
+   * it, whichever app or script holds it; a read-only token is refused like
+   * any mutation.
+   */
+  deleteAccount: protectedProcedure
+    .meta({
+      openapi: {
+        method: "POST",
+        path: "/me/delete",
+        tags: ["auth"],
+        summary:
+          "Delete the caller's account, files and tokens; confirm with its email",
+        protect: true,
+      },
+    })
+    .input(
+      z.object({
+        confirmation: z
+          .string()
+          .describe("The account's email, or its name when it has no email"),
+      }),
+    )
+    .output(z.object({ id: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const [user] = await ctx.drizzle
+        .select({ email: schema.users.email, name: schema.users.name })
+        .from(schema.users)
+        .where(eq(schema.users.id, ctx.session.user.id));
+      if (!user) throw new TRPCError({ code: "NOT_FOUND" });
+      if (!confirmsDeletion(user, input.confirmation)) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "The confirmation does not match this account",
+        });
+      }
+      await deleteAccount(ctx.drizzle, ctx.session.user.id);
+      return { id: ctx.session.user.id };
+    }),
   iceServers: publicProcedure.query(() => {
     return env.ICE_SERVER_CONFIG satisfies RTCIceServer[];
   }),

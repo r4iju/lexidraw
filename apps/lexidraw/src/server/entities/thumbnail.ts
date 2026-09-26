@@ -32,7 +32,7 @@ const BLOB_HOSTS = new Set(
  * URL, such as an image a document embeds, and replacing that must not delete
  * it.
  */
-function isThumbnailOf(entityId: string, url: string): boolean {
+export function isThumbnailOf(entityId: string, url: string): boolean {
   try {
     const { host, pathname } = new URL(url);
     return (
@@ -120,7 +120,7 @@ export async function storeThumbnail(
 }
 
 /** `@vercel/blob` says what went wrong by the error's class, not a code. */
-function blobErrorCode(error: unknown): string {
+export function blobErrorCode(error: unknown): string {
   if (typeof error !== "object" || error === null) return "unknown";
   const code = (error as { code?: unknown }).code;
   if (typeof code === "string") return code;

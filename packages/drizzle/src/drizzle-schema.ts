@@ -22,14 +22,15 @@ export const accounts = sqliteTable(
     type: text("type").notNull(),
     provider: text("provider").notNull(),
     providerAccountId: text("providerAccountId").notNull(),
-    refreshToken: text("refresh_token"),
-    accessToken: text("access_token"),
-    expiresAt: integer("expires_at"),
-    tokenType: text("token_type"),
+    // Named as Auth.js's adapter writes them, so the tokens it links land.
+    refresh_token: text("refresh_token"),
+    access_token: text("access_token"),
+    expires_at: integer("expires_at"),
+    token_type: text("token_type"),
     scope: text("scope"),
-    idToken: text("id_token"),
-    sessionState: text("session_state"),
-    refreshTokenExpiresIn: integer("refresh_token_expires_in"),
+    id_token: text("id_token"),
+    session_state: text("session_state"),
+    refresh_token_expires_in: integer("refresh_token_expires_in"),
     createdAt: integer("createdAt", { mode: "timestamp_ms" })
       .notNull()
       .default(sql`1735950685000`)
@@ -128,7 +129,8 @@ export const users = sqliteTable(
     }>(),
     email: text("email"),
     password: text("password"),
-    emailVerified: numeric("emailVerified"),
+    /** When the email was last proven to belong to the user, in epoch ms. */
+    emailVerified: numeric("emailVerified", { mode: "number" }),
     image: text("image"),
     isActive: integer("isActive").notNull().default(1),
     createdAt: integer("createdAt", { mode: "timestamp_ms" })
@@ -398,6 +400,27 @@ export const apiTokens = sqliteTable(
     uniqueIndex("ApiToken_tokenHash_unique").on(table.tokenHash),
     index("ApiToken_userId_idx").on(table.userId),
   ],
+);
+
+/**
+ * A one-time code a native app trades for a personal access token. Only the
+ * SHA-256 of the code is stored.
+ */
+export const nativeSignInCodes = sqliteTable(
+  "NativeSignInCodes",
+  {
+    codeHash: text("codeHash").primaryKey().notNull(),
+    userId: text("userId")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade", onUpdate: "cascade" }),
+    codeChallenge: text("codeChallenge").notNull(),
+    redirectUri: text("redirectUri").notNull(),
+    deviceName: text("deviceName").notNull(),
+    expiresAt: integer("expiresAt", { mode: "timestamp_ms" }).notNull(),
+    usedAt: integer("usedAt", { mode: "timestamp_ms" }),
+    tokenId: text("tokenId"),
+  },
+  (table) => [index("NativeSignInCode_expiresAt_idx").on(table.expiresAt)],
 );
 
 // Credential sign-in attempts per fixed window. The key is the SHA-256 of

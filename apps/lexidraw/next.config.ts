@@ -63,8 +63,16 @@ const config = {
     "**": ["./src/server/drawings/fonts/*.ttf"],
   },
   productionBrowserSourceMaps: true,
-  // Named by their content, so a font never changes under its address.
   headers: async () => [
+    // Framed, the approval could be clicked by someone who cannot see it.
+    {
+      source: "/native-sign-in",
+      headers: [
+        { key: "X-Frame-Options", value: "DENY" },
+        { key: "Content-Security-Policy", value: "frame-ancestors 'none'" },
+      ],
+    },
+    // Named by their content, so a font never changes under its address.
     {
       source: `${EXCALIDRAW_ASSETS}fonts/:path*`,
       headers: [

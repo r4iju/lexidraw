@@ -21,6 +21,7 @@ import { sandboxRouter } from "./routers/sandbox";
 import { tokensRouter } from "./routers/tokens";
 import { adminTokensRouter } from "./routers/admin/tokens";
 import { roomsRouter } from "./routers/rooms";
+import { nativeSignInRouter } from "./routers/native-sign-in";
 
 export const appRouter = createTRPCRouter({
   auth: authRouter,
@@ -45,6 +46,7 @@ export const appRouter = createTRPCRouter({
   tokens: tokensRouter,
   adminTokens: adminTokensRouter,
   rooms: roomsRouter,
+  nativeSignIn: nativeSignInRouter,
 });
 
 // export type definition of API

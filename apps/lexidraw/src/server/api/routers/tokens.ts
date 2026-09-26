@@ -1,8 +1,12 @@
 import { z } from "zod";
 import { and, desc, eq } from "@packages/drizzle";
 import { TRPCError } from "@trpc/server";
-import { createTRPCRouter, sessionOnlyProcedure } from "~/server/api/trpc";
-import { generateApiToken, hashApiToken } from "~/server/auth/api-token-format";
+import {
+  createTRPCRouter,
+  sessionOnlyProcedure,
+  tokenRelinquishProcedure,
+} from "~/server/api/trpc";
+import { createApiToken } from "~/server/auth/api-tokens";
 
 const MAX_TOKEN_TTL_DAYS = 3650;
 
@@ -31,32 +35,16 @@ export const tokensRouter = createTRPCRouter({
 
   create: sessionOnlyProcedure
     .input(CreateApiToken)
-    .mutation(async ({ ctx, input }) => {
-      const token = generateApiToken();
-      const expiresAt = input.expiresInDays
-        ? new Date(Date.now() + input.expiresInDays * 24 * 60 * 60 * 1000)
-        : null;
-      const [row] = await ctx.drizzle
-        .insert(ctx.schema.apiTokens)
-        .values({
-          userId: ctx.session.user.id,
-          name: input.name,
-          scope: input.scope,
-          tokenHash: hashApiToken(token),
-          expiresAt,
-        })
-        .returning({
-          id: ctx.schema.apiTokens.id,
-          name: ctx.schema.apiTokens.name,
-          scope: ctx.schema.apiTokens.scope,
-          expiresAt: ctx.schema.apiTokens.expiresAt,
-        });
-      if (!row) {
-        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-      }
-      // The plaintext leaves the server exactly once, here.
-      return { ...row, token };
-    }),
+    .mutation(({ ctx, input }) =>
+      createApiToken(ctx.drizzle, {
+        userId: ctx.session.user.id,
+        name: input.name,
+        scope: input.scope,
+        expiresAt: input.expiresInDays
+          ? new Date(Date.now() + input.expiresInDays * 24 * 60 * 60 * 1000)
+          : null,
+      }),
+    ),
 
   revoke: sessionOnlyProcedure
     .input(z.object({ id: z.string() }))
@@ -75,5 +63,39 @@ export const tokensRouter = createTRPCRouter({
         throw new TRPCError({ code: "NOT_FOUND" });
       }
       return { id: input.id };
+    }),
+
+  /** Signing out a device: the token the request carries, and no other. */
+  revokeCurrent: tokenRelinquishProcedure
+    .meta({
+      openapi: {
+        method: "POST",
+        path: "/me/token/revoke",
+        tags: ["auth"],
+        summary: "Revoke the token this request carries",
+        description:
+          "For signing a device or a CLI out. Every later request with the token is a 401; other tokens are untouched.",
+        protect: true,
+        // A POST has no 404 by default; a token whose row is gone is one.
+        errorResponses: [400, 401, 403, 404, 500],
+      },
+    })
+    .input(z.object({}))
+    .output(z.object({ id: z.string() }))
+    .mutation(async ({ ctx }) => {
+      const result = await ctx.drizzle
+        .update(ctx.schema.apiTokens)
+        .set({ revokedAt: new Date() })
+        .where(
+          and(
+            eq(ctx.schema.apiTokens.id, ctx.auth.tokenId),
+            eq(ctx.schema.apiTokens.userId, ctx.session.user.id),
+          ),
+        )
+        .returning({ id: ctx.schema.apiTokens.id });
+      if (result.length === 0) {
+        throw new TRPCError({ code: "NOT_FOUND" });
+      }
+      return { id: ctx.auth.tokenId };
     }),
 });

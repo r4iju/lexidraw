@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { auth } from "~/server/auth";
+import { auth, offeredProviders } from "~/server/auth";
 import { AuthCard } from "~/components/auth-card";
 import SignUpForm from "./form";
 import FormSkeleton from "./skeleton";
@@ -31,7 +31,7 @@ export default function SignUpPage() {
         <RedirectSignedIn />
       </Suspense>
       <Suspense fallback={<FormSkeleton />}>
-        <SignUpForm />
+        <SignUpForm providers={offeredProviders} />
       </Suspense>
     </AuthCard>
   );

@@ -3,23 +3,24 @@ import { Suspense } from "react";
 import { AuthCard } from "~/components/auth-card";
 import { Button } from "~/components/ui/button";
 
+const NOT_LINKED =
+  "This email is already used by another account. If it’s yours, sign in the way you did before, then connect this sign-in method in Settings.";
+
 /**
  * The codes Auth.js sends to the sign-in and error pages, in words. Anything
  * else, including a code made up in the address bar, gets the fallback and is
  * never echoed.
  */
 const REASONS: Record<string, string> = {
-  OAuthAccountNotLinked:
-    "This email already has an account that signs in with a password. Sign in with your email and password instead.",
-  AccountNotLinked:
-    "This email already has an account that signs in with a password. Sign in with your email and password instead.",
+  OAuthAccountNotLinked: NOT_LINKED,
+  AccountNotLinked: NOT_LINKED,
   AccessDenied:
-    "GitHub didn’t let Lexidraw use your account, or the sign-in was cancelled.",
-  OAuthCallbackError: "GitHub couldn’t finish signing you in.",
-  OAuthSignin: "We couldn’t start signing you in with GitHub.",
-  OAuthSignInError: "We couldn’t start signing you in with GitHub.",
+    "The account you chose didn’t let Lexidraw use it, or the sign-in was cancelled.",
+  OAuthCallbackError: "That account couldn’t finish signing you in.",
+  OAuthSignin: "We couldn’t start signing you in with that account.",
+  OAuthSignInError: "We couldn’t start signing you in with that account.",
   CredentialsSignin:
-    "That email and password don’t match. Try again or use GitHub.",
+    "That email and password don’t match. Try again, or sign in another way.",
   Verification: "The sign-in link expired or was already used.",
   MissingCSRF: "The sign-in form expired before it was sent.",
   Configuration:
