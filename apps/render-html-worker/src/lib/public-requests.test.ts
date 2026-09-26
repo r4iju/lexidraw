@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import type { Resolve } from "@packages/lib/public-address";
+import { publicAddress, type Resolve } from "@packages/lib/public-address";
 import { guardRequests } from "./public-requests";
 
 const resolve: Resolve = async (host) => [
@@ -21,7 +21,7 @@ async function requestsOn(urls: string[]) {
       if (event === "request") handle = handler;
     },
   };
-  await guardRequests(page as never, resolve);
+  await guardRequests(page as never, (url) => publicAddress(url, resolve));
   const outcomes: Record<string, string> = {};
   for (const url of urls)
     await handle?.({

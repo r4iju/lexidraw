@@ -2,6 +2,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import { getBrightDataProxyUrls } from "@packages/lib";
 import type { Browser, Dialog, Page } from "puppeteer-core";
 import { publicAddress, reachable } from "@packages/lib/public-address";
+import { launchGuardedBrowser } from "~/lib/guarded-browser";
 import { launchBrowser } from "~/lib/launch-browser";
 import { guardRequests } from "~/lib/public-requests";
 
@@ -276,7 +277,7 @@ export async function POST(req: NextRequest) {
     // 1) Direct attempt
     let browser: Browser;
     try {
-      browser = await launchBrowser({
+      browser = await launchGuardedBrowser({
         viewport: { width: 1200, height: 900, deviceScaleFactor: 1 },
       });
     } catch (e) {
@@ -329,7 +330,12 @@ export async function POST(req: NextRequest) {
 
           const browserLocal = await launchBrowser({
             viewport: { width: 1200, height: 900, deviceScaleFactor: 1 },
-            args: [`--proxy-server=${proxyServer}`],
+            // Bright Data looks hosts up and connects from its own network,
+            // where nothing of this one is reachable.
+            args: [
+              `--proxy-server=${proxyServer}`,
+              "--proxy-bypass-list=<-loopback>",
+            ],
           });
 
           try {
