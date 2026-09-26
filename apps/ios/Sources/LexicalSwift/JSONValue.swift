@@ -23,6 +23,17 @@ public enum JSONValue: Hashable, Sendable {
   public var arrayValue: [JSONValue]? {
     if case .array(let value) = self { value } else { nil }
   }
+
+  /// Whether JavaScript counts it as true: all but null, false, 0 and "".
+  public var isTruthy: Bool {
+    switch self {
+    case .null: false
+    case .bool(let value): value
+    case .number(let value): value != 0 && !value.isNaN
+    case .string(let value): !value.isEmpty
+    case .array, .object: true
+    }
+  }
 }
 
 extension JSONValue {

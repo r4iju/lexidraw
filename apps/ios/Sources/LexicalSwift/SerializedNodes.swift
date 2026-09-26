@@ -342,7 +342,11 @@ public enum ChartKind: String, CaseIterable, Sendable, JSONEnumeration {
 public enum ChartType: String, CaseIterable, Sendable, JSONEnumeration {
   case bar
   case line
+  case area
   case pie
+  case radar
+  case scatter
+  case composed
 }
 
 public enum CommentType: String, CaseIterable, Sendable, JSONEnumeration {
@@ -390,12 +394,6 @@ public enum ListType: String, CaseIterable, Sendable, JSONEnumeration {
   case number
   case bullet
   case check
-}
-
-public enum Position: String, CaseIterable, Sendable, JSONEnumeration {
-  case left
-  case right
-  case full
 }
 
 public enum StickyNoteColor: String, CaseIterable, Sendable, JSONEnumeration {
@@ -447,7 +445,7 @@ public enum Dimension: JSONUnion {
   case number(Double)
   case inherit
 
-  static let defaultValue: Self? = .inherit
+  static let defaultValue: Self? = nil
   static let members: [UnionMember<Self>] = [
     .member(.number(default: 0), Self.number, { if case .number(let value) = $0 { value } else { nil } }),
     .literal("inherit", .inherit),
@@ -459,7 +457,7 @@ public enum SlideElement: JSONUnion {
   case image(SlideElementImage)
   case chart(SlideElementChart)
 
-  static let defaultValue: Self? = .box(SlideElementBox(["editorStateJSON": ["root": ["children": [["children": [["detail": 0, "format": 0, "key": "initial-text-content-node", "mode": "normal", "style": "", "text": "", "type": "text", "version": 1]], "direction": "ltr", "format": "", "indent": 0, "key": "1", "textFormat": 0, "textStyle": "", "type": "paragraph", "version": 1]], "direction": "ltr", "format": "", "indent": 0, "key": "root", "type": "root", "version": 1]], "height": "inherit", "id": "", "kind": "box", "width": "inherit", "x": 0, "y": 0, "zIndex": 0]))
+  static let defaultValue: Self? = nil
   static let members: [UnionMember<Self>] = [
     .member(.object, Self.box, { if case .box(let value) = $0 { value } else { nil } }),
     .member(.object, Self.image, { if case .image(let value) = $0 { value } else { nil } }),
@@ -902,7 +900,7 @@ public struct Figure: DeclaredObject {
   public var width: String?
   public var unknownFields: [String: JSONValue]
 
-  static let isOpen = false
+  static let isOpen = true
   static let defaultValue = Self([:])
   static let fieldFits: [String: @Sendable (JSONValue) -> Fit] = ["caption": Schema.caption.fit, "width": Schema.width.fit]
 
@@ -910,7 +908,7 @@ public struct Figure: DeclaredObject {
     var fields = NodeFields(object)
     caption = fields.take("caption", Schema.caption)
     width = fields.take("width", Schema.width)
-    unknownFields = [:]
+    unknownFields = fields.rest
   }
 
   public var json: JSONValue {
@@ -931,7 +929,7 @@ public struct NaturalSize: DeclaredObject {
   public var width: Double?
   public var unknownFields: [String: JSONValue]
 
-  static let isOpen = false
+  static let isOpen = true
   static let defaultValue = Self(["height": 0, "width": 0])
   static let fieldFits: [String: @Sendable (JSONValue) -> Fit] = ["height": Schema.height.fit, "width": Schema.width.fit]
 
@@ -939,7 +937,7 @@ public struct NaturalSize: DeclaredObject {
     var fields = NodeFields(object)
     height = fields.take("height", Schema.height)
     width = fields.take("width", Schema.width)
-    unknownFields = [:]
+    unknownFields = fields.rest
   }
 
   public var json: JSONValue {
@@ -976,7 +974,7 @@ public struct NestedEditor: DeclaredObject {
   }
 
   private enum Schema {
-    static let editorState: FieldSchema<JSONValue> = .raw
+    static let editorState: FieldSchema<JSONValue> = .transform(.rawOr(["root": ["children": [], "direction": nil, "format": "", "indent": 0, "type": "root", "version": 1]]), Transforms.nestedEditorState)
   }
 }
 
@@ -1097,7 +1095,7 @@ public struct SlideElementBox: DeclaredObject {
   public var unknownFields: [String: JSONValue]
 
   static let isOpen = true
-  static let defaultValue = Self(["editorStateJSON": ["root": ["children": [["children": [["detail": 0, "format": 0, "key": "initial-text-content-node", "mode": "normal", "style": "", "text": "", "type": "text", "version": 1]], "direction": "ltr", "format": "", "indent": 0, "key": "1", "textFormat": 0, "textStyle": "", "type": "paragraph", "version": 1]], "direction": "ltr", "format": "", "indent": 0, "key": "root", "type": "root", "version": 1]], "height": "inherit", "id": "", "kind": "box", "width": "inherit", "x": 0, "y": 0, "zIndex": 0])
+  static let defaultValue = Self(["id": "", "kind": "box", "x": 0, "y": 0, "zIndex": 0])
   static let fieldFits: [String: @Sendable (JSONValue) -> Fit] = ["backgroundColor": Schema.backgroundColor.fit, "editorStateJSON": Schema.editorStateJSON.fit, "height": Schema.height.fit, "id": Schema.id.fit, "kind": Schema.kind.fit, "version": Schema.version.fit, "width": Schema.width.fit, "x": Schema.x.fit, "y": Schema.y.fit, "zIndex": Schema.zIndex.fit]
 
   init(_ object: [String: JSONValue]) {
@@ -1159,7 +1157,7 @@ public struct SlideElementChart: DeclaredObject {
   public var unknownFields: [String: JSONValue]
 
   static let isOpen = true
-  static let defaultValue = Self(["chartConfig": "", "chartData": "", "chartType": "bar", "height": "inherit", "id": "", "kind": "chart", "width": "inherit", "x": 0, "y": 0, "zIndex": 0])
+  static let defaultValue = Self(["chartConfig": "", "chartData": "", "chartType": "bar", "id": "", "kind": "chart", "x": 0, "y": 0, "zIndex": 0])
   static let fieldFits: [String: @Sendable (JSONValue) -> Fit] = ["chartConfig": Schema.chartConfig.fit, "chartData": Schema.chartData.fit, "chartType": Schema.chartType.fit, "height": Schema.height.fit, "id": Schema.id.fit, "kind": Schema.kind.fit, "version": Schema.version.fit, "width": Schema.width.fit, "x": Schema.x.fit, "y": Schema.y.fit, "zIndex": Schema.zIndex.fit]
 
   init(_ object: [String: JSONValue]) {
@@ -1222,7 +1220,7 @@ public struct SlideElementImage: DeclaredObject {
   public var unknownFields: [String: JSONValue]
 
   static let isOpen = true
-  static let defaultValue = Self(["height": "inherit", "id": "", "kind": "image", "url": "", "width": "inherit", "x": 0, "y": 0, "zIndex": 0])
+  static let defaultValue = Self(["id": "", "kind": "image", "url": "", "x": 0, "y": 0, "zIndex": 0])
   static let fieldFits: [String: @Sendable (JSONValue) -> Fit] = ["height": Schema.height.fit, "id": Schema.id.fit, "kind": Schema.kind.fit, "url": Schema.url.fit, "version": Schema.version.fit, "width": Schema.width.fit, "x": Schema.x.fit, "y": Schema.y.fit, "zIndex": Schema.zIndex.fit]
 
   init(_ object: [String: JSONValue]) {
@@ -1322,8 +1320,8 @@ public struct SlideMetadata: DeclaredObject {
 public struct SerializedArticleNode: NodePayload {
   public static let type = "article"
   public static let version = 1
-  public var data: ArticleData?
-  public var format: ElementFormat?
+  public var data: Shaped<ArticleData>?
+  public var format: JSONValue?
   public var unknownFields: [String: JSONValue]
 
   public init(json: JSONValue) throws {
@@ -1334,7 +1332,7 @@ public struct SerializedArticleNode: NodePayload {
   }
 
   public var json: JSONValue {
-    var fields = NodeFields(writing: Self.type, over: unknownFields)
+    var fields = NodeFields(writing: Self.type, version: Self.version, over: unknownFields)
     fields.put("data", data, Schema.data)
     fields.put("format", format, Schema.format)
     return fields.json
@@ -1348,20 +1346,20 @@ public struct SerializedArticleNode: NodePayload {
   }
 
   private enum Schema {
-    static let data: FieldSchema<ArticleData> = .union
-    static let format: FieldSchema<ElementFormat> = .enumeration(default: ElementFormat.empty)
+    static let data: FieldSchema<Shaped<ArticleData>> = .shaped(.union, .raw)
+    static let format: FieldSchema<JSONValue> = .transform(.raw, Transforms.emptyOrStored)
   }
 }
 
 public struct SerializedAutocompleteNode: NodePayload {
   public static let type = "autocomplete"
   public static let version = 1
-  public var detail: Double?
-  public var format: Double?
+  public var detail: JSONValue?
+  public var format: JSONValue?
   public var mode: TextMode?
-  public var style: String?
-  public var text: String?
-  public var uuid: String?
+  public var style: JSONValue?
+  public var text: JSONValue?
+  public var uuid: JSONValue?
   public var unknownFields: [String: JSONValue]
 
   public init(json: JSONValue) throws {
@@ -1376,7 +1374,7 @@ public struct SerializedAutocompleteNode: NodePayload {
   }
 
   public var json: JSONValue {
-    var fields = NodeFields(writing: Self.type, over: unknownFields)
+    var fields = NodeFields(writing: Self.type, version: Self.version, over: unknownFields)
     fields.put("detail", detail, Schema.detail)
     fields.put("format", format, Schema.format)
     fields.put("mode", mode, Schema.mode)
@@ -1398,12 +1396,12 @@ public struct SerializedAutocompleteNode: NodePayload {
   }
 
   private enum Schema {
-    static let detail: FieldSchema<Double> = .aliased(.number(default: 0), ["directionless": 1, "unmergeable": 2])
-    static let format: FieldSchema<Double> = .aliased(.number(default: 0), ["bold": 1, "capitalize": 1024, "code": 16, "highlight": 128, "italic": 2, "lowercase": 256, "strikethrough": 4, "subscript": 32, "superscript": 64, "underline": 8, "uppercase": 512])
-    static let mode: FieldSchema<TextMode> = .enumeration(default: TextMode.normal)
-    static let style: FieldSchema<String> = .string(default: "")
-    static let text: FieldSchema<String> = .string(default: "")
-    static let uuid: FieldSchema<String> = .string(default: "")
+    static let detail: FieldSchema<JSONValue> = .aliased(.transform(.raw, Transforms.stringAbsent), ["directionless": 1, "unmergeable": 2])
+    static let format: FieldSchema<JSONValue> = .aliased(.transform(.raw, Transforms.stringAbsent), ["bold": 1, "capitalize": 1024, "code": 16, "highlight": 128, "italic": 2, "lowercase": 256, "strikethrough": 4, "subscript": 32, "superscript": 64, "underline": 8, "uppercase": 512])
+    static let mode: FieldSchema<TextMode> = .enumeration(default: nil)
+    static let style: FieldSchema<JSONValue> = .raw
+    static let text: FieldSchema<JSONValue> = .rawOr("")
+    static let uuid: FieldSchema<JSONValue> = .raw
   }
 }
 
@@ -1425,6 +1423,7 @@ public struct SerializedAutoLinkNode: ParentNodePayload {
 
   public init(json: JSONValue) throws {
     var fields = try NodeFields(reading: json, as: Self.type)
+    fields.spreadState()
     children = fields.takeChildren()
     direction = fields.takeNullable("direction", Schema.direction)
     format = fields.take("format", Schema.format)
@@ -1440,7 +1439,7 @@ public struct SerializedAutoLinkNode: ParentNodePayload {
   }
 
   public var json: JSONValue {
-    var fields = NodeFields(writing: Self.type, over: unknownFields)
+    var fields = NodeFields(writing: Self.type, version: Self.version, over: unknownFields)
     fields.putChildren(children)
     fields.putNullable("direction", direction, Schema.direction)
     fields.put("format", format, Schema.format)
@@ -1499,6 +1498,7 @@ public struct SerializedCalloutNode: ParentNodePayload {
 
   public init(json: JSONValue) throws {
     var fields = try NodeFields(reading: json, as: Self.type)
+    fields.spreadState()
     children = fields.takeChildren()
     direction = fields.takeNullable("direction", Schema.direction)
     format = fields.take("format", Schema.format)
@@ -1511,7 +1511,7 @@ public struct SerializedCalloutNode: ParentNodePayload {
   }
 
   public var json: JSONValue {
-    var fields = NodeFields(writing: Self.type, over: unknownFields)
+    var fields = NodeFields(writing: Self.type, version: Self.version, over: unknownFields)
     fields.putChildren(children)
     fields.putNullable("direction", direction, Schema.direction)
     fields.put("format", format, Schema.format)
@@ -1549,16 +1549,17 @@ public struct SerializedCalloutNode: ParentNodePayload {
 public struct SerializedChartNode: NodePayload {
   public static let type = "chart"
   public static let version = 1
-  public var chartConfig: String?
-  public var chartData: String?
-  public var chartType: ChartType?
-  public var figure: Figure?
-  public var height: Dimension?
-  public var width: Dimension?
+  public var chartConfig: JSONValue?
+  public var chartData: JSONValue?
+  public var chartType: JSONValue?
+  public var figure: Shaped<Figure>?
+  public var height: JSONValue?
+  public var width: JSONValue?
   public var unknownFields: [String: JSONValue]
 
   public init(json: JSONValue) throws {
     var fields = try NodeFields(reading: json, as: Self.type)
+    fields.spreadState()
     var state = fields.takeState()
     chartConfig = fields.take("chartConfig", Schema.chartConfig)
     chartData = fields.take("chartData", Schema.chartData)
@@ -1571,7 +1572,7 @@ public struct SerializedChartNode: NodePayload {
   }
 
   public var json: JSONValue {
-    var fields = NodeFields(writing: Self.type, over: unknownFields)
+    var fields = NodeFields(writing: Self.type, version: Self.version, over: unknownFields)
     var state = fields.takeState()
     fields.put("chartConfig", chartConfig, Schema.chartConfig)
     fields.put("chartData", chartData, Schema.chartData)
@@ -1595,12 +1596,12 @@ public struct SerializedChartNode: NodePayload {
   }
 
   private enum Schema {
-    static let chartConfig: FieldSchema<String> = .string(default: "{}")
-    static let chartData: FieldSchema<String> = .string(default: "[]")
-    static let chartType: FieldSchema<ChartType> = .enumeration(default: ChartType.bar)
-    static let figure: FieldSchema<Figure> = .object
-    static let height: FieldSchema<Dimension> = .transform(.union, Transforms.zeroAsInherit)
-    static let width: FieldSchema<Dimension> = .transform(.union, Transforms.zeroAsInherit)
+    static let chartConfig: FieldSchema<JSONValue> = .rawOr("{}")
+    static let chartData: FieldSchema<JSONValue> = .rawOr("[]")
+    static let chartType: FieldSchema<JSONValue> = .rawOr("bar")
+    static let figure: FieldSchema<Shaped<Figure>> = .shaped(.object, .raw)
+    static let height: FieldSchema<JSONValue> = .transform(.rawOr("inherit"), Transforms.zeroAsInherit)
+    static let width: FieldSchema<JSONValue> = .transform(.rawOr("inherit"), Transforms.zeroAsInherit)
   }
 }
 
@@ -1611,8 +1612,8 @@ public struct SerializedDocumentCodeNode: ParentNodePayload {
   public var direction: Nullable<Direction>
   public var format: ElementFormat?
   public var indent: Int?
-  public var language: Nullable<String>
-  public var showLineNumbers: Bool?
+  public var language: String?
+  public var showLineNumbers: JSONValue?
   public var textFormat: Double?
   public var textStyle: String?
   public var theme: Never?
@@ -1620,11 +1621,12 @@ public struct SerializedDocumentCodeNode: ParentNodePayload {
 
   public init(json: JSONValue) throws {
     var fields = try NodeFields(reading: json, as: Self.type)
+    fields.spreadState()
     children = fields.takeChildren()
     direction = fields.takeNullable("direction", Schema.direction)
     format = fields.take("format", Schema.format)
     indent = fields.take("indent", Schema.indent)
-    language = fields.takeNullable("language", Schema.language)
+    language = fields.take("language", Schema.language)
     showLineNumbers = fields.take("showLineNumbers", Schema.showLineNumbers)
     textFormat = fields.take("textFormat", Schema.textFormat)
     textStyle = fields.take("textStyle", Schema.textStyle)
@@ -1633,12 +1635,12 @@ public struct SerializedDocumentCodeNode: ParentNodePayload {
   }
 
   public var json: JSONValue {
-    var fields = NodeFields(writing: Self.type, over: unknownFields)
+    var fields = NodeFields(writing: Self.type, version: Self.version, over: unknownFields)
     fields.putChildren(children)
     fields.putNullable("direction", direction, Schema.direction)
     fields.put("format", format, Schema.format)
     fields.put("indent", indent, Schema.indent)
-    fields.putNullable("language", language, Schema.language)
+    fields.put("language", language, Schema.language)
     fields.put("showLineNumbers", showLineNumbers, Schema.showLineNumbers)
     fields.put("textFormat", textFormat, Schema.textFormat)
     fields.put("textStyle", textStyle, Schema.textStyle)
@@ -1663,8 +1665,8 @@ public struct SerializedDocumentCodeNode: ParentNodePayload {
     static let direction: FieldSchema<Direction?> = .enumeration(default: Direction?.none)
     static let format: FieldSchema<ElementFormat> = .enumeration(default: ElementFormat.empty)
     static let indent: FieldSchema<Int> = .integer(default: 0, min: 0)
-    static let language: FieldSchema<String?> = .optional(.nullable(.string(default: "")))
-    static let showLineNumbers: FieldSchema<Bool> = .boolean(default: false)
+    static let language: FieldSchema<String> = .optional(.transform(.string(default: ""), Transforms.emptyAbsent))
+    static let showLineNumbers: FieldSchema<JSONValue> = .rawOr(false, nullAsAbsent: true)
     static let textFormat: FieldSchema<Double> = .optional(.number(default: 0), omitDefault: true)
     static let textStyle: FieldSchema<String> = .optional(.string(default: ""), omitDefault: true)
     static let theme: FieldSchema<Never> = .enumeration(default: nil)
@@ -1684,6 +1686,7 @@ public struct SerializedCodeHighlightNode: NodePayload {
 
   public init(json: JSONValue) throws {
     var fields = try NodeFields(reading: json, as: Self.type)
+    fields.spreadState()
     detail = fields.take("detail", Schema.detail)
     format = fields.take("format", Schema.format)
     highlightType = fields.takeNullable("highlightType", Schema.highlightType)
@@ -1694,7 +1697,7 @@ public struct SerializedCodeHighlightNode: NodePayload {
   }
 
   public var json: JSONValue {
-    var fields = NodeFields(writing: Self.type, over: unknownFields)
+    var fields = NodeFields(writing: Self.type, version: Self.version, over: unknownFields)
     fields.put("detail", detail, Schema.detail)
     fields.put("format", format, Schema.format)
     fields.putNullable("highlightType", highlightType, Schema.highlightType)
@@ -1731,8 +1734,8 @@ public struct SerializedCollapsibleContainerNode: ParentNodePayload {
   public var children: [SerializedNode]?
   public var direction: Nullable<Direction>
   public var format: ElementFormat?
-  public var indent: Int?
-  public var `open`: Bool?
+  public var indent: Double?
+  public var `open`: JSONValue?
   public var textFormat: Double?
   public var textStyle: String?
   public var unknownFields: [String: JSONValue]
@@ -1750,14 +1753,14 @@ public struct SerializedCollapsibleContainerNode: ParentNodePayload {
   }
 
   public var json: JSONValue {
-    var fields = NodeFields(writing: Self.type, over: unknownFields)
+    var fields = NodeFields(writing: Self.type, version: Self.version, over: unknownFields)
     fields.putChildren(children)
     fields.putNullable("direction", direction, Schema.direction)
     fields.put("format", format, Schema.format)
     fields.put("indent", indent, Schema.indent)
     fields.put("open", `open`, Schema.`open`)
-    fields.put("textFormat", textFormat, Schema.textFormat)
-    fields.put("textStyle", textStyle, Schema.textStyle)
+    fields.putUnlessDefault("textFormat", textFormat, Schema.textFormat)
+    fields.putUnlessDefault("textStyle", textStyle, Schema.textStyle)
     return fields.json
   }
 
@@ -1767,18 +1770,18 @@ public struct SerializedCollapsibleContainerNode: ParentNodePayload {
     node.format = Schema.format.resolving(format)
     node.indent = Schema.indent.resolving(indent)
     node.`open` = Schema.`open`.resolving(`open`)
-    node.textFormat = Schema.textFormat.resolving(textFormat)
-    node.textStyle = Schema.textStyle.resolving(textStyle)
+    node.textFormat = Schema.textFormat.omittingDefault(textFormat)
+    node.textStyle = Schema.textStyle.omittingDefault(textStyle)
     return node
   }
 
   private enum Schema {
-    static let direction: FieldSchema<Direction?> = .enumeration(default: Direction?.none)
-    static let format: FieldSchema<ElementFormat> = .enumeration(default: ElementFormat.empty)
-    static let indent: FieldSchema<Int> = .integer(default: 0, min: 0)
-    static let `open`: FieldSchema<Bool> = .boolean(default: false)
-    static let textFormat: FieldSchema<Double> = .optional(.number(default: 0), omitDefault: true)
-    static let textStyle: FieldSchema<String> = .optional(.string(default: ""), omitDefault: true)
+    static let direction: FieldSchema<Direction?> = .unread(.enumeration(default: Direction?.none))
+    static let format: FieldSchema<ElementFormat> = .unread(.enumeration(default: ElementFormat.empty))
+    static let indent: FieldSchema<Double> = .unread(.number(default: 0))
+    static let `open`: FieldSchema<JSONValue> = .raw
+    static let textFormat: FieldSchema<Double> = .unread(.number(default: 0))
+    static let textStyle: FieldSchema<String> = .unread(.string(default: ""))
   }
 }
 
@@ -1788,7 +1791,7 @@ public struct SerializedCollapsibleContentNode: ParentNodePayload {
   public var children: [SerializedNode]?
   public var direction: Nullable<Direction>
   public var format: ElementFormat?
-  public var indent: Int?
+  public var indent: Double?
   public var textFormat: Double?
   public var textStyle: String?
   public var unknownFields: [String: JSONValue]
@@ -1805,13 +1808,13 @@ public struct SerializedCollapsibleContentNode: ParentNodePayload {
   }
 
   public var json: JSONValue {
-    var fields = NodeFields(writing: Self.type, over: unknownFields)
+    var fields = NodeFields(writing: Self.type, version: Self.version, over: unknownFields)
     fields.putChildren(children)
     fields.putNullable("direction", direction, Schema.direction)
     fields.put("format", format, Schema.format)
     fields.put("indent", indent, Schema.indent)
-    fields.put("textFormat", textFormat, Schema.textFormat)
-    fields.put("textStyle", textStyle, Schema.textStyle)
+    fields.putUnlessDefault("textFormat", textFormat, Schema.textFormat)
+    fields.putUnlessDefault("textStyle", textStyle, Schema.textStyle)
     return fields.json
   }
 
@@ -1820,17 +1823,17 @@ public struct SerializedCollapsibleContentNode: ParentNodePayload {
     node.direction = Schema.direction.resolving(direction)
     node.format = Schema.format.resolving(format)
     node.indent = Schema.indent.resolving(indent)
-    node.textFormat = Schema.textFormat.resolving(textFormat)
-    node.textStyle = Schema.textStyle.resolving(textStyle)
+    node.textFormat = Schema.textFormat.omittingDefault(textFormat)
+    node.textStyle = Schema.textStyle.omittingDefault(textStyle)
     return node
   }
 
   private enum Schema {
-    static let direction: FieldSchema<Direction?> = .enumeration(default: Direction?.none)
-    static let format: FieldSchema<ElementFormat> = .enumeration(default: ElementFormat.empty)
-    static let indent: FieldSchema<Int> = .integer(default: 0, min: 0)
-    static let textFormat: FieldSchema<Double> = .optional(.number(default: 0), omitDefault: true)
-    static let textStyle: FieldSchema<String> = .optional(.string(default: ""), omitDefault: true)
+    static let direction: FieldSchema<Direction?> = .unread(.enumeration(default: Direction?.none))
+    static let format: FieldSchema<ElementFormat> = .unread(.enumeration(default: ElementFormat.empty))
+    static let indent: FieldSchema<Double> = .unread(.number(default: 0))
+    static let textFormat: FieldSchema<Double> = .unread(.number(default: 0))
+    static let textStyle: FieldSchema<String> = .unread(.string(default: ""))
   }
 }
 
@@ -1840,7 +1843,7 @@ public struct SerializedCollapsibleTitleNode: ParentNodePayload {
   public var children: [SerializedNode]?
   public var direction: Nullable<Direction>
   public var format: ElementFormat?
-  public var indent: Int?
+  public var indent: Double?
   public var textFormat: Double?
   public var textStyle: String?
   public var unknownFields: [String: JSONValue]
@@ -1857,13 +1860,13 @@ public struct SerializedCollapsibleTitleNode: ParentNodePayload {
   }
 
   public var json: JSONValue {
-    var fields = NodeFields(writing: Self.type, over: unknownFields)
+    var fields = NodeFields(writing: Self.type, version: Self.version, over: unknownFields)
     fields.putChildren(children)
     fields.putNullable("direction", direction, Schema.direction)
     fields.put("format", format, Schema.format)
     fields.put("indent", indent, Schema.indent)
-    fields.put("textFormat", textFormat, Schema.textFormat)
-    fields.put("textStyle", textStyle, Schema.textStyle)
+    fields.putUnlessDefault("textFormat", textFormat, Schema.textFormat)
+    fields.putUnlessDefault("textStyle", textStyle, Schema.textStyle)
     return fields.json
   }
 
@@ -1872,17 +1875,17 @@ public struct SerializedCollapsibleTitleNode: ParentNodePayload {
     node.direction = Schema.direction.resolving(direction)
     node.format = Schema.format.resolving(format)
     node.indent = Schema.indent.resolving(indent)
-    node.textFormat = Schema.textFormat.resolving(textFormat)
-    node.textStyle = Schema.textStyle.resolving(textStyle)
+    node.textFormat = Schema.textFormat.omittingDefault(textFormat)
+    node.textStyle = Schema.textStyle.omittingDefault(textStyle)
     return node
   }
 
   private enum Schema {
-    static let direction: FieldSchema<Direction?> = .enumeration(default: Direction?.none)
-    static let format: FieldSchema<ElementFormat> = .enumeration(default: ElementFormat.empty)
-    static let indent: FieldSchema<Int> = .integer(default: 0, min: 0)
-    static let textFormat: FieldSchema<Double> = .optional(.number(default: 0), omitDefault: true)
-    static let textStyle: FieldSchema<String> = .optional(.string(default: ""), omitDefault: true)
+    static let direction: FieldSchema<Direction?> = .unread(.enumeration(default: Direction?.none))
+    static let format: FieldSchema<ElementFormat> = .unread(.enumeration(default: ElementFormat.empty))
+    static let indent: FieldSchema<Double> = .unread(.number(default: 0))
+    static let textFormat: FieldSchema<Double> = .unread(.number(default: 0))
+    static let textStyle: FieldSchema<String> = .unread(.string(default: ""))
   }
 }
 
@@ -1890,10 +1893,10 @@ public struct SerializedCommentNode: ParentNodePayload {
   public static let type = "comment"
   public static let version = 1
   public var children: [SerializedNode]?
-  public var comment: Comment?
+  public var comment: Shaped<Comment>?
   public var direction: Nullable<Never>
-  public var format: Double?
-  public var indent: Double?
+  public var format: JSONValue?
+  public var indent: JSONValue?
   public var unknownFields: [String: JSONValue]
 
   public init(json: JSONValue) throws {
@@ -1907,7 +1910,7 @@ public struct SerializedCommentNode: ParentNodePayload {
   }
 
   public var json: JSONValue {
-    var fields = NodeFields(writing: Self.type, over: unknownFields)
+    var fields = NodeFields(writing: Self.type, version: Self.version, over: unknownFields)
     fields.putChildren(children)
     fields.put("comment", comment, Schema.comment)
     fields.putNullable("direction", direction, Schema.direction)
@@ -1926,22 +1929,22 @@ public struct SerializedCommentNode: ParentNodePayload {
   }
 
   private enum Schema {
-    static let comment: FieldSchema<Comment> = .object
+    static let comment: FieldSchema<Shaped<Comment>> = .shaped(.object, .raw)
     static let direction: FieldSchema<Never?> = .enumeration(default: Never?.none)
-    static let format: FieldSchema<Double> = .number(default: 0)
-    static let indent: FieldSchema<Double> = .number(default: 0)
+    static let format: FieldSchema<JSONValue> = .raw
+    static let indent: FieldSchema<JSONValue> = .raw
   }
 }
 
 public struct SerializedEmojiNode: NodePayload {
   public static let type = "emoji"
   public static let version = 1
-  public var className: String?
-  public var detail: Double?
-  public var format: Double?
+  public var className: JSONValue?
+  public var detail: JSONValue?
+  public var format: JSONValue?
   public var mode: TextMode?
-  public var style: String?
-  public var text: String?
+  public var style: JSONValue?
+  public var text: JSONValue?
   public var unknownFields: [String: JSONValue]
 
   public init(json: JSONValue) throws {
@@ -1956,7 +1959,7 @@ public struct SerializedEmojiNode: NodePayload {
   }
 
   public var json: JSONValue {
-    var fields = NodeFields(writing: Self.type, over: unknownFields)
+    var fields = NodeFields(writing: Self.type, version: Self.version, over: unknownFields)
     fields.put("className", className, Schema.className)
     fields.put("detail", detail, Schema.detail)
     fields.put("format", format, Schema.format)
@@ -1978,20 +1981,20 @@ public struct SerializedEmojiNode: NodePayload {
   }
 
   private enum Schema {
-    static let className: FieldSchema<String> = .string(default: "")
-    static let detail: FieldSchema<Double> = .aliased(.number(default: 0), ["directionless": 1, "unmergeable": 2])
-    static let format: FieldSchema<Double> = .aliased(.number(default: 0), ["bold": 1, "capitalize": 1024, "code": 16, "highlight": 128, "italic": 2, "lowercase": 256, "strikethrough": 4, "subscript": 32, "superscript": 64, "underline": 8, "uppercase": 512])
-    static let mode: FieldSchema<TextMode> = .enumeration(default: TextMode.normal)
-    static let style: FieldSchema<String> = .string(default: "")
-    static let text: FieldSchema<String> = .string(default: "")
+    static let className: FieldSchema<JSONValue> = .raw
+    static let detail: FieldSchema<JSONValue> = .aliased(.transform(.raw, Transforms.stringAbsent), ["directionless": 1, "unmergeable": 2])
+    static let format: FieldSchema<JSONValue> = .aliased(.transform(.raw, Transforms.stringAbsent), ["bold": 1, "capitalize": 1024, "code": 16, "highlight": 128, "italic": 2, "lowercase": 256, "strikethrough": 4, "subscript": 32, "superscript": 64, "underline": 8, "uppercase": 512])
+    static let mode: FieldSchema<TextMode> = .enumeration(default: nil)
+    static let style: FieldSchema<JSONValue> = .raw
+    static let text: FieldSchema<JSONValue> = .rawOr("")
   }
 }
 
 public struct SerializedEquationNode: NodePayload {
   public static let type = "equation"
   public static let version = 1
-  public var equation: String?
-  public var inline: Bool?
+  public var equation: JSONValue?
+  public var inline: JSONValue?
   public var unknownFields: [String: JSONValue]
 
   public init(json: JSONValue) throws {
@@ -2002,7 +2005,7 @@ public struct SerializedEquationNode: NodePayload {
   }
 
   public var json: JSONValue {
-    var fields = NodeFields(writing: Self.type, over: unknownFields)
+    var fields = NodeFields(writing: Self.type, version: Self.version, over: unknownFields)
     fields.put("equation", equation, Schema.equation)
     fields.put("inline", inline, Schema.inline)
     return fields.json
@@ -2016,23 +2019,24 @@ public struct SerializedEquationNode: NodePayload {
   }
 
   private enum Schema {
-    static let equation: FieldSchema<String> = .string(default: "")
-    static let inline: FieldSchema<Bool> = .boolean(default: false)
+    static let equation: FieldSchema<JSONValue> = .rawOr("")
+    static let inline: FieldSchema<JSONValue> = .rawOr(false)
   }
 }
 
 public struct SerializedExcalidrawNode: NodePayload {
   public static let type = "excalidraw"
   public static let version = 1
-  public var data: String?
-  public var figure: Figure?
-  public var height: Dimension?
-  public var natural: NaturalSize?
-  public var width: Dimension?
+  public var data: JSONValue?
+  public var figure: Shaped<Figure>?
+  public var height: JSONValue?
+  public var natural: Shaped<NaturalSize>?
+  public var width: JSONValue?
   public var unknownFields: [String: JSONValue]
 
   public init(json: JSONValue) throws {
     var fields = try NodeFields(reading: json, as: Self.type)
+    fields.spreadState()
     var state = fields.takeState()
     data = fields.take("data", Schema.data)
     figure = state.take("figure", Schema.figure)
@@ -2044,7 +2048,7 @@ public struct SerializedExcalidrawNode: NodePayload {
   }
 
   public var json: JSONValue {
-    var fields = NodeFields(writing: Self.type, over: unknownFields)
+    var fields = NodeFields(writing: Self.type, version: Self.version, over: unknownFields)
     var state = fields.takeState()
     fields.put("data", data, Schema.data)
     state.putUnlessDefault("figure", figure, Schema.figure)
@@ -2066,34 +2070,36 @@ public struct SerializedExcalidrawNode: NodePayload {
   }
 
   private enum Schema {
-    static let data: FieldSchema<String> = .string(default: "[]")
-    static let figure: FieldSchema<Figure> = .object
-    static let height: FieldSchema<Dimension> = .union
-    static let natural: FieldSchema<NaturalSize> = .transform(.object, Transforms.naturalSize)
-    static let width: FieldSchema<Dimension> = .union
+    static let data: FieldSchema<JSONValue> = .rawOr("[]", nullAsAbsent: true)
+    static let figure: FieldSchema<Shaped<Figure>> = .shaped(.object, .raw)
+    static let height: FieldSchema<JSONValue> = .rawOr("inherit", nullAsAbsent: true)
+    static let natural: FieldSchema<Shaped<NaturalSize>> = .shaped(.transform(.object, Transforms.naturalSize), .raw)
+    static let width: FieldSchema<JSONValue> = .rawOr("inherit", nullAsAbsent: true)
   }
 }
 
 public struct SerializedFigmaNode: NodePayload {
   public static let type = "figma"
   public static let version = 1
-  public var documentID: String?
-  public var figure: Figure?
-  public var format: ElementFormat?
+  public var documentID: JSONValue?
+  public var figure: Shaped<Figure>?
+  public var format: JSONValue?
   public var unknownFields: [String: JSONValue]
 
   public init(json: JSONValue) throws {
     var fields = try NodeFields(reading: json, as: Self.type)
+    let holdsState = fields.holdsState
+    fields.spreadState()
     var state = fields.takeState()
     documentID = fields.take("documentID", Schema.documentID)
     figure = state.take("figure", Schema.figure)
-    format = fields.take("format", Schema.format)
+    format = fields.take("format", holdsState ? Schema.formatWithState : Schema.format)
     fields.putState(state)
     unknownFields = fields.rest
   }
 
   public var json: JSONValue {
-    var fields = NodeFields(writing: Self.type, over: unknownFields)
+    var fields = NodeFields(writing: Self.type, version: Self.version, over: unknownFields)
     var state = fields.takeState()
     fields.put("documentID", documentID, Schema.documentID)
     state.putUnlessDefault("figure", figure, Schema.figure)
@@ -2111,9 +2117,10 @@ public struct SerializedFigmaNode: NodePayload {
   }
 
   private enum Schema {
-    static let documentID: FieldSchema<String> = .string(default: "")
-    static let figure: FieldSchema<Figure> = .object
-    static let format: FieldSchema<ElementFormat> = .enumeration(default: ElementFormat.empty)
+    static let documentID: FieldSchema<JSONValue> = .raw
+    static let figure: FieldSchema<Shaped<Figure>> = .shaped(.object, .raw)
+    static let format: FieldSchema<JSONValue> = .raw
+    static let formatWithState: FieldSchema<JSONValue> = .checked(.enumeration(default: ElementFormat.empty))
   }
 }
 
@@ -2131,6 +2138,7 @@ public struct SerializedFootnoteDefinitionNode: ParentNodePayload {
 
   public init(json: JSONValue) throws {
     var fields = try NodeFields(reading: json, as: Self.type)
+    fields.spreadState()
     children = fields.takeChildren()
     direction = fields.takeNullable("direction", Schema.direction)
     format = fields.take("format", Schema.format)
@@ -2142,7 +2150,7 @@ public struct SerializedFootnoteDefinitionNode: ParentNodePayload {
   }
 
   public var json: JSONValue {
-    var fields = NodeFields(writing: Self.type, over: unknownFields)
+    var fields = NodeFields(writing: Self.type, version: Self.version, over: unknownFields)
     fields.putChildren(children)
     fields.putNullable("direction", direction, Schema.direction)
     fields.put("format", format, Schema.format)
@@ -2177,17 +2185,18 @@ public struct SerializedFootnoteDefinitionNode: ParentNodePayload {
 public struct SerializedFootnoteReferenceNode: NodePayload {
   public static let type = "footnote-reference"
   public static let version = 1
-  public var label: String?
+  public var label: JSONValue?
   public var unknownFields: [String: JSONValue]
 
   public init(json: JSONValue) throws {
     var fields = try NodeFields(reading: json, as: Self.type)
+    fields.spreadState()
     label = fields.take("label", Schema.label)
     unknownFields = fields.rest
   }
 
   public var json: JSONValue {
-    var fields = NodeFields(writing: Self.type, over: unknownFields)
+    var fields = NodeFields(writing: Self.type, version: Self.version, over: unknownFields)
     fields.put("label", label, Schema.label)
     return fields.json
   }
@@ -2199,7 +2208,7 @@ public struct SerializedFootnoteReferenceNode: NodePayload {
   }
 
   private enum Schema {
-    static let label: FieldSchema<String> = .string(default: "")
+    static let label: FieldSchema<JSONValue> = .raw
   }
 }
 
@@ -2215,6 +2224,7 @@ public struct SerializedHashtagNode: NodePayload {
 
   public init(json: JSONValue) throws {
     var fields = try NodeFields(reading: json, as: Self.type)
+    fields.spreadState()
     detail = fields.take("detail", Schema.detail)
     format = fields.take("format", Schema.format)
     mode = fields.take("mode", Schema.mode)
@@ -2224,7 +2234,7 @@ public struct SerializedHashtagNode: NodePayload {
   }
 
   public var json: JSONValue {
-    var fields = NodeFields(writing: Self.type, over: unknownFields)
+    var fields = NodeFields(writing: Self.type, version: Self.version, over: unknownFields)
     fields.put("detail", detail, Schema.detail)
     fields.put("format", format, Schema.format)
     fields.put("mode", mode, Schema.mode)
@@ -2266,6 +2276,7 @@ public struct SerializedHeadingNode: ParentNodePayload {
 
   public init(json: JSONValue) throws {
     var fields = try NodeFields(reading: json, as: Self.type)
+    fields.spreadState()
     children = fields.takeChildren()
     direction = fields.takeNullable("direction", Schema.direction)
     format = fields.take("format", Schema.format)
@@ -2277,7 +2288,7 @@ public struct SerializedHeadingNode: ParentNodePayload {
   }
 
   public var json: JSONValue {
-    var fields = NodeFields(writing: Self.type, over: unknownFields)
+    var fields = NodeFields(writing: Self.type, version: Self.version, over: unknownFields)
     fields.putChildren(children)
     fields.putNullable("direction", direction, Schema.direction)
     fields.put("format", format, Schema.format)
@@ -2315,12 +2326,13 @@ public struct SerializedHorizontalRuleNode: NodePayload {
   public var unknownFields: [String: JSONValue]
 
   public init(json: JSONValue) throws {
-    let fields = try NodeFields(reading: json, as: Self.type)
+    var fields = try NodeFields(reading: json, as: Self.type)
+    fields.spreadState()
     unknownFields = fields.rest
   }
 
   public var json: JSONValue {
-    let fields = NodeFields(writing: Self.type, over: unknownFields)
+    let fields = NodeFields(writing: Self.type, version: Self.version, over: unknownFields)
     return fields.json
   }
 
@@ -2332,19 +2344,20 @@ public struct SerializedHorizontalRuleNode: NodePayload {
 public struct SerializedImageNode: NodePayload {
   public static let type = "image"
   public static let version = 1
-  public var altText: String?
+  public var altText: JSONValue?
   public var caption: NestedEditor?
-  public var figure: Figure?
-  public var height: Double?
-  public var maxWidth: Double?
-  public var natural: NaturalSize?
-  public var showCaption: Bool?
-  public var src: String?
-  public var width: Double?
+  public var figure: Shaped<Figure>?
+  public var height: JSONValue?
+  public var maxWidth: JSONValue?
+  public var natural: Shaped<NaturalSize>?
+  public var showCaption: JSONValue?
+  public var src: JSONValue?
+  public var width: JSONValue?
   public var unknownFields: [String: JSONValue]
 
   public init(json: JSONValue) throws {
     var fields = try NodeFields(reading: json, as: Self.type)
+    fields.spreadState()
     var state = fields.takeState()
     altText = fields.take("altText", Schema.altText)
     caption = fields.take("caption", Schema.caption)
@@ -2360,7 +2373,7 @@ public struct SerializedImageNode: NodePayload {
   }
 
   public var json: JSONValue {
-    var fields = NodeFields(writing: Self.type, over: unknownFields)
+    var fields = NodeFields(writing: Self.type, version: Self.version, over: unknownFields)
     var state = fields.takeState()
     fields.put("altText", altText, Schema.altText)
     fields.put("caption", caption, Schema.caption)
@@ -2390,29 +2403,29 @@ public struct SerializedImageNode: NodePayload {
   }
 
   private enum Schema {
-    static let altText: FieldSchema<String> = .string(default: "")
+    static let altText: FieldSchema<JSONValue> = .raw
     static let caption: FieldSchema<NestedEditor> = .object
-    static let figure: FieldSchema<Figure> = .object
-    static let height: FieldSchema<Double> = .number(default: 0)
-    static let maxWidth: FieldSchema<Double> = .number(default: 500)
-    static let natural: FieldSchema<NaturalSize> = .transform(.object, Transforms.naturalSize)
-    static let showCaption: FieldSchema<Bool> = .boolean(default: false)
-    static let src: FieldSchema<String> = .string(default: "")
-    static let width: FieldSchema<Double> = .number(default: 0)
+    static let figure: FieldSchema<Shaped<Figure>> = .shaped(.object, .raw)
+    static let height: FieldSchema<JSONValue> = .transform(.raw, Transforms.storedSize)
+    static let maxWidth: FieldSchema<JSONValue> = .rawOr(500)
+    static let natural: FieldSchema<Shaped<NaturalSize>> = .shaped(.transform(.object, Transforms.naturalSize), .raw)
+    static let showCaption: FieldSchema<JSONValue> = .transform(.raw, Transforms.falseOrStored)
+    static let src: FieldSchema<JSONValue> = .raw
+    static let width: FieldSchema<JSONValue> = .transform(.raw, Transforms.storedSize)
   }
 }
 
 public struct SerializedInlineImageNode: NodePayload {
   public static let type = "inline-image"
   public static let version = 1
-  public var altText: String?
+  public var altText: JSONValue?
   public var caption: NestedEditor?
-  public var captionsEnabled: Bool?
-  public var height: Double?
-  public var position: Position?
-  public var showCaption: Bool?
-  public var src: String?
-  public var width: Double?
+  public var captionsEnabled: JSONValue?
+  public var height: JSONValue?
+  public var position: JSONValue?
+  public var showCaption: JSONValue?
+  public var src: JSONValue?
+  public var width: JSONValue?
   public var unknownFields: [String: JSONValue]
 
   public init(json: JSONValue) throws {
@@ -2429,7 +2442,7 @@ public struct SerializedInlineImageNode: NodePayload {
   }
 
   public var json: JSONValue {
-    var fields = NodeFields(writing: Self.type, over: unknownFields)
+    var fields = NodeFields(writing: Self.type, version: Self.version, over: unknownFields)
     fields.put("altText", altText, Schema.altText)
     fields.put("caption", caption, Schema.caption)
     fields.put("captionsEnabled", captionsEnabled, Schema.captionsEnabled)
@@ -2455,25 +2468,25 @@ public struct SerializedInlineImageNode: NodePayload {
   }
 
   private enum Schema {
-    static let altText: FieldSchema<String> = .string(default: "")
+    static let altText: FieldSchema<JSONValue> = .raw
     static let caption: FieldSchema<NestedEditor> = .object
-    static let captionsEnabled: FieldSchema<Bool> = .boolean(default: true)
-    static let height: FieldSchema<Double> = .number(default: 0)
-    static let position: FieldSchema<Position> = .enumeration(default: nil)
-    static let showCaption: FieldSchema<Bool> = .boolean(default: false)
-    static let src: FieldSchema<String> = .string(default: "")
-    static let width: FieldSchema<Double> = .number(default: 0)
+    static let captionsEnabled: FieldSchema<JSONValue> = .rawOr(true, nullAsAbsent: true)
+    static let height: FieldSchema<JSONValue> = .transform(.raw, Transforms.storedSize)
+    static let position: FieldSchema<JSONValue> = .raw
+    static let showCaption: FieldSchema<JSONValue> = .transform(.raw, Transforms.falseOrStored)
+    static let src: FieldSchema<JSONValue> = .raw
+    static let width: FieldSchema<JSONValue> = .transform(.raw, Transforms.storedSize)
   }
 }
 
 public struct SerializedKeywordNode: NodePayload {
   public static let type = "keyword"
   public static let version = 1
-  public var detail: Double?
-  public var format: Double?
+  public var detail: JSONValue?
+  public var format: JSONValue?
   public var mode: TextMode?
-  public var style: String?
-  public var text: String?
+  public var style: JSONValue?
+  public var text: JSONValue?
   public var unknownFields: [String: JSONValue]
 
   public init(json: JSONValue) throws {
@@ -2487,7 +2500,7 @@ public struct SerializedKeywordNode: NodePayload {
   }
 
   public var json: JSONValue {
-    var fields = NodeFields(writing: Self.type, over: unknownFields)
+    var fields = NodeFields(writing: Self.type, version: Self.version, over: unknownFields)
     fields.put("detail", detail, Schema.detail)
     fields.put("format", format, Schema.format)
     fields.put("mode", mode, Schema.mode)
@@ -2507,11 +2520,11 @@ public struct SerializedKeywordNode: NodePayload {
   }
 
   private enum Schema {
-    static let detail: FieldSchema<Double> = .aliased(.number(default: 0), ["directionless": 1, "unmergeable": 2])
-    static let format: FieldSchema<Double> = .aliased(.number(default: 0), ["bold": 1, "capitalize": 1024, "code": 16, "highlight": 128, "italic": 2, "lowercase": 256, "strikethrough": 4, "subscript": 32, "superscript": 64, "underline": 8, "uppercase": 512])
-    static let mode: FieldSchema<TextMode> = .enumeration(default: TextMode.normal)
-    static let style: FieldSchema<String> = .string(default: "")
-    static let text: FieldSchema<String> = .string(default: "")
+    static let detail: FieldSchema<JSONValue> = .aliased(.transform(.raw, Transforms.stringAbsent), ["directionless": 1, "unmergeable": 2])
+    static let format: FieldSchema<JSONValue> = .aliased(.transform(.raw, Transforms.stringAbsent), ["bold": 1, "capitalize": 1024, "code": 16, "highlight": 128, "italic": 2, "lowercase": 256, "strikethrough": 4, "subscript": 32, "superscript": 64, "underline": 8, "uppercase": 512])
+    static let mode: FieldSchema<TextMode> = .enumeration(default: nil)
+    static let style: FieldSchema<JSONValue> = .raw
+    static let text: FieldSchema<JSONValue> = .rawOr("")
   }
 }
 
@@ -2520,16 +2533,17 @@ public struct SerializedLayoutContainerNode: ParentNodePayload {
   public static let version = 1
   public var children: [SerializedNode]?
   public var direction: Nullable<Direction>
-  public var figure: Figure?
+  public var figure: Shaped<Figure>?
   public var format: ElementFormat?
   public var indent: Int?
-  public var templateColumns: String?
+  public var templateColumns: JSONValue?
   public var textFormat: Double?
   public var textStyle: String?
   public var unknownFields: [String: JSONValue]
 
   public init(json: JSONValue) throws {
     var fields = try NodeFields(reading: json, as: Self.type)
+    fields.spreadState()
     children = fields.takeChildren()
     var state = fields.takeState()
     direction = fields.takeNullable("direction", Schema.direction)
@@ -2544,7 +2558,7 @@ public struct SerializedLayoutContainerNode: ParentNodePayload {
   }
 
   public var json: JSONValue {
-    var fields = NodeFields(writing: Self.type, over: unknownFields)
+    var fields = NodeFields(writing: Self.type, version: Self.version, over: unknownFields)
     fields.putChildren(children)
     var state = fields.takeState()
     fields.putNullable("direction", direction, Schema.direction)
@@ -2572,10 +2586,10 @@ public struct SerializedLayoutContainerNode: ParentNodePayload {
 
   private enum Schema {
     static let direction: FieldSchema<Direction?> = .enumeration(default: Direction?.none)
-    static let figure: FieldSchema<Figure> = .object
+    static let figure: FieldSchema<Shaped<Figure>> = .shaped(.object, .raw)
     static let format: FieldSchema<ElementFormat> = .enumeration(default: ElementFormat.empty)
     static let indent: FieldSchema<Int> = .integer(default: 0, min: 0)
-    static let templateColumns: FieldSchema<String> = .string(default: "")
+    static let templateColumns: FieldSchema<JSONValue> = .raw
     static let textFormat: FieldSchema<Double> = .optional(.number(default: 0), omitDefault: true)
     static let textStyle: FieldSchema<String> = .optional(.string(default: ""), omitDefault: true)
   }
@@ -2587,7 +2601,7 @@ public struct SerializedLayoutItemNode: ParentNodePayload {
   public var children: [SerializedNode]?
   public var direction: Nullable<Direction>
   public var format: ElementFormat?
-  public var indent: Int?
+  public var indent: Double?
   public var textFormat: Double?
   public var textStyle: String?
   public var unknownFields: [String: JSONValue]
@@ -2604,13 +2618,13 @@ public struct SerializedLayoutItemNode: ParentNodePayload {
   }
 
   public var json: JSONValue {
-    var fields = NodeFields(writing: Self.type, over: unknownFields)
+    var fields = NodeFields(writing: Self.type, version: Self.version, over: unknownFields)
     fields.putChildren(children)
     fields.putNullable("direction", direction, Schema.direction)
     fields.put("format", format, Schema.format)
     fields.put("indent", indent, Schema.indent)
-    fields.put("textFormat", textFormat, Schema.textFormat)
-    fields.put("textStyle", textStyle, Schema.textStyle)
+    fields.putUnlessDefault("textFormat", textFormat, Schema.textFormat)
+    fields.putUnlessDefault("textStyle", textStyle, Schema.textStyle)
     return fields.json
   }
 
@@ -2619,17 +2633,17 @@ public struct SerializedLayoutItemNode: ParentNodePayload {
     node.direction = Schema.direction.resolving(direction)
     node.format = Schema.format.resolving(format)
     node.indent = Schema.indent.resolving(indent)
-    node.textFormat = Schema.textFormat.resolving(textFormat)
-    node.textStyle = Schema.textStyle.resolving(textStyle)
+    node.textFormat = Schema.textFormat.omittingDefault(textFormat)
+    node.textStyle = Schema.textStyle.omittingDefault(textStyle)
     return node
   }
 
   private enum Schema {
-    static let direction: FieldSchema<Direction?> = .enumeration(default: Direction?.none)
-    static let format: FieldSchema<ElementFormat> = .enumeration(default: ElementFormat.empty)
-    static let indent: FieldSchema<Int> = .integer(default: 0, min: 0)
-    static let textFormat: FieldSchema<Double> = .optional(.number(default: 0), omitDefault: true)
-    static let textStyle: FieldSchema<String> = .optional(.string(default: ""), omitDefault: true)
+    static let direction: FieldSchema<Direction?> = .unread(.enumeration(default: Direction?.none))
+    static let format: FieldSchema<ElementFormat> = .unread(.enumeration(default: ElementFormat.empty))
+    static let indent: FieldSchema<Double> = .unread(.number(default: 0))
+    static let textFormat: FieldSchema<Double> = .unread(.number(default: 0))
+    static let textStyle: FieldSchema<String> = .unread(.string(default: ""))
   }
 }
 
@@ -2639,12 +2653,13 @@ public struct SerializedLineBreakNode: NodePayload {
   public var unknownFields: [String: JSONValue]
 
   public init(json: JSONValue) throws {
-    let fields = try NodeFields(reading: json, as: Self.type)
+    var fields = try NodeFields(reading: json, as: Self.type)
+    fields.spreadState()
     unknownFields = fields.rest
   }
 
   public var json: JSONValue {
-    let fields = NodeFields(writing: Self.type, over: unknownFields)
+    let fields = NodeFields(writing: Self.type, version: Self.version, over: unknownFields)
     return fields.json
   }
 
@@ -2670,6 +2685,7 @@ public struct SerializedLinkNode: ParentNodePayload {
 
   public init(json: JSONValue) throws {
     var fields = try NodeFields(reading: json, as: Self.type)
+    fields.spreadState()
     children = fields.takeChildren()
     direction = fields.takeNullable("direction", Schema.direction)
     format = fields.take("format", Schema.format)
@@ -2684,7 +2700,7 @@ public struct SerializedLinkNode: ParentNodePayload {
   }
 
   public var json: JSONValue {
-    var fields = NodeFields(writing: Self.type, over: unknownFields)
+    var fields = NodeFields(writing: Self.type, version: Self.version, over: unknownFields)
     fields.putChildren(children)
     fields.putNullable("direction", direction, Schema.direction)
     fields.put("format", format, Schema.format)
@@ -2741,6 +2757,7 @@ public struct SerializedListNode: ParentNodePayload {
 
   public init(json: JSONValue) throws {
     var fields = try NodeFields(reading: json, as: Self.type)
+    fields.spreadState()
     children = fields.takeChildren()
     direction = fields.takeNullable("direction", Schema.direction)
     format = fields.take("format", Schema.format)
@@ -2754,7 +2771,7 @@ public struct SerializedListNode: ParentNodePayload {
   }
 
   public var json: JSONValue {
-    var fields = NodeFields(writing: Self.type, over: unknownFields)
+    var fields = NodeFields(writing: Self.type, version: Self.version, over: unknownFields)
     fields.putChildren(children)
     fields.putNullable("direction", direction, Schema.direction)
     fields.put("format", format, Schema.format)
@@ -2807,6 +2824,7 @@ public struct SerializedListItemNode: ParentNodePayload {
 
   public init(json: JSONValue) throws {
     var fields = try NodeFields(reading: json, as: Self.type)
+    fields.spreadState()
     children = fields.takeChildren()
     checked = fields.take("checked", Schema.checked)
     direction = fields.takeNullable("direction", Schema.direction)
@@ -2819,7 +2837,7 @@ public struct SerializedListItemNode: ParentNodePayload {
   }
 
   public var json: JSONValue {
-    var fields = NodeFields(writing: Self.type, over: unknownFields)
+    var fields = NodeFields(writing: Self.type, version: Self.version, over: unknownFields)
     fields.putChildren(children)
     fields.put("checked", checked, Schema.checked)
     fields.putNullable("direction", direction, Schema.direction)
@@ -2868,6 +2886,7 @@ public struct SerializedMarkNode: ParentNodePayload {
 
   public init(json: JSONValue) throws {
     var fields = try NodeFields(reading: json, as: Self.type)
+    fields.spreadState()
     children = fields.takeChildren()
     direction = fields.takeNullable("direction", Schema.direction)
     format = fields.take("format", Schema.format)
@@ -2879,7 +2898,7 @@ public struct SerializedMarkNode: ParentNodePayload {
   }
 
   public var json: JSONValue {
-    var fields = NodeFields(writing: Self.type, over: unknownFields)
+    var fields = NodeFields(writing: Self.type, version: Self.version, over: unknownFields)
     fields.putChildren(children)
     fields.putNullable("direction", direction, Schema.direction)
     fields.put("format", format, Schema.format)
@@ -2914,12 +2933,12 @@ public struct SerializedMarkNode: ParentNodePayload {
 public struct SerializedMentionNode: NodePayload {
   public static let type = "mention"
   public static let version = 1
-  public var detail: Double?
-  public var format: Double?
-  public var mentionName: String?
+  public var detail: JSONValue?
+  public var format: JSONValue?
+  public var mentionName: JSONValue?
   public var mode: TextMode?
-  public var style: String?
-  public var text: String?
+  public var style: JSONValue?
+  public var text: JSONValue?
   public var unknownFields: [String: JSONValue]
 
   public init(json: JSONValue) throws {
@@ -2934,7 +2953,7 @@ public struct SerializedMentionNode: NodePayload {
   }
 
   public var json: JSONValue {
-    var fields = NodeFields(writing: Self.type, over: unknownFields)
+    var fields = NodeFields(writing: Self.type, version: Self.version, over: unknownFields)
     fields.put("detail", detail, Schema.detail)
     fields.put("format", format, Schema.format)
     fields.put("mentionName", mentionName, Schema.mentionName)
@@ -2956,27 +2975,28 @@ public struct SerializedMentionNode: NodePayload {
   }
 
   private enum Schema {
-    static let detail: FieldSchema<Double> = .aliased(.number(default: 0), ["directionless": 1, "unmergeable": 2])
-    static let format: FieldSchema<Double> = .aliased(.number(default: 0), ["bold": 1, "capitalize": 1024, "code": 16, "highlight": 128, "italic": 2, "lowercase": 256, "strikethrough": 4, "subscript": 32, "superscript": 64, "underline": 8, "uppercase": 512])
-    static let mentionName: FieldSchema<String> = .string(default: "")
-    static let mode: FieldSchema<TextMode> = .enumeration(default: TextMode.normal)
-    static let style: FieldSchema<String> = .string(default: "")
-    static let text: FieldSchema<String> = .string(default: "")
+    static let detail: FieldSchema<JSONValue> = .aliased(.transform(.raw, Transforms.stringAbsent), ["directionless": 1, "unmergeable": 2])
+    static let format: FieldSchema<JSONValue> = .aliased(.transform(.raw, Transforms.stringAbsent), ["bold": 1, "capitalize": 1024, "code": 16, "highlight": 128, "italic": 2, "lowercase": 256, "strikethrough": 4, "subscript": 32, "superscript": 64, "underline": 8, "uppercase": 512])
+    static let mentionName: FieldSchema<JSONValue> = .raw
+    static let mode: FieldSchema<TextMode> = .enumeration(default: nil)
+    static let style: FieldSchema<JSONValue> = .raw
+    static let text: FieldSchema<JSONValue> = .raw
   }
 }
 
 public struct SerializedMermaidNode: NodePayload {
   public static let type = "mermaid"
   public static let version = 1
-  public var figure: Figure?
-  public var height: Dimension?
-  public var natural: NaturalSize?
-  public var schema: String?
-  public var width: Dimension?
+  public var figure: Shaped<Figure>?
+  public var height: JSONValue?
+  public var natural: Shaped<NaturalSize>?
+  public var schema: JSONValue?
+  public var width: JSONValue?
   public var unknownFields: [String: JSONValue]
 
   public init(json: JSONValue) throws {
     var fields = try NodeFields(reading: json, as: Self.type)
+    fields.spreadState()
     var state = fields.takeState()
     figure = state.take("figure", Schema.figure)
     height = fields.take("height", Schema.height)
@@ -2988,7 +3008,7 @@ public struct SerializedMermaidNode: NodePayload {
   }
 
   public var json: JSONValue {
-    var fields = NodeFields(writing: Self.type, over: unknownFields)
+    var fields = NodeFields(writing: Self.type, version: Self.version, over: unknownFields)
     var state = fields.takeState()
     state.putUnlessDefault("figure", figure, Schema.figure)
     fields.put("height", height, Schema.height)
@@ -3010,11 +3030,11 @@ public struct SerializedMermaidNode: NodePayload {
   }
 
   private enum Schema {
-    static let figure: FieldSchema<Figure> = .object
-    static let height: FieldSchema<Dimension> = .transform(.union, Transforms.zeroAsInherit)
-    static let natural: FieldSchema<NaturalSize> = .transform(.object, Transforms.naturalSize)
-    static let schema: FieldSchema<String> = .string(default: "graph TD;\n  A[Start] --> B>Stop]")
-    static let width: FieldSchema<Dimension> = .transform(.union, Transforms.zeroAsInherit)
+    static let figure: FieldSchema<Shaped<Figure>> = .shaped(.object, .raw)
+    static let height: FieldSchema<JSONValue> = .transform(.rawOr("inherit"), Transforms.zeroAsInherit)
+    static let natural: FieldSchema<Shaped<NaturalSize>> = .shaped(.transform(.object, Transforms.naturalSize), .raw)
+    static let schema: FieldSchema<JSONValue> = .rawOr("graph TD;\n  A[Start] --> B>Stop]")
+    static let width: FieldSchema<JSONValue> = .transform(.rawOr("inherit"), Transforms.zeroAsInherit)
   }
 }
 
@@ -3029,7 +3049,7 @@ public struct SerializedPageBreakNode: NodePayload {
   }
 
   public var json: JSONValue {
-    let fields = NodeFields(writing: Self.type, over: unknownFields)
+    let fields = NodeFields(writing: Self.type, version: Self.version, over: unknownFields)
     return fields.json
   }
 
@@ -3051,6 +3071,7 @@ public struct SerializedParagraphNode: ParentNodePayload {
 
   public init(json: JSONValue) throws {
     var fields = try NodeFields(reading: json, as: Self.type)
+    fields.spreadState()
     children = fields.takeChildren()
     direction = fields.takeNullable("direction", Schema.direction)
     format = fields.take("format", Schema.format)
@@ -3061,7 +3082,7 @@ public struct SerializedParagraphNode: ParentNodePayload {
   }
 
   public var json: JSONValue {
-    var fields = NodeFields(writing: Self.type, over: unknownFields)
+    var fields = NodeFields(writing: Self.type, version: Self.version, over: unknownFields)
     fields.putChildren(children)
     fields.putNullable("direction", direction, Schema.direction)
     fields.put("format", format, Schema.format)
@@ -3093,8 +3114,8 @@ public struct SerializedParagraphNode: ParentNodePayload {
 public struct SerializedPollNode: NodePayload {
   public static let type = "poll"
   public static let version = 1
-  public var options: [PollOption]?
-  public var question: String?
+  public var options: Shaped<[PollOption]>?
+  public var question: JSONValue?
   public var unknownFields: [String: JSONValue]
 
   public init(json: JSONValue) throws {
@@ -3105,7 +3126,7 @@ public struct SerializedPollNode: NodePayload {
   }
 
   public var json: JSONValue {
-    var fields = NodeFields(writing: Self.type, over: unknownFields)
+    var fields = NodeFields(writing: Self.type, version: Self.version, over: unknownFields)
     fields.put("options", options, Schema.options)
     fields.put("question", question, Schema.question)
     return fields.json
@@ -3119,8 +3140,8 @@ public struct SerializedPollNode: NodePayload {
   }
 
   private enum Schema {
-    static let options: FieldSchema<[PollOption]> = .array(.object)
-    static let question: FieldSchema<String> = .string(default: "")
+    static let options: FieldSchema<Shaped<[PollOption]>> = .shaped(.array(.object), .raw)
+    static let question: FieldSchema<JSONValue> = .raw
   }
 }
 
@@ -3138,6 +3159,7 @@ public struct SerializedQuoteNode: ParentNodePayload {
 
   public init(json: JSONValue) throws {
     var fields = try NodeFields(reading: json, as: Self.type)
+    fields.spreadState()
     children = fields.takeChildren()
     direction = fields.takeNullable("direction", Schema.direction)
     format = fields.take("format", Schema.format)
@@ -3149,7 +3171,7 @@ public struct SerializedQuoteNode: ParentNodePayload {
   }
 
   public var json: JSONValue {
-    var fields = NodeFields(writing: Self.type, over: unknownFields)
+    var fields = NodeFields(writing: Self.type, version: Self.version, over: unknownFields)
     fields.putChildren(children)
     fields.putNullable("direction", direction, Schema.direction)
     fields.put("format", format, Schema.format)
@@ -3194,6 +3216,7 @@ public struct SerializedRootNode: ParentNodePayload {
 
   public init(json: JSONValue) throws {
     var fields = try NodeFields(reading: json, as: Self.type)
+    fields.spreadState()
     children = fields.takeChildren()
     direction = fields.takeNullable("direction", Schema.direction)
     format = fields.take("format", Schema.format)
@@ -3204,7 +3227,7 @@ public struct SerializedRootNode: ParentNodePayload {
   }
 
   public var json: JSONValue {
-    var fields = NodeFields(writing: Self.type, over: unknownFields)
+    var fields = NodeFields(writing: Self.type, version: Self.version, over: unknownFields)
     fields.putChildren(children)
     fields.putNullable("direction", direction, Schema.direction)
     fields.put("format", format, Schema.format)
@@ -3236,7 +3259,7 @@ public struct SerializedRootNode: ParentNodePayload {
 public struct SerializedSlideNode: NodePayload {
   public static let type = "slide-deck"
   public static let version = 1
-  public var data: SlideDeck?
+  public var data: Shaped<SlideDeck>?
   public var unknownFields: [String: JSONValue]
 
   public init(json: JSONValue) throws {
@@ -3246,7 +3269,7 @@ public struct SerializedSlideNode: NodePayload {
   }
 
   public var json: JSONValue {
-    var fields = NodeFields(writing: Self.type, over: unknownFields)
+    var fields = NodeFields(writing: Self.type, version: Self.version, over: unknownFields)
     fields.put("data", data, Schema.data)
     return fields.json
   }
@@ -3258,7 +3281,7 @@ public struct SerializedSlideNode: NodePayload {
   }
 
   private enum Schema {
-    static let data: FieldSchema<SlideDeck> = .object
+    static let data: FieldSchema<Shaped<SlideDeck>> = .shaped(.object, .rawOr(["currentSlideId": "default-slide-1", "slides": [["elements": [["editorStateJSON": ["root": ["children": [["children": [["detail": 0, "format": 0, "key": "initial-text-content-node", "mode": "normal", "style": "", "text": "", "type": "text", "version": 1]], "direction": "ltr", "format": "", "indent": 0, "key": "1", "textFormat": 0, "textStyle": "", "type": "paragraph", "version": 1]], "direction": "ltr", "format": "", "indent": 0, "key": "root", "type": "root", "version": 1]], "height": 50, "id": "default-box-1", "kind": "box", "width": 300, "x": 50, "y": 50, "zIndex": 0]], "id": "default-slide-1"]]], nullAsAbsent: true))
   }
 }
 
@@ -3266,9 +3289,9 @@ public struct SerializedStickyNode: NodePayload {
   public static let type = "sticky"
   public static let version = 1
   public var caption: NestedEditor?
-  public var color: StickyNoteColor?
-  public var xOffset: Double?
-  public var yOffset: Double?
+  public var color: Shaped<StickyNoteColor>?
+  public var xOffset: JSONValue?
+  public var yOffset: JSONValue?
   public var unknownFields: [String: JSONValue]
 
   public init(json: JSONValue) throws {
@@ -3281,7 +3304,7 @@ public struct SerializedStickyNode: NodePayload {
   }
 
   public var json: JSONValue {
-    var fields = NodeFields(writing: Self.type, over: unknownFields)
+    var fields = NodeFields(writing: Self.type, version: Self.version, over: unknownFields)
     fields.put("caption", caption, Schema.caption)
     fields.put("color", color, Schema.color)
     fields.put("xOffset", xOffset, Schema.xOffset)
@@ -3300,9 +3323,9 @@ public struct SerializedStickyNode: NodePayload {
 
   private enum Schema {
     static let caption: FieldSchema<NestedEditor> = .object
-    static let color: FieldSchema<StickyNoteColor> = .enumeration(default: StickyNoteColor.yellow)
-    static let xOffset: FieldSchema<Double> = .number(default: 0)
-    static let yOffset: FieldSchema<Double> = .number(default: 0)
+    static let color: FieldSchema<Shaped<StickyNoteColor>> = .shaped(.enumeration(default: StickyNoteColor.yellow), .raw)
+    static let xOffset: FieldSchema<JSONValue> = .raw
+    static let yOffset: FieldSchema<JSONValue> = .raw
   }
 }
 
@@ -3318,6 +3341,7 @@ public struct SerializedTabNode: NodePayload {
 
   public init(json: JSONValue) throws {
     var fields = try NodeFields(reading: json, as: Self.type)
+    fields.spreadState()
     detail = fields.take("detail", Schema.detail)
     format = fields.take("format", Schema.format)
     mode = fields.take("mode", Schema.mode)
@@ -3327,7 +3351,7 @@ public struct SerializedTabNode: NodePayload {
   }
 
   public var json: JSONValue {
-    var fields = NodeFields(writing: Self.type, over: unknownFields)
+    var fields = NodeFields(writing: Self.type, version: Self.version, over: unknownFields)
     fields.put("detail", detail, Schema.detail)
     fields.put("format", format, Schema.format)
     fields.put("mode", mode, Schema.mode)
@@ -3372,6 +3396,7 @@ public struct SerializedTableNode: ParentNodePayload {
 
   public init(json: JSONValue) throws {
     var fields = try NodeFields(reading: json, as: Self.type)
+    fields.spreadState()
     children = fields.takeChildren()
     colWidths = fields.take("colWidths", Schema.colWidths)
     direction = fields.takeNullable("direction", Schema.direction)
@@ -3386,7 +3411,7 @@ public struct SerializedTableNode: ParentNodePayload {
   }
 
   public var json: JSONValue {
-    var fields = NodeFields(writing: Self.type, over: unknownFields)
+    var fields = NodeFields(writing: Self.type, version: Self.version, over: unknownFields)
     fields.putChildren(children)
     fields.put("colWidths", colWidths, Schema.colWidths)
     fields.putNullable("direction", direction, Schema.direction)
@@ -3446,6 +3471,7 @@ public struct SerializedTableCellNode: ParentNodePayload {
 
   public init(json: JSONValue) throws {
     var fields = try NodeFields(reading: json, as: Self.type)
+    fields.spreadState()
     children = fields.takeChildren()
     backgroundColor = fields.takeNullable("backgroundColor", Schema.backgroundColor)
     colSpan = fields.take("colSpan", Schema.colSpan)
@@ -3462,7 +3488,7 @@ public struct SerializedTableCellNode: ParentNodePayload {
   }
 
   public var json: JSONValue {
-    var fields = NodeFields(writing: Self.type, over: unknownFields)
+    var fields = NodeFields(writing: Self.type, version: Self.version, over: unknownFields)
     fields.putChildren(children)
     fields.putNullable("backgroundColor", backgroundColor, Schema.backgroundColor)
     fields.put("colSpan", colSpan, Schema.colSpan)
@@ -3523,6 +3549,7 @@ public struct SerializedTableRowNode: ParentNodePayload {
 
   public init(json: JSONValue) throws {
     var fields = try NodeFields(reading: json, as: Self.type)
+    fields.spreadState()
     children = fields.takeChildren()
     direction = fields.takeNullable("direction", Schema.direction)
     format = fields.take("format", Schema.format)
@@ -3534,7 +3561,7 @@ public struct SerializedTableRowNode: ParentNodePayload {
   }
 
   public var json: JSONValue {
-    var fields = NodeFields(writing: Self.type, over: unknownFields)
+    var fields = NodeFields(writing: Self.type, version: Self.version, over: unknownFields)
     fields.putChildren(children)
     fields.putNullable("direction", direction, Schema.direction)
     fields.put("format", format, Schema.format)
@@ -3578,6 +3605,7 @@ public struct SerializedTextNode: NodePayload {
 
   public init(json: JSONValue) throws {
     var fields = try NodeFields(reading: json, as: Self.type)
+    fields.spreadState()
     detail = fields.take("detail", Schema.detail)
     format = fields.take("format", Schema.format)
     mode = fields.take("mode", Schema.mode)
@@ -3587,7 +3615,7 @@ public struct SerializedTextNode: NodePayload {
   }
 
   public var json: JSONValue {
-    var fields = NodeFields(writing: Self.type, over: unknownFields)
+    var fields = NodeFields(writing: Self.type, version: Self.version, over: unknownFields)
     fields.put("detail", detail, Schema.detail)
     fields.put("format", format, Schema.format)
     fields.put("mode", mode, Schema.mode)
@@ -3620,9 +3648,9 @@ public struct SerializedThreadNode: ParentNodePayload {
   public static let version = 1
   public var children: [SerializedNode]?
   public var direction: Nullable<Never>
-  public var format: Double?
-  public var indent: Double?
-  public var thread: CommentThread?
+  public var format: JSONValue?
+  public var indent: JSONValue?
+  public var thread: Shaped<CommentThread>?
   public var unknownFields: [String: JSONValue]
 
   public init(json: JSONValue) throws {
@@ -3636,7 +3664,7 @@ public struct SerializedThreadNode: ParentNodePayload {
   }
 
   public var json: JSONValue {
-    var fields = NodeFields(writing: Self.type, over: unknownFields)
+    var fields = NodeFields(writing: Self.type, version: Self.version, over: unknownFields)
     fields.putChildren(children)
     fields.putNullable("direction", direction, Schema.direction)
     fields.put("format", format, Schema.format)
@@ -3656,32 +3684,34 @@ public struct SerializedThreadNode: ParentNodePayload {
 
   private enum Schema {
     static let direction: FieldSchema<Never?> = .enumeration(default: Never?.none)
-    static let format: FieldSchema<Double> = .number(default: 0)
-    static let indent: FieldSchema<Double> = .number(default: 0)
-    static let thread: FieldSchema<CommentThread> = .object
+    static let format: FieldSchema<JSONValue> = .raw
+    static let indent: FieldSchema<JSONValue> = .raw
+    static let thread: FieldSchema<Shaped<CommentThread>> = .shaped(.object, .raw)
   }
 }
 
 public struct SerializedTweetNode: NodePayload {
   public static let type = "tweet"
   public static let version = 1
-  public var figure: Figure?
-  public var format: ElementFormat?
-  public var id: String?
+  public var figure: Shaped<Figure>?
+  public var format: JSONValue?
+  public var id: JSONValue?
   public var unknownFields: [String: JSONValue]
 
   public init(json: JSONValue) throws {
     var fields = try NodeFields(reading: json, as: Self.type)
+    let holdsState = fields.holdsState
+    fields.spreadState()
     var state = fields.takeState()
     figure = state.take("figure", Schema.figure)
-    format = fields.take("format", Schema.format)
+    format = fields.take("format", holdsState ? Schema.formatWithState : Schema.format)
     id = fields.take("id", Schema.id)
     fields.putState(state)
     unknownFields = fields.rest
   }
 
   public var json: JSONValue {
-    var fields = NodeFields(writing: Self.type, over: unknownFields)
+    var fields = NodeFields(writing: Self.type, version: Self.version, over: unknownFields)
     var state = fields.takeState()
     state.putUnlessDefault("figure", figure, Schema.figure)
     fields.put("format", format, Schema.format)
@@ -3699,9 +3729,10 @@ public struct SerializedTweetNode: NodePayload {
   }
 
   private enum Schema {
-    static let figure: FieldSchema<Figure> = .object
-    static let format: FieldSchema<ElementFormat> = .enumeration(default: ElementFormat.empty)
-    static let id: FieldSchema<String> = .string(default: "")
+    static let figure: FieldSchema<Shaped<Figure>> = .shaped(.object, .raw)
+    static let format: FieldSchema<JSONValue> = .raw
+    static let formatWithState: FieldSchema<JSONValue> = .checked(.enumeration(default: ElementFormat.empty))
+    static let id: FieldSchema<JSONValue> = .raw
   }
 }
 
@@ -3709,16 +3740,17 @@ public struct SerializedVideoNode: NodePayload {
   public static let type = "video"
   public static let version = 1
   public var caption: JSONValue?
-  public var captionsEnabled: Bool?
-  public var figure: Figure?
-  public var height: Double?
-  public var showCaption: Bool?
-  public var src: String?
-  public var width: Double?
+  public var captionsEnabled: JSONValue?
+  public var figure: Shaped<Figure>?
+  public var height: JSONValue?
+  public var showCaption: JSONValue?
+  public var src: JSONValue?
+  public var width: JSONValue?
   public var unknownFields: [String: JSONValue]
 
   public init(json: JSONValue) throws {
     var fields = try NodeFields(reading: json, as: Self.type)
+    fields.spreadState()
     var state = fields.takeState()
     caption = fields.take("caption", Schema.caption)
     captionsEnabled = fields.take("captionsEnabled", Schema.captionsEnabled)
@@ -3732,7 +3764,7 @@ public struct SerializedVideoNode: NodePayload {
   }
 
   public var json: JSONValue {
-    var fields = NodeFields(writing: Self.type, over: unknownFields)
+    var fields = NodeFields(writing: Self.type, version: Self.version, over: unknownFields)
     var state = fields.takeState()
     fields.put("caption", caption, Schema.caption)
     fields.put("captionsEnabled", captionsEnabled, Schema.captionsEnabled)
@@ -3759,30 +3791,32 @@ public struct SerializedVideoNode: NodePayload {
 
   private enum Schema {
     static let caption: FieldSchema<JSONValue> = .transform(.raw, Transforms.videoCaption)
-    static let captionsEnabled: FieldSchema<Bool> = .boolean(default: false)
-    static let figure: FieldSchema<Figure> = .object
-    static let height: FieldSchema<Double> = .number(default: 0)
-    static let showCaption: FieldSchema<Bool> = .boolean(default: false)
-    static let src: FieldSchema<String> = .string(default: "")
-    static let width: FieldSchema<Double> = .number(default: 0)
+    static let captionsEnabled: FieldSchema<JSONValue> = .transform(.raw, Transforms.falseOrStored)
+    static let figure: FieldSchema<Shaped<Figure>> = .shaped(.object, .raw)
+    static let height: FieldSchema<JSONValue> = .transform(.raw, Transforms.storedSize)
+    static let showCaption: FieldSchema<JSONValue> = .transform(.raw, Transforms.falseOrStored)
+    static let src: FieldSchema<JSONValue> = .raw
+    static let width: FieldSchema<JSONValue> = .transform(.raw, Transforms.storedSize)
   }
 }
 
 public struct SerializedYouTubeNode: NodePayload {
   public static let type = "youtube"
   public static let version = 1
-  public var figure: Figure?
-  public var format: ElementFormat?
-  public var height: Double?
-  public var videoID: String?
-  public var width: Double?
+  public var figure: Shaped<Figure>?
+  public var format: JSONValue?
+  public var height: JSONValue?
+  public var videoID: JSONValue?
+  public var width: JSONValue?
   public var unknownFields: [String: JSONValue]
 
   public init(json: JSONValue) throws {
     var fields = try NodeFields(reading: json, as: Self.type)
+    let holdsState = fields.holdsState
+    fields.spreadState()
     var state = fields.takeState()
     figure = state.take("figure", Schema.figure)
-    format = fields.take("format", Schema.format)
+    format = fields.take("format", holdsState ? Schema.formatWithState : Schema.format)
     height = fields.take("height", Schema.height)
     videoID = fields.take("videoID", Schema.videoID)
     width = fields.take("width", Schema.width)
@@ -3791,7 +3825,7 @@ public struct SerializedYouTubeNode: NodePayload {
   }
 
   public var json: JSONValue {
-    var fields = NodeFields(writing: Self.type, over: unknownFields)
+    var fields = NodeFields(writing: Self.type, version: Self.version, over: unknownFields)
     var state = fields.takeState()
     state.putUnlessDefault("figure", figure, Schema.figure)
     fields.put("format", format, Schema.format)
@@ -3813,10 +3847,11 @@ public struct SerializedYouTubeNode: NodePayload {
   }
 
   private enum Schema {
-    static let figure: FieldSchema<Figure> = .object
-    static let format: FieldSchema<ElementFormat> = .enumeration(default: ElementFormat.empty)
-    static let height: FieldSchema<Double> = .number(default: 0)
-    static let videoID: FieldSchema<String> = .string(default: "")
-    static let width: FieldSchema<Double> = .number(default: 0)
+    static let figure: FieldSchema<Shaped<Figure>> = .shaped(.object, .raw)
+    static let format: FieldSchema<JSONValue> = .raw
+    static let formatWithState: FieldSchema<JSONValue> = .checked(.enumeration(default: ElementFormat.empty))
+    static let height: FieldSchema<JSONValue> = .transform(.raw, Transforms.storedSize)
+    static let videoID: FieldSchema<JSONValue> = .raw
+    static let width: FieldSchema<JSONValue> = .transform(.raw, Transforms.storedSize)
   }
 }

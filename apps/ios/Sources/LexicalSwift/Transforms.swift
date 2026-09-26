@@ -1,3 +1,5 @@
+import Foundation
+
 /// Lexidraw's named transforms (`namedTransform` in @packages/lexical-nodes),
 /// which the node schema can name but not describe: each keeps a value,
 /// rewrites it, or turns it down as absent, as its TypeScript namesake does.
@@ -18,15 +20,55 @@ enum Transforms {
     return value
   }
 
-  /// `zeroAsInheritValue`: 0 is `inherit`.
-  static func zeroAsInherit(_ value: Dimension) -> Dimension? {
-    value == .number(0) ? .inherit : value
+  /// `storedSize`: a size that's no size at all, or `inherit`, is 0.
+  static func storedSize(_ value: JSONValue) -> JSONValue? {
+    !value.isTruthy || value == "inherit" ? 0 : value
   }
 
-  /// A video's caption: one with something in its root, or the empty
+  /// `zeroAsInherit`: 0 is `inherit`.
+  static func zeroAsInherit(_ value: JSONValue) -> JSONValue? {
+    value == 0 ? "inherit" : value
+  }
+
+  /// `falseOrStored`: `value || false`.
+  static func falseOrStored(_ value: JSONValue) -> JSONValue? {
+    value.isTruthy ? value : false
+  }
+
+  /// `emptyOrStored`: `value || ""`.
+  static func emptyOrStored(_ value: JSONValue) -> JSONValue? {
+    value.isTruthy ? value : ""
+  }
+
+  /// `stringAbsent`: a string that isn't a name TextNode knows is absent.
+  static func stringAbsent(_ value: JSONValue) -> JSONValue? {
+    if value.stringValue != nil { return .none }
+    return value
+  }
+
+  /// `emptyAbsent`: an empty string is absent.
+  static func emptyAbsent(_ value: String) -> String? {
+    value.isEmpty ? nil : value
+  }
+
+  /// `nestedEditorState`: a state with something in its root, parsed first
+  /// where it was stored as JSON text, or the empty editor's.
+  static func nestedEditorState(_ value: JSONValue) -> JSONValue? {
+    let state = value.stringValue.flatMap { try? JSONDecoder().decode(JSONValue.self, from: Data($0.utf8)) } ?? value
+    if holdsNodes(state) { return state }
+    return ["root": ["children": [], "direction": nil, "format": "", "indent": 0, "type": "root", "version": 1]]
+  }
+
+  /// `holdsNodes`: an editor state with something in its root.
+  private static func holdsNodes(_ state: JSONValue) -> Bool {
+    if case .array(let children)? = state["root"]?["children"] { return !children.isEmpty }
+    return false
+  }
+
+  /// `videoCaption`: a caption with something in its root, or the empty
   /// paragraph a video starts with.
   static func videoCaption(_ value: JSONValue) -> JSONValue? {
-    if case .array(let children)? = value["root"]?["children"], !children.isEmpty { return value }
+    if holdsNodes(value) { return value }
     return [
       "root": [
         "children": [

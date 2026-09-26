@@ -13,6 +13,7 @@ test("names each node's Swift type and case after its Lexical class", () => {
         className: "HorizontalRuleNode",
         version: 1,
         children: false,
+        keepsState: true,
         fields: {},
         state: {},
       },
@@ -40,6 +41,7 @@ const marker = {
   className: "MarkerNode",
   version: 1,
   children: true,
+  keepsState: true,
   fields: {
     board: {
       kind: "object",
@@ -173,6 +175,7 @@ test("a field that can only be null is a Never that is null or absent", () => {
         className: "PinNode",
         version: 1,
         children: false,
+        keepsState: true,
         fields: { direction: { kind: "enum", values: [null], default: null } },
         state: {},
       },
@@ -192,6 +195,7 @@ const sized = {
   className: "SizedNode",
   version: 1,
   children: false,
+  keepsState: true,
   fields: {
     size: {
       kind: "union",
@@ -266,4 +270,118 @@ test("an enum, a struct and a union can't share a name", () => {
   } satisfies NodeDescription;
 
   expect(() => swiftForNodeSchema({ nodes: [marker, board], traits: {} })).toThrow(/Board/);
+});
+
+const embed = {
+  type: "embed",
+  className: "EmbedNode",
+  version: 2,
+  children: false,
+  keepsState: false,
+  fields: {
+    data: { kind: "raw", default: "[]", nullAsAbsent: true },
+    deck: {
+      kind: "raw",
+      shape: {
+        kind: "object",
+        open: true,
+        fields: { title: { kind: "string", default: "" } },
+        default: { title: "" },
+      },
+    },
+    detail: {
+      kind: "aliased",
+      aliases: { unmergeable: 2 },
+      inner: {
+        kind: "transform",
+        name: "stringAbsent",
+        inner: { kind: "raw" },
+      },
+    },
+    direction: {
+      kind: "unread",
+      inner: { kind: "enum", values: [null, "ltr", "rtl"], default: null },
+    },
+    format: {
+      kind: "raw",
+      withState: {
+        kind: "enum",
+        values: ["", "left", "start", "center", "right", "end", "justify"],
+        default: "",
+      },
+    },
+    textFormat: {
+      kind: "unread",
+      gated: true,
+      inner: { kind: "number", default: 0 },
+    },
+  },
+  state: {},
+} satisfies NodeDescription;
+
+test("a value kept as stored is its JSON, absent where it was, null read as absence where Lexical does", () => {
+  const swift = swiftForNodeSchema({ nodes: [embed], traits: {} });
+
+  expect(swift).toContain("  public var data: JSONValue?");
+  expect(swift).toContain(
+    '    static let data: FieldSchema<JSONValue> = .rawOr("[]", nullAsAbsent: true)',
+  );
+});
+
+test("a value kept as stored is typed where it reads back as the JSON it was", () => {
+  const swift = swiftForNodeSchema({ nodes: [embed], traits: {} });
+
+  expect(swift).toContain("  public var deck: Shaped<Deck>?");
+  expect(swift).toContain(
+    "    static let deck: FieldSchema<Shaped<Deck>> = .shaped(.object, .raw)",
+  );
+  expect(swift).toContain("public struct Deck: DeclaredObject {");
+  expect(swift).toContain("  static let isOpen = true");
+});
+
+test("a spelling read through a transform of a stored value is that value's JSON", () => {
+  const swift = swiftForNodeSchema({ nodes: [embed], traits: {} });
+
+  expect(swift).toContain(
+    '    static let detail: FieldSchema<JSONValue> = .aliased(.transform(.raw, Transforms.stringAbsent), ["unmergeable": 2])',
+  );
+});
+
+test("a value checked where the node holds NodeState reads through the check there", () => {
+  const swift = swiftForNodeSchema({ nodes: [embed], traits: {} });
+
+  expect(swift).toContain("    let holdsState = fields.holdsState");
+  expect(swift).toContain(
+    '    format = fields.take("format", holdsState ? Schema.formatWithState : Schema.format)',
+  );
+  expect(swift).toContain(
+    "    static let formatWithState: FieldSchema<JSONValue> = .checked(.enumeration(default: ElementFormat.empty))",
+  );
+  expect(swift).toContain('    fields.put("format", format, Schema.format)');
+});
+
+test("a property Lexical writes but never reads is read as its default, and left out where a gate keeps it out", () => {
+  const swift = swiftForNodeSchema({ nodes: [embed], traits: {} });
+
+  expect(swift).toContain(
+    "    static let direction: FieldSchema<Direction?> = .unread(.enumeration(default: Direction?.none))",
+  );
+  expect(swift).toContain(
+    '    fields.putNullable("direction", direction, Schema.direction)',
+  );
+  expect(swift).toContain(
+    '    fields.putUnlessDefault("textFormat", textFormat, Schema.textFormat)',
+  );
+});
+
+test("a node writes its version, and reads its NodeState as Lexical does where it keeps it", () => {
+  const embedded = swiftForNodeSchema({ nodes: [embed], traits: {} });
+  const sizedSwift = swiftForNodeSchema({ nodes: [sized], traits: {} });
+
+  expect(embedded).toContain("  public static let version = 2");
+  expect(embedded).toContain(
+    "    var fields = NodeFields(writing: Self.type, version: Self.version, over: unknownFields)",
+  );
+  expect(embedded).not.toContain("fields.spreadState()");
+  expect(sizedSwift).toContain("    fields.spreadState()");
 });

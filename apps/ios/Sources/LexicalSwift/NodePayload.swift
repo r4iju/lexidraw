@@ -119,9 +119,11 @@ struct NodeFields {
     rest["type"] = nil
   }
 
-  init(writing type: String, over unknownFields: [String: JSONValue]) {
+  /// Lexical writes a node's `version` whatever was stored.
+  init(writing type: String, version: Int, over unknownFields: [String: JSONValue]) {
     rest = unknownFields
     rest["type"] = .string(type)
+    rest["version"] = .number(Double(version))
   }
 
   init(_ object: [String: JSONValue]) {
@@ -130,6 +132,29 @@ struct NodeFields {
 
   init(over unknownFields: [String: JSONValue]) {
     rest = unknownFields
+  }
+
+  /// Whether the node holds NodeState as Lexical tells: `$` is truthy.
+  var holdsState: Bool { rest["$"]?.isTruthy ?? false }
+
+  /// `$` as Lexical reads NodeState, spreading it into an object: a string's
+  /// UTF-16 code units and an array's items are its keys, and nothing else
+  /// has any. It's written only where it holds some.
+  mutating func spreadState() {
+    guard let state = rest["$"] else { return }
+    let spread: [String: JSONValue] =
+      switch state {
+      case .object(let object): object
+      case .array(let items):
+        Dictionary(uniqueKeysWithValues: items.enumerated().map { (String($0.offset), $0.element) })
+      case .string(let string):
+        Dictionary(
+          uniqueKeysWithValues: string.utf16.enumerated().map {
+            (String($0.offset), .string(String(decoding: [$0.element], as: UTF16.self)))
+          })
+      default: [:]
+      }
+    rest["$"] = spread.isEmpty ? nil : .object(spread)
   }
 
   /// The node state nested under `$`, taken off to be read or written. A `$`

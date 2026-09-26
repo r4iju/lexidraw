@@ -200,6 +200,59 @@ extension FieldSchema where Value == JSONValue {
   static var raw: Self {
     Self(defaultValue: nil, read: { $0 }, write: { $0 }, fit: { _ in .viaCatchAll }, isCatchAll: true)
   }
+
+  /// Lexidraw's `rawValueOr`: any value as it is, but null as `defaultValue`
+  /// where `nullAsAbsent`, as a node that read it with `??` does.
+  static func rawOr(_ defaultValue: JSONValue, nullAsAbsent: Bool = false) -> Self {
+    Self(
+      defaultValue: defaultValue, read: { nullAsAbsent && $0 == .null ? defaultValue : $0 }, write: { $0 },
+      fit: { _ in .viaCatchAll }, isCatchAll: true)
+  }
+
+  /// A stored value read through `schema`, as the JSON it reads as: how a
+  /// node that holds NodeState reads what it otherwise keeps as stored.
+  static func checked<Checked>(_ schema: FieldSchema<Checked>) -> Self {
+    Self(
+      defaultValue: schema.defaultValue.map(schema.write), read: { schema.read($0).map(schema.write) },
+      write: { $0 }, fit: schema.fit, isCatchAll: schema.isCatchAll)
+  }
+}
+
+/// A value a node keeps exactly as it was stored, typed where its shape reads
+/// it back as that JSON.
+public enum Shaped<Value: Equatable & Sendable>: Equatable, Sendable {
+  case typed(Value)
+  case stored(JSONValue)
+}
+
+extension FieldSchema {
+  /// A value `stored` reads, typed by `shape` where that writes it back as it
+  /// is, and kept as JSON otherwise.
+  static func shaped<Shape>(_ shape: FieldSchema<Shape>, _ stored: FieldSchema<JSONValue>) -> Self
+  where Value == Shaped<Shape> {
+    @Sendable func read(_ json: JSONValue) -> Shaped<Shape>? {
+      guard let value = stored.read(json) else { return nil }
+      if let typed = shape.read(value), shape.write(typed) == value { return .typed(typed) }
+      return .stored(value)
+    }
+    return Self(
+      defaultValue: stored.defaultValue.flatMap(read), read: read,
+      write: { value in
+        switch value {
+        case .typed(let typed): shape.write(typed)
+        case .stored(let json): json
+        }
+      },
+      fit: stored.fit, isCatchAll: stored.isCatchAll)
+  }
+
+  /// A property Lexical writes as a new node holds it and never reads: any
+  /// stored value reads as `inner`'s default.
+  static func unread(_ inner: FieldSchema<Value>) -> Self {
+    Self(
+      defaultValue: inner.defaultValue, read: { _ in inner.defaultValue }, write: inner.write, fit: inner.fit,
+      isCatchAll: inner.isCatchAll)
+  }
 }
 
 extension FieldSchema where Value: DeclaredObject {

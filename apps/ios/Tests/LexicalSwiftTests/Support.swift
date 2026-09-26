@@ -13,6 +13,9 @@ enum Support {
   /// A stored document with every node the schema declares.
   static let everyNode = iosRoot.appending(path: "../../packages/lexical-nodes/test/every-node.json")
 
+  /// Stored nodes, as stored and odd, with what the web wrote for each.
+  static let storedBytes = iosRoot.appending(path: "../../packages/lexical-nodes/test/stored-bytes.json")
+
   /// The committed node schema the payload types are generated from.
   static let nodeSchema = iosRoot.appending(path: "../../packages/lexical-nodes/node-schema.json")
 
