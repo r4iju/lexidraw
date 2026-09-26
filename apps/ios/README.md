@@ -162,3 +162,8 @@ hand:
   ImageIO doesn't read SVG. An SVG file placed from Files is normalized as
   the web normalizes one, and written out as Chrome writes it, so it is
   stored as the same bytes under the same id.
+- A drawing opens fitted to the screen, where the web opens it at 100%.
+- The style panel has only the sections #138 asks for: stroke, fill,
+  colour, width and roughness.
+- A drawing deleted in the app goes to the Trash, which offers only Restore;
+  neither the app nor the web deletes one permanently.
