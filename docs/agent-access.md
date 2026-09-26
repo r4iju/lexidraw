@@ -33,6 +33,9 @@ loading tool schemas into the agent's context until they are needed.
   `read`, mutations need `write`. Admin procedures never accept tokens.
 - UI: new `/settings/tokens` page (create, name, expiry, scope, last used,
   revoke). Admin area lists and revokes any user's tokens.
+- A token revokes itself with `POST /me/token/revoke`, which is how a device
+  signs out. It takes only a token, never a browser session, and revokes the
+  one presented and no other. It is a mutation, so it needs `write` like any.
 - No rate limiting in v1. Add at the context check if ever needed.
 
 ### Native sign-in
@@ -81,7 +84,8 @@ cookie session and no token, whatever the request carries.
 - Document served unauthenticated at `/api/v1/openapi.json`.
 - Live: the entity subset below — list/load/create/save/update/delete/search,
   tags, share, and directory listing — plus the four markdown procedures, a
-  document's PDF, and the drawing procedures, render included. Nothing further is planned. Admin,
+  document's PDF, the drawing procedures, render included, and a token revoking
+  itself. Nothing further is planned. Admin,
   TTS, backups, snapshot, image generation, and LLM procedures stay tRPC-only.
 
 #### Paths (live)
@@ -89,6 +93,7 @@ cookie session and no token, whatever the request carries.
 | Method | Path                              | Procedure                    |
 | ------ | --------------------------------- | ---------------------------- |
 | GET    | `/me`                             | `auth.me`                    |
+| POST   | `/me/token/revoke`                | `tokens.revokeCurrent`       |
 | GET    | `/entities`                       | `entities.list`              |
 | POST   | `/entities`                       | `entities.create`            |
 | GET    | `/entities/search`                | `entities.search`            |

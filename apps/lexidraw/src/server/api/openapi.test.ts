@@ -94,6 +94,7 @@ describe("openApiDocument", () => {
   const expectedOperations = [
     ["/me", "get", "auth"],
     ["/me/delete", "post", "auth"],
+    ["/me/token/revoke", "post", "auth"],
     ["/entities", "get", "entities"],
     ["/entities", "post", "entities"],
     ["/entities/search", "get", "entities"],

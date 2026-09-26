@@ -160,6 +160,43 @@ describe("a native app signing in", () => {
   });
 });
 
+describe("a native app signing out", () => {
+  test("revokes the token it presents, and no other", async () => {
+    const leaving = await exchange(
+      await codeFor({ ...consent, deviceName: "Leaving iPhone" }),
+    );
+    const staying = await exchange(
+      await codeFor({ ...consent, deviceName: "Staying iPad" }),
+    );
+
+    const revoked = await call("POST", "/me/token/revoke", {
+      body: {},
+      token: leaving.body.token,
+    });
+    expect(revoked.response.status).toBe(200);
+
+    expect(
+      (await call("GET", "/me", { token: leaving.body.token })).response.status,
+    ).toBe(401);
+    expect(
+      (await call("GET", "/me", { token: staying.body.token })).response.status,
+    ).toBe(200);
+    const listed = await settingsCaller().list();
+    expect(
+      listed.find((token) => token.name === "Leaving iPhone")?.revokedAt,
+    ).not.toBeNull();
+    expect(
+      listed.find((token) => token.name === "Staying iPad")?.revokedAt,
+    ).toBeNull();
+  });
+
+  test("is refused to a browser session, which has no token to revoke", async () => {
+    await expect(settingsCaller().revokeCurrent({})).rejects.toMatchObject({
+      code: "FORBIDDEN",
+    });
+  });
+});
+
 describe("a code", () => {
   test("works once, and a replay ends the token it issued", async () => {
     const code = await codeFor();

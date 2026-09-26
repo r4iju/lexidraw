@@ -139,6 +139,17 @@ export const sessionOnlyProcedure = protectedProcedure.use(({ ctx, next }) => {
   return next();
 });
 
+/** For what a token asks about itself: an API token, never a browser session. */
+export const tokenOnlyProcedure = protectedProcedure.use(({ ctx, next }) => {
+  if (ctx.auth.kind !== "token") {
+    throw new TRPCError({
+      code: "FORBIDDEN",
+      message: "This operation is only available to API tokens",
+    });
+  }
+  return next({ ctx: { auth: ctx.auth } });
+});
+
 export const adminProcedure = sessionOnlyProcedure.use(
   async ({ ctx, next }) => {
     await assertAdmin(ctx);

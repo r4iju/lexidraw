@@ -1,7 +1,11 @@
 import { z } from "zod";
 import { and, desc, eq } from "@packages/drizzle";
 import { TRPCError } from "@trpc/server";
-import { createTRPCRouter, sessionOnlyProcedure } from "~/server/api/trpc";
+import {
+  createTRPCRouter,
+  sessionOnlyProcedure,
+  tokenOnlyProcedure,
+} from "~/server/api/trpc";
 import { createApiToken } from "~/server/auth/api-tokens";
 
 const MAX_TOKEN_TTL_DAYS = 3650;
@@ -59,5 +63,28 @@ export const tokensRouter = createTRPCRouter({
         throw new TRPCError({ code: "NOT_FOUND" });
       }
       return { id: input.id };
+    }),
+
+  /** Signing out a device: the token the request carries, and no other. */
+  revokeCurrent: tokenOnlyProcedure
+    .meta({
+      openapi: {
+        method: "POST",
+        path: "/me/token/revoke",
+        tags: ["auth"],
+        summary: "Revoke the token this request carries",
+        description:
+          "For signing a device or a CLI out. Every later request with the token is a 401; other tokens are untouched.",
+        protect: true,
+      },
+    })
+    .input(z.object({}))
+    .output(z.object({ id: z.string() }))
+    .mutation(async ({ ctx }) => {
+      await ctx.drizzle
+        .update(ctx.schema.apiTokens)
+        .set({ revokedAt: new Date() })
+        .where(eq(ctx.schema.apiTokens.id, ctx.auth.tokenId));
+      return { id: ctx.auth.tokenId };
     }),
 });
