@@ -49,9 +49,9 @@ extension DrawingEditor {
     let selected = store.filter { element in
       !element.isDeleted
         && (selectedIds.contains(element.id)
-          || (element.type == "text" && element["containerId"]?.stringValue.map(selectedIds.contains) == true))
+          || (element.type == .text && element["containerId"]?.stringValue.map(selectedIds.contains) == true))
     }
-    let frames = Set(selected.filter { $0.type == "frame" || $0.type == "magicframe" }.map(\.id))
+    let frames = Set(selected.filter { $0.type == .frame || $0.type == .magicframe }.map(\.id))
     return selected.filter { element in
       frames.contains(element.id) || !(element["frameId"]?.stringValue.map(frames.contains) ?? false)
     }
@@ -95,7 +95,7 @@ extension DrawingEditor {
     var labels: Set<String> = []
     for position in store.indices {
       let element = store[position]
-      if element.type == "text", element["containerId"]?.stringValue != nil { labels.insert(element.id) }
+      if element.type == .text, element["containerId"]?.stringValue != nil { labels.insert(element.id) }
       let before = groupIds(element)
       let after = before.filter { !groups.contains($0) }
       if after.count != before.count {

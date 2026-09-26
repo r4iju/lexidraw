@@ -49,7 +49,7 @@ extension DrawingEditor {
     let vertical = handle.contains("n") || handle.contains("s")
     // Images keep their proportions unless Shift is held, which a finger
     // can't hold.
-    let maintainAspectRatio = selected.contains { $0.type == "image" }
+    let maintainAspectRatio = selected.contains { $0.type == .image }
     let pointerScale = max(orZero(abs(p.x - anchor.x) / width), orZero(abs(p.y - anchor.y) / height))
     var nextWidth = horizontal ? abs(p.x - anchor.x) : width
     var nextHeight = vertical ? abs(p.y - anchor.y) : height
@@ -77,7 +77,7 @@ extension DrawingEditor {
       ? (horizontal ? scaleX : scaleY) : max(orZero(abs(nextWidth) / width), orZero(abs(nextHeight) / height))
     let keepAspectRatio =
       maintainAspectRatio
-      || targets.contains { $0.latest.number("angle") != 0 || $0.latest.type == "text" || !groupIds($0.latest).isEmpty }
+      || targets.contains { $0.latest.number("angle") != 0 || $0.latest.type == .text || !groupIds($0.latest).isEmpty }
     if keepAspectRatio {
       scaleX = scale
       scaleY = scale
@@ -86,10 +86,10 @@ extension DrawingEditor {
     let flipY = flipByY ? -1.0 : 1
     var changes: [(id: String, update: RawElement, labelFontSize: Double?)] = []
     for (orig, latest) in targets {
-      if orig.type == "text", orig["containerId"]?.stringValue != nil { continue }
+      if orig.type == .text, orig["containerId"]?.stringValue != nil { continue }
       let width = orig.number("width") * scaleX
       let height = orig.number("height") * scaleY
-      let isLinearOrFreedraw = orig.isLinearType || orig.type == "freedraw"
+      let isLinearOrFreedraw = orig.isLinearType || orig.type == .freedraw
       let shiftX = flipByX && !isLinearOrFreedraw ? width : 0
       let shiftY = flipByY && !isLinearOrFreedraw ? height : 0
       var update: RawElement = [
@@ -101,10 +101,10 @@ extension DrawingEditor {
       if isLinearOrFreedraw {
         update["points"] = .points(rescaled(orig.points, width: width * flipX, height: height * flipY, normalize: false))
       }
-      if orig.type == "image", let s = orig["scale"]?.arrayValue?.compactMap(\.numberValue), s.count == 2 {
+      if orig.type == .image, let s = orig["scale"]?.arrayValue?.compactMap(\.numberValue), s.count == 2 {
         update["scale"] = [.number(s[0] * flipX), .number(s[1] * flipY)]
       }
-      if orig.type == "text" {
+      if orig.type == .text {
         // `measureFontSizeFromWidth`.
         let fontSize = orig.number("fontSize") * (width / orig.number("width"))
         guard fontSize >= 1 else { return }
@@ -141,7 +141,7 @@ extension DrawingEditor {
     let selected = selectedElements.map(\.id)
     let ids = Set(selected)
     for id in selected {
-      guard let raw = element(id), raw.type != "frame", raw.type != "magicframe" else { continue }
+      guard let raw = element(id), raw.type != .frame, raw.type != .magicframe else { continue }
       let geometry = makeGeometry()
       guard let current = geometry.elements[id] else { continue }
       let c = geometry.absoluteCoords(current)
@@ -159,7 +159,7 @@ extension DrawingEditor {
           ])
       }
       updateBoundElements(of: id, simultaneouslyUpdated: ids)
-      if raw.type != "arrow", let label = labelId(of: raw), let text = element(label), !text.isDeleted {
+      if raw.type != .arrow, let label = labelId(of: raw), let text = element(label), !text.isDeleted {
         mutate(
           label,
           [

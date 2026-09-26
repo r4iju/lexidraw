@@ -81,7 +81,7 @@ final class SceneGeometry {
   // MARK: Coordinates
 
   func absoluteCoords(_ element: DrawingElement) -> AbsoluteCoords {
-    if element.type == "freedraw" {
+    if element.type == .freedraw {
       let b = pointBounds(element.points)
       let x1 = b.minX + element.x
       let y1 = b.minY + element.y
@@ -90,7 +90,7 @@ final class SceneGeometry {
       return AbsoluteCoords(x1: x1, y1: y1, x2: x2, y2: y2, cx: (x1 + x2) / 2, cy: (y1 + y2) / 2)
     }
     if element.isLinear { return linearAbsoluteCoords(element) }
-    if element.type == "text", let container = container(of: element), container.type == "arrow" {
+    if element.type == .text, let container = container(of: element), container.type == .arrow {
       let p = boundTextPosition(container, element)
       return AbsoluteCoords(
         x1: p.x, y1: p.y, x2: p.x + element.width, y2: p.y + element.height,
@@ -315,7 +315,7 @@ final class SceneGeometry {
 
   /// `getElementBounds`, kept from the first time it is asked for.
   func bounds(_ element: DrawingElement) -> Bounds {
-    let boundToContainer = element.type == "text" && element.containerId != nil
+    let boundToContainer = element.type == .text && element.containerId != nil
     if !boundToContainer, let cached = boundsCache[element.id] { return cached }
     let bounds = calculateBounds(element)
     boundsCache[element.id] = bounds
@@ -326,7 +326,7 @@ final class SceneGeometry {
     let c = absoluteCoords(element)
     let center = Point2D(c.cx, c.cy)
     let angle = element.angle
-    if element.type == "freedraw" {
+    if element.type == .freedraw {
       let rotated = element.points.map {
         $0.rotated(around: Point2D(c.cx - element.x, c.cy - element.y), by: angle)
       }
@@ -336,7 +336,7 @@ final class SceneGeometry {
         maxY: b.maxY + element.y)
     }
     if element.isLinear { return linearRotatedBounds(element, c) }
-    if element.type == "ellipse" {
+    if element.type == .ellipse {
       let w = (c.x2 - c.x1) / 2
       let h = (c.y2 - c.y1) / 2
       let ww = hypot(w * cos(angle), h * sin(angle))
@@ -344,7 +344,7 @@ final class SceneGeometry {
       return Bounds(minX: c.cx - ww, minY: c.cy - hh, maxX: c.cx + ww, maxY: c.cy + hh)
     }
     let corners: [Point2D] =
-      element.type == "diamond"
+      element.type == .diamond
       ? [
         Point2D(c.cx, c.y1), Point2D(c.cx, c.y2), Point2D(c.x1, c.cy), Point2D(c.x2, c.cy),
       ]
@@ -443,7 +443,7 @@ final class SceneGeometry {
   private func lineSegments(_ element: DrawingElement) -> [(Point2D, Point2D)] {
     let c = absoluteCoords(element)
     let center = Point2D(c.cx, c.cy)
-    if element.isLinear || element.type == "freedraw" {
+    if element.isLinear || element.type == .freedraw {
       var segments: [(Point2D, Point2D)] = []
       var i = 0
       while i < element.points.count - 1 {
@@ -461,7 +461,7 @@ final class SceneGeometry {
     ].map { $0.rotated(around: center, by: element.angle) }
     let (nw, ne, sw, se, north, south, west, east) =
       (points[0], points[1], points[2], points[3], points[4], points[5], points[6], points[7])
-    if element.type == "diamond" || element.type == "ellipse" {
+    if element.type == .diamond || element.type == .ellipse {
       return [(north, west), (north, east), (south, west), (south, east)]
     }
     return [(nw, ne), (sw, se), (nw, sw), (ne, se), (nw, east), (sw, east), (ne, west), (se, west)]
@@ -525,7 +525,7 @@ final class SceneGeometry {
 
   /// `getTargetFrame`: a label is clipped by its container's frame.
   func targetFrame(_ element: DrawingElement) -> DrawingElement? {
-    let subject = element.type == "text" ? (container(of: element) ?? element) : element
+    let subject = element.type == .text ? (container(of: element) ?? element) : element
     return containingFrame(of: subject)
   }
 }

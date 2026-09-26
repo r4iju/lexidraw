@@ -2,6 +2,20 @@ import Foundation
 
 public enum DrawingTool: String, CaseIterable, Sendable {
   case selection, rectangle, diamond, ellipse, arrow, line, freedraw, text
+
+  /// What the tool draws; nothing while selecting.
+  public var elementType: ElementType? {
+    switch self {
+    case .selection: nil
+    case .rectangle: .rectangle
+    case .diamond: .diamond
+    case .ellipse: .ellipse
+    case .arrow: .arrow
+    case .line: .line
+    case .freedraw: .freedraw
+    case .text: .text
+    }
+  }
 }
 
 public enum PointerKind: String, Sendable {
@@ -38,9 +52,9 @@ public struct EditorEnvironment: Sendable {
 public struct ElementStyle: Equatable, Sendable {
   public var strokeColor = "#1e1e1e"
   public var backgroundColor = "transparent"
-  public var fillStyle = "solid"
+  public var fillStyle = FillStyle.solid
   public var strokeWidth = 2.0
-  public var strokeStyle = "solid"
+  public var strokeStyle = StrokeStyle.solid
   public var roughness = 1.0
   public var opacity = 100.0
   public var roundness = true
@@ -141,13 +155,13 @@ public final class DrawingEditor {
   // MARK: New elements
 
   /// `_newElementBase`, with the current style.
-  func newElement(_ type: String, at point: Point2D, roundness: JSONValue) -> RawElement {
+  func newElement(_ type: ElementType, at point: Point2D, roundness: JSONValue) -> RawElement {
     [
-      "id": .string(environment.newId()), "type": .string(type), "x": .number(point.x),
+      "id": .string(environment.newId()), "type": .string(type.rawValue), "x": .number(point.x),
       "y": .number(point.y), "width": 0, "height": 0, "angle": 0,
       "strokeColor": .string(style.strokeColor), "backgroundColor": .string(style.backgroundColor),
-      "fillStyle": .string(style.fillStyle), "strokeWidth": .number(style.strokeWidth),
-      "strokeStyle": .string(style.strokeStyle), "roughness": .number(style.roughness),
+      "fillStyle": .string(style.fillStyle.rawValue), "strokeWidth": .number(style.strokeWidth),
+      "strokeStyle": .string(style.strokeStyle.rawValue), "roughness": .number(style.roughness),
       "opacity": .number(style.opacity), "groupIds": [], "frameId": nil, "index": nil,
       "roundness": roundness, "seed": .number(Double(environment.randomInteger())), "version": 1,
       "versionNonce": 0, "isDeleted": false, "boundElements": nil,
@@ -156,9 +170,9 @@ public final class DrawingEditor {
   }
 
   /// `getCurrentItemRoundness`.
-  private func roundness(for type: String) -> JSONValue {
+  private func roundness(for type: ElementType) -> JSONValue {
     guard style.roundness else { return nil }
-    return ["type": .number(type == "rectangle" ? 3 : 2)]
+    return ["type": .number(type == .rectangle ? 3 : 2)]
   }
 
   /// `measureText`: the widest line, and a line height per line, where an
@@ -196,7 +210,7 @@ public final class DrawingEditor {
       let isArrow = tool == .arrow
       if isArrow { gesture.startBound = hoveredForBinding(point)?.id }
       var element = newElement(
-        tool.rawValue, at: point, roundness: isArrow ? ["type": 2] : roundness(for: tool.rawValue))
+        isArrow ? .arrow : .line, at: point, roundness: isArrow ? ["type": 2] : roundness(for: .line))
       element.merge(
         [
           "points": [], "lastCommittedPoint": nil, "startBinding": nil, "endBinding": nil,
@@ -209,7 +223,7 @@ public final class DrawingEditor {
       gesture.action = .line(element.id)
     case .freedraw:
       let simulatePressure = pressure == 0.5
-      var element = newElement("freedraw", at: point, roundness: nil)
+      var element = newElement(.freedraw, at: point, roundness: nil)
       element.merge(
         [
           "points": .points([Point2D(0, 0)]),
@@ -219,7 +233,8 @@ public final class DrawingEditor {
       insert(element)
       gesture.action = .freedraw(element.id)
     case .rectangle, .diamond, .ellipse:
-      let element = newElement(tool.rawValue, at: point, roundness: roundness(for: tool.rawValue))
+      guard let type = tool.elementType else { break }
+      let element = newElement(type, at: point, roundness: roundness(for: type))
       insert(element)
       gesture.action = .create(element.id)
     }
@@ -305,7 +320,7 @@ public final class DrawingEditor {
       return
     case .line(let id):
       if gesture.dragged {
-        if element(id)?.type == "arrow" { bindNewArrow(id, startingOn: gesture.startBound, at: point) }
+        if element(id)?.type == .arrow { bindNewArrow(id, startingOn: gesture.startBound, at: point) }
         tool = .selection
         selectedIds = [id]
       } else if let position = position(of: id) {
@@ -402,7 +417,7 @@ public final class DrawingEditor {
     let geometry = makeGeometry()
     let within = store.filter { raw in
       guard !raw.isDeleted, raw["locked"]?.boolValue != true,
-        raw["containerId"]?.stringValue == nil || raw.type != "text",
+        raw["containerId"]?.stringValue == nil || raw.type != .text,
         let element = geometry.elements[raw.id]
       else { return false }
       let b = geometry.bounds(element)
@@ -447,7 +462,7 @@ public final class DrawingEditor {
     }
     for element in selected {
       move(element.id)
-      guard element.type != "arrow" else { continue }
+      guard element.type != .arrow else { continue }
       if let text = element["boundElements"]?.arrayValue?.first(where: { $0["type"] == "text" })?["id"]?
         .stringValue, self.element(text).map({ !$0.isDeleted }) ?? false
       {

@@ -152,14 +152,14 @@ extension DrawingEditor {
   /// `shouldTestInside`: whether a press inside, not only on the outline,
   /// hits the element.
   private func testsInside(_ element: DrawingElement) -> Bool {
-    if element.type == "arrow" { return false }
+    if element.type == .arrow { return false }
     let fromInside =
       !isTransparentColor(element.backgroundColor) || element.boundTextId != nil
-      || ["iframe", "embeddable", "text"].contains(element.type)
-    if element.type == "line" || element.type == "freedraw" {
+      || [.iframe, .embeddable, .text].contains(element.type)
+    if element.type == .line || element.type == .freedraw {
       return fromInside && isPathALoop(element.points)
     }
-    return fromInside || element.type == "image"
+    return fromInside || element.type == .image
   }
 
   /// `getElementShape`.
@@ -167,11 +167,11 @@ extension DrawingEditor {
     let c = geometry.absoluteCoords(element)
     let center = Point2D(c.cx, c.cy)
     switch element.type {
-    case "ellipse":
+    case .ellipse:
       return .ellipse(
         center: Point2D(element.x + element.width / 2, element.y + element.height / 2),
         a: element.width / 2, b: element.height / 2, angle: element.angle)
-    case "line", "arrow":
+    case .line, .arrow:
       var points: [Point2D] = []
       var current = Point2D(0, 0)
       for op in curvePathOps(geometry.generateShape(element)?.first) {
@@ -200,18 +200,18 @@ extension DrawingEditor {
         Point2D($0.x + element.x, $0.y + element.y).rotated(around: center, by: element.angle)
       }
       return .polyline(scene, closed: testsInside(element))
-    case "freedraw":
+    case .freedraw:
       let scene = element.points.map {
         Point2D($0.x + element.x, $0.y + element.y).rotated(around: center, by: element.angle)
       }
       return .polyline(scene, closed: testsInside(element))
-    case "diamond":
+    case .diamond:
       let d = diamondPoints(element)
       let corners = stride(from: 0, to: 8, by: 2).map {
         Point2D(d[$0] + element.x, d[$0 + 1] + element.y).rotated(around: center, by: element.angle)
       }
       return .polygon(corners)
-    default:
+    case .rectangle, .text, .image, .frame, .magicframe, .iframe, .embeddable:
       return .polygon(
         [Point2D(c.x1, c.y1), Point2D(c.x2, c.y1), Point2D(c.x2, c.y2), Point2D(c.x1, c.y2)].map {
           $0.rotated(around: center, by: element.angle)
@@ -252,11 +252,11 @@ extension DrawingEditor {
   private func hits(_ p: Point2D, _ element: DrawingElement, _ geometry: SceneGeometry) -> Bool {
     if selectedIds.contains(element.id), showsBoundingBox(element),
       DrawingKit.contains(
-        selectionBox(element, geometry, padding: element.type == "image" ? 0 : threshold), p)
+        selectionBox(element, geometry, padding: element.type == .image ? 0 : threshold), p)
     {
       return true
     }
-    if let text = geometry.boundText(of: element), element.type != "arrow",
+    if let text = geometry.boundText(of: element), element.type != .arrow,
       shape(text, geometry).contains(p)
     {
       return true
@@ -269,12 +269,12 @@ extension DrawingEditor {
     let geometry = makeGeometry()
     let hit = store.compactMap { raw -> DrawingElement? in
       guard !raw.isDeleted, raw["locked"]?.boolValue != true,
-        includingBoundText || raw.type != "text" || raw["containerId"]?.stringValue == nil,
+        includingBoundText || raw.type != .text || raw["containerId"]?.stringValue == nil,
         let element = geometry.elements[raw.id], hits(p, element, geometry)
       else { return nil }
       return element
     }
-    return (hit.filter { $0.type != "iframe" } + hit.filter { $0.type == "iframe" }).map(\.id)
+    return (hit.filter { $0.type != .iframe } + hit.filter { $0.type == .iframe }).map(\.id)
   }
 
   /// `getElementAtPosition`: the topmost element hit, unless the press only
@@ -315,15 +315,15 @@ extension DrawingEditor {
     let geometry = makeGeometry()
     guard let element = geometry.elements[id], !element.locked, !element.isElbowArrow else { return [:] }
     var omit: Set<String> = []
-    if element.type == "freedraw" || element.isLinear, element.points.count == 2 {
+    if element.type == .freedraw || element.isLinear, element.points.count == 2 {
       let p1 = element.points[1]
       omit = ["e", "s", "n", "w"]
       if (p1.x > 0 && p1.y < 0) || (p1.x < 0 && p1.y > 0) { omit.formUnion(["nw", "se"]) }
     } else if element.isFrameLike {
       omit.insert("rotation")
     }
-    let margin = element.isLinear ? 2.0 + 8 : element.type == "image" ? 0 : 2
-    let spacing = element.type == "image" ? 0.0 : 2
+    let margin = element.isLinear ? 2.0 + 8 : element.type == .image ? 0 : 2
+    let spacing = element.type == .image ? 0.0 : 2
     var handles = handlesAround(
       geometry.absoluteCoords(element), angle: element.angle, margin: margin, spacing: spacing, pointer: pointer)
     for key in omit { handles[key] = nil }
@@ -442,7 +442,7 @@ extension DrawingEditor {
     let cy = (c.y1 + c.y2) / 2
     let angle = element.isFrameLike ? 0 : normalizeRadians(5 * .pi / 2 + atan2(p.y - cy, p.x - cx))
     mutate(raw.id, ["angle": .number(angle)])
-    if let text = element.boundTextId, element.type != "arrow" { mutate(text, ["angle": .number(angle)]) }
+    if let text = element.boundTextId, element.type != .arrow { mutate(text, ["angle": .number(angle)]) }
     updateBoundElements(of: raw.id)
   }
 
@@ -450,7 +450,7 @@ extension DrawingEditor {
   private func resizedCoords(_ element: DrawingElement, width: Double, height: Double, normalize: Bool)
     -> (x1: Double, y1: Double, x2: Double, y2: Double)
   {
-    guard element.isLinear || element.type == "freedraw" else {
+    guard element.isLinear || element.type == .freedraw else {
       return (element.x, element.y, element.x + width, element.y + height)
     }
     var copy = element
@@ -470,7 +470,7 @@ extension DrawingEditor {
     let originalGeometry = makeGeometry(of: Array(gesture.originals.values))
     guard let latest = geometry.elements[raw.id], let start = originalGeometry.elements[original.id]
     else { return }
-    if latest.type == "text" {
+    if latest.type == .text {
       if handle == "e" || handle == "w" {
         rewrapText(latest, from: start, handle: handle, to: p)
       } else {
@@ -494,7 +494,7 @@ extension DrawingEditor {
     if handle.contains("n") { scaleY = (s.y2 - rotated.y) / currentHeight }
     var nextWidth = latest.width * scaleX
     var nextHeight = latest.height * scaleY
-    let keepsAspectRatio = latest.type == "image"
+    let keepsAspectRatio = latest.type == .image
     if keepsAspectRatio {
       let widthRatio = abs(nextWidth) / start.width
       let heightRatio = abs(nextHeight) / start.height
@@ -516,7 +516,7 @@ extension DrawingEditor {
       nextHeight = max(nextHeight, label.fontSize * label.lineHeight + boundTextPadding * 2)
     }
     let points =
-      latest.isLinear || latest.type == "freedraw"
+      latest.isLinear || latest.type == .freedraw
       ? rescaled(start.points, width: nextWidth, height: nextHeight, normalize: true) : nil
     var previousOrigin = Point2D(start.x, start.y)
     if start.isLinear {

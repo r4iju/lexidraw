@@ -85,7 +85,7 @@ private func styleChange(_ style: String, _ value: JSONValue) -> StyleChange {
   switch style {
   case "strokeColor": .strokeColor(value.stringValue!)
   case "backgroundColor": .backgroundColor(value.stringValue!)
-  case "fillStyle": .fillStyle(value.stringValue!)
+  case "fillStyle": .fillStyle(FillStyle(rawValue: value.stringValue!))
   case "strokeWidth": .strokeWidth(value.numberValue!)
   default: .roughness(value.numberValue!)
   }

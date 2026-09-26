@@ -81,7 +81,7 @@ extension DrawingEditor {
   /// selected. It is "pending" until its file is stored.
   @discardableResult
   public func placeImage(_ file: ImageFile, at point: Point2D, viewportHeight: Double) -> String {
-    var element = newElement("image", at: point, roundness: nil)
+    var element = newElement(.image, at: point, roundness: nil)
     element.merge(
       ["strokeColor": "transparent", "status": "pending", "fileId": nil, "scale": [1, 1], "crop": nil]
     ) { $1 }
@@ -115,7 +115,7 @@ extension DrawingEditor {
   /// does once an upload ends; like the web, this is not a step to undo.
   public func setStatus(_ status: String, ofImagesShowing fileId: String) {
     for position in store.indices
-    where store[position].type == "image" && store[position]["fileId"]?.stringValue == fileId {
+    where store[position].type == .image && store[position]["fileId"]?.stringValue == fileId {
       if environment.mutate(&store[position], ["status": .string(status)]) {
         history.adopt(store[position])
       }

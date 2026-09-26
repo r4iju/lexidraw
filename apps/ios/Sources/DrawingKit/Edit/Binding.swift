@@ -11,8 +11,11 @@ private func bindingTarget(_ element: RawElement, _ end: ArrowEnd) -> String? {
 
 /// `isBindableElement`, on an element as stored.
 private func isBindable(_ element: RawElement) -> Bool {
-  ["rectangle", "diamond", "ellipse", "image", "iframe", "embeddable", "frame", "magicframe"].contains(element.type)
-    || (element.type == "text" && element["containerId"]?.stringValue == nil)
+  switch element.type {
+  case .rectangle, .diamond, .ellipse, .image, .iframe, .embeddable, .frame, .magicframe: true
+  case .text: element["containerId"]?.stringValue == nil
+  case .line, .arrow, .freedraw, nil: false
+  }
 }
 
 /// `bindableElementsVisitor`: the elements `element` is bound to, and the
@@ -20,10 +23,10 @@ private func isBindable(_ element: RawElement) -> Bool {
 private func bindings(of element: RawElement) -> [(key: String, id: String)] {
   var result: [(String, String)] = []
   if let frame = element["frameId"]?.stringValue, !frame.isEmpty { result.append(("frameId", frame)) }
-  if element.type == "text", let container = element["containerId"]?.stringValue {
+  if element.type == .text, let container = element["containerId"]?.stringValue {
     result.append(("containerId", container))
   }
-  if element.type == "arrow" {
+  if element.type == .arrow {
     for end in [ArrowEnd.start, .end] {
       if let id = bindingTarget(element, end) { result.append((end.key, id)) }
     }
@@ -84,7 +87,7 @@ extension DrawingEditor {
   /// points across it and how far off it stops, and the shape lists the
   /// arrow.
   private func bind(_ arrowId: String, to shape: DrawingElement, _ end: ArrowEnd) {
-    guard let arrow = restored(arrowId), arrow.type == "arrow", !arrow.isElbowArrow else { return }
+    guard let arrow = restored(arrowId), arrow.type == .arrow, !arrow.isElbowArrow else { return }
     let edge = end == .start ? 0 : arrow.points.count - 1
     let edgePoint = globalPoint(arrow, edge)
     let adjacentPoint = globalPoint(arrow, end == .start ? 1 : edge - 1)
@@ -290,5 +293,5 @@ extension DrawingEditor {
 }
 
 extension RawElement {
-  var isLinearType: Bool { type == "line" || type == "arrow" }
+  var isLinearType: Bool { type?.isLinear ?? false }
 }

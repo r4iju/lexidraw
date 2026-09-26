@@ -230,13 +230,16 @@ extension DrawingElement {
 
   /// `isBindableElement`.
   var isBindable: Bool {
-    ["rectangle", "diamond", "ellipse", "image", "iframe", "embeddable", "frame", "magicframe"].contains(type)
-      || (type == "text" && containerId == nil)
+    switch type {
+    case .rectangle, .diamond, .ellipse, .image, .iframe, .embeddable, .frame, .magicframe: true
+    case .text: containerId == nil
+    case .line, .arrow, .freedraw: false
+    }
   }
 
   /// `isBindingFallthroughEnabled`: whether an arrow can reach through the
   /// shape to what is below, as it can through one that isn't filled.
-  var letsBindingFallThrough: Bool { fillStyle != "solid" || isTransparentColor(backgroundColor) }
+  var letsBindingFallThrough: Bool { fillStyle != .solid || isTransparentColor(backgroundColor) }
 
   /// `aabbForElement`.
   var axisAlignedBounds: Bounds {
@@ -250,7 +253,7 @@ extension DrawingElement {
   /// `maxBindingGap`: how near an arrow's end must come to bind.
   func maxBindingGap(width: Double, height: Double, zoom: Double? = nil) -> Double {
     let zoomValue = zoom.map { $0 < 1 ? $0 : 1 } ?? 1
-    let shapeRatio = type == "diamond" ? 1 / 2.0.squareRoot() : 1
+    let shapeRatio = type == .diamond ? 1 / 2.0.squareRoot() : 1
     let smaller = shapeRatio * min(width, height)
     return max(16, min(0.25 * smaller, 32), 10 / zoomValue + 4)
   }
@@ -346,8 +349,8 @@ extension DrawingElement {
   /// `distanceToBindableElement`.
   func distanceToOutline(_ p: Point2D) -> Double {
     let q = p.rotated(around: center, by: -angle)
-    if type == "ellipse" { return ellipseDistance(q, center: center, a: width / 2, b: height / 2) }
-    let (sides, corners) = type == "diamond" ? diamondParts() : rectanguloidParts()
+    if type == .ellipse { return ellipseDistance(q, center: center, a: width / 2, b: height / 2) }
+    let (sides, corners) = type == .diamond ? diamondParts() : rectanguloidParts()
     return (sides.map { distance(q, to: $0) } + corners.map { distance(q, to: $0) }).min() ?? .infinity
   }
 
@@ -357,11 +360,11 @@ extension DrawingElement {
     let a = l.a.rotated(around: center, by: -angle)
     let b = l.b.rotated(around: center, by: -angle)
     let rotated = Segment(a, b)
-    if type == "ellipse" {
+    if type == .ellipse {
       return ellipseIntersections(center: center, a: width / 2 + offset, b: height / 2 + offset, rotated)
         .map { $0.rotated(around: center, by: angle) }
     }
-    let (sides, corners) = type == "diamond" ? diamondParts(offset: offset) : rectanguloidParts(offset: offset)
+    let (sides, corners) = type == .diamond ? diamondParts(offset: offset) : rectanguloidParts(offset: offset)
     let found =
       sides.compactMap { intersection(rotated, $0) }.map { $0.rotated(around: center, by: angle) }
       + corners.flatMap { DrawingKit.intersections($0, rotated) }.map { $0.rotated(around: center, by: angle) }
@@ -382,7 +385,7 @@ extension DrawingElement {
       point(scaled(normalized(vector(rotatedB, from: rotatedA)), max(width * 2, height * 2)), from: rotatedB))
     let axes: [Segment]
     let interceptees: [Segment]
-    if type == "diamond" {
+    if type == .diamond {
       axes = [
         Segment(Point2D(x + width / 2, y), Point2D(x + width / 2, y + height)),
         Segment(Point2D(x, y + height / 2), Point2D(x + width, y + height / 2)),
@@ -407,7 +410,7 @@ extension DrawingElement {
       .enumerated()
       .map { index, p in
         sign * center.distance(to: p)
-          / (type == "diamond" ? axes[index].a.distance(to: axes[index].b) / 2 : halfDiagonal)
+          / (type == .diamond ? axes[index].a.distance(to: axes[index].b) / 2 : halfDiagonal)
       }
       .sorted { abs($0) < abs($1) }
     return ordered.first ?? 0
@@ -418,7 +421,7 @@ extension DrawingElement {
   func focusPoint(_ focus: Double, facing adjacent: Point2D) -> Point2D {
     if focus == 0 { return center }
     let corners =
-      type == "diamond"
+      type == .diamond
       ? [
         Point2D(x, y + height / 2), Point2D(x + width / 2, y), Point2D(x + width, y + height / 2),
         Point2D(x + width / 2, y + height),

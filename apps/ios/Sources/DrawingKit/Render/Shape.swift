@@ -5,8 +5,11 @@ import Foundation
 private func dashedArray(_ strokeWidth: Double) -> [Double] { [8, 8 + strokeWidth] }
 private func dottedArray(_ strokeWidth: Double) -> [Double] { [1.5, 6 + strokeWidth] }
 
-private func canChangeRoundness(_ type: String) -> Bool {
-  ["rectangle", "iframe", "embeddable", "line", "diamond", "image"].contains(type)
+private func canChangeRoundness(_ type: ElementType) -> Bool {
+  switch type {
+  case .rectangle, .iframe, .embeddable, .line, .diamond, .image: true
+  case .ellipse, .arrow, .freedraw, .text, .frame, .magicframe: false
+  }
 }
 
 private func adjustRoughness(_ element: DrawingElement) -> Double {
@@ -44,11 +47,11 @@ func generateRoughOptions(_ element: DrawingElement, continuousPath: Bool = fals
   var options = RoughOptions()
   options.seed = element.seed
   switch element.strokeStyle {
-  case "dashed": options.strokeLineDash = dashedArray(element.strokeWidth)
-  case "dotted": options.strokeLineDash = dottedArray(element.strokeWidth)
-  default: break
+  case .dashed: options.strokeLineDash = dashedArray(element.strokeWidth)
+  case .dotted: options.strokeLineDash = dottedArray(element.strokeWidth)
+  case .solid, .unknown: break
   }
-  let solid = element.strokeStyle == "solid"
+  let solid = element.strokeStyle == .solid
   options.disableMultiStroke = !solid
   options.strokeWidth = solid ? element.strokeWidth : element.strokeWidth + 0.5
   options.fillWeight = element.strokeWidth / 2
@@ -57,29 +60,29 @@ func generateRoughOptions(_ element: DrawingElement, continuousPath: Bool = fals
   options.stroke = element.strokeColor
   options.preserveVertices = continuousPath || element.roughness < 2
   switch element.type {
-  case "rectangle", "iframe", "embeddable", "diamond", "ellipse":
-    options.fillStyle = element.fillStyle
+  case .rectangle, .iframe, .embeddable, .diamond, .ellipse:
+    options.fillStyle = element.fillStyle.rawValue
     options.fill = isTransparentColor(element.backgroundColor) ? nil : element.backgroundColor
-    if element.type == "ellipse" { options.curveFitting = 1 }
-  case "line", "freedraw":
+    if element.type == .ellipse { options.curveFitting = 1 }
+  case .line, .freedraw:
     if isPathALoop(element.points) {
-      options.fillStyle = element.fillStyle
+      options.fillStyle = element.fillStyle.rawValue
       options.fill = element.backgroundColor == "transparent" ? nil : element.backgroundColor
     }
-  default: break
+  case .arrow, .text, .image, .frame, .magicframe: break
   }
   return options
 }
 
 /// `modifyIframeLikeForRoughOptions`, as it is when exporting.
 private func iframeLikeForRoughOptions(_ element: DrawingElement) -> DrawingElement {
-  guard element.type == "iframe" || element.type == "embeddable" else { return element }
+  guard element.type == .iframe || element.type == .embeddable else { return element }
   var element = element
   if isTransparentColor(element.backgroundColor) && isTransparentColor(element.strokeColor) {
     element.roughness = 0
     element.backgroundColor = "#d3d3d3"
-    element.fillStyle = "solid"
-  } else if element.type == "iframe" {
+    element.fillStyle = .solid
+  } else if element.type == .iframe {
     if isTransparentColor(element.strokeColor) { element.strokeColor = "#000000" }
     if isTransparentColor(element.backgroundColor) { element.backgroundColor = "#f4f4f6" }
   }
@@ -98,7 +101,7 @@ private func n(_ value: Double) -> String { jsNumberString(value) }
 /// The shape rough.js draws an element with; nil for types it doesn't draw.
 func generateElementShape(_ element: DrawingElement, canvasBackgroundColor: String) -> [Drawable]? {
   switch element.type {
-  case "rectangle", "iframe", "embeddable":
+  case .rectangle, .iframe, .embeddable:
     let styled = iframeLikeForRoughOptions(element)
     if element.roundness != nil {
       let w = element.width
@@ -113,7 +116,7 @@ func generateElementShape(_ element: DrawingElement, canvasBackgroundColor: Stri
     return [
       RoughGenerator.rectangle(0, 0, element.width, element.height, generateRoughOptions(styled))
     ]
-  case "diamond":
+  case .diamond:
     let p = diamondPoints(element)
     let (topX, topY, rightX, rightY, bottomX, bottomY, leftX, leftY) =
       (p[0], p[1], p[2], p[3], p[4], p[5], p[6], p[7])
@@ -138,13 +141,13 @@ func generateElementShape(_ element: DrawingElement, canvasBackgroundColor: Stri
           Point2D(leftX, leftY),
         ], generateRoughOptions(element))
     ]
-  case "ellipse":
+  case .ellipse:
     return [
       RoughGenerator.ellipse(
         element.width / 2, element.height / 2, element.width, element.height,
         generateRoughOptions(element))
     ]
-  case "line", "arrow":
+  case .line, .arrow:
     var options = generateRoughOptions(element)
     let points = element.points.isEmpty ? [Point2D(0, 0)] : element.points
     var shape: [Drawable]
@@ -165,7 +168,7 @@ func generateElementShape(_ element: DrawingElement, canvasBackgroundColor: Stri
     } else {
       shape = [RoughGenerator.curve(points, options)]
     }
-    if element.type == "arrow" {
+    if element.type == .arrow {
       if let head = element.startArrowhead {
         shape += arrowheadShapes(
           element, shape, .start, head, &options, canvasBackgroundColor: canvasBackgroundColor)
@@ -176,12 +179,12 @@ func generateElementShape(_ element: DrawingElement, canvasBackgroundColor: Stri
       }
     }
     return shape
-  case "freedraw":
+  case .freedraw:
     guard isPathALoop(element.points) else { return nil }
     var options = generateRoughOptions(element)
     options.stroke = "none"
     return [RoughGenerator.curve(simplifyPoints(element.points, 0.75), options)]
-  default:
+  case .text, .image, .frame, .magicframe:
     return nil
   }
 }
@@ -367,7 +370,7 @@ private func arrowheadShapes(
   case "crowfoot_one":
     return crowfootOne(p, options)
   default:
-    if element.strokeStyle == "dotted" {
+    if element.strokeStyle == .dotted {
       let dash = dottedArray(element.strokeWidth - 1)
       options.strokeLineDash = [dash[0], dash[1] - 1]
     } else {

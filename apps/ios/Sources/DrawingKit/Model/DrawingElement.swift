@@ -8,7 +8,7 @@ public struct Roundness: Equatable, Sendable {
 
 public struct BoundElement: Equatable, Sendable {
   public var id: String
-  public var type: String
+  public var type: ElementType
 }
 
 /// One canonical Excalidraw element. `raw` is the element as stored, kept
@@ -19,7 +19,7 @@ public struct DrawingElement: Sendable {
   public var raw: JSONObject
 
   public var id: String
-  public var type: String
+  public var type: ElementType
   public var x: Double
   public var y: Double
   public var width: Double
@@ -27,9 +27,9 @@ public struct DrawingElement: Sendable {
   public var angle: Double
   public var strokeColor: String
   public var backgroundColor: String
-  public var fillStyle: String
+  public var fillStyle: FillStyle
   public var strokeWidth: Double
-  public var strokeStyle: String
+  public var strokeStyle: StrokeStyle
   public var roughness: Double
   public var opacity: Double
   public var seed: Double
@@ -66,15 +66,10 @@ public struct DrawingElement: Sendable {
 
   public var name: String?
 
-  static let knownTypes: Set<String> = [
-    "rectangle", "diamond", "ellipse", "line", "arrow", "freedraw", "text", "image", "frame",
-    "magicframe", "iframe", "embeddable",
-  ]
-
-  public var isLinear: Bool { type == "line" || type == "arrow" }
-  public var isFrameLike: Bool { type == "frame" || type == "magicframe" }
-  public var isElbowArrow: Bool { type == "arrow" && elbowed }
-  public var boundTextId: String? { boundElements.first { $0.type == "text" }?.id }
+  public var isLinear: Bool { type.isLinear }
+  public var isFrameLike: Bool { type.isFrameLike }
+  public var isElbowArrow: Bool { type == .arrow && elbowed }
+  public var boundTextId: String? { boundElements.first { $0.type == .text }?.id }
 
   /// Restores `raw` as `restoreElement` does, or nil where the web drops the
   /// element: a selection, an invisibly small element, or a type it doesn't know.
@@ -105,16 +100,15 @@ public struct DrawingElement: Sendable {
     } else if number("width") == 0 && number("height") == 0 {
       return nil
     }
-    let restoredType = type == "draw" ? "line" : type
-    guard Self.knownTypes.contains(restoredType) else { return nil }
+    guard let restoredType = ElementType(rawValue: type == "draw" ? "line" : type) else { return nil }
 
     self.type = restoredType
     id = truthyString("id") ?? UUID().uuidString
     version = truthyNumber("version") ?? 1
     isDeleted = raw["isDeleted"]?.boolValue ?? false
-    fillStyle = truthyString("fillStyle") ?? "solid"
+    fillStyle = FillStyle(rawValue: truthyString("fillStyle") ?? "solid")
     strokeWidth = truthyNumber("strokeWidth") ?? 2
-    strokeStyle = string("strokeStyle") ?? "solid"
+    strokeStyle = StrokeStyle(rawValue: string("strokeStyle") ?? "solid")
     roughness = number("roughness") ?? 1
     opacity = number("opacity") ?? 100
     angle = truthyNumber("angle") ?? 0
@@ -131,16 +125,18 @@ public struct DrawingElement: Sendable {
       self.roundness = Roundness(
         type: roundness["type"]?.intValue ?? 0, value: roundness["value"]?.numberValue)
     } else if string("strokeSharpness") == "round" {
-      let adaptive = ["rectangle", "embeddable", "iframe", "image"].contains(type)
+      let adaptive = [.rectangle, .embeddable, .iframe, .image].contains(restoredType)
       self.roundness = Roundness(type: adaptive ? 1 : 2, value: nil)
     } else {
       self.roundness = nil
     }
     if let ids = raw["boundElementIds"]?.arrayValue {
-      boundElements = ids.compactMap(\.stringValue).map { BoundElement(id: $0, type: "arrow") }
+      boundElements = ids.compactMap(\.stringValue).map { BoundElement(id: $0, type: .arrow) }
     } else {
       boundElements = (raw["boundElements"]?.arrayValue ?? []).compactMap { entry in
-        guard let id = entry["id"]?.stringValue, let type = entry["type"]?.stringValue else {
+        guard let id = entry["id"]?.stringValue,
+          let type = entry["type"]?.stringValue.flatMap(ElementType.init(rawValue:))
+        else {
           return nil
         }
         return BoundElement(id: id, type: type)
@@ -157,7 +153,7 @@ public struct DrawingElement: Sendable {
     }
 
     switch restoredType {
-    case "text":
+    case .text:
       text = truthyString("text") ?? ""
       fontSize = number("fontSize") ?? 20
       fontFamily = number("fontFamily") ?? 5
@@ -178,11 +174,11 @@ public struct DrawingElement: Sendable {
         self.lineHeight = FontMetrics.lineHeight(forFamily: number("fontFamily") ?? 5)
       }
       if text.isEmpty { isDeleted = true }
-    case "freedraw":
+    case .freedraw:
       self.points = rawPoints ?? []
       pressures = raw["pressures"]?.arrayValue?.compactMap(\.numberValue) ?? []
       simulatePressure = raw["simulatePressure"]?.boolValue ?? false
-    case "image":
+    case .image:
       fileId = string("fileId")
       status = string("status").flatMap { $0.isEmpty ? nil : $0 } ?? "pending"
       if let crop = raw["crop"]?.objectValue {
@@ -192,7 +188,7 @@ public struct DrawingElement: Sendable {
       if let scale = raw["scale"]?.arrayValue?.compactMap(\.numberValue), scale.count == 2 {
         self.scale = scale
       }
-    case "line", "arrow":
+    case .line, .arrow:
       var restored = rawPoints ?? []
       if let first = restored.first, first.x != 0 || first.y != 0 {
         restored = restored.map { Point2D($0.x - first.x, $0.y - first.y) }
@@ -201,7 +197,7 @@ public struct DrawingElement: Sendable {
       }
       self.points = restored
       startArrowhead = string("startArrowhead")
-      if restoredType == "arrow" {
+      if restoredType == .arrow {
         endArrowhead = raw.keys.contains("endArrowhead") ? string("endArrowhead") : "arrow"
         elbowed = raw["elbowed"]?.boolValue ?? false
       } else {
@@ -211,9 +207,9 @@ public struct DrawingElement: Sendable {
       let ys = restored.map(\.y)
       width = (xs.max() ?? 0) - (xs.min() ?? 0)
       height = (ys.max() ?? 0) - (ys.min() ?? 0)
-    case "frame", "magicframe":
+    case .frame, .magicframe:
       name = string("name")
-    default:
+    case .rectangle, .diamond, .ellipse, .iframe, .embeddable:
       break
     }
   }
@@ -224,7 +220,7 @@ public struct DrawingElement: Sendable {
   {
     raw = [:]
     self.id = id
-    type = "text"
+    type = .text
     self.x = x
     self.y = y
     self.width = width
@@ -232,9 +228,9 @@ public struct DrawingElement: Sendable {
     angle = 0
     self.strokeColor = strokeColor
     backgroundColor = "transparent"
-    fillStyle = "solid"
+    fillStyle = .solid
     strokeWidth = 2
-    strokeStyle = "solid"
+    strokeStyle = .solid
     roughness = 1
     opacity = 100
     seed = 1

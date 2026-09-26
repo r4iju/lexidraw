@@ -27,7 +27,7 @@ struct StyleInspector: View {
       if controls.showsFillStyle {
         section("Fill") {
           choices(
-            [("Hachure", "hachure"), ("Cross-Hatch", "cross-hatch"), ("Solid", "solid")],
+            [("Hachure", FillStyle.hachure), ("Cross-Hatch", .crossHatch), ("Solid", .solid)],
             picked: controls.fillStyle
           ) { change(.fillStyle($0)) }
         }

@@ -14,10 +14,10 @@ extension DrawingEditor {
   func labelMaxWidth(_ container: RawElement, _ text: RawElement?) -> Double {
     let width = container.number("width")
     switch container.type {
-    case "arrow": return max(0.7 * width, (text?.number("fontSize") ?? 20) * 11)
-    case "ellipse": return (width / 2 * 2.0.squareRoot()).rounded(.toNearestOrAwayFromZero) - boundTextPadding * 2
-    case "diamond": return (width / 2).rounded(.toNearestOrAwayFromZero) - boundTextPadding * 2
-    default: return width - boundTextPadding * 2
+    case .arrow: return max(0.7 * width, (text?.number("fontSize") ?? 20) * 11)
+    case .ellipse: return (width / 2 * 2.0.squareRoot()).rounded(.toNearestOrAwayFromZero) - boundTextPadding * 2
+    case .diamond: return (width / 2).rounded(.toNearestOrAwayFromZero) - boundTextPadding * 2
+    case .rectangle, .line, .freedraw, .text, .image, .frame, .magicframe, .iframe, .embeddable, nil: return width - boundTextPadding * 2
     }
   }
 
@@ -25,30 +25,30 @@ extension DrawingEditor {
   func labelMaxHeight(_ container: RawElement, _ text: RawElement) -> Double {
     let height = container.number("height")
     switch container.type {
-    case "arrow": return height - boundTextPadding * 8 * 2 <= 0 ? text.number("height") : height
-    case "ellipse": return (height / 2 * 2.0.squareRoot()).rounded(.toNearestOrAwayFromZero) - boundTextPadding * 2
-    case "diamond": return (height / 2).rounded(.toNearestOrAwayFromZero) - boundTextPadding * 2
-    default: return height - boundTextPadding * 2
+    case .arrow: return height - boundTextPadding * 8 * 2 <= 0 ? text.number("height") : height
+    case .ellipse: return (height / 2 * 2.0.squareRoot()).rounded(.toNearestOrAwayFromZero) - boundTextPadding * 2
+    case .diamond: return (height / 2).rounded(.toNearestOrAwayFromZero) - boundTextPadding * 2
+    case .rectangle, .line, .freedraw, .text, .image, .frame, .magicframe, .iframe, .embeddable, nil: return height - boundTextPadding * 2
     }
   }
 
   /// `computeContainerDimensionForBoundText`: how large a container must be
   /// to hold a label this large.
-  func containerDimension(for size: Double, _ type: String) -> Double {
+  func containerDimension(for size: Double, _ type: ElementType?) -> Double {
     let size = size.rounded(.up)
     let padding = boundTextPadding * 2
     switch type {
-    case "ellipse": return ((size + padding) / 2.0.squareRoot() * 2).rounded(.toNearestOrAwayFromZero)
-    case "arrow": return size + padding * 8
-    case "diamond": return 2 * (size + padding)
-    default: return size + padding
+    case .ellipse: return ((size + padding) / 2.0.squareRoot() * 2).rounded(.toNearestOrAwayFromZero)
+    case .arrow: return size + padding * 8
+    case .diamond: return 2 * (size + padding)
+    case .rectangle, .line, .freedraw, .text, .image, .frame, .magicframe, .iframe, .embeddable, nil: return size + padding
     }
   }
 
   /// `computeBoundTextPosition`: on an arrow's middle, or aligned within the
   /// part of a shape a label may fill.
   func labelPosition(_ container: RawElement, _ text: RawElement) -> Point2D {
-    if container.type == "arrow" {
+    if container.type == .arrow {
       let geometry = makeGeometry()
       guard let arrow = geometry.elements[container.id], let label = restoreElements([.object(text)]).first
       else { return Point2D(text.number("x"), text.number("y")) }
@@ -56,10 +56,10 @@ extension DrawingEditor {
     }
     var offsetX = boundTextPadding
     var offsetY = boundTextPadding
-    if container.type == "ellipse" {
+    if container.type == .ellipse {
       offsetX += container.number("width") / 2 * (1 - 2.0.squareRoot() / 2)
       offsetY += container.number("height") / 2 * (1 - 2.0.squareRoot() / 2)
-    } else if container.type == "diamond" {
+    } else if container.type == .diamond {
       offsetX += container.number("width") / 4
       offsetY += container.number("height") / 4
     }
@@ -107,7 +107,7 @@ extension DrawingEditor {
     if height > labelMaxHeight(container, label) {
       let containerHeight = containerDimension(for: height, container.type)
       let grown = containerHeight - container.number("height")
-      let fromTop = container.type != "arrow" && ["ne", "nw", "n"].contains(handle ?? "")
+      let fromTop = container.type != .arrow && ["ne", "nw", "n"].contains(handle ?? "")
       mutate(
         containerId,
         [
@@ -116,7 +116,7 @@ extension DrawingEditor {
         ])
     }
     mutate(textId, ["text": .string(text), "width": .number(width), "height": .number(height)])
-    if container.type != "arrow", let container = element(containerId), let label = element(textId) {
+    if container.type != .arrow, let container = element(containerId), let label = element(textId) {
       let position = labelPosition(container, label)
       mutate(textId, ["x": .number(position.x), "y": .number(position.y)])
     }

@@ -6,7 +6,7 @@ typealias RawElement = JSONObject
 
 extension JSONObject {
   var id: String { self["id"]?.stringValue ?? "" }
-  var type: String { self["type"]?.stringValue ?? "" }
+  var type: ElementType? { self["type"]?.stringValue.flatMap(ElementType.init(rawValue:)) }
   var isDeleted: Bool { self["isDeleted"]?.boolValue ?? false }
   var index: String? { self["index"]?.stringValue }
   func number(_ key: String) -> Double { self[key]?.numberValue ?? 0 }

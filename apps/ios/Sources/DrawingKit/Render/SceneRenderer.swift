@@ -98,7 +98,7 @@ public final class PreparedScene: @unchecked Sendable {
       layerScale: layerScale, images: images)
     var checkedGroups: [String: Bool] = [:]
     let iframeLike = { (element: DrawingElement) in
-      element.type == "iframe" || element.type == "embeddable"
+      element.type == .iframe || element.type == .embeddable
     }
     let onScreen = { (element: DrawingElement) -> Bool in
       guard let visible else { return true }
@@ -107,7 +107,7 @@ public final class PreparedScene: @unchecked Sendable {
         && b.minY <= visible.maxY
     }
     for element in elements where !iframeLike(element) && onScreen(element) {
-      if element.type == "text", let containerId = element.containerId,
+      if element.type == .text, let containerId = element.containerId,
         geometry.elements[containerId] != nil
       {
         continue
@@ -145,7 +145,7 @@ private func frameName(_ frame: DrawingElement, theme: DrawingTheme, measurer: T
   -> DrawingElement
 {
   let title =
-    (frame.name ?? (frame.type == "frame" ? "Frame" : "AI Frame"))
+    (frame.name ?? (frame.type == .frame ? "Frame" : "AI Frame"))
     .replacingOccurrences(of: "\r\n", with: "\n").replacingOccurrences(of: "\r", with: "\n")
     .replacingOccurrences(of: "\t", with: "        ")
   let font = FontMetrics.fontString(size: 14, family: 2)
@@ -206,19 +206,19 @@ private struct ElementRenderer {
     let frame = geometry.containingFrame(of: element)
     canvas.globalAlpha = ((frame?.opacity ?? 100) * element.opacity) / 10000
     switch element.type {
-    case "frame", "magicframe":
+    case .frame, .magicframe:
       canvas.save()
       canvas.translate(element.x + scrollX, element.y + scrollY)
       canvas.fillStyle = "rgba(0, 0, 200, 0.04)"
       canvas.lineWidth = 2
       canvas.strokeStyle =
-        element.type == "magicframe" ? (theme == .light ? "#7affd7" : "#1d8264") : "#bbb"
+        element.type == .magicframe ? (theme == .light ? "#7affd7" : "#1d8264") : "#bbb"
       canvas.beginPath()
       canvas.roundRect(0, 0, element.width, element.height, 8)
       canvas.stroke()
       canvas.closePath()
       canvas.restore()
-    case "freedraw":
+    case .freedraw:
       geometry.generateShape(element)
       let c = geometry.absoluteCoords(element)
       canvas.save()
@@ -228,15 +228,15 @@ private struct ElementRenderer {
         -((c.x2 - c.x1) / 2 - (element.x - c.x1)), -((c.y2 - c.y1) / 2 - (element.y - c.y1)))
       draw(element, on: canvas)
       canvas.restore()
-    default:
+    case .rectangle, .diamond, .ellipse, .line, .arrow, .text, .image, .iframe, .embeddable:
       geometry.generateShape(element)
       let c = geometry.absoluteCoords(element)
       let cx = (c.x1 + c.x2) / 2 + scrollX
       let cy = (c.y1 + c.y2) / 2 + scrollY
       var shiftX = (c.x2 - c.x1) / 2 - (element.x - c.x1)
       var shiftY = (c.y2 - c.y1) / 2 - (element.y - c.y1)
-      if element.type == "text", let container = geometry.container(of: element),
-        container.type == "arrow"
+      if element.type == .text, let container = geometry.container(of: element),
+        container.type == .arrow
       {
         let position = geometry.boundTextPosition(container, element)
         shiftX = (c.x2 - c.x1) / 2 - (position.x - c.x1)
@@ -244,12 +244,12 @@ private struct ElementRenderer {
       }
       canvas.save()
       canvas.translate(cx, cy)
-      if element.type == "image" && showsOwnColors(element) { canvas.filter = "none" }
-      if element.type == "arrow", let text = geometry.boundText(of: element) {
+      if element.type == .image && showsOwnColors(element) { canvas.filter = "none" }
+      if element.type == .arrow, let text = geometry.boundText(of: element) {
         drawWithLabelCutOut(element, text, c)
       } else {
         canvas.rotate(element.angle)
-        if element.type == "image" { canvas.scale(element.scale[0], element.scale[1]) }
+        if element.type == .image { canvas.scale(element.scale[0], element.scale[1]) }
         canvas.translate(-shiftX, -shiftY)
         draw(element, on: canvas)
       }
@@ -285,18 +285,18 @@ private struct ElementRenderer {
 
   private func draw(_ element: DrawingElement, on canvas: Canvas2D) {
     switch element.type {
-    case "rectangle", "iframe", "embeddable", "diamond", "ellipse", "arrow", "line":
+    case .rectangle, .iframe, .embeddable, .diamond, .ellipse, .arrow, .line:
       canvas.lineJoin = "round"
       canvas.lineCap = "round"
       for drawable in geometry.generateShape(element) ?? [] { drawRough(drawable, on: canvas) }
-    case "freedraw":
+    case .freedraw:
       canvas.save()
       canvas.fillStyle = element.strokeColor
       if let fill = geometry.cachedShape(element)?.first { drawRough(fill, on: canvas) }
       canvas.fillStyle = element.strokeColor
       canvas.fill(svgPath: geometry.outline(element))
       canvas.restore()
-    case "image":
+    case .image:
       guard let fileId = element.fileId, let image = images[fileId], image.bitmap != nil else {
         canvas.fillStyle = "#E7E7E7"
         canvas.fillRect(0, 0, element.width, element.height)
@@ -318,7 +318,7 @@ private struct ElementRenderer {
       canvas.drawImage(
         .bitmap(image), source.x, source.y, source.width, source.height, 0, 0, element.width,
         element.height)
-    case "text":
+    case .text:
       canvas.save()
       canvas.font = FontMetrics.fontString(size: element.fontSize, family: element.fontFamily)
       canvas.fillStyle = element.strokeColor
@@ -333,7 +333,7 @@ private struct ElementRenderer {
         canvas.fillText(line, horizontalOffset, Double(index) * lineHeightPx + verticalOffset)
       }
       canvas.restore()
-    default:
+    case .frame, .magicframe:
       break
     }
   }

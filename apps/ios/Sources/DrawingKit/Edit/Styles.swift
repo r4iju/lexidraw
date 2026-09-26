@@ -4,7 +4,7 @@ import Foundation
 public enum StyleChange: Equatable, Sendable {
   case strokeColor(String)
   case backgroundColor(String)
-  case fillStyle(String)
+  case fillStyle(FillStyle)
   case strokeWidth(Double)
   case roughness(Double)
 }
@@ -20,25 +20,39 @@ public struct StyleControls: Equatable, Sendable {
   public var showsRoughness = false
   public var strokeColor: String?
   public var backgroundColor: String?
-  public var fillStyle: String?
+  public var fillStyle: FillStyle?
   public var strokeWidth: Double?
   public var roughness: Double?
 
   public init() {}
 }
 
-private func hasStrokeColor(_ type: String) -> Bool { !["image", "frame", "magicframe"].contains(type) }
-
-private func hasBackground(_ type: String) -> Bool {
-  ["rectangle", "iframe", "embeddable", "ellipse", "diamond", "line", "freedraw"].contains(type)
+private func hasStrokeColor(_ type: ElementType?) -> Bool {
+  switch type {
+  case .image, .frame, .magicframe: false
+  case .rectangle, .diamond, .ellipse, .line, .arrow, .freedraw, .text, .iframe, .embeddable, nil: true
+  }
 }
 
-private func hasStrokeWidth(_ type: String) -> Bool {
-  ["rectangle", "iframe", "embeddable", "ellipse", "diamond", "freedraw", "arrow", "line"].contains(type)
+private func hasBackground(_ type: ElementType?) -> Bool {
+  switch type {
+  case .rectangle, .iframe, .embeddable, .ellipse, .diamond, .line, .freedraw: true
+  case .arrow, .text, .image, .frame, .magicframe, nil: false
+  }
 }
 
-private func hasStrokeStyle(_ type: String) -> Bool {
-  ["rectangle", "iframe", "embeddable", "ellipse", "diamond", "arrow", "line"].contains(type)
+private func hasStrokeWidth(_ type: ElementType?) -> Bool {
+  switch type {
+  case .rectangle, .iframe, .embeddable, .ellipse, .diamond, .freedraw, .arrow, .line: true
+  case .text, .image, .frame, .magicframe, nil: false
+  }
+}
+
+private func hasStrokeStyle(_ type: ElementType?) -> Bool {
+  switch type {
+  case .rectangle, .iframe, .embeddable, .ellipse, .diamond, .arrow, .line: true
+  case .freedraw, .text, .image, .frame, .magicframe, nil: false
+  }
 }
 
 extension DrawingEditor {
@@ -49,7 +63,7 @@ extension DrawingEditor {
     return store.filter { element in
       !element.isDeleted
         && (selectedIds.contains(element.id)
-          || (includingLabels && element.type == "text"
+          || (includingLabels && element.type == .text
             && element["containerId"]?.stringValue.map(selectedIds.contains) == true))
     }
   }
@@ -57,11 +71,11 @@ extension DrawingEditor {
   public var styleControls: StyleControls {
     let targets = styleTargets(includingLabels: true)
     let types = Set(targets.map(\.type))
-    let tool = self.tool.rawValue
+    let tool = self.tool.elementType
     var controls = StyleControls()
     let commonType = types.count == 1 ? types.first : nil
     controls.showsStrokeColor =
-      (hasStrokeColor(tool) && !["image", "frame", "magicframe"].contains(commonType ?? ""))
+      (hasStrokeColor(tool) && commonType.map { hasStrokeColor($0) } != false)
       || types.contains(where: hasStrokeColor)
     controls.showsBackgroundColor = hasBackground(tool) || types.contains(where: hasBackground)
     controls.showsFillStyle =
@@ -74,14 +88,15 @@ extension DrawingEditor {
 
     // `getFormValue`: the value the selection shares, or what the tool draws with.
     let shown = editing == nil ? styleTargets(includingLabels: false) : targets
-    func common(_ key: String, _ relevant: (String) -> Bool = { _ in true }) -> JSONValue?? {
+    func common(_ key: String, _ relevant: (ElementType?) -> Bool = { _ in true }) -> JSONValue?? {
       let values = Set(shown.filter { relevant($0.type) }.compactMap { $0[key] })
       guard !shown.isEmpty else { return .some(nil) }
       return values.count == 1 ? .some(values.first) : nil
     }
     controls.strokeColor = common("strokeColor").map { $0?.stringValue ?? style.strokeColor } ?? nil
     controls.backgroundColor = common("backgroundColor").map { $0?.stringValue ?? style.backgroundColor } ?? nil
-    controls.fillStyle = common("fillStyle", hasBackground).map { $0?.stringValue ?? style.fillStyle } ?? nil
+    controls.fillStyle =
+      common("fillStyle", hasBackground).map { $0?.stringValue.map(FillStyle.init) ?? style.fillStyle } ?? nil
     controls.strokeWidth = common("strokeWidth", hasStrokeWidth).map { $0?.numberValue ?? style.strokeWidth } ?? nil
     controls.roughness = common("roughness", hasStrokeStyle).map { $0?.numberValue ?? style.roughness } ?? nil
     return controls
@@ -111,7 +126,7 @@ extension DrawingEditor {
         guard hasStrokeColor(store[position].type) else { continue }
         updates = ["strokeColor": .string(color)]
       case .backgroundColor(let color): updates = ["backgroundColor": .string(color)]
-      case .fillStyle(let fill): updates = ["fillStyle": .string(fill)]
+      case .fillStyle(let fill): updates = ["fillStyle": .string(fill.rawValue)]
       case .strokeWidth(let width): updates = ["strokeWidth": .number(width)]
       case .roughness(let roughness):
         updates = ["seed": .number(Double(environment.randomInteger())), "roughness": .number(roughness)]

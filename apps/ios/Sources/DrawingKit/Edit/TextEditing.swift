@@ -45,14 +45,14 @@ extension DrawingEditor {
   func textContainer(at p: Point2D) -> String? {
     func bindable(_ element: RawElement) -> Bool {
       element["locked"]?.boolValue != true
-        && ["rectangle", "diamond", "ellipse", "arrow"].contains(element.type)
+        && [.rectangle, .diamond, .ellipse, .arrow].contains(element.type)
     }
     let selected = selectedElements
     if selected.count == 1 { return bindable(selected[0]) ? selected[0].id : nil }
     let geometry = makeGeometry()
     for raw in store.reversed() where !raw.isDeleted {
       guard let element = geometry.elements[raw.id] else { continue }
-      if raw.type == "arrow" && hitsItself(p, element, geometry, threshold: threshold) {
+      if raw.type == .arrow && hitsItself(p, element, geometry, threshold: threshold) {
         return bindable(raw) ? raw.id : nil
       }
       let c = geometry.absoluteCoords(element)
@@ -67,7 +67,7 @@ extension DrawingEditor {
 
   /// `getContainerCenter`.
   func containerCenter(_ container: RawElement) -> Point2D {
-    guard container.type == "arrow" else {
+    guard container.type == .arrow else {
       return Point2D(
         container.number("x") + container.number("width") / 2,
         container.number("y") + container.number("height") / 2)
@@ -96,7 +96,7 @@ extension DrawingEditor {
     let selected = selectedElements
     var existing: RawElement?
     if selected.count == 1 {
-      if selected[0].type == "text" {
+      if selected[0].type == .text {
         existing = selected[0]
       } else if container != nil {
         existing = labelId(of: selected[0]).flatMap(element)
@@ -109,7 +109,7 @@ extension DrawingEditor {
     let fontFamily = existing?.number("fontFamily") ?? style.fontFamily
     let lineHeight = existing?["lineHeight"]?.numberValue ?? FontMetrics.lineHeight(forFamily: fontFamily)
     let fontSize = style.fontSize
-    if existing == nil, bindsToContainer, let box = container, box.type != "arrow" {
+    if existing == nil, bindsToContainer, let box = container, box.type != .arrow {
       let font = FontMetrics.fontString(size: fontSize, family: fontFamily)
       let minWidth = characterWidths.widest(font: font) + boundTextPadding * 2
       let minHeight = fontSize * lineHeight + boundTextPadding * 2
@@ -130,7 +130,7 @@ extension DrawingEditor {
     let anchor = center ?? point
     let offsetX = textAlign == "center" ? size.width / 2 : textAlign == "right" ? size.width : 0
     let offsetY = verticalAlign == "middle" ? size.height / 2 : 0
-    var text = newElement("text", at: Point2D(anchor.x - offsetX, anchor.y - offsetY), roundness: nil)
+    var text = newElement(.text, at: Point2D(anchor.x - offsetX, anchor.y - offsetY), roundness: nil)
     text.merge(
       [
         "width": .number(size.width), "height": .number(size.height), "text": "",
@@ -157,7 +157,7 @@ extension DrawingEditor {
 
   /// `getTextElementAtPosition`.
   private func textAt(_ p: Point2D) -> RawElement? {
-    elementAt(p, includingBoundText: true).flatMap(element).flatMap { $0.type == "text" ? $0 : nil }
+    elementAt(p, includingBoundText: true).flatMap(element).flatMap { $0.type == .text ? $0 : nil }
   }
 
   /// `handleTextWysiwyg`: nothing selected while the text is written, and
@@ -249,17 +249,17 @@ extension DrawingEditor {
       let containerId = text["containerId"]?.stringValue, let container = element(containerId)
     else { return }
     var position = Point2D(text.number("x"), text.number("y"))
-    if container.type == "arrow" { position = labelPosition(container, text) }
+    if container.type == .arrow { position = labelPosition(container, text) }
     let original = originalContainerHeights[containerId] ?? container.number("height")
     originalContainerHeights[containerId] = original
     let height = text.number("height")
     let maxHeight = labelMaxHeight(container, text)
-    if container.type != "arrow" && height > maxHeight {
+    if container.type != .arrow && height > maxHeight {
       if mutate(containerId, ["height": .number(containerDimension(for: height, container.type))]) {
         followEditedText()
       }
       return
-    } else if container.type != "arrow" && container.number("height") > original && height < maxHeight {
+    } else if container.type != .arrow && container.number("height") > original && height < maxHeight {
       if mutate(containerId, ["height": .number(containerDimension(for: height, container.type))]) {
         followEditedText()
       }
@@ -286,7 +286,7 @@ extension DrawingEditor {
       if !isDeleted {
         if labelId(of: container) != editing.id {
           mutate(containerId, ["boundElements": .array(bound + [["type": "text", "id": .string(editing.id)]])])
-        } else if container.type == "arrow", let at = self.position(of: containerId) {
+        } else if container.type == .arrow, let at = self.position(of: containerId) {
           environment.bump(&store[at])
         }
       } else {
@@ -325,7 +325,7 @@ extension DrawingEditor {
     if autoResize { updates["width"] = .number(size.width) }
     updates["height"] = .number(size.height)
     if let container {
-      if container.type != "arrow", size.height > labelMaxHeight(container, text) {
+      if container.type != .arrow, size.height > labelMaxHeight(container, text) {
         let height = containerDimension(for: size.height, container.type)
         mutate(container.id, ["height": .number(height)])
         originalContainerHeights[container.id] = height

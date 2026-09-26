@@ -77,7 +77,7 @@ extension DrawingEditor {
     guard editing == nil else { return overlay }
     let geometry = makeGeometry()
     let selected = selectedElements.compactMap { geometry.elements[$0.id] }
-      .filter { $0.type != "text" || $0.containerId == nil }
+      .filter { $0.type != .text || $0.containerId == nil }
     // `DEFAULT_TRANSFORM_HANDLE_SPACING * 2`, the web's gap between an
     // element and its outline.
     let padding = 4 / zoom
