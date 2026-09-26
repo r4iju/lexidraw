@@ -1,0 +1,33 @@
+name: iOS
+
+on:
+  pull_request:
+    paths:
+      - apps/ios/**
+      - packages/lexical-nodes/**
+      - packages/types/**
+      - bun.lock
+      - .github/workflows/ios.yml
+
+jobs:
+  lexical-swift:
+    runs-on: macos-latest
+    defaults:
+      run:
+        working-directory: apps/ios
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.0
+      - run: bun install --frozen-lockfile
+      - run: bun run test:ts
+      - run: bun run test
+        env:
+          FUZZ_STEPS: "20000"
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fuzz-fixtures
+          path: apps/ios/Tests/LexicalSwiftTests/Fixtures/fuzz-*.json
+          if-no-files-found: ignore

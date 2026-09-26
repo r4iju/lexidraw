@@ -32,6 +32,8 @@
       "**",
       "!**/.claude",
       "!**/.next",
+      "!**/.build",
+      "!apps/ios/Tests/**/Fixtures",
       "!**/dist",
       "!**/coverage",
       "!apps/lexidraw/public/scripts",
