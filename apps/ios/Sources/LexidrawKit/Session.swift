@@ -3,6 +3,8 @@ import Foundation
 /// What a signed-in app can do. Only an ``Account`` makes one, from a token it
 /// holds.
 public struct Session: Sendable {
+  /// Where the web is, for addresses that open a file in it.
+  let origin: URL
   let connection: Connection
   let store: any TokenStore
 

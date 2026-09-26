@@ -9,7 +9,8 @@ public protocol TokenStore: Sendable {
 }
 
 /// The token in the Keychain, readable once the device has been unlocked after
-/// a restart and never restored onto another device.
+/// a restart and never restored onto another device. Kept in an access group
+/// when one is named, so the share extension signs in with the app's token.
 public struct KeychainTokenStore: TokenStore {
   public struct Failure: LocalizedError {
     public let status: OSStatus
@@ -21,17 +22,21 @@ public struct KeychainTokenStore: TokenStore {
   }
 
   let service: String
+  let accessGroup: String?
 
-  public init(service: String) {
+  public init(service: String, accessGroup: String? = nil) {
     self.service = service
+    self.accessGroup = accessGroup
   }
 
   private var item: [String: Any] {
-    [
+    var item: [String: Any] = [
       kSecClass as String: kSecClassGenericPassword,
       kSecAttrService as String: service,
       kSecAttrAccount as String: "api-token",
     ]
+    if let accessGroup { item[kSecAttrAccessGroup as String] = accessGroup }
+    return item
   }
 
   public func load() throws -> String? {

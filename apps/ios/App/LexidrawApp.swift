@@ -33,11 +33,7 @@ final class AppModel {
   var notice: String?
 
   init() {
-    let server = Bundle.main.object(forInfoDictionaryKey: "LexidrawServerURL") as? String
-    account = Account(
-      origin: URL(string: server ?? "")!,
-      store: KeychainTokenStore(service: Bundle.main.bundleIdentifier!)
-    )
+    account = Account.configured()
     state = (try? account.restore()).flatMap { $0 }.map(State.signedIn) ?? .signedOut
   }
 }

@@ -9,6 +9,17 @@ packages:
 settings:
   base:
     SWIFT_VERSION: "6.0"
+    APP_BUNDLE_IDENTIFIER: xyz.raiju.lexidraw
+    DEVELOPMENT_TEAM: C7X9BCC7LP
+    CODE_SIGN_STYLE: Automatic
+    # The version people see; the build number is the CI run's. The App Store
+    # takes an extension only at its app's version and build.
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    LEXIDRAW_SERVER_URL: https://lexidraw.vercel.app
+    TARGETED_DEVICE_FAMILY: "1,2"
+    GENERATE_INFOPLIST_FILE: true
+    INFOPLIST_KEY_CFBundleDisplayName: Lexidraw
 targets:
   Lexidraw:
     type: application
@@ -18,21 +29,27 @@ targets:
     dependencies:
       - package: LexidrawIOS
         product: LexidrawKit
+      - target: ShareExtension
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: xyz.raiju.lexidraw
-        DEVELOPMENT_TEAM: C7X9BCC7LP
-        # The version people see; the build number is the CI run's.
-        MARKETING_VERSION: "0.1.0"
-        CURRENT_PROJECT_VERSION: "1"
-        LEXIDRAW_SERVER_URL: https://lexidraw.vercel.app
-        TARGETED_DEVICE_FAMILY: "1,2"
-        CODE_SIGN_STYLE: Automatic
+        PRODUCT_BUNDLE_IDENTIFIER: $(APP_BUNDLE_IDENTIFIER)
+        CODE_SIGN_ENTITLEMENTS: App/Lexidraw.entitlements
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
-        GENERATE_INFOPLIST_FILE: true
         INFOPLIST_FILE: App/Info.plist
-        INFOPLIST_KEY_CFBundleDisplayName: Lexidraw
         INFOPLIST_KEY_UILaunchScreen_Generation: true
         INFOPLIST_KEY_UIApplicationSceneManifest_Generation: true
         INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone: UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight
         INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad: UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight
+  ShareExtension:
+    type: app-extension
+    platform: iOS
+    sources:
+      - ShareExtension
+    dependencies:
+      - package: LexidrawIOS
+        product: LexidrawKit
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: $(APP_BUNDLE_IDENTIFIER).share
+        CODE_SIGN_ENTITLEMENTS: ShareExtension/ShareExtension.entitlements
+        INFOPLIST_FILE: ShareExtension/Info.plist

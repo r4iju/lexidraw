@@ -6,5 +6,9 @@
 	<false/>
 	<key>LexidrawServerURL</key>
 	<string>$(LEXIDRAW_SERVER_URL)</string>
+	<key>LexidrawKeychainService</key>
+	<string>$(APP_BUNDLE_IDENTIFIER)</string>
+	<key>LexidrawKeychainGroup</key>
+	<string>$(AppIdentifierPrefix)$(APP_BUNDLE_IDENTIFIER)</string>
 </dict>
 </plist>

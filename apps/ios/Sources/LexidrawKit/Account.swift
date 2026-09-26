@@ -34,6 +34,16 @@ public struct Account: Sendable {
     self.transport = transport
   }
 
+  /// The server and the Keychain item that `bundle`'s Info.plist names, so
+  /// the app and its share extension reach the same server as the same
+  /// account.
+  public static func configured(by bundle: Bundle = .main) -> Account {
+    let info = { (key: String) in bundle.object(forInfoDictionaryKey: key) as? String }
+    return Account(
+      origin: URL(string: info("LexidrawServerURL") ?? "")!,
+      store: KeychainTokenStore(service: info("LexidrawKeychainService")!, accessGroup: info("LexidrawKeychainGroup")))
+  }
+
   /// Signed in with the token kept from an earlier launch, if there is one.
   public func restore() throws -> Session? {
     try store.load().map(session(token:))
@@ -82,7 +92,7 @@ public struct Account: Sendable {
   }
 
   private func session(token: String) -> Session {
-    Session(connection: connection(token: token), store: store)
+    Session(origin: origin, connection: connection(token: token), store: store)
   }
 
   private func connection(token: String?) -> Connection {

@@ -216,6 +216,34 @@ async function writableOrNotFound(
   return entity;
 }
 
+/** The images a document shows, as an upload of one is signed or stored. */
+const IMAGE_CONTENT_TYPES = [
+  "image/svg+xml",
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/avif",
+] as const;
+
+/**
+ * The most image one request may carry. The deployment caps a request body at
+ * 4.5 MB, and base64 adds a third, so a larger image would be refused by the
+ * platform before this could say why.
+ */
+const MAX_IMAGE_UPLOAD_BYTES = 3_000_000;
+
+/** Where an upload of `contentType` into `entityId` lives, under a fresh id. */
+function uploadPathname(entityId: string, contentType: string) {
+  const extension = contentType.split("/")[1]?.replace(/\+.*$/, "");
+  if (!extension)
+    throw new TRPCError({
+      code: "INTERNAL_SERVER_ERROR",
+      message: "Invalid content type",
+    });
+  const randomId = uuidV4();
+  return { randomId, pathname: `${entityId}-${randomId}.${extension}` };
+}
+
 /**
  * The cookie `userId` keeps for the site `url` is on, which a fetch made on
  * their behalf carries. The caller's own, never the entity owner's: an editor
@@ -1455,13 +1483,7 @@ export const entityRouter = createTRPCRouter({
     .input(
       z.object({
         entityId: z.string(),
-        contentType: z.enum([
-          "image/svg+xml",
-          "image/jpeg",
-          "image/png",
-          "image/webp",
-          "image/avif",
-        ]),
+        contentType: z.enum(IMAGE_CONTENT_TYPES),
         mode: z.enum(["direct", "redirect"]), // kept for API shape
       }),
     )
@@ -1473,14 +1495,10 @@ export const entityRouter = createTRPCRouter({
       );
 
       /* --- generate client token ----------------------------------- */
-      const extension = input.contentType.split("/")[1]?.replace(/\+.*$/, "");
-      if (!extension)
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: "Invalid content type",
-        });
-      const randomId = uuidV4();
-      const pathname = `${input.entityId}-${randomId}.${extension}`;
+      const { randomId, pathname } = uploadPathname(
+        input.entityId,
+        input.contentType,
+      );
 
       const token = await generateClientTokenFromReadWriteToken({
         token: env.BLOB_READ_WRITE_TOKEN,
@@ -1513,6 +1531,60 @@ export const entityRouter = createTRPCRouter({
         token, // 🔑  to be used with `put(pathname, file, { token })`
         pathname, // where the blob will live
       };
+    }),
+
+  /**
+   * The web signs an upload and sends the file to the store itself; a REST
+   * client sends the image here instead, so it needs nothing but this API.
+   */
+  uploadImage: protectedProcedure
+    .meta({
+      openapi: {
+        method: "POST",
+        path: "/entities/{id}/uploads",
+        tags: ["entities"],
+        summary: "Store an image for an entity to show",
+        description: `Answers the image's public address, for markdown such as \`![](url)\`. An image over ${MAX_IMAGE_UPLOAD_BYTES / 1_000_000} MB is refused with 413.`,
+        protect: true,
+        errorResponses: [400, 401, 403, 404, 413, 500],
+      },
+    })
+    .input(
+      z.object({
+        id: z.string(),
+        contentType: z.enum(IMAGE_CONTENT_TYPES),
+        data: z.base64().describe("The image, base64-encoded"),
+      }),
+    )
+    .output(z.object({ url: z.url() }))
+    .mutation(async ({ input, ctx }) => {
+      await writableOrNotFound(ctx.drizzle, input.id, ctx.session.user.id);
+      const bytes = Buffer.from(input.data, "base64");
+      if (bytes.length > MAX_IMAGE_UPLOAD_BYTES) {
+        throw new TRPCError({
+          code: "PAYLOAD_TOO_LARGE",
+          message: `This image is ${Math.round(bytes.length / 100_000) / 10} MB, over the ${MAX_IMAGE_UPLOAD_BYTES / 1_000_000} MB a request can carry; send it smaller`,
+        });
+      }
+      const { randomId, pathname } = uploadPathname(
+        input.id,
+        input.contentType,
+      );
+      const blob = await put(pathname, bytes, {
+        access: "public",
+        contentType: input.contentType,
+        addRandomSuffix: false,
+      });
+      await ctx.drizzle.insert(ctx.schema.uploadedImages).values({
+        id: randomId,
+        userId: ctx.session.user.id,
+        entityId: input.id,
+        fileName: pathname,
+        signedDownloadUrl: blob.url,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+      return { url: blob.url };
     }),
 
   generateVideoUploadUrl: protectedProcedure
@@ -1665,7 +1737,19 @@ export const entityRouter = createTRPCRouter({
   /* URL DISTILLATION                                                */
   /* --------------------------------------------------------------- */
   distillUrl: protectedProcedure
+    .meta({
+      openapi: {
+        method: "POST",
+        path: "/entities/{id}/distill",
+        tags: ["entities"],
+        summary:
+          "Read a link's page into an article; a link still titled as new takes the page's title",
+        protect: true,
+        errorResponses: [400, 401, 403, 404, 500],
+      },
+    })
     .input(z.object({ id: z.string(), force: z.boolean().optional() }))
+    .output(entitySummary)
     .mutation(async ({ input, ctx }) => {
       // 1) Load entity and verify access
       const entity = await writableOrNotFound(
@@ -1838,7 +1922,12 @@ export const entityRouter = createTRPCRouter({
       }
 
       await revalidateEntitiesAndParents(ctx.drizzle, input.id);
-      return distilled;
+      const [read] = await ctx.drizzle
+        .select(summaryColumns)
+        .from(schema.entities)
+        .where(eq(schema.entities.id, input.id));
+      if (!read) throw notFound();
+      return read;
     }),
   regenerateThumbnail: protectedProcedure
     .input(z.object({ id: z.string() }))

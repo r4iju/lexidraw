@@ -115,6 +115,8 @@ describe("openApiDocument", () => {
     ["/entities/{id}", "delete", "entities"],
     ["/entities/{id}/metadata", "get", "entities"],
     ["/entities/{id}/restore", "post", "entities"],
+    ["/entities/{id}/distill", "post", "entities"],
+    ["/entities/{id}/uploads", "post", "entities"],
     ["/entities/{id}/tags", "get", "entities"],
     ["/entities/{id}/tags", "put", "entities"],
     ["/entities/{id}/shares", "get", "entities"],
@@ -160,20 +162,21 @@ describe("openApiDocument", () => {
     );
   });
 
-  // The file travels in the JSON body, so a render the body cannot carry is
+  // The file travels in the JSON body, so a file the body cannot carry is
   // a refusal the contract has to name; see drawings.ts.
-  it.each(["/drawings/{id}/render", "/documents/{id}/render"] as const)(
-    "declares a payload limit on %s",
-    (path) => {
-      expect(document.paths?.[path]?.get?.responses?.[413]).toMatchObject({
-        content: {
-          "application/json": {
-            schema: { $ref: "#/components/schemas/ErrorResponse" },
-          },
+  it.each([
+    ["/drawings/{id}/render", "get"],
+    ["/documents/{id}/render", "get"],
+    ["/entities/{id}/uploads", "post"],
+  ] as const)("declares a payload limit on %s %s", (path, method) => {
+    expect(document.paths?.[path]?.[method]?.responses?.[413]).toMatchObject({
+      content: {
+        "application/json": {
+          schema: { $ref: "#/components/schemas/ErrorResponse" },
         },
-      });
-    },
-  );
+      },
+    });
+  });
 
   // A markdown write lands among blocks the caller read, so each of them can
   // lose the race the precondition guards.

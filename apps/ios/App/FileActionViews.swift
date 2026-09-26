@@ -77,6 +77,9 @@ final class FileActions {
     }
   }
 
+  /// The address the web opens `entry` at.
+  func link(to entry: Entry) -> URL { session.link(to: entry) }
+
   /// The folders a file could move into, in `folder` or at the top of Home.
   func folders(in folder: Entry?) async throws -> [Entry] {
     try await session.folders(in: folder?.id)
@@ -144,6 +147,12 @@ private struct FileActionMenu: ViewModifier {
   func body(content: Content) -> some View {
     content
       .contextMenu {
+        // Anyone who can see a file may send its address; the web decides
+        // who it opens for.
+        ShareLink(item: actions.link(to: entry), subject: Text(entry.title)) {
+          Label("Share Link…", systemImage: "square.and.arrow.up")
+        }
+        Divider()
         if entry.access.may(.rename) {
           Button("Rename…", systemImage: "pencil") { actions.startRenaming(entry) }
         }
