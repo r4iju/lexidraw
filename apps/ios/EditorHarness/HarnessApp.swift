@@ -1,5 +1,6 @@
 import EditorModelInterface
 import Foundation
+import LexicalFuzz
 import LexicalReference
 import LexicalSwift
 import SwiftUI
@@ -10,6 +11,8 @@ import TextKitEditor
 /// (`EDITOR_MODEL`, an `EditorModelChoice`), the document (`EDITOR_DOCUMENT`,
 /// serialized editor state), where Save writes it (`EDITOR_SAVE_PATH`) and
 /// where Save also writes each call the keyboard made (`EDITOR_INPUT_LOG`).
+/// `EDITOR_SYNTHETIC` (`small` or `large`) opens a `SyntheticDocument`
+/// instead; with `EDITOR_SCROLL_REPORT` a `ScrollProbe` scrolls it through.
 /// It shows how many hardware key presses the editor passed on unhandled,
 /// for scripts that wait for the simulator to deliver one.
 @main
@@ -54,14 +57,32 @@ struct HarnessView: View {
 final class Harness {
   let model: any EditorModel
   let title: String
+  let scrollReport: URL?
+  var timing: Timing
   private(set) var inputs: [TextInputRecord] = []
   var hardwareKeys = 0
   private let saveURL: URL
   private let inputLogURL: URL?
 
-  private init(model: any EditorModel, title: String, saveURL: URL, inputLogURL: URL?) {
+  /// When opening the document got where, in `CACurrentMediaTime`.
+  struct Timing {
+    var document: String
+    var footprintAtOpen: Double
+    var opened: CFTimeInterval
+    var loaded: CFTimeInterval = 0
+    var viewMade: CFTimeInterval = 0
+    var viewInitialized: CFTimeInterval = 0
+    var firstScreen: CFTimeInterval?
+  }
+
+  private init(
+    model: any EditorModel, title: String, timing: Timing, scrollReport: URL?,
+    saveURL: URL, inputLogURL: URL?
+  ) {
     self.model = model
     self.title = title
+    self.timing = timing
+    self.scrollReport = scrollReport
     self.saveURL = saveURL
     self.inputLogURL = inputLogURL
   }
@@ -83,8 +104,21 @@ final class Harness {
       model = try ReferenceEditor(scriptURL: script)
       title = "Lexical (JS)"
     }
+    let synthetic: SyntheticDocument?
+    switch environment["EDITOR_SYNTHETIC"] {
+    case nil: synthetic = nil
+    case "small": synthetic = .small
+    case "large": synthetic = .large
+    case let other?: throw HarnessError("No synthetic document named \(other); small or large")
+    }
+    var timing = Timing(
+      document: synthetic.map { "\($0)" } ?? "given", footprintAtOpen: ScrollProbe.Memory.footprint(),
+      opened: CACurrentMediaTime())
     let document: Data
-    if let given = environment["EDITOR_DOCUMENT"] {
+    if let synthetic {
+      document = try JSONEncoder().encode(synthetic.state)
+      timing.opened = CACurrentMediaTime()
+    } else if let given = environment["EDITOR_DOCUMENT"] {
       document = Data(given.utf8)
     } else if let bundled = Bundle.main.url(forResource: "tracer", withExtension: "json") {
       document = try Data(contentsOf: bundled)
@@ -92,11 +126,14 @@ final class Harness {
       throw HarnessError("The app has no tracer.json to open")
     }
     try model.load(try JSONDecoder().decode(JSONValue.self, from: document))
+    timing.loaded = CACurrentMediaTime()
     let saveURL =
       environment["EDITOR_SAVE_PATH"].map { URL(fileURLWithPath: $0) }
       ?? URL.documentsDirectory.appending(path: "saved.json")
     return Harness(
-      model: model, title: title, saveURL: saveURL,
+      model: model, title: title, timing: timing,
+      scrollReport: environment["EDITOR_SCROLL_REPORT"].map { URL(filePath: $0, relativeTo: .documentsDirectory) },
+      saveURL: saveURL,
       inputLogURL: environment["EDITOR_INPUT_LOG"].map { URL(fileURLWithPath: $0) })
   }
 
@@ -119,13 +156,26 @@ struct EditorRepresentable: UIViewRepresentable {
   let harness: Harness
 
   func makeUIView(context: Context) -> KeyCountingView {
+    harness.timing.viewMade = CACurrentMediaTime()
     let editor = EditorView(model: harness.model)
+    harness.timing.viewInitialized = CACurrentMediaTime()
     editor.accessibilityIdentifier = "editor"
     editor.onInput = { [harness] in harness.record($0) }
+    if let report = harness.scrollReport {
+      let probe = ScrollProbe(view: editor, report: report, step: 60, timing: harness.timing)
+      context.coordinator.probe = probe
+      probe.start(waiting: ProcessInfo.processInfo.environment["EDITOR_SCROLL_WAIT"] != nil)
+    }
     return KeyCountingView(editor, harness: harness)
   }
 
   func updateUIView(_ view: KeyCountingView, context: Context) {}
+
+  func makeCoordinator() -> Coordinator { Coordinator() }
+
+  final class Coordinator {
+    var probe: ScrollProbe?
+  }
 }
 
 /// The editor, counting the hardware key presses it passes up the
