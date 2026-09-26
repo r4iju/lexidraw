@@ -20,7 +20,8 @@ targets:
         product: LexidrawKit
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: xyz.raiju-studios.lexidraw
+        PRODUCT_BUNDLE_IDENTIFIER: xyz.raiju.lexidraw
+        DEVELOPMENT_TEAM: C7X9BCC7LP
         # The version people see; the build number is the CI run's.
         MARKETING_VERSION: "0.1.0"
         CURRENT_PROJECT_VERSION: "1"
