@@ -185,3 +185,10 @@ hand:
 - The tools keep the bottom bar to themselves, and what acts on a selection
   joins the top bar, which on a phone folds what doesn't fit into More. The
   web's phone layout likewise keeps the tools in a bar of their own.
+- The editor lays out each block at the root on its own (`BlockLayout`),
+  not the whole document in one TextKit layout. TextKit has no tables on
+  iOS, so in one layout a table is an attachment, a single character, and
+  neither the caret nor a selection can go into its cells; laid out per
+  block, each cell's text is in the editor's text. Scrolling the 115k-word
+  synthetic document also took less work a frame and about half the peak
+  memory. The measurements and the gaps left are on #108.
