@@ -30,7 +30,7 @@ import Testing
   /// Typing keeps every earlier state, as undo does, so a copy of the whole
   /// document per update would show here as time growing with its size.
   @Test func anUpdateCostsTheSameInABigDocumentAsInASmallOne() throws {
-    func typingTime(nodes: Int) throws -> Duration {
+    func typingInto(nodes: Int) throws -> () throws -> Duration {
       let paragraphs = nodes / 5
       let editor = Editor()
       try editor.load(
@@ -43,23 +43,25 @@ import Testing
           }))
       try editor.apply(.caret(.text([paragraphs / 2, 2], 3)))
       var kept: [EditorState] = []
-      let clock = ContinuousClock()
-      var fastest: Duration?
-      for _ in 0..<5 {
-        let elapsed = try clock.measure {
+      return {
+        try ContinuousClock().measure {
           for _ in 0..<100 {
             try editor.apply(.insertText("a"))
             kept.append(editor.state)
           }
         }
-        fastest = min(fastest ?? elapsed, elapsed)
       }
-      #expect(kept.count == 500)
-      return fastest!
     }
 
-    let small = try typingTime(nodes: 1_000)
-    let big = try typingTime(nodes: 9_000)
+    let typeSmall = try typingInto(nodes: 1_000)
+    let typeBig = try typingInto(nodes: 9_000)
+    // Alternating the two puts a busy machine's slowdowns on both sides.
+    var small = try typeSmall()
+    var big = try typeBig()
+    for _ in 1..<5 {
+      small = min(small, try typeSmall())
+      big = min(big, try typeBig())
+    }
 
     #expect(big < small * 2, "1k nodes: \(small), 9k nodes: \(big)")
   }
