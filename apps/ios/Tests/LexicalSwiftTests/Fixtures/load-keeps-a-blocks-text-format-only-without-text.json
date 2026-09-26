@@ -1,0 +1,368 @@
+{
+  "changes" : [
+
+  ],
+  "commands" : [
+
+  ],
+  "expected" : {
+    "state" : {
+      "root" : {
+        "children" : [
+          {
+            "children" : [
+              {
+                "detail" : 0,
+                "format" : 0,
+                "mode" : "normal",
+                "style" : "",
+                "text" : "title",
+                "type" : "text",
+                "version" : 1
+              }
+            ],
+            "direction" : null,
+            "format" : "",
+            "indent" : 0,
+            "tag" : "h2",
+            "type" : "heading",
+            "version" : 1
+          },
+          {
+            "children" : [
+              {
+                "type" : "linebreak",
+                "version" : 1
+              }
+            ],
+            "direction" : null,
+            "format" : "",
+            "indent" : 0,
+            "tag" : "h3",
+            "textFormat" : 1,
+            "textStyle" : "font-family: Fredoka;",
+            "type" : "heading",
+            "version" : 1
+          },
+          {
+            "children" : [
+
+            ],
+            "direction" : null,
+            "format" : "",
+            "indent" : 0,
+            "tag" : "h1",
+            "textFormat" : 3,
+            "type" : "heading",
+            "version" : 1
+          },
+          {
+            "children" : [
+              {
+                "detail" : 0,
+                "format" : 0,
+                "mode" : "normal",
+                "style" : "",
+                "text" : "q",
+                "type" : "text",
+                "version" : 1
+              }
+            ],
+            "direction" : null,
+            "format" : "",
+            "indent" : 0,
+            "type" : "quote",
+            "version" : 1
+          },
+          {
+            "children" : [
+              {
+                "children" : [
+                  {
+                    "detail" : 0,
+                    "format" : 0,
+                    "mode" : "normal",
+                    "style" : "",
+                    "text" : "item",
+                    "type" : "text",
+                    "version" : 1
+                  }
+                ],
+                "direction" : null,
+                "format" : "",
+                "indent" : 0,
+                "type" : "listitem",
+                "value" : 1,
+                "version" : 1
+              },
+              {
+                "children" : [
+
+                ],
+                "direction" : null,
+                "format" : "",
+                "indent" : 0,
+                "textFormat" : 1,
+                "type" : "listitem",
+                "value" : 2,
+                "version" : 1
+              }
+            ],
+            "direction" : null,
+            "format" : "",
+            "indent" : 0,
+            "listType" : "bullet",
+            "start" : 1,
+            "tag" : "ul",
+            "textFormat" : 1,
+            "type" : "list",
+            "version" : 1
+          },
+          {
+            "children" : [
+              {
+                "children" : [
+                  {
+                    "backgroundColor" : null,
+                    "children" : [
+                      {
+                        "children" : [
+                          {
+                            "detail" : 0,
+                            "format" : 0,
+                            "mode" : "normal",
+                            "style" : "",
+                            "text" : "cell",
+                            "type" : "text",
+                            "version" : 1
+                          }
+                        ],
+                        "direction" : null,
+                        "format" : "",
+                        "indent" : 0,
+                        "textFormat" : 0,
+                        "textStyle" : "",
+                        "type" : "paragraph",
+                        "version" : 1
+                      }
+                    ],
+                    "colSpan" : 1,
+                    "direction" : null,
+                    "format" : "",
+                    "headerState" : 0,
+                    "indent" : 0,
+                    "rowSpan" : 1,
+                    "type" : "tablecell",
+                    "version" : 1
+                  }
+                ],
+                "direction" : null,
+                "format" : "",
+                "indent" : 0,
+                "type" : "tablerow",
+                "version" : 1
+              }
+            ],
+            "direction" : null,
+            "format" : "",
+            "indent" : 0,
+            "type" : "table",
+            "version" : 1
+          }
+        ],
+        "direction" : null,
+        "format" : "",
+        "indent" : 0,
+        "type" : "root",
+        "version" : 1
+      }
+    }
+  },
+  "start" : {
+    "root" : {
+      "children" : [
+        {
+          "children" : [
+            {
+              "detail" : 0,
+              "format" : 0,
+              "mode" : "normal",
+              "style" : "",
+              "text" : "title",
+              "type" : "text",
+              "version" : 1
+            }
+          ],
+          "direction" : null,
+          "format" : "",
+          "indent" : 0,
+          "tag" : "h2",
+          "textFormat" : 1,
+          "textStyle" : "font-family: Fredoka;",
+          "type" : "heading",
+          "version" : 1
+        },
+        {
+          "children" : [
+            {
+              "type" : "linebreak",
+              "version" : 1
+            }
+          ],
+          "direction" : null,
+          "format" : "",
+          "indent" : 0,
+          "tag" : "h3",
+          "textFormat" : 1,
+          "textStyle" : "font-family: Fredoka;",
+          "type" : "heading",
+          "version" : 1
+        },
+        {
+          "children" : [
+            {
+              "detail" : 0,
+              "format" : 0,
+              "mode" : "normal",
+              "style" : "",
+              "text" : "",
+              "type" : "text",
+              "version" : 1
+            }
+          ],
+          "direction" : null,
+          "format" : "",
+          "indent" : 0,
+          "tag" : "h1",
+          "textFormat" : 3,
+          "textStyle" : "",
+          "type" : "heading",
+          "version" : 1
+        },
+        {
+          "children" : [
+            {
+              "detail" : 0,
+              "format" : 0,
+              "mode" : "normal",
+              "style" : "",
+              "text" : "q",
+              "type" : "text",
+              "version" : 1
+            }
+          ],
+          "direction" : null,
+          "format" : "",
+          "indent" : 0,
+          "textStyle" : "color: red;",
+          "type" : "quote",
+          "version" : 1
+        },
+        {
+          "children" : [
+            {
+              "children" : [
+                {
+                  "detail" : 0,
+                  "format" : 0,
+                  "mode" : "normal",
+                  "style" : "",
+                  "text" : "item",
+                  "type" : "text",
+                  "version" : 1
+                }
+              ],
+              "direction" : null,
+              "format" : "",
+              "indent" : 0,
+              "textFormat" : 1,
+              "textStyle" : "font-size: 15px;",
+              "type" : "listitem",
+              "value" : 1,
+              "version" : 1
+            },
+            {
+              "children" : [
+
+              ],
+              "direction" : null,
+              "format" : "",
+              "indent" : 0,
+              "textFormat" : 1,
+              "type" : "listitem",
+              "value" : 2,
+              "version" : 1
+            }
+          ],
+          "direction" : null,
+          "format" : "",
+          "indent" : 0,
+          "listType" : "bullet",
+          "start" : 1,
+          "tag" : "ul",
+          "textFormat" : 1,
+          "type" : "list",
+          "version" : 1
+        },
+        {
+          "children" : [
+            {
+              "children" : [
+                {
+                  "backgroundColor" : null,
+                  "children" : [
+                    {
+                      "children" : [
+                        {
+                          "detail" : 0,
+                          "format" : 0,
+                          "mode" : "normal",
+                          "style" : "",
+                          "text" : "cell",
+                          "type" : "text",
+                          "version" : 1
+                        }
+                      ],
+                      "direction" : null,
+                      "format" : "",
+                      "indent" : 0,
+                      "textFormat" : 0,
+                      "textStyle" : "",
+                      "type" : "paragraph",
+                      "version" : 1
+                    }
+                  ],
+                  "colSpan" : 1,
+                  "direction" : null,
+                  "format" : "",
+                  "headerState" : 0,
+                  "indent" : 0,
+                  "rowSpan" : 1,
+                  "textFormat" : 1,
+                  "type" : "tablecell",
+                  "version" : 1
+                }
+              ],
+              "direction" : null,
+              "format" : "",
+              "indent" : 0,
+              "type" : "tablerow",
+              "version" : 1
+            }
+          ],
+          "direction" : null,
+          "format" : "",
+          "indent" : 0,
+          "textStyle" : "color: red;",
+          "type" : "table",
+          "version" : 1
+        }
+      ],
+      "direction" : null,
+      "format" : "",
+      "indent" : 0,
+      "type" : "root",
+      "version" : 1
+    }
+  }
+}

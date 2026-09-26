@@ -1,7 +1,10 @@
 import {
   $create,
   ArtificialNode__DO_NOT_USE,
+  $isDecoratorNode,
   $isElementNode,
+  $isLineBreakNode,
+  $isTextNode,
   type AnySerializationSchema,
   createEditor,
   getComposedSchemaFields,
@@ -20,7 +23,26 @@ export type NodeSchema = {
   nodes: NodeDescription[];
   /** Types whose JSON isn't declared yet, so no other side can type them. */
   undeclared: string[];
+  /** How each registered node, declared or not, sits in a document. */
+  traits: Record<string, NodeTraits>;
 };
+
+/**
+ * What Lexical's own normalization asks of a node, so another side can keep
+ * a document's shape without knowing the node's JSON.
+ */
+export type NodeTraits = {
+  kind: "element" | "text" | "linebreak" | "decorator";
+  /** Sits in a line of text, so it is wrapped in a paragraph at a root. */
+  inline: Trait;
+  /** Holds blocks the way the root does, as a table cell does. */
+  shadowRoot: Trait;
+  /** An element that stays when its last child goes. */
+  canBeEmpty: Trait;
+};
+
+/** A fixed answer, or the boolean property a node reads it from. */
+export type Trait = boolean | { field: string };
 
 export type NodeDescription = {
   type: string;
@@ -91,21 +113,98 @@ export function exportNodeSchema(nodes: Klass<LexicalNode>[]): NodeSchema {
   });
   const described: NodeDescription[] = [];
   const undeclared: string[] = [];
+  const traits: Record<string, NodeTraits> = {};
   for (const [type, { klass }] of editor._nodes) {
     // Lexical registers it in every editor, but it never reaches stored JSON.
     if (klass === ArtificialNode__DO_NOT_USE) continue;
-    if (getStaticNodeConfig(klass).declaresOwnConfig) {
-      editor.update(() => described.push(describe(type, klass)), {
-        discrete: true,
-      });
-    } else {
-      undeclared.push(type);
-    }
+    editor.update(
+      () => {
+        if (getStaticNodeConfig(klass).declaresOwnConfig) {
+          const description = describe(type, klass);
+          described.push(description);
+          traits[type] = describeTraits(klass, declaredBooleans(description));
+        } else {
+          undeclared.push(type);
+          traits[type] = describeTraits(klass, []);
+        }
+      },
+      { discrete: true },
+    );
   }
   return {
     nodes: described.sort((a, b) => byCodeUnits(a.type, b.type)),
     undeclared: undeclared.sort(byCodeUnits),
+    traits: Object.fromEntries(
+      Object.entries(traits).sort(([a], [b]) => byCodeUnits(a, b)),
+    ),
   };
+}
+
+function describeTraits(
+  klass: Klass<LexicalNode>,
+  declaredBooleans: string[],
+): NodeTraits {
+  const created = $create(klass);
+  const kind = $isElementNode(created)
+    ? "element"
+    : $isTextNode(created)
+      ? "text"
+      : $isLineBreakNode(created)
+        ? "linebreak"
+        : $isDecoratorNode(created)
+          ? "decorator"
+          : null;
+  if (!kind)
+    throw new Error(`${klass.getType()} is no kind of node Lexical has`);
+  const serialized = created.exportJSON();
+  const written: Record<string, unknown> = serialized;
+  const booleans = new Set([
+    ...declaredBooleans,
+    ...Object.keys(written).filter((key) => typeof written[key] === "boolean"),
+  ]);
+  // A trait a node reads off its own properties shows up as the one boolean
+  // property that turns it when flipped.
+  const trait = (name: string, read: (node: LexicalNode) => boolean): Trait => {
+    const fixed = read(created);
+    for (const key of [...booleans].sort(byCodeUnits)) {
+      const value = written[key] === true;
+      const flipped = klass.importJSON({ ...serialized, [key]: !value });
+      if (read(flipped) === fixed) continue;
+      if (fixed !== value) {
+        throw new Error(
+          `${klass.getType()}: ${name} follows "${key}" but isn't its value`,
+        );
+      }
+      return { field: key };
+    }
+    return fixed;
+  };
+  return {
+    kind,
+    inline: trait("isInline", (node) => node.isInline()),
+    shadowRoot: trait(
+      "isShadowRoot",
+      (node) => $isElementNode(node) && node.isShadowRoot(),
+    ),
+    canBeEmpty: trait(
+      "canBeEmpty",
+      (node) => $isElementNode(node) && node.canBeEmpty(),
+    ),
+  };
+}
+
+function declaredBooleans(description: NodeDescription): string[] {
+  const isBoolean = (type: FieldType): boolean =>
+    type.kind === "boolean" ||
+    ((type.kind === "optional" || type.kind === "nullable") &&
+      isBoolean(type.inner));
+  return [
+    ...Object.entries(description.fields).filter(([, type]) => isBoolean(type)),
+    ...Object.entries(description.state)
+      .filter(([, state]) => state.flat)
+      .map(([key, state]) => [key, state.value] as const)
+      .filter(([, type]) => isBoolean(type)),
+  ].map(([key]) => key);
 }
 
 function describe(type: string, klass: Klass<LexicalNode>): NodeDescription {
@@ -141,6 +240,17 @@ function describe(type: string, klass: Klass<LexicalNode>): NodeDescription {
     throw new Error(
       `${type} writes ${extra.join(", ")}, which its schema doesn't declare`,
     );
+  }
+  // Some nodes' exportJSON leaves a field out while it holds its default,
+  // which Lexical's schema says only of an `optional` with `omitDefault`.
+  for (const [key, field] of Object.entries(fields)) {
+    if (
+      written[key as keyof typeof written] === undefined &&
+      field.default !== undefined &&
+      field.kind !== "optional"
+    ) {
+      fields[key] = { kind: "optional", inner: field, omitDefault: true };
+    }
   }
   // Lexical's production build minifies class names.
   if (!/^[A-Z][A-Za-z0-9]*Node$/.test(klass.name)) {

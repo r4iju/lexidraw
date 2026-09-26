@@ -89,6 +89,79 @@ public enum SerializedNode: Equatable, Sendable {
     case .opaque(let json): json
     }
   }
+
+  public func resolved() -> SerializedNode {
+    switch self {
+    case .autoLink(let node): .autoLink(node.resolved())
+    case .codeHighlight(let node): .codeHighlight(node.resolved())
+    case .heading(let node): .heading(node.resolved())
+    case .horizontalRule(let node): .horizontalRule(node.resolved())
+    case .lineBreak(let node): .lineBreak(node.resolved())
+    case .link(let node): .link(node.resolved())
+    case .list(let node): .list(node.resolved())
+    case .listItem(let node): .listItem(node.resolved())
+    case .mark(let node): .mark(node.resolved())
+    case .paragraph(let node): .paragraph(node.resolved())
+    case .quote(let node): .quote(node.resolved())
+    case .root(let node): .root(node.resolved())
+    case .tab(let node): .tab(node.resolved())
+    case .table(let node): .table(node.resolved())
+    case .tableCell(let node): .tableCell(node.resolved())
+    case .tableRow(let node): .tableRow(node.resolved())
+    case .text(let node): .text(node.resolved())
+    case .opaque: self
+    }
+  }
+}
+
+extension NodeTraits {
+  /// Every registered node's, declared or not, by type.
+  public static let byType: [String: NodeTraits] = [
+    "article": NodeTraits(kind: .decorator, inline: .fixed(false), shadowRoot: .fixed(false), canBeEmpty: .fixed(false)),
+    "autocomplete": NodeTraits(kind: .text, inline: .fixed(true), shadowRoot: .fixed(false), canBeEmpty: .fixed(false)),
+    "autolink": NodeTraits(kind: .element, inline: .fixed(true), shadowRoot: .fixed(false), canBeEmpty: .fixed(false)),
+    "callout": NodeTraits(kind: .element, inline: .fixed(false), shadowRoot: .fixed(true), canBeEmpty: .fixed(false)),
+    "chart": NodeTraits(kind: .decorator, inline: .fixed(false), shadowRoot: .fixed(false), canBeEmpty: .fixed(false)),
+    "code": NodeTraits(kind: .element, inline: .fixed(false), shadowRoot: .fixed(false), canBeEmpty: .fixed(true)),
+    "code-highlight": NodeTraits(kind: .text, inline: .fixed(true), shadowRoot: .fixed(false), canBeEmpty: .fixed(false)),
+    "collapsible-container": NodeTraits(kind: .element, inline: .fixed(false), shadowRoot: .fixed(false), canBeEmpty: .fixed(true)),
+    "collapsible-content": NodeTraits(kind: .element, inline: .fixed(false), shadowRoot: .fixed(true), canBeEmpty: .fixed(true)),
+    "collapsible-title": NodeTraits(kind: .element, inline: .fixed(false), shadowRoot: .fixed(false), canBeEmpty: .fixed(true)),
+    "comment": NodeTraits(kind: .decorator, inline: .fixed(true), shadowRoot: .fixed(false), canBeEmpty: .fixed(false)),
+    "equation": NodeTraits(kind: .decorator, inline: .field("inline"), shadowRoot: .fixed(false), canBeEmpty: .fixed(false)),
+    "excalidraw": NodeTraits(kind: .decorator, inline: .fixed(true), shadowRoot: .fixed(false), canBeEmpty: .fixed(false)),
+    "figma": NodeTraits(kind: .decorator, inline: .fixed(false), shadowRoot: .fixed(false), canBeEmpty: .fixed(false)),
+    "footnote-definition": NodeTraits(kind: .element, inline: .fixed(false), shadowRoot: .fixed(false), canBeEmpty: .fixed(true)),
+    "footnote-reference": NodeTraits(kind: .decorator, inline: .fixed(true), shadowRoot: .fixed(false), canBeEmpty: .fixed(false)),
+    "heading": NodeTraits(kind: .element, inline: .fixed(false), shadowRoot: .fixed(false), canBeEmpty: .fixed(true)),
+    "horizontalrule": NodeTraits(kind: .decorator, inline: .fixed(false), shadowRoot: .fixed(false), canBeEmpty: .fixed(false)),
+    "image": NodeTraits(kind: .decorator, inline: .fixed(true), shadowRoot: .fixed(false), canBeEmpty: .fixed(false)),
+    "inline-image": NodeTraits(kind: .decorator, inline: .fixed(true), shadowRoot: .fixed(false), canBeEmpty: .fixed(false)),
+    "layout-container": NodeTraits(kind: .element, inline: .fixed(false), shadowRoot: .fixed(true), canBeEmpty: .fixed(false)),
+    "layout-item": NodeTraits(kind: .element, inline: .fixed(false), shadowRoot: .fixed(true), canBeEmpty: .fixed(true)),
+    "linebreak": NodeTraits(kind: .lineBreak, inline: .fixed(true), shadowRoot: .fixed(false), canBeEmpty: .fixed(false)),
+    "link": NodeTraits(kind: .element, inline: .fixed(true), shadowRoot: .fixed(false), canBeEmpty: .fixed(false)),
+    "list": NodeTraits(kind: .element, inline: .fixed(false), shadowRoot: .fixed(false), canBeEmpty: .fixed(false)),
+    "listitem": NodeTraits(kind: .element, inline: .fixed(false), shadowRoot: .fixed(false), canBeEmpty: .fixed(true)),
+    "mark": NodeTraits(kind: .element, inline: .fixed(true), shadowRoot: .fixed(false), canBeEmpty: .fixed(false)),
+    "mermaid": NodeTraits(kind: .decorator, inline: .fixed(false), shadowRoot: .fixed(false), canBeEmpty: .fixed(false)),
+    "page-break": NodeTraits(kind: .decorator, inline: .fixed(false), shadowRoot: .fixed(false), canBeEmpty: .fixed(false)),
+    "paragraph": NodeTraits(kind: .element, inline: .fixed(false), shadowRoot: .fixed(false), canBeEmpty: .fixed(true)),
+    "poll": NodeTraits(kind: .decorator, inline: .fixed(true), shadowRoot: .fixed(false), canBeEmpty: .fixed(false)),
+    "quote": NodeTraits(kind: .element, inline: .fixed(false), shadowRoot: .field("shadowRoot"), canBeEmpty: .fixed(true)),
+    "root": NodeTraits(kind: .element, inline: .fixed(false), shadowRoot: .fixed(false), canBeEmpty: .fixed(true)),
+    "slide-deck": NodeTraits(kind: .decorator, inline: .fixed(false), shadowRoot: .fixed(false), canBeEmpty: .fixed(false)),
+    "sticky": NodeTraits(kind: .decorator, inline: .fixed(true), shadowRoot: .fixed(false), canBeEmpty: .fixed(false)),
+    "tab": NodeTraits(kind: .text, inline: .fixed(true), shadowRoot: .fixed(false), canBeEmpty: .fixed(false)),
+    "table": NodeTraits(kind: .element, inline: .fixed(false), shadowRoot: .fixed(true), canBeEmpty: .fixed(false)),
+    "tablecell": NodeTraits(kind: .element, inline: .fixed(false), shadowRoot: .fixed(true), canBeEmpty: .fixed(false)),
+    "tablerow": NodeTraits(kind: .element, inline: .fixed(false), shadowRoot: .fixed(true), canBeEmpty: .fixed(false)),
+    "text": NodeTraits(kind: .text, inline: .fixed(true), shadowRoot: .fixed(false), canBeEmpty: .fixed(false)),
+    "thread": NodeTraits(kind: .decorator, inline: .fixed(true), shadowRoot: .fixed(false), canBeEmpty: .fixed(false)),
+    "tweet": NodeTraits(kind: .decorator, inline: .fixed(false), shadowRoot: .fixed(false), canBeEmpty: .fixed(false)),
+    "video": NodeTraits(kind: .decorator, inline: .fixed(false), shadowRoot: .fixed(false), canBeEmpty: .fixed(false)),
+    "youtube": NodeTraits(kind: .decorator, inline: .fixed(false), shadowRoot: .fixed(false), canBeEmpty: .fixed(false)),
+  ]
 }
 
 public enum Direction: String, CaseIterable, Sendable, JSONEnumeration {
@@ -143,6 +216,7 @@ public enum VerticalAlign: String, CaseIterable, Sendable, JSONEnumeration {
 
 public struct SerializedAutoLinkNode: ElementNodePayload {
   public static let type = "autolink"
+  public static let version = 1
   public var children: [SerializedNode]?
   public var direction: Nullable<Direction>
   public var format: ElementFormat?
@@ -188,6 +262,21 @@ public struct SerializedAutoLinkNode: ElementNodePayload {
     return fields.json
   }
 
+  public func resolved() -> Self {
+    var node = self
+    node.direction = Schema.direction.resolving(direction)
+    node.format = Schema.format.resolving(format)
+    node.indent = Schema.indent.resolving(indent)
+    node.isUnlinked = Schema.isUnlinked.resolving(isUnlinked)
+    node.rel = Schema.rel.resolving(rel)
+    node.target = Schema.target.resolving(target)
+    node.textFormat = Schema.textFormat.resolving(textFormat)
+    node.textStyle = Schema.textStyle.resolving(textStyle)
+    node.title = Schema.title.resolving(title)
+    node.url = Schema.url.resolving(url)
+    return node
+  }
+
   private enum Schema {
     static let direction: FieldSchema<Direction?> = .enumeration(default: Direction?.none)
     static let format: FieldSchema<ElementFormat> = .enumeration(default: ElementFormat.empty)
@@ -195,8 +284,8 @@ public struct SerializedAutoLinkNode: ElementNodePayload {
     static let isUnlinked: FieldSchema<Bool> = .boolean(default: false)
     static let rel: FieldSchema<String?> = .nullable(.string(default: ""), defaultAsNull: true)
     static let target: FieldSchema<String?> = .nullable(.string(default: ""), defaultAsNull: true)
-    static let textFormat: FieldSchema<Double> = .number(default: 0)
-    static let textStyle: FieldSchema<String> = .string(default: "")
+    static let textFormat: FieldSchema<Double> = .optional(.number(default: 0), omitDefault: true)
+    static let textStyle: FieldSchema<String> = .optional(.string(default: ""), omitDefault: true)
     static let title: FieldSchema<String?> = .nullable(.string(default: ""), defaultAsNull: true)
     static let url: FieldSchema<String> = .string(default: "")
   }
@@ -204,6 +293,7 @@ public struct SerializedAutoLinkNode: ElementNodePayload {
 
 public struct SerializedCodeHighlightNode: NodePayload {
   public static let type = "code-highlight"
+  public static let version = 1
   public var detail: Double?
   public var format: Double?
   public var highlightType: Nullable<String>
@@ -234,6 +324,17 @@ public struct SerializedCodeHighlightNode: NodePayload {
     return fields.json
   }
 
+  public func resolved() -> Self {
+    var node = self
+    node.detail = Schema.detail.resolving(detail)
+    node.format = Schema.format.resolving(format)
+    node.highlightType = Schema.highlightType.resolving(highlightType)
+    node.mode = Schema.mode.resolving(mode)
+    node.style = Schema.style.resolving(style)
+    node.text = Schema.text.resolving(text)
+    return node
+  }
+
   private enum Schema {
     static let detail: FieldSchema<Double> = .aliased(.number(default: 0), ["directionless": 1, "unmergeable": 2])
     static let format: FieldSchema<Double> = .aliased(.number(default: 0), ["bold": 1, "capitalize": 1024, "code": 16, "highlight": 128, "italic": 2, "lowercase": 256, "strikethrough": 4, "subscript": 32, "superscript": 64, "underline": 8, "uppercase": 512])
@@ -246,6 +347,7 @@ public struct SerializedCodeHighlightNode: NodePayload {
 
 public struct SerializedHeadingNode: ElementNodePayload {
   public static let type = "heading"
+  public static let version = 1
   public var children: [SerializedNode]?
   public var direction: Nullable<Direction>
   public var format: ElementFormat?
@@ -279,18 +381,30 @@ public struct SerializedHeadingNode: ElementNodePayload {
     return fields.json
   }
 
+  public func resolved() -> Self {
+    var node = self
+    node.direction = Schema.direction.resolving(direction)
+    node.format = Schema.format.resolving(format)
+    node.indent = Schema.indent.resolving(indent)
+    node.tag = Schema.tag.resolving(tag)
+    node.textFormat = Schema.textFormat.resolving(textFormat)
+    node.textStyle = Schema.textStyle.resolving(textStyle)
+    return node
+  }
+
   private enum Schema {
     static let direction: FieldSchema<Direction?> = .enumeration(default: Direction?.none)
     static let format: FieldSchema<ElementFormat> = .enumeration(default: ElementFormat.empty)
     static let indent: FieldSchema<Int> = .integer(default: 0, min: 0)
     static let tag: FieldSchema<HeadingTag> = .enumeration(default: HeadingTag.h1)
-    static let textFormat: FieldSchema<Double> = .number(default: 0)
-    static let textStyle: FieldSchema<String> = .string(default: "")
+    static let textFormat: FieldSchema<Double> = .optional(.number(default: 0), omitDefault: true)
+    static let textStyle: FieldSchema<String> = .optional(.string(default: ""), omitDefault: true)
   }
 }
 
 public struct SerializedHorizontalRuleNode: NodePayload {
   public static let type = "horizontalrule"
+  public static let version = 1
   public var unknownFields: [String: JSONValue]
 
   public init(json: JSONValue) throws {
@@ -301,11 +415,16 @@ public struct SerializedHorizontalRuleNode: NodePayload {
   public var json: JSONValue {
     var fields = NodeFields(writing: Self.type, over: unknownFields)
     return fields.json
+  }
+
+  public func resolved() -> Self {
+    self
   }
 }
 
 public struct SerializedLineBreakNode: NodePayload {
   public static let type = "linebreak"
+  public static let version = 1
   public var unknownFields: [String: JSONValue]
 
   public init(json: JSONValue) throws {
@@ -317,10 +436,15 @@ public struct SerializedLineBreakNode: NodePayload {
     var fields = NodeFields(writing: Self.type, over: unknownFields)
     return fields.json
   }
+
+  public func resolved() -> Self {
+    self
+  }
 }
 
 public struct SerializedLinkNode: ElementNodePayload {
   public static let type = "link"
+  public static let version = 1
   public var children: [SerializedNode]?
   public var direction: Nullable<Direction>
   public var format: ElementFormat?
@@ -363,14 +487,28 @@ public struct SerializedLinkNode: ElementNodePayload {
     return fields.json
   }
 
+  public func resolved() -> Self {
+    var node = self
+    node.direction = Schema.direction.resolving(direction)
+    node.format = Schema.format.resolving(format)
+    node.indent = Schema.indent.resolving(indent)
+    node.rel = Schema.rel.resolving(rel)
+    node.target = Schema.target.resolving(target)
+    node.textFormat = Schema.textFormat.resolving(textFormat)
+    node.textStyle = Schema.textStyle.resolving(textStyle)
+    node.title = Schema.title.resolving(title)
+    node.url = Schema.url.resolving(url)
+    return node
+  }
+
   private enum Schema {
     static let direction: FieldSchema<Direction?> = .enumeration(default: Direction?.none)
     static let format: FieldSchema<ElementFormat> = .enumeration(default: ElementFormat.empty)
     static let indent: FieldSchema<Int> = .integer(default: 0, min: 0)
     static let rel: FieldSchema<String?> = .nullable(.string(default: ""), defaultAsNull: true)
     static let target: FieldSchema<String?> = .nullable(.string(default: ""), defaultAsNull: true)
-    static let textFormat: FieldSchema<Double> = .number(default: 0)
-    static let textStyle: FieldSchema<String> = .string(default: "")
+    static let textFormat: FieldSchema<Double> = .optional(.number(default: 0), omitDefault: true)
+    static let textStyle: FieldSchema<String> = .optional(.string(default: ""), omitDefault: true)
     static let title: FieldSchema<String?> = .nullable(.string(default: ""), defaultAsNull: true)
     static let url: FieldSchema<String> = .string(default: "")
   }
@@ -378,6 +516,7 @@ public struct SerializedLinkNode: ElementNodePayload {
 
 public struct SerializedListNode: ElementNodePayload {
   public static let type = "list"
+  public static let version = 1
   public var children: [SerializedNode]?
   public var direction: Nullable<Direction>
   public var format: ElementFormat?
@@ -417,6 +556,19 @@ public struct SerializedListNode: ElementNodePayload {
     return fields.json
   }
 
+  public func resolved() -> Self {
+    var node = self
+    node.direction = Schema.direction.resolving(direction)
+    node.format = Schema.format.resolving(format)
+    node.indent = Schema.indent.resolving(indent)
+    node.listType = Schema.listType.resolving(listType)
+    node.start = Schema.start.resolving(start)
+    node.tag = Schema.tag.resolving(tag)
+    node.textFormat = Schema.textFormat.resolving(textFormat)
+    node.textStyle = Schema.textStyle.resolving(textStyle)
+    return node
+  }
+
   private enum Schema {
     static let direction: FieldSchema<Direction?> = .enumeration(default: Direction?.none)
     static let format: FieldSchema<ElementFormat> = .enumeration(default: ElementFormat.empty)
@@ -424,13 +576,14 @@ public struct SerializedListNode: ElementNodePayload {
     static let listType: FieldSchema<ListType> = .aliased(.enumeration(default: ListType.number), ["ol": ListType.number, "ul": ListType.bullet])
     static let start: FieldSchema<Double> = .number(default: 1)
     static let tag: FieldSchema<ListTag> = .enumeration(default: ListTag.ul)
-    static let textFormat: FieldSchema<Double> = .number(default: 0)
-    static let textStyle: FieldSchema<String> = .string(default: "")
+    static let textFormat: FieldSchema<Double> = .optional(.number(default: 0), omitDefault: true)
+    static let textStyle: FieldSchema<String> = .optional(.string(default: ""), omitDefault: true)
   }
 }
 
 public struct SerializedListItemNode: ElementNodePayload {
   public static let type = "listitem"
+  public static let version = 1
   public var children: [SerializedNode]?
   public var checked: Bool?
   public var direction: Nullable<Direction>
@@ -467,19 +620,32 @@ public struct SerializedListItemNode: ElementNodePayload {
     return fields.json
   }
 
+  public func resolved() -> Self {
+    var node = self
+    node.checked = Schema.checked.resolving(checked)
+    node.direction = Schema.direction.resolving(direction)
+    node.format = Schema.format.resolving(format)
+    node.indent = Schema.indent.resolving(indent)
+    node.textFormat = Schema.textFormat.resolving(textFormat)
+    node.textStyle = Schema.textStyle.resolving(textStyle)
+    node.value = Schema.value.resolving(value)
+    return node
+  }
+
   private enum Schema {
     static let checked: FieldSchema<Bool> = .optional(.boolean(default: false))
     static let direction: FieldSchema<Direction?> = .enumeration(default: Direction?.none)
     static let format: FieldSchema<ElementFormat> = .enumeration(default: ElementFormat.empty)
     static let indent: FieldSchema<Int> = .integer(default: 0, min: 0, max: 128, clamp: true)
-    static let textFormat: FieldSchema<Double> = .number(default: 0)
-    static let textStyle: FieldSchema<String> = .string(default: "")
+    static let textFormat: FieldSchema<Double> = .optional(.number(default: 0), omitDefault: true)
+    static let textStyle: FieldSchema<String> = .optional(.string(default: ""), omitDefault: true)
     static let value: FieldSchema<Double> = .number(default: 1)
   }
 }
 
 public struct SerializedMarkNode: ElementNodePayload {
   public static let type = "mark"
+  public static let version = 1
   public var children: [SerializedNode]?
   public var direction: Nullable<Direction>
   public var format: ElementFormat?
@@ -513,18 +679,30 @@ public struct SerializedMarkNode: ElementNodePayload {
     return fields.json
   }
 
+  public func resolved() -> Self {
+    var node = self
+    node.direction = Schema.direction.resolving(direction)
+    node.format = Schema.format.resolving(format)
+    node.ids = Schema.ids.resolving(ids)
+    node.indent = Schema.indent.resolving(indent)
+    node.textFormat = Schema.textFormat.resolving(textFormat)
+    node.textStyle = Schema.textStyle.resolving(textStyle)
+    return node
+  }
+
   private enum Schema {
     static let direction: FieldSchema<Direction?> = .enumeration(default: Direction?.none)
     static let format: FieldSchema<ElementFormat> = .enumeration(default: ElementFormat.empty)
     static let ids: FieldSchema<[String]> = .array(.string(default: ""))
     static let indent: FieldSchema<Int> = .integer(default: 0, min: 0)
-    static let textFormat: FieldSchema<Double> = .number(default: 0)
-    static let textStyle: FieldSchema<String> = .string(default: "")
+    static let textFormat: FieldSchema<Double> = .optional(.number(default: 0), omitDefault: true)
+    static let textStyle: FieldSchema<String> = .optional(.string(default: ""), omitDefault: true)
   }
 }
 
 public struct SerializedParagraphNode: ElementNodePayload {
   public static let type = "paragraph"
+  public static let version = 1
   public var children: [SerializedNode]?
   public var direction: Nullable<Direction>
   public var format: ElementFormat?
@@ -555,6 +733,16 @@ public struct SerializedParagraphNode: ElementNodePayload {
     return fields.json
   }
 
+  public func resolved() -> Self {
+    var node = self
+    node.direction = Schema.direction.resolving(direction)
+    node.format = Schema.format.resolving(format)
+    node.indent = Schema.indent.resolving(indent)
+    node.textFormat = Schema.textFormat.resolving(textFormat)
+    node.textStyle = Schema.textStyle.resolving(textStyle)
+    return node
+  }
+
   private enum Schema {
     static let direction: FieldSchema<Direction?> = .enumeration(default: Direction?.none)
     static let format: FieldSchema<ElementFormat> = .enumeration(default: ElementFormat.empty)
@@ -566,6 +754,7 @@ public struct SerializedParagraphNode: ElementNodePayload {
 
 public struct SerializedQuoteNode: ElementNodePayload {
   public static let type = "quote"
+  public static let version = 1
   public var children: [SerializedNode]?
   public var direction: Nullable<Direction>
   public var format: ElementFormat?
@@ -599,18 +788,30 @@ public struct SerializedQuoteNode: ElementNodePayload {
     return fields.json
   }
 
+  public func resolved() -> Self {
+    var node = self
+    node.direction = Schema.direction.resolving(direction)
+    node.format = Schema.format.resolving(format)
+    node.indent = Schema.indent.resolving(indent)
+    node.shadowRoot = Schema.shadowRoot.omittingDefault(shadowRoot)
+    node.textFormat = Schema.textFormat.resolving(textFormat)
+    node.textStyle = Schema.textStyle.resolving(textStyle)
+    return node
+  }
+
   private enum Schema {
     static let direction: FieldSchema<Direction?> = .enumeration(default: Direction?.none)
     static let format: FieldSchema<ElementFormat> = .enumeration(default: ElementFormat.empty)
     static let indent: FieldSchema<Int> = .integer(default: 0, min: 0)
     static let shadowRoot: FieldSchema<Bool> = .boolean(default: false)
-    static let textFormat: FieldSchema<Double> = .number(default: 0)
-    static let textStyle: FieldSchema<String> = .string(default: "")
+    static let textFormat: FieldSchema<Double> = .optional(.number(default: 0), omitDefault: true)
+    static let textStyle: FieldSchema<String> = .optional(.string(default: ""), omitDefault: true)
   }
 }
 
 public struct SerializedRootNode: ElementNodePayload {
   public static let type = "root"
+  public static let version = 1
   public var children: [SerializedNode]?
   public var direction: Nullable<Direction>
   public var format: ElementFormat?
@@ -641,17 +842,28 @@ public struct SerializedRootNode: ElementNodePayload {
     return fields.json
   }
 
+  public func resolved() -> Self {
+    var node = self
+    node.direction = Schema.direction.resolving(direction)
+    node.format = Schema.format.resolving(format)
+    node.indent = Schema.indent.resolving(indent)
+    node.textFormat = Schema.textFormat.resolving(textFormat)
+    node.textStyle = Schema.textStyle.resolving(textStyle)
+    return node
+  }
+
   private enum Schema {
     static let direction: FieldSchema<Direction?> = .enumeration(default: Direction?.none)
     static let format: FieldSchema<ElementFormat> = .enumeration(default: ElementFormat.empty)
     static let indent: FieldSchema<Int> = .integer(default: 0, min: 0)
-    static let textFormat: FieldSchema<Double> = .number(default: 0)
-    static let textStyle: FieldSchema<String> = .string(default: "")
+    static let textFormat: FieldSchema<Double> = .optional(.number(default: 0), omitDefault: true)
+    static let textStyle: FieldSchema<String> = .optional(.string(default: ""), omitDefault: true)
   }
 }
 
 public struct SerializedTabNode: NodePayload {
   public static let type = "tab"
+  public static let version = 1
   public var detail: Double?
   public var format: Double?
   public var mode: TabMode?
@@ -679,6 +891,16 @@ public struct SerializedTabNode: NodePayload {
     return fields.json
   }
 
+  public func resolved() -> Self {
+    var node = self
+    node.detail = Schema.detail.resolving(detail)
+    node.format = Schema.format.resolving(format)
+    node.mode = Schema.mode.resolving(mode)
+    node.style = Schema.style.resolving(style)
+    node.text = Schema.text.resolving(text)
+    return node
+  }
+
   private enum Schema {
     static let detail: FieldSchema<Double> = .number(default: 2)
     static let format: FieldSchema<Double> = .aliased(.number(default: 0), ["bold": 1, "capitalize": 1024, "code": 16, "highlight": 128, "italic": 2, "lowercase": 256, "strikethrough": 4, "subscript": 32, "superscript": 64, "underline": 8, "uppercase": 512])
@@ -690,6 +912,7 @@ public struct SerializedTabNode: NodePayload {
 
 public struct SerializedTableNode: ElementNodePayload {
   public static let type = "table"
+  public static let version = 1
   public var children: [SerializedNode]?
   public var colWidths: [Double]?
   public var direction: Nullable<Direction>
@@ -732,21 +955,36 @@ public struct SerializedTableNode: ElementNodePayload {
     return fields.json
   }
 
+  public func resolved() -> Self {
+    var node = self
+    node.colWidths = Schema.colWidths.resolving(colWidths)
+    node.direction = Schema.direction.resolving(direction)
+    node.format = Schema.format.resolving(format)
+    node.frozenColumnCount = Schema.frozenColumnCount.resolving(frozenColumnCount)
+    node.frozenRowCount = Schema.frozenRowCount.resolving(frozenRowCount)
+    node.indent = Schema.indent.resolving(indent)
+    node.rowStriping = Schema.rowStriping.resolving(rowStriping)
+    node.textFormat = Schema.textFormat.resolving(textFormat)
+    node.textStyle = Schema.textStyle.resolving(textStyle)
+    return node
+  }
+
   private enum Schema {
     static let colWidths: FieldSchema<[Double]> = .optional(.array(.number(default: 0)))
     static let direction: FieldSchema<Direction?> = .enumeration(default: Direction?.none)
     static let format: FieldSchema<ElementFormat> = .enumeration(default: ElementFormat.empty)
-    static let frozenColumnCount: FieldSchema<Double> = .number(default: 0)
-    static let frozenRowCount: FieldSchema<Double> = .number(default: 0)
+    static let frozenColumnCount: FieldSchema<Double> = .optional(.number(default: 0), omitDefault: true)
+    static let frozenRowCount: FieldSchema<Double> = .optional(.number(default: 0), omitDefault: true)
     static let indent: FieldSchema<Int> = .integer(default: 0, min: 0)
-    static let rowStriping: FieldSchema<Bool> = .boolean(default: false)
-    static let textFormat: FieldSchema<Double> = .number(default: 0)
-    static let textStyle: FieldSchema<String> = .string(default: "")
+    static let rowStriping: FieldSchema<Bool> = .optional(.boolean(default: false), omitDefault: true)
+    static let textFormat: FieldSchema<Double> = .optional(.number(default: 0), omitDefault: true)
+    static let textStyle: FieldSchema<String> = .optional(.string(default: ""), omitDefault: true)
   }
 }
 
 public struct SerializedTableCellNode: ElementNodePayload {
   public static let type = "tablecell"
+  public static let version = 1
   public var children: [SerializedNode]?
   public var backgroundColor: Nullable<String>
   public var colSpan: Int?
@@ -795,6 +1033,22 @@ public struct SerializedTableCellNode: ElementNodePayload {
     return fields.json
   }
 
+  public func resolved() -> Self {
+    var node = self
+    node.backgroundColor = Schema.backgroundColor.resolving(backgroundColor)
+    node.colSpan = Schema.colSpan.resolving(colSpan)
+    node.direction = Schema.direction.resolving(direction)
+    node.format = Schema.format.resolving(format)
+    node.headerState = Schema.headerState.resolving(headerState)
+    node.indent = Schema.indent.resolving(indent)
+    node.rowSpan = Schema.rowSpan.resolving(rowSpan)
+    node.textFormat = Schema.textFormat.resolving(textFormat)
+    node.textStyle = Schema.textStyle.resolving(textStyle)
+    node.verticalAlign = Schema.verticalAlign.resolving(verticalAlign)
+    node.width = Schema.width.resolving(width)
+    return node
+  }
+
   private enum Schema {
     static let backgroundColor: FieldSchema<String?> = .nullable(.string(default: ""), defaultAsNull: true)
     static let colSpan: FieldSchema<Int> = .integer(default: 1, min: 1)
@@ -803,8 +1057,8 @@ public struct SerializedTableCellNode: ElementNodePayload {
     static let headerState: FieldSchema<Double> = .number(default: 0)
     static let indent: FieldSchema<Int> = .integer(default: 0, min: 0)
     static let rowSpan: FieldSchema<Int> = .integer(default: 1, min: 1)
-    static let textFormat: FieldSchema<Double> = .number(default: 0)
-    static let textStyle: FieldSchema<String> = .string(default: "")
+    static let textFormat: FieldSchema<Double> = .optional(.number(default: 0), omitDefault: true)
+    static let textStyle: FieldSchema<String> = .optional(.string(default: ""), omitDefault: true)
     static let verticalAlign: FieldSchema<VerticalAlign> = .enumeration(default: nil)
     static let width: FieldSchema<Double> = .optional(.number(default: 0), omitDefault: true)
   }
@@ -812,6 +1066,7 @@ public struct SerializedTableCellNode: ElementNodePayload {
 
 public struct SerializedTableRowNode: ElementNodePayload {
   public static let type = "tablerow"
+  public static let version = 1
   public var children: [SerializedNode]?
   public var direction: Nullable<Direction>
   public var format: ElementFormat?
@@ -845,18 +1100,30 @@ public struct SerializedTableRowNode: ElementNodePayload {
     return fields.json
   }
 
+  public func resolved() -> Self {
+    var node = self
+    node.direction = Schema.direction.resolving(direction)
+    node.format = Schema.format.resolving(format)
+    node.height = Schema.height.resolving(height)
+    node.indent = Schema.indent.resolving(indent)
+    node.textFormat = Schema.textFormat.resolving(textFormat)
+    node.textStyle = Schema.textStyle.resolving(textStyle)
+    return node
+  }
+
   private enum Schema {
     static let direction: FieldSchema<Direction?> = .enumeration(default: Direction?.none)
     static let format: FieldSchema<ElementFormat> = .enumeration(default: ElementFormat.empty)
     static let height: FieldSchema<Double> = .optional(.number(default: 0))
     static let indent: FieldSchema<Int> = .integer(default: 0, min: 0)
-    static let textFormat: FieldSchema<Double> = .number(default: 0)
-    static let textStyle: FieldSchema<String> = .string(default: "")
+    static let textFormat: FieldSchema<Double> = .optional(.number(default: 0), omitDefault: true)
+    static let textStyle: FieldSchema<String> = .optional(.string(default: ""), omitDefault: true)
   }
 }
 
 public struct SerializedTextNode: NodePayload {
   public static let type = "text"
+  public static let version = 1
   public var detail: Double?
   public var format: Double?
   public var mode: TextMode?
@@ -882,6 +1149,16 @@ public struct SerializedTextNode: NodePayload {
     fields.put("style", style, Schema.style)
     fields.put("text", text, Schema.text)
     return fields.json
+  }
+
+  public func resolved() -> Self {
+    var node = self
+    node.detail = Schema.detail.resolving(detail)
+    node.format = Schema.format.resolving(format)
+    node.mode = Schema.mode.resolving(mode)
+    node.style = Schema.style.resolving(style)
+    node.text = Schema.text.resolving(text)
+    return node
   }
 
   private enum Schema {

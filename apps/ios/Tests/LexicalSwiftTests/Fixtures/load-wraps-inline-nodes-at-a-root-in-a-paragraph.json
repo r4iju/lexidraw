@@ -1,0 +1,434 @@
+{
+  "changes" : [
+
+  ],
+  "commands" : [
+
+  ],
+  "expected" : {
+    "state" : {
+      "root" : {
+        "children" : [
+          {
+            "children" : [
+              {
+                "altText" : "a square",
+                "caption" : {
+                  "editorState" : {
+                    "root" : {
+                      "children" : [
+
+                      ],
+                      "direction" : null,
+                      "format" : "",
+                      "indent" : 0,
+                      "type" : "root",
+                      "version" : 1
+                    }
+                  }
+                },
+                "height" : 0,
+                "maxWidth" : 500,
+                "showCaption" : false,
+                "src" : "data:image/gif;base64,R0lGODlhAQABAAAAACw=",
+                "type" : "image",
+                "version" : 1,
+                "width" : 0
+              },
+              {
+                "altText" : "a square",
+                "caption" : {
+                  "editorState" : {
+                    "root" : {
+                      "children" : [
+
+                      ],
+                      "direction" : null,
+                      "format" : "",
+                      "indent" : 0,
+                      "type" : "root",
+                      "version" : 1
+                    }
+                  }
+                },
+                "height" : 0,
+                "maxWidth" : 500,
+                "showCaption" : false,
+                "src" : "data:image/gif;base64,R0lGODlhAQABAAAAACw=",
+                "type" : "image",
+                "version" : 1,
+                "width" : 0
+              }
+            ],
+            "direction" : null,
+            "format" : "",
+            "indent" : 0,
+            "textFormat" : 0,
+            "textStyle" : "",
+            "type" : "paragraph",
+            "version" : 1
+          },
+          {
+            "type" : "horizontalrule",
+            "version" : 1
+          },
+          {
+            "children" : [
+              {
+                "children" : [
+                  {
+                    "backgroundColor" : null,
+                    "children" : [
+                      {
+                        "children" : [
+                          {
+                            "detail" : 0,
+                            "format" : 0,
+                            "mode" : "normal",
+                            "style" : "",
+                            "text" : "bare",
+                            "type" : "text",
+                            "version" : 1
+                          },
+                          {
+                            "type" : "linebreak",
+                            "version" : 1
+                          }
+                        ],
+                        "direction" : null,
+                        "format" : "",
+                        "indent" : 0,
+                        "textFormat" : 0,
+                        "textStyle" : "",
+                        "type" : "paragraph",
+                        "version" : 1
+                      }
+                    ],
+                    "colSpan" : 1,
+                    "direction" : null,
+                    "format" : "",
+                    "headerState" : 0,
+                    "indent" : 0,
+                    "rowSpan" : 1,
+                    "type" : "tablecell",
+                    "version" : 1
+                  }
+                ],
+                "direction" : null,
+                "format" : "",
+                "indent" : 0,
+                "type" : "tablerow",
+                "version" : 1
+              }
+            ],
+            "direction" : null,
+            "format" : "",
+            "indent" : 0,
+            "type" : "table",
+            "version" : 1
+          },
+          {
+            "children" : [
+              {
+                "children" : [
+                  {
+                    "detail" : 0,
+                    "format" : 0,
+                    "mode" : "normal",
+                    "style" : "",
+                    "text" : "in a shadow-root quote",
+                    "type" : "text",
+                    "version" : 1
+                  }
+                ],
+                "direction" : null,
+                "format" : "",
+                "indent" : 0,
+                "textFormat" : 0,
+                "textStyle" : "",
+                "type" : "paragraph",
+                "version" : 1
+              }
+            ],
+            "direction" : null,
+            "format" : "",
+            "indent" : 0,
+            "shadowRoot" : true,
+            "type" : "quote",
+            "version" : 1
+          },
+          {
+            "children" : [
+              {
+                "detail" : 0,
+                "format" : 0,
+                "mode" : "normal",
+                "style" : "",
+                "text" : "in a plain quote",
+                "type" : "text",
+                "version" : 1
+              }
+            ],
+            "direction" : null,
+            "format" : "",
+            "indent" : 0,
+            "type" : "quote",
+            "version" : 1
+          },
+          {
+            "children" : [
+              {
+                "children" : [
+                  {
+                    "detail" : 0,
+                    "format" : 0,
+                    "mode" : "normal",
+                    "style" : "",
+                    "text" : "title",
+                    "type" : "text",
+                    "version" : 1
+                  }
+                ],
+                "direction" : null,
+                "format" : "",
+                "indent" : 0,
+                "type" : "collapsible-title",
+                "version" : 1
+              },
+              {
+                "children" : [
+                  {
+                    "children" : [
+                      {
+                        "detail" : 0,
+                        "format" : 0,
+                        "mode" : "normal",
+                        "style" : "",
+                        "text" : "content",
+                        "type" : "text",
+                        "version" : 1
+                      }
+                    ],
+                    "direction" : null,
+                    "format" : "",
+                    "indent" : 0,
+                    "textFormat" : 0,
+                    "textStyle" : "",
+                    "type" : "paragraph",
+                    "version" : 1
+                  }
+                ],
+                "direction" : null,
+                "format" : "",
+                "indent" : 0,
+                "type" : "collapsible-content",
+                "version" : 1
+              }
+            ],
+            "direction" : null,
+            "format" : "",
+            "indent" : 0,
+            "open" : true,
+            "type" : "collapsible-container",
+            "version" : 1
+          }
+        ],
+        "direction" : null,
+        "format" : "",
+        "indent" : 0,
+        "type" : "root",
+        "version" : 1
+      }
+    }
+  },
+  "start" : {
+    "root" : {
+      "children" : [
+        {
+          "altText" : "a square",
+          "caption" : {
+            "editorState" : {
+              "root" : {
+                "children" : [
+
+                ],
+                "direction" : null,
+                "format" : "",
+                "indent" : 0,
+                "type" : "root",
+                "version" : 1
+              }
+            }
+          },
+          "height" : 0,
+          "maxWidth" : 500,
+          "showCaption" : false,
+          "src" : "data:image/gif;base64,R0lGODlhAQABAAAAACw=",
+          "type" : "image",
+          "version" : 1,
+          "width" : 0
+        },
+        {
+          "altText" : "a square",
+          "caption" : {
+            "editorState" : {
+              "root" : {
+                "children" : [
+
+                ],
+                "direction" : null,
+                "format" : "",
+                "indent" : 0,
+                "type" : "root",
+                "version" : 1
+              }
+            }
+          },
+          "height" : 0,
+          "maxWidth" : 500,
+          "showCaption" : false,
+          "src" : "data:image/gif;base64,R0lGODlhAQABAAAAACw=",
+          "type" : "image",
+          "version" : 1,
+          "width" : 0
+        },
+        {
+          "type" : "horizontalrule",
+          "version" : 1
+        },
+        {
+          "children" : [
+            {
+              "children" : [
+                {
+                  "backgroundColor" : null,
+                  "children" : [
+                    {
+                      "detail" : 0,
+                      "format" : 0,
+                      "mode" : "normal",
+                      "style" : "",
+                      "text" : "bare",
+                      "type" : "text",
+                      "version" : 1
+                    },
+                    {
+                      "type" : "linebreak",
+                      "version" : 1
+                    }
+                  ],
+                  "colSpan" : 1,
+                  "direction" : null,
+                  "format" : "",
+                  "headerState" : 0,
+                  "indent" : 0,
+                  "rowSpan" : 1,
+                  "type" : "tablecell",
+                  "version" : 1
+                }
+              ],
+              "direction" : null,
+              "format" : "",
+              "indent" : 0,
+              "type" : "tablerow",
+              "version" : 1
+            }
+          ],
+          "direction" : null,
+          "format" : "",
+          "indent" : 0,
+          "type" : "table",
+          "version" : 1
+        },
+        {
+          "children" : [
+            {
+              "detail" : 0,
+              "format" : 0,
+              "mode" : "normal",
+              "style" : "",
+              "text" : "in a shadow-root quote",
+              "type" : "text",
+              "version" : 1
+            }
+          ],
+          "direction" : null,
+          "format" : "",
+          "indent" : 0,
+          "shadowRoot" : true,
+          "type" : "quote",
+          "version" : 1
+        },
+        {
+          "children" : [
+            {
+              "detail" : 0,
+              "format" : 0,
+              "mode" : "normal",
+              "style" : "",
+              "text" : "in a plain quote",
+              "type" : "text",
+              "version" : 1
+            }
+          ],
+          "direction" : null,
+          "format" : "",
+          "indent" : 0,
+          "type" : "quote",
+          "version" : 1
+        },
+        {
+          "children" : [
+            {
+              "children" : [
+                {
+                  "detail" : 0,
+                  "format" : 0,
+                  "mode" : "normal",
+                  "style" : "",
+                  "text" : "title",
+                  "type" : "text",
+                  "version" : 1
+                }
+              ],
+              "direction" : null,
+              "format" : "",
+              "indent" : 0,
+              "type" : "collapsible-title",
+              "version" : 1
+            },
+            {
+              "children" : [
+                {
+                  "detail" : 0,
+                  "format" : 0,
+                  "mode" : "normal",
+                  "style" : "",
+                  "text" : "content",
+                  "type" : "text",
+                  "version" : 1
+                }
+              ],
+              "direction" : null,
+              "format" : "",
+              "indent" : 0,
+              "type" : "collapsible-content",
+              "version" : 1
+            }
+          ],
+          "direction" : null,
+          "format" : "",
+          "indent" : 0,
+          "open" : true,
+          "type" : "collapsible-container",
+          "version" : 1
+        }
+      ],
+      "direction" : null,
+      "format" : "",
+      "indent" : 0,
+      "type" : "root",
+      "version" : 1
+    }
+  }
+}

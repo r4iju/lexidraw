@@ -57,12 +57,20 @@
           "default": null
         },
         "textFormat": {
-          "kind": "number",
-          "default": 0
+          "kind": "optional",
+          "inner": {
+            "kind": "number",
+            "default": 0
+          },
+          "omitDefault": true
         },
         "textStyle": {
-          "kind": "string",
-          "default": ""
+          "kind": "optional",
+          "inner": {
+            "kind": "string",
+            "default": ""
+          },
+          "omitDefault": true
         },
         "title": {
           "kind": "nullable",
@@ -197,12 +205,20 @@
           "default": "h1"
         },
         "textFormat": {
-          "kind": "number",
-          "default": 0
+          "kind": "optional",
+          "inner": {
+            "kind": "number",
+            "default": 0
+          },
+          "omitDefault": true
         },
         "textStyle": {
-          "kind": "string",
-          "default": ""
+          "kind": "optional",
+          "inner": {
+            "kind": "string",
+            "default": ""
+          },
+          "omitDefault": true
         }
       },
       "state": {}
@@ -276,12 +292,20 @@
           "default": null
         },
         "textFormat": {
-          "kind": "number",
-          "default": 0
+          "kind": "optional",
+          "inner": {
+            "kind": "number",
+            "default": 0
+          },
+          "omitDefault": true
         },
         "textStyle": {
-          "kind": "string",
-          "default": ""
+          "kind": "optional",
+          "inner": {
+            "kind": "string",
+            "default": ""
+          },
+          "omitDefault": true
         },
         "title": {
           "kind": "nullable",
@@ -363,12 +387,20 @@
           "default": "ul"
         },
         "textFormat": {
-          "kind": "number",
-          "default": 0
+          "kind": "optional",
+          "inner": {
+            "kind": "number",
+            "default": 0
+          },
+          "omitDefault": true
         },
         "textStyle": {
-          "kind": "string",
-          "default": ""
+          "kind": "optional",
+          "inner": {
+            "kind": "string",
+            "default": ""
+          },
+          "omitDefault": true
         }
       },
       "state": {}
@@ -417,12 +449,20 @@
           "default": 0
         },
         "textFormat": {
-          "kind": "number",
-          "default": 0
+          "kind": "optional",
+          "inner": {
+            "kind": "number",
+            "default": 0
+          },
+          "omitDefault": true
         },
         "textStyle": {
-          "kind": "string",
-          "default": ""
+          "kind": "optional",
+          "inner": {
+            "kind": "string",
+            "default": ""
+          },
+          "omitDefault": true
         },
         "value": {
           "kind": "number",
@@ -474,12 +514,20 @@
           "default": 0
         },
         "textFormat": {
-          "kind": "number",
-          "default": 0
+          "kind": "optional",
+          "inner": {
+            "kind": "number",
+            "default": 0
+          },
+          "omitDefault": true
         },
         "textStyle": {
-          "kind": "string",
-          "default": ""
+          "kind": "optional",
+          "inner": {
+            "kind": "string",
+            "default": ""
+          },
+          "omitDefault": true
         }
       },
       "state": {}
@@ -564,12 +612,20 @@
           "default": 0
         },
         "textFormat": {
-          "kind": "number",
-          "default": 0
+          "kind": "optional",
+          "inner": {
+            "kind": "number",
+            "default": 0
+          },
+          "omitDefault": true
         },
         "textStyle": {
-          "kind": "string",
-          "default": ""
+          "kind": "optional",
+          "inner": {
+            "kind": "string",
+            "default": ""
+          },
+          "omitDefault": true
         }
       },
       "state": {
@@ -617,12 +673,20 @@
           "default": 0
         },
         "textFormat": {
-          "kind": "number",
-          "default": 0
+          "kind": "optional",
+          "inner": {
+            "kind": "number",
+            "default": 0
+          },
+          "omitDefault": true
         },
         "textStyle": {
-          "kind": "string",
-          "default": ""
+          "kind": "optional",
+          "inner": {
+            "kind": "string",
+            "default": ""
+          },
+          "omitDefault": true
         }
       },
       "state": {}
@@ -716,12 +780,20 @@
           "default": ""
         },
         "frozenColumnCount": {
-          "kind": "number",
-          "default": 0
+          "kind": "optional",
+          "inner": {
+            "kind": "number",
+            "default": 0
+          },
+          "omitDefault": true
         },
         "frozenRowCount": {
-          "kind": "number",
-          "default": 0
+          "kind": "optional",
+          "inner": {
+            "kind": "number",
+            "default": 0
+          },
+          "omitDefault": true
         },
         "indent": {
           "kind": "number",
@@ -730,16 +802,28 @@
           "default": 0
         },
         "rowStriping": {
-          "kind": "boolean",
-          "default": false
+          "kind": "optional",
+          "inner": {
+            "kind": "boolean",
+            "default": false
+          },
+          "omitDefault": true
         },
         "textFormat": {
-          "kind": "number",
-          "default": 0
+          "kind": "optional",
+          "inner": {
+            "kind": "number",
+            "default": 0
+          },
+          "omitDefault": true
         },
         "textStyle": {
-          "kind": "string",
-          "default": ""
+          "kind": "optional",
+          "inner": {
+            "kind": "string",
+            "default": ""
+          },
+          "omitDefault": true
         }
       },
       "state": {}
@@ -804,12 +888,20 @@
           "default": 1
         },
         "textFormat": {
-          "kind": "number",
-          "default": 0
+          "kind": "optional",
+          "inner": {
+            "kind": "number",
+            "default": 0
+          },
+          "omitDefault": true
         },
         "textStyle": {
-          "kind": "string",
-          "default": ""
+          "kind": "optional",
+          "inner": {
+            "kind": "string",
+            "default": ""
+          },
+          "omitDefault": true
         },
         "verticalAlign": {
           "kind": "enum",
@@ -871,12 +963,20 @@
           "default": 0
         },
         "textFormat": {
-          "kind": "number",
-          "default": 0
+          "kind": "optional",
+          "inner": {
+            "kind": "number",
+            "default": 0
+          },
+          "omitDefault": true
         },
         "textStyle": {
-          "kind": "string",
-          "default": ""
+          "kind": "optional",
+          "inner": {
+            "kind": "string",
+            "default": ""
+          },
+          "omitDefault": true
         }
       },
       "state": {}
@@ -969,5 +1069,275 @@
     "tweet",
     "video",
     "youtube"
-  ]
+  ],
+  "traits": {
+    "article": {
+      "kind": "decorator",
+      "inline": false,
+      "shadowRoot": false,
+      "canBeEmpty": false
+    },
+    "autocomplete": {
+      "kind": "text",
+      "inline": true,
+      "shadowRoot": false,
+      "canBeEmpty": false
+    },
+    "autolink": {
+      "kind": "element",
+      "inline": true,
+      "shadowRoot": false,
+      "canBeEmpty": false
+    },
+    "callout": {
+      "kind": "element",
+      "inline": false,
+      "shadowRoot": true,
+      "canBeEmpty": false
+    },
+    "chart": {
+      "kind": "decorator",
+      "inline": false,
+      "shadowRoot": false,
+      "canBeEmpty": false
+    },
+    "code": {
+      "kind": "element",
+      "inline": false,
+      "shadowRoot": false,
+      "canBeEmpty": true
+    },
+    "code-highlight": {
+      "kind": "text",
+      "inline": true,
+      "shadowRoot": false,
+      "canBeEmpty": false
+    },
+    "collapsible-container": {
+      "kind": "element",
+      "inline": false,
+      "shadowRoot": false,
+      "canBeEmpty": true
+    },
+    "collapsible-content": {
+      "kind": "element",
+      "inline": false,
+      "shadowRoot": true,
+      "canBeEmpty": true
+    },
+    "collapsible-title": {
+      "kind": "element",
+      "inline": false,
+      "shadowRoot": false,
+      "canBeEmpty": true
+    },
+    "comment": {
+      "kind": "decorator",
+      "inline": true,
+      "shadowRoot": false,
+      "canBeEmpty": false
+    },
+    "equation": {
+      "kind": "decorator",
+      "inline": {
+        "field": "inline"
+      },
+      "shadowRoot": false,
+      "canBeEmpty": false
+    },
+    "excalidraw": {
+      "kind": "decorator",
+      "inline": true,
+      "shadowRoot": false,
+      "canBeEmpty": false
+    },
+    "figma": {
+      "kind": "decorator",
+      "inline": false,
+      "shadowRoot": false,
+      "canBeEmpty": false
+    },
+    "footnote-definition": {
+      "kind": "element",
+      "inline": false,
+      "shadowRoot": false,
+      "canBeEmpty": true
+    },
+    "footnote-reference": {
+      "kind": "decorator",
+      "inline": true,
+      "shadowRoot": false,
+      "canBeEmpty": false
+    },
+    "heading": {
+      "kind": "element",
+      "inline": false,
+      "shadowRoot": false,
+      "canBeEmpty": true
+    },
+    "horizontalrule": {
+      "kind": "decorator",
+      "inline": false,
+      "shadowRoot": false,
+      "canBeEmpty": false
+    },
+    "image": {
+      "kind": "decorator",
+      "inline": true,
+      "shadowRoot": false,
+      "canBeEmpty": false
+    },
+    "inline-image": {
+      "kind": "decorator",
+      "inline": true,
+      "shadowRoot": false,
+      "canBeEmpty": false
+    },
+    "layout-container": {
+      "kind": "element",
+      "inline": false,
+      "shadowRoot": true,
+      "canBeEmpty": false
+    },
+    "layout-item": {
+      "kind": "element",
+      "inline": false,
+      "shadowRoot": true,
+      "canBeEmpty": true
+    },
+    "linebreak": {
+      "kind": "linebreak",
+      "inline": true,
+      "shadowRoot": false,
+      "canBeEmpty": false
+    },
+    "link": {
+      "kind": "element",
+      "inline": true,
+      "shadowRoot": false,
+      "canBeEmpty": false
+    },
+    "list": {
+      "kind": "element",
+      "inline": false,
+      "shadowRoot": false,
+      "canBeEmpty": false
+    },
+    "listitem": {
+      "kind": "element",
+      "inline": false,
+      "shadowRoot": false,
+      "canBeEmpty": true
+    },
+    "mark": {
+      "kind": "element",
+      "inline": true,
+      "shadowRoot": false,
+      "canBeEmpty": false
+    },
+    "mermaid": {
+      "kind": "decorator",
+      "inline": false,
+      "shadowRoot": false,
+      "canBeEmpty": false
+    },
+    "page-break": {
+      "kind": "decorator",
+      "inline": false,
+      "shadowRoot": false,
+      "canBeEmpty": false
+    },
+    "paragraph": {
+      "kind": "element",
+      "inline": false,
+      "shadowRoot": false,
+      "canBeEmpty": true
+    },
+    "poll": {
+      "kind": "decorator",
+      "inline": true,
+      "shadowRoot": false,
+      "canBeEmpty": false
+    },
+    "quote": {
+      "kind": "element",
+      "inline": false,
+      "shadowRoot": {
+        "field": "shadowRoot"
+      },
+      "canBeEmpty": true
+    },
+    "root": {
+      "kind": "element",
+      "inline": false,
+      "shadowRoot": false,
+      "canBeEmpty": true
+    },
+    "slide-deck": {
+      "kind": "decorator",
+      "inline": false,
+      "shadowRoot": false,
+      "canBeEmpty": false
+    },
+    "sticky": {
+      "kind": "decorator",
+      "inline": true,
+      "shadowRoot": false,
+      "canBeEmpty": false
+    },
+    "tab": {
+      "kind": "text",
+      "inline": true,
+      "shadowRoot": false,
+      "canBeEmpty": false
+    },
+    "table": {
+      "kind": "element",
+      "inline": false,
+      "shadowRoot": true,
+      "canBeEmpty": false
+    },
+    "tablecell": {
+      "kind": "element",
+      "inline": false,
+      "shadowRoot": true,
+      "canBeEmpty": false
+    },
+    "tablerow": {
+      "kind": "element",
+      "inline": false,
+      "shadowRoot": true,
+      "canBeEmpty": false
+    },
+    "text": {
+      "kind": "text",
+      "inline": true,
+      "shadowRoot": false,
+      "canBeEmpty": false
+    },
+    "thread": {
+      "kind": "decorator",
+      "inline": true,
+      "shadowRoot": false,
+      "canBeEmpty": false
+    },
+    "tweet": {
+      "kind": "decorator",
+      "inline": false,
+      "shadowRoot": false,
+      "canBeEmpty": false
+    },
+    "video": {
+      "kind": "decorator",
+      "inline": false,
+      "shadowRoot": false,
+      "canBeEmpty": false
+    },
+    "youtube": {
+      "kind": "decorator",
+      "inline": false,
+      "shadowRoot": false,
+      "canBeEmpty": false
+    }
+  }
 }

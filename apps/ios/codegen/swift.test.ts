@@ -15,6 +15,7 @@ test("names each node's Swift type and case after its Lexical class", () => {
       },
     ],
     undeclared: [],
+    traits: {},
   });
 
   expect(swift).toContain("case horizontalRule(SerializedHorizontalRuleNode)");

@@ -6,6 +6,16 @@ project isn't committed. To point a build at a local server, build with
 built with `CODE_SIGNING_ALLOWED=NO` can't keep its token in the Keychain, so
 it can't sign in. The simulator's ad-hoc signing is enough.
 
+## Corpus check
+
+`bun run test:corpus` loads and saves every document an account owns with
+both LexicalSwift and Lexical, and fails on any difference. It takes the
+token from `LEXIDRAW_TOKEN`, or else the CLI's in the Keychain, and the host
+from `LEXIDRAW_URL`. Failures name documents by id, never by content. In CI
+the **iOS** workflow runs it with the repository secret
+`LEXIDRAW_CORPUS_TOKEN`, a Lexidraw API token; without it the check is
+skipped.
+
 ## TestFlight
 
 The **iOS TestFlight** workflow runs by hand on `master`. It tests, archives,

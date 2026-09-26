@@ -4,8 +4,13 @@
 public protocol NodePayload: JSONCodable, Equatable, Sendable {
   /// The node's `type`.
   static var type: String { get }
+  /// What Lexical writes as `version`.
+  static var version: Int { get }
   /// Properties the schema doesn't declare, written back as read.
   var unknownFields: [String: JSONValue] { get set }
+  /// As Lexical holds the node once read: fields left out take their
+  /// defaults, and node state at its default is left out.
+  func resolved() -> Self
 }
 
 public protocol ElementNodePayload: NodePayload {
@@ -29,6 +34,38 @@ extension JSONCodable {
 }
 
 extension SerializedNode: JSONCodable {}
+
+/// How a node sits in a document, from the node schema: what Lexical's own
+/// normalization asks of it.
+public struct NodeTraits: Equatable, Sendable {
+  public enum Kind: Equatable, Sendable {
+    case element
+    case text
+    case lineBreak
+    case decorator
+  }
+
+  /// A fixed answer, or the boolean property a node reads it from.
+  public enum Trait: Equatable, Sendable {
+    case fixed(Bool)
+    case field(String)
+
+    public func value(in json: JSONValue) -> Bool {
+      switch self {
+      case .fixed(let value): value
+      case .field(let key): json[key] == .bool(true)
+      }
+    }
+  }
+
+  public let kind: Kind
+  /// Sits in a line of text, so it is wrapped in a paragraph at a root.
+  public let inline: Trait
+  /// Holds blocks the way the root does, as a table cell does.
+  public let shadowRoot: Trait
+  /// An element that stays when its last child goes.
+  public let canBeEmpty: Trait
+}
 
 /// A property JSON can leave out, set to `null`, or set to a value.
 public enum Nullable<Value: Equatable & Sendable>: Equatable, Sendable {

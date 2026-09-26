@@ -141,3 +141,18 @@ extension FieldSchema {
       write: { .array($0.map(item.write)) })
   }
 }
+
+extension FieldSchema {
+  func resolving(_ value: Value?) -> Value? {
+    value ?? defaultValue
+  }
+
+  func resolving<Inner>(_ value: Nullable<Inner>) -> Nullable<Inner> where Value == Inner? {
+    guard case .absent = value, let fallback = defaultValue else { return value }
+    return fallback.map(Nullable.value) ?? .null
+  }
+
+  func omittingDefault(_ value: Value?) -> Value? {
+    value == defaultValue ? nil : value
+  }
+}
