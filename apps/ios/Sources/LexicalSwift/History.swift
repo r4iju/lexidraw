@@ -25,12 +25,12 @@ struct History {
   /// A committed update, from `previous` to `next`, at `time`.
   mutating func record(_ update: Update, from previous: EditorState, to next: EditorState, at time: Int) {
     let changeType = Self.changeType(update, from: previous, to: next)
-    let hasDirtyNodes = !update.dirtyLeaves.isEmpty || !update.dirtyElements.isEmpty
+    let movesOnlySelection = update.dirtyLeaves.isEmpty && update.dirtyElements.isEmpty
     defer {
       previousChangeTime = time
       previousChangeType = changeType
     }
-    if !hasDirtyNodes {
+    if movesOnlySelection {
       if next.selection != nil { current = next }
       return
     }

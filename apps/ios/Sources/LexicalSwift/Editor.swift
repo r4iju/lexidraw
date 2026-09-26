@@ -4,10 +4,10 @@ public final class Editor: EditorModel {
   public private(set) var state = EditorState(nodes: [:], selection: nil)
   private var nextKey: NodeKey = 0
   private var history = History(EditorState(nodes: [:], selection: nil))
-  /// The clock history reads, which only `wait` moves.
   private var now = 0
   /// Whether the document holds only what the editing commands are ported
-  /// for: paragraphs of plain text and line breaks.
+  /// for: paragraphs of plain text and line breaks. The other nodes come
+  /// with #115 to #118 and #131 to #134.
   private var isEditable = false
 
   public init() {}
@@ -104,15 +104,12 @@ extension Update {
     }
   }
 
-  /// Places the selection as a user's click or drag does, as
-  /// `reference/entry.ts` models it: the points it resolves to, the format
-  /// and style Lexical gives a selection made from the DOM, then what its
-  /// selection-change handler does to them.
+  /// `setSelection` in `reference/entry.ts`.
   private mutating func placeSelection(_ anchorAt: Point, _ focusAt: Point) throws {
     let last = selection
     let placed = RangeSelection(
       anchor: SelectionPoint(try pointNode(anchorAt), anchorAt.offset, anchorAt.type),
-      focus: SelectionPoint(try pointNode(focusAt), focusAt.offset, focusAt.type), format: 0, style: "")
+      focus: SelectionPoint(try pointNode(focusAt), focusAt.offset, focusAt.type), format: [], style: "")
     try normalizePointsForBoundaries(placed.anchor, placed.focus)
     let anchorNode = placed.anchor.key
     if let last {
@@ -131,12 +128,12 @@ extension Update {
     placed.dirty = false
     if placed.isCollapsed {
       if state[anchorNode].isText {
-        updateFormatStyle(placed, format(of: anchorNode), style(of: anchorNode))
+        placed.updateFormatStyle(format(of: anchorNode), style(of: anchorNode))
       } else if state[anchorNode].isElement, !state.textContent(of: EditorState.rootKey).isEmpty {
         if isEmpty(anchorNode) {
-          updateFormatStyle(placed, textFormat(of: anchorNode), textStyle(of: anchorNode))
+          placed.updateFormatStyle(textFormat(of: anchorNode), textStyle(of: anchorNode))
         } else {
-          updateFormatStyle(placed, placed.format, "")
+          placed.updateFormatStyle(placed.format, "")
         }
       }
     } else {
@@ -144,39 +141,26 @@ extension Update {
     }
   }
 
-  /// `$updateSelectionFormatStyle` from Lexical's selection-change handler.
-  private func updateFormatStyle(_ selection: RangeSelection, _ format: Int, _ style: String) {
-    guard selection.format != format || !selection.style.isIdentical(to: style) else { return }
-    selection.format = format
-    selection.style = style
-    selection.dirty = true
-  }
-
-  /// The format a selection change gives a range: what its text shares,
-  /// leaving out text it only touches at an end. The offsets it compares are
-  /// where the user put the points.
-  private func combinedFormat(_ selection: RangeSelection, _ anchorAt: Point, _ focusAt: Point) throws -> Int {
+  /// `combinedFormat` in `reference/entry.ts`.
+  private func combinedFormat(_ selection: RangeSelection, _ anchorAt: Point, _ focusAt: Point) throws -> TextFormat {
     let nodes = try nodes(in: selection)
-    let isBackward = try state.isBackward(selection)
-    let startOffset = isBackward ? focusAt.offset : anchorAt.offset
-    let endOffset = isBackward ? anchorAt.offset : focusAt.offset
-    let startKey = isBackward ? selection.focus.key : selection.anchor.key
-    let endKey = isBackward ? selection.anchor.key : selection.focus.key
-    var combined = 2047
+    let (start, end) = try state.startEnd(selection)
+    let (startAt, endAt) = start === selection.anchor ? (anchorAt, focusAt) : (focusAt, anchorAt)
+    var combined = TextFormat.all
     var hasText = false
     for (index, node) in nodes.enumerated() where state[node].isText {
       let size = state.textSize(of: node)
-      let touchesStart = index == 0 && node == startKey && startOffset == size
-      let touchesEnd = index == nodes.count - 1 && node == endKey && endOffset == 0
+      let touchesStart = index == 0 && node == start.key && startAt.offset == size
+      let touchesEnd = index == nodes.count - 1 && node == end.key && endAt.offset == 0
       guard size != 0, !touchesStart, !touchesEnd else { continue }
       hasText = true
-      combined &= format(of: node)
-      if combined == 0 { break }
+      combined.formIntersection(format(of: node))
+      if combined.isEmpty { break }
     }
-    return hasText ? combined : 0
+    return hasText ? combined : []
   }
 
-  /// The node a point names, refused where no selection could be.
+  /// `pointNode` in `reference/entry.ts`.
   private func pointNode(_ point: Point) throws -> NodeKey {
     guard let key = state.key(at: point.path) else {
       throw EditorError.invalidState("No node at path \(point.path)")

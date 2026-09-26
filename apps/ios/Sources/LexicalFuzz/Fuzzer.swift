@@ -193,7 +193,9 @@ struct Generator {
     "a", "b", "z", " ", " ", ".", "_", "7", "é", "e\u{301}", "ß", "日", "本", "語", "한", "👍", "👍🏽",
     "👨‍👩‍👧", "🇯🇵",
   ]
-  private static let formats = [0, 1, 2, 3, 8, 16, 32, 64]
+  private static let formats: [TextFormat] = [
+    [], .bold, .italic, [.bold, .italic], .underline, .code, .subscript, .superscript,
+  ]
   private static let styles = ["", "", "", "color: red;"]
 
   init(seed: UInt64) {
@@ -206,7 +208,7 @@ struct Generator {
 
   private mutating func paragraph() -> JSONValue {
     var children: [JSONValue] = []
-    var previous: (format: Int, style: String)?
+    var previous: (format: TextFormat, style: String)?
     for _ in 0..<Int.random(in: 0...4, using: &random) {
       if Int.random(in: 0..<4, using: &random) == 0 {
         children.append(LexicalJSON.lineBreak)
@@ -214,7 +216,7 @@ struct Generator {
         continue
       }
       // Adjacent text alike would be merged by Lexical.
-      var format: Int
+      var format: TextFormat
       var style: String
       repeat {
         format = Self.formats.randomElement(using: &random)!
@@ -273,7 +275,7 @@ struct Generator {
     case ..<42: return .deleteLine(backward: backward)
     case ..<49: return .insertParagraph
     case ..<54: return .insertLineBreak
-    case ..<62: return .formatText(TextFormat.allCases.randomElement(using: &random)!)
+    case ..<62: return .formatText(TextFormatType.allCases.randomElement(using: &random)!)
     case ..<64: return .selectAll
     case ..<70: return .wait(milliseconds: [500, 1000, 2000].randomElement(using: &random)!)
     case ..<94: return .undo

@@ -31,7 +31,7 @@ struct SupportError: Error, CustomStringConvertible {
   init(_ description: String) { self.description = description }
 }
 
-func text(_ text: String, format: Int = 0) -> JSONValue {
+func text(_ text: String, format: TextFormat = []) -> JSONValue {
   LexicalJSON.text(text, format: format)
 }
 

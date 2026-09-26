@@ -36,14 +36,17 @@ struct Update {
 
   /// Lexical's `getWritable`: the node and, unintentionally, its ancestors.
   mutating func markDirty(_ key: NodeKey) {
-    let node = state[key]
-    touched.insert(key)
-    var ancestor = node.parent
+    var ancestor = state[key].parent
     while let parentKey = ancestor, dirtyElements[parentKey] == nil, let parent = state.nodes[parentKey] {
       dirtyElements[parentKey] = false
       ancestor = parent.parent
     }
-    if node.isElement {
+    markOwnDirty(key)
+  }
+
+  private mutating func markOwnDirty(_ key: NodeKey) {
+    touched.insert(key)
+    if state[key].isElement {
       dirtyElements[key] = true
     } else {
       dirtyLeaves.append(key)
@@ -59,14 +62,8 @@ struct Update {
   mutating func create(_ payload: SerializedNode, type: String, children: OrderedSet<NodeKey>?) -> NodeKey {
     let key = nextKey
     nextKey += 1
-    let node = Node(payload, type: type, children: children)
-    state.nodes[key] = node
-    touched.insert(key)
-    if node.isElement {
-      dirtyElements[key] = true
-    } else {
-      dirtyLeaves.append(key)
-    }
+    state.nodes[key] = Node(payload, type: type, children: children)
+    markOwnDirty(key)
     return key
   }
 
@@ -98,9 +95,7 @@ struct Update {
     var nodes = nodes
     switch state[parent].type {
     case SerializedRootNode.type:
-      guard nodes.allSatisfy({ state[$0].isElement || state[$0].isDecorator }) else {
-        throw EditorError.invalidState("Only element or decorator nodes can be inserted to the root node")
-      }
+      for node in nodes { try checkChild(node, of: parent) }
     case SerializedListNode.type:
       nodes = try nodes.map { node in
         if state[node].type == SerializedListItemNode.type { return node }
@@ -329,7 +324,11 @@ struct Update {
   }
 
   private func checkInsertion(_ node: NodeKey, besides sibling: NodeKey) throws {
-    if let parent = state[sibling].parent, state[parent].isRoot, !state[node].isElement, !state[node].isDecorator {
+    if let parent = state[sibling].parent { try checkChild(node, of: parent) }
+  }
+
+  private func checkChild(_ node: NodeKey, of parent: NodeKey) throws {
+    if state[parent].isRoot, !state[node].isElement, !state[node].isDecorator {
       throw EditorError.invalidState("Only element or decorator nodes can be inserted to the root node")
     }
   }

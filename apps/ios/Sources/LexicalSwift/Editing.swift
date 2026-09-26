@@ -58,11 +58,11 @@ extension Update {
     return paragraph
   }
 
-  func textFormat(of element: NodeKey) -> Int {
+  func textFormat(of element: NodeKey) -> TextFormat {
     switch state[element].payload {
-    case .paragraph(let node): Int(node.textFormat ?? 0)
-    case .root(let node): Int(node.textFormat ?? 0)
-    default: 0
+    case .paragraph(let node): TextFormat(rawValue: Int(node.textFormat ?? 0))
+    case .root(let node): TextFormat(rawValue: Int(node.textFormat ?? 0))
+    default: []
     }
   }
 
@@ -74,13 +74,13 @@ extension Update {
     }
   }
 
-  mutating func setTextFormat(_ element: NodeKey, _ format: Int) throws {
+  mutating func setTextFormat(_ element: NodeKey, _ format: TextFormat) throws {
     switch state[element].payload {
     case .paragraph(var node):
-      node.textFormat = Double(format)
+      node.textFormat = Double(format.rawValue)
       modify(element) { $0.payload = .paragraph(node) }
     case .root(var node):
-      node.textFormat = Double(format)
+      node.textFormat = Double(format.rawValue)
       modify(element) { $0.payload = .root(node) }
     default:
       throw EditorError.unsupported("The text format of a \(state[element].type) node")
@@ -96,7 +96,7 @@ extension Update {
     }
     let paragraph = create(SerializedParagraphNode.type)
     if case .paragraph(var node) = state[paragraph].payload {
-      node.textFormat = Double(selection.format)
+      node.textFormat = Double(selection.format.rawValue)
       node.textStyle = selection.style
       node.direction = old.direction
       node.format = old.format
@@ -239,7 +239,7 @@ extension Update {
     let isCollapsed = anchor.is(focus)
     resolvePointOnBoundary(anchor, isBackward: isBackward, isCollapsed: isCollapsed)
     resolvePointOnBoundary(focus, isBackward: !isBackward, isCollapsed: isCollapsed)
-    if isCollapsed { focus.set(anchor.key, anchor.offset, anchor.type) }
+    if isCollapsed { focus.set(anchor.value) }
   }
 
   private func resolvePointOnBoundary(_ point: SelectionPoint, isBackward: Bool, isCollapsed: Bool) {
@@ -271,13 +271,9 @@ extension Update {
     let anchor = selection.anchor.key
     guard anchor != previousAnchor else { return }
     let node = state[anchor]
-    let format = node.isText ? self.format(of: anchor) : node.isElement ? textFormat(of: anchor) : 0
+    let format = node.isText ? self.format(of: anchor) : node.isElement ? textFormat(of: anchor) : []
     let style = node.isText ? self.style(of: anchor) : node.isElement ? textStyle(of: anchor) : ""
-    if selection.format != format || !selection.style.isIdentical(to: style) {
-      selection.format = format
-      selection.style = style
-      selection.dirty = true
-    }
+    selection.updateFormatStyle(format, style)
   }
 
   // MARK: Removing text
@@ -436,7 +432,7 @@ extension Update {
     var format = selection.format
     var style = selection.style
     if !selection.isCollapsed {
-      let first = try state.isBefore(selection.focus, selection.anchor) ? selection.focus : selection.anchor
+      let first = try state.startEnd(selection).start
       if state[first.key].isText {
         format = self.format(of: first.key)
         style = self.style(of: first.key)
@@ -479,7 +475,7 @@ extension Update {
   /// Lexical's `$transferStartingElementPointToTextPoint`: puts empty text
   /// where an element point is, to type into.
   private mutating func transferElementPointToText(
-    _ start: SelectionPoint, _ end: SelectionPoint, format: Int, style: String
+    _ start: SelectionPoint, _ end: SelectionPoint, format: TextFormat, style: String
   ) throws {
     let element = start.key
     let placement = state.child(of: element, at: start.offset)
@@ -510,7 +506,9 @@ extension Update {
 
   /// Lexical's `$insertTextAtPoint`: typed text in its own node, beside or
   /// splitting the anchor's.
-  private mutating func insertTextAtPoint(_ selection: RangeSelection, _ text: String, format: Int, style: String)
+  private mutating func insertTextAtPoint(
+    _ selection: RangeSelection, _ text: String, format: TextFormat, style: String
+  )
     throws
   {
     let anchor = selection.anchor.key
@@ -594,7 +592,7 @@ extension Update {
     guard state[node].isElement, offset != 0 else { return (parent, state.index(of: node)!) }
     if let first = state.child(of: node, at: offset) {
       let point = RangeSelection(
-        anchor: SelectionPoint(node, offset, .element), focus: SelectionPoint(node, offset, .element), format: 0,
+        anchor: SelectionPoint(node, offset, .element), focus: SelectionPoint(node, offset, .element), format: [],
         style: "")
       let newElement = try insertNewAfter(node, point, restoringSelection: true)
       try append(newElement, [first] + nextSiblings(of: first))
@@ -619,7 +617,7 @@ extension Update {
       if let selected { selectEnd(selected) }
       return
     }
-    let first = try state.isBackward(selection) ? selection.focus : selection.anchor
+    let first = try state.startEnd(selection).start
     let firstBlock = findParent(from: first.key, where: isBlock)
     guard nodes.allSatisfy({ state[$0].isInline }) else {
       throw EditorError.unsupported("Inserting blocks")
@@ -658,14 +656,14 @@ extension Update {
   // MARK: Formatting
 
   /// Lexical's `$formatText`.
-  mutating func formatText(_ selection: RangeSelection, _ type: TextFormat) throws {
+  mutating func formatText(_ selection: RangeSelection, _ type: TextFormatType) throws {
     let align = type.toggled(in: selection.format, aligningWith: nil)
     try updateTextFormat(selection) { type.toggled(in: $0, aligningWith: align) }
   }
 
   /// Lexical's `$updateTextFormat`: formats the selected text, splitting
   /// text the selection ends inside.
-  private mutating func updateTextFormat(_ selection: RangeSelection, _ apply: (Int) -> Int) throws {
+  private mutating func updateTextFormat(_ selection: RangeSelection, _ apply: (TextFormat) -> TextFormat) throws {
     if selection.isCollapsed {
       selection.setFormat(apply(selection.format))
       return
@@ -682,9 +680,7 @@ extension Update {
       selection.setFormat(apply(selection.format))
       return
     }
-    let isBackward = try state.isBackward(selection)
-    let start = isBackward ? selection.focus : selection.anchor
-    let end = isBackward ? selection.anchor : selection.focus
+    let (start, end) = try state.startEnd(selection)
     var firstIndex = 0
     var first = texts[0]
     var startOffset = start.type == .element ? 0 : start.offset
@@ -730,7 +726,7 @@ extension Update {
     }
     if start.type == .text { start.set(first, startOffset, .text) }
     if end.type == .text { end.set(last, endOffset, .text) }
-    selection.format = firstFormat | lastFormat
+    selection.format = firstFormat.union(lastFormat)
   }
 
   // MARK: Selecting everything
@@ -744,8 +740,8 @@ extension Update {
     if let top = rootChild(containing: selection.anchor.key), state[top].isElement, state[top].isShadowRoot,
       top == rootChild(containing: selection.focus.key)
     {
-      selection.anchor.set(anchor.key, anchor.offset, anchor.type)
-      selection.focus.set(focus.key, focus.offset, focus.type)
+      selection.anchor.set(anchor)
+      selection.focus.set(focus)
     }
     setSelection(selection)
   }
@@ -760,30 +756,13 @@ extension Update {
   }
 }
 
-extension TextFormat {
-  /// Lexical's `TEXT_TYPE_TO_FORMAT`.
-  var flag: Int {
-    switch self {
-    case .bold: 1
-    case .italic: 2
-    case .strikethrough: 4
-    case .underline: 8
-    case .code: 16
-    case .subscript: 32
-    case .superscript: 64
-    case .highlight: 128
-    case .lowercase: 256
-    case .uppercase: 512
-    case .capitalize: 1024
-    }
-  }
-
+extension TextFormatType {
   /// Lexical's `toggleTextFormatType`: flips this format, leaving it as
   /// `align` has it where given, and clears formats it excludes.
-  func toggled(in format: Int, aligningWith align: Int?) -> Int {
-    if let align, format & flag == align & flag { return format }
-    var toggled = format ^ flag
-    let excluded: [TextFormat] =
+  func toggled(in format: TextFormat, aligningWith align: TextFormat?) -> TextFormat {
+    if let align, format.contains(self.format) == align.contains(self.format) { return format }
+    var toggled = format.symmetricDifference(self.format)
+    let excluded: TextFormat =
       switch self {
       case .subscript: [.superscript]
       case .superscript: [.subscript]
@@ -792,7 +771,7 @@ extension TextFormat {
       case .capitalize: [.lowercase, .uppercase]
       default: []
       }
-    for other in excluded { toggled &= ~other.flag }
+    toggled.subtract(excluded)
     return toggled
   }
 }

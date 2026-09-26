@@ -243,11 +243,6 @@ extension EditorState {
     NodeCarets(state: self, range: range, mode: mode)
   }
 
-  /// A caret's siblings onward, as iterating a Lexical caret gives them.
-  func siblingCarets(from caret: Caret) -> some Sequence<Caret> {
-    sequence(first: adjacentCaret(caret) as Caret?) { $0.flatMap(adjacentCaret) }.lazy.compactMap { $0 }
-  }
-
   // MARK: Order
 
   func compareNext(_ a: Caret, _ b: Caret) -> Int {
@@ -319,6 +314,11 @@ extension EditorState {
   }
 
   func isBackward(_ selection: RangeSelection) throws -> Bool { try isBefore(selection.focus, selection.anchor) }
+
+  /// The selection's points in document order.
+  func startEnd(_ selection: RangeSelection) throws -> (start: SelectionPoint, end: SelectionPoint) {
+    try isBackward(selection) ? (selection.focus, selection.anchor) : (selection.anchor, selection.focus)
+  }
 
   func caretRange(from selection: RangeSelection) throws -> CaretRange {
     let anchor = try caret(from: selection.anchor, .next)

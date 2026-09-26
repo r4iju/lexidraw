@@ -35,8 +35,7 @@ extension JSONCodable {
 
 extension SerializedNode: JSONCodable {}
 
-/// How a node sits in a document, from the node schema: what Lexical's own
-/// normalization asks of it.
+/// `NodeTraits` in `packages/lexical-nodes/src/node-schema.ts`.
 public struct NodeTraits: Equatable, Sendable {
   public enum Kind: Equatable, Sendable {
     case element
@@ -45,7 +44,6 @@ public struct NodeTraits: Equatable, Sendable {
     case decorator
   }
 
-  /// A fixed answer, or the boolean property a node reads it from.
   public enum Trait: Equatable, Sendable {
     case fixed(Bool)
     case field(String)
@@ -59,11 +57,8 @@ public struct NodeTraits: Equatable, Sendable {
   }
 
   public let kind: Kind
-  /// Sits in a line of text, so it is wrapped in a paragraph at a root.
   public let inline: Trait
-  /// Holds blocks the way the root does, as a table cell does.
   public let shadowRoot: Trait
-  /// An element that stays when its last child goes.
   public let canBeEmpty: Trait
 }
 

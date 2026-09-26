@@ -6,9 +6,17 @@ extension Node {
   /// Plain text Lexical merges with its neighbours: a `text` node in normal mode.
   var isSimpleText: Bool { textNode?.mode == .normal }
 
-  var isUnmergeable: Bool { textNode.map { Int($0.detail ?? 0) & 2 != 0 } ?? false }
+  var isUnmergeable: Bool { textNode.map { TextDetail(rawValue: Int($0.detail ?? 0)).contains(.unmergeable) } ?? false }
 
   var text: String { textNode?.text ?? "" }
+}
+
+/// The bits Lexical keeps in a text node's `detail`.
+struct TextDetail: OptionSet {
+  let rawValue: Int
+
+  static let directionless = TextDetail(rawValue: 1 << 0)
+  static let unmergeable = TextDetail(rawValue: 1 << 1)
 }
 
 extension Update {

@@ -7,7 +7,7 @@
  * stands in for that one step with a model of where a caret lands, and
  * everything around it is Lexical's own code, so LexicalSwift is held to
  * Lexical on all but the measurement, and to this model on that. Removing a
- * segment of segmented text isn't transcribed, and throws.
+ * segment of segmented text (mentions, #134) isn't transcribed, and throws.
  */
 import {
   $caretFromPoint,

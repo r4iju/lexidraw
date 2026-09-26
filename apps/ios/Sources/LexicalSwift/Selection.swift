@@ -2,7 +2,7 @@
 struct KeySelection: Equatable, Sendable {
   var anchor: KeyPoint
   var focus: KeyPoint
-  var format: Int
+  var format: TextFormat
   var style: String
 }
 
@@ -41,6 +41,10 @@ final class SelectionPoint {
     selection?.dirty = true
   }
 
+  func set(_ point: KeyPoint, onlyIfChanged: Bool = false) {
+    set(point.key, point.offset, point.type, onlyIfChanged: onlyIfChanged)
+  }
+
   func `is`(_ other: SelectionPoint) -> Bool {
     key == other.key && offset == other.offset && type == other.type
   }
@@ -51,11 +55,11 @@ final class SelectionPoint {
 final class RangeSelection {
   let anchor: SelectionPoint
   let focus: SelectionPoint
-  var format: Int
+  var format: TextFormat
   var style: String
   var dirty = false
 
-  init(anchor: SelectionPoint, focus: SelectionPoint, format: Int, style: String) {
+  init(anchor: SelectionPoint, focus: SelectionPoint, format: TextFormat, style: String) {
     self.anchor = anchor
     self.focus = focus
     self.format = format
@@ -85,8 +89,16 @@ final class RangeSelection {
       && style.isIdentical(to: other.style)
   }
 
-  func setFormat(_ format: Int) {
+  func setFormat(_ format: TextFormat) {
     self.format = format
+    dirty = true
+  }
+
+  /// Lexical's `$updateSelectionFormatStyle`.
+  func updateFormatStyle(_ format: TextFormat, _ style: String) {
+    guard self.format != format || !self.style.isIdentical(to: style) else { return }
+    self.format = format
+    self.style = style
     dirty = true
   }
 

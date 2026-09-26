@@ -37,8 +37,8 @@ import Testing
         LexicalJSON.document(
           (0..<paragraphs).map { _ in
             LexicalJSON.paragraph([
-              LexicalJSON.text("plain "), LexicalJSON.text("bold", format: 1), LexicalJSON.text(" and "),
-              LexicalJSON.text("italic", format: 2),
+              LexicalJSON.text("plain "), LexicalJSON.text("bold", format: .bold), LexicalJSON.text(" and "),
+              LexicalJSON.text("italic", format: .italic),
             ])
           }))
       try editor.apply(.caret(.text([paragraphs / 2, 2], 3)))

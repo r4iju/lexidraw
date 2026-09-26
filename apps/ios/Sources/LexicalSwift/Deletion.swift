@@ -106,7 +106,7 @@ extension Update {
       != findParent(from: selection.focus.key, where: isBlock)
     {
       let anchor = selection.anchor
-      selection.focus.set(anchor.key, anchor.offset, anchor.type)
+      selection.focus.set(anchor.value)
       try deleteCharacter(selection, backward: isBackward)
     } else {
       if !wasCollapsed { try expandToWholeDocument(selection) }
@@ -299,11 +299,11 @@ extension Update {
   private func applyRange(_ selection: RangeSelection, _ start: KeyPoint, _ end: KeyPoint) throws {
     let anchor = selection.clone().anchor
     let focus = selection.clone().focus
-    anchor.set(start.key, start.offset, start.type)
-    focus.set(end.key, end.offset, end.type)
+    anchor.set(start)
+    focus.set(end)
     try normalizePointsForBoundaries(anchor, focus)
-    selection.anchor.set(anchor.key, anchor.offset, anchor.type, onlyIfChanged: true)
-    selection.focus.set(focus.key, focus.offset, focus.type, onlyIfChanged: true)
+    selection.anchor.set(anchor.value, onlyIfChanged: true)
+    selection.focus.set(focus.value, onlyIfChanged: true)
     normalizeSelection(selection)
   }
 
@@ -327,8 +327,8 @@ extension Update {
   private func swapPoints(_ selection: RangeSelection) {
     let anchor = selection.anchor.value
     let focus = selection.focus
-    selection.anchor.set(focus.key, focus.offset, focus.type, onlyIfChanged: true)
-    focus.set(anchor.key, anchor.offset, anchor.type, onlyIfChanged: true)
+    selection.anchor.set(focus.value, onlyIfChanged: true)
+    focus.set(anchor, onlyIfChanged: true)
   }
 
   /// `$modifySelectionAroundDecoratorsAndBlocks` extending a selection: a

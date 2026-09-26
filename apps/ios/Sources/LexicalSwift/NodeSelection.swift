@@ -11,7 +11,7 @@ extension Update {
   @discardableResult
   mutating func makeSelection(_ anchor: KeyPoint, _ focus: KeyPoint) -> RangeSelection {
     let selection = RangeSelection(
-      anchor: SelectionPoint(anchor), focus: SelectionPoint(focus), format: 0, style: "")
+      anchor: SelectionPoint(anchor), focus: SelectionPoint(focus), format: [], style: "")
     selection.dirty = true
     self.selection = selection
     return selection
@@ -214,9 +214,7 @@ extension Update {
         resolveTextNodes(selection)
       }
     } else {
-      let isBackward = try state.isBackward(selection)
-      let first = isBackward ? selection.focus : selection.anchor
-      let last = isBackward ? selection.anchor : selection.focus
+      let (first, last) = try state.startEnd(selection)
       for point in [first, last] where point.key == parent && shifts(point.offset) {
         point.set(parent, max(0, point.offset + times), .element)
       }
@@ -248,22 +246,22 @@ extension Update {
   // MARK: Text
 
   /// Lexical's `$createTextNode`.
-  mutating func createText(_ text: String, format: Int = 0, style: String = "") -> NodeKey {
+  mutating func createText(_ text: String, format: TextFormat = [], style: String = "") -> NodeKey {
     let key = create(SerializedTextNode.type)
     guard case .text(var node) = state[key].payload else { return key }
     node.text = text
-    node.format = Double(format)
+    node.format = Double(format.rawValue)
     node.style = style
     state.nodes[key]!.payload = .text(node)
     return key
   }
 
-  func format(of key: NodeKey) -> Int { Int(state[key].textNode?.format ?? 0) }
+  func format(of key: NodeKey) -> TextFormat { TextFormat(rawValue: Int(state[key].textNode?.format ?? 0)) }
 
   func style(of key: NodeKey) -> String { state[key].textNode?.style ?? "" }
 
-  mutating func setFormat(_ key: NodeKey, _ format: Int) {
-    modifyText(key) { $0.format = Double(format) }
+  mutating func setFormat(_ key: NodeKey, _ format: TextFormat) {
+    modifyText(key) { $0.format = Double(format.rawValue) }
   }
 
   mutating func setStyle(_ key: NodeKey, _ style: String) {
@@ -311,8 +309,7 @@ extension Update {
     var endPoint: SelectionPoint?
     let selection = selection
     if let selection {
-      let (first, last) =
-        try state.isBackward(selection) ? (selection.focus, selection.anchor) : (selection.anchor, selection.focus)
+      let (first, last) = try state.startEnd(selection)
       if first.type == .text, first.key == key { startPoint = first }
       if last.type == .text, last.key == key { endPoint = last }
     }
