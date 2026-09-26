@@ -123,15 +123,15 @@ import notify
     view.layoutIfNeeded()
     let work = CACurrentMediaTime() - started
     Self.signposter.endInterval("frame", state)
-    // Against the scroll asked for: a layout may scroll further to keep
-    // what is shown in place, as text above it changes height.
+    // Against the scroll asked for, which the layout may add to
+    // (`BlockLayout`).
     let moved = scrolled - (anchor?.offset ?? 0)
     if let anchor, let now = y(of: anchor.position) {
       let by = now - (anchor.y - moved)
       if abs(by) > 0.5 { jumps.append(Jump(phase: phase.rawValue, offset: view.contentOffset.y, by: by)) }
     }
     frames.append(Frame(phase: phase, interval: interval, expected: expected, work: work))
-    if frames.count % 30 == 0 { memory.sample() }
+    memory.sample()
 
     switch phase {
     case .up where view.contentOffset.y <= 0: phase = .down
@@ -206,7 +206,7 @@ import notify
       jumpToTheMiddleMs = jumpWork * 1000
       self.frames = frames.count
       // A frame shown later than the display asked for, as Instruments counts
-      // a hitch; the first frame of each phase has no interval.
+      // a hitch; the frame after the jump has no interval.
       let late = frames.filter { $0.interval > $0.expected * 1.5 }
       hitches = late.count
       hitchTimeMs = late.reduce(0) { $0 + ($1.interval - $1.expected) } * 1000
