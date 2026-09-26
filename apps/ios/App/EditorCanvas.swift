@@ -358,7 +358,24 @@ final class EditorCanvasView: UIView, UIGestureRecognizerDelegate, UITextViewDel
     }
   }
 
+  /// Nothing is typed into the canvas, so no keyboard comes up while it is
+  /// first responder, as one otherwise does for a menu's type-to-select.
+  override var inputView: UIView? { noKeyboard }
+  private let noKeyboard = UIView(frame: .zero)
+
   override var undoManager: UndoManager? { undo }
+
+  // Command-Z and Shift-Command-Z send these along the responder chain.
+  @objc func undo(_ sender: Any?) { undo.undo() }
+  @objc func redo(_ sender: Any?) { undo.redo() }
+
+  override func canPerformAction(_ action: Selector, withSender sender: Any?) -> Bool {
+    switch action {
+    case #selector(undo(_:)): undo.canUndo
+    case #selector(redo(_:)): undo.canRedo
+    default: super.canPerformAction(action, withSender: sender)
+    }
+  }
 
   override var keyCommands: [UIKeyCommand]? {
     // Keys go to the text being written, which is below the canvas in the
