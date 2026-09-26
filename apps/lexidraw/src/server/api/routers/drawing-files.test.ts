@@ -32,6 +32,8 @@ const stored = new Map<string, Stored>();
 const puts: { pathname: string; options: Record<string, unknown> }[] = [];
 /** Stored, but not yet in a listing, as a blob another request just stored. */
 const unlisted = new Set<string>();
+/** The store stamps an upload with its own clock, to the second. */
+const STORE_TIME = new Date("2026-09-03T04:05:06.000Z");
 const described = (pathname: string, blob: Stored) => ({
   pathname,
   url: `${HOST}/${pathname}`,
@@ -61,7 +63,7 @@ mock.module("@vercel/blob", () => ({
         body instanceof Blob ? await body.arrayBuffer() : body,
       ),
       contentType: String(options.contentType),
-      uploadedAt: new Date(),
+      uploadedAt: STORE_TIME,
     });
     return { url: `${HOST}/${pathname}`, pathname };
   },
@@ -191,15 +193,17 @@ beforeEach(() => {
 
 describe("a drawing's files", () => {
   test("are stored as their own type under the drawing, leaving the drawing as it was", async () => {
-    const before = Date.now();
     const answer = await owner.putFile({
       id: DRAWING,
       fileId: FILE_ID,
       mimeType: "image/png",
       dataURL: PNG_URL,
     });
-    expect(answer).toMatchObject({ id: FILE_ID, mimeType: "image/png" });
-    expect(answer.created).toBeGreaterThanOrEqual(before);
+    expect(answer).toEqual({
+      id: FILE_ID,
+      mimeType: "image/png",
+      created: STORE_TIME.getTime(),
+    });
 
     expect(puts).toHaveLength(1);
     const [put] = puts;
