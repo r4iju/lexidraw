@@ -1,66 +1,34 @@
 import DrawingKit
 import SwiftUI
 
-/// The web's style panel: the colours it offers first and a picker for any
-/// other, and its fill, stroke width and sloppiness choices, for what is
-/// selected or else for what the tool draws next.
+/// The web's style panel, for what is selected or else for what the tool
+/// draws next: each section the editor offers, as swatches with a picker
+/// for any other colour, or as a choice of one.
 struct StyleInspector: View {
   let controls: StyleControls
   let theme: DrawingTheme
   let change: (StyleChange) -> Void
 
-  private static let strokeColors = ["#1e1e1e", "#e03131", "#2f9e44", "#1971c2", "#f08c00"]
-  private static let backgroundColors = ["transparent", "#ffc9c9", "#b2f2bb", "#a5d8ff", "#ffec99"]
-
   var body: some View {
+    let sections = controls.sections
     VStack(alignment: .leading, spacing: 16) {
-      if controls.showsStrokeColor {
-        section("Stroke") {
-          swatches(Self.strokeColors, picked: controls.strokeColor) { change(.strokeColor($0)) }
-        }
-      }
-      if controls.showsBackgroundColor {
-        section("Background") {
-          swatches(Self.backgroundColors, picked: controls.backgroundColor) { change(.backgroundColor($0)) }
-        }
-      }
-      if controls.showsFillStyle {
-        section("Fill") {
-          choices(
-            [("Hachure", FillStyle.hachure), ("Cross-Hatch", .crossHatch), ("Solid", .solid)],
-            picked: controls.fillStyle
-          ) { change(.fillStyle($0)) }
-        }
-      }
-      if controls.showsStrokeWidth {
-        section("Stroke Width") {
-          choices([("Thin", 1.0), ("Bold", 2.0), ("Extra Bold", 4.0)], picked: controls.strokeWidth) {
-            change(.strokeWidth($0))
+      ForEach(sections) { section in
+        VStack(alignment: .leading, spacing: 8) {
+          Text(section.title).font(.subheadline.weight(.semibold)).foregroundStyle(.secondary)
+          switch section.options {
+          case .colors(let colors, let picked, let property):
+            swatches(colors, picked: picked) { change(property.change($0)) }
+          case .choices(let choices):
+            self.choices(choices)
           }
         }
       }
-      if controls.showsRoughness {
-        section("Sloppiness") {
-          choices([("Architect", 0.0), ("Artist", 1.0), ("Cartoonist", 2.0)], picked: controls.roughness) {
-            change(.roughness($0))
-          }
-        }
-      }
-      if !(controls.showsStrokeColor || controls.showsBackgroundColor || controls.showsStrokeWidth
-        || controls.showsRoughness)
-      {
+      if sections.isEmpty {
         Text("Nothing here takes a style.").foregroundStyle(.secondary)
       }
     }
     .padding()
     .frame(minWidth: 280)
-  }
-
-  private func section(_ title: String, @ViewBuilder content: () -> some View) -> some View {
-    VStack(alignment: .leading, spacing: 8) {
-      Text(title).font(.subheadline.weight(.semibold)).foregroundStyle(.secondary)
-      content()
-    }
   }
 
   /// Colours as the drawing shows them in this theme.
@@ -105,12 +73,14 @@ struct StyleInspector: View {
   }
 
   /// A choice the selection doesn't share shows none picked, as on the web.
-  private func choices<Value: Hashable>(
-    _ options: [(String, Value)], picked: Value?, pick: @escaping (Value) -> Void
-  ) -> some View {
-    Picker(selection: Binding(get: { picked }, set: { if let value = $0 { pick(value) } })) {
-      ForEach(options, id: \.1) { option in
-        Text(option.0).tag(Optional(option.1))
+  private func choices(_ choices: [StyleChoice]) -> some View {
+    Picker(
+      selection: Binding(
+        get: { choices.first(where: \.isPicked)?.label },
+        set: { label in if let choice = choices.first(where: { $0.label == label }) { change(choice.change) } })
+    ) {
+      ForEach(choices) { choice in
+        Text(choice.label).tag(Optional(choice.label))
       }
     } label: {
       EmptyView()

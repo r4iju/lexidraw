@@ -59,19 +59,22 @@ let fixtureInteractions = try! FileManager.default.contentsOfDirectory(
     } else if step["doubleTap"] != nil {
       editor.doubleTap(point(step["doubleTap"]))
     } else if let style = step["style"]?.stringValue, let value = step["value"] {
-      editor.changeStyle(styleChange(style, value))
+      editor.perform(styleControl(style, value, in: editor.styleControls.sections))
     } else if let name = step["file"]?.stringValue, let file = files[name] {
-      editor.placeImage(file, at: point(step["drop"]), viewportHeight: recorderViewportHeight)
+      editor.perform(.placeImage(file, at: point(step["drop"]), viewportHeight: recorderViewportHeight))
     } else if let text = step["type"]?.stringValue {
       for character in text { editor.editText((editor.editingText ?? "") + String(character)) }
     } else {
+      let buttons = editor.historyButtons + editor.selectionButtons
       switch step["press"]?.stringValue {
       case "Escape": editor.escape()
-      case "Delete": editor.deleteSelection()
-      case "undo": editor.undo()
-      case "redo": editor.redo()
-      case "group": editor.group()
-      case "ungroup": editor.ungroup()
+      case let key?:
+        let title = ["Delete": "Delete", "undo": "Undo", "redo": "Redo", "group": "Group", "ungroup": "Ungroup"][key]
+        guard let button = buttons.first(where: { $0.title == title }), button.isEnabled else {
+          Issue.record("No \(key) button among \(buttons.map(\.title))")
+          return
+        }
+        editor.perform(button.action)
       default: Issue.record("Unknown step \(describe(step))")
       }
     }
@@ -81,13 +84,33 @@ let fixtureInteractions = try! FileManager.default.contentsOfDirectory(
 /// The height of the web editor the recorder plays scripts in.
 private let recorderViewportHeight = 800.0
 
-private func styleChange(_ style: String, _ value: JSONValue) -> StyleChange {
-  switch style {
-  case "strokeColor": .strokeColor(value.stringValue!)
-  case "backgroundColor": .backgroundColor(value.stringValue!)
-  case "fillStyle": .fillStyle(FillStyle(rawValue: value.stringValue!))
-  case "strokeWidth": .strokeWidth(value.numberValue!)
-  default: .roughness(value.numberValue!)
+/// The popover control the recorder picked on the web: a swatch or the
+/// colour picker in a colour section, or the choice setting `value`.
+private func styleControl(_ style: String, _ value: JSONValue, in sections: [StyleSection]) -> EditorAction {
+  let title = [
+    "strokeColor": "Stroke", "backgroundColor": "Background", "fillStyle": "Fill", "strokeWidth": "Stroke Width",
+    "strokeStyle": "Stroke Style", "roughness": "Sloppiness",
+  ][style]
+  guard let section = sections.first(where: { $0.title == title }) else {
+    Issue.record("No \(style) section among \(sections.map(\.title))")
+    return .style(.roughness(0))
+  }
+  switch section.options {
+  case .colors(_, _, let property):
+    return .style(property.change(value.stringValue!))
+  case .choices(let choices):
+    let expected: StyleChange =
+      switch style {
+      case "fillStyle": .fillStyle(FillStyle(rawValue: value.stringValue!))
+      case "strokeWidth": .strokeWidth(value.numberValue!)
+      case "strokeStyle": .strokeStyle(StrokeStyle(rawValue: value.stringValue!))
+      default: .roughness(value.numberValue!)
+      }
+    guard let choice = choices.first(where: { $0.change == expected }) else {
+      Issue.record("No choice for \(style) \(value) in \(section.title)")
+      return .style(expected)
+    }
+    return .style(choice.change)
   }
 }
 

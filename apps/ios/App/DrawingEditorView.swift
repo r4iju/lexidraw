@@ -7,11 +7,8 @@ import SwiftUI
 @MainActor @Observable final class DrawingEditing {
   let editor: DrawingEditor
   private(set) var tool = DrawingTool.selection
-  private(set) var canUndo = false
-  private(set) var canRedo = false
-  private(set) var hasSelection = false
-  private(set) var canGroup = false
-  private(set) var canUngroup = false
+  private(set) var historyButtons: [EditorButton] = []
+  private(set) var selectionButtons: [EditorButton] = []
   private(set) var styles = StyleControls()
   private(set) var status = DrawingSaver.Status.saved
   /// Something about an image that went wrong, to tell the user.
@@ -65,8 +62,7 @@ import SwiftUI
     images[file.id] = await DrawingImages.decode(file.data, mimeType: file.mimeType)
     let viewport = viewport()
     editor.tool = .selection
-    editor.placeImage(file, at: viewport.center, viewportHeight: viewport.height)
-    edited()
+    perform(.placeImage(file, at: viewport.center, viewportHeight: viewport.height))
     unsent[file.id] = file
     await sendImages()
   }
@@ -94,18 +90,8 @@ import SwiftUI
     }
   }
 
-  func changeStyle(_ change: StyleChange) {
-    editor.changeStyle(change)
-    edited()
-  }
-
-  func group() {
-    editor.group()
-    edited()
-  }
-
-  func ungroup() {
-    editor.ungroup()
+  func perform(_ action: EditorAction) {
+    editor.perform(action)
     edited()
   }
 
@@ -121,30 +107,12 @@ import SwiftUI
     edited()
   }
 
-  func undo() {
-    editor.undo()
-    edited()
-  }
-
-  func redo() {
-    editor.redo()
-    edited()
-  }
-
-  func deleteSelection() {
-    editor.deleteSelection()
-    edited()
-  }
-
   /// While a gesture is under way: the canvas and the controls follow the
   /// editor, and what it is in the middle of isn't saved.
   func changing() {
     tool = editor.tool
-    canUndo = editor.canUndo
-    canRedo = editor.canRedo
-    hasSelection = !editor.selectedIds.isEmpty
-    canGroup = editor.canGroup
-    canUngroup = editor.canUngroup
+    historyButtons = editor.historyButtons
+    selectionButtons = editor.selectionButtons
     styles = editor.styleControls
     redraw()
   }
@@ -201,17 +169,14 @@ struct DrawingEditorScreen: View {
           if case .failed = editing.status {
             Button("Try Saving Again", systemImage: "arrow.clockwise") { editing.saveNow() }
           }
-          Button("Undo", systemImage: "arrow.uturn.backward") { editing.undo() }
-            .disabled(!editing.canUndo)
-          Button("Redo", systemImage: "arrow.uturn.forward") { editing.redo() }
-            .disabled(!editing.canRedo)
+          buttons(editing.historyButtons)
           Menu("Insert Image", systemImage: "photo.badge.plus") {
             Button("Photo Library", systemImage: "photo.on.rectangle") { photosShown = true }
             Button("Files", systemImage: "folder") { filesShown = true }
           }
           Button("Style", systemImage: "paintpalette") { stylesShown = true }
             .popover(isPresented: $stylesShown) {
-              StyleInspector(controls: editing.styles, theme: theme) { editing.changeStyle($0) }
+              StyleInspector(controls: editing.styles, theme: theme) { editing.perform(.style($0)) }
                 .presentationCompactAdaptation(.popover)
             }
         }
@@ -223,15 +188,7 @@ struct DrawingEditorScreen: View {
           }
           .pickerStyle(.segmented)
           .fixedSize()
-          if editing.canGroup {
-            Button("Group", systemImage: "rectangle.3.group") { editing.group() }
-          }
-          if editing.canUngroup {
-            Button("Ungroup", systemImage: "square.on.square.dashed") { editing.ungroup() }
-          }
-          if editing.hasSelection {
-            Button("Delete", systemImage: "trash", role: .destructive) { editing.deleteSelection() }
-          }
+          buttons(editing.selectionButtons)
         }
       }
       .alert("Someone else changed this drawing", isPresented: .constant(editing.status == .conflict)) {
@@ -273,6 +230,15 @@ struct DrawingEditorScreen: View {
       .task { await editing.followSaving() }
       .onDisappear { editing.saveNow() }
       .onChange(of: scenePhase) { if scenePhase != .active { editing.saveNow() } }
+  }
+
+  private func buttons(_ buttons: [EditorButton]) -> some View {
+    ForEach(buttons) { button in
+      Button(button.title, systemImage: button.systemImage, role: button.isDestructive ? .destructive : nil) {
+        editing.perform(button.action)
+      }
+      .disabled(!button.isEnabled)
+    }
   }
 
   private var status: String {

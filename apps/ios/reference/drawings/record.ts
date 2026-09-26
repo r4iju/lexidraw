@@ -45,6 +45,8 @@ function styleControl(style: Style, value: string | number) {
       return `[data-testid="fill-${value}"]`;
     case "strokeWidth":
       return `label:has([data-testid="strokeWidth-${{ 1: "thin", 2: "bold", 4: "extraBold" }[value]}"])`;
+    case "strokeStyle":
+      return `label[title="${{ solid: "Solid", dashed: "Dashed", dotted: "Dotted" }[value]}"]`;
     case "roughness":
       return `label[title="${{ 0: "Architect", 1: "Artist", 2: "Cartoonist" }[value]}"]`;
   }

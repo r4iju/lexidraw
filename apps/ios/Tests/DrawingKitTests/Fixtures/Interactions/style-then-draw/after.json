@@ -1,6 +1,6 @@
 [
   {
-    "id": "5NEErw136oG_d6Z8hODpZ",
+    "id": "bsh4S0f_OfhNE79T0pKJQ",
     "type": "ellipse",
     "x": 100,
     "y": 120,
@@ -11,7 +11,7 @@
     "backgroundColor": "#b2f2bb",
     "fillStyle": "hachure",
     "strokeWidth": 1,
-    "strokeStyle": "solid",
+    "strokeStyle": "dotted",
     "roughness": 2,
     "opacity": 100,
     "groupIds": [],
@@ -20,12 +20,12 @@
     "roundness": {
       "type": 2
     },
-    "seed": 832675500,
+    "seed": 1268112211,
     "version": 4,
-    "versionNonce": 1051911084,
+    "versionNonce": 50291347,
     "isDeleted": false,
     "boundElements": null,
-    "updated": 1790438710804,
+    "updated": 1790440922917,
     "link": null,
     "locked": false
   }

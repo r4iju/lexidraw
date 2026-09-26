@@ -343,16 +343,16 @@ final class EditorCanvasView: UIView, UIGestureRecognizerDelegate, UITextViewDel
     ]
   }
 
-  @objc private func group() { editing.group() }
+  @objc private func group() { editing.perform(.group) }
 
-  @objc private func ungroup() { editing.ungroup() }
+  @objc private func ungroup() { editing.perform(.ungroup) }
 
   @objc private func chooseTool(_ command: UIKeyCommand) {
     guard let name = command.propertyList as? String, let tool = DrawingTool(rawValue: name) else { return }
     editing.select(tool)
   }
 
-  @objc private func deleteSelection() { editing.deleteSelection() }
+  @objc private func deleteSelection() { editing.perform(.delete) }
 
   @objc private func escape() {
     editor.escape()
@@ -372,8 +372,8 @@ final class EditorUndoManager: UndoManager {
 
   override var canUndo: Bool { editing.editor.canUndo }
   override var canRedo: Bool { editing.editor.canRedo }
-  override func undo() { editing.undo() }
-  override func redo() { editing.redo() }
+  override func undo() { editing.perform(.undo) }
+  override func redo() { editing.perform(.redo) }
 }
 
 /// The web's text box over text being written: the text in its font, at

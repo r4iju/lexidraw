@@ -39,6 +39,7 @@ export type Style =
   | "backgroundColor"
   | "fillStyle"
   | "strokeWidth"
+  | "strokeStyle"
   | "roughness";
 
 export type Interaction = {
@@ -129,6 +130,22 @@ const joinLeftToRight: Step[] = [
     ],
   ),
 ];
+
+/** Selects the group `at` is in, then its shape alone by a double tap. */
+const enterGroupAt = (at: Point): Step[] => [
+  ...tap(at),
+  ...tap(at),
+  { doubleTap: at },
+];
+
+/** Presses the right ellipse's outline and drags it down and along. */
+const dragRightEllipse: Step[] = drag(
+  [401, 210],
+  [
+    [415, 225],
+    [431, 240],
+  ],
+);
 
 /** Selects every shape the scripts start from, with a box around them. */
 const selectAll: Step[] = drag(
@@ -587,6 +604,36 @@ export const INTERACTIONS: Interaction[] = [
     ],
   },
   {
+    // Whether undo takes the editor back into the group it left shows in
+    // what a press on another of the group's shapes then drags.
+    name: "undo-leaving-a-group",
+    before: [left, right, diamond],
+    steps: [
+      ...selectAll,
+      { press: "group" },
+      ...tap([700, 600]),
+      ...enterGroupAt([100, 190]),
+      ...tap([700, 600]),
+      { press: "undo" },
+      ...dragRightEllipse,
+    ],
+  },
+  {
+    // A tap on one of a group's shapes picks the group, or the shape while
+    // editing it, so what the drag moves shows whether undo left the group.
+    name: "undo-entering-a-group",
+    before: [left, right, diamond],
+    steps: [
+      ...selectAll,
+      { press: "group" },
+      ...tap([700, 600]),
+      ...enterGroupAt([100, 190]),
+      { press: "undo" },
+      ...tap([401, 210]),
+      ...dragRightEllipse,
+    ],
+  },
+  {
     name: "resize-a-selection",
     before: [left, right, diamond],
     steps: [
@@ -658,6 +705,7 @@ export const INTERACTIONS: Interaction[] = [
       { style: "backgroundColor", value: "#ffec99" },
       { style: "fillStyle", value: "cross-hatch" },
       { style: "strokeWidth", value: 4 },
+      { style: "strokeStyle", value: "dashed" },
       { style: "roughness", value: 0 },
     ],
   },
@@ -669,6 +717,7 @@ export const INTERACTIONS: Interaction[] = [
       { style: "backgroundColor", value: "#b2f2bb" },
       { style: "fillStyle", value: "hachure" },
       { style: "strokeWidth", value: 1 },
+      { style: "strokeStyle", value: "dotted" },
       { style: "roughness", value: 2 },
       ...drag(
         [100, 120],

@@ -102,6 +102,10 @@
       "value": 4
     },
     {
+      "style": "strokeStyle",
+      "value": "dashed"
+    },
+    {
       "style": "roughness",
       "value": 0
     }

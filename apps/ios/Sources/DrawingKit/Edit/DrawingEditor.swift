@@ -106,7 +106,7 @@ public final class DrawingEditor {
     self.environment = environment
     history = History()
     syncInvalidIndices()
-    history.reset(to: store, selection: selectedIds)
+    history.reset(to: historyState)
   }
 
   func position(of id: String) -> Int? { store.firstIndex { $0.id == id } }
@@ -532,18 +532,27 @@ public final class DrawingEditor {
   public var canUndo: Bool { history.canUndo }
   public var canRedo: Bool { history.canRedo }
 
+  private var historyState: History.State {
+    get { History.State(store: store, selection: selectedIds, editingGroupId: editingGroupId) }
+    set {
+      store = newValue.store
+      selectedIds = newValue.selection
+      editingGroupId = newValue.editingGroupId
+    }
+  }
+
   func capture() {
-    history.record(store, selection: selectedIds)
+    history.record(historyState)
   }
 
   public func undo() {
     guard editing == nil, gesture == nil else { return }
-    history.undo(&store, selection: &selectedIds, environment: environment)
+    history.undo(&historyState, environment: environment)
   }
 
   public func redo() {
     guard editing == nil, gesture == nil else { return }
-    history.redo(&store, selection: &selectedIds, environment: environment)
+    history.redo(&historyState, environment: environment)
   }
 }
 

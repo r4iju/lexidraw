@@ -137,9 +137,12 @@ hand:
   frames alone.
 - An arrow bound to a shape follows it, but an elbow arrow keeps its elbows
   where they were; the app draws no elbow arrows of its own.
-- Entering a group to edit one of its elements isn't a step to undo.
+- Entering or leaving a group to edit one of its elements is a step to
+  undo, as on the web.
 - The style panel offers the web's first five colours of each kind, and the
-  system's colour picker for any other.
+  system's colour picker for any other. Its sections and the toolbar's
+  buttons are the editor's own, so the interaction tests press what a user
+  presses.
 - A picked image is prepared as the web prepares a dropped file: named by
   the SHA-1 of the bytes picked, and shrunk to 1440 pixels a side. A photo
   in a kind the server doesn't store, such as HEIC, becomes a JPEG, or a PNG

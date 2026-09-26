@@ -21,6 +21,10 @@
       "value": 1
     },
     {
+      "style": "strokeStyle",
+      "value": "dotted"
+    },
+    {
       "style": "roughness",
       "value": 2
     },

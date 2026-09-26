@@ -41,16 +41,30 @@ extension DrawingEditor {
     return ids.union(members)
   }
 
-  public var canGroup: Bool { groupable().count >= 2 }
+  /// `enableActionGroup`: at least two are selected, not all already in
+  /// one group, and no frame with what is in it.
+  public var canGroup: Bool {
+    let selected = selectedWithLabels()
+    guard selected.count >= 2 else { return false }
+    let allInOneGroup = groupIds(selected[0]).contains { group in selected.allSatisfy { groupIds($0).contains(group) } }
+    let ids = Set(selected.map(\.id))
+    let frameWithChildren = selected.contains { $0["frameId"]?.stringValue.map(ids.contains) == true }
+    return !allInOneGroup && !frameWithChildren
+  }
+
   public var canUngroup: Bool { !selectedGroupIds.isEmpty }
 
-  /// `getRootElements` of the selection with the labels its shapes hold.
-  private func groupable() -> [RawElement] {
-    let selected = store.filter { element in
+  private func selectedWithLabels() -> [RawElement] {
+    store.filter { element in
       !element.isDeleted
         && (selectedIds.contains(element.id)
           || (element.type == .text && element["containerId"]?.stringValue.map(selectedIds.contains) == true))
     }
+  }
+
+  /// `getRootElements` of the selection with the labels its shapes hold.
+  private func groupable() -> [RawElement] {
+    let selected = selectedWithLabels()
     let frames = Set(selected.filter { $0.type == .frame || $0.type == .magicframe }.map(\.id))
     return selected.filter { element in
       frames.contains(element.id) || !(element["frameId"]?.stringValue.map(frames.contains) ?? false)
