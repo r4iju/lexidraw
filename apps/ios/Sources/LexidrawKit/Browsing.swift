@@ -127,6 +127,19 @@ extension Entry.Kind {
     }
   }
 
+  /// Where the web opens one, under its own address.
+  var webPath: String {
+    switch self {
+    case .document: "documents"
+    case .drawing: "drawings"
+    case .folder: "dashboard"
+    case .url: "urls"
+    }
+  }
+
+  /// As the server reads files aloud.
+  public var isListenable: Bool { self == .document || self == .url }
+
   init(_ type: Components.Schemas.EntityType) {
     switch type {
     case .directory: self = .folder

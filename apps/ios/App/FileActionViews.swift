@@ -18,7 +18,7 @@ final class FileActions {
     case failed(Failure)
   }
 
-  private let session: Session
+  let session: Session
   private let browser: Browser
   var step: Step?
   /// The title being typed while renaming.
@@ -76,9 +76,6 @@ final class FileActions {
       fail("Couldn’t rename “\(entry.title)”. Try again.", error)
     }
   }
-
-  /// The address the web opens `entry` at.
-  func link(to entry: Entry) -> URL { session.link(to: entry) }
 
   /// The folders a file could move into, in `folder` or at the top of Home.
   func folders(in folder: Entry?) async throws -> [Entry] {
@@ -150,7 +147,7 @@ private struct FileActionMenu: ViewModifier {
         ListenButton(file: entry)
         // Anyone who can see a file may send its address; the web decides
         // who it opens for.
-        ShareLink(item: actions.link(to: entry), subject: Text(entry.title)) {
+        ShareLink(item: actions.session.link(to: entry), subject: Text(entry.title)) {
           Label("Share Link…", systemImage: "square.and.arrow.up")
         }
         Divider()

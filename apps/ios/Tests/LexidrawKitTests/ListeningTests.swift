@@ -144,6 +144,28 @@ private final class Reports: Sendable {
     #expect(recording.resuming(.init(part: 3, seconds: 7)) == .init(part: 0, seconds: 0))
     #expect(recording.resuming(nil) == .init(part: 0, seconds: 0))
   }
+
+  @Test func aPartIsNamedByItsPlaceAmongThemAll() {
+    #expect(recording.partNumber(at: .init(part: 1, seconds: 7)) == "Part 2 of 3")
+  }
+
+  /// A part read under a heading is known by it.
+  @Test func aPartIsTitledByItsSectionWhenItHasOne() {
+    let sectioned = Recording(parts: [
+      .init(text: "Up.", audio: URL(string: "https://blob.test/0.mp3")!, section: "Summary"),
+      .init(text: "Down.", audio: URL(string: "https://blob.test/1.mp3")!, section: nil),
+    ])
+
+    #expect(sectioned.partTitle(at: .start) == "Summary")
+    #expect(sectioned.partTitle(at: .init(part: 1, seconds: 0)) == "Part 2 of 2")
+  }
+}
+
+@Suite struct ListenableTests {
+  /// As the server reads them aloud.
+  @Test func onlyDocumentsAndLinksAreReadAloud() {
+    #expect([Entry.Kind.folder, .document, .drawing, .url].filter(\.isListenable) == [.document, .url])
+  }
 }
 
 @Suite struct ResumePointsTests {

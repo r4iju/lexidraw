@@ -15,7 +15,6 @@ final class Listener {
     case idle
     case preparing(File, Recording.Progress)
     case failed(File, String)
-    /// Playing or paused.
     case loaded(File, Recording)
   }
 
@@ -75,7 +74,7 @@ final class Listener {
   }
 
   var part: Recording.Part? {
-    recording.flatMap { $0.parts.indices.contains(position.part) ? $0.parts[position.part] : nil }
+    recording?.part(at: position)
   }
 
   /// Plays `file` from where its last listen stopped, making its audio first

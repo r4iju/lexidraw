@@ -14,6 +14,11 @@ public struct Session: Sendable {
     try await unwrapped { try await call(connection.client) }
   }
 
+  /// The address the web opens `entry` at, for sending to someone.
+  public func link(to entry: Entry) -> URL {
+    origin.appending(path: "\(entry.kind.webPath)/\(entry.id)")
+  }
+
   /// What is in a folder, or at the top of Home when `folder` is nil, with
   /// the web's default sort. Only what carries every one of `tags` when there
   /// are any.

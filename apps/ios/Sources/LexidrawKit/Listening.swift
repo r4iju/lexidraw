@@ -55,6 +55,19 @@ public struct Recording: Sendable, Equatable {
     position.part + 1 < parts.count ? Position(part: position.part + 1, seconds: 0) : nil
   }
 
+  public func partNumber(at position: Position) -> String {
+    "Part \(position.part + 1) of \(parts.count)"
+  }
+
+  /// A part read under a heading is known by it.
+  public func partTitle(at position: Position) -> String {
+    part(at: position)?.section ?? partNumber(at: position)
+  }
+
+  public func part(at position: Position) -> Part? {
+    parts.indices.contains(position.part) ? parts[position.part] : nil
+  }
+
   /// Where a listen kept from before goes on, in this recording.
   public func resuming(_ kept: Position?) -> Position {
     guard let kept, parts.indices.contains(kept.part) else { return .start }

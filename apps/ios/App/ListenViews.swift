@@ -7,7 +7,7 @@ struct ListenButton: View {
   @Environment(Listener.self) private var listener
 
   var body: some View {
-    if file.kind == .document || file.kind == .url {
+    if file.kind.isListenable {
       Button("Listen", systemImage: "headphones") {
         listener.listen(to: .init(id: file.id, title: file.title))
       }
@@ -84,8 +84,7 @@ private struct NowPlayingBar: View {
     case .preparing(_, .started): "Making the audio…"
     case .preparing(_, .made(let made, let planned)): "Making the audio, \(made) of \(planned) parts…"
     case .failed(_, let message): message
-    case .loaded(_, let recording):
-      listener.part?.section ?? "Part \(listener.position.part + 1) of \(recording.parts.count)"
+    case .loaded(_, let recording): recording.partTitle(at: listener.position)
     }
   }
 }
@@ -124,7 +123,7 @@ private struct NowPlayingSheet: View {
           ToolbarItem(placement: .principal) {
             VStack {
               Text(listener.file?.title ?? "").font(.headline).lineLimit(1)
-              Text(listener.part?.section ?? "Part \(listener.position.part + 1) of \(recording.parts.count)")
+              Text(recording.partTitle(at: listener.position))
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
@@ -142,7 +141,7 @@ private struct NowPlayingSheet: View {
         HStack {
           Text(Duration.seconds(listener.position.seconds).formatted(.time(pattern: .minuteSecond)))
           Spacer()
-          Text("Part \(listener.position.part + 1) of \(recording.parts.count)")
+          Text(recording.partNumber(at: listener.position))
         }
         .font(.caption.monospacedDigit())
         .foregroundStyle(.secondary)
@@ -150,11 +149,13 @@ private struct NowPlayingSheet: View {
       HStack {
         Button("Previous Part", systemImage: "backward.end.fill", action: listener.previousPart)
         Spacer()
-        Button("Back \(Int(Listener.skip)) Seconds", systemImage: "gobackward.15") { listener.skip(by: -Listener.skip) }
+        Button("Back \(Int(Listener.skip)) Seconds", systemImage: "gobackward.\(Int(Listener.skip))") {
+          listener.skip(by: -Listener.skip)
+        }
         Spacer()
         PlayPauseButton().font(.largeTitle)
         Spacer()
-        Button("Forward \(Int(Listener.skip)) Seconds", systemImage: "goforward.15") {
+        Button("Forward \(Int(Listener.skip)) Seconds", systemImage: "goforward.\(Int(Listener.skip))") {
           listener.skip(by: Listener.skip)
         }
         Spacer()

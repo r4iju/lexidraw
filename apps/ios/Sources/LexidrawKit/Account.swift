@@ -39,9 +39,19 @@ public struct Account: Sendable {
   /// account.
   public static func configured(by bundle: Bundle = .main) -> Account {
     let info = { (key: String) in bundle.object(forInfoDictionaryKey: key) as? String }
+    let setting = { (key: String) in
+      guard let value = info(key), !value.isEmpty else {
+        fatalError("\(bundle.bundleURL.lastPathComponent)'s Info.plist has no \(key)")
+      }
+      return value
+    }
+    guard let origin = URL(string: setting("LexidrawServerURL")) else {
+      fatalError("LexidrawServerURL in \(bundle.bundleURL.lastPathComponent)'s Info.plist is no address")
+    }
     return Account(
-      origin: URL(string: info("LexidrawServerURL") ?? "")!,
-      store: KeychainTokenStore(service: info("LexidrawKeychainService")!, accessGroup: info("LexidrawKeychainGroup")))
+      origin: origin,
+      store: KeychainTokenStore(
+        service: setting("LexidrawKeychainService"), accessGroup: info("LexidrawKeychainGroup")))
   }
 
   /// Signed in with the token kept from an earlier launch, if there is one.

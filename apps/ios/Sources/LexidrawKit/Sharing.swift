@@ -174,22 +174,6 @@ extension Session {
     }
     return signed.url
   }
-
-  /// The address the web opens `entry` at, for sending to someone.
-  public func link(to entry: Entry) -> URL {
-    origin.appending(path: "\(entry.kind.webPath)/\(entry.id)")
-  }
-}
-
-extension Entry.Kind {
-  fileprivate var webPath: String {
-    switch self {
-    case .document: "documents"
-    case .drawing: "drawings"
-    case .folder: "dashboard"
-    case .url: "urls"
-    }
-  }
 }
 
 /// How the store says why it refused.
