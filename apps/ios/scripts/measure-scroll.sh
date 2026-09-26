@@ -24,8 +24,13 @@ out=${MEASURE_OUT:-measurements/$(date +%Y%m%d-%H%M%S)}
 mkdir -p "$out"
 out=$(cd "$out" && pwd)
 bundle=xyz.raiju.lexidraw.editor-harness
+simulator=
+cleanup() {
+  [ -z "${build:-}" ] || rm -rf "$build"
+  [ -z "$simulator" ] || { xcrun simctl shutdown "$simulator" 2>/dev/null || true; xcrun simctl delete "$simulator"; }
+}
+trap cleanup EXIT
 build=$(mktemp -d)
-cleanup() { rm -rf "$build"; }
 
 if [ -n "${MEASURE_DEVICE:-}" ]; then
   udid=$MEASURE_DEVICE
@@ -39,9 +44,9 @@ else
     [.runtimes[] | select(.platform == "iOS" and any(.supportedDeviceTypes[]; .identifier | endswith(".iPhone-13")))]
     | sort_by(.version | split(".") | map(tonumber)) | last')
   [ "$runtime" != null ] || { echo "No iOS simulator runtime runs an iPhone 13" >&2; exit 1; }
-  udid=$(xcrun simctl create "Scroll measurements" com.apple.CoreSimulator.SimDeviceType.iPhone-13 \
+  simulator=$(xcrun simctl create "Scroll measurements" com.apple.CoreSimulator.SimDeviceType.iPhone-13 \
     "$(echo "$runtime" | jq -r .identifier)")
-  cleanup() { rm -rf "$build"; xcrun simctl shutdown "$udid" 2>/dev/null || true; xcrun simctl delete "$udid"; }
+  udid=$simulator
   echo "Measuring on an iPhone 13 simulator, $(echo "$runtime" | jq -r .name)"
   xcrun simctl boot "$udid"
   xcrun simctl bootstatus "$udid" >/dev/null
@@ -54,7 +59,6 @@ else
   xcrun xctrace record --no-prompt --quiet --device "$udid" --output "$build/warm-up.trace" --all-processes \
     --time-limit 1s --instrument "Points of Interest" >/dev/null
 fi
-trap cleanup EXIT
 
 for document in $documents; do
   echo "Scrolling the $document document"
