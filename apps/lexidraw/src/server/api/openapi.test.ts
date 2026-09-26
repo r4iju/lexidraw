@@ -17,13 +17,14 @@ const testDir = join(import.meta.dir, "..", "..", "test");
  * process-global, so they run in a child process rather than leaking into
  * every other test file in the suite.
  */
-function generate(): OpenAPIObject {
+function generate(reader?: "swift"): OpenAPIObject {
   const result = Bun.spawnSync({
     cmd: [
       "bun",
       "--preload",
       join(testDir, "stub-env.ts"),
       join(testDir, "print-openapi.ts"),
+      ...(reader ? [reader] : []),
     ],
     stdout: "pipe",
     stderr: "pipe",
@@ -35,9 +36,11 @@ function generate(): OpenAPIObject {
 }
 
 let document: OpenAPIObject;
+let swiftDocument: OpenAPIObject;
 
 beforeAll(() => {
   document = generate();
+  swiftDocument = generate("swift");
 });
 
 describe("openApiDocument", () => {
@@ -52,14 +55,23 @@ describe("openApiDocument", () => {
     expect(problems).toEqual([]);
   });
 
-  // The CLI's tests read the document from a file rather than a server, so a
-  // change to the API that leaves the file behind tests the CLI against an
-  // API that is gone. `bun run openapi:fixture` in apps/lexidraw rewrites it.
+  // Copies read from a file rather than a server: the CLI's tests are written
+  // against one, and the iOS app's client is generated from the other. A
+  // change to the API that leaves a copy behind tests the CLI against an API
+  // that is gone, or ships an app calling one. `bun run openapi:fixture` in
+  // apps/lexidraw rewrites both.
   it("is the document the CLI's tests are written against", async () => {
     const fixture = await Bun.file(
       join(import.meta.dir, "../../../../cli/test/fixtures/openapi.json"),
     ).json();
     expect(fixture).toEqual(document);
+  });
+
+  it("is the document the iOS app's client is generated from", async () => {
+    const fixture = await Bun.file(
+      join(import.meta.dir, "../../../../ios/Sources/LexidrawKit/openapi.json"),
+    ).json();
+    expect(fixture).toEqual(swiftDocument);
   });
 
   it("sends readers to where tokens are made", () => {
