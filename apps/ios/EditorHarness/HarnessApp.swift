@@ -10,6 +10,8 @@ import TextKitEditor
 /// (`EDITOR_MODEL`, an `EditorModelChoice`), the document (`EDITOR_DOCUMENT`,
 /// serialized editor state), where Save writes it (`EDITOR_SAVE_PATH`) and
 /// where Save also writes each call the keyboard made (`EDITOR_INPUT_LOG`).
+/// It shows how many hardware key presses the editor passed on unhandled,
+/// for scripts that wait for the simulator to deliver one.
 @main
 struct HarnessApp: App {
   var body: some Scene {
@@ -30,8 +32,13 @@ struct HarnessView: View {
         .navigationTitle(harness.title)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-          Button("Save") {
-            do { try harness.save() } catch { message = "\(error)" }
+          ToolbarItem(placement: .topBarLeading) {
+            Text("\(harness.hardwareKeys)").accessibilityIdentifier("hardware keys")
+          }
+          ToolbarItem {
+            Button("Save") {
+              do { try harness.save() } catch { message = "\(error)" }
+            }
           }
         }
         .alert("Couldn't save", message: $message)
@@ -43,11 +50,12 @@ struct HarnessView: View {
   }
 }
 
-@MainActor
+@MainActor @Observable
 final class Harness {
   let model: any EditorModel
   let title: String
   private(set) var inputs: [TextInputRecord] = []
+  var hardwareKeys = 0
   private let saveURL: URL
   private let inputLogURL: URL?
 
@@ -110,12 +118,33 @@ struct HarnessError: Error, CustomStringConvertible {
 struct EditorRepresentable: UIViewRepresentable {
   let harness: Harness
 
-  func makeUIView(context: Context) -> EditorView {
-    let view = EditorView(model: harness.model)
-    view.accessibilityIdentifier = "editor"
-    view.onInput = { [harness] in harness.record($0) }
-    return view
+  func makeUIView(context: Context) -> KeyCountingView {
+    let editor = EditorView(model: harness.model)
+    editor.accessibilityIdentifier = "editor"
+    editor.onInput = { [harness] in harness.record($0) }
+    return KeyCountingView(editor, harness: harness)
   }
 
-  func updateUIView(_ view: EditorView, context: Context) {}
+  func updateUIView(_ view: KeyCountingView, context: Context) {}
+}
+
+/// The editor, counting the hardware key presses it passes up the
+/// responder chain, as it does a key it has no command for.
+final class KeyCountingView: UIView {
+  private let harness: Harness
+
+  init(_ editor: EditorView, harness: Harness) {
+    self.harness = harness
+    super.init(frame: .zero)
+    editor.frame = bounds
+    editor.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+    addSubview(editor)
+  }
+
+  required init?(coder: NSCoder) { fatalError("KeyCountingView is made in code") }
+
+  override func pressesBegan(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
+    harness.hardwareKeys += presses.count
+    super.pressesBegan(presses, with: event)
+  }
 }

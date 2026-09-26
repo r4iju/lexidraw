@@ -238,18 +238,30 @@ class EditorUITests: XCTestCase {
     hasPressedAKey = false
   }
 
-  /// Presses `key` on the hardware keyboard. The simulator drops the first
-  /// shortcut after the software keyboard comes up, from a UITextView too,
-  /// so a Shift press goes first. Only then: once a hardware key is down,
-  /// the Japanese keyboard types a space as U+3000.
+  /// Presses `key` on the hardware keyboard, the first time once the
+  /// keyboard is ready for it. Only then: once a hardware key is down, the
+  /// Japanese keyboard types a space as U+3000.
   private func press(_ key: XCUIKeyboardKey, _ modifiers: XCUIElement.KeyModifierFlags = []) {
     press(key.rawValue, modifiers)
   }
 
   private func press(_ key: String, _ modifiers: XCUIElement.KeyModifierFlags = []) {
-    if !hasPressedAKey { editor.typeKey(XCUIKeyboardKey.shift.rawValue, modifierFlags: []) }
+    if !hasPressedAKey { readyTheHardwareKeyboard() }
     hasPressedAKey = true
     editor.typeKey(key, modifierFlags: modifiers)
+  }
+
+  /// The simulator drops the first shortcut after the software keyboard
+  /// comes up, from a UITextView too, and now and then takes the modifiers
+  /// off the next one: Shift+Left arrives as Left. So a Shift goes first,
+  /// then Shift+F13, which does nothing with its modifier or without, and
+  /// the script waits for the harness to have been given it.
+  private func readyTheHardwareKeyboard() {
+    editor.typeKey(XCUIKeyboardKey.shift.rawValue, modifierFlags: [])
+    editor.typeKey(XCUIKeyboardKey.F13.rawValue, modifierFlags: .shift)
+    let given = XCTNSPredicateExpectation(
+      predicate: NSPredicate(format: "label != '0'"), object: app.staticTexts["hardware keys"])
+    XCTAssertEqual(XCTWaiter.wait(for: [given], timeout: 10), .completed, "The harness was never given Shift+F13")
   }
 
   /// Taps `candidate` in the keyboard's candidate bar, or in the full list
