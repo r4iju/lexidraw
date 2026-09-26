@@ -132,8 +132,9 @@ public final class DocumentText {
   }
 
   /// Replaces `range` of `storage` with `text`, as a composition does before
-  /// the model hears of it. An edit across blocks merges them into the
-  /// first, laid out as text, until the next update renders afresh.
+  /// the model hears of it. An edit within a table cell keeps the table;
+  /// any other edit of a block that isn't text, or across blocks, lays the
+  /// blocks out as one text until the next update renders afresh.
   public func replace(_ storage: NSMutableAttributedString, in range: NSRange, with text: NSAttributedString)
     -> [Splice]
   {
@@ -142,7 +143,14 @@ public final class DocumentText {
     storage.replaceCharacters(in: range, with: text)
     var block = blocks[first]
     block.length = starts[last] + blocks[last].length - starts[first] + text.length - range.length
-    if last > first {
+    var edited: [[NSRange]]?
+    if case .table(let cells) = block.kind, last == first {
+      let local = NSRange(location: range.location - starts[first], length: range.length)
+      edited = Self.cells(cells, replacing: local, withLength: text.length)
+    }
+    if let edited {
+      block.kind = .table(cells: edited)
+    } else if last > first || block.kind != .text {
       block.kind = .text
       block.spans = [:]
       merged = true
@@ -231,6 +239,22 @@ public final class DocumentText {
       text.append(block)
     }
     return (text, rendered)
+  }
+
+  /// A table's cells after `range` of it is replaced with text `length`
+  /// long, or nil where the edit takes in more than one cell.
+  private static func cells(_ cells: [[NSRange]], replacing range: NSRange, withLength length: Int) -> [[NSRange]]? {
+    var inOneCell = false
+    let edited = cells.map { row in
+      row.map { cell -> NSRange in
+        if NSMaxRange(cell) < range.location { return cell }
+        if cell.location > NSMaxRange(range) { return NSRange(location: cell.location + length - range.length, length: cell.length) }
+        guard cell.location <= range.location, NSMaxRange(range) <= NSMaxRange(cell) else { return cell }
+        inOneCell = true
+        return NSRange(location: cell.location, length: cell.length + length - range.length)
+      }
+    }
+    return inOneCell ? edited : nil
   }
 
   private static func kind(of node: JSONValue, spans: [[Int]: Span]) -> BlockKind {

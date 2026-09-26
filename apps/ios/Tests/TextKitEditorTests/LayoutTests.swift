@@ -12,14 +12,40 @@ import UIKit
   /// every block, table cells included.
   @Test
   func aTapOnACaretLandsOnIt() throws {
-    let view = try Self.host(Self.titledTable)
+    try Self.expectEveryCaretToLandOnItself(try Self.host(Self.titledTable))
+  }
+
+  static func text(of view: EditorView) throws -> String {
     let whole = try #require(view.textRange(from: view.beginningOfDocument, to: view.endOfDocument))
-    let text = try #require(view.text(in: whole))
+    return try #require(view.text(in: whole))
+  }
+
+  static func expectEveryCaretToLandOnItself(_ view: EditorView) throws {
+    let text = try text(of: view)
     for offset in 0...text.utf16.count {
       let position = try #require(view.position(from: view.beginningOfDocument, offset: offset))
       let caret = view.caretRect(for: position)
       let landed = try #require(view.closestPosition(to: CGPoint(x: caret.minX, y: caret.midY)))
       #expect(view.offset(from: view.beginningOfDocument, to: landed) == offset, "\(text.debugDescription) at \(offset)")
+    }
+  }
+
+  /// Composing in a cell grows and shrinks that cell alone: the cells after
+  /// it keep their text, and a tap on any caret still lands on it.
+  @Test
+  func composingInACellKeepsTheCellsAfterIt() throws {
+    let view = try Self.host(Self.titledTable)
+    #expect(view.becomeFirstResponder())
+    let cell = (try Self.text(of: view) as NSString).range(of: "two words")
+    view.selectedTextRange = view.textRange(
+      from: try #require(view.position(from: view.beginningOfDocument, offset: cell.location)),
+      to: try #require(view.position(from: view.beginningOfDocument, offset: NSMaxRange(cell))))
+    for composed in ["t", "two many words"] {
+      view.setMarkedText(composed, selectedRange: NSRange(location: composed.utf16.count, length: 0))
+      view.layoutIfNeeded()
+      let text = try Self.text(of: view)
+      #expect(text.contains("one\n\(composed)\nthree\nfour"), "\(text.debugDescription)")
+      try Self.expectEveryCaretToLandOnItself(view)
     }
   }
 
