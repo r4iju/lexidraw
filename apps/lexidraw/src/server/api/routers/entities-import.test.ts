@@ -21,10 +21,13 @@ mock.module("@vercel/blob", () => ({
     return { url: `${HOST}/${pathname}`, pathname };
   },
 }));
+/** The picture the page being read names as its own. */
+let pagePicture: string | undefined;
 const realExtractor = await import("~/server/extractors/article");
 mock.module("~/server/extractors/article", () => ({
   ...realExtractor,
   extractAndSanitizeArticle: async ({ url }: { url: string }) => ({
+    bestImageUrl: pagePicture,
     status: "ready",
     title: `Read from ${url}`,
     contentHtml: `<p>${"A sentence long enough to count as an article. ".repeat(20)}</p>`,
@@ -147,5 +150,25 @@ describe("reading a saved link's page", () => {
       entityType: "url",
       parentId: null,
     });
+  });
+
+  test("keeps no picture the page names at a private address", async () => {
+    pagePicture = "http://169.254.169.254/latest/meta-data/";
+    const realFetch = globalThis.fetch;
+    globalThis.fetch = (async () =>
+      new Response(PNG)) as unknown as typeof fetch;
+    try {
+      await callerOf(OWNER).distillUrl({ id: LINK });
+    } finally {
+      globalThis.fetch = realFetch;
+      pagePicture = undefined;
+    }
+
+    const [link] = await db
+      .select()
+      .from(schema.entities)
+      .where(eq(schema.entities.id, LINK));
+    expect(link?.screenShotLight).toBeFalsy();
+    expect([...stored.keys()].filter((key) => key.includes(LINK))).toEqual([]);
   });
 });

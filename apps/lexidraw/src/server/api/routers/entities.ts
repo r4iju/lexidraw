@@ -28,6 +28,8 @@ import type { AppState } from "@excalidraw/excalidraw/types";
 import { v4 as uuidV4 } from "uuid";
 import { ownTagNames, replaceOwnTags } from "~/server/entities/tags";
 import { extractAndSanitizeArticle } from "~/server/extractors/article";
+import { readPublicImage } from "~/server/net/public-image";
+import { extensionOf } from "~/server/documents/raster-type";
 import { entityText, snippetAround } from "~/lib/entity-text";
 import env from "@packages/env";
 import { put } from "@vercel/blob";
@@ -1862,29 +1864,22 @@ export const entityRouter = createTRPCRouter({
       // 4) Upload best image to Blob (if any) and set screenshot columns
       let screenShotLight: string | undefined;
       let screenShotDark: string | undefined;
-      if (distilled.bestImageUrl) {
+      const picture =
+        distilled.bestImageUrl &&
+        (await readPublicImage(distilled.bestImageUrl));
+      if (picture) {
         try {
-          const res = await fetch(distilled.bestImageUrl);
-          if (res.ok) {
-            const contentType = res.headers.get("content-type") || "image/jpeg";
-            const ext = contentType.includes("png")
-              ? "png"
-              : contentType.includes("webp")
-                ? "webp"
-                : contentType.includes("svg")
-                  ? "svg"
-                  : contentType.includes("avif")
-                    ? "avif"
-                    : "jpg";
-            const buffer = Buffer.from(await res.arrayBuffer());
-            const blob = await put(
-              thumbnailPathname(input.id, "thumb", ext),
-              buffer,
-              { access: "public", contentType },
-            );
-            screenShotLight = blob.url;
-            screenShotDark = blob.url;
-          }
+          const blob = await put(
+            thumbnailPathname(
+              input.id,
+              "thumb",
+              extensionOf(picture.contentType),
+            ),
+            Buffer.from(picture.bytes),
+            { access: "public", contentType: picture.contentType },
+          );
+          screenShotLight = blob.url;
+          screenShotDark = blob.url;
         } catch (e) {
           console.warn("Failed to upload bestImageUrl", e);
         }

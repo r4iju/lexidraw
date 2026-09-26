@@ -1,7 +1,9 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { getBrightDataProxyUrls } from "@packages/lib";
 import type { Browser, Dialog, Page } from "puppeteer-core";
+import { publicAddress, reachable } from "@packages/lib/public-address";
 import { launchBrowser } from "~/lib/launch-browser";
+import { guardRequests } from "~/lib/public-requests";
 
 export const maxDuration = 30;
 
@@ -95,6 +97,7 @@ async function performPageWorkflow(
   waitUntil: WaitUntil,
   timeoutMs: number,
 ): Promise<string> {
+  await guardRequests(page);
   await page.setUserAgent(
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
   );
@@ -261,9 +264,9 @@ export async function POST(req: NextRequest) {
       return new NextResponse("Only http/https URLs are supported", {
         status: 400,
       });
-    const { hostname } = new URL(url);
-    if (isPrivateHostname(hostname))
-      return new NextResponse("Private hostnames are not allowed", {
+    const target = reachable(url);
+    if (!target || !(await publicAddress(target)))
+      return new NextResponse("Only public addresses may be rendered", {
         status: 400,
       });
 
