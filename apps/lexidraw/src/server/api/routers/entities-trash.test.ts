@@ -63,6 +63,44 @@ beforeAll(async () => {
     ...row("etrash_kept", "document", null),
     parentId: "etrash_folder",
   });
+  // For restoring: a live folder of the owner's and one of someone else's
+  // they could edit in once and now only read, each with a file of the
+  // owner's that went to the trash from it, and a file that went from the
+  // folder that is in the trash itself.
+  await db.insert(schema.entities).values([
+    { ...row("etrash_home", "directory", null) },
+    {
+      ...row("etrash_theirs", "directory", null),
+      userId: OTHER,
+    },
+    {
+      ...row("etrash_back", "document", new Date("2026-09-03T00:00:00.000Z")),
+      parentId: "etrash_home",
+    },
+    {
+      ...row("etrash_orphan", "document", new Date("2026-09-04T00:00:00.000Z")),
+      parentId: "etrash_folder",
+    },
+    {
+      ...row("etrash_left", "document", new Date("2026-09-05T00:00:00.000Z")),
+      parentId: "etrash_theirs",
+    },
+    row("etrash_given", "document", new Date("2026-09-02T00:00:00.000Z")),
+  ]);
+  await db.insert(schema.sharedEntities).values([
+    {
+      id: "etrash_theirs_share",
+      entityId: "etrash_theirs",
+      userId: OWNER,
+      accessLevel: AccessLevel.READ,
+    },
+    {
+      id: "etrash_given_share",
+      entityId: "etrash_given",
+      userId: EDITOR,
+      accessLevel: AccessLevel.EDIT,
+    },
+  ]);
   await db.insert(schema.sharedEntities).values({
     id: "etrash_share",
     entityId: "etrash_live",
@@ -152,4 +190,71 @@ test("someone a file is shared with for editing can ask for a new thumbnail", as
   await expect(
     callerOf(EDITOR).regenerateThumbnail({ id: "etrash_live" }),
   ).resolves.toEqual({ ok: true });
+});
+
+describe("the trash", () => {
+  test("lists what its owner put there, last in first", async () => {
+    const trash = await owner.trash();
+    expect(trash.slice(0, 4).map((entity) => entity.id)).toEqual([
+      "etrash_left",
+      "etrash_orphan",
+      "etrash_back",
+      "etrash_given",
+    ]);
+    expect(trash.map((entity) => entity.id).toSorted()).toEqual(
+      [
+        "etrash_back",
+        "etrash_doc",
+        "etrash_folder",
+        "etrash_given",
+        "etrash_left",
+        "etrash_orphan",
+        "etrash_url",
+      ].toSorted(),
+    );
+    expect(trash[0]?.deletedAt).toEqual(new Date("2026-09-05T00:00:00.000Z"));
+  });
+
+  test("is the owner's alone, even for someone a trashed file was shared with", async () => {
+    expect(await callerOf(EDITOR).trash()).toEqual([]);
+  });
+});
+
+describe("restoring a file from the trash", () => {
+  test("puts it back in the folder it went from", async () => {
+    const restored = await owner.restore({ id: "etrash_back" });
+    expect(restored.parentId).toBe("etrash_home");
+    const listed = await owner.list({ parentId: "etrash_home" });
+    expect(listed.map((entity) => entity.id)).toEqual(["etrash_back"]);
+    expect((await owner.trash()).map((entity) => entity.id)).not.toContain(
+      "etrash_back",
+    );
+  });
+
+  test("puts it at the top of Home when its folder is in the trash too", async () => {
+    const restored = await owner.restore({ id: "etrash_orphan" });
+    expect(restored.parentId).toBeNull();
+    const home = await owner.list({});
+    expect(home.map((entity) => entity.id)).toContain("etrash_orphan");
+  });
+
+  test("puts it at the top of Home when its owner may no longer write in its folder", async () => {
+    const restored = await owner.restore({ id: "etrash_left" });
+    expect(restored.parentId).toBeNull();
+  });
+
+  test("is its owner's to do, not an editor's", async () => {
+    await expect(
+      callerOf(EDITOR).restore({ id: "etrash_given" }),
+    ).rejects.toMatchObject(notFound);
+    await expect(
+      callerOf(OTHER).restore({ id: "etrash_given" }),
+    ).rejects.toMatchObject(notFound);
+  });
+
+  test("finds nothing to restore in a file that is not in the trash", async () => {
+    await expect(owner.restore({ id: "etrash_live" })).rejects.toMatchObject(
+      notFound,
+    );
+  });
 });

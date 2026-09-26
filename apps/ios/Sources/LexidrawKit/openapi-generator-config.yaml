@@ -6,5 +6,10 @@ namingStrategy: idiomatic
 filter:
   operations:
     - entities-list
+    - entities-search
+    - entities-sharedWithMe
+    - entities-trash
+    - entities-getMetadata
+    - entities-getUserTags
     - nativeSignIn-exchange
     - tokens-revokeCurrent

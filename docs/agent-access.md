@@ -83,10 +83,11 @@ cookie session and no token, whatever the request carries.
   POST/PUT/DELETE. superjson does not apply on this path (plain JSON).
 - Document served unauthenticated at `/api/v1/openapi.json`.
 - Live: the entity subset below — list/load/create/save/update/delete/search,
-  tags, share, and directory listing — plus the four markdown procedures, a
-  document's PDF, the drawing procedures, render included, and a token revoking
-  itself. Nothing further is planned. Admin,
-  TTS, backups, snapshot, image generation, and LLM procedures stay tRPC-only.
+  tags, share, directory listing, where an entity is, shared with me, the
+  trash and a restore — plus the four markdown procedures, a document's PDF,
+  the drawing procedures, render included, and a token revoking itself.
+  Nothing further is planned. Admin, TTS, backups, snapshot, image
+  generation, and LLM procedures stay tRPC-only.
 
 #### Paths (live)
 
@@ -97,10 +98,14 @@ cookie session and no token, whatever the request carries.
 | GET    | `/entities`                       | `entities.list`              |
 | POST   | `/entities`                       | `entities.create`            |
 | GET    | `/entities/search`                | `entities.search`            |
+| GET    | `/entities/shared`                | `entities.sharedWithMe`      |
+| GET    | `/entities/trash`                 | `entities.trash`             |
 | GET    | `/entities/{id}`                  | `entities.load`              |
 | PUT    | `/entities/{id}`                  | `entities.save`              |
 | PATCH  | `/entities/{id}`                  | `entities.update`            |
 | DELETE | `/entities/{id}`                  | `entities.delete`            |
+| GET    | `/entities/{id}/metadata`         | `entities.getMetadata`       |
+| POST   | `/entities/{id}/restore`          | `entities.restore`           |
 | GET    | `/entities/{id}/tags`             | `entities.getEntityTags`     |
 | PUT    | `/entities/{id}/tags`             | `entities.updateEntityTags`  |
 | GET    | `/entities/{id}/shares`           | `entities.getSharedInfo`     |
@@ -120,8 +125,9 @@ cookie session and no token, whatever the request carries.
 | POST   | `/native-sign-in/token`           | `nativeSignIn.exchange`      |
 
 A directory listing is `GET /entities?parentId={directoryId}`; omitting
-`parentId` lists the root. `/entities/search` is registered before
-`/entities/{id}` because the adapter matches paths in registration order.
+`parentId` lists the root. `/entities/search`, `/entities/shared` and
+`/entities/trash` are registered before `/entities/{id}` because the adapter
+matches paths in registration order.
 Repeated query parameters (`tagNames`, `entityTypes`) may also be
 comma-separated, since a single repetition arrives as a bare string.
 
@@ -131,6 +137,17 @@ still shared on. A delete only stamps `deletedAt` and an unshare leaves the
 former sharer's tag rows, so a restore or a new share brings the tag back. An
 archived entity still counts, since `GET /entities?includeArchived=true` lists
 it.
+
+`GET /entities/shared` lists what others shared with the caller wherever its
+owner keeps it, so a file in a folder the caller was not given is still
+reachable; its `parentId` is null when the caller cannot open that folder.
+`GET /entities/{id}/metadata` gives the folders above an entity that the
+caller may open, from the top down, which is what a breadcrumb shows.
+
+`DELETE /entities/{id}` only stamps `deletedAt`, so `GET /entities/trash` lists
+the caller's own entities that carry it, and `POST /entities/{id}/restore`
+takes one back out: into the folder it left when its owner may still write
+there, or else to the top of Home. Both are the owner's, as the delete is.
 
 A `parentId` on a create is resolved before the insert, by `POST /entities` as
 by `POST /drawings`: it has to be a directory the caller may write to, and

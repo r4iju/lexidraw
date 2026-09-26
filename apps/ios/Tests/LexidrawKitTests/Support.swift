@@ -3,6 +3,7 @@ import HTTPTypes
 import LexidrawKit
 import OpenAPIRuntime
 import Synchronization
+import Testing
 
 /// The server at the transport seam: each request is recorded, and answered by
 /// whatever the test says, a thrown error standing for a network that is down.
@@ -87,6 +88,11 @@ enum TestServer {
 
   static func account(_ store: any TokenStore, _ server: FakeServer) -> Account {
     Account(origin: origin, store: store, transport: server)
+  }
+
+  /// Signed in already, with a token kept from an earlier launch.
+  static func session(_ server: FakeServer, store: any TokenStore = InMemoryTokenStore("lxd_kept")) throws -> Session {
+    try #require(try account(store, server).restore())
   }
 }
 
