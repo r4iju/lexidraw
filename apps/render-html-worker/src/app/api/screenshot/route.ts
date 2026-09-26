@@ -1,6 +1,9 @@
 import { type NextRequest, NextResponse } from "next/server";
 import type { Browser, Page } from "puppeteer-core";
-import { launchBrowser } from "~/lib/launch-browser";
+import { reachable } from "@packages/lib/public-address";
+import { launchGuardedBrowser } from "~/lib/guarded-browser";
+import { guardRequests, renderCheck } from "~/lib/public-requests";
+import { refusedUnlessFromTheApp } from "~/lib/worker-access";
 
 type WaitUntil = "load" | "domcontentloaded" | "networkidle0" | "networkidle2";
 
@@ -199,6 +202,8 @@ async function waitForStableLayout(
 }
 
 export async function POST(req: NextRequest) {
+  const refused = refusedUnlessFromTheApp(req);
+  if (refused) return refused;
   try {
     const body = (await req.json()) as {
       waitForDocument?: boolean;
@@ -226,13 +231,12 @@ export async function POST(req: NextRequest) {
       return new NextResponse("Only http/https URLs are supported", {
         status: 400,
       });
-    const { hostname } = new URL(url);
-    const allowPrivate = process.env.NODE_ENV !== "production";
-    if (isPrivateHostname(hostname) && !allowPrivate) {
-      return new NextResponse("Private hostnames are not allowed", {
+    const check = renderCheck();
+    const target = reachable(url);
+    if (!target || !(await check(target).catch(() => undefined)))
+      return new NextResponse("Only public addresses may be rendered", {
         status: 400,
       });
-    }
 
     const waitUntil = body?.waitUntil ?? "networkidle2";
     const timeoutMs = Math.max(1000, Math.min(60000, body?.timeoutMs ?? 15000));
@@ -261,7 +265,7 @@ export async function POST(req: NextRequest) {
     // Launch Chromium
     let browser: Browser | undefined;
     try {
-      browser = await launchBrowser({ viewport: vp });
+      browser = await launchGuardedBrowser({ viewport: vp, check });
     } catch (e) {
       console.error("screenshot:launch_error", e);
       return new NextResponse("Launch failed", { status: 500 });
@@ -269,6 +273,7 @@ export async function POST(req: NextRequest) {
 
     try {
       const page = await (browser as Browser).newPage();
+      await guardRequests(page, check);
       await page.setUserAgent(
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
       );

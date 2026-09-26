@@ -28,6 +28,19 @@ import type { AppState } from "@excalidraw/excalidraw/types";
 import { v4 as uuidV4 } from "uuid";
 import { ownTagNames, replaceOwnTags } from "~/server/entities/tags";
 import { extractAndSanitizeArticle } from "~/server/extractors/article";
+import { readPublicImage } from "~/server/net/public-image";
+import {
+  AppUploadType,
+  appUploadsIn,
+  checkAppUploads,
+  signAppUpload,
+} from "~/server/entities/app-uploads";
+import {
+  createdFromMarkdown,
+  type DocumentChange,
+} from "~/server/documents/write";
+import { IMAGE } from "~/lib/media-kinds";
+import { extensionOf } from "~/server/documents/raster-type";
 import { entityText, snippetAround } from "~/lib/entity-text";
 import env from "@packages/env";
 import { put } from "@vercel/blob";
@@ -64,6 +77,7 @@ import {
   restoredParent,
 } from "~/server/entities/readable";
 import { storeThumbnail, thumbnailPathname } from "~/server/entities/thumbnail";
+import { askRenderWorker } from "~/server/render-worker";
 import {
   accessLevelOut,
   entityTypeOut,
@@ -214,6 +228,18 @@ async function writableOrNotFound(
   const entity = await findWritableEntity(db, id, userId);
   if (!entity) throw notFound();
   return entity;
+}
+
+/** Where an upload of `contentType` into `entityId` lives, under a fresh id. */
+function uploadPathname(entityId: string, contentType: string) {
+  const extension = contentType.split("/")[1]?.replace(/\+.*$/, "");
+  if (!extension)
+    throw new TRPCError({
+      code: "INTERNAL_SERVER_ERROR",
+      message: "Invalid content type",
+    });
+  const randomId = uuidV4();
+  return { randomId, pathname: `${entityId}-${randomId}.${extension}` };
 }
 
 /**
@@ -382,37 +408,75 @@ export const entityRouter = createTRPCRouter({
     .input(CreateEntity)
     .output(entitySummary)
     .mutation(async ({ input, ctx }) => {
-      const { title, elements: given } = createdContent(input);
+      const userId = ctx.session.user.id;
+      const blank = createdContent(input);
       const parentId = await resolveParentDirectory(
         ctx.drizzle,
         input.parentId,
-        ctx.session.user.id,
+        userId,
         input.entityType,
       );
+      const written: DocumentChange =
+        input.markdown === undefined
+          ? { elements: blank.elements }
+          : createdFromMarkdown(
+              {
+                id: input.id,
+                ...blank,
+                updatedAt: new Date(),
+                appState: "{}",
+                tags: [],
+              },
+              input.markdown,
+            );
+      const title = written.title ?? blank.title;
+      const appState = written.appState ?? "{}";
+      const uploads =
+        input.entityType === "document"
+          ? appUploadsIn(written.elements, userId)
+          : [];
+      await checkAppUploads(uploads);
       const elements =
-        input.entityType === "document" ? await measureImages(given) : given;
-      const [created] = await ctx.drizzle
-        .insert(schema.entities)
-        .values({
-          id: input.id,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-          deletedAt: undefined,
-          title,
-          userId: ctx.session?.user.id,
-          entityType: input.entityType,
-          publicAccess: PublicAccess.PRIVATE,
-          elements,
-          parentId,
-          appState: JSON.stringify({}),
-        })
-        .onConflictDoNothing()
-        .returning(summaryColumns);
+        input.entityType === "document"
+          ? await measureImages(written.elements)
+          : written.elements;
+      const created = await ctx.drizzle.transaction(async (tx) => {
+        const [row] = await tx
+          .insert(schema.entities)
+          .values({
+            id: input.id,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+            deletedAt: undefined,
+            title,
+            userId,
+            entityType: input.entityType,
+            publicAccess: PublicAccess.PRIVATE,
+            elements,
+            parentId,
+            appState,
+          })
+          .onConflictDoNothing()
+          .returning(summaryColumns);
+        if (row && uploads.length > 0)
+          await tx.insert(schema.uploadedImages).values(
+            uploads.map(({ url, pathname }) => ({
+              id: uuidV4(),
+              userId,
+              entityId: row.id,
+              fileName: pathname,
+              signedDownloadUrl: url,
+            })),
+          );
+        return row;
+      });
       if (created) {
+        if (written.tags)
+          await replaceOwnTags(ctx.drizzle, created.id, userId, written.tags);
         await queueThumbnail(ctx.drizzle, {
           ...created,
           elements,
-          appState: "{}",
+          appState,
         });
         await revalidateEntitiesAndParents(
           ctx.drizzle,
@@ -424,11 +488,7 @@ export const entityRouter = createTRPCRouter({
 
       // The id is taken. A retried create gets the owner their own entity
       // back; anyone else learns only that the id is gone, never whose it is.
-      const existing = await findOwnedEntity(
-        ctx.drizzle,
-        input.id,
-        ctx.session.user.id,
-      );
+      const existing = await findOwnedEntity(ctx.drizzle, input.id, userId);
       if (!existing) {
         throw new TRPCError({
           code: "CONFLICT",
@@ -1455,13 +1515,7 @@ export const entityRouter = createTRPCRouter({
     .input(
       z.object({
         entityId: z.string(),
-        contentType: z.enum([
-          "image/svg+xml",
-          "image/jpeg",
-          "image/png",
-          "image/webp",
-          "image/avif",
-        ]),
+        contentType: z.enum(IMAGE.types),
         mode: z.enum(["direct", "redirect"]), // kept for API shape
       }),
     )
@@ -1473,14 +1527,10 @@ export const entityRouter = createTRPCRouter({
       );
 
       /* --- generate client token ----------------------------------- */
-      const extension = input.contentType.split("/")[1]?.replace(/\+.*$/, "");
-      if (!extension)
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: "Invalid content type",
-        });
-      const randomId = uuidV4();
-      const pathname = `${input.entityId}-${randomId}.${extension}`;
+      const { randomId, pathname } = uploadPathname(
+        input.entityId,
+        input.contentType,
+      );
 
       const token = await generateClientTokenFromReadWriteToken({
         token: env.BLOB_READ_WRITE_TOKEN,
@@ -1514,6 +1564,38 @@ export const entityRouter = createTRPCRouter({
         pathname, // where the blob will live
       };
     }),
+
+  signImageUpload: protectedProcedure
+    .meta({
+      openapi: {
+        method: "POST",
+        path: "/uploads",
+        tags: ["entities"],
+        summary: "Sign a picture's upload straight to the store",
+        description: `Send the picture as \`upload\` says, then name \`url\` in the markdown of a document you create, as \`![](url)\`; a picture no document takes within the hour is deleted. A picture over ${IMAGE.maxBytes / 1024 / 1024} MB is refused with 413.`,
+        protect: true,
+        errorResponses: [400, 401, 413, 500],
+      },
+    })
+    .input(
+      z.object({
+        contentType: AppUploadType,
+        size: z.number().int().positive().describe("The picture's bytes"),
+      }),
+    )
+    .output(
+      z.object({
+        url: z.url().describe("Where the picture is once sent"),
+        upload: z.object({
+          method: z.literal("PUT"),
+          url: z.url(),
+          headers: z.record(z.string(), z.string()),
+        }),
+      }),
+    )
+    .mutation(({ input, ctx }) =>
+      signAppUpload(ctx.session.user.id, input.contentType, input.size),
+    ),
 
   generateVideoUploadUrl: protectedProcedure
     .input(
@@ -1665,7 +1747,19 @@ export const entityRouter = createTRPCRouter({
   /* URL DISTILLATION                                                */
   /* --------------------------------------------------------------- */
   distillUrl: protectedProcedure
+    .meta({
+      openapi: {
+        method: "POST",
+        path: "/entities/{id}/distill",
+        tags: ["entities"],
+        summary:
+          "Read a link's page into an article; a link still titled as new takes the page's title",
+        protect: true,
+        errorResponses: [400, 401, 403, 404, 500],
+      },
+    })
     .input(z.object({ id: z.string(), force: z.boolean().optional() }))
+    .output(entitySummary)
     .mutation(async ({ input, ctx }) => {
       // 1) Load entity and verify access
       const entity = await writableOrNotFound(
@@ -1728,17 +1822,16 @@ export const entityRouter = createTRPCRouter({
             console.log("headless:fetch", { endpoint, url });
           }
           const controller = AbortSignal.timeout(15000);
-          const res = await fetch(endpoint, {
-            method: "POST",
-            headers: { "content-type": "application/json" },
-            body: JSON.stringify({
+          const res = await askRenderWorker(
+            endpoint,
+            {
               url,
               cookiesHeader,
               waitUntil: "domcontentloaded",
               timeoutMs: 15000,
-            }),
-            signal: controller,
-          });
+            },
+            { signal: controller },
+          );
           if (res.ok) {
             const ct = res.headers.get("content-type") || "";
             if (ct.includes("application/json")) {
@@ -1778,29 +1871,22 @@ export const entityRouter = createTRPCRouter({
       // 4) Upload best image to Blob (if any) and set screenshot columns
       let screenShotLight: string | undefined;
       let screenShotDark: string | undefined;
-      if (distilled.bestImageUrl) {
+      const picture =
+        distilled.bestImageUrl &&
+        (await readPublicImage(distilled.bestImageUrl));
+      if (picture) {
         try {
-          const res = await fetch(distilled.bestImageUrl);
-          if (res.ok) {
-            const contentType = res.headers.get("content-type") || "image/jpeg";
-            const ext = contentType.includes("png")
-              ? "png"
-              : contentType.includes("webp")
-                ? "webp"
-                : contentType.includes("svg")
-                  ? "svg"
-                  : contentType.includes("avif")
-                    ? "avif"
-                    : "jpg";
-            const buffer = Buffer.from(await res.arrayBuffer());
-            const blob = await put(
-              thumbnailPathname(input.id, "thumb", ext),
-              buffer,
-              { access: "public", contentType },
-            );
-            screenShotLight = blob.url;
-            screenShotDark = blob.url;
-          }
+          const blob = await put(
+            thumbnailPathname(
+              input.id,
+              "thumb",
+              extensionOf(picture.contentType),
+            ),
+            Buffer.from(picture.bytes),
+            { access: "public", contentType: picture.contentType },
+          );
+          screenShotLight = blob.url;
+          screenShotDark = blob.url;
         } catch (e) {
           console.warn("Failed to upload bestImageUrl", e);
         }
@@ -1838,7 +1924,12 @@ export const entityRouter = createTRPCRouter({
       }
 
       await revalidateEntitiesAndParents(ctx.drizzle, input.id);
-      return distilled;
+      const [read] = await ctx.drizzle
+        .select(summaryColumns)
+        .from(schema.entities)
+        .where(eq(schema.entities.id, input.id));
+      if (!read) throw notFound();
+      return read;
     }),
   regenerateThumbnail: protectedProcedure
     .input(z.object({ id: z.string() }))

@@ -1,7 +1,9 @@
-import { schema, drizzle, eq } from "@packages/drizzle";
+import { drizzle, schema } from "@packages/drizzle";
+import { jobOfRun } from "./job-of-run";
 
 export async function markJobReadyStep(
   docKey: string,
+  runId: string,
   data: {
     manifestUrl: string;
     stitchedUrl: string | null;
@@ -18,6 +20,6 @@ export async function markJobReadyStep(
       segmentCount: data.segmentCount,
       updatedAt: new Date(),
     })
-    .where(eq(schema.ttsJobs.id, docKey))
+    .where(jobOfRun(docKey, runId))
     .execute();
 }

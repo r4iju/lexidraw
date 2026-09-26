@@ -21,6 +21,12 @@ const createdEntity = z.object({
     .string()
     .nullish()
     .describe("The folder it goes into; omitted or null is Home"),
+  markdown: z
+    .string()
+    .optional()
+    .describe(
+      "A document's content, read as PUT /documents/{id}/markdown reads it; instead of elements",
+    ),
 });
 
 type Created = Omit<
@@ -41,12 +47,22 @@ type Created = Omit<
  * A union on `entityType` in its output; its input stays one object, since
  * the REST adapter takes nothing else as a procedure's input.
  */
-export const CreateEntity = createdEntity.refine(
-  (input): input is Created =>
-    input.entityType !== "url" ||
-    (input.title !== undefined && input.elements !== undefined),
-  { message: "A url needs its title and elements", path: ["elements"] },
-);
+export const CreateEntity = createdEntity
+  .refine(
+    (input): input is Created =>
+      input.entityType !== "url" ||
+      (input.title !== undefined && input.elements !== undefined),
+    { message: "A url needs its title and elements", path: ["elements"] },
+  )
+  .refine(
+    (input) =>
+      input.markdown === undefined ||
+      (input.entityType === "document" && input.elements === undefined),
+    {
+      message: "Only a document is made from markdown, and not beside elements",
+      path: ["markdown"],
+    },
+  );
 
 export type CreateEntity = z.output<typeof CreateEntity>;
 

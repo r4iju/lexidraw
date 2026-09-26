@@ -89,3 +89,16 @@ import Testing
 extension Array {
   var only: Element? { count == 1 ? first : nil }
 }
+
+@Suite struct ConfiguredAccountTests {
+  /// A build missing its settings says which one, rather than crash unexplained.
+  @Test func aMissingSettingIsNamed() async {
+    let exited = await #expect(processExitsWith: .failure, observing: [\.standardErrorContent]) {
+      _ = Account.configured(by: Bundle(for: BundleToken.self))
+    }
+    let said = String(decoding: exited?.standardErrorContent ?? [], as: UTF8.self)
+    #expect(said.contains("LexidrawServerURL"))
+  }
+}
+
+private final class BundleToken {}

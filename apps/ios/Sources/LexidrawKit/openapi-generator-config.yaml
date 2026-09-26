@@ -19,3 +19,7 @@ filter:
     - auth-deleteAccount
     - nativeSignIn-exchange
     - tokens-revokeCurrent
+    - entities-distillUrl
+    - entities-signImageUpload
+    - tts-listen
+    - tts-listening

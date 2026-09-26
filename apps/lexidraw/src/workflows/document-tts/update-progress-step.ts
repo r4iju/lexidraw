@@ -1,7 +1,9 @@
-import { drizzle, schema, eq } from "@packages/drizzle";
+import { drizzle, schema } from "@packages/drizzle";
+import { jobOfRun } from "./job-of-run";
 
 export async function updateProgressStep(
   docKey: string,
+  runId: string,
   completedSegments: number,
 ): Promise<void> {
   "use step";
@@ -11,6 +13,6 @@ export async function updateProgressStep(
       segmentCount: completedSegments,
       updatedAt: new Date(),
     })
-    .where(eq(schema.ttsJobs.id, docKey))
+    .where(jobOfRun(docKey, runId))
     .execute();
 }

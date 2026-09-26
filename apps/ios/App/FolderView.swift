@@ -259,6 +259,7 @@ private struct SearchResultsSection: View {
               caption: "\(result.location) · \(result.updatedAt.formatted(.relative(presentation: .named)))")
           }
           .contextMenu {
+            ListenButton(file: result)
             if let folder = result.folder {
               Button("Show in \(folder.title)", systemImage: "folder") {
                 browser.open(folder, below: [])

@@ -1,7 +1,11 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { getBrightDataProxyUrls } from "@packages/lib";
 import type { Browser, Dialog, Page } from "puppeteer-core";
+import { reachable } from "@packages/lib/public-address";
+import { launchGuardedBrowser } from "~/lib/guarded-browser";
 import { launchBrowser } from "~/lib/launch-browser";
+import { type Check, guardRequests, renderCheck } from "~/lib/public-requests";
+import { refusedUnlessFromTheApp } from "~/lib/worker-access";
 
 export const maxDuration = 30;
 
@@ -90,11 +94,13 @@ function getBrightDataProxyPool(limit: number) {
 
 async function performPageWorkflow(
   page: Page,
+  check: Check,
   url: string,
   cookiesHeader: string | undefined,
   waitUntil: WaitUntil,
   timeoutMs: number,
 ): Promise<string> {
+  await guardRequests(page, check);
   await page.setUserAgent(
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
   );
@@ -247,6 +253,8 @@ async function performPageWorkflow(
 }
 
 export async function POST(req: NextRequest) {
+  const refused = refusedUnlessFromTheApp(req);
+  if (refused) return refused;
   try {
     const body = (await req.json()) as {
       url?: string;
@@ -261,9 +269,10 @@ export async function POST(req: NextRequest) {
       return new NextResponse("Only http/https URLs are supported", {
         status: 400,
       });
-    const { hostname } = new URL(url);
-    if (isPrivateHostname(hostname))
-      return new NextResponse("Private hostnames are not allowed", {
+    const check = renderCheck();
+    const target = reachable(url);
+    if (!target || !(await check(target).catch(() => undefined)))
+      return new NextResponse("Only public addresses may be rendered", {
         status: 400,
       });
 
@@ -273,8 +282,9 @@ export async function POST(req: NextRequest) {
     // 1) Direct attempt
     let browser: Browser;
     try {
-      browser = await launchBrowser({
+      browser = await launchGuardedBrowser({
         viewport: { width: 1200, height: 900, deviceScaleFactor: 1 },
+        check,
       });
     } catch (e) {
       console.error("render-html:launch_error", e);
@@ -285,6 +295,7 @@ export async function POST(req: NextRequest) {
       const page = await browser.newPage();
       const html = await performPageWorkflow(
         page,
+        check,
         url,
         body?.cookiesHeader,
         waitUntil,
@@ -326,7 +337,12 @@ export async function POST(req: NextRequest) {
 
           const browserLocal = await launchBrowser({
             viewport: { width: 1200, height: 900, deviceScaleFactor: 1 },
-            args: [`--proxy-server=${proxyServer}`],
+            // Bright Data looks hosts up and connects from its own network,
+            // where nothing of this one is reachable.
+            args: [
+              `--proxy-server=${proxyServer}`,
+              "--proxy-bypass-list=<-loopback>",
+            ],
           });
 
           try {
@@ -335,6 +351,7 @@ export async function POST(req: NextRequest) {
               await page.authenticate({ username, password });
             const html = await performPageWorkflow(
               page,
+              check,
               url,
               body?.cookiesHeader,
               waitUntil,

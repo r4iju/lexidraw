@@ -96,6 +96,22 @@ function documentChange(
   return change;
 }
 
+/**
+ * What `blank`, a document being created, holds once written from
+ * `markdown`, read as a replace of it reads it.
+ */
+export function createdFromMarkdown(
+  blank: DocumentRevision,
+  markdown: string,
+): DocumentChange {
+  const { state, fields } = replaceStateFromMarkdown(
+    parseEditorState(blank.elements),
+    markdown,
+    writeTarget(blank),
+  );
+  return documentChange(blank, state, fields);
+}
+
 /** A document nothing has been written into yet. */
 const isEmpty = (state: SerializedEditorState) =>
   state.root.children.every(

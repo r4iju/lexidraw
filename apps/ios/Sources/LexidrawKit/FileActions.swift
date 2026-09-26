@@ -66,6 +66,15 @@ extension Session {
   /// Makes an empty file or folder in `folder`, or at the top of Home, titled
   /// as the server titles a new one.
   public func create(_ kind: Entry.Kind, in folder: String?) async throws -> Entry {
+    try await create(kind, title: nil, in: folder)
+  }
+
+  /// Nil `title` and content are left for the server to title and start
+  /// empty. A document's content may be `markdown`, which the server reads
+  /// as it reads a document's markdown written later.
+  func create(
+    _ kind: Entry.Kind, title: String?, elements: String? = nil, markdown: String? = nil, in folder: String?
+  ) async throws -> Entry {
     let type: Operations.EntitiesCreate.Input.Body.JsonPayload.EntityTypePayload =
       switch kind {
       case .folder: .directory
@@ -74,7 +83,8 @@ extension Session {
       case .url: .url
       }
     let body = Operations.EntitiesCreate.Input.Body.JsonPayload(
-      id: UUID().uuidString.lowercased(), entityType: type, parentId: folder)
+      id: UUID().uuidString.lowercased(), entityType: type, title: title, elements: elements, parentId: folder,
+      markdown: markdown)
     let made = try await ask { try await $0.entitiesCreate(body: .json(body)) }.ok.body.json
     return Entry(
       id: made.id, title: made.title, kind: Entry.Kind(made.entityType), updatedAt: made.updatedAt,

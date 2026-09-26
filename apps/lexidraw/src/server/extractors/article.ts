@@ -4,8 +4,20 @@ import { JSDOM } from "jsdom";
 import sanitizeHtml, { type IOptions } from "sanitize-html";
 import { Readability } from "@mozilla/readability";
 import { z } from "zod";
-import { ProxyAgent, fetch as undiciFetch } from "undici";
+import { ProxyAgent } from "undici";
 import { getBrightDataProxyUrls } from "@packages/lib";
+import {
+  publicAddress,
+  type Resolve,
+  reachable,
+} from "@packages/lib/public-address";
+import {
+  fetchPublic,
+  type Hop,
+  NotPublic,
+  type ProxyDispatcher,
+  proxyHop,
+} from "~/server/net/public-fetch";
 import env from "@packages/env";
 
 type DistilledImage = {
@@ -43,17 +55,6 @@ function isHttpUrl(url: string): boolean {
   } catch {
     return false;
   }
-}
-
-// Basic private IP guard; not exhaustive but reduces SSRF surface
-function isPrivateHostname(hostname: string): boolean {
-  // Block localhost and .local domains; deeper DNS/IP checks would require resolver
-  return (
-    hostname === "localhost" ||
-    hostname.endsWith(".local") ||
-    hostname === "127.0.0.1" ||
-    hostname === "::1"
-  );
 }
 
 function absolutizeUrl(baseUrl: string, maybeRelative: string): string {
@@ -285,6 +286,7 @@ export async function extractAndSanitizeArticle({
   timeoutMs = 15000,
   maxBytes = 8 * 1024 * 1024, // 8MB
   cookiesHeader,
+  network = {},
 }: {
   url: string;
   html?: string;
@@ -292,21 +294,23 @@ export async function extractAndSanitizeArticle({
   maxBytes?: number;
   /** Optional raw Cookie header string for this host, e.g. "SID=...; HSID=..." */
   cookiesHeader?: string;
+  /** How hosts are looked up and asked when not through a proxy. */
+  network?: { resolve?: Resolve; hop?: Hop };
 }): Promise<DistilledArticle> {
   if (!isHttpUrl(url)) {
     throw new Error("Only http/https URLs are supported");
   }
-  const { hostname } = new URL(url);
-  if (isPrivateHostname(hostname)) {
-    throw new Error("Private hostnames are not allowed");
-  }
+  const target = reachable(url);
+  if (!html && !(target && (await publicAddress(target, network.resolve))))
+    throw new NotPublic(url);
   // replace username and password with *
   const loggableUrl = url.replace(/https?:\/\/[^/]+@/, "https://***@");
 
   // Build dispatcher attempts: 1 direct + up to 50 Bright Data proxy sessions
-  let attemptDispatchers: Array<{ label: string; dispatcher?: unknown }> = [
-    { label: "direct", dispatcher: undefined },
-  ];
+  let attemptDispatchers: Array<{
+    label: string;
+    dispatcher?: ProxyDispatcher;
+  }> = [{ label: "direct", dispatcher: undefined }];
   try {
     const proxyUrl = env.BRIGHTDATA_PROXY_URL;
     if (proxyUrl) {
@@ -341,15 +345,28 @@ export async function extractAndSanitizeArticle({
   let lastError: unknown = null;
 
   const runAttempt = async (
-    dispatcher: unknown,
+    dispatcher: ProxyDispatcher | undefined,
     externalSignal?: AbortSignal,
   ): Promise<AttemptResult> => {
     const performFetch = (
       input: string,
-      init: RequestInit & { dispatcher?: unknown } = {},
+      init: {
+        method?: string;
+        headers?: Record<string, string>;
+        signal?: AbortSignal;
+      } = {},
     ) => {
-      // use undici's fetch with dispatcher for proxy support
-      return undiciFetch(input, { ...init, dispatcher });
+      const headers = new Headers(init.headers);
+      if (new URL(input).origin !== new URL(url).origin)
+        headers.delete("cookie");
+      return fetchPublic(
+        input,
+        { ...init, headers },
+        {
+          resolve: network.resolve,
+          hop: dispatcher ? proxyHop(dispatcher) : network.hop,
+        },
+      );
     };
 
     const isProxy = Boolean(dispatcher);
@@ -403,7 +420,6 @@ export async function extractAndSanitizeArticle({
               headers: buildBrowserHeaders(
                 "https://www.gstatic.com/generate_204",
               ),
-              redirect: "manual",
               signal: probeController.signal,
             },
           );
@@ -443,7 +459,6 @@ export async function extractAndSanitizeArticle({
             ...customHeaders,
             ...(cookiesHeader ? { cookie: cookiesHeader } : {}),
           },
-          redirect: "follow",
           signal: controller.signal,
         });
         clearTimeout(to);
@@ -1003,7 +1018,7 @@ export async function extractAndSanitizeArticle({
     const current = nextIndex++;
     const { label, dispatcher } = attemptDispatchers[current] as {
       label: string;
-      dispatcher?: unknown;
+      dispatcher?: ProxyDispatcher;
     };
     const loggableLabel = label.replace(/https?:\/\/[^/]+@/, "https://***@");
     inFlight += 1;

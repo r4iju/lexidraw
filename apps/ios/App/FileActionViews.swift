@@ -18,7 +18,7 @@ final class FileActions {
     case failed(Failure)
   }
 
-  private let session: Session
+  let session: Session
   private let browser: Browser
   var step: Step?
   /// The title being typed while renaming.
@@ -144,6 +144,13 @@ private struct FileActionMenu: ViewModifier {
   func body(content: Content) -> some View {
     content
       .contextMenu {
+        ListenButton(file: entry)
+        // Anyone who can see a file may send its address; the web decides
+        // who it opens for.
+        ShareLink(item: actions.session.link(to: entry), subject: Text(entry.title)) {
+          Label("Share Link…", systemImage: "square.and.arrow.up")
+        }
+        Divider()
         if entry.access.may(.rename) {
           Button("Rename…", systemImage: "pencil") { actions.startRenaming(entry) }
         }

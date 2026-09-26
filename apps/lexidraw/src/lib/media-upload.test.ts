@@ -1,12 +1,11 @@
 /// <reference types="bun" />
 import { describe, expect, mock, spyOn, test } from "bun:test";
 import { toast } from "sonner";
+import { IMAGE, VIDEO } from "./media-kinds";
 import {
-  IMAGE,
   insertUploads,
   uploadGeneratedImage,
   uploadMedia,
-  VIDEO,
 } from "./media-upload";
 
 /** The toasts shown since `before`, as their titles and descriptions. */

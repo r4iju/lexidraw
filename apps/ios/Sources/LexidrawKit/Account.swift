@@ -34,6 +34,26 @@ public struct Account: Sendable {
     self.transport = transport
   }
 
+  /// The server and the Keychain item that `bundle`'s Info.plist names, so
+  /// the app and its share extension reach the same server as the same
+  /// account.
+  public static func configured(by bundle: Bundle = .main) -> Account {
+    let info = { (key: String) in bundle.object(forInfoDictionaryKey: key) as? String }
+    let setting = { (key: String) in
+      guard let value = info(key), !value.isEmpty else {
+        fatalError("\(bundle.bundleURL.lastPathComponent)'s Info.plist has no \(key)")
+      }
+      return value
+    }
+    guard let origin = URL(string: setting("LexidrawServerURL")) else {
+      fatalError("LexidrawServerURL in \(bundle.bundleURL.lastPathComponent)'s Info.plist is no address")
+    }
+    return Account(
+      origin: origin,
+      store: KeychainTokenStore(
+        service: setting("LexidrawKeychainService"), accessGroup: info("LexidrawKeychainGroup")))
+  }
+
   /// Signed in with the token kept from an earlier launch, if there is one.
   public func restore() throws -> Session? {
     try store.load().map(session(token:))
@@ -82,7 +102,7 @@ public struct Account: Sendable {
   }
 
   private func session(token: String) -> Session {
-    Session(connection: connection(token: token), store: store)
+    Session(origin: origin, connection: connection(token: token), store: store)
   }
 
   private func connection(token: String?) -> Connection {
@@ -129,6 +149,26 @@ struct Connection: Sendable {
       next = { try await middleware.intercept($0, body: $1, baseURL: $2, operationID: operationID, next: inner) }
     }
     _ = try await next(request, HTTPBody(json), serverURL)
+  }
+
+  /// Sends `data` somewhere other than the server, so past the middlewares:
+  /// neither the app's token nor the server's way of refusing belong there.
+  func sendOutside(_ data: Data, method: HTTPRequest.Method, to url: URL, headers: [String: String]) async throws
+    -> (HTTPResponse, HTTPBody?)
+  {
+    guard var parts = URLComponents(url: url, resolvingAgainstBaseURL: false) else { throw URLError(.badURL) }
+    let path = parts.percentEncodedPath + (parts.percentEncodedQuery.map { "?\($0)" } ?? "")
+    parts.percentEncodedPath = ""
+    parts.percentEncodedQuery = nil
+    guard let origin = parts.url else { throw URLError(.badURL) }
+    var fields = HTTPFields()
+    for (name, value) in headers {
+      guard let name = HTTPField.Name(name) else { throw URLError(.badURL) }
+      fields[name] = value
+    }
+    return try await transport.send(
+      HTTPRequest(method: method, scheme: nil, authority: nil, path: path, headerFields: fields), body: HTTPBody(data),
+      baseURL: origin, operationID: "outside")
   }
 }
 

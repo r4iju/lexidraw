@@ -3,6 +3,8 @@ import Foundation
 /// What a signed-in app can do. Only an ``Account`` makes one, from a token it
 /// holds.
 public struct Session: Sendable {
+  /// Where the web is, for addresses that open a file in it.
+  let origin: URL
   let connection: Connection
   let store: any TokenStore
 
@@ -10,6 +12,11 @@ public struct Session: Sendable {
   /// success comes back as the ``Refusal`` it is.
   func ask<T>(_ call: (Client) async throws -> T) async throws -> T {
     try await unwrapped { try await call(connection.client) }
+  }
+
+  /// The address the web opens `entry` at, for sending to someone.
+  public func link(to entry: Entry) -> URL {
+    origin.appending(path: "\(entry.kind.webPath)/\(entry.id)")
   }
 
   /// What is in a folder, or at the top of Home when `folder` is nil, with
