@@ -2,18 +2,24 @@ import {
   DecoratorBlockNode,
   type SerializedDecoratorBlockNode,
 } from "@lexical/react/LexicalDecoratorBlockNode";
-import type {
-  Klass,
-  DOMConversionMap,
-  DOMConversionOutput,
-  DOMExportOutput,
-  ElementFormatType,
-  LexicalNode,
-  NodeKey,
-  Spread,
+import {
+  $create,
+  type DOMConversionMap,
+  type DOMConversionOutput,
+  type DOMExportOutput,
+  type ElementFormatType,
+  type Klass,
+  type LexicalNode,
+  type NodeKey,
+  nodeSchema,
+  numberValue,
+  type Spread,
+  stringValue,
+  withAccessors,
+  withField,
 } from "lexical";
-import { $create } from "lexical";
-import { $importNodeState, figureDOM } from "../figure.js";
+import { figureDOM, figureState } from "../figure.js";
+import { inheritForZero, zeroForInherit } from "../schema-values.js";
 
 export type SerializedYouTubeNode = Spread<
   {
@@ -39,44 +45,54 @@ function $convertYoutubeElement(
   return null;
 }
 
+const youTubeSchema = nodeSchema<YouTubeNode>()({
+  videoID: withField(stringValue(), { field: "__id" }),
+  width: withAccessors(numberValue(), {
+    getter: "getWidthJSON",
+    setter: "setWidthJSON",
+  }),
+  height: withAccessors(numberValue(), {
+    getter: "getHeightJSON",
+    setter: "setHeightJSON",
+  }),
+});
+
 export class YouTubeNode extends DecoratorBlockNode {
   __id: string;
   __width: "inherit" | number;
   __height: "inherit" | number;
 
-  static getType(): string {
-    return "youtube";
+  $config() {
+    return this.config("youtube", {
+      extends: DecoratorBlockNode,
+      json: youTubeSchema,
+      stateConfigs: [figureState],
+    });
   }
 
-  static clone(node: YouTubeNode): YouTubeNode {
-    return new this(
-      node.__id,
-      node.__width,
-      node.__height,
-      node.__format,
-      node.__key,
-    );
+  afterCloneFrom(prevNode: this): void {
+    super.afterCloneFrom(prevNode);
+    this.__id = prevNode.__id;
+    this.__width = prevNode.__width;
+    this.__height = prevNode.__height;
   }
 
-  static importJSON(serializedNode: SerializedYouTubeNode): YouTubeNode {
-    const node = YouTubeNode.$createYouTubeNode(
-      serializedNode.videoID,
-      serializedNode.width,
-      serializedNode.height,
-    );
-    node.setFormat(serializedNode.format);
-    return $importNodeState(node, serializedNode);
+  getWidthJSON(): number {
+    return zeroForInherit(this.__width);
   }
 
-  exportJSON(): SerializedYouTubeNode {
-    return {
-      ...super.exportJSON(),
-      type: "youtube",
-      version: 1,
-      videoID: this.__id,
-      width: this.__width === "inherit" ? 0 : this.__width,
-      height: this.__height === "inherit" ? 0 : this.__height,
-    };
+  setWidthJSON(width: number): this {
+    this.__width = inheritForZero(width);
+    return this;
+  }
+
+  getHeightJSON(): number {
+    return zeroForInherit(this.__height);
+  }
+
+  setHeightJSON(height: number): this {
+    this.__height = inheritForZero(height);
+    return this;
   }
 
   constructor(

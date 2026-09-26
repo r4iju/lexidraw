@@ -232,3 +232,64 @@ extension FieldSchema {
     value == defaultValue ? nil : value
   }
 }
+
+/// A generated enum for a union: a case for each member, in Lexical's order.
+protocol JSONUnion: Equatable, Sendable {
+  /// What Lexical reads a value no member fits as; nil where it has none.
+  static var defaultValue: Self? { get }
+  static var members: [UnionMember<Self>] { get }
+}
+
+/// One member of a union: how well it fits a value, and the case it reads.
+struct UnionMember<Value: Equatable & Sendable>: Sendable {
+  let fit: @Sendable (JSONValue) -> Fit
+  let isCatchAll: Bool
+  let read: @Sendable (JSONValue) -> Value?
+  /// The JSON of a value that is this member's case, or nil.
+  let write: @Sendable (Value) -> JSONValue?
+
+  /// A member read by `schema`, as the case `wrap` makes.
+  static func member<Inner>(
+    _ schema: FieldSchema<Inner>, _ wrap: @escaping @Sendable (Inner) -> Value,
+    _ unwrap: @escaping @Sendable (Value) -> Inner?
+  ) -> Self {
+    Self(
+      fit: schema.fit, isCatchAll: schema.isCatchAll, read: { schema.read($0).map(wrap) },
+      write: { unwrap($0).map(schema.write) })
+  }
+
+  /// A member that is the one value `json`, as a case without a payload.
+  static func literal(_ json: JSONValue, _ value: Value) -> Self {
+    Self(fit: { .of($0 == json) }, isCatchAll: false, read: { _ in value }, write: { $0 == value ? json : nil })
+  }
+}
+
+extension FieldSchema where Value: JSONUnion {
+  /// Lexical's `unionValue`: the member that fits a value best reads it, the
+  /// earliest where two fit as well, and a member that describes nothing
+  /// fits no better than coercibly (`$bestUnionMember`).
+  static var union: Self {
+    let members = Value.members
+    @Sendable func best(_ json: JSONValue) -> (member: UnionMember<Value>, fit: Fit)? {
+      var best: (member: UnionMember<Value>, rank: Fit, fit: Fit)?
+      for member in members {
+        let fit = member.fit(json)
+        let rank = fit < .coercible && member.isCatchAll ? .coercible : fit
+        if rank < (best?.rank ?? .none) {
+          best = (member, rank, fit)
+          if rank == .whole { break }
+        }
+      }
+      return best.map { ($0.member, $0.fit) }
+    }
+    return Self(
+      defaultValue: Value.defaultValue,
+      read: { json in
+        guard let best = best(json) else { return Value.defaultValue }
+        return best.member.read(json)
+      },
+      write: { value in members.lazy.compactMap { $0.write(value) }.first ?? .null },
+      fit: { best($0)?.fit ?? .none },
+      isCatchAll: members.allSatisfy(\.isCatchAll))
+  }
+}

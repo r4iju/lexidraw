@@ -2,18 +2,21 @@ import {
   DecoratorBlockNode,
   type SerializedDecoratorBlockNode,
 } from "@lexical/react/LexicalDecoratorBlockNode";
-import type {
-  Klass,
-  DOMConversionMap,
-  DOMConversionOutput,
-  DOMExportOutput,
-  ElementFormatType,
-  LexicalNode,
-  NodeKey,
-  Spread,
+import {
+  $create,
+  type DOMConversionMap,
+  type DOMConversionOutput,
+  type DOMExportOutput,
+  type ElementFormatType,
+  type Klass,
+  type LexicalNode,
+  type NodeKey,
+  nodeSchema,
+  type Spread,
+  stringValue,
+  withField,
 } from "lexical";
-import { $create } from "lexical";
-import { $importNodeState, figureDOM } from "../figure.js";
+import { figureDOM, figureState } from "../figure.js";
 
 function $convertTweetElement(
   domNode: HTMLDivElement,
@@ -33,30 +36,19 @@ export type SerializedTweetNode = Spread<
   SerializedDecoratorBlockNode
 >;
 
+const tweetSchema = nodeSchema<TweetNode>()({
+  id: withField(stringValue(), { field: "__id" }),
+});
+
 export class TweetNode extends DecoratorBlockNode {
   __id: string;
 
-  static getType(): string {
-    return "tweet";
-  }
-
-  static clone(node: TweetNode): TweetNode {
-    return new this(node.__id, node.__format, node.__key);
-  }
-
-  static importJSON(serializedNode: SerializedTweetNode): TweetNode {
-    const node = TweetNode.$createTweetNode(serializedNode.id);
-    node.setFormat(serializedNode.format);
-    return $importNodeState(node, serializedNode);
-  }
-
-  exportJSON(): SerializedTweetNode {
-    return {
-      ...super.exportJSON(),
-      id: this.getId(),
-      type: "tweet",
-      version: 1,
-    };
+  $config() {
+    return this.config("tweet", {
+      extends: DecoratorBlockNode,
+      json: tweetSchema,
+      stateConfigs: [figureState],
+    });
   }
 
   static importDOM(): DOMConversionMap<HTMLDivElement> | null {

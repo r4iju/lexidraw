@@ -1,18 +1,19 @@
-import type {
-  EditorConfig,
-  Klass,
-  LexicalNode,
-  NodeKey,
-  SerializedLexicalNode,
-  Spread,
-} from "lexical";
-import { $create, $setState, DecoratorNode } from "lexical";
 import {
-  $importNodeState,
-  figureDOM,
-  naturalSizeState,
-  nodeStateJSON,
-} from "../figure.js";
+  $create,
+  $setState,
+  DecoratorNode,
+  type EditorConfig,
+  type Klass,
+  type LexicalNode,
+  type NodeKey,
+  nodeSchema,
+  type SerializedLexicalNode,
+  type Spread,
+  stringValue,
+  withField,
+} from "lexical";
+import { figureDOM, figureState, naturalSizeState } from "../figure.js";
+import { zeroAsInheritValue } from "../schema-values.js";
 
 /** Stored in the editor state */
 export type SerializedMermaidNode = Spread<
@@ -26,6 +27,15 @@ export type SerializedMermaidNode = Spread<
   SerializedLexicalNode
 >;
 
+/** What a new diagram, or one stored without its source, draws. */
+const DEFAULT_SCHEMA = "graph TD;\n  A[Start] --> B>Stop]";
+
+const mermaidSchema = nodeSchema<MermaidNode>()({
+  schema: withField(stringValue(DEFAULT_SCHEMA), { field: "__schema" }),
+  width: withField(zeroAsInheritValue, { field: "__width" }),
+  height: withField(zeroAsInheritValue, { field: "__height" }),
+});
+
 /**
  * Serialization half of the mermaid block; see ImageNode for the split.
  */
@@ -34,23 +44,22 @@ export class MermaidNode extends DecoratorNode<unknown> {
   __width: number | "inherit";
   __height: number | "inherit";
 
-  static getType(): string {
-    return "mermaid";
-  }
-
-  static clone(node: MermaidNode): MermaidNode {
-    return new this(node.__schema, node.__width, node.__height, node.__key);
+  $config() {
+    return this.config("mermaid", {
+      extends: DecoratorNode,
+      json: mermaidSchema,
+      stateConfigs: [figureState, naturalSizeState],
+    });
   }
 
   constructor(
-    schema = "graph TD;\n  A[Start] --> B>Stop]",
+    schema = DEFAULT_SCHEMA,
     width: number | "inherit" = "inherit",
     height: number | "inherit" = "inherit",
     key?: NodeKey,
   ) {
     super(key);
     this.__schema = schema;
-    // Older documents stored an unset dimension as 0.
     this.__width = width === 0 ? "inherit" : width;
     this.__height = height === 0 ? "inherit" : height;
   }
@@ -86,24 +95,6 @@ export class MermaidNode extends DecoratorNode<unknown> {
     const h = height === 0 ? "inherit" : height;
     this.getWritable().__width = w;
     this.getWritable().__height = h;
-  }
-
-  exportJSON(): SerializedMermaidNode {
-    return {
-      type: "mermaid",
-      version: 1,
-      schema: this.__schema,
-      width: this.__width,
-      height: this.__height,
-      ...nodeStateJSON(super.exportJSON()),
-    };
-  }
-
-  static importJSON(node: SerializedMermaidNode): MermaidNode {
-    return $importNodeState(
-      MermaidNode.$createMermaidNode(node.schema, node.width, node.height),
-      node,
-    );
   }
 
   isInline(): false {

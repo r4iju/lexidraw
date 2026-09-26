@@ -1,15 +1,20 @@
-import type {
-  Klass,
-  DOMConversionMap,
-  DOMConversionOutput,
-  DOMExportOutput,
-  EditorConfig,
-  LexicalNode,
-  NodeKey,
-  SerializedLexicalNode,
-  Spread,
+import {
+  $create,
+  booleanValue,
+  DecoratorNode,
+  type DOMConversionMap,
+  type DOMConversionOutput,
+  type DOMExportOutput,
+  type EditorConfig,
+  type Klass,
+  type LexicalNode,
+  type NodeKey,
+  nodeSchema,
+  type SerializedLexicalNode,
+  type Spread,
+  stringValue,
+  withField,
 } from "lexical";
-import { $create, DecoratorNode } from "lexical";
 
 export type SerializedEquationNode = Spread<
   {
@@ -34,6 +39,11 @@ function $convertEquationElement(
   return null;
 }
 
+const equationSchema = nodeSchema<EquationNode>()({
+  equation: withField(stringValue(), { field: "__equation" }),
+  inline: withField(booleanValue(), { field: "__inline" }),
+});
+
 /**
  * The editor's subclass renders the equation with KaTeX in `exportDOM`;
  * here the exported element only carries the source so the package has no
@@ -43,34 +53,17 @@ export class EquationNode extends DecoratorNode<unknown> {
   __equation: string;
   __inline: boolean;
 
-  static getType(): string {
-    return "equation";
-  }
-
-  static clone(node: EquationNode): EquationNode {
-    return new this(node.__equation, node.__inline, node.__key);
+  $config() {
+    return this.config("equation", {
+      extends: DecoratorNode,
+      json: equationSchema,
+    });
   }
 
   constructor(equation = "", inline?: boolean, key?: NodeKey) {
     super(key);
     this.__equation = equation;
     this.__inline = inline ?? false;
-  }
-
-  static importJSON(serializedNode: SerializedEquationNode): EquationNode {
-    return EquationNode.$createEquationNode(
-      serializedNode.equation,
-      serializedNode.inline,
-    );
-  }
-
-  exportJSON(): SerializedEquationNode {
-    return {
-      equation: this.getEquation(),
-      inline: this.__inline,
-      type: "equation",
-      version: 1,
-    };
   }
 
   createDOM(_config: EditorConfig): HTMLElement {

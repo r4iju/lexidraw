@@ -2,15 +2,18 @@ import {
   DecoratorBlockNode,
   type SerializedDecoratorBlockNode,
 } from "@lexical/react/LexicalDecoratorBlockNode";
-import type {
-  ElementFormatType,
-  Klass,
-  LexicalNode,
-  NodeKey,
-  Spread,
+import {
+  $create,
+  type ElementFormatType,
+  type Klass,
+  type LexicalNode,
+  type NodeKey,
+  nodeSchema,
+  type Spread,
+  stringValue,
+  withField,
 } from "lexical";
-import { $create } from "lexical";
-import { $importNodeState, figureDOM } from "../figure.js";
+import { figureDOM, figureState } from "../figure.js";
 
 export type SerializedFigmaNode = Spread<
   {
@@ -19,30 +22,19 @@ export type SerializedFigmaNode = Spread<
   SerializedDecoratorBlockNode
 >;
 
+const figmaSchema = nodeSchema<FigmaNode>()({
+  documentID: withField(stringValue(), { field: "__id" }),
+});
+
 export class FigmaNode extends DecoratorBlockNode {
   __id: string;
 
-  static getType(): string {
-    return "figma";
-  }
-
-  static clone(node: FigmaNode): FigmaNode {
-    return new this(node.__id, node.__format, node.__key);
-  }
-
-  static importJSON(serializedNode: SerializedFigmaNode): FigmaNode {
-    const node = FigmaNode.$createFigmaNode(serializedNode.documentID);
-    node.setFormat(serializedNode.format);
-    return $importNodeState(node, serializedNode);
-  }
-
-  exportJSON(): SerializedFigmaNode {
-    return {
-      ...super.exportJSON(),
-      documentID: this.__id,
-      type: "figma",
-      version: 1,
-    };
+  $config() {
+    return this.config("figma", {
+      extends: DecoratorBlockNode,
+      json: figmaSchema,
+      stateConfigs: [figureState],
+    });
   }
 
   constructor(id = "", format?: ElementFormatType, key?: NodeKey) {

@@ -3,10 +3,9 @@ import {
   $setState,
   createState,
   type LexicalNode,
-  NODE_STATE_KEY,
+  numberValue,
   objectValue,
   optional,
-  type SerializedLexicalNode,
   stringValue,
 } from "lexical";
 import { namedTransform } from "./schema-values.js";
@@ -61,15 +60,20 @@ export function $setFigure(node: LexicalNode, figure: Figure): void {
 /** A figure's own size, as it was first drawn: an image's pixels, a diagram's box. */
 export type NaturalSize = { width: number; height: number };
 
-/** A size with both sides, each finite and more than nothing, or undefined. */
-export function parseNaturalSize(value: unknown): NaturalSize | undefined {
-  if (!value || typeof value !== "object") return undefined;
-  const { width, height } = value as Record<string, unknown>;
-  if (typeof width !== "number" || typeof height !== "number") return undefined;
-  if (!(width > 0 && height > 0 && Number.isFinite(width * height)))
-    return undefined;
-  return { width, height };
-}
+/**
+ * A size with both sides, each finite and more than nothing, or undefined. A
+ * side spelled as a JSON number string counts, as Lexical's numbers read it.
+ */
+export const parseNaturalSize = namedTransform(
+  "naturalSize",
+  objectValue({ width: numberValue(), height: numberValue() }),
+  (size): NaturalSize | undefined =>
+    size.width > 0 &&
+    size.height > 0 &&
+    Number.isFinite(size.width * size.height)
+      ? size
+      : undefined,
+);
 
 export const naturalSizeState = createState("natural", {
   parse: parseNaturalSize,
@@ -100,23 +104,4 @@ export function figureDOM(node: LexicalNode, element: HTMLElement): void {
   else delete element.dataset.figureWidth;
   if (share === null) element.style.removeProperty("--figure-share");
   else element.style.setProperty("--figure-share", String(share));
-}
-
-/**
- * The node state a figure node's own `exportJSON` has to carry: those nodes
- * write their fields by hand, and the base class is what writes the state.
- */
-export function nodeStateJSON(
-  json: SerializedLexicalNode,
-): Pick<SerializedLexicalNode, typeof NODE_STATE_KEY> {
-  const state = json[NODE_STATE_KEY];
-  return state ? { [NODE_STATE_KEY]: state } : {};
-}
-
-/** Restores what {@link nodeStateJSON} wrote onto a freshly imported node. */
-export function $importNodeState<T extends LexicalNode>(
-  node: T,
-  json: SerializedLexicalNode,
-): T {
-  return json[NODE_STATE_KEY] ? node.updateFromJSON(json) : node;
 }

@@ -7,9 +7,9 @@ export type { SerializedArticleNode } from "@packages/lexical-nodes";
 
 /** React half of the package's ArticleNode; see ImageNode. */
 export class ArticleNode extends HeadlessArticleNode {
-  static getType = HeadlessArticleNode.getType;
-  static clone = HeadlessArticleNode.clone;
-  static importJSON = HeadlessArticleNode.importJSON;
+  $config() {
+    return this.config("article", { extends: HeadlessArticleNode });
+  }
 
   decorate(_editor: LexicalEditor, config: EditorConfig): React.JSX.Element {
     const embedBlockTheme = config.theme.embedBlock || {};

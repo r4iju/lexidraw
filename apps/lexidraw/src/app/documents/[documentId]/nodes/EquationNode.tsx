@@ -9,9 +9,9 @@ export type { SerializedEquationNode } from "@packages/lexical-nodes";
 
 /** React half of the package's EquationNode; see ImageNode. */
 export class EquationNode extends HeadlessEquationNode {
-  static getType = HeadlessEquationNode.getType;
-  static clone = HeadlessEquationNode.clone;
-  static importJSON = HeadlessEquationNode.importJSON;
+  $config() {
+    return this.config("equation", { extends: HeadlessEquationNode });
+  }
 
   exportDOM(): DOMExportOutput {
     const output = super.exportDOM();

@@ -18,9 +18,9 @@ const MermaidComponent = React.lazy(() => import("./MermaidComponent"));
 
 /** React half of the package's MermaidNode; see ImageNode. */
 export class MermaidNode extends HeadlessMermaidNode {
-  static getType = HeadlessMermaidNode.getType;
-  static clone = HeadlessMermaidNode.clone;
-  static importJSON = HeadlessMermaidNode.importJSON;
+  $config() {
+    return this.config("mermaid", { extends: HeadlessMermaidNode });
+  }
 
   decorate(): JSX.Element {
     const natural = $getNaturalSize(this);

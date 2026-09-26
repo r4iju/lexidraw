@@ -365,10 +365,11 @@ describe("decorator node markdown", () => {
     const editor = editorWithCoreNodes();
     editor.update(
       () => {
+        // Lexical makes importJSON from the schema, typed for any node.
         const drawing = ExcalidrawNode.importJSON({
           type: "excalidraw",
           version: 1,
-        } as never);
+        } as never) as ExcalidrawNode;
         expect(drawing.getData()).toBe("[]");
         expect(drawing.getWidth()).toBe("inherit");
         expect(drawing.getHeight()).toBe("inherit");
@@ -376,7 +377,7 @@ describe("decorator node markdown", () => {
           type: "article",
           version: 1,
           data: { mode: "entity", entityId: "e1" },
-        } as never);
+        } as never) as ArticleNode;
         expect(article.exportJSON().format).toBe("");
       },
       { discrete: true },

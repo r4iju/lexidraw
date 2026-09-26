@@ -1,40 +1,46 @@
 import { CodeNode, type SerializedCodeNode } from "@lexical/code";
 import {
-  $create,
-  setDOMUnmanaged,
+  booleanValue,
   type EditorConfig,
-  type NodeKey,
+  enumValue,
+  nodeSchema,
+  setDOMUnmanaged,
+  withAccessors,
+  withField,
 } from "lexical";
+
+const documentCodeSchema = nodeSchema<DocumentCodeNode>()({
+  showLineNumbers: withField(booleanValue(), { field: "__showLineNumbers" }),
+  // Syntax colours are presentation: a theme saved with the code must not
+  // override the page's, so none is kept.
+  theme: withAccessors(enumValue([undefined]), {
+    getter: "getThemeJSON",
+    setter: null,
+  }),
+});
 
 export class DocumentCodeNode extends CodeNode {
   __showLineNumbers = false;
 
-  static getType() {
-    return "code";
+  $config() {
+    return this.config("code", {
+      extends: CodeNode,
+      json: documentCodeSchema,
+    });
   }
-  static clone(node: DocumentCodeNode) {
-    return new DocumentCodeNode(node.__language, node.__key);
+  getThemeJSON(): undefined {
+    return undefined;
   }
-  constructor(language?: string | null, key?: NodeKey) {
-    super(language, key);
+  /** Lexical writes the absent theme as an undefined key, which code never had. */
+  exportJSON(): Omit<SerializedCodeNode, "theme"> & {
+    showLineNumbers: boolean;
+  } {
+    const { theme: _theme, ...json } =
+      super.exportJSON() as SerializedCodeNode & {
+        showLineNumbers: boolean;
+      };
+    return json;
   }
-  afterCloneFrom(previous: this) {
-    super.afterCloneFrom(previous);
-    this.__showLineNumbers = previous.__showLineNumbers;
-  }
-  static importJSON(
-    serialized: SerializedCodeNode & { showLineNumbers?: boolean },
-  ) {
-    const node = $create(DocumentCodeNode).updateFromJSON(serialized);
-    node.setShowLineNumbers(serialized.showLineNumbers ?? false);
-    node.setStyle("");
-    return node;
-  }
-  exportJSON(): SerializedCodeNode & { showLineNumbers: boolean } {
-    const { theme: _theme, ...json } = super.exportJSON();
-    return { ...json, showLineNumbers: this.getShowLineNumbers() };
-  }
-  // Syntax colours are presentation; legacy saved themes must not override the page.
   getTheme() {
     return "none";
   }

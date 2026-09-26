@@ -1,5 +1,8 @@
 import {
+  enumValue,
   type InnerSerializationSchemaFields,
+  type LexicalEditor,
+  numberValue,
   objectValue,
   rawValue,
   type SerializedEditor,
@@ -7,6 +10,7 @@ import {
   type SerializationSchemaMeta,
   type SerializationSchemaValue,
   transformValue,
+  unionValue,
 } from "lexical";
 
 /**
@@ -68,11 +72,11 @@ export function isOpenObject(meta: SerializationSchemaMeta): boolean {
  * in its type or turns it down as absent, under a name other implementations
  * give their own copy of it by: the function itself can't be described.
  */
-export function namedTransform<T, Out extends T, In = T>(
+export function namedTransform<T, Out extends T | undefined, In = T>(
   name: string,
   inner: SerializationSchema<T, never, In>,
-  transform: (value: T) => Out | undefined,
-): SerializationSchema<Out | undefined, never, In> {
+  transform: (value: T) => Out,
+): SerializationSchema<Out, never, In> {
   const schema = transformValue(inner, transform);
   TRANSFORM_NAMES.set(schema.meta, name);
   return schema;
@@ -82,6 +86,44 @@ export function transformName(
   meta: SerializationSchemaMeta,
 ): string | undefined {
   return TRANSFORM_NAMES.get(meta);
+}
+
+/** A size in pixels, or `inherit` for the size of what holds it. */
+export const dimensionValue = unionValue(
+  [numberValue(), enumValue(["inherit"])],
+  "inherit",
+);
+
+export type Dimension = SerializationSchemaValue<typeof dimensionValue>;
+
+/** A dimension that older documents stored unset as 0. */
+export const zeroAsInheritValue = namedTransform(
+  "zeroAsInherit",
+  dimensionValue,
+  (value): Dimension => (value === 0 ? "inherit" : value),
+);
+
+/**
+ * The number images, video and YouTube embeds store a dimension as, which is
+ * 0 for `inherit`.
+ */
+export function zeroForInherit(value: Dimension): number {
+  return value === "inherit" ? 0 : value;
+}
+
+/** The dimension {@link zeroForInherit} stored. */
+export function inheritForZero(value: number): Dimension {
+  return value || "inherit";
+}
+
+/** Lexical's `rawValue`, but reading absence as `defaultValue`. */
+export function rawValueOr<T>(
+  defaultValue: T,
+): SerializationSchema<T, never, unknown> {
+  return Object.assign(
+    (value: unknown) => (value === undefined ? defaultValue : value),
+    { ...rawValue<T>(), defaultValue },
+  ) as SerializationSchema<T, never, unknown>;
 }
 
 type EditorStateJSON = SerializedEditor["editorState"];
@@ -104,15 +146,25 @@ const EMPTY_EDITOR_STATE: EditorStateJSON = {
  * empty editor it will write.
  */
 export const nestedEditorValue = objectValue({
-  editorState: Object.assign(
-    (value: unknown) => (value === undefined ? EMPTY_EDITOR_STATE : value),
-    { ...rawValue<EditorStateJSON>(), defaultValue: EMPTY_EDITOR_STATE },
-  ) as SerializationSchema<EditorStateJSON, never, unknown>,
+  editorState: rawValueOr(EMPTY_EDITOR_STATE),
 });
 
 export type NestedEditorJSON = SerializationSchemaValue<
   typeof nestedEditorValue
 >;
+
+/**
+ * Reads a nested editor's JSON into `editor`. JSON that holds nothing leaves
+ * the editor as it was made.
+ */
+export function setNestedEditorJSON(
+  editor: LexicalEditor,
+  { editorState }: NestedEditorJSON,
+): void {
+  if (!editorState) return;
+  const state = editor.parseEditorState(editorState);
+  if (!state.isEmpty()) editor.setEditorState(state);
+}
 
 function isPlainObject(value: unknown): value is JSONObject {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {

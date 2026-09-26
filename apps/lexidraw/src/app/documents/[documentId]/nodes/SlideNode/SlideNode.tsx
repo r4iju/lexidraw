@@ -48,9 +48,9 @@ const SlideModal = React.lazy(() =>
 
 /** React half of the package's SlideNode; see ImageNode. */
 export class SlideNode extends HeadlessSlideNode {
-  static getType = HeadlessSlideNode.getType;
-  static clone = HeadlessSlideNode.clone;
-  static importJSON = HeadlessSlideNode.importJSON;
+  $config() {
+    return this.config("slide-deck", { extends: HeadlessSlideNode });
+  }
 
   decorate(): JSX.Element {
     return (

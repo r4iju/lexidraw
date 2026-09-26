@@ -1,19 +1,22 @@
-import type {
-  DOMConversionMap,
-  DOMConversionOutput,
-  DOMExportOutput,
-  EditorConfig,
-  Klass,
-  LexicalEditor,
-  LexicalNode,
-  NodeKey,
-  SerializedLexicalNode,
-  Spread,
+import {
+  $create,
+  DecoratorNode,
+  type DOMConversionMap,
+  type DOMConversionOutput,
+  type DOMExportOutput,
+  type EditorConfig,
+  type Klass,
+  type LexicalEditor,
+  type LexicalNode,
+  type NodeKey,
+  nodeSchema,
+  type SerializedLexicalNode,
+  type Spread,
+  stringValue,
+  withField,
 } from "lexical";
-import { $create, DecoratorNode } from "lexical";
-import { $importNodeState, figureDOM, nodeStateJSON } from "../figure.js";
-
-type Dimension = number | "inherit";
+import { figureDOM, figureState, naturalSizeState } from "../figure.js";
+import { type Dimension, dimensionValue } from "../schema-values.js";
 
 export type SerializedExcalidrawNode = Spread<
   {
@@ -25,6 +28,12 @@ export type SerializedExcalidrawNode = Spread<
   SerializedLexicalNode
 >;
 
+const excalidrawSchema = nodeSchema<ExcalidrawNode>()({
+  data: withField(stringValue("[]"), { field: "__data" }),
+  width: withField(dimensionValue, { field: "__width" }),
+  height: withField(dimensionValue, { field: "__height" }),
+});
+
 /**
  * Serialization half of the excalidraw block; see ImageNode for the split.
  */
@@ -35,37 +44,12 @@ export class ExcalidrawNode extends DecoratorNode<unknown> {
   __width: Dimension;
   __height: Dimension;
 
-  static getType(): string {
-    return "excalidraw";
-  }
-
-  static clone(node: ExcalidrawNode): ExcalidrawNode {
-    return new this(
-      node.__data,
-      false,
-      node.__width,
-      node.__height,
-      node.__key,
-    );
-  }
-
-  static importJSON(serializedNode: SerializedExcalidrawNode): ExcalidrawNode {
-    const node = ExcalidrawNode.$createExcalidrawNode(false);
-    node.__data = serializedNode.data ?? "[]";
-    node.__width = serializedNode.width ?? "inherit";
-    node.__height = serializedNode.height ?? "inherit";
-    return $importNodeState(node, serializedNode);
-  }
-
-  exportJSON(): SerializedExcalidrawNode {
-    return {
-      data: this.__data,
-      height: this.__height,
-      type: "excalidraw",
-      version: 1,
-      width: this.__width,
-      ...nodeStateJSON(super.exportJSON()),
-    };
+  $config() {
+    return this.config("excalidraw", {
+      extends: DecoratorNode,
+      json: excalidrawSchema,
+      stateConfigs: [figureState, naturalSizeState],
+    });
   }
 
   constructor(

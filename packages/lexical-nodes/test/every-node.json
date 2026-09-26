@@ -787,6 +787,504 @@
         "type": "footnote-definition",
         "version": 1,
         "label": "1"
+      },
+      {
+        "children": [
+          {
+            "altText": "A photo",
+            "caption": {
+              "editorState": {
+                "root": {
+                  "children": [
+                    {
+                      "children": [
+                        {
+                          "detail": 0,
+                          "format": 0,
+                          "mode": "normal",
+                          "style": "",
+                          "text": "A caption",
+                          "type": "text",
+                          "version": 1
+                        }
+                      ],
+                      "direction": null,
+                      "format": "",
+                      "indent": 0,
+                      "textFormat": 0,
+                      "textStyle": "",
+                      "type": "paragraph",
+                      "version": 1
+                    }
+                  ],
+                  "direction": null,
+                  "format": "",
+                  "indent": 0,
+                  "type": "root",
+                  "version": 1
+                }
+              }
+            },
+            "height": 480,
+            "maxWidth": 800,
+            "showCaption": true,
+            "src": "/photo.png",
+            "type": "image",
+            "version": 1,
+            "width": 640,
+            "$": {
+              "figure": {
+                "width": "wide"
+              },
+              "natural": {
+                "width": 2804,
+                "height": 1882
+              }
+            }
+          },
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": " ",
+            "type": "text",
+            "version": 1
+          },
+          {
+            "altText": "",
+            "caption": {
+              "editorState": {
+                "root": {
+                  "children": [],
+                  "direction": null,
+                  "format": "",
+                  "indent": 0,
+                  "type": "root",
+                  "version": 1
+                }
+              }
+            },
+            "height": 0,
+            "maxWidth": 500,
+            "showCaption": false,
+            "src": "/plain.png",
+            "type": "image",
+            "version": 1,
+            "width": 0
+          },
+          {
+            "altText": "Inline",
+            "caption": {
+              "editorState": {
+                "root": {
+                  "children": [
+                    {
+                      "children": [
+                        {
+                          "detail": 0,
+                          "format": 0,
+                          "mode": "normal",
+                          "style": "",
+                          "text": "Beside",
+                          "type": "text",
+                          "version": 1
+                        }
+                      ],
+                      "direction": null,
+                      "format": "",
+                      "indent": 0,
+                      "textFormat": 0,
+                      "textStyle": "",
+                      "type": "paragraph",
+                      "version": 1
+                    }
+                  ],
+                  "direction": null,
+                  "format": "",
+                  "indent": 0,
+                  "type": "root",
+                  "version": 1
+                }
+              }
+            },
+            "height": 0,
+            "position": "left",
+            "showCaption": true,
+            "src": "/inline.png",
+            "type": "inline-image",
+            "captionsEnabled": false,
+            "version": 1,
+            "width": 120
+          },
+          {
+            "altText": "",
+            "caption": {
+              "editorState": {
+                "root": {
+                  "children": [],
+                  "direction": null,
+                  "format": "",
+                  "indent": 0,
+                  "type": "root",
+                  "version": 1
+                }
+              }
+            },
+            "height": 0,
+            "showCaption": false,
+            "src": "/other.png",
+            "type": "inline-image",
+            "captionsEnabled": true,
+            "version": 1,
+            "width": 0
+          },
+          {
+            "equation": "e^{i\\pi}+1=0",
+            "inline": true,
+            "type": "equation",
+            "version": 1
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "textFormat": 0,
+        "textStyle": "",
+        "type": "paragraph",
+        "version": 1
+      },
+      {
+        "caption": {
+          "root": {
+            "children": [
+              {
+                "children": [
+                  {
+                    "detail": 0,
+                    "format": 0,
+                    "mode": "normal",
+                    "style": "",
+                    "text": "A clip",
+                    "type": "text",
+                    "version": 1
+                  }
+                ],
+                "direction": null,
+                "format": "",
+                "indent": 0,
+                "textFormat": 0,
+                "textStyle": "",
+                "type": "paragraph",
+                "version": 1
+              }
+            ],
+            "direction": null,
+            "format": "",
+            "indent": 0,
+            "type": "root",
+            "version": 1
+          }
+        },
+        "height": 0,
+        "src": "/clip.mp4",
+        "type": "video",
+        "version": 1,
+        "width": 640,
+        "showCaption": true,
+        "captionsEnabled": true,
+        "$": {
+          "figure": {
+            "width": "full",
+            "caption": ""
+          }
+        }
+      },
+      {
+        "caption": {
+          "root": {
+            "children": [
+              {
+                "children": [],
+                "direction": null,
+                "format": "",
+                "indent": 0,
+                "textFormat": 0,
+                "textStyle": "",
+                "type": "paragraph",
+                "version": 1
+              }
+            ],
+            "direction": null,
+            "format": "",
+            "indent": 0,
+            "type": "root",
+            "version": 1
+          }
+        },
+        "height": 0,
+        "src": "/bare.mp4",
+        "type": "video",
+        "version": 1,
+        "width": 0,
+        "showCaption": false,
+        "captionsEnabled": false
+      },
+      {
+        "format": "center",
+        "type": "youtube",
+        "version": 1,
+        "$": {
+          "figure": {
+            "width": "60%",
+            "caption": "A talk"
+          }
+        },
+        "videoID": "dQw4w9WgXcQ",
+        "width": 560,
+        "height": 315
+      },
+      {
+        "format": "",
+        "type": "youtube",
+        "version": 1,
+        "videoID": "abc",
+        "width": 0,
+        "height": 0
+      },
+      {
+        "format": "",
+        "type": "tweet",
+        "version": 1,
+        "$": {
+          "figure": {
+            "caption": "A tweet"
+          }
+        },
+        "id": "1234567890"
+      },
+      {
+        "format": "right",
+        "type": "figma",
+        "version": 1,
+        "documentID": "FILEKEY"
+      },
+      {
+        "type": "mermaid",
+        "version": 1,
+        "schema": "graph TD; A-->B",
+        "width": 300,
+        "height": "inherit",
+        "$": {
+          "natural": {
+            "width": 120,
+            "height": 310.5
+          },
+          "figure": {
+            "width": "wide"
+          }
+        }
+      },
+      {
+        "type": "chart",
+        "version": 1,
+        "chartType": "line",
+        "chartData": "[{\"x\":1,\"y\":2}]",
+        "chartConfig": "{\"x\":{\"label\":\"X\"}}",
+        "width": 400,
+        "height": "inherit",
+        "$": {
+          "figure": {
+            "caption": "Growth"
+          }
+        }
+      },
+      {
+        "children": [
+          {
+            "data": "{\"elements\":[]}",
+            "height": 250,
+            "type": "excalidraw",
+            "version": 1,
+            "width": 0,
+            "$": {
+              "natural": {
+                "width": 800,
+                "height": 600
+              }
+            }
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "textFormat": 0,
+        "textStyle": "",
+        "type": "paragraph",
+        "version": 1
+      },
+      {
+        "equation": "\\int_0^1 x\\,dx",
+        "inline": false,
+        "type": "equation",
+        "version": 1
+      },
+      {
+        "children": [
+          {
+            "highlightType": "function",
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": "print",
+            "type": "code-highlight",
+            "version": 1
+          },
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": "(1)",
+            "type": "code-highlight",
+            "version": 1
+          },
+          {
+            "type": "linebreak",
+            "version": 1
+          },
+          {
+            "highlightType": "comment",
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": "# done",
+            "type": "code-highlight",
+            "version": 1
+          }
+        ],
+        "language": "python",
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "code",
+        "version": 1,
+        "showLineNumbers": true
+      },
+      {
+        "format": "",
+        "type": "article",
+        "version": 1,
+        "data": {
+          "mode": "url",
+          "url": "https://example.com/story",
+          "distilled": {
+            "title": "A story",
+            "byline": null,
+            "siteName": "Example",
+            "wordCount": 1200,
+            "excerpt": "It begins",
+            "contentHtml": "<p>It begins.</p>",
+            "bestImageUrl": null,
+            "datePublished": "2024-01-02",
+            "updatedAt": "2024-01-03T00:00:00.000Z"
+          }
+        }
+      },
+      {
+        "format": "center",
+        "type": "article",
+        "version": 1,
+        "data": {
+          "mode": "entity",
+          "entityId": "article-1",
+          "snapshot": {
+            "title": "Saved",
+            "contentHtml": "<p>Saved.</p>",
+            "wordCount": null
+          }
+        }
+      },
+      {
+        "type": "slide-deck",
+        "version": 1,
+        "data": {
+          "currentSlideId": "slide-1",
+          "deckMetadata": {
+            "bigIdea": "Grow",
+            "targetSlideCount": 3,
+            "theme": {
+              "templateName": "plain",
+              "colorPalette": {
+                "primary": "#111",
+                "accent": "#f00"
+              },
+              "fonts": {
+                "heading": "Serif"
+              }
+            }
+          },
+          "slides": [
+            {
+              "id": "slide-1",
+              "backgroundColor": "#fff",
+              "slideMetadata": {
+                "purpose": "Open",
+                "sourceMaterialRefs": ["doc-1", "doc-2"]
+              },
+              "elements": [
+                {
+                  "kind": "box",
+                  "id": "box-1",
+                  "x": 50,
+                  "y": 40,
+                  "width": 300,
+                  "height": "inherit",
+                  "editorStateJSON": {
+                    "root": {
+                      "key": "root",
+                      "type": "root",
+                      "version": 1,
+                      "children": []
+                    }
+                  },
+                  "backgroundColor": "transparent",
+                  "version": 2,
+                  "zIndex": 0
+                },
+                {
+                  "kind": "image",
+                  "id": "image-1",
+                  "x": 10.5,
+                  "y": 20,
+                  "width": 250,
+                  "height": 180,
+                  "url": "/slide.png",
+                  "version": 1,
+                  "zIndex": 1
+                },
+                {
+                  "kind": "chart",
+                  "id": "chart-1",
+                  "x": 0,
+                  "y": 0,
+                  "width": "inherit",
+                  "height": 200,
+                  "chartType": "pie",
+                  "chartData": "[]",
+                  "chartConfig": "{}",
+                  "zIndex": 2
+                }
+              ]
+            },
+            {
+              "id": "slide-2",
+              "elements": []
+            }
+          ]
+        }
       }
     ],
     "direction": null,

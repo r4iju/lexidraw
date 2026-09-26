@@ -96,6 +96,15 @@ test("an object is a struct named after its field, which keeps the keys it doesn
   expect(swift).toContain("    static let note: FieldSchema<Note> = .object");
 });
 
+test("an object that doesn't keep the keys it doesn't declare drops them, as Lexical does", () => {
+  const swift = swiftForNodeSchema({ nodes: [marker], undeclared: [], traits: {} });
+  const board = swift.slice(swift.indexOf("public struct Board"));
+  const note = swift.slice(swift.indexOf("public struct Note"));
+
+  expect(board).toContain("    unknownFields = [:]\n");
+  expect(note).toContain("    unknownFields = fields.rest\n");
+});
+
 test("a transform reads through the Swift function of the same name", () => {
   const swift = swiftForNodeSchema({ nodes: [marker], undeclared: [], traits: {} });
 
@@ -181,4 +190,88 @@ test("a field that can only be null is a Never that is null or absent", () => {
     "    static let direction: FieldSchema<Never?> = .enumeration(default: Never?.none)",
   );
   expect(swift).not.toContain("enum Never");
+});
+
+const sized = {
+  type: "sized",
+  className: "SizedNode",
+  version: 1,
+  children: false,
+  fields: {
+    size: {
+      kind: "union",
+      members: [
+        { kind: "number", default: 0 },
+        { kind: "enum", values: ["inherit"], default: "inherit" },
+      ],
+      default: "inherit",
+    },
+  },
+  state: {},
+} satisfies NodeDescription;
+
+test("a union is an enum with a case for each member, in Lexical's order", () => {
+  const swift = swiftForNodeSchema({ nodes: [sized], undeclared: [], traits: {} });
+
+  expect(swift).toContain("public enum Size: JSONUnion {");
+  expect(swift).toContain("  case number(Double)");
+  expect(swift).toContain("  case inherit");
+  expect(swift).toContain("  static let defaultValue: Self? = .inherit");
+  expect(swift).toContain(
+    "    .member(.number(default: 0), Self.number, { if case .number(let value) = $0 { value } else { nil } }),",
+  );
+  expect(swift).toContain('    .literal("inherit", .inherit),');
+  expect(swift).toContain("    static let size: FieldSchema<Size> = .union");
+  // A member that is one value is a case, not an enum of its own.
+  expect(swift).not.toContain("enum Inherit");
+});
+
+test("an object in a union is the case its one constant field names", () => {
+  const link = (mode: string, key: string) => ({
+    kind: "object" as const,
+    open: true as const,
+    fields: {
+      mode: { kind: "enum" as const, values: [mode], default: mode },
+      [key]: { kind: "string" as const, default: "" },
+    },
+    default: { mode, [key]: "" },
+  });
+  const swift = swiftForNodeSchema({
+    nodes: [
+      {
+        ...sized,
+        fields: {
+          link: {
+            kind: "union",
+            members: [link("url", "url"), link("entity", "entityId")],
+            default: { mode: "url", url: "" },
+          },
+        },
+      },
+    ],
+    undeclared: [],
+    traits: {},
+  });
+
+  expect(swift).toContain("  case url(LinkUrl)");
+  expect(swift).toContain("  case entity(LinkEntity)");
+  expect(swift).toContain("public struct LinkUrl: DeclaredObject {");
+  expect(swift).toContain("  public var mode: UrlMode?");
+  expect(swift).toContain("public enum EntityMode: String");
+  expect(swift).toContain(
+    '  static let defaultValue: Self? = .url(LinkUrl(["mode": "url", "url": ""]))',
+  );
+});
+
+test("an enum, a struct and a union can't share a name", () => {
+  const board = {
+    ...sized,
+    type: "board",
+    className: "BoardNode",
+    fields: { board: { kind: "enum", values: ["a", "b"], default: "a" } },
+  } satisfies NodeDescription;
+
+  expect(() =>
+    swiftForNodeSchema({ nodes: [marker, board], undeclared: [], traits: {} }),
+  ).toThrow(/Board/);
 });

@@ -16,7 +16,11 @@ import {
   withAccessors,
   withField,
 } from "lexical";
-import { type NestedEditorJSON, nestedEditorValue } from "../schema-values.js";
+import {
+  type NestedEditorJSON,
+  nestedEditorValue,
+  setNestedEditorJSON,
+} from "../schema-values.js";
 
 const STICKY_NOTE_COLORS = [
   "pink",
@@ -92,11 +96,8 @@ export class StickyNode extends DecoratorNode<unknown> {
     return this.__caption.toJSON();
   }
 
-  setCaptionJSON({ editorState }: NestedEditorJSON): this {
-    if (editorState) {
-      const state = this.__caption.parseEditorState(editorState);
-      if (!state.isEmpty()) this.__caption.setEditorState(state);
-    }
+  setCaptionJSON(caption: NestedEditorJSON): this {
+    setNestedEditorJSON(this.__caption, caption);
     return this;
   }
 

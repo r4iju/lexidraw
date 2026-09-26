@@ -11,9 +11,9 @@ export type { SerializedTweetNode } from "@packages/lexical-nodes";
 
 /** React half of the package's TweetNode; see ImageNode. */
 export class TweetNode extends HeadlessTweetNode {
-  static getType = HeadlessTweetNode.getType;
-  static clone = HeadlessTweetNode.clone;
-  static importJSON = HeadlessTweetNode.importJSON;
+  $config() {
+    return this.config("tweet", { extends: HeadlessTweetNode });
+  }
 
   decorate(_editor: LexicalEditor, config: EditorConfig): React.JSX.Element {
     const embedBlockTheme = config.theme.embedBlock || {};

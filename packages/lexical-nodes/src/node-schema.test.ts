@@ -86,7 +86,7 @@ test("lists node state apart from fields", () => {
   expect(node("quote")?.fields).not.toHaveProperty("shadowRoot");
 });
 
-test("covers every registered node but Lexical's never-stored artificial one, listing custom ones as undeclared by type", () => {
+test("covers every registered node but Lexical's never-stored artificial one", () => {
   const registered = [
     ...createHeadlessEditor({ nodes: SCHEMA_NODES })._nodes.keys(),
   ].filter((type) => type !== ArtificialNode__DO_NOT_USE.getType());
@@ -96,7 +96,22 @@ test("covers every registered node but Lexical's never-stored artificial one, li
   expect(declared).toEqual(
     expect.arrayContaining(["root", "paragraph", "text", "table", "link"]),
   );
-  expect(schema.undeclared).toEqual(expect.arrayContaining(["code", "image"]));
+});
+
+test("lists a node that doesn't declare its JSON as undeclared, by type", () => {
+  class LegacyNode extends DecoratorNode<null> {
+    static getType() {
+      return "legacy";
+    }
+    static clone(node: LegacyNode) {
+      return new LegacyNode(node.__key);
+    }
+    decorate() {
+      return null;
+    }
+  }
+
+  expect(exportNodeSchema([LegacyNode]).undeclared).toEqual(["legacy"]);
 });
 
 test("the light custom nodes declare their JSON", () => {
@@ -134,6 +149,48 @@ test("the light custom nodes declare their JSON", () => {
     open: true,
   });
   expect(node("thread")?.children).toBe(true);
+});
+
+test("the heavy decorator nodes declare their JSON", () => {
+  const heavy = [
+    "image",
+    "inline-image",
+    "video",
+    "youtube",
+    "tweet",
+    "figma",
+    "mermaid",
+    "equation",
+    "chart",
+    "excalidraw",
+    "slide-deck",
+    "article",
+    "code",
+  ];
+
+  expect(heavy.filter((type) => schema.undeclared.includes(type))).toEqual([]);
+  expect(schema.undeclared).toEqual([]);
+  // What the image writes for a width it takes from the page.
+  expect(node("image")?.fields.width).toEqual({ kind: "number", default: 0 });
+  expect(node("image")?.state.natural?.value).toMatchObject({
+    kind: "transform",
+    name: "naturalSize",
+  });
+  expect(node("chart")?.fields.width).toEqual({
+    kind: "transform",
+    name: "zeroAsInherit",
+    inner: {
+      kind: "union",
+      members: [
+        { kind: "number", default: 0 },
+        { kind: "enum", values: ["inherit"], default: "inherit" },
+      ],
+      default: "inherit",
+    },
+    default: "inherit",
+  });
+  expect(node("article")?.fields.data).toMatchObject({ kind: "union" });
+  expect(node("code")?.fields.theme).toEqual({ kind: "enum", values: [] });
 });
 
 test("tells an object that keeps the keys it doesn't declare from one that drops them", () => {

@@ -1,26 +1,37 @@
-import type {
-  Klass,
-  DOMConversionMap,
-  DOMConversionOutput,
-  DOMExportOutput,
-  EditorConfig,
-  LexicalEditor,
-  LexicalNode,
-  NodeKey,
-  SerializedEditorState,
-  SerializedLexicalNode,
-  Spread,
-} from "lexical";
 import {
   $create,
   $createParagraphNode,
   $getRoot,
+  booleanValue,
   createEditor,
   DecoratorNode,
+  type DOMConversionMap,
+  type DOMConversionOutput,
+  type DOMExportOutput,
+  type EditorConfig,
+  type Klass,
+  type LexicalEditor,
+  type LexicalNode,
+  type NodeKey,
+  nodeSchema,
+  numberValue,
+  rawValue,
+  type SerializedEditorState,
+  type SerializedLexicalNode,
+  type Spread,
+  stringValue,
+  withAccessors,
+  withField,
 } from "lexical";
-import { $importNodeState, figureDOM, nodeStateJSON } from "../figure.js";
+import { figureDOM, figureState } from "../figure.js";
+import {
+  inheritForZero,
+  namedTransform,
+  zeroForInherit,
+} from "../schema-values.js";
 
-const defaultInitialCaptionState = JSON.stringify({
+/** The caption a video starts with, as its editor writes it. */
+const EMPTY_CAPTION = {
   root: {
     children: [
       {
@@ -28,6 +39,8 @@ const defaultInitialCaptionState = JSON.stringify({
         direction: null,
         format: "",
         indent: 0,
+        textFormat: 0,
+        textStyle: "",
         type: "paragraph",
         version: 1,
       },
@@ -38,6 +51,39 @@ const defaultInitialCaptionState = JSON.stringify({
     type: "root",
     version: 1,
   },
+} as unknown as SerializedEditorState;
+
+/**
+ * A caption with something in its root, or the one a video starts with: a
+ * caption is never left without its paragraph.
+ */
+const videoCaptionValue = namedTransform(
+  "videoCaption",
+  rawValue<unknown>(),
+  (value): SerializedEditorState => {
+    const root = (value as { root?: { children?: unknown } } | null)?.root;
+    return Array.isArray(root?.children) && root.children.length > 0
+      ? (value as SerializedEditorState)
+      : EMPTY_CAPTION;
+  },
+);
+
+const videoSchema = nodeSchema<VideoNode>()({
+  caption: withAccessors(videoCaptionValue, {
+    getter: "getCaptionJSON",
+    setter: "setCaptionJSON",
+  }),
+  captionsEnabled: withField(booleanValue(), { field: "__captionsEnabled" }),
+  height: withAccessors(numberValue(), {
+    getter: "getHeightJSON",
+    setter: "setHeightJSON",
+  }),
+  showCaption: withField(booleanValue(), { field: "__showCaption" }),
+  src: withField(stringValue(), { field: "__src" }),
+  width: withAccessors(numberValue(), {
+    getter: "getWidthJSON",
+    setter: "setWidthJSON",
+  }),
 });
 
 export interface VideoPayload {
@@ -73,9 +119,7 @@ export type SerializedVideoNode = Spread<
 function createCaptionEditor(): LexicalEditor {
   const caption = createEditor();
   try {
-    caption.setEditorState(
-      caption.parseEditorState(defaultInitialCaptionState),
-    );
+    caption.setEditorState(caption.parseEditorState(EMPTY_CAPTION));
   } catch (e) {
     console.error("Error setting initial caption state in constructor:", e);
     caption.update(() => {
@@ -96,74 +140,61 @@ export class VideoNode extends DecoratorNode<unknown> {
   __caption: LexicalEditor;
   __captionsEnabled: boolean;
 
-  static getType(): string {
-    return "video";
+  $config() {
+    return this.config("video", {
+      extends: DecoratorNode,
+      json: videoSchema,
+      stateConfigs: [figureState],
+    });
   }
 
-  static clone(node: VideoNode): VideoNode {
-    const newCaptionEditor = createEditor();
+  /** A copy gets a caption editor of its own, holding the same caption. */
+  afterCloneFrom(prevNode: this): void {
+    super.afterCloneFrom(prevNode);
+    this.__src = prevNode.__src;
+    this.__width = prevNode.__width;
+    this.__height = prevNode.__height;
+    this.__showCaption = prevNode.__showCaption;
+    this.__captionsEnabled = prevNode.__captionsEnabled;
+    const caption = prevNode.__caption.getEditorState();
+    if (!caption.isEmpty()) this.__caption.setEditorState(caption.clone());
+  }
+
+  getCaptionJSON(): SerializedEditorState {
+    return this.__caption.getEditorState().toJSON();
+  }
+
+  setCaptionJSON(caption: SerializedEditorState): this {
     try {
-      const currentCaptionState = node.__caption.getEditorState();
-      if (!currentCaptionState.isEmpty()) {
-        newCaptionEditor.setEditorState(currentCaptionState.clone());
-      } else {
-        newCaptionEditor.setEditorState(
-          newCaptionEditor.parseEditorState(defaultInitialCaptionState),
-        );
-      }
+      this.__caption.setEditorState(this.__caption.parseEditorState(caption));
     } catch (e) {
       console.error(
-        "Error cloning caption editor state, falling back to default:",
+        "Error importing caption JSON, falling back to default:",
         e,
       );
-      newCaptionEditor.setEditorState(
-        newCaptionEditor.parseEditorState(defaultInitialCaptionState),
+      this.__caption.setEditorState(
+        this.__caption.parseEditorState(EMPTY_CAPTION),
       );
     }
-
-    return new this(
-      node.__src,
-      node.__width,
-      node.__height,
-      node.__showCaption,
-      newCaptionEditor,
-      node.__key,
-      node.__captionsEnabled,
-    );
+    return this;
   }
 
-  static importJSON(serializedNode: SerializedVideoNode): VideoNode {
-    const { height, width, src, caption, showCaption, captionsEnabled } =
-      serializedNode;
-    const node = VideoNode.$createVideoNode({
-      src,
-      height,
-      width,
-      showCaption,
-      captionsEnabled,
-    });
-    if (caption) {
-      const nestedEditor = node.__caption;
-      try {
-        const editorState = nestedEditor.parseEditorState(caption);
-        if (!editorState.isEmpty()) {
-          nestedEditor.setEditorState(editorState);
-        } else {
-          nestedEditor.setEditorState(
-            nestedEditor.parseEditorState(defaultInitialCaptionState),
-          );
-        }
-      } catch (e) {
-        console.error(
-          "Error importing caption JSON, falling back to default:",
-          e,
-        );
-        nestedEditor.setEditorState(
-          nestedEditor.parseEditorState(defaultInitialCaptionState),
-        );
-      }
-    }
-    return $importNodeState(node, serializedNode);
+  getWidthJSON(): number {
+    return zeroForInherit(this.__width);
+  }
+
+  setWidthJSON(width: number): this {
+    this.__width = inheritForZero(width);
+    return this;
+  }
+
+  getHeightJSON(): number {
+    return zeroForInherit(this.__height);
+  }
+
+  setHeightJSON(height: number): this {
+    this.__height = inheritForZero(height);
+    return this;
   }
 
   exportDOM(): DOMExportOutput {
@@ -203,34 +234,6 @@ export class VideoNode extends DecoratorNode<unknown> {
     this.__showCaption = showCaption || false;
     this.__captionsEnabled = captionsEnabled || false;
     this.__caption = caption || createCaptionEditor();
-  }
-
-  exportJSON(): SerializedVideoNode {
-    let captionJSON: SerializedEditorState | null = null;
-    try {
-      captionJSON = this.__caption.getEditorState().toJSON();
-    } catch (e) {
-      console.error(
-        "Error exporting caption to JSON, using default empty state:",
-        e,
-      );
-      const tempEditor = createEditor();
-      tempEditor.setEditorState(
-        tempEditor.parseEditorState(defaultInitialCaptionState),
-      );
-      captionJSON = tempEditor.getEditorState().toJSON();
-    }
-    return {
-      caption: captionJSON,
-      height: this.__height === "inherit" ? 0 : this.__height,
-      src: this.getSrc(),
-      type: "video",
-      version: 1,
-      width: this.__width === "inherit" ? 0 : this.__width,
-      showCaption: this.__showCaption,
-      captionsEnabled: this.__captionsEnabled,
-      ...nodeStateJSON(super.exportJSON()),
-    };
   }
 
   setWidthAndHeight(

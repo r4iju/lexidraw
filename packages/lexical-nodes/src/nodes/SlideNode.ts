@@ -1,21 +1,35 @@
 import {
   $create,
   $createParagraphNode,
+  arrayValue,
   DecoratorNode,
   type EditorConfig,
+  enumValue,
   type Klass,
   type LexicalNode,
   type NodeKey,
+  nodeSchema,
+  nullable,
+  numberValue,
+  optional,
   type ParagraphNode,
   type SerializedLexicalNode,
   type Spread,
+  stringValue,
+  unionValue,
+  withField,
 } from "lexical";
 import { z } from "zod";
 import {
   EMPTY_CONTENT,
   type KeyedSerializedEditorState,
 } from "../keyed-editor-state.js";
-import type { ChartType } from "./ChartNode.js";
+import {
+  dimensionValue,
+  openObjectValue,
+  rawValueOr,
+} from "../schema-values.js";
+import { CHART_TYPES, type ChartType } from "./ChartNode.js";
 
 export type SlideElementSpec =
   | {
@@ -55,12 +69,12 @@ export type SlideElementSpec =
       zIndex: number;
     };
 
-export interface SlideData {
+export type SlideData = {
   id: string;
   elements: SlideElementSpec[];
   backgroundColor?: string;
   slideMetadata?: SlideStrategicMetadata;
-}
+};
 
 export const ThemeSettingsSchema = z.object({
   templateName: z.string().optional(),
@@ -130,18 +144,117 @@ export type SerializedSlideDeckNode = Spread<
   SerializedLexicalNode
 >;
 
+const optionalString = () => optional(stringValue());
+
+const elementFields = {
+  id: stringValue(),
+  x: numberValue(),
+  y: numberValue(),
+  width: dimensionValue,
+  height: dimensionValue,
+  version: optional(numberValue()),
+  zIndex: numberValue(),
+};
+
+/**
+ * The deck as its zod schemas above describe it, keeping what a later writer
+ * adds.
+ */
+const slideDeckValue = openObjectValue({
+  slides: arrayValue(
+    openObjectValue({
+      id: stringValue(),
+      elements: arrayValue(
+        unionValue([
+          openObjectValue({
+            kind: enumValue(["box"]),
+            ...elementFields,
+            editorStateJSON:
+              rawValueOr<KeyedSerializedEditorState>(EMPTY_CONTENT),
+            backgroundColor: optionalString(),
+          }),
+          openObjectValue({
+            kind: enumValue(["image"]),
+            ...elementFields,
+            url: stringValue(),
+          }),
+          openObjectValue({
+            kind: enumValue(["chart"]),
+            ...elementFields,
+            chartType: enumValue(CHART_TYPES),
+            chartData: stringValue(),
+            chartConfig: stringValue(),
+          }),
+        ]),
+      ),
+      backgroundColor: optionalString(),
+      slideMetadata: optional(
+        openObjectValue({
+          purpose: optionalString(),
+          storyboardTitle: optionalString(),
+          keyMessage: optionalString(),
+          keyVisualHint: optionalString(),
+          takeAwayMessage: optionalString(),
+          layoutTemplateHint: optionalString(),
+          speakerNotes: optionalString(),
+          sourceMaterialRefs: optional(arrayValue(stringValue())),
+        }),
+      ),
+    }),
+  ),
+  currentSlideId: nullable(stringValue()),
+  deckMetadata: optional(
+    openObjectValue({
+      bigIdea: optionalString(),
+      audiencePersonaSummary: optionalString(),
+      overallObjective: optionalString(),
+      recommendedTone: optionalString(),
+      originalUserPrompt: optionalString(),
+      targetSlideCount: optional(numberValue()),
+      targetDurationMinutes: optional(numberValue()),
+      theme: optional(
+        openObjectValue({
+          templateName: optionalString(),
+          colorPalette: optional(
+            openObjectValue({
+              primary: optionalString(),
+              secondary: optionalString(),
+              accent: optionalString(),
+              slideBackground: optionalString(),
+              textHeader: optionalString(),
+              textBody: optionalString(),
+            }),
+          ),
+          fonts: optional(
+            openObjectValue({
+              heading: optionalString(),
+              body: optionalString(),
+              caption: optionalString(),
+            }),
+          ),
+          logoUrl: optionalString(),
+          customTokens: optionalString(),
+        }),
+      ),
+    }),
+  ),
+});
+
+const slideSchema = nodeSchema<SlideNode>()({
+  data: withField(slideDeckValue, { field: "__data" }),
+});
+
 /**
  * Serialization half of the slide deck block; see ImageNode for the split.
  */
 export class SlideNode extends DecoratorNode<unknown> {
   __data: SlideDeckData;
 
-  static getType(): string {
-    return "slide-deck";
-  }
-
-  static clone(node: SlideNode): SlideNode {
-    return new this(node.__data, node.__key);
+  $config() {
+    return this.config("slide-deck", {
+      extends: DecoratorNode,
+      json: slideSchema,
+    });
   }
 
   constructor(
@@ -183,19 +296,6 @@ export class SlideNode extends DecoratorNode<unknown> {
 
   isInline(): boolean {
     return false;
-  }
-
-  exportJSON(): SerializedSlideDeckNode {
-    return {
-      ...super.exportJSON(),
-      type: "slide-deck",
-      data: this.__data,
-      version: 1,
-    };
-  }
-
-  static importJSON(serializedNode: SerializedSlideDeckNode): SlideNode {
-    return SlideNode.$createSlideNode(serializedNode.data);
   }
 
   static $createSlideNode<T extends SlideNode>(

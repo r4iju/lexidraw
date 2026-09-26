@@ -3,15 +3,24 @@ import {
   type SerializedDecoratorBlockNode,
 } from "@lexical/react/LexicalDecoratorBlockNode";
 import type { ArticleNodeData } from "@packages/types";
-import type {
-  DOMExportOutput,
-  ElementFormatType,
-  Klass,
-  LexicalNode,
-  NodeKey,
-  Spread,
+import {
+  $create,
+  type DOMExportOutput,
+  type ElementFormatType,
+  enumValue,
+  type Klass,
+  type LexicalNode,
+  type NodeKey,
+  nodeSchema,
+  nullable,
+  numberValue,
+  optional,
+  type Spread,
+  stringValue,
+  unionValue,
+  withField,
 } from "lexical";
-import { $create } from "lexical";
+import { openObjectValue } from "../schema-values.js";
 
 export type SerializedArticleNode = Spread<
   {
@@ -20,46 +29,70 @@ export type SerializedArticleNode = Spread<
   SerializedDecoratorBlockNode
 >;
 
+const optionalText = () => optional(nullable(stringValue()));
+
+/** What an entity's snapshot keeps of a distilled page. */
+const articleSnapshotFields = {
+  title: stringValue(),
+  byline: optionalText(),
+  siteName: optionalText(),
+  wordCount: optional(nullable(numberValue())),
+  updatedAt: optional(stringValue()),
+  contentHtml: stringValue(),
+  bestImageUrl: optionalText(),
+};
+
+const DEFAULT_DATA: ArticleNodeData = {
+  mode: "url",
+  url: "",
+  distilled: { title: "", contentHtml: "" },
+};
+
+const articleSchema = nodeSchema<ArticleNode>()({
+  data: withField(
+    unionValue(
+      [
+        openObjectValue({
+          mode: enumValue(["url"]),
+          url: stringValue(),
+          distilled: openObjectValue({
+            ...articleSnapshotFields,
+            excerpt: optionalText(),
+            datePublished: optionalText(),
+          }),
+        }),
+        openObjectValue({
+          mode: enumValue(["entity"]),
+          entityId: stringValue(),
+          snapshot: optional(openObjectValue(articleSnapshotFields)),
+        }),
+      ],
+      DEFAULT_DATA,
+    ),
+    { field: "__data" },
+  ),
+});
+
 /**
  * Serialization half of the article block; see ImageNode for the split.
  */
 export class ArticleNode extends DecoratorBlockNode {
   __data: ArticleNodeData;
 
-  static getType(): string {
-    return "article";
-  }
-
-  static clone(node: ArticleNode): ArticleNode {
-    return new this(node.__data, node.__format, node.__key);
+  $config() {
+    return this.config("article", {
+      extends: DecoratorBlockNode,
+      json: articleSchema,
+    });
   }
 
   constructor(
-    data: ArticleNodeData = {
-      mode: "url",
-      url: "",
-      distilled: { title: "", contentHtml: "" },
-    },
+    data: ArticleNodeData = DEFAULT_DATA,
     format?: ElementFormatType,
     key?: NodeKey,
   ) {
     super(format, key);
     this.__data = data;
-  }
-
-  static importJSON(serializedNode: SerializedArticleNode): ArticleNode {
-    const node = ArticleNode.$createArticleNode(serializedNode.data);
-    node.setFormat(serializedNode.format || "");
-    return node;
-  }
-
-  exportJSON(): SerializedArticleNode {
-    return {
-      ...super.exportJSON(),
-      type: ArticleNode.getType(),
-      version: 1,
-      data: this.__data,
-    } as SerializedArticleNode;
   }
 
   exportDOM(): DOMExportOutput {

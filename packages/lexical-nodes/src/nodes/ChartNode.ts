@@ -1,15 +1,23 @@
-import type {
-  Klass,
-  EditorConfig,
-  LexicalNode,
-  NodeKey,
-  SerializedLexicalNode,
-  Spread,
+import {
+  $create,
+  DecoratorNode,
+  type EditorConfig,
+  enumValue,
+  type Klass,
+  type LexicalNode,
+  type NodeKey,
+  nodeSchema,
+  type SerializedLexicalNode,
+  type Spread,
+  stringValue,
+  withField,
 } from "lexical";
-import { $create, DecoratorNode } from "lexical";
-import { $importNodeState, figureDOM, nodeStateJSON } from "../figure.js";
+import { figureDOM, figureState } from "../figure.js";
+import { zeroAsInheritValue } from "../schema-values.js";
 
-export type ChartType = "bar" | "line" | "pie";
+export const CHART_TYPES = ["bar", "line", "pie"] as const;
+
+export type ChartType = (typeof CHART_TYPES)[number];
 
 export type SerializedChartNode = Spread<
   {
@@ -24,6 +32,14 @@ export type SerializedChartNode = Spread<
   SerializedLexicalNode
 >;
 
+const chartSchema = nodeSchema<ChartNode>()({
+  chartType: withField(enumValue(CHART_TYPES), { field: "__chartType" }),
+  chartData: withField(stringValue("[]"), { field: "__chartData" }),
+  chartConfig: withField(stringValue("{}"), { field: "__chartConfig" }),
+  width: withField(zeroAsInheritValue, { field: "__width" }),
+  height: withField(zeroAsInheritValue, { field: "__height" }),
+});
+
 export class ChartNode extends DecoratorNode<unknown> {
   __chartType: ChartType;
   __chartData: string;
@@ -31,19 +47,12 @@ export class ChartNode extends DecoratorNode<unknown> {
   __width: number | "inherit";
   __height: number | "inherit";
 
-  static getType() {
-    return "chart";
-  }
-
-  static clone(node: ChartNode) {
-    return new this(
-      node.__chartType,
-      node.__chartData,
-      node.__chartConfig,
-      node.__width,
-      node.__height,
-      node.__key,
-    );
+  $config() {
+    return this.config("chart", {
+      extends: DecoratorNode,
+      json: chartSchema,
+      stateConfigs: [figureState],
+    });
   }
 
   constructor(
@@ -100,32 +109,6 @@ export class ChartNode extends DecoratorNode<unknown> {
     const h = height === 0 ? "inherit" : height;
     this.getWritable().__width = w;
     this.getWritable().__height = h;
-  }
-
-  exportJSON(): SerializedChartNode {
-    return {
-      type: "chart",
-      version: 1,
-      chartType: this.__chartType,
-      chartData: this.__chartData,
-      chartConfig: this.__chartConfig,
-      width: this.__width,
-      height: this.__height,
-      ...nodeStateJSON(super.exportJSON()),
-    };
-  }
-
-  static importJSON(node: SerializedChartNode): ChartNode {
-    return $importNodeState(
-      ChartNode.$createChartNode({
-        chartType: node.chartType,
-        chartData: node.chartData,
-        chartConfig: node.chartConfig,
-        width: node.width,
-        height: node.height,
-      }),
-      node,
-    );
   }
 
   static $createChartNode<T extends ChartNode>(
