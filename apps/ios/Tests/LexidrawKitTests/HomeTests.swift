@@ -12,7 +12,7 @@ import Testing
     let server = FakeServer { _ in (200, listing) }
     let session = try #require(try TestServer.account(InMemoryTokenStore("lxd_home"), server).restore())
 
-    let home = try await session.home()
+    let home = try await session.listing(of: nil)
 
     #expect(home.folders.map(\.title) == ["Projects", "Archive"])
     #expect(home.files.map(\.title) == ["Meeting notes", "Floor plan", "An article", "Reading list"])

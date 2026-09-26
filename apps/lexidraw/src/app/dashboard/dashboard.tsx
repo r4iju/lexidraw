@@ -17,7 +17,7 @@ import { FilterByTags } from "./filter-by-tags";
 import { PersistDashboardPrefsCookie } from "./persist-dashboard-prefs-cookie";
 import { SearchBar, SearchButton } from "./search";
 import { SortMenu } from "./sort-menu";
-import { replaceSearchParam } from "./utils";
+import { GUTTER, replaceSearchParam } from "./utils";
 import {
   type DashboardView,
   FilterHint,
@@ -35,9 +35,6 @@ type Props = {
   tags?: string;
   view: DashboardView;
 };
-
-// The app bar's gutter, so the title and the files line up under Home.
-const GUTTER = "w-full px-4 sm:px-6 lg:px-8";
 
 export async function Dashboard({
   account,

@@ -7,12 +7,12 @@ struct LexidrawApp: App {
 
   var body: some Scene {
     WindowGroup {
-      NavigationStack {
+      Group {
         switch model.state {
         case .signedOut:
-          SignInView()
+          NavigationStack { SignInView() }
         case .signedIn(let session):
-          HomeView(session: session)
+          BrowserView(session: session)
         }
       }
       .environment(model)

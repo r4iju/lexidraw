@@ -7,6 +7,7 @@ import {
 import { createTRPCRouter, protectedProcedure, publicProcedure } from "../trpc";
 import { CreateEntity, SaveEntity } from "./entities-schema";
 import { PublicAccess, AccessLevel } from "@packages/types";
+import { EMPTY_CONTENT } from "@packages/lexical-nodes";
 import { TRPCError } from "@trpc/server";
 import {
   and,
@@ -18,6 +19,9 @@ import {
   schema,
   sql,
   inArray,
+  isNotNull,
+  ne,
+  type SQL,
   type drizzle,
 } from "@packages/drizzle";
 import type { AppState } from "@excalidraw/excalidraw/types";
@@ -57,6 +61,7 @@ import {
   findWritableEntity,
   resolveMoveDestination,
   resolveParentDirectory,
+  restoredParent,
 } from "~/server/entities/readable";
 import { storeThumbnail, thumbnailPathname } from "~/server/entities/thumbnail";
 import {
@@ -66,6 +71,8 @@ import {
   queryBoolean,
   stringList,
 } from "../rest-schemas";
+
+const accessOut = z.enum(ENTITY_ACCESS).meta({ id: "Access" });
 
 /**
  * What `load` returns, declared so the REST transport can describe it.
@@ -89,28 +96,40 @@ const loadOutput = z.object({
 });
 
 /** What `list` returns: one row per entity the dashboard draws. */
-const entityListItem = z.object({
-  id: z.string(),
-  title: z.string(),
-  entityType: entityTypeOut,
-  createdAt: isoDate,
-  updatedAt: isoDate,
-  screenShotLight: z.string(),
-  screenShotDark: z.string(),
-  thumbnailStatus: z.enum(["pending", "ready", "error"]).nullable(),
-  thumbnailVersion: z.string().nullable(),
-  thumbnailUpdatedAt: isoDate.nullable(),
-  // What the caller may do with it, rather than whose it is: someone it was
-  // shared with has no use for the owner's id. See `ACTION_NEEDS`.
-  access: z.enum(ENTITY_ACCESS),
-  publicAccess: z.enum(PublicAccess),
-  parentId: z.string().nullable(),
-  favoritedAt: isoDate.nullable(),
-  archivedAt: isoDate.nullable(),
-  sharedWithCount: z.number(),
-  tags: z.array(z.string()),
-  childCount: z.number(),
-});
+const entityListItem = z
+  .object({
+    id: z.string(),
+    title: z.string(),
+    entityType: entityTypeOut,
+    createdAt: isoDate,
+    updatedAt: isoDate,
+    screenShotLight: z.string(),
+    screenShotDark: z.string(),
+    thumbnailStatus: z.enum(["pending", "ready", "error"]).nullable(),
+    thumbnailVersion: z.string().nullable(),
+    thumbnailUpdatedAt: isoDate.nullable(),
+    // What the caller may do with it, rather than whose it is: someone it was
+    // shared with has no use for the owner's id. See `ACTION_NEEDS`.
+    access: accessOut,
+    publicAccess: z.enum(PublicAccess),
+    parentId: z.string().nullable(),
+    favoritedAt: isoDate.nullable(),
+    archivedAt: isoDate.nullable(),
+    sharedWithCount: z.number(),
+    tags: z.array(z.string()),
+    childCount: z.number(),
+    folderCount: z
+      .number()
+      .describe("How many of `childCount` are folders, for a folder tree"),
+  })
+  .meta({ id: "ListedEntity" });
+
+/**
+ * An item's direct children the caller owns or was given, the ones a listing
+ * shows them inside it, as `from … where …` open to further conditions.
+ */
+const listedChildren = (userId: string) =>
+  sql`from Entities as child where child.parentId = ${schema.entities.id} and child.deletedAt is null and (child.userId = ${userId} or exists (select 1 from SharedEntities as share where share.entityId = child.id and share.userId = ${userId}))`;
 
 /**
  * What `search` returns: enough to render a hit, say where it is and why it
@@ -133,6 +152,36 @@ const entitySearchResult = z.object({
   snippet: z.string().nullable(),
 });
 
+/** What `trash` returns: enough to recognise a file and put it back. */
+const trashedEntity = z.object({
+  id: z.string(),
+  title: z.string(),
+  entityType: entityTypeOut,
+  screenShotLight: z.string(),
+  screenShotDark: z.string(),
+  createdAt: isoDate,
+  updatedAt: isoDate,
+  deletedAt: isoDate,
+});
+
+/** What `getMetadata` returns. */
+const entityPlace = z.object({
+  id: z.string(),
+  title: z.string(),
+  entityType: entityTypeOut,
+  publicAccess: z.enum(PublicAccess),
+  parentId: z.string().nullable(),
+  access: accessOut,
+  /** The folders above it the caller may open, from the top down. */
+  ancestors: z.array(
+    z.object({
+      id: z.string(),
+      title: z.string(),
+      access: accessOut,
+    }),
+  ),
+});
+
 /** The identity of an entity, as the write paths report it back. */
 const entitySummary = z.object({
   id: z.string(),
@@ -142,6 +191,16 @@ const entitySummary = z.object({
   createdAt: isoDate,
   updatedAt: isoDate,
 });
+
+/** The columns an {@link entitySummary} is read from. */
+const summaryColumns = {
+  id: schema.entities.id,
+  title: schema.entities.title,
+  entityType: schema.entities.entityType,
+  parentId: schema.entities.parentId,
+  createdAt: schema.entities.createdAt,
+  updatedAt: schema.entities.updatedAt,
+};
 
 const notFound = () =>
   new TRPCError({ code: "NOT_FOUND", message: "Entity not found" });
@@ -212,6 +271,102 @@ const sortArrOfObjects = <T extends Record<string, unknown>, K extends keyof T>(
   });
 };
 
+/**
+ * The rows a listing draws for the live entities `userId` owns or was given
+ * that `where` admits, newest change first, each with the caller's access and
+ * their own tags.
+ */
+async function listedEntities(
+  db: typeof drizzle,
+  userId: string,
+  where: SQL | undefined,
+) {
+  const entities = await db
+    .select({
+      id: schema.entities.id,
+      title: schema.entities.title,
+      entityType: schema.entities.entityType,
+      createdAt: schema.entities.createdAt,
+      updatedAt: schema.entities.updatedAt,
+      screenShotLight: schema.entities.screenShotLight,
+      screenShotDark: schema.entities.screenShotDark,
+      thumbnailStatus: schema.entities.thumbnailStatus,
+      thumbnailVersion: schema.entities.thumbnailVersion,
+      thumbnailUpdatedAt: schema.entities.thumbnailUpdatedAt,
+      ownerId: schema.entities.userId,
+      // The caller's own share, among everyone's joined in for the count.
+      sharedAccessLevel: sql<
+        string | null
+      >`max(case when ${schema.sharedEntities.userId} = ${userId} then ${schema.sharedEntities.accessLevel} end)`,
+      publicAccess: schema.entities.publicAccess,
+      parentId: schema.entities.parentId,
+      favoritedAt: schema.userEntityPrefs.favoritedAt,
+      archivedAt: schema.userEntityPrefs.archivedAt,
+      sharedWithCount: sql<number>`count(${schema.sharedEntities.userId})`,
+      tags: sql<string>`group_concat(${schema.tags.name}, ',')`,
+      childCount: sql<number>`(select cast(count(*) as int) ${listedChildren(userId)})`,
+      folderCount: sql<number>`(select cast(count(*) as int) ${listedChildren(userId)} and child.entityType = 'directory')`,
+    })
+    .from(schema.entities)
+    .leftJoin(
+      schema.sharedEntities,
+      eq(schema.entities.id, schema.sharedEntities.entityId),
+    )
+    .leftJoin(
+      schema.userEntityPrefs,
+      and(
+        eq(schema.userEntityPrefs.entityId, schema.entities.id),
+        eq(schema.userEntityPrefs.userId, userId),
+      ),
+    )
+    .leftJoin(
+      schema.entityTags,
+      and(
+        eq(schema.entities.id, schema.entityTags.entityId),
+        eq(schema.entityTags.userId, userId),
+      ),
+    )
+    .leftJoin(schema.tags, eq(schema.entityTags.tagId, schema.tags.id))
+    .where(
+      and(
+        or(
+          eq(schema.entities.userId, userId),
+          eq(schema.sharedEntities.userId, userId),
+        ),
+        isNull(schema.entities.deletedAt),
+        where,
+      ),
+    )
+    .groupBy(schema.entities.id)
+    .orderBy(desc(schema.entities.updatedAt))
+    .execute();
+
+  return entities.map(({ ownerId, sharedAccessLevel, ...entity }) => ({
+    ...entity,
+    access: accessOf(
+      { ownerId, sharedAccessLevel, publicAccess: entity.publicAccess },
+      userId,
+    ),
+    tags: entity.tags ? entity.tags.split(",").filter(Boolean) : [],
+  }));
+}
+
+const BLANK = {
+  document: { title: "New document", elements: JSON.stringify(EMPTY_CONTENT) },
+  drawing: { title: "New drawing", elements: "[]" },
+  directory: { title: "New folder", elements: "{}" },
+};
+
+/** What `input` is created with: what it says, or its kind's blank. */
+function createdContent(input: CreateEntity) {
+  if (input.entityType === "url") return input;
+  const blank = BLANK[input.entityType];
+  return {
+    title: input.title ?? blank.title,
+    elements: input.elements ?? blank.elements,
+  };
+}
+
 export const entityRouter = createTRPCRouter({
   create: protectedProcedure
     .meta({
@@ -221,14 +376,13 @@ export const entityRouter = createTRPCRouter({
         tags: ["entities"],
         summary: "Create an entity; returns the existing one on a repeat",
         protect: true,
-        // A POST has no 404 by default, and both the 404 a missing parent
-        // directory earns and the 409 on a taken id are this path's own.
         errorResponses: [400, 401, 403, 404, 409, 500],
       },
     })
     .input(CreateEntity)
     .output(entitySummary)
     .mutation(async ({ input, ctx }) => {
+      const { title, elements: given } = createdContent(input);
       const parentId = await resolveParentDirectory(
         ctx.drizzle,
         input.parentId,
@@ -236,9 +390,7 @@ export const entityRouter = createTRPCRouter({
         input.entityType,
       );
       const elements =
-        input.entityType === "document"
-          ? await measureImages(input.elements)
-          : input.elements;
+        input.entityType === "document" ? await measureImages(given) : given;
       const [created] = await ctx.drizzle
         .insert(schema.entities)
         .values({
@@ -246,7 +398,7 @@ export const entityRouter = createTRPCRouter({
           createdAt: new Date(),
           updatedAt: new Date(),
           deletedAt: undefined,
-          title: input.title,
+          title,
           userId: ctx.session?.user.id,
           entityType: input.entityType,
           publicAccess: PublicAccess.PRIVATE,
@@ -255,14 +407,7 @@ export const entityRouter = createTRPCRouter({
           appState: JSON.stringify({}),
         })
         .onConflictDoNothing()
-        .returning({
-          id: schema.entities.id,
-          title: schema.entities.title,
-          entityType: schema.entities.entityType,
-          parentId: schema.entities.parentId,
-          createdAt: schema.entities.createdAt,
-          updatedAt: schema.entities.updatedAt,
-        });
+        .returning(summaryColumns);
       if (created) {
         await queueThumbnail(ctx.drizzle, {
           ...created,
@@ -414,7 +559,6 @@ export const entityRouter = createTRPCRouter({
     .meta({
       openapi: {
         method: "GET",
-        // Registered before /entities/{id} so the literal segment wins.
         path: "/entities/search",
         tags: ["entities"],
         summary: "Search entities by title",
@@ -460,6 +604,69 @@ export const entityRouter = createTRPCRouter({
 
       return (await inReadableFolders(ctx.drizzle, results, userId)).map(
         (result) => ({ ...result, snippet: null }),
+      );
+    }),
+  sharedWithMe: protectedProcedure
+    .meta({
+      openapi: {
+        method: "GET",
+        path: "/entities/shared",
+        tags: ["entities"],
+        summary:
+          "List what others shared with the caller, wherever it is kept, newest first",
+        protect: true,
+      },
+    })
+    .output(z.array(entityListItem))
+    .query(async ({ ctx }) => {
+      const userId = ctx.session.user.id;
+      const shared = await listedEntities(
+        ctx.drizzle,
+        userId,
+        and(
+          ne(schema.entities.userId, userId),
+          isNull(schema.userEntityPrefs.archivedAt),
+        ),
+      );
+      // The folder a shared file sits in is its owner's unless it was
+      // shared too.
+      return (await inReadableFolders(ctx.drizzle, shared, userId)).map(
+        ({ folderTitle: _, ...entity }) => entity,
+      );
+    }),
+  trash: protectedProcedure
+    .meta({
+      openapi: {
+        method: "GET",
+        path: "/entities/trash",
+        tags: ["entities"],
+        summary: "List the caller's own entities in the trash, last in first",
+        protect: true,
+      },
+    })
+    .output(z.array(trashedEntity))
+    .query(async ({ ctx }) => {
+      const rows = await ctx.drizzle
+        .select({
+          id: schema.entities.id,
+          title: schema.entities.title,
+          entityType: schema.entities.entityType,
+          screenShotLight: schema.entities.screenShotLight,
+          screenShotDark: schema.entities.screenShotDark,
+          createdAt: schema.entities.createdAt,
+          updatedAt: schema.entities.updatedAt,
+          deletedAt: schema.entities.deletedAt,
+        })
+        .from(schema.entities)
+        .where(
+          and(
+            eq(schema.entities.userId, ctx.session.user.id),
+            isNotNull(schema.entities.deletedAt),
+          ),
+        )
+        .orderBy(desc(schema.entities.deletedAt));
+      return rows.flatMap(({ deletedAt, ...row }) =>
+        deletedAt ? [{ ...row, deletedAt }] : [],
       );
     }),
   load: publicProcedure
@@ -527,7 +734,18 @@ export const entityRouter = createTRPCRouter({
    * stay with its owner and the share dialog.
    */
   getMetadata: publicProcedure
+    .meta({
+      openapi: {
+        method: "GET",
+        path: "/entities/{id}/metadata",
+        tags: ["entities"],
+        summary:
+          "Where an entity is, the folders above it the caller may open, and the caller's access",
+        protect: true,
+      },
+    })
     .input(z.object({ id: z.string() }))
+    .output(entityPlace)
     .query(async ({ input, ctx }) => {
       const userId = ctx.session?.user?.id ?? "";
       const entity = await findReadableFacts(ctx.drizzle, input.id, userId);
@@ -615,102 +833,38 @@ export const entityRouter = createTRPCRouter({
         }
       }
 
-      // Step 2: Main query with tag filtering
-      const entities = await ctx.drizzle
-        .select({
-          id: schema.entities.id,
-          title: schema.entities.title,
-          entityType: schema.entities.entityType,
-          createdAt: schema.entities.createdAt,
-          updatedAt: schema.entities.updatedAt,
-          screenShotLight: schema.entities.screenShotLight,
-          screenShotDark: schema.entities.screenShotDark,
-          thumbnailStatus: schema.entities.thumbnailStatus,
-          thumbnailVersion: schema.entities.thumbnailVersion,
-          thumbnailUpdatedAt: schema.entities.thumbnailUpdatedAt,
-          ownerId: schema.entities.userId,
-          // The caller's own share, among everyone's joined in for the count.
-          sharedAccessLevel: sql<
-            string | null
-          >`max(case when ${schema.sharedEntities.userId} = ${ctx.session.user.id} then ${schema.sharedEntities.accessLevel} end)`,
-          publicAccess: schema.entities.publicAccess,
-          parentId: schema.entities.parentId,
-          favoritedAt: schema.userEntityPrefs.favoritedAt,
-          archivedAt: schema.userEntityPrefs.archivedAt,
-          sharedWithCount: sql<number>`count(${schema.sharedEntities.userId})`,
-          tags: sql<string>`group_concat(${schema.tags.name}, ',')`,
-          // Direct children the caller owns or was given, the ones this
-          // listing shows them inside it.
-          childCount: sql<number>`(select cast(count(*) as int) from Entities as child where child.parentId = ${schema.entities.id} and child.deletedAt is null and (child.userId = ${ctx.session.user.id} or exists (select 1 from SharedEntities as share where share.entityId = child.id and share.userId = ${ctx.session.user.id})))`,
-        })
-        .from(schema.entities)
-        .leftJoin(
-          schema.sharedEntities,
-          eq(schema.entities.id, schema.sharedEntities.entityId),
-        )
-        .leftJoin(
-          schema.userEntityPrefs,
-          and(
-            eq(schema.userEntityPrefs.entityId, schema.entities.id),
-            eq(schema.userEntityPrefs.userId, ctx.session.user.id),
-          ),
-        )
-        .leftJoin(
-          schema.entityTags,
-          and(
-            eq(schema.entities.id, schema.entityTags.entityId),
-            eq(schema.entityTags.userId, ctx.session.user.id),
-          ),
-        )
-        .leftJoin(schema.tags, eq(schema.entityTags.tagId, schema.tags.id))
-        .where(
-          and(
-            or(
-              eq(schema.entities.userId, ctx.session.user.id),
-              eq(schema.sharedEntities.userId, ctx.session.user.id),
-            ),
-            isNull(schema.entities.deletedAt),
-            input.parentId
-              ? eq(schema.entities.parentId, input.parentId)
-              : isNull(schema.entities.parentId),
-            // favorites filter
-            input.onlyFavorites
-              ? sql`${schema.userEntityPrefs.favoritedAt} is not null`
-              : undefined,
-            // archived items are hidden unless asked for, or asked for alone
-            input.onlyArchived
-              ? sql`${schema.userEntityPrefs.archivedAt} is not null`
-              : input.includeArchived
-                ? undefined
-                : isNull(schema.userEntityPrefs.archivedAt),
-            // Include the tag filter if tag names were provided
-            tagFilteredEntityIds
-              ? inArray(schema.entities.id, tagFilteredEntityIds)
-              : undefined,
-            // entityTypes filter
-            input.entityTypes && input.entityTypes.length > 0
-              ? inArray(schema.entities.entityType, input.entityTypes)
-              : undefined,
-          ),
-        )
-        .groupBy(schema.entities.id)
-        .orderBy(desc(schema.entities.updatedAt))
-        .execute();
+      const entities = await listedEntities(
+        ctx.drizzle,
+        ctx.session.user.id,
+        and(
+          input.parentId
+            ? eq(schema.entities.parentId, input.parentId)
+            : isNull(schema.entities.parentId),
+          // favorites filter
+          input.onlyFavorites
+            ? sql`${schema.userEntityPrefs.favoritedAt} is not null`
+            : undefined,
+          // archived items are hidden unless asked for, or asked for alone
+          input.onlyArchived
+            ? sql`${schema.userEntityPrefs.archivedAt} is not null`
+            : input.includeArchived
+              ? undefined
+              : isNull(schema.userEntityPrefs.archivedAt),
+          // Include the tag filter if tag names were provided
+          tagFilteredEntityIds
+            ? inArray(schema.entities.id, tagFilteredEntityIds)
+            : undefined,
+          // entityTypes filter
+          input.entityTypes && input.entityTypes.length > 0
+            ? inArray(schema.entities.entityType, input.entityTypes)
+            : undefined,
+        ),
+      );
 
-      // Step 3: Sort and format the output
       return sortArrOfObjects<
         (typeof entities)[number],
         "title" | "updatedAt" | "createdAt"
-      >(entities, input.sortOrder, input.sortBy).map(
-        ({ ownerId, sharedAccessLevel, ...entity }) => ({
-          ...entity,
-          access: accessOf(
-            { ownerId, sharedAccessLevel, publicAccess: entity.publicAccess },
-            ctx.session.user.id,
-          ),
-          tags: entity.tags ? entity.tags.split(",").filter(Boolean) : [],
-        }),
-      );
+      >(entities, input.sortOrder, input.sortBy);
     }),
   updateUserPrefs: protectedProcedure
     .input(
@@ -1009,6 +1163,54 @@ export const entityRouter = createTRPCRouter({
       );
       return { id: input.id };
     }),
+  restore: protectedProcedure
+    .meta({
+      openapi: {
+        method: "POST",
+        path: "/entities/{id}/restore",
+        tags: ["entities"],
+        summary:
+          "Take an entity out of the trash, into its folder if its owner may still write there",
+        protect: true,
+        errorResponses: [400, 401, 403, 404, 500],
+      },
+    })
+    .input(z.object({ id: z.string() }))
+    .output(entitySummary)
+    .mutation(async ({ input, ctx }) => {
+      const userId = ctx.session.user.id;
+      const [trashed] = await ctx.drizzle
+        .select({ parentId: schema.entities.parentId })
+        .from(schema.entities)
+        .where(
+          and(
+            eq(schema.entities.id, input.id),
+            eq(schema.entities.userId, userId),
+            isNotNull(schema.entities.deletedAt),
+          ),
+        );
+      if (!trashed) throw notFound();
+
+      const parentId = await restoredParent(
+        ctx.drizzle,
+        trashed.parentId,
+        userId,
+      );
+      const [restored] = await ctx.drizzle
+        .update(schema.entities)
+        .set({ deletedAt: null, parentId })
+        .where(eq(schema.entities.id, input.id))
+        .returning(summaryColumns);
+      if (!restored) throw notFound();
+
+      await revalidateEntitiesAndParents(
+        ctx.drizzle,
+        input.id,
+        trashed.parentId,
+        parentId,
+      );
+      return restored;
+    }),
   update: publicProcedure
     .meta({
       openapi: {
@@ -1121,7 +1323,6 @@ export const entityRouter = createTRPCRouter({
         tags: ["entities"],
         summary: "Share an entity with a user by email",
         protect: true,
-        // A POST has no 404 by default; an unknown entity or invitee is one.
         errorResponses: [400, 401, 403, 404, 500],
       },
     })

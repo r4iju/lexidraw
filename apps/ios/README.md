@@ -30,3 +30,7 @@ hand:
 - A device signs in under its model name, "iPhone" or "iPad", so two phones
   share a name in the web's list of API tokens.
 - The TestFlight group is set up by hand, as above.
+- A new file asks for its name straight away, as a new folder in Files does.
+  The web opens the new file instead, which the app cannot do yet.
+- The app doesn't save files yet, so the save messages that name the file and
+  say what to do next belong to #130, which brings editing.

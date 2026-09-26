@@ -131,6 +131,20 @@ const signedIn = t.middleware(({ ctx, next }) => {
 
 export const protectedProcedure = scopedProcedure.use(signedIn);
 
+/**
+ * For a read only a write can use, such as what confirms deleting an
+ * account: a token needs `write` for it, as for the write it serves.
+ */
+export const writerProcedure = protectedProcedure.use(({ ctx, next }) => {
+  if (!tokenMayRun(ctx.auth, "mutation")) {
+    throw new TRPCError({
+      code: "FORBIDDEN",
+      message: "This API token has read scope; this requires write scope",
+    });
+  }
+  return next();
+});
+
 /** For token management and admin work: a browser session, never a token. */
 export const sessionOnlyProcedure = protectedProcedure.use(({ ctx, next }) => {
   if (ctx.auth.kind === "token") {

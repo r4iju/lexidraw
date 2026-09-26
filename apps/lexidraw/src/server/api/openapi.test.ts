@@ -101,15 +101,20 @@ describe("openApiDocument", () => {
   // The v1 surface, as docs/agent-access.md promises it.
   const expectedOperations = [
     ["/me", "get", "auth"],
+    ["/me/delete", "get", "auth"],
     ["/me/delete", "post", "auth"],
     ["/me/token/revoke", "post", "auth"],
     ["/entities", "get", "entities"],
     ["/entities", "post", "entities"],
     ["/entities/search", "get", "entities"],
+    ["/entities/shared", "get", "entities"],
+    ["/entities/trash", "get", "entities"],
     ["/entities/{id}", "get", "entities"],
     ["/entities/{id}", "put", "entities"],
     ["/entities/{id}", "patch", "entities"],
     ["/entities/{id}", "delete", "entities"],
+    ["/entities/{id}/metadata", "get", "entities"],
+    ["/entities/{id}/restore", "post", "entities"],
     ["/entities/{id}/tags", "get", "entities"],
     ["/entities/{id}/tags", "put", "entities"],
     ["/entities/{id}/shares", "get", "entities"],
@@ -230,7 +235,11 @@ describe("openApiDocument", () => {
     const refs = JSON.stringify(document.paths).match(
       /#\/components\/schemas\/[^"]+/g,
     );
-    expect([...new Set(refs)]).toEqual(["#/components/schemas/ErrorResponse"]);
+    expect([...new Set(refs)].sort()).toEqual(
+      ["Access", "EntityType", "ErrorResponse", "ListedEntity"].map(
+        (name) => `#/components/schemas/${name}`,
+      ),
+    );
   });
 });
 

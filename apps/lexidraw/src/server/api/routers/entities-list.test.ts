@@ -85,3 +85,38 @@ describe("a folder's item count", () => {
     expect(await countIn(READER)).toBe(1);
   });
 });
+
+describe("a folder's folder count", () => {
+  test("counts only the folders in it, so a tree opens only onto folders", async () => {
+    const at = new Date("2026-09-01T00:00:00.000Z");
+    const row = (id: string, entityType: string, parentId: string | null) => ({
+      id,
+      title: id,
+      elements: "{}",
+      entityType,
+      userId: OWNER,
+      parentId,
+      publicAccess: PublicAccess.PRIVATE,
+      createdAt: at,
+      updatedAt: at,
+    });
+    await db
+      .insert(schema.entities)
+      .values([
+        row("elist_tree", "directory", null),
+        row("elist_branch", "directory", "elist_tree"),
+        row("elist_leaf", "document", "elist_tree"),
+      ]);
+
+    const listed = await caller.list({});
+    const counts = (id: string) => {
+      const folder = listed.find((entity) => entity.id === id);
+      return [folder?.childCount, folder?.folderCount];
+    };
+
+    expect([counts("elist_tree"), counts("elist_folder")]).toEqual([
+      [2, 1],
+      [3, 0],
+    ]);
+  });
+});

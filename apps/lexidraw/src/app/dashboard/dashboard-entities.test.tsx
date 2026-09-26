@@ -38,6 +38,7 @@ const entity = (overrides: Partial<Entity>): Entity => ({
   sharedWithCount: 0,
   tags: [],
   childCount: 0,
+  folderCount: 0,
   ...overrides,
 });
 
