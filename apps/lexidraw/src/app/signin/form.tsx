@@ -16,7 +16,12 @@ import { AuthDivider } from "~/components/auth-card";
 const WRONG_CREDENTIALS =
   "That email and password don’t match. Try again or use GitHub.";
 
-export default function SignInForm() {
+export default function SignInForm({
+  callbackPath,
+}: {
+  /** A same-site path, already checked by the page. */
+  callbackPath: string;
+}) {
   const schema = getSignInSchema();
   const router = useRouter();
 
@@ -47,7 +52,7 @@ export default function SignInForm() {
             : "We couldn’t sign you in. Try again.",
         );
       } else if (res?.ok) {
-        router.push("/dashboard");
+        router.push(callbackPath);
         return;
       }
     } catch {
@@ -60,7 +65,7 @@ export default function SignInForm() {
 
   const handleGitHubSignin = async () => {
     setSubmitError(null);
-    await signIn("github", { callbackUrl: "/dashboard" });
+    await signIn("github", { callbackUrl: callbackPath });
   };
 
   return (

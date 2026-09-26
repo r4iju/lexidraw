@@ -4,8 +4,14 @@ import { redirect } from "next/navigation";
 import { AuthCard } from "~/components/auth-card";
 import FormSkeleton from "./skeleton";
 import SignInForm from "./form";
+import { callbackPath } from "./callback-path";
 
-type Props = { searchParams: Promise<{ error?: string | string[] }> };
+type Props = {
+  searchParams: Promise<{
+    error?: string | string[];
+    callbackUrl?: string | string[];
+  }>;
+};
 
 /**
  * A GitHub sign-in that fails comes back here with a code; the error page is
@@ -17,6 +23,12 @@ async function RedirectFailedSignIn({ searchParams }: Props) {
     redirect(`/signin-error?${new URLSearchParams({ error })}`);
   }
   return null;
+}
+
+/** Sends the user back to the page that asked them to sign in. */
+async function SignInFormReturning({ searchParams }: Props) {
+  const { callbackUrl } = await searchParams;
+  return <SignInForm callbackPath={callbackPath(callbackUrl)} />;
 }
 
 export default function SignInPage({ searchParams }: Props) {
@@ -39,7 +51,7 @@ export default function SignInPage({ searchParams }: Props) {
         <RedirectFailedSignIn searchParams={searchParams} />
       </Suspense>
       <Suspense fallback={<FormSkeleton />}>
-        <SignInForm />
+        <SignInFormReturning searchParams={searchParams} />
       </Suspense>
     </AuthCard>
   );
