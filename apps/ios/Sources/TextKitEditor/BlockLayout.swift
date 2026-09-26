@@ -42,9 +42,7 @@ import UIKit
 
   /// A block of its own is a view; only a node inside a line of text stands
   /// in the text, as a placeholder the size of a word.
-  nonisolated static func standIn(
-    _ node: JSONValue, isBlock: Bool, texts: (JSONValue) -> NSAttributedString
-  ) -> [NSAttributedString.Key: Any]? {
+  nonisolated static func standIn(_ node: JSONValue, isBlock: Bool) -> [NSAttributedString.Key: Any]? {
     guard !isBlock, InlinePlaceholder.isEmbedded(node) else { return nil }
     let type = node["type"]?.stringValue ?? ""
     return [.attachment: InlinePlaceholder.attachment(type: type)]

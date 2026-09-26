@@ -95,7 +95,7 @@ import TextKitEditor
 
   @Test func describesEachBlockByHowItIsLaidOut() throws {
     let model = Editor()
-    try model.load(Self.titledTable)
+    try model.load(TestDocuments.titledTable([["c1", "c2"], ["c3", "c4"]]))
     let text = DocumentText(model: model) { blockType, format in
       [.lexicalFormat: format.rawValue, .blockType: blockType]
     }
@@ -103,37 +103,34 @@ import TextKitEditor
 
     try text.reload(storage)
 
-    #expect(storage.string == "Title\nab\nc1\nc2\nc3\nc4\n\u{FFFC}\n")
+    func shown(_ range: NSRange) -> String { (storage.string as NSString).substring(with: range) }
+    #expect((0..<text.blockCount).map { shown(text.range(ofBlock: $0)) } == ["Title", "before", "c1\nc2\nc3\nc4", "\u{FFFC}", "after"])
     #expect(storage.attribute(.blockType, at: 0, effectiveRange: nil) as? String == "h2")
-    #expect(text.blockCount == 4)
-    #expect(text.range(ofBlock: 2) == NSRange(location: 9, length: 11))
-    #expect(text.blockIndex(at: 20) == 2)
-    #expect(text.blockIndex(at: 21) == 3)
     #expect(text.kind(ofBlock: 1) == .text)
-    #expect(
-      text.kind(ofBlock: 2)
-        == .table(cells: [
-          [NSRange(location: 0, length: 2), NSRange(location: 3, length: 2)],
-          [NSRange(location: 6, length: 2), NSRange(location: 9, length: 2)],
-        ]))
+    guard case .table(let cells) = text.kind(ofBlock: 2) else {
+      Issue.record("The table isn't laid out as one")
+      return
+    }
+    let table = text.range(ofBlock: 2).location
+    #expect(cells.map { $0.map { shown(NSRange(location: table + $0.location, length: $0.length)) } } == [["c1", "c2"], ["c3", "c4"]])
+    #expect(text.blockIndex(at: NSMaxRange(text.range(ofBlock: 2))) == 2)
     #expect(text.kind(ofBlock: 3) == .embedded(type: "youtube"))
   }
 
   @Test func standsInForANodeWithOneCharacter() throws {
     let model = Editor()
-    try model.load(Self.titledTable)
-    let text = DocumentText(model: model, style: Self.style) { node, _, texts in
-      guard node["type"] == "table", let row = node["children"]?.arrayValue?.first else { return nil }
-      return [.standIn: texts(row).string]
+    try model.load(TestDocuments.titledTable([["c1", "c2"], ["c3", "c4"]]))
+    let text = DocumentText(model: model, style: Self.style) { node, _ in
+      node["type"] == "table" ? [.standIn: "table"] : nil
     }
     let storage = NSMutableAttributedString()
 
     try text.reload(storage)
 
-    #expect(storage.string == "Title\nab\n\u{FFFC}\n\u{FFFC}\n")
-    #expect(storage.attribute(.standIn, at: 9, effectiveRange: nil) as? String == "c1\nc2")
+    #expect(storage.string == "Title\nbefore\n\u{FFFC}\n\u{FFFC}\nafter\n")
+    #expect(storage.attribute(.standIn, at: 13, effectiveRange: nil) as? String == "table")
     #expect(text.kind(ofBlock: 2) == .embedded(type: "table"))
-    #expect(text.point(at: 9) == Point(path: [], offset: 2, type: .element))
+    #expect(text.point(at: 13) == Point(path: [], offset: 2, type: .element))
     #expect(text.offset(of: .text([2, 0, 0, 0, 0], 1)) == nil)
   }
 
@@ -186,34 +183,6 @@ import TextKitEditor
 
     #expect(stored.count > 4000)
     #expect(unreachable == [])
-  }
-
-  static let titledTable = LexicalJSON.document([
-    [
-      "children": [LexicalJSON.text("Title")], "direction": nil, "format": "", "indent": 0, "tag": "h2",
-      "type": "heading", "version": 1,
-    ],
-    LexicalJSON.paragraph([LexicalJSON.text("ab")]),
-    element(
-      "table",
-      [["c1", "c2"], ["c3", "c4"]].map { row in
-        element(
-          "tablerow",
-          row.map { cell in
-            element(
-              "tablecell", [LexicalJSON.paragraph([LexicalJSON.text(cell)])],
-              ["backgroundColor": nil, "colSpan": 1, "headerState": 0, "rowSpan": 1])
-          })
-      }),
-    ["format": "", "type": "youtube", "version": 1, "videoID": "abc", "width": 0, "height": 0],
-  ])
-
-  static func element(_ type: String, _ children: [JSONValue], _ fields: JSONObject = [:]) -> JSONValue {
-    var node: JSONObject = [
-      "children": .array(children), "direction": nil, "format": "", "indent": 0, "type": .string(type), "version": 1,
-    ]
-    for (key, value) in fields { node[key] = value }
-    return .object(node)
   }
 
   static func plain(_ string: String) -> NSAttributedString {

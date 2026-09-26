@@ -125,7 +125,7 @@ public struct SyntheticDocument: Sendable, CustomStringConvertible {
     func json(_ text: inout Words) -> JSONValue {
       switch self {
       case .heading(let tag):
-        return Self.element("heading", [LexicalJSON.text(text.sentence(Self.headingWords, period: false))], ["tag": .string(tag)])
+        return LexicalJSON.element("heading", [LexicalJSON.text(text.sentence(Self.headingWords, period: false))], ["tag": .string(tag)])
       case .paragraph(let inlines):
         var children: [JSONValue] = []
         for (index, inline) in inlines.enumerated() {
@@ -137,44 +137,27 @@ public struct SyntheticDocument: Sendable, CustomStringConvertible {
           case .bold: children.append(LexicalJSON.text(text.sentence(3, period: false), format: .bold))
           case .link:
             children.append(
-              Self.element(
+              LexicalJSON.element(
                 "link", [LexicalJSON.text(text.sentence(2, period: false))],
                 ["rel": nil, "target": nil, "title": nil, "url": "https://example.com/"]))
           }
         }
         return LexicalJSON.paragraph(children)
       case .quote:
-        return Self.element("quote", [LexicalJSON.text(text.sentence(Self.quoteWords))])
+        return LexicalJSON.element("quote", [LexicalJSON.text(text.sentence(Self.quoteWords))])
       case .list(let items):
-        return Self.element(
+        return LexicalJSON.element(
           "list",
           (1...items).map {
-            Self.element("listitem", [LexicalJSON.text(text.sentence(Self.itemWords))], ["value": .number(Double($0))])
+            LexicalJSON.element("listitem", [LexicalJSON.text(text.sentence(Self.itemWords))], ["value": .number(Double($0))])
           },
           ["listType": "bullet", "start": 1, "tag": "ul"])
       case .table(let rows, let columns):
-        return Self.element(
-          "table",
-          (0..<rows).map { row in
-            Self.element(
-              "tablerow",
-              (0..<columns).map { _ in
-                Self.element(
-                  "tablecell", [LexicalJSON.paragraph([LexicalJSON.text(text.sentence(Self.cellWords, period: false))])],
-                  ["backgroundColor": nil, "colSpan": 1, "headerState": row == 0 ? 1 : 0, "rowSpan": 1])
-              })
-          })
+        return LexicalJSON.table(
+          (0..<rows).map { _ in (0..<columns).map { _ in text.sentence(Self.cellWords, period: false) } }, headerRow: true)
       case .video:
-        return ["format": "", "type": "youtube", "version": 1, "videoID": "dQw4w9WgXcQ", "width": 0, "height": 0]
+        return LexicalJSON.youtube("dQw4w9WgXcQ")
       }
-    }
-
-    private static func element(_ type: String, _ children: [JSONValue], _ fields: JSONObject = [:]) -> JSONValue {
-      var node: JSONObject = [
-        "children": .array(children), "direction": nil, "format": "", "indent": 0, "type": .string(type), "version": 1,
-      ]
-      for (key, value) in fields { node[key] = value }
-      return .object(node)
     }
   }
 

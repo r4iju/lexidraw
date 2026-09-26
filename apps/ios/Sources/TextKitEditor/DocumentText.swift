@@ -19,10 +19,8 @@ public final class DocumentText {
   public typealias Style = (_ blockType: String, _ format: TextFormat) -> [NSAttributedString.Key: Any]
   /// The attributes of the one character that stands in for `node` in place
   /// of its text, or nil to show its text. `isBlock` says whether the node is
-  /// a block at the root; `texts` renders any node's text.
-  public typealias StandIn = (
-    _ node: JSONValue, _ isBlock: Bool, _ texts: (JSONValue) -> NSAttributedString
-  ) -> [NSAttributedString.Key: Any]?
+  /// a block at the root.
+  public typealias StandIn = (_ node: JSONValue, _ isBlock: Bool) -> [NSAttributedString.Key: Any]?
 
   public struct Splice: Equatable, Sendable {
     public var old: Range<Int>
@@ -305,7 +303,7 @@ public final class DocumentText {
 
     mutating func add(_ node: JSONValue, at path: [Int]) {
       let start = text.length
-      if let standIn, let attributes = standIn(node, path.isEmpty, texts) {
+      if let standIn, let attributes = standIn(node, path.isEmpty) {
         text.append(NSAttributedString(string: "\u{FFFC}", attributes: style(blockType, []).merging(attributes) { $1 }))
         spans[path] = Span(start: start, end: text.length, kind: .character)
         return
@@ -332,13 +330,6 @@ public final class DocumentText {
         kind = .character
       }
       spans[path] = Span(start: start, end: text.length, kind: kind)
-    }
-
-    /// `node`'s text as it would be rendered here.
-    private func texts(_ node: JSONValue) -> NSAttributedString {
-      var renderer = Renderer(style: style, standIn: standIn, blockType: blockType)
-      renderer.add(node, at: [])
-      return renderer.text
     }
 
     private static func isBlock(_ node: JSONValue) -> Bool {

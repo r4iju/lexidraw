@@ -2,7 +2,7 @@
 import LexicalFuzz
 import LexicalSwift
 import Testing
-import TextKitEditor
+@testable import TextKitEditor
 import UIKit
 
 /// What the layout owes text input and scrolling, seen through `UITextInput`
@@ -62,9 +62,9 @@ import UIKit
     let one = try caret("one")
     let two = try caret("two words")
     let three = try caret("three")
-    #expect(abs(two.minY - one.minY) < 1 && two.minX > one.minX + 60, "two words beside one")
+    #expect(abs(two.minY - one.minY) < 1 && abs(two.minX - one.minX - TableView.columnWidth) < 1, "two words beside one")
     #expect(three.minY > one.maxY && abs(three.minX - one.minX) < 1, "three below one")
-    #expect(try caret("after").minY - (try caret("four")).maxY > 150, "the embed's room")
+    #expect(try caret("after").minY - (try caret("four")).maxY >= PlaceholderView.height, "the embed's room")
   }
 
   /// A selection from the paragraph before a table to the one after it is
@@ -114,33 +114,6 @@ import UIKit
     return view
   }
 
-  static let titledTable = LexicalJSON.document([
-    [
-      "children": [LexicalJSON.text("Title")], "direction": nil, "format": "", "indent": 0, "tag": "h2",
-      "type": "heading", "version": 1,
-    ],
-    LexicalJSON.paragraph([LexicalJSON.text("before")]),
-    element(
-      "table",
-      [["one", "two words"], ["three", "four"]].map { row in
-        element(
-          "tablerow",
-          row.map { cell in
-            element(
-              "tablecell", [LexicalJSON.paragraph([LexicalJSON.text(cell)])],
-              ["backgroundColor": nil, "colSpan": 1, "headerState": 0, "rowSpan": 1])
-          })
-      }),
-    ["format": "", "type": "youtube", "version": 1, "videoID": "abc", "width": 0, "height": 0],
-    LexicalJSON.paragraph([LexicalJSON.text("after")]),
-  ])
-
-  static func element(_ type: String, _ children: [JSONValue], _ fields: JSONObject = [:]) -> JSONValue {
-    var node: JSONObject = [
-      "children": .array(children), "direction": nil, "format": "", "indent": 0, "type": .string(type), "version": 1,
-    ]
-    for (key, value) in fields { node[key] = value }
-    return .object(node)
-  }
+  static let titledTable = TestDocuments.titledTable([["one", "two words"], ["three", "four"]])
 }
 #endif
