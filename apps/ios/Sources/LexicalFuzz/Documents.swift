@@ -10,10 +10,9 @@ public enum LexicalJSON {
     ]
   }
 
-  /// Lexical gives a loaded paragraph the format of its first text, so that is
-  /// the default here.
-  public static func paragraph(_ children: [JSONValue], textFormat: Int? = nil) -> JSONValue {
-    let textFormat = textFormat ?? children.first?["format"]?.intValue ?? 0
+  /// Lexical gives a loaded paragraph the format of its first text.
+  public static func paragraph(_ children: [JSONValue]) -> JSONValue {
+    let textFormat = children.first?["format"]?.intValue ?? 0
     return [
       "children": .array(children), "direction": nil, "format": "", "indent": 0,
       "textFormat": .number(Double(textFormat)), "textStyle": "", "type": "paragraph", "version": 1,

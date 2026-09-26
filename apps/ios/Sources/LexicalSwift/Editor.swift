@@ -3,13 +3,11 @@
 /// scoped to what exists.
 public final class Editor: EditorModel {
   private final class Node {
-    let key: String
     /// Every serialized field except `children`.
     var fields: [String: JSONValue]
     var children: [Node]?
 
-    init(key: String, fields: [String: JSONValue], children: [Node]?) {
-      self.key = key
+    init(fields: [String: JSONValue], children: [Node]?) {
       self.fields = fields
       self.children = children
     }
@@ -24,14 +22,12 @@ public final class Editor: EditorModel {
 
   private var root: Node?
   private var selection: Selection?
-  private var nextKey = 1
 
   public init() {}
 
   public func load(_ state: JSONValue) throws {
     guard let root = state["root"] else { throw EditorError.invalidState("No root") }
-    nextKey = 1
-    self.root = try node(from: root, key: "root")
+    self.root = try node(from: root)
     selection = nil
   }
 
@@ -68,7 +64,7 @@ public final class Editor: EditorModel {
       caret.offset += text.utf16.count
       self.selection?.anchor = caret
       self.selection?.focus = caret
-      return ChangeSet(changed: [node.key, "root"])
+      return ChangeSet(changed: [selection.anchor.path, []])
     }
   }
 
@@ -77,12 +73,10 @@ public final class Editor: EditorModel {
     return Snapshot(state: ["root": json(from: root)], selection: selection)
   }
 
-  private func node(from value: JSONValue, key: String? = nil) throws -> Node {
+  private func node(from value: JSONValue) throws -> Node {
     guard case .object(var fields) = value else { throw EditorError.invalidState("A node isn't an object") }
-    let key = key ?? String(nextKey)
-    if key != "root" { nextKey += 1 }
     let children = fields.removeValue(forKey: "children")?.arrayValue
-    return Node(key: key, fields: fields, children: try children?.map { try node(from: $0) })
+    return Node(fields: fields, children: try children?.map { try node(from: $0) })
   }
 
   private func json(from node: Node) -> JSONValue {

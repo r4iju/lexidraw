@@ -2,9 +2,8 @@ import Foundation
 import JavaScriptCore
 import LexicalSwift
 
-/// The editor-model interface backed by headless JS Lexical with the web
-/// editor's core node registry, running in JavaScriptCore. The differential
-/// fuzzer's oracle, and the fallback model if LexicalSwift can't match it.
+/// Headless JS Lexical with the web editor's core node registry, running in
+/// JavaScriptCore: the differential fuzzer's oracle.
 public final class ReferenceEditor: EditorModel {
   private let context: JSContext
   private let api: JSValue

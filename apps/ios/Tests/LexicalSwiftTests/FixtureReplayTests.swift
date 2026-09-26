@@ -16,8 +16,7 @@ import Testing
     let fixture = try Fixture.read(from: url)
     let outcome = try fixture.replay(on: Editor())
 
-    #expect(outcome.refused == fixture.refused)
-    #expect(outcome.snapshot == fixture.expected)
+    #expect(outcome == fixture.recorded)
   }
 
   /// Fails after a Lexical upgrade that changed behaviour a fixture pins, so
@@ -27,7 +26,6 @@ import Testing
     let fixture = try Fixture.read(from: url)
     let outcome = try fixture.replay(on: try Support.referenceEditor())
 
-    #expect(outcome.refused == fixture.refused)
-    #expect(outcome.snapshot == fixture.expected)
+    #expect(outcome == fixture.recorded)
   }
 }

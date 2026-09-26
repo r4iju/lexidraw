@@ -1,13 +1,12 @@
 /**
- * The JS reference editor: headless Lexical with the web editor's core node
- * registry, driven through the same editor-model interface LexicalSwift
- * implements. Swift loads this bundle into JavaScriptCore and exchanges JSON
- * strings with it.
+ * The editor-model interface over headless Lexical, for ReferenceEditor.swift
+ * to call with JSON strings.
  */
 import { createHeadlessEditor } from "@lexical/headless";
 import { CORE_NODES } from "@packages/lexical-nodes/nodes";
 import {
   $createRangeSelection,
+  $getNodeByKey,
   $getRoot,
   $getSelection,
   $isElementNode,
@@ -17,7 +16,6 @@ import {
   type LexicalEditor,
   type LexicalNode,
   type PointType,
-  type RangeSelection,
 } from "lexical";
 
 type PathPoint = { path: number[]; offset: number; type: "text" | "element" };
@@ -28,7 +26,7 @@ type Command =
 
 let editor: LexicalEditor | null = null;
 let lastError: unknown = null;
-let changed: string[] = [];
+let changed: number[][] = [];
 
 function current(): LexicalEditor {
   if (!editor) throw new Error("No document loaded");
@@ -47,18 +45,18 @@ function load(stateJSON: string): void {
   // Parsing reports a bad node through onError and returns an empty state.
   if (lastError) throw lastError;
   next.setEditorState(parsed);
-  next.registerUpdateListener(
-    ({ dirtyElements, dirtyLeaves, prevEditorState, editorState }) => {
-      const keys = new Set(dirtyLeaves);
-      for (const [key, intentional] of dirtyElements) {
-        if (intentional) keys.add(key);
-      }
-      for (const key of prevEditorState._nodeMap.keys()) {
-        if (!editorState._nodeMap.has(key)) keys.add(key);
-      }
-      changed = [...keys];
-    },
-  );
+  next.registerUpdateListener(({ dirtyElements, dirtyLeaves, editorState }) => {
+    const keys = [...dirtyLeaves];
+    for (const [key, intentional] of dirtyElements) {
+      if (intentional) keys.push(key);
+    }
+    changed = editorState.read(() =>
+      keys.flatMap((key) => {
+        const node = $getNodeByKey(key);
+        return node ? [pathOf(node)] : [];
+      }),
+    );
+  });
   editor = next;
 }
 
@@ -103,67 +101,21 @@ function run(command: Command): void {
   }
 }
 
-/**
- * Places the selection the way a user does, so the selection format and
- * style follow Lexical's own selection-change handling: a new selection
- * carries the previous one's format and style, then takes them from what it
- * lands in.
- */
 function setSelection(anchor: PathPoint, focus: PathPoint): void {
-  const previous = $getSelection();
   const selection = $createRangeSelection();
-  if ($isRangeSelection(previous)) {
-    selection.format = previous.format;
-    selection.style = previous.style;
-  }
   selection.anchor.set(
     nodeAt(anchor.path).getKey(),
     anchor.offset,
     anchor.type,
   );
   selection.focus.set(nodeAt(focus.path).getKey(), focus.offset, focus.type);
-  $setSelection(selection);
-  if (selection.isCollapsed()) {
-    takeCollapsedFormat(selection);
-  } else {
-    selection.format = combinedFormat(selection);
-  }
-}
-
-function takeCollapsedFormat(selection: RangeSelection): void {
   const node = selection.anchor.getNode();
-  if ($isTextNode(node)) {
-    selection.format = node.getFormat();
-    selection.style = node.getStyle();
-  } else if ($isElementNode(node) && $getRoot().getTextContent() !== "") {
-    if (node.isEmpty()) {
-      selection.format = node.getTextFormat();
-      selection.style = node.getTextStyle();
-    } else {
-      selection.style = "";
-    }
+  if (!selection.isCollapsed() || !$isTextNode(node)) {
+    throw new Error("Only a caret in text is ported to the reference so far");
   }
-}
-
-function combinedFormat(selection: RangeSelection): number {
-  const nodes = selection.getNodes();
-  const [start, end] = selection.isBackward()
-    ? [selection.focus, selection.anchor]
-    : [selection.anchor, selection.focus];
-  let format = -1;
-  let hasText = false;
-  nodes.forEach((node, i) => {
-    if (!$isTextNode(node)) return;
-    const size = node.getTextContentSize();
-    const emptyAtStart =
-      i === 0 && node.getKey() === start.key && start.offset === size;
-    const emptyAtEnd =
-      i === nodes.length - 1 && node.getKey() === end.key && end.offset === 0;
-    if (size === 0 || emptyAtStart || emptyAtEnd) return;
-    hasText = true;
-    format &= node.getFormat();
-  });
-  return hasText ? format : 0;
+  selection.format = node.getFormat();
+  selection.style = node.getStyle();
+  $setSelection(selection);
 }
 
 function nodeAt(path: number[]): LexicalNode {
@@ -178,14 +130,21 @@ function nodeAt(path: number[]): LexicalNode {
   return node;
 }
 
-function pathPoint(point: PointType): PathPoint {
+function pathOf(node: LexicalNode): number[] {
   const path: number[] = [];
-  let node: LexicalNode = point.getNode();
   for (let parent = node.getParent(); parent; parent = node.getParent()) {
     path.unshift(node.getIndexWithinParent());
     node = parent;
   }
-  return { path, offset: point.offset, type: point.type };
+  return path;
+}
+
+function pathPoint(point: PointType): PathPoint {
+  return {
+    path: pathOf(point.getNode()),
+    offset: point.offset,
+    type: point.type,
+  };
 }
 
 Object.assign(globalThis, {

@@ -36,6 +36,27 @@ import Testing
     #expect(try fixture.replay(on: Editor()).snapshot == fixture.expected)
   }
 
+  /// LexicalSwift that edits correctly but tells a view nothing changed.
+  final class ReportsNoChanges: EditorModel {
+    let editor = Editor()
+    func load(_ state: JSONValue) throws { try editor.load(state) }
+    func snapshot() throws -> Snapshot { try editor.snapshot() }
+    func apply(_ command: EditorCommand) throws -> ChangeSet {
+      try editor.apply(command)
+      return ChangeSet()
+    }
+  }
+
+  @Test func findsAChangeSetThatDisagrees() throws {
+    var fuzzer = Fuzzer(seed: 7, reference: try Support.referenceEditor(), candidate: ReportsNoChanges())
+
+    let fixture = try #require(try fuzzer.run(steps: 500)).fixture
+
+    #expect(fixture.commands.count == 2)
+    #expect(try fixture.replay(on: ReportsNoChanges()) != fixture.recorded)
+    #expect(try fixture.replay(on: Editor()) == fixture.recorded)
+  }
+
   @Test func theSameSeedFindsTheSameFixture() throws {
     let reference = try Support.referenceEditor()
     var first = Fuzzer(seed: 11, reference: reference, candidate: DropsTypedNonASCII())

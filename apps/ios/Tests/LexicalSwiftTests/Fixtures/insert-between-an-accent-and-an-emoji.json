@@ -64,7 +64,14 @@
       "text": "日本"
     }
   ],
-  "refused": [],
+  "changes": [
+    {
+      "changed": []
+    },
+    {
+      "changed": [[], [0, 0]]
+    }
+  ],
   "expected": {
     "state": {
       "root": {

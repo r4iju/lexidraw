@@ -88,7 +88,17 @@
       "text": "👨‍👩‍👧"
     }
   ],
-  "refused": [],
+  "changes": [
+    {
+      "changed": []
+    },
+    {
+      "changed": [[], [0, 1]]
+    },
+    {
+      "changed": [[], [0, 1]]
+    }
+  ],
   "expected": {
     "state": {
       "root": {
