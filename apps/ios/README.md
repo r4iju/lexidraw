@@ -51,6 +51,17 @@ sides: the UI script writes the calls, then `recording/composition.ts` makes
 them through Chrome's IME input on a local dev stack (`LEXIDRAW_DEV_URL`)
 with the dev account and adds what the web saved.
 
+## Drawing harness and UI tests
+
+The **DrawingHarness** scheme is an app with the drawing editor on a bundled
+drawing, `DrawingHarness/drawing.json`, and no server: it answers the
+editor's calls itself and keeps saves in memory. `bun run test:drawing-ui`
+runs its UI tests, `DrawingUITests`, on a simulator it makes and deletes
+after (`scripts/test-drawing-ui.sh`). They press keys on the simulator's
+hardware keyboard, and once one is pressed no software keyboard comes up
+until the next boot, so the tests that check the software keyboard run
+first, alone, on the fresh boot.
+
 ## TestFlight
 
 The **iOS TestFlight** workflow runs by hand on `master`. It tests, archives,

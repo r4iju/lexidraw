@@ -97,6 +97,39 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: $(APP_BUNDLE_IDENTIFIER).editor-ui-tests
         TEST_TARGET_NAME: EditorHarness
+  # The drawing editor on a bundled drawing with no server, for trying it
+  # and for the UI tests.
+  DrawingHarness:
+    type: application
+    platform: iOS
+    sources:
+      - DrawingHarness
+      - App/DrawingEditorView.swift
+      - App/EditorCanvas.swift
+      - App/StyleInspector.swift
+      - App/DrawingImages.swift
+    dependencies:
+      - package: LexidrawIOS
+        product: LexidrawKit
+      - package: LexidrawIOS
+        product: DrawingKit
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: $(APP_BUNDLE_IDENTIFIER).drawing-harness
+        INFOPLIST_KEY_CFBundleDisplayName: Drawing Harness
+        INFOPLIST_KEY_UILaunchScreen_Generation: true
+        INFOPLIST_KEY_UIApplicationSceneManifest_Generation: true
+  DrawingUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - DrawingUITests
+    dependencies:
+      - target: DrawingHarness
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: $(APP_BUNDLE_IDENTIFIER).drawing-ui-tests
+        TEST_TARGET_NAME: DrawingHarness
 schemes:
   Lexidraw:
     build:
@@ -111,3 +144,10 @@ schemes:
       targets:
         - EditorUITests
         - package: LexidrawIOS/TextKitEditorTests
+  DrawingHarness:
+    build:
+      targets:
+        DrawingHarness: all
+    test:
+      targets:
+        - DrawingUITests
