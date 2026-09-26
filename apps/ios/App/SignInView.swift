@@ -56,9 +56,9 @@ struct SignInView: View {
     } catch ASWebAuthenticationSessionError.canceledLogin {
       return
     } catch SignInError.refused {
-      failure = "The sign-in didn't go through. Please try again."
+      failure = "The sign-in didn’t go through. Please try again."
     } catch {
-      failure = "Couldn't sign in: \(error.localizedDescription)"
+      failure = "Couldn’t sign in: \(error.localizedDescription)"
     }
   }
 }

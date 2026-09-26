@@ -217,6 +217,20 @@ export async function resolveParentDirectory(
 }
 
 /**
+ * Where `ownerId`'s entity goes back to from the trash: the directory it left,
+ * when they may still write there, or else the top of Home, since a
+ * directory in the trash or out of their reach would hide it again.
+ */
+export async function restoredParent(
+  db: Db,
+  parentId: string | null,
+  ownerId: string,
+): Promise<string | null> {
+  if (parentId === null) return null;
+  return (await findWritableDirectory(db, parentId, ownerId))?.id ?? null;
+}
+
+/**
  * The directory `entity` moves to for `userId`, checked before the update:
  * the top of Home, or a directory the caller may write into, under the same
  * rule a create follows. Someone moving a file they do not own also needs its

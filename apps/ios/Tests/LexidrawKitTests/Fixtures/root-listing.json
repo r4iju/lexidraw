@@ -19,7 +19,8 @@
     "tags": [
       "work"
     ],
-    "childCount": 0
+    "childCount": 0,
+    "folderCount": 0
   },
   {
     "id": "dir-projects",
@@ -39,7 +40,8 @@
     "archivedAt": null,
     "sharedWithCount": 0,
     "tags": [],
-    "childCount": 3
+    "childCount": 3,
+    "folderCount": 0
   },
   {
     "id": "draw-floor",
@@ -59,7 +61,8 @@
     "archivedAt": null,
     "sharedWithCount": 1,
     "tags": [],
-    "childCount": 0
+    "childCount": 0,
+    "folderCount": 0
   },
   {
     "id": "url-article",
@@ -79,7 +82,8 @@
     "archivedAt": null,
     "sharedWithCount": 0,
     "tags": [],
-    "childCount": 0
+    "childCount": 0,
+    "folderCount": 0
   },
   {
     "id": "dir-archive",
@@ -99,7 +103,8 @@
     "archivedAt": null,
     "sharedWithCount": 0,
     "tags": [],
-    "childCount": 12
+    "childCount": 12,
+    "folderCount": 0
   },
   {
     "id": "doc-reading",
@@ -119,6 +124,7 @@
     "archivedAt": null,
     "sharedWithCount": 0,
     "tags": [],
-    "childCount": 0
+    "childCount": 0,
+    "folderCount": 0
   }
 ]

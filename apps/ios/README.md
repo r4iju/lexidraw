@@ -13,7 +13,8 @@ signs and uploads a build numbered by the run. What it needs, set up once by
 hand:
 
 - An App Store Connect app record for `xyz.raiju.lexidraw`, with no
-  capabilities.
+  capabilities, and the share extension's bundle ID
+  `xyz.raiju.lexidraw.share` registered in the developer portal.
 - An App Store Connect API team key (App Manager), as the repository secrets
   `ASC_KEY_ID`, `ASC_ISSUER_ID` and `ASC_KEY_P8` (the whole `.p8`), and the
   team ID as the variable `APPLE_TEAM_ID`.
@@ -30,3 +31,21 @@ hand:
 - A device signs in under its model name, "iPhone" or "iPad", so two phones
   share a name in the web's list of API tokens.
 - The TestFlight group is set up by hand, as above.
+- A new file asks for its name straight away, as a new folder in Files does.
+  The web opens the new file instead, which the app cannot do yet.
+- The app doesn't save files yet, so the save messages that name the file and
+  say what to do next belong to #130, which brings editing.
+- The share extension signs in with the app's token through a Keychain
+  access group named for the app's own App ID, the group the token was
+  already kept in. So it needs no app group and no capability in the portal,
+  and a token saved by an earlier build stays readable.
+- The share extension waits for a link's page to be read before it closes,
+  as the web's New link does, so a link never stays titled "New link"
+  without saying why.
+- Listen starts from a file's menu, since files don't open in the app yet.
+- Listen reads in the caller's read-aloud settings from the web, except that
+  it makes MP3 where they choose Ogg. Someone who chose Ogg has one audio of
+  a file for the web and another for the app.
+- Where a listen stopped is kept on the device. The web keeps none to share.
+- A document's audio, once made, plays even after the document changes, as
+  on the web. Making it again is done on the web.

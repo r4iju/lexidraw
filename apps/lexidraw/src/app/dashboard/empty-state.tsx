@@ -52,23 +52,44 @@ export function EmptyState({
       : null;
 
   return (
+    <EmptyMessage icon={icon} title={title} body={body}>
+      {action}
+      {clear && (
+        <Link
+          href={clear.href}
+          className="text-sm font-medium text-primary underline-offset-4 hover:underline"
+        >
+          {clear.label}
+        </Link>
+      )}
+    </EmptyMessage>
+  );
+}
+
+/** How any list says it has nothing in it, with what to do about it below. */
+export function EmptyMessage({
+  icon,
+  title,
+  body,
+  children,
+}: {
+  icon: ReactNode;
+  title: string;
+  body: string;
+  children?: ReactNode;
+}) {
+  return (
     <section className="flex flex-col items-center gap-3 px-4 py-16 text-center">
       <div className="grid size-12 place-items-center rounded-full bg-muted text-muted-foreground [&_svg]:size-6">
         {icon}
       </div>
       <h2 className="font-brand text-xl">{title}</h2>
       <p className="max-w-sm text-sm text-muted-foreground">{body}</p>
-      <div className="mt-2 flex flex-wrap items-center justify-center gap-4">
-        {action}
-        {clear && (
-          <Link
-            href={clear.href}
-            className="text-sm font-medium text-primary underline-offset-4 hover:underline"
-          >
-            {clear.label}
-          </Link>
-        )}
-      </div>
+      {children && (
+        <div className="mt-2 flex flex-wrap items-center justify-center gap-4">
+          {children}
+        </div>
+      )}
     </section>
   );
 }

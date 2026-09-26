@@ -83,10 +83,11 @@ cookie session and no token, whatever the request carries.
   POST/PUT/DELETE. superjson does not apply on this path (plain JSON).
 - Document served unauthenticated at `/api/v1/openapi.json`.
 - Live: the entity subset below — list/load/create/save/update/delete/search,
-  tags, share, and directory listing — plus the four markdown procedures, a
-  document's PDF, the drawing procedures, render included, and a token revoking
-  itself. Nothing further is planned. Admin,
-  TTS, backups, snapshot, image generation, and LLM procedures stay tRPC-only.
+  tags, share, directory listing, where an entity is, shared with me, the
+  trash and a restore — plus the four markdown procedures, a document's PDF,
+  the drawing procedures, render included, and a token revoking itself.
+  Nothing further is planned. Admin, TTS, backups, snapshot, image
+  generation, and LLM procedures stay tRPC-only.
 
 #### Paths (live)
 
@@ -94,13 +95,19 @@ cookie session and no token, whatever the request carries.
 | ------ | --------------------------------- | ---------------------------- |
 | GET    | `/me`                             | `auth.me`                    |
 | POST   | `/me/token/revoke`                | `tokens.revokeCurrent`       |
+| GET    | `/me/delete`                      | `auth.deletionConfirmation`  |
+| POST   | `/me/delete`                      | `auth.deleteAccount`         |
 | GET    | `/entities`                       | `entities.list`              |
 | POST   | `/entities`                       | `entities.create`            |
 | GET    | `/entities/search`                | `entities.search`            |
+| GET    | `/entities/shared`                | `entities.sharedWithMe`      |
+| GET    | `/entities/trash`                 | `entities.trash`             |
 | GET    | `/entities/{id}`                  | `entities.load`              |
 | PUT    | `/entities/{id}`                  | `entities.save`              |
 | PATCH  | `/entities/{id}`                  | `entities.update`            |
 | DELETE | `/entities/{id}`                  | `entities.delete`            |
+| GET    | `/entities/{id}/metadata`         | `entities.getMetadata`       |
+| POST   | `/entities/{id}/restore`          | `entities.restore`           |
 | GET    | `/entities/{id}/tags`             | `entities.getEntityTags`     |
 | PUT    | `/entities/{id}/tags`             | `entities.updateEntityTags`  |
 | GET    | `/entities/{id}/shares`           | `entities.getSharedInfo`     |
@@ -120,8 +127,7 @@ cookie session and no token, whatever the request carries.
 | POST   | `/native-sign-in/token`           | `nativeSignIn.exchange`      |
 
 A directory listing is `GET /entities?parentId={directoryId}`; omitting
-`parentId` lists the root. `/entities/search` is registered before
-`/entities/{id}` because the adapter matches paths in registration order.
+`parentId` lists the root.
 Repeated query parameters (`tagNames`, `entityTypes`) may also be
 comma-separated, since a single repetition arrives as a bare string.
 
@@ -131,6 +137,28 @@ still shared on. A delete only stamps `deletedAt` and an unshare leaves the
 former sharer's tag rows, so a restore or a new share brings the tag back. An
 archived entity still counts, since `GET /entities?includeArchived=true` lists
 it.
+
+`GET /entities/shared` lists what others shared with the caller wherever its
+owner keeps it, so a file in a folder the caller was not given is still
+reachable; its `parentId` is null when the caller cannot open that folder.
+`GET /entities/{id}/metadata` gives the folders above an entity that the
+caller may open, from the top down, which is what a breadcrumb shows.
+
+`DELETE /entities/{id}` only stamps `deletedAt`, so `GET /entities/trash` lists
+the caller's own entities that carry it, and `POST /entities/{id}/restore`
+takes one back out: into the folder it left when its owner may still write
+there, or else to the top of Home. Both are the owner's, as the delete is.
+
+`POST /entities` without `elements` starts the entity as the editor opens a
+new one: an empty paragraph for a document, no elements for a drawing, and
+`{}` for a directory; without a `title` it is "New document", "New drawing"
+or "New folder". A url has no empty state, so it needs both. Without a
+`parentId` the entity goes at the top of Home, as with a null one.
+
+`POST /me/delete` deletes the caller's account once it is confirmed with the
+account's email, or its name when it has none. `GET /me/delete` says which,
+so an app asks for what the server will accept; like the delete, it needs a
+token that may write.
 
 A `parentId` on a create is resolved before the insert, by `POST /entities` as
 by `POST /drawings`: it has to be a directory the caller may write to, and

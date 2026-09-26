@@ -89,6 +89,8 @@ const env = createEnv({
       .preprocess((val) => val === "true", z.boolean())
       .optional(),
     HEADLESS_RENDER_URL: z.url().optional(),
+    // The render worker's RENDER_WORKER_SECRET, which it takes from this app alone.
+    RENDER_WORKER_SECRET: z.string().min(1).optional(),
     BRIGHTDATA_PROXY_URL: z.string().url().optional(),
     BRIGHTDATA_PROXY_COUNTRY: z.string().optional(),
     BRIGHTDATA_PROXY_SESSION_COUNT: z.coerce
@@ -157,6 +159,7 @@ const env = createEnv({
     TTS_MAX_ESTIMATED_COST_USD: process.env.TTS_MAX_ESTIMATED_COST_USD,
     HEADLESS_RENDER_ENABLED: process.env.HEADLESS_RENDER_ENABLED,
     HEADLESS_RENDER_URL: process.env.HEADLESS_RENDER_URL,
+    RENDER_WORKER_SECRET: process.env.RENDER_WORKER_SECRET,
     BRIGHTDATA_PROXY_URL: process.env.BRIGHTDATA_PROXY_URL,
     BRIGHTDATA_PROXY_COUNTRY: process.env.BRIGHTDATA_PROXY_COUNTRY,
     BRIGHTDATA_PROXY_SESSION_COUNT: process.env.BRIGHTDATA_PROXY_SESSION_COUNT,

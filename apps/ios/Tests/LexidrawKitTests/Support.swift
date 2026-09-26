@@ -3,6 +3,7 @@ import HTTPTypes
 import LexidrawKit
 import OpenAPIRuntime
 import Synchronization
+import Testing
 
 /// The server at the transport seam: each request is recorded, and answered by
 /// whatever the test says, a thrown error standing for a network that is down.
@@ -11,10 +12,21 @@ final class FakeServer: ClientTransport, Sendable {
     let method: HTTPRequest.Method
     let url: URLComponents
     let authorization: String?
+    let headers: HTTPFields
     let body: Data?
 
     var json: [String: String] {
       (try? JSONSerialization.jsonObject(with: body ?? Data()) as? [String: String]) ?? [:]
+    }
+
+    /// The body with values of any type.
+    var object: [String: Any] {
+      (try? JSONSerialization.jsonObject(with: body ?? Data()) as? [String: Any]) ?? [:]
+    }
+
+    /// The body's keys, for telling a field sent as null from one left out.
+    var keys: Set<String> {
+      Set(((try? JSONSerialization.jsonObject(with: body ?? Data())) as? [String: Any] ?? [:]).keys)
     }
   }
 
@@ -41,6 +53,7 @@ final class FakeServer: ClientTransport, Sendable {
       method: request.method,
       url: url,
       authorization: request.headerFields[.authorization],
+      headers: request.headerFields,
       body: data
     )
     recorded.withLock { $0.append(seen) }
@@ -74,6 +87,15 @@ struct UnwritableTokenStore: TokenStore {
   func delete() throws {}
 }
 
+/// A Keychain that will not let go of the token.
+struct UndeletableTokenStore: TokenStore {
+  struct Refused: Error {}
+
+  func load() throws -> String? { "lxd_stuck" }
+  func save(_ token: String) throws {}
+  func delete() throws { throw Refused() }
+}
+
 extension URLComponents {
   subscript(query name: String) -> String? {
     queryItems?.first { $0.name == name }?.value
@@ -87,6 +109,11 @@ enum TestServer {
 
   static func account(_ store: any TokenStore, _ server: FakeServer) -> Account {
     Account(origin: origin, store: store, transport: server)
+  }
+
+  /// Signed in already, with a token kept from an earlier launch.
+  static func session(_ server: FakeServer, store: any TokenStore = InMemoryTokenStore("lxd_kept")) throws -> Session {
+    try #require(try account(store, server).restore())
   }
 }
 

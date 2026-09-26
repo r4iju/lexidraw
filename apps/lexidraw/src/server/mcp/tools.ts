@@ -1,6 +1,5 @@
 import { registerAppTool } from "@modelcontextprotocol/ext-apps/server";
 import type { McpServer } from "@modelcontextprotocol/server";
-import { EMPTY_CONTENT } from "@packages/lexical-nodes";
 import { v4 as uuidV4 } from "uuid";
 import { z } from "zod";
 
@@ -258,7 +257,6 @@ export function registerLexidrawTools(
           id: uuidV4(),
           title: input.title,
           entityType: "document",
-          elements: JSON.stringify(EMPTY_CONTENT),
           parentId: input.parentId ?? null,
         }),
       ),

@@ -10,6 +10,9 @@ enum Support {
   /// Where the fuzzer writes new fixtures, so they land in the source tree.
   static let fixturesSource = iosRoot.appending(path: "Tests/LexicalSwiftTests/Fixtures")
 
+  /// The committed node schema the payload types are generated from.
+  static let nodeSchema = iosRoot.appending(path: "../../packages/lexical-nodes/node-schema.json")
+
   static func referenceEditor() throws -> ReferenceEditor {
     let bundle = iosRoot.appending(path: "reference/dist/lexical-reference.js")
     guard FileManager.default.fileExists(atPath: bundle.path) else {

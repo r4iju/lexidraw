@@ -8,7 +8,14 @@ public enum SignInError: Error, Equatable {
   case noCode
   /// The server would not trade the code: spent, expired, or not this app's.
   case refused
-  case unexpectedResponse
+}
+
+/// What the server said when it would not do something, in its own words.
+public struct Refusal: Error, LocalizedError, Sendable, Equatable {
+  public let status: Int
+  public let message: String
+
+  public var errorDescription: String? { message }
 }
 
 /// The server this app talks to, and the token that lets it, when there is one.
@@ -25,6 +32,26 @@ public struct Account: Sendable {
     self.origin = origin
     self.store = store
     self.transport = transport
+  }
+
+  /// The server and the Keychain item that `bundle`'s Info.plist names, so
+  /// the app and its share extension reach the same server as the same
+  /// account.
+  public static func configured(by bundle: Bundle = .main) -> Account {
+    let info = { (key: String) in bundle.object(forInfoDictionaryKey: key) as? String }
+    let setting = { (key: String) in
+      guard let value = info(key), !value.isEmpty else {
+        fatalError("\(bundle.bundleURL.lastPathComponent)'s Info.plist has no \(key)")
+      }
+      return value
+    }
+    guard let origin = URL(string: setting("LexidrawServerURL")) else {
+      fatalError("LexidrawServerURL in \(bundle.bundleURL.lastPathComponent)'s Info.plist is no address")
+    }
+    return Account(
+      origin: origin,
+      store: KeychainTokenStore(
+        service: setting("LexidrawKeychainService"), accessGroup: info("LexidrawKeychainGroup")))
   }
 
   /// Signed in with the token kept from an earlier launch, if there is one.
@@ -54,40 +81,130 @@ public struct Account: Sendable {
       !code.isEmpty
     else { throw SignInError.noCode }
 
-    let answer = try await client(token: nil).nativeSignInExchange(
-      body: .json(.init(code: code, codeVerifier: pkce.verifier, redirectUri: Self.callback.absoluteString))
-    )
-    switch answer {
-    case .ok(let ok):
-      let token = try ok.body.json.token
-      do {
-        try store.save(token)
-      } catch {
-        // Otherwise the token would stay live with no device holding it.
-        _ = try? await client(token: token).tokensRevokeCurrent(body: .json(.init()))
-        throw error
-      }
-      return session(token: token)
-    case .badRequest:
+    let token: String
+    do {
+      token = try await unwrapped {
+        try await connection(token: nil).client.nativeSignInExchange(
+          body: .json(.init(code: code, codeVerifier: pkce.verifier, redirectUri: Self.callback.absoluteString))
+        )
+      }.ok.body.json.token
+    } catch let refusal as Refusal where refusal.status == 400 {
       throw SignInError.refused
-    default:
-      throw SignInError.unexpectedResponse
     }
+    do {
+      try store.save(token)
+    } catch {
+      // Otherwise the token would stay live with no device holding it.
+      _ = try? await connection(token: token).client.tokensRevokeCurrent(body: .json(.init()))
+      throw error
+    }
+    return session(token: token)
   }
 
   private func session(token: String) -> Session {
-    Session(client: client(token: token), store: store)
+    Session(origin: origin, connection: connection(token: token), store: store)
   }
 
-  private func client(token: String?) -> Client {
-    Client(
+  private func connection(token: String?) -> Connection {
+    Connection(
       serverURL: origin.appending(path: "api/v1"),
+      transport: transport,
+      middlewares: [Refusals()] + (token.map { [BearerToken(token: $0)] } ?? [])
+    )
+  }
+}
+
+/// The server as this app reaches it: the generated client, and the same
+/// transport and middlewares for a request the client can't make.
+struct Connection: Sendable {
+  let client: Client
+  let serverURL: URL
+  let transport: any ClientTransport
+  let middlewares: [any ClientMiddleware]
+
+  init(serverURL: URL, transport: any ClientTransport, middlewares: [any ClientMiddleware]) {
+    self.serverURL = serverURL
+    self.transport = transport
+    self.middlewares = middlewares
+    client = Client(
+      serverURL: serverURL,
       // The server writes dates with JavaScript's toISOString, milliseconds
       // and all.
       configuration: Configuration(dateTranscoder: .iso8601WithFractionalSeconds),
       transport: transport,
-      middlewares: token.map { [BearerToken(token: $0)] } ?? []
+      middlewares: middlewares
     )
+  }
+
+  /// Sends a JSON body through the middlewares, as the client would.
+  func send(_ request: HTTPRequest, json: Data, operationID: String) async throws {
+    var request = request
+    request.headerFields[.contentType] = "application/json"
+    let transport = transport
+    var next: @Sendable (HTTPRequest, HTTPBody?, URL) async throws -> (HTTPResponse, HTTPBody?) = {
+      try await transport.send($0, body: $1, baseURL: $2, operationID: operationID)
+    }
+    for middleware in middlewares.reversed() {
+      let inner = next
+      next = { try await middleware.intercept($0, body: $1, baseURL: $2, operationID: operationID, next: inner) }
+    }
+    _ = try await next(request, HTTPBody(json), serverURL)
+  }
+
+  /// Sends `data` somewhere other than the server, so past the middlewares:
+  /// neither the app's token nor the server's way of refusing belong there.
+  func sendOutside(_ data: Data, method: HTTPRequest.Method, to url: URL, headers: [String: String]) async throws
+    -> (HTTPResponse, HTTPBody?)
+  {
+    guard var parts = URLComponents(url: url, resolvingAgainstBaseURL: false) else { throw URLError(.badURL) }
+    let path = parts.percentEncodedPath + (parts.percentEncodedQuery.map { "?\($0)" } ?? "")
+    parts.percentEncodedPath = ""
+    parts.percentEncodedQuery = nil
+    guard let origin = parts.url else { throw URLError(.badURL) }
+    var fields = HTTPFields()
+    for (name, value) in headers {
+      guard let name = HTTPField.Name(name) else { throw URLError(.badURL) }
+      fields[name] = value
+    }
+    return try await transport.send(
+      HTTPRequest(method: method, scheme: nil, authority: nil, path: path, headerFields: fields), body: HTTPBody(data),
+      baseURL: origin, operationID: "outside")
+  }
+}
+
+/// A call's own error, rather than the generated client's wrapping of it.
+func unwrapped<T>(_ call: () async throws -> T) async throws -> T {
+  do {
+    return try await call()
+  } catch let error as ClientError {
+    throw error.underlyingError
+  }
+}
+
+/// Turns every answer that isn't a success into a ``Refusal``, so a call
+/// handles only the answer it asked for.
+private struct Refusals: ClientMiddleware {
+  private struct Said: Decodable {
+    let message: String
+  }
+
+  func intercept(
+    _ request: HTTPRequest,
+    body: HTTPBody?,
+    baseURL: URL,
+    operationID: String,
+    next: @Sendable (HTTPRequest, HTTPBody?, URL) async throws -> (HTTPResponse, HTTPBody?)
+  ) async throws -> (HTTPResponse, HTTPBody?) {
+    let (response, answer) = try await next(request, body, baseURL)
+    guard response.status.kind != .successful else { return (response, answer) }
+    let said: Said? =
+      if let answer, let data = try? await Data(collecting: answer, upTo: 1 << 16) {
+        try? JSONDecoder().decode(Said.self, from: data)
+      } else {
+        nil
+      }
+    throw Refusal(
+      status: response.status.code, message: said?.message ?? "The server answered \(response.status.code).")
   }
 }
 

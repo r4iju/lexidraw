@@ -7,12 +7,12 @@ struct LexidrawApp: App {
 
   var body: some Scene {
     WindowGroup {
-      NavigationStack {
+      Group {
         switch model.state {
         case .signedOut:
-          SignInView()
+          NavigationStack { SignInView() }
         case .signedIn(let session):
-          HomeView(session: session)
+          BrowserView(session: session)
         }
       }
       .environment(model)
@@ -33,11 +33,7 @@ final class AppModel {
   var notice: String?
 
   init() {
-    let server = Bundle.main.object(forInfoDictionaryKey: "LexidrawServerURL") as? String
-    account = Account(
-      origin: URL(string: server ?? "")!,
-      store: KeychainTokenStore(service: Bundle.main.bundleIdentifier!)
-    )
+    account = Account.configured()
     state = (try? account.restore()).flatMap { $0 }.map(State.signedIn) ?? .signedOut
   }
 }

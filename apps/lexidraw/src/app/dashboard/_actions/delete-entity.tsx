@@ -61,7 +61,8 @@ export default function DeleteEntity({ entity, isOpen, onOpenChange }: Props) {
             Delete “{entity.title}”?
           </DialogTitle>
           <DialogDescription>
-            It’s removed for everyone it’s shared with. You can’t undo this.
+            It’s removed for everyone it’s shared with. You can restore it from
+            the Trash.
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>

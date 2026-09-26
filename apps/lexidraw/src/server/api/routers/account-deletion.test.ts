@@ -305,6 +305,42 @@ describe("deleting an account from the app, over the API", () => {
   });
 });
 
+describe("what confirms deleting an account", () => {
+  test("is its email, which the app asks for where it deletes", async () => {
+    const ids = await seed("delask");
+
+    const asked = await (await getAs(ids.writeToken, "/me/delete")).json();
+
+    expect(asked).toEqual({ confirmation: ids.email });
+  });
+
+  test("is its name when it has no email", async () => {
+    const token = "lxd_delnameless_write";
+    await db
+      .insert(schema.users)
+      .values({ id: "delnameless_user", name: "Nameless", email: null });
+    await db.insert(schema.apiTokens).values({
+      userId: "delnameless_user",
+      name: "phone",
+      scope: "write",
+      tokenHash: hashApiToken(token),
+    });
+
+    const { confirmation } = await (await getAs(token, "/me/delete")).json();
+    const response = await postAs(token, "/me/delete", { confirmation });
+
+    expect([confirmation, response.status]).toEqual(["Nameless", 200]);
+  });
+
+  test("is not told to a token that may only read", async () => {
+    const ids = await seed("delaskread");
+
+    const response = await getAs(ids.readToken, "/me/delete");
+
+    expect(response.status).toBe(403);
+  });
+});
+
 describe("deleting an account leaves other people's work alone", () => {
   test("a file someone kept in its folder moves to their top level", async () => {
     const ids = await seed("delkeep");

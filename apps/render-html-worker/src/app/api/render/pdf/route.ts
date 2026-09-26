@@ -1,6 +1,9 @@
 import { type NextRequest, NextResponse } from "next/server";
 import type { Browser, Page } from "puppeteer-core";
-import { launchBrowser } from "~/lib/launch-browser";
+import { reachable } from "@packages/lib/public-address";
+import { launchGuardedBrowser } from "~/lib/guarded-browser";
+import { guardRequests, renderCheck } from "~/lib/public-requests";
+import { refusedUnlessFromTheApp } from "~/lib/worker-access";
 
 export const maxDuration = 60;
 
@@ -150,6 +153,8 @@ async function ensurePageReady(page: Page, timeoutMs: number) {
 }
 
 export async function POST(req: NextRequest) {
+  const refused = refusedUnlessFromTheApp(req);
+  if (refused) return refused;
   try {
     const body = (await req.json()) as {
       url?: string;
@@ -176,13 +181,12 @@ export async function POST(req: NextRequest) {
       return new NextResponse("Only http/https URLs are supported", {
         status: 400,
       });
-    const { hostname } = new URL(url);
-    const allowPrivate = process.env.NODE_ENV !== "production";
-    if (isPrivateHostname(hostname) && !allowPrivate) {
-      return new NextResponse("Private hostnames are not allowed", {
+    const check = renderCheck();
+    const target = reachable(url);
+    if (!target || !(await check(target).catch(() => undefined)))
+      return new NextResponse("Only public addresses may be rendered", {
         status: 400,
       });
-    }
 
     const waitUntil = body?.waitUntil ?? "networkidle0";
     const timeoutMs = Math.max(5000, Math.min(60000, body?.timeoutMs ?? 30000));
@@ -206,8 +210,9 @@ export async function POST(req: NextRequest) {
     // Launch Chromium
     let browser: Browser | undefined;
     try {
-      browser = await launchBrowser({
+      browser = await launchGuardedBrowser({
         viewport: { width: 1200, height: 900, deviceScaleFactor: 1 },
+        check,
       });
     } catch (e) {
       console.error("render-pdf:launch_error", e);
@@ -216,6 +221,7 @@ export async function POST(req: NextRequest) {
 
     try {
       const page = await (browser as Browser).newPage();
+      await guardRequests(page, check);
       // Responsive media must settle in paper styles before readiness is checked.
       await page.emulateMediaType("print");
       await page.setUserAgent(

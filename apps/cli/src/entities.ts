@@ -14,50 +14,6 @@ export type Entity = {
   parentId: string | null;
 };
 
-/**
- * An empty document, the state Home's New menu creates in the browser
- * (`EMPTY_CONTENT` in packages/lexical-nodes). Copied rather than imported so
- * the binary stays free of the editor's dependencies; the shape is a root with
- * one empty paragraph and nothing below it.
- */
-const EMPTY_DOCUMENT = {
-  root: {
-    children: [
-      {
-        key: "1",
-        type: "paragraph",
-        version: 1,
-        direction: "ltr",
-        format: "",
-        indent: 0,
-        textFormat: 0,
-        textStyle: "",
-        children: [
-          {
-            detail: 0,
-            format: 0,
-            mode: "normal",
-            style: "",
-            text: "",
-            type: "text",
-            version: 1,
-            key: "initial-text-content-node",
-          },
-        ],
-      },
-    ],
-    direction: "ltr",
-    format: "",
-    indent: 0,
-    type: "root",
-    version: 1,
-    key: "root",
-  },
-};
-
-/** A directory has no editor state, and the dashboard stores `{}` for it. */
-const EMPTY_DIRECTORY = {};
-
 export type ListQuery = {
   /** Omitted or null lists the root. */
   parentId?: string | null;
@@ -88,8 +44,8 @@ export async function createEntity(
   session: ApiSession,
   input: {
     title: string;
-    // A drawing is created by POST /drawings, which stores the elements and
-    // app state the editor opens one with; `{}` here would be neither.
+    // A drawing is created by POST /drawings, which takes the elements it
+    // starts with.
     kind: Exclude<EntityKind, "drawing">;
     parentId: string | null;
   },
@@ -104,9 +60,6 @@ export async function createEntity(
       id,
       title: input.title,
       entityType: input.kind,
-      elements: JSON.stringify(
-        input.kind === "document" ? EMPTY_DOCUMENT : EMPTY_DIRECTORY,
-      ),
       parentId: input.parentId,
     },
   });

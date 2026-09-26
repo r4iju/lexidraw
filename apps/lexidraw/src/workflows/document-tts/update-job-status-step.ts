@@ -1,38 +1,16 @@
 import { drizzle, schema } from "@packages/drizzle";
+import { jobOfRun } from "./job-of-run";
 
 export async function updateJobStatusStep(
   docKey: string,
-  entityId: string,
-  status: "processing" | "ready" | "queued" | "cancelled" | "error",
-  plannedCount?: number,
+  runId: string,
+  status: "processing",
+  plannedCount: number,
 ): Promise<void> {
   "use step";
-  const updateData: {
-    status: "processing" | "ready" | "queued" | "cancelled" | "error";
-    updatedAt: Date;
-    plannedCount?: number | null;
-  } = {
-    status,
-    updatedAt: new Date(),
-  };
-  if (plannedCount !== undefined) {
-    updateData.plannedCount = plannedCount;
-  }
-
   await drizzle
-    .insert(schema.ttsJobs)
-    .values({
-      id: docKey,
-      entityId,
-      userId: "system",
-      status,
-      plannedCount: plannedCount ?? null,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    } as typeof schema.ttsJobs.$inferInsert)
-    .onConflictDoUpdate({
-      target: schema.ttsJobs.id,
-      set: updateData,
-    })
+    .update(schema.ttsJobs)
+    .set({ status, plannedCount, updatedAt: new Date() })
+    .where(jobOfRun(docKey, runId))
     .execute();
 }

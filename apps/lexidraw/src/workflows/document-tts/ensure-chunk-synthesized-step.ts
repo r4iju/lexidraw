@@ -32,6 +32,34 @@ export async function ensureChunkSynthesizedStep(args: {
   chunkHash: string;
 }> {
   "use step";
+  const segmentFormat: "mp3" | "ogg" | "wav" =
+    process.env.TTS_STITCH_WITH_FFMPEG === "true" ? "wav" : args.format;
+
+  const path = `tts/chunks/${args.chunkHash}.${segmentFormat}`;
+  const existingUrl = `${env.VERCEL_BLOB_STORAGE_HOST}/${path}`;
+
+  // Checked before a provider is paid, since any run in the same voice may
+  // have made this chunk already.
+  const head = await fetch(existingUrl, { method: "HEAD" }).catch(
+    () => undefined,
+  );
+  if (head?.ok) {
+    console.log("[tts][wf][chunk] reuse", {
+      index: args.index,
+      hash: args.chunkHash,
+    });
+    return {
+      index: args.index,
+      sectionTitle: args.sectionTitle,
+      sectionIndex: args.sectionIndex,
+      headingDepth: args.headingDepth,
+      sectionId: args.sectionId,
+      audioUrl: existingUrl,
+      text: args.text,
+      chunkHash: args.chunkHash,
+    };
+  }
+
   const providerName = chooseProvider(args.provider, args.languageCode);
   const provider =
     providerName === "google"
@@ -57,13 +85,6 @@ export async function ensureChunkSynthesizedStep(args: {
     ? args.text // SSML already handles headings
     : args.text.replace(/^(#{1,6})\s+(.+)$/gm, "$2");
 
-  const segmentFormat: "mp3" | "ogg" | "wav" =
-    process.env.TTS_STITCH_WITH_FFMPEG === "true" ? "wav" : args.format;
-
-  // Destination path (idempotent via 'already exists' handling below)
-  const path = `tts/chunks/${args.chunkHash}.${segmentFormat}`;
-  const existingUrl = `${env.VERCEL_BLOB_STORAGE_HOST}/${path}`;
-
   // 4xx errors throw FatalError (no retry); 5xx/transient errors retry up to maxRetries
   const { audio } = await provider.synthesize({
     textOrSsml: ssml ?? textForTts,
@@ -88,27 +109,6 @@ export async function ensureChunkSynthesizedStep(args: {
         return "audio/mpeg";
     }
   })();
-  // Reuse if already uploaded
-  const head = await fetch(existingUrl, { method: "HEAD" }).catch(
-    () => undefined,
-  );
-  if (head?.ok) {
-    console.log("[tts][wf][chunk] reuse", {
-      index: args.index,
-      hash: args.chunkHash,
-    });
-    return {
-      index: args.index,
-      sectionTitle: args.sectionTitle,
-      sectionIndex: args.sectionIndex,
-      headingDepth: args.headingDepth,
-      sectionId: args.sectionId,
-      audioUrl: existingUrl,
-      text: args.text,
-      chunkHash: args.chunkHash,
-    };
-  }
-
   const { url } = await put(path, audio, {
     access: "public",
     contentType,

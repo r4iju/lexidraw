@@ -5,8 +5,8 @@ import { AppBar, Crumb } from "~/components/app-bar/app-bar";
 import { Skeleton } from "~/components/ui/skeleton";
 import { cn } from "~/lib/utils";
 import { DASHBOARD_PREFS_COOKIE, readDashboardPrefs } from "./dashboard-prefs";
+import { GUTTER } from "./utils";
 
-const GUTTER = "w-full px-4 sm:px-6 lg:px-8";
 const GRID = "grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 xl:grid-cols-4";
 const CONTROL = "h-10 pointer-coarse:h-11";
 

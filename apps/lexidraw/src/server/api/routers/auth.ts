@@ -1,15 +1,20 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { getSignUpSchema } from "~/app/signup/schema";
-import { confirmsDeletion, SettingsSchema } from "~/app/settings/schema";
+import {
+  confirmsDeletion,
+  deletionConfirmation,
+  SettingsSchema,
+} from "~/app/settings/schema";
 import env from "@packages/env";
 import {
   createTRPCRouter,
   protectedProcedure,
   publicProcedure,
+  writerProcedure,
 } from "~/server/api/trpc";
 import { schema } from "@packages/drizzle";
-import { eq, inArray, sql } from "@packages/drizzle";
+import { type drizzle, eq, inArray, sql } from "@packages/drizzle";
 import { errorCode } from "~/server/auth/error-code";
 import { hashPassword } from "~/server/auth/password";
 import { deleteAccount } from "~/server/account/delete-account";
@@ -29,6 +34,15 @@ function applyOverrides<T extends object>(
     else if (value !== undefined) next[key] = value;
   }
   return next as T;
+}
+
+async function identityOf(db: typeof drizzle, userId: string) {
+  const [user] = await db
+    .select({ email: schema.users.email, name: schema.users.name })
+    .from(schema.users)
+    .where(eq(schema.users.id, userId));
+  if (!user) throw new TRPCError({ code: "NOT_FOUND" });
+  return user;
 }
 
 export const authRouter = createTRPCRouter({
@@ -229,6 +243,30 @@ export const authRouter = createTRPCRouter({
       authKind: ctx.auth.kind,
       scope: ctx.auth.kind === "token" ? ctx.auth.scope : null,
     })),
+  /** What {@link deleteAccount} takes to confirm it, for an app to ask for. */
+  deletionConfirmation: writerProcedure
+    .meta({
+      openapi: {
+        method: "GET",
+        path: "/me/delete",
+        tags: ["auth"],
+        summary: "What confirms deleting the caller's account",
+        protect: true,
+      },
+    })
+    .input(z.object({}))
+    .output(
+      z.object({
+        confirmation: z
+          .string()
+          .describe("The account's email, or its name when it has no email"),
+      }),
+    )
+    .query(async ({ ctx }) => ({
+      confirmation: deletionConfirmation(
+        await identityOf(ctx.drizzle, ctx.session.user.id),
+      ),
+    })),
   /**
    * Deletes the caller's account for good. Any token that may write can call
    * it, whichever app or script holds it; a read-only token is refused like
@@ -254,11 +292,7 @@ export const authRouter = createTRPCRouter({
     )
     .output(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {
-      const [user] = await ctx.drizzle
-        .select({ email: schema.users.email, name: schema.users.name })
-        .from(schema.users)
-        .where(eq(schema.users.id, ctx.session.user.id));
-      if (!user) throw new TRPCError({ code: "NOT_FOUND" });
+      const user = await identityOf(ctx.drizzle, ctx.session.user.id);
       if (!confirmsDeletion(user, input.confirmation)) {
         throw new TRPCError({
           code: "BAD_REQUEST",

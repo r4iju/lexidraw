@@ -221,6 +221,32 @@ describe("an entity that is not there", () => {
   });
 });
 
+describe("the listings beside the entities", () => {
+  test.each(["/entities/trash", "/entities/shared"])(
+    "%s is a listing of its own, not an entity by that id",
+    async (path) => {
+      const { response, body } = await api("GET", path);
+      expect(response.status).toBe(200);
+      expect(body).toEqual([]);
+    },
+  );
+});
+
+describe("where a folder is", () => {
+  test("names the folders above it, from the top, with the caller's access", async () => {
+    const { response, body } = await api("GET", "/entities/rest_sub/metadata");
+    expect(response.status).toBe(200);
+    expect(body).toMatchObject({
+      id: "rest_sub",
+      title: "Nested",
+      entityType: "directory",
+      parentId: "rest_dir",
+      access: "owner",
+      ancestors: [{ id: "rest_dir", title: "Inbox", access: "owner" }],
+    });
+  });
+});
+
 describe("a share that is not there", () => {
   test("is not found when its access level is changed", async () => {
     const { response, body } = await api(

@@ -2,6 +2,7 @@ import "server-only";
 
 import env from "@packages/env";
 import { createScreenshotToken } from "~/server/auth/screenshot-token";
+import { askRenderWorker } from "~/server/render-worker";
 import {
   MAX_RENDER_PIXELS,
   RenderTooLargeError,
@@ -76,41 +77,37 @@ export async function renderDocument(params: {
 
   let response: Response;
   try {
-    response = await fetch(endpoint, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        url: url.toString(),
-        ...(params.options.format === "pdf"
-          ? {
-              format: params.options.paper,
-              orientation: params.options.orientation,
-              margin: {
-                top: "18mm",
-                right: "18mm",
-                bottom: "20mm",
-                left: "18mm",
-              },
-              // The print page's `@page` rules draw the running title and
-              // the sheet numbers.
-              displayHeaderFooter: false,
-            }
-          : {
-              viewport: {
-                width: params.options.width,
-                height: 900,
-                deviceScaleFactor: 1,
-                hasTouch: params.options.touch === true,
-                isMobile: params.options.touch === true,
-              },
-              theme: params.options.theme,
-              image: { type: "png" },
-              waitForDocument: true,
-              maxPixels: MAX_RENDER_PIXELS,
-            }),
-        waitUntil: "networkidle0",
-        timeoutMs: 45_000,
-      }),
+    response = await askRenderWorker(endpoint, {
+      url: url.toString(),
+      ...(params.options.format === "pdf"
+        ? {
+            format: params.options.paper,
+            orientation: params.options.orientation,
+            margin: {
+              top: "18mm",
+              right: "18mm",
+              bottom: "20mm",
+              left: "18mm",
+            },
+            // The print page's `@page` rules draw the running title and
+            // the sheet numbers.
+            displayHeaderFooter: false,
+          }
+        : {
+            viewport: {
+              width: params.options.width,
+              height: 900,
+              deviceScaleFactor: 1,
+              hasTouch: params.options.touch === true,
+              isMobile: params.options.touch === true,
+            },
+            theme: params.options.theme,
+            image: { type: "png" },
+            waitForDocument: true,
+            maxPixels: MAX_RENDER_PIXELS,
+          }),
+      waitUntil: "networkidle0",
+      timeoutMs: 45_000,
     });
   } catch (error) {
     throw new RenderFailedError("The page renderer could not be reached", {

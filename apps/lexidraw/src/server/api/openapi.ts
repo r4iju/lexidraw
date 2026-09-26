@@ -113,6 +113,12 @@ function repointErrorRefs(node: unknown): void {
  * The REST surface of the router: every procedure that carries `meta.openapi`.
  * `baseUrl` matches the route that serves it, so the paths in the document are
  * the paths a client calls.
+ *
+ * Two things every such procedure follows because of the adapter. It matches
+ * paths in the order they are registered, so a literal path such as
+ * `/entities/search` is registered before `/entities/{id}`, which would take
+ * it otherwise. And it lists no 404 for a POST, so a POST whose target can be
+ * missing names its `errorResponses`, 404 among them.
  */
 const document = generateOpenApiDocument(appRouter, {
   // The CLI sends a token only to a host whose document carries this title.

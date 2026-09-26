@@ -11,6 +11,7 @@ import { updateProgressStep } from "../document-tts/update-progress-step";
 import { finalizeManifestStep } from "./finalize-manifest-step";
 import { markJobReadyStep } from "../document-tts/mark-job-ready-step";
 import { markJobErrorStep } from "../document-tts/mark-job-error-step";
+import { runIsCurrentStep } from "../document-tts/run-is-current-step";
 import { persistToEntityStep } from "./persist-to-entity-step";
 
 export type TtsConfig = {
@@ -27,7 +28,8 @@ export async function generateArticleTtsWorkflow(
   plainText: string,
   htmlContent: string | undefined,
   tts: TtsConfig,
-): Promise<{ manifestUrl: string; stitchedUrl?: string }> {
+  runId: string,
+): Promise<{ manifestUrl: string; stitchedUrl?: string } | undefined> {
   "use workflow";
   let articleKey = "";
   try {
@@ -56,12 +58,8 @@ export async function generateArticleTtsWorkflow(
       firstHashes: planned.slice(0, 3).map((p) => p.chunkHash),
     });
 
-    await updateJobStatusStep(
-      articleKey,
-      articleId,
-      "processing",
-      planned.length,
-    );
+    if (!(await runIsCurrentStep(articleKey, runId))) return undefined;
+    await updateJobStatusStep(articleKey, runId, "processing", planned.length);
 
     const results: Array<{
       index: number;
@@ -75,6 +73,8 @@ export async function generateArticleTtsWorkflow(
 
     const BATCH = Number(process.env.TTS_WORKFLOW_BATCH_SIZE ?? "4");
     for (let i = 0; i < planned.length; i += BATCH) {
+      if (i > 0 && !(await runIsCurrentStep(articleKey, runId)))
+        return undefined;
       const slice = planned.slice(i, i + BATCH);
       const batch = await Promise.allSettled(
         slice.map((p) =>
@@ -113,7 +113,7 @@ export async function generateArticleTtsWorkflow(
         );
       }
       results.push(...successes);
-      await updateProgressStep(articleKey, results.length);
+      await updateProgressStep(articleKey, runId, results.length);
     }
 
     const { manifestUrl, stitchedUrl } = await finalizeManifestStep(
@@ -122,7 +122,7 @@ export async function generateArticleTtsWorkflow(
       results,
     );
 
-    await markJobReadyStep(articleKey, {
+    await markJobReadyStep(articleKey, runId, {
       manifestUrl,
       stitchedUrl: stitchedUrl ?? null,
       segmentCount: results.length,
@@ -155,7 +155,7 @@ export async function generateArticleTtsWorkflow(
       error: message,
     });
     if (articleKey) {
-      await markJobErrorStep(articleKey, message);
+      await markJobErrorStep(articleKey, runId, message);
     }
     throw err;
   }

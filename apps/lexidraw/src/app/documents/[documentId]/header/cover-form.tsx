@@ -2,7 +2,8 @@
 
 import type { DocumentCover } from "@packages/lexical-nodes";
 import { type DragEvent, useEffect, useRef, useState } from "react";
-import { IMAGE, type Upload } from "~/lib/media-upload";
+import { IMAGE } from "~/lib/media-kinds";
+import type { Upload } from "~/lib/media-upload";
 
 const carriesFiles = (event: DragEvent) =>
   event.dataTransfer.types.includes("Files");

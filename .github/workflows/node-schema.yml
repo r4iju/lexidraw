@@ -1,0 +1,24 @@
+name: Node schema
+
+on:
+  pull_request:
+    paths:
+      - packages/lexical-nodes/**
+      - apps/ios/codegen/**
+      - bun.lock
+      - .github/workflows/node-schema.yml
+
+jobs:
+  generated:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.0
+      - run: bun install --frozen-lockfile
+      - run: bun x turbo run build --filter=@packages/*
+      - run: bun test src/node-schema.test.ts
+        working-directory: packages/lexical-nodes
+      - run: bun test ./codegen
+        working-directory: apps/ios

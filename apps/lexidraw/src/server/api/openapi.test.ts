@@ -101,15 +101,24 @@ describe("openApiDocument", () => {
   // The v1 surface, as docs/agent-access.md promises it.
   const expectedOperations = [
     ["/me", "get", "auth"],
+    ["/me/delete", "get", "auth"],
     ["/me/delete", "post", "auth"],
     ["/me/token/revoke", "post", "auth"],
     ["/entities", "get", "entities"],
     ["/entities", "post", "entities"],
     ["/entities/search", "get", "entities"],
+    ["/entities/shared", "get", "entities"],
+    ["/entities/trash", "get", "entities"],
     ["/entities/{id}", "get", "entities"],
     ["/entities/{id}", "put", "entities"],
     ["/entities/{id}", "patch", "entities"],
     ["/entities/{id}", "delete", "entities"],
+    ["/entities/{id}/metadata", "get", "entities"],
+    ["/entities/{id}/restore", "post", "entities"],
+    ["/entities/{id}/distill", "post", "entities"],
+    ["/uploads", "post", "entities"],
+    ["/entities/{id}/listen", "post", "entities"],
+    ["/entities/{id}/listen", "get", "entities"],
     ["/entities/{id}/tags", "get", "entities"],
     ["/entities/{id}/tags", "put", "entities"],
     ["/entities/{id}/shares", "get", "entities"],
@@ -155,20 +164,21 @@ describe("openApiDocument", () => {
     );
   });
 
-  // The file travels in the JSON body, so a render the body cannot carry is
+  // The file travels in the JSON body, so a file the body cannot carry is
   // a refusal the contract has to name; see drawings.ts.
-  it.each(["/drawings/{id}/render", "/documents/{id}/render"] as const)(
-    "declares a payload limit on %s",
-    (path) => {
-      expect(document.paths?.[path]?.get?.responses?.[413]).toMatchObject({
-        content: {
-          "application/json": {
-            schema: { $ref: "#/components/schemas/ErrorResponse" },
-          },
+  it.each([
+    ["/drawings/{id}/render", "get"],
+    ["/documents/{id}/render", "get"],
+    ["/uploads", "post"],
+  ] as const)("declares a payload limit on %s %s", (path, method) => {
+    expect(document.paths?.[path]?.[method]?.responses?.[413]).toMatchObject({
+      content: {
+        "application/json": {
+          schema: { $ref: "#/components/schemas/ErrorResponse" },
         },
-      });
-    },
-  );
+      },
+    });
+  });
 
   // A markdown write lands among blocks the caller read, so each of them can
   // lose the race the precondition guards.
@@ -211,7 +221,7 @@ describe("openApiDocument", () => {
 
   // The routers that stay tRPC-only; a stray `meta.openapi` would show up as a
   // path naming one of them.
-  it.each(["admin", "tts", "backup", "snapshot", "image", "llm"])(
+  it.each(["admin", "backup", "snapshot", "image", "llm"])(
     "keeps %s off the REST surface",
     (router) => {
       const paths = Object.keys(document.paths ?? {});
@@ -230,7 +240,15 @@ describe("openApiDocument", () => {
     const refs = JSON.stringify(document.paths).match(
       /#\/components\/schemas\/[^"]+/g,
     );
-    expect([...new Set(refs)]).toEqual(["#/components/schemas/ErrorResponse"]);
+    expect([...new Set(refs)].sort()).toEqual(
+      [
+        "Access",
+        "EntityType",
+        "ErrorResponse",
+        "ListedEntity",
+        "Listening",
+      ].map((name) => `#/components/schemas/${name}`),
+    );
   });
 });
 

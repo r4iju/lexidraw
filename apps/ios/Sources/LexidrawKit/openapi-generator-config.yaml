@@ -6,5 +6,20 @@ namingStrategy: idiomatic
 filter:
   operations:
     - entities-list
+    - entities-search
+    - entities-sharedWithMe
+    - entities-trash
+    - entities-getMetadata
+    - entities-getUserTags
+    - entities-create
+    - entities-update
+    - entities-delete
+    - entities-restore
+    - auth-deletionConfirmation
+    - auth-deleteAccount
     - nativeSignIn-exchange
     - tokens-revokeCurrent
+    - entities-distillUrl
+    - entities-signImageUpload
+    - tts-listen
+    - tts-listening

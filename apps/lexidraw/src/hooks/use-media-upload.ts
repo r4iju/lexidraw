@@ -1,6 +1,7 @@
 import { put } from "@vercel/blob/client";
 import { useCallback } from "react";
-import { IMAGE, type Upload, uploadMedia, VIDEO } from "~/lib/media-upload";
+import { IMAGE, VIDEO } from "~/lib/media-kinds";
+import { type Upload, uploadMedia } from "~/lib/media-upload";
 import { api } from "~/trpc/react";
 
 /** Uploads images into `entityId`'s storage; see `uploadMedia`. */
