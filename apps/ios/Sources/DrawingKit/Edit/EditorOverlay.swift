@@ -45,6 +45,8 @@ public struct EditorOverlay: Sendable {
   public var outlines: [[Point2D]] = []
   /// Round everything selected, when that is more than one element.
   public var commonBox: Bounds?
+  /// Round each selected group and the group being edited, dashed.
+  public var groupBoxes: [Bounds] = []
   public var handles: [Handle] = []
   /// The rectangle being dragged out to select what it covers.
   public var selecting: Bounds?
@@ -87,7 +89,20 @@ extension DrawingEditor {
     // `DEFAULT_TRANSFORM_HANDLE_SPACING * 2`, the web's gap between an
     // element and its outline.
     let padding = 4 / zoom
-    overlay.outlines = selected.filter(showsBoundingBox).map { selectionBox($0, geometry, padding: padding) }
+    let groups = selectedGroupIds
+    let showsBoxes = selected.count > 1 || selected.first.map(showsBoundingBox) == true
+    if showsBoxes {
+      // `isSelectedViaGroup`: an element its group outlines isn't outlined itself.
+      overlay.outlines =
+        selected
+        .filter { !$0.groupIds.contains { $0 != editingGroupId && groups.contains($0) } }
+        .map { selectionBox($0, geometry, padding: padding) }
+      overlay.groupBoxes = (groups.sorted() + [editingGroupId].compactMap { $0 }).map { group in
+        let b = geometry.commonBounds(
+          store.filter { !$0.isDeleted && groupIds($0).contains(group) }.compactMap { geometry.elements[$0.id] })
+        return Bounds(minX: b.minX - padding, minY: b.minY - padding, maxX: b.maxX + padding, maxY: b.maxY + padding)
+      }
+    }
     if selected.count > 1 {
       let b = geometry.commonBounds(selected)
       overlay.commonBox = Bounds(

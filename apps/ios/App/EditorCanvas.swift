@@ -171,6 +171,12 @@ final class EditorCanvasView: UIView, UIGestureRecognizerDelegate, UITextViewDel
       context.closePath()
       context.strokePath()
     }
+    // `renderSelectionBorder` for a group: the scene's ink, in long dashes.
+    context.saveGState()
+    context.setStrokeColor(UIColor.label.cgColor)
+    context.setLineDash(phase: 0, lengths: [8, 4])
+    for box in overlay.groupBoxes { context.stroke(screenRect(box)) }
+    context.restoreGState()
     if let box = overlay.commonBox {
       context.setLineDash(phase: 0, lengths: [4, 4])
       context.stroke(screenRect(box))

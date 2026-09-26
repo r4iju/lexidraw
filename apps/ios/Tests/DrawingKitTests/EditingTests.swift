@@ -50,6 +50,35 @@ import Testing
     #expect(editor.overlay(pointer: .touch).frame == nil)
   }
 
+  /// A selected group is outlined once round all of it, as the web outlines
+  /// it, not round each of its elements; while it is edited, the element
+  /// picked in it is outlined too.
+  @Test func aSelectedGroupIsOutlinedAsAWhole() {
+    let first: JSONValue = [
+      "id": "first", "type": "rectangle", "x": 0, "y": 0, "width": 100, "height": 80, "groupIds": ["g"],
+      "index": "a0",
+    ]
+    let second: JSONValue = [
+      "id": "second", "type": "rectangle", "x": 200, "y": 0, "width": 100, "height": 80, "groupIds": ["g"],
+      "index": "a1",
+    ]
+    let editor = DrawingEditor(elements: [first, second], measurer: FontLibrary.shared, environment: .counting)
+    let group = Bounds(minX: -4, minY: -4, maxX: 304, maxY: 84)
+
+    editor.pointerDown(Point2D(0, 40), pointer: .touch, pressure: 0.5)
+    editor.pointerUp(Point2D(0, 40), pressure: 0)
+    var overlay = editor.overlay(pointer: .touch)
+    #expect(editor.selectedIds == ["first", "second"])
+    #expect(overlay.outlines.isEmpty)
+    #expect(overlay.groupBoxes == [group])
+
+    editor.doubleTap(Point2D(0, 40))
+    overlay = editor.overlay(pointer: .touch)
+    #expect(editor.selectedIds == ["first"])
+    #expect(overlay.outlines.count == 1)
+    #expect(overlay.groupBoxes == [group])
+  }
+
   /// Predicted touches draw the stroke on ahead of the pencil, but only
   /// until the real ones arrive.
   @Test func aPredictionExtendsTheStrokeOnlyOnScreen() throws {
