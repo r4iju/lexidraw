@@ -95,6 +95,7 @@ cookie session and no token, whatever the request carries.
 | ------ | --------------------------------- | ---------------------------- |
 | GET    | `/me`                             | `auth.me`                    |
 | POST   | `/me/token/revoke`                | `tokens.revokeCurrent`       |
+| GET    | `/me/delete`                      | `auth.deletionConfirmation`  |
 | POST   | `/me/delete`                      | `auth.deleteAccount`         |
 | GET    | `/entities`                       | `entities.list`              |
 | POST   | `/entities`                       | `entities.create`            |
@@ -107,7 +108,6 @@ cookie session and no token, whatever the request carries.
 | DELETE | `/entities/{id}`                  | `entities.delete`            |
 | GET    | `/entities/{id}/metadata`         | `entities.getMetadata`       |
 | POST   | `/entities/{id}/restore`          | `entities.restore`           |
-| POST   | `/entities/{id}/move`             | `entities.move`              |
 | GET    | `/entities/{id}/tags`             | `entities.getEntityTags`     |
 | PUT    | `/entities/{id}/tags`             | `entities.updateEntityTags`  |
 | GET    | `/entities/{id}/shares`           | `entities.getSharedInfo`     |
@@ -127,9 +127,7 @@ cookie session and no token, whatever the request carries.
 | POST   | `/native-sign-in/token`           | `nativeSignIn.exchange`      |
 
 A directory listing is `GET /entities?parentId={directoryId}`; omitting
-`parentId` lists the root. `/entities/search`, `/entities/shared` and
-`/entities/trash` are registered before `/entities/{id}` because the adapter
-matches paths in registration order.
+`parentId` lists the root.
 Repeated query parameters (`tagNames`, `entityTypes`) may also be
 comma-separated, since a single repetition arrives as a bare string.
 
@@ -151,19 +149,16 @@ the caller's own entities that carry it, and `POST /entities/{id}/restore`
 takes one back out: into the folder it left when its owner may still write
 there, or else to the top of Home. Both are the owner's, as the delete is.
 
-`POST /entities/{id}/move` puts an entity into the folder its `parentId` names,
-or at the top of Home when it names none. `PATCH /entities/{id}` moves too, but
-reads a missing `parentId` as "leave it where it is", so only an explicit null
-takes a file home there, which a client that drops nulls cannot send.
-
 `POST /entities` without `elements` starts the entity as the editor opens a
 new one: an empty paragraph for a document, no elements for a drawing, and
-`{}` for a directory. A url has no empty state, so it needs its `elements`.
-Without a `parentId` the entity goes at the top of Home, as with a null one.
+`{}` for a directory; without a `title` it is "New document", "New drawing"
+or "New folder". A url has no empty state, so it needs both. Without a
+`parentId` the entity goes at the top of Home, as with a null one.
 
 `POST /me/delete` deletes the caller's account once it is confirmed with the
-account's email, or its name when it has none; `GET /me` gives that as
-`deletionConfirmation`, so an app asks for what the server will accept.
+account's email, or its name when it has none. `GET /me/delete` says which,
+so an app asks for what the server will accept; like the delete, it needs a
+token that may write.
 
 A `parentId` on a create is resolved before the insert, by `POST /entities` as
 by `POST /drawings`: it has to be a directory the caller may write to, and

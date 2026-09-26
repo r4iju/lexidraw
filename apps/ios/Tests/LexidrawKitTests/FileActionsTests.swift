@@ -4,7 +4,7 @@ import Testing
 @testable import LexidrawKit
 
 @Suite struct FileActionsTests {
-  /// Titled as the web titles one, and left for the server to start empty.
+  /// Left for the server to title and start empty, as it does the web's.
   @Test func makesANewFileInTheFolderItWasAskedFrom() async throws {
     let server = FakeServer { request in (200, Summary.json(id: request.json["id"] ?? "", type: "drawing", title: "New drawing", parentId: "dir-1")) }
     let session = try TestServer.session(server)
@@ -14,12 +14,12 @@ import Testing
     let request = try #require(server.requests.only)
     #expect(request.method == .post)
     #expect(request.url.path == "/api/v1/entities")
-    #expect(request.json["title"] == "New drawing")
+    #expect(request.keys == ["id", "entityType", "parentId"])
     #expect(request.json["entityType"] == "drawing")
     #expect(request.json["parentId"] == "dir-1")
     #expect(UUID(uuidString: request.json["id"] ?? "") != nil)
-    #expect(!request.keys.contains("elements"))
     #expect(made.id == request.json["id"])
+    #expect(made.title == "New drawing")
     #expect(made.kind == .drawing)
     #expect(made.access == .owner)
   }
@@ -31,7 +31,6 @@ import Testing
     let made = try await session.create(.folder, in: nil)
 
     let request = try #require(server.requests.only)
-    #expect(request.json["title"] == "New folder")
     #expect(request.json["entityType"] == "directory")
     #expect(!request.keys.contains("parentId"))
     #expect(made.kind == .folder)
@@ -49,18 +48,21 @@ import Testing
     #expect(request.json == ["title": "Plan"])
   }
 
+  /// As the web moves one: a null folder is Home, where a missing one would
+  /// leave it where it is.
   @Test func movesIntoAFolderOrHome() async throws {
-    let server = FakeServer { _ in (200, Summary.json(id: "doc", type: "document", title: "Plan")) }
+    let server = FakeServer { _ in (200, #"{"id":"doc"}"#) }
     let session = try TestServer.session(server)
 
     try await session.move("doc", to: "dir-team")
     try await session.move("doc", to: nil)
 
     let (into, home) = (server.requests[0], server.requests[1])
-    #expect(into.method == .post)
-    #expect(into.url.path == "/api/v1/entities/doc/move")
+    #expect(into.method == .patch)
+    #expect(into.url.path == "/api/v1/entities/doc")
+    #expect(into.authorization == "Bearer lxd_kept")
     #expect(into.json == ["parentId": "dir-team"])
-    #expect(home.keys.isEmpty)
+    #expect(String(decoding: home.body ?? Data(), as: UTF8.self) == #"{"parentId":null}"#)
   }
 
   @Test func deletingPutsItInTheTrash() async throws {
@@ -90,13 +92,19 @@ import Testing
     #expect(server.requests[0].url.path == "/api/v1/entities/gone-back/restore")
   }
 
-  @Test func aRefusalCarriesWhatTheServerSaid() async throws {
+  @Test(arguments: [
+    { (session: Session) in try await session.move("dir", to: "dir-inside") },
+    { (session: Session) in try await session.rename("dir", to: "Inside") },
+    { (session: Session) in _ = try await session.listing(of: "dir") },
+  ] as [@Sendable (Session) async throws -> Void])
+  func aRefusalCarriesWhatTheServerSaid(ask: @Sendable (Session) async throws -> Void) async throws {
     let server = FakeServer { _ in
       (400, #"{"message":"A directory cannot move into itself or a directory inside it","code":"BAD_REQUEST"}"#)
     }
     let session = try TestServer.session(server)
 
-    let refusal = await #expect(throws: Refusal.self) { try await session.move("dir", to: "dir-inside") }
+    let refusal = await #expect(throws: Refusal.self) { try await ask(session) }
+    #expect(refusal?.status == 400)
     #expect(refusal?.message == "A directory cannot move into itself or a directory inside it")
   }
 }
@@ -109,9 +117,7 @@ import Testing
     #expect(Access.owner.may(.delete))
   }
 
-  /// As a drop on the web: anyone who may move a file may take it to Home, and
-  /// only its owner into a folder, one they may edit in, since whether the
-  /// owner may write there is not the caller's to see.
+  /// As a drop on the web.
   @Test func aFileGoesOnlyWhereTheServerWouldTakeIt() {
     let owned = Entry.stub(id: "doc", access: .owner)
     let edited = Entry.stub(id: "doc", access: .edit)
@@ -130,7 +136,7 @@ import Testing
   }
 }
 
-/// What `POST /entities`, a move and a restore answer.
+/// What `POST /entities` and a restore answer.
 enum Summary {
   static func json(id: String, type: String, title: String, parentId: String? = nil) -> String {
     let parent = parentId.map { "\"\($0)\"" } ?? "null"
@@ -144,7 +150,7 @@ enum Summary {
 extension Entry {
   static func stub(id: String, kind: Kind = .document, access: Access) -> Entry {
     Entry(
-      id: id, title: id, kind: kind, updatedAt: .now, access: access, parentId: nil, tags: [], itemCount: 0,
+      id: id, title: id, kind: kind, updatedAt: .now, access: access, parentId: nil, tags: [], folderCount: 0,
       pictures: Pictures(light: "", dark: ""))
   }
 }

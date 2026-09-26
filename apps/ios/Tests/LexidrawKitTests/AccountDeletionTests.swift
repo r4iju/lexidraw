@@ -5,13 +5,13 @@ import Testing
 
 @Suite struct AccountDeletionTests {
   @Test func asksForWhatTheServerSaysConfirmsIt() async throws {
-    let server = FakeServer { _ in
-      (200, #"{"userId":"u1","email":null,"authKind":"token","scope":"write","deletionConfirmation":"Nameless"}"#)
-    }
+    let server = FakeServer { _ in (200, #"{"confirmation":"Nameless"}"#) }
     let session = try TestServer.session(server)
 
     #expect(try await session.deletionConfirmation().expected == "Nameless")
-    #expect(try #require(server.requests.only).url.path == "/api/v1/me")
+    let request = try #require(server.requests.only)
+    #expect(request.method == .get)
+    #expect(request.url.path == "/api/v1/me/delete")
   }
 
   /// As the web and the server compare it.
@@ -36,6 +36,15 @@ import Testing
     #expect(request.url.path == "/api/v1/me/delete")
     #expect(request.json == ["confirmation": "me@example.test"])
     #expect(store.token == nil)
+  }
+
+  /// Once the server has deleted it, the token opens nothing, so the app is
+  /// signed out whatever the Keychain says.
+  @Test func theAccountIsGoneEvenWhenTheDeviceKeepsItsToken() async throws {
+    let server = FakeServer { _ in (200, #"{"id":"u1"}"#) }
+    let session = try TestServer.session(server, store: UndeletableTokenStore())
+
+    try await session.deleteAccount(confirmation: "me@example.test")
   }
 
   @Test func aConfirmationTheServerRefusesKeepsTheAppSignedIn() async throws {

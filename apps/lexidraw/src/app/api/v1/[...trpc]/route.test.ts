@@ -247,18 +247,6 @@ describe("where a folder is", () => {
   });
 });
 
-describe("moving over REST", () => {
-  test("with no folder named goes to the top of Home", async () => {
-    const home = await api("POST", "/entities/rest_sub/move", { body: {} });
-    const back = await api("POST", "/entities/rest_sub/move", {
-      body: { parentId: "rest_dir" },
-    });
-
-    expect([home.response.status, home.body.parentId]).toEqual([200, null]);
-    expect(back.body.parentId).toBe("rest_dir");
-  });
-});
-
 describe("a share that is not there", () => {
   test("is not found when its access level is changed", async () => {
     const { response, body } = await api(

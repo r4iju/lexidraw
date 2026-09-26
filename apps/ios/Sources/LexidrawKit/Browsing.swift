@@ -24,8 +24,9 @@ public struct Entry: Sendable, Hashable, Identifiable {
   public let parentId: String?
   /// The caller's own tags on it; nobody else's are ever sent.
   public let tags: [String]
-  /// How many things directly inside a folder the caller can see.
-  public let itemCount: Int
+  /// How many folders directly inside a folder the caller can see, which a
+  /// folder tree opens onto.
+  public let folderCount: Int
   let pictures: Pictures
 
   /// The picture for a screen in dark or light appearance, if the file has
@@ -34,18 +35,10 @@ public struct Entry: Sendable, Hashable, Identifiable {
 }
 
 extension Entry {
-  /// Listings and Shared with me send the same row.
-  init(_ item: Operations.EntitiesList.Output.Ok.Body.JsonPayloadPayload) {
+  init(_ item: Components.Schemas.ListedEntity) {
     self.init(
       id: item.id, title: item.title, kind: Kind(item.entityType), updatedAt: item.updatedAt,
-      access: Access(item.access), parentId: item.parentId, tags: item.tags, itemCount: Int(item.childCount),
-      pictures: Pictures(light: item.screenShotLight, dark: item.screenShotDark))
-  }
-
-  init(_ item: Operations.EntitiesSharedWithMe.Output.Ok.Body.JsonPayloadPayload) {
-    self.init(
-      id: item.id, title: item.title, kind: Kind(item.entityType), updatedAt: item.updatedAt,
-      access: Access(item.access), parentId: item.parentId, tags: item.tags, itemCount: Int(item.childCount),
+      access: Access(item.access), parentId: item.parentId, tags: item.tags, folderCount: Int(item.folderCount),
       pictures: Pictures(light: item.screenShotLight, dark: item.screenShotDark))
   }
 }
@@ -134,22 +127,22 @@ extension Entry.Kind {
     }
   }
 
-  init(_ type: some RawRepresentable<String>) {
-    switch type.rawValue {
-    case "directory": self = .folder
-    case "document": self = .document
-    case "drawing": self = .drawing
-    default: self = .url
+  init(_ type: Components.Schemas.EntityType) {
+    switch type {
+    case .directory: self = .folder
+    case .document: self = .document
+    case .drawing: self = .drawing
+    case .url: self = .url
     }
   }
 }
 
 extension Access {
-  init(_ access: some RawRepresentable<String>) {
-    switch access.rawValue {
-    case "owner": self = .owner
-    case "edit": self = .edit
-    default: self = .read
+  init(_ access: Components.Schemas.Access) {
+    switch access {
+    case .read: self = .read
+    case .edit: self = .edit
+    case .owner: self = .owner
     }
   }
 }

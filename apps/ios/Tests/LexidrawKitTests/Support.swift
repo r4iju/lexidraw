@@ -80,6 +80,15 @@ struct UnwritableTokenStore: TokenStore {
   func delete() throws {}
 }
 
+/// A Keychain that will not let go of the token.
+struct UndeletableTokenStore: TokenStore {
+  struct Refused: Error {}
+
+  func load() throws -> String? { "lxd_stuck" }
+  func save(_ token: String) throws {}
+  func delete() throws { throw Refused() }
+}
+
 extension URLComponents {
   subscript(query name: String) -> String? {
     queryItems?.first { $0.name == name }?.value

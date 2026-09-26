@@ -18,13 +18,17 @@ const caller = entityRouter.createCaller({
   headers: new Headers(),
 } as never);
 
-const stored = async (id: string) =>
+const storedRow = async (id: string) =>
   (
     await db
-      .select({ elements: schema.entities.elements })
+      .select({
+        title: schema.entities.title,
+        elements: schema.entities.elements,
+      })
       .from(schema.entities)
       .where(eq(schema.entities.id, id))
-  )[0]?.elements;
+  )[0];
+const stored = async (id: string) => (await storedRow(id))?.elements;
 
 beforeAll(async () => {
   await db
@@ -33,19 +37,26 @@ beforeAll(async () => {
 });
 
 describe("creating a file with nothing in it", () => {
-  test("starts each kind as the editor opens a new one", async () => {
+  test("starts each kind as the editor opens a new one, titled as new", async () => {
     for (const [id, entityType] of [
       ["ecreate_doc", "document"],
       ["ecreate_drawing", "drawing"],
       ["ecreate_folder", "directory"],
     ] as const)
-      await caller.create({ id, title: id, entityType, parentId: null });
+      await caller.create({ id, entityType, parentId: null });
 
+    const [doc, drawing, folder] = await Promise.all(
+      ["ecreate_doc", "ecreate_drawing", "ecreate_folder"].map(storedRow),
+    );
     expect([
-      JSON.parse((await stored("ecreate_doc")) ?? "null"),
-      await stored("ecreate_drawing"),
-      await stored("ecreate_folder"),
-    ]).toEqual([EMPTY_CONTENT, "[]", "{}"]);
+      [doc?.title, JSON.parse(doc?.elements ?? "null")],
+      [drawing?.title, drawing?.elements],
+      [folder?.title, folder?.elements],
+    ]).toEqual([
+      ["New document", EMPTY_CONTENT],
+      ["New drawing", "[]"],
+      ["New folder", "{}"],
+    ]);
   });
 
   test("in no folder named is at the top of Home", async () => {

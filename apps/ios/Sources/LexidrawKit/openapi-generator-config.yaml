@@ -13,10 +13,9 @@ filter:
     - entities-getUserTags
     - entities-create
     - entities-update
-    - entities-move
     - entities-delete
     - entities-restore
-    - auth-me
+    - auth-deletionConfirmation
     - auth-deleteAccount
     - nativeSignIn-exchange
     - tokens-revokeCurrent

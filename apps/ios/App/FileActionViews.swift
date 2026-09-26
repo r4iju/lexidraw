@@ -5,19 +5,24 @@ import SwiftUI
 /// the whole browser, so a row only says which file.
 @MainActor @Observable
 final class FileActions {
-  struct Failure: Identifiable {
-    let id = UUID()
+  struct Failure {
     let title: String
     let message: String
   }
 
-  let session: Session
-  let browser: Browser
-  var renaming: Entry?
+  /// What is being asked of someone, or why an action failed; one at a time.
+  enum Step {
+    case renaming(Entry)
+    case moving(Entry)
+    case deleting(Entry)
+    case failed(Failure)
+  }
+
+  private let session: Session
+  private let browser: Browser
+  var step: Step?
+  /// The title being typed while renaming.
   var title = ""
-  var moving: Entry?
-  var deleting: Entry?
-  var failure: Failure?
   /// Said at the foot of the screen for a moment once an action is done.
   var done: String?
 
@@ -26,11 +31,29 @@ final class FileActions {
     self.browser = browser
   }
 
+  var renaming: Entry? { if case .renaming(let entry) = step { entry } else { nil } }
+  var moving: Entry? { if case .moving(let entry) = step { entry } else { nil } }
+  var deleting: Entry? { if case .deleting(let entry) = step { entry } else { nil } }
+  var failure: Failure? { if case .failed(let failure) = step { failure } else { nil } }
+
+  /// What `shown` presents, for a presenter; dismissing it ends the step.
+  func item<T>(_ shown: KeyPath<FileActions, T?>) -> Binding<T?> {
+    Binding { self[keyPath: shown] } set: { value in
+      if value == nil, self[keyPath: shown] != nil { self.step = nil }
+    }
+  }
+
+  func presenting<T>(_ shown: KeyPath<FileActions, T?>) -> Binding<Bool> {
+    Binding { self[keyPath: shown] != nil } set: { up in
+      if !up { self.item(shown).wrappedValue = nil }
+    }
+  }
+
   /// Makes the file, then asks for its name straight away, as the Files app
   /// does with a new folder.
-  func create(_ file: NewFile, in folder: Place.Folder?) async {
+  func create(_ kind: Entry.Kind, in folder: Place.Folder?) async {
     do {
-      let made = try await session.create(file, in: folder?.id)
+      let made = try await session.create(kind, in: folder?.id)
       browser.reload()
       startRenaming(made)
     } catch {
@@ -40,7 +63,7 @@ final class FileActions {
 
   func startRenaming(_ entry: Entry) {
     title = entry.title
-    renaming = entry
+    step = .renaming(entry)
   }
 
   func rename(_ entry: Entry, to title: String) async {
@@ -54,9 +77,14 @@ final class FileActions {
     }
   }
 
+  /// The folders a file could move into, in `folder` or at the top of Home.
+  func folders(in folder: Entry?) async throws -> [Entry] {
+    try await session.folders(in: folder?.id)
+  }
+
   /// Into `folder`, or to the top of Home when it is nil.
   func move(_ entry: Entry, to folder: Entry?) async {
-    moving = nil
+    step = nil
     do {
       try await session.move(entry.id, to: folder?.id)
       finish("Moved “\(entry.title)” to \(folder.map { "“\($0.title)”" } ?? "Home").")
@@ -91,15 +119,15 @@ final class FileActions {
   }
 
   private func fail(_ title: String, _ error: any Error) {
-    failure = Failure(title: title, message: error.localizedDescription)
+    step = .failed(Failure(title: title, message: error.localizedDescription))
   }
 }
 
 extension View {
   /// What may be done to `entry`, by the caller's access to it, from a swipe
   /// or a long press.
-  func fileActions(for entry: Entry, movable: Bool = true) -> some View {
-    modifier(FileActionMenu(entry: entry, movable: movable))
+  func fileActions(for entry: Entry) -> some View {
+    modifier(FileActionMenu(entry: entry))
   }
 
   /// The rename prompt, the move sheet, failures and the note that an action
@@ -111,7 +139,6 @@ extension View {
 
 private struct FileActionMenu: ViewModifier {
   let entry: Entry
-  let movable: Bool
   @Environment(FileActions.self) private var actions
 
   func body(content: Content) -> some View {
@@ -120,12 +147,12 @@ private struct FileActionMenu: ViewModifier {
         if entry.access.may(.rename) {
           Button("Rename…", systemImage: "pencil") { actions.startRenaming(entry) }
         }
-        if mayMove {
-          Button("Move…", systemImage: "folder") { actions.moving = entry }
+        if entry.access.may(.move) {
+          Button("Move…", systemImage: "folder") { actions.step = .moving(entry) }
         }
         if entry.access.may(.delete) {
           Divider()
-          Button("Delete…", systemImage: "trash", role: .destructive) { actions.deleting = entry }
+          Button("Delete…", systemImage: "trash", role: .destructive) { actions.step = .deleting(entry) }
         }
       }
       .swipeActions(edge: .leading) {
@@ -137,11 +164,11 @@ private struct FileActionMenu: ViewModifier {
       .swipeActions(edge: .trailing) {
         // Not a destructive role: the row stays until the deletion is confirmed.
         if entry.access.may(.delete) {
-          Button("Delete", systemImage: "trash") { actions.deleting = entry }
+          Button("Delete", systemImage: "trash") { actions.step = .deleting(entry) }
             .tint(.red)
         }
-        if mayMove {
-          Button("Move", systemImage: "folder") { actions.moving = entry }
+        if entry.access.may(.move) {
+          Button("Move", systemImage: "folder") { actions.step = .moving(entry) }
             .tint(.indigo)
         }
       }
@@ -154,13 +181,10 @@ private struct FileActionMenu: ViewModifier {
       }
   }
 
-  private var mayMove: Bool { movable && entry.access.may(.move) }
-
+  /// Only this row's dialog, of all the rows that have one.
   private var deleting: Binding<Bool> {
-    Binding {
-      actions.deleting?.id == entry.id
-    } set: { shown in
-      if !shown { actions.deleting = nil }
+    Binding { actions.deleting?.id == entry.id } set: { up in
+      if !up, actions.deleting?.id == entry.id { actions.step = nil }
     }
   }
 }
@@ -170,7 +194,7 @@ private struct FileActionPresenters: ViewModifier {
 
   func body(content: Content) -> some View {
     content
-      .alert("Rename", isPresented: renaming, presenting: actions.renaming) { entry in
+      .alert("Rename", isPresented: actions.presenting(\.renaming), presenting: actions.renaming) { entry in
         TextField("Title", text: $actions.title)
         Button("Cancel", role: .cancel) {}
         Button("Rename") {
@@ -178,11 +202,11 @@ private struct FileActionPresenters: ViewModifier {
           Task { await actions.rename(entry, to: title) }
         }
       }
-      .sheet(item: $actions.moving) { entry in
+      .sheet(item: actions.item(\.moving)) { entry in
         MoveSheet(entry: entry)
       }
       .alert(
-        actions.failure?.title ?? "", isPresented: failing, presenting: actions.failure
+        actions.failure?.title ?? "", isPresented: actions.presenting(\.failure), presenting: actions.failure
       ) { _ in
         Button("OK") {}
       } message: { failure in
@@ -206,18 +230,10 @@ private struct FileActionPresenters: ViewModifier {
       }
       .animation(.default, value: actions.done)
   }
-
-  private var renaming: Binding<Bool> {
-    Binding { actions.renaming != nil } set: { if !$0 { actions.renaming = nil } }
-  }
-
-  private var failing: Binding<Bool> {
-    Binding { actions.failure != nil } set: { if !$0 { actions.failure = nil } }
-  }
 }
 
 /// Picks where a file goes by browsing the folders from Home, offering only
-/// the places the server would take it.
+/// the places the server may take it.
 private struct MoveSheet: View {
   let entry: Entry
 
@@ -236,13 +252,12 @@ private struct Destinations: View {
   /// Nil for Home.
   let folder: Entry?
   @Environment(FileActions.self) private var actions
-  @State private var folders: [Entry]?
-  @State private var failure: String?
+  @State private var folders: Loaded<[Entry]> = .loading
 
   var body: some View {
     List {
       Section {
-        ForEach(folders ?? []) { candidate in
+        ForEach(folders.value ?? []) { candidate in
           // A folder cannot go inside itself, so its own contents are no destination.
           if candidate.id == entry.id {
             Label(candidate.title, systemImage: "folder")
@@ -254,27 +269,12 @@ private struct Destinations: View {
           }
         }
       } footer: {
-        if let folder, !entry.mayMove(into: folder) {
-          Text(
-            entry.access == .owner
-              ? "You can only view “\(folder.title)”, so nothing can move into it."
-              : "Only the owner of “\(entry.title)” can move it into a folder.")
+        if let note {
+          Text(note)
         }
       }
     }
-    .overlay {
-      if let failure {
-        ContentUnavailableView {
-          Label("Couldn't load the folders", systemImage: "wifi.exclamationmark")
-        } description: {
-          Text(failure)
-        } actions: {
-          Button("Try Again") { Task { await load() } }
-        }
-      } else if folders == nil {
-        ProgressView()
-      }
-    }
+    .overlay(for: folders, what: "the folders", retry: load)
     .navigationTitle(folder?.title ?? "Home")
     .navigationBarTitleDisplayMode(.inline)
     .toolbar {
@@ -285,7 +285,7 @@ private struct Destinations: View {
         }
       }
       ToolbarItem(placement: .cancellationAction) {
-        Button("Cancel") { actions.moving = nil }
+        Button("Cancel") { actions.step = nil }
       }
       ToolbarItem(placement: .confirmationAction) {
         Button("Move Here") { Task { await actions.move(entry, to: folder) } }
@@ -295,14 +295,15 @@ private struct Destinations: View {
     .task { await load() }
   }
 
+  /// Why this folder can't take the file, and what to do instead.
+  private var note: String? {
+    guard let folder, !entry.mayMove(into: folder) else { return nil }
+    return entry.access == .owner
+      ? "You can only view “\(folder.title)”, so nothing can move into it."
+      : "Someone else owns “\(entry.title)”, so it can go into a folder only where they can edit too. Move it to Home, or ask them to move it."
+  }
+
   private func load() async {
-    do {
-      folders = try await actions.session.folders(in: folder?.id)
-      failure = nil
-    } catch is CancellationError {
-      return
-    } catch {
-      failure = error.localizedDescription
-    }
+    if let loaded = await Loaded.from({ try await actions.folders(in: folder) }) { folders = loaded }
   }
 }

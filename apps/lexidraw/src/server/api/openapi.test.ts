@@ -101,6 +101,7 @@ describe("openApiDocument", () => {
   // The v1 surface, as docs/agent-access.md promises it.
   const expectedOperations = [
     ["/me", "get", "auth"],
+    ["/me/delete", "get", "auth"],
     ["/me/delete", "post", "auth"],
     ["/me/token/revoke", "post", "auth"],
     ["/entities", "get", "entities"],
@@ -114,7 +115,6 @@ describe("openApiDocument", () => {
     ["/entities/{id}", "delete", "entities"],
     ["/entities/{id}/metadata", "get", "entities"],
     ["/entities/{id}/restore", "post", "entities"],
-    ["/entities/{id}/move", "post", "entities"],
     ["/entities/{id}/tags", "get", "entities"],
     ["/entities/{id}/tags", "put", "entities"],
     ["/entities/{id}/shares", "get", "entities"],
@@ -235,7 +235,11 @@ describe("openApiDocument", () => {
     const refs = JSON.stringify(document.paths).match(
       /#\/components\/schemas\/[^"]+/g,
     );
-    expect([...new Set(refs)]).toEqual(["#/components/schemas/ErrorResponse"]);
+    expect([...new Set(refs)].sort()).toEqual(
+      ["Access", "EntityType", "ErrorResponse", "ListedEntity"].map(
+        (name) => `#/components/schemas/${name}`,
+      ),
+    );
   });
 });
 

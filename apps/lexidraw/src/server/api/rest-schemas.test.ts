@@ -85,8 +85,12 @@ function documented(schema: z.ZodType): unknown {
     },
   });
   // @ts-expect-error the document is built right here, so the path exists
-  return document.paths["/x"].get.responses[200].content["application/json"]
-    .schema;
+  const shown = document.paths["/x"].get.responses[200].content[
+    "application/json"
+  ].schema as { $ref?: string };
+  // A named schema is shown by reference, and described once in components.
+  const name = shown.$ref?.split("/").pop();
+  return name ? document.components?.schemas?.[name] : shown;
 }
 
 describe("isoDate", () => {

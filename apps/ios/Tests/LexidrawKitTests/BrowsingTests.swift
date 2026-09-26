@@ -91,6 +91,16 @@ import Testing
     #expect(request.url[query: "entityTypes"] == "directory")
   }
 
+  /// So the tree opens only onto folders, not onto a folder's files.
+  @Test func aFolderSaysHowManyFoldersAreInIt() async throws {
+    let server = FakeServer { _ in
+      (200, "[\(ListItem.json(id: "files", type: "directory", access: "owner", childCount: 3, folderCount: 0)),\(ListItem.json(id: "tree", type: "directory", access: "owner", childCount: 2, folderCount: 1))]")
+    }
+    let session = try TestServer.session(server)
+
+    #expect(try await session.folders(in: nil).map(\.folderCount) == [0, 1])
+  }
+
   @Test func listsWhatOthersSharedWithTheCaller() async throws {
     let server = FakeServer { _ in (200, "[\(ListItem.json(id: "given", type: "document", access: "read"))]") }
     let session = try TestServer.session(server)
@@ -144,7 +154,8 @@ import Testing
 /// One row of `GET /entities`, with only what a test cares about set.
 enum ListItem {
   static func json(
-    id: String, type: String, access: String, light: String = "", dark: String = "", tags: [String] = []
+    id: String, type: String, access: String, light: String = "", dark: String = "", tags: [String] = [],
+    childCount: Int = 0, folderCount: Int = 0
   ) -> String {
     let tagList = tags.map { "\"\($0)\"" }.joined(separator: ",")
     return """
@@ -152,7 +163,7 @@ enum ListItem {
        "updatedAt":"2026-09-25T09:30:00.000Z","screenShotLight":"\(light)","screenShotDark":"\(dark)",
        "thumbnailStatus":null,"thumbnailVersion":null,"thumbnailUpdatedAt":null,"access":"\(access)",
        "publicAccess":"PRIVATE","parentId":null,"favoritedAt":null,"archivedAt":null,"sharedWithCount":0,
-       "tags":[\(tagList)],"childCount":0}
+       "tags":[\(tagList)],"childCount":\(childCount),"folderCount":\(folderCount)}
       """
   }
 }

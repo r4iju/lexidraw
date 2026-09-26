@@ -1,39 +1,10 @@
 import Foundation
+import HTTPTypes
 
-/// What the server said when it would not do something, in its own words.
-public struct Refusal: Error, LocalizedError, Sendable {
-  public let message: String
-
-  init(_ answer: Components.Schemas.ErrorResponse) {
-    message = answer.message
-  }
-
-  init(status: Int) {
-    message = "The server answered \(status)."
-  }
-
-  public var errorDescription: String? { message }
-}
-
-/// What the New menu makes, each titled as the web titles a new one.
-public enum NewFile: CaseIterable, Sendable {
-  case document, drawing, folder
-
-  public var title: String {
-    switch self {
-    case .document: "New document"
-    case .drawing: "New drawing"
-    case .folder: "New folder"
-    }
-  }
-
-  public var kind: Entry.Kind {
-    switch self {
-    case .document: .document
-    case .drawing: .drawing
-    case .folder: .folder
-    }
-  }
+extension Entry.Kind {
+  /// What the New menu makes, each starting empty. A link can't: its
+  /// address is what it holds.
+  public static let blank: [Entry.Kind] = [.document, .drawing, .folder]
 }
 
 /// Something done to a file, offered by the least access it takes, as the
@@ -56,7 +27,7 @@ extension Access {
 extension Entry {
   /// Whether the server takes this file into `folder`, or to the top of Home
   /// when it is nil. Moving someone else's file into a folder also needs its
-  /// owner to be able to write there, which the caller cannot see, so only an
+  /// owner to be able to edit there, which the caller cannot see, so only an
   /// owner is offered a folder.
   public func mayMove(into folder: Entry?) -> Bool {
     guard access.may(.move) else { return false }
@@ -92,95 +63,56 @@ public enum Restored: Sendable, Equatable {
 }
 
 extension Session {
-  /// Makes an empty file or folder in `folder`, or at the top of Home.
-  public func create(_ file: NewFile, in folder: String?) async throws -> Entry {
+  /// Makes an empty file or folder in `folder`, or at the top of Home, titled
+  /// as the server titles a new one.
+  public func create(_ kind: Entry.Kind, in folder: String?) async throws -> Entry {
     let type: Operations.EntitiesCreate.Input.Body.JsonPayload.EntityTypePayload =
-      switch file {
+      switch kind {
+      case .folder: .directory
       case .document: .document
       case .drawing: .drawing
-      case .folder: .directory
+      case .url: .url
       }
     let body = Operations.EntitiesCreate.Input.Body.JsonPayload(
-      id: UUID().uuidString.lowercased(), title: file.title, entityType: type, parentId: folder)
-    switch try await client.entitiesCreate(body: .json(body)) {
-    case .ok(let answer):
-      let made = try answer.body.json
-      return Entry(
-        id: made.id, title: made.title, kind: Entry.Kind(made.entityType), updatedAt: made.updatedAt,
-        access: .owner, parentId: made.parentId, tags: [], itemCount: 0, pictures: Pictures(light: "", dark: ""))
-    case .badRequest(let answer): throw Refusal(try answer.body.json)
-    case .unauthorized(let answer): throw Refusal(try answer.body.json)
-    case .forbidden(let answer): throw Refusal(try answer.body.json)
-    case .notFound(let answer): throw Refusal(try answer.body.json)
-    case .conflict(let answer): throw Refusal(try answer.body.json)
-    case .internalServerError(let answer): throw Refusal(try answer.body.json)
-    case .undocumented(let status, _): throw Refusal(status: status)
-    }
+      id: UUID().uuidString.lowercased(), entityType: type, parentId: folder)
+    let made = try await ask { try await $0.entitiesCreate(body: .json(body)) }.ok.body.json
+    return Entry(
+      id: made.id, title: made.title, kind: Entry.Kind(made.entityType), updatedAt: made.updatedAt,
+      access: .owner, parentId: made.parentId, tags: [], folderCount: 0, pictures: Pictures(light: "", dark: ""))
   }
 
   public func rename(_ id: String, to title: String) async throws {
-    switch try await client.entitiesUpdate(path: .init(id: id), body: .json(.init(title: title))) {
-    case .ok: return
-    case .badRequest(let answer): throw Refusal(try answer.body.json)
-    case .unauthorized(let answer): throw Refusal(try answer.body.json)
-    case .forbidden(let answer): throw Refusal(try answer.body.json)
-    case .notFound(let answer): throw Refusal(try answer.body.json)
-    case .internalServerError(let answer): throw Refusal(try answer.body.json)
-    case .undocumented(let status, _): throw Refusal(status: status)
-    }
+    _ = try await ask { try await $0.entitiesUpdate(path: .init(id: id), body: .json(.init(title: title))) }.ok
   }
 
-  /// Into `folder`, or to the top of Home when it is nil.
+  /// Into `folder`, or to the top of Home when it is nil. Sent by hand: the
+  /// generated client leaves a nil out of the body, where Home must be sent
+  /// as null.
   public func move(_ id: String, to folder: String?) async throws {
-    switch try await client.entitiesMove(path: .init(id: id), body: .json(.init(parentId: folder))) {
-    case .ok: return
-    case .badRequest(let answer): throw Refusal(try answer.body.json)
-    case .unauthorized(let answer): throw Refusal(try answer.body.json)
-    case .forbidden(let answer): throw Refusal(try answer.body.json)
-    case .notFound(let answer): throw Refusal(try answer.body.json)
-    case .internalServerError(let answer): throw Refusal(try answer.body.json)
-    case .undocumented(let status, _): throw Refusal(status: status)
-    }
+    let segment = id.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed.subtracting(["/"])) ?? id
+    try await connection.send(
+      HTTPRequest(method: .patch, scheme: nil, authority: nil, path: "/entities/\(segment)"),
+      json: try JSONSerialization.data(withJSONObject: ["parentId": folder.map { $0 as Any } ?? NSNull()]),
+      operationID: Operations.EntitiesUpdate.id)
   }
 
   public func moveToTrash(_ id: String) async throws {
-    switch try await client.entitiesDelete(path: .init(id: id)) {
-    case .ok: return
-    case .badRequest(let answer): throw Refusal(try answer.body.json)
-    case .unauthorized(let answer): throw Refusal(try answer.body.json)
-    case .forbidden(let answer): throw Refusal(try answer.body.json)
-    case .notFound(let answer): throw Refusal(try answer.body.json)
-    case .internalServerError(let answer): throw Refusal(try answer.body.json)
-    case .undocumented(let status, _): throw Refusal(status: status)
-    }
+    _ = try await ask { try await $0.entitiesDelete(path: .init(id: id)) }.ok
   }
 
   public func restore(_ id: String) async throws -> Restored {
-    switch try await client.entitiesRestore(path: .init(id: id)) {
-    case .ok(let answer): return try answer.body.json.parentId == nil ? .home : .itsFolder
-    case .badRequest(let answer): throw Refusal(try answer.body.json)
-    case .unauthorized(let answer): throw Refusal(try answer.body.json)
-    case .forbidden(let answer): throw Refusal(try answer.body.json)
-    case .notFound(let answer): throw Refusal(try answer.body.json)
-    case .internalServerError(let answer): throw Refusal(try answer.body.json)
-    case .undocumented(let status, _): throw Refusal(status: status)
-    }
+    try await ask { try await $0.entitiesRestore(path: .init(id: id)) }.ok.body.json.parentId == nil ? .home : .itsFolder
   }
 
   /// What to type to confirm deleting the account, as the server will check it.
   public func deletionConfirmation() async throws -> DeletionConfirmation {
-    DeletionConfirmation(expected: try await client.authMe().ok.body.json.deletionConfirmation)
+    DeletionConfirmation(expected: try await ask { try await $0.authDeletionConfirmation() }.ok.body.json.confirmation)
   }
 
-  /// Deletes the account for good, and with it this app's token.
+  /// Deletes the account for good. The token went with it, so the app is
+  /// signed out even when this device won't let go of it.
   public func deleteAccount(confirmation: String) async throws {
-    switch try await client.authDeleteAccount(body: .json(.init(confirmation: confirmation))) {
-    case .ok: try store.delete()
-    case .badRequest(let answer): throw Refusal(try answer.body.json)
-    case .unauthorized(let answer): throw Refusal(try answer.body.json)
-    case .forbidden(let answer): throw Refusal(try answer.body.json)
-    case .internalServerError(let answer): throw Refusal(try answer.body.json)
-    case .undocumented(let status, _): throw Refusal(status: status)
-    }
+    _ = try await ask { try await $0.authDeleteAccount(body: .json(.init(confirmation: confirmation))) }.ok
+    try? store.delete()
   }
 }

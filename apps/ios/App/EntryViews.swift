@@ -1,28 +1,61 @@
 import LexidrawKit
 import SwiftUI
 
-/// A file in a list: its picture, title, when it last changed, and the
-/// caller's own tags on it.
-struct EntryRow: View {
-  let entry: Entry
+/// A file as every list shows one, whichever list it came from.
+protocol FileItem: Identifiable where ID == String {
+  var title: String { get }
+  var kind: Entry.Kind { get }
+  func thumbnail(dark: Bool) -> URL?
+}
+
+extension Entry: FileItem {}
+extension SearchResult: FileItem {}
+extension TrashedEntry: FileItem {}
+
+/// A file in a list: its picture and title, and a line about it.
+struct FileRow: View {
+  let file: any FileItem
+  let caption: String
   @Environment(\.colorScheme) private var colorScheme
 
   var body: some View {
     HStack(spacing: 12) {
-      ThumbnailView(url: entry.thumbnail(dark: colorScheme == .dark), kind: entry.kind)
+      ThumbnailView(url: file.thumbnail(dark: colorScheme == .dark), kind: file.kind)
       VStack(alignment: .leading, spacing: 2) {
-        Text(entry.title).lineLimit(1)
-        Text(detail)
+        Text(file.title).lineLimit(1)
+        Text(caption)
           .font(.caption)
           .foregroundStyle(.secondary)
           .lineLimit(1)
       }
     }
   }
+}
 
-  private var detail: String {
+extension FileRow {
+  /// When it last changed, and the caller's own tags on it.
+  init(entry: Entry) {
     let changed = entry.updatedAt.formatted(.relative(presentation: .named))
-    return entry.tags.isEmpty ? changed : "\(changed) · \(entry.tags.joined(separator: ", "))"
+    self.init(
+      file: entry, caption: entry.tags.isEmpty ? changed : "\(changed) · \(entry.tags.joined(separator: ", "))")
+  }
+}
+
+/// Opens a folder in the browser, and a file where the app will open it.
+struct OpenLink<Label: View>: View {
+  let file: any FileItem
+  @ViewBuilder let label: Label
+
+  var body: some View {
+    if file.kind == .folder {
+      NavigationLink(value: Place.Folder(id: file.id, title: file.title)) { label }
+    } else {
+      NavigationLink {
+        NotYet(title: file.title, systemImage: file.kind.systemImage, feature: "Files open")
+      } label: {
+        label
+      }
+    }
   }
 }
 
@@ -66,6 +99,60 @@ struct NotYet: View {
   var body: some View {
     ContentUnavailableView(
       title, systemImage: systemImage, description: Text("\(feature) in a later version of the app."))
+  }
+}
+
+/// What a screen loads: not yet, what came, or why nothing did.
+enum Loaded<Value> {
+  case loading
+  case loaded(Value)
+  case failed(String)
+
+  var value: Value? {
+    if case .loaded(let value) = self { value } else { nil }
+  }
+
+  /// What `fetch` gave, or why it failed; nil when the task was cancelled,
+  /// as it is when a newer load takes over, so what is shown stays.
+  @MainActor static func from(_ fetch: () async throws -> Value) async -> Loaded? {
+    do {
+      return .loaded(try await fetch())
+    } catch is CancellationError {
+      return nil
+    } catch {
+      return .failed(error.localizedDescription)
+    }
+  }
+}
+
+extension View {
+  /// Stands over a list while it loads, when it couldn't, and when it has
+  /// nothing in it. `what` finishes "Couldn’t load".
+  func overlay<Value, Empty: View>(
+    for loaded: Loaded<Value>,
+    what: String,
+    retry: @escaping () async -> Void,
+    isEmpty: @escaping (Value) -> Bool = { _ in false },
+    @ViewBuilder empty: () -> Empty = { EmptyView() }
+  ) -> some View {
+    overlay {
+      switch loaded {
+      case .loading:
+        ProgressView()
+      case .failed(let message):
+        ContentUnavailableView {
+          Label("Couldn’t load \(what)", systemImage: "wifi.exclamationmark")
+        } description: {
+          Text(message)
+        } actions: {
+          Button("Try Again") { Task { await retry() } }
+        }
+      case .loaded(let value) where isEmpty(value):
+        empty()
+      case .loaded:
+        EmptyView()
+      }
+    }
   }
 }
 

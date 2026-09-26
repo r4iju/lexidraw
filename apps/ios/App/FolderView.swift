@@ -8,46 +8,44 @@ struct FolderView: View {
   /// Nil for Home.
   let folder: Place.Folder?
   @Environment(Browser.self) private var browser
-  @State private var listing: Listing?
-  @State private var place: Place?
-  @State private var ownTags: [String] = []
-  @State private var failure: String?
+  @State private var shown: Loaded<Shown> = .loading
   @State private var query = ""
   @State private var results: [SearchResult]?
 
+  /// A folder's contents, where it is, and the tags that could narrow it.
+  private struct Shown {
+    let listing: Listing
+    /// Nil for Home.
+    let place: Place?
+    let ownTags: [String]
+  }
+
   var body: some View {
-    List {
+    Group {
       if let results {
-        SearchResultsSection(query: query, results: results)
-      } else if let listing {
-        if !browser.tags.isEmpty {
-          FilterHint()
+        List { SearchResultsSection(query: query, results: results) }
+      } else {
+        List {
+          if let listing = shown.value?.listing {
+            if !browser.tags.isEmpty {
+              FilterHint()
+            }
+            ListingSections(listing: listing)
+          }
         }
-        ListingSections(listing: listing)
-      }
-    }
-    .overlay {
-      if results != nil {
-        EmptyView()
-      } else if let failure {
-        ContentUnavailableView {
-          Label("Couldn't load \(title)", systemImage: "wifi.exclamationmark")
-        } description: {
-          Text(failure)
-        } actions: {
-          Button("Try Again") { Task { await load() } }
-        }
-      } else if listing == nil {
-        ProgressView()
-      } else if listing?.folders.isEmpty == true && listing?.files.isEmpty == true {
-        if browser.tags.isEmpty {
-          ContentUnavailableView(
-            "Nothing here yet", systemImage: folder == nil ? "doc" : "folder",
-            description: Text("Files you make here or on the web show up here."))
-        } else {
-          ContentUnavailableView(
-            "No files tagged \(browser.tags.sorted().formatted(.list(type: .and)))",
-            systemImage: "tag")
+        .overlay(
+          for: shown, what: title, retry: load,
+          isEmpty: { $0.listing.folders.isEmpty && $0.listing.files.isEmpty }
+        ) {
+          if browser.tags.isEmpty {
+            ContentUnavailableView(
+              "Nothing here yet", systemImage: folder == nil ? "doc" : "folder",
+              description: Text("Files you make here or on the web show up here."))
+          } else {
+            ContentUnavailableView(
+              "No files tagged \(browser.tags.sorted().formatted(.list(type: .and)))",
+              systemImage: "tag")
+          }
         }
       }
     }
@@ -55,14 +53,14 @@ struct FolderView: View {
     // A large title hides the breadcrumbs' menu until the list scrolls.
     .navigationBarTitleDisplayMode(folder == nil ? .automatic : .inline)
     .toolbarTitleMenu {
-      if let place, folder != nil {
+      if let place = shown.value?.place {
         Breadcrumbs(place: place)
       }
     }
     .searchable(text: $query, prompt: "Search titles")
     .toolbar {
       ToolbarItem {
-        TagFilter(ownTags: ownTags)
+        TagFilter(ownTags: shown.value?.ownTags ?? [])
       }
       if mayCreate {
         ToolbarItem {
@@ -80,10 +78,12 @@ struct FolderView: View {
     .refreshable { await load() }
   }
 
-  private var title: String { place?.title ?? folder?.title ?? "Home" }
+  private var title: String { shown.value?.place?.title ?? folder?.title ?? "Home" }
 
   /// Anyone may make files at Home; in a folder, only who may edit it.
-  private var mayCreate: Bool { folder == nil || place.map { $0.access >= .edit } == true }
+  private var mayCreate: Bool {
+    folder == nil || shown.value?.place.map { $0.access >= .edit } == true
+  }
 
   private struct LoadKey: Equatable {
     let reloads: Int
@@ -91,20 +91,13 @@ struct FolderView: View {
   }
 
   private func load() async {
-    do {
-      async let listed = session.listing(of: folder?.id, taggedWith: browser.tags.sorted())
+    let loaded = await Loaded.from {
+      async let listing = session.listing(of: folder?.id, taggedWith: browser.tags.sorted())
       async let tags = session.tags()
-      if let folder {
-        place = try await session.place(of: folder.id)
-      }
-      listing = try await listed
-      ownTags = try await tags
-      failure = nil
-    } catch is CancellationError {
-      return
-    } catch {
-      failure = error.localizedDescription
+      let place: Place? = if let folder { try await session.place(of: folder.id) } else { nil }
+      return Shown(listing: try await listing, place: place, ownTags: try await tags)
     }
+    if let loaded { shown = loaded }
   }
 
   private func search() async {
@@ -169,12 +162,8 @@ private struct ListingSections: View {
     if !listing.files.isEmpty {
       Section("Files") {
         ForEach(listing.files) { file in
-          NavigationLink {
-            NotYet(title: file.title, systemImage: file.kind.systemImage, feature: "Files open")
-          } label: {
-            EntryRow(entry: file)
-          }
-          .fileActions(for: file)
+          OpenLink(file: file) { FileRow(entry: file) }
+            .fileActions(for: file)
         }
       }
     }
@@ -187,9 +176,9 @@ private struct NewMenu: View {
 
   var body: some View {
     Menu {
-      ForEach(NewFile.allCases, id: \.self) { file in
-        Button(file.kind.label, systemImage: file.kind.systemImage) {
-          Task { await actions.create(file, in: folder) }
+      ForEach(Entry.Kind.blank, id: \.self) { kind in
+        Button(kind.label, systemImage: kind.systemImage) {
+          Task { await actions.create(kind, in: folder) }
         }
       }
     } label: {
@@ -257,7 +246,6 @@ private struct SearchResultsSection: View {
   let query: String
   let results: [SearchResult]
   @Environment(Browser.self) private var browser
-  @Environment(\.colorScheme) private var colorScheme
 
   var body: some View {
     if results.isEmpty {
@@ -265,40 +253,19 @@ private struct SearchResultsSection: View {
     } else {
       Section(results.count == 1 ? "1 file" : "\(results.count) files") {
         ForEach(results) { result in
-          row(result)
-            .contextMenu {
-              if let folder = result.folder {
-                Button("Show in \(folder.title)", systemImage: "folder") {
-                  browser.open(folder, below: [])
-                }
+          OpenLink(file: result) {
+            FileRow(
+              file: result,
+              caption: "\(result.location) · \(result.updatedAt.formatted(.relative(presentation: .named)))")
+          }
+          .contextMenu {
+            if let folder = result.folder {
+              Button("Show in \(folder.title)", systemImage: "folder") {
+                browser.open(folder, below: [])
               }
             }
+          }
         }
-      }
-    }
-  }
-
-  @ViewBuilder
-  private func row(_ result: SearchResult) -> some View {
-    let label = HStack(spacing: 12) {
-      ThumbnailView(url: result.thumbnail(dark: colorScheme == .dark), kind: result.kind)
-      VStack(alignment: .leading, spacing: 2) {
-        Text(result.title).lineLimit(1)
-        Text("\(result.location) · \(result.updatedAt, format: .relative(presentation: .named))")
-          .font(.caption)
-          .foregroundStyle(.secondary)
-          .lineLimit(1)
-      }
-    }
-    if result.kind == .folder {
-      NavigationLink(value: Place.Folder(id: result.id, title: result.title)) {
-        label
-      }
-    } else {
-      NavigationLink {
-        NotYet(title: result.title, systemImage: result.kind.systemImage, feature: "Files open")
-      } label: {
-        label
       }
     }
   }

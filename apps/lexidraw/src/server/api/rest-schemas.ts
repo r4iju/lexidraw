@@ -47,5 +47,7 @@ export const stringList = <T extends z.ZodType<string, string>>(
  * enum: a row carrying anything else fails loudly instead of being described
  * as something it is not.
  */
-export const entityTypeOut = z.string().pipe(z.enum(EntityType));
+export const entityTypeOut = z
+  .string()
+  .pipe(z.enum(EntityType).meta({ id: "EntityType" }));
 export const accessLevelOut = z.string().pipe(z.enum(AccessLevel));

@@ -2,48 +2,23 @@ import LexidrawKit
 import SwiftUI
 
 /// What others shared with the caller, wherever they keep it, so a file in a
-/// folder nobody gave them is still reachable. Where each is kept is its
-/// owner's to arrange, so nothing here moves.
+/// folder nobody gave them is still reachable.
 struct SharedView: View {
   let session: Session
   @Environment(Browser.self) private var browser
-  @State private var shared: [Entry]?
-  @State private var failure: String?
+  @State private var shared: Loaded<[Entry]> = .loading
 
   var body: some View {
     List {
-      ForEach(shared ?? []) { entry in
-        if entry.kind == .folder {
-          NavigationLink(value: Place.Folder(id: entry.id, title: entry.title)) {
-            EntryRow(entry: entry)
-          }
-          .fileActions(for: entry, movable: false)
-        } else {
-          NavigationLink {
-            NotYet(title: entry.title, systemImage: entry.kind.systemImage, feature: "Files open")
-          } label: {
-            EntryRow(entry: entry)
-          }
-          .fileActions(for: entry, movable: false)
-        }
+      ForEach(shared.value ?? []) { entry in
+        OpenLink(file: entry) { FileRow(entry: entry) }
+          .fileActions(for: entry)
       }
     }
-    .overlay {
-      if let failure {
-        ContentUnavailableView {
-          Label("Couldn't load what's shared with you", systemImage: "wifi.exclamationmark")
-        } description: {
-          Text(failure)
-        } actions: {
-          Button("Try Again") { Task { await load() } }
-        }
-      } else if shared == nil {
-        ProgressView()
-      } else if shared?.isEmpty == true {
-        ContentUnavailableView(
-          "Nothing shared with you", systemImage: "person.2",
-          description: Text("Files others share with you show up here."))
-      }
+    .overlay(for: shared, what: "what’s shared with you", retry: load, isEmpty: \.isEmpty) {
+      ContentUnavailableView(
+        "Nothing shared with you", systemImage: "person.2",
+        description: Text("Files others share with you show up here."))
     }
     .navigationTitle("Shared with Me")
     .task(id: browser.reloads) { await load() }
@@ -51,13 +26,6 @@ struct SharedView: View {
   }
 
   private func load() async {
-    do {
-      shared = try await session.sharedWithMe()
-      failure = nil
-    } catch is CancellationError {
-      return
-    } catch {
-      failure = error.localizedDescription
-    }
+    if let loaded = await Loaded.from({ try await session.sharedWithMe() }) { shared = loaded }
   }
 }

@@ -72,6 +72,8 @@ import {
   stringList,
 } from "../rest-schemas";
 
+const accessOut = z.enum(ENTITY_ACCESS).meta({ id: "Access" });
+
 /**
  * What `load` returns, declared so the REST transport can describe it.
  * `appState` and `elements` are the stored JSON blobs, kept as the opaque
@@ -94,28 +96,40 @@ const loadOutput = z.object({
 });
 
 /** What `list` returns: one row per entity the dashboard draws. */
-const entityListItem = z.object({
-  id: z.string(),
-  title: z.string(),
-  entityType: entityTypeOut,
-  createdAt: isoDate,
-  updatedAt: isoDate,
-  screenShotLight: z.string(),
-  screenShotDark: z.string(),
-  thumbnailStatus: z.enum(["pending", "ready", "error"]).nullable(),
-  thumbnailVersion: z.string().nullable(),
-  thumbnailUpdatedAt: isoDate.nullable(),
-  // What the caller may do with it, rather than whose it is: someone it was
-  // shared with has no use for the owner's id. See `ACTION_NEEDS`.
-  access: z.enum(ENTITY_ACCESS),
-  publicAccess: z.enum(PublicAccess),
-  parentId: z.string().nullable(),
-  favoritedAt: isoDate.nullable(),
-  archivedAt: isoDate.nullable(),
-  sharedWithCount: z.number(),
-  tags: z.array(z.string()),
-  childCount: z.number(),
-});
+const entityListItem = z
+  .object({
+    id: z.string(),
+    title: z.string(),
+    entityType: entityTypeOut,
+    createdAt: isoDate,
+    updatedAt: isoDate,
+    screenShotLight: z.string(),
+    screenShotDark: z.string(),
+    thumbnailStatus: z.enum(["pending", "ready", "error"]).nullable(),
+    thumbnailVersion: z.string().nullable(),
+    thumbnailUpdatedAt: isoDate.nullable(),
+    // What the caller may do with it, rather than whose it is: someone it was
+    // shared with has no use for the owner's id. See `ACTION_NEEDS`.
+    access: accessOut,
+    publicAccess: z.enum(PublicAccess),
+    parentId: z.string().nullable(),
+    favoritedAt: isoDate.nullable(),
+    archivedAt: isoDate.nullable(),
+    sharedWithCount: z.number(),
+    tags: z.array(z.string()),
+    childCount: z.number(),
+    folderCount: z
+      .number()
+      .describe("How many of `childCount` are folders, for a folder tree"),
+  })
+  .meta({ id: "ListedEntity" });
+
+/**
+ * An item's direct children the caller owns or was given, the ones a listing
+ * shows them inside it, as `from … where …` open to further conditions.
+ */
+const listedChildren = (userId: string) =>
+  sql`from Entities as child where child.parentId = ${schema.entities.id} and child.deletedAt is null and (child.userId = ${userId} or exists (select 1 from SharedEntities as share where share.entityId = child.id and share.userId = ${userId}))`;
 
 /**
  * What `search` returns: enough to render a hit, say where it is and why it
@@ -157,13 +171,13 @@ const entityPlace = z.object({
   entityType: entityTypeOut,
   publicAccess: z.enum(PublicAccess),
   parentId: z.string().nullable(),
-  access: z.enum(ENTITY_ACCESS),
+  access: accessOut,
   /** The folders above it the caller may open, from the top down. */
   ancestors: z.array(
     z.object({
       id: z.string(),
       title: z.string(),
-      access: z.enum(ENTITY_ACCESS),
+      access: accessOut,
     }),
   ),
 });
@@ -177,6 +191,16 @@ const entitySummary = z.object({
   createdAt: isoDate,
   updatedAt: isoDate,
 });
+
+/** The columns an {@link entitySummary} is read from. */
+const summaryColumns = {
+  id: schema.entities.id,
+  title: schema.entities.title,
+  entityType: schema.entities.entityType,
+  parentId: schema.entities.parentId,
+  createdAt: schema.entities.createdAt,
+  updatedAt: schema.entities.updatedAt,
+};
 
 const notFound = () =>
   new TRPCError({ code: "NOT_FOUND", message: "Entity not found" });
@@ -280,9 +304,8 @@ async function listedEntities(
       archivedAt: schema.userEntityPrefs.archivedAt,
       sharedWithCount: sql<number>`count(${schema.sharedEntities.userId})`,
       tags: sql<string>`group_concat(${schema.tags.name}, ',')`,
-      // Direct children the caller owns or was given, the ones this
-      // listing shows them inside it.
-      childCount: sql<number>`(select cast(count(*) as int) from Entities as child where child.parentId = ${schema.entities.id} and child.deletedAt is null and (child.userId = ${userId} or exists (select 1 from SharedEntities as share where share.entityId = child.id and share.userId = ${userId})))`,
+      childCount: sql<number>`(select cast(count(*) as int) ${listedChildren(userId)})`,
+      folderCount: sql<number>`(select cast(count(*) as int) ${listedChildren(userId)} and child.entityType = 'directory')`,
     })
     .from(schema.entities)
     .leftJoin(
@@ -329,21 +352,19 @@ async function listedEntities(
 }
 
 const BLANK = {
-  document: JSON.stringify(EMPTY_CONTENT),
-  drawing: "[]",
-  directory: "{}",
+  document: { title: "New document", elements: JSON.stringify(EMPTY_CONTENT) },
+  drawing: { title: "New drawing", elements: "[]" },
+  directory: { title: "New folder", elements: "{}" },
 };
 
-/** What `input` is created with: its elements, or its kind's blank. */
-function createdElements(input: CreateEntity) {
-  if (input.elements !== undefined) return input.elements;
-  if (input.entityType === "url") {
-    throw new TRPCError({
-      code: "BAD_REQUEST",
-      message: "A url needs its elements: its address is its content",
-    });
-  }
-  return BLANK[input.entityType];
+/** What `input` is created with: what it says, or its kind's blank. */
+function createdContent(input: CreateEntity) {
+  if (input.entityType === "url") return input;
+  const blank = BLANK[input.entityType];
+  return {
+    title: input.title ?? blank.title,
+    elements: input.elements ?? blank.elements,
+  };
 }
 
 export const entityRouter = createTRPCRouter({
@@ -355,15 +376,13 @@ export const entityRouter = createTRPCRouter({
         tags: ["entities"],
         summary: "Create an entity; returns the existing one on a repeat",
         protect: true,
-        // A POST has no 404 by default, and both the 404 a missing parent
-        // directory earns and the 409 on a taken id are this path's own.
         errorResponses: [400, 401, 403, 404, 409, 500],
       },
     })
     .input(CreateEntity)
     .output(entitySummary)
     .mutation(async ({ input, ctx }) => {
-      const given = createdElements(input);
+      const { title, elements: given } = createdContent(input);
       const parentId = await resolveParentDirectory(
         ctx.drizzle,
         input.parentId,
@@ -379,7 +398,7 @@ export const entityRouter = createTRPCRouter({
           createdAt: new Date(),
           updatedAt: new Date(),
           deletedAt: undefined,
-          title: input.title,
+          title,
           userId: ctx.session?.user.id,
           entityType: input.entityType,
           publicAccess: PublicAccess.PRIVATE,
@@ -388,14 +407,7 @@ export const entityRouter = createTRPCRouter({
           appState: JSON.stringify({}),
         })
         .onConflictDoNothing()
-        .returning({
-          id: schema.entities.id,
-          title: schema.entities.title,
-          entityType: schema.entities.entityType,
-          parentId: schema.entities.parentId,
-          createdAt: schema.entities.createdAt,
-          updatedAt: schema.entities.updatedAt,
-        });
+        .returning(summaryColumns);
       if (created) {
         await queueThumbnail(ctx.drizzle, {
           ...created,
@@ -547,7 +559,6 @@ export const entityRouter = createTRPCRouter({
     .meta({
       openapi: {
         method: "GET",
-        // Registered before /entities/{id} so the literal segment wins.
         path: "/entities/search",
         tags: ["entities"],
         summary: "Search entities by title",
@@ -599,7 +610,6 @@ export const entityRouter = createTRPCRouter({
     .meta({
       openapi: {
         method: "GET",
-        // Registered before /entities/{id} so the literal segment wins.
         path: "/entities/shared",
         tags: ["entities"],
         summary:
@@ -628,7 +638,6 @@ export const entityRouter = createTRPCRouter({
     .meta({
       openapi: {
         method: "GET",
-        // Registered before /entities/{id} so the literal segment wins.
         path: "/entities/trash",
         tags: ["entities"],
         summary: "List the caller's own entities in the trash, last in first",
@@ -1163,8 +1172,6 @@ export const entityRouter = createTRPCRouter({
         summary:
           "Take an entity out of the trash, into its folder if its owner may still write there",
         protect: true,
-        // A POST has no 404 by default; an entity not in the caller's trash
-        // is one.
         errorResponses: [400, 401, 403, 404, 500],
       },
     })
@@ -1193,14 +1200,7 @@ export const entityRouter = createTRPCRouter({
         .update(schema.entities)
         .set({ deletedAt: null, parentId })
         .where(eq(schema.entities.id, input.id))
-        .returning({
-          id: schema.entities.id,
-          title: schema.entities.title,
-          entityType: schema.entities.entityType,
-          parentId: schema.entities.parentId,
-          createdAt: schema.entities.createdAt,
-          updatedAt: schema.entities.updatedAt,
-        });
+        .returning(summaryColumns);
       if (!restored) throw notFound();
 
       await revalidateEntitiesAndParents(
@@ -1210,63 +1210,6 @@ export const entityRouter = createTRPCRouter({
         parentId,
       );
       return restored;
-    }),
-  move: protectedProcedure
-    .meta({
-      openapi: {
-        method: "POST",
-        path: "/entities/{id}/move",
-        tags: ["entities"],
-        summary: "Move an entity into a folder, or to the top of Home",
-        protect: true,
-        // A POST has no 404 by default; an entity or folder the caller may
-        // not write is one.
-        errorResponses: [400, 401, 403, 404, 500],
-      },
-    })
-    .input(
-      z.object({
-        id: z.string(),
-        parentId: z
-          .string()
-          .nullable()
-          .optional()
-          .describe("The folder it goes into; omitted or null is Home"),
-      }),
-    )
-    .output(entitySummary)
-    .mutation(async ({ input, ctx }) => {
-      const userId = ctx.session.user.id;
-      const entity = await findEntityFor(ctx.drizzle, input.id, userId, "move");
-      if (!entity) throw notFound();
-
-      const parentId = await resolveMoveDestination(
-        ctx.drizzle,
-        entity,
-        input.parentId ?? null,
-        userId,
-      );
-      const [moved] = await ctx.drizzle
-        .update(schema.entities)
-        .set({ parentId, updatedAt: new Date() })
-        .where(eq(schema.entities.id, input.id))
-        .returning({
-          id: schema.entities.id,
-          title: schema.entities.title,
-          entityType: schema.entities.entityType,
-          parentId: schema.entities.parentId,
-          createdAt: schema.entities.createdAt,
-          updatedAt: schema.entities.updatedAt,
-        });
-      if (!moved) throw notFound();
-
-      await revalidateEntitiesAndParents(
-        ctx.drizzle,
-        input.id,
-        entity.parentId,
-        parentId,
-      );
-      return moved;
     }),
   update: publicProcedure
     .meta({
@@ -1380,7 +1323,6 @@ export const entityRouter = createTRPCRouter({
         tags: ["entities"],
         summary: "Share an entity with a user by email",
         protect: true,
-        // A POST has no 404 by default; an unknown entity or invitee is one.
         errorResponses: [400, 401, 403, 404, 500],
       },
     })

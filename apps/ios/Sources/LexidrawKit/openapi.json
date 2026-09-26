@@ -43,19 +43,9 @@
                     "scope": {
                       "type": ["string", "null"],
                       "enum": ["read", "write", null]
-                    },
-                    "deletionConfirmation": {
-                      "type": "string",
-                      "description": "What POST /me/delete takes to confirm deleting it"
                     }
                   },
-                  "required": [
-                    "userId",
-                    "email",
-                    "authKind",
-                    "scope",
-                    "deletionConfirmation"
-                  ],
+                  "required": ["userId", "email", "authKind", "scope"],
                   "additionalProperties": false
                 }
               }
@@ -115,6 +105,87 @@
       }
     },
     "/me/delete": {
+      "get": {
+        "operationId": "auth-deletionConfirmation",
+        "summary": "What confirms deleting the caller's account",
+        "tags": ["auth"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "confirmation": {
+                      "type": "string",
+                      "description": "The account's email, or its name when it has no email"
+                    }
+                  },
+                  "required": ["confirmation"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authorization not provided",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient access",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
       "post": {
         "operationId": "auth-deleteAccount",
         "summary": "Delete the caller's account, files and tokens; confirm with its email",
@@ -224,23 +295,24 @@
                   "id": {
                     "type": "string"
                   },
-                  "title": {
-                    "type": "string"
-                  },
-                  "elements": {
-                    "description": "Omitted starts the entity empty, as the editor opens a new one. A url needs it: its address is its content.",
-                    "type": "string"
-                  },
                   "entityType": {
                     "type": "string",
                     "enum": ["drawing", "document", "directory", "url"]
+                  },
+                  "title": {
+                    "description": "Omitted is \"New document\", \"New drawing\" or \"New folder\"; a url needs it",
+                    "type": "string"
+                  },
+                  "elements": {
+                    "description": "Omitted starts it empty, as the editor opens a new one; a url needs it",
+                    "type": "string"
                   },
                   "parentId": {
                     "description": "The folder it goes into; omitted or null is Home",
                     "type": ["string", "null"]
                   }
                 },
-                "required": ["id", "title", "entityType"]
+                "required": ["id", "entityType"]
               }
             }
           }
@@ -260,8 +332,7 @@
                       "type": "string"
                     },
                     "entityType": {
-                      "type": "string",
-                      "enum": ["drawing", "document", "directory", "url"]
+                      "$ref": "#/components/schemas/EntityType"
                     },
                     "parentId": {
                       "type": ["string", "null"]
@@ -489,96 +560,7 @@
                 "schema": {
                   "type": "array",
                   "items": {
-                    "type": "object",
-                    "properties": {
-                      "id": {
-                        "type": "string"
-                      },
-                      "title": {
-                        "type": "string"
-                      },
-                      "entityType": {
-                        "type": "string",
-                        "enum": ["drawing", "document", "directory", "url"]
-                      },
-                      "createdAt": {
-                        "format": "date-time",
-                        "type": "string"
-                      },
-                      "updatedAt": {
-                        "format": "date-time",
-                        "type": "string"
-                      },
-                      "screenShotLight": {
-                        "type": "string"
-                      },
-                      "screenShotDark": {
-                        "type": "string"
-                      },
-                      "thumbnailStatus": {
-                        "type": ["string", "null"],
-                        "enum": ["pending", "ready", "error", null]
-                      },
-                      "thumbnailVersion": {
-                        "type": ["string", "null"]
-                      },
-                      "thumbnailUpdatedAt": {
-                        "format": "date-time",
-                        "type": ["string", "null"]
-                      },
-                      "access": {
-                        "type": "string",
-                        "enum": ["read", "edit", "owner"]
-                      },
-                      "publicAccess": {
-                        "type": "string",
-                        "enum": ["READ", "PRIVATE", "EDIT"]
-                      },
-                      "parentId": {
-                        "type": ["string", "null"]
-                      },
-                      "favoritedAt": {
-                        "format": "date-time",
-                        "type": ["string", "null"]
-                      },
-                      "archivedAt": {
-                        "format": "date-time",
-                        "type": ["string", "null"]
-                      },
-                      "sharedWithCount": {
-                        "type": "number"
-                      },
-                      "tags": {
-                        "type": "array",
-                        "items": {
-                          "type": "string"
-                        }
-                      },
-                      "childCount": {
-                        "type": "number"
-                      }
-                    },
-                    "required": [
-                      "id",
-                      "title",
-                      "entityType",
-                      "createdAt",
-                      "updatedAt",
-                      "screenShotLight",
-                      "screenShotDark",
-                      "thumbnailStatus",
-                      "thumbnailVersion",
-                      "thumbnailUpdatedAt",
-                      "access",
-                      "publicAccess",
-                      "parentId",
-                      "favoritedAt",
-                      "archivedAt",
-                      "sharedWithCount",
-                      "tags",
-                      "childCount"
-                    ],
-                    "additionalProperties": false
+                    "$ref": "#/components/schemas/ListedEntity"
                   }
                 }
               }
@@ -809,8 +791,7 @@
                       "type": "string"
                     },
                     "entityType": {
-                      "type": "string",
-                      "enum": ["drawing", "document", "directory", "url"]
+                      "$ref": "#/components/schemas/EntityType"
                     },
                     "appState": {
                       "type": ["string", "null"]
@@ -1149,8 +1130,7 @@
                         "type": "string"
                       },
                       "entityType": {
-                        "type": "string",
-                        "enum": ["drawing", "document", "directory", "url"]
+                        "$ref": "#/components/schemas/EntityType"
                       },
                       "screenShotLight": {
                         "type": "string"
@@ -1260,96 +1240,7 @@
                 "schema": {
                   "type": "array",
                   "items": {
-                    "type": "object",
-                    "properties": {
-                      "id": {
-                        "type": "string"
-                      },
-                      "title": {
-                        "type": "string"
-                      },
-                      "entityType": {
-                        "type": "string",
-                        "enum": ["drawing", "document", "directory", "url"]
-                      },
-                      "createdAt": {
-                        "format": "date-time",
-                        "type": "string"
-                      },
-                      "updatedAt": {
-                        "format": "date-time",
-                        "type": "string"
-                      },
-                      "screenShotLight": {
-                        "type": "string"
-                      },
-                      "screenShotDark": {
-                        "type": "string"
-                      },
-                      "thumbnailStatus": {
-                        "type": ["string", "null"],
-                        "enum": ["pending", "ready", "error", null]
-                      },
-                      "thumbnailVersion": {
-                        "type": ["string", "null"]
-                      },
-                      "thumbnailUpdatedAt": {
-                        "format": "date-time",
-                        "type": ["string", "null"]
-                      },
-                      "access": {
-                        "type": "string",
-                        "enum": ["read", "edit", "owner"]
-                      },
-                      "publicAccess": {
-                        "type": "string",
-                        "enum": ["READ", "PRIVATE", "EDIT"]
-                      },
-                      "parentId": {
-                        "type": ["string", "null"]
-                      },
-                      "favoritedAt": {
-                        "format": "date-time",
-                        "type": ["string", "null"]
-                      },
-                      "archivedAt": {
-                        "format": "date-time",
-                        "type": ["string", "null"]
-                      },
-                      "sharedWithCount": {
-                        "type": "number"
-                      },
-                      "tags": {
-                        "type": "array",
-                        "items": {
-                          "type": "string"
-                        }
-                      },
-                      "childCount": {
-                        "type": "number"
-                      }
-                    },
-                    "required": [
-                      "id",
-                      "title",
-                      "entityType",
-                      "createdAt",
-                      "updatedAt",
-                      "screenShotLight",
-                      "screenShotDark",
-                      "thumbnailStatus",
-                      "thumbnailVersion",
-                      "thumbnailUpdatedAt",
-                      "access",
-                      "publicAccess",
-                      "parentId",
-                      "favoritedAt",
-                      "archivedAt",
-                      "sharedWithCount",
-                      "tags",
-                      "childCount"
-                    ],
-                    "additionalProperties": false
+                    "$ref": "#/components/schemas/ListedEntity"
                   }
                 }
               }
@@ -1435,8 +1326,7 @@
                         "type": "string"
                       },
                       "entityType": {
-                        "type": "string",
-                        "enum": ["drawing", "document", "directory", "url"]
+                        "$ref": "#/components/schemas/EntityType"
                       },
                       "screenShotLight": {
                         "type": "string"
@@ -1561,8 +1451,7 @@
                       "type": "string"
                     },
                     "entityType": {
-                      "type": "string",
-                      "enum": ["drawing", "document", "directory", "url"]
+                      "$ref": "#/components/schemas/EntityType"
                     },
                     "publicAccess": {
                       "type": "string",
@@ -1572,8 +1461,7 @@
                       "type": ["string", "null"]
                     },
                     "access": {
-                      "type": "string",
-                      "enum": ["read", "edit", "owner"]
+                      "$ref": "#/components/schemas/Access"
                     },
                     "ancestors": {
                       "type": "array",
@@ -1587,8 +1475,7 @@
                             "type": "string"
                           },
                           "access": {
-                            "type": "string",
-                            "enum": ["read", "edit", "owner"]
+                            "$ref": "#/components/schemas/Access"
                           }
                         },
                         "required": ["id", "title", "access"],
@@ -2201,140 +2088,7 @@
                       "type": "string"
                     },
                     "entityType": {
-                      "type": "string",
-                      "enum": ["drawing", "document", "directory", "url"]
-                    },
-                    "parentId": {
-                      "type": ["string", "null"]
-                    },
-                    "createdAt": {
-                      "format": "date-time",
-                      "type": "string"
-                    },
-                    "updatedAt": {
-                      "format": "date-time",
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "id",
-                    "title",
-                    "entityType",
-                    "parentId",
-                    "createdAt",
-                    "updatedAt"
-                  ],
-                  "additionalProperties": false
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Invalid input data",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Authorization not provided",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Insufficient access",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/entities/{id}/move": {
-      "post": {
-        "operationId": "entities-move",
-        "summary": "Move an entity into a folder, or to the top of Home",
-        "tags": ["entities"],
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "in": "path",
-            "name": "id",
-            "schema": {
-              "type": "string"
-            },
-            "required": true
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "parentId": {
-                    "description": "The folder it goes into; omitted or null is Home",
-                    "type": ["string", "null"]
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "id": {
-                      "type": "string"
-                    },
-                    "title": {
-                      "type": "string"
-                    },
-                    "entityType": {
-                      "type": "string",
-                      "enum": ["drawing", "document", "directory", "url"]
+                      "$ref": "#/components/schemas/EntityType"
                     },
                     "parentId": {
                       "type": ["string", "null"]
@@ -5826,6 +5580,109 @@
   },
   "components": {
     "schemas": {
+      "EntityType": {
+        "type": "string",
+        "enum": ["drawing", "document", "directory", "url"]
+      },
+      "ListedEntity": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "entityType": {
+            "$ref": "#/components/schemas/EntityType"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "screenShotLight": {
+            "type": "string"
+          },
+          "screenShotDark": {
+            "type": "string"
+          },
+          "thumbnailStatus": {
+            "type": ["string", "null"],
+            "enum": ["pending", "ready", "error", null]
+          },
+          "thumbnailVersion": {
+            "type": ["string", "null"]
+          },
+          "thumbnailUpdatedAt": {
+            "format": "date-time",
+            "type": ["string", "null"]
+          },
+          "access": {
+            "$ref": "#/components/schemas/Access"
+          },
+          "publicAccess": {
+            "type": "string",
+            "enum": ["READ", "PRIVATE", "EDIT"]
+          },
+          "parentId": {
+            "type": ["string", "null"]
+          },
+          "favoritedAt": {
+            "format": "date-time",
+            "type": ["string", "null"]
+          },
+          "archivedAt": {
+            "format": "date-time",
+            "type": ["string", "null"]
+          },
+          "sharedWithCount": {
+            "type": "number"
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "childCount": {
+            "type": "number"
+          },
+          "folderCount": {
+            "type": "number",
+            "description": "How many of `childCount` are folders, for a folder tree"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "entityType",
+          "createdAt",
+          "updatedAt",
+          "screenShotLight",
+          "screenShotDark",
+          "thumbnailStatus",
+          "thumbnailVersion",
+          "thumbnailUpdatedAt",
+          "access",
+          "publicAccess",
+          "parentId",
+          "favoritedAt",
+          "archivedAt",
+          "sharedWithCount",
+          "tags",
+          "childCount",
+          "folderCount"
+        ],
+        "additionalProperties": false
+      },
+      "Access": {
+        "type": "string",
+        "enum": ["read", "edit", "owner"]
+      },
       "ErrorResponse": {
         "type": "object",
         "title": "Error response",

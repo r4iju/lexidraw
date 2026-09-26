@@ -195,13 +195,7 @@ export function registerLexidrawTools(
       inputSchema: z.object({}),
       annotations: { readOnlyHint: true },
     },
-    () =>
-      call(async () => {
-        // Deleting the account is not an agent's to do, so it is not told
-        // what confirms it.
-        const { deletionConfirmation: _, ...me } = await caller.auth.me({});
-        return me;
-      }),
+    () => call(() => caller.auth.me({})),
   );
 
   server.registerTool(

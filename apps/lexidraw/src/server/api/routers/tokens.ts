@@ -76,7 +76,6 @@ export const tokensRouter = createTRPCRouter({
         description:
           "For signing a device or a CLI out. Every later request with the token is a 401; other tokens are untouched.",
         protect: true,
-        // A POST has no 404 by default; a token whose row is gone is one.
         errorResponses: [400, 401, 403, 404, 500],
       },
     })

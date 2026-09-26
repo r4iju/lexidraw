@@ -11,6 +11,7 @@ import {
   createTRPCRouter,
   protectedProcedure,
   publicProcedure,
+  writerProcedure,
 } from "~/server/api/trpc";
 import { schema } from "@packages/drizzle";
 import { type drizzle, eq, inArray, sql } from "@packages/drizzle";
@@ -234,21 +235,38 @@ export const authRouter = createTRPCRouter({
         email: z.string().nullable(),
         authKind: z.enum(["session", "token"]),
         scope: z.enum(["read", "write"]).nullable(),
-        deletionConfirmation: z
-          .string()
-          .describe("What POST /me/delete takes to confirm deleting it"),
       }),
     )
-    .query(async ({ ctx }) => {
-      const user = await identityOf(ctx.drizzle, ctx.session.user.id);
-      return {
-        userId: ctx.session.user.id,
-        email: ctx.session.user.email ?? null,
-        authKind: ctx.auth.kind,
-        scope: ctx.auth.kind === "token" ? ctx.auth.scope : null,
-        deletionConfirmation: deletionConfirmation(user),
-      };
-    }),
+    .query(({ ctx }) => ({
+      userId: ctx.session.user.id,
+      email: ctx.session.user.email ?? null,
+      authKind: ctx.auth.kind,
+      scope: ctx.auth.kind === "token" ? ctx.auth.scope : null,
+    })),
+  /** What {@link deleteAccount} takes to confirm it, for an app to ask for. */
+  deletionConfirmation: writerProcedure
+    .meta({
+      openapi: {
+        method: "GET",
+        path: "/me/delete",
+        tags: ["auth"],
+        summary: "What confirms deleting the caller's account",
+        protect: true,
+      },
+    })
+    .input(z.object({}))
+    .output(
+      z.object({
+        confirmation: z
+          .string()
+          .describe("The account's email, or its name when it has no email"),
+      }),
+    )
+    .query(async ({ ctx }) => ({
+      confirmation: deletionConfirmation(
+        await identityOf(ctx.drizzle, ctx.session.user.id),
+      ),
+    })),
   /**
    * Deletes the caller's account for good. Any token that may write can call
    * it, whichever app or script holds it; a read-only token is refused like

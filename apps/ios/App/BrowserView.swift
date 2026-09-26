@@ -136,7 +136,7 @@ private struct Sidebar: View {
     private var chain: [Place.Folder] { above + [Place.Folder(id: folder.id, title: folder.title)] }
 
     var body: some View {
-      if folder.itemCount == 0 {
+      if folder.folderCount == 0 {
         label
       } else {
         DisclosureGroup(isExpanded: $expanded) {

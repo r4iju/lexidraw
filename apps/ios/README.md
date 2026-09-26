@@ -32,7 +32,5 @@ hand:
 - The TestFlight group is set up by hand, as above.
 - A new file asks for its name straight away, as a new folder in Files does.
   The web opens the new file instead, which the app cannot do yet.
-- Shared with Me offers no move: where a file is kept is its owner's to
-  arrange.
-- Deleting says the file can be restored from the Trash. The web says it can't
-  be undone, since the web has no Trash to restore from.
+- The app doesn't save files yet, so the save messages that name the file and
+  say what to do next belong to #130, which brings editing.
