@@ -37,7 +37,7 @@ import Testing
   }
 
   /// The generated types cover what Lexical writes: nothing is left opaque or
-  /// unparsed, except `version`, which Lexical writes and never reads.
+  /// unparsed but `version`.
   @Test func everyPropertyLexicalWritesIsTyped() {
     var untyped: [String] = []
     func walk(_ node: SerializedNode) {
@@ -76,6 +76,17 @@ import Testing
     }
     #expect(payload.tag == .h3)
     #expect(payload.children == [.opaque(future), .opaque(callout)])
+  }
+
+  @Test func aNullablePropertyTellsAbsentFromNullFromAValue() {
+    func direction(_ json: JSONValue) -> Nullable<Direction>? {
+      guard case .heading(let heading) = SerializedNode(json: json) else { return nil }
+      return heading.direction
+    }
+
+    #expect(direction(["type": "heading", "children": []]) == .absent)
+    #expect(direction(["type": "heading", "children": [], "direction": nil]) == .null)
+    #expect(direction(["type": "heading", "children": [], "direction": "rtl"]) == .value(.rtl))
   }
 
   /// A stored value outside a field's domain reads as Lexical reads it, so a

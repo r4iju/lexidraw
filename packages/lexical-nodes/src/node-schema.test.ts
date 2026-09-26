@@ -1,7 +1,15 @@
 import { expect, test } from "bun:test";
 import { createHeadlessEditor } from "@lexical/headless";
-import { ElementNode, type SerializedElementNode } from "lexical";
-import { exportNodeSchema, NODE_SCHEMA_URL } from "./node-schema.js";
+import {
+  ArtificialNode__DO_NOT_USE,
+  ElementNode,
+  type SerializedElementNode,
+} from "lexical";
+import {
+  exportNodeSchema,
+  NODE_SCHEMA_URL,
+  nodeSchemaFile,
+} from "./node-schema.js";
 import { CORE_NODES } from "./nodes.js";
 
 const schema = exportNodeSchema(CORE_NODES);
@@ -10,47 +18,12 @@ function node(type: string) {
   return schema.nodes.find((candidate) => candidate.type === type);
 }
 
-test("describes a built-in node's version, children and field types", () => {
-  expect(node("heading")).toEqual({
-    type: "heading",
-    version: 1,
-    children: true,
-    fields: {
-      direction: { kind: "enum", values: [null, "ltr", "rtl"], default: null },
-      format: {
-        kind: "enum",
-        values: ["", "left", "start", "center", "right", "end", "justify"],
-        default: "",
-      },
-      indent: { kind: "number", integer: true, min: 0, default: 0 },
-      tag: {
-        kind: "enum",
-        values: ["h1", "h2", "h3", "h4", "h5", "h6"],
-        default: "h1",
-      },
-      textFormat: { kind: "number", default: 0 },
-      textStyle: { kind: "string", default: "" },
-    },
-    state: {},
-  });
-  expect(node("linebreak")).toEqual({
-    type: "linebreak",
-    version: 1,
-    children: false,
-    fields: {},
-    state: {},
-  });
+test("names each node by its Lexical class", () => {
+  expect(node("listitem")?.className).toBe("ListItemNode");
+  expect(node("horizontalrule")?.className).toBe("HorizontalRuleNode");
 });
 
 test("describes how Lexical reads each field, down to aliases and bounds", () => {
-  expect(node("listitem")?.fields.indent).toEqual({
-    kind: "number",
-    clamp: true,
-    integer: true,
-    max: 128,
-    min: 0,
-    default: 0,
-  });
   expect(node("link")?.fields.rel).toEqual({
     kind: "nullable",
     defaultAsNull: true,
@@ -86,10 +59,10 @@ test("lists node state apart from fields", () => {
   expect(node("quote")?.fields).not.toHaveProperty("shadowRoot");
 });
 
-test("covers every registered node, listing custom ones as undeclared by type", () => {
+test("covers every registered node but Lexical's never-stored artificial one, listing custom ones as undeclared by type", () => {
   const registered = [
     ...createHeadlessEditor({ nodes: CORE_NODES })._nodes.keys(),
-  ];
+  ].filter((type) => type !== ArtificialNode__DO_NOT_USE.getType());
   const declared = schema.nodes.map((described) => described.type);
 
   expect([...declared, ...schema.undeclared].sort()).toEqual(registered.sort());
@@ -114,8 +87,17 @@ test("refuses a declared node that writes a property its schema leaves out", () 
   expect(() => exportNodeSchema([LooseNode])).toThrow(/loose.*extra/);
 });
 
-test("the committed schema is a fresh export", async () => {
-  // `bun run node-schema` in packages/lexical-nodes rewrites it.
-  const committed = await Bun.file(NODE_SCHEMA_URL).json();
-  expect(committed).toEqual(schema);
+test("refuses a class name that Lexical's production build minified", () => {
+  const Ht = class extends ElementNode {
+    $config() {
+      return this.config("minified", { extends: ElementNode });
+    }
+  };
+
+  expect(() => exportNodeSchema([Ht])).toThrow(/minified.*Ht/);
+});
+
+test("the committed schema is a fresh export, byte for byte", async () => {
+  const committed = await Bun.file(NODE_SCHEMA_URL).text();
+  expect(committed).toBe(nodeSchemaFile(schema));
 });

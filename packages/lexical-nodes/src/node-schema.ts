@@ -1,5 +1,6 @@
 import {
   $create,
+  ArtificialNode__DO_NOT_USE,
   $isElementNode,
   type AnySerializationSchema,
   createEditor,
@@ -23,6 +24,8 @@ export type NodeSchema = {
 
 export type NodeDescription = {
   type: string;
+  /** The Lexical class, e.g. `ListItemNode`, for naming it elsewhere. */
+  className: string;
   /** What Lexical writes as `version`; it never reads it back. */
   version: number;
   children: boolean;
@@ -66,6 +69,11 @@ export type FieldType = { default?: JSONValue } & (
 
 export const NODE_SCHEMA_URL = new URL("../node-schema.json", import.meta.url);
 
+/** The committed file's exact text for `schema`. */
+export function nodeSchemaFile(schema: NodeSchema): string {
+  return `${JSON.stringify(schema, null, 2)}\n`;
+}
+
 /** Properties every node writes that aren't its schema's fields. */
 const ENVELOPE = new Set(["type", "version", "children", "$", "$slots"]);
 
@@ -84,6 +92,8 @@ export function exportNodeSchema(nodes: Klass<LexicalNode>[]): NodeSchema {
   const described: NodeDescription[] = [];
   const undeclared: string[] = [];
   for (const [type, { klass }] of editor._nodes) {
+    // Lexical registers it in every editor, but it never reaches stored JSON.
+    if (klass === ArtificialNode__DO_NOT_USE) continue;
     if (getStaticNodeConfig(klass).declaresOwnConfig) {
       editor.update(() => described.push(describe(type, klass)), {
         discrete: true,
@@ -93,8 +103,8 @@ export function exportNodeSchema(nodes: Klass<LexicalNode>[]): NodeSchema {
     }
   }
   return {
-    nodes: described.sort((a, b) => compare(a.type, b.type)),
-    undeclared: undeclared.sort(compare),
+    nodes: described.sort((a, b) => byCodeUnits(a.type, b.type)),
+    undeclared: undeclared.sort(byCodeUnits),
   };
 }
 
@@ -122,7 +132,8 @@ function describe(type: string, klass: Klass<LexicalNode>): NodeDescription {
 
   // The schema is Lexical's claim about the JSON; what a node actually writes
   // is the check on it.
-  const written = $create(klass).exportJSON();
+  const created = $create(klass);
+  const written = created.exportJSON();
   const extra = Object.keys(written).filter(
     (key) => !ENVELOPE.has(key) && !(key in fields) && !(key in state),
   );
@@ -131,10 +142,17 @@ function describe(type: string, klass: Klass<LexicalNode>): NodeDescription {
       `${type} writes ${extra.join(", ")}, which its schema doesn't declare`,
     );
   }
+  // Lexical's production build minifies class names.
+  if (!/^[A-Z][A-Za-z0-9]*Node$/.test(klass.name)) {
+    throw new Error(
+      `${type}'s class is called ${klass.name}; export with Lexical's development build`,
+    );
+  }
   return {
     type,
+    className: klass.name,
     version: written.version,
-    children: $isElementNode($create(klass)),
+    children: $isElementNode(created),
     fields,
     state,
   };
@@ -219,10 +237,10 @@ function definedOnly<T extends object>(object: T): T {
 }
 
 function sortedEntries<T>(record: Readonly<Record<string, T>>): [string, T][] {
-  return Object.entries(record).sort(([a], [b]) => compare(a, b));
+  return Object.entries(record).sort(([a], [b]) => byCodeUnits(a, b));
 }
 
-/** Code-unit order, so the committed file doesn't depend on locale. */
-function compare(a: string, b: string): number {
+/** Code-unit order, so generated files don't depend on locale. */
+export function byCodeUnits(a: string, b: string): number {
   return a < b ? -1 : a > b ? 1 : 0;
 }

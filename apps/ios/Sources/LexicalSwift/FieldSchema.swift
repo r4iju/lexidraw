@@ -1,7 +1,7 @@
 /// How one property of a node's JSON is read and written: the Swift side of a
 /// field type in the node schema.
 struct FieldSchema<Value: Equatable & Sendable>: Sendable {
-  /// What an absent or out-of-domain value reads as; nil where that's absence.
+  /// The field type's `default`; nil where it has none.
   let defaultValue: Value?
   /// Reads a stored value; nil where it reads as absent.
   let read: @Sendable (JSONValue) -> Value?

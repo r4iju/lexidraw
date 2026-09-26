@@ -2,6 +2,11 @@ name: Node schema
 
 on:
   pull_request:
+    paths:
+      - packages/lexical-nodes/**
+      - apps/ios/codegen/**
+      - bun.lock
+      - .github/workflows/node-schema.yml
 
 jobs:
   generated:

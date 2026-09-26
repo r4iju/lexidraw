@@ -1,5 +1,3 @@
-// Rewrites the Swift payload types from the committed node schema;
-// `bun run codegen` runs it.
 import { NODE_SCHEMA_URL } from "@packages/lexical-nodes/node-schema";
 import { SERIALIZED_NODES_PATH, swiftForNodeSchema } from "./swift";
 

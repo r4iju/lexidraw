@@ -1,21 +1,24 @@
 /// A node's stored JSON, as the type generated for it from the node schema
 /// (`SerializedNodes.swift`). Absent properties stay absent, so what was read
 /// is what gets written.
-public protocol NodePayload: Codable, Equatable, Sendable {
+public protocol NodePayload: JSONCodable, Equatable, Sendable {
   /// The node's `type`.
   static var type: String { get }
-  /// Properties the schema doesn't declare, written back as read. That
-  /// includes the deprecated `version`, which Lexical writes and never reads.
+  /// Properties the schema doesn't declare, written back as read.
   var unknownFields: [String: JSONValue] { get set }
-  init(json: JSONValue) throws
-  var json: JSONValue { get }
 }
 
 public protocol ElementNodePayload: NodePayload {
   var children: [SerializedNode]? { get set }
 }
 
-extension NodePayload {
+/// A value that is coded as the JSON it reads from and writes.
+public protocol JSONCodable: Codable {
+  init(json: JSONValue) throws
+  var json: JSONValue { get }
+}
+
+extension JSONCodable {
   public init(from decoder: any Decoder) throws {
     try self.init(json: JSONValue(from: decoder))
   }
@@ -25,14 +28,13 @@ extension NodePayload {
   }
 }
 
-extension SerializedNode: Codable {
-  public init(from decoder: any Decoder) throws {
-    self.init(json: try JSONValue(from: decoder))
-  }
+extension SerializedNode: JSONCodable {}
 
-  public func encode(to encoder: any Encoder) throws {
-    try json.encode(to: encoder)
-  }
+/// A property JSON can leave out, set to `null`, or set to a value.
+public enum Nullable<Value: Equatable & Sendable>: Equatable, Sendable {
+  case absent
+  case null
+  case value(Value)
 }
 
 extension SerializedNode {
@@ -66,6 +68,14 @@ struct NodeFields {
     rest.removeValue(forKey: key).flatMap(schema.read)
   }
 
+  mutating func takeNullable<Value>(_ key: String, _ schema: FieldSchema<Value?>) -> Nullable<Value> {
+    switch take(key, schema) {
+    case nil: .absent
+    case .some(nil): .null
+    case .some(.some(let value)): .value(value)
+    }
+  }
+
   mutating func takeChildren() -> [SerializedNode]? {
     guard case .array(let children)? = rest["children"] else { return nil }
     rest["children"] = nil
@@ -74,6 +84,14 @@ struct NodeFields {
 
   mutating func put<Value>(_ key: String, _ value: Value?, _ schema: FieldSchema<Value>) {
     if let value { rest[key] = schema.write(value) }
+  }
+
+  mutating func putNullable<Value>(_ key: String, _ value: Nullable<Value>, _ schema: FieldSchema<Value?>) {
+    switch value {
+    case .absent: break
+    case .null: put(key, .some(nil), schema)
+    case .value(let value): put(key, .some(value), schema)
+    }
   }
 
   mutating func putChildren(_ children: [SerializedNode]?) {
