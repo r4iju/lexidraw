@@ -89,7 +89,7 @@ export async function storeDrawingFile(
     );
   }
   const pathname = drawingFilePath(drawingId, file);
-  const created = Date.now();
+  let created: number | null;
   try {
     await put(pathname, new Blob([new Uint8Array(file.bytes)]), {
       access: "public",
@@ -98,21 +98,28 @@ export async function storeDrawingFile(
       allowOverwrite: false,
       token: env.BLOB_READ_WRITE_TOKEN,
     });
+    created = await storedAt(pathname);
   } catch (error) {
     // The store refuses an existing pathname as a bad request, with nothing
     // but its message to tell it from another one, so ask it what is there.
     if (!(error instanceof BlobError)) throw error;
-    const there = await head(pathname, {
-      token: env.BLOB_READ_WRITE_TOKEN,
-    }).catch(() => null);
-    if (!there) throw error;
-    return {
-      id: file.id,
-      mimeType: file.mimeType,
-      created: new Date(there.uploadedAt).getTime(),
-    };
+    created = await storedAt(pathname);
+    if (created === null) throw error;
   }
+  if (created === null)
+    throw new Error(`${pathname} was stored but is not there`);
   return { id: file.id, mimeType: file.mimeType, created };
+}
+
+/**
+ * When the store took the blob at `pathname`, by its own clock, which is what
+ * a listing answers; null when nothing is there.
+ */
+async function storedAt(pathname: string): Promise<number | null> {
+  const there = await head(pathname, {
+    token: env.BLOB_READ_WRITE_TOKEN,
+  }).catch(() => null);
+  return there ? new Date(there.uploadedAt).getTime() : null;
 }
 
 const withoutUrl = ({
