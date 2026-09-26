@@ -2,40 +2,46 @@ import { HashtagNode } from "@lexical/hashtag";
 import { LinkNode } from "@lexical/link";
 import {
   $create,
-  booleanValue,
   createEditor,
   DecoratorNode,
   type DOMConversionMap,
   type DOMConversionOutput,
   type DOMExportOutput,
   type EditorConfig,
-  enumValue,
   type Klass,
   type LexicalEditor,
   type LexicalNode,
+  type LexicalParseJSON,
   LineBreakNode,
   type NodeKey,
   nodeSchema,
-  numberValue,
   ParagraphNode,
   RootNode,
   type SerializedEditor,
   type SerializedLexicalNode,
   type Spread,
-  stringValue,
   TextNode,
   withAccessors,
   withField,
 } from "lexical";
 import {
-  inheritForZero,
+  falseOrStored,
   type NestedEditorJSON,
   nestedEditorValue,
+  rawValueOr,
+  type SchemaJSON,
   setNestedEditorJSON,
-  zeroForInherit,
+  storedValue,
 } from "../schema-values.js";
 import { EmojiNode } from "./EmojiNode.js";
 import { KeywordNode } from "./KeywordNode.js";
+import { inStoredOrder, withoutNodeState } from "../stored-order.js";
+import {
+  type Size,
+  type StoredSizeAccessors,
+  storedSizeFields,
+  withStoredSize,
+} from "./stored-size.js";
 
 export type Position = "left" | "right" | "full" | undefined;
 
@@ -76,13 +82,13 @@ function $convertInlineImageElement(domNode: Node): null | DOMConversionOutput {
 export type SerializedInlineImageNode = Spread<
   {
     altText: string;
-    caption: SerializedEditor;
-    height?: number;
+    caption: NestedEditorJSON;
+    height: number;
     showCaption: boolean;
     src: string;
-    width?: number;
+    width: number;
     position?: Position;
-    captionsEnabled?: boolean;
+    captionsEnabled: boolean;
   },
   SerializedLexicalNode
 >;
@@ -102,35 +108,35 @@ function createCaptionEditor(): LexicalEditor {
   });
 }
 
-const inlineImageSchema = nodeSchema<InlineImageNode>()({
-  altText: withField(stringValue(), { field: "__altText" }),
+const inlineImageFields = {
+  altText: withField(storedValue<string>(), { field: "__altText" }),
   caption: withAccessors(nestedEditorValue, {
     getter: "getCaptionJSON",
     setter: "setCaptionJSON",
   }),
-  captionsEnabled: withField(booleanValue(true), {
+  height: storedSizeFields.height,
+  position: withField(storedValue<Position>(), { field: "__position" }),
+  showCaption: withField(falseOrStored, { field: "__showCaption" }),
+  src: withField(storedValue<string>(), { field: "__src" }),
+  captionsEnabled: withField(rawValueOr(true, { nullAsAbsent: true }), {
     field: "__captionsEnabled",
   }),
-  height: withAccessors(numberValue(), {
-    getter: "getHeightJSON",
-    setter: "setHeightJSON",
-  }),
-  position: withField(enumValue([undefined, "left", "right", "full"]), {
-    field: "__position",
-  }),
-  showCaption: withField(booleanValue(), { field: "__showCaption" }),
-  src: withField(stringValue(), { field: "__src" }),
-  width: withAccessors(numberValue(), {
-    getter: "getWidthJSON",
-    setter: "setWidthJSON",
-  }),
-});
+  width: storedSizeFields.width,
+};
 
+/** @internal What {@link inlineImageFields} write, which {@link SerializedInlineImageNode} is checked against. */
+export type InlineImageFieldsJSON = SchemaJSON<typeof inlineImageFields>;
+
+const inlineImageSchema = nodeSchema<InlineImageNode>()(inlineImageFields);
+
+export interface InlineImageNode extends StoredSizeAccessors {}
+
+// biome-ignore lint/suspicious/noUnsafeDeclarationMerging: withStoredSize installs the accessors the interface declares.
 export class InlineImageNode extends DecoratorNode<unknown> {
   __src: string;
   __altText: string;
-  __width: "inherit" | number;
-  __height: "inherit" | number;
+  __width: Size;
+  __height: Size;
   __showCaption: boolean;
   __caption: LexicalEditor;
   __position: Position;
@@ -186,6 +192,19 @@ export class InlineImageNode extends DecoratorNode<unknown> {
     this.__captionsEnabled = captionsEnabled ?? true;
   }
 
+  exportJSON(): SerializedLexicalNode {
+    return inStoredOrder(super.exportJSON(), [
+      "type",
+      "captionsEnabled",
+      "version",
+      "width",
+    ]);
+  }
+
+  updateFromJSON(json: LexicalParseJSON<SerializedLexicalNode>): this {
+    return super.updateFromJSON(withoutNodeState(json));
+  }
+
   exportDOM(): DOMExportOutput {
     const element = document.createElement("img");
     element.setAttribute("src", this.__src);
@@ -201,24 +220,6 @@ export class InlineImageNode extends DecoratorNode<unknown> {
 
   setCaptionJSON(caption: NestedEditorJSON): this {
     setNestedEditorJSON(this.__caption, caption);
-    return this;
-  }
-
-  getWidthJSON(): number {
-    return zeroForInherit(this.__width);
-  }
-
-  setWidthJSON(width: number): this {
-    this.__width = inheritForZero(width);
-    return this;
-  }
-
-  getHeightJSON(): number {
-    return zeroForInherit(this.__height);
-  }
-
-  setHeightJSON(height: number): this {
-    this.__height = inheritForZero(height);
     return this;
   }
 
@@ -349,3 +350,5 @@ export class InlineImageNode extends DecoratorNode<unknown> {
     return node instanceof InlineImageNode;
   }
 }
+
+withStoredSize(InlineImageNode);

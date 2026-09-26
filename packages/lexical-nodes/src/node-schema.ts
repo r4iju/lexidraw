@@ -1,10 +1,11 @@
 import {
   $create,
-  ArtificialNode__DO_NOT_USE,
   $isDecoratorNode,
   $isElementNode,
   $isLineBreakNode,
   $isTextNode,
+  $parseSerializedNode,
+  ArtificialNode__DO_NOT_USE,
   type AnySerializationSchema,
   createEditor,
   getComposedSchemaFields,
@@ -13,7 +14,13 @@ import {
   type Klass,
   type LexicalNode,
 } from "lexical";
-import { isOpenObject, transformName } from "./schema-values.js";
+import {
+  checkOf,
+  isWrittenOnly,
+  readsNullAsAbsent,
+  shapeOf,
+  transformName,
+} from "./schema-values.js";
 
 /**
  * The language-neutral description of every node the editor registers: the
@@ -51,6 +58,12 @@ export type NodeDescription = {
   version: number;
   /** Whether it writes `children`: every element, and a few that don't hold any. */
   children: boolean;
+  /**
+   * Whether it writes back the NodeState it was read with, under `$`, where
+   * Lexical reads it as an object's properties: a string's characters, an
+   * array's items, nothing of a number. Some nodes read none.
+   */
+  keepsState: boolean;
   fields: Record<string, FieldType>;
   /** NodeState, written flat beside the fields or nested under `$`. */
   state: Record<string, { flat: boolean; value: FieldType }>;
@@ -71,7 +84,24 @@ type JSONValue =
 export type FieldType = { default?: JSONValue } & (
   | { kind: "string" }
   | { kind: "boolean" }
-  | { kind: "raw" }
+  | {
+      kind: "raw";
+      /** Reads null as it reads absence, as the default. */
+      nullAsAbsent?: true;
+      /** What the value is, where it reads back as itself. */
+      shape?: FieldType;
+      /** How the value is read where the node holds NodeState. */
+      withState?: FieldType;
+    }
+  | {
+      /**
+       * Written as the node holds it, and never read: a node read from JSON
+       * holds the default. A gated one is written only where it isn't.
+       */
+      kind: "unread";
+      inner: FieldType;
+      gated?: true;
+    }
   | {
       kind: "number";
       min?: number;
@@ -88,7 +118,10 @@ export type FieldType = { default?: JSONValue } & (
   | {
       kind: "object";
       fields: Record<string, FieldType>;
-      /** Keeps the keys it doesn't declare, and a union doesn't count them. */
+      /**
+       * Keeps the keys it doesn't declare, and a union doesn't count them:
+       * an object in a value kept as stored.
+       */
       open?: true;
     }
   | { kind: "transform"; inner: FieldType; name?: string }
@@ -229,7 +262,7 @@ function describe(type: string, klass: Klass<LexicalNode>): NodeDescription {
   }
   const fields: NodeDescription["fields"] = {};
   for (const [key, schema] of sortedEntries(getComposedSchemaFields(klass))) {
-    if (!(key in state)) fields[key] = fieldType(schema);
+    if (!(key in state)) fields[key] = fieldOf(schema);
   }
 
   // The schema is Lexical's claim about the JSON; what a node actually writes
@@ -261,17 +294,32 @@ function describe(type: string, klass: Klass<LexicalNode>): NodeDescription {
       `${type}'s class is called ${klass.name}; export with Lexical's development build`,
     );
   }
+  const read = $parseSerializedNode({ ...written, $: { probe: true } });
   return {
     type,
     className: klass.name,
     version: written.version,
     children: $isElementNode(created) || "children" in written,
+    keepsState: "$" in read.exportJSON(),
     fields,
     state,
   };
 }
 
-function fieldType(schema: AnySerializationSchema): FieldType {
+/** A node's own field: as {@link fieldType}, or unread where it's written only. */
+function fieldOf(schema: AnySerializationSchema): FieldType {
+  if (!isWrittenOnly(schema.meta)) return fieldType(schema);
+  const { getter } = schema;
+  const gated = typeof getter === "object" && getter?.when !== undefined;
+  return {
+    kind: "unread",
+    inner: fieldType(schema),
+    ...(gated ? { gated: true } : {}),
+  };
+}
+
+function fieldType(schema: AnySerializationSchema, stored = false): FieldType {
+  const described = (inner: AnySerializationSchema) => fieldType(inner, stored);
   const withDefault = (type: FieldType): FieldType =>
     schema.defaultValue === undefined
       ? type
@@ -280,8 +328,17 @@ function fieldType(schema: AnySerializationSchema): FieldType {
   switch (meta.kind) {
     case "string":
     case "boolean":
-    case "raw":
       return withDefault({ kind: meta.kind });
+    case "raw": {
+      const shape = shapeOf(meta);
+      const withState = checkOf(meta);
+      return withDefault({
+        kind: meta.kind,
+        ...(readsNullAsAbsent(meta) ? { nullAsAbsent: true } : {}),
+        ...(shape ? { shape: fieldType(shape, true) } : {}),
+        ...(withState ? { withState: described(withState) } : {}),
+      });
+    }
     case "number":
       return withDefault(
         definedOnly({
@@ -300,12 +357,12 @@ function fieldType(schema: AnySerializationSchema): FieldType {
         ) as JSONValue[],
       });
     case "array":
-      return withDefault({ kind: meta.kind, item: fieldType(meta.item) });
+      return withDefault({ kind: meta.kind, item: described(meta.item) });
     case "nullable":
       return withDefault(
         definedOnly({
           kind: meta.kind,
-          inner: fieldType(meta.inner),
+          inner: described(meta.inner),
           defaultAsNull: meta.defaultAsNull,
         }),
       );
@@ -313,20 +370,20 @@ function fieldType(schema: AnySerializationSchema): FieldType {
       return withDefault(
         definedOnly({
           kind: meta.kind,
-          inner: fieldType(meta.inner),
+          inner: described(meta.inner),
           omitDefault: meta.omitDefault,
         }),
       );
     case "aliased":
       return withDefault({
         kind: meta.kind,
-        inner: fieldType(meta.inner),
+        inner: described(meta.inner),
         aliases: { ...meta.aliases } as Record<string, JSONValue>,
       });
     case "union":
       return withDefault({
         kind: meta.kind,
-        members: meta.members.map(fieldType),
+        members: meta.members.map(described),
       });
     case "object":
       return withDefault({
@@ -334,17 +391,17 @@ function fieldType(schema: AnySerializationSchema): FieldType {
         fields: Object.fromEntries(
           sortedEntries(meta.fields).map(([key, field]) => [
             key,
-            fieldType(field),
+            described(field),
           ]),
         ),
-        ...(isOpenObject(meta) ? { open: true } : {}),
+        ...(stored ? { open: true } : {}),
       });
     case "transform":
       return withDefault(
         definedOnly({
           kind: meta.kind,
           name: transformName(meta),
-          inner: fieldType(meta.inner),
+          inner: described(meta.inner),
         }),
       );
   }

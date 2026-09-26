@@ -5,13 +5,9 @@ import {
   createState,
   DecoratorNode,
   ElementNode,
-  nodeSchema,
   numberValue,
-  objectValue,
   type SerializedElementNode,
   type SerializedLexicalNode,
-  stringValue,
-  withField,
 } from "lexical";
 import {
   exportNodeSchema,
@@ -20,7 +16,7 @@ import {
   nodeSchemaFile,
 } from "./node-schema.js";
 import { SCHEMA_NODES } from "./nodes.js";
-import { namedTransform, openObjectValue } from "./schema-values.js";
+import { namedTransform } from "./schema-values.js";
 
 const schema = exportNodeSchema(SCHEMA_NODES);
 
@@ -114,77 +110,107 @@ test("refuses a node that doesn't declare its JSON, by type", () => {
   expect(() => exportNodeSchema([LegacyNode])).toThrow(/^legacy: /);
 });
 
-test("describes the light custom nodes' figures and open data", () => {
-  expect(node("emoji")?.fields.className).toEqual({
-    kind: "string",
-    default: "",
-  });
+test("describes the light custom nodes' figures and threads", () => {
+  expect(node("emoji")?.fields.className).toEqual({ kind: "raw" });
   expect(node("layout-container")?.state.figure?.value).toMatchObject({
-    kind: "object",
-    fields: { width: { kind: "optional", inner: { name: "figureWidth" } } },
-  });
-  expect(node("thread")?.fields.thread).toMatchObject({
-    kind: "object",
-    open: true,
+    kind: "raw",
+    shape: {
+      kind: "object",
+      fields: { width: { kind: "optional", inner: { name: "figureWidth" } } },
+    },
   });
   expect(node("thread")?.children).toBe(true);
 });
 
+test("an object in a value kept as stored keeps the keys it doesn't declare", () => {
+  expect(node("thread")?.fields.thread).toMatchObject({
+    kind: "raw",
+    shape: {
+      kind: "object",
+      open: true,
+      fields: { comments: { kind: "array", item: { open: true } } },
+    },
+  });
+  expect(node("image")?.fields.caption).not.toHaveProperty("open");
+});
+
 test("describes the heavy decorator nodes' sizes, unions and dropped theme", () => {
-  // What the image writes for a width it takes from the page.
-  expect(node("image")?.fields.width).toEqual({ kind: "number", default: 0 });
-  expect(node("image")?.state.natural?.value).toMatchObject({
+  expect(node("image")?.fields.width).toEqual({
     kind: "transform",
-    name: "naturalSize",
+    name: "storedSize",
+    inner: { kind: "raw" },
+    default: 0,
+  });
+  expect(node("image")?.state.natural?.value).toMatchObject({
+    kind: "raw",
+    shape: { kind: "transform", name: "naturalSize" },
   });
   expect(node("chart")?.fields.width).toEqual({
     kind: "transform",
     name: "zeroAsInherit",
-    inner: {
-      kind: "union",
-      members: [
-        { kind: "number", default: 0 },
-        { kind: "enum", values: ["inherit"], default: "inherit" },
-      ],
-      default: "inherit",
-    },
+    inner: { kind: "raw", default: "inherit" },
     default: "inherit",
   });
-  expect(node("article")?.fields.data).toMatchObject({ kind: "union" });
+  expect(node("article")?.fields.data).toMatchObject({
+    kind: "raw",
+    shape: { kind: "union" },
+  });
   expect(node("code")?.fields.theme).toEqual({ kind: "enum", values: [] });
+  expect(node("code")?.fields.language).toEqual({
+    kind: "optional",
+    inner: {
+      kind: "transform",
+      name: "emptyAbsent",
+      inner: { kind: "string", default: "" },
+    },
+  });
+  expect(node("image")?.fields.caption).toMatchObject({
+    kind: "object",
+    fields: { editorState: { kind: "transform", name: "nestedEditorState" } },
+  });
 });
 
-test("tells an object that keeps the keys it doesn't declare from one that drops them", () => {
-  const shapes = nodeSchema<ShapesNode>()({
-    kept: withField(openObjectValue({ a: stringValue() }), { field: "__kept" }),
-    dropped: withField(objectValue({ b: numberValue() }), {
-      field: "__dropped",
-    }),
+test("describes a value kept as stored: its default, null read as absent, its shape", () => {
+  expect(node("excalidraw")?.fields.data).toEqual({
+    kind: "raw",
+    default: "[]",
+    nullAsAbsent: true,
   });
-  class ShapesNode extends DecoratorNode<null> {
-    __kept = { a: "" };
-    __dropped = { b: 0 };
-    $config() {
-      return this.config("shapes", { extends: DecoratorNode, json: shapes });
-    }
-    decorate() {
-      return null;
-    }
-  }
+  expect(node("slide-deck")?.fields.data).toMatchObject({
+    kind: "raw",
+    nullAsAbsent: true,
+    shape: { kind: "object", fields: { slides: { kind: "array" } } },
+  });
+});
 
-  expect(described(exportNodeSchema([ShapesNode]), "shapes")?.fields).toEqual({
-    dropped: {
-      kind: "object",
-      fields: { b: { kind: "number", default: 0 } },
-      default: { b: 0 },
-    },
-    kept: {
-      kind: "object",
-      open: true,
-      fields: { a: { kind: "string", default: "" } },
-      default: { a: "" },
+test("describes a value checked only where the node holds NodeState", () => {
+  expect(node("tweet")?.fields.format).toEqual({
+    kind: "raw",
+    withState: {
+      kind: "enum",
+      values: ["", "left", "start", "center", "right", "end", "justify"],
+      default: "",
     },
   });
+});
+
+test("describes a property written as the node holds it but never read", () => {
+  expect(node("collapsible-title")?.fields.direction).toEqual({
+    kind: "unread",
+    inner: { kind: "enum", values: [null, "ltr", "rtl"], default: null },
+  });
+  expect(node("layout-item")?.fields.textStyle).toEqual({
+    kind: "unread",
+    gated: true,
+    inner: { kind: "string", default: "" },
+  });
+});
+
+test("says which nodes keep the NodeState they were read with", () => {
+  expect(node("paragraph")?.keepsState).toBe(true);
+  expect(node("image")?.keepsState).toBe(true);
+  expect(node("emoji")?.keepsState).toBe(false);
+  expect(node("slide-deck")?.keepsState).toBe(false);
 });
 
 test("names the transform a value is read through, down in nested state", () => {

@@ -12,27 +12,30 @@ import {
   nodeSchema,
   type SerializedLexicalNode,
   type Spread,
-  stringValue,
   withField,
 } from "lexical";
 import { figureDOM, figureState, naturalSizeState } from "../figure.js";
-import { type Dimension, dimensionValue } from "../schema-values.js";
+import { rawValueOr, type SchemaJSON } from "../schema-values.js";
+import { inStoredOrder } from "../stored-order.js";
+import { inheritOrStoredSize, type Size } from "./stored-size.js";
 
 export type SerializedExcalidrawNode = Spread<
-  {
-    data: string;
-    justInserted?: boolean;
-    width: Dimension;
-    height: Dimension;
-  },
+  { data: string; width: Size; height: Size },
   SerializedLexicalNode
 >;
 
-const excalidrawSchema = nodeSchema<ExcalidrawNode>()({
-  data: withField(stringValue("[]"), { field: "__data" }),
-  width: withField(dimensionValue, { field: "__width" }),
-  height: withField(dimensionValue, { field: "__height" }),
-});
+const excalidrawFields = {
+  data: withField(rawValueOr("[]", { nullAsAbsent: true }), {
+    field: "__data",
+  }),
+  width: withField(inheritOrStoredSize, { field: "__width" }),
+  height: withField(inheritOrStoredSize, { field: "__height" }),
+};
+
+/** @internal What {@link excalidrawFields} write, which {@link SerializedExcalidrawNode} is checked against. */
+export type ExcalidrawFieldsJSON = SchemaJSON<typeof excalidrawFields>;
+
+const excalidrawSchema = nodeSchema<ExcalidrawNode>()(excalidrawFields);
 
 /**
  * Serialization half of the excalidraw block; see ImageNode for the split.
@@ -41,8 +44,8 @@ export class ExcalidrawNode extends DecoratorNode<unknown> {
   __data: string;
   /** Only an insertion opens the drawing modal, so clones never inherit it. */
   __justInserted?: boolean;
-  __width: Dimension;
-  __height: Dimension;
+  __width: Size;
+  __height: Size;
 
   $config() {
     return this.config("excalidraw", {
@@ -55,8 +58,8 @@ export class ExcalidrawNode extends DecoratorNode<unknown> {
   constructor(
     data = "[]",
     justInserted = false,
-    width: Dimension = "inherit",
-    height: Dimension = "inherit",
+    width: Size = "inherit",
+    height: Size = "inherit",
     key?: NodeKey,
   ) {
     super(key);
@@ -64,6 +67,10 @@ export class ExcalidrawNode extends DecoratorNode<unknown> {
     this.__justInserted = justInserted;
     this.__width = width;
     this.__height = height;
+  }
+
+  exportJSON(): SerializedLexicalNode {
+    return inStoredOrder(super.exportJSON(), ["type", "version", "width", "$"]);
   }
 
   createDOM(_config: EditorConfig): HTMLElement {
@@ -119,21 +126,21 @@ export class ExcalidrawNode extends DecoratorNode<unknown> {
     self.__data = data;
   }
 
-  setWidth(width: Dimension): void {
+  setWidth(width: Size): void {
     const self = this.getWritable();
     self.__width = width;
   }
 
-  setHeight(height: Dimension): void {
+  setHeight(height: Size): void {
     const self = this.getWritable();
     self.__height = height;
   }
 
-  getWidth(): Dimension {
+  getWidth(): Size {
     return this.getLatest().__width;
   }
 
-  getHeight(): Dimension {
+  getHeight(): Size {
     return this.getLatest().__height;
   }
 

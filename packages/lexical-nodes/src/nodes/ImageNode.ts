@@ -3,7 +3,6 @@ import { LinkNode } from "@lexical/link";
 import {
   $create,
   $getRoot,
-  booleanValue,
   createEditor,
   DecoratorNode,
   type DOMConversionMap,
@@ -16,28 +15,35 @@ import {
   LineBreakNode,
   type NodeKey,
   nodeSchema,
-  numberValue,
   ParagraphNode,
   RootNode,
   type SerializedEditor,
   type SerializedEditorState,
   type SerializedLexicalNode,
   type Spread,
-  stringValue,
   TextNode,
   withAccessors,
   withField,
 } from "lexical";
 import { figureDOM, figureState, naturalSizeState } from "../figure.js";
 import {
-  inheritForZero,
+  falseOrStored,
   type NestedEditorJSON,
   nestedEditorValue,
+  rawValueOr,
+  type SchemaJSON,
   setNestedEditorJSON,
-  zeroForInherit,
+  storedValue,
 } from "../schema-values.js";
 import { EmojiNode } from "./EmojiNode.js";
 import { KeywordNode } from "./KeywordNode.js";
+import { inStoredOrder } from "../stored-order.js";
+import {
+  type Size,
+  type StoredSizeAccessors,
+  storedSizeFields,
+  withStoredSize,
+} from "./stored-size.js";
 
 export interface ImagePayload {
   altText: string;
@@ -60,12 +66,12 @@ export interface UpdateImagePayload {
 export type SerializedImageNode = Spread<
   {
     altText: string;
-    caption: SerializedEditor;
-    height?: number;
+    caption: NestedEditorJSON;
+    height: number;
     maxWidth: number;
     showCaption: boolean;
     src: string;
-    width?: number;
+    width: number;
   },
   SerializedLexicalNode
 >;
@@ -85,35 +91,37 @@ function createCaptionEditor(): LexicalEditor {
   });
 }
 
-const imageSchema = nodeSchema<ImageNode>()({
-  altText: withField(stringValue(), { field: "__altText" }),
+const imageFields = {
+  altText: withField(storedValue<string>(), { field: "__altText" }),
   caption: withAccessors(nestedEditorValue, {
     getter: "getCaptionJSON",
     setter: "setCaptionJSON",
   }),
-  height: withAccessors(numberValue(), {
-    getter: "getHeightJSON",
-    setter: "setHeightJSON",
-  }),
-  maxWidth: withField(numberValue(500), { field: "__maxWidth" }),
-  showCaption: withField(booleanValue(), { field: "__showCaption" }),
-  src: withField(stringValue(), { field: "__src" }),
-  width: withAccessors(numberValue(), {
-    getter: "getWidthJSON",
-    setter: "setWidthJSON",
-  }),
-});
+  height: storedSizeFields.height,
+  maxWidth: withField(rawValueOr(500), { field: "__maxWidth" }),
+  showCaption: withField(falseOrStored, { field: "__showCaption" }),
+  src: withField(storedValue<string>(), { field: "__src" }),
+  width: storedSizeFields.width,
+};
+
+/** @internal What {@link imageFields} write, which {@link SerializedImageNode} is checked against. */
+export type ImageFieldsJSON = SchemaJSON<typeof imageFields>;
+
+const imageSchema = nodeSchema<ImageNode>()(imageFields);
+
+export interface ImageNode extends StoredSizeAccessors {}
 
 /**
  * Serialization half of the image block. The editor registers a subclass
  * that renders the React component; instances are made with `$create`, so
  * whichever class is registered for "image" is the one constructed.
  */
+// biome-ignore lint/suspicious/noUnsafeDeclarationMerging: withStoredSize installs the accessors the interface declares.
 export class ImageNode extends DecoratorNode<unknown> {
   __src: string;
   __altText: string;
-  __width: "inherit" | number;
-  __height: "inherit" | number;
+  __width: Size;
+  __height: Size;
   __maxWidth: number;
   __showCaption: boolean;
   __caption: LexicalEditor;
@@ -195,6 +203,10 @@ export class ImageNode extends DecoratorNode<unknown> {
     return node instanceof ImageNode;
   }
 
+  exportJSON(): SerializedLexicalNode {
+    return inStoredOrder(super.exportJSON(), ["width", "$"]);
+  }
+
   exportDOM(): DOMExportOutput {
     const element = document.createElement("img");
     element.setAttribute("src", this.__src);
@@ -241,24 +253,6 @@ export class ImageNode extends DecoratorNode<unknown> {
 
   setCaptionJSON(caption: NestedEditorJSON): this {
     setNestedEditorJSON(this.__caption, caption);
-    return this;
-  }
-
-  getWidthJSON(): number {
-    return zeroForInherit(this.__width);
-  }
-
-  setWidthJSON(width: number): this {
-    this.__width = inheritForZero(width);
-    return this;
-  }
-
-  getHeightJSON(): number {
-    return zeroForInherit(this.__height);
-  }
-
-  setHeightJSON(height: number): this {
-    this.__height = inheritForZero(height);
     return this;
   }
 
@@ -378,3 +372,5 @@ export class ImageNode extends DecoratorNode<unknown> {
     return this.__altText;
   }
 }
+
+withStoredSize(ImageNode);

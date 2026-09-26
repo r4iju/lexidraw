@@ -1,5 +1,6 @@
 "use client";
 
+import type { ChartType } from "@packages/lexical-nodes";
 import { useMemo } from "react";
 import {
   BarChart,
@@ -20,8 +21,6 @@ import {
   ChartLegendContent,
   type ChartConfig,
 } from "~/components/ui/chart"; // Assuming shadcn chart components are here
-
-type ChartType = "bar" | "line" | "pie"; // Keep in sync with ChartNode
 
 interface DynamicChartRendererProps {
   chartType: ChartType;

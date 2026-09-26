@@ -2,7 +2,6 @@ import {
   $create,
   $createParagraphNode,
   $getRoot,
-  booleanValue,
   createEditor,
   DecoratorNode,
   type DOMConversionMap,
@@ -14,44 +13,52 @@ import {
   type LexicalNode,
   type NodeKey,
   nodeSchema,
-  numberValue,
   rawValue,
   type SerializedEditorState,
   type SerializedLexicalNode,
+  type SerializedParagraphNode,
   type Spread,
-  stringValue,
   withAccessors,
   withField,
 } from "lexical";
 import { figureDOM, figureState } from "../figure.js";
 import {
-  inheritForZero,
+  falseOrStored,
+  holdsNodes,
   namedTransform,
-  zeroForInherit,
+  type SchemaJSON,
+  storedValue,
 } from "../schema-values.js";
+import { inStoredOrder } from "../stored-order.js";
+import {
+  type Size,
+  type StoredSizeAccessors,
+  storedSizeFields,
+  withStoredSize,
+} from "./stored-size.js";
+
+const EMPTY_PARAGRAPH: SerializedParagraphNode = {
+  children: [],
+  direction: null,
+  format: "",
+  indent: 0,
+  textFormat: 0,
+  textStyle: "",
+  type: "paragraph",
+  version: 1,
+};
 
 /** The caption a video starts with, as its editor writes it. */
-const EMPTY_CAPTION = {
+const EMPTY_CAPTION: SerializedEditorState = {
   root: {
-    children: [
-      {
-        children: [],
-        direction: null,
-        format: "",
-        indent: 0,
-        textFormat: 0,
-        textStyle: "",
-        type: "paragraph",
-        version: 1,
-      },
-    ],
+    children: [EMPTY_PARAGRAPH],
     direction: null,
     format: "",
     indent: 0,
     type: "root",
     version: 1,
   },
-} as unknown as SerializedEditorState;
+};
 
 /**
  * A caption with something in its root, or the one a video starts with: a
@@ -60,31 +67,25 @@ const EMPTY_CAPTION = {
 const videoCaptionValue = namedTransform(
   "videoCaption",
   rawValue<unknown>(),
-  (value): SerializedEditorState => {
-    const root = (value as { root?: { children?: unknown } } | null)?.root;
-    return Array.isArray(root?.children) && root.children.length > 0
-      ? (value as SerializedEditorState)
-      : EMPTY_CAPTION;
-  },
+  (value): SerializedEditorState => (holdsNodes(value) ? value : EMPTY_CAPTION),
 );
 
-const videoSchema = nodeSchema<VideoNode>()({
+const videoFields = {
   caption: withAccessors(videoCaptionValue, {
     getter: "getCaptionJSON",
     setter: "setCaptionJSON",
   }),
-  captionsEnabled: withField(booleanValue(), { field: "__captionsEnabled" }),
-  height: withAccessors(numberValue(), {
-    getter: "getHeightJSON",
-    setter: "setHeightJSON",
-  }),
-  showCaption: withField(booleanValue(), { field: "__showCaption" }),
-  src: withField(stringValue(), { field: "__src" }),
-  width: withAccessors(numberValue(), {
-    getter: "getWidthJSON",
-    setter: "setWidthJSON",
-  }),
-});
+  height: storedSizeFields.height,
+  src: withField(storedValue<string>(), { field: "__src" }),
+  width: storedSizeFields.width,
+  showCaption: withField(falseOrStored, { field: "__showCaption" }),
+  captionsEnabled: withField(falseOrStored, { field: "__captionsEnabled" }),
+};
+
+/** @internal What {@link videoFields} write, which {@link SerializedVideoNode} is checked against. */
+export type VideoFieldsJSON = SchemaJSON<typeof videoFields>;
+
+const videoSchema = nodeSchema<VideoNode>()(videoFields);
 
 export interface VideoPayload {
   caption?: LexicalEditor;
@@ -106,12 +107,12 @@ function convertVideoElement(domNode: Node): null | DOMConversionOutput {
 
 export type SerializedVideoNode = Spread<
   {
-    caption?: SerializedEditorState;
-    height?: number;
+    caption: SerializedEditorState;
+    height: number;
     src: string;
-    width?: number;
-    showCaption?: boolean;
-    captionsEnabled?: boolean;
+    width: number;
+    showCaption: boolean;
+    captionsEnabled: boolean;
   },
   SerializedLexicalNode
 >;
@@ -132,10 +133,13 @@ function createCaptionEditor(): LexicalEditor {
   return caption;
 }
 
+export interface VideoNode extends StoredSizeAccessors {}
+
+// biome-ignore lint/suspicious/noUnsafeDeclarationMerging: withStoredSize installs the accessors the interface declares.
 export class VideoNode extends DecoratorNode<unknown> {
   __src: string;
-  __width: "inherit" | number;
-  __height: "inherit" | number;
+  __width: Size;
+  __height: Size;
   __showCaption: boolean;
   __caption: LexicalEditor;
   __captionsEnabled: boolean;
@@ -179,22 +183,13 @@ export class VideoNode extends DecoratorNode<unknown> {
     return this;
   }
 
-  getWidthJSON(): number {
-    return zeroForInherit(this.__width);
-  }
-
-  setWidthJSON(width: number): this {
-    this.__width = inheritForZero(width);
-    return this;
-  }
-
-  getHeightJSON(): number {
-    return zeroForInherit(this.__height);
-  }
-
-  setHeightJSON(height: number): this {
-    this.__height = inheritForZero(height);
-    return this;
+  exportJSON(): SerializedLexicalNode {
+    return inStoredOrder(super.exportJSON(), [
+      "width",
+      "showCaption",
+      "captionsEnabled",
+      "$",
+    ]);
   }
 
   exportDOM(): DOMExportOutput {
@@ -305,3 +300,5 @@ export class VideoNode extends DecoratorNode<unknown> {
     return false;
   }
 }
+
+withStoredSize(VideoNode);

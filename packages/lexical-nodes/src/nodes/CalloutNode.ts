@@ -13,6 +13,8 @@ import {
   stringValue,
   withField,
 } from "lexical";
+import { inStoredOrder } from "../stored-order.js";
+import type { SchemaJSON } from "../schema-values.js";
 
 /** GitHub's five alert kinds, the only ones a callout stores. */
 export const CALLOUT_KINDS = [
@@ -80,10 +82,15 @@ function $convertCalloutElement(domNode: HTMLElement): DOMConversionOutput {
   };
 }
 
-const calloutSchema = nodeSchema<CalloutNode>()({
+const calloutFields = {
   kind: withField(enumValue(CALLOUT_KINDS), { field: "__kind" }),
   title: withField(stringValue(), { field: "__title" }),
-});
+};
+
+/** @internal What {@link calloutFields} write, which {@link SerializedCalloutNode} is checked against. */
+export type CalloutFieldsJSON = SchemaJSON<typeof calloutFields>;
+
+const calloutSchema = nodeSchema<CalloutNode>()(calloutFields);
 
 export class CalloutNode extends ElementNode {
   __kind: CalloutKind;
@@ -93,6 +100,10 @@ export class CalloutNode extends ElementNode {
     super(key);
     this.__kind = kind;
     this.__title = title;
+  }
+
+  exportJSON(): SerializedElementNode {
+    return inStoredOrder(super.exportJSON(), ["kind", "title"]);
   }
 
   $config() {

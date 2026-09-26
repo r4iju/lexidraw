@@ -2,20 +2,29 @@ import {
   $create,
   DecoratorNode,
   type EditorConfig,
-  enumValue,
   type Klass,
   type LexicalNode,
   type NodeKey,
   nodeSchema,
   type SerializedLexicalNode,
   type Spread,
-  stringValue,
   withField,
 } from "lexical";
 import { figureDOM, figureState } from "../figure.js";
-import { zeroAsInheritValue } from "../schema-values.js";
+import { rawValueOr, type SchemaJSON } from "../schema-values.js";
+import { inStoredOrder } from "../stored-order.js";
+import { type Size, zeroAsInheritSize } from "./stored-size.js";
 
-export const CHART_TYPES = ["bar", "line", "pie"] as const;
+/** Every chart a chart node or slide can draw. */
+export const CHART_TYPES = [
+  "bar",
+  "line",
+  "area",
+  "pie",
+  "radar",
+  "scatter",
+  "composed",
+] as const;
 
 export type ChartType = (typeof CHART_TYPES)[number];
 
@@ -26,19 +35,24 @@ export type SerializedChartNode = Spread<
     chartType: ChartType;
     chartData: string;
     chartConfig: string;
-    width?: number | "inherit";
-    height?: number | "inherit";
+    width: Size;
+    height: Size;
   },
   SerializedLexicalNode
 >;
 
-const chartSchema = nodeSchema<ChartNode>()({
-  chartType: withField(enumValue(CHART_TYPES), { field: "__chartType" }),
-  chartData: withField(stringValue("[]"), { field: "__chartData" }),
-  chartConfig: withField(stringValue("{}"), { field: "__chartConfig" }),
-  width: withField(zeroAsInheritValue, { field: "__width" }),
-  height: withField(zeroAsInheritValue, { field: "__height" }),
-});
+const chartFields = {
+  chartType: withField(rawValueOr<ChartType>("bar"), { field: "__chartType" }),
+  chartData: withField(rawValueOr("[]"), { field: "__chartData" }),
+  chartConfig: withField(rawValueOr("{}"), { field: "__chartConfig" }),
+  width: withField(zeroAsInheritSize, { field: "__width" }),
+  height: withField(zeroAsInheritSize, { field: "__height" }),
+};
+
+/** @internal What {@link chartFields} write, which {@link SerializedChartNode} is checked against. */
+export type ChartFieldsJSON = SchemaJSON<typeof chartFields>;
+
+const chartSchema = nodeSchema<ChartNode>()(chartFields);
 
 export class ChartNode extends DecoratorNode<unknown> {
   __chartType: ChartType;
@@ -145,6 +159,17 @@ export class ChartNode extends DecoratorNode<unknown> {
 
   isInline(): false {
     return false;
+  }
+
+  exportJSON(): SerializedLexicalNode {
+    return inStoredOrder(super.exportJSON(), [
+      "chartType",
+      "chartData",
+      "chartConfig",
+      "width",
+      "height",
+      "$",
+    ]);
   }
 
   createDOM(_config: EditorConfig): HTMLElement {

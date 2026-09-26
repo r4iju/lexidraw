@@ -1,3 +1,4 @@
+import { CHART_TYPES } from "@packages/lexical-nodes";
 import { z } from "zod";
 
 /* ------------------------------------------------------------------ *
@@ -87,15 +88,7 @@ const SeriesSchema = z
 export const ChartConfigSchema = z
   .object({
     /** Core chart to render */
-    chartType: z.enum([
-      "bar",
-      "line",
-      "area",
-      "pie",
-      "radar",
-      "scatter",
-      "composed",
-    ]),
+    chartType: z.enum(CHART_TYPES),
 
     /** Layout direction for Bar/Area/Line charts */
     layout: z.enum(["horizontal", "vertical"]).optional(),

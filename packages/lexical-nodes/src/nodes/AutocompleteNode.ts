@@ -1,24 +1,32 @@
 import {
   type EditorConfig,
+  type LexicalParseJSON,
   type NodeKey,
   nodeSchema,
+  type SerializedLexicalNode,
   type SerializedTextNode,
   type Spread,
-  stringValue,
   TextNode,
   withField,
 } from "lexical";
+import { type SchemaJSON, storedValue } from "../schema-values.js";
+import { inStoredOrder, withoutNodeState } from "../stored-order.js";
+import { storedTextFields, textOrEmpty } from "./stored-text.js";
 
 export type SerializedAutocompleteNode = Spread<
-  {
-    uuid: string;
-  },
+  { uuid: string },
   SerializedTextNode
 >;
 
-const autocompleteSchema = nodeSchema<AutocompleteNode>()({
-  uuid: withField(stringValue(), { field: "__uuid" }),
-});
+const autocompleteFields = {
+  ...storedTextFields(textOrEmpty),
+  uuid: withField(storedValue<string>(), { field: "__uuid" }),
+};
+
+/** @internal What {@link autocompleteFields} write, which {@link SerializedAutocompleteNode} is checked against. */
+export type AutocompleteFieldsJSON = SchemaJSON<typeof autocompleteFields>;
+
+const autocompleteSchema = nodeSchema<AutocompleteNode>()(autocompleteFields);
 
 export class AutocompleteNode extends TextNode {
   /**
@@ -41,6 +49,14 @@ export class AutocompleteNode extends TextNode {
   constructor(text = "", uuid = "", key?: NodeKey) {
     super(text, key);
     this.__uuid = uuid;
+  }
+
+  exportJSON(): SerializedTextNode {
+    return inStoredOrder(super.exportJSON(), ["uuid"]);
+  }
+
+  updateFromJSON(json: LexicalParseJSON<SerializedLexicalNode>): this {
+    return super.updateFromJSON(withoutNodeState(json));
   }
 
   createDOM(config: EditorConfig): HTMLElement {

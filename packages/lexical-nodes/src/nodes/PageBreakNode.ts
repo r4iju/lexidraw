@@ -5,15 +5,21 @@ import {
   type DOMConversionMap,
   type DOMConversionOutput,
   type LexicalNode,
+  type LexicalParseJSON,
   type SerializedLexicalNode,
   type Klass,
 } from "lexical";
+import { withoutNodeState } from "../stored-order.js";
 
 export type SerializedPageBreakNode = SerializedLexicalNode;
 
 export class PageBreakNode extends DecoratorNode<unknown> {
   $config() {
     return this.config("page-break", { extends: DecoratorNode });
+  }
+
+  updateFromJSON(json: LexicalParseJSON<SerializedLexicalNode>): this {
+    return super.updateFromJSON(withoutNodeState(json));
   }
 
   static importDOM(): DOMConversionMap | null {

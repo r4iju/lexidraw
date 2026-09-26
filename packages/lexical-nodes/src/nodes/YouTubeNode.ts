@@ -10,23 +10,25 @@ import {
   type ElementFormatType,
   type Klass,
   type LexicalNode,
+  type LexicalParseJSON,
   type NodeKey,
   nodeSchema,
-  numberValue,
   type Spread,
-  stringValue,
-  withAccessors,
   withField,
 } from "lexical";
+import { type SchemaJSON, storedValue } from "../schema-values.js";
 import { figureDOM, figureState } from "../figure.js";
-import { inheritForZero, zeroForInherit } from "../schema-values.js";
+import { inStoredOrder } from "../stored-order.js";
+import { storedBlockFields, withStoredBlockFormat } from "./stored-block.js";
+import {
+  type Size,
+  type StoredSizeAccessors,
+  storedSizeFields,
+  withStoredSize,
+} from "./stored-size.js";
 
 export type SerializedYouTubeNode = Spread<
-  {
-    videoID: string;
-    width?: number;
-    height?: number;
-  },
+  { videoID: string; width: number; height: number },
   SerializedDecoratorBlockNode
 >;
 
@@ -45,22 +47,24 @@ function $convertYoutubeElement(
   return null;
 }
 
-const youTubeSchema = nodeSchema<YouTubeNode>()({
-  videoID: withField(stringValue(), { field: "__id" }),
-  width: withAccessors(numberValue(), {
-    getter: "getWidthJSON",
-    setter: "setWidthJSON",
-  }),
-  height: withAccessors(numberValue(), {
-    getter: "getHeightJSON",
-    setter: "setHeightJSON",
-  }),
-});
+const youTubeFields = {
+  ...storedBlockFields,
+  videoID: withField(storedValue<string>(), { field: "__id" }),
+  ...storedSizeFields,
+};
 
+/** @internal What {@link youTubeFields} write, which {@link SerializedYouTubeNode} is checked against. */
+export type YouTubeFieldsJSON = SchemaJSON<typeof youTubeFields>;
+
+const youTubeSchema = nodeSchema<YouTubeNode>()(youTubeFields);
+
+export interface YouTubeNode extends StoredSizeAccessors {}
+
+// biome-ignore lint/suspicious/noUnsafeDeclarationMerging: withStoredSize installs the accessors the interface declares.
 export class YouTubeNode extends DecoratorBlockNode {
   __id: string;
-  __width: "inherit" | number;
-  __height: "inherit" | number;
+  __width: Size;
+  __height: Size;
 
   $config() {
     return this.config("youtube", {
@@ -77,22 +81,12 @@ export class YouTubeNode extends DecoratorBlockNode {
     this.__height = prevNode.__height;
   }
 
-  getWidthJSON(): number {
-    return zeroForInherit(this.__width);
+  updateFromJSON(json: LexicalParseJSON<SerializedDecoratorBlockNode>): this {
+    return super.updateFromJSON(withStoredBlockFormat(json));
   }
 
-  setWidthJSON(width: number): this {
-    this.__width = inheritForZero(width);
-    return this;
-  }
-
-  getHeightJSON(): number {
-    return zeroForInherit(this.__height);
-  }
-
-  setHeightJSON(height: number): this {
-    this.__height = inheritForZero(height);
-    return this;
+  exportJSON(): SerializedDecoratorBlockNode {
+    return inStoredOrder(super.exportJSON(), ["videoID", "width", "height"]);
   }
 
   constructor(
@@ -206,3 +200,5 @@ export class YouTubeNode extends DecoratorBlockNode {
     return this.__height;
   }
 }
+
+withStoredSize(YouTubeNode);

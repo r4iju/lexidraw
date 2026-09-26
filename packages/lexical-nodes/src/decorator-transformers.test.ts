@@ -6,6 +6,7 @@ import {
   $convertToMarkdownString,
 } from "@lexical/markdown";
 import {
+  $create,
   $createParagraphNode,
   $createTextNode,
   $getRoot,
@@ -361,23 +362,17 @@ describe("decorator node markdown", () => {
     });
   });
 
-  test("importJSON fills in the constructor defaults for missing fields", () => {
+  test("JSON missing a node's fields reads as the constructor's defaults", () => {
     const editor = editorWithCoreNodes();
     editor.update(
       () => {
-        // Lexical makes importJSON from the schema, typed for any node.
-        const drawing = ExcalidrawNode.importJSON({
-          type: "excalidraw",
-          version: 1,
-        } as never) as ExcalidrawNode;
+        const drawing = $create(ExcalidrawNode).updateFromJSON({});
         expect(drawing.getData()).toBe("[]");
         expect(drawing.getWidth()).toBe("inherit");
         expect(drawing.getHeight()).toBe("inherit");
-        const article = ArticleNode.importJSON({
-          type: "article",
-          version: 1,
+        const article = $create(ArticleNode).updateFromJSON({
           data: { mode: "entity", entityId: "e1" },
-        } as never) as ArticleNode;
+        });
         expect(article.exportJSON().format).toBe("");
       },
       { discrete: true },

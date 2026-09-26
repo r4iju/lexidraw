@@ -1,11 +1,26 @@
-import type { DOMConversionMap, EditorConfig, LexicalNode } from "lexical";
-
 import { addClassNamesToElement } from "@lexical/utils";
-import { ElementNode } from "lexical";
+import {
+  type DOMConversionMap,
+  type EditorConfig,
+  ElementNode,
+  type LexicalNode,
+  type LexicalParseJSON,
+  nodeSchema,
+  type SerializedLexicalNode,
+} from "lexical";
+import { withoutNodeState } from "../stored-order.js";
+import { unreadElementFields } from "./stored-element.js";
 
 export class LayoutItemNode extends ElementNode {
   $config() {
-    return this.config("layout-item", { extends: ElementNode });
+    return this.config("layout-item", {
+      extends: ElementNode,
+      json: nodeSchema<LayoutItemNode>()(unreadElementFields),
+    });
+  }
+
+  updateFromJSON(json: LexicalParseJSON<SerializedLexicalNode>): this {
+    return super.updateFromJSON(withoutNodeState(json));
   }
 
   createDOM(config: EditorConfig): HTMLElement {

@@ -1,16 +1,33 @@
 import { CodeNode, type SerializedCodeNode } from "@lexical/code";
 import {
-  booleanValue,
   type EditorConfig,
   enumValue,
   nodeSchema,
+  optional,
   setDOMUnmanaged,
+  stringValue,
   withAccessors,
   withField,
 } from "lexical";
+import { namedTransform, rawValueOr } from "../schema-values.js";
+import { inStoredOrder } from "../stored-order.js";
 
 const documentCodeSchema = nodeSchema<DocumentCodeNode>()({
-  showLineNumbers: withField(booleanValue(), { field: "__showLineNumbers" }),
+  // CodeNode's schema reads a language as a string or null, where its setter
+  // then holds an empty one, or null, as none.
+  language: withAccessors(
+    optional(
+      namedTransform(
+        "emptyAbsent",
+        stringValue(),
+        (language) => language || undefined,
+      ),
+    ),
+    { getter: { field: "__language" }, setter: "setLanguage" },
+  ),
+  showLineNumbers: withField(rawValueOr(false, { nullAsAbsent: true }), {
+    field: "__showLineNumbers",
+  }),
   // Syntax colours are presentation: a theme saved with the code must not
   // override the page's, so none is kept.
   theme: withAccessors(enumValue([undefined]), {
@@ -20,6 +37,8 @@ const documentCodeSchema = nodeSchema<DocumentCodeNode>()({
 });
 
 export class DocumentCodeNode extends CodeNode {
+  /** CodeNode's constructor and setter both store a language as `|| undefined`. */
+  declare __language: string | undefined;
   __showLineNumbers = false;
 
   $config() {
@@ -32,14 +51,9 @@ export class DocumentCodeNode extends CodeNode {
     return undefined;
   }
   /** Lexical writes the absent theme as an undefined key, which code never had. */
-  exportJSON(): Omit<SerializedCodeNode, "theme"> & {
-    showLineNumbers: boolean;
-  } {
-    const { theme: _theme, ...json } =
-      super.exportJSON() as SerializedCodeNode & {
-        showLineNumbers: boolean;
-      };
-    return json;
+  exportJSON(): SerializedCodeNode {
+    const { theme: _theme, ...json } = super.exportJSON();
+    return inStoredOrder(json, ["showLineNumbers"]);
   }
   getTheme() {
     return "none";

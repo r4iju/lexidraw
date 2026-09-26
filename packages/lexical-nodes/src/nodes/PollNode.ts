@@ -7,14 +7,17 @@ import {
   type DOMExportOutput,
   type Klass,
   type LexicalNode,
+  type LexicalParseJSON,
   type NodeKey,
   nodeSchema,
+  objectValue,
   type SerializedLexicalNode,
   type Spread,
   stringValue,
   withField,
 } from "lexical";
-import { openObjectValue } from "../schema-values.js";
+import { type SchemaJSON, shapedAs, storedValue } from "../schema-values.js";
+import { withoutNodeState } from "../stored-order.js";
 
 export type Options = readonly Option[];
 
@@ -25,26 +28,31 @@ export type Option = Readonly<{
 }>;
 
 export type SerializedPollNode = Spread<
-  {
-    question: string;
-    options: Options;
-  },
+  { question: string; options: Options },
   SerializedLexicalNode
 >;
 
-const pollSchema = nodeSchema<PollNode>()({
+const pollFields = {
   options: withField(
-    arrayValue(
-      openObjectValue({
-        text: stringValue(),
-        uid: stringValue(),
-        votes: arrayValue(stringValue()),
-      }),
+    shapedAs(
+      arrayValue(
+        objectValue({
+          text: stringValue(),
+          uid: stringValue(),
+          votes: arrayValue(stringValue()),
+        }),
+      ),
+      storedValue<Options>(),
     ),
     { field: "__options" },
   ),
-  question: withField(stringValue(), { field: "__question" }),
-});
+  question: withField(storedValue<string>(), { field: "__question" }),
+};
+
+/** @internal What {@link pollFields} write, which {@link SerializedPollNode} is checked against. */
+export type PollFieldsJSON = SchemaJSON<typeof pollFields>;
+
+const pollSchema = nodeSchema<PollNode>()(pollFields);
 
 export class PollNode extends DecoratorNode<unknown> {
   __question: string;
@@ -52,6 +60,10 @@ export class PollNode extends DecoratorNode<unknown> {
 
   $config() {
     return this.config("poll", { extends: DecoratorNode, json: pollSchema });
+  }
+
+  updateFromJSON(json: LexicalParseJSON<SerializedLexicalNode>): this {
+    return super.updateFromJSON(withoutNodeState(json));
   }
 
   static $convertPollElement(domNode: HTMLElement): DOMConversionOutput | null {

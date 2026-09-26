@@ -1,15 +1,26 @@
 import {
   type EditorConfig,
   type LexicalNode,
+  type LexicalParseJSON,
+  nodeSchema,
+  type SerializedLexicalNode,
   type SerializedTextNode,
   TextNode,
 } from "lexical";
+import { withoutNodeState } from "../stored-order.js";
+import { storedTextFields, textOrEmpty } from "./stored-text.js";
 
 export type SerializedKeywordNode = SerializedTextNode;
 
+const keywordSchema = nodeSchema<KeywordNode>()(storedTextFields(textOrEmpty));
+
 export class KeywordNode extends TextNode {
   $config() {
-    return this.config("keyword", { extends: TextNode });
+    return this.config("keyword", { extends: TextNode, json: keywordSchema });
+  }
+
+  updateFromJSON(json: LexicalParseJSON<SerializedLexicalNode>): this {
+    return super.updateFromJSON(withoutNodeState(json));
   }
 
   createDOM(config: EditorConfig): HTMLElement {

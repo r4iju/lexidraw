@@ -6,14 +6,15 @@ import {
   type LexicalNode,
   type NodeKey,
   nodeSchema,
+  objectValue,
   optional,
-  type SerializedLexicalNode,
+  type Spread,
   stringValue,
   withField,
 } from "lexical";
-import { openObjectValue } from "../schema-values.js";
-import { type Comment, commentValue } from "./CommentNode.js";
-import { MarkerNode, type SerializedMarkerFields } from "./MarkerNode.js";
+import { type SchemaJSON, shapedAs, storedValue } from "../schema-values.js";
+import { type Comment, commentShape } from "./CommentNode.js";
+import { MarkerNode, type SerializedMarkerNode } from "./MarkerNode.js";
 
 export type Thread = {
   comments: Comment[];
@@ -24,24 +25,39 @@ export type Thread = {
   resolved?: boolean;
 };
 
-export type SerializedThreadNode = {
-  type: "thread";
-  version: 1;
-  thread: Thread;
-} & SerializedMarkerFields &
-  SerializedLexicalNode;
+export type SerializedThreadNode = Spread<
+  { type: "thread"; version: 1; thread: Thread },
+  SerializedMarkerNode
+>;
 
-const threadValue = openObjectValue({
-  comments: arrayValue(commentValue),
-  id: stringValue(),
-  quote: stringValue(),
-  type: enumValue(["thread"]),
-  resolved: optional(booleanValue()),
-});
+/** A thread with nothing in it, which a marker made from nothing holds. */
+const EMPTY_THREAD: Thread = {
+  comments: [],
+  id: "",
+  quote: "",
+  type: "thread",
+};
 
-const threadSchema = nodeSchema<ThreadNode>()({
-  thread: withField(threadValue, { field: "__thread" }),
-});
+const threadFields = {
+  thread: withField(
+    shapedAs(
+      objectValue({
+        comments: arrayValue(commentShape),
+        id: stringValue(),
+        quote: stringValue(),
+        type: enumValue(["thread"]),
+        resolved: optional(booleanValue()),
+      }),
+      storedValue<Thread>(),
+    ),
+    { field: "__thread" },
+  ),
+};
+
+/** @internal What {@link threadFields} write, which {@link SerializedThreadNode} is checked against. */
+export type ThreadFieldsJSON = SchemaJSON<typeof threadFields>;
+
+const threadSchema = nodeSchema<ThreadNode>()(threadFields);
 
 /**
  * Serialization half of the comment thread marker; see ImageNode for the split.
@@ -49,7 +65,7 @@ const threadSchema = nodeSchema<ThreadNode>()({
 export class ThreadNode extends MarkerNode {
   __thread: Thread;
 
-  constructor(thread: Thread = threadValue.defaultValue, key?: NodeKey) {
+  constructor(thread: Thread = EMPTY_THREAD, key?: NodeKey) {
     super(key);
     this.__thread = thread;
   }

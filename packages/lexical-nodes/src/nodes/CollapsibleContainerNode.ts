@@ -1,5 +1,4 @@
 import {
-  booleanValue,
   type DOMConversionMap,
   type DOMConversionOutput,
   type DOMExportOutput,
@@ -7,10 +6,16 @@ import {
   ElementNode,
   type LexicalEditor,
   type LexicalNode,
+  type LexicalParseJSON,
   type NodeKey,
   nodeSchema,
+  type SerializedLexicalNode,
   withField,
+  type SerializedElementNode,
 } from "lexical";
+import { storedValue } from "../schema-values.js";
+import { inStoredOrder, withoutNodeState } from "../stored-order.js";
+import { unreadElementFields } from "./stored-element.js";
 
 /**
  * How a section's content folds and unfolds. It is added the first time the
@@ -36,7 +41,8 @@ export function $convertAccordionItemElement(
 }
 
 const collapsibleContainerSchema = nodeSchema<CollapsibleContainerNode>()({
-  open: withField(booleanValue(), { field: "__open" }),
+  ...unreadElementFields,
+  open: withField(storedValue<boolean>(), { field: "__open" }),
 });
 
 export class CollapsibleContainerNode extends ElementNode {
@@ -45,6 +51,14 @@ export class CollapsibleContainerNode extends ElementNode {
   constructor(open = false, key?: NodeKey) {
     super(key);
     this.__open = open;
+  }
+
+  exportJSON(): SerializedElementNode {
+    return inStoredOrder(super.exportJSON(), ["open"]);
+  }
+
+  updateFromJSON(json: LexicalParseJSON<SerializedLexicalNode>): this {
+    return super.updateFromJSON(withoutNodeState(json));
   }
 
   $config() {

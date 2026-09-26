@@ -7,9 +7,9 @@ import {
   type Klass,
   type LexicalEditor,
   type LexicalNode,
+  type LexicalParseJSON,
   type NodeKey,
   nodeSchema,
-  numberValue,
   type SerializedEditor,
   type SerializedLexicalNode,
   type Spread,
@@ -19,8 +19,12 @@ import {
 import {
   type NestedEditorJSON,
   nestedEditorValue,
+  type SchemaJSON,
   setNestedEditorJSON,
+  shapedAs,
+  storedValue,
 } from "../schema-values.js";
+import { inStoredOrder, withoutNodeState } from "../stored-order.js";
 
 const STICKY_NOTE_COLORS = [
   "pink",
@@ -40,22 +44,31 @@ export type SerializedStickyNode = Spread<
     xOffset: number;
     yOffset: number;
     color: StickyNoteColor;
-    caption: SerializedEditor;
+    caption: NestedEditorJSON;
   },
   SerializedLexicalNode
 >;
 
-const stickySchema = nodeSchema<StickyNode>()({
+const stickyFields = {
   caption: withAccessors(nestedEditorValue, {
     getter: "getCaptionJSON",
     setter: "setCaptionJSON",
   }),
-  color: withField(enumValue(STICKY_NOTE_COLORS, "yellow"), {
-    field: "__color",
-  }),
-  xOffset: withField(numberValue(), { field: "__x" }),
-  yOffset: withField(numberValue(), { field: "__y" }),
-});
+  color: withField(
+    shapedAs(
+      enumValue(STICKY_NOTE_COLORS, "yellow"),
+      storedValue<StickyNoteColor>(),
+    ),
+    { field: "__color" },
+  ),
+  xOffset: withField(storedValue<number>(), { field: "__x" }),
+  yOffset: withField(storedValue<number>(), { field: "__y" }),
+};
+
+/** @internal What {@link stickyFields} write, which {@link SerializedStickyNode} is checked against. */
+export type StickyFieldsJSON = SchemaJSON<typeof stickyFields>;
+
+const stickySchema = nodeSchema<StickyNode>()(stickyFields);
 
 export class StickyNode extends DecoratorNode<unknown> {
   __x: number;
@@ -90,6 +103,21 @@ export class StickyNode extends DecoratorNode<unknown> {
     this.__y = prevNode.__y;
     this.__color = prevNode.__color;
     this.__caption = prevNode.__caption;
+  }
+
+  exportJSON(): SerializedLexicalNode {
+    return inStoredOrder(super.exportJSON(), [
+      "caption",
+      "color",
+      "type",
+      "version",
+      "xOffset",
+      "yOffset",
+    ]);
+  }
+
+  updateFromJSON(json: LexicalParseJSON<SerializedLexicalNode>): this {
+    return super.updateFromJSON(withoutNodeState(json));
   }
 
   getCaptionJSON(): SerializedEditor {

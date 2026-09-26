@@ -6,9 +6,13 @@ import {
   ElementNode,
   type LexicalEditor,
   type LexicalNode,
+  type LexicalParseJSON,
+  nodeSchema,
+  type SerializedLexicalNode,
 } from "lexical";
-
+import { withoutNodeState } from "../stored-order.js";
 import { CollapsibleContainerNode } from "./CollapsibleContainerNode.js";
+import { unreadElementFields } from "./stored-element.js";
 
 export function $convertAccordionContentElement(
   domNode: HTMLElement,
@@ -20,7 +24,14 @@ export function $convertAccordionContentElement(
 
 export class CollapsibleContentNode extends ElementNode {
   $config() {
-    return this.config("collapsible-content", { extends: ElementNode });
+    return this.config("collapsible-content", {
+      extends: ElementNode,
+      json: nodeSchema<CollapsibleContentNode>()(unreadElementFields),
+    });
+  }
+
+  updateFromJSON(json: LexicalParseJSON<SerializedLexicalNode>): this {
+    return super.updateFromJSON(withoutNodeState(json));
   }
 
   createDOM(_config: EditorConfig, editor: LexicalEditor): HTMLElement {

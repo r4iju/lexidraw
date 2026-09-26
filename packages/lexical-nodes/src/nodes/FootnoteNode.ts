@@ -16,6 +16,8 @@ import {
   stringValue,
   withField,
 } from "lexical";
+import { type SchemaJSON, storedValue } from "../schema-values.js";
+import { inStoredOrder } from "../stored-order.js";
 
 /** The fragment ids a footnote and its first marker link to each other by. */
 export const footnoteId = (label: string) => `fn-${label}`;
@@ -26,9 +28,18 @@ export type SerializedFootnoteReferenceNode = Spread<
   SerializedLexicalNode
 >;
 
-const footnoteReferenceSchema = nodeSchema<FootnoteReferenceNode>()({
-  label: withField(stringValue(), { field: "__label" }),
-});
+const footnoteReferenceFields = {
+  label: withField(storedValue<string>(), { field: "__label" }),
+};
+
+/** @internal What {@link footnoteReferenceFields} write, which {@link SerializedFootnoteReferenceNode} is checked against. */
+export type FootnoteReferenceFieldsJSON = SchemaJSON<
+  typeof footnoteReferenceFields
+>;
+
+const footnoteReferenceSchema = nodeSchema<FootnoteReferenceNode>()(
+  footnoteReferenceFields,
+);
 
 /**
  * A footnote marker, `[^label]` in markdown. The label is how the markdown
@@ -48,6 +59,10 @@ export class FootnoteReferenceNode extends DecoratorNode<unknown> {
   constructor(label = "", key?: NodeKey) {
     super(key);
     this.__label = label;
+  }
+
+  exportJSON(): SerializedLexicalNode {
+    return inStoredOrder(super.exportJSON(), ["label"]);
   }
 
   createDOM(): HTMLElement {
@@ -132,9 +147,18 @@ function footnoteDOM(label: string) {
   return { root, body, back };
 }
 
-const footnoteDefinitionSchema = nodeSchema<FootnoteDefinitionNode>()({
+const footnoteDefinitionFields = {
   label: withField(stringValue(), { field: "__label" }),
-});
+};
+
+/** @internal What {@link footnoteDefinitionFields} write, which {@link SerializedFootnoteDefinitionNode} is checked against. */
+export type FootnoteDefinitionFieldsJSON = SchemaJSON<
+  typeof footnoteDefinitionFields
+>;
+
+const footnoteDefinitionSchema = nodeSchema<FootnoteDefinitionNode>()(
+  footnoteDefinitionFields,
+);
 
 export class FootnoteDefinitionNode extends ElementNode {
   __label: string;
@@ -149,6 +173,10 @@ export class FootnoteDefinitionNode extends ElementNode {
   constructor(label = "", key?: NodeKey) {
     super(key);
     this.__label = label;
+  }
+
+  exportJSON(): SerializedElementNode {
+    return inStoredOrder(super.exportJSON(), ["label"]);
   }
 
   createDOM(): HTMLElement {

@@ -5,9 +5,14 @@ import {
   ElementNode,
   type LexicalEditor,
   type LexicalNode,
+  type LexicalParseJSON,
+  nodeSchema,
   type RangeSelection,
+  type SerializedLexicalNode,
 } from "lexical";
+import { withoutNodeState } from "../stored-order.js";
 import { CollapsibleContainerNode } from "./CollapsibleContainerNode.js";
+import { unreadElementFields } from "./stored-element.js";
 
 // lucide-react's ChevronRight rendered to static markup, inlined so this
 // module has no React or icon dependency and loads outside the browser.
@@ -24,7 +29,14 @@ export function $convertAccordionTriggerElement(
 
 export class CollapsibleTitleNode extends ElementNode {
   $config() {
-    return this.config("collapsible-title", { extends: ElementNode });
+    return this.config("collapsible-title", {
+      extends: ElementNode,
+      json: nodeSchema<CollapsibleTitleNode>()(unreadElementFields),
+    });
+  }
+
+  updateFromJSON(json: LexicalParseJSON<SerializedLexicalNode>): this {
+    return super.updateFromJSON(withoutNodeState(json));
   }
 
   createDOM(_config: EditorConfig, editor: LexicalEditor): HTMLElement {

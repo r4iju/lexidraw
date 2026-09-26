@@ -10,13 +10,16 @@ import {
   type ElementFormatType,
   type Klass,
   type LexicalNode,
+  type LexicalParseJSON,
   type NodeKey,
   nodeSchema,
   type Spread,
-  stringValue,
   withField,
 } from "lexical";
+import { type SchemaJSON, storedValue } from "../schema-values.js";
 import { figureDOM, figureState } from "../figure.js";
+import { inStoredOrder } from "../stored-order.js";
+import { storedBlockFields, withStoredBlockFormat } from "./stored-block.js";
 
 function $convertTweetElement(
   domNode: HTMLDivElement,
@@ -30,15 +33,19 @@ function $convertTweetElement(
 }
 
 export type SerializedTweetNode = Spread<
-  {
-    id: string;
-  },
+  { id: string },
   SerializedDecoratorBlockNode
 >;
 
-const tweetSchema = nodeSchema<TweetNode>()({
-  id: withField(stringValue(), { field: "__id" }),
-});
+const tweetFields = {
+  ...storedBlockFields,
+  id: withField(storedValue<string>(), { field: "__id" }),
+};
+
+/** @internal What {@link tweetFields} write, which {@link SerializedTweetNode} is checked against. */
+export type TweetFieldsJSON = SchemaJSON<typeof tweetFields>;
+
+const tweetSchema = nodeSchema<TweetNode>()(tweetFields);
 
 export class TweetNode extends DecoratorBlockNode {
   __id: string;
@@ -63,6 +70,14 @@ export class TweetNode extends DecoratorBlockNode {
         };
       },
     };
+  }
+
+  updateFromJSON(json: LexicalParseJSON<SerializedDecoratorBlockNode>): this {
+    return super.updateFromJSON(withStoredBlockFormat(json));
+  }
+
+  exportJSON(): SerializedDecoratorBlockNode {
+    return inStoredOrder(super.exportJSON(), ["id"]);
   }
 
   createDOM(): HTMLElement {

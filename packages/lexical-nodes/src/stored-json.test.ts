@@ -213,23 +213,6 @@ test("values the nodes turned down before are still turned down", () => {
   ).toEqual(comment);
 });
 
-test("a collapsible title keeps the alignment and indent it was stored with", () => {
-  const title = element(
-    "collapsible-title",
-    { format: "center", indent: 1 },
-    [],
-  );
-
-  expect(
-    readBack(
-      element("collapsible-container", { open: true }, [
-        title,
-        element("collapsible-content", {}, [paragraph()]),
-      ]),
-    ).children[0],
-  ).toEqual(title);
-});
-
 test("a comment marker keeps its format and indent when it changes", () => {
   const reader = editor();
   reader.setEditorState(

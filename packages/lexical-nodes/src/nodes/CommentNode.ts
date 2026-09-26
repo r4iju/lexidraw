@@ -6,12 +6,13 @@ import {
   type NodeKey,
   nodeSchema,
   numberValue,
-  type SerializedLexicalNode,
+  objectValue,
+  type Spread,
   stringValue,
   withField,
 } from "lexical";
-import { openObjectValue } from "../schema-values.js";
-import { MarkerNode, type SerializedMarkerFields } from "./MarkerNode.js";
+import { type SchemaJSON, shapedAs, storedValue } from "../schema-values.js";
+import { MarkerNode, type SerializedMarkerNode } from "./MarkerNode.js";
 
 export type Comment = {
   author: string;
@@ -22,14 +23,12 @@ export type Comment = {
   type: "comment";
 };
 
-export type SerializedCommentNode = {
-  type: "comment";
-  version: 1;
-  comment: Comment;
-} & SerializedMarkerFields &
-  SerializedLexicalNode;
+export type SerializedCommentNode = Spread<
+  { type: "comment"; version: 1; comment: Comment },
+  SerializedMarkerNode
+>;
 
-export const commentValue = openObjectValue({
+export const commentShape = objectValue({
   author: stringValue(),
   content: stringValue(),
   deleted: booleanValue(),
@@ -38,9 +37,26 @@ export const commentValue = openObjectValue({
   type: enumValue(["comment"]),
 });
 
-const commentSchema = nodeSchema<CommentNode>()({
-  comment: withField(commentValue, { field: "__comment" }),
-});
+/** A comment with nothing in it, which a marker made from nothing holds. */
+export const EMPTY_COMMENT: Comment = {
+  author: "",
+  content: "",
+  deleted: false,
+  id: "",
+  timeStamp: 0,
+  type: "comment",
+};
+
+const commentFields = {
+  comment: withField(shapedAs(commentShape, storedValue<Comment>()), {
+    field: "__comment",
+  }),
+};
+
+/** @internal What {@link commentFields} write, which {@link SerializedCommentNode} is checked against. */
+export type CommentFieldsJSON = SchemaJSON<typeof commentFields>;
+
+const commentSchema = nodeSchema<CommentNode>()(commentFields);
 
 /**
  * Serialization half of the comment marker; see ImageNode for the split.
@@ -52,7 +68,7 @@ export class CommentNode extends MarkerNode {
     return this.config("comment", { extends: MarkerNode, json: commentSchema });
   }
 
-  constructor(comment: Comment = commentValue.defaultValue, key?: NodeKey) {
+  constructor(comment: Comment = EMPTY_COMMENT, key?: NodeKey) {
     super(key);
     this.__comment = comment;
   }

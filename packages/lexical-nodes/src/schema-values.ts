@@ -1,71 +1,33 @@
 import {
-  enumValue,
-  type InnerSerializationSchemaFields,
+  type AnySerializationSchema,
+  type EditorState,
+  getComposedSchemaFields,
+  type Klass,
   type LexicalEditor,
-  numberValue,
+  type LexicalNode,
   objectValue,
   rawValue,
-  type SerializedEditor,
   type SerializationSchema,
+  type SerializationSchemaFields,
   type SerializationSchemaMeta,
   type SerializationSchemaValue,
+  type SerializedEditor,
+  type SerializedEditorState,
   transformValue,
-  unionValue,
 } from "lexical";
 
 /**
  * Keyed by the meta, which `withField` and `withAccessors` carry over to the
  * schema they wrap; the schema object itself is a new one in each.
  */
-const OPEN_OBJECTS = new WeakSet<SerializationSchemaMeta>();
 const TRANSFORM_NAMES = new WeakMap<SerializationSchemaMeta, string>();
-
-type JSONObject = { readonly [key: string]: unknown };
-
-/** An open object's value: a field that can read as absent is optional. */
-type OpenObject<S extends InnerSerializationSchemaFields> = {
-  [K in keyof S as undefined extends SerializationSchemaValue<S[K]>
-    ? never
-    : K]: SerializationSchemaValue<S[K]>;
-} & {
-  [K in keyof S as undefined extends SerializationSchemaValue<S[K]>
-    ? K
-    : never]?: SerializationSchemaValue<S[K]>;
-} & JSONObject;
-
-/**
- * Lexical's `objectValue`, but keeping the keys it doesn't declare as they
- * are: for data a node stored whole before it had a schema, where reading it
- * mustn't lose what an older or newer writer put there.
- *
- * The declared `accepts` is what makes a union measure it by its declared
- * fields alone, rather than turn it down for carrying keys it keeps.
- */
-export function openObjectValue<const S extends InnerSerializationSchemaFields>(
-  fields: S,
-): SerializationSchema<OpenObject<S>, never, unknown> {
-  const declared = objectValue(fields);
-  const schema = Object.assign(
-    (value: unknown) =>
-      isPlainObject(value) ? { ...value, ...declared(value) } : declared(value),
-    {
-      accepts: isPlainObject,
-      defaultValue: declared.defaultValue,
-      isEqual: sameJSON,
-      meta: declared.meta,
-    },
-  );
-  OPEN_OBJECTS.add(declared.meta);
-  return schema as unknown as SerializationSchema<
-    OpenObject<S>,
-    never,
-    unknown
-  >;
-}
-
-export function isOpenObject(meta: SerializationSchemaMeta): boolean {
-  return OPEN_OBJECTS.has(meta);
-}
+const NULL_AS_ABSENT = new WeakSet<SerializationSchemaMeta>();
+const SHAPES = new WeakMap<SerializationSchemaMeta, AnySerializationSchema>();
+const CHECKED_WITH_STATE = new WeakMap<
+  SerializationSchemaMeta,
+  AnySerializationSchema
+>();
+const WRITTEN_ONLY = new WeakSet<SerializationSchemaMeta>();
 
 /**
  * Lexical's `transformValue` for a check or normalisation that keeps a value
@@ -82,48 +44,139 @@ export function namedTransform<T, Out extends T | undefined, In = T>(
   return schema;
 }
 
+/**
+ * The JSON a node's own schema `fields` write: each property as its schema
+ * reads it, and left out where that reads as absent.
+ */
+export type SchemaJSON<F extends SerializationSchemaFields> = {
+  [K in keyof F as undefined extends SerializationSchemaValue<F[K]>
+    ? never
+    : K]: SerializationSchemaValue<F[K]>;
+} & {
+  [K in keyof F as undefined extends SerializationSchemaValue<F[K]>
+    ? K
+    : never]?: SerializationSchemaValue<F[K]>;
+};
+
 export function transformName(
   meta: SerializationSchemaMeta,
 ): string | undefined {
   return TRANSFORM_NAMES.get(meta);
 }
 
-/** A size in pixels, or `inherit` for the size of what holds it. */
-export const dimensionValue = unionValue(
-  [numberValue(), enumValue(["inherit"])],
-  "inherit",
+/** A flag read as `value || false` reads it: false for none, else as stored. */
+export const falseOrStored = namedTransform(
+  "falseOrStored",
+  rawValue<boolean>(),
+  (value) => value || false,
 );
 
-export type Dimension = SerializationSchemaValue<typeof dimensionValue>;
+/** A value read as `value || ""` reads it: empty for none, else as stored. */
+export function emptyOrStored<T extends string>() {
+  return namedTransform(
+    "emptyOrStored",
+    rawValue<T | "">(),
+    (value) => value || "",
+  );
+}
 
-/** A dimension that older documents stored unset as 0. */
-export const zeroAsInheritValue = namedTransform(
-  "zeroAsInherit",
-  dimensionValue,
-  (value): Dimension => (value === 0 ? "inherit" : value),
-);
+/** The schema `klass` reads `key` by, as Lexical composes it. */
+export function composedField(
+  klass: Klass<LexicalNode>,
+  key: string,
+): AnySerializationSchema {
+  const field = getComposedSchemaFields(klass)[key];
+  if (!field) throw new Error(`${klass.name} no longer declares its ${key}`);
+  return field;
+}
 
 /**
- * The number images, video and YouTube embeds store a dimension as, which is
- * 0 for `inherit`.
+ * Lexical's `rawValue`, but reading absence as `defaultValue`, and null too
+ * where `nullAsAbsent`: what a node read with a default parameter, or `??`.
  */
-export function zeroForInherit(value: Dimension): number {
-  return value === "inherit" ? 0 : value;
-}
-
-/** The dimension {@link zeroForInherit} stored. */
-export function inheritForZero(value: number): Dimension {
-  return value || "inherit";
-}
-
-/** Lexical's `rawValue`, but reading absence as `defaultValue`. */
 export function rawValueOr<T>(
   defaultValue: T,
+  { nullAsAbsent = false } = {},
 ): SerializationSchema<T, never, unknown> {
-  return Object.assign(
-    (value: unknown) => (value === undefined ? defaultValue : value),
-    { ...rawValue<T>(), defaultValue },
-  ) as SerializationSchema<T, never, unknown>;
+  const raw = storedValue<T>();
+  const read = (value: unknown): T =>
+    value === undefined || (nullAsAbsent && value === null)
+      ? defaultValue
+      : raw(value);
+  if (nullAsAbsent) NULL_AS_ABSENT.add(raw.meta);
+  return Object.assign(read, { ...raw, defaultValue });
+}
+
+export function readsNullAsAbsent(meta: SerializationSchemaMeta): boolean {
+  return NULL_AS_ABSENT.has(meta);
+}
+
+/**
+ * `raw`, described as `shape`: data a node keeps exactly as it was stored,
+ * which other implementations read as `shape` wherever it reads back as
+ * itself.
+ */
+export function shapedAs<T>(
+  shape: AnySerializationSchema,
+  raw: SerializationSchema<T, never, unknown>,
+): SerializationSchema<T, never, unknown> {
+  SHAPES.set(raw.meta, shape);
+  return raw;
+}
+
+export function shapeOf(
+  meta: SerializationSchemaMeta,
+): AnySerializationSchema | undefined {
+  return SHAPES.get(meta);
+}
+
+/**
+ * `raw`, which the node reads as `checked` where it holds NodeState and as
+ * stored otherwise.
+ */
+export function checkedWithState<T>(
+  checked: AnySerializationSchema,
+  raw: SerializationSchema<T, never, unknown>,
+): SerializationSchema<T, never, unknown> {
+  CHECKED_WITH_STATE.set(raw.meta, checked);
+  return raw;
+}
+
+export function checkOf(
+  meta: SerializationSchemaMeta,
+): AnySerializationSchema | undefined {
+  return CHECKED_WITH_STATE.get(meta);
+}
+
+/**
+ * `schema`, for a property the node writes as a new node holds it and never
+ * reads: whatever was stored, it writes `schema`'s default.
+ */
+export function writtenOnly<S extends AnySerializationSchema>(schema: S): S {
+  WRITTEN_ONLY.add(schema.meta);
+  return schema;
+}
+
+export function isWrittenOnly(meta: SerializationSchemaMeta): boolean {
+  return WRITTEN_ONLY.has(meta);
+}
+
+/**
+ * `schema` typed as a node holds what it reads, where Lexical types a schema
+ * that can read a property as absent `T | undefined`. The nodes read their
+ * JSON by hand before they had schemas, and held whatever was stored under
+ * the type they declared, absent included; they hold it so still, so what
+ * they write is what they read.
+ */
+export function asStored<T, In>(
+  schema: SerializationSchema<T | undefined, never, In>,
+): SerializationSchema<T, never, In> {
+  return schema as SerializationSchema<T, never, In>;
+}
+
+/** Lexical's `rawValue`, typed as {@link asStored} describes. */
+export function storedValue<T>(): SerializationSchema<T, never, unknown> {
+  return asStored(rawValue<T>());
 }
 
 type EditorStateJSON = SerializedEditor["editorState"];
@@ -140,13 +193,45 @@ const EMPTY_EDITOR_STATE: EditorStateJSON = {
   },
 };
 
+/** Whether `value` is an editor state with something in its root. */
+export function holdsNodes(value: unknown): value is SerializedEditorState {
+  if (typeof value !== "object" || value === null || !("root" in value)) {
+    return false;
+  }
+  const { root } = value;
+  return (
+    typeof root === "object" &&
+    root !== null &&
+    "children" in root &&
+    Array.isArray(root.children) &&
+    root.children.length > 0
+  );
+}
+
+/** `text` parsed, as `parseEditorState` parses a state stored as JSON text. */
+function parsedOrNothing(text: string): unknown {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return undefined;
+  }
+}
+
 /**
  * A nested editor's JSON, as `LexicalEditor.toJSON` writes it. A node writes
- * the editor it holds whatever it read, so JSON without one reads as the
- * empty editor it will write.
+ * the editor it holds whatever it read, so JSON that holds nothing reads as
+ * the empty editor it will write.
  */
 export const nestedEditorValue = objectValue({
-  editorState: rawValueOr(EMPTY_EDITOR_STATE),
+  editorState: namedTransform(
+    "nestedEditorState",
+    rawValueOr<unknown>(EMPTY_EDITOR_STATE),
+    (stored): EditorStateJSON => {
+      const state =
+        typeof stored === "string" ? parsedOrNothing(stored) : stored;
+      return holdsNodes(state) ? state : EMPTY_EDITOR_STATE;
+    },
+  ),
 });
 
 export type NestedEditorJSON = SerializationSchemaValue<
@@ -154,41 +239,19 @@ export type NestedEditorJSON = SerializationSchemaValue<
 >;
 
 /**
- * Reads a nested editor's JSON into `editor`. JSON that holds nothing leaves
- * the editor as it was made.
+ * Reads a nested editor's JSON into `editor`. JSON that holds nothing, or
+ * that its editor can't read, leaves the editor as it was made: a caption
+ * that can't be read shouldn't keep the document it's in from loading.
  */
 export function setNestedEditorJSON(
   editor: LexicalEditor,
   { editorState }: NestedEditorJSON,
 ): void {
-  if (!editorState) return;
-  const state = editor.parseEditorState(editorState);
+  let state: EditorState;
+  try {
+    state = editor.parseEditorState(editorState);
+  } catch {
+    return;
+  }
   if (!state.isEmpty()) editor.setEditorState(state);
-}
-
-function isPlainObject(value: unknown): value is JSONObject {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) {
-    return false;
-  }
-  const prototype = Object.getPrototypeOf(value);
-  return prototype === Object.prototype || prototype === null;
-}
-
-function sameJSON(a: unknown, b: unknown): boolean {
-  if (a === b) return true;
-  if (Array.isArray(a) || Array.isArray(b)) {
-    return (
-      Array.isArray(a) &&
-      Array.isArray(b) &&
-      a.length === b.length &&
-      a.every((item, index) => sameJSON(item, b[index]))
-    );
-  }
-  if (!isPlainObject(a) || !isPlainObject(b)) return false;
-  const keys = Object.keys(a).filter((key) => a[key] !== undefined);
-  return (
-    keys.length ===
-      Object.keys(b).filter((key) => b[key] !== undefined).length &&
-    keys.every((key) => sameJSON(a[key], b[key]))
-  );
 }

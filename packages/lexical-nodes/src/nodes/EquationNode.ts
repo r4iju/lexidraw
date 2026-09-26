@@ -1,6 +1,5 @@
 import {
   $create,
-  booleanValue,
   DecoratorNode,
   type DOMConversionMap,
   type DOMConversionOutput,
@@ -8,19 +7,18 @@ import {
   type EditorConfig,
   type Klass,
   type LexicalNode,
+  type LexicalParseJSON,
   type NodeKey,
   nodeSchema,
   type SerializedLexicalNode,
   type Spread,
-  stringValue,
   withField,
 } from "lexical";
+import { rawValueOr, type SchemaJSON } from "../schema-values.js";
+import { withoutNodeState } from "../stored-order.js";
 
 export type SerializedEquationNode = Spread<
-  {
-    equation: string;
-    inline: boolean;
-  },
+  { equation: string; inline: boolean },
   SerializedLexicalNode
 >;
 
@@ -39,10 +37,15 @@ function $convertEquationElement(
   return null;
 }
 
-const equationSchema = nodeSchema<EquationNode>()({
-  equation: withField(stringValue(), { field: "__equation" }),
-  inline: withField(booleanValue(), { field: "__inline" }),
-});
+const equationFields = {
+  equation: withField(rawValueOr(""), { field: "__equation" }),
+  inline: withField(rawValueOr(false), { field: "__inline" }),
+};
+
+/** @internal What {@link equationFields} write, which {@link SerializedEquationNode} is checked against. */
+export type EquationFieldsJSON = SchemaJSON<typeof equationFields>;
+
+const equationSchema = nodeSchema<EquationNode>()(equationFields);
 
 /**
  * The editor's subclass renders the equation with KaTeX in `exportDOM`;
@@ -58,6 +61,10 @@ export class EquationNode extends DecoratorNode<unknown> {
       extends: DecoratorNode,
       json: equationSchema,
     });
+  }
+
+  updateFromJSON(json: LexicalParseJSON<SerializedLexicalNode>): this {
+    return super.updateFromJSON(withoutNodeState(json));
   }
 
   constructor(equation = "", inline?: boolean, key?: NodeKey) {

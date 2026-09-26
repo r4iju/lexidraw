@@ -10,15 +10,14 @@ import {
   nodeSchema,
   type SerializedElementNode,
   type Spread,
-  stringValue,
   withField,
 } from "lexical";
+import { type SchemaJSON, storedValue } from "../schema-values.js";
 import { figureDOM, figureState } from "../figure.js";
+import { inStoredOrder } from "../stored-order.js";
 
 export type SerializedLayoutContainerNode = Spread<
-  {
-    templateColumns: string;
-  },
+  { templateColumns: string },
   SerializedElementNode
 >;
 
@@ -37,9 +36,20 @@ function $convertLayoutContainerElement(
   return null;
 }
 
-const layoutContainerSchema = nodeSchema<LayoutContainerNode>()({
-  templateColumns: withField(stringValue(), { field: "__templateColumns" }),
-});
+const layoutContainerFields = {
+  templateColumns: withField(storedValue<string>(), {
+    field: "__templateColumns",
+  }),
+};
+
+/** @internal What {@link layoutContainerFields} write, which {@link SerializedLayoutContainerNode} is checked against. */
+export type LayoutContainerFieldsJSON = SchemaJSON<
+  typeof layoutContainerFields
+>;
+
+const layoutContainerSchema = nodeSchema<LayoutContainerNode>()(
+  layoutContainerFields,
+);
 
 export class LayoutContainerNode extends ElementNode {
   __templateColumns: string;
@@ -47,6 +57,10 @@ export class LayoutContainerNode extends ElementNode {
   constructor(templateColumns = "", key?: NodeKey) {
     super(key);
     this.__templateColumns = templateColumns;
+  }
+
+  exportJSON(): SerializedElementNode {
+    return inStoredOrder(super.exportJSON(), ["templateColumns"]);
   }
 
   $config() {

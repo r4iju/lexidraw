@@ -5,19 +5,21 @@ import {
   type DOMExportOutput,
   type EditorConfig,
   type LexicalNode,
+  type LexicalParseJSON,
   type NodeKey,
   nodeSchema,
+  type SerializedLexicalNode,
   type SerializedTextNode,
   type Spread,
-  stringValue,
   TextNode,
   withField,
 } from "lexical";
+import { type SchemaJSON, storedValue } from "../schema-values.js";
+import { inStoredOrder, withoutNodeState } from "../stored-order.js";
+import { storedTextFields } from "./stored-text.js";
 
 export type SerializedMentionNode = Spread<
-  {
-    mentionName: string;
-  },
+  { mentionName: string },
   SerializedTextNode
 >;
 
@@ -38,9 +40,15 @@ function $convertMentionElement(
 
 const mentionStyle = "background-color: rgba(24, 119, 232, 0.2)";
 
-const mentionSchema = nodeSchema<MentionNode>()({
-  mentionName: withField(stringValue(), { field: "__mention" }),
-});
+const mentionFields = {
+  ...storedTextFields(storedValue<string>()),
+  mentionName: withField(storedValue<string>(), { field: "__mention" }),
+};
+
+/** @internal What {@link mentionFields} write, which {@link SerializedMentionNode} is checked against. */
+export type MentionFieldsJSON = SchemaJSON<typeof mentionFields>;
+
+const mentionSchema = nodeSchema<MentionNode>()(mentionFields);
 
 export class MentionNode extends TextNode {
   __mention: string;
@@ -52,6 +60,14 @@ export class MentionNode extends TextNode {
   constructor(mentionName = "", text?: string, key?: NodeKey) {
     super(text ?? mentionName, key);
     this.__mention = mentionName;
+  }
+
+  exportJSON(): SerializedTextNode {
+    return inStoredOrder(super.exportJSON(), ["mentionName"]);
+  }
+
+  updateFromJSON(json: LexicalParseJSON<SerializedLexicalNode>): this {
+    return super.updateFromJSON(withoutNodeState(json));
   }
 
   createDOM(config: EditorConfig): HTMLElement {

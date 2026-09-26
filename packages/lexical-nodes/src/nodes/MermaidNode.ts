@@ -9,32 +9,32 @@ import {
   nodeSchema,
   type SerializedLexicalNode,
   type Spread,
-  stringValue,
   withField,
 } from "lexical";
 import { figureDOM, figureState, naturalSizeState } from "../figure.js";
-import { zeroAsInheritValue } from "../schema-values.js";
+import { rawValueOr, type SchemaJSON } from "../schema-values.js";
+import { inStoredOrder } from "../stored-order.js";
+import { type Size, zeroAsInheritSize } from "./stored-size.js";
 
 /** Stored in the editor state */
 export type SerializedMermaidNode = Spread<
-  {
-    type: "mermaid";
-    version: 1;
-    schema: string;
-    width?: number | "inherit";
-    height?: number | "inherit";
-  },
+  { type: "mermaid"; version: 1; schema: string; width: Size; height: Size },
   SerializedLexicalNode
 >;
 
 /** What a new diagram, or one stored without its source, draws. */
 const DEFAULT_SCHEMA = "graph TD;\n  A[Start] --> B>Stop]";
 
-const mermaidSchema = nodeSchema<MermaidNode>()({
-  schema: withField(stringValue(DEFAULT_SCHEMA), { field: "__schema" }),
-  width: withField(zeroAsInheritValue, { field: "__width" }),
-  height: withField(zeroAsInheritValue, { field: "__height" }),
-});
+const mermaidFields = {
+  schema: withField(rawValueOr(DEFAULT_SCHEMA), { field: "__schema" }),
+  width: withField(zeroAsInheritSize, { field: "__width" }),
+  height: withField(zeroAsInheritSize, { field: "__height" }),
+};
+
+/** @internal What {@link mermaidFields} write, which {@link SerializedMermaidNode} is checked against. */
+export type MermaidFieldsJSON = SchemaJSON<typeof mermaidFields>;
+
+const mermaidSchema = nodeSchema<MermaidNode>()(mermaidFields);
 
 /**
  * Serialization half of the mermaid block; see ImageNode for the split.
@@ -99,6 +99,15 @@ export class MermaidNode extends DecoratorNode<unknown> {
 
   isInline(): false {
     return false;
+  }
+
+  exportJSON(): SerializedLexicalNode {
+    return inStoredOrder(super.exportJSON(), [
+      "schema",
+      "width",
+      "height",
+      "$",
+    ]);
   }
 
   createDOM(_config: EditorConfig): HTMLElement {

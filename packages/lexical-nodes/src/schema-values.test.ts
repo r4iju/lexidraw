@@ -1,33 +1,40 @@
 import { expect, test } from "bun:test";
-import { enumValue, numberValue, stringValue, unionValue } from "lexical";
-import { openObjectValue } from "./schema-values.js";
+import {
+  emptyOrStored,
+  falseOrStored,
+  rawValueOr,
+  readsNullAsAbsent,
+  storedValue,
+} from "./schema-values.js";
 
-const note = openObjectValue({
-  kind: enumValue(["note"]),
-  text: stringValue(),
-  votes: numberValue(),
+test("a stored value is read as it was stored, whatever it is", () => {
+  const stored = storedValue<unknown>();
+
+  for (const value of ["a", 7, null, { deep: [1] }, undefined]) {
+    expect(stored(value)).toBe(value);
+  }
 });
 
-test("an open object reads the fields it declares and keeps the rest as they are", () => {
-  expect(note({ kind: "note", text: 5, extra: { deep: [1] } })).toEqual({
-    kind: "note",
-    text: "",
-    votes: 0,
-    extra: { deep: [1] },
-  });
-  expect(note("not an object")).toEqual({ kind: "note", text: "", votes: 0 });
+test("a stored value with a default reads absence as it, and null only where told to", () => {
+  const plain = rawValueOr<unknown>("[]");
+  const nullAbsent = rawValueOr("[]", { nullAsAbsent: true });
+
+  expect(plain(undefined)).toBe("[]");
+  expect(plain(null)).toBeNull();
+  expect(plain(5)).toBe(5);
+  expect(nullAbsent(null)).toBe("[]");
+  expect(nullAbsent("x")).toBe("x");
+  expect(readsNullAsAbsent(nullAbsent.meta)).toBe(true);
+  expect(readsNullAsAbsent(plain.meta)).toBe(false);
 });
 
-test("a union picks an open object for a value with keys it doesn't declare", () => {
-  const either = unionValue([
-    openObjectValue({ kind: enumValue(["link"]), url: stringValue() }),
-    note,
-  ]);
+test('`|| false` and `|| ""` read nothing as the empty value and anything else as stored', () => {
+  const empty = emptyOrStored();
 
-  expect(either({ kind: "note", text: "a", votes: 1, extra: true })).toEqual({
-    kind: "note",
-    text: "a",
-    votes: 1,
-    extra: true,
-  });
+  expect(falseOrStored(undefined)).toBe(false);
+  expect(falseOrStored(0)).toBe(false);
+  expect<unknown>(falseOrStored("yes")).toBe("yes");
+  expect(empty(null)).toBe("");
+  expect(empty("left")).toBe("left");
+  expect<unknown>(empty(3)).toBe(3);
 });
