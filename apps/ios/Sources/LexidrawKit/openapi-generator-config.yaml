@@ -10,6 +10,7 @@ filter:
     - entities-sharedWithMe
     - entities-trash
     - entities-load
+    - entities-save
     - entities-getMetadata
     - entities-getUserTags
     - entities-create

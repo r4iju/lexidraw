@@ -2,8 +2,8 @@ import DrawingKit
 import LexidrawKit
 import SwiftUI
 
-/// A drawing, read-only, in the app's appearance as the web shows it in its
-/// theme.
+/// A drawing in the app's appearance as the web shows it in its theme:
+/// edited where the user may edit it, and shown read-only elsewhere.
 struct DrawingScreen: View {
   let session: Session
   let id: String
@@ -14,12 +14,15 @@ struct DrawingScreen: View {
   var body: some View {
     Group {
       if let stored = drawing.value {
-        DrawingCanvas(
-          elements: stored.elements, background: stored.background,
-          theme: colorScheme == .dark ? .dark : .light
-        )
-        .id(stored.updatedAt)
-        .ignoresSafeArea(edges: .bottom)
+        let theme: DrawingTheme = colorScheme == .dark ? .dark : .light
+        if stored.access == .edit {
+          DrawingEditorScreen(session: session, drawing: stored, theme: theme, reload: load)
+            .id(stored.updatedAt)
+        } else {
+          DrawingCanvas(elements: stored.elements, background: stored.background, theme: theme)
+            .id(stored.updatedAt)
+            .ignoresSafeArea(edges: .bottom)
+        }
       } else {
         Color.clear
       }
@@ -34,4 +37,3 @@ struct DrawingScreen: View {
     if let loaded = await Loaded.from({ try await session.drawing(id) }) { drawing = loaded }
   }
 }
-

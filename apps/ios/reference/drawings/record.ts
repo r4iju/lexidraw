@@ -8,6 +8,12 @@
  *     <theme>.events.json every canvas call the export made
  *     <theme>.png         the export itself, at scale 2
  *
+ * and what the web editor does with each script in `interactions.ts`:
+ *
+ *   Tests/DrawingKitTests/Fixtures/Interactions/<script>/
+ *     script.json         the steps, and the elements they start from
+ *     after.json          every element the editor ends with, deleted ones too
+ *
  * Run with `bun run record:drawings` after bumping `@excalidraw/excalidraw`;
  * it needs Playwright's Chromium (`bunx playwright install chromium`). The
  * page is served from here with the editor's own fonts, and every other
@@ -15,50 +21,57 @@
  */
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { chromium } from "playwright";
+import { chromium, type Page } from "playwright";
 
+import { INTERACTIONS, type Step } from "./interactions.js";
 import { SCENES } from "./scenes.js";
 
 const here = import.meta.dir;
-const fixtures = join(
-  here,
-  "..",
-  "..",
-  "Tests",
-  "DrawingKitTests",
-  "Fixtures",
-  "Drawings",
-);
+const tests = join(here, "..", "..", "Tests", "DrawingKitTests", "Fixtures");
+const fixtures = join(tests, "Drawings");
+const interactionFixtures = join(tests, "Interactions");
 const editor = dirname(
   Bun.resolveSync("@excalidraw/excalidraw/package.json", here),
 );
 const fontsDirectory = join(editor, "dist", "prod", "fonts");
 
 const build = await Bun.build({
-  entrypoints: [join(here, "page.ts")],
+  entrypoints: [join(here, "page.ts"), join(here, "editor.ts")],
   target: "browser",
   format: "esm",
   conditions: ["production"],
   define: { "process.env.NODE_ENV": '"production"' },
 });
 for (const message of build.logs) console.error(String(message));
-const script = build.outputs.find((output) => output.path.endsWith(".js"));
-if (!build.success || !script) process.exit(1);
-const bundle = await script.text();
+if (!build.success) process.exit(1);
+const outputs = new Map<string, string>(
+  await Promise.all(
+    build.outputs.map(
+      async (output) =>
+        [`/${output.path.replace(/^\.\//, "")}`, await output.text()] as const,
+    ),
+  ),
+);
+const html = (script: string, style = "") =>
+  new Response(
+    `<!doctype html><meta charset="utf-8">${style && `<link rel="stylesheet" href="${style}">`}<body><script type="module" src="${script}"></script></body>`,
+    { headers: { "content-type": "text/html" } },
+  );
 
 const server = Bun.serve({
   port: 0,
   async fetch(request) {
     const { pathname } = new URL(request.url);
-    if (pathname === "/") {
-      return new Response(
-        '<!doctype html><meta charset="utf-8"><body><script type="module" src="/page.js"></script></body>',
-        { headers: { "content-type": "text/html" } },
-      );
-    }
-    if (pathname === "/page.js") {
-      return new Response(bundle, {
-        headers: { "content-type": "text/javascript" },
+    if (pathname === "/") return html("/page.js");
+    if (pathname === "/editor") return html("/editor.js", "/editor.css");
+    const output = outputs.get(pathname);
+    if (output !== undefined) {
+      return new Response(output, {
+        headers: {
+          "content-type": pathname.endsWith(".css")
+            ? "text/css"
+            : "text/javascript",
+        },
       });
     }
     if (pathname.startsWith("/fonts/")) {
@@ -71,7 +84,9 @@ const server = Bun.serve({
 
 const browser = await chromium.launch();
 try {
-  const page = await browser.newPage({ deviceScaleFactor: 1 });
+  // With touch, the editor takes itself to be on an iPad, and lays out its
+  // handles as it does there.
+  const page = await browser.newPage({ deviceScaleFactor: 1, hasTouch: true });
   await page.route("**/*", (route) =>
     route.request().url().startsWith(server.url.origin)
       ? route.continue()
@@ -112,7 +127,62 @@ try {
     }
     console.log(scene.name);
   }
+
+  await rm(interactionFixtures, { recursive: true, force: true });
+  for (const interaction of INTERACTIONS) {
+    const directory = join(interactionFixtures, interaction.name);
+    await mkdir(directory, { recursive: true });
+    await page.goto(server.url.href);
+    await page.waitForFunction(() => typeof window.convert === "function");
+    const before = interaction.before
+      ? await page.evaluate(
+          (skeleton) => window.convert(skeleton),
+          interaction.before,
+        )
+      : [];
+    await page.goto(new URL("/editor", server.url).href);
+    await page.waitForFunction(() => typeof window.play === "function");
+    await page.evaluate((elements) => window.load(elements), before);
+    for (const step of interaction.steps) await play(page, step);
+    await writeFile(
+      join(directory, "script.json"),
+      `${JSON.stringify({ before, steps: interaction.steps }, null, 2)}\n`,
+    );
+    await writeFile(
+      join(directory, "after.json"),
+      `${JSON.stringify(
+        await page.evaluate(() => window.elements()),
+        null,
+        2,
+      )}\n`,
+    );
+    console.log(interaction.name);
+  }
 } finally {
   await browser.close();
   server.stop();
+}
+
+/** Keys and typing go through Playwright's keyboard, as a person's do. */
+async function play(page: Page, step: Step) {
+  if ("type" in step) {
+    await page.keyboard.type(step.type);
+  } else if ("press" in step) {
+    await page.keyboard.press(
+      step.press === "undo"
+        ? "ControlOrMeta+z"
+        : step.press === "redo"
+          ? "ControlOrMeta+Shift+z"
+          : step.press,
+    );
+  } else {
+    await page.evaluate((step) => window.play(step), step);
+    return;
+  }
+  await page.evaluate(
+    () =>
+      new Promise((resolve) =>
+        requestAnimationFrame(() => requestAnimationFrame(resolve)),
+      ),
+  );
 }

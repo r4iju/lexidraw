@@ -26,7 +26,7 @@ public final class PreparedScene: @unchecked Sendable {
 
   public init(
     _ elements: [DrawingElement], theme: DrawingTheme, canvasBackgroundColor: String = "#ffffff",
-    measurer: TextMeasuring
+    measurer: TextMeasuring, shapes: ShapeCache? = nil
   ) {
     self.theme = theme
     var prepared: [DrawingElement] = []
@@ -38,7 +38,7 @@ public final class PreparedScene: @unchecked Sendable {
     }
     self.elements = prepared
     let map = Dictionary(prepared.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
-    geometry = SceneGeometry(elements: map, canvasBackgroundColor: canvasBackgroundColor)
+    geometry = SceneGeometry(elements: map, canvasBackgroundColor: canvasBackgroundColor, kept: shapes)
     let frameIds = Set(prepared.filter(\.isFrameLike).map(\.id))
     let roots = prepared.filter {
       $0.isFrameLike || $0.frameId == nil || !frameIds.contains($0.frameId!)
@@ -283,7 +283,7 @@ private struct ElementRenderer {
       canvas.fillStyle = element.strokeColor
       if let fill = geometry.cachedShape(element)?.first { drawRough(fill, on: canvas) }
       canvas.fillStyle = element.strokeColor
-      canvas.fill(svgPath: freedrawSVGPath(element))
+      canvas.fill(svgPath: geometry.outline(element))
       canvas.restore()
     case "image":
       canvas.fillStyle = "#E7E7E7"

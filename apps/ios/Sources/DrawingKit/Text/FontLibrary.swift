@@ -91,7 +91,38 @@ public final class FontLibrary: TextMeasuring, @unchecked Sendable {
     return words
   }
 
+  /// The width as Chromium's canvas measures it: HarfBuzz positions in
+  /// 16.16 fixed point, each glyph's advance truncated from Skia's 32-bit
+  /// float and each font-table adjustment scaled from font units, added up
+  /// as 32-bit floats. Text measured here then has the width the web gave
+  /// it, to the bit, so measuring it again changes nothing.
   public func width(of text: String, font css: String) -> Double {
-    pieces(text, font: css).reduce(0) { $0 + CTLineGetTypographicBounds($1.line, nil, nil, nil) }
+    var width: Float = 0
+    for piece in pieces(text, font: css) {
+      for run in CTLineGetGlyphRuns(piece.line) as? [CTRun] ?? [] {
+        let count = CTRunGetGlyphCount(run)
+        guard count > 0,
+          let runFont = (CTRunGetAttributes(run) as NSDictionary)[kCTFontAttributeName]
+        else { continue }
+        let font = runFont as! CTFont
+        var glyphs = [CGGlyph](repeating: 0, count: count)
+        var advances = [CGSize](repeating: .zero, count: count)
+        var natural = [CGSize](repeating: .zero, count: count)
+        CTRunGetGlyphs(run, CFRange(), &glyphs)
+        CTRunGetAdvances(run, CFRange(), &advances)
+        CTFontGetAdvancesForGlyphs(font, .horizontal, glyphs, &natural, count)
+        let size = Double(CTFontGetSize(font))
+        let unitsPerEm = Int64(CTFontGetUnitsPerEm(font))
+        let multiplier = (Int64(Float(size) * 65536) << 16) / unitsPerEm
+        for index in 0..<count {
+          let advance = Int64(Float(natural[index].width) * 65536)
+          let units = Int64(
+            ((advances[index].width - natural[index].width) * Double(unitsPerEm) / size).rounded())
+          let adjustment = (units * multiplier + 32768) >> 16
+          width += Float(advance + adjustment) / 65536
+        }
+      }
+    }
+    return Double(width)
   }
 }

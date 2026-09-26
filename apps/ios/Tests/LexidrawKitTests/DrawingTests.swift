@@ -1,4 +1,6 @@
 import Foundation
+import LexidrawJSON
+import Synchronization
 import Testing
 
 @testable import LexidrawKit
@@ -43,5 +45,148 @@ import Testing
 
     #expect(try await session.drawing("d1").background == "#fdf6e3")
     #expect(try await session.drawing("d2").background == "#ffffff")
+  }
+}
+
+@Suite struct DrawingSaveTests {
+  static let read = Date(timeIntervalSince1970: 1_790_328_600.123)
+  static let saved = #"{"id":"d1","updatedAt":"2026-09-25T09:31:00.456Z"}"#
+
+  /// Whatever was read comes back as it was, written as the web's
+  /// `JSON.stringify` writes it, deleted elements too, as the web sends them
+  /// so a peer can tell a deletion from an element it never had; the app
+  /// state, which this app doesn't edit, is left alone.
+  @Test func savesTheElementsAgainstTheRevisionItRead() async throws {
+    let server = FakeServer { _ in (200, Self.saved) }
+    let session = try TestServer.session(server)
+    let read = #"[{"type":"rectangle","id":"r","link":"https://x.test/a","customData":{"kept":true,"at":0.1}},"#
+      + #"{"id":"gone","type":"ellipse","isDeleted":true}]"#
+    let elements = try #require(JSONValue(parsing: read).arrayValue)
+
+    let updatedAt = try await session.save(drawing: "d1", elements: elements, ifUnmodifiedSince: Self.read)
+
+    let request = try #require(server.requests.only)
+    #expect(request.method == .put)
+    #expect(request.url.path == "/api/v1/entities/d1")
+    #expect(request.json["ifUnmodifiedSince"] == "2026-09-25T09:30:00.123Z")
+    #expect(!request.keys.contains("appState"))
+    #expect(request.json["elements"] == read)
+    #expect(updatedAt == Date(timeIntervalSince1970: 1_790_328_660.456))
+  }
+
+  /// Someone saved since it was read: the save is refused, not merged.
+  @Test func aSaveOverAnotherIsAConflict() async throws {
+    let server = FakeServer { _ in
+      (409, #"{"message":"Drawing was modified at 2026-09-25T09:30:30.000Z","code":"CONFLICT"}"#)
+    }
+    let session = try TestServer.session(server)
+
+    await #expect(throws: DrawingConflict.self) {
+      try await session.save(drawing: "d1", elements: [], ifUnmodifiedSince: Self.read)
+    }
+  }
+}
+
+@Suite struct DrawingSaverTests {
+  /// Stands for the pause after an edit: the saver waits until a test lets
+  /// it go on.
+  final class Pause: Sendable {
+    private let waiting = Mutex<[CheckedContinuation<Void, Never>]>([])
+
+    func wait() async {
+      await withCheckedContinuation { continuation in waiting.withLock { $0.append(continuation) } }
+    }
+
+    /// Ends every pause begun so far.
+    func end() {
+      for continuation in waiting.withLock({ list in defer { list = [] }; return list }) {
+        continuation.resume()
+      }
+    }
+
+    var count: Int { waiting.withLock { $0.count } }
+  }
+
+  static func sentElements(_ request: FakeServer.Request) throws -> [JSONValue] {
+    try JSONDecoder().decode([JSONValue].self, from: Data(try #require(request.json["elements"]).utf8))
+  }
+
+  static func settle(_ condition: @escaping () async -> Bool) async {
+    for _ in 0..<2000 where !(await condition()) { try? await Task.sleep(for: .milliseconds(1)) }
+  }
+
+  /// Edits in quick succession make one save, of where they ended.
+  @Test func savesOnceEditingPauses() async throws {
+    let server = FakeServer { _ in (200, DrawingSaveTests.saved) }
+    let pause = Pause()
+    let saver = DrawingSaver(
+      session: try TestServer.session(server), drawing: "d1", readAt: DrawingSaveTests.read,
+      pause: { await pause.wait() })
+
+    await saver.changed([["id": "a"]])
+    await saver.changed([["id": "a"], ["id": "b"]])
+    await Self.settle { pause.count == 2 }
+    pause.end()
+    await Self.settle { await saver.status == .saved }
+
+    let request = try #require(server.requests.only)
+    #expect(try Self.sentElements(request) == [["id": "a"], ["id": "b"]])
+  }
+
+  /// Each save is against the revision the one before it made.
+  @Test func eachSaveFollowsTheLast() async throws {
+    let answers = Mutex([
+      #"{"id":"d1","updatedAt":"2026-09-25T09:31:00.000Z"}"#,
+      #"{"id":"d1","updatedAt":"2026-09-25T09:32:00.000Z"}"#,
+    ])
+    let server = FakeServer { _ in (200, answers.withLock { $0.removeFirst() }) }
+    let saver = DrawingSaver(
+      session: try TestServer.session(server), drawing: "d1", readAt: DrawingSaveTests.read, pause: {})
+
+    await saver.changed([["id": "a"]])
+    await saver.saveNow()
+    await saver.changed([["id": "b"]])
+    await saver.saveNow()
+
+    #expect(
+      server.requests.map { $0.json["ifUnmodifiedSince"] } == [
+        "2026-09-25T09:30:00.123Z", "2026-09-25T09:31:00.000Z",
+      ])
+  }
+
+  /// A refused save stops saving until the user chooses; keeping theirs
+  /// is a reload, keeping these edits saves them over the revision that
+  /// is there now.
+  @Test func aConflictWaitsForAChoice() async throws {
+    let conflicted = Mutex(true)
+    let server = FakeServer { request in
+      if request.method == .get {
+        return (
+          200,
+          DrawingTests.loaded(elements: #""[]""#).replacingOccurrences(
+            of: "09:30:00.123Z", with: "09:30:30.000Z")
+        )
+      }
+      return conflicted.withLock { $0 }
+        ? (409, #"{"message":"Drawing was modified at 2026-09-25T09:30:30.000Z","code":"CONFLICT"}"#)
+        : (200, DrawingSaveTests.saved)
+    }
+    let saver = DrawingSaver(
+      session: try TestServer.session(server), drawing: "d1", readAt: DrawingSaveTests.read, pause: {})
+
+    await saver.changed([["id": "a"]])
+    await saver.saveNow()
+    #expect(await saver.status == .conflict)
+    await saver.changed([["id": "a"], ["id": "b"]])
+    await saver.saveNow()
+    #expect(server.requests.count == 1)
+
+    conflicted.withLock { $0 = false }
+    await saver.keepMine()
+
+    #expect(await saver.status == .saved)
+    let last = try #require(server.requests.last)
+    #expect(last.json["ifUnmodifiedSince"] == "2026-09-25T09:30:30.000Z")
+    #expect(try Self.sentElements(last) == [["id": "a"], ["id": "b"]])
   }
 }

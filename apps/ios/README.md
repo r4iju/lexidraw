@@ -78,8 +78,8 @@ hand:
 - The TestFlight group is set up by hand, as above.
 - A new file asks for its name straight away, as a new folder in Files does.
   The web opens the new file instead, which the app cannot do yet.
-- The app doesn't save files yet, so the save messages that name the file and
-  say what to do next belong to #130, which brings editing.
+- Documents aren't saved yet, so the save messages that name the file and say
+  what to do next belong to #130, which brings document editing.
 - The share extension signs in with the app's token through a Keychain
   access group named for the app's own App ID, the group the token was
   already kept in. So it needs no app group and no capability in the portal,
@@ -105,14 +105,34 @@ hand:
 - A line break is U+2028 in the editor's text, which breaks the line without
   ending the paragraph as TextKit sees it.
 - Copy, cut and paste come with #118, which owns the clipboard.
-- Drawings open read-only; editing them comes with #137. They are drawn by
-  `DrawingKit`, a port of Excalidraw's renderer with its Rough.js and
-  perfect-freehand, and checked against what web Excalidraw draws: `bun run
-  record:drawings` exports the scenes in `reference/drawings/scenes.ts` with
-  Playwright, and the tests compare every canvas call and the pixels, in
-  both themes. A test drawn with other random numbers must fail the pixel
+- Drawings are drawn by `DrawingKit`, a port of Excalidraw's renderer with
+  its Rough.js and perfect-freehand, and checked against what web Excalidraw
+  draws: `bun run record:drawings` exports the scenes in
+  `reference/drawings/scenes.ts` with Playwright, and the tests compare every
+  canvas call and the pixels, in both themes. A test drawn with other random numbers must fail the pixel
   comparison, which shows its tolerance still sees a moved stroke.
 - An image in a drawing shows as a grey box until #138 loads images, and an
   embedded web page as its outline, without the name the web writes in it.
 - CJK text draws in the system's font. The web's Xiaolai is too large to
   bundle, as it is for the server's thumbnails.
+- Drawings open for editing when the user may edit them, and read-only
+  otherwise. `DrawingEditor` is a port of Excalidraw 0.18.1's editor, gesture
+  by gesture. `bun run record:drawings` also plays the scripts in
+  `reference/drawings/interactions.ts` in web Excalidraw, with touch as on an
+  iPad, and the tests play them here and compare the element JSON, leaving
+  out ids, seeds, nonces and times.
+- Text is measured as Chrome measures it, to the bit, since a label wraps
+  where its width says and a width off by a hair wraps a line differently.
+- Two fingers pan and pinch, and a second finger takes back what the first
+  had begun. With Only Draw with Apple Pencil on, a finger moves the drawing
+  when a drawing tool is chosen. The web instead turns on its pen mode once
+  it sees a pen; the app follows the system setting.
+- Text is written in a text box over the canvas, as the web writes it in a
+  textarea, so while it is being written its glyphs are the system's layout
+  of the font.
+- Edits save once they pause for a second, each against the revision the last
+  save made. A save refused because someone else saved in between asks
+  whether to keep these changes or take theirs.
+- New elements aren't put in frames, and several selected elements are moved
+  but not resized or rotated together; groups, which need that, come with
+  #138.

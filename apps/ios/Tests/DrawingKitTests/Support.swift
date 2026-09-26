@@ -229,7 +229,7 @@ private func pathDataMatches(_ a: String, _ b: String) -> Bool {
     && zip(x, y).allSatisfy { abs($0 - $1) <= 0.011 }
 }
 
-private func describe(_ value: JSONValue) -> String {
+func describe(_ value: JSONValue) -> String {
   let encoder = JSONEncoder()
   encoder.outputFormatting = .sortedKeys
   let text = String(decoding: try! encoder.encode(value), as: UTF8.self)
@@ -307,4 +307,27 @@ func renderImage(_ elements: [JSONValue], _ theme: DrawingTheme) -> CGImage {
   let canvas = CGCanvas(width: size.width, height: size.height, fonts: FontLibrary.shared)
   scene.export(on: canvas, padding: exportPadding, scale: exportScale, background: "#ffffff")
   return canvas.makeImage()!
+}
+
+extension EditorEnvironment {
+  /// Ids, numbers and times that differ each time they are asked for, as
+  /// the web's random ones do, but the same on every run.
+  static var counting: EditorEnvironment {
+    let counter = Counter()
+    return EditorEnvironment(
+      newId: { "id\(counter.next())" }, randomInteger: { counter.next() },
+      now: { Double(counter.next()) })
+  }
+}
+
+private final class Counter: @unchecked Sendable {
+  private var value = 0
+  private let lock = NSLock()
+
+  func next() -> Int {
+    lock.withLock {
+      value += 1
+      return value
+    }
+  }
 }

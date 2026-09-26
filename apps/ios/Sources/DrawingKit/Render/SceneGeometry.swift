@@ -32,10 +32,12 @@ final class SceneGeometry {
   private var generated: Set<String> = []
   private var shapes: [String: [Drawable]?] = [:]
   private var boundsCache: [String: Bounds] = [:]
+  private let kept: ShapeCache?
 
-  init(elements: [String: DrawingElement], canvasBackgroundColor: String) {
+  init(elements: [String: DrawingElement], canvasBackgroundColor: String, kept: ShapeCache? = nil) {
     self.elements = elements
     self.canvasBackgroundColor = canvasBackgroundColor
+    self.kept = kept
   }
 
   /// `ShapeCache.generateElementShape`.
@@ -52,9 +54,16 @@ final class SceneGeometry {
 
   private func shape(_ element: DrawingElement) -> [Drawable]? {
     if let shape = shapes[element.id] { return shape }
-    let shape = generateElementShape(element, canvasBackgroundColor: canvasBackgroundColor)
+    let make = { generateElementShape(element, canvasBackgroundColor: self.canvasBackgroundColor) }
+    let shape = kept.map { $0.shape(element, background: canvasBackgroundColor, make) } ?? make()
     shapes[element.id] = shape
     return shape
+  }
+
+  /// A freedraw stroke's outline, as SVG path data.
+  func outline(_ element: DrawingElement) -> String {
+    kept.map { $0.outline(element, background: canvasBackgroundColor) { freedrawSVGPath(element) } }
+      ?? freedrawSVGPath(element)
   }
 
   func boundText(of element: DrawingElement) -> DrawingElement? {
