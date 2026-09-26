@@ -22,8 +22,9 @@ hand:
 
 ## Decisions
 
-- Release builds talk to `https://dev.hackdocean.com`, which is production
-  (`.env.production`).
+- Release builds talk to `https://lexidraw.vercel.app`, the host the CLI uses.
+  `https://dev.hackdocean.com` is behind Cloudflare Access, which answers the
+  app's API calls with a login page.
 - Home lists with the web's default sort, last changed first. It ignores the
   sort the web saves in a cookie.
 - A device signs in under its model name, "iPhone" or "iPad", so two phones
