@@ -29,6 +29,17 @@ import { v4 as uuidV4 } from "uuid";
 import { ownTagNames, replaceOwnTags } from "~/server/entities/tags";
 import { extractAndSanitizeArticle } from "~/server/extractors/article";
 import { readPublicImage } from "~/server/net/public-image";
+import {
+  AppUploadType,
+  appUploadsIn,
+  checkAppUploads,
+  signAppUpload,
+} from "~/server/entities/app-uploads";
+import {
+  createdFromMarkdown,
+  type DocumentChange,
+} from "~/server/documents/write";
+import { IMAGE } from "~/lib/media-kinds";
 import { extensionOf } from "~/server/documents/raster-type";
 import { entityText, snippetAround } from "~/lib/entity-text";
 import env from "@packages/env";
@@ -218,22 +229,6 @@ async function writableOrNotFound(
   return entity;
 }
 
-/** The images a document shows, as an upload of one is signed or stored. */
-const IMAGE_CONTENT_TYPES = [
-  "image/svg+xml",
-  "image/jpeg",
-  "image/png",
-  "image/webp",
-  "image/avif",
-] as const;
-
-/**
- * The most image one request may carry. The deployment caps a request body at
- * 4.5 MB, and base64 adds a third, so a larger image would be refused by the
- * platform before this could say why.
- */
-const MAX_IMAGE_UPLOAD_BYTES = 3_000_000;
-
 /** Where an upload of `contentType` into `entityId` lives, under a fresh id. */
 function uploadPathname(entityId: string, contentType: string) {
   const extension = contentType.split("/")[1]?.replace(/\+.*$/, "");
@@ -412,37 +407,75 @@ export const entityRouter = createTRPCRouter({
     .input(CreateEntity)
     .output(entitySummary)
     .mutation(async ({ input, ctx }) => {
-      const { title, elements: given } = createdContent(input);
+      const userId = ctx.session.user.id;
+      const blank = createdContent(input);
       const parentId = await resolveParentDirectory(
         ctx.drizzle,
         input.parentId,
-        ctx.session.user.id,
+        userId,
         input.entityType,
       );
+      const written: DocumentChange =
+        input.markdown === undefined
+          ? { elements: blank.elements }
+          : createdFromMarkdown(
+              {
+                id: input.id,
+                ...blank,
+                updatedAt: new Date(),
+                appState: "{}",
+                tags: [],
+              },
+              input.markdown,
+            );
+      const title = written.title ?? blank.title;
+      const appState = written.appState ?? "{}";
+      const uploads =
+        input.entityType === "document"
+          ? appUploadsIn(written.elements, userId)
+          : [];
+      await checkAppUploads(uploads);
       const elements =
-        input.entityType === "document" ? await measureImages(given) : given;
-      const [created] = await ctx.drizzle
-        .insert(schema.entities)
-        .values({
-          id: input.id,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-          deletedAt: undefined,
-          title,
-          userId: ctx.session?.user.id,
-          entityType: input.entityType,
-          publicAccess: PublicAccess.PRIVATE,
-          elements,
-          parentId,
-          appState: JSON.stringify({}),
-        })
-        .onConflictDoNothing()
-        .returning(summaryColumns);
+        input.entityType === "document"
+          ? await measureImages(written.elements)
+          : written.elements;
+      const created = await ctx.drizzle.transaction(async (tx) => {
+        const [row] = await tx
+          .insert(schema.entities)
+          .values({
+            id: input.id,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+            deletedAt: undefined,
+            title,
+            userId,
+            entityType: input.entityType,
+            publicAccess: PublicAccess.PRIVATE,
+            elements,
+            parentId,
+            appState,
+          })
+          .onConflictDoNothing()
+          .returning(summaryColumns);
+        if (row && uploads.length > 0)
+          await tx.insert(schema.uploadedImages).values(
+            uploads.map(({ url, pathname }) => ({
+              id: uuidV4(),
+              userId,
+              entityId: row.id,
+              fileName: pathname,
+              signedDownloadUrl: url,
+            })),
+          );
+        return row;
+      });
       if (created) {
+        if (written.tags)
+          await replaceOwnTags(ctx.drizzle, created.id, userId, written.tags);
         await queueThumbnail(ctx.drizzle, {
           ...created,
           elements,
-          appState: "{}",
+          appState,
         });
         await revalidateEntitiesAndParents(
           ctx.drizzle,
@@ -454,11 +487,7 @@ export const entityRouter = createTRPCRouter({
 
       // The id is taken. A retried create gets the owner their own entity
       // back; anyone else learns only that the id is gone, never whose it is.
-      const existing = await findOwnedEntity(
-        ctx.drizzle,
-        input.id,
-        ctx.session.user.id,
-      );
+      const existing = await findOwnedEntity(ctx.drizzle, input.id, userId);
       if (!existing) {
         throw new TRPCError({
           code: "CONFLICT",
@@ -1485,7 +1514,7 @@ export const entityRouter = createTRPCRouter({
     .input(
       z.object({
         entityId: z.string(),
-        contentType: z.enum(IMAGE_CONTENT_TYPES),
+        contentType: z.enum(IMAGE.types),
         mode: z.enum(["direct", "redirect"]), // kept for API shape
       }),
     )
@@ -1535,59 +1564,37 @@ export const entityRouter = createTRPCRouter({
       };
     }),
 
-  /**
-   * The web signs an upload and sends the file to the store itself; a REST
-   * client sends the image here instead, so it needs nothing but this API.
-   */
-  uploadImage: protectedProcedure
+  signImageUpload: protectedProcedure
     .meta({
       openapi: {
         method: "POST",
-        path: "/entities/{id}/uploads",
+        path: "/uploads",
         tags: ["entities"],
-        summary: "Store an image for an entity to show",
-        description: `Answers the image's public address, for markdown such as \`![](url)\`. An image over ${MAX_IMAGE_UPLOAD_BYTES / 1_000_000} MB is refused with 413.`,
+        summary: "Sign a picture's upload straight to the store",
+        description: `Send the picture as \`upload\` says, then name \`url\` in the markdown of a document you create, as \`![](url)\`; a picture no document takes within the hour is deleted. A picture over ${IMAGE.maxBytes / 1024 / 1024} MB is refused with 413.`,
         protect: true,
-        errorResponses: [400, 401, 403, 404, 413, 500],
+        errorResponses: [400, 401, 413, 500],
       },
     })
     .input(
       z.object({
-        id: z.string(),
-        contentType: z.enum(IMAGE_CONTENT_TYPES),
-        data: z.base64().describe("The image, base64-encoded"),
+        contentType: AppUploadType,
+        size: z.number().int().positive().describe("The picture's bytes"),
       }),
     )
-    .output(z.object({ url: z.url() }))
-    .mutation(async ({ input, ctx }) => {
-      await writableOrNotFound(ctx.drizzle, input.id, ctx.session.user.id);
-      const bytes = Buffer.from(input.data, "base64");
-      if (bytes.length > MAX_IMAGE_UPLOAD_BYTES) {
-        throw new TRPCError({
-          code: "PAYLOAD_TOO_LARGE",
-          message: `This image is ${Math.round(bytes.length / 100_000) / 10} MB, over the ${MAX_IMAGE_UPLOAD_BYTES / 1_000_000} MB a request can carry; send it smaller`,
-        });
-      }
-      const { randomId, pathname } = uploadPathname(
-        input.id,
-        input.contentType,
-      );
-      const blob = await put(pathname, bytes, {
-        access: "public",
-        contentType: input.contentType,
-        addRandomSuffix: false,
-      });
-      await ctx.drizzle.insert(ctx.schema.uploadedImages).values({
-        id: randomId,
-        userId: ctx.session.user.id,
-        entityId: input.id,
-        fileName: pathname,
-        signedDownloadUrl: blob.url,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      });
-      return { url: blob.url };
-    }),
+    .output(
+      z.object({
+        url: z.url().describe("Where the picture is once sent"),
+        upload: z.object({
+          method: z.literal("PUT"),
+          url: z.url(),
+          headers: z.record(z.string(), z.string()),
+        }),
+      }),
+    )
+    .mutation(({ input, ctx }) =>
+      signAppUpload(ctx.session.user.id, input.contentType, input.size),
+    ),
 
   generateVideoUploadUrl: protectedProcedure
     .input(

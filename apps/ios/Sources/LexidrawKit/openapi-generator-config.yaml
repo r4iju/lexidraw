@@ -20,7 +20,6 @@ filter:
     - nativeSignIn-exchange
     - tokens-revokeCurrent
     - entities-distillUrl
-    - entities-uploadImage
-    - documents-replaceMarkdown
+    - entities-signImageUpload
     - tts-listen
     - tts-listening

@@ -140,6 +140,26 @@ struct Connection: Sendable {
     }
     _ = try await next(request, HTTPBody(json), serverURL)
   }
+
+  /// Sends `data` somewhere other than the server, so past the middlewares:
+  /// neither the app's token nor the server's way of refusing belong there.
+  func sendOutside(_ data: Data, method: HTTPRequest.Method, to url: URL, headers: [String: String]) async throws
+    -> (HTTPResponse, HTTPBody?)
+  {
+    guard var parts = URLComponents(url: url, resolvingAgainstBaseURL: false) else { throw URLError(.badURL) }
+    let path = parts.percentEncodedPath + (parts.percentEncodedQuery.map { "?\($0)" } ?? "")
+    parts.percentEncodedPath = ""
+    parts.percentEncodedQuery = nil
+    guard let origin = parts.url else { throw URLError(.badURL) }
+    var fields = HTTPFields()
+    for (name, value) in headers {
+      guard let name = HTTPField.Name(name) else { throw URLError(.badURL) }
+      fields[name] = value
+    }
+    return try await transport.send(
+      HTTPRequest(method: method, scheme: nil, authority: nil, path: path, headerFields: fields), body: HTTPBody(data),
+      baseURL: origin, operationID: "outside")
+  }
 }
 
 /// A call's own error, rather than the generated client's wrapping of it.

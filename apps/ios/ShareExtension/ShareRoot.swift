@@ -65,7 +65,7 @@ final class Saving {
     case saving(String)
     /// Nothing was saved, so it can be tried again.
     case refused(String)
-    /// Something was saved, but not all of it.
+    /// The link was saved, but its page wasn't read.
     case partly(title: String, message: String)
   }
 
@@ -100,12 +100,10 @@ final class Saving {
       } catch {
         step = .partly(title: "Saved the link, but couldn’t read the page.", message: error.localizedDescription)
       }
-    case .document(let title, let body, let images):
+    case .document(let document):
       do {
-        _ = try await session.saveDocument(title: title, body: body, images: images, in: folder?.id)
+        _ = try await session.saveDocument(document, in: folder?.id)
         close()
-      } catch let partly as PartlySaved {
-        step = .partly(title: "Saved “\(partly.entry.title)”, but not all of it.", message: partly.localizedDescription)
       } catch {
         step = .refused("Couldn’t save it. \(error.localizedDescription)")
       }
@@ -199,11 +197,11 @@ private struct SharedSummary: View {
       } icon: {
         Image(systemName: "link")
       }
-    case .document(let title, let body, let images):
+    case .document(let document):
       Label {
         VStack(alignment: .leading) {
-          Text(title ?? "New document")
-          if let detail = detail(body: body, images: images.count) {
+          Text(document.title ?? "New document")
+          if let detail = detail(body: document.body, images: document.images.count) {
             Text(detail).font(.footnote).foregroundStyle(.secondary).lineLimit(3)
           }
         }

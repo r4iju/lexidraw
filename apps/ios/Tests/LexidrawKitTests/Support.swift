@@ -12,10 +12,16 @@ final class FakeServer: ClientTransport, Sendable {
     let method: HTTPRequest.Method
     let url: URLComponents
     let authorization: String?
+    let headers: HTTPFields
     let body: Data?
 
     var json: [String: String] {
       (try? JSONSerialization.jsonObject(with: body ?? Data()) as? [String: String]) ?? [:]
+    }
+
+    /// The body with values of any type.
+    var object: [String: Any] {
+      (try? JSONSerialization.jsonObject(with: body ?? Data()) as? [String: Any]) ?? [:]
     }
 
     /// The body's keys, for telling a field sent as null from one left out.
@@ -47,6 +53,7 @@ final class FakeServer: ClientTransport, Sendable {
       method: request.method,
       url: url,
       authorization: request.headerFields[.authorization],
+      headers: request.headerFields,
       body: data
     )
     recorded.withLock { $0.append(seen) }

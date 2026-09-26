@@ -1,5 +1,6 @@
 import CoreGraphics
 import Foundation
+import HTTPTypes
 import ImageIO
 import Testing
 import UniformTypeIdentifiers
@@ -32,10 +33,10 @@ import UniformTypeIdentifiers
   @Test func otherTextIsADocumentTitledByItsFirstLine() {
     #expect(
       Shared(urls: [], texts: ["Groceries\nMilk\n\nEggs\n"], images: [])
-        == .document(title: "Groceries", body: "Milk\n\nEggs", images: []))
+        == .document(.init(title: "Groceries", body: "Milk\n\nEggs", images: [])))
     #expect(
       Shared(urls: [], texts: ["Read this: https://example.com"], images: [])
-        == .document(title: "Read this: https://example.com", body: "", images: []))
+        == .document(.init(title: "Read this: https://example.com", body: "", images: [])))
   }
 
   /// A paragraph is no title: it keeps all its text, under the words it
@@ -43,12 +44,12 @@ import UniformTypeIdentifiers
   @Test func aLongFirstLineIsShortenedForTheTitleAndKeptWhole() {
     let paragraph = String(repeating: "Words that run on and on. ", count: 8).trimmingCharacters(in: .whitespaces)
 
-    guard case .document(let title, let body, _) = Shared(urls: [], texts: [paragraph], images: []) else {
+    guard case .document(let document) = Shared(urls: [], texts: [paragraph], images: []) else {
       Issue.record("not a document")
       return
     }
-    #expect(title == "Words that run on and on. Words that run on and on. Words…")
-    #expect(body == paragraph)
+    #expect(document.title == "Words that run on and on. Words that run on and on. Words…")
+    #expect(document.body == paragraph)
   }
 
   @Test func picturesAreADocumentCaptionedByTheTextWithThem() throws {
@@ -56,8 +57,8 @@ import UniformTypeIdentifiers
 
     #expect(
       Shared(urls: [], texts: ["Whiteboard"], images: [picture])
-        == .document(title: "Whiteboard", body: "", images: [picture]))
-    #expect(Shared(urls: [], texts: [], images: [picture]) == .document(title: nil, body: "", images: [picture]))
+        == .document(.init(title: "Whiteboard", body: "", images: [picture])))
+    #expect(Shared(urls: [], texts: [], images: [picture]) == .document(.init(title: nil, body: "", images: [picture])))
   }
 
   @Test func nothingSavableIsNothing() {
@@ -71,7 +72,7 @@ import UniformTypeIdentifiers
 
     let image = try #require(SharedImage(data: png, type: .png))
 
-    #expect(image == SharedImage(data: png, contentType: "image/png"))
+    #expect(image == SharedImage(data: png, contentType: .imagePng))
   }
 
   /// Photos come as HEIC, which a browser can't show.
@@ -80,18 +81,26 @@ import UniformTypeIdentifiers
 
     let image = try #require(SharedImage(data: heic, type: .heic))
 
-    #expect(image.contentType == "image/jpeg")
+    #expect(image.contentType == .imageJpeg)
     #expect(CGImageSourceGetType(CGImageSourceCreateWithData(image.data as CFData, nil)!) as String? == UTType.jpeg.identifier)
   }
 
-  @Test func anImageTooLargeToSendIsMadeSmallerUntilItFits() throws {
-    let noisy = try TestImages.png(width: 3000, height: 3000, noise: true)
-    #expect(noisy.count > SharedImage.maxBytes)
+  @Test func aPhotoLargerThanAnyScreenIsMadeSmaller() throws {
+    let heic = try TestImages.encoded(TestImages.image(width: 6000, height: 30), as: .heic)
 
-    let image = try #require(SharedImage(data: noisy, type: .png))
+    let image = try #require(SharedImage(data: heic, type: .heic))
 
-    #expect(image.contentType == "image/jpeg")
-    #expect(image.data.count <= SharedImage.maxBytes)
+    let properties = try #require(
+      CGImageSourceCopyPropertiesAtIndex(CGImageSourceCreateWithData(image.data as CFData, nil)!, 0, nil)
+        as? [CFString: Any])
+    #expect(properties[kCGImagePropertyPixelWidth] as? Int == SharedImage.longestSide)
+  }
+
+  /// An SVG can carry script, so the server takes none.
+  @Test func anSVGIsLeftOut() {
+    let svg = Data(#"<svg xmlns="http://www.w3.org/2000/svg" width="4" height="4"/>"#.utf8)
+
+    #expect(SharedImage(data: svg, type: .svg) == nil)
   }
 
   @Test func whatIsNoImageIsLeftOut() {
@@ -132,36 +141,40 @@ import UniformTypeIdentifiers
     #expect(read == "The post")
   }
 
-  /// The body replaces the new document's empty paragraph, against the
-  /// revision the create made, as the CLI writes one.
-  @Test func aDocumentIsWrittenWithItsTextThenItsPictures() async throws {
+  /// The pictures go straight to the store first, so the document is made
+  /// whole in one request, or not at all.
+  @Test func aDocumentIsMadeWithItsTextAndPicturesInOneRequest() async throws {
     let png = try TestImages.png(width: 4, height: 4)
-    let picture = SharedImage(data: png, contentType: "image/png")
+    let picture = SharedImage(data: png, contentType: .imagePng)
     let server = FakeServer { request in
-      switch (request.method, request.url.path) {
-      case (.post, "/api/v1/entities"):
-        (200, Summary.json(id: request.json["id"] ?? "", type: "document", title: request.json["title"] ?? ""))
-      case (.post, let path) where path.hasSuffix("/uploads"):
-        (200, #"{"url":"https://blob.test/doc-a.png"}"#)
+      switch (request.method, request.url.host, request.url.path) {
+      case (.post, _, "/api/v1/uploads"):
+        (200, Signed.picture)
+      case (.put, "store.test", _):
+        (200, #"{"url":"https://blob.test/u-1.png"}"#)
       default:
-        (200, #"{"id":"doc","title":"Whiteboard","updatedAt":"2026-09-26T08:00:01.000Z","notes":[],"blocks":2,"restoredPlaceholders":0,"removedPlaceholders":0}"#)
+        (200, Summary.json(id: request.json["id"] ?? "", type: "document", title: request.json["title"] ?? ""))
       }
     }
     let session = try TestServer.session(server)
 
-    let saved = try await session.saveDocument(
-      title: "Whiteboard", body: "From the meeting", images: [picture], in: nil)
+    _ = try await session.saveDocument(
+      .init(title: "Whiteboard", body: "From the meeting", images: [picture]), in: "dir-1")
 
-    let (create, upload, write) = (server.requests[0], server.requests[1], server.requests[2])
     #expect(server.requests.count == 3)
+    let (sign, send, create) = (server.requests[0], server.requests[1], server.requests[2])
+    #expect(sign.object["contentType"] as? String == "image/png")
+    #expect(sign.object["size"] as? Int == png.count)
+    #expect(send.method == .put)
+    #expect(send.url.string == "https://store.test/api/blob/?pathname=u-1.png")
+    #expect(send.headers[HTTPField.Name("x-content-type")!] == "image/png")
+    #expect(send.authorization == "Bearer vercel_blob_client_store_token")
+    #expect(send.body == png)
+    #expect(create.url.path == "/api/v1/entities")
     #expect(create.json["entityType"] == "document")
     #expect(create.json["title"] == "Whiteboard")
-    #expect(upload.url.path == "/api/v1/entities/\(saved.id)/uploads")
-    #expect(upload.json == ["contentType": "image/png", "data": png.base64EncodedString()])
-    #expect(write.method == .put)
-    #expect(write.url.path == "/api/v1/documents/\(saved.id)/markdown")
-    #expect(write.json["markdown"] == "From the meeting\n\n![](https://blob.test/doc-a.png)")
-    #expect(write.json["ifUnmodifiedSince"] == "2026-09-26T08:00:00.000Z")
+    #expect(create.json["parentId"] == "dir-1")
+    #expect(create.json["markdown"] == "From the meeting\n\n![](https://blob.test/u-1.png)")
   }
 
   /// Nothing to write under the title, so nothing but the create.
@@ -171,27 +184,36 @@ import UniformTypeIdentifiers
     }
     let session = try TestServer.session(server)
 
-    _ = try await session.saveDocument(title: "Idea", body: "", images: [], in: "dir-1")
+    _ = try await session.saveDocument(.init(title: "Idea", body: "", images: []), in: "dir-1")
 
-    #expect(server.requests.count == 1)
+    let create = try #require(server.requests.only)
+    #expect(!create.keys.contains("markdown"))
   }
 
-  /// Made, but not everything in it: the file is there to open or delete.
-  @Test func aDocumentThatCouldNotBeFilledSaysItWasMade() async throws {
+  @Test func aPictureTheStoreRefusesSavesNothing() async throws {
     let server = FakeServer { request in
-      request.url.path.hasSuffix("/uploads")
-        ? (413, #"{"message":"This image is 3.1 MB","code":"PAYLOAD_TOO_LARGE"}"#)
-        : (200, Summary.json(id: request.json["id"] ?? "", type: "document", title: "Photo"))
+      switch (request.method, request.url.host) {
+      case (.put, "store.test"): (400, #"{"error":{"message":"Content type mismatch"}}"#)
+      default: (200, Signed.picture)
+      }
     }
     let session = try TestServer.session(server)
-    let picture = SharedImage(data: try TestImages.png(width: 4, height: 4), contentType: "image/png")
+    let picture = SharedImage(data: try TestImages.png(width: 4, height: 4), contentType: .imagePng)
 
-    let failure = await #expect(throws: PartlySaved.self) {
-      try await session.saveDocument(title: "Photo", body: "", images: [picture], in: nil)
+    await #expect(throws: (any Error).self) {
+      try await session.saveDocument(.init(title: "Photo", body: "", images: [picture]), in: nil)
     }
-    #expect(failure?.entry.title == "Photo")
-    #expect(failure?.reason.localizedDescription == "This image is 3.1 MB")
+    #expect(!server.requests.contains { $0.url.path == "/api/v1/entities" })
   }
+}
+
+/// What the server answers when it signs a picture's upload.
+private enum Signed {
+  static let picture = """
+    {"url":"https://blob.test/u-1.png","upload":{"method":"PUT",\
+    "url":"https://store.test/api/blob/?pathname=u-1.png",\
+    "headers":{"authorization":"Bearer vercel_blob_client_store_token","x-content-type":"image/png"}}}
+    """
 }
 
 @Suite struct ShareLinkTests {

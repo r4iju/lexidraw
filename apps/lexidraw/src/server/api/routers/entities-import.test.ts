@@ -1,5 +1,5 @@
 /// <reference types="bun" />
-import { beforeAll, describe, expect, mock, test } from "bun:test";
+import { afterAll, beforeAll, describe, expect, mock, test } from "bun:test";
 import * as schema from "@packages/drizzle/drizzle-schema";
 import { AccessLevel, PublicAccess } from "@packages/types";
 import { eq } from "drizzle-orm";
@@ -12,6 +12,8 @@ const HOST = new URL(env.VERCEL_BLOB_STORAGE_HOST).origin;
 
 /** What reached the store, by pathname. */
 const stored = new Map<string, { body: Buffer; options: object }>();
+/** What the store deleted, by address. */
+const deleted: string[] = [];
 // `.env.test` carries a real store token, so nothing here may reach the store.
 const realBlob = await import("@vercel/blob");
 mock.module("@vercel/blob", () => ({
@@ -19,6 +21,21 @@ mock.module("@vercel/blob", () => ({
   put: async (pathname: string, body: Buffer, options: object) => {
     stored.set(pathname, { body, options });
     return { url: `${HOST}/${pathname}`, pathname };
+  },
+  del: async (urls: string | string[]) => {
+    deleted.push(...[urls].flat());
+  },
+}));
+/** What each client token was asked to allow. */
+const tokensAsked: Record<string, unknown>[] = [];
+const realBlobClient = await import("@vercel/blob/client");
+mock.module("@vercel/blob/client", () => ({
+  ...realBlobClient,
+  generateClientTokenFromReadWriteToken: async (
+    options: Record<string, unknown>,
+  ) => {
+    tokensAsked.push(options);
+    return "vercel_blob_client_store_token";
   },
 }));
 /** The picture the page being read names as its own. */
@@ -92,51 +109,206 @@ beforeAll(async () => {
 
 const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 
-describe("an image sent for a document", () => {
-  test("is stored among the document's uploads, and answered with its address", async () => {
-    const { url } = await callerOf(OWNER).uploadImage({
-      id: DOC,
+const SVG = Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"/>');
+
+/** The pictures the app sent to the store, answered at their addresses. */
+const sent = new Map<string, Buffer>();
+const realFetch = globalThis.fetch;
+globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+  const url = String(input instanceof Request ? input.url : input);
+  if (!url.startsWith(`${HOST}/`)) return realFetch(input, init);
+  const body = sent.get(url);
+  return body
+    ? new Response(new Uint8Array(body), { status: 206 })
+    : new Response("Not found", { status: 404 });
+}) as typeof fetch;
+afterAll(() => {
+  globalThis.fetch = realFetch;
+});
+
+/** A picture the app signed and sent as `bytes`, answering its address. */
+async function sentPicture(bytes: Buffer, userId = OWNER) {
+  const { url } = await callerOf(userId).signImageUpload({
+    contentType: "image/png",
+    size: bytes.length,
+  });
+  sent.set(url, bytes);
+  return url;
+}
+
+const recordedUploads = (entityId: string) =>
+  db
+    .select()
+    .from(schema.uploadedImages)
+    .where(eq(schema.uploadedImages.entityId, entityId));
+
+describe("a picture the app sends", () => {
+  test("is signed to go straight to the store, into no file yet", async () => {
+    const signed = await callerOf(OWNER).signImageUpload({
       contentType: "image/png",
-      data: PNG.toString("base64"),
+      size: PNG.length,
     });
 
-    const pathname = decodeURIComponent(new URL(url).pathname.slice(1));
-    expect(pathname).toMatch(new RegExp(`^${DOC}-[0-9a-f-]{36}\\.png$`));
-    expect(stored.get(pathname)?.body.equals(PNG)).toBe(true);
-    expect(stored.get(pathname)?.options).toMatchObject({
-      access: "public",
-      contentType: "image/png",
+    const pathname = decodeURIComponent(new URL(signed.url).pathname.slice(1));
+    expect(pathname).toMatch(new RegExp(`^${OWNER}-[0-9a-f-]{36}\\.png$`));
+    expect(signed.upload.method).toBe("PUT");
+    expect(new URL(signed.upload.url).searchParams.get("pathname")).toBe(
+      pathname,
+    );
+    expect(signed.upload.headers).toMatchObject({
+      authorization: expect.stringMatching(/^Bearer vercel_blob_client_/),
+      "x-content-type": "image/png",
     });
-    // The hourly cleanup keeps only the blobs a row points at.
-    const [upload] = await db
+    // Unrecorded, so the hourly cleanup deletes it unless a file takes it.
+    const rows = await db
       .select()
       .from(schema.uploadedImages)
       .where(eq(schema.uploadedImages.fileName, pathname));
-    expect(upload).toMatchObject({
-      entityId: DOC,
-      userId: OWNER,
-      signedDownloadUrl: url,
+    expect(rows).toEqual([]);
+  });
+
+  test("may only be that picture: its name, its type, its size, and soon", async () => {
+    const signed = await callerOf(OWNER).signImageUpload({
+      contentType: "image/webp",
+      size: 1234,
+    });
+
+    const allowed = tokensAsked.at(-1);
+    expect(allowed).toMatchObject({
+      pathname: decodeURIComponent(new URL(signed.url).pathname.slice(1)),
+      allowedContentTypes: ["image/webp"],
+      maximumSizeInBytes: 1234,
+      addRandomSuffix: false,
+    });
+    expect(Number(allowed?.validUntil) - Date.now()).toBeLessThanOrEqual(
+      10 * 60_000,
+    );
+  });
+
+  test("is refused as SVG, which can carry script", async () => {
+    await expect(
+      callerOf(OWNER).signImageUpload({
+        contentType: "image/svg+xml" as never,
+        size: SVG.length,
+      }),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+  });
+
+  test("over the size the web takes is refused, saying so", async () => {
+    await expect(
+      callerOf(OWNER).signImageUpload({
+        contentType: "image/jpeg",
+        size: 10 * 1024 * 1024 + 1,
+      }),
+    ).rejects.toMatchObject({
+      code: "PAYLOAD_TOO_LARGE",
+      message: expect.stringContaining("10 MB"),
     });
   });
+});
 
-  test("is refused to someone who may only read the document", async () => {
-    await expect(
-      callerOf(READER).uploadImage({
-        id: DOC,
-        contentType: "image/png",
-        data: PNG.toString("base64"),
-      }),
-    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+describe("a document the app makes", () => {
+  test("is made with its markdown in one request", async () => {
+    await callerOf(OWNER).create({
+      id: "eimp_notes",
+      entityType: "document",
+      title: "Groceries",
+      markdown: "Milk\n\n- eggs",
+    });
+
+    const [notes] = await db
+      .select()
+      .from(schema.entities)
+      .where(eq(schema.entities.id, "eimp_notes"));
+    expect(notes?.title).toBe("Groceries");
+    const blocks = JSON.parse(notes?.elements ?? "{}").root.children;
+    expect(blocks.map((block: { type: string }) => block.type)).toEqual([
+      "paragraph",
+      "list",
+    ]);
   });
 
-  test("over the size a request can carry is refused, saying so", async () => {
+  test("keeps the pictures the caller sent for it", async () => {
+    const url = await sentPicture(PNG);
+
+    await callerOf(OWNER).create({
+      id: "eimp_photo",
+      entityType: "document",
+      title: "Whiteboard",
+      markdown: `From the meeting\n\n![](${url})`,
+    });
+
+    expect(await recordedUploads("eimp_photo")).toMatchObject([
+      {
+        userId: OWNER,
+        fileName: decodeURIComponent(new URL(url).pathname.slice(1)),
+        signedDownloadUrl: url,
+      },
+    ]);
+  });
+
+  test("is refused, and the picture deleted, when what was sent is no raster image", async () => {
+    const url = await sentPicture(SVG);
+
     await expect(
-      callerOf(OWNER).uploadImage({
-        id: DOC,
-        contentType: "image/jpeg",
-        data: Buffer.alloc(3_000_001).toString("base64"),
+      callerOf(OWNER).create({
+        id: "eimp_script",
+        entityType: "document",
+        markdown: `![](${url})`,
       }),
-    ).rejects.toMatchObject({ code: "PAYLOAD_TOO_LARGE" });
+    ).rejects.toMatchObject({ code: "UNPROCESSABLE_CONTENT" });
+
+    expect(deleted).toContain(url);
+    const made = await db
+      .select()
+      .from(schema.entities)
+      .where(eq(schema.entities.id, "eimp_script"));
+    expect(made).toEqual([]);
+  });
+
+  test("is refused when a picture it names was never sent", async () => {
+    const { url } = await callerOf(OWNER).signImageUpload({
+      contentType: "image/png",
+      size: PNG.length,
+    });
+
+    await expect(
+      callerOf(OWNER).create({
+        id: "eimp_unsent",
+        entityType: "document",
+        markdown: `![](${url})`,
+      }),
+    ).rejects.toMatchObject({ code: "UNPROCESSABLE_CONTENT" });
+  });
+
+  test("does not take someone else's picture for its own", async () => {
+    const theirs = await sentPicture(PNG, READER);
+
+    await callerOf(OWNER).create({
+      id: "eimp_borrowed",
+      entityType: "document",
+      markdown: `![](${theirs})`,
+    });
+
+    expect(await recordedUploads("eimp_borrowed")).toEqual([]);
+  });
+
+  test("takes markdown only for a document, and not beside its content", async () => {
+    await expect(
+      callerOf(OWNER).create({
+        id: "eimp_md_drawing",
+        entityType: "drawing",
+        markdown: "Hi",
+      }),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    await expect(
+      callerOf(OWNER).create({
+        id: "eimp_md_both",
+        entityType: "document",
+        elements: "{}",
+        markdown: "Hi",
+      }),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
   });
 });
 

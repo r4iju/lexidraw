@@ -1,5 +1,7 @@
 import Foundation
+import HTTPTypes
 import ImageIO
+import OpenAPIRuntime
 import UniformTypeIdentifiers
 
 /// What someone shared into Lexidraw from another app, as it will be saved:
@@ -7,9 +9,7 @@ import UniformTypeIdentifiers
 /// New link saves one, and anything else as a document.
 public enum Shared: Sendable, Equatable {
   case link(URL)
-  /// Titled by its text's first line, or as the server titles a new document
-  /// when there is no text.
-  case document(title: String?, body: String, images: [SharedImage])
+  case document(SharedDocument)
 
   /// The longest title a line makes; a longer line is a paragraph.
   static let titleLength = 60
@@ -30,7 +30,7 @@ public enum Shared: Sendable, Equatable {
     }
     guard !text.isEmpty || !images.isEmpty else { return nil }
     let (title, body) = Self.titled(text)
-    self = .document(title: title, body: body, images: images)
+    self = .document(SharedDocument(title: title, body: body, images: images))
   }
 
   /// `text` as a web address when it is nothing else, reading a bare host as
@@ -67,61 +67,48 @@ extension URL {
   }
 }
 
+/// Text and pictures to save as a new document.
+public struct SharedDocument: Sendable, Equatable {
+  /// Titled by its text's first line, or as the server titles a new document
+  /// when there is no text.
+  public let title: String?
+  public let body: String
+  public let images: [SharedImage]
+}
+
 /// An image as the server will store it for a document to show.
 public struct SharedImage: Sendable, Equatable {
-  /// The most one upload may carry, as the server's contract says.
-  public static let maxBytes = 3_000_000
-  /// What a browser shows, so what a document may hold.
-  static let shownTypes: Set<String> = ["image/jpeg", "image/png", "image/webp", "image/avif", "image/svg+xml"]
+  typealias ContentType = Operations.EntitiesSignImageUpload.Input.Body.JsonPayload.ContentTypePayload
+
   /// Past this, a photo is sharper than any screen shows it.
   static let longestSide = 4096
 
   public let data: Data
-  public let contentType: String
+  let contentType: ContentType
 
-  init(data: Data, contentType: String) {
+  init(data: Data, contentType: ContentType) {
     self.data = data
     self.contentType = contentType
   }
 
-  /// `data` as it is when the server takes it, and otherwise as a JPEG small
-  /// enough to send. Nil when it is no image.
+  /// `data` as it is when the server takes its type, and otherwise as a JPEG
+  /// no larger than a screen shows. Nil when it is no picture the server
+  /// takes.
   public init?(data: Data, type: UTType) {
-    let mime = type.preferredMIMEType ?? ""
-    if mime == "image/svg+xml" {
-      guard data.count <= Self.maxBytes else { return nil }
-      self.init(data: data, contentType: mime)
+    guard let source = CGImageSourceCreateWithData(data as CFData, nil), CGImageSourceGetCount(source) > 0 else {
+      return nil
+    }
+    if let taken = type.preferredMIMEType.flatMap(ContentType.init(rawValue:)) {
+      self.init(data: data, contentType: taken)
       return
     }
-    guard let source = CGImageSourceCreateWithData(data as CFData, nil), CGImageSourceGetCount(source) > 0,
-      let size = Self.pixelSize(source)
-    else { return nil }
-    if Self.shownTypes.contains(mime), data.count <= Self.maxBytes {
-      self.init(data: data, contentType: mime)
-      return
-    }
-    var side = min(size, Self.longestSide)
-    while true {
-      if let jpeg = Self.jpeg(source, longestSide: side), jpeg.count <= Self.maxBytes {
-        self.init(data: jpeg, contentType: "image/jpeg")
-        return
-      }
-      guard side > 64 else { return nil }
-      side = max(64, side * 3 / 4)
-    }
-  }
-
-  private static func pixelSize(_ source: CGImageSource) -> Int? {
-    let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any]
-    guard let width = properties?[kCGImagePropertyPixelWidth] as? Int,
-      let height = properties?[kCGImagePropertyPixelHeight] as? Int
-    else { return nil }
-    return max(width, height)
+    guard !type.conforms(to: .svg), let jpeg = Self.jpeg(source) else { return nil }
+    self.init(data: jpeg, contentType: .imageJpeg)
   }
 
   /// Turned upright, since a JPEG made from the pixels loses the photo's
   /// orientation tag.
-  private static func jpeg(_ source: CGImageSource, longestSide: Int) -> Data? {
+  private static func jpeg(_ source: CGImageSource) -> Data? {
     let options: [CFString: Any] = [
       kCGImageSourceCreateThumbnailFromImageAlways: true,
       kCGImageSourceCreateThumbnailWithTransform: true,
@@ -137,12 +124,11 @@ public struct SharedImage: Sendable, Equatable {
   }
 }
 
-/// A file was made, but what should have gone into it didn't all make it.
-public struct PartlySaved: Error, LocalizedError {
-  public let entry: Entry
-  public let reason: any Error
+/// The store would not take a picture the server signed.
+public struct PictureRefused: Error, LocalizedError, Sendable {
+  public let message: String
 
-  public var errorDescription: String? { reason.localizedDescription }
+  public var errorDescription: String? { message }
 }
 
 extension Session {
@@ -161,36 +147,31 @@ extension Session {
     try await ask { try await $0.entitiesDistillUrl(path: .init(id: id), body: .json(.init())) }.ok.body.json.title
   }
 
-  /// Makes a document in `folder`, or the top of Home, holding `body` and
-  /// then `images`. The body replaces the new document's empty paragraph,
-  /// against the revision the create made, as the CLI writes one.
-  public func saveDocument(title: String?, body: String, images: [SharedImage], in folder: String?) async throws
-    -> Entry
-  {
-    let made = try await create(.document, title: title, elements: nil, in: folder)
-    do {
-      var parts = body.isEmpty ? [] : [body]
-      for image in images {
-        let url = try await ask {
-          try await $0.entitiesUploadImage(
-            path: .init(id: made.id),
-            body: .json(
-              .init(
-                contentType: .init(rawValue: image.contentType)!,
-                data: .init(image.data))))
-        }.ok.body.json.url
-        parts.append("![](\(url))")
-      }
-      guard !parts.isEmpty else { return made }
-      _ = try await ask {
-        try await $0.documentsReplaceMarkdown(
-          path: .init(id: made.id),
-          body: .json(.init(markdown: parts.joined(separator: "\n\n"), ifUnmodifiedSince: made.updatedAt)))
-      }.ok
-      return made
-    } catch {
-      throw PartlySaved(entry: made, reason: error)
+  /// Makes `document` in `folder`, or the top of Home: its pictures go to the
+  /// store first, so the document is made whole in one request or not at all.
+  public func saveDocument(_ document: SharedDocument, in folder: String?) async throws -> Entry {
+    var parts = document.body.isEmpty ? [] : [document.body]
+    for image in document.images {
+      parts.append("![](\(try await send(image)))")
     }
+    return try await create(
+      .document, title: document.title, markdown: parts.isEmpty ? nil : parts.joined(separator: "\n\n"), in: folder)
+  }
+
+  /// Sends `image` to the store as the server signed it; answers its address.
+  private func send(_ image: SharedImage) async throws -> String {
+    let signed = try await ask {
+      try await $0.entitiesSignImageUpload(body: .json(.init(contentType: image.contentType, size: image.data.count)))
+    }.ok.body.json
+    guard let url = URL(string: signed.upload.url) else {
+      throw PictureRefused(message: "The server signed the picture for no address.")
+    }
+    let (response, body) = try await connection.sendOutside(
+      image.data, method: .put, to: url, headers: signed.upload.headers.additionalProperties)
+    guard response.status.kind == .successful else {
+      throw PictureRefused(message: await StoreSaid.message(in: body) ?? "The store answered \(response.status.code).")
+    }
+    return signed.url
   }
 
   /// The address the web opens `entry` at, for sending to someone.
@@ -207,5 +188,19 @@ extension Entry.Kind {
     case .folder: "dashboard"
     case .url: "urls"
     }
+  }
+}
+
+/// How the store says why it refused.
+private struct StoreSaid: Decodable {
+  struct Error: Decodable {
+    let message: String
+  }
+
+  let error: Error
+
+  static func message(in body: HTTPBody?) async -> String? {
+    guard let body, let data = try? await Data(collecting: body, upTo: 1 << 16) else { return nil }
+    return (try? JSONDecoder().decode(Self.self, from: data))?.error.message
   }
 }

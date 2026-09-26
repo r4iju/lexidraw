@@ -116,7 +116,7 @@ describe("openApiDocument", () => {
     ["/entities/{id}/metadata", "get", "entities"],
     ["/entities/{id}/restore", "post", "entities"],
     ["/entities/{id}/distill", "post", "entities"],
-    ["/entities/{id}/uploads", "post", "entities"],
+    ["/uploads", "post", "entities"],
     ["/entities/{id}/listen", "post", "entities"],
     ["/entities/{id}/listen", "get", "entities"],
     ["/entities/{id}/tags", "get", "entities"],
@@ -169,7 +169,7 @@ describe("openApiDocument", () => {
   it.each([
     ["/drawings/{id}/render", "get"],
     ["/documents/{id}/render", "get"],
-    ["/entities/{id}/uploads", "post"],
+    ["/uploads", "post"],
   ] as const)("declares a payload limit on %s %s", (path, method) => {
     expect(document.paths?.[path]?.[method]?.responses?.[413]).toMatchObject({
       content: {
