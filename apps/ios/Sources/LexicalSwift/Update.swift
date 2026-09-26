@@ -161,12 +161,12 @@ struct Update {
       markDirty(previous)
     }
     guard !removed.isEmpty, let selection else { return }
-    let state = state
+    let spliced = state
     let isRemoved = { (point: SelectionPoint) -> Bool in
       var node: NodeKey? = point.key
       while let current = node {
         if removed.contains(current), !nodes.contains(current) { return true }
-        node = state.parent(of: current)
+        node = spliced.parent(of: current)
       }
       return false
     }
