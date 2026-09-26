@@ -1,0 +1,10 @@
+generate:
+  - types
+  - client
+accessModifier: internal
+namingStrategy: idiomatic
+filter:
+  operations:
+    - entities-list
+    - nativeSignIn-exchange
+    - tokens-revokeCurrent
