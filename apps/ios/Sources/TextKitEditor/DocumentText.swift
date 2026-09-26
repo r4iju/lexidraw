@@ -37,7 +37,6 @@ public final class DocumentText {
     case text
     /// Each row's cells, as ranges in the block.
     case table(cells: [[NSRange]])
-    /// A node with no text of its own, shown as one character.
     case embedded(type: String)
   }
 
@@ -71,13 +70,7 @@ public final class DocumentText {
 
   /// The index of the block `offset` is in, the newline ending it included.
   public func blockIndex(at offset: Int) -> Int {
-    var low = 0
-    var high = blocks.count - 1
-    while low < high {
-      let middle = (low + high + 1) / 2
-      if starts[middle] <= offset { low = middle } else { high = middle - 1 }
-    }
-    return low
+    blocks.indices.lastIndex(bisecting: { starts[$0] <= offset })
   }
 
   /// Renders the whole document into `storage`, replacing what it held.
@@ -339,5 +332,19 @@ public final class DocumentText {
     private mutating func append(_ string: String, format: TextFormat) {
       text.append(NSAttributedString(string: string, attributes: style(blockType, format)))
     }
+  }
+}
+
+extension Range<Int> {
+  /// The last index where `holds` does, for a test that holds up to some
+  /// index and not after it; the first index where it holds for none.
+  func lastIndex(bisecting holds: (Int) -> Bool) -> Int {
+    var low = lowerBound
+    var high = upperBound - 1
+    while low < high {
+      let middle = (low + high + 1) / 2
+      if holds(middle) { low = middle } else { high = middle - 1 }
+    }
+    return low
   }
 }

@@ -394,7 +394,7 @@ public final class EditorView: UIScrollView, UITextInput {
   }
 
   private func line(from offset: Int, _ direction: NSTextSelectionNavigation.Direction) -> Int? {
-    layout.offset(movingVerticallyFrom: offset, up: direction == .up).map(clamp)
+    layout.offset(movingVerticallyFrom: offset, direction).map(clamp)
   }
 
   // MARK: Geometry
@@ -546,6 +546,9 @@ public final class EditorView: UIScrollView, UITextInput {
 
   // MARK: Style
 
+  /// Below each block at the root.
+  nonisolated static var blockSpacing: CGFloat { UIFont.preferredFont(forTextStyle: .body).pointSize * 0.5 }
+
   /// Body text in the system font, formats as the web editor shows them.
   nonisolated public static func defaultStyle(_ blockType: String, _ format: TextFormat) -> [NSAttributedString.Key: Any] {
     let body = UIFont.preferredFont(forTextStyle: .body)
@@ -557,7 +560,7 @@ public final class EditorView: UIScrollView, UITextInput {
       ? UIFont.monospacedSystemFont(ofSize: body.pointSize * 0.9, weight: traits.contains(.traitBold) ? .bold : .regular)
       : UIFont(descriptor: body.fontDescriptor.withSymbolicTraits(traits) ?? body.fontDescriptor, size: 0)
     let paragraph = NSMutableParagraphStyle()
-    paragraph.paragraphSpacing = body.pointSize * 0.5
+    paragraph.paragraphSpacing = blockSpacing
     var attributes: [NSAttributedString.Key: Any] = [.foregroundColor: UIColor.label, .paragraphStyle: paragraph]
     if format.contains(.subscript) || format.contains(.superscript) {
       font = font.withSize(font.pointSize * 0.75)

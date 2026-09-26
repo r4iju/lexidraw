@@ -20,7 +20,6 @@ import UIKit
     var range: NSRange
   }
 
-  /// `text` must end with the newline that follows it in the document.
   init(_ text: NSAttributedString, width: CGFloat) {
     contentStorage.textStorage = storage
     contentStorage.addTextLayoutManager(layoutManager)
@@ -106,9 +105,9 @@ import UIKit
 
   /// The offset a line up or down, at `x`, or nil from the first line up or
   /// the last line down.
-  func offset(movingVerticallyFrom offset: Int, up: Bool, x: CGFloat) -> Int? {
+  func offset(movingVerticallyFrom offset: Int, _ direction: NSTextSelectionNavigation.Direction, x: CGFloat) -> Int? {
     guard let current = lines.lastIndex(where: { $0.range.location <= offset }) else { return nil }
-    let target = up ? current - 1 : current + 1
+    let target = direction == .up ? current - 1 : current + 1
     guard lines.indices.contains(target) else { return nil }
     let line = lines[target]
     let landed = self.offset(closestTo: CGPoint(x: x, y: line.frame.midY))

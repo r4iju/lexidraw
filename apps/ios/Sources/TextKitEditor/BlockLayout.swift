@@ -94,7 +94,10 @@ import UIKit
 
   private func top(_ index: Int) -> CGFloat {
     if index > validTops {
-      if tops.count != heights.count + 1 { tops = Array(repeating: 0, count: heights.count + 1) }
+      if tops.count != heights.count + 1 {
+        tops = Array(repeating: 0, count: heights.count + 1)
+        validTops = 0
+      }
       for next in (validTops + 1)...index { tops[next] = tops[next - 1] + heights[next - 1] }
       validTops = index
     }
@@ -103,8 +106,6 @@ import UIKit
 
   private var totalHeight: CGFloat { top(heights.count) }
 
-  /// Replaces the heights of `range` with `new`, scrolling by the difference
-  /// when all of it is above what is on screen.
   private func replaceHeights(_ range: Range<Int>, with new: [CGFloat]) {
     if heights.isEmpty && range.isEmpty && new.isEmpty { return }
     let above = top(range.lowerBound) + heights[range].reduce(0, +) <= visibleTop
@@ -124,23 +125,18 @@ import UIKit
     let body = UIFont.preferredFont(forTextStyle: .body)
     switch document.kind(ofBlock: index) {
     case .embedded: return EmbedBlock.height
-    case .table(let cells): return CGFloat(cells.count) * (body.lineHeight + 2 * TableView.padding) + 1 + TableBlock.spacing
+    case .table(let cells): return CGFloat(cells.count) * (body.lineHeight + 2 * TableView.padding) + 1 + EditorView.blockSpacing
     case .text:
-      let perLine = max(width / (body.pointSize * 0.5), 1)
+      let characterWidth = body.pointSize * 0.5
+      let perLine = max(width / characterWidth, 1)
       let lines = max(ceil(CGFloat(document.range(ofBlock: index).length) / perLine), 1)
-      return lines * body.lineHeight + body.pointSize * 0.5
+      return lines * body.lineHeight + EditorView.blockSpacing
     }
   }
 
   /// The block at `y`, clamped to the document.
   private func blockIndex(atY y: CGFloat) -> Int {
-    var low = 0
-    var high = heights.count - 1
-    while low < high {
-      let middle = (low + high + 1) / 2
-      if top(middle) <= y { low = middle } else { high = middle - 1 }
-    }
-    return max(low, 0)
+    heights.indices.lastIndex(bisecting: { top($0) <= y })
   }
 
   // MARK: Layout
@@ -150,7 +146,6 @@ import UIKit
     return storage.attributedSubstring(from: NSRange(location: range.location, length: range.length + 1))
   }
 
-  /// The block at `index`, laid out.
   private func block(_ index: Int) -> any LaidOutBlock {
     if let block = laidOut[index] { return block }
     let kind = document.kind(ofBlock: index)
@@ -185,8 +180,7 @@ import UIKit
       if !heights.isEmpty { scrollView.contentOffset.y = top(anchor) + within * heights[anchor] + Self.margin }
     }
     guard !heights.isEmpty else { return }
-    // Laying out blocks above the viewport scrolls, which can bring more
-    // into it.
+    // Laying out blocks can bring more into the viewport.
     var shown = 0..<0
     for _ in 0..<8 {
       let reach = scrollView.bounds.height / 2
@@ -225,14 +219,12 @@ import UIKit
     if scrollView.contentSize != size { scrollView.contentSize = size }
   }
 
-  /// Draws everything again, for colors that follow the appearance.
   func redraw() {
     for block in laidOut.values { block.redraw() }
   }
 
   // MARK: Geometry
 
-  /// The block `offset` is in, laid out, where it starts, and the offset in it.
   private func locate(_ offset: Int) -> (index: Int, block: any LaidOutBlock, start: Int, local: Int) {
     let index = document.blockIndex(at: offset)
     let start = document.range(ofBlock: index).location
@@ -280,20 +272,18 @@ import UIKit
 
   /// The offset a line up or down from `offset`, keeping its place across
   /// the line, or nil where there is no line that way.
-  func offset(movingVerticallyFrom offset: Int, up: Bool) -> Int? {
+  func offset(movingVerticallyFrom offset: Int, _ direction: NSTextSelectionNavigation.Direction) -> Int? {
     guard document.blockCount > 0 else { return nil }
     let (index, block, start, local) = locate(offset)
     let x = block.segments(NSRange(location: local, length: 0)).first?.minX ?? 0
-    if let moved = block.offset(movingVerticallyFrom: local, up: up, x: x) { return start + moved }
-    let next = up ? index - 1 : index + 1
+    if let moved = block.offset(movingVerticallyFrom: local, direction, x: x) { return start + moved }
+    let next = direction == .up ? index - 1 : index + 1
     guard heights.indices.contains(next) else { return nil }
     let target = self.block(next)
-    let landed = target.offset(closestTo: CGPoint(x: x, y: up ? target.height - 1 : 1))
+    let landed = target.offset(closestTo: CGPoint(x: x, y: direction == .up ? target.height - 1 : 1))
     return document.range(ofBlock: next).location + landed
   }
 
-  /// Where the line `offset` is on starts, or where it ends before the
-  /// newline or line break ending it.
   func lineBoundary(at offset: Int, backward: Bool) -> Int? {
     guard document.blockCount > 0 else { return nil }
     let (_, block, start, local) = locate(offset)
@@ -301,20 +291,19 @@ import UIKit
   }
 }
 
-/// A block laid out, with its view. Offsets are into the block, its closing
-/// newline last; geometry is from the block's top left.
+/// A block laid out, with its view. Offsets are into the block; geometry is
+/// from the block's top left.
 @MainActor private protocol LaidOutBlock: AnyObject {
   var view: UIView { get }
   var kind: DocumentText.BlockKind { get }
   var height: CGFloat { get }
   /// Whether this can show a block of `kind` once given its text.
   func canShow(_ kind: DocumentText.BlockKind) -> Bool
-  /// `text` ends with the block's newline.
   func set(text: NSAttributedString, kind: DocumentText.BlockKind, width: CGFloat)
   func redraw()
   func segments(_ range: NSRange) -> [CGRect]
   func offset(closestTo point: CGPoint) -> Int
-  func offset(movingVerticallyFrom offset: Int, up: Bool, x: CGFloat) -> Int?
+  func offset(movingVerticallyFrom offset: Int, _ direction: NSTextSelectionNavigation.Direction, x: CGFloat) -> Int?
   func lineBoundary(at offset: Int, backward: Bool) -> Int
   /// Scrolls within the block, where it can, to show `offset`.
   func reveal(_ offset: Int)
@@ -347,8 +336,8 @@ private final class TextBlock: LaidOutBlock {
   func redraw() { drawing.setNeedsDisplay() }
   func segments(_ range: NSRange) -> [CGRect] { box.segments(range) }
   func offset(closestTo point: CGPoint) -> Int { box.offset(closestTo: point) }
-  func offset(movingVerticallyFrom offset: Int, up: Bool, x: CGFloat) -> Int? {
-    box.offset(movingVerticallyFrom: offset, up: up, x: x)
+  func offset(movingVerticallyFrom offset: Int, _ direction: NSTextSelectionNavigation.Direction, x: CGFloat) -> Int? {
+    box.offset(movingVerticallyFrom: offset, direction, x: x)
   }
   func lineBoundary(at offset: Int, backward: Bool) -> Int { box.lineBoundary(at: offset, backward: backward) }
 
@@ -372,9 +361,6 @@ private final class TextBlock: LaidOutBlock {
 }
 
 private final class TableBlock: LaidOutBlock {
-  /// Below the table, as below a paragraph.
-  static let spacing = UIFont.preferredFont(forTextStyle: .body).pointSize * 0.5
-
   private(set) var kind: DocumentText.BlockKind
   private let table: TableView
   private let holder: TableHolder
@@ -399,7 +385,7 @@ private final class TableBlock: LaidOutBlock {
   }
 
   var view: UIView { holder }
-  var height: CGFloat { table.height + Self.spacing }
+  var height: CGFloat { table.height + EditorView.blockSpacing }
   func canShow(_ kind: DocumentText.BlockKind) -> Bool { if case .table = kind { true } else { false } }
 
   func set(text: NSAttributedString, kind: DocumentText.BlockKind, width: CGFloat) {
@@ -454,15 +440,15 @@ private final class TableBlock: LaidOutBlock {
 
   /// Up and down move through a cell's lines, then to the cell above or
   /// below, then out of the table.
-  func offset(movingVerticallyFrom offset: Int, up: Bool, x: CGFloat) -> Int? {
+  func offset(movingVerticallyFrom offset: Int, _ direction: NSTextSelectionNavigation.Direction, x: CGFloat) -> Int? {
     guard let (row, column, range) = cell(at: offset) else { return nil }
     let origin = table.textOrigin(row: row, column: column)
-    if let moved = table.cells[row][column].offset(movingVerticallyFrom: offset - range.location, up: up, x: x - origin.x) {
+    if let moved = table.cells[row][column].offset(movingVerticallyFrom: offset - range.location, direction, x: x - origin.x) {
       return range.location + moved
     }
-    let next = up ? row - 1 : row + 1
+    let next = direction == .up ? row - 1 : row + 1
     guard table.cellFrames.indices.contains(next), let frame = table.cellFrames[next].first else { return nil }
-    return self.offset(closestTo: CGPoint(x: x, y: up ? frame.maxY - TableView.padding - 1 : frame.minY + TableView.padding + 1))
+    return self.offset(closestTo: CGPoint(x: x, y: direction == .up ? frame.maxY - TableView.padding - 1 : frame.minY + TableView.padding + 1))
   }
 
   func lineBoundary(at offset: Int, backward: Bool) -> Int {
@@ -471,9 +457,9 @@ private final class TableBlock: LaidOutBlock {
   }
 }
 
-/// An embedded node: one character, the caret before it or after it.
+/// An embedded node, the caret before it or after it.
 private final class EmbedBlock: LaidOutBlock {
-  static let height = PlaceholderView.height + UIFont.preferredFont(forTextStyle: .body).pointSize * 0.5
+  static var height: CGFloat { PlaceholderView.height + EditorView.blockSpacing }
 
   private let container = UIView()
   private let placeholder: PlaceholderView
@@ -504,7 +490,9 @@ private final class EmbedBlock: LaidOutBlock {
   }
 
   func offset(closestTo point: CGPoint) -> Int { point.x < placeholder.frame.midX ? 0 : 1 }
-  func offset(movingVerticallyFrom offset: Int, up: Bool, x: CGFloat) -> Int? { nil }
+  func offset(movingVerticallyFrom offset: Int, _ direction: NSTextSelectionNavigation.Direction, x: CGFloat) -> Int? {
+    nil
+  }
   func lineBoundary(at offset: Int, backward: Bool) -> Int { backward ? 0 : 1 }
 }
 #endif

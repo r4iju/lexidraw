@@ -162,20 +162,14 @@ struct EditorRepresentable: UIViewRepresentable {
     editor.accessibilityIdentifier = "editor"
     editor.onInput = { [harness] in harness.record($0) }
     if let report = harness.scrollReport {
-      let probe = ScrollProbe(view: editor, report: report, step: 60, timing: harness.timing)
-      context.coordinator.probe = probe
-      probe.start(waiting: ProcessInfo.processInfo.environment["EDITOR_SCROLL_WAIT"] != nil)
+      // Its display link keeps it.
+      ScrollProbe(view: editor, report: report, step: 60, timing: harness.timing)
+        .start(waiting: ProcessInfo.processInfo.environment["EDITOR_SCROLL_WAIT"] != nil)
     }
     return KeyCountingView(editor, harness: harness)
   }
 
   func updateUIView(_ view: KeyCountingView, context: Context) {}
-
-  func makeCoordinator() -> Coordinator { Coordinator() }
-
-  final class Coordinator {
-    var probe: ScrollProbe?
-  }
 }
 
 /// The editor, counting the hardware key presses it passes up the

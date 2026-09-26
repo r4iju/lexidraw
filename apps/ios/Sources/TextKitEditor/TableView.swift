@@ -14,11 +14,9 @@ import UIKit
   private(set) var cells: [[TextBox]] = []
   private(set) var cellFrames: [[CGRect]] = []
   private let grid = GridView()
-  /// Called when the table has scrolled sideways.
   var onScroll: (() -> Void)?
   private var shownX: CGFloat = 0
 
-  /// Each cell's text, ending with the newline that follows it.
   init(cells texts: [[NSAttributedString]]) {
     super.init(frame: .zero)
     showsVerticalScrollIndicator = false

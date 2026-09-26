@@ -40,7 +40,7 @@ enum InlinePlaceholder {
     return attachment
   }
 
-  /// A node with no text of its own, which has nothing in the text to show.
+  /// Whether `node` has no text of its own.
   static func isEmbedded(_ node: JSONValue) -> Bool {
     node["children"] == nil && node["text"] == nil && node["type"] != "linebreak"
   }
