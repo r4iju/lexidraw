@@ -11,13 +11,13 @@ struct ShareRoot: View {
 
   enum Loaded {
     case loading, nothing
-    case loaded(Saving)
+    case loaded(ShareSaving)
   }
 
   var body: some View {
     NavigationStack {
       Group {
-        if let session {
+        if session != nil, !shared.isSignedOut {
           switch shared {
           case .loading:
             ProgressView()
@@ -37,7 +37,7 @@ struct ShareRoot: View {
       .navigationTitle("Save to Lexidraw")
       .navigationBarTitleDisplayMode(.inline)
       .toolbar {
-        if session == nil || shared.isNothing {
+        if session == nil || shared.isNothing || shared.isSignedOut {
           ToolbarItem(placement: .confirmationAction) {
             Button("Done", action: close)
           }
@@ -46,7 +46,7 @@ struct ShareRoot: View {
     }
     .task {
       guard let session else { return }
-      shared = await load().map { .loaded(Saving(session: session, shared: $0, close: close)) } ?? .nothing
+      shared = await load().map { .loaded(ShareSaving(session: session, shared: $0, close: close)) } ?? .nothing
     }
   }
 }
@@ -55,64 +55,14 @@ extension ShareRoot.Loaded {
   fileprivate var isNothing: Bool {
     if case .nothing = self { true } else { false }
   }
-}
 
-/// Saving what was shared, and what came of it.
-@MainActor @Observable
-final class Saving {
-  enum Step {
-    case choosing
-    case saving(String)
-    /// Nothing was saved, so it can be tried again.
-    case refused(String)
-    /// The link was saved, but its page wasn't read.
-    case partly(title: String, message: String)
-  }
-
-  let session: Session
-  let shared: Shared
-  let close: @MainActor () -> Void
-  /// Nil for Home.
-  var folder: Place.Folder?
-  var step = Step.choosing
-
-  init(session: Session, shared: Shared, close: @escaping @MainActor () -> Void) {
-    self.session = session
-    self.shared = shared
-    self.close = close
-  }
-
-  func save() async {
-    step = .saving("Saving…")
-    switch shared {
-    case .link(let url):
-      let link: Entry
-      do {
-        link = try await session.saveLink(url, in: folder?.id)
-      } catch {
-        step = .refused("Couldn’t save the link. \(error.localizedDescription)")
-        return
-      }
-      step = .saving("Reading the page…")
-      do {
-        _ = try await session.distill(link.id)
-        close()
-      } catch {
-        step = .partly(title: "Saved the link, but couldn’t read the page.", message: error.localizedDescription)
-      }
-    case .document(let document):
-      do {
-        _ = try await session.saveDocument(document, in: folder?.id)
-        close()
-      } catch {
-        step = .refused("Couldn’t save it. \(error.localizedDescription)")
-      }
-    }
+  @MainActor fileprivate var isSignedOut: Bool {
+    if case .loaded(let saving) = self { saving.step == .signedOut } else { false }
   }
 }
 
 private struct SaveForm: View {
-  @Bindable var saving: Saving
+  @Bindable var saving: ShareSaving
   @State private var choosingFolder = false
 
   var body: some View {
@@ -148,6 +98,8 @@ private struct SaveForm: View {
             Text(message).font(.footnote).foregroundStyle(.secondary)
           }
         }
+      case .signedOut:
+        EmptyView()
       }
     }
     .disabled(saving.isBusy)
@@ -172,7 +124,7 @@ private struct SaveForm: View {
   }
 }
 
-extension Saving {
+extension ShareSaving {
   fileprivate var isBusy: Bool {
     if case .saving = step { true } else { false }
   }
@@ -239,7 +191,6 @@ private struct FolderPicker: View {
 
 private struct FolderLevel: View {
   let session: Session
-  /// Nil for Home.
   let folder: Entry?
   @Binding var chosen: Place.Folder?
   @Environment(\.dismiss) private var dismiss

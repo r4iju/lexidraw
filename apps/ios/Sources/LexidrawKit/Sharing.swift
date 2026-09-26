@@ -1,6 +1,7 @@
 import Foundation
 import HTTPTypes
 import ImageIO
+import Observation
 import OpenAPIRuntime
 import UniformTypeIdentifiers
 
@@ -202,5 +203,69 @@ private struct StoreSaid: Decodable {
   static func message(in body: HTTPBody?) async -> String? {
     guard let body, let data = try? await Data(collecting: body, upTo: 1 << 16) else { return nil }
     return (try? JSONDecoder().decode(Self.self, from: data))?.error.message
+  }
+}
+
+/// Saving what was shared from another app, and what came of it.
+@MainActor @Observable
+public final class ShareSaving {
+  public enum Step: Sendable, Equatable {
+    case choosing
+    case saving(String)
+    /// Nothing was saved, so it can be tried again.
+    case refused(String)
+    /// The link was saved, but its page wasn't read.
+    case partly(title: String, message: String)
+    /// The server no longer takes the app's token: it was revoked on the web,
+    /// or it expired.
+    case signedOut
+  }
+
+  public let session: Session
+  public let shared: Shared
+  public let close: @MainActor () -> Void
+  /// Nil for Home.
+  public var folder: Place.Folder?
+  public private(set) var step = Step.choosing
+
+  public init(session: Session, shared: Shared, close: @escaping @MainActor () -> Void) {
+    self.session = session
+    self.shared = shared
+    self.close = close
+  }
+
+  public func save() async {
+    step = .saving("Saving…")
+    switch shared {
+    case .link(let url):
+      let link: Entry
+      do {
+        link = try await session.saveLink(url, in: folder?.id)
+      } catch {
+        step = Self.step(after: error, otherwise: .refused("Couldn’t save the link. \(error.localizedDescription)"))
+        return
+      }
+      step = .saving("Reading the page…")
+      do {
+        _ = try await session.distill(link.id)
+        close()
+      } catch {
+        step = Self.step(
+          after: error,
+          otherwise: .partly(
+            title: "Saved the link, but couldn’t read the page.", message: error.localizedDescription))
+      }
+    case .document(let document):
+      do {
+        _ = try await session.saveDocument(document, in: folder?.id)
+        close()
+      } catch {
+        step = Self.step(after: error, otherwise: .refused("Couldn’t save it. \(error.localizedDescription)"))
+      }
+    }
+  }
+
+  private static func step(after error: any Error, otherwise: Step) -> Step {
+    (error as? Refusal)?.status == 401 ? .signedOut : otherwise
   }
 }

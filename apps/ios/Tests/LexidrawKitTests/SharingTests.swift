@@ -207,6 +207,37 @@ import UniformTypeIdentifiers
   }
 }
 
+/// Saving from the share sheet, as it tells what came of it.
+@MainActor @Suite struct ShareSavingTests {
+  /// A token revoked on the web, or expired, is the app signed out.
+  @Test(arguments: [
+    Shared.link(URL(string: "https://example.com/post")!), .document(.init(title: "Idea", body: "", images: [])),
+  ])
+  func aTokenTheServerNoLongerTakesIsSignedOut(shared: Shared) async throws {
+    let server = FakeServer { _ in (401, #"{"message":"Sign in again","code":"UNAUTHORIZED"}"#) }
+    let saving = ShareSaving(session: try TestServer.session(server), shared: shared) {}
+
+    await saving.save()
+
+    #expect(saving.step == .signedOut)
+  }
+
+  @Test func aLinkWhosePageCantBeReadIsSavedAllTheSame() async throws {
+    let server = FakeServer { request in
+      request.url.path.hasSuffix("/distill")
+        ? (502, #"{"message":"The page didn't answer","code":"BAD_GATEWAY"}"#)
+        : (200, Summary.json(id: request.json["id"] ?? "", type: "url", title: "New link"))
+    }
+    let saving = ShareSaving(
+      session: try TestServer.session(server), shared: .link(URL(string: "https://example.com")!)) {}
+
+    await saving.save()
+
+    #expect(
+      saving.step == .partly(title: "Saved the link, but couldn’t read the page.", message: "The page didn't answer"))
+  }
+}
+
 /// What the server answers when it signs a picture's upload.
 private enum Signed {
   static let picture = """
