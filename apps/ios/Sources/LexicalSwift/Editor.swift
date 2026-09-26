@@ -162,9 +162,7 @@ extension Update {
 
   /// `pointNode` in `reference/entry.ts`.
   private func pointNode(_ point: Point) throws -> NodeKey {
-    guard let key = state.key(at: point.path) else {
-      throw EditorError.invalidState("No node at path \(point.path)")
-    }
+    guard let key = state.key(at: point.path) else { throw EditorError.noNode(path: point.path) }
     let node = state[key]
     let size =
       point.type == .text

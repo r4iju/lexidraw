@@ -50,9 +50,21 @@ public final class ReferenceEditor: EditorModel {
     let result = api.invokeMethod(name, withArguments: argument.map { [$0] } ?? [])
     if let exception = context.exception {
       context.exception = nil
-      throw ReferenceError(exception.toString() ?? "\(exception)")
+      throw Self.error(from: exception)
     }
     return result?.isString == true ? result?.toString() ?? "" : ""
+  }
+
+  /// The `EditorError` a thrown `EditorError` from `reference/editor-error.ts`
+  /// stands for.
+  private static func error(from exception: JSValue) -> EditorError {
+    let message = exception.toString() ?? "\(exception)"
+    switch exception.forProperty("kind")?.toString().flatMap(EditorError.Kind.init) {
+    case .noNode: return .noNode(path: (exception.forProperty("path")?.toArray() as? [Int]) ?? [])
+    case .noSelection: return .noSelection
+    case .unsupported: return .unsupported(message)
+    case .invalidState, nil: return .invalidState(message)
+    }
   }
 }
 

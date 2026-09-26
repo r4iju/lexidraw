@@ -55,7 +55,9 @@
 
       ]
     },
-    null
+    {
+      "refused" : "invalidState"
+    }
   ],
   "commands" : [
     {

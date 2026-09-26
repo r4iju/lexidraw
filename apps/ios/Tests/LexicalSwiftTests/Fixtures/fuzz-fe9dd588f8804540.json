@@ -31,7 +31,9 @@
 
       ]
     },
-    null
+    {
+      "refused" : "invalidState"
+    }
   ],
   "commands" : [
     {

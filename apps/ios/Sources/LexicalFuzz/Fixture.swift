@@ -6,19 +6,34 @@ import LexicalSwift
 public struct Fixture: Codable, Equatable, Sendable {
   public var start: JSONValue
   public var commands: [EditorCommand]
-  /// What each command changed, or nil where the reference refused it.
-  public var changes: [ChangeSet?]
+  public var changes: [Change]
   public var expected: Snapshot
 
-  public init(start: JSONValue, commands: [EditorCommand], changes: [ChangeSet?], expected: Snapshot) {
+  public init(start: JSONValue, commands: [EditorCommand], changes: [Change], expected: Snapshot) {
     self.start = start
     self.commands = commands
     self.changes = changes
     self.expected = expected
   }
 
+  /// What a command changed, or the kind of error it was refused with.
+  public enum Change: Equatable, Sendable {
+    case applied(ChangeSet)
+    case refused(EditorError.Kind)
+
+    /// Applies `command`. An error that isn't an `EditorError` is thrown on,
+    /// as a model's bug rather than its answer.
+    public init(applying command: EditorCommand, to model: some EditorModel) throws {
+      do {
+        self = .applied(try model.apply(command))
+      } catch let error as EditorError {
+        self = .refused(error.kind)
+      }
+    }
+  }
+
   public struct Outcome: Equatable, Sendable {
-    public var changes: [ChangeSet?]
+    public var changes: [Change]
     public var snapshot: Snapshot
   }
 
@@ -26,7 +41,7 @@ public struct Fixture: Codable, Equatable, Sendable {
 
   public func replay(on model: some EditorModel) throws -> Outcome {
     try model.load(start)
-    let changes = commands.map { try? model.apply($0) }
+    let changes = try commands.map { try Change(applying: $0, to: model) }
     return Outcome(changes: changes, snapshot: try model.snapshot())
   }
 
@@ -63,4 +78,29 @@ private func fnv1a(_ data: Data) -> String {
     hash &*= 0x100_0000_01b3
   }
   return String(hash, radix: 16)
+}
+
+extension Fixture.Change: Codable {
+  private enum CodingKeys: String, CodingKey {
+    case refused
+  }
+
+  public init(from decoder: any Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    if let kind = try container.decodeIfPresent(EditorError.Kind.self, forKey: .refused) {
+      self = .refused(kind)
+    } else {
+      self = .applied(try ChangeSet(from: decoder))
+    }
+  }
+
+  public func encode(to encoder: any Encoder) throws {
+    switch self {
+    case .applied(let changes):
+      try changes.encode(to: encoder)
+    case .refused(let kind):
+      var container = encoder.container(keyedBy: CodingKeys.self)
+      try container.encode(kind, forKey: .refused)
+    }
+  }
 }

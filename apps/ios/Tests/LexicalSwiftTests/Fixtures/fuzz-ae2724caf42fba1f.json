@@ -5,7 +5,9 @@
 
       ]
     },
-    null
+    {
+      "refused" : "invalidState"
+    }
   ],
   "commands" : [
     {
@@ -17,7 +19,7 @@
         "type" : "element"
       },
       "focus" : {
-        "offset" : 5,
+        "offset" : 6,
         "path" : [
           1,
           0
@@ -27,7 +29,8 @@
       "type" : "setSelection"
     },
     {
-      "type" : "insertParagraph"
+      "text" : "語",
+      "type" : "insertText"
     }
   ],
   "expected" : {
@@ -40,14 +43,14 @@
         "type" : "element"
       },
       "focus" : {
-        "offset" : 5,
+        "offset" : 6,
         "path" : [
           1,
           0
         ],
         "type" : "text"
       },
-      "format" : 3,
+      "format" : 32,
       "style" : ""
     },
     "state" : {
@@ -60,7 +63,7 @@
             "direction" : null,
             "format" : "",
             "indent" : 0,
-            "textFormat" : 8,
+            "textFormat" : 16,
             "textStyle" : "",
             "type" : "paragraph",
             "version" : 1
@@ -69,19 +72,19 @@
             "children" : [
               {
                 "detail" : 0,
-                "format" : 3,
+                "format" : 32,
                 "mode" : "normal",
                 "style" : "",
-                "text" : "日é_7b",
+                "text" : "👍🏽本 ß",
                 "type" : "text",
                 "version" : 1
               },
               {
                 "detail" : 0,
-                "format" : 16,
+                "format" : 1,
                 "mode" : "normal",
-                "style" : "color: red;",
-                "text" : "a",
+                "style" : "",
+                "text" : "語",
                 "type" : "text",
                 "version" : 1
               }
@@ -89,7 +92,7 @@
             "direction" : null,
             "format" : "",
             "indent" : 0,
-            "textFormat" : 3,
+            "textFormat" : 32,
             "textStyle" : "",
             "type" : "paragraph",
             "version" : 1
@@ -113,7 +116,7 @@
           "direction" : null,
           "format" : "",
           "indent" : 0,
-          "textFormat" : 8,
+          "textFormat" : 16,
           "textStyle" : "",
           "type" : "paragraph",
           "version" : 1
@@ -122,19 +125,19 @@
           "children" : [
             {
               "detail" : 0,
-              "format" : 3,
+              "format" : 32,
               "mode" : "normal",
               "style" : "",
-              "text" : "日é_7b",
+              "text" : "👍🏽本 ß",
               "type" : "text",
               "version" : 1
             },
             {
               "detail" : 0,
-              "format" : 16,
+              "format" : 1,
               "mode" : "normal",
-              "style" : "color: red;",
-              "text" : "a",
+              "style" : "",
+              "text" : "語",
               "type" : "text",
               "version" : 1
             }
@@ -142,7 +145,7 @@
           "direction" : null,
           "format" : "",
           "indent" : 0,
-          "textFormat" : 3,
+          "textFormat" : 32,
           "textStyle" : "",
           "type" : "paragraph",
           "version" : 1

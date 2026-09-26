@@ -251,4 +251,19 @@ public enum EditorError: Error, Equatable {
   /// Valid input this implementation does not handle yet.
   case unsupported(String)
   case invalidState(String)
+
+  /// What went wrong, without the particulars, for comparing two
+  /// implementations' refusals.
+  public enum Kind: String, Codable, Sendable {
+    case noNode, noSelection, unsupported, invalidState
+  }
+
+  public var kind: Kind {
+    switch self {
+    case .noNode: .noNode
+    case .noSelection: .noSelection
+    case .unsupported: .unsupported
+    case .invalidState: .invalidState
+    }
+  }
 }

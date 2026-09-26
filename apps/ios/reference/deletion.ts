@@ -50,6 +50,7 @@ import {
   type RangeSelection,
   type TextNode,
 } from "lexical";
+import { EditorError } from "./editor-error.js";
 
 export type Granularity = "character" | "word" | "lineboundary";
 
@@ -225,7 +226,10 @@ export function $deleteCharacter(
           (isBackward && offset !== textContentSize) ||
           (!isBackward && offset !== 0)
         ) {
-          throw new Error("Removing a segment isn't transcribed");
+          throw new EditorError(
+            "unsupported",
+            "Removing a segment isn't transcribed",
+          );
         }
       } else if (anchorNode?.isSegmented()) {
         const offset = anchor.offset;
@@ -235,7 +239,10 @@ export function $deleteCharacter(
           (isBackward && offset !== 0) ||
           (!isBackward && offset !== textContentSize)
         ) {
-          throw new Error("Removing a segment isn't transcribed");
+          throw new EditorError(
+            "unsupported",
+            "Removing a segment isn't transcribed",
+          );
         }
       }
       $updateCaretSelectionForUnicodeCharacter(selection, isBackward);

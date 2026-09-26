@@ -1,14 +1,18 @@
 import LexicalSwift
 
 /// Differential fuzzer: drives the reference and a candidate with the same
-/// random scripts, compares change sets and snapshots after every command, and
-/// shrinks the first divergence to a minimal fixture recorded from the
-/// reference. Deterministic for a given seed.
+/// random scripts, compares change sets, refusals and snapshots after every
+/// command, and shrinks the first divergence to a minimal fixture recorded
+/// from the reference. Deterministic for a given seed.
 public struct Fuzzer {
   public struct Finding {
     public var fixture: Fixture
+    /// Commands both accepted before the divergence.
     public var stepsRun: Int
   }
+
+  /// Commands both refused, which don't count as steps.
+  public private(set) var refusals = 0
 
   private let reference: any EditorModel
   private let candidate: any EditorModel
@@ -22,7 +26,8 @@ public struct Fuzzer {
     self.generator = Generator(seed: seed)
   }
 
-  /// Runs up to `steps` commands. Returns the first divergence, shrunk.
+  /// Runs until both models have accepted `steps` commands. Returns the
+  /// first divergence, shrunk.
   public mutating func run(steps: Int) throws -> Finding? {
     var stepsRun = 0
     while stepsRun < steps {
@@ -33,14 +38,18 @@ public struct Fuzzer {
         throw FuzzerError("The generator wrote a document Lexical normalizes on load")
       }
       try candidate.load(start)
-      for _ in 0..<min(sessionLength, steps - stepsRun) {
+      for _ in 0..<sessionLength where stepsRun < steps {
         guard let command = generator.command(for: try reference.snapshot()) else { break }
         commands.append(command)
-        stepsRun += 1
-        if !agree(on: command) {
-          let script = shrink((start, commands))
+        guard let step = try agreedStep(command) else {
+          let script = try shrink((start, commands))
           let fixture = try Fixture.record(start: script.start, commands: script.commands, on: reference)
           return Finding(fixture: fixture, stepsRun: stepsRun)
+        }
+        if case .applied = step.change {
+          stepsRun += 1
+        } else {
+          refusals += 1
         }
       }
     }
@@ -50,39 +59,41 @@ public struct Fuzzer {
   private typealias Script = (start: JSONValue, commands: [EditorCommand])
 
   private struct Step: Equatable {
-    var change: ChangeSet?
+    var change: Fixture.Change
     var snapshot: Snapshot?
   }
 
-  private func step(_ model: any EditorModel, _ command: EditorCommand) -> Step {
-    Step(change: try? model.apply(command), snapshot: try? model.snapshot())
+  private func step(_ model: any EditorModel, _ command: EditorCommand) throws -> Step {
+    Step(change: try Fixture.Change(applying: command, to: model), snapshot: try? model.snapshot())
   }
 
-  /// Applies `command` to both models and says whether the candidate agreed,
-  /// refusing it too where the reference refused it.
-  private func agree(on command: EditorCommand) -> Bool {
-    step(candidate, command) == step(reference, command)
+  /// Applies `command` to both models: what both did, or nil where the
+  /// candidate did otherwise.
+  private func agreedStep(_ command: EditorCommand) throws -> Step? {
+    let candidateStep = try step(candidate, command)
+    let referenceStep = try step(reference, command)
+    return candidateStep == referenceStep ? referenceStep : nil
   }
 
   /// Whether the script makes the candidate diverge. Only scripts the
   /// generator could have produced count (a document the reference loads
   /// unchanged, and commands valid in it that the reference accepts), so a
   /// shrunk fixture stays inside what the fuzzer tests.
-  private func diverges(_ script: Script) -> Bool {
+  private func diverges(_ script: Script) throws -> Bool {
     guard (try? reference.load(script.start)) != nil, (try? reference.snapshot())?.state == script.start else {
       return false
     }
     guard (try? candidate.load(script.start)) != nil else { return true }
     for command in script.commands {
-      guard let before = try? reference.snapshot(), Generator.isValid(command, in: before.state) else {
+      guard let before = try? reference.snapshot(), Generator.isValid(command, in: before) else {
         return false
       }
-      if !agree(on: command) { return true }
+      if try agreedStep(command) == nil { return true }
     }
     return false
   }
 
-  private func shrink(_ script: Script) -> Script {
+  private func shrink(_ script: Script) throws -> Script {
     var best = script
     var improved = true
     while improved {
@@ -92,7 +103,7 @@ public struct Fuzzer {
         // on load; take Lexical's own version so the document stays canonical.
         guard (try? reference.load(candidate.start)) != nil,
           let start = try? reference.snapshot().state,
-          diverges((start, candidate.commands))
+          try diverges((start, candidate.commands))
         else { continue }
         best = (start, candidate.commands)
         improved = true
@@ -233,9 +244,9 @@ struct Generator {
   /// Whether a user could issue `command` against `state`: a point in text
   /// sits on a grapheme boundary, and a point in a paragraph sits where no
   /// text is beside it to take it.
-  static func isValid(_ command: EditorCommand, in state: JSONValue) -> Bool {
+  static func isValid(_ command: EditorCommand, in snapshot: Snapshot) -> Bool {
     guard case .setSelection(let anchor, let focus) = command else { return true }
-    return [anchor, focus].allSatisfy { points(in: state).contains($0) }
+    return [anchor, focus].allSatisfy { points(in: snapshot.state).contains($0) }
   }
 
   /// Every point a user could put a selection's end at.
@@ -264,7 +275,9 @@ struct Generator {
     let roll = Int.random(in: 0..<100, using: &random)
     let backward = Int.random(in: 0..<3, using: &random) > 0
     switch roll {
-    case ..<22 where snapshot.selection == nil, 70..<85:
+    // With nothing selected, as after undoing back to the loaded document, a
+    // user puts the selection somewhere before doing anything else.
+    case _ where snapshot.selection == nil, 70..<85:
       let points = Self.points(in: snapshot.state)
       guard let anchor = points.randomElement(using: &random) else { return .selectAll }
       let isRange = Int.random(in: 0..<3, using: &random) == 0

@@ -32,6 +32,7 @@ import {
   $deleteWord,
   $normalizeSelectionPointsForBoundaries,
 } from "./deletion.js";
+import { EditorError } from "./editor-error.js";
 
 type PathPoint = { path: number[]; offset: number; type: "text" | "element" };
 
@@ -58,7 +59,7 @@ let everything = false;
 let now = 0;
 
 function current(): LexicalEditor {
-  if (!editor) throw new Error("No document loaded");
+  if (!editor) throw new EditorError("invalidState", "No document loaded");
   return editor;
 }
 
@@ -154,7 +155,9 @@ function run(command: Exclude<Command, { type: "undo" | "redo" | "wait" }>) {
     return;
   }
   const selection = $getSelection();
-  if (!$isRangeSelection(selection)) throw new Error("No range selection");
+  if (!$isRangeSelection(selection)) {
+    throw new EditorError("noSelection", "No range selection");
+  }
   switch (command.type) {
     case "insertText":
       selection.insertText(command.text);
@@ -302,7 +305,10 @@ function pointNode(point: PathPoint): LexicalNode {
     point.offset < 0 ||
     point.offset > size
   ) {
-    throw new Error(`No ${point.type} point at ${JSON.stringify(point)}`);
+    throw new EditorError(
+      "invalidState",
+      `No ${point.type} point at ${JSON.stringify(point)}`,
+    );
   }
   return node;
 }
@@ -313,7 +319,13 @@ function nodeAt(path: number[]): LexicalNode {
     const child: LexicalNode | null = $isElementNode(node)
       ? node.getChildAtIndex(index)
       : null;
-    if (!child) throw new Error(`No node at path ${JSON.stringify(path)}`);
+    if (!child) {
+      throw new EditorError(
+        "noNode",
+        `No node at path ${JSON.stringify(path)}`,
+        path,
+      );
+    }
     node = child;
   }
   return node;
