@@ -72,7 +72,8 @@ extension DrawingEditor {
   }
 
   /// `actionGroup`: the selected elements, and the labels they hold, become
-  /// one group, drawn together where the topmost of them was.
+  /// one group, drawn together where the topmost of them was, and out of
+  /// their frames when not all in the same one.
   public func group() {
     guard editing == nil, gesture == nil else { return }
     let selected = groupable()
@@ -83,6 +84,7 @@ extension DrawingEditor {
       let members = Set(store.filter { groupIds($0).contains(group) }.map(\.id))
       if members.union(ids).count == members.count { return }
     }
+    if Set(selected.map(frameId)).count > 1 { removeFromFrames(selected.map(\.id)) }
     let newGroup = environment.newId()
     for position in store.indices where ids.contains(store[position].id) {
       var groups = groupIds(store[position])
@@ -101,7 +103,8 @@ extension DrawingEditor {
   }
 
   /// `actionUngroup`: the selected groups are taken apart, and what was in
-  /// them stays selected, the labels in shapes aside.
+  /// them stays selected, the labels in shapes aside; the frames they were
+  /// in hold what their boxes hold of them now.
   public func ungroup() {
     guard editing == nil, gesture == nil else { return }
     let groups = selectedGroupIds
@@ -115,6 +118,11 @@ extension DrawingEditor {
       if after.count != before.count {
         environment.update(&store[position], ["groupIds": .array(after.map(JSONValue.string))])
       }
+    }
+    let parents = Set(selectedElements.compactMap(frameId))
+    let geometry = makeGeometry(of: store, includingDeleted: true)
+    for frame in store where frame.type?.isFrameLike == true && parents.contains(frame.id) {
+      replaceChildren(of: frame.id, with: childrenAfterResizing(frame.id, geometry))
     }
     selectedIds = withGroups(selectedIds).subtracting(labels)
     capture()
@@ -133,15 +141,11 @@ extension DrawingEditor {
     return true
   }
 
-  /// `syncMovedIndices`: new keys for the moved elements that no longer sit
-  /// between their neighbours' keys.
+  /// `syncMovedIndices`: new keys for the moved elements, between those of
+  /// the elements around each run of them.
   func syncMovedIndices(_ moved: Set<String>) {
     let indices = store.map(\.index)
-    let groups = FractionalIndex.movedGroups(indices) { i in
-      moved.contains(store[i].id)
-        && !FractionalIndex.isValid(
-          indices[i], after: i > 0 ? indices[i - 1] : nil, before: i + 1 < indices.count ? indices[i + 1] : nil)
-    }
+    let groups = FractionalIndex.movedGroups(indices) { moved.contains(store[$0].id) }
     var candidate = indices
     let updates = FractionalIndex.generate(indices, groups: groups)
     for (position, key) in updates { candidate[position] = key }

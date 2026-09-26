@@ -133,8 +133,12 @@ hand:
 - Edits save once they pause for a second, each against the revision the last
   save made. A save refused because someone else saved in between asks
   whether to keep these changes or take theirs.
-- New elements and placed images aren't put in frames, and grouping leaves
-  frames alone.
+- An element is in the frame it is begun in, and a placed image in the one
+  the middle of the screen is in, as a dropped file is in the one it is
+  dropped on. A shape let go over a frame joins it, and one let go outside
+  leaves it, even while it still overlaps, as on the web. A frame moves with
+  what it holds, keeps what its new box holds once resized, and grouping
+  takes shapes out of their frames unless all are in the same one.
 - An arrow bound to a shape follows it, but an elbow arrow keeps its elbows
   where they were; the app draws no elbow arrows of its own.
 - Entering or leaving a group to edit one of its elements is a step to

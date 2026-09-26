@@ -488,23 +488,31 @@ final class SceneGeometry {
     return boxes && touchesOrCrosses(a, b) && touchesOrCrosses(b, a)
   }
 
-  private func isIntersectingFrame(_ element: DrawingElement, _ frame: DrawingElement) -> Bool {
+  /// `isElementIntersectingFrame`.
+  func isIntersectingFrame(_ element: DrawingElement, _ frame: DrawingElement) -> Bool {
     let frameSegments = lineSegments(frame)
     let elementSegments = lineSegments(element)
     return frameSegments.contains { f in elementSegments.contains { segmentsIntersect(f, $0) } }
   }
 
-  private func isContainingFrame(_ element: DrawingElement, _ frame: DrawingElement) -> Bool {
+  /// `isElementContainingFrame`.
+  func isContainingFrame(_ element: DrawingElement, _ frame: DrawingElement) -> Bool {
     let selection = absoluteCoords(element)
     let b = bounds(frame)
     return !frame.locked && selection.x1 <= b.minX && selection.y1 <= b.minY
       && selection.x2 >= b.maxX && selection.y2 >= b.maxY
   }
 
-  private func isInFrameBounds(_ element: DrawingElement, _ frame: DrawingElement) -> Bool {
+  /// `elementsAreInFrameBounds`.
+  func areInFrameBounds(_ elements: [DrawingElement], _ frame: DrawingElement) -> Bool {
     let f = absoluteCoords(frame)
-    let e = commonBounds([element])
+    let e = commonBounds(elements)
     return f.x1 <= e.minX && f.y1 <= e.minY && f.x2 >= e.maxX && f.y2 >= e.maxY
+  }
+
+  /// `elementOverlapsWithFrame`.
+  func overlapsFrame(_ element: DrawingElement, _ frame: DrawingElement) -> Bool {
+    areInFrameBounds([element], frame) || isIntersectingFrame(element, frame) || isContainingFrame(element, frame)
   }
 
   /// `shouldApplyFrameClip`, for a scene nothing is being dragged in.
@@ -515,7 +523,7 @@ final class SceneGeometry {
       for group in element.groupIds { checkedGroups[group] = true }
       return true
     }
-    if !element.groupIds.isEmpty && !isInFrameBounds(element, frame) {
+    if !element.groupIds.isEmpty && !areInFrameBounds([element], frame) {
       let shouldClip = element.frameId == frame.id
       for group in element.groupIds { checkedGroups[group] = shouldClip }
       return shouldClip

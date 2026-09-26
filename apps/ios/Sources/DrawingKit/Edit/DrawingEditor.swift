@@ -131,11 +131,11 @@ public final class DrawingEditor {
     for (position, key) in updates { environment.mutate(&store[position], ["index": .string(key)]) }
   }
 
-  /// `Scene.insertElement`: at the end, or below the frame it is in, or at
-  /// `position`, keyed between its neighbours.
+  /// `Scene.insertElement`: at the end, or below the frame it is in; or
+  /// `insertElementAtIndex`, at `position`; keyed between its neighbours.
   func insert(_ element: RawElement, at position: Int? = nil) {
     var position = position ?? store.count
-    if let frameId = element["frameId"]?.stringValue, let frame = self.position(of: frameId) {
+    if position == store.count, let frameId = frameId(element), let frame = self.position(of: frameId) {
       position = frame
     }
     store.insert(element, at: position)
@@ -154,15 +154,19 @@ public final class DrawingEditor {
 
   // MARK: New elements
 
-  /// `_newElementBase`, with the current style.
-  func newElement(_ type: ElementType, at point: Point2D, roundness: JSONValue) -> RawElement {
+  /// `_newElementBase`, with the current style, in the frame `framedAt`
+  /// is in, which is where it is begun unless given.
+  func newElement(_ type: ElementType, at point: Point2D, roundness: JSONValue, framedAt: Point2D? = nil)
+    -> RawElement
+  {
     [
       "id": .string(environment.newId()), "type": .string(type.rawValue), "x": .number(point.x),
       "y": .number(point.y), "width": 0, "height": 0, "angle": 0,
       "strokeColor": .string(style.strokeColor), "backgroundColor": .string(style.backgroundColor),
       "fillStyle": .string(style.fillStyle.rawValue), "strokeWidth": .number(style.strokeWidth),
       "strokeStyle": .string(style.strokeStyle.rawValue), "roughness": .number(style.roughness),
-      "opacity": .number(style.opacity), "groupIds": [], "frameId": nil, "index": nil,
+      "opacity": .number(style.opacity), "groupIds": [],
+      "frameId": topLayerFrame(at: framedAt ?? point).map(JSONValue.string) ?? nil, "index": nil,
       "roundness": roundness, "seed": .number(Double(environment.randomInteger())), "version": 1,
       "versionNonce": 0, "isDeleted": false, "boundElements": nil,
       "updated": .number(environment.now()), "link": nil, "locked": false,
@@ -261,6 +265,8 @@ public final class DrawingEditor {
     }
     if case .none = gesture.action, gesture.hitsSelected(selectedIds) || gesture.hitCommonBox {
       gesture.dragged = true
+      let movesAFrame = selectedElements.contains { $0.type?.isFrameLike == true }
+      gesture.frameToHighlight = movesAFrame ? nil : topLayerFrame(at: point)
       drag(gesture, by: Point2D(point.x - gesture.origin.x, point.y - gesture.origin.y))
       return
     }
@@ -357,6 +363,11 @@ public final class DrawingEditor {
     case .resize, .rotate: resizing = true
     default: resizing = false
     }
+    if gesture.dragged, case .none = gesture.action {
+      updateFramesAfterDrag(to: point, highlight: gesture.frameToHighlight)
+    } else if resizing {
+      updateFramesAfterResize()
+    }
     if let hit = gesture.hit, !gesture.dragged, !gesture.wasAddedToSelection {
       selectedIds = withGroups([hit])
     }
@@ -445,11 +456,11 @@ public final class DrawingEditor {
       ])
   }
 
-  /// `dragSelectedElements`: each selected element, and the text it holds,
-  /// moved from where it was when the drag began, and the arrows bound to
-  /// it following.
+  /// `dragSelectedElements`: each selected element, what a selected frame
+  /// holds, and the text each holds, moved from where it was when the drag
+  /// began, and the arrows bound to it following.
   private func drag(_ gesture: Gesture, by offset: Point2D) {
-    let selected = selectedElements
+    let selected = withFrameChildren(selectedElements)
     let ids = Set(selected.map(\.id))
     // `calculateOffset`: the offset as the selection's corner moves by it.
     let originals = makeGeometry(of: selected.map { gesture.originals[$0.id] ?? $0 })
@@ -584,6 +595,8 @@ struct Gesture {
   var allHits: [String] = []
   var wasAddedToSelection = false
   var dragged = false
+  /// `frameToHighlight`: the frame the selection was last dragged over.
+  var frameToHighlight: String?
   /// The shape a new arrow was begun on, which its start binds to.
   var startBound: String?
   /// The middle of the selection when the gesture began, which a selection

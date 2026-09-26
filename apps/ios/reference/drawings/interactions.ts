@@ -121,6 +121,44 @@ const diamond: Skeleton = {
   seed: 13,
 };
 
+/** A frame, empty unless given children, and shapes to put in and around it. */
+const frame = (children: string[] = []): Skeleton => ({
+  type: "frame",
+  id: "frame",
+  x: 300,
+  y: 100,
+  width: 400,
+  height: 300,
+  children,
+});
+const framed: Skeleton = {
+  type: "rectangle",
+  id: "framed",
+  x: 340,
+  y: 140,
+  width: 100,
+  height: 80,
+  seed: 21,
+};
+const loose: Skeleton = {
+  type: "rectangle",
+  id: "loose",
+  x: 80,
+  y: 150,
+  width: 120,
+  height: 80,
+  seed: 22,
+};
+const cornered: Skeleton = {
+  type: "ellipse",
+  id: "cornered",
+  x: 580,
+  y: 300,
+  width: 90,
+  height: 70,
+  seed: 23,
+};
+
 /** An arrow from near the rectangle's right side to inside the ellipse's left. */
 const joinLeftToRight: Step[] = [
   { tool: "arrow" },
@@ -777,6 +815,170 @@ export const INTERACTIONS: Interaction[] = [
         [
           [340, 210],
           [300, 220],
+        ],
+      ),
+    ],
+  },
+  {
+    // Each new element is in the frame its first point is in.
+    name: "draw-in-a-frame",
+    before: [frame()],
+    steps: [
+      { tool: "rectangle" },
+      ...drag(
+        [340, 140],
+        [
+          [400, 180],
+          [440, 220],
+        ],
+      ),
+      { tool: "ellipse" },
+      ...drag(
+        [620, 330],
+        [
+          [700, 400],
+          [760, 450],
+        ],
+      ),
+      { tool: "rectangle" },
+      ...drag(
+        [80, 440],
+        [
+          [130, 480],
+          [180, 520],
+        ],
+      ),
+      { tool: "line" },
+      ...drag(
+        [350, 300],
+        [
+          [400, 330],
+          [450, 360],
+        ],
+      ),
+      { tool: "arrow" },
+      ...drag(
+        [120, 300],
+        [
+          [250, 290],
+          [420, 270],
+        ],
+      ),
+      { tool: "freedraw" },
+      ...drag(
+        [500, 250],
+        [
+          [530, 270],
+          [560, 260],
+          [590, 290],
+        ],
+      ),
+      { tool: "text" },
+      ...tap([360, 360]),
+      { type: "Framed" },
+      { press: "Escape" },
+    ],
+  },
+  {
+    name: "drag-into-a-frame",
+    before: [frame(), loose],
+    steps: drag(
+      [80, 190],
+      [
+        [240, 220],
+        [380, 250],
+      ],
+    ),
+  },
+  {
+    name: "drag-out-of-a-frame",
+    before: [framed, frame(["framed"])],
+    steps: drag(
+      [340, 180],
+      [
+        [250, 300],
+        [100, 480],
+      ],
+    ),
+  },
+  {
+    // Let go outside the frame, the shape leaves it though it still overlaps.
+    name: "drag-partly-out-of-a-frame",
+    before: [cornered, frame(["cornered"])],
+    steps: drag(
+      [670, 335],
+      [
+        [690, 335],
+        [710, 335],
+      ],
+    ),
+  },
+  {
+    name: "move-a-frame",
+    before: [framed, cornered, frame(["framed", "cornered"]), loose],
+    steps: drag(
+      [300, 250],
+      [
+        [280, 280],
+        [250, 320],
+      ],
+    ),
+  },
+  {
+    name: "resize-a-frame",
+    before: [framed, cornered, frame(["framed", "cornered"])],
+    steps: [
+      ...tap([300, 250]),
+      ...drag(
+        [710, 410],
+        [
+          [650, 350],
+          [560, 290],
+        ],
+      ),
+    ],
+  },
+  {
+    // A group takes its shapes out of the frames they were in.
+    name: "group-across-a-frame",
+    before: [framed, frame(["framed"]), loose],
+    steps: [
+      ...drag(
+        [60, 120],
+        [
+          [300, 200],
+          [460, 240],
+        ],
+      ),
+      { press: "group" },
+    ],
+  },
+  {
+    // A shape the frame only held as part of its group is let go with it.
+    name: "ungroup-in-a-frame",
+    before: [
+      { ...framed, groupIds: ["pair"] },
+      { ...cornered, x: 760, groupIds: ["pair"] },
+      frame(["framed", "cornered"]),
+    ],
+    steps: [...tap([340, 180]), { press: "ungroup" }],
+  },
+  {
+    // Dragged into a frame, a shape leaves the group being edited, and a
+    // group left with one shape is no group.
+    name: "drag-out-of-a-group-into-a-frame",
+    before: [
+      frame(),
+      { ...loose, groupIds: ["pair"] },
+      { ...loose, id: "partner", y: 300, groupIds: ["pair"] },
+    ],
+    steps: [
+      ...enterGroupAt([105, 150]),
+      ...drag(
+        [105, 150],
+        [
+          [240, 180],
+          [405, 210],
         ],
       ),
     ],

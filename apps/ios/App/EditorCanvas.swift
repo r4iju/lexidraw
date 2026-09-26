@@ -181,6 +181,15 @@ final class EditorCanvasView: UIView, UIGestureRecognizerDelegate, UITextViewDel
       context.fill(screenRect(box))
       context.stroke(screenRect(box))
     }
+    if let frame = overlay.frame {
+      // `renderFrameHighlight`, whose width and corners stay the same at any zoom.
+      context.saveGState()
+      context.setLineWidth(2)
+      context.setStrokeColor(UIColor.systemBlue.cgColor)
+      context.addPath(CGPath(roundedRect: screenRect(frame), cornerWidth: 8, cornerHeight: 8, transform: nil))
+      context.strokePath()
+      context.restoreGState()
+    }
     context.setFillColor(UIColor.systemBackground.cgColor)
     for handle in overlay.handles {
       let rect = screenRect(handle.bounds)

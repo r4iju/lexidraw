@@ -130,7 +130,8 @@ extension DrawingEditor {
     let anchor = center ?? point
     let offsetX = textAlign == "center" ? size.width / 2 : textAlign == "right" ? size.width : 0
     let offsetY = verticalAlign == "middle" ? size.height / 2 : 0
-    var text = newElement(.text, at: Point2D(anchor.x - offsetX, anchor.y - offsetY), roundness: nil)
+    var text = newElement(
+      .text, at: Point2D(anchor.x - offsetX, anchor.y - offsetY), roundness: nil, framedAt: point)
     text.merge(
       [
         "width": .number(size.width), "height": .number(size.height), "text": "",

@@ -138,8 +138,8 @@ extension DrawingEditor {
   /// shape has been drawn, so lines measure by their curves.
   func makeGeometry() -> SceneGeometry { makeGeometry(of: store) }
 
-  func makeGeometry(of elements: [RawElement]) -> SceneGeometry {
-    let restored = restoreElements(elements.filter { !$0.isDeleted }.map(JSONValue.object))
+  func makeGeometry(of elements: [RawElement], includingDeleted: Bool = false) -> SceneGeometry {
+    let restored = restoreElements(elements.filter { includingDeleted || !$0.isDeleted }.map(JSONValue.object))
     let geometry = SceneGeometry(
       elements: Dictionary(restored.map { ($0.id, $0) }, uniquingKeysWith: { $1 }),
       canvasBackgroundColor: "#ffffff")

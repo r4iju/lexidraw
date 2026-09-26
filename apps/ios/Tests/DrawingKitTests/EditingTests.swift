@@ -29,6 +29,27 @@ import Testing
     #expect(!editor.canUndo)
   }
 
+  /// While a shape is dragged, the frame it would join if let go is
+  /// outlined, as the web outlines it; a dragged frame joins none.
+  @Test func aDraggedShapeShowsTheFrameItWouldJoin() throws {
+    let frame: JSONValue = [
+      "id": "frame", "type": "frame", "x": 200, "y": 0, "width": 300, "height": 200, "index": "a1",
+    ]
+    let editor = DrawingEditor(elements: [Self.box, frame], measurer: FontLibrary.shared, environment: .counting)
+    editor.pointerDown(Point2D(0, 40), pointer: .touch, pressure: 0.5)
+    editor.pointerMove(Point2D(100, 40), pressure: 0.5)
+    #expect(editor.overlay(pointer: .touch).frame == nil)
+
+    editor.pointerMove(Point2D(250, 40), pressure: 0.5)
+    #expect(editor.overlay(pointer: .touch).frame == Bounds(minX: 200, minY: 0, maxX: 500, maxY: 200))
+
+    editor.pointerUp(Point2D(250, 40), pressure: 0)
+    #expect(editor.overlay(pointer: .touch).frame == nil)
+    editor.pointerDown(Point2D(200, 100), pointer: .touch, pressure: 0.5)
+    editor.pointerMove(Point2D(220, 100), pressure: 0.5)
+    #expect(editor.overlay(pointer: .touch).frame == nil)
+  }
+
   /// Predicted touches draw the stroke on ahead of the pencil, but only
   /// until the real ones arrive.
   @Test func aPredictionExtendsTheStrokeOnlyOnScreen() throws {

@@ -48,6 +48,8 @@ public struct EditorOverlay: Sendable {
   public var handles: [Handle] = []
   /// The rectangle being dragged out to select what it covers.
   public var selecting: Bounds?
+  /// The frame what is dragged would join if let go now.
+  public var frame: Bounds?
 }
 
 /// The text being written, where and how the web lays out its text box.
@@ -73,6 +75,10 @@ extension DrawingEditor {
       overlay.selecting = Bounds(
         minX: min(gesture.origin.x, gesture.last.x), minY: min(gesture.origin.y, gesture.last.y),
         maxX: max(gesture.origin.x, gesture.last.x), maxY: max(gesture.origin.y, gesture.last.y))
+    }
+    if let id = gesture?.frameToHighlight, let frame = element(id) {
+      let (x, y) = (frame.number("x"), frame.number("y"))
+      overlay.frame = Bounds(minX: x, minY: y, maxX: x + frame.number("width"), maxY: y + frame.number("height"))
     }
     guard editing == nil else { return overlay }
     let geometry = makeGeometry()
