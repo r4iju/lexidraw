@@ -18,19 +18,18 @@ const HTTP_METHODS = ["get", "post", "put", "patch", "delete"] as const;
 /**
  * Every published path with the methods it serves, read off the document the
  * generator built from this same router: a procedure that gains a REST path
- * arrives here with it, and nothing has to be listed twice. `open` are the
- * methods whose operation the document publishes without security.
+ * arrives here with it, and nothing has to be listed twice.
  */
 const OPERATIONS: readonly {
   segments: string[];
   methods: string[];
-  open: string[];
+  tokenless: string[];
 }[] = Object.entries(openApiDocument.paths ?? {}).map(([path, item]) => {
   const served = HTTP_METHODS.filter((method) => item?.[method]);
   return {
     segments: path.split("/").filter(Boolean),
     methods: served.map((method) => method.toUpperCase()),
-    open: served
+    tokenless: served
       .filter((method) => !item?.[method]?.security?.length)
       .map((method) => method.toUpperCase()),
   };
@@ -71,7 +70,7 @@ function isOpen(req: Request): boolean {
   );
   return (
     matching.length > 0 &&
-    matching.every((operation) => operation.open.includes(req.method))
+    matching.every((operation) => operation.tokenless.includes(req.method))
   );
 }
 

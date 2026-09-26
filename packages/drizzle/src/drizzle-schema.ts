@@ -402,8 +402,7 @@ export const apiTokens = sqliteTable(
 
 /**
  * A one-time code a native app trades for a personal access token. Only the
- * SHA-256 of the code is stored. A spent code keeps its row, with the token it
- * bought, so a replay can revoke that token.
+ * SHA-256 of the code is stored.
  */
 export const nativeSignInCodes = sqliteTable(
   "NativeSignInCodes",

@@ -125,8 +125,6 @@ describe("openApiDocument", () => {
     expect(operation?.security).toEqual([{ bearerAuth: [] }]);
   });
 
-  // A native app has no token until this answers, so it is the one operation
-  // the route serves to anybody.
   it("publishes the native sign-in exchange without security", () => {
     const operation = document.paths?.["/native-sign-in/token"]?.post;
     expect(operation).toBeDefined();

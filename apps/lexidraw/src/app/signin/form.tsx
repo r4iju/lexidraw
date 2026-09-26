@@ -12,6 +12,7 @@ import { Button } from "~/components/ui/button";
 import { getDefaults } from "@packages/lib";
 import { GitHubMark } from "~/components/github-mark";
 import { AuthDivider } from "~/components/auth-card";
+import type { SameSitePath } from "./callback-path";
 
 const WRONG_CREDENTIALS =
   "That email and password don’t match. Try again or use GitHub.";
@@ -19,8 +20,7 @@ const WRONG_CREDENTIALS =
 export default function SignInForm({
   callbackPath,
 }: {
-  /** A same-site path, already checked by the page. */
-  callbackPath: string;
+  callbackPath: SameSitePath;
 }) {
   const schema = getSignInSchema();
   const router = useRouter();

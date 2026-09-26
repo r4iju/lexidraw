@@ -3,7 +3,7 @@ import { callbackPath } from "./callback-path";
 
 describe("where sign-in returns to", () => {
   test("is the page that sent the user here, query included", () => {
-    expect(
+    expect<string>(
       callbackPath("/native-sign-in?redirectUri=lexidraw%3A%2F%2Fauth"),
     ).toBe("/native-sign-in?redirectUri=lexidraw%3A%2F%2Fauth");
   });
@@ -19,7 +19,7 @@ describe("where sign-in returns to", () => {
       undefined,
       ["/a", "/b"],
     ]) {
-      expect(callbackPath(value)).toBe("/dashboard");
+      expect<string>(callbackPath(value)).toBe("/dashboard");
     }
   });
 });

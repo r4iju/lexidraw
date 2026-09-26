@@ -8,9 +8,9 @@ import { createApiToken } from "./api-tokens";
 type Db = LibSQLDatabase<typeof schema>;
 
 /** Long enough for the browser to hand the code to the app, and no longer. */
-export const NATIVE_SIGN_IN_CODE_TTL_MS = 60_000;
+const NATIVE_SIGN_IN_CODE_TTL_MS = 60_000;
 
-/** How long a spent code is remembered, so a replay can revoke its token. */
+/** How long a spent code is remembered. */
 const SPENT_CODE_RETENTION_MS = 24 * 60 * 60 * 1000;
 
 const TOKEN_NAME_MAX = 64;

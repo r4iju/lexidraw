@@ -1,4 +1,7 @@
-const FALLBACK = "/dashboard";
+/** A path on this site, as only {@link callbackPath} makes one. */
+export type SameSitePath = string & { readonly __brand: "SameSitePath" };
+
+const FALLBACK = "/dashboard" as SameSitePath;
 const BASE = "https://lexidraw.invalid";
 
 /**
@@ -6,7 +9,7 @@ const BASE = "https://lexidraw.invalid";
  * the dashboard. The value is resolved the way a browser would resolve it,
  * so `//host`, `/\host` and stray whitespace cannot turn it into another site.
  */
-export function callbackPath(value: unknown): string {
+export function callbackPath(value: unknown): SameSitePath {
   if (typeof value !== "string" || !value.startsWith("/")) return FALLBACK;
   try {
     const url = new URL(value, BASE);
@@ -15,7 +18,7 @@ export function callbackPath(value: unknown): string {
     if (url.origin !== BASE || new URL(path, BASE).origin !== BASE) {
       return FALLBACK;
     }
-    return path;
+    return path as SameSitePath;
   } catch {
     return FALLBACK;
   }

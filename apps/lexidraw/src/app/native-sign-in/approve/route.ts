@@ -30,11 +30,7 @@ function fromOwnPage(req: Request): boolean {
   }
 }
 
-/**
- * The signed-in user approved a native app on /native-sign-in: a one-time code
- * goes to the app's callback, never the token itself. Nothing but an
- * allow-listed callback is ever redirected to.
- */
+/** The approval submitted from /native-sign-in. */
 export async function POST(req: Request) {
   if (!fromOwnPage(req)) return refuse(403, "Cross-site request refused");
 
