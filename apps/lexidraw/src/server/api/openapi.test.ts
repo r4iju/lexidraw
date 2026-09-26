@@ -117,6 +117,8 @@ describe("openApiDocument", () => {
     ["/entities/{id}/restore", "post", "entities"],
     ["/entities/{id}/distill", "post", "entities"],
     ["/entities/{id}/uploads", "post", "entities"],
+    ["/entities/{id}/listen", "post", "entities"],
+    ["/entities/{id}/listen", "get", "entities"],
     ["/entities/{id}/tags", "get", "entities"],
     ["/entities/{id}/tags", "put", "entities"],
     ["/entities/{id}/shares", "get", "entities"],
@@ -219,7 +221,7 @@ describe("openApiDocument", () => {
 
   // The routers that stay tRPC-only; a stray `meta.openapi` would show up as a
   // path naming one of them.
-  it.each(["admin", "tts", "backup", "snapshot", "image", "llm"])(
+  it.each(["admin", "backup", "snapshot", "image", "llm"])(
     "keeps %s off the REST surface",
     (router) => {
       const paths = Object.keys(document.paths ?? {});
@@ -239,9 +241,13 @@ describe("openApiDocument", () => {
       /#\/components\/schemas\/[^"]+/g,
     );
     expect([...new Set(refs)].sort()).toEqual(
-      ["Access", "EntityType", "ErrorResponse", "ListedEntity"].map(
-        (name) => `#/components/schemas/${name}`,
-      ),
+      [
+        "Access",
+        "EntityType",
+        "ErrorResponse",
+        "ListedEntity",
+        "Listening",
+      ].map((name) => `#/components/schemas/${name}`),
     );
   });
 });

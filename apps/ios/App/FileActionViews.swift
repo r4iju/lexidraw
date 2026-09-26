@@ -147,6 +147,7 @@ private struct FileActionMenu: ViewModifier {
   func body(content: Content) -> some View {
     content
       .contextMenu {
+        ListenButton(file: entry)
         // Anyone who can see a file may send its address; the web decides
         // who it opens for.
         ShareLink(item: actions.link(to: entry), subject: Text(entry.title)) {

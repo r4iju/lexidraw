@@ -12,6 +12,13 @@ import { PublicAccess } from "@packages/types";
 import { del } from "@vercel/blob";
 import type { TtsSegment } from "~/server/tts/types";
 import env from "@packages/env";
+import { htmlToPlainText } from "@packages/lexical-nodes";
+import {
+  InvalidDocumentContentError,
+  UnsupportedNodeTypesError,
+  editorStateToMarkdown,
+  parseEditorState,
+} from "~/server/documents/markdown";
 
 const TtsJobSnapshot = z.object({
   docKey: z.string(),
@@ -116,6 +123,309 @@ function ttsConfigFor(input: TtsRequest, stored?: Record<string, unknown>) {
   return { ...listenSettings(stored), ...asked };
 }
 
+type VoiceConfig = ReturnType<typeof ttsConfigFor>;
+
+type TtsJob = typeof schema.ttsJobs.$inferSelect;
+
+function snapshotOf(row: TtsJob): TtsJobSnapshot {
+  return {
+    docKey: row.id,
+    status: row.status,
+    manifestUrl: row.manifestUrl ?? undefined,
+    stitchedUrl: row.stitchedUrl ?? undefined,
+    segmentCount: row.segmentCount ?? undefined,
+    plannedCount: row.plannedCount ?? undefined,
+    error: row.error ?? undefined,
+    updatedAt: new Date(row.updatedAt).toISOString(),
+  };
+}
+
+/** The job last started or updated for `entityId`, in anyone's voice. */
+async function latestJob(entityId: string): Promise<TtsJob | undefined> {
+  const rows = await drizzle
+    .select()
+    .from(schema.ttsJobs)
+    .where(eq(schema.ttsJobs.entityId, entityId))
+    .orderBy(desc(schema.ttsJobs.updatedAt), desc(schema.ttsJobs.createdAt))
+    .limit(1)
+    .execute();
+  return rows[0];
+}
+
+async function manifestOf(row: TtsJob | undefined) {
+  if (!row?.manifestUrl) return { segments: [], stitchedUrl: undefined };
+  const r = await fetch(row.manifestUrl, { cache: "no-store" });
+  if (!r.ok) return { segments: [], stitchedUrl: row.stitchedUrl ?? undefined };
+  const json = (await r.json()) as {
+    segments?: unknown[];
+    stitchedUrl?: string;
+  };
+  return {
+    segments: Array.isArray(json.segments) ? json.segments : [],
+    stitchedUrl: json.stitchedUrl ?? row.stitchedUrl ?? undefined,
+  };
+}
+
+/**
+ * Starts reading `entityId` aloud as `key`, or answers the job whose audio is
+ * already made as it. `prepare` is asked for the run only when one is needed,
+ * so a file whose audio is made isn't read again, and returns what starts it.
+ */
+async function startTtsJob({
+  entityId,
+  userId,
+  key,
+  cfg,
+  prepare,
+}: {
+  entityId: string;
+  userId: string;
+  key: string;
+  cfg: VoiceConfig;
+  prepare: () => Promise<() => void> | (() => void);
+}): Promise<TtsJob> {
+  await drizzle
+    .update(schema.ttsJobs)
+    .set({ status: "cancelled", updatedAt: new Date() })
+    .where(
+      and(
+        eq(schema.ttsJobs.entityId, entityId),
+        eq(schema.ttsJobs.userId, userId),
+        or(
+          eq(schema.ttsJobs.status, "queued"),
+          eq(schema.ttsJobs.status, "processing"),
+        ),
+      ),
+    )
+    .execute();
+  const existing = await drizzle.query.ttsJobs.findFirst({
+    where: (t) => and(eq(t.id, key), eq(t.entityId, entityId)),
+  });
+  if (existing?.status === "ready" && existing.manifestUrl) {
+    return existing;
+  }
+  const run = await prepare();
+  const [queued] = await drizzle
+    .insert(schema.ttsJobs)
+    .values({
+      id: key,
+      entityId,
+      userId,
+      status: "queued",
+      ttsConfig: cfg as unknown as Record<string, unknown>,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    })
+    .onConflictDoUpdate({
+      target: schema.ttsJobs.id,
+      set: { status: "queued", updatedAt: new Date() },
+    })
+    .returning();
+  if (!queued) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+  run();
+  return queued;
+}
+
+/** A started job as the web's start calls answer it. */
+function startedSnapshotOf(job: TtsJob): TtsJobSnapshot {
+  if (job.status === "ready") {
+    const { error: _, ...ready } = snapshotOf(job);
+    return ready;
+  }
+  return {
+    docKey: job.id,
+    status: "queued",
+    updatedAt: new Date(job.updatedAt).toISOString(),
+  };
+}
+
+/** The page a saved link was read into, as its read-aloud job reads it. */
+function distilledHtmlOf(elements: string | null | undefined) {
+  if (!elements) return undefined;
+  try {
+    const parsed = JSON.parse(elements) as {
+      distilled?: { contentHtml?: string };
+    };
+    return parsed.distilled?.contentHtml;
+  } catch {
+    return undefined;
+  }
+}
+
+/** The caller's read-aloud settings, read fresh rather than from the session. */
+async function storedTtsOf(userId: string) {
+  const user = await drizzle.query.users.findFirst({
+    where: (users, { eq }) => eq(users.id, userId),
+    columns: { config: true },
+  });
+  return user?.config?.tts;
+}
+
+async function startDocumentJob(
+  documentId: string,
+  userId: string,
+  cfg: VoiceConfig,
+  markdown: () => string,
+) {
+  return startTtsJob({
+    entityId: documentId,
+    userId,
+    key: computeDocKey(documentId, cfg),
+    cfg,
+    prepare: () => {
+      const text = markdown();
+      return () =>
+        void start(generateDocumentTtsWorkflow, [documentId, text, cfg]);
+    },
+  });
+}
+
+async function startArticleJob(
+  articleId: string,
+  userId: string,
+  cfg: VoiceConfig,
+  plainText: (html: string | undefined) => string,
+) {
+  return startTtsJob({
+    entityId: articleId,
+    userId,
+    key: computeArticleKey(articleId, cfg),
+    cfg,
+    prepare: async () => {
+      const entity = await drizzle.query.entities.findFirst({
+        where: (t) => eq(t.id, articleId),
+        columns: { elements: true },
+      });
+      const html = distilledHtmlOf(entity?.elements);
+      const text = plainText(html);
+      return () =>
+        void start(generateArticleTtsWorkflow, [articleId, text, html, cfg]);
+    },
+  });
+}
+
+/** A file that can be read aloud, as the web offers Listen on it. */
+async function listenableOrNotFound(id: string, userId: string) {
+  const [entity] = await drizzle
+    .select({
+      entityType: schema.entities.entityType,
+      elements: schema.entities.elements,
+    })
+    .from(schema.entities)
+    .leftJoin(
+      schema.sharedEntities,
+      and(
+        eq(schema.sharedEntities.entityId, schema.entities.id),
+        eq(schema.sharedEntities.userId, userId),
+      ),
+    )
+    .where(
+      and(
+        eq(schema.entities.id, id),
+        isNull(schema.entities.deletedAt),
+        or(
+          eq(schema.entities.userId, userId),
+          eq(schema.sharedEntities.userId, userId),
+          ne(schema.entities.publicAccess, PublicAccess.PRIVATE),
+        ),
+      ),
+    )
+    .limit(1)
+    .execute();
+  if (!entity) {
+    throw new TRPCError({ code: "NOT_FOUND", message: "Entity not found" });
+  }
+  if (entity.entityType !== "document" && entity.entityType !== "url") {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: "Only documents and links can be read aloud",
+    });
+  }
+  return entity;
+}
+
+/** A document's text as the web's Listen reads it from the editor. */
+function documentMarkdownOf(elements: string) {
+  let markdown: string;
+  try {
+    markdown = editorStateToMarkdown(parseEditorState(elements));
+  } catch (error) {
+    if (
+      error instanceof InvalidDocumentContentError ||
+      error instanceof UnsupportedNodeTypesError
+    ) {
+      throw new TRPCError({
+        code: "UNPROCESSABLE_CONTENT",
+        message: error.message,
+        cause: error,
+      });
+    }
+    throw error;
+  }
+  if (!markdown.trim()) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: "There is nothing in this document to read aloud",
+    });
+  }
+  return markdown;
+}
+
+/** The caller's read-aloud settings, in a format any player plays. */
+async function listeningVoiceOf(userId: string): Promise<VoiceConfig> {
+  const settings = ttsConfigFor({}, await storedTtsOf(userId));
+  // AVFoundation and most players outside a browser don't play Ogg.
+  return settings.format === "ogg" ? { ...settings, format: "mp3" } : settings;
+}
+
+const ListenedSegment = z.object({
+  index: z.number().int(),
+  text: z.string(),
+  audioUrl: z.url(),
+  sectionTitle: z.string().optional(),
+  durationSec: z.number().optional(),
+});
+
+/** How far a file's audio is, with its parts once all are made. */
+const Listening = z
+  .object({
+    status: z.enum([
+      "none",
+      "queued",
+      "processing",
+      "ready",
+      "error",
+      "cancelled",
+    ]),
+    plannedCount: z.number().int().optional(),
+    segmentCount: z.number().int().optional(),
+    error: z.string().optional(),
+    segments: z.array(ListenedSegment),
+  })
+  .meta({ id: "Listening" });
+
+async function listeningOf(
+  job: TtsJob | undefined,
+): Promise<z.infer<typeof Listening>> {
+  if (!job) return { status: "none", segments: [] };
+  const segments =
+    job.status === "ready"
+      ? (await manifestOf(job)).segments.flatMap((segment) => {
+          const parsed = ListenedSegment.safeParse(segment);
+          return parsed.success ? [parsed.data] : [];
+        })
+      : [];
+  return {
+    status: job.status,
+    plannedCount: job.plannedCount ?? undefined,
+    segmentCount: job.segmentCount ?? undefined,
+    error: job.error ?? undefined,
+    segments,
+  };
+}
+
+const LISTEN_ERRORS = [400, 401, 403, 404, 422, 500];
+
 export const ttsRouter = createTRPCRouter({
   startDocumentTts: protectedProcedure
     .input(
@@ -131,80 +441,16 @@ export const ttsRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ input, ctx }) => {
-      const userId = ctx.session?.user?.id;
+      const userId = ctx.session.user.id;
       await assertCanAccessDocumentOrThrow(userId, input.documentId);
-      // Query fresh config from database instead of stale session cache
-      const user = await ctx.drizzle.query.users.findFirst({
-        where: (users, { eq }) => eq(users.id, userId),
-        columns: { config: true },
-      });
-      const cfg = ttsConfigFor(input, user?.config?.tts);
-      const docKey = computeDocKey(input.documentId, cfg);
-
-      // Cancel prior non-terminal jobs for this document and user
-      await drizzle
-        .update(schema.ttsJobs)
-        .set({ status: "cancelled", updatedAt: new Date() })
-        .where(
-          and(
-            eq(schema.ttsJobs.entityId, input.documentId),
-            eq(schema.ttsJobs.userId, userId),
-            or(
-              eq(schema.ttsJobs.status, "queued"),
-              eq(schema.ttsJobs.status, "processing"),
-            ),
-          ),
-        )
-        .execute();
-
-      const existing = await drizzle.query.ttsJobs.findFirst({
-        where: (t) => and(eq(t.id, docKey), eq(t.entityId, input.documentId)),
-      });
-      if (existing?.status === "ready" && existing.manifestUrl) {
-        return {
-          docKey,
-          status: existing.status,
-          manifestUrl: existing.manifestUrl,
-          stitchedUrl: existing.stitchedUrl ?? undefined,
-          segmentCount: existing.segmentCount ?? undefined,
-          plannedCount:
-            (existing as { plannedCount?: number | null }).plannedCount ??
-            undefined,
-          updatedAt: new Date(existing.updatedAt).toISOString(),
-        } satisfies TtsJobSnapshot;
-      }
-
-      // Upsert queued
-      await drizzle
-        .insert(schema.ttsJobs)
-        .values({
-          id: docKey,
-          entityId: input.documentId,
-          userId,
-          status: "queued",
-          ttsConfig: cfg as unknown as Record<string, unknown>,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        })
-        .onConflictDoUpdate({
-          target: schema.ttsJobs.id,
-          set: { status: "queued", updatedAt: new Date() },
-        })
-        .execute();
-
-      // Fire workflow (do not await full run)
-      // Fire-and-forget: start workflow and return immediately
-      void start(generateDocumentTtsWorkflow, [
+      const cfg = ttsConfigFor(input, await storedTtsOf(userId));
+      const job = await startDocumentJob(
         input.documentId,
-        input.markdown ?? "",
+        userId,
         cfg,
-      ]);
-
-      return {
-        docKey,
-        status: "queued",
-        updatedAt: new Date().toISOString(),
-      } satisfies TtsJobSnapshot;
+        () => input.markdown ?? "",
+      );
+      return startedSnapshotOf(job);
     }),
 
   getDocumentTtsStatus: protectedProcedure
@@ -214,28 +460,8 @@ export const ttsRouter = createTRPCRouter({
         ctx.session?.user?.id,
         input.documentId,
       );
-      const rows = await drizzle
-        .select()
-        .from(schema.ttsJobs)
-        .where(eq(schema.ttsJobs.entityId, input.documentId))
-        .orderBy(desc(schema.ttsJobs.updatedAt), desc(schema.ttsJobs.createdAt))
-        .limit(1)
-        .execute();
-      const row = rows[0];
-      if (!row) {
-        return null;
-      }
-      return {
-        docKey: row.id,
-        status: row.status as TtsJobSnapshot["status"],
-        manifestUrl: row.manifestUrl ?? undefined,
-        stitchedUrl: row.stitchedUrl ?? undefined,
-        segmentCount: row.segmentCount ?? undefined,
-        plannedCount:
-          (row as { plannedCount?: number | null }).plannedCount ?? undefined,
-        error: row.error ?? undefined,
-        updatedAt: new Date(row.updatedAt).toISOString(),
-      } satisfies TtsJobSnapshot;
+      const row = await latestJob(input.documentId);
+      return row ? snapshotOf(row) : null;
     }),
 
   getDocumentTtsManifest: protectedProcedure
@@ -245,27 +471,7 @@ export const ttsRouter = createTRPCRouter({
         ctx.session?.user?.id,
         input.documentId,
       );
-      const rows = await drizzle
-        .select()
-        .from(schema.ttsJobs)
-        .where(eq(schema.ttsJobs.entityId, input.documentId))
-        .orderBy(desc(schema.ttsJobs.updatedAt), desc(schema.ttsJobs.createdAt))
-        .limit(1)
-        .execute();
-      const row = rows[0];
-      console.log("[trpc][tts][getDocumentTtsManifest] row", row);
-      if (!row?.manifestUrl) return { segments: [], stitchedUrl: undefined };
-      const r = await fetch(row.manifestUrl, { cache: "no-store" });
-      if (!r.ok)
-        return { segments: [], stitchedUrl: row.stitchedUrl ?? undefined };
-      const json = (await r.json()) as {
-        segments?: unknown[];
-        stitchedUrl?: string;
-      };
-      return {
-        segments: Array.isArray(json.segments) ? json.segments : [],
-        stitchedUrl: json.stitchedUrl ?? row.stitchedUrl ?? undefined,
-      };
+      return manifestOf(await latestJob(input.documentId));
     }),
 
   deleteDocumentTts: protectedProcedure
@@ -362,97 +568,16 @@ export const ttsRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ input, ctx }) => {
-      const userId = ctx.session?.user?.id;
+      const userId = ctx.session.user.id;
       await assertCanAccessArticleOrThrow(userId, input.articleId);
-      // Query fresh config from database instead of stale session cache
-      const user = await ctx.drizzle.query.users.findFirst({
-        where: (users, { eq }) => eq(users.id, userId),
-        columns: { config: true },
-      });
-      const cfg = ttsConfigFor(input, user?.config?.tts);
-      const articleKey = computeArticleKey(input.articleId, cfg);
-
-      // Cancel prior non-terminal jobs for this article and user
-      await drizzle
-        .update(schema.ttsJobs)
-        .set({ status: "cancelled", updatedAt: new Date() })
-        .where(
-          and(
-            eq(schema.ttsJobs.entityId, input.articleId),
-            eq(schema.ttsJobs.userId, userId),
-            or(
-              eq(schema.ttsJobs.status, "queued"),
-              eq(schema.ttsJobs.status, "processing"),
-            ),
-          ),
-        )
-        .execute();
-
-      const existing = await drizzle.query.ttsJobs.findFirst({
-        where: (t) =>
-          and(eq(t.id, articleKey), eq(t.entityId, input.articleId)),
-      });
-      if (existing?.status === "ready" && existing.manifestUrl) {
-        return {
-          docKey: articleKey,
-          status: existing.status,
-          manifestUrl: existing.manifestUrl,
-          stitchedUrl: existing.stitchedUrl ?? undefined,
-          segmentCount: existing.segmentCount ?? undefined,
-          plannedCount:
-            (existing as { plannedCount?: number | null }).plannedCount ??
-            undefined,
-          updatedAt: new Date(existing.updatedAt).toISOString(),
-        } satisfies TtsJobSnapshot;
-      }
-
-      // Upsert queued
-      await drizzle
-        .insert(schema.ttsJobs)
-        .values({
-          id: articleKey,
-          entityId: input.articleId,
-          userId,
-          status: "queued",
-          ttsConfig: cfg as unknown as Record<string, unknown>,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        })
-        .onConflictDoUpdate({
-          target: schema.ttsJobs.id,
-          set: { status: "queued", updatedAt: new Date() },
-        })
-        .execute();
-
-      // Fetch HTML content from entity for section extraction
-      let htmlContent: string | undefined;
-      const entity = await drizzle.query.entities.findFirst({
-        where: (t) => eq(t.id, input.articleId),
-      });
-      if (entity?.elements) {
-        try {
-          const parsed = JSON.parse(entity.elements) as {
-            distilled?: { contentHtml?: string };
-          };
-          htmlContent = parsed.distilled?.contentHtml;
-        } catch {
-          // ignore parse errors
-        }
-      }
-
-      // Fire workflow (do not await full run)
-      void start(generateArticleTtsWorkflow, [
+      const cfg = ttsConfigFor(input, await storedTtsOf(userId));
+      const job = await startArticleJob(
         input.articleId,
-        input.plainText ?? "",
-        htmlContent,
+        userId,
         cfg,
-      ]);
-
-      return {
-        docKey: articleKey,
-        status: "queued",
-        updatedAt: new Date().toISOString(),
-      } satisfies TtsJobSnapshot;
+        () => input.plainText ?? "",
+      );
+      return startedSnapshotOf(job);
     }),
 
   getArticleTtsStatus: protectedProcedure
@@ -462,28 +587,8 @@ export const ttsRouter = createTRPCRouter({
         ctx.session?.user?.id,
         input.articleId,
       );
-      const rows = await drizzle
-        .select()
-        .from(schema.ttsJobs)
-        .where(eq(schema.ttsJobs.entityId, input.articleId))
-        .orderBy(desc(schema.ttsJobs.updatedAt), desc(schema.ttsJobs.createdAt))
-        .limit(1)
-        .execute();
-      const row = rows[0];
-      if (!row) {
-        return null;
-      }
-      return {
-        docKey: row.id,
-        status: row.status as TtsJobSnapshot["status"],
-        manifestUrl: row.manifestUrl ?? undefined,
-        stitchedUrl: row.stitchedUrl ?? undefined,
-        segmentCount: row.segmentCount ?? undefined,
-        plannedCount:
-          (row as { plannedCount?: number | null }).plannedCount ?? undefined,
-        error: row.error ?? undefined,
-        updatedAt: new Date(row.updatedAt).toISOString(),
-      } satisfies TtsJobSnapshot;
+      const row = await latestJob(input.articleId);
+      return row ? snapshotOf(row) : null;
     }),
 
   getArticleTtsManifest: protectedProcedure
@@ -493,27 +598,7 @@ export const ttsRouter = createTRPCRouter({
         ctx.session?.user?.id,
         input.articleId,
       );
-      const rows = await drizzle
-        .select()
-        .from(schema.ttsJobs)
-        .where(eq(schema.ttsJobs.entityId, input.articleId))
-        .orderBy(desc(schema.ttsJobs.updatedAt), desc(schema.ttsJobs.createdAt))
-        .limit(1)
-        .execute();
-      const row = rows[0];
-      console.log("[trpc][tts][getArticleTtsManifest] row", row);
-      if (!row?.manifestUrl) return { segments: [], stitchedUrl: undefined };
-      const r = await fetch(row.manifestUrl, { cache: "no-store" });
-      if (!r.ok)
-        return { segments: [], stitchedUrl: row.stitchedUrl ?? undefined };
-      const json = (await r.json()) as {
-        segments?: unknown[];
-        stitchedUrl?: string;
-      };
-      return {
-        segments: Array.isArray(json.segments) ? json.segments : [],
-        stitchedUrl: json.stitchedUrl ?? row.stitchedUrl ?? undefined,
-      };
+      return manifestOf(await latestJob(input.articleId));
     }),
 
   deleteArticleTts: protectedProcedure
@@ -594,6 +679,69 @@ export const ttsRouter = createTRPCRouter({
         .execute();
 
       return { deleted: true };
+    }),
+
+  listen: protectedProcedure
+    .meta({
+      openapi: {
+        method: "POST",
+        path: "/entities/{id}/listen",
+        tags: ["entities"],
+        summary:
+          "Read a document or link aloud in the caller's voice; answers the audio when it is already made",
+        protect: true,
+        errorResponses: LISTEN_ERRORS,
+      },
+    })
+    .input(z.object({ id: z.string() }))
+    .output(Listening)
+    .mutation(async ({ input, ctx }) => {
+      const userId = ctx.session.user.id;
+      const entity = await listenableOrNotFound(input.id, userId);
+      const cfg = await listeningVoiceOf(userId);
+      const job =
+        entity.entityType === "document"
+          ? await startDocumentJob(input.id, userId, cfg, () =>
+              documentMarkdownOf(entity.elements),
+            )
+          : await startArticleJob(input.id, userId, cfg, (html) => {
+              if (!html) {
+                throw new TRPCError({
+                  code: "BAD_REQUEST",
+                  message: "This link's page hasn't been read yet",
+                });
+              }
+              return htmlToPlainText(html);
+            });
+      return listeningOf(job);
+    }),
+
+  listening: protectedProcedure
+    .meta({
+      openapi: {
+        method: "GET",
+        path: "/entities/{id}/listen",
+        tags: ["entities"],
+        summary:
+          "How far the caller's audio of a document or link is, with its parts once all are made",
+        protect: true,
+        errorResponses: LISTEN_ERRORS,
+      },
+    })
+    .input(z.object({ id: z.string() }))
+    .output(Listening)
+    .query(async ({ input, ctx }) => {
+      const userId = ctx.session.user.id;
+      const entity = await listenableOrNotFound(input.id, userId);
+      const cfg = await listeningVoiceOf(userId);
+      const key =
+        entity.entityType === "document"
+          ? computeDocKey(input.id, cfg)
+          : computeArticleKey(input.id, cfg);
+      const job = await drizzle.query.ttsJobs.findFirst({
+        where: (t) => and(eq(t.id, key), eq(t.entityId, input.id)),
+      });
+      return listeningOf(job);
     }),
 
   getById: protectedProcedure

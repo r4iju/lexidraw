@@ -42,3 +42,10 @@ hand:
 - The share extension waits for a link's page to be read before it closes,
   as the web's New link does, so a link never stays titled "New link"
   without saying why.
+- Listen starts from a file's menu, since files don't open in the app yet.
+- Listen reads in the caller's read-aloud settings from the web, except that
+  it makes MP3 where they choose Ogg. Someone who chose Ogg has one audio of
+  a file for the web and another for the app.
+- Where a listen stopped is kept on the device. The web keeps none to share.
+- A document's audio, once made, plays even after the document changes, as
+  on the web. Making it again is done on the web.

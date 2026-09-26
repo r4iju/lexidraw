@@ -22,3 +22,5 @@ filter:
     - entities-distillUrl
     - entities-uploadImage
     - documents-replaceMarkdown
+    - tts-listen
+    - tts-listening

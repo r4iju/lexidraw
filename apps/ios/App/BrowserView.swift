@@ -35,6 +35,7 @@ struct BrowserView: View {
   let session: Session
   @State private var browser: Browser
   @State private var actions: FileActions
+  @State private var listener: Listener
   @State private var column = NavigationSplitViewColumn.detail
   @State private var away = false
   @Environment(\.scenePhase) private var scenePhase
@@ -44,6 +45,7 @@ struct BrowserView: View {
     let browser = Browser()
     _browser = State(initialValue: browser)
     _actions = State(initialValue: FileActions(session: session, browser: browser))
+    _listener = State(initialValue: Listener(session: session))
   }
 
   var body: some View {
@@ -65,6 +67,8 @@ struct BrowserView: View {
       }
     }
     .fileActionPresenters(actions)
+    .nowPlayingBar(listener)
+    .onDisappear { listener.stop() }
     .environment(browser)
     .environment(actions)
     // Changes made on the web while the app was away show on return.
