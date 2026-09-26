@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import { Skeleton } from "~/components/ui/skeleton";
 import { api } from "~/trpc/server";
 import { ApiTokensSection } from "./api-tokens";
+import { DeleteAccountSection } from "./delete-account";
 import { SettingsFormSection } from "./settings-form";
 import { SettingsNav } from "./settings-nav";
 
@@ -20,6 +21,7 @@ async function SettingsContent() {
         autoSave={autoSave.enabled}
       />
       <ApiTokensSection tokens={tokens} />
+      <DeleteAccountSection account={user} />
     </>
   );
 }

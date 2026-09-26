@@ -42,6 +42,25 @@ export const SettingsSchema = z.object({
 
 export type SettingsInput = z.infer<typeof SettingsSchema>;
 
+/**
+ * What someone types to confirm deleting their account: its email, or its
+ * name when it has none. Settings and the procedure both read it from here.
+ */
+export function deletionConfirmation(user: {
+  email: string | null;
+  name: string;
+}): string {
+  return user.email ?? user.name;
+}
+
+export function confirmsDeletion(
+  user: { email: string | null; name: string },
+  typed: string,
+): boolean {
+  const expected = deletionConfirmation(user).trim().toLowerCase();
+  return expected !== "" && typed.trim().toLowerCase() === expected;
+}
+
 /** The read-aloud settings a new account starts with. */
 export const TTS_DEFAULTS = {
   provider: "openai",

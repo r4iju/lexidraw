@@ -4,6 +4,7 @@ export const SETTINGS_SECTIONS = [
   { id: "settings-ai", label: "AI" },
   { id: "settings-read-aloud", label: "Read aloud" },
   { id: "api-tokens", label: "API tokens" },
+  { id: "delete-account", label: "Delete account" },
 ] as const;
 
 /** The sections of Settings: a column beside them on wide screens, a list above them on phones. */

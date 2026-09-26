@@ -93,6 +93,7 @@ describe("openApiDocument", () => {
   // The v1 surface, as docs/agent-access.md promises it.
   const expectedOperations = [
     ["/me", "get", "auth"],
+    ["/me/delete", "post", "auth"],
     ["/entities", "get", "entities"],
     ["/entities", "post", "entities"],
     ["/entities/search", "get", "entities"],
