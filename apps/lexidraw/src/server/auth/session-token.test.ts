@@ -1,5 +1,5 @@
 /// <reference types="bun" />
-import { beforeAll, describe, expect, test } from "bun:test";
+import { beforeAll, describe, expect, spyOn, test } from "bun:test";
 import * as schema from "@packages/drizzle/drizzle-schema";
 import { installServerRuntime } from "~/test/server-runtime";
 
@@ -63,5 +63,27 @@ describe("the session after settings are saved", () => {
   test("is left alone by an ordinary read", async () => {
     const token = await sessionToken(db, { token: { ...signedIn } });
     expect(token).toEqual(signedIn);
+  });
+});
+
+describe("the session while the database cannot answer", () => {
+  test("stays signed in rather than signing everyone out", async () => {
+    const unreachable = {
+      query: {
+        users: {
+          findFirst: async () => {
+            throw new Error("database unreachable");
+          },
+        },
+      },
+    } as unknown as typeof db;
+    const error = spyOn(console, "error").mockImplementation(() => {});
+    try {
+      expect(
+        await sessionToken(unreachable, { token: { ...signedIn } }),
+      ).toEqual(signedIn);
+    } finally {
+      error.mockRestore();
+    }
   });
 });

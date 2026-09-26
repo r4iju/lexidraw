@@ -1,6 +1,8 @@
 import type { Session } from "next-auth";
 import type { JWT } from "next-auth/jwt";
+import { cache } from "react";
 import { eq, schema, type drizzle } from "@packages/drizzle";
+import { errorCode } from "~/server/auth/error-code";
 
 type Db = typeof drizzle;
 
@@ -11,7 +13,8 @@ type Db = typeof drizzle;
  * with the update is taken: the name, email and settings are the stored ones.
  *
  * A signed token outlives its account, so every read checks the user is still
- * there; null signs the browser out.
+ * there; null signs the browser out. A database that cannot answer is not an
+ * answer, so the token stands, rather than every browser being signed out.
  */
 export async function sessionToken(
   db: Db,
@@ -31,10 +34,15 @@ export async function sessionToken(
     return token;
   }
   if (!token.sub) return token;
-  const stored = await db.query.users.findFirst({
-    where: eq(schema.users.id, token.sub),
-    columns: { name: true, email: true, image: true, config: true },
-  });
+  let stored: Awaited<ReturnType<typeof storedUser>>;
+  try {
+    stored = await storedUser(db, token.sub);
+  } catch (error) {
+    console.error("[auth] the session's user could not be read", {
+      error: errorCode(error),
+    });
+    return token;
+  }
   if (!stored) return null;
   if (trigger !== "update") return token;
   return {
@@ -45,3 +53,11 @@ export async function sessionToken(
     config: stored.config,
   };
 }
+
+/** Once per request: a page asks for the session from several places. */
+const storedUser = cache((db: Db, userId: string) =>
+  db.query.users.findFirst({
+    where: eq(schema.users.id, userId),
+    columns: { name: true, email: true, image: true, config: true },
+  }),
+);
