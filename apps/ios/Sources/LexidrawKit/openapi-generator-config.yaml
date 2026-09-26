@@ -9,6 +9,7 @@ filter:
     - entities-search
     - entities-sharedWithMe
     - entities-trash
+    - entities-load
     - entities-getMetadata
     - entities-getUserTags
     - entities-create

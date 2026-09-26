@@ -105,3 +105,14 @@ hand:
 - A line break is U+2028 in the editor's text, which breaks the line without
   ending the paragraph as TextKit sees it.
 - Copy, cut and paste come with #118, which owns the clipboard.
+- Drawings open read-only; editing them comes with #137. They are drawn by
+  `DrawingKit`, a port of Excalidraw's renderer with its Rough.js and
+  perfect-freehand, and checked against what web Excalidraw draws: `bun run
+  record:drawings` exports the scenes in `reference/drawings/scenes.ts` with
+  Playwright, and the tests compare every canvas call and the pixels, in
+  both themes. A test drawn with other random numbers must fail the pixel
+  comparison, which shows its tolerance still sees a moved stroke.
+- An image in a drawing shows as a grey box until #138 loads images, and an
+  embedded web page as its outline, without the name the web writes in it.
+- CJK text draws in the system's font. The web's Xiaolai is too large to
+  bundle, as it is for the server's thumbnails.

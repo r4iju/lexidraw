@@ -1,4 +1,4 @@
-/// A JSON value, as Lexical serializes documents. Objects keep JavaScript's
+/// A JSON value, as documents and drawings are stored. Objects keep JavaScript's
 /// key order but compare by value, and strings compare by code unit.
 public enum JSONValue: Hashable, Sendable {
   case null
@@ -22,6 +22,18 @@ public enum JSONValue: Hashable, Sendable {
 
   public var arrayValue: [JSONValue]? {
     if case .array(let value) = self { value } else { nil }
+  }
+
+  public var numberValue: Double? {
+    if case .number(let value) = self { value } else { nil }
+  }
+
+  public var boolValue: Bool? {
+    if case .bool(let value) = self { value } else { nil }
+  }
+
+  public var objectValue: JSONObject? {
+    if case .object(let value) = self { value } else { nil }
   }
 
   /// Whether JavaScript counts it as true: all but null, false, 0 and "".
@@ -65,7 +77,7 @@ extension String {
   /// JavaScript's `===`. Swift's `==` holds canonically equivalent strings
   /// equal, but Lexical keeps text as typed, so "é" typed over "e\u{301}"
   /// is a change.
-  package func isIdentical(to other: String) -> Bool {
+  public func isIdentical(to other: String) -> Bool {
     utf16.elementsEqual(other.utf16)
   }
 }

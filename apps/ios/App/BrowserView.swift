@@ -71,6 +71,7 @@ struct BrowserView: View {
     .onDisappear { listener.stop() }
     .environment(browser)
     .environment(actions)
+    .environment(\.session, session)
     // Changes made on the web while the app was away show on return.
     .onChange(of: scenePhase) { _, phase in
       switch phase {
