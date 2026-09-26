@@ -43,11 +43,11 @@ describe("the session after settings are saved", () => {
       trigger: "update",
       session: {},
     });
-    expect(token.config).toEqual({
+    expect(token?.config).toEqual({
       autoSave: { enabled: false },
       llm: { chat: CHAT },
     });
-    expect(token.name).toBe("Ada Lovelace");
+    expect(token?.name).toBe("Ada Lovelace");
   });
 
   test("takes nothing about the user from the page that asked", async () => {
@@ -56,8 +56,8 @@ describe("the session after settings are saved", () => {
       trigger: "update",
       session: { user: { name: "Someone else", email: "else@example.test" } },
     });
-    expect(token.name).toBe("Ada Lovelace");
-    expect(token.email).toBe("ada-stoken@example.test");
+    expect(token?.name).toBe("Ada Lovelace");
+    expect(token?.email).toBe("ada-stoken@example.test");
   });
 
   test("is left alone by an ordinary read", async () => {

@@ -9,6 +9,9 @@ type Db = typeof drizzle;
  * it; `update()` from the page, after Settings are saved, reads the user
  * again, so the AI routes see the settings as stored. Nothing the page sends
  * with the update is taken: the name, email and settings are the stored ones.
+ *
+ * A signed token outlives its account, so every read checks the user is still
+ * there; null signs the browser out.
  */
 export async function sessionToken(
   db: Db,
@@ -22,14 +25,18 @@ export async function sessionToken(
     trigger?: "signIn" | "signUp" | "update";
     session?: unknown;
   },
-): Promise<JWT> {
-  if (user) token.config = (user as Session["user"]).config;
-  if (trigger !== "update" || !token.sub) return token;
+): Promise<JWT | null> {
+  if (user) {
+    token.config = (user as Session["user"]).config;
+    return token;
+  }
+  if (!token.sub) return token;
   const stored = await db.query.users.findFirst({
     where: eq(schema.users.id, token.sub),
     columns: { name: true, email: true, image: true, config: true },
   });
-  if (!stored) return token;
+  if (!stored) return null;
+  if (trigger !== "update") return token;
   return {
     ...token,
     name: stored.name,
