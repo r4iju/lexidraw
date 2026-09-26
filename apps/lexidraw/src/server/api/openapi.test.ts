@@ -6,8 +6,10 @@ import {
   type OpenAPIObject,
 } from "trpc-to-openapi";
 
+import { OPENAPI_COPIES } from "~/test/openapi-copies";
 import { unportable } from "~/test/unportable";
 import { API_ERROR_CODES, API_ERROR_STATUS } from "./error-codes";
+import type { SchemaDialect } from "./schema-dialect";
 
 const testDir = join(import.meta.dir, "..", "..", "test");
 
@@ -17,14 +19,14 @@ const testDir = join(import.meta.dir, "..", "..", "test");
  * process-global, so they run in a child process rather than leaking into
  * every other test file in the suite.
  */
-function generate(reader?: "swift"): OpenAPIObject {
+function generate(dialect: SchemaDialect = "portable"): OpenAPIObject {
   const result = Bun.spawnSync({
     cmd: [
       "bun",
       "--preload",
       join(testDir, "stub-env.ts"),
       join(testDir, "print-openapi.ts"),
-      ...(reader ? [reader] : []),
+      `--dialect=${dialect}`,
     ],
     stdout: "pipe",
     stderr: "pipe",
@@ -36,11 +38,9 @@ function generate(reader?: "swift"): OpenAPIObject {
 }
 
 let document: OpenAPIObject;
-let swiftDocument: OpenAPIObject;
 
 beforeAll(() => {
   document = generate();
-  swiftDocument = generate("swift");
 });
 
 describe("openApiDocument", () => {
@@ -59,20 +59,16 @@ describe("openApiDocument", () => {
   // against one, and the iOS app's client is generated from the other. A
   // change to the API that leaves a copy behind tests the CLI against an API
   // that is gone, or ships an app calling one. `bun run openapi:fixture` in
-  // apps/lexidraw rewrites both.
-  it("is the document the CLI's tests are written against", async () => {
-    const fixture = await Bun.file(
-      join(import.meta.dir, "../../../../cli/test/fixtures/openapi.json"),
-    ).json();
-    expect(fixture).toEqual(document);
-  });
-
-  it("is the document the iOS app's client is generated from", async () => {
-    const fixture = await Bun.file(
-      join(import.meta.dir, "../../../../ios/Sources/LexidrawKit/openapi.json"),
-    ).json();
-    expect(fixture).toEqual(swiftDocument);
-  });
+  // apps/lexidraw rewrites them all.
+  it.each(OPENAPI_COPIES)(
+    "is the copy $reader read",
+    async ({ dialect, path }) => {
+      const copy = await Bun.file(path).json();
+      expect(copy).toEqual(
+        dialect === "portable" ? document : generate(dialect),
+      );
+    },
+  );
 
   it("sends readers to where tokens are made", () => {
     expect(document.info.description).toContain("/settings#api-tokens");
@@ -198,7 +194,7 @@ describe("openApiDocument", () => {
         data: {
           properties: {
             // Published as `anyOf` rather than `type: [...]`; see
-            // portable-schema.ts.
+            // schema-dialect.ts.
             currentUpdatedAt: {
               anyOf: [{ type: "string" }, { type: "null" }],
               format: "date-time",

@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { portableJsonSchema } from "~/server/api/portable-schema";
+import { inDialect } from "~/server/api/schema-dialect";
 
 /**
  * A drawing write accepts two shapes over one pipeline: canonical Excalidraw
@@ -266,15 +266,16 @@ const schemaFor = (value: unknown): SchemaFor => {
 
 /**
  * The two shapes as published; the runtime check picks between them. Run
- * through {@link portableJsonSchema}, because this object is what both the
+ * through {@link inDialect} to the portable dialect, because this object is what both the
  * OpenAPI document and the MCP tool schemas carry, and a nullable field zod
  * writes as `type: ["string", "null"]` reads as a plain string to a client
  * that takes `type` for a string.
  */
-const published: Record<string, unknown> = portableJsonSchema(
+const published: Record<string, unknown> = inDialect(
   z.toJSONSchema(z.union([SkeletonElement, RawElement, MermaidElement]), {
     io: "input",
   }),
+  "portable",
 );
 delete published.$schema;
 

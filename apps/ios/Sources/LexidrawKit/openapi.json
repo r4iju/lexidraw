@@ -5097,11 +5097,12 @@
             "description": "Machine readable detail; each field is null on the errors that do not carry it.",
             "properties": {
               "currentUpdatedAt": {
+                "type": ["string", "null"],
                 "format": "date-time",
-                "description": "On a 409, the document's current `updatedAt`; re-read from it and retry with it as `ifUnmodifiedSince`.",
-                "type": ["string", "null"]
+                "description": "On a 409, the document's current `updatedAt`; re-read from it and retry with it as `ifUnmodifiedSince`."
               },
               "candidates": {
+                "type": ["array", "null"],
                 "items": {
                   "type": "object",
                   "title": "Heading candidate",
@@ -5125,8 +5126,7 @@
                   },
                   "required": ["nth", "blockIndex", "tag", "text"]
                 },
-                "description": "On a 400 from an ambiguous `afterHeading`, the headings it could have meant; pass one's `nth` to choose.",
-                "type": ["array", "null"]
+                "description": "On a 400 from an ambiguous `afterHeading`, the headings it could have meant; pass one's `nth` to choose."
               }
             }
           }
