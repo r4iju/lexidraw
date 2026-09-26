@@ -29,12 +29,13 @@ import { writtenElementFields } from "./stored-element.js";
 export const footnoteId = (label: string) => `fn-${label}`;
 export const footnoteReferenceId = (label: string) => `fnref-${label}`;
 
-const { fields: footnoteReferenceFields, json: footnoteReferenceJSON } = storedFields({
-  type: written,
-  version: written,
-  $: written,
-  label: withField(storedValue<string>(), { field: "__label" }),
-});
+const { fields: footnoteReferenceFields, json: footnoteReferenceJSON } =
+  storedFields({
+    type: written,
+    version: written,
+    $: written,
+    label: withField(storedValue<string>(), { field: "__label" }),
+  });
 
 export type SerializedFootnoteReferenceNode = Spread<
   SchemaJSON<typeof footnoteReferenceJSON>,
@@ -143,13 +144,14 @@ function footnoteDOM(label: string) {
   return { root, body, back };
 }
 
-const { fields: footnoteDefinitionFields, json: footnoteDefinitionJSON } = storedFields({
-  ...writtenElementFields,
-  type: written,
-  version: written,
-  $: written,
-  label: withField(stringValue(), { field: "__label" }),
-});
+const { fields: footnoteDefinitionFields, json: footnoteDefinitionJSON } =
+  storedFields({
+    ...writtenElementFields,
+    type: written,
+    version: written,
+    $: written,
+    label: withField(stringValue(), { field: "__label" }),
+  });
 
 export type SerializedFootnoteDefinitionNode = Spread<
   SchemaJSON<typeof footnoteDefinitionJSON>,
