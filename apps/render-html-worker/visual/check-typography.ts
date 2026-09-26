@@ -1,51 +1,11 @@
+import { signInToDev } from "@packages/dev-stack";
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
-import { homedir } from "node:os";
 import type { HTTPRequest, Page } from "puppeteer";
 import { appUrl } from "./app-url";
 
-export async function signInToDev(page: Page) {
-  await page.setRequestInterception(true);
-  page.on("request", (request) => {
-    if (request.isInterceptResolutionHandled()) return;
-    if (request.url().includes("react-scan")) void request.abort();
-    else void request.continue();
-  });
-  await page.goto(`${appUrl}/signin`, {
-    waitUntil: "networkidle2",
-  });
-  const signedIn = await page.evaluate(async () => {
-    const session = await fetch("/api/auth/session").then((response) =>
-      response.json(),
-    );
-    return Boolean(session?.user);
-  });
-  if (signedIn) return;
-  const credentials = Object.fromEntries(
-    (await readFile(`${homedir()}/.lexidraw-dev-account`, "utf8"))
-      .trim()
-      .split("\n")
-      .map((line) => {
-        const separator = line.indexOf("=");
-        return [
-          line.slice(0, separator).trim(),
-          line
-            .slice(separator + 1)
-            .trim()
-            .replace(/^['"]|['"]$/g, ""),
-        ];
-      }),
-  );
-  assert(credentials.email && credentials.password, "Missing dev credentials");
-  await page.locator('input[name="email"]').fill(credentials.email);
-  await page.locator('input[name="password"]').fill(credentials.password);
-  await page.locator('button[type="submit"]').click();
-  await page.waitForFunction(() => location.pathname === "/dashboard");
-}
-
 export async function checkTypography(page: Page, fixtureId: string) {
   await page.bringToFront();
-  await signInToDev(page);
+  await signInToDev(page, appUrl);
   await page.setViewport({ width: 1280, height: 900 });
   await page.goto(`${appUrl}/documents/${fixtureId}`, {
     waitUntil: "networkidle2",

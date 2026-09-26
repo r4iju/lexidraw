@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import type { Page } from "puppeteer";
 import { appUrl } from "./app-url";
-import { signInToDev } from "./check-typography";
+import { signInToDev } from "@packages/dev-stack";
 
 const CONTENT = '[data-slot="accordion-content"]';
 const TRIGGER = '[data-slot="accordion-trigger"]';
@@ -99,7 +99,7 @@ export async function checkClosedSections(
   }: { closedId: string; printedText: (id: string) => Promise<string> },
 ) {
   await page.bringToFront();
-  await signInToDev(page);
+  await signInToDev(page, appUrl);
   const path = `${appUrl}/documents/${closedId}`;
   for (const width of [1280, 375]) {
     for (const theme of ["light", "dark"]) {

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { PNG } from "pngjs";
 import type { Page } from "puppeteer";
 import { appUrl } from "./app-url";
-import { signInToDev } from "./check-typography";
+import { signInToDev } from "@packages/dev-stack";
 
 const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 const APP_BAR = '[data-component-name="AppBar"]';
@@ -191,7 +191,7 @@ export async function checkFrame(
 ) {
   // Streamed content is revealed on an animation frame, which a background tab never gets.
   await page.bringToFront();
-  await signInToDev(page);
+  await signInToDev(page, appUrl);
   const theme = await page.evaluate(() => localStorage.getItem("theme"));
   try {
     await checkBar(page, emptyId, drawingId);

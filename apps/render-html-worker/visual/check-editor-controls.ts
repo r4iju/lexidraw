@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { resolve } from "node:path";
 import type { Page } from "puppeteer";
 import { appUrl } from "./app-url";
-import { signInToDev } from "./check-typography";
+import { signInToDev } from "@packages/dev-stack";
 
 const TOOLBAR = '[role="toolbar"][aria-label="Formatting"]';
 const FLOATING = '[role="toolbar"][aria-label="Selection formatting"]';
@@ -184,7 +184,7 @@ export async function checkEditorControls(
   if (!page.listenerCount("dialog"))
     page.on("dialog", (dialog) => void dialog.accept());
   await page.bringToFront();
-  await signInToDev(page);
+  await signInToDev(page, appUrl);
   await page.evaluate(() => localStorage.removeItem("lexidraw-developer"));
 
   for (const width of [768, 1280]) {

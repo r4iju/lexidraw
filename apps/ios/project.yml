@@ -53,3 +53,59 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: $(APP_BUNDLE_IDENTIFIER).share
         CODE_SIGN_ENTITLEMENTS: ShareExtension/ShareExtension.entitlements
         INFOPLIST_FILE: ShareExtension/Info.plist
+  # A document in the TextKit editor, for trying it and for the UI scripts,
+  # which run against LexicalSwift and against the JS reference.
+  EditorHarness:
+    type: application
+    platform: iOS
+    sources:
+      - EditorHarness
+      - App/MessageAlert.swift
+      # Built by `bun run build:reference`; without it only LexicalSwift runs.
+      - path: reference/dist/lexical-reference.js
+        buildPhase: resources
+        optional: true
+    dependencies:
+      - package: LexidrawIOS
+        product: TextKitEditor
+      - package: LexidrawIOS
+        product: LexicalSwift
+      - package: LexidrawIOS
+        product: LexicalReference
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: $(APP_BUNDLE_IDENTIFIER).editor-harness
+        INFOPLIST_KEY_CFBundleDisplayName: Editor Harness
+        INFOPLIST_KEY_UILaunchScreen_Generation: true
+        INFOPLIST_KEY_UIApplicationSceneManifest_Generation: true
+  EditorUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - EditorUITests
+    dependencies:
+      - target: EditorHarness
+      - package: LexidrawIOS
+        product: EditorModelInterface
+      - package: LexidrawIOS
+        product: TextKitEditor
+      - package: LexidrawIOS
+        product: LexicalFuzz
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: $(APP_BUNDLE_IDENTIFIER).editor-ui-tests
+        TEST_TARGET_NAME: EditorHarness
+schemes:
+  Lexidraw:
+    build:
+      targets:
+        Lexidraw: all
+        ShareExtension: all
+  EditorHarness:
+    build:
+      targets:
+        EditorHarness: all
+    test:
+      targets:
+        - EditorUITests
+        - package: LexidrawIOS/TextKitEditorTests

@@ -5,7 +5,11 @@ let package = Package(
   name: "LexidrawIOS",
   platforms: [.macOS(.v15), .iOS("26.0")],
   products: [
+    .library(name: "EditorModelInterface", targets: ["EditorModelInterface"]),
     .library(name: "LexicalSwift", targets: ["LexicalSwift"]),
+    .library(name: "LexicalReference", targets: ["LexicalReference"]),
+    .library(name: "LexicalFuzz", targets: ["LexicalFuzz"]),
+    .library(name: "TextKitEditor", targets: ["TextKitEditor"]),
     .library(name: "LexidrawKit", targets: ["LexidrawKit"]),
   ],
   dependencies: [
@@ -17,8 +21,13 @@ let package = Package(
   ],
   targets: [
     .target(
+      name: "EditorModelInterface",
+      dependencies: [.product(name: "OrderedCollections", package: "swift-collections")]
+    ),
+    .target(
       name: "LexicalSwift",
       dependencies: [
+        "EditorModelInterface",
         .product(name: "HashTreeCollections", package: "swift-collections"),
         .product(name: "OrderedCollections", package: "swift-collections"),
       ]
@@ -29,6 +38,11 @@ let package = Package(
       name: "LexicalSwiftTests",
       dependencies: ["LexicalSwift", "LexicalReference", "LexicalFuzz"],
       resources: [.copy("Fixtures")]
+    ),
+    .target(name: "TextKitEditor", dependencies: ["EditorModelInterface"]),
+    .testTarget(
+      name: "TextKitEditorTests",
+      dependencies: ["TextKitEditor", "LexicalSwift", "LexicalReference", "LexicalFuzz"]
     ),
     .target(
       name: "LexidrawKit",
