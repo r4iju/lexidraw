@@ -16,6 +16,14 @@ the **iOS** workflow runs it with the repository secret
 `LEXIDRAW_CORPUS_TOKEN`, a Lexidraw API token; without it the check is
 skipped.
 
+## Differential fuzzer
+
+`FUZZ_SEED=<n> FUZZ_STEPS=<n> swift test --filter lexicalSwiftMatchesTheReference`
+runs LexicalSwift and Lexical side by side on random commands. Steps count
+only commands both accepted. Last run, at the #112 review fixes: seeds 101 to
+110, 100,000 steps each, 1,000,000 in all, with no divergence; 632 commands
+were refused by both, for the same reason.
+
 ## TestFlight
 
 The **iOS TestFlight** workflow runs by hand on `master`. It tests, archives,
