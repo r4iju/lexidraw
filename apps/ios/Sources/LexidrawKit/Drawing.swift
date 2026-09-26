@@ -145,10 +145,10 @@ public actor DrawingSaver {
 /// Where a file an image element shows is stored.
 public struct DrawingFileLink: Sendable, Equatable {
   public let id: String
-  public let mimeType: String
+  public let mimeType: DrawingFileType
   public let url: URL
 
-  public init(id: String, mimeType: String, url: URL) {
+  public init(id: String, mimeType: DrawingFileType, url: URL) {
     self.id = id
     self.mimeType = mimeType
     self.url = url
@@ -158,7 +158,10 @@ public struct DrawingFileLink: Sendable, Equatable {
 extension Session {
   public func files(ofDrawing id: String) async throws -> [DrawingFileLink] {
     try await ask { try await $0.drawingsFiles(path: .init(id: id)) }.ok.body.json.files.compactMap { file in
-      URL(string: file.url).map { DrawingFileLink(id: file.id, mimeType: file.mimeType.rawValue, url: $0) }
+      guard let url = URL(string: file.url), let mimeType = DrawingFileType(rawValue: file.mimeType.rawValue) else {
+        return nil
+      }
+      return DrawingFileLink(id: file.id, mimeType: mimeType, url: url)
     }
   }
 
@@ -177,15 +180,26 @@ extension Session {
       throw Refusal(status: response.status.code, message: "The file couldn’t be fetched.")
     }
     guard let body else { return Data() }
-    return try await Data(collecting: body, upTo: 16 << 20)
+    return try await Data(collecting: body, upTo: maxDrawingFileBytes)
   }
 
   /// Stores a file under the id its image elements carry.
-  public func store(_ data: Data, as fileId: String, mimeType: String, inDrawing id: String) async throws {
-    _ = try await ask {
-      try await $0.drawingsPutFile(
-        path: .init(id: id, fileId: fileId),
-        body: .json(.init(mimeType: mimeType, dataURL: "data:\(mimeType);base64,\(data.base64EncodedString())")))
-    }.ok
+  public func store(_ data: Data, as fileId: String, mimeType: DrawingFileType, inDrawing id: String) async throws {
+    let type = mimeType.rawValue
+    do {
+      _ = try await ask {
+        try await $0.drawingsPutFile(
+          path: .init(id: id, fileId: fileId),
+          body: .json(.init(mimeType: type, dataURL: "data:\(type);base64,\(data.base64EncodedString())")))
+      }.ok
+    } catch let refusal as Refusal where [400, 413].contains(refusal.status) {
+      throw FileRefused(reason: refusal.message)
+    }
   }
+}
+
+/// The server won't store a file, for what it is or because its drawing has
+/// no room for it, and sending it again changes nothing.
+public struct FileRefused: Error, Sendable {
+  public let reason: String
 }

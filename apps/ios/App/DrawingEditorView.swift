@@ -78,10 +78,10 @@ import SwiftUI
         try await session.store(file.data, as: id, mimeType: file.mimeType, inDrawing: drawingId)
         unsent[id] = nil
         editor.setStatus("saved", ofImagesShowing: id)
-      } catch let refusal as Refusal where refusal.status == 400 {
+      } catch let refusal as FileRefused {
         unsent[id] = nil
         editor.setStatus("error", ofImagesShowing: id)
-        imageProblem = refusal.message
+        imageProblem = refusal.reason
       } catch {
         imageProblem = "An image couldn’t be uploaded. It’s tried again after your next change."
         return

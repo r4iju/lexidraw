@@ -18,7 +18,7 @@ func sceneElements(_ scene: String) throws -> [JSONValue] {
 
 /// The images a fixture's scene shows, by file id.
 func sceneImages(_ scene: String) throws -> [String: DrawingImage] {
-  try fixtureFiles(drawingFixtures.appending(path: scene)) { DrawingImage(data: $0, mimeType: "image/png") }
+  try fixtureFiles(drawingFixtures.appending(path: scene)) { DrawingImage(data: $0, mimeType: .png) }
 }
 
 /// The PNGs a fixture keeps in `files/`, by name.

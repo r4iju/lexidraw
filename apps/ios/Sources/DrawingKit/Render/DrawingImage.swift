@@ -5,7 +5,7 @@ import ImageIO
 /// A file an image element shows, as the web's image cache holds it: its
 /// type, and its pixels, or nil when they couldn't be read.
 public final class DrawingImage: @unchecked Sendable {
-  public let mimeType: String
+  public let mimeType: DrawingFileType
   public let bitmap: CGImage?
   /// Bitmap pixels to each of the image's own, above 1 for a vector image
   /// drawn sharper than its own size.
@@ -14,7 +14,7 @@ public final class DrawingImage: @unchecked Sendable {
   private var filteredBitmaps: [String: CGImage] = [:]
   private let lock = NSLock()
 
-  public init(bitmap: CGImage?, mimeType: String, scale: Double = 1) {
+  public init(bitmap: CGImage?, mimeType: DrawingFileType, scale: Double = 1) {
     self.bitmap = bitmap
     self.mimeType = mimeType
     self.scale = scale
@@ -26,7 +26,7 @@ public final class DrawingImage: @unchecked Sendable {
   }
 
   /// Decodes `data` with ImageIO.
-  public convenience init(data: Data, mimeType: String) {
+  public convenience init(data: Data, mimeType: DrawingFileType) {
     let source = CGImageSourceCreateWithData(data as CFData, nil)
     self.init(bitmap: source.flatMap { CGImageSourceCreateImageAtIndex($0, 0, nil) }, mimeType: mimeType)
   }

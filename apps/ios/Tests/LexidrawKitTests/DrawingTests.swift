@@ -205,7 +205,7 @@ import Testing
 
     let files = try await session.files(ofDrawing: "d1")
 
-    #expect(files == [DrawingFileLink(id: "abc", mimeType: "image/png", url: URL(string: "https://blob.test/drawings/d1/files/abc.png")!)])
+    #expect(files == [DrawingFileLink(id: "abc", mimeType: .png, url: URL(string: "https://blob.test/drawings/d1/files/abc.png")!)])
     #expect(try #require(server.requests.only).url.path == "/api/v1/drawings/d1/files")
   }
 
@@ -215,7 +215,7 @@ import Testing
     let server = FakeServer { _ in (200, "picture bytes") }
     let session = try TestServer.session(server)
     let link = DrawingFileLink(
-      id: "abc", mimeType: "image/png", url: URL(string: "https://blob.test/drawings/d1/files/abc.png?v=1")!)
+      id: "abc", mimeType: .png, url: URL(string: "https://blob.test/drawings/d1/files/abc.png?v=1")!)
 
     let data = try await session.data(of: link)
 
@@ -225,12 +225,34 @@ import Testing
     #expect(request.authorization == nil)
   }
 
+  /// A file the server won't take, for what it is or because the drawing
+  /// has no room for it, won't be taken when sent again either.
+  @Test(arguments: [400, 413])
+  func aRefusedFileIsRefusedForGood(_ status: Int) async throws {
+    let server = FakeServer { _ in (status, #"{"message":"The drawing is full","code":"X"}"#) }
+    let session = try TestServer.session(server)
+
+    let refusal = await #expect(throws: FileRefused.self) {
+      try await session.store(Data([1, 2, 3]), as: "abc", mimeType: .png, inDrawing: "d1")
+    }
+    #expect(refusal?.reason == "The drawing is full")
+  }
+
+  /// No file a drawing stores is larger, so a larger answer isn't one.
+  @Test func refusesAFileLargerThanADrawingStores() async throws {
+    let server = FakeServer { _ in (200, String(repeating: "x", count: maxDrawingFileBytes + 1)) }
+    let session = try TestServer.session(server)
+    let link = DrawingFileLink(id: "abc", mimeType: .png, url: URL(string: "https://blob.test/abc.png")!)
+
+    await #expect(throws: (any Error).self) { try await session.data(of: link) }
+  }
+
   /// A file is sent as the web sends it: a data URL of its type.
   @Test func storesAFileAsADataURL() async throws {
     let server = FakeServer { _ in (200, #"{"id":"abc","mimeType":"image/png","created":1}"#) }
     let session = try TestServer.session(server)
 
-    try await session.store(Data([1, 2, 3]), as: "abc", mimeType: "image/png", inDrawing: "d1")
+    try await session.store(Data([1, 2, 3]), as: "abc", mimeType: .png, inDrawing: "d1")
 
     let request = try #require(server.requests.only)
     #expect(request.method == .put)

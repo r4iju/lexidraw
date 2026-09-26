@@ -143,12 +143,16 @@ hand:
   system's colour picker for any other. Its sections and the toolbar's
   buttons are the editor's own, so the interaction tests press what a user
   presses.
-- A picked image is prepared as the web prepares a dropped file: named by
-  the SHA-1 of the bytes picked, and shrunk to 1440 pixels a side. A photo
-  in a kind the server doesn't store, such as HEIC, becomes a JPEG, or a PNG
-  when it has transparency. It is placed in the middle of the screen and
-  uploaded straight away; an upload that fails is tried again after the next
-  edit.
+- A picked image is prepared as the web prepares a dropped file: shrunk to
+  1440 pixels a side, and named by the SHA-1 of the bytes stored, the only
+  name the server takes. A photo in a kind the server doesn't store, such as
+  HEIC, becomes a JPEG, or a PNG when it has transparency. It is placed in
+  the middle of the screen and uploaded straight away; an upload that fails
+  is tried again after the next edit, and one the server refuses, for what
+  it is or because the drawing is full, is marked as the web marks it.
+- The file types a drawing stores and the largest file it stores are
+  generated from the server's by `bun run codegen`, into
+  `Sources/LexidrawJSON/DrawingFiles.swift`.
 - An SVG image made on the web is drawn by WebKit onto a canvas, as the web
   draws it, since ImageIO doesn't read SVG. For the same reason an SVG file
   can't be placed from the app.

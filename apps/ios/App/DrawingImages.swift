@@ -19,8 +19,8 @@ enum DrawingImages {
     }
   }
 
-  static func decode(_ data: Data, mimeType: String) async -> DrawingImage {
-    if mimeType == "image/svg+xml", let (bitmap, scale) = await SVGRasterizer.shared.rasterize(data) {
+  static func decode(_ data: Data, mimeType: DrawingFileType) async -> DrawingImage {
+    if mimeType == .svg, let (bitmap, scale) = await SVGRasterizer.shared.rasterize(data) {
       return DrawingImage(bitmap: bitmap, mimeType: mimeType, scale: scale)
     }
     return DrawingImage(data: data, mimeType: mimeType)
@@ -71,7 +71,7 @@ enum DrawingImages {
         contentWorld: .defaultClient) as? [Any],
       let url = result.first as? String, let scale = result.last as? Double,
       let comma = url.firstIndex(of: ","), let png = Data(base64Encoded: String(url[url.index(after: comma)...])),
-      let bitmap = DrawingImage(data: png, mimeType: "image/png").bitmap
+      let bitmap = DrawingImage(data: png, mimeType: .png).bitmap
     else { return nil }
     return (bitmap, scale)
   }

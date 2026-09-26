@@ -191,7 +191,7 @@ private struct ElementRenderer {
   /// the dark theme, while a vector file and a placeholder are themed.
   private func showsOwnColors(_ element: DrawingElement) -> Bool {
     guard theme == .dark, let fileId = element.fileId, let image = images[fileId] else { return false }
-    return image.mimeType != "image/svg+xml"
+    return image.mimeType != .svg
   }
 
   func clip(to frame: DrawingElement) {

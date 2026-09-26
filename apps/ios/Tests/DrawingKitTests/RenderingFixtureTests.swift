@@ -38,7 +38,7 @@ import Testing
   /// draws it, where a raster one keeps its colours.
   @Test func aVectorImageIsThemedInTheDark() throws {
     let vector = try sceneImages("images").mapValues {
-      DrawingImage(bitmap: $0.bitmap, mimeType: "image/svg+xml")
+      DrawingImage(bitmap: $0.bitmap, mimeType: .svg)
     }
     let pixels = Pixels(renderImage(try sceneElements("images"), .dark, images: vector))
     let red = ColorFilter(themeFilter).apply(try #require(CSSColor("#e03131")))
@@ -60,7 +60,7 @@ import Testing
           bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))
       context.interpolationQuality = .none
       context.draw(bitmap, in: CGRect(x: 0, y: 0, width: bitmap.width * 2, height: bitmap.height * 2))
-      return DrawingImage(bitmap: context.makeImage(), mimeType: "image/png", scale: 2)
+      return DrawingImage(bitmap: context.makeImage(), mimeType: .png, scale: 2)
     }
     let expected = try Pixels(png: drawingFixtures.appending(path: "images/light.png"))
     let actual = Pixels(renderImage(try sceneElements("images"), .light, images: doubled))
