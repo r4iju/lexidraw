@@ -1,16 +1,21 @@
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import type { BinaryFileData, BinaryFiles } from "@excalidraw/excalidraw/types";
-import { readDrawingFile } from "~/lib/drawing-files";
+import { TRPCClientError } from "@trpc/client";
+import {
+  dataURLOf,
+  drawingFileId,
+  editorFile,
+  readDrawingFile,
+} from "~/lib/drawing-files";
+import type { RouterInputs, RouterOutputs } from "~/trpc/shared";
 
 /** A file the drawing stores, as `drawings.files` lists it. */
-export type StoredFile = {
-  id: string;
-  mimeType: string;
-  url: string;
-  created: number;
-};
+export type StoredFile = RouterOutputs["drawings"]["files"]["files"][number];
 
-/** The server will not store a file, and sending it again changes nothing. */
+/**
+ * The server will not store a file, and sending it again changes nothing
+ * while this editor is open.
+ */
 export class FileRefused extends Error {
   constructor(message: string) {
     super(message);
@@ -29,21 +34,78 @@ type Editor = {
   addFiles: (files: BinaryFileData[]) => void;
   /** Sets the status of the image elements showing each file. */
   settle: (statuses: [fileId: string, status: "saved" | "error"][]) => void;
+  /** Points the image elements showing file `from` at file `to`. */
+  rekey: (from: string, to: BinaryFileData["id"]) => void;
   /** Says why a file was not stored; called once per file. */
   failed: (fileId: string, reason: string) => void;
 };
 
 type Scene = { elements: readonly ExcalidrawElement[]; files: BinaryFiles };
 
+/** The calls of the drawings API the file store makes. */
+type FilesApi = {
+  files: { query: (input: { id: string }) => Promise<{ files: StoredFile[] }> };
+  putFile: {
+    mutate: (
+      input: RouterInputs["drawings"]["putFile"],
+      options: { context: { skipBatch: true } },
+    ) => Promise<unknown>;
+  };
+};
+
+/** The drawing's file store, as the drawings API keeps it. */
+export function drawingFileStore(api: FilesApi, drawingId: string): Store {
+  return {
+    list: async () => (await api.files.query({ id: drawingId })).files,
+    fetch: async (stored) => {
+      const response = await fetch(stored.url);
+      if (!response.ok) throw new Error(`${response.status}`);
+      return editorFile({
+        id: stored.id,
+        mimeType: stored.mimeType,
+        dataURL: dataURLOf(
+          stored.mimeType,
+          new Uint8Array(await response.arrayBuffer()),
+        ),
+        created: stored.created,
+      });
+    },
+    upload: async (file) => {
+      try {
+        await api.putFile.mutate(
+          {
+            id: drawingId,
+            fileId: file.id,
+            mimeType: file.mimeType,
+            dataURL: file.dataURL,
+          },
+          { context: { skipBatch: true } },
+        );
+      } catch (error) {
+        if (
+          error instanceof TRPCClientError &&
+          (error.data?.code === "BAD_REQUEST" ||
+            error.data?.code === "PAYLOAD_TOO_LARGE")
+        ) {
+          throw new FileRefused(error.message);
+        }
+        throw error;
+      }
+    },
+  };
+}
+
 /**
  * The files an open drawing's image elements show, kept in step with the
  * drawing's file store: the stored ones are loaded when it opens, one an
  * image shows that this editor lacks is fetched once it is stored, and one
  * this editor added is sent, once, and its images marked saved so the next
- * save tells everyone else it is there to fetch.
+ * save tells everyone else it is there to fetch. One whose id is not the hash
+ * of its bytes, as a file pasted from elsewhere brings, is sent under the
+ * hash, and its images pointed at that.
  *
  * Nothing is sent until the listing says what is stored already, and files
- * go one at a time, because each fills most of a request body alone.
+ * go one at a time; see `MAX_DRAWING_FILE_BYTES`.
  */
 export class SceneFiles {
   /** On the server, as listed or since sent. */
@@ -124,22 +186,40 @@ export class SceneFiles {
     if (this.sending) return;
     this.sending = true;
     try {
-      for (const [id, file] of this.queue) {
+      for (const [queued, file] of this.queue) {
         if (this.closed) return;
+        let id = queued;
         try {
           const checked = readDrawingFile(file.mimeType, file.dataURL);
           if (!checked.ok) throw new FileRefused(checked.reason);
-          await this.store.upload(file);
+          id = await drawingFileId(checked.bytes);
+          if (this.closed) return;
+          const sent =
+            id === queued
+              ? file
+              : editorFile({
+                  id,
+                  mimeType: checked.mimeType,
+                  dataURL: file.dataURL,
+                  created: file.created,
+                });
+          if (id !== queued) {
+            this.loaded.add(id);
+            this.editor.addFiles([sent]);
+            this.editor.rekey(queued, sent.id);
+          }
+          if (!this.stored.has(id)) await this.store.upload(sent);
           this.stored.add(id);
           this.editor.settle([[id, "saved"]]);
         } catch (error) {
           if (error instanceof FileRefused) {
+            this.refused.add(queued);
             this.refused.add(id);
             this.editor.settle([[id, "error"]]);
           }
           this.report(id, error);
         } finally {
-          this.queue.delete(id);
+          this.queue.delete(queued);
         }
       }
     } finally {

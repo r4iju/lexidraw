@@ -1,6 +1,6 @@
 import "server-only";
 
-import { drizzle, eq, schema, sql } from "@packages/drizzle";
+import { drizzle, schema, sql } from "@packages/drizzle";
 
 /** What the database refers to, in the terms `isOrphan` judges blobs by. */
 export type BlobReferences = {
@@ -9,10 +9,11 @@ export type BlobReferences = {
   /** Jobs whose audio lives under `tts/doc/<id>/` or `tts/article/<id>/`. */
   ttsJobIds: string[];
   /**
-   * Drawings whose files live under `drawings/<id>/files/`: every one there
-   * is, trashed ones too, which come back with their images when restored.
+   * Every drawing there is, trashed ones too, which come back with their
+   * images when restored, and the files under `drawings/<id>/files/` that its
+   * saved image elements name, deleted elements included.
    */
-  drawingIds: string[];
+  drawingFiles: Record<string, string[]>;
   /** When they were read, in epoch milliseconds. */
   readAt: number;
 };
@@ -53,10 +54,17 @@ export async function getBlobReferencesStep(): Promise<BlobReferences> {
       })
       .from(schema.uploadedVideos),
     drizzle.select({ id: schema.ttsJobs.id }).from(schema.ttsJobs),
-    drizzle
-      .select({ id: schema.entities.id })
-      .from(schema.entities)
-      .where(eq(schema.entities.entityType, "drawing")),
+    drizzle.all<{ id: string; fileId: unknown }>(sql`
+      SELECT ${schema.entities.id} AS id,
+        json_extract(element.value, '$.fileId') AS fileId
+      FROM ${schema.entities}
+      LEFT JOIN json_each(
+        CASE WHEN json_valid(${schema.entities.elements})
+          THEN ${schema.entities.elements} ELSE '[]' END
+      ) AS element
+        ON json_extract(element.value, '$.type') = 'image'
+      WHERE ${schema.entities.entityType} = 'drawing'
+    `),
   ]);
 
   const pathnames = new Set<string>();
@@ -71,10 +79,17 @@ export async function getBlobReferencesStep(): Promise<BlobReferences> {
     if (pathname) pathnames.add(pathname);
   }
 
+  const drawingFiles: Record<string, string[]> = {};
+  for (const { id, fileId } of drawings) {
+    const files = drawingFiles[id] ?? [];
+    if (typeof fileId === "string") files.push(fileId);
+    drawingFiles[id] = files;
+  }
+
   return {
     pathnames: [...pathnames],
     ttsJobIds: jobs.map((job) => job.id),
-    drawingIds: drawings.map((drawing) => drawing.id),
+    drawingFiles,
     readAt,
   };
 }

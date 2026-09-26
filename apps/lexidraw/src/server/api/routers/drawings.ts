@@ -27,15 +27,18 @@ import {
   replaceDrawingElements,
 } from "~/server/drawings/store";
 import {
+  DrawingFilesFullError,
+  StoredDrawingFile,
   listDrawingFiles,
   loadDrawingFiles,
   storeDrawingFile,
 } from "~/server/drawings/files";
 import { resolveParentDirectory } from "~/server/entities/readable";
+import { DRAWING_FILES_LIMIT, MAX_DRAWING_FILE_BYTES } from "@packages/types";
 import {
   DRAWING_FILE_ID,
   DRAWING_FILE_TYPES,
-  MAX_DRAWING_FILE_BYTES,
+  drawingFileId,
   readDrawingFile,
 } from "~/lib/drawing-files";
 import {
@@ -64,16 +67,6 @@ const mermaid = z
 
 const Iso = z.iso.datetime();
 
-const StoredFile = z.object({
-  id: z.string(),
-  mimeType: z.enum(DRAWING_FILE_TYPES),
-  url: z.url(),
-  created: z
-    .number()
-    .int()
-    .meta({ description: "When the file was stored, in epoch milliseconds." }),
-});
-
 /**
  * A write adds two statuses a read cannot reach: the 409 its precondition
  * guards, and the 403 a read-scope token earns for attempting a mutation.
@@ -82,6 +75,8 @@ const READ_ERRORS = [400, 401, 404, 422, 500];
 const WRITE_ERRORS = [400, 401, 403, 404, 409, 422, 500];
 /** A read that also refuses an image too big for one response body. */
 const RENDER_ERRORS = [400, 401, 404, 413, 422, 500];
+/** A write that also refuses a file the drawing has no room for. */
+const FILE_WRITE_ERRORS = [400, 401, 403, 404, 413, 422, 500];
 
 /** Reported as the image measures itself, so neither format is rounded. */
 const SIDE =
@@ -390,9 +385,9 @@ export const drawingRouter = createTRPCRouter({
         path: "/drawings/{id}/files/{fileId}",
         tags: ["drawings"],
         summary: "Store a file an image element of a drawing shows",
-        description: `\`dataURL\` is the file as a base64 data URL of \`mimeType\`, one of ${DRAWING_FILE_TYPES.join(", ")}, decoding to at most ${MAX_DRAWING_FILE_BYTES / (1024 * 1024)} MiB. \`fileId\` is the \`fileId\` the image element carries; Excalidraw makes it the SHA-1 of the bytes, so sending a file again stores nothing new.`,
+        description: `\`dataURL\` is the file as a base64 data URL of \`mimeType\`, one of ${DRAWING_FILE_TYPES.join(", ")}, decoding to at most ${MAX_DRAWING_FILE_BYTES / (1024 * 1024)} MiB of bytes that are that type. \`fileId\` is the \`fileId\` the image element carries, and has to be the SHA-1 of those bytes in lowercase hex. A file is written once: sending one the drawing already stores answers it as first stored, \`created\` included, and stores nothing. A drawing stores at most ${DRAWING_FILES_LIMIT.count} files and ${DRAWING_FILES_LIMIT.bytes / (1024 * 1024)} MiB in all; a new file past either is refused with 413. Anything else about the file that is refused is a 400 that says why.`,
         protect: true,
-        errorResponses: WRITE_ERRORS,
+        errorResponses: FILE_WRITE_ERRORS,
       },
     })
     .input(
@@ -403,7 +398,7 @@ export const drawingRouter = createTRPCRouter({
         dataURL: z.string(),
       }),
     )
-    .output(StoredFile.omit({ url: true }))
+    .output(StoredDrawingFile.omit({ url: true }))
     .mutation(async ({ input, ctx }) => {
       const drawing = await findWritableDrawing(
         ctx.drizzle,
@@ -415,11 +410,29 @@ export const drawingRouter = createTRPCRouter({
       if (!file.ok) {
         throw new TRPCError({ code: "BAD_REQUEST", message: file.reason });
       }
-      return storeDrawingFile(drawing.id, {
-        id: input.fileId,
-        mimeType: file.mimeType,
-        bytes: Buffer.from(file.base64, "base64"),
-      });
+      const id = await drawingFileId(file.bytes);
+      if (id !== input.fileId) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `The file's SHA-1 is ${id}, not the fileId ${input.fileId} it was sent as`,
+        });
+      }
+      try {
+        return await storeDrawingFile(drawing.id, {
+          id,
+          mimeType: file.mimeType,
+          bytes: file.bytes,
+        });
+      } catch (error) {
+        if (error instanceof DrawingFilesFullError) {
+          throw new TRPCError({
+            code: "PAYLOAD_TOO_LARGE",
+            message: error.message,
+            cause: error,
+          });
+        }
+        throw error;
+      }
     }),
   /** Every file the drawing stores, each to be fetched from its `url`. */
   files: protectedProcedure
@@ -434,7 +447,7 @@ export const drawingRouter = createTRPCRouter({
       },
     })
     .input(z.object({ id: z.string() }))
-    .output(z.object({ files: z.array(StoredFile) }))
+    .output(z.object({ files: z.array(StoredDrawingFile) }))
     .query(async ({ input, ctx }) => {
       const drawing = await findReadableDrawing(
         ctx.drizzle,

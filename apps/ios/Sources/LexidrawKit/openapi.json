@@ -4957,7 +4957,7 @@
       "put": {
         "operationId": "drawings-putFile",
         "summary": "Store a file an image element of a drawing shows",
-        "description": "`dataURL` is the file as a base64 data URL of `mimeType`, one of image/png, image/jpeg, image/svg+xml, image/webp, image/avif, image/gif, decoding to at most 3 MiB. `fileId` is the `fileId` the image element carries; Excalidraw makes it the SHA-1 of the bytes, so sending a file again stores nothing new.",
+        "description": "`dataURL` is the file as a base64 data URL of `mimeType`, one of image/png, image/jpeg, image/svg+xml, image/webp, image/avif, image/gif, decoding to at most 3 MiB of bytes that are that type. `fileId` is the `fileId` the image element carries, and has to be the SHA-1 of those bytes in lowercase hex. A file is written once: sending one the drawing already stores answers it as first stored, `created` included, and stores nothing. A drawing stores at most 200 files and 64 MiB in all; a new file past either is refused with 413. Anything else about the file that is refused is a 400 that says why.",
         "tags": ["drawings"],
         "security": [
           {
@@ -4978,7 +4978,7 @@
             "name": "fileId",
             "schema": {
               "type": "string",
-              "pattern": "^[A-Za-z0-9_-]{1,128}$"
+              "pattern": "^[0-9a-f]{40}$"
             },
             "required": true
           }
@@ -5077,8 +5077,8 @@
               }
             }
           },
-          "409": {
-            "description": "Conflict",
+          "413": {
+            "description": "Payload too large",
             "content": {
               "application/json": {
                 "schema": {

@@ -1,33 +1,60 @@
 /// <reference types="bun" />
 import { describe, expect, test } from "bun:test";
+import { createHash } from "node:crypto";
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import type { BinaryFileData, BinaryFiles } from "@excalidraw/excalidraw/types";
-import { MAX_DRAWING_FILE_BYTES } from "~/lib/drawing-files";
-import { FileRefused, SceneFiles, type StoredFile } from "./scene-files";
+import { MAX_DRAWING_FILE_BYTES } from "@packages/types";
+import { TRPCClientError } from "@trpc/client";
+import { editorFile } from "~/lib/drawing-files";
+import {
+  drawingFileStore,
+  FileRefused,
+  SceneFiles,
+  type StoredFile,
+} from "./scene-files";
 
 const image = (
-  fileId: string,
-  more: { status?: "pending" | "saved" | "error"; isDeleted?: boolean } = {},
+  name: string,
+  more: {
+    status?: "pending" | "saved" | "error";
+    isDeleted?: boolean;
+    fileId?: string;
+  } = {},
 ) =>
   ({
-    id: `element-${fileId}`,
+    id: `element-${name}`,
     type: "image",
-    fileId,
+    fileId: id(name),
     status: "pending",
     isDeleted: false,
     ...more,
   }) as unknown as ExcalidrawElement;
 
-const file = (id: string, dataURL = "data:image/png;base64,AAAA") =>
-  ({ id, mimeType: "image/png", dataURL, created: 1 }) as BinaryFileData;
+/** A PNG's signature, then `name`: bytes a drawing stores, one set per name. */
+const bytesOf = (name: string) =>
+  Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    Buffer.from(name),
+  ]);
+/** The id the file called `name` is stored under: the SHA-1 of its bytes. */
+const id = (name: string) =>
+  createHash("sha1").update(bytesOf(name)).digest("hex");
+/** The file called `name`, under its own id unless another is given. */
+const file = (
+  name: string,
+  {
+    dataURL = `data:image/png;base64,${bytesOf(name).toString("base64")}`,
+    as = id(name),
+  } = {},
+) => editorFile({ id: as, mimeType: "image/png", dataURL, created: 1 });
 
 const filesOf = (...files: BinaryFileData[]): BinaryFiles =>
   Object.fromEntries(files.map((f) => [f.id, f]));
 
-const stored = (id: string): StoredFile => ({
-  id,
+const stored = (name: string): StoredFile => ({
+  id: id(name),
   mimeType: "image/png",
-  url: `https://blob.test/${id}`,
+  url: `https://blob.test/${id(name)}`,
   created: 1,
 });
 
@@ -42,7 +69,7 @@ function deferred<T = void>() {
   return { promise, resolve, reject };
 }
 
-const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
+const tick = () => new Promise((resolve) => setTimeout(resolve, 5));
 
 /** A drawing's file store and editor, recording what each was asked. */
 function harness({
@@ -55,6 +82,7 @@ function harness({
     uploads: [] as string[],
     added: [] as string[],
     settled: [] as [string, string][],
+    rekeyed: [] as [string, string][],
     failed: [] as string[],
   };
   let listing = listed;
@@ -64,7 +92,7 @@ function harness({
         calls.lists++;
         return listing;
       },
-      fetch: async (stored) => file(stored.id),
+      fetch: async (stored) => file("any", { as: stored.id }),
       upload: (sent) => {
         calls.uploads.push(sent.id);
         return upload(sent);
@@ -73,6 +101,7 @@ function harness({
     {
       addFiles: (added) => calls.added.push(...added.map((f) => f.id)),
       settle: (statuses) => calls.settled.push(...statuses),
+      rekey: (from, to) => calls.rekeyed.push([from, to]),
       failed: (fileId) => calls.failed.push(fileId),
     },
     { canUpload },
@@ -90,7 +119,7 @@ describe("a drawing's files in the editor", () => {
   test("are the stored ones once the drawing opens", async () => {
     const { files, calls } = harness({ listed: [stored("a"), stored("b")] });
     await files.open();
-    expect(calls.added.toSorted()).toEqual(["a", "b"]);
+    expect(calls.added.toSorted()).toEqual([id("a"), id("b")].toSorted());
   });
 
   test("are sent once each, one at a time, and their images marked saved", async () => {
@@ -102,14 +131,14 @@ describe("a drawing's files in the editor", () => {
     files.changed(scene, held);
     files.changed(scene, held);
     await tick();
-    expect(calls.uploads).toEqual(["new"]);
+    expect(calls.uploads).toEqual([id("new")]);
 
     sending.resolve();
     await tick();
-    expect(calls.uploads).toEqual(["new", "next"]);
+    expect(calls.uploads).toEqual([id("new"), id("next")]);
     expect(calls.settled).toEqual([
-      ["new", "saved"],
-      ["next", "saved"],
+      [id("new"), "saved"],
+      [id("next"), "saved"],
     ]);
   });
 
@@ -121,7 +150,7 @@ describe("a drawing's files in the editor", () => {
     );
     await files.open();
     await tick();
-    expect(calls.uploads).toEqual(["new"]);
+    expect(calls.uploads).toEqual([id("new")]);
   });
 
   test("are not sent for an image that is gone, or for no image at all", async () => {
@@ -154,9 +183,9 @@ describe("a drawing's files in the editor", () => {
     await tick();
     files.changed([image("big")], filesOf(file("big")));
     await tick();
-    expect(calls.uploads).toEqual(["big"]);
-    expect(calls.failed).toEqual(["big"]);
-    expect(calls.settled).toEqual([["big", "error"]]);
+    expect(calls.uploads).toEqual([id("big")]);
+    expect(calls.failed).toEqual([id("big")]);
+    expect(calls.settled).toEqual([[id("big"), "error"]]);
   });
 
   test("over the size a drawing stores are refused without being sent", async () => {
@@ -165,11 +194,11 @@ describe("a drawing's files in the editor", () => {
     const huge = `data:image/png;base64,${"A".repeat(
       (Math.ceil(MAX_DRAWING_FILE_BYTES / 3) + 1) * 4,
     )}`;
-    files.changed([image("huge")], filesOf(file("huge", huge)));
+    files.changed([image("huge")], filesOf(file("huge", { dataURL: huge })));
     await tick();
     expect(calls.uploads).toEqual([]);
-    expect(calls.failed).toEqual(["huge"]);
-    expect(calls.settled).toEqual([["huge", "error"]]);
+    expect(calls.failed).toEqual([id("huge")]);
+    expect(calls.settled).toEqual([[id("huge"), "error"]]);
   });
 
   test("that fail to send are said once and sent again on the next change", async () => {
@@ -185,9 +214,9 @@ describe("a drawing's files in the editor", () => {
       files.changed([image("flaky")], filesOf(file("flaky")));
       await tick();
     }
-    expect(calls.uploads).toEqual(["flaky", "flaky", "flaky"]);
-    expect(calls.failed).toEqual(["flaky"]);
-    expect(calls.settled).toEqual([["flaky", "saved"]]);
+    expect(calls.uploads).toEqual([id("flaky"), id("flaky"), id("flaky")]);
+    expect(calls.failed).toEqual([id("flaky")]);
+    expect(calls.settled).toEqual([[id("flaky"), "saved"]]);
   });
 
   // A peer's image arrives before its file, which the peer stores after.
@@ -205,10 +234,47 @@ describe("a drawing's files in the editor", () => {
 
     files.changed([image("theirs", { status: "saved" })], {});
     await tick();
-    expect(calls.added).toEqual(["theirs"]);
+    expect(calls.added).toEqual([id("theirs")]);
     const lists = calls.lists;
     files.changed([image("theirs", { status: "saved" })], {});
     await tick();
     expect(calls.lists).toBe(lists);
   });
+
+  // Pasted from excalidraw.com or a library, or named before Lexidraw hashed it.
+  test("whose id is not the hash of their bytes are stored under the hash, and their images pointed at it", async () => {
+    const { files, calls } = harness();
+    await files.open();
+    const pasted = file("pasted", { as: "elsewhere" });
+    files.changed([image("pasted", { fileId: "elsewhere" })], filesOf(pasted));
+    await tick();
+    expect(calls.added).toEqual([id("pasted")]);
+    expect(calls.rekeyed).toEqual([["elsewhere", id("pasted")]]);
+    expect(calls.uploads).toEqual([id("pasted")]);
+    expect(calls.settled).toEqual([[id("pasted"), "saved"]]);
+  });
+});
+
+describe("a drawing's file store", () => {
+  test.each(["BAD_REQUEST", "PAYLOAD_TOO_LARGE"])(
+    "takes a %s answer to a file as refusing it for good",
+    async (code) => {
+      const store = drawingFileStore(
+        {
+          files: { query: async () => ({ files: [] }) },
+          putFile: {
+            mutate: async () => {
+              throw TRPCClientError.from({
+                error: { message: "no", code: -32600, data: { code } },
+              });
+            },
+          },
+        },
+        "drawing",
+      );
+      await expect(store.upload(file("refused"))).rejects.toBeInstanceOf(
+        FileRefused,
+      );
+    },
+  );
 });

@@ -10,7 +10,7 @@ import { updateEntityStep } from "./update-entity-step";
 import { markJobDoneStep } from "./mark-job-done-step";
 import { updateJobStatusStep } from "./update-job-status-step";
 import { createScreenshotTokenStep } from "./create-screenshot-token-step";
-import { renderDrawingThumbnailStep } from "./render-drawing-thumbnail-step";
+import { renderDrawingThumbnailsStep } from "./render-drawing-thumbnail-step";
 import env from "@packages/env";
 
 export interface BatchThumbnailJob {
@@ -121,20 +121,11 @@ async function processSingleJob(
 
   const isDrawing = validation.entityType === "drawing";
   const [light, dark] = isDrawing
-    ? await Promise.all([
-        renderDrawingThumbnailStep(
-          validation.entityId,
-          validation.elements,
-          validation.appState,
-          "light",
-        ),
-        renderDrawingThumbnailStep(
-          validation.entityId,
-          validation.elements,
-          validation.appState,
-          "dark",
-        ),
-      ])
+    ? await renderDrawingThumbnailsStep(
+        validation.entityId,
+        validation.elements,
+        validation.appState,
+      )
     : await screenshotDocument(validation);
   const format = isDrawing ? "png" : "webp";
 

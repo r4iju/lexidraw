@@ -290,18 +290,30 @@ would put it. The geometry around it is the editor's own.
 
 An image element names its picture by `fileId` and carries none of it: the
 bytes are a file of the drawing, stored beside it rather than in `elements`.
-Excalidraw makes the id the SHA-1 of the bytes, so a file is the same file in
-every drawing and on every upload.
+The id is the SHA-1 of the stored bytes in lowercase hex, so one id is one set
+of bytes, of one type, in every drawing and on every upload.
 
 `PUT /api/v1/drawings/{id}/files/{fileId}` stores one, from `{ mimeType,
 dataURL }`, where `dataURL` is the file as a base64 data URL of that type,
-exactly what Excalidraw's `BinaryFileData` holds. It answers `{ id, mimeType,
-created }`, `created` in epoch milliseconds. It needs write access and does not
-touch the elements or `updatedAt`; storing the id again stores nothing new. It
-refuses with `BAD_REQUEST` a type other than PNG, JPEG, SVG, WebP, AVIF or GIF,
-a data URL that is not base64 or declares a type other than `mimeType`, and a
-file over 3 MiB decoded, which is what fits in the 4.5 MB a request body may be
-once base64 has added its third.
+exactly what Excalidraw's `BinaryFileData` holds. It needs write access and
+does not touch the elements or `updatedAt`. A file is written once: it answers
+`{ id, mimeType, created }`, `created` in epoch milliseconds, and sending a
+file the drawing already stores answers it as first stored, `created`
+included, and writes nothing. It refuses with `BAD_REQUEST`, saying why:
+
+- a `fileId` that is not 40 lowercase hex, or not the SHA-1 of the bytes;
+- a type other than PNG, JPEG, SVG, WebP, AVIF or GIF;
+- a data URL that is not base64 or declares a type other than `mimeType`;
+- bytes that are not that type: PNG, JPEG, GIF, WebP and AVIF by their
+  signature, SVG as text holding `<svg`;
+- a file over 3 MiB decoded, which is what fits in the 4.5 MB a request body
+  may be once base64 has added its third.
+
+A drawing stores at most 200 files and 64 MiB in all (`DRAWING_FILES_LIMIT`
+in `packages/types/src/drawing-files.ts`, beside the 3 MiB), because an
+editor opening the drawing fetches every file it stores. A new file past
+either is refused with `PAYLOAD_TOO_LARGE` (413); one already stored is still
+answered.
 
 `GET /api/v1/drawings/{id}/files` answers `{ files: [{ id, mimeType, url,
 created }] }`, every file the drawing stores, for anyone who may read it. The
@@ -311,8 +323,20 @@ The browser editor stores a file the first time an image element shows it,
 and once it is stored sets `status: "saved"` on the elements that show it, as
 excalidraw.com does. The save that follows is how anyone else holding the
 drawing learns the file is there to fetch; `"error"` means it was refused and
-never will be. A file stays stored while the drawing exists, in the trash
-included, and goes when the drawing does.
+never will be. An image the editor inserts is stored as picked when it is a
+type a drawing stores and neither side is over 1440 px; otherwise it is scaled
+to 1440 px on its longer side, as PNG, JPEG or WebP where it was one and PNG
+where not. A file pasted from elsewhere under an id that is not its hash is
+stored under the hash, and its elements pointed at that.
+
+A file stays stored while any image element of the saved drawing names it,
+deleted elements included, and while the drawing exists, in the trash
+included; it goes when the drawing does. The browser editor and the iOS app
+save the elements deleted in them too, so undoing a deletion finds the file
+still stored. A file no saved element names is removed by the hourly blob
+cleanup a day after it was stored, the day being how long an upload may wait
+for the save that names it. A file named only by an editor's undo history,
+past what was saved, is not kept.
 
 ## Mermaid
 

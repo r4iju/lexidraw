@@ -1,21 +1,19 @@
 "use client";
 
-import {
-  CaptureUpdateAction,
-  getDataURL,
-  newElementWith,
-} from "@excalidraw/excalidraw";
-import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
+import { CaptureUpdateAction, newElementWith } from "@excalidraw/excalidraw";
 import type {
-  BinaryFileData,
+  ExcalidrawElement,
+  ExcalidrawImageElement,
+  FileId,
+} from "@excalidraw/excalidraw/element/types";
+import type {
   BinaryFiles,
   ExcalidrawImperativeAPI,
 } from "@excalidraw/excalidraw/types";
-import { TRPCClientError } from "@trpc/client";
 import { useCallback, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { api } from "~/trpc/react";
-import { FileRefused, SceneFiles } from "./scene-files";
+import { drawingFileStore, SceneFiles } from "./scene-files";
 
 /**
  * Keeps an open drawing's images in step with its file store; see
@@ -33,63 +31,20 @@ export function useSceneFiles(
   useEffect(() => {
     if (!excalidraw) return;
     const scene = new SceneFiles(
-      {
-        list: async () =>
-          (await utils.client.drawings.files.query({ id: drawingId })).files,
-        fetch: async (stored) => {
-          const response = await fetch(stored.url);
-          if (!response.ok) throw new Error(`${response.status}`);
-          return {
-            id: stored.id,
-            mimeType: stored.mimeType,
-            dataURL: await getDataURL(await response.blob()),
-            created: stored.created,
-          } as BinaryFileData;
-        },
-        upload: async (file) => {
-          try {
-            await utils.client.drawings.putFile.mutate(
-              {
-                id: drawingId,
-                fileId: file.id,
-                mimeType: file.mimeType,
-                dataURL: file.dataURL,
-              },
-              { context: { skipBatch: true } },
-            );
-          } catch (error) {
-            if (
-              error instanceof TRPCClientError &&
-              error.data?.code === "BAD_REQUEST"
-            ) {
-              throw new FileRefused(error.message);
-            }
-            throw error;
-          }
-        },
-      },
+      drawingFileStore(utils.client.drawings, drawingId),
       {
         addFiles: (added) => excalidraw.addFiles(added),
         settle: (statuses) => {
           const status = new Map(statuses);
-          excalidraw.updateScene({
-            elements: excalidraw
-              .getSceneElementsIncludingDeleted()
-              .map((element) => {
-                const next =
-                  element.type === "image" && element.fileId
-                    ? status.get(element.fileId)
-                    : undefined;
-                return next &&
-                  element.type === "image" &&
-                  element.status !== next
-                  ? newElementWith(element, { status: next })
-                  : element;
-              }),
-            // Bookkeeping rather than an edit, so undo passes over it.
-            captureUpdate: CaptureUpdateAction.NEVER,
+          updateImages(excalidraw, (image) => {
+            const next = status.get(image.fileId);
+            return next && image.status !== next ? { status: next } : null;
           });
         },
+        rekey: (from, to) =>
+          updateImages(excalidraw, (image) =>
+            image.fileId === from ? { fileId: to } : null,
+          ),
         failed: (_, reason) =>
           toast.error("An image in this drawing wasn’t saved", {
             description: reason,
@@ -112,4 +67,24 @@ export function useSceneFiles(
   return useCallback((elements, sceneFiles) => {
     files.current?.changed(elements, sceneFiles);
   }, []);
+}
+
+/**
+ * Changes the image elements `change` answers a change for, as bookkeeping
+ * rather than an edit, so undo passes over it.
+ */
+function updateImages(
+  excalidraw: ExcalidrawImperativeAPI,
+  change: (
+    image: ExcalidrawImageElement & { fileId: FileId },
+  ) => { status?: ExcalidrawImageElement["status"]; fileId?: FileId } | null,
+): void {
+  excalidraw.updateScene({
+    elements: excalidraw.getSceneElementsIncludingDeleted().map((element) => {
+      if (element.type !== "image" || !element.fileId) return element;
+      const changed = change({ ...element, fileId: element.fileId });
+      return changed ? newElementWith(element, changed) : element;
+    }),
+    captureUpdate: CaptureUpdateAction.NEVER,
+  });
 }

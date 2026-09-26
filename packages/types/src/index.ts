@@ -9,6 +9,7 @@ export * from "./agent-tools-contract.js";
 export * from "./tool-schemas.js";
 export * from "./base-schemas.js";
 export * from "./agent-events.js";
+export * from "./drawing-files.js";
 
 type DocumentPayload = {
   elements: string;

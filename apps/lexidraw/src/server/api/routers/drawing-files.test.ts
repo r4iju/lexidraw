@@ -10,9 +10,10 @@ import {
 } from "bun:test";
 import * as schema from "@packages/drizzle/drizzle-schema";
 import { AccessLevel, PublicAccess } from "@packages/types";
+import { createHash } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { hashApiToken } from "~/server/auth/api-token-format";
-import { MAX_DRAWING_FILE_BYTES } from "~/lib/drawing-files";
+import { DRAWING_FILES_LIMIT, MAX_DRAWING_FILE_BYTES } from "@packages/types";
 import { installServerRuntime } from "~/test/server-runtime";
 
 const db = await installServerRuntime();
@@ -23,10 +24,22 @@ type Stored = {
   bytes: Uint8Array<ArrayBuffer>;
   contentType: string;
   uploadedAt: Date;
+  /** What the store says the blob weighs, when a test wants it heavier. */
+  size?: number;
 };
 /** The store, by pathname, and what each `put` asked of it. */
 const stored = new Map<string, Stored>();
 const puts: { pathname: string; options: Record<string, unknown> }[] = [];
+/** Stored, but not yet in a listing, as a blob another request just stored. */
+const unlisted = new Set<string>();
+const described = (pathname: string, blob: Stored) => ({
+  pathname,
+  url: `${HOST}/${pathname}`,
+  downloadUrl: `${HOST}/${pathname}?download=1`,
+  size: blob.size ?? blob.bytes.length,
+  uploadedAt: blob.uploadedAt,
+  etag: pathname,
+});
 // `.env.test` carries a real store token, so nothing here may reach the store.
 const realBlob = await import("@vercel/blob");
 mock.module("@vercel/blob", () => ({
@@ -37,6 +50,12 @@ mock.module("@vercel/blob", () => ({
     options: Record<string, unknown>,
   ) => {
     puts.push({ pathname, options });
+    // As the store answers an existing pathname without `allowOverwrite`.
+    if (options.allowOverwrite !== true && stored.has(pathname)) {
+      throw new realBlob.BlobError(
+        "This blob already exists, use `allowOverwrite: true` if you want to overwrite it. Or `addRandomSuffix: true` to generate a unique filename.",
+      );
+    }
     stored.set(pathname, {
       bytes: new Uint8Array(
         body instanceof Blob ? await body.arrayBuffer() : body,
@@ -46,17 +65,17 @@ mock.module("@vercel/blob", () => ({
     });
     return { url: `${HOST}/${pathname}`, pathname };
   },
+  head: async (pathname: string) => {
+    const blob = stored.get(pathname);
+    if (!blob) throw new realBlob.BlobNotFoundError();
+    return { ...described(pathname, blob), contentType: blob.contentType };
+  },
   list: async ({ prefix = "" }: { prefix?: string } = {}) => ({
     blobs: [...stored]
-      .filter(([pathname]) => pathname.startsWith(prefix))
-      .map(([pathname, blob]) => ({
-        pathname,
-        url: `${HOST}/${pathname}`,
-        downloadUrl: `${HOST}/${pathname}?download=1`,
-        size: blob.bytes.length,
-        uploadedAt: blob.uploadedAt,
-        etag: pathname,
-      })),
+      .filter(
+        ([pathname]) => pathname.startsWith(prefix) && !unlisted.has(pathname),
+      )
+      .map(([pathname, blob]) => described(pathname, blob)),
     hasMore: false,
   }),
 }));
@@ -94,7 +113,20 @@ const PNG = Buffer.from(
   "base64",
 );
 const PNG_URL = `data:image/png;base64,${PNG.toString("base64")}`;
-const FILE_ID = "a".repeat(40);
+const sha1 = (bytes: Uint8Array) =>
+  createHash("sha1").update(bytes).digest("hex");
+const FILE_ID = sha1(PNG);
+const dataURL = (mimeType: string, bytes: Uint8Array) =>
+  `data:${mimeType};base64,${Buffer.from(bytes).toString("base64")}`;
+/** A file of `bytes`, sent under the id they hash to. */
+const fileOf = (mimeType: string, bytes: Uint8Array) => ({
+  id: DRAWING,
+  fileId: sha1(bytes),
+  mimeType,
+  dataURL: dataURL(mimeType, bytes),
+});
+const pathOf = (fileId: string, extension = "png") =>
+  `drawings/${DRAWING}/files/${fileId}.${extension}`;
 
 function callerOf(userId: string) {
   return drawingRouter.createCaller({
@@ -153,6 +185,7 @@ beforeAll(async () => {
 
 beforeEach(() => {
   stored.clear();
+  unlisted.clear();
   puts.length = 0;
 });
 
@@ -208,17 +241,50 @@ describe("a drawing's files", () => {
     );
   });
 
-  // The id is the hash of the bytes, so a second upload is the same file.
-  test("are stored once however often one is sent", async () => {
+  test("are stored once however often one is sent, and answered as first stored", async () => {
     const file = {
       id: DRAWING,
       fileId: FILE_ID,
       mimeType: "image/png",
       dataURL: PNG_URL,
     };
-    await owner.putFile(file);
-    await owner.putFile(file);
-    expect(puts.map((put) => put.options.allowOverwrite)).toEqual([true, true]);
+    const first = await owner.putFile(file);
+    expect(await owner.putFile(file)).toEqual(first);
+    expect(puts.map((put) => put.options.allowOverwrite)).toEqual([false]);
+    expect((await owner.files({ id: DRAWING })).files).toHaveLength(1);
+  });
+
+  test("keep the file stored first when the same one lands between listing and storing", async () => {
+    await owner.putFile(fileOf("image/png", PNG));
+    const pathname = pathOf(FILE_ID);
+    const first = stored.get(pathname);
+    if (!first) throw new Error("not stored");
+    first.uploadedAt = new Date("2026-09-02T00:00:00.000Z");
+    unlisted.add(pathname);
+
+    const answer = await owner.putFile(fileOf("image/png", PNG));
+    expect(answer).toEqual({
+      id: FILE_ID,
+      mimeType: "image/png",
+      created: first.uploadedAt.getTime(),
+    });
+    expect(puts.map((put) => put.options.allowOverwrite)).toEqual([
+      false,
+      false,
+    ]);
+    expect(stored.get(pathname)).toBe(first);
+  });
+
+  test("keep one blob for an id, whatever type it is sent again as", async () => {
+    await owner.putFile(fileOf("image/png", PNG));
+    await expect(
+      owner.putFile({
+        ...fileOf("image/png", PNG),
+        mimeType: "image/webp",
+        dataURL: dataURL("image/webp", PNG),
+      }),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    expect(puts).toHaveLength(1);
     expect((await owner.files({ id: DRAWING })).files).toHaveLength(1);
   });
 
@@ -257,15 +323,122 @@ describe("a drawing's files", () => {
     expect(puts).toHaveLength(0);
   });
 
-  test("refuse an id that is not a file id", async () => {
+  test.each([
+    ["a path", "../../elsewhere"],
+    ["a nanoid", "V1StGXR8_Z5jdHi6B-myTV1StGXR8_Z5jdHi6B-m"],
+    ["uppercase hex", FILE_ID.toUpperCase()],
+  ])("refuse an id that is %s", async (_, fileId) => {
     const refused = owner.putFile({
       id: DRAWING,
-      fileId: "../../elsewhere",
+      fileId,
       mimeType: "image/png",
       dataURL: PNG_URL,
     });
     await expect(refused).rejects.toMatchObject({ code: "BAD_REQUEST" });
     expect(puts).toHaveLength(0);
+  });
+
+  test("refuse an id that is not the SHA-1 of the bytes", async () => {
+    const refused = owner.putFile({
+      id: DRAWING,
+      fileId: "b".repeat(40),
+      mimeType: "image/png",
+      dataURL: PNG_URL,
+    });
+    await expect(refused).rejects.toMatchObject({
+      code: "BAD_REQUEST",
+      message: expect.stringContaining(FILE_ID),
+    });
+    expect(puts).toHaveLength(0);
+  });
+
+  const ascii = (text: string) => new TextEncoder().encode(text);
+  const bytesOf = (...parts: (string | number[])[]) =>
+    new Uint8Array(
+      parts.flatMap((part) =>
+        typeof part === "string" ? [...ascii(part)] : part,
+      ),
+    );
+  test.each([
+    ["a PNG", PNG, "image/jpeg", /PNG/],
+    ["a JPEG", bytesOf([0xff, 0xd8, 0xff, 0xe0], "JFIF"), "image/png", /JPEG/],
+    ["a GIF", bytesOf("GIF89a", [1, 0, 1, 0]), "image/png", /GIF/],
+    ["a WebP", bytesOf("RIFF", [4, 0, 0, 0], "WEBPVP8 "), "image/png", /WebP/],
+    [
+      "an AVIF",
+      bytesOf([0, 0, 0, 24], "ftypmif1", [0, 0, 0, 0], "mif1avif"),
+      "image/png",
+      /AVIF/,
+    ],
+    [
+      "an SVG",
+      ascii('<?xml version="1.0"?><svg xmlns="http://www.w3.org/2000/svg"/>'),
+      "image/png",
+      /SVG/,
+    ],
+    [
+      "text that is no SVG",
+      ascii("<html><body></body></html>"),
+      "image/svg+xml",
+      /not an SVG/,
+    ],
+  ])(
+    "refuse the bytes of %s sent as another type",
+    async (_, bytes, mimeType, reason) => {
+      await expect(
+        owner.putFile(fileOf(mimeType, bytes)),
+      ).rejects.toMatchObject({
+        code: "BAD_REQUEST",
+        message: expect.stringMatching(reason),
+      });
+      expect(puts).toHaveLength(0);
+    },
+  );
+
+  /** Fills the drawing's store with files it did not send here. */
+  function fill(count: number, bytesEach: number) {
+    for (let n = 0; n < count; n++) {
+      stored.set(pathOf(sha1(ascii(`filler ${n}`))), {
+        bytes: new Uint8Array(0),
+        size: bytesEach,
+        contentType: "image/png",
+        uploadedAt: at,
+      });
+    }
+  }
+
+  test.each([
+    [
+      "as many files as a drawing stores",
+      DRAWING_FILES_LIMIT.count,
+      1,
+      new RegExp(`${DRAWING_FILES_LIMIT.count} files`),
+    ],
+    [
+      "as many bytes as a drawing stores",
+      1,
+      DRAWING_FILES_LIMIT.bytes - PNG.length + 1,
+      new RegExp(`${DRAWING_FILES_LIMIT.bytes / (1024 * 1024)} MB`),
+    ],
+  ])(
+    "refuse a file once the drawing holds %s",
+    async (_, count, bytesEach, reason) => {
+      fill(count, bytesEach);
+      await expect(
+        owner.putFile(fileOf("image/png", PNG)),
+      ).rejects.toMatchObject({
+        code: "PAYLOAD_TOO_LARGE",
+        message: expect.stringMatching(reason),
+      });
+      expect(puts).toHaveLength(0);
+    },
+  );
+
+  test("still answer a file already stored when the drawing is full", async () => {
+    const first = await owner.putFile(fileOf("image/png", PNG));
+    fill(DRAWING_FILES_LIMIT.count, DRAWING_FILES_LIMIT.bytes);
+    expect(await owner.putFile(fileOf("image/png", PNG))).toEqual(first);
+    expect(puts).toHaveLength(1);
   });
 
   test("are listed to a reader, who cannot add one", async () => {

@@ -11,6 +11,7 @@ import {
   useCallback,
   useEffect,
   useId,
+  useMemo,
   useRef,
   useState,
   type KeyboardEvent as ReactKeyboardEvent,
@@ -25,6 +26,7 @@ import { Loader2 } from "lucide-react";
 import { Excalidraw } from "@excalidraw/excalidraw";
 import { useSyncedExcalidraw } from "~/app/drawings/[drawingId]/use-synced-excalidraw";
 import { useFitOnOpen } from "~/app/drawings/[drawingId]/use-fit-on-open";
+import { contentAddressedFileIds } from "~/lib/prepare-drawing-file";
 import { useDocumentTitle } from "../../context/document-title-context";
 import { DrawingBoardMenu } from "./ExcalidrawMenu";
 export type ExcalidrawInitialElements = ExcalidrawInitialDataState["elements"];
@@ -91,6 +93,10 @@ export default function ExcalidrawInlineEditor({
   const changed = useRef(false);
   const titleId = useId();
   useFitOnOpen(excalidraw);
+  const generateIdForFile = useMemo(
+    () => (excalidraw ? contentAddressedFileIds(excalidraw) : undefined),
+    [excalidraw],
+  );
 
   const buildPartialAppState = useCallback(
     (state?: AppState): Partial<AppState> => ({
@@ -239,6 +245,7 @@ export default function ExcalidrawInlineEditor({
                   changed.current = needsSave(elements, state);
                 }}
                 excalidrawAPI={setExcalidraw}
+                generateIdForFile={generateIdForFile}
               >
                 <DrawingBoardMenu excalidrawApi={excalidraw} />
               </Excalidraw>

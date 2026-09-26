@@ -10,7 +10,7 @@ import { updateEntityStep } from "./update-entity-step";
 import { markJobDoneStep } from "./mark-job-done-step";
 import { updateJobStatusStep } from "./update-job-status-step";
 import { createScreenshotTokenStep } from "./create-screenshot-token-step";
-import { renderDrawingThumbnailStep } from "./render-drawing-thumbnail-step";
+import { renderDrawingThumbnailsStep } from "./render-drawing-thumbnail-step";
 import env from "@packages/env";
 
 export async function generateThumbnailWorkflow(
@@ -38,10 +38,11 @@ export async function generateThumbnailWorkflow(
 
   if (validation.entityType === "drawing") {
     const { elements, appState } = validation;
-    [light, dark] = await Promise.all([
-      renderDrawingThumbnailStep(entityId, elements, appState, "light"),
-      renderDrawingThumbnailStep(entityId, elements, appState, "dark"),
-    ]);
+    [light, dark] = await renderDrawingThumbnailsStep(
+      entityId,
+      elements,
+      appState,
+    );
     format = "png";
   } else {
     format = "webp";

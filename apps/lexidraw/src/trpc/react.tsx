@@ -30,9 +30,7 @@ export function TRPCReactProvider(props: {
           condition: (op) => op.type === "subscription",
           true: httpSubscriptionLink({ transformer, url: "/api/trpc" }),
           false: splitLink({
-            // A call whose body is sized to fill a request on its own, such
-            // as a drawing's file, would push a batch over the platform's
-            // request limit.
+            // See `MAX_DRAWING_FILE_BYTES`.
             condition: (op) => op.context.skipBatch === true,
             true: httpLink({ transformer, url: "/api/trpc", headers }),
             false: httpBatchStreamLink({

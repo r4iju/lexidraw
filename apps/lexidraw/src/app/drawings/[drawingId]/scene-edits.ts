@@ -18,6 +18,22 @@ export function sceneKey(
 }
 
 /**
+ * The scene a save writes. Deleted elements are saved too, as autosave saves
+ * them, because a file stays stored only while a saved element names it and
+ * undoing a deletion brings the element back.
+ */
+export function sceneToSave<State>(editor: {
+  getSceneElements: () => readonly ExcalidrawElement[];
+  getSceneElementsIncludingDeleted: () => readonly ExcalidrawElement[];
+  getAppState: () => State;
+}): { elements: readonly ExcalidrawElement[]; appState: State } {
+  return {
+    elements: editor.getSceneElementsIncludingDeleted(),
+    appState: editor.getAppState(),
+  };
+}
+
+/**
  * Which changes to an open drawing are the user's, over scene keys.
  *
  * Excalidraw has no notion of who changed a scene: loading one and

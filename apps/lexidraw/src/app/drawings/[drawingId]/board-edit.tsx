@@ -33,6 +33,8 @@ import {
 import { useSyncedExcalidraw } from "./use-synced-excalidraw";
 import { useFitOnOpen } from "./use-fit-on-open";
 import { useSceneFiles } from "./use-scene-files";
+import { sceneToSave } from "./scene-edits";
+import { contentAddressedFileIds } from "~/lib/prepare-drawing-file";
 import { useSaveShortcut } from "~/hooks/use-save-shortcut";
 import { toast } from "sonner";
 
@@ -214,10 +216,7 @@ const ExcalidrawWrapper: React.FC<Props> = ({
   const saveNow = useCallback(() => {
     if (!excalidrawApi) return;
     debouncedSaveRef.current?.cancel();
-    saveScene({
-      elements: excalidrawApi.getSceneElements(),
-      appState: excalidrawApi.getAppState(),
-    }).catch((err: unknown) =>
+    saveScene(sceneToSave(excalidrawApi)).catch((err: unknown) =>
       toast.error("Couldn’t save the drawing. Try again.", {
         description: err instanceof Error ? err.message : undefined,
       }),
@@ -228,6 +227,10 @@ const ExcalidrawWrapper: React.FC<Props> = ({
   const filesChanged = useSceneFiles(excalidrawApi, drawing.id, {
     canUpload: true,
   });
+  const generateIdForFile = useMemo(
+    () => (excalidrawApi ? contentAddressedFileIds(excalidrawApi) : undefined),
+    [excalidrawApi],
+  );
 
   const sendUpdateIfNeeded = useCallback(
     ({ elements, appState }: SendUpdateProps) => {
@@ -355,6 +358,7 @@ const ExcalidrawWrapper: React.FC<Props> = ({
     <div className="absolute inset-0">
       <Excalidraw
         {...options}
+        generateIdForFile={generateIdForFile}
         theme={isDarkTheme ? Theme.DARK : Theme.LIGHT}
         excalidrawAPI={(api) => {
           setExcalidrawApi(api);
