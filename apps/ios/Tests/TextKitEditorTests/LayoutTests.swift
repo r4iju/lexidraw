@@ -67,6 +67,34 @@ import UIKit
     #expect(try caret("after").minY - (try caret("four")).maxY >= PlaceholderView.height, "the embed's room")
   }
 
+  /// A table wider than the text scrolls sideways to show the caret, and
+  /// no caret or selection in it is drawn past its edges.
+  @Test
+  func aWideTableShowsTheCaretAndNothingPastItsEdges() throws {
+    let view = try Self.host(TestDocuments.titledTable([["a", "b", "c", "hidden"]]))
+    #expect(view.becomeFirstResponder())
+    let text = try Self.text(of: view) as NSString
+    let table = NSRange(location: text.range(of: "a\n").location, length: NSMaxRange(text.range(of: "hidden")) - text.range(of: "a\n").location)
+    let width = view.textInputView.bounds.width
+    func shows(_ rect: CGRect) -> Bool { rect == .zero || (rect.minX >= 0 && rect.minX <= width) }
+
+    let end = try #require(view.position(from: view.beginningOfDocument, offset: NSMaxRange(table)))
+    view.selectedTextRange = view.textRange(from: end, to: end)
+    view.layoutIfNeeded()
+
+    let caret = view.caretRect(for: end)
+    #expect(caret != .zero && shows(caret), "\(caret) in a table \(width) wide")
+    let landed = try #require(view.closestPosition(to: CGPoint(x: caret.minX, y: caret.midY)))
+    #expect(view.offset(from: view.beginningOfDocument, to: landed) == NSMaxRange(table))
+    for offset in table.location...NSMaxRange(table) {
+      let position = try #require(view.position(from: view.beginningOfDocument, offset: offset))
+      #expect(shows(view.caretRect(for: position)), "caret at \(offset): \(view.caretRect(for: position))")
+    }
+    let start = try #require(view.position(from: view.beginningOfDocument, offset: table.location))
+    let rects = view.selectionRects(for: try #require(view.textRange(from: start, to: end))).map(\.rect)
+    #expect(!rects.isEmpty && rects.allSatisfy { $0.minX >= 0 && $0.maxX <= width }, "\(rects)")
+  }
+
   /// A selection from the paragraph before a table to the one after it is
   /// drawn over every caret in between.
   @Test

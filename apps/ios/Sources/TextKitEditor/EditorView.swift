@@ -50,6 +50,13 @@ public final class EditorView: UIScrollView, UITextInput {
     surface.addInteraction(interaction)
     isAccessibilityElement = true
     registerForTraitChanges([UITraitUserInterfaceStyle.self]) { (view: EditorView, _) in view.layout.redraw() }
+    // UIKit redraws the caret and selection only when told the selection
+    // changed, though here only where it is drawn did.
+    layout.onScrollSideways = { [weak self] in
+      guard let self else { return }
+      inputDelegate?.selectionWillChange(self)
+      inputDelegate?.selectionDidChange(self)
+    }
     render(nil)
   }
 
@@ -434,6 +441,7 @@ public final class EditorView: UIScrollView, UITextInput {
   }
 
   private func scrollToCaret() {
+    layout.scrollToShow(focus)
     let caret = caretRect(for: TextPosition(focus))
     guard caret != .zero else { return }
     scrollRectToVisible(surface.convert(caret, to: self).insetBy(dx: 0, dy: -BlockLayout.margin), animated: false)

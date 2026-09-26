@@ -2,8 +2,11 @@
 import UIKit
 
 /// A table's cells in a grid of equal columns, scrolling sideways when wider
-/// than its frame, as on the web. Cell geometry is in the table's own frame,
-/// where it is seen, rather than in its scrolled content.
+/// than its frame. Cell geometry is in the table's own frame, where it is
+/// seen, rather than in its scrolled content.
+///
+/// Its pan begins only on a sideways drag that starts over it, wherever
+/// the pan is (`TableHolder`).
 @MainActor final class TableView: UIScrollView {
   static let columnWidth: CGFloat = 140
   static let padding: CGFloat = 8
@@ -11,6 +14,9 @@ import UIKit
   private(set) var cells: [[TextBox]] = []
   private(set) var cellFrames: [[CGRect]] = []
   private let grid = GridView()
+  /// Called when the table has scrolled sideways.
+  var onScroll: (() -> Void)?
+  private var shownX: CGFloat = 0
 
   /// Each cell's text, ending with the newline that follows it.
   init(cells texts: [[NSAttributedString]]) {
@@ -59,7 +65,27 @@ import UIKit
 
   func redraw() { grid.setNeedsDisplay() }
 
-  final class GridView: UIView {
+  /// Scrolls sideways as little as shows the cell at `row` and `column`.
+  func scrollToShow(row: Int, column: Int) {
+    scrollRectToVisible(cellFrames[row][column], animated: false)
+  }
+
+  override func gestureRecognizerShouldBegin(_ recognizer: UIGestureRecognizer) -> Bool {
+    guard recognizer === panGestureRecognizer else { return super.gestureRecognizerShouldBegin(recognizer) }
+    let velocity = panGestureRecognizer.velocity(in: self)
+    return contentSize.width > bounds.width && bounds.contains(recognizer.location(in: self))
+      && abs(velocity.x) > abs(velocity.y) && super.gestureRecognizerShouldBegin(recognizer)
+  }
+
+  override func layoutSubviews() {
+    super.layoutSubviews()
+    if contentOffset.x != shownX {
+      shownX = contentOffset.x
+      onScroll?()
+    }
+  }
+
+  private final class GridView: UIView {
     weak var table: TableView?
 
     override init(frame: CGRect) {
@@ -82,6 +108,30 @@ import UIKit
             at: CGPoint(x: frame.minX + TableView.padding, y: frame.minY + TableView.padding), in: context)
         }
       }
+    }
+  }
+}
+
+/// A table with the room below it, which gives the table's pan to the view
+/// it is put in: a view that takes no touches, as a block's doesn't, holds
+/// a table that can't be dragged.
+@MainActor final class TableHolder: UIView {
+  let table: TableView
+
+  init(_ table: TableView) {
+    self.table = table
+    super.init(frame: .zero)
+    addSubview(table)
+  }
+
+  required init?(coder: NSCoder) { fatalError("TableHolder is made in code") }
+
+  override func willMove(toSuperview newSuperview: UIView?) {
+    super.willMove(toSuperview: newSuperview)
+    if let newSuperview {
+      newSuperview.addGestureRecognizer(table.panGestureRecognizer)
+    } else {
+      superview?.removeGestureRecognizer(table.panGestureRecognizer)
     }
   }
 }

@@ -30,6 +30,9 @@ import UIKit
   private var tops: [CGFloat] = [0]
   private var validTops = 0
   private var laidOut: [Int: any LaidOutBlock] = [:]
+  /// Called when a block has scrolled sideways within itself, moving the
+  /// text in it.
+  var onScrollSideways: (() -> Void)?
 
   /// Blocks laid out beyond those on screen, kept for geometry and scrolling
   /// back, before the farthest are let go.
@@ -155,7 +158,7 @@ import UIKit
     let block: any LaidOutBlock =
       switch kind {
       case .text: TextBlock(text: text, width: width)
-      case .table: TableBlock(text: text, kind: kind, width: width)
+      case .table: TableBlock(text: text, kind: kind, width: width) { [weak self] in self?.onScrollSideways?() }
       case .embedded(let type): EmbedBlock(type: type, width: width)
       }
     laidOut[index] = block
@@ -267,6 +270,14 @@ import UIKit
     return document.range(ofBlock: index).location + local
   }
 
+  /// Scrolls the block `offset` is in, where it scrolls within itself, to
+  /// show `offset`.
+  func scrollToShow(_ offset: Int) {
+    guard document.blockCount > 0 else { return }
+    let (_, block, _, local) = locate(offset)
+    block.reveal(local)
+  }
+
   /// The offset a line up or down from `offset`, keeping its place across
   /// the line, or nil where there is no line that way.
   func offset(movingVerticallyFrom offset: Int, up: Bool) -> Int? {
@@ -305,6 +316,12 @@ import UIKit
   func offset(closestTo point: CGPoint) -> Int
   func offset(movingVerticallyFrom offset: Int, up: Bool, x: CGFloat) -> Int?
   func lineBoundary(at offset: Int, backward: Bool) -> Int
+  /// Scrolls within the block, where it can, to show `offset`.
+  func reveal(_ offset: Int)
+}
+
+extension LaidOutBlock {
+  func reveal(_ offset: Int) {}
 }
 
 private final class TextBlock: LaidOutBlock {
@@ -360,12 +377,13 @@ private final class TableBlock: LaidOutBlock {
 
   private(set) var kind: DocumentText.BlockKind
   private let table: TableView
-  private let container = UIView()
+  private let holder: TableHolder
 
-  init(text: NSAttributedString, kind: DocumentText.BlockKind, width: CGFloat) {
+  init(text: NSAttributedString, kind: DocumentText.BlockKind, width: CGFloat, onScroll: @escaping () -> Void) {
     self.kind = kind
     table = TableView(cells: Self.cells(text, kind))
-    container.addSubview(table)
+    table.onScroll = onScroll
+    holder = TableHolder(table)
     table.frame = CGRect(x: 0, y: 0, width: width, height: table.height)
   }
 
@@ -380,7 +398,7 @@ private final class TableBlock: LaidOutBlock {
     }
   }
 
-  var view: UIView { container }
+  var view: UIView { holder }
   var height: CGFloat { table.height + Self.spacing }
   func canShow(_ kind: DocumentText.BlockKind) -> Bool { if case .table = kind { true } else { false } }
 
@@ -414,11 +432,17 @@ private final class TableBlock: LaidOutBlock {
         frames += table.cells[row][column].segments(local).map { $0.offsetBy(dx: origin.x, dy: origin.y) }
       }
     }
-    // A selection shows only where the table does.
-    return range.length == 0 ? frames : frames.compactMap {
-      let clipped = $0.intersection(CGRect(x: 0, y: 0, width: table.bounds.width, height: table.height))
-      return clipped.isNull || clipped.width == 0 ? nil : clipped
+    // A caret or selection shows only where the table does.
+    let shown = CGRect(x: 0, y: 0, width: table.bounds.width, height: table.height)
+    return frames.compactMap {
+      let clipped = $0.intersection(shown)
+      return clipped.isNull || (clipped.width == 0 && range.length > 0) ? nil : clipped
     }
+  }
+
+  func reveal(_ offset: Int) {
+    guard let (row, column, _) = cell(at: offset) else { return }
+    table.scrollToShow(row: row, column: column)
   }
 
   func offset(closestTo point: CGPoint) -> Int {
