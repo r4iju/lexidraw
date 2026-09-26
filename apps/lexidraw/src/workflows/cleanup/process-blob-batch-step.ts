@@ -7,6 +7,12 @@ import type { BlobReferences } from "./get-blob-references-step";
 const OWN_AUDIO = /^tts\/(?:doc|article)\/([^/]+)\//;
 
 /**
+ * A blob is stored before the row that points at it, so one newer than this
+ * before the references were read may be referenced by a row they missed.
+ */
+const UNRECORDED_FOR = 60 * 60 * 1000;
+
+/**
  * Whether nothing refers to a blob any more. Only the kinds of blob a row
  * refers to directly are judged: thumbnails, uploads, and a document's or an
  * article's own audio. Anything else, such as audio chunks shared through
@@ -41,8 +47,12 @@ export async function processBlobBatchStep(
     const listResult: ListBlobResult = await list({ cursor, limit: 500 });
 
     const urlsToDelete: string[] = [];
+    const judgedBefore = references.readAt - UNRECORDED_FOR;
     for (const blob of listResult.blobs) {
-      if (isOrphan(blob.pathname, pathnames, ttsJobIds)) {
+      if (
+        new Date(blob.uploadedAt).getTime() < judgedBefore &&
+        isOrphan(blob.pathname, pathnames, ttsJobIds)
+      ) {
         urlsToDelete.push(blob.url);
       }
     }

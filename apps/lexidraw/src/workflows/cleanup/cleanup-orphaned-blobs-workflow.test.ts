@@ -8,15 +8,17 @@ const db = await installServerRuntime();
 const { default: env } = await import("@packages/env");
 const HOST = new URL(env.VERCEL_BLOB_STORAGE_HOST).origin;
 
-const stored = new Set<string>();
+const stored = new Map<string, Date>();
+const LONG_AGO = new Date("2026-01-01T00:00:00Z");
 // `.env.test` carries a real store token, so nothing here may reach the store.
 const realBlob = await import("@vercel/blob");
 mock.module("@vercel/blob", () => ({
   ...realBlob,
   list: async () => ({
-    blobs: [...stored].map((pathname) => ({
+    blobs: [...stored].map(([pathname, uploadedAt]) => ({
       pathname,
       url: `${HOST}/${pathname}`,
+      uploadedAt,
     })),
     hasMore: false,
   }),
@@ -85,9 +87,16 @@ test("the cleanup deletes only blobs nothing refers to", async () => {
     "tts/doc/cleanup_gone/manifest.json",
     "tts/article/cleanup_gone/manifest.json",
   ];
-  for (const pathname of [...live, ...orphans]) stored.add(pathname);
+  for (const pathname of [...live, ...orphans]) {
+    stored.set(pathname, LONG_AGO);
+  }
+  // A new thumbnail is stored before its row points at it.
+  const unrecorded = `thumbnails/${DOC}/light-2.png`;
+  stored.set(unrecorded, new Date());
 
   await cleanupOrphanedBlobsWorkflow();
 
-  expect([...stored].toSorted()).toEqual(live.toSorted());
+  expect([...stored.keys()].toSorted()).toEqual(
+    [...live, unrecorded].toSorted(),
+  );
 });

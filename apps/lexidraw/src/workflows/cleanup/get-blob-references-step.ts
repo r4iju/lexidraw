@@ -8,6 +8,8 @@ export type BlobReferences = {
   pathnames: string[];
   /** Jobs whose audio lives under `tts/doc/<id>/` or `tts/article/<id>/`. */
   ttsJobIds: string[];
+  /** When they were read, in epoch milliseconds. */
+  readAt: number;
 };
 
 function pathnameFromUrl(url: string | null | undefined): string | null {
@@ -22,6 +24,7 @@ function pathnameFromUrl(url: string | null | undefined): string | null {
 export async function getBlobReferencesStep(): Promise<BlobReferences> {
   "use step";
 
+  const readAt = Date.now();
   const [thumbnails, images, videos, jobs] = await Promise.all([
     drizzle
       .select({
@@ -62,5 +65,6 @@ export async function getBlobReferencesStep(): Promise<BlobReferences> {
   return {
     pathnames: [...pathnames],
     ttsJobIds: jobs.map((job) => job.id),
+    readAt,
   };
 }
