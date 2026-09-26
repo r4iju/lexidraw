@@ -183,7 +183,7 @@ struct DrawingEditorScreen: View {
         ToolbarItemGroup(placement: .bottomBar) {
           Picker("Tool", selection: Binding(get: { editing.tool }, set: { editing.select($0) })) {
             ForEach(DrawingTool.allCases, id: \.self) { tool in
-              Label(tool.name, systemImage: tool.systemImage).tag(tool)
+              Label(tool.name, systemImage: tool.systemImage).accessibilityLabel(tool.name).tag(tool)
             }
           }
           .pickerStyle(.segmented)
