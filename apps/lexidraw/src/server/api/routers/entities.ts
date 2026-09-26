@@ -77,6 +77,7 @@ import {
   restoredParent,
 } from "~/server/entities/readable";
 import { storeThumbnail, thumbnailPathname } from "~/server/entities/thumbnail";
+import { askRenderWorker } from "~/server/render-worker";
 import {
   accessLevelOut,
   entityTypeOut,
@@ -1821,17 +1822,16 @@ export const entityRouter = createTRPCRouter({
             console.log("headless:fetch", { endpoint, url });
           }
           const controller = AbortSignal.timeout(15000);
-          const res = await fetch(endpoint, {
-            method: "POST",
-            headers: { "content-type": "application/json" },
-            body: JSON.stringify({
+          const res = await askRenderWorker(
+            endpoint,
+            {
               url,
               cookiesHeader,
               waitUntil: "domcontentloaded",
               timeoutMs: 15000,
-            }),
-            signal: controller,
-          });
+            },
+            { signal: controller },
+          );
           if (res.ok) {
             const ct = res.headers.get("content-type") || "";
             if (ct.includes("application/json")) {

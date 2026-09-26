@@ -2,6 +2,7 @@ import "server-only";
 
 import env from "@packages/env";
 import { RetryableError } from "workflow";
+import { askRenderWorker } from "~/server/render-worker";
 
 export async function renderScreenshotStep(
   pageUrl: string,
@@ -19,10 +20,9 @@ export async function renderScreenshotStep(
   const targetH = 480;
 
   try {
-    const r = await fetch(`${env.HEADLESS_RENDER_URL}/api/screenshot`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
+    const r = await askRenderWorker(
+      `${env.HEADLESS_RENDER_URL}/api/screenshot`,
+      {
         url: pageUrl,
         selector: `#screenshot-root`,
         viewport: { width: targetW, height: targetH, deviceScaleFactor: 2 },
@@ -30,8 +30,8 @@ export async function renderScreenshotStep(
         waitUntil: "networkidle2",
         timeoutMs: 15000,
         theme,
-      }),
-    });
+      },
+    );
 
     if (!r.ok) {
       const status = r.status;

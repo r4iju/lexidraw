@@ -3,21 +3,21 @@ import * as net from "node:net";
 import { reachable } from "@packages/lib/public-address";
 import type { Browser, Viewport } from "puppeteer-core";
 import { launchBrowser } from "./launch-browser";
-import { type Check, publicCheck } from "./public-requests";
+import type { Check } from "./public-requests";
 
 /**
- * Chromium that reaches only public addresses, at the address each was
- * checked to be: every connection it makes, navigations, redirects,
- * subresources, frames and scripts' requests alike, goes through a proxy
- * that looks the host up, checks it, and connects to what it checked, so
- * Chromium never looks a host up itself.
+ * Chromium that reaches only what `check` allows, at the address it gave:
+ * every connection it makes, navigations, redirects, subresources, frames
+ * and scripts' requests alike, goes through a proxy that checks the host
+ * and connects to what the check answered, so Chromium never looks a host
+ * up itself.
  */
 export async function launchGuardedBrowser({
   viewport,
-  check = publicCheck,
+  check,
 }: {
   viewport: Viewport;
-  check?: Check;
+  check: Check;
 }): Promise<Browser> {
   const proxy = await startGuardProxy(check);
   try {
