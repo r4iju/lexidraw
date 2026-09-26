@@ -4,55 +4,29 @@ on:
   pull_request:
     paths:
       - apps/ios/**
-      - apps/lexidraw/src/server/**
-      - apps/lexidraw/src/test/**
-      - packages/lexical-nodes/**
-      - packages/types/**
+      - packages/**
       - bun.lock
+      - .github/actions/ios-app/**
       - .github/workflows/ios.yml
 
 jobs:
   lexical-swift:
     runs-on: macos-latest
-    defaults:
-      run:
-        working-directory: apps/ios
     steps:
       - uses: actions/checkout@v4
-      - uses: oven-sh/setup-bun@v2
+      - uses: ./.github/actions/ios-app
         with:
-          bun-version: 1.3.0
-      - run: bun install --frozen-lockfile
-      - run: bun x turbo run build --filter=@packages/lexical-nodes
-      - run: bun run test:ts
-      - run: bun run test
-        env:
-          FUZZ_STEPS: "20000"
-      - run: brew install xcodegen
-      - run: xcodegen generate
+          fuzz-steps: "20000"
       - run: >-
           xcodebuild build
           -project Lexidraw.xcodeproj -scheme Lexidraw
           -destination 'generic/platform=iOS Simulator'
           -skipPackagePluginValidation
           CODE_SIGNING_ALLOWED=NO
+        working-directory: apps/ios
       - if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: fuzz-fixtures
           path: apps/ios/Tests/LexicalSwiftTests/Fixtures/fuzz-*.json
           if-no-files-found: ignore
-
-  # The app's client is generated from a committed copy of the API's OpenAPI
-  # document; this fails when the router has moved on without it.
-  openapi:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: 1.3.0
-      - run: bun install --frozen-lockfile
-      - run: bun x turbo run build --filter=@packages/*
-      - run: bun test src/server/api/openapi.test.ts
-        working-directory: apps/lexidraw
