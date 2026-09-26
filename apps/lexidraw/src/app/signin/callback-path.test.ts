@@ -14,6 +14,7 @@ describe("where sign-in returns to", () => {
       "//evil.example/",
       "/\\evil.example/",
       "/\t/evil.example/",
+      "/a/..//evil.example/",
       "javascript:alert(1)",
       undefined,
       ["/a", "/b"],

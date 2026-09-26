@@ -10,8 +10,12 @@ export function callbackPath(value: unknown): string {
   if (typeof value !== "string" || !value.startsWith("/")) return FALLBACK;
   try {
     const url = new URL(value, BASE);
-    if (url.origin !== BASE) return FALLBACK;
-    return `${url.pathname}${url.search}${url.hash}`;
+    const path = `${url.pathname}${url.search}${url.hash}`;
+    // Dot segments can normalise to `//host`, which is another site again.
+    if (url.origin !== BASE || new URL(path, BASE).origin !== BASE) {
+      return FALLBACK;
+    }
+    return path;
   } catch {
     return FALLBACK;
   }
