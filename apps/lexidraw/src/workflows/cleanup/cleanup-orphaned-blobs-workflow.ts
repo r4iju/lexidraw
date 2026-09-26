@@ -1,9 +1,9 @@
 import "server-only";
 
-// This workflow coordinates durable blob cleanup: get DB pathnames → process batches → delete orphans.
+// This workflow coordinates durable blob cleanup: read what the database refers to → process batches → delete orphans.
 // Steps are written to be idempotent and safe to retry.
 
-import { getDbBlobPathnamesStep } from "./get-db-blob-pathnames-step";
+import { getBlobReferencesStep } from "./get-blob-references-step";
 import { processBlobBatchStep } from "./process-blob-batch-step";
 
 export async function cleanupOrphanedBlobsWorkflow(
@@ -13,11 +13,11 @@ export async function cleanupOrphanedBlobsWorkflow(
 
   console.log("[cleanup][wf] start", { cursor });
 
-  // Get all blob pathnames referenced in the database
-  const dbBlobPathnames = await getDbBlobPathnamesStep();
+  const references = await getBlobReferencesStep();
 
-  console.log("[cleanup][wf] db pathnames collected", {
-    count: dbBlobPathnames.length,
+  console.log("[cleanup][wf] references collected", {
+    count: references.pathnames.length,
+    ttsJobs: references.ttsJobIds.length,
   });
 
   let totalDeleted = 0;
@@ -25,7 +25,7 @@ export async function cleanupOrphanedBlobsWorkflow(
 
   // Process batches until no more blobs
   do {
-    const result = await processBlobBatchStep(dbBlobPathnames, currentCursor);
+    const result = await processBlobBatchStep(references, currentCursor);
 
     totalDeleted += result.deletedCount;
 
