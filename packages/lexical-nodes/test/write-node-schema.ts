@@ -4,9 +4,9 @@ import {
   NODE_SCHEMA_URL,
   nodeSchemaFile,
 } from "../src/node-schema.js";
-import { CORE_NODES } from "../src/nodes.js";
+import { SCHEMA_NODES } from "../src/nodes.js";
 
 await Bun.write(
   fileURLToPath(NODE_SCHEMA_URL),
-  nodeSchemaFile(exportNodeSchema(CORE_NODES)),
+  nodeSchemaFile(exportNodeSchema(SCHEMA_NODES)),
 );

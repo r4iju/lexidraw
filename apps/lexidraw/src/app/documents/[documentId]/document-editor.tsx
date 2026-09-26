@@ -25,7 +25,6 @@ import { ListPlugin } from "@lexical/react/LexicalListPlugin";
 import { CheckListPlugin } from "@lexical/react/LexicalCheckListPlugin";
 import MarkdownShortcutPlugin from "./plugins/MarkdownShortcutPlugin";
 import { TabIndentationPlugin } from "@lexical/react/LexicalTabIndentationPlugin";
-import { HorizontalRuleNode } from "@lexical/react/LexicalHorizontalRuleNode";
 import { HorizontalRulePlugin } from "@lexical/react/LexicalHorizontalRulePlugin";
 import { DocumentTablesPlugin } from "./plugins/DocumentTablesPlugin";
 import { ClickableLinkPlugin } from "@lexical/react/LexicalClickableLinkPlugin";
@@ -39,6 +38,7 @@ import LinkPlugin from "./plugins/LinkPlugin";
 import { RichTextPlugin } from "@lexical/react/LexicalRichTextPlugin";
 import { OnChangePlugin } from "@lexical/react/LexicalOnChangePlugin";
 import { MEASURED_TAG } from "./nodes/common/natural-size";
+import { DOCUMENT_NODES } from "./nodes/document-nodes";
 import DraggableBlockPlugin from "./plugins/DraggableBlockPlugin";
 import ToolbarPlugin from "./plugins/ToolbarPlugin";
 import { LexicalComposer } from "@lexical/react/LexicalComposer";
@@ -58,21 +58,12 @@ import AutoEmbedPlugin from "./plugins/AutoEmbedPlugin";
 import FloatingTextFormatToolbarPlugin from "./plugins/FloatingTextFormatToolbarPlugin";
 import TableCellResizer from "./plugins/TableCellResizer";
 import TableActionMenuPlugin from "./plugins/TableActionMenuPlugin";
-import { ImageNode } from "./nodes/ImageNode/ImageNode";
 import ImagePlugin from "./plugins/ImagePlugin";
 import InlineImagePlugin from "./plugins/InlineImagePlugin";
-import { InlineImageNode } from "./nodes/InlineImageNode/InlineImageNode";
-import { CORE_NODES } from "@packages/lexical-nodes";
 import { Skeleton } from "~/components/ui/skeleton";
 import TwitterPlugin from "./plugins/TwitterPlugin";
 import YouTubePlugin from "./plugins/YouTubePlugin";
-import { TweetNode } from "./nodes/TweetNode";
-import { YouTubeNode } from "./nodes/YouTubeNode";
 import ExcalidrawPlugin from "./plugins/ExcalidrawPlugin";
-import { ExcalidrawNode } from "./nodes/ExcalidrawNode";
-import { FigmaNode } from "./nodes/FigmaNode";
-import { EquationNode } from "./nodes/EquationNode";
-import { FootnoteReferenceNode } from "./nodes/FootnoteNode";
 import FigmaPlugin from "./plugins/FigmaPlugin";
 import EquationsPlugin from "./plugins/EquationsPlugin";
 import { useLexicalEditable } from "@lexical/react/useLexicalEditable";
@@ -86,17 +77,11 @@ import { LLMWidget } from "./plugins/AutocompletePlugin/LLMWidget";
 import { ToolbarContext } from "./context/toolbar-context";
 import ListMaxIndentLevelPlugin from "./plugins/ListMaxIndentLevelPlugin";
 import PageBreakPlugin from "./plugins/PageBreakPlugin";
-import { PageBreakNode } from "./nodes/PageBreakNode";
 import PollPlugin from "./plugins/PollPlugin";
-import { PollNode } from "./nodes/PollNode";
-import { StickyNode } from "./nodes/StickyNode";
 import EmojiPickerPlugin from "./plugins/EmojiPickerPlugin";
 import TreeViewPlugin from "./plugins/TreeViewPlugin";
 import { useDeveloperFlag } from "~/lib/developer-flag";
 import { SlidePlugin } from "./plugins/SlidePlugin";
-import { SlideNode } from "./nodes/SlideNode/SlideNode";
-import { CommentNode } from "./nodes/CommentNode";
-import { ThreadNode } from "./nodes/ThreadNode";
 import { DisableChecklistSpacebarPlugin } from "./plugins/list-spacebar-plugin";
 import {
   UnsavedChangesProvider,
@@ -144,7 +129,6 @@ import {
   ImageProvider,
 } from "~/hooks/use-image-insertion";
 import VideoPlugin from "./plugins/VideoPlugin";
-import { VideoNode } from "./nodes/VideoNode/VideoNode";
 import {
   documentFont,
   documentLanguage,
@@ -160,7 +144,6 @@ import {
 import { SidebarWrapper } from "~/components/ui/sidebar-wrapper";
 import { CommentInputBox } from "./plugins/CommentPlugin";
 import MermaidPlugin from "./plugins/MermaidPlugin";
-import { MermaidNode } from "./nodes/MermaidNode";
 import { useMarkdownTools, type MarkdownInsertMode } from "./utils/markdown";
 import {
   DocumentSettingsProvider,
@@ -170,10 +153,8 @@ import {
 import { EditorRegistryProvider } from "./context/editors-context";
 import { SignedInProvider, useSignedIn } from "./context/signed-in-context";
 import ChartPlugin from "./plugins/ChartPlugin";
-import { ChartNode } from "./nodes/ChartNode";
 import MobileCheckListPlugin from "./plugins/MobileCheckListPlugin";
 import ArticlePlugin from "./plugins/ArticlePlugin";
-import { ArticleNode } from "./nodes/ArticleNode/ArticleNode";
 import { useLayoutClass } from "~/hooks/use-media-query";
 import { ListenControls, ListenProvider } from "./plugins/TtsToolbar";
 
@@ -1074,33 +1055,6 @@ export default function DocumentEditor({
 
   const appState = documentSettings(entity.appState);
 
-  const lexicalNodes: Klass<LexicalNode>[] = [
-    ...CORE_NODES,
-    // The classes below share their types with headless nodes in CORE_NODES.
-    // Lexical keeps the last class registered per type and instantiates it
-    // everywhere (importJSON, markdown import, $create), so listing the React
-    // subclasses after the core set gives every node its component.
-    HorizontalRuleNode,
-    SlideNode,
-    CommentNode,
-    ThreadNode,
-    ImageNode,
-    InlineImageNode,
-    VideoNode,
-    TweetNode,
-    YouTubeNode,
-    ExcalidrawNode,
-    MermaidNode,
-    ChartNode,
-    FigmaNode,
-    EquationNode,
-    PageBreakNode,
-    PollNode,
-    StickyNode,
-    ArticleNode,
-    FootnoteReferenceNode,
-  ];
-
   return (
     <SignedInProvider value={signedIn}>
       <DocumentTitleProvider value={entity.title}>
@@ -1114,7 +1068,7 @@ export default function DocumentEditor({
             setEditorStateRef={setEditorStateRef}
             iceServers={iceServers}
             initialLlmConfig={initialLlmConfig}
-            nodes={lexicalNodes}
+            nodes={DOCUMENT_NODES}
             renderMode={renderMode}
             frame={frame}
           />

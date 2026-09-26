@@ -15,9 +15,9 @@ const YouTubeComponent = React.lazy(() => import("./YouTubeComponent"));
 
 /** React half of the package's YouTubeNode; see ImageNode. */
 export class YouTubeNode extends HeadlessYouTubeNode {
-  static getType = HeadlessYouTubeNode.getType;
-  static clone = HeadlessYouTubeNode.clone;
-  static importJSON = HeadlessYouTubeNode.importJSON;
+  $config() {
+    return this.config("youtube", { extends: HeadlessYouTubeNode });
+  }
 
   decorate(_editor: LexicalEditor, config: EditorConfig): React.JSX.Element {
     const embedBlockTheme = config.theme.embedBlock || {};

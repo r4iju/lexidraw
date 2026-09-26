@@ -1,49 +1,70 @@
-import type {
-  Klass,
-  EditorConfig,
-  LexicalNode,
-  NodeKey,
-  SerializedLexicalNode,
-  Spread,
+import {
+  $create,
+  DecoratorNode,
+  type EditorConfig,
+  type Klass,
+  type LexicalNode,
+  type NodeKey,
+  nodeSchema,
+  type SerializedLexicalNode,
+  type Spread,
+  withField,
 } from "lexical";
-import { $create, DecoratorNode } from "lexical";
-import { $importNodeState, figureDOM, nodeStateJSON } from "../figure.js";
+import { figureDOM, figureState } from "../figure.js";
+import { rawValueOr, type SchemaJSON } from "../schema-values.js";
+import {
+  type ImportJSON,
+  storedFields,
+  withStoredJSON,
+  written,
+} from "../stored-fields.js";
+import { type Size, zeroAsInheritSize } from "./stored-size.js";
 
-export type ChartType = "bar" | "line" | "pie";
+/** Every chart a chart node or slide can draw. */
+export const CHART_TYPES = [
+  "bar",
+  "line",
+  "area",
+  "pie",
+  "radar",
+  "scatter",
+  "composed",
+] as const;
+
+export type ChartType = (typeof CHART_TYPES)[number];
+
+const { fields: chartFields, json: chartJSON } = storedFields({
+  type: written,
+  version: written,
+  chartType: withField(rawValueOr<ChartType>("bar"), { field: "__chartType" }),
+  chartData: withField(rawValueOr("[]"), { field: "__chartData" }),
+  chartConfig: withField(rawValueOr("{}"), { field: "__chartConfig" }),
+  width: withField(zeroAsInheritSize, { field: "__width" }),
+  height: withField(zeroAsInheritSize, { field: "__height" }),
+  $: written,
+});
 
 export type SerializedChartNode = Spread<
-  {
-    type: "chart";
-    version: 1;
-    chartType: ChartType;
-    chartData: string;
-    chartConfig: string;
-    width?: number | "inherit";
-    height?: number | "inherit";
-  },
+  SchemaJSON<typeof chartJSON>,
   SerializedLexicalNode
 >;
 
+const chartSchema = nodeSchema<ChartNode>()(chartFields);
+
 export class ChartNode extends DecoratorNode<unknown> {
+  declare static importJSON: ImportJSON<ChartNode>;
   __chartType: ChartType;
   __chartData: string;
   __chartConfig: string;
   __width: number | "inherit";
   __height: number | "inherit";
 
-  static getType() {
-    return "chart";
-  }
-
-  static clone(node: ChartNode) {
-    return new this(
-      node.__chartType,
-      node.__chartData,
-      node.__chartConfig,
-      node.__width,
-      node.__height,
-      node.__key,
-    );
+  $config() {
+    return this.config("chart", {
+      extends: DecoratorNode,
+      json: chartSchema,
+      stateConfigs: [figureState],
+    });
   }
 
   constructor(
@@ -102,32 +123,6 @@ export class ChartNode extends DecoratorNode<unknown> {
     this.getWritable().__height = h;
   }
 
-  exportJSON(): SerializedChartNode {
-    return {
-      type: "chart",
-      version: 1,
-      chartType: this.__chartType,
-      chartData: this.__chartData,
-      chartConfig: this.__chartConfig,
-      width: this.__width,
-      height: this.__height,
-      ...nodeStateJSON(super.exportJSON()),
-    };
-  }
-
-  static importJSON(node: SerializedChartNode): ChartNode {
-    return $importNodeState(
-      ChartNode.$createChartNode({
-        chartType: node.chartType,
-        chartData: node.chartData,
-        chartConfig: node.chartConfig,
-        width: node.width,
-        height: node.height,
-      }),
-      node,
-    );
-  }
-
   static $createChartNode<T extends ChartNode>(
     this: Klass<T>,
     {
@@ -176,3 +171,5 @@ export class ChartNode extends DecoratorNode<unknown> {
     return false;
   }
 }
+
+withStoredJSON(ChartNode);

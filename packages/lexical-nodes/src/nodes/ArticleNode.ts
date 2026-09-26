@@ -3,63 +3,112 @@ import {
   type SerializedDecoratorBlockNode,
 } from "@lexical/react/LexicalDecoratorBlockNode";
 import type { ArticleNodeData } from "@packages/types";
-import type {
-  DOMExportOutput,
-  ElementFormatType,
-  Klass,
-  LexicalNode,
-  NodeKey,
-  Spread,
+import {
+  $create,
+  type DOMExportOutput,
+  type ElementFormatType,
+  enumValue,
+  type Klass,
+  type LexicalNode,
+  type NodeKey,
+  nodeSchema,
+  nullable,
+  numberValue,
+  objectValue,
+  optional,
+  type Spread,
+  stringValue,
+  unionValue,
+  withField,
 } from "lexical";
-import { $create } from "lexical";
+import {
+  emptyOrStored,
+  type SchemaJSON,
+  shapedAs,
+  storedValue,
+} from "../schema-values.js";
+import {
+  type ImportJSON,
+  storedFields,
+  withStoredJSON,
+  written,
+} from "../stored-fields.js";
+
+const optionalText = () => optional(nullable(stringValue()));
+
+/** What an entity's snapshot keeps of a distilled page. */
+const articleSnapshotFields = {
+  title: stringValue(),
+  byline: optionalText(),
+  siteName: optionalText(),
+  wordCount: optional(nullable(numberValue())),
+  updatedAt: optional(stringValue()),
+  contentHtml: stringValue(),
+  bestImageUrl: optionalText(),
+};
+
+/** What an article made without data holds. */
+const DEFAULT_DATA: ArticleNodeData = {
+  mode: "url",
+  url: "",
+  distilled: { title: "", contentHtml: "" },
+};
+
+/** An article's data, as `ArticleNodeData` describes it. */
+const articleDataShape = unionValue([
+  objectValue({
+    mode: enumValue(["url"]),
+    url: stringValue(),
+    distilled: objectValue({
+      ...articleSnapshotFields,
+      excerpt: optionalText(),
+      datePublished: optionalText(),
+    }),
+  }),
+  objectValue({
+    mode: enumValue(["entity"]),
+    entityId: stringValue(),
+    snapshot: optional(objectValue(articleSnapshotFields)),
+  }),
+]);
+
+const { fields: articleFields, json: articleJSON } = storedFields({
+  format: withField(emptyOrStored<ElementFormatType>(), { field: "__format" }),
+  type: written,
+  version: written,
+  data: withField(shapedAs(articleDataShape, storedValue<ArticleNodeData>()), {
+    field: "__data",
+  }),
+});
 
 export type SerializedArticleNode = Spread<
-  {
-    data: ArticleNodeData;
-  },
+  SchemaJSON<typeof articleJSON>,
   SerializedDecoratorBlockNode
 >;
+
+const articleSchema = nodeSchema<ArticleNode>()(articleFields);
 
 /**
  * Serialization half of the article block; see ImageNode for the split.
  */
 export class ArticleNode extends DecoratorBlockNode {
+  declare static importJSON: ImportJSON<ArticleNode>;
   __data: ArticleNodeData;
 
-  static getType(): string {
-    return "article";
-  }
-
-  static clone(node: ArticleNode): ArticleNode {
-    return new this(node.__data, node.__format, node.__key);
+  $config() {
+    return this.config("article", {
+      extends: DecoratorBlockNode,
+      json: articleSchema,
+    });
   }
 
   constructor(
-    data: ArticleNodeData = {
-      mode: "url",
-      url: "",
-      distilled: { title: "", contentHtml: "" },
-    },
+    data: ArticleNodeData = DEFAULT_DATA,
     format?: ElementFormatType,
     key?: NodeKey,
   ) {
     super(format, key);
     this.__data = data;
-  }
-
-  static importJSON(serializedNode: SerializedArticleNode): ArticleNode {
-    const node = ArticleNode.$createArticleNode(serializedNode.data);
-    node.setFormat(serializedNode.format || "");
-    return node;
-  }
-
-  exportJSON(): SerializedArticleNode {
-    return {
-      ...super.exportJSON(),
-      type: ArticleNode.getType(),
-      version: 1,
-      data: this.__data,
-    } as SerializedArticleNode;
   }
 
   exportDOM(): DOMExportOutput {
@@ -95,3 +144,5 @@ export class ArticleNode extends DecoratorBlockNode {
     w.__data = next;
   }
 }
+
+withStoredJSON(ArticleNode);

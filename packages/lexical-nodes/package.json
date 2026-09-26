@@ -10,6 +10,7 @@
     "test:ts": "bun x tsgo --noEmit --project tsconfig.json",
     "test": "bun test",
     "node-schema": "bun test/write-node-schema.ts",
+    "stored-bytes": "bun test/stored-bytes.ts",
     "clean": "rm tsconfig.tsbuildinfo && rm -rf ./dist && rm -rf .turbo && rm -rf node_modules"
   },
   "sideEffects": false,

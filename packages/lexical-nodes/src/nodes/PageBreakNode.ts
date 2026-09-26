@@ -5,28 +5,34 @@ import {
   type DOMConversionMap,
   type DOMConversionOutput,
   type LexicalNode,
-  type NodeKey,
+  nodeSchema,
   type SerializedLexicalNode,
   type Klass,
 } from "lexical";
+import {
+  type ImportJSON,
+  storedFields,
+  withStoredJSON,
+  written,
+} from "../stored-fields.js";
 
 export type SerializedPageBreakNode = SerializedLexicalNode;
 
+const { fields: pageBreakFields } = storedFields({
+  type: written,
+  version: written,
+});
+
+const pageBreakSchema = nodeSchema<PageBreakNode>()(pageBreakFields);
+
 export class PageBreakNode extends DecoratorNode<unknown> {
-  static getType(): string {
-    return "page-break";
-  }
+  declare static importJSON: ImportJSON<PageBreakNode>;
 
-  static clone(node: PageBreakNode): PageBreakNode {
-    return new this(node.__key);
-  }
-
-  constructor(key?: NodeKey) {
-    super(key);
-  }
-
-  static importJSON(_serializedNode: SerializedPageBreakNode): PageBreakNode {
-    return PageBreakNode.$createPageBreakNode();
+  $config() {
+    return this.config("page-break", {
+      extends: DecoratorNode,
+      json: pageBreakSchema,
+    });
   }
 
   static importDOM(): DOMConversionMap | null {
@@ -42,13 +48,6 @@ export class PageBreakNode extends DecoratorNode<unknown> {
           priority: COMMAND_PRIORITY_HIGH,
         };
       },
-    };
-  }
-
-  exportJSON(): SerializedLexicalNode {
-    return {
-      type: this.getType(),
-      version: 1,
     };
   }
 
@@ -87,3 +86,5 @@ export class PageBreakNode extends DecoratorNode<unknown> {
     return node instanceof PageBreakNode;
   }
 }
+
+withStoredJSON(PageBreakNode);

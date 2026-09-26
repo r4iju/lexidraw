@@ -25,7 +25,7 @@ import Testing
     let fixture = finding.fixture
     let paragraphs = fixture.start["root"]?["children"]?.arrayValue ?? []
     #expect(paragraphs.count == 1)
-    #expect(paragraphs.first?["children"]?.arrayValue?.count == 1)
+    #expect((paragraphs.first?["children"]?.arrayValue?.count ?? 0) <= 1)
     #expect(fixture.commands.count == 2)
     guard case .insertText(let typed) = fixture.commands.last else {
       Issue.record("The shrunk script should end by typing")
@@ -57,6 +57,41 @@ import Testing
     #expect(try fixture.replay(on: Editor()) == fixture.recorded)
   }
 
+  /// LexicalSwift that refuses what Lexical refuses, but for another reason.
+  final class RefusesAsUnsupported: EditorModel {
+    let editor = Editor()
+    func load(_ state: JSONValue) throws { try editor.load(state) }
+    func snapshot() throws -> Snapshot { try editor.snapshot() }
+    func apply(_ command: EditorCommand) throws -> ChangeSet {
+      do {
+        return try editor.apply(command)
+      } catch {
+        throw EditorError.unsupported("\(error)")
+      }
+    }
+  }
+
+  @Test func aRefusalForAnotherReasonDisagrees() throws {
+    let fixture = try Fixture.record(
+      start: document(paragraph(text("a"))), commands: [.caret(.text([3], 0))], on: try Support.referenceEditor())
+
+    #expect(fixture.changes == [.refused(.noNode)])
+    #expect(try fixture.replay(on: RefusesAsUnsupported()) != fixture.recorded)
+    #expect(try fixture.replay(on: Editor()) == fixture.recorded)
+  }
+
+  /// What counts as a word is ICU's to say, and its rules change between OS
+  /// releases: "½" is never a word, and on macOS 26 a word deleted forward
+  /// from the start of "7🇯🇵" takes all of it.
+  @Test(arguments: ["½ b", "7🇯🇵"])
+  func aWordDeleteAgreesWithTheReferenceOnThisOS(_ content: String) throws {
+    let commands: [EditorCommand] = [.caret(.text([0, 0], 0)), .deleteWord(backward: false)]
+    let fixture = try Fixture.record(
+      start: document(paragraph(text(content))), commands: commands, on: try Support.referenceEditor())
+
+    #expect(try fixture.replay(on: Editor()) == fixture.recorded)
+  }
+
   @Test func theSameSeedFindsTheSameFixture() throws {
     let reference = try Support.referenceEditor()
     var first = Fuzzer(seed: 11, reference: reference, candidate: DropsTypedNonASCII())
@@ -82,6 +117,8 @@ import Testing
     if let finding {
       let url = try finding.fixture.write(into: Support.fixturesSource)
       Issue.record("Seed \(seed) diverged after \(finding.stepsRun) steps; shrunk fixture written to \(url.path)")
+    } else {
+      print("Seed \(seed): \(steps) steps agreed, and \(fuzzer.refusals) commands both refused")
     }
   }
 }

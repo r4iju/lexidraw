@@ -17,6 +17,7 @@ jobs:
       - uses: ./.github/actions/ios-app
         with:
           fuzz-steps: "20000"
+          corpus-token: ${{ secrets.LEXIDRAW_CORPUS_TOKEN }}
       - run: >-
           xcodebuild build
           -project Lexidraw.xcodeproj -scheme Lexidraw

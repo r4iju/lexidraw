@@ -18,9 +18,9 @@ const ExcalidrawComponent = React.lazy(() => import("./ExcalidrawComponent"));
 
 /** React half of the package's ExcalidrawNode; see ImageNode. */
 export class ExcalidrawNode extends HeadlessExcalidrawNode {
-  static getType = HeadlessExcalidrawNode.getType;
-  static clone = HeadlessExcalidrawNode.clone;
-  static importJSON = HeadlessExcalidrawNode.importJSON;
+  $config() {
+    return this.config("excalidraw", { extends: HeadlessExcalidrawNode });
+  }
 
   decorate(): React.JSX.Element {
     const natural = $getNaturalSize(this);

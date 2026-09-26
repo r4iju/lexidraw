@@ -4,11 +4,23 @@ import {
   type DOMExportOutput,
   type ElementDOMSlot,
   ElementNode,
+  enumValue,
   type LexicalNode,
   type NodeKey,
+  nodeSchema,
   type SerializedElementNode,
   type Spread,
+  stringValue,
+  withField,
 } from "lexical";
+import type { SchemaJSON } from "../schema-values.js";
+import {
+  type ImportJSON,
+  storedFields,
+  withStoredJSON,
+  written,
+} from "../stored-fields.js";
+import { writtenElementFields } from "./stored-element.js";
 
 /** GitHub's five alert kinds, the only ones a callout stores. */
 export const CALLOUT_KINDS = [
@@ -31,11 +43,6 @@ export const CALLOUT_LABELS: Record<CalloutKind, string> = {
 
 export const isCalloutKind = (value: unknown): value is CalloutKind =>
   CALLOUT_KINDS.includes(value as CalloutKind);
-
-export type SerializedCalloutNode = Spread<
-  { kind: CalloutKind; title: string },
-  SerializedElementNode
->;
 
 /**
  * The header is the node's own chrome, drawn beside the children rather than
@@ -76,7 +83,24 @@ function $convertCalloutElement(domNode: HTMLElement): DOMConversionOutput {
   };
 }
 
+const { fields: calloutFields, json: calloutJSON } = storedFields({
+  ...writtenElementFields,
+  type: written,
+  version: written,
+  $: written,
+  kind: withField(enumValue(CALLOUT_KINDS), { field: "__kind" }),
+  title: withField(stringValue(), { field: "__title" }),
+});
+
+export type SerializedCalloutNode = Spread<
+  SchemaJSON<typeof calloutJSON>,
+  SerializedElementNode
+>;
+
+const calloutSchema = nodeSchema<CalloutNode>()(calloutFields);
+
 export class CalloutNode extends ElementNode {
+  declare static importJSON: ImportJSON<CalloutNode>;
   __kind: CalloutKind;
   __title: string;
 
@@ -86,12 +110,11 @@ export class CalloutNode extends ElementNode {
     this.__title = title;
   }
 
-  static getType(): string {
-    return "callout";
-  }
-
-  static clone(node: CalloutNode): CalloutNode {
-    return new CalloutNode(node.__kind, node.__title, node.__key);
+  $config() {
+    return this.config("callout", {
+      extends: ElementNode,
+      json: calloutSchema,
+    });
   }
 
   createDOM(): HTMLElement {
@@ -128,23 +151,6 @@ export class CalloutNode extends ElementNode {
         domNode.dataset.calloutKind !== undefined
           ? { conversion: $convertCalloutElement, priority: 2 }
           : null,
-    };
-  }
-
-  static importJSON(json: SerializedCalloutNode): CalloutNode {
-    return CalloutNode.$createCalloutNode(
-      isCalloutKind(json.kind) ? json.kind : "note",
-      typeof json.title === "string" ? json.title : "",
-    ).updateFromJSON(json);
-  }
-
-  exportJSON(): SerializedCalloutNode {
-    return {
-      ...super.exportJSON(),
-      kind: this.getKind(),
-      title: this.getTitle(),
-      type: "callout",
-      version: 1,
     };
   }
 
@@ -189,3 +195,5 @@ export class CalloutNode extends ElementNode {
     return node instanceof CalloutNode;
   }
 }
+
+withStoredJSON(CalloutNode);

@@ -1,23 +1,25 @@
-import type {
-  Klass,
-  DOMConversionMap,
-  DOMConversionOutput,
-  DOMExportOutput,
-  EditorConfig,
-  LexicalNode,
-  NodeKey,
-  SerializedLexicalNode,
-  Spread,
+import {
+  $create,
+  DecoratorNode,
+  type DOMConversionMap,
+  type DOMConversionOutput,
+  type DOMExportOutput,
+  type EditorConfig,
+  type Klass,
+  type LexicalNode,
+  type NodeKey,
+  nodeSchema,
+  type SerializedLexicalNode,
+  type Spread,
+  withField,
 } from "lexical";
-import { $create, DecoratorNode } from "lexical";
-
-export type SerializedEquationNode = Spread<
-  {
-    equation: string;
-    inline: boolean;
-  },
-  SerializedLexicalNode
->;
+import { rawValueOr, type SchemaJSON } from "../schema-values.js";
+import {
+  type ImportJSON,
+  storedFields,
+  withStoredJSON,
+  written,
+} from "../stored-fields.js";
 
 function $convertEquationElement(
   domNode: HTMLElement,
@@ -34,43 +36,41 @@ function $convertEquationElement(
   return null;
 }
 
+const { fields: equationFields, json: equationJSON } = storedFields({
+  equation: withField(rawValueOr(""), { field: "__equation" }),
+  inline: withField(rawValueOr(false), { field: "__inline" }),
+  type: written,
+  version: written,
+});
+
+export type SerializedEquationNode = Spread<
+  SchemaJSON<typeof equationJSON>,
+  SerializedLexicalNode
+>;
+
+const equationSchema = nodeSchema<EquationNode>()(equationFields);
+
 /**
  * The editor's subclass renders the equation with KaTeX in `exportDOM`;
  * here the exported element only carries the source so the package has no
  * KaTeX dependency.
  */
 export class EquationNode extends DecoratorNode<unknown> {
+  declare static importJSON: ImportJSON<EquationNode>;
   __equation: string;
   __inline: boolean;
 
-  static getType(): string {
-    return "equation";
-  }
-
-  static clone(node: EquationNode): EquationNode {
-    return new this(node.__equation, node.__inline, node.__key);
+  $config() {
+    return this.config("equation", {
+      extends: DecoratorNode,
+      json: equationSchema,
+    });
   }
 
   constructor(equation = "", inline?: boolean, key?: NodeKey) {
     super(key);
     this.__equation = equation;
     this.__inline = inline ?? false;
-  }
-
-  static importJSON(serializedNode: SerializedEquationNode): EquationNode {
-    return EquationNode.$createEquationNode(
-      serializedNode.equation,
-      serializedNode.inline,
-    );
-  }
-
-  exportJSON(): SerializedEquationNode {
-    return {
-      equation: this.getEquation(),
-      inline: this.__inline,
-      type: "equation",
-      version: 1,
-    };
   }
 
   createDOM(_config: EditorConfig): HTMLElement {
@@ -154,3 +154,5 @@ export class EquationNode extends DecoratorNode<unknown> {
     return node instanceof EquationNode;
   }
 }
+
+withStoredJSON(EquationNode);

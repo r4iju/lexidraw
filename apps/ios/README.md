@@ -6,6 +6,27 @@ project isn't committed. To point a build at a local server, build with
 built with `CODE_SIGNING_ALLOWED=NO` can't keep its token in the Keychain, so
 it can't sign in. The simulator's ad-hoc signing is enough.
 
+LexicalSwift follows the Lexical version the web editor uses. To upgrade
+Lexical, see [Upgrading Lexical](../../docs/lexical-upgrade.md).
+
+## Corpus check
+
+`bun run test:corpus` loads and saves every document an account owns with
+both LexicalSwift and Lexical, and fails on any difference. It takes the
+token from `LEXIDRAW_TOKEN`, or else the CLI's in the Keychain, and the host
+from `LEXIDRAW_URL`. Failures name documents by id, never by content. In CI
+the **iOS** workflow runs it with the repository secret
+`LEXIDRAW_CORPUS_TOKEN`, a Lexidraw API token; without it the check is
+skipped.
+
+## Differential fuzzer
+
+`FUZZ_SEED=<n> FUZZ_STEPS=<n> swift test --filter lexicalSwiftMatchesTheReference`
+runs LexicalSwift and Lexical side by side on random commands. Steps count
+only commands both accepted. Last run, on macOS 27 with words from
+`Intl.Segmenter`: seeds 101 to 110, 100,000 steps each, 1,000,000 in all,
+with no divergence; 632 commands were refused by both, for the same reason.
+
 ## TestFlight
 
 The **iOS TestFlight** workflow runs by hand on `master`. It tests, archives,

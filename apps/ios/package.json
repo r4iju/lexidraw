@@ -7,11 +7,13 @@
     "build:reference": "bun build reference/entry.ts --target=browser --format=iife --minify --define 'process.env.NODE_ENV=\"development\"' --outfile reference/dist/lexical-reference.js",
     "codegen": "bun codegen/write.ts",
     "test": "bun test ./codegen && bun run build:reference && swift test",
+    "test:corpus": "bun run build:reference && LEXIDRAW_TOKEN=\"${LEXIDRAW_TOKEN:-$(security find-generic-password -s cli/lexidraw -a prod -w)}\" swift test --filter CorpusTests",
     "test:ts": "tsgo --noEmit && tsgo --noEmit --project codegen",
     "lint": "bun x @biomejs/biome check ."
   },
   "dependencies": {
     "@lexical/headless": "^0.51.0",
+    "@lexical/history": "^0.51.0",
     "@packages/lexical-nodes": "workspace:*",
     "lexical": "^0.51.0"
   },

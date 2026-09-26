@@ -6,9 +6,9 @@ export type { SerializedPageBreakNode } from "@packages/lexical-nodes";
 
 /** React half of the package's PageBreakNode; see ImageNode. */
 export class PageBreakNode extends HeadlessPageBreakNode {
-  static getType = HeadlessPageBreakNode.getType;
-  static clone = HeadlessPageBreakNode.clone;
-  static importJSON = HeadlessPageBreakNode.importJSON;
+  $config() {
+    return this.config("page-break", { extends: HeadlessPageBreakNode });
+  }
 
   decorate(): React.JSX.Element {
     return <PageBreakComponent nodeKey={this.__key} />;

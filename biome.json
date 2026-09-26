@@ -35,6 +35,7 @@
       "!**/.build",
       "!apps/ios/Tests/**/Fixtures",
       "!packages/lexical-nodes/node-schema.json",
+      "!packages/lexical-nodes/test/stored-bytes.json",
       "!**/dist",
       "!**/coverage",
       "!apps/lexidraw/public/scripts",

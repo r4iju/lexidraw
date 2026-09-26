@@ -4,7 +4,7 @@ import Testing
 @Suite struct ReferenceEditorTests {
   @Test func insertsTextAtTheCaretInUTF16Offsets() throws {
     let editor = try Support.referenceEditor()
-    try editor.load(document(paragraph(text("hé👍🏽x"), text("bold", format: 1))))
+    try editor.load(document(paragraph(text("hé👍🏽x"), text("bold", format: .bold))))
 
     try editor.apply(.caret(.text([0, 0], 2)))
     try editor.apply(.insertText("日本"))
@@ -12,18 +12,18 @@ import Testing
     #expect(
       try editor.snapshot()
         == Snapshot(
-          state: document(paragraph(text("hé日本👍🏽x"), text("bold", format: 1))),
+          state: document(paragraph(text("hé日本👍🏽x"), text("bold", format: .bold))),
           selection: Selection(
-            anchor: .text([0, 0], 4), focus: .text([0, 0], 4), format: 0, style: "")))
+            anchor: .text([0, 0], 4), focus: .text([0, 0], 4), format: [], style: "")))
   }
 
   @Test func aCaretTakesTheFormatOfTheTextItLandsIn() throws {
     let editor = try Support.referenceEditor()
-    try editor.load(document(paragraph(text("plain"), text("bold", format: 1))))
+    try editor.load(document(paragraph(text("plain"), text("bold", format: .bold))))
 
     try editor.apply(.caret(.text([0, 1], 4)))
 
-    #expect(try editor.snapshot().selection?.format == 1)
+    #expect(try editor.snapshot().selection?.format == .bold)
   }
 
   @Test func loadsTheWebEditorsCustomNodes() throws {

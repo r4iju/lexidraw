@@ -1,40 +1,72 @@
-import { CodeNode, type SerializedCodeNode } from "@lexical/code";
+import { CodeNode } from "@lexical/code";
 import {
-  $create,
-  setDOMUnmanaged,
   type EditorConfig,
-  type NodeKey,
+  enumValue,
+  nodeSchema,
+  optional,
+  setDOMUnmanaged,
+  stringValue,
+  withAccessors,
+  withField,
 } from "lexical";
+import { namedTransform, rawValueOr } from "../schema-values.js";
+import {
+  type ImportJSON,
+  storedFields,
+  withStoredJSON,
+  written,
+} from "../stored-fields.js";
+
+const { fields: documentCodeFields } = storedFields({
+  children: written,
+  // CodeNode's schema reads a language as a string or null, where its setter
+  // then holds an empty one, or null, as none.
+  language: withAccessors(
+    optional(
+      namedTransform(
+        "emptyAbsent",
+        stringValue(),
+        (language) => language || undefined,
+      ),
+    ),
+    { getter: { field: "__language" }, setter: "setLanguage" },
+  ),
+  direction: written,
+  format: written,
+  indent: written,
+  textFormat: written,
+  textStyle: written,
+  type: written,
+  version: written,
+  $: written,
+  showLineNumbers: withField(rawValueOr(false, { nullAsAbsent: true }), {
+    field: "__showLineNumbers",
+  }),
+  // Syntax colours are presentation: a theme saved with the code must not
+  // override the page's, so none is kept.
+  theme: withAccessors(enumValue([undefined]), {
+    getter: "getThemeJSON",
+    setter: null,
+  }),
+});
+
+const documentCodeSchema = nodeSchema<DocumentCodeNode>()(documentCodeFields);
 
 export class DocumentCodeNode extends CodeNode {
+  declare static importJSON: ImportJSON<DocumentCodeNode>;
+  /** CodeNode's constructor and setter both store a language as `|| undefined`. */
+  declare __language: string | undefined;
   __showLineNumbers = false;
 
-  static getType() {
-    return "code";
+  $config() {
+    return this.config("code", {
+      extends: CodeNode,
+      json: documentCodeSchema,
+    });
   }
-  static clone(node: DocumentCodeNode) {
-    return new DocumentCodeNode(node.__language, node.__key);
+  getThemeJSON(): undefined {
+    return undefined;
   }
-  constructor(language?: string | null, key?: NodeKey) {
-    super(language, key);
-  }
-  afterCloneFrom(previous: this) {
-    super.afterCloneFrom(previous);
-    this.__showLineNumbers = previous.__showLineNumbers;
-  }
-  static importJSON(
-    serialized: SerializedCodeNode & { showLineNumbers?: boolean },
-  ) {
-    const node = $create(DocumentCodeNode).updateFromJSON(serialized);
-    node.setShowLineNumbers(serialized.showLineNumbers ?? false);
-    node.setStyle("");
-    return node;
-  }
-  exportJSON(): SerializedCodeNode & { showLineNumbers: boolean } {
-    const { theme: _theme, ...json } = super.exportJSON();
-    return { ...json, showLineNumbers: this.getShowLineNumbers() };
-  }
-  // Syntax colours are presentation; legacy saved themes must not override the page.
   getTheme() {
     return "none";
   }
@@ -75,3 +107,5 @@ export class DocumentCodeNode extends CodeNode {
     return false;
   }
 }
+
+withStoredJSON(DocumentCodeNode);

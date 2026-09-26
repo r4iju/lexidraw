@@ -1,0 +1,187 @@
+{
+  "changes" : [
+    {
+      "changed" : [
+
+      ]
+    },
+    {
+      "changed" : [
+        [
+
+        ],
+        [
+          0
+        ],
+        [
+          1
+        ],
+        [
+          1,
+          0
+        ],
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "changed" : [
+
+      ]
+    },
+    {
+      "refused" : "invalidState"
+    }
+  ],
+  "commands" : [
+    {
+      "anchor" : {
+        "offset" : 0,
+        "path" : [
+          0,
+          0
+        ],
+        "type" : "text"
+      },
+      "focus" : {
+        "offset" : 0,
+        "path" : [
+          0,
+          0
+        ],
+        "type" : "text"
+      },
+      "type" : "setSelection"
+    },
+    {
+      "type" : "insertParagraph"
+    },
+    {
+      "anchor" : {
+        "offset" : 0,
+        "path" : [
+          0
+        ],
+        "type" : "element"
+      },
+      "focus" : {
+        "offset" : 3,
+        "path" : [
+          1,
+          0
+        ],
+        "type" : "text"
+      },
+      "type" : "setSelection"
+    },
+    {
+      "backward" : false,
+      "type" : "deleteCharacter"
+    }
+  ],
+  "expected" : {
+    "selection" : {
+      "anchor" : {
+        "offset" : 0,
+        "path" : [
+          0
+        ],
+        "type" : "element"
+      },
+      "focus" : {
+        "offset" : 3,
+        "path" : [
+          1,
+          0
+        ],
+        "type" : "text"
+      },
+      "format" : 16,
+      "style" : "color: red;"
+    },
+    "state" : {
+      "root" : {
+        "children" : [
+          {
+            "children" : [
+
+            ],
+            "direction" : null,
+            "format" : "",
+            "indent" : 0,
+            "textFormat" : 16,
+            "textStyle" : "color: red;",
+            "type" : "paragraph",
+            "version" : 1
+          },
+          {
+            "children" : [
+              {
+                "detail" : 0,
+                "format" : 16,
+                "mode" : "normal",
+                "style" : "color: red;",
+                "text" : "한한日a",
+                "type" : "text",
+                "version" : 1
+              },
+              {
+                "type" : "linebreak",
+                "version" : 1
+              }
+            ],
+            "direction" : null,
+            "format" : "",
+            "indent" : 0,
+            "textFormat" : 16,
+            "textStyle" : "color: red;",
+            "type" : "paragraph",
+            "version" : 1
+          }
+        ],
+        "direction" : null,
+        "format" : "",
+        "indent" : 0,
+        "type" : "root",
+        "version" : 1
+      }
+    }
+  },
+  "start" : {
+    "root" : {
+      "children" : [
+        {
+          "children" : [
+            {
+              "detail" : 0,
+              "format" : 16,
+              "mode" : "normal",
+              "style" : "color: red;",
+              "text" : "한한日a",
+              "type" : "text",
+              "version" : 1
+            },
+            {
+              "type" : "linebreak",
+              "version" : 1
+            }
+          ],
+          "direction" : null,
+          "format" : "",
+          "indent" : 0,
+          "textFormat" : 16,
+          "textStyle" : "color: red;",
+          "type" : "paragraph",
+          "version" : 1
+        }
+      ],
+      "direction" : null,
+      "format" : "",
+      "indent" : 0,
+      "type" : "root",
+      "version" : 1
+    }
+  }
+}

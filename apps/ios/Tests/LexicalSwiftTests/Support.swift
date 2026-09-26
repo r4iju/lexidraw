@@ -10,6 +10,12 @@ enum Support {
   /// Where the fuzzer writes new fixtures, so they land in the source tree.
   static let fixturesSource = iosRoot.appending(path: "Tests/LexicalSwiftTests/Fixtures")
 
+  /// A stored document with every node the schema declares.
+  static let everyNode = iosRoot.appending(path: "../../packages/lexical-nodes/test/every-node.json")
+
+  /// Stored nodes, as stored and odd, with what the web wrote for each.
+  static let storedBytes = iosRoot.appending(path: "../../packages/lexical-nodes/test/stored-bytes.json")
+
   /// The committed node schema the payload types are generated from.
   static let nodeSchema = iosRoot.appending(path: "../../packages/lexical-nodes/node-schema.json")
 
@@ -31,7 +37,7 @@ struct SupportError: Error, CustomStringConvertible {
   init(_ description: String) { self.description = description }
 }
 
-func text(_ text: String, format: Int = 0) -> JSONValue {
+func text(_ text: String, format: TextFormat = []) -> JSONValue {
   LexicalJSON.text(text, format: format)
 }
 

@@ -1,7 +1,11 @@
 import {
   $create,
-  ArtificialNode__DO_NOT_USE,
+  $isDecoratorNode,
   $isElementNode,
+  $isLineBreakNode,
+  $isTextNode,
+  $parseSerializedNode,
+  ArtificialNode__DO_NOT_USE,
   type AnySerializationSchema,
   createEditor,
   getComposedSchemaFields,
@@ -10,6 +14,8 @@ import {
   type Klass,
   type LexicalNode,
 } from "lexical";
+import { annotationsOf } from "./schema-values.js";
+import { writtenOrder } from "./stored-fields.js";
 
 /**
  * The language-neutral description of every node the editor registers: the
@@ -18,9 +24,26 @@ import {
  */
 export type NodeSchema = {
   nodes: NodeDescription[];
-  /** Types whose JSON isn't declared yet, so no other side can type them. */
-  undeclared: string[];
+  /** How each registered node sits in a document. */
+  traits: Record<string, NodeTraits>;
 };
+
+/**
+ * What Lexical's own normalization asks of a node, so another side can keep
+ * a document's shape without knowing the node's JSON.
+ */
+export type NodeTraits = {
+  kind: "element" | "text" | "linebreak" | "decorator";
+  /** Sits in a line of text, so it is wrapped in a paragraph at a root. */
+  inline: Trait;
+  /** Holds blocks the way the root does, as a table cell does. */
+  shadowRoot: Trait;
+  /** An element that stays when its last child goes. */
+  canBeEmpty: Trait;
+};
+
+/** A fixed answer, or the boolean property a node reads it from. */
+export type Trait = boolean | { field: string };
 
 export type NodeDescription = {
   type: string;
@@ -28,7 +51,14 @@ export type NodeDescription = {
   className: string;
   /** What Lexical writes as `version`; it never reads it back. */
   version: number;
-  children: boolean;
+  /**
+   * Every key it can write, in the order it writes them. `children` is there
+   * for every element and a few nodes that write an always empty list. `$` is
+   * there where it writes back the NodeState it was read with, which Lexical
+   * reads as an object's properties: a string's characters, an array's items,
+   * nothing of a number.
+   */
+  order: string[];
   fields: Record<string, FieldType>;
   /** NodeState, written flat beside the fields or nested under `$`. */
   state: Record<string, { flat: boolean; value: FieldType }>;
@@ -49,7 +79,24 @@ type JSONValue =
 export type FieldType = { default?: JSONValue } & (
   | { kind: "string" }
   | { kind: "boolean" }
-  | { kind: "raw" }
+  | {
+      kind: "raw";
+      /** Reads null as it reads absence, as the default. */
+      nullAsAbsent?: true;
+      /** What the value is, where it reads back as itself. */
+      shape?: FieldType;
+      /** How the value is read where the node holds NodeState. */
+      withState?: FieldType;
+    }
+  | {
+      /**
+       * Written as the node holds it, and never read: a node read from JSON
+       * holds the default. A gated one is written only where it isn't.
+       */
+      kind: "unread";
+      inner: FieldType;
+      gated?: true;
+    }
   | {
       kind: "number";
       min?: number;
@@ -63,8 +110,27 @@ export type FieldType = { default?: JSONValue } & (
   | { kind: "optional"; inner: FieldType; omitDefault?: boolean }
   | { kind: "aliased"; inner: FieldType; aliases: Record<string, JSONValue> }
   | { kind: "union"; members: FieldType[] }
-  | { kind: "object"; fields: Record<string, FieldType> }
-  | { kind: "transform"; inner: FieldType }
+  | {
+      kind: "object";
+      /** In the order Lexical writes them. */
+      fields: Record<string, FieldType>;
+      /**
+       * Keeps the keys it doesn't declare, and a union doesn't count them:
+       * an object in a value kept as stored.
+       */
+      open?: true;
+    }
+  | {
+      kind: "transform";
+      inner: FieldType;
+      name?: string;
+      /**
+       * The types the editor the node reads this editor state into has. It
+       * writes the state as that editor saves it, and its default where that
+       * editor can't read it.
+       */
+      nestedEditor?: string[];
+    }
 );
 
 export const NODE_SCHEMA_URL = new URL("../node-schema.json", import.meta.url);
@@ -78,9 +144,9 @@ export function nodeSchemaFile(schema: NodeSchema): string {
 const ENVELOPE = new Set(["type", "version", "children", "$", "$slots"]);
 
 /**
- * Describes every node registered alongside `nodes`. A node is declared when
- * its class states its JSON through `$config`, which is how Lexical's own
- * nodes do it; the rest are listed as undeclared.
+ * Describes every node registered alongside `nodes`. Each must state its JSON
+ * through `$config`, as Lexical's own nodes do: a node that doesn't would be
+ * one no other side can read.
  */
 export function exportNodeSchema(nodes: Klass<LexicalNode>[]): NodeSchema {
   const editor = createEditor({
@@ -90,22 +156,97 @@ export function exportNodeSchema(nodes: Klass<LexicalNode>[]): NodeSchema {
     },
   });
   const described: NodeDescription[] = [];
-  const undeclared: string[] = [];
+  const traits: Record<string, NodeTraits> = {};
   for (const [type, { klass }] of editor._nodes) {
     // Lexical registers it in every editor, but it never reaches stored JSON.
     if (klass === ArtificialNode__DO_NOT_USE) continue;
-    if (getStaticNodeConfig(klass).declaresOwnConfig) {
-      editor.update(() => described.push(describe(type, klass)), {
-        discrete: true,
-      });
-    } else {
-      undeclared.push(type);
+    if (!getStaticNodeConfig(klass).declaresOwnConfig) {
+      throw new Error(
+        `${type}: ${klass.name} doesn't declare its JSON through $config`,
+      );
     }
+    editor.update(
+      () => {
+        const description = describe(type, klass);
+        described.push(description);
+        traits[type] = describeTraits(klass, declaredBooleans(description));
+      },
+      { discrete: true },
+    );
   }
   return {
     nodes: described.sort((a, b) => byCodeUnits(a.type, b.type)),
-    undeclared: undeclared.sort(byCodeUnits),
+    traits: Object.fromEntries(
+      Object.entries(traits).sort(([a], [b]) => byCodeUnits(a, b)),
+    ),
   };
+}
+
+function describeTraits(
+  klass: Klass<LexicalNode>,
+  declaredBooleans: string[],
+): NodeTraits {
+  const created = $create(klass);
+  const kind = $isElementNode(created)
+    ? "element"
+    : $isTextNode(created)
+      ? "text"
+      : $isLineBreakNode(created)
+        ? "linebreak"
+        : $isDecoratorNode(created)
+          ? "decorator"
+          : null;
+  if (!kind)
+    throw new Error(`${klass.getType()} is no kind of node Lexical has`);
+  const serialized = created.exportJSON();
+  const written: Record<string, unknown> = serialized;
+  const booleans = new Set([
+    ...declaredBooleans,
+    ...Object.keys(written).filter((key) => typeof written[key] === "boolean"),
+  ]);
+  // A trait a node reads off its own properties shows up as the one boolean
+  // property that turns it when flipped.
+  const trait = (name: string, read: (node: LexicalNode) => boolean): Trait => {
+    const fixed = read(created);
+    for (const key of [...booleans].sort(byCodeUnits)) {
+      const value = written[key] === true;
+      const flipped = klass.importJSON({ ...serialized, [key]: !value });
+      if (read(flipped) === fixed) continue;
+      if (fixed !== value) {
+        throw new Error(
+          `${klass.getType()}: ${name} follows "${key}" but isn't its value`,
+        );
+      }
+      return { field: key };
+    }
+    return fixed;
+  };
+  return {
+    kind,
+    inline: trait("isInline", (node) => node.isInline()),
+    shadowRoot: trait(
+      "isShadowRoot",
+      (node) => $isElementNode(node) && node.isShadowRoot(),
+    ),
+    canBeEmpty: trait(
+      "canBeEmpty",
+      (node) => $isElementNode(node) && node.canBeEmpty(),
+    ),
+  };
+}
+
+function declaredBooleans(description: NodeDescription): string[] {
+  const isBoolean = (type: FieldType): boolean =>
+    type.kind === "boolean" ||
+    ((type.kind === "optional" || type.kind === "nullable") &&
+      isBoolean(type.inner));
+  return [
+    ...Object.entries(description.fields).filter(([, type]) => isBoolean(type)),
+    ...Object.entries(description.state)
+      .filter(([, state]) => state.flat)
+      .map(([key, state]) => [key, state.value] as const)
+      .filter(([, type]) => isBoolean(type)),
+  ].map(([key]) => key);
 }
 
 function describe(type: string, klass: Klass<LexicalNode>): NodeDescription {
@@ -127,7 +268,7 @@ function describe(type: string, klass: Klass<LexicalNode>): NodeDescription {
   }
   const fields: NodeDescription["fields"] = {};
   for (const [key, schema] of sortedEntries(getComposedSchemaFields(klass))) {
-    if (!(key in state)) fields[key] = fieldType(schema);
+    if (!(key in state)) fields[key] = fieldOf(schema);
   }
 
   // The schema is Lexical's claim about the JSON; what a node actually writes
@@ -142,23 +283,92 @@ function describe(type: string, klass: Klass<LexicalNode>): NodeDescription {
       `${type} writes ${extra.join(", ")}, which its schema doesn't declare`,
     );
   }
+  // Some nodes' exportJSON leaves a field out while it holds its default,
+  // which Lexical's schema says only of an `optional` with `omitDefault`.
+  for (const [key, field] of Object.entries(fields)) {
+    if (
+      written[key as keyof typeof written] === undefined &&
+      field.default !== undefined &&
+      field.kind !== "optional"
+    ) {
+      fields[key] = { kind: "optional", inner: field, omitDefault: true };
+    }
+  }
   // Lexical's production build minifies class names.
   if (!/^[A-Z][A-Za-z0-9]*Node$/.test(klass.name)) {
     throw new Error(
       `${type}'s class is called ${klass.name}; export with Lexical's development build`,
     );
   }
+  const probed = Object.keys(
+    $parseSerializedNode({ ...written, $: { probe: true } }).exportJSON(),
+  );
+  const order = [
+    ...(writtenOrder(klass) ??
+      naturalOrder(klass, probed, Object.keys(fields), state)),
+  ];
+  const placed = order.filter((key) => probed.includes(key));
+  if (placed.join() !== probed.join()) {
+    throw new Error(
+      `${type} writes ${probed.join(", ")}, not in the order ${order.join(", ")}`,
+    );
+  }
   return {
     type,
     className: klass.name,
     version: written.version,
-    children: $isElementNode(created),
+    order,
     fields,
     state,
   };
 }
 
-function fieldType(schema: AnySerializationSchema): FieldType {
+/**
+ * The order a node whose JSON is Lexical's own writes in: what it wrote, with
+ * what it left out put where Lexical writes it. An element's `children` come
+ * first, then its fields, `type` and `version`, its flat NodeState and `$`.
+ */
+function naturalOrder(
+  klass: Klass<LexicalNode>,
+  written: string[],
+  fields: string[],
+  state: NodeDescription["state"],
+): string[] {
+  const flat = Object.keys(state).filter((key) => state[key]?.flat);
+  const natural = [
+    ...($isElementNode($create(klass)) ? ["children"] : []),
+    ...fields,
+    "type",
+    "version",
+    ...flat,
+    "$",
+  ];
+  const order = [...written];
+  natural.forEach((key, index) => {
+    if (order.includes(key) || (key === "$" && !written.includes("$"))) return;
+    const before = natural
+      .slice(0, index)
+      .reverse()
+      .find((earlier) => order.includes(earlier));
+    order.splice(before === undefined ? 0 : order.indexOf(before) + 1, 0, key);
+  });
+  return order;
+}
+
+/** A node's own field: as {@link fieldType}, or unread where it's written only. */
+function fieldOf(schema: AnySerializationSchema): FieldType {
+  if (!annotationsOf(schema.meta).writtenOnly) return fieldType(schema);
+  const { getter } = schema;
+  const gated = typeof getter === "object" && getter?.when !== undefined;
+  return {
+    kind: "unread",
+    inner: fieldType(schema),
+    ...(gated ? { gated: true } : {}),
+  };
+}
+
+function fieldType(schema: AnySerializationSchema, stored = false): FieldType {
+  const described = (inner: AnySerializationSchema) => fieldType(inner, stored);
   const withDefault = (type: FieldType): FieldType =>
     schema.defaultValue === undefined
       ? type
@@ -167,8 +377,20 @@ function fieldType(schema: AnySerializationSchema): FieldType {
   switch (meta.kind) {
     case "string":
     case "boolean":
-    case "raw":
       return withDefault({ kind: meta.kind });
+    case "raw": {
+      const {
+        nullAsAbsent,
+        shape,
+        checkedWithState: withState,
+      } = annotationsOf(meta);
+      return withDefault({
+        kind: meta.kind,
+        ...(nullAsAbsent ? { nullAsAbsent } : {}),
+        ...(shape ? { shape: fieldType(shape, true) } : {}),
+        ...(withState ? { withState: described(withState) } : {}),
+      });
+    }
     case "number":
       return withDefault(
         definedOnly({
@@ -187,12 +409,12 @@ function fieldType(schema: AnySerializationSchema): FieldType {
         ) as JSONValue[],
       });
     case "array":
-      return withDefault({ kind: meta.kind, item: fieldType(meta.item) });
+      return withDefault({ kind: meta.kind, item: described(meta.item) });
     case "nullable":
       return withDefault(
         definedOnly({
           kind: meta.kind,
-          inner: fieldType(meta.inner),
+          inner: described(meta.inner),
           defaultAsNull: meta.defaultAsNull,
         }),
       );
@@ -200,33 +422,44 @@ function fieldType(schema: AnySerializationSchema): FieldType {
       return withDefault(
         definedOnly({
           kind: meta.kind,
-          inner: fieldType(meta.inner),
+          inner: described(meta.inner),
           omitDefault: meta.omitDefault,
         }),
       );
     case "aliased":
       return withDefault({
         kind: meta.kind,
-        inner: fieldType(meta.inner),
+        inner: described(meta.inner),
         aliases: { ...meta.aliases } as Record<string, JSONValue>,
       });
     case "union":
       return withDefault({
         kind: meta.kind,
-        members: meta.members.map(fieldType),
+        members: meta.members.map(described),
       });
     case "object":
       return withDefault({
         kind: meta.kind,
         fields: Object.fromEntries(
-          sortedEntries(meta.fields).map(([key, field]) => [
+          Object.entries(meta.fields).map(([key, field]) => [
             key,
-            fieldType(field),
+            described(field),
           ]),
         ),
+        ...(stored ? { open: true } : {}),
       });
-    case "transform":
-      return withDefault({ kind: meta.kind, inner: fieldType(meta.inner) });
+    case "transform": {
+      const { transform, nestedEditor } = annotationsOf(meta);
+      return withDefault(
+        definedOnly({
+          kind: meta.kind,
+          name: transform,
+          inner: described(meta.inner),
+          nestedEditor:
+            nestedEditor && [...nestedEditor()._nodes.keys()].sort(byCodeUnits),
+        }),
+      );
+    }
   }
 }
 

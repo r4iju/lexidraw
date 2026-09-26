@@ -7,16 +7,17 @@ import {
   type LexicalEditor,
   type LexicalNode,
   type NodeKey,
-  type SerializedElementNode,
-  type Spread,
+  nodeSchema,
+  withField,
 } from "lexical";
-
-type SerializedCollapsibleContainerNode = Spread<
-  {
-    open: boolean;
-  },
-  SerializedElementNode
->;
+import { storedValue } from "../schema-values.js";
+import {
+  type ImportJSON,
+  storedFields,
+  withStoredJSON,
+  written,
+} from "../stored-fields.js";
+import { unreadElementFields } from "./stored-element.js";
 
 /**
  * How a section's content folds and unfolds. It is added the first time the
@@ -41,20 +42,32 @@ export function $convertAccordionItemElement(
   };
 }
 
+const { fields: collapsibleContainerFields } = storedFields({
+  children: written,
+  ...unreadElementFields,
+  type: written,
+  version: written,
+  open: withField(storedValue<boolean>(), { field: "__open" }),
+});
+
+const collapsibleContainerSchema = nodeSchema<CollapsibleContainerNode>()(
+  collapsibleContainerFields,
+);
+
 export class CollapsibleContainerNode extends ElementNode {
+  declare static importJSON: ImportJSON<CollapsibleContainerNode>;
   __open: boolean;
 
-  constructor(open: boolean, key?: NodeKey) {
+  constructor(open = false, key?: NodeKey) {
     super(key);
     this.__open = open;
   }
 
-  static getType(): string {
-    return "collapsible-container";
-  }
-
-  static clone(node: CollapsibleContainerNode): CollapsibleContainerNode {
-    return new CollapsibleContainerNode(node.__open, node.__key);
+  $config() {
+    return this.config("collapsible-container", {
+      extends: ElementNode,
+      json: collapsibleContainerSchema,
+    });
   }
 
   static $isCollapsibleContainerNode(
@@ -144,30 +157,12 @@ export class CollapsibleContainerNode extends ElementNode {
     return new CollapsibleContainerNode(isOpen);
   }
 
-  static importJSON(
-    serializedNode: SerializedCollapsibleContainerNode,
-  ): CollapsibleContainerNode {
-    const node = CollapsibleContainerNode.$createCollapsibleContainerNode(
-      serializedNode.open,
-    );
-    return node;
-  }
-
   exportDOM(): DOMExportOutput {
     const element = document.createElement("div");
     element.dataset.slot = "accordion-item";
     element.dataset.state = this.__open ? "open" : "closed";
     element.className = "border border-border";
     return { element };
-  }
-
-  exportJSON(): SerializedCollapsibleContainerNode {
-    return {
-      ...super.exportJSON(),
-      open: this.__open,
-      type: "collapsible-container",
-      version: 1,
-    };
   }
 
   setOpen(open: boolean): void {
@@ -183,3 +178,5 @@ export class CollapsibleContainerNode extends ElementNode {
     this.setOpen(!this.getOpen());
   }
 }
+
+withStoredJSON(CollapsibleContainerNode);

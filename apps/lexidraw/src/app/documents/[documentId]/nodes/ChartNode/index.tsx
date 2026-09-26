@@ -15,9 +15,9 @@ const ChartComponent = React.lazy(() => import("./ChartComponent"));
 
 /** React half of the package's ChartNode; see ImageNode. */
 export class ChartNode extends HeadlessChartNode {
-  static getType = HeadlessChartNode.getType;
-  static clone = HeadlessChartNode.clone;
-  static importJSON = HeadlessChartNode.importJSON;
+  $config() {
+    return this.config("chart", { extends: HeadlessChartNode });
+  }
 
   decorate(editor: LexicalEditor, config: EditorConfig): JSX.Element {
     return (

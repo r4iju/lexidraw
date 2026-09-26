@@ -5,6 +5,9 @@ inputs:
   fuzz-steps:
     description: The differential fuzzer's step budget; empty keeps the tests' default.
     default: ""
+  corpus-token:
+    description: A Lexidraw API token whose documents the corpus check loads; empty skips it.
+    default: ""
 
 runs:
   using: composite
@@ -24,6 +27,7 @@ runs:
       run: bun run test
       env:
         FUZZ_STEPS: ${{ inputs.fuzz-steps }}
+        LEXIDRAW_TOKEN: ${{ inputs.corpus-token }}
     - shell: bash
       run: brew install xcodegen
     - shell: bash

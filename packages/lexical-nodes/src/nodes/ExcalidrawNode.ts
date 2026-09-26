@@ -1,78 +1,71 @@
-import type {
-  DOMConversionMap,
-  DOMConversionOutput,
-  DOMExportOutput,
-  EditorConfig,
-  Klass,
-  LexicalEditor,
-  LexicalNode,
-  NodeKey,
-  SerializedLexicalNode,
-  Spread,
+import {
+  $create,
+  DecoratorNode,
+  type DOMConversionMap,
+  type DOMConversionOutput,
+  type DOMExportOutput,
+  type EditorConfig,
+  type Klass,
+  type LexicalEditor,
+  type LexicalNode,
+  type NodeKey,
+  nodeSchema,
+  type SerializedLexicalNode,
+  type Spread,
+  withField,
 } from "lexical";
-import { $create, DecoratorNode } from "lexical";
-import { $importNodeState, figureDOM, nodeStateJSON } from "../figure.js";
+import { figureDOM, figureState, naturalSizeState } from "../figure.js";
+import { rawValueOr, type SchemaJSON } from "../schema-values.js";
+import {
+  type ImportJSON,
+  storedFields,
+  withStoredJSON,
+  written,
+} from "../stored-fields.js";
+import { inheritOrStoredSize, type Size } from "./stored-size.js";
 
-type Dimension = number | "inherit";
+const { fields: excalidrawFields, json: excalidrawJSON } = storedFields({
+  data: withField(rawValueOr("[]", { nullAsAbsent: true }), {
+    field: "__data",
+  }),
+  height: withField(inheritOrStoredSize, { field: "__height" }),
+  type: written,
+  version: written,
+  width: withField(inheritOrStoredSize, { field: "__width" }),
+  $: written,
+});
 
 export type SerializedExcalidrawNode = Spread<
-  {
-    data: string;
-    justInserted?: boolean;
-    width: Dimension;
-    height: Dimension;
-  },
+  SchemaJSON<typeof excalidrawJSON>,
   SerializedLexicalNode
 >;
+
+const excalidrawSchema = nodeSchema<ExcalidrawNode>()(excalidrawFields);
 
 /**
  * Serialization half of the excalidraw block; see ImageNode for the split.
  */
 export class ExcalidrawNode extends DecoratorNode<unknown> {
+  declare static importJSON: ImportJSON<ExcalidrawNode>;
   __data: string;
   /** Only an insertion opens the drawing modal, so clones never inherit it. */
   __justInserted?: boolean;
-  __width: Dimension;
-  __height: Dimension;
+  __width: Size;
+  __height: Size;
 
-  static getType(): string {
-    return "excalidraw";
-  }
-
-  static clone(node: ExcalidrawNode): ExcalidrawNode {
-    return new this(
-      node.__data,
-      false,
-      node.__width,
-      node.__height,
-      node.__key,
-    );
-  }
-
-  static importJSON(serializedNode: SerializedExcalidrawNode): ExcalidrawNode {
-    const node = ExcalidrawNode.$createExcalidrawNode(false);
-    node.__data = serializedNode.data ?? "[]";
-    node.__width = serializedNode.width ?? "inherit";
-    node.__height = serializedNode.height ?? "inherit";
-    return $importNodeState(node, serializedNode);
-  }
-
-  exportJSON(): SerializedExcalidrawNode {
-    return {
-      data: this.__data,
-      height: this.__height,
-      type: "excalidraw",
-      version: 1,
-      width: this.__width,
-      ...nodeStateJSON(super.exportJSON()),
-    };
+  $config() {
+    return this.config("excalidraw", {
+      extends: DecoratorNode,
+      json: excalidrawSchema,
+      stateConfigs: [figureState, naturalSizeState],
+    });
   }
 
   constructor(
     data = "[]",
     justInserted = false,
-    width: Dimension = "inherit",
-    height: Dimension = "inherit",
+    width: Size = "inherit",
+    height: Size = "inherit",
     key?: NodeKey,
   ) {
     super(key);
@@ -135,21 +128,21 @@ export class ExcalidrawNode extends DecoratorNode<unknown> {
     self.__data = data;
   }
 
-  setWidth(width: Dimension): void {
+  setWidth(width: Size): void {
     const self = this.getWritable();
     self.__width = width;
   }
 
-  setHeight(height: Dimension): void {
+  setHeight(height: Size): void {
     const self = this.getWritable();
     self.__height = height;
   }
 
-  getWidth(): Dimension {
+  getWidth(): Size {
     return this.getLatest().__width;
   }
 
-  getHeight(): Dimension {
+  getHeight(): Size {
     return this.getLatest().__height;
   }
 
@@ -199,3 +192,5 @@ export class ExcalidrawNode extends DecoratorNode<unknown> {
     return null;
   }
 }
+
+withStoredJSON(ExcalidrawNode);

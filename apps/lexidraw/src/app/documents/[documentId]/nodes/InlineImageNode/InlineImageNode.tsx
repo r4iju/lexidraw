@@ -17,9 +17,9 @@ const InlineImageComponent = React.lazy(() => import("./InlineImageComponent"));
 
 /** React half of the package's InlineImageNode; see ImageNode. */
 export class InlineImageNode extends HeadlessInlineImageNode {
-  static getType = HeadlessInlineImageNode.getType;
-  static clone = HeadlessInlineImageNode.clone;
-  static importJSON = HeadlessInlineImageNode.importJSON;
+  $config() {
+    return this.config("inline-image", { extends: HeadlessInlineImageNode });
+  }
 
   decorate(): React.JSX.Element {
     const size = parseNaturalSize({

@@ -1,100 +1,197 @@
-/// LexicalSwift's editor. This first cut only covers typing at a caret in
-/// text; it refuses anything else as `unsupported` so the fuzzer can be
-/// scoped to what exists.
+/// LexicalSwift's editor: a document, its selection and its history, changed
+/// by one update per command as Lexical's editor is.
 public final class Editor: EditorModel {
-  private final class Node {
-    /// Every serialized field except `children`.
-    var fields: [String: JSONValue]
-    var children: [Node]?
-
-    init(fields: [String: JSONValue], children: [Node]?) {
-      self.fields = fields
-      self.children = children
-    }
-
-    var type: String? { fields["type"]?.stringValue }
-
-    var text: String {
-      get { fields["text"]?.stringValue ?? "" }
-      set { fields["text"] = .string(newValue) }
-    }
-  }
-
-  private var root: Node?
-  private var selection: Selection?
+  public private(set) var state = EditorState(nodes: [:], selection: nil)
+  private var nextKey: NodeKey = 0
+  private var revisions = 0
+  private var history = History(EditorState(nodes: [:], selection: nil))
+  private var now = 0
+  /// Whether the document holds only what the editing commands are ported
+  /// for: paragraphs of plain text and line breaks. The other nodes come
+  /// with #115 to #118 and #131 to #134.
+  private var isEditable = false
 
   public init() {}
 
-  public func load(_ state: JSONValue) throws {
-    guard let root = state["root"] else { throw EditorError.invalidState("No root") }
-    self.root = try node(from: root)
-    selection = nil
+  public func load(_ json: JSONValue) throws {
+    guard let root = json["root"], root["type"] == "root" else { throw EditorError.invalidState("No root") }
+    var update = Update(EditorState(nodes: [:], selection: nil), nextKey: 0, revision: nextRevision())
+    _ = try update.parse(root)
+    try update.applyTransforms()
+    update.collectGarbage()
+    state = update.state
+    nextKey = update.nextKey
+    now = 0
+    history = History(state)
+    isEditable = state.nodes.values.allSatisfy(\.isEditable)
   }
 
   @discardableResult
   public func apply(_ command: EditorCommand) throws -> ChangeSet {
+    guard !state.nodes.isEmpty else { throw EditorError.invalidState("No document loaded") }
     switch command {
-    case .setSelection(let anchor, let focus):
-      guard anchor == focus, anchor.type == .text else {
-        throw EditorError.unsupported("Only a caret in text can be placed")
-      }
-      let node = try self.node(at: anchor.path)
-      guard node.type == "text", (0...node.text.utf16.count).contains(anchor.offset) else {
-        throw EditorError.unsupported("A caret must be inside a text node")
-      }
-      selection = Selection(
-        anchor: anchor, focus: focus,
-        format: node.fields["format"]?.intValue ?? 0,
-        style: node.fields["style"]?.stringValue ?? "")
-      return ChangeSet()
-
-    case .insertText(let text):
-      guard let selection else { throw EditorError.noSelection }
-      let node = try self.node(at: selection.anchor.path)
-      guard selection.isCollapsed,
-        selection.format == node.fields["format"]?.intValue,
-        selection.style == node.fields["style"]?.stringValue
-      else {
-        throw EditorError.unsupported("Only typing into text of the caret's format")
-      }
-      var units = Array(node.text.utf16)
-      units.insert(contentsOf: text.utf16, at: selection.anchor.offset)
-      node.text = String(decoding: units, as: UTF16.self)
-      var caret = selection.anchor
-      caret.offset += text.utf16.count
-      self.selection?.anchor = caret
-      self.selection?.focus = caret
-      return ChangeSet(changed: [selection.anchor.path, []])
+    case .wait(let milliseconds):
+      now += milliseconds
+      return ChangeSet(changed: [])
+    case .undo, .redo:
+      let restored = command == .undo ? history.undo(at: now) : history.redo(at: now)
+      guard let restored else { return ChangeSet(changed: []) }
+      defer { state = restored }
+      return ChangeSet(changed: restored.changedPaths(since: state))
+    default:
+      guard isEditable else { throw EditorError.unsupported("Editing a document with more than plain paragraphs") }
     }
+    var update = Update(state, nextKey: nextKey, revision: nextRevision())
+    try update.run(command)
+    try update.applyTransforms()
+    update.collectGarbage()
+    let selection = update.selection
+    if let selection, update.state.nodes[selection.anchor.key] == nil || update.state.nodes[selection.focus.key] == nil {
+      throw EditorError.invalidState("Selection has been lost")
+    }
+    // Lexical commits an update that marked a node or moved the selection,
+    // and drops one that did neither.
+    let movesSelection = selection.map { $0.dirty || !$0.is(state.selection) } ?? (state.selection != nil)
+    guard update.hasDirtyNodes || movesSelection else { return ChangeSet(changed: []) }
+    var next = update.state
+    next.selection = selection?.saved
+    history.record(update, from: state, to: next, at: now)
+    state = next
+    nextKey = update.nextKey
+    return update.changes
+  }
+
+  private func nextRevision() -> Int {
+    revisions += 1
+    return revisions
   }
 
   public func snapshot() throws -> Snapshot {
-    guard let root else { throw EditorError.invalidState("No document loaded") }
-    return Snapshot(state: ["root": json(from: root)], selection: selection)
+    guard !state.nodes.isEmpty else { throw EditorError.invalidState("No document loaded") }
+    return Snapshot(state: state.json, selection: state.pathSelection)
   }
 
-  private func node(from value: JSONValue) throws -> Node {
-    guard case .object(var fields) = value else { throw EditorError.invalidState("A node isn't an object") }
-    let children = fields.removeValue(forKey: "children")?.arrayValue
-    return Node(fields: fields, children: try children?.map { try node(from: $0) })
-  }
-
-  private func json(from node: Node) -> JSONValue {
-    var fields = node.fields
-    if let children = node.children {
-      fields["children"] = .array(children.map(json(from:)))
+  /// `state` as an editor that registers `types` saves it once it has read
+  /// it, or nil where that editor can't read it: Lexical refuses a type it
+  /// hasn't registered.
+  static func saved(_ state: JSONValue, registering types: Set<String>) -> JSONValue? {
+    func registered(_ node: JSONValue) -> Bool {
+      guard let type = node["type"]?.stringValue, types.contains(type) else { return false }
+      return node["children"]?.arrayValue?.allSatisfy(registered) ?? true
     }
-    return .object(fields)
+    guard let root = state["root"], registered(root) else { return nil }
+    let editor = Editor()
+    return (try? editor.load(state)).flatMap { try? editor.snapshot().state }
+  }
+}
+
+extension Node {
+  fileprivate var isEditable: Bool {
+    switch payload {
+    case .root(let node): Self.isPlain(node.unknownFields)
+    case .paragraph(let node): Self.isPlain(node.unknownFields)
+    case .lineBreak(let node): Self.isPlain(node.unknownFields)
+    case .text(let node): Self.isPlain(node.unknownFields) && node.mode == .normal && (node.detail ?? 0) == 0
+    default: false
+    }
   }
 
-  private func node(at path: [Int]) throws -> Node {
-    guard var node = root else { throw EditorError.invalidState("No document loaded") }
-    for index in path {
-      guard let children = node.children, children.indices.contains(index) else {
-        throw EditorError.noNode(path: path)
+  private static func isPlain(_ unknownFields: JSONObject) -> Bool {
+    unknownFields.isEmpty
+  }
+}
+
+extension Update {
+  mutating func run(_ command: EditorCommand) throws {
+    if case .setSelection(let anchor, let focus) = command {
+      return try placeSelection(anchor, focus)
+    }
+    if command == .selectAll {
+      return selectAll()
+    }
+    guard let selection else { throw EditorError.noSelection }
+    switch command {
+    case .insertText(let text): try insertText(selection, text)
+    case .deleteCharacter(let backward): try deleteCharacter(selection, backward: backward)
+    case .deleteWord(let backward): try deleteWord(selection, backward: backward)
+    case .deleteLine(let backward, let lineBoundary):
+      let boundary = try pointNode(lineBoundary)
+      try deleteLine(
+        selection, backward: backward,
+        lineBoundary: KeyPoint(key: boundary, offset: lineBoundary.offset, type: lineBoundary.type))
+    case .insertParagraph: try insertParagraph(selection)
+    case .insertLineBreak: try insertLineBreak(selection)
+    case .formatText(let format): try formatText(selection, format)
+    default: throw EditorError.unsupported(command.name)
+    }
+  }
+
+  /// `setSelection` in `reference/entry.ts`.
+  private mutating func placeSelection(_ anchorAt: Point, _ focusAt: Point) throws {
+    let last = selection
+    let placed = RangeSelection(
+      anchor: SelectionPoint(try pointNode(anchorAt), anchorAt.offset, anchorAt.type),
+      focus: SelectionPoint(try pointNode(focusAt), focusAt.offset, focusAt.type), format: [], style: "")
+    try normalizePointsForBoundaries(placed.anchor, placed.focus)
+    let anchorNode = placed.anchor.key
+    if let last {
+      if last.anchor.key == anchorNode {
+        placed.format = last.format
+        placed.style = last.style
+      } else if state[anchorNode].isText {
+        placed.format = format(of: anchorNode)
+        placed.style = style(of: anchorNode)
+      } else if state[anchorNode].isElement {
+        placed.format = textFormat(of: anchorNode)
+        placed.style = textStyle(of: anchorNode)
       }
-      node = children[index]
     }
-    return node
+    setSelection(placed)
+    placed.dirty = false
+    if placed.isCollapsed {
+      if state[anchorNode].isText {
+        placed.updateFormatStyle(format(of: anchorNode), style(of: anchorNode))
+      } else if state[anchorNode].isElement, !state.textContent(of: EditorState.rootKey).isEmpty {
+        if isEmpty(anchorNode) {
+          placed.updateFormatStyle(textFormat(of: anchorNode), textStyle(of: anchorNode))
+        } else {
+          placed.updateFormatStyle(placed.format, "")
+        }
+      }
+    } else {
+      placed.format = try combinedFormat(placed, anchorAt, focusAt)
+    }
+  }
+
+  /// `combinedFormat` in `reference/entry.ts`.
+  private func combinedFormat(_ selection: RangeSelection, _ anchorAt: Point, _ focusAt: Point) throws -> TextFormat {
+    let nodes = try nodes(in: selection)
+    let (start, end) = try state.startEnd(selection)
+    let (startAt, endAt) = start === selection.anchor ? (anchorAt, focusAt) : (focusAt, anchorAt)
+    var combined = TextFormat.all
+    var hasText = false
+    for (index, node) in nodes.enumerated() where state[node].isText {
+      let size = state.textSize(of: node)
+      let touchesStart = index == 0 && node == start.key && startAt.offset == size
+      let touchesEnd = index == nodes.count - 1 && node == end.key && endAt.offset == 0
+      guard size != 0, !touchesStart, !touchesEnd else { continue }
+      hasText = true
+      combined.formIntersection(format(of: node))
+      if combined.isEmpty { break }
+    }
+    return hasText ? combined : []
+  }
+
+  /// `pointNode` in `reference/entry.ts`.
+  private func pointNode(_ point: Point) throws -> NodeKey {
+    guard let key = state.key(at: point.path) else { throw EditorError.noNode(path: point.path) }
+    let node = state[key]
+    let size =
+      point.type == .text
+      ? (node.isText ? state.textSize(of: key) : -1) : (node.isElement ? state.childCount(of: key) : -1)
+    guard size >= 0, (0...size).contains(point.offset) else {
+      throw EditorError.invalidState("No \(point.type.rawValue) point at \(point.path), \(point.offset)")
+    }
+    return key
   }
 }

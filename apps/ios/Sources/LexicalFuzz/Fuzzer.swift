@@ -1,14 +1,18 @@
 import LexicalSwift
 
 /// Differential fuzzer: drives the reference and a candidate with the same
-/// random scripts, compares change sets and snapshots after every command, and
-/// shrinks the first divergence to a minimal fixture recorded from the
-/// reference. Deterministic for a given seed.
+/// random scripts, compares change sets, refusals and snapshots after every
+/// command, and shrinks the first divergence to a minimal fixture recorded
+/// from the reference. Deterministic for a given seed.
 public struct Fuzzer {
   public struct Finding {
     public var fixture: Fixture
+    /// Commands both accepted before the divergence.
     public var stepsRun: Int
   }
+
+  /// Commands both refused, which don't count as steps.
+  public private(set) var refusals = 0
 
   private let reference: any EditorModel
   private let candidate: any EditorModel
@@ -22,7 +26,8 @@ public struct Fuzzer {
     self.generator = Generator(seed: seed)
   }
 
-  /// Runs up to `steps` commands. Returns the first divergence, shrunk.
+  /// Runs until both models have accepted `steps` commands. Returns the
+  /// first divergence, shrunk.
   public mutating func run(steps: Int) throws -> Finding? {
     var stepsRun = 0
     while stepsRun < steps {
@@ -33,17 +38,18 @@ public struct Fuzzer {
         throw FuzzerError("The generator wrote a document Lexical normalizes on load")
       }
       try candidate.load(start)
-      for _ in 0..<min(sessionLength, steps - stepsRun) {
+      for _ in 0..<sessionLength where stepsRun < steps {
         guard let command = generator.command(for: try reference.snapshot()) else { break }
         commands.append(command)
-        stepsRun += 1
-        guard let agreed = agree(on: command) else {
-          throw FuzzerError("The reference refused a generated command: \(command)")
-        }
-        if !agreed {
-          let script = shrink((start, commands))
+        guard let step = try agreedStep(command) else {
+          let script = try shrink((start, commands))
           let fixture = try Fixture.record(start: script.start, commands: script.commands, on: reference)
           return Finding(fixture: fixture, stepsRun: stepsRun)
+        }
+        if case .applied = step.change {
+          stepsRun += 1
+        } else {
+          refusals += 1
         }
       }
     }
@@ -53,41 +59,41 @@ public struct Fuzzer {
   private typealias Script = (start: JSONValue, commands: [EditorCommand])
 
   private struct Step: Equatable {
-    var change: ChangeSet?
+    var change: Fixture.Change
     var snapshot: Snapshot?
   }
 
-  private func step(_ model: any EditorModel, _ command: EditorCommand) -> Step {
-    Step(change: try? model.apply(command), snapshot: try? model.snapshot())
+  private func step(_ model: any EditorModel, _ command: EditorCommand) throws -> Step {
+    Step(change: try Fixture.Change(applying: command, to: model), snapshot: try? model.snapshot())
   }
 
-  /// Applies `command` to both models and says whether the candidate agreed,
-  /// or nil when the reference refused it.
-  private func agree(on command: EditorCommand) -> Bool? {
-    let expected = step(reference, command)
-    guard expected.change != nil, expected.snapshot != nil else { return nil }
-    return step(candidate, command) == expected
+  /// Applies `command` to both models: what both did, or nil where the
+  /// candidate did otherwise.
+  private func agreedStep(_ command: EditorCommand) throws -> Step? {
+    let candidateStep = try step(candidate, command)
+    let referenceStep = try step(reference, command)
+    return candidateStep == referenceStep ? referenceStep : nil
   }
 
   /// Whether the script makes the candidate diverge. Only scripts the
   /// generator could have produced count (a document the reference loads
   /// unchanged, and commands valid in it that the reference accepts), so a
   /// shrunk fixture stays inside what the fuzzer tests.
-  private func diverges(_ script: Script) -> Bool {
+  private func diverges(_ script: Script) throws -> Bool {
     guard (try? reference.load(script.start)) != nil, (try? reference.snapshot())?.state == script.start else {
       return false
     }
     guard (try? candidate.load(script.start)) != nil else { return true }
     for command in script.commands {
-      guard let before = try? reference.snapshot(), Generator.isValid(command, in: before.state),
-        let agreed = agree(on: command)
-      else { return false }
-      if !agreed { return true }
+      guard let before = try? reference.snapshot(), Generator.isValid(command, in: before) else {
+        return false
+      }
+      if try agreedStep(command) == nil { return true }
     }
     return false
   }
 
-  private func shrink(_ script: Script) -> Script {
+  private func shrink(_ script: Script) throws -> Script {
     var best = script
     var improved = true
     while improved {
@@ -97,7 +103,7 @@ public struct Fuzzer {
         // on load; take Lexical's own version so the document stays canonical.
         guard (try? reference.load(candidate.start)) != nil,
           let start = try? reference.snapshot().state,
-          diverges((start, candidate.commands))
+          try diverges((start, candidate.commands))
         else { continue }
         best = (start, candidate.commands)
         improved = true
@@ -121,12 +127,16 @@ public struct Fuzzer {
       result.append((script.start.updatingNode(at: path) { _ in nil }, commands))
     }
     for (index, command) in script.commands.enumerated() {
-      guard case .setSelection(let anchor, let focus) = command, anchor == focus, anchor.offset > 0 else {
-        continue
+      guard case .setSelection(let anchor, let focus) = command else { continue }
+      let simpler =
+        anchor == focus
+        ? [Point(path: anchor.path, offset: 0, type: anchor.type)].filter { $0 != anchor }.map(EditorCommand.caret)
+        : [.caret(anchor), .caret(focus)]
+      for replacement in simpler {
+        var commands = script.commands
+        commands[index] = replacement
+        result.append((script.start, commands))
       }
-      var commands = script.commands
-      commands[index] = .caret(Point(path: anchor.path, offset: 0, type: anchor.type))
-      result.append((script.start, commands))
     }
     for path in paths {
       guard let text = script.start.node(at: path)?["text"]?.stringValue else { continue }
@@ -157,6 +167,9 @@ extension EditorCommand {
   fileprivate func adjustingPaths(forRemovalOf removed: [Int]) -> EditorCommand {
     func adjust(_ point: Point) -> Point {
       let depth = removed.count - 1
+      if point.type == .element, point.path == Array(removed.dropLast()), point.offset > removed[depth] {
+        return Point(path: point.path, offset: point.offset - 1, type: .element)
+      }
       guard point.path.count > depth, point.path[..<depth] == removed[..<depth],
         point.path[depth] > removed[depth]
       else { return point }
@@ -164,8 +177,11 @@ extension EditorCommand {
       point.path[depth] -= 1
       return point
     }
-    guard case .setSelection(let anchor, let focus) = self else { return self }
-    return .setSelection(anchor: adjust(anchor), focus: adjust(focus))
+    switch self {
+    case .setSelection(let anchor, let focus): return .setSelection(anchor: adjust(anchor), focus: adjust(focus))
+    case .deleteLine(let backward, let lineBoundary): return .deleteLine(backward: backward, lineBoundary: adjust(lineBoundary))
+    default: return self
+    }
   }
 }
 
@@ -179,44 +195,100 @@ extension String {
   }
 }
 
-/// Random documents and commands within what LexicalSwift handles so far.
+/// Random documents of paragraphs, text and line breaks, and random editing
+/// commands a user could issue against them.
 struct Generator {
   private var random: SplitMix64
 
-  /// Characters chosen to stress UTF-16 offsets: accents, combining marks,
-  /// CJK, and emoji that are several code units and several scalars.
+  /// Characters chosen to stress UTF-16 offsets and word boundaries: accents,
+  /// combining marks, CJK, emoji that are several code units and several
+  /// scalars, and punctuation and spaces between words; and Japanese words,
+  /// which ICU segments with a dictionary as no space marks where they end.
   private static let alphabet: [String] = [
-    "a", "b", "z", " ", ".", "é", "e\u{301}", "ß", "日", "本", "語", "한", "👍", "👍🏽", "👨‍👩‍👧", "🇯🇵",
+    "a", "b", "z", " ", " ", ".", "_", "7", "é", "e\u{301}", "ß", "日", "本", "語", "한", "👍", "👍🏽",
+    "👨‍👩‍👧", "🇯🇵", "日本語", "東京", "話す", "を", "は", "ひらがな", "カタカナ",
   ]
-  private static let formats = [0, 1, 2, 3, 8, 16]
+  private static let formats: [TextFormat] = [
+    [], .bold, .italic, [.bold, .italic], .underline, .code, .subscript, .superscript,
+  ]
+  private static let styles = ["", "", "", "color: red;"]
 
   init(seed: UInt64) {
     random = SplitMix64(seed: seed)
   }
 
   mutating func document() -> JSONValue {
-    LexicalJSON.document(
-      (0..<Int.random(in: 1...3, using: &random)).map { _ in
-        var previousFormat: Int?
-        return LexicalJSON.paragraph(
-          (0..<Int.random(in: 1...3, using: &random)).map { _ in
-            // Adjacent text with the same format would be merged by Lexical.
-            let format = Self.formats.filter { $0 != previousFormat }.randomElement(using: &random)!
-            previousFormat = format
-            return LexicalJSON.text(text(1...5), format: format)
-          })
-      })
+    LexicalJSON.document((0..<Int.random(in: 1...3, using: &random)).map { _ in paragraph() })
   }
 
-  /// Whether a user could issue `command` against `state`: a caret must sit
-  /// in a text node, on a grapheme boundary.
-  static func isValid(_ command: EditorCommand, in state: JSONValue) -> Bool {
-    guard case .setSelection(let anchor, let focus) = command else { return true }
-    return [anchor, focus].allSatisfy { point in
-      guard point.type == .text, let text = state.node(at: point.path)?["text"]?.stringValue else {
-        return false
+  private mutating func paragraph() -> JSONValue {
+    var children: [JSONValue] = []
+    var previous: (format: TextFormat, style: String)?
+    for _ in 0..<Int.random(in: 0...4, using: &random) {
+      if Int.random(in: 0..<4, using: &random) == 0 {
+        children.append(LexicalJSON.lineBreak)
+        previous = nil
+        continue
       }
-      return graphemeBoundaries(of: text).contains(point.offset)
+      // Adjacent text alike would be merged by Lexical.
+      var format: TextFormat
+      var style: String
+      repeat {
+        format = Self.formats.randomElement(using: &random)!
+        style = Self.styles.randomElement(using: &random)!
+      } while previous.map { $0 == (format, style) } == true
+      previous = (format, style)
+      children.append(LexicalJSON.text(text(1...5), format: format, style: style))
+    }
+    return LexicalJSON.paragraph(
+      children, textFormat: Self.formats.randomElement(using: &random)!,
+      textStyle: Self.styles.randomElement(using: &random)!)
+  }
+
+  /// Whether a user could issue `command` against `state`: a point in text
+  /// sits on a grapheme boundary, and a point in a paragraph sits where no
+  /// text is beside it to take it.
+  static func isValid(_ command: EditorCommand, in snapshot: Snapshot) -> Bool {
+    switch command {
+    case .setSelection(let anchor, let focus):
+      [anchor, focus].allSatisfy { points(in: snapshot.state).contains($0) }
+    case .deleteLine(let backward, let lineBoundary):
+      snapshot.selection == nil || lineBoundary == Self.lineBoundary(in: snapshot, backward: backward)
+    default:
+      true
+    }
+  }
+
+  /// Where the focus's line starts or ends, taken to be where its paragraph
+  /// does, as in a view too wide to wrap it.
+  static func lineBoundary(in snapshot: Snapshot, backward: Bool) -> Point {
+    guard let focus = snapshot.selection?.focus else { return Point(path: [], offset: 0, type: .element) }
+    let path = focus.type == .element ? focus.path : focus.path.dropLast()
+    guard let paragraph = snapshot.state.node(at: Array(path)), paragraph["type"] == "paragraph",
+      let children = paragraph["children"]?.arrayValue
+    else { return focus }
+    let index = backward ? 0 : children.count - 1
+    guard children.indices.contains(index), let text = children[index]["text"]?.stringValue else {
+      return Point(path: Array(path), offset: backward ? 0 : children.count, type: .element)
+    }
+    return .text(path + [index], backward ? 0 : text.utf16.count)
+  }
+
+  /// Every point a user could put a selection's end at.
+  private static func points(in state: JSONValue) -> [Point] {
+    state.nodePaths().flatMap { path -> [Point] in
+      guard let node = state.node(at: path) else { return [] }
+      switch node["type"]?.stringValue {
+      case "text":
+        return graphemeBoundaries(of: node["text"]?.stringValue ?? "").map { .text(path, $0) }
+      case "paragraph":
+        let isText = (node["children"]?.arrayValue ?? []).map { $0["type"] == "text" }
+        return (0...isText.count).filter { offset in
+          (offset == 0 || !isText[offset - 1]) && (offset == isText.count || !isText[offset])
+        }.map { Point(path: path, offset: $0, type: .element) }
+      default:
+        return []
+      }
     }
   }
 
@@ -225,14 +297,28 @@ struct Generator {
   }
 
   mutating func command(for snapshot: Snapshot) -> EditorCommand? {
-    if snapshot.selection != nil, Int.random(in: 0..<10, using: &random) < 7 {
-      return .insertText(text(1...3))
+    let roll = Int.random(in: 0..<100, using: &random)
+    let backward = Int.random(in: 0..<3, using: &random) > 0
+    switch roll {
+    // With nothing selected, as after undoing back to the loaded document, a
+    // user puts the selection somewhere before doing anything else.
+    case _ where snapshot.selection == nil, 70..<85:
+      let points = Self.points(in: snapshot.state)
+      guard let anchor = points.randomElement(using: &random) else { return .selectAll }
+      let isRange = Int.random(in: 0..<3, using: &random) == 0
+      return .setSelection(anchor: anchor, focus: isRange ? points.randomElement(using: &random)! : anchor)
+    case ..<22: return .insertText(text(1...3))
+    case ..<34: return .deleteCharacter(backward: backward)
+    case ..<39: return .deleteWord(backward: backward)
+    case ..<42: return .deleteLine(backward: backward, lineBoundary: Self.lineBoundary(in: snapshot, backward: backward))
+    case ..<49: return .insertParagraph
+    case ..<54: return .insertLineBreak
+    case ..<62: return .formatText(TextFormatType.allCases.randomElement(using: &random)!)
+    case ..<64: return .selectAll
+    case ..<70: return .wait(milliseconds: [500, 1000, 2000].randomElement(using: &random)!)
+    case ..<94: return .undo
+    default: return .redo
     }
-    let texts = snapshot.state.nodePaths().filter { snapshot.state.node(at: $0)?["type"] == "text" }
-    guard let path = texts.randomElement(using: &random),
-      let text = snapshot.state.node(at: path)?["text"]?.stringValue
-    else { return nil }
-    return .caret(.text(path, Self.graphemeBoundaries(of: text).randomElement(using: &random)!))
   }
 
   private mutating func text(_ length: ClosedRange<Int>) -> String {

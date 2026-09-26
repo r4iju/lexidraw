@@ -9,19 +9,26 @@ let package = Package(
     .library(name: "LexidrawKit", targets: ["LexidrawKit"]),
   ],
   dependencies: [
+    .package(url: "https://github.com/apple/swift-collections", from: "1.1.0"),
     .package(url: "https://github.com/apple/swift-http-types", from: "1.8.0"),
     .package(url: "https://github.com/apple/swift-openapi-generator", from: "1.13.1"),
     .package(url: "https://github.com/apple/swift-openapi-runtime", from: "1.12.1"),
     .package(url: "https://github.com/apple/swift-openapi-urlsession", from: "1.3.1"),
   ],
   targets: [
-    .target(name: "LexicalSwift"),
+    .target(
+      name: "LexicalSwift",
+      dependencies: [
+        .product(name: "HashTreeCollections", package: "swift-collections"),
+        .product(name: "OrderedCollections", package: "swift-collections"),
+      ]
+    ),
     .target(name: "LexicalReference", dependencies: ["LexicalSwift"]),
     .target(name: "LexicalFuzz", dependencies: ["LexicalSwift"]),
     .testTarget(
       name: "LexicalSwiftTests",
       dependencies: ["LexicalSwift", "LexicalReference", "LexicalFuzz"],
-      resources: [.copy("Fixtures"), .copy("Documents")]
+      resources: [.copy("Fixtures")]
     ),
     .target(
       name: "LexidrawKit",

@@ -1,10 +1,345 @@
 {
   "nodes": [
     {
+      "type": "article",
+      "className": "ArticleNode",
+      "version": 1,
+      "order": [
+        "format",
+        "type",
+        "version",
+        "data"
+      ],
+      "fields": {
+        "data": {
+          "kind": "raw",
+          "shape": {
+            "kind": "union",
+            "members": [
+              {
+                "kind": "object",
+                "fields": {
+                  "mode": {
+                    "kind": "enum",
+                    "values": [
+                      "url"
+                    ],
+                    "default": "url"
+                  },
+                  "url": {
+                    "kind": "string",
+                    "default": ""
+                  },
+                  "distilled": {
+                    "kind": "object",
+                    "fields": {
+                      "title": {
+                        "kind": "string",
+                        "default": ""
+                      },
+                      "byline": {
+                        "kind": "optional",
+                        "inner": {
+                          "kind": "nullable",
+                          "inner": {
+                            "kind": "string",
+                            "default": ""
+                          },
+                          "default": null
+                        }
+                      },
+                      "siteName": {
+                        "kind": "optional",
+                        "inner": {
+                          "kind": "nullable",
+                          "inner": {
+                            "kind": "string",
+                            "default": ""
+                          },
+                          "default": null
+                        }
+                      },
+                      "wordCount": {
+                        "kind": "optional",
+                        "inner": {
+                          "kind": "nullable",
+                          "inner": {
+                            "kind": "number",
+                            "default": 0
+                          },
+                          "default": null
+                        }
+                      },
+                      "updatedAt": {
+                        "kind": "optional",
+                        "inner": {
+                          "kind": "string",
+                          "default": ""
+                        }
+                      },
+                      "contentHtml": {
+                        "kind": "string",
+                        "default": ""
+                      },
+                      "bestImageUrl": {
+                        "kind": "optional",
+                        "inner": {
+                          "kind": "nullable",
+                          "inner": {
+                            "kind": "string",
+                            "default": ""
+                          },
+                          "default": null
+                        }
+                      },
+                      "excerpt": {
+                        "kind": "optional",
+                        "inner": {
+                          "kind": "nullable",
+                          "inner": {
+                            "kind": "string",
+                            "default": ""
+                          },
+                          "default": null
+                        }
+                      },
+                      "datePublished": {
+                        "kind": "optional",
+                        "inner": {
+                          "kind": "nullable",
+                          "inner": {
+                            "kind": "string",
+                            "default": ""
+                          },
+                          "default": null
+                        }
+                      }
+                    },
+                    "open": true,
+                    "default": {
+                      "title": "",
+                      "contentHtml": ""
+                    }
+                  }
+                },
+                "open": true,
+                "default": {
+                  "mode": "url",
+                  "url": "",
+                  "distilled": {
+                    "title": "",
+                    "contentHtml": ""
+                  }
+                }
+              },
+              {
+                "kind": "object",
+                "fields": {
+                  "mode": {
+                    "kind": "enum",
+                    "values": [
+                      "entity"
+                    ],
+                    "default": "entity"
+                  },
+                  "entityId": {
+                    "kind": "string",
+                    "default": ""
+                  },
+                  "snapshot": {
+                    "kind": "optional",
+                    "inner": {
+                      "kind": "object",
+                      "fields": {
+                        "title": {
+                          "kind": "string",
+                          "default": ""
+                        },
+                        "byline": {
+                          "kind": "optional",
+                          "inner": {
+                            "kind": "nullable",
+                            "inner": {
+                              "kind": "string",
+                              "default": ""
+                            },
+                            "default": null
+                          }
+                        },
+                        "siteName": {
+                          "kind": "optional",
+                          "inner": {
+                            "kind": "nullable",
+                            "inner": {
+                              "kind": "string",
+                              "default": ""
+                            },
+                            "default": null
+                          }
+                        },
+                        "wordCount": {
+                          "kind": "optional",
+                          "inner": {
+                            "kind": "nullable",
+                            "inner": {
+                              "kind": "number",
+                              "default": 0
+                            },
+                            "default": null
+                          }
+                        },
+                        "updatedAt": {
+                          "kind": "optional",
+                          "inner": {
+                            "kind": "string",
+                            "default": ""
+                          }
+                        },
+                        "contentHtml": {
+                          "kind": "string",
+                          "default": ""
+                        },
+                        "bestImageUrl": {
+                          "kind": "optional",
+                          "inner": {
+                            "kind": "nullable",
+                            "inner": {
+                              "kind": "string",
+                              "default": ""
+                            },
+                            "default": null
+                          }
+                        }
+                      },
+                      "open": true,
+                      "default": {
+                        "title": "",
+                        "contentHtml": ""
+                      }
+                    }
+                  }
+                },
+                "open": true,
+                "default": {
+                  "mode": "entity",
+                  "entityId": ""
+                }
+              }
+            ],
+            "default": {
+              "mode": "url",
+              "url": "",
+              "distilled": {
+                "title": "",
+                "contentHtml": ""
+              }
+            }
+          }
+        },
+        "format": {
+          "kind": "transform",
+          "name": "emptyOrStored",
+          "inner": {
+            "kind": "raw"
+          },
+          "default": ""
+        }
+      },
+      "state": {}
+    },
+    {
+      "type": "autocomplete",
+      "className": "AutocompleteNode",
+      "version": 1,
+      "order": [
+        "detail",
+        "format",
+        "mode",
+        "style",
+        "text",
+        "type",
+        "version",
+        "uuid"
+      ],
+      "fields": {
+        "detail": {
+          "kind": "aliased",
+          "inner": {
+            "kind": "transform",
+            "name": "stringAbsent",
+            "inner": {
+              "kind": "raw"
+            }
+          },
+          "aliases": {
+            "directionless": 1,
+            "unmergeable": 2
+          }
+        },
+        "format": {
+          "kind": "aliased",
+          "inner": {
+            "kind": "transform",
+            "name": "stringAbsent",
+            "inner": {
+              "kind": "raw"
+            }
+          },
+          "aliases": {
+            "bold": 1,
+            "capitalize": 1024,
+            "code": 16,
+            "highlight": 128,
+            "italic": 2,
+            "lowercase": 256,
+            "strikethrough": 4,
+            "subscript": 32,
+            "superscript": 64,
+            "underline": 8,
+            "uppercase": 512
+          }
+        },
+        "mode": {
+          "kind": "enum",
+          "values": [
+            "normal",
+            "token",
+            "segmented"
+          ]
+        },
+        "style": {
+          "kind": "raw"
+        },
+        "text": {
+          "kind": "raw",
+          "default": ""
+        },
+        "uuid": {
+          "kind": "raw"
+        }
+      },
+      "state": {}
+    },
+    {
       "type": "autolink",
       "className": "AutoLinkNode",
       "version": 1,
-      "children": true,
+      "order": [
+        "children",
+        "isUnlinked",
+        "rel",
+        "target",
+        "title",
+        "url",
+        "direction",
+        "format",
+        "indent",
+        "textFormat",
+        "textStyle",
+        "type",
+        "version",
+        "$"
+      ],
       "fields": {
         "direction": {
           "kind": "enum",
@@ -57,12 +392,20 @@
           "default": null
         },
         "textFormat": {
-          "kind": "number",
-          "default": 0
+          "kind": "optional",
+          "inner": {
+            "kind": "number",
+            "default": 0
+          },
+          "omitDefault": true
         },
         "textStyle": {
-          "kind": "string",
-          "default": ""
+          "kind": "optional",
+          "inner": {
+            "kind": "string",
+            "default": ""
+          },
+          "omitDefault": true
         },
         "title": {
           "kind": "nullable",
@@ -81,10 +424,266 @@
       "state": {}
     },
     {
+      "type": "callout",
+      "className": "CalloutNode",
+      "version": 1,
+      "order": [
+        "children",
+        "direction",
+        "format",
+        "indent",
+        "textFormat",
+        "textStyle",
+        "type",
+        "version",
+        "$",
+        "kind",
+        "title"
+      ],
+      "fields": {
+        "direction": {
+          "kind": "enum",
+          "values": [
+            null,
+            "ltr",
+            "rtl"
+          ],
+          "default": null
+        },
+        "format": {
+          "kind": "enum",
+          "values": [
+            "",
+            "left",
+            "start",
+            "center",
+            "right",
+            "end",
+            "justify"
+          ],
+          "default": ""
+        },
+        "indent": {
+          "kind": "number",
+          "min": 0,
+          "integer": true,
+          "default": 0
+        },
+        "kind": {
+          "kind": "enum",
+          "values": [
+            "note",
+            "tip",
+            "important",
+            "warning",
+            "caution"
+          ],
+          "default": "note"
+        },
+        "textFormat": {
+          "kind": "optional",
+          "inner": {
+            "kind": "number",
+            "default": 0
+          },
+          "omitDefault": true
+        },
+        "textStyle": {
+          "kind": "optional",
+          "inner": {
+            "kind": "string",
+            "default": ""
+          },
+          "omitDefault": true
+        },
+        "title": {
+          "kind": "string",
+          "default": ""
+        }
+      },
+      "state": {}
+    },
+    {
+      "type": "chart",
+      "className": "ChartNode",
+      "version": 1,
+      "order": [
+        "type",
+        "version",
+        "chartType",
+        "chartData",
+        "chartConfig",
+        "width",
+        "height",
+        "$"
+      ],
+      "fields": {
+        "chartConfig": {
+          "kind": "raw",
+          "default": "{}"
+        },
+        "chartData": {
+          "kind": "raw",
+          "default": "[]"
+        },
+        "chartType": {
+          "kind": "raw",
+          "default": "bar"
+        },
+        "height": {
+          "kind": "transform",
+          "name": "zeroAsInherit",
+          "inner": {
+            "kind": "raw",
+            "default": "inherit"
+          },
+          "default": "inherit"
+        },
+        "width": {
+          "kind": "transform",
+          "name": "zeroAsInherit",
+          "inner": {
+            "kind": "raw",
+            "default": "inherit"
+          },
+          "default": "inherit"
+        }
+      },
+      "state": {
+        "figure": {
+          "flat": false,
+          "value": {
+            "kind": "raw",
+            "shape": {
+              "kind": "object",
+              "fields": {
+                "width": {
+                  "kind": "optional",
+                  "inner": {
+                    "kind": "transform",
+                    "name": "figureWidth",
+                    "inner": {
+                      "kind": "string",
+                      "default": ""
+                    }
+                  }
+                },
+                "caption": {
+                  "kind": "optional",
+                  "inner": {
+                    "kind": "string",
+                    "default": ""
+                  }
+                }
+              },
+              "open": true,
+              "default": {}
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "code",
+      "className": "DocumentCodeNode",
+      "version": 1,
+      "order": [
+        "children",
+        "language",
+        "direction",
+        "format",
+        "indent",
+        "textFormat",
+        "textStyle",
+        "type",
+        "version",
+        "$",
+        "showLineNumbers",
+        "theme"
+      ],
+      "fields": {
+        "direction": {
+          "kind": "enum",
+          "values": [
+            null,
+            "ltr",
+            "rtl"
+          ],
+          "default": null
+        },
+        "format": {
+          "kind": "enum",
+          "values": [
+            "",
+            "left",
+            "start",
+            "center",
+            "right",
+            "end",
+            "justify"
+          ],
+          "default": ""
+        },
+        "indent": {
+          "kind": "number",
+          "min": 0,
+          "integer": true,
+          "default": 0
+        },
+        "language": {
+          "kind": "optional",
+          "inner": {
+            "kind": "transform",
+            "name": "emptyAbsent",
+            "inner": {
+              "kind": "string",
+              "default": ""
+            }
+          }
+        },
+        "showLineNumbers": {
+          "kind": "raw",
+          "nullAsAbsent": true,
+          "default": false
+        },
+        "textFormat": {
+          "kind": "optional",
+          "inner": {
+            "kind": "number",
+            "default": 0
+          },
+          "omitDefault": true
+        },
+        "textStyle": {
+          "kind": "optional",
+          "inner": {
+            "kind": "string",
+            "default": ""
+          },
+          "omitDefault": true
+        },
+        "theme": {
+          "kind": "enum",
+          "values": []
+        }
+      },
+      "state": {}
+    },
+    {
       "type": "code-highlight",
       "className": "CodeHighlightNode",
       "version": 1,
-      "children": false,
+      "order": [
+        "highlightType",
+        "detail",
+        "format",
+        "mode",
+        "style",
+        "text",
+        "type",
+        "version",
+        "$"
+      ],
       "fields": {
         "detail": {
           "kind": "aliased",
@@ -151,10 +750,711 @@
       "state": {}
     },
     {
+      "type": "collapsible-container",
+      "className": "CollapsibleContainerNode",
+      "version": 1,
+      "order": [
+        "children",
+        "direction",
+        "format",
+        "indent",
+        "textFormat",
+        "textStyle",
+        "type",
+        "version",
+        "open"
+      ],
+      "fields": {
+        "direction": {
+          "kind": "unread",
+          "inner": {
+            "kind": "enum",
+            "values": [
+              null,
+              "ltr",
+              "rtl"
+            ],
+            "default": null
+          }
+        },
+        "format": {
+          "kind": "unread",
+          "inner": {
+            "kind": "enum",
+            "values": [
+              "",
+              "left",
+              "start",
+              "center",
+              "right",
+              "end",
+              "justify"
+            ],
+            "default": ""
+          }
+        },
+        "indent": {
+          "kind": "unread",
+          "inner": {
+            "kind": "number",
+            "default": 0
+          }
+        },
+        "open": {
+          "kind": "raw"
+        },
+        "textFormat": {
+          "kind": "unread",
+          "inner": {
+            "kind": "number",
+            "default": 0
+          },
+          "gated": true
+        },
+        "textStyle": {
+          "kind": "unread",
+          "inner": {
+            "kind": "string",
+            "default": ""
+          },
+          "gated": true
+        }
+      },
+      "state": {}
+    },
+    {
+      "type": "collapsible-content",
+      "className": "CollapsibleContentNode",
+      "version": 1,
+      "order": [
+        "children",
+        "direction",
+        "format",
+        "indent",
+        "textFormat",
+        "textStyle",
+        "type",
+        "version"
+      ],
+      "fields": {
+        "direction": {
+          "kind": "unread",
+          "inner": {
+            "kind": "enum",
+            "values": [
+              null,
+              "ltr",
+              "rtl"
+            ],
+            "default": null
+          }
+        },
+        "format": {
+          "kind": "unread",
+          "inner": {
+            "kind": "enum",
+            "values": [
+              "",
+              "left",
+              "start",
+              "center",
+              "right",
+              "end",
+              "justify"
+            ],
+            "default": ""
+          }
+        },
+        "indent": {
+          "kind": "unread",
+          "inner": {
+            "kind": "number",
+            "default": 0
+          }
+        },
+        "textFormat": {
+          "kind": "unread",
+          "inner": {
+            "kind": "number",
+            "default": 0
+          },
+          "gated": true
+        },
+        "textStyle": {
+          "kind": "unread",
+          "inner": {
+            "kind": "string",
+            "default": ""
+          },
+          "gated": true
+        }
+      },
+      "state": {}
+    },
+    {
+      "type": "collapsible-title",
+      "className": "CollapsibleTitleNode",
+      "version": 1,
+      "order": [
+        "children",
+        "direction",
+        "format",
+        "indent",
+        "textFormat",
+        "textStyle",
+        "type",
+        "version"
+      ],
+      "fields": {
+        "direction": {
+          "kind": "unread",
+          "inner": {
+            "kind": "enum",
+            "values": [
+              null,
+              "ltr",
+              "rtl"
+            ],
+            "default": null
+          }
+        },
+        "format": {
+          "kind": "unread",
+          "inner": {
+            "kind": "enum",
+            "values": [
+              "",
+              "left",
+              "start",
+              "center",
+              "right",
+              "end",
+              "justify"
+            ],
+            "default": ""
+          }
+        },
+        "indent": {
+          "kind": "unread",
+          "inner": {
+            "kind": "number",
+            "default": 0
+          }
+        },
+        "textFormat": {
+          "kind": "unread",
+          "inner": {
+            "kind": "number",
+            "default": 0
+          },
+          "gated": true
+        },
+        "textStyle": {
+          "kind": "unread",
+          "inner": {
+            "kind": "string",
+            "default": ""
+          },
+          "gated": true
+        }
+      },
+      "state": {}
+    },
+    {
+      "type": "comment",
+      "className": "CommentNode",
+      "version": 1,
+      "order": [
+        "type",
+        "version",
+        "comment",
+        "format",
+        "indent",
+        "direction",
+        "children"
+      ],
+      "fields": {
+        "comment": {
+          "kind": "raw",
+          "shape": {
+            "kind": "object",
+            "fields": {
+              "author": {
+                "kind": "string",
+                "default": ""
+              },
+              "content": {
+                "kind": "string",
+                "default": ""
+              },
+              "deleted": {
+                "kind": "boolean",
+                "default": false
+              },
+              "id": {
+                "kind": "string",
+                "default": ""
+              },
+              "timeStamp": {
+                "kind": "number",
+                "default": 0
+              },
+              "type": {
+                "kind": "enum",
+                "values": [
+                  "comment"
+                ],
+                "default": "comment"
+              }
+            },
+            "open": true,
+            "default": {
+              "author": "",
+              "content": "",
+              "deleted": false,
+              "id": "",
+              "timeStamp": 0,
+              "type": "comment"
+            }
+          }
+        },
+        "direction": {
+          "kind": "enum",
+          "values": [
+            null
+          ],
+          "default": null
+        },
+        "format": {
+          "kind": "raw"
+        },
+        "indent": {
+          "kind": "raw"
+        }
+      },
+      "state": {}
+    },
+    {
+      "type": "emoji",
+      "className": "EmojiNode",
+      "version": 1,
+      "order": [
+        "detail",
+        "format",
+        "mode",
+        "style",
+        "text",
+        "type",
+        "version",
+        "className"
+      ],
+      "fields": {
+        "className": {
+          "kind": "raw"
+        },
+        "detail": {
+          "kind": "aliased",
+          "inner": {
+            "kind": "transform",
+            "name": "stringAbsent",
+            "inner": {
+              "kind": "raw"
+            }
+          },
+          "aliases": {
+            "directionless": 1,
+            "unmergeable": 2
+          }
+        },
+        "format": {
+          "kind": "aliased",
+          "inner": {
+            "kind": "transform",
+            "name": "stringAbsent",
+            "inner": {
+              "kind": "raw"
+            }
+          },
+          "aliases": {
+            "bold": 1,
+            "capitalize": 1024,
+            "code": 16,
+            "highlight": 128,
+            "italic": 2,
+            "lowercase": 256,
+            "strikethrough": 4,
+            "subscript": 32,
+            "superscript": 64,
+            "underline": 8,
+            "uppercase": 512
+          }
+        },
+        "mode": {
+          "kind": "enum",
+          "values": [
+            "normal",
+            "token",
+            "segmented"
+          ]
+        },
+        "style": {
+          "kind": "raw"
+        },
+        "text": {
+          "kind": "raw",
+          "default": ""
+        }
+      },
+      "state": {}
+    },
+    {
+      "type": "equation",
+      "className": "EquationNode",
+      "version": 1,
+      "order": [
+        "equation",
+        "inline",
+        "type",
+        "version"
+      ],
+      "fields": {
+        "equation": {
+          "kind": "raw",
+          "default": ""
+        },
+        "inline": {
+          "kind": "raw",
+          "default": false
+        }
+      },
+      "state": {}
+    },
+    {
+      "type": "excalidraw",
+      "className": "ExcalidrawNode",
+      "version": 1,
+      "order": [
+        "data",
+        "height",
+        "type",
+        "version",
+        "width",
+        "$"
+      ],
+      "fields": {
+        "data": {
+          "kind": "raw",
+          "nullAsAbsent": true,
+          "default": "[]"
+        },
+        "height": {
+          "kind": "raw",
+          "nullAsAbsent": true,
+          "default": "inherit"
+        },
+        "width": {
+          "kind": "raw",
+          "nullAsAbsent": true,
+          "default": "inherit"
+        }
+      },
+      "state": {
+        "figure": {
+          "flat": false,
+          "value": {
+            "kind": "raw",
+            "shape": {
+              "kind": "object",
+              "fields": {
+                "width": {
+                  "kind": "optional",
+                  "inner": {
+                    "kind": "transform",
+                    "name": "figureWidth",
+                    "inner": {
+                      "kind": "string",
+                      "default": ""
+                    }
+                  }
+                },
+                "caption": {
+                  "kind": "optional",
+                  "inner": {
+                    "kind": "string",
+                    "default": ""
+                  }
+                }
+              },
+              "open": true,
+              "default": {}
+            }
+          }
+        },
+        "natural": {
+          "flat": false,
+          "value": {
+            "kind": "raw",
+            "shape": {
+              "kind": "transform",
+              "name": "naturalSize",
+              "inner": {
+                "kind": "object",
+                "fields": {
+                  "width": {
+                    "kind": "number",
+                    "default": 0
+                  },
+                  "height": {
+                    "kind": "number",
+                    "default": 0
+                  }
+                },
+                "open": true,
+                "default": {
+                  "width": 0,
+                  "height": 0
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "figma",
+      "className": "FigmaNode",
+      "version": 1,
+      "order": [
+        "format",
+        "type",
+        "version",
+        "$",
+        "documentID"
+      ],
+      "fields": {
+        "documentID": {
+          "kind": "raw"
+        },
+        "format": {
+          "kind": "raw",
+          "withState": {
+            "kind": "enum",
+            "values": [
+              "",
+              "left",
+              "start",
+              "center",
+              "right",
+              "end",
+              "justify"
+            ],
+            "default": ""
+          }
+        }
+      },
+      "state": {
+        "figure": {
+          "flat": false,
+          "value": {
+            "kind": "raw",
+            "shape": {
+              "kind": "object",
+              "fields": {
+                "width": {
+                  "kind": "optional",
+                  "inner": {
+                    "kind": "transform",
+                    "name": "figureWidth",
+                    "inner": {
+                      "kind": "string",
+                      "default": ""
+                    }
+                  }
+                },
+                "caption": {
+                  "kind": "optional",
+                  "inner": {
+                    "kind": "string",
+                    "default": ""
+                  }
+                }
+              },
+              "open": true,
+              "default": {}
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "footnote-definition",
+      "className": "FootnoteDefinitionNode",
+      "version": 1,
+      "order": [
+        "children",
+        "direction",
+        "format",
+        "indent",
+        "textFormat",
+        "textStyle",
+        "type",
+        "version",
+        "$",
+        "label"
+      ],
+      "fields": {
+        "direction": {
+          "kind": "enum",
+          "values": [
+            null,
+            "ltr",
+            "rtl"
+          ],
+          "default": null
+        },
+        "format": {
+          "kind": "enum",
+          "values": [
+            "",
+            "left",
+            "start",
+            "center",
+            "right",
+            "end",
+            "justify"
+          ],
+          "default": ""
+        },
+        "indent": {
+          "kind": "number",
+          "min": 0,
+          "integer": true,
+          "default": 0
+        },
+        "label": {
+          "kind": "string",
+          "default": ""
+        },
+        "textFormat": {
+          "kind": "optional",
+          "inner": {
+            "kind": "number",
+            "default": 0
+          },
+          "omitDefault": true
+        },
+        "textStyle": {
+          "kind": "optional",
+          "inner": {
+            "kind": "string",
+            "default": ""
+          },
+          "omitDefault": true
+        }
+      },
+      "state": {}
+    },
+    {
+      "type": "footnote-reference",
+      "className": "FootnoteReferenceNode",
+      "version": 1,
+      "order": [
+        "type",
+        "version",
+        "$",
+        "label"
+      ],
+      "fields": {
+        "label": {
+          "kind": "raw"
+        }
+      },
+      "state": {}
+    },
+    {
+      "type": "hashtag",
+      "className": "HashtagNode",
+      "version": 1,
+      "order": [
+        "detail",
+        "format",
+        "mode",
+        "style",
+        "text",
+        "type",
+        "version",
+        "$"
+      ],
+      "fields": {
+        "detail": {
+          "kind": "aliased",
+          "inner": {
+            "kind": "number",
+            "default": 0
+          },
+          "aliases": {
+            "directionless": 1,
+            "unmergeable": 2
+          },
+          "default": 0
+        },
+        "format": {
+          "kind": "aliased",
+          "inner": {
+            "kind": "number",
+            "default": 0
+          },
+          "aliases": {
+            "bold": 1,
+            "capitalize": 1024,
+            "code": 16,
+            "highlight": 128,
+            "italic": 2,
+            "lowercase": 256,
+            "strikethrough": 4,
+            "subscript": 32,
+            "superscript": 64,
+            "underline": 8,
+            "uppercase": 512
+          },
+          "default": 0
+        },
+        "mode": {
+          "kind": "enum",
+          "values": [
+            "normal",
+            "token",
+            "segmented"
+          ],
+          "default": "normal"
+        },
+        "style": {
+          "kind": "string",
+          "default": ""
+        },
+        "text": {
+          "kind": "string",
+          "default": ""
+        }
+      },
+      "state": {}
+    },
+    {
       "type": "heading",
       "className": "HeadingNode",
       "version": 1,
-      "children": true,
+      "order": [
+        "children",
+        "tag",
+        "direction",
+        "format",
+        "indent",
+        "textFormat",
+        "textStyle",
+        "type",
+        "version",
+        "$"
+      ],
       "fields": {
         "direction": {
           "kind": "enum",
@@ -197,12 +1497,20 @@
           "default": "h1"
         },
         "textFormat": {
-          "kind": "number",
-          "default": 0
+          "kind": "optional",
+          "inner": {
+            "kind": "number",
+            "default": 0
+          },
+          "omitDefault": true
         },
         "textStyle": {
-          "kind": "string",
-          "default": ""
+          "kind": "optional",
+          "inner": {
+            "kind": "string",
+            "default": ""
+          },
+          "omitDefault": true
         }
       },
       "state": {}
@@ -211,15 +1519,544 @@
       "type": "horizontalrule",
       "className": "HorizontalRuleNode",
       "version": 1,
-      "children": false,
+      "order": [
+        "type",
+        "version",
+        "$"
+      ],
       "fields": {},
+      "state": {}
+    },
+    {
+      "type": "image",
+      "className": "ImageNode",
+      "version": 1,
+      "order": [
+        "altText",
+        "caption",
+        "height",
+        "maxWidth",
+        "showCaption",
+        "src",
+        "type",
+        "version",
+        "width",
+        "$"
+      ],
+      "fields": {
+        "altText": {
+          "kind": "raw"
+        },
+        "caption": {
+          "kind": "object",
+          "fields": {
+            "editorState": {
+              "kind": "transform",
+              "name": "nestedEditorState",
+              "inner": {
+                "kind": "raw",
+                "default": {
+                  "root": {
+                    "children": [],
+                    "direction": null,
+                    "format": "",
+                    "indent": 0,
+                    "type": "root",
+                    "version": 1
+                  }
+                }
+              },
+              "nestedEditor": [
+                "artificial",
+                "emoji",
+                "hashtag",
+                "keyword",
+                "linebreak",
+                "link",
+                "paragraph",
+                "root",
+                "tab",
+                "text"
+              ],
+              "default": {
+                "root": {
+                  "children": [],
+                  "direction": null,
+                  "format": "",
+                  "indent": 0,
+                  "type": "root",
+                  "version": 1
+                }
+              }
+            }
+          },
+          "default": {
+            "editorState": {
+              "root": {
+                "children": [],
+                "direction": null,
+                "format": "",
+                "indent": 0,
+                "type": "root",
+                "version": 1
+              }
+            }
+          }
+        },
+        "height": {
+          "kind": "transform",
+          "name": "storedSize",
+          "inner": {
+            "kind": "raw"
+          },
+          "default": 0
+        },
+        "maxWidth": {
+          "kind": "raw",
+          "default": 500
+        },
+        "showCaption": {
+          "kind": "transform",
+          "name": "falseOrStored",
+          "inner": {
+            "kind": "raw"
+          },
+          "default": false
+        },
+        "src": {
+          "kind": "raw"
+        },
+        "width": {
+          "kind": "transform",
+          "name": "storedSize",
+          "inner": {
+            "kind": "raw"
+          },
+          "default": 0
+        }
+      },
+      "state": {
+        "figure": {
+          "flat": false,
+          "value": {
+            "kind": "raw",
+            "shape": {
+              "kind": "object",
+              "fields": {
+                "width": {
+                  "kind": "optional",
+                  "inner": {
+                    "kind": "transform",
+                    "name": "figureWidth",
+                    "inner": {
+                      "kind": "string",
+                      "default": ""
+                    }
+                  }
+                },
+                "caption": {
+                  "kind": "optional",
+                  "inner": {
+                    "kind": "string",
+                    "default": ""
+                  }
+                }
+              },
+              "open": true,
+              "default": {}
+            }
+          }
+        },
+        "natural": {
+          "flat": false,
+          "value": {
+            "kind": "raw",
+            "shape": {
+              "kind": "transform",
+              "name": "naturalSize",
+              "inner": {
+                "kind": "object",
+                "fields": {
+                  "width": {
+                    "kind": "number",
+                    "default": 0
+                  },
+                  "height": {
+                    "kind": "number",
+                    "default": 0
+                  }
+                },
+                "open": true,
+                "default": {
+                  "width": 0,
+                  "height": 0
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "inline-image",
+      "className": "InlineImageNode",
+      "version": 1,
+      "order": [
+        "altText",
+        "caption",
+        "height",
+        "position",
+        "showCaption",
+        "src",
+        "type",
+        "captionsEnabled",
+        "version",
+        "width"
+      ],
+      "fields": {
+        "altText": {
+          "kind": "raw"
+        },
+        "caption": {
+          "kind": "object",
+          "fields": {
+            "editorState": {
+              "kind": "transform",
+              "name": "nestedEditorState",
+              "inner": {
+                "kind": "raw",
+                "default": {
+                  "root": {
+                    "children": [],
+                    "direction": null,
+                    "format": "",
+                    "indent": 0,
+                    "type": "root",
+                    "version": 1
+                  }
+                }
+              },
+              "nestedEditor": [
+                "artificial",
+                "emoji",
+                "hashtag",
+                "keyword",
+                "linebreak",
+                "link",
+                "paragraph",
+                "root",
+                "tab",
+                "text"
+              ],
+              "default": {
+                "root": {
+                  "children": [],
+                  "direction": null,
+                  "format": "",
+                  "indent": 0,
+                  "type": "root",
+                  "version": 1
+                }
+              }
+            }
+          },
+          "default": {
+            "editorState": {
+              "root": {
+                "children": [],
+                "direction": null,
+                "format": "",
+                "indent": 0,
+                "type": "root",
+                "version": 1
+              }
+            }
+          }
+        },
+        "captionsEnabled": {
+          "kind": "raw",
+          "nullAsAbsent": true,
+          "default": true
+        },
+        "height": {
+          "kind": "transform",
+          "name": "storedSize",
+          "inner": {
+            "kind": "raw"
+          },
+          "default": 0
+        },
+        "position": {
+          "kind": "raw"
+        },
+        "showCaption": {
+          "kind": "transform",
+          "name": "falseOrStored",
+          "inner": {
+            "kind": "raw"
+          },
+          "default": false
+        },
+        "src": {
+          "kind": "raw"
+        },
+        "width": {
+          "kind": "transform",
+          "name": "storedSize",
+          "inner": {
+            "kind": "raw"
+          },
+          "default": 0
+        }
+      },
+      "state": {}
+    },
+    {
+      "type": "keyword",
+      "className": "KeywordNode",
+      "version": 1,
+      "order": [
+        "detail",
+        "format",
+        "mode",
+        "style",
+        "text",
+        "type",
+        "version"
+      ],
+      "fields": {
+        "detail": {
+          "kind": "aliased",
+          "inner": {
+            "kind": "transform",
+            "name": "stringAbsent",
+            "inner": {
+              "kind": "raw"
+            }
+          },
+          "aliases": {
+            "directionless": 1,
+            "unmergeable": 2
+          }
+        },
+        "format": {
+          "kind": "aliased",
+          "inner": {
+            "kind": "transform",
+            "name": "stringAbsent",
+            "inner": {
+              "kind": "raw"
+            }
+          },
+          "aliases": {
+            "bold": 1,
+            "capitalize": 1024,
+            "code": 16,
+            "highlight": 128,
+            "italic": 2,
+            "lowercase": 256,
+            "strikethrough": 4,
+            "subscript": 32,
+            "superscript": 64,
+            "underline": 8,
+            "uppercase": 512
+          }
+        },
+        "mode": {
+          "kind": "enum",
+          "values": [
+            "normal",
+            "token",
+            "segmented"
+          ]
+        },
+        "style": {
+          "kind": "raw"
+        },
+        "text": {
+          "kind": "raw",
+          "default": ""
+        }
+      },
+      "state": {}
+    },
+    {
+      "type": "layout-container",
+      "className": "LayoutContainerNode",
+      "version": 1,
+      "order": [
+        "children",
+        "direction",
+        "format",
+        "indent",
+        "textFormat",
+        "textStyle",
+        "type",
+        "version",
+        "$",
+        "templateColumns"
+      ],
+      "fields": {
+        "direction": {
+          "kind": "enum",
+          "values": [
+            null,
+            "ltr",
+            "rtl"
+          ],
+          "default": null
+        },
+        "format": {
+          "kind": "enum",
+          "values": [
+            "",
+            "left",
+            "start",
+            "center",
+            "right",
+            "end",
+            "justify"
+          ],
+          "default": ""
+        },
+        "indent": {
+          "kind": "number",
+          "min": 0,
+          "integer": true,
+          "default": 0
+        },
+        "templateColumns": {
+          "kind": "raw"
+        },
+        "textFormat": {
+          "kind": "optional",
+          "inner": {
+            "kind": "number",
+            "default": 0
+          },
+          "omitDefault": true
+        },
+        "textStyle": {
+          "kind": "optional",
+          "inner": {
+            "kind": "string",
+            "default": ""
+          },
+          "omitDefault": true
+        }
+      },
+      "state": {
+        "figure": {
+          "flat": false,
+          "value": {
+            "kind": "raw",
+            "shape": {
+              "kind": "object",
+              "fields": {
+                "width": {
+                  "kind": "optional",
+                  "inner": {
+                    "kind": "transform",
+                    "name": "figureWidth",
+                    "inner": {
+                      "kind": "string",
+                      "default": ""
+                    }
+                  }
+                },
+                "caption": {
+                  "kind": "optional",
+                  "inner": {
+                    "kind": "string",
+                    "default": ""
+                  }
+                }
+              },
+              "open": true,
+              "default": {}
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "layout-item",
+      "className": "LayoutItemNode",
+      "version": 1,
+      "order": [
+        "children",
+        "direction",
+        "format",
+        "indent",
+        "textFormat",
+        "textStyle",
+        "type",
+        "version"
+      ],
+      "fields": {
+        "direction": {
+          "kind": "unread",
+          "inner": {
+            "kind": "enum",
+            "values": [
+              null,
+              "ltr",
+              "rtl"
+            ],
+            "default": null
+          }
+        },
+        "format": {
+          "kind": "unread",
+          "inner": {
+            "kind": "enum",
+            "values": [
+              "",
+              "left",
+              "start",
+              "center",
+              "right",
+              "end",
+              "justify"
+            ],
+            "default": ""
+          }
+        },
+        "indent": {
+          "kind": "unread",
+          "inner": {
+            "kind": "number",
+            "default": 0
+          }
+        },
+        "textFormat": {
+          "kind": "unread",
+          "inner": {
+            "kind": "number",
+            "default": 0
+          },
+          "gated": true
+        },
+        "textStyle": {
+          "kind": "unread",
+          "inner": {
+            "kind": "string",
+            "default": ""
+          },
+          "gated": true
+        }
+      },
       "state": {}
     },
     {
       "type": "linebreak",
       "className": "LineBreakNode",
       "version": 1,
-      "children": false,
+      "order": [
+        "type",
+        "version",
+        "$"
+      ],
       "fields": {},
       "state": {}
     },
@@ -227,7 +2064,21 @@
       "type": "link",
       "className": "LinkNode",
       "version": 1,
-      "children": true,
+      "order": [
+        "children",
+        "rel",
+        "target",
+        "title",
+        "url",
+        "direction",
+        "format",
+        "indent",
+        "textFormat",
+        "textStyle",
+        "type",
+        "version",
+        "$"
+      ],
       "fields": {
         "direction": {
           "kind": "enum",
@@ -276,12 +2127,20 @@
           "default": null
         },
         "textFormat": {
-          "kind": "number",
-          "default": 0
+          "kind": "optional",
+          "inner": {
+            "kind": "number",
+            "default": 0
+          },
+          "omitDefault": true
         },
         "textStyle": {
-          "kind": "string",
-          "default": ""
+          "kind": "optional",
+          "inner": {
+            "kind": "string",
+            "default": ""
+          },
+          "omitDefault": true
         },
         "title": {
           "kind": "nullable",
@@ -303,7 +2162,20 @@
       "type": "list",
       "className": "ListNode",
       "version": 1,
-      "children": true,
+      "order": [
+        "children",
+        "listType",
+        "start",
+        "tag",
+        "direction",
+        "format",
+        "indent",
+        "textFormat",
+        "textStyle",
+        "type",
+        "version",
+        "$"
+      ],
       "fields": {
         "direction": {
           "kind": "enum",
@@ -363,12 +2235,20 @@
           "default": "ul"
         },
         "textFormat": {
-          "kind": "number",
-          "default": 0
+          "kind": "optional",
+          "inner": {
+            "kind": "number",
+            "default": 0
+          },
+          "omitDefault": true
         },
         "textStyle": {
-          "kind": "string",
-          "default": ""
+          "kind": "optional",
+          "inner": {
+            "kind": "string",
+            "default": ""
+          },
+          "omitDefault": true
         }
       },
       "state": {}
@@ -377,7 +2257,19 @@
       "type": "listitem",
       "className": "ListItemNode",
       "version": 1,
-      "children": true,
+      "order": [
+        "children",
+        "checked",
+        "indent",
+        "value",
+        "direction",
+        "format",
+        "textFormat",
+        "textStyle",
+        "type",
+        "version",
+        "$"
+      ],
       "fields": {
         "checked": {
           "kind": "optional",
@@ -417,12 +2309,20 @@
           "default": 0
         },
         "textFormat": {
-          "kind": "number",
-          "default": 0
+          "kind": "optional",
+          "inner": {
+            "kind": "number",
+            "default": 0
+          },
+          "omitDefault": true
         },
         "textStyle": {
-          "kind": "string",
-          "default": ""
+          "kind": "optional",
+          "inner": {
+            "kind": "string",
+            "default": ""
+          },
+          "omitDefault": true
         },
         "value": {
           "kind": "number",
@@ -435,7 +2335,18 @@
       "type": "mark",
       "className": "MarkNode",
       "version": 1,
-      "children": true,
+      "order": [
+        "children",
+        "ids",
+        "direction",
+        "format",
+        "indent",
+        "textFormat",
+        "textStyle",
+        "type",
+        "version",
+        "$"
+      ],
       "fields": {
         "direction": {
           "kind": "enum",
@@ -474,21 +2385,220 @@
           "default": 0
         },
         "textFormat": {
-          "kind": "number",
-          "default": 0
+          "kind": "optional",
+          "inner": {
+            "kind": "number",
+            "default": 0
+          },
+          "omitDefault": true
         },
         "textStyle": {
-          "kind": "string",
-          "default": ""
+          "kind": "optional",
+          "inner": {
+            "kind": "string",
+            "default": ""
+          },
+          "omitDefault": true
         }
       },
+      "state": {}
+    },
+    {
+      "type": "mention",
+      "className": "MentionNode",
+      "version": 1,
+      "order": [
+        "detail",
+        "format",
+        "mode",
+        "style",
+        "text",
+        "type",
+        "version",
+        "mentionName"
+      ],
+      "fields": {
+        "detail": {
+          "kind": "aliased",
+          "inner": {
+            "kind": "transform",
+            "name": "stringAbsent",
+            "inner": {
+              "kind": "raw"
+            }
+          },
+          "aliases": {
+            "directionless": 1,
+            "unmergeable": 2
+          }
+        },
+        "format": {
+          "kind": "aliased",
+          "inner": {
+            "kind": "transform",
+            "name": "stringAbsent",
+            "inner": {
+              "kind": "raw"
+            }
+          },
+          "aliases": {
+            "bold": 1,
+            "capitalize": 1024,
+            "code": 16,
+            "highlight": 128,
+            "italic": 2,
+            "lowercase": 256,
+            "strikethrough": 4,
+            "subscript": 32,
+            "superscript": 64,
+            "underline": 8,
+            "uppercase": 512
+          }
+        },
+        "mentionName": {
+          "kind": "raw"
+        },
+        "mode": {
+          "kind": "enum",
+          "values": [
+            "normal",
+            "token",
+            "segmented"
+          ]
+        },
+        "style": {
+          "kind": "raw"
+        },
+        "text": {
+          "kind": "raw"
+        }
+      },
+      "state": {}
+    },
+    {
+      "type": "mermaid",
+      "className": "MermaidNode",
+      "version": 1,
+      "order": [
+        "type",
+        "version",
+        "schema",
+        "width",
+        "height",
+        "$"
+      ],
+      "fields": {
+        "height": {
+          "kind": "transform",
+          "name": "zeroAsInherit",
+          "inner": {
+            "kind": "raw",
+            "default": "inherit"
+          },
+          "default": "inherit"
+        },
+        "schema": {
+          "kind": "raw",
+          "default": "graph TD;\n  A[Start] --> B>Stop]"
+        },
+        "width": {
+          "kind": "transform",
+          "name": "zeroAsInherit",
+          "inner": {
+            "kind": "raw",
+            "default": "inherit"
+          },
+          "default": "inherit"
+        }
+      },
+      "state": {
+        "figure": {
+          "flat": false,
+          "value": {
+            "kind": "raw",
+            "shape": {
+              "kind": "object",
+              "fields": {
+                "width": {
+                  "kind": "optional",
+                  "inner": {
+                    "kind": "transform",
+                    "name": "figureWidth",
+                    "inner": {
+                      "kind": "string",
+                      "default": ""
+                    }
+                  }
+                },
+                "caption": {
+                  "kind": "optional",
+                  "inner": {
+                    "kind": "string",
+                    "default": ""
+                  }
+                }
+              },
+              "open": true,
+              "default": {}
+            }
+          }
+        },
+        "natural": {
+          "flat": false,
+          "value": {
+            "kind": "raw",
+            "shape": {
+              "kind": "transform",
+              "name": "naturalSize",
+              "inner": {
+                "kind": "object",
+                "fields": {
+                  "width": {
+                    "kind": "number",
+                    "default": 0
+                  },
+                  "height": {
+                    "kind": "number",
+                    "default": 0
+                  }
+                },
+                "open": true,
+                "default": {
+                  "width": 0,
+                  "height": 0
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "page-break",
+      "className": "PageBreakNode",
+      "version": 1,
+      "order": [
+        "type",
+        "version"
+      ],
+      "fields": {},
       "state": {}
     },
     {
       "type": "paragraph",
       "className": "ParagraphNode",
       "version": 1,
-      "children": true,
+      "order": [
+        "children",
+        "direction",
+        "format",
+        "indent",
+        "textFormat",
+        "textStyle",
+        "type",
+        "version",
+        "$"
+      ],
       "fields": {
         "direction": {
           "kind": "enum",
@@ -525,6 +2635,57 @@
         "textStyle": {
           "kind": "string",
           "default": ""
+        }
+      },
+      "state": {}
+    },
+    {
+      "type": "poll",
+      "className": "PollNode",
+      "version": 1,
+      "order": [
+        "options",
+        "question",
+        "type",
+        "version"
+      ],
+      "fields": {
+        "options": {
+          "kind": "raw",
+          "shape": {
+            "kind": "array",
+            "item": {
+              "kind": "object",
+              "fields": {
+                "text": {
+                  "kind": "string",
+                  "default": ""
+                },
+                "uid": {
+                  "kind": "string",
+                  "default": ""
+                },
+                "votes": {
+                  "kind": "array",
+                  "item": {
+                    "kind": "string",
+                    "default": ""
+                  },
+                  "default": []
+                }
+              },
+              "open": true,
+              "default": {
+                "text": "",
+                "uid": "",
+                "votes": []
+              }
+            },
+            "default": []
+          }
+        },
+        "question": {
+          "kind": "raw"
         }
       },
       "state": {}
@@ -533,7 +2694,18 @@
       "type": "quote",
       "className": "QuoteNode",
       "version": 1,
-      "children": true,
+      "order": [
+        "children",
+        "direction",
+        "format",
+        "indent",
+        "textFormat",
+        "textStyle",
+        "type",
+        "version",
+        "shadowRoot",
+        "$"
+      ],
       "fields": {
         "direction": {
           "kind": "enum",
@@ -564,12 +2736,20 @@
           "default": 0
         },
         "textFormat": {
-          "kind": "number",
-          "default": 0
+          "kind": "optional",
+          "inner": {
+            "kind": "number",
+            "default": 0
+          },
+          "omitDefault": true
         },
         "textStyle": {
-          "kind": "string",
-          "default": ""
+          "kind": "optional",
+          "inner": {
+            "kind": "string",
+            "default": ""
+          },
+          "omitDefault": true
         }
       },
       "state": {
@@ -586,7 +2766,17 @@
       "type": "root",
       "className": "RootNode",
       "version": 1,
-      "children": true,
+      "order": [
+        "children",
+        "direction",
+        "format",
+        "indent",
+        "textFormat",
+        "textStyle",
+        "type",
+        "version",
+        "$"
+      ],
       "fields": {
         "direction": {
           "kind": "enum",
@@ -617,12 +2807,783 @@
           "default": 0
         },
         "textFormat": {
-          "kind": "number",
-          "default": 0
+          "kind": "optional",
+          "inner": {
+            "kind": "number",
+            "default": 0
+          },
+          "omitDefault": true
         },
         "textStyle": {
-          "kind": "string",
-          "default": ""
+          "kind": "optional",
+          "inner": {
+            "kind": "string",
+            "default": ""
+          },
+          "omitDefault": true
+        }
+      },
+      "state": {}
+    },
+    {
+      "type": "slide-deck",
+      "className": "SlideNode",
+      "version": 1,
+      "order": [
+        "type",
+        "version",
+        "data"
+      ],
+      "fields": {
+        "data": {
+          "kind": "raw",
+          "nullAsAbsent": true,
+          "shape": {
+            "kind": "object",
+            "fields": {
+              "slides": {
+                "kind": "array",
+                "item": {
+                  "kind": "object",
+                  "fields": {
+                    "id": {
+                      "kind": "string",
+                      "default": ""
+                    },
+                    "elements": {
+                      "kind": "array",
+                      "item": {
+                        "kind": "union",
+                        "members": [
+                          {
+                            "kind": "object",
+                            "fields": {
+                              "kind": {
+                                "kind": "enum",
+                                "values": [
+                                  "box"
+                                ],
+                                "default": "box"
+                              },
+                              "id": {
+                                "kind": "string",
+                                "default": ""
+                              },
+                              "x": {
+                                "kind": "number",
+                                "default": 0
+                              },
+                              "y": {
+                                "kind": "number",
+                                "default": 0
+                              },
+                              "width": {
+                                "kind": "union",
+                                "members": [
+                                  {
+                                    "kind": "number",
+                                    "default": 0
+                                  },
+                                  {
+                                    "kind": "enum",
+                                    "values": [
+                                      "inherit"
+                                    ],
+                                    "default": "inherit"
+                                  }
+                                ]
+                              },
+                              "height": {
+                                "kind": "union",
+                                "members": [
+                                  {
+                                    "kind": "number",
+                                    "default": 0
+                                  },
+                                  {
+                                    "kind": "enum",
+                                    "values": [
+                                      "inherit"
+                                    ],
+                                    "default": "inherit"
+                                  }
+                                ]
+                              },
+                              "version": {
+                                "kind": "optional",
+                                "inner": {
+                                  "kind": "number",
+                                  "default": 0
+                                }
+                              },
+                              "zIndex": {
+                                "kind": "number",
+                                "default": 0
+                              },
+                              "editorStateJSON": {
+                                "kind": "raw"
+                              },
+                              "backgroundColor": {
+                                "kind": "optional",
+                                "inner": {
+                                  "kind": "string",
+                                  "default": ""
+                                }
+                              }
+                            },
+                            "open": true,
+                            "default": {
+                              "kind": "box",
+                              "id": "",
+                              "x": 0,
+                              "y": 0,
+                              "zIndex": 0
+                            }
+                          },
+                          {
+                            "kind": "object",
+                            "fields": {
+                              "kind": {
+                                "kind": "enum",
+                                "values": [
+                                  "image"
+                                ],
+                                "default": "image"
+                              },
+                              "id": {
+                                "kind": "string",
+                                "default": ""
+                              },
+                              "x": {
+                                "kind": "number",
+                                "default": 0
+                              },
+                              "y": {
+                                "kind": "number",
+                                "default": 0
+                              },
+                              "width": {
+                                "kind": "union",
+                                "members": [
+                                  {
+                                    "kind": "number",
+                                    "default": 0
+                                  },
+                                  {
+                                    "kind": "enum",
+                                    "values": [
+                                      "inherit"
+                                    ],
+                                    "default": "inherit"
+                                  }
+                                ]
+                              },
+                              "height": {
+                                "kind": "union",
+                                "members": [
+                                  {
+                                    "kind": "number",
+                                    "default": 0
+                                  },
+                                  {
+                                    "kind": "enum",
+                                    "values": [
+                                      "inherit"
+                                    ],
+                                    "default": "inherit"
+                                  }
+                                ]
+                              },
+                              "version": {
+                                "kind": "optional",
+                                "inner": {
+                                  "kind": "number",
+                                  "default": 0
+                                }
+                              },
+                              "zIndex": {
+                                "kind": "number",
+                                "default": 0
+                              },
+                              "url": {
+                                "kind": "string",
+                                "default": ""
+                              }
+                            },
+                            "open": true,
+                            "default": {
+                              "kind": "image",
+                              "id": "",
+                              "x": 0,
+                              "y": 0,
+                              "zIndex": 0,
+                              "url": ""
+                            }
+                          },
+                          {
+                            "kind": "object",
+                            "fields": {
+                              "kind": {
+                                "kind": "enum",
+                                "values": [
+                                  "chart"
+                                ],
+                                "default": "chart"
+                              },
+                              "id": {
+                                "kind": "string",
+                                "default": ""
+                              },
+                              "x": {
+                                "kind": "number",
+                                "default": 0
+                              },
+                              "y": {
+                                "kind": "number",
+                                "default": 0
+                              },
+                              "width": {
+                                "kind": "union",
+                                "members": [
+                                  {
+                                    "kind": "number",
+                                    "default": 0
+                                  },
+                                  {
+                                    "kind": "enum",
+                                    "values": [
+                                      "inherit"
+                                    ],
+                                    "default": "inherit"
+                                  }
+                                ]
+                              },
+                              "height": {
+                                "kind": "union",
+                                "members": [
+                                  {
+                                    "kind": "number",
+                                    "default": 0
+                                  },
+                                  {
+                                    "kind": "enum",
+                                    "values": [
+                                      "inherit"
+                                    ],
+                                    "default": "inherit"
+                                  }
+                                ]
+                              },
+                              "version": {
+                                "kind": "optional",
+                                "inner": {
+                                  "kind": "number",
+                                  "default": 0
+                                }
+                              },
+                              "zIndex": {
+                                "kind": "number",
+                                "default": 0
+                              },
+                              "chartType": {
+                                "kind": "enum",
+                                "values": [
+                                  "bar",
+                                  "line",
+                                  "area",
+                                  "pie",
+                                  "radar",
+                                  "scatter",
+                                  "composed"
+                                ],
+                                "default": "bar"
+                              },
+                              "chartData": {
+                                "kind": "string",
+                                "default": ""
+                              },
+                              "chartConfig": {
+                                "kind": "string",
+                                "default": ""
+                              }
+                            },
+                            "open": true,
+                            "default": {
+                              "kind": "chart",
+                              "id": "",
+                              "x": 0,
+                              "y": 0,
+                              "zIndex": 0,
+                              "chartType": "bar",
+                              "chartData": "",
+                              "chartConfig": ""
+                            }
+                          }
+                        ]
+                      },
+                      "default": []
+                    },
+                    "backgroundColor": {
+                      "kind": "optional",
+                      "inner": {
+                        "kind": "string",
+                        "default": ""
+                      }
+                    },
+                    "slideMetadata": {
+                      "kind": "optional",
+                      "inner": {
+                        "kind": "object",
+                        "fields": {
+                          "purpose": {
+                            "kind": "optional",
+                            "inner": {
+                              "kind": "string",
+                              "default": ""
+                            }
+                          },
+                          "storyboardTitle": {
+                            "kind": "optional",
+                            "inner": {
+                              "kind": "string",
+                              "default": ""
+                            }
+                          },
+                          "keyMessage": {
+                            "kind": "optional",
+                            "inner": {
+                              "kind": "string",
+                              "default": ""
+                            }
+                          },
+                          "keyVisualHint": {
+                            "kind": "optional",
+                            "inner": {
+                              "kind": "string",
+                              "default": ""
+                            }
+                          },
+                          "takeAwayMessage": {
+                            "kind": "optional",
+                            "inner": {
+                              "kind": "string",
+                              "default": ""
+                            }
+                          },
+                          "layoutTemplateHint": {
+                            "kind": "optional",
+                            "inner": {
+                              "kind": "string",
+                              "default": ""
+                            }
+                          },
+                          "speakerNotes": {
+                            "kind": "optional",
+                            "inner": {
+                              "kind": "string",
+                              "default": ""
+                            }
+                          },
+                          "sourceMaterialRefs": {
+                            "kind": "optional",
+                            "inner": {
+                              "kind": "array",
+                              "item": {
+                                "kind": "string",
+                                "default": ""
+                              },
+                              "default": []
+                            }
+                          }
+                        },
+                        "open": true,
+                        "default": {}
+                      }
+                    }
+                  },
+                  "open": true,
+                  "default": {
+                    "id": "",
+                    "elements": []
+                  }
+                },
+                "default": []
+              },
+              "currentSlideId": {
+                "kind": "nullable",
+                "inner": {
+                  "kind": "string",
+                  "default": ""
+                },
+                "default": null
+              },
+              "deckMetadata": {
+                "kind": "optional",
+                "inner": {
+                  "kind": "object",
+                  "fields": {
+                    "bigIdea": {
+                      "kind": "optional",
+                      "inner": {
+                        "kind": "string",
+                        "default": ""
+                      }
+                    },
+                    "audiencePersonaSummary": {
+                      "kind": "optional",
+                      "inner": {
+                        "kind": "string",
+                        "default": ""
+                      }
+                    },
+                    "overallObjective": {
+                      "kind": "optional",
+                      "inner": {
+                        "kind": "string",
+                        "default": ""
+                      }
+                    },
+                    "recommendedTone": {
+                      "kind": "optional",
+                      "inner": {
+                        "kind": "string",
+                        "default": ""
+                      }
+                    },
+                    "originalUserPrompt": {
+                      "kind": "optional",
+                      "inner": {
+                        "kind": "string",
+                        "default": ""
+                      }
+                    },
+                    "targetSlideCount": {
+                      "kind": "optional",
+                      "inner": {
+                        "kind": "number",
+                        "default": 0
+                      }
+                    },
+                    "targetDurationMinutes": {
+                      "kind": "optional",
+                      "inner": {
+                        "kind": "number",
+                        "default": 0
+                      }
+                    },
+                    "theme": {
+                      "kind": "optional",
+                      "inner": {
+                        "kind": "object",
+                        "fields": {
+                          "templateName": {
+                            "kind": "optional",
+                            "inner": {
+                              "kind": "string",
+                              "default": ""
+                            }
+                          },
+                          "colorPalette": {
+                            "kind": "optional",
+                            "inner": {
+                              "kind": "object",
+                              "fields": {
+                                "primary": {
+                                  "kind": "optional",
+                                  "inner": {
+                                    "kind": "string",
+                                    "default": ""
+                                  }
+                                },
+                                "secondary": {
+                                  "kind": "optional",
+                                  "inner": {
+                                    "kind": "string",
+                                    "default": ""
+                                  }
+                                },
+                                "accent": {
+                                  "kind": "optional",
+                                  "inner": {
+                                    "kind": "string",
+                                    "default": ""
+                                  }
+                                },
+                                "slideBackground": {
+                                  "kind": "optional",
+                                  "inner": {
+                                    "kind": "string",
+                                    "default": ""
+                                  }
+                                },
+                                "textHeader": {
+                                  "kind": "optional",
+                                  "inner": {
+                                    "kind": "string",
+                                    "default": ""
+                                  }
+                                },
+                                "textBody": {
+                                  "kind": "optional",
+                                  "inner": {
+                                    "kind": "string",
+                                    "default": ""
+                                  }
+                                }
+                              },
+                              "open": true,
+                              "default": {}
+                            }
+                          },
+                          "fonts": {
+                            "kind": "optional",
+                            "inner": {
+                              "kind": "object",
+                              "fields": {
+                                "heading": {
+                                  "kind": "optional",
+                                  "inner": {
+                                    "kind": "string",
+                                    "default": ""
+                                  }
+                                },
+                                "body": {
+                                  "kind": "optional",
+                                  "inner": {
+                                    "kind": "string",
+                                    "default": ""
+                                  }
+                                },
+                                "caption": {
+                                  "kind": "optional",
+                                  "inner": {
+                                    "kind": "string",
+                                    "default": ""
+                                  }
+                                }
+                              },
+                              "open": true,
+                              "default": {}
+                            }
+                          },
+                          "logoUrl": {
+                            "kind": "optional",
+                            "inner": {
+                              "kind": "string",
+                              "default": ""
+                            }
+                          },
+                          "customTokens": {
+                            "kind": "optional",
+                            "inner": {
+                              "kind": "string",
+                              "default": ""
+                            }
+                          }
+                        },
+                        "open": true,
+                        "default": {}
+                      }
+                    }
+                  },
+                  "open": true,
+                  "default": {}
+                }
+              }
+            },
+            "open": true,
+            "default": {
+              "slides": [],
+              "currentSlideId": null
+            }
+          },
+          "default": {
+            "slides": [
+              {
+                "id": "default-slide-1",
+                "elements": [
+                  {
+                    "kind": "box",
+                    "id": "default-box-1",
+                    "x": 50,
+                    "y": 50,
+                    "width": 300,
+                    "height": 50,
+                    "editorStateJSON": {
+                      "root": {
+                        "children": [
+                          {
+                            "key": "1",
+                            "type": "paragraph",
+                            "version": 1,
+                            "direction": "ltr",
+                            "format": "",
+                            "indent": 0,
+                            "textFormat": 0,
+                            "textStyle": "",
+                            "children": [
+                              {
+                                "detail": 0,
+                                "format": 0,
+                                "mode": "normal",
+                                "style": "",
+                                "text": "",
+                                "type": "text",
+                                "version": 1,
+                                "key": "initial-text-content-node"
+                              }
+                            ]
+                          }
+                        ],
+                        "direction": "ltr",
+                        "format": "",
+                        "indent": 0,
+                        "type": "root",
+                        "version": 1,
+                        "key": "root"
+                      }
+                    },
+                    "zIndex": 0
+                  }
+                ]
+              }
+            ],
+            "currentSlideId": "default-slide-1"
+          }
+        }
+      },
+      "state": {}
+    },
+    {
+      "type": "sticky",
+      "className": "StickyNode",
+      "version": 1,
+      "order": [
+        "caption",
+        "color",
+        "type",
+        "version",
+        "xOffset",
+        "yOffset"
+      ],
+      "fields": {
+        "caption": {
+          "kind": "object",
+          "fields": {
+            "editorState": {
+              "kind": "transform",
+              "name": "nestedEditorState",
+              "inner": {
+                "kind": "raw",
+                "default": {
+                  "root": {
+                    "children": [],
+                    "direction": null,
+                    "format": "",
+                    "indent": 0,
+                    "type": "root",
+                    "version": 1
+                  }
+                }
+              },
+              "nestedEditor": [
+                "article",
+                "artificial",
+                "autocomplete",
+                "autolink",
+                "callout",
+                "chart",
+                "code",
+                "code-highlight",
+                "collapsible-container",
+                "collapsible-content",
+                "collapsible-title",
+                "comment",
+                "emoji",
+                "equation",
+                "excalidraw",
+                "figma",
+                "footnote-definition",
+                "footnote-reference",
+                "hashtag",
+                "heading",
+                "horizontalrule",
+                "image",
+                "inline-image",
+                "keyword",
+                "layout-container",
+                "layout-item",
+                "linebreak",
+                "link",
+                "list",
+                "listitem",
+                "mark",
+                "mention",
+                "mermaid",
+                "page-break",
+                "paragraph",
+                "poll",
+                "quote",
+                "root",
+                "slide-deck",
+                "sticky",
+                "tab",
+                "table",
+                "tablecell",
+                "tablerow",
+                "text",
+                "thread",
+                "tweet",
+                "video",
+                "youtube"
+              ],
+              "default": {
+                "root": {
+                  "children": [],
+                  "direction": null,
+                  "format": "",
+                  "indent": 0,
+                  "type": "root",
+                  "version": 1
+                }
+              }
+            }
+          },
+          "default": {
+            "editorState": {
+              "root": {
+                "children": [],
+                "direction": null,
+                "format": "",
+                "indent": 0,
+                "type": "root",
+                "version": 1
+              }
+            }
+          }
+        },
+        "color": {
+          "kind": "raw",
+          "shape": {
+            "kind": "enum",
+            "values": [
+              "pink",
+              "yellow",
+              "green",
+              "blue",
+              "red",
+              "orange",
+              "purple",
+              "gray"
+            ],
+            "default": "yellow"
+          }
+        },
+        "xOffset": {
+          "kind": "raw"
+        },
+        "yOffset": {
+          "kind": "raw"
         }
       },
       "state": {}
@@ -631,7 +3592,16 @@
       "type": "tab",
       "className": "TabNode",
       "version": 1,
-      "children": false,
+      "order": [
+        "detail",
+        "mode",
+        "text",
+        "format",
+        "style",
+        "type",
+        "version",
+        "$"
+      ],
       "fields": {
         "detail": {
           "kind": "number",
@@ -680,7 +3650,21 @@
       "type": "table",
       "className": "TableNode",
       "version": 1,
-      "children": true,
+      "order": [
+        "children",
+        "colWidths",
+        "frozenColumnCount",
+        "frozenRowCount",
+        "rowStriping",
+        "direction",
+        "format",
+        "indent",
+        "textFormat",
+        "textStyle",
+        "type",
+        "version",
+        "$"
+      ],
       "fields": {
         "colWidths": {
           "kind": "optional",
@@ -716,12 +3700,20 @@
           "default": ""
         },
         "frozenColumnCount": {
-          "kind": "number",
-          "default": 0
+          "kind": "optional",
+          "inner": {
+            "kind": "number",
+            "default": 0
+          },
+          "omitDefault": true
         },
         "frozenRowCount": {
-          "kind": "number",
-          "default": 0
+          "kind": "optional",
+          "inner": {
+            "kind": "number",
+            "default": 0
+          },
+          "omitDefault": true
         },
         "indent": {
           "kind": "number",
@@ -730,16 +3722,28 @@
           "default": 0
         },
         "rowStriping": {
-          "kind": "boolean",
-          "default": false
+          "kind": "optional",
+          "inner": {
+            "kind": "boolean",
+            "default": false
+          },
+          "omitDefault": true
         },
         "textFormat": {
-          "kind": "number",
-          "default": 0
+          "kind": "optional",
+          "inner": {
+            "kind": "number",
+            "default": 0
+          },
+          "omitDefault": true
         },
         "textStyle": {
-          "kind": "string",
-          "default": ""
+          "kind": "optional",
+          "inner": {
+            "kind": "string",
+            "default": ""
+          },
+          "omitDefault": true
         }
       },
       "state": {}
@@ -748,7 +3752,23 @@
       "type": "tablecell",
       "className": "TableCellNode",
       "version": 1,
-      "children": true,
+      "order": [
+        "children",
+        "backgroundColor",
+        "colSpan",
+        "headerState",
+        "rowSpan",
+        "verticalAlign",
+        "width",
+        "direction",
+        "format",
+        "indent",
+        "textFormat",
+        "textStyle",
+        "type",
+        "version",
+        "$"
+      ],
       "fields": {
         "backgroundColor": {
           "kind": "nullable",
@@ -804,12 +3824,20 @@
           "default": 1
         },
         "textFormat": {
-          "kind": "number",
-          "default": 0
+          "kind": "optional",
+          "inner": {
+            "kind": "number",
+            "default": 0
+          },
+          "omitDefault": true
         },
         "textStyle": {
-          "kind": "string",
-          "default": ""
+          "kind": "optional",
+          "inner": {
+            "kind": "string",
+            "default": ""
+          },
+          "omitDefault": true
         },
         "verticalAlign": {
           "kind": "enum",
@@ -833,7 +3861,18 @@
       "type": "tablerow",
       "className": "TableRowNode",
       "version": 1,
-      "children": true,
+      "order": [
+        "children",
+        "height",
+        "direction",
+        "format",
+        "indent",
+        "textFormat",
+        "textStyle",
+        "type",
+        "version",
+        "$"
+      ],
       "fields": {
         "direction": {
           "kind": "enum",
@@ -871,12 +3910,20 @@
           "default": 0
         },
         "textFormat": {
-          "kind": "number",
-          "default": 0
+          "kind": "optional",
+          "inner": {
+            "kind": "number",
+            "default": 0
+          },
+          "omitDefault": true
         },
         "textStyle": {
-          "kind": "string",
-          "default": ""
+          "kind": "optional",
+          "inner": {
+            "kind": "string",
+            "default": ""
+          },
+          "omitDefault": true
         }
       },
       "state": {}
@@ -885,7 +3932,16 @@
       "type": "text",
       "className": "TextNode",
       "version": 1,
-      "children": false,
+      "order": [
+        "detail",
+        "format",
+        "mode",
+        "style",
+        "text",
+        "type",
+        "version",
+        "$"
+      ],
       "fields": {
         "detail": {
           "kind": "aliased",
@@ -939,35 +3995,727 @@
         }
       },
       "state": {}
+    },
+    {
+      "type": "thread",
+      "className": "ThreadNode",
+      "version": 1,
+      "order": [
+        "type",
+        "version",
+        "thread",
+        "format",
+        "indent",
+        "direction",
+        "children"
+      ],
+      "fields": {
+        "direction": {
+          "kind": "enum",
+          "values": [
+            null
+          ],
+          "default": null
+        },
+        "format": {
+          "kind": "raw"
+        },
+        "indent": {
+          "kind": "raw"
+        },
+        "thread": {
+          "kind": "raw",
+          "shape": {
+            "kind": "object",
+            "fields": {
+              "comments": {
+                "kind": "array",
+                "item": {
+                  "kind": "object",
+                  "fields": {
+                    "author": {
+                      "kind": "string",
+                      "default": ""
+                    },
+                    "content": {
+                      "kind": "string",
+                      "default": ""
+                    },
+                    "deleted": {
+                      "kind": "boolean",
+                      "default": false
+                    },
+                    "id": {
+                      "kind": "string",
+                      "default": ""
+                    },
+                    "timeStamp": {
+                      "kind": "number",
+                      "default": 0
+                    },
+                    "type": {
+                      "kind": "enum",
+                      "values": [
+                        "comment"
+                      ],
+                      "default": "comment"
+                    }
+                  },
+                  "open": true,
+                  "default": {
+                    "author": "",
+                    "content": "",
+                    "deleted": false,
+                    "id": "",
+                    "timeStamp": 0,
+                    "type": "comment"
+                  }
+                },
+                "default": []
+              },
+              "id": {
+                "kind": "string",
+                "default": ""
+              },
+              "quote": {
+                "kind": "string",
+                "default": ""
+              },
+              "type": {
+                "kind": "enum",
+                "values": [
+                  "thread"
+                ],
+                "default": "thread"
+              },
+              "resolved": {
+                "kind": "optional",
+                "inner": {
+                  "kind": "boolean",
+                  "default": false
+                }
+              }
+            },
+            "open": true,
+            "default": {
+              "comments": [],
+              "id": "",
+              "quote": "",
+              "type": "thread"
+            }
+          }
+        }
+      },
+      "state": {}
+    },
+    {
+      "type": "tweet",
+      "className": "TweetNode",
+      "version": 1,
+      "order": [
+        "format",
+        "type",
+        "version",
+        "$",
+        "id"
+      ],
+      "fields": {
+        "format": {
+          "kind": "raw",
+          "withState": {
+            "kind": "enum",
+            "values": [
+              "",
+              "left",
+              "start",
+              "center",
+              "right",
+              "end",
+              "justify"
+            ],
+            "default": ""
+          }
+        },
+        "id": {
+          "kind": "raw"
+        }
+      },
+      "state": {
+        "figure": {
+          "flat": false,
+          "value": {
+            "kind": "raw",
+            "shape": {
+              "kind": "object",
+              "fields": {
+                "width": {
+                  "kind": "optional",
+                  "inner": {
+                    "kind": "transform",
+                    "name": "figureWidth",
+                    "inner": {
+                      "kind": "string",
+                      "default": ""
+                    }
+                  }
+                },
+                "caption": {
+                  "kind": "optional",
+                  "inner": {
+                    "kind": "string",
+                    "default": ""
+                  }
+                }
+              },
+              "open": true,
+              "default": {}
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "video",
+      "className": "VideoNode",
+      "version": 1,
+      "order": [
+        "caption",
+        "height",
+        "src",
+        "type",
+        "version",
+        "width",
+        "showCaption",
+        "captionsEnabled",
+        "$"
+      ],
+      "fields": {
+        "caption": {
+          "kind": "transform",
+          "name": "videoCaption",
+          "inner": {
+            "kind": "raw"
+          },
+          "nestedEditor": [
+            "article",
+            "artificial",
+            "autocomplete",
+            "autolink",
+            "callout",
+            "chart",
+            "code",
+            "code-highlight",
+            "collapsible-container",
+            "collapsible-content",
+            "collapsible-title",
+            "comment",
+            "emoji",
+            "equation",
+            "excalidraw",
+            "figma",
+            "footnote-definition",
+            "footnote-reference",
+            "hashtag",
+            "heading",
+            "horizontalrule",
+            "image",
+            "inline-image",
+            "keyword",
+            "layout-container",
+            "layout-item",
+            "linebreak",
+            "link",
+            "list",
+            "listitem",
+            "mark",
+            "mention",
+            "mermaid",
+            "page-break",
+            "paragraph",
+            "poll",
+            "quote",
+            "root",
+            "slide-deck",
+            "sticky",
+            "tab",
+            "table",
+            "tablecell",
+            "tablerow",
+            "text",
+            "thread",
+            "tweet",
+            "video",
+            "youtube"
+          ],
+          "default": {
+            "root": {
+              "children": [
+                {
+                  "children": [],
+                  "direction": null,
+                  "format": "",
+                  "indent": 0,
+                  "textFormat": 0,
+                  "textStyle": "",
+                  "type": "paragraph",
+                  "version": 1
+                }
+              ],
+              "direction": null,
+              "format": "",
+              "indent": 0,
+              "type": "root",
+              "version": 1
+            }
+          }
+        },
+        "captionsEnabled": {
+          "kind": "transform",
+          "name": "falseOrStored",
+          "inner": {
+            "kind": "raw"
+          },
+          "default": false
+        },
+        "height": {
+          "kind": "transform",
+          "name": "storedSize",
+          "inner": {
+            "kind": "raw"
+          },
+          "default": 0
+        },
+        "showCaption": {
+          "kind": "transform",
+          "name": "falseOrStored",
+          "inner": {
+            "kind": "raw"
+          },
+          "default": false
+        },
+        "src": {
+          "kind": "raw"
+        },
+        "width": {
+          "kind": "transform",
+          "name": "storedSize",
+          "inner": {
+            "kind": "raw"
+          },
+          "default": 0
+        }
+      },
+      "state": {
+        "figure": {
+          "flat": false,
+          "value": {
+            "kind": "raw",
+            "shape": {
+              "kind": "object",
+              "fields": {
+                "width": {
+                  "kind": "optional",
+                  "inner": {
+                    "kind": "transform",
+                    "name": "figureWidth",
+                    "inner": {
+                      "kind": "string",
+                      "default": ""
+                    }
+                  }
+                },
+                "caption": {
+                  "kind": "optional",
+                  "inner": {
+                    "kind": "string",
+                    "default": ""
+                  }
+                }
+              },
+              "open": true,
+              "default": {}
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "youtube",
+      "className": "YouTubeNode",
+      "version": 1,
+      "order": [
+        "format",
+        "type",
+        "version",
+        "$",
+        "videoID",
+        "width",
+        "height"
+      ],
+      "fields": {
+        "format": {
+          "kind": "raw",
+          "withState": {
+            "kind": "enum",
+            "values": [
+              "",
+              "left",
+              "start",
+              "center",
+              "right",
+              "end",
+              "justify"
+            ],
+            "default": ""
+          }
+        },
+        "height": {
+          "kind": "transform",
+          "name": "storedSize",
+          "inner": {
+            "kind": "raw"
+          },
+          "default": 0
+        },
+        "videoID": {
+          "kind": "raw"
+        },
+        "width": {
+          "kind": "transform",
+          "name": "storedSize",
+          "inner": {
+            "kind": "raw"
+          },
+          "default": 0
+        }
+      },
+      "state": {
+        "figure": {
+          "flat": false,
+          "value": {
+            "kind": "raw",
+            "shape": {
+              "kind": "object",
+              "fields": {
+                "width": {
+                  "kind": "optional",
+                  "inner": {
+                    "kind": "transform",
+                    "name": "figureWidth",
+                    "inner": {
+                      "kind": "string",
+                      "default": ""
+                    }
+                  }
+                },
+                "caption": {
+                  "kind": "optional",
+                  "inner": {
+                    "kind": "string",
+                    "default": ""
+                  }
+                }
+              },
+              "open": true,
+              "default": {}
+            }
+          }
+        }
+      }
     }
   ],
-  "undeclared": [
-    "article",
-    "autocomplete",
-    "callout",
-    "chart",
-    "code",
-    "collapsible-container",
-    "collapsible-content",
-    "collapsible-title",
-    "comment",
-    "equation",
-    "excalidraw",
-    "figma",
-    "footnote-definition",
-    "footnote-reference",
-    "image",
-    "inline-image",
-    "layout-container",
-    "layout-item",
-    "mermaid",
-    "page-break",
-    "poll",
-    "slide-deck",
-    "sticky",
-    "thread",
-    "tweet",
-    "video",
-    "youtube"
-  ]
+  "traits": {
+    "article": {
+      "kind": "decorator",
+      "inline": false,
+      "shadowRoot": false,
+      "canBeEmpty": false
+    },
+    "autocomplete": {
+      "kind": "text",
+      "inline": true,
+      "shadowRoot": false,
+      "canBeEmpty": false
+    },
+    "autolink": {
+      "kind": "element",
+      "inline": true,
+      "shadowRoot": false,
+      "canBeEmpty": false
+    },
+    "callout": {
+      "kind": "element",
+      "inline": false,
+      "shadowRoot": true,
+      "canBeEmpty": false
+    },
+    "chart": {
+      "kind": "decorator",
+      "inline": false,
+      "shadowRoot": false,
+      "canBeEmpty": false
+    },
+    "code": {
+      "kind": "element",
+      "inline": false,
+      "shadowRoot": false,
+      "canBeEmpty": true
+    },
+    "code-highlight": {
+      "kind": "text",
+      "inline": true,
+      "shadowRoot": false,
+      "canBeEmpty": false
+    },
+    "collapsible-container": {
+      "kind": "element",
+      "inline": false,
+      "shadowRoot": false,
+      "canBeEmpty": true
+    },
+    "collapsible-content": {
+      "kind": "element",
+      "inline": false,
+      "shadowRoot": true,
+      "canBeEmpty": true
+    },
+    "collapsible-title": {
+      "kind": "element",
+      "inline": false,
+      "shadowRoot": false,
+      "canBeEmpty": true
+    },
+    "comment": {
+      "kind": "decorator",
+      "inline": true,
+      "shadowRoot": false,
+      "canBeEmpty": false
+    },
+    "emoji": {
+      "kind": "text",
+      "inline": true,
+      "shadowRoot": false,
+      "canBeEmpty": false
+    },
+    "equation": {
+      "kind": "decorator",
+      "inline": {
+        "field": "inline"
+      },
+      "shadowRoot": false,
+      "canBeEmpty": false
+    },
+    "excalidraw": {
+      "kind": "decorator",
+      "inline": true,
+      "shadowRoot": false,
+      "canBeEmpty": false
+    },
+    "figma": {
+      "kind": "decorator",
+      "inline": false,
+      "shadowRoot": false,
+      "canBeEmpty": false
+    },
+    "footnote-definition": {
+      "kind": "element",
+      "inline": false,
+      "shadowRoot": false,
+      "canBeEmpty": true
+    },
+    "footnote-reference": {
+      "kind": "decorator",
+      "inline": true,
+      "shadowRoot": false,
+      "canBeEmpty": false
+    },
+    "hashtag": {
+      "kind": "text",
+      "inline": true,
+      "shadowRoot": false,
+      "canBeEmpty": false
+    },
+    "heading": {
+      "kind": "element",
+      "inline": false,
+      "shadowRoot": false,
+      "canBeEmpty": true
+    },
+    "horizontalrule": {
+      "kind": "decorator",
+      "inline": false,
+      "shadowRoot": false,
+      "canBeEmpty": false
+    },
+    "image": {
+      "kind": "decorator",
+      "inline": true,
+      "shadowRoot": false,
+      "canBeEmpty": false
+    },
+    "inline-image": {
+      "kind": "decorator",
+      "inline": true,
+      "shadowRoot": false,
+      "canBeEmpty": false
+    },
+    "keyword": {
+      "kind": "text",
+      "inline": true,
+      "shadowRoot": false,
+      "canBeEmpty": false
+    },
+    "layout-container": {
+      "kind": "element",
+      "inline": false,
+      "shadowRoot": true,
+      "canBeEmpty": false
+    },
+    "layout-item": {
+      "kind": "element",
+      "inline": false,
+      "shadowRoot": true,
+      "canBeEmpty": true
+    },
+    "linebreak": {
+      "kind": "linebreak",
+      "inline": true,
+      "shadowRoot": false,
+      "canBeEmpty": false
+    },
+    "link": {
+      "kind": "element",
+      "inline": true,
+      "shadowRoot": false,
+      "canBeEmpty": false
+    },
+    "list": {
+      "kind": "element",
+      "inline": false,
+      "shadowRoot": false,
+      "canBeEmpty": false
+    },
+    "listitem": {
+      "kind": "element",
+      "inline": false,
+      "shadowRoot": false,
+      "canBeEmpty": true
+    },
+    "mark": {
+      "kind": "element",
+      "inline": true,
+      "shadowRoot": false,
+      "canBeEmpty": false
+    },
+    "mention": {
+      "kind": "text",
+      "inline": true,
+      "shadowRoot": false,
+      "canBeEmpty": false
+    },
+    "mermaid": {
+      "kind": "decorator",
+      "inline": false,
+      "shadowRoot": false,
+      "canBeEmpty": false
+    },
+    "page-break": {
+      "kind": "decorator",
+      "inline": false,
+      "shadowRoot": false,
+      "canBeEmpty": false
+    },
+    "paragraph": {
+      "kind": "element",
+      "inline": false,
+      "shadowRoot": false,
+      "canBeEmpty": true
+    },
+    "poll": {
+      "kind": "decorator",
+      "inline": true,
+      "shadowRoot": false,
+      "canBeEmpty": false
+    },
+    "quote": {
+      "kind": "element",
+      "inline": false,
+      "shadowRoot": {
+        "field": "shadowRoot"
+      },
+      "canBeEmpty": true
+    },
+    "root": {
+      "kind": "element",
+      "inline": false,
+      "shadowRoot": false,
+      "canBeEmpty": true
+    },
+    "slide-deck": {
+      "kind": "decorator",
+      "inline": false,
+      "shadowRoot": false,
+      "canBeEmpty": false
+    },
+    "sticky": {
+      "kind": "decorator",
+      "inline": true,
+      "shadowRoot": false,
+      "canBeEmpty": false
+    },
+    "tab": {
+      "kind": "text",
+      "inline": true,
+      "shadowRoot": false,
+      "canBeEmpty": false
+    },
+    "table": {
+      "kind": "element",
+      "inline": false,
+      "shadowRoot": true,
+      "canBeEmpty": false
+    },
+    "tablecell": {
+      "kind": "element",
+      "inline": false,
+      "shadowRoot": true,
+      "canBeEmpty": false
+    },
+    "tablerow": {
+      "kind": "element",
+      "inline": false,
+      "shadowRoot": true,
+      "canBeEmpty": false
+    },
+    "text": {
+      "kind": "text",
+      "inline": true,
+      "shadowRoot": false,
+      "canBeEmpty": false
+    },
+    "thread": {
+      "kind": "decorator",
+      "inline": true,
+      "shadowRoot": false,
+      "canBeEmpty": false
+    },
+    "tweet": {
+      "kind": "decorator",
+      "inline": false,
+      "shadowRoot": false,
+      "canBeEmpty": false
+    },
+    "video": {
+      "kind": "decorator",
+      "inline": false,
+      "shadowRoot": false,
+      "canBeEmpty": false
+    },
+    "youtube": {
+      "kind": "decorator",
+      "inline": false,
+      "shadowRoot": false,
+      "canBeEmpty": false
+    }
+  }
 }

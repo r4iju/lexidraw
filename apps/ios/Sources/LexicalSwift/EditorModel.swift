@@ -29,11 +29,11 @@ public struct Snapshot: Codable, Equatable, Sendable {
 public struct Selection: Codable, Equatable, Sendable {
   public var anchor: Point
   public var focus: Point
-  /// Text format bits new text takes, as Lexical's `RangeSelection.format`.
-  public var format: Int
+  /// The format new text takes, as Lexical's `RangeSelection.format`.
+  public var format: TextFormat
   public var style: String
 
-  public init(anchor: Point, focus: Point, format: Int, style: String) {
+  public init(anchor: Point, focus: Point, format: TextFormat, style: String) {
     self.anchor = anchor
     self.focus = focus
     self.format = format
@@ -70,42 +70,151 @@ public enum EditorCommand: Equatable, Sendable {
   /// follow what it lands in.
   case setSelection(anchor: Point, focus: Point)
   case insertText(String)
+  /// Backspace (`backward`) or forward delete, by one character, word or line.
+  case deleteCharacter(backward: Bool)
+  case deleteWord(backward: Bool)
+  /// `lineBoundary` is where the view lays out the start of the caret's line,
+  /// or its end going forward.
+  case deleteLine(backward: Bool, lineBoundary: Point)
+  /// Enter.
+  case insertParagraph
+  /// Shift-Enter.
+  case insertLineBreak
+  /// Toggles a format on the selected text, or on what a caret types next.
+  case formatText(TextFormatType)
+  case selectAll
+  case undo
+  case redo
+  /// Lets time pass, which decides whether history merges the next edit into
+  /// the last.
+  case wait(milliseconds: Int)
 
   public static func caret(_ point: Point) -> EditorCommand {
     .setSelection(anchor: point, focus: point)
   }
 }
 
+/// Lexical's `TextFormatType`: a text format by the name Lexical gives it.
+public enum TextFormatType: String, Codable, CaseIterable, Sendable {
+  case bold, italic, strikethrough, underline, code, `subscript`, superscript, highlight, lowercase,
+    uppercase, capitalize
+
+  /// Lexical's `TEXT_TYPE_TO_FORMAT`.
+  public var format: TextFormat {
+    switch self {
+    case .bold: .bold
+    case .italic: .italic
+    case .strikethrough: .strikethrough
+    case .underline: .underline
+    case .code: .code
+    case .subscript: .subscript
+    case .superscript: .superscript
+    case .highlight: .highlight
+    case .lowercase: .lowercase
+    case .uppercase: .uppercase
+    case .capitalize: .capitalize
+    }
+  }
+}
+
+/// The text formats a text node or selection has, as the bits Lexical keeps
+/// in `format`.
+public struct TextFormat: OptionSet, Codable, Hashable, Sendable {
+  public let rawValue: Int
+
+  public init(rawValue: Int) {
+    self.rawValue = rawValue
+  }
+
+  public static let bold = TextFormat(rawValue: 1 << 0)
+  public static let italic = TextFormat(rawValue: 1 << 1)
+  public static let strikethrough = TextFormat(rawValue: 1 << 2)
+  public static let underline = TextFormat(rawValue: 1 << 3)
+  public static let code = TextFormat(rawValue: 1 << 4)
+  public static let `subscript` = TextFormat(rawValue: 1 << 5)
+  public static let superscript = TextFormat(rawValue: 1 << 6)
+  public static let highlight = TextFormat(rawValue: 1 << 7)
+  public static let lowercase = TextFormat(rawValue: 1 << 8)
+  public static let uppercase = TextFormat(rawValue: 1 << 9)
+  public static let capitalize = TextFormat(rawValue: 1 << 10)
+  /// Lexical's `IS_ALL_FORMATTING`.
+  public static let all = TextFormat(TextFormatType.allCases.map(\.format))
+}
+
 extension EditorCommand: Codable {
   private enum CodingKeys: String, CodingKey {
-    case type, anchor, focus, text
+    case type, anchor, focus, text, backward, lineBoundary, format, milliseconds
   }
+
+  /// The command's `type` in JSON.
+  private enum Kind: String, Codable {
+    case setSelection, insertText, deleteCharacter, deleteWord, deleteLine, insertParagraph, insertLineBreak,
+      formatText, selectAll, undo, redo, wait
+  }
+
+  private var kind: Kind {
+    switch self {
+    case .setSelection: .setSelection
+    case .insertText: .insertText
+    case .deleteCharacter: .deleteCharacter
+    case .deleteWord: .deleteWord
+    case .deleteLine: .deleteLine
+    case .insertParagraph: .insertParagraph
+    case .insertLineBreak: .insertLineBreak
+    case .formatText: .formatText
+    case .selectAll: .selectAll
+    case .undo: .undo
+    case .redo: .redo
+    case .wait: .wait
+    }
+  }
+
+  public var name: String { kind.rawValue }
 
   public init(from decoder: any Decoder) throws {
     let container = try decoder.container(keyedBy: CodingKeys.self)
-    switch try container.decode(String.self, forKey: .type) {
-    case "setSelection":
+    func backward() throws -> Bool { try container.decode(Bool.self, forKey: .backward) }
+    switch try container.decode(Kind.self, forKey: .type) {
+    case .setSelection:
       self = .setSelection(
         anchor: try container.decode(Point.self, forKey: .anchor),
         focus: try container.decode(Point.self, forKey: .focus))
-    case "insertText":
-      self = .insertText(try container.decode(String.self, forKey: .text))
-    case let type:
-      throw DecodingError.dataCorruptedError(
-        forKey: .type, in: container, debugDescription: "Unknown command \(type)")
+    case .insertText: self = .insertText(try container.decode(String.self, forKey: .text))
+    case .deleteCharacter: self = .deleteCharacter(backward: try backward())
+    case .deleteWord: self = .deleteWord(backward: try backward())
+    case .deleteLine:
+      self = .deleteLine(
+        backward: try backward(), lineBoundary: try container.decode(Point.self, forKey: .lineBoundary))
+    case .insertParagraph: self = .insertParagraph
+    case .insertLineBreak: self = .insertLineBreak
+    case .formatText: self = .formatText(try container.decode(TextFormatType.self, forKey: .format))
+    case .selectAll: self = .selectAll
+    case .undo: self = .undo
+    case .redo: self = .redo
+    case .wait: self = .wait(milliseconds: try container.decode(Int.self, forKey: .milliseconds))
     }
   }
 
   public func encode(to encoder: any Encoder) throws {
     var container = encoder.container(keyedBy: CodingKeys.self)
+    try container.encode(kind, forKey: .type)
     switch self {
     case .setSelection(let anchor, let focus):
-      try container.encode("setSelection", forKey: .type)
       try container.encode(anchor, forKey: .anchor)
       try container.encode(focus, forKey: .focus)
     case .insertText(let text):
-      try container.encode("insertText", forKey: .type)
       try container.encode(text, forKey: .text)
+    case .deleteCharacter(let backward), .deleteWord(let backward):
+      try container.encode(backward, forKey: .backward)
+    case .deleteLine(let backward, let lineBoundary):
+      try container.encode(backward, forKey: .backward)
+      try container.encode(lineBoundary, forKey: .lineBoundary)
+    case .formatText(let format):
+      try container.encode(format, forKey: .format)
+    case .wait(let milliseconds):
+      try container.encode(milliseconds, forKey: .milliseconds)
+    case .insertParagraph, .insertLineBreak, .selectAll, .undo, .redo:
+      break
     }
   }
 }
@@ -143,4 +252,19 @@ public enum EditorError: Error, Equatable {
   /// Valid input this implementation does not handle yet.
   case unsupported(String)
   case invalidState(String)
+
+  /// What went wrong, without the particulars, for comparing two
+  /// implementations' refusals.
+  public enum Kind: String, Codable, Sendable {
+    case noNode, noSelection, unsupported, invalidState
+  }
+
+  public var kind: Kind {
+    switch self {
+    case .noNode: .noNode
+    case .noSelection: .noSelection
+    case .unsupported: .unsupported
+    case .invalidState: .invalidState
+    }
+  }
 }

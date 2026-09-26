@@ -1,11 +1,26 @@
 import {
-  DecoratorNode,
+  arrayValue,
+  booleanValue,
   type EditorConfig,
+  enumValue,
   type LexicalNode,
   type NodeKey,
-  type SerializedLexicalNode,
+  nodeSchema,
+  objectValue,
+  optional,
+  type Spread,
+  stringValue,
+  withField,
 } from "lexical";
-import type { Comment } from "./CommentNode.js";
+import { type SchemaJSON, shapedAs, storedValue } from "../schema-values.js";
+import {
+  type ImportJSON,
+  storedFields,
+  withStoredJSON,
+  written,
+} from "../stored-fields.js";
+import { type Comment, commentShape } from "./CommentNode.js";
+import { MarkerNode, type SerializedMarkerNode } from "./MarkerNode.js";
 
 export type Thread = {
   comments: Comment[];
@@ -16,43 +31,57 @@ export type Thread = {
   resolved?: boolean;
 };
 
-export type SerializedThreadNode = {
-  type: "thread";
-  version: 1;
-  // original Lexical props
-  format: number;
-  indent: number;
-  direction: "ltr" | "rtl" | null;
-  children: SerializedLexicalNode[]; // will hold children, possibly CommentNodes
-  // our custom data
-  thread: Thread;
-} & SerializedLexicalNode;
+/** A thread with nothing in it, which a marker made from nothing holds. */
+const EMPTY_THREAD: Thread = {
+  comments: [],
+  id: "",
+  quote: "",
+  type: "thread",
+};
+
+const { fields: threadFields, json: threadJSON } = storedFields({
+  type: written,
+  version: written,
+  thread: withField(
+    shapedAs(
+      objectValue({
+        comments: arrayValue(commentShape),
+        id: stringValue(),
+        quote: stringValue(),
+        type: enumValue(["thread"]),
+        resolved: optional(booleanValue()),
+      }),
+      storedValue<Thread>(),
+    ),
+    { field: "__thread" },
+  ),
+  format: written,
+  indent: written,
+  direction: written,
+  children: written,
+});
+
+export type SerializedThreadNode = Spread<
+  SchemaJSON<typeof threadJSON>,
+  SerializedMarkerNode
+>;
+
+const threadSchema = nodeSchema<ThreadNode>()(threadFields);
 
 /**
  * Serialization half of the comment thread marker; see ImageNode for the split.
  */
-export class ThreadNode extends DecoratorNode<unknown> {
-  // store the entire "thread" object here
+export class ThreadNode extends MarkerNode {
+  declare static importJSON: ImportJSON<ThreadNode>;
   __thread: Thread;
-  __format: number;
-  __indent: number;
-  __direction: "ltr" | "rtl" | null;
 
-  // Lexical constructs nodes with no arguments; every caller passes a thread.
-  constructor(thread?: Thread, key?: NodeKey) {
+  constructor(thread: Thread = EMPTY_THREAD, key?: NodeKey) {
     super(key);
-    this.__thread = thread as Thread;
-    this.__format = 0;
-    this.__indent = 0;
-    this.__direction = null;
+    this.__thread = thread;
   }
 
-  static getType(): string {
-    return "thread";
-  }
-
-  static clone(node: ThreadNode): ThreadNode {
-    return new this(node.__thread, node.__key);
+  $config() {
+    return this.config("thread", { extends: MarkerNode, json: threadSchema });
   }
 
   createDOM(_config: EditorConfig): HTMLElement {
@@ -65,14 +94,6 @@ export class ThreadNode extends DecoratorNode<unknown> {
     return false;
   }
 
-  setFormat(format: number): void {
-    this.__format = format;
-  }
-
-  setIndent(indent: number): void {
-    this.__indent = indent;
-  }
-
   getThread(): Thread {
     return this.getLatest().__thread;
   }
@@ -83,31 +104,11 @@ export class ThreadNode extends DecoratorNode<unknown> {
     return writable;
   }
 
-  exportJSON(): SerializedThreadNode {
-    return {
-      ...super.exportJSON(),
-      type: "thread",
-      thread: this.__thread,
-      version: 1,
-      format: this.__format,
-      indent: this.__indent,
-      direction: this.__direction,
-      children: [],
-    };
-  }
-
-  static importJSON(serializedNode: SerializedThreadNode): ThreadNode {
-    const node = new this(serializedNode.thread);
-    // for an advanced use-case, you might re-insert child comment nodes
-    // or do more advanced mapping. for now, we keep it simple.
-    node.setFormat(serializedNode.format);
-    node.setIndent(serializedNode.indent);
-    return node;
-  }
-
   static $isThreadNode = (
     node: LexicalNode | null | undefined,
   ): node is ThreadNode => {
     return node?.getType?.() === "thread";
   };
 }
+
+withStoredJSON(ThreadNode);

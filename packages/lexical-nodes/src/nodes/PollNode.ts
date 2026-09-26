@@ -1,15 +1,27 @@
 import {
   $create,
+  arrayValue,
   DecoratorNode,
   type DOMConversionMap,
   type DOMConversionOutput,
   type DOMExportOutput,
+  type Klass,
   type LexicalNode,
   type NodeKey,
+  nodeSchema,
+  objectValue,
   type SerializedLexicalNode,
   type Spread,
-  type Klass,
+  stringValue,
+  withField,
 } from "lexical";
+import { type SchemaJSON, shapedAs, storedValue } from "../schema-values.js";
+import {
+  type ImportJSON,
+  storedFields,
+  withStoredJSON,
+  written,
+} from "../stored-fields.js";
 
 export type Options = readonly Option[];
 
@@ -19,20 +31,39 @@ export type Option = Readonly<{
   votes: string[];
 }>;
 
+const { fields: pollFields, json: pollJSON } = storedFields({
+  options: withField(
+    shapedAs(
+      arrayValue(
+        objectValue({
+          text: stringValue(),
+          uid: stringValue(),
+          votes: arrayValue(stringValue()),
+        }),
+      ),
+      storedValue<Options>(),
+    ),
+    { field: "__options" },
+  ),
+  question: withField(storedValue<string>(), { field: "__question" }),
+  type: written,
+  version: written,
+});
+
 export type SerializedPollNode = Spread<
-  {
-    question: string;
-    options: Options;
-  },
+  SchemaJSON<typeof pollJSON>,
   SerializedLexicalNode
 >;
 
+const pollSchema = nodeSchema<PollNode>()(pollFields);
+
 export class PollNode extends DecoratorNode<unknown> {
+  declare static importJSON: ImportJSON<PollNode>;
   __question: string;
   __options: Options;
 
-  static getType(): string {
-    return "poll";
+  $config() {
+    return this.config("poll", { extends: DecoratorNode, json: pollSchema });
   }
 
   static $convertPollElement(domNode: HTMLElement): DOMConversionOutput | null {
@@ -53,27 +84,10 @@ export class PollNode extends DecoratorNode<unknown> {
     };
   }
 
-  static clone(node: PollNode): PollNode {
-    return new this(node.__question, node.__options, node.__key);
-  }
-
-  static importJSON(s: SerializedPollNode): PollNode {
-    return PollNode.$createPollNode(s.question, s.options);
-  }
-
   constructor(question = "", options: Options = [], key?: NodeKey) {
     super(key);
     this.__question = question;
     this.__options = options;
-  }
-
-  exportJSON(): SerializedPollNode {
-    return {
-      options: this.__options,
-      question: this.__question,
-      type: "poll",
-      version: 1,
-    };
   }
 
   getQuestion(): string {
@@ -188,3 +202,5 @@ export class PollNode extends DecoratorNode<unknown> {
     return node instanceof PollNode;
   }
 }
+
+withStoredJSON(PollNode);

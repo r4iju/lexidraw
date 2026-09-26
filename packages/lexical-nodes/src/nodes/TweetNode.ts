@@ -2,18 +2,28 @@ import {
   DecoratorBlockNode,
   type SerializedDecoratorBlockNode,
 } from "@lexical/react/LexicalDecoratorBlockNode";
-import type {
-  Klass,
-  DOMConversionMap,
-  DOMConversionOutput,
-  DOMExportOutput,
-  ElementFormatType,
-  LexicalNode,
-  NodeKey,
-  Spread,
+import {
+  $create,
+  type DOMConversionMap,
+  type DOMConversionOutput,
+  type DOMExportOutput,
+  type ElementFormatType,
+  type Klass,
+  type LexicalNode,
+  type NodeKey,
+  nodeSchema,
+  type Spread,
+  withField,
 } from "lexical";
-import { $create } from "lexical";
-import { $importNodeState, figureDOM } from "../figure.js";
+import { type SchemaJSON, storedValue } from "../schema-values.js";
+import { figureDOM, figureState } from "../figure.js";
+import {
+  type ImportJSON,
+  storedFields,
+  withStoredJSON,
+  written,
+} from "../stored-fields.js";
+import { storedBlockFields } from "./stored-block.js";
 
 function $convertTweetElement(
   domNode: HTMLDivElement,
@@ -26,37 +36,31 @@ function $convertTweetElement(
   return null;
 }
 
+const { fields: tweetFields, json: tweetJSON } = storedFields({
+  ...storedBlockFields,
+  type: written,
+  version: written,
+  $: written,
+  id: withField(storedValue<string>(), { field: "__id" }),
+});
+
 export type SerializedTweetNode = Spread<
-  {
-    id: string;
-  },
+  SchemaJSON<typeof tweetJSON>,
   SerializedDecoratorBlockNode
 >;
 
+const tweetSchema = nodeSchema<TweetNode>()(tweetFields);
+
 export class TweetNode extends DecoratorBlockNode {
+  declare static importJSON: ImportJSON<TweetNode>;
   __id: string;
 
-  static getType(): string {
-    return "tweet";
-  }
-
-  static clone(node: TweetNode): TweetNode {
-    return new this(node.__id, node.__format, node.__key);
-  }
-
-  static importJSON(serializedNode: SerializedTweetNode): TweetNode {
-    const node = TweetNode.$createTweetNode(serializedNode.id);
-    node.setFormat(serializedNode.format);
-    return $importNodeState(node, serializedNode);
-  }
-
-  exportJSON(): SerializedTweetNode {
-    return {
-      ...super.exportJSON(),
-      id: this.getId(),
-      type: "tweet",
-      version: 1,
-    };
+  $config() {
+    return this.config("tweet", {
+      extends: DecoratorBlockNode,
+      json: tweetSchema,
+      stateConfigs: [figureState],
+    });
   }
 
   static importDOM(): DOMConversionMap<HTMLDivElement> | null {
@@ -126,3 +130,5 @@ export class TweetNode extends DecoratorBlockNode {
     return node instanceof TweetNode;
   }
 }
+
+withStoredJSON(TweetNode);

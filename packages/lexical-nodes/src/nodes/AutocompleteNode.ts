@@ -1,14 +1,37 @@
-import { TextNode, type EditorConfig, type NodeKey } from "lexical";
-import type { SerializedTextNode, Spread } from "lexical";
+import {
+  type EditorConfig,
+  type NodeKey,
+  nodeSchema,
+  type SerializedTextNode,
+  type Spread,
+  TextNode,
+  withField,
+} from "lexical";
+import { type SchemaJSON, storedValue } from "../schema-values.js";
+import {
+  type ImportJSON,
+  storedFields,
+  withStoredJSON,
+  written,
+} from "../stored-fields.js";
+import { storedTextFields, textOrEmpty } from "./stored-text.js";
+
+const { fields: autocompleteFields, json: autocompleteJSON } = storedFields({
+  ...storedTextFields(textOrEmpty),
+  type: written,
+  version: written,
+  uuid: withField(storedValue<string>(), { field: "__uuid" }),
+});
 
 export type SerializedAutocompleteNode = Spread<
-  {
-    uuid: string;
-  },
+  SchemaJSON<typeof autocompleteJSON>,
   SerializedTextNode
 >;
 
+const autocompleteSchema = nodeSchema<AutocompleteNode>()(autocompleteFields);
+
 export class AutocompleteNode extends TextNode {
+  declare static importJSON: ImportJSON<AutocompleteNode>;
   /**
    * A unique uuid is generated for each session and assigned to the instance.
    * This helps to:
@@ -19,38 +42,14 @@ export class AutocompleteNode extends TextNode {
    */
   __uuid: string;
 
-  static getType(): "autocomplete" {
-    return "autocomplete";
+  $config() {
+    return this.config("autocomplete", {
+      extends: TextNode,
+      json: autocompleteSchema,
+    });
   }
 
-  static clone(node: AutocompleteNode): AutocompleteNode {
-    return new AutocompleteNode(node.__text, node.__uuid, node.__key);
-  }
-
-  static importJSON(
-    serializedNode: SerializedAutocompleteNode,
-  ): AutocompleteNode {
-    const node = AutocompleteNode.$createAutocompleteNode(
-      serializedNode.text,
-      serializedNode.uuid,
-    );
-    node.setFormat(serializedNode.format);
-    node.setDetail(serializedNode.detail);
-    node.setMode(serializedNode.mode);
-    node.setStyle(serializedNode.style);
-    return node;
-  }
-
-  exportJSON(): SerializedAutocompleteNode {
-    return {
-      ...super.exportJSON(),
-      type: AutocompleteNode.getType(),
-      uuid: this.__uuid,
-      version: 1,
-    };
-  }
-
-  constructor(text: string, uuid: string, key?: NodeKey) {
+  constructor(text = "", uuid = "", key?: NodeKey) {
     super(text, key);
     this.__uuid = uuid;
   }
@@ -79,3 +78,5 @@ export class AutocompleteNode extends TextNode {
     return new AutocompleteNode(text, uuid).setMode("token");
   }
 }
+
+withStoredJSON(AutocompleteNode);

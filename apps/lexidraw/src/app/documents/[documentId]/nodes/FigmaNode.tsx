@@ -14,9 +14,9 @@ const FigmaComponent = React.lazy(() => import("./FigmaComponent"));
 
 /** React half of the package's FigmaNode; see ImageNode. */
 export class FigmaNode extends HeadlessFigmaNode {
-  static getType = HeadlessFigmaNode.getType;
-  static clone = HeadlessFigmaNode.clone;
-  static importJSON = HeadlessFigmaNode.importJSON;
+  $config() {
+    return this.config("figma", { extends: HeadlessFigmaNode });
+  }
 
   decorate(_editor: LexicalEditor, config: EditorConfig): React.JSX.Element {
     const embedBlockTheme = config.theme.embedBlock || {};

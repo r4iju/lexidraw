@@ -1,32 +1,54 @@
 import { HashtagNode } from "@lexical/hashtag";
 import { LinkNode } from "@lexical/link";
-import type {
-  Klass,
-  DOMConversionMap,
-  DOMConversionOutput,
-  DOMExportOutput,
-  EditorConfig,
-  LexicalEditor,
-  LexicalNode,
-  NodeKey,
-  SerializedEditor,
-  SerializedEditorState,
-  SerializedLexicalNode,
-  Spread,
-} from "lexical";
 import {
   $create,
   $getRoot,
   createEditor,
   DecoratorNode,
+  type DOMConversionMap,
+  type DOMConversionOutput,
+  type DOMExportOutput,
+  type EditorConfig,
+  type Klass,
+  type LexicalEditor,
+  type LexicalNode,
   LineBreakNode,
+  type NodeKey,
+  nodeSchema,
   ParagraphNode,
   RootNode,
+  type SerializedEditor,
+  type SerializedEditorState,
+  type SerializedLexicalNode,
+  type Spread,
   TextNode,
+  withAccessors,
+  withField,
 } from "lexical";
-import { $importNodeState, figureDOM, nodeStateJSON } from "../figure.js";
+import { figureDOM, figureState, naturalSizeState } from "../figure.js";
+import {
+  falseOrStored,
+  type NestedEditorJSON,
+  nestedEditorValue,
+  rawValueOr,
+  type SchemaJSON,
+  setNestedEditorJSON,
+  storedValue,
+} from "../schema-values.js";
 import { EmojiNode } from "./EmojiNode.js";
 import { KeywordNode } from "./KeywordNode.js";
+import {
+  type ImportJSON,
+  storedFields,
+  withStoredJSON,
+  written,
+} from "../stored-fields.js";
+import {
+  type Size,
+  type StoredSizeAccessors,
+  storedSizeFields,
+  withStoredSize,
+} from "./stored-size.js";
 
 export interface ImagePayload {
   altText: string;
@@ -46,19 +68,6 @@ export interface UpdateImagePayload {
   height?: "inherit" | number;
 }
 
-export type SerializedImageNode = Spread<
-  {
-    altText: string;
-    caption: SerializedEditor;
-    height?: number;
-    maxWidth: number;
-    showCaption: boolean;
-    src: string;
-    width?: number;
-  },
-  SerializedLexicalNode
->;
-
 function createCaptionEditor(): LexicalEditor {
   return createEditor({
     nodes: [
@@ -74,37 +83,66 @@ function createCaptionEditor(): LexicalEditor {
   });
 }
 
+const { fields: imageFields, json: imageJSON } = storedFields({
+  altText: withField(storedValue<string>(), { field: "__altText" }),
+  caption: withAccessors(nestedEditorValue(createCaptionEditor), {
+    getter: "getCaptionJSON",
+    setter: "setCaptionJSON",
+  }),
+  height: storedSizeFields.height,
+  maxWidth: withField(rawValueOr(500), { field: "__maxWidth" }),
+  showCaption: withField(falseOrStored, { field: "__showCaption" }),
+  src: withField(storedValue<string>(), { field: "__src" }),
+  type: written,
+  version: written,
+  width: storedSizeFields.width,
+  $: written,
+});
+
+export type SerializedImageNode = Spread<
+  SchemaJSON<typeof imageJSON>,
+  SerializedLexicalNode
+>;
+
+const imageSchema = nodeSchema<ImageNode>()(imageFields);
+
+export interface ImageNode extends StoredSizeAccessors {}
+
 /**
  * Serialization half of the image block. The editor registers a subclass
  * that renders the React component; instances are made with `$create`, so
  * whichever class is registered for "image" is the one constructed.
  */
+// biome-ignore lint/suspicious/noUnsafeDeclarationMerging: withStoredSize installs the accessors the interface declares.
 export class ImageNode extends DecoratorNode<unknown> {
+  declare static importJSON: ImportJSON<ImageNode>;
   __src: string;
   __altText: string;
-  __width: "inherit" | number;
-  __height: "inherit" | number;
+  __width: Size;
+  __height: Size;
   __maxWidth: number;
   __showCaption: boolean;
   __caption: LexicalEditor;
   __captionsEnabled: boolean;
 
-  static getType(): string {
-    return "image";
+  $config() {
+    return this.config("image", {
+      extends: DecoratorNode,
+      json: imageSchema,
+      stateConfigs: [figureState, naturalSizeState],
+    });
   }
 
-  static clone(node: ImageNode): ImageNode {
-    return new this(
-      node.__src,
-      node.__altText,
-      node.__maxWidth,
-      node.__width,
-      node.__height,
-      node.__showCaption,
-      node.__caption,
-      node.__captionsEnabled,
-      node.__key,
-    );
+  afterCloneFrom(prevNode: this): void {
+    super.afterCloneFrom(prevNode);
+    this.__src = prevNode.__src;
+    this.__altText = prevNode.__altText;
+    this.__width = prevNode.__width;
+    this.__height = prevNode.__height;
+    this.__maxWidth = prevNode.__maxWidth;
+    this.__showCaption = prevNode.__showCaption;
+    this.__caption = prevNode.__caption;
+    this.__captionsEnabled = prevNode.__captionsEnabled;
   }
 
   static isGoogleDocCheckboxImg(img: HTMLImageElement): boolean {
@@ -163,25 +201,6 @@ export class ImageNode extends DecoratorNode<unknown> {
     return node instanceof ImageNode;
   }
 
-  static importJSON(serializedNode: SerializedImageNode): ImageNode {
-    const { altText, height, width, maxWidth, caption, src, showCaption } =
-      serializedNode;
-    const node = ImageNode.$createImageNode({
-      altText,
-      height,
-      maxWidth,
-      showCaption,
-      src,
-      width,
-    });
-    const nestedEditor = node.__caption;
-    const editorState = nestedEditor.parseEditorState(caption.editorState);
-    if (!editorState.isEmpty()) {
-      nestedEditor.setEditorState(editorState);
-    }
-    return $importNodeState(node, serializedNode);
-  }
-
   exportDOM(): DOMExportOutput {
     const element = document.createElement("img");
     element.setAttribute("src", this.__src);
@@ -222,19 +241,13 @@ export class ImageNode extends DecoratorNode<unknown> {
     this.__captionsEnabled = captionsEnabled || captionsEnabled === undefined;
   }
 
-  exportJSON(): SerializedImageNode {
-    return {
-      altText: this.getAltText(),
-      caption: this.__caption.toJSON(),
-      height: this.__height === "inherit" ? 0 : this.__height,
-      maxWidth: this.__maxWidth,
-      showCaption: this.__showCaption,
-      src: this.getSrc(),
-      type: "image",
-      version: 1,
-      width: this.__width === "inherit" ? 0 : this.__width,
-      ...nodeStateJSON(super.exportJSON()),
-    };
+  getCaptionJSON(): SerializedEditor {
+    return this.__caption.toJSON();
+  }
+
+  setCaptionJSON(caption: NestedEditorJSON): this {
+    setNestedEditorJSON(this.__caption, caption);
+    return this;
   }
 
   getWidth(): "inherit" | number {
@@ -353,3 +366,7 @@ export class ImageNode extends DecoratorNode<unknown> {
     return this.__altText;
   }
 }
+
+withStoredSize(ImageNode);
+
+withStoredJSON(ImageNode);

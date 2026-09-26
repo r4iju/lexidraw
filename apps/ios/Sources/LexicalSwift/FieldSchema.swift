@@ -6,11 +6,40 @@ struct FieldSchema<Value: Equatable & Sendable>: Sendable {
   /// Reads a stored value; nil where it reads as absent.
   let read: @Sendable (JSONValue) -> Value?
   let write: @Sendable (Value) -> JSONValue
+  /// How well a stored value fits, the measure Lexical picks a union's member by.
+  let fit: @Sendable (JSONValue) -> Fit
+  /// Whether it describes nothing: a raw value, or a wrapper of one.
+  var isCatchAll = false
+  /// A value read as the node holding it has it once loaded, where that isn't
+  /// what reading gave.
+  var resolve: @Sendable (Value) -> Value = { $0 }
+}
+
+/// Lexical's measure of how well a schema fits a value (`$fitOf`): lower fits
+/// better.
+enum Fit: Int, Comparable, Sendable {
+  case whole = 1
+  /// Whole, but only because part of it is a raw value.
+  case viaCatchAll
+  /// Read, but not as it is.
+  case coercible
+  case none
+
+  static func < (a: Fit, b: Fit) -> Bool { a.rawValue < b.rawValue }
+
+  static func of(_ fits: Bool) -> Fit { fits ? .whole : .none }
+
+  /// A container's fit: one that reads every part is at worst coercible.
+  static func container<Parts: Sequence<Fit>>(_ parts: Parts) -> Fit {
+    Swift.min(parts.max() ?? .whole, .coercible)
+  }
 }
 
 extension FieldSchema where Value == String {
   static func string(default defaultValue: String) -> Self {
-    Self(defaultValue: defaultValue, read: { $0.stringValue ?? defaultValue }, write: { .string($0) })
+    Self(
+      defaultValue: defaultValue, read: { $0.stringValue ?? defaultValue }, write: { .string($0) },
+      fit: { .of($0.stringValue != nil) })
   }
 }
 
@@ -19,7 +48,8 @@ extension FieldSchema where Value == Bool {
     Self(
       defaultValue: defaultValue,
       read: { if case .bool(let value) = $0 { value } else { defaultValue } },
-      write: { .bool($0) })
+      write: { .bool($0) },
+      fit: { if case .bool = $0 { .whole } else { .none } })
   }
 }
 
@@ -27,42 +57,47 @@ extension FieldSchema where Value == Double {
   static func number(default defaultValue: Double, min: Double? = nil, max: Double? = nil, clamp: Bool = false)
     -> Self
   {
-    Self(
+    let domain = NumberDomain(min: min, max: max, integer: false, clamp: clamp)
+    return Self(
       defaultValue: defaultValue,
-      read: { readNumber($0, default: defaultValue, min: min, max: max, integer: false, clamp: clamp) },
-      write: { .number($0) })
+      read: { domain.read($0) ?? defaultValue },
+      write: { .number($0) },
+      fit: { .of(domain.read($0) != nil) })
   }
 }
 
 extension FieldSchema where Value == Int {
   static func integer(default defaultValue: Int, min: Int? = nil, max: Int? = nil, clamp: Bool = false) -> Self {
-    Self(
+    let domain = NumberDomain(min: min.map(Double.init), max: max.map(Double.init), integer: true, clamp: clamp)
+    return Self(
       defaultValue: defaultValue,
-      read: {
-        Int(
-          exactly: readNumber(
-            $0, default: Double(defaultValue), min: min.map(Double.init), max: max.map(Double.init),
-            integer: true, clamp: clamp)) ?? defaultValue
-      },
-      write: { .number(Double($0)) })
+      read: { domain.read($0).flatMap { Int(exactly: $0) } ?? defaultValue },
+      write: { .number(Double($0)) },
+      fit: { .of(domain.read($0) != nil) })
   }
 }
 
 /// Lexical's `numberValue`: a finite number, or a string spelled as a JSON
 /// number, inside the bounds or brought to the nearer one by `clamp`.
-private func readNumber(
-  _ json: JSONValue, default defaultValue: Double, min: Double?, max: Double?, integer: Bool, clamp: Bool
-) -> Double {
-  let number: Double? =
-    switch json {
-    case .number(let value): value
-    case .string(let value) where value.wholeMatch(of: #/-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?/#) != nil:
-      Double(value)
-    default: nil
-    }
-  guard let number, number.isFinite, !integer || number.rounded() == number else { return defaultValue }
-  if clamp { return Swift.min(Swift.max(number, min ?? -.infinity), max ?? .infinity) }
-  return (min.map { number >= $0 } ?? true) && (max.map { number <= $0 } ?? true) ? number : defaultValue
+private struct NumberDomain: Sendable {
+  let min: Double?
+  let max: Double?
+  let integer: Bool
+  let clamp: Bool
+
+  /// The number `json` is in the domain, or nil where it is outside it.
+  func read(_ json: JSONValue) -> Double? {
+    let number: Double? =
+      switch json {
+      case .number(let value): value
+      case .string(let value) where value.wholeMatch(of: #/-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?/#) != nil:
+        Double(value)
+      default: nil
+      }
+    guard let number, number.isFinite, !integer || number.rounded() == number else { return nil }
+    if clamp { return Swift.min(Swift.max(number, min ?? -.infinity), max ?? .infinity) }
+    return (min.map { number >= $0 } ?? true) && (max.map { number <= $0 } ?? true) ? number : nil
+  }
 }
 
 /// A generated enum, or an optional one where JSON `null` is a member.
@@ -94,13 +129,20 @@ extension Optional: JSONEnumeration where Wrapped: JSONEnumeration {
   var enumerationJSON: JSONValue { map(\.enumerationJSON) ?? .null }
 }
 
+/// The enum whose only member is null, as `Never?`.
+extension Never: JSONEnumeration {
+  init?(enumerationJSON json: JSONValue) { nil }
+  var enumerationJSON: JSONValue { switch self {} }
+}
+
 extension FieldSchema where Value: JSONEnumeration {
   /// A nil `defaultValue` is absence; `E?.none` is JSON `null`.
   static func enumeration(default defaultValue: Value?) -> Self {
     Self(
       defaultValue: defaultValue,
       read: { Value(enumerationJSON: $0) ?? defaultValue },
-      write: { $0.enumerationJSON })
+      write: { $0.enumerationJSON },
+      fit: { .of(Value(enumerationJSON: $0) != nil) })
   }
 }
 
@@ -113,7 +155,9 @@ extension FieldSchema {
         guard json != .null, let value = inner.read(json) else { return json == .null ? .some(nil) : nil }
         return defaultAsNull && value == inner.defaultValue ? .some(nil) : .some(value)
       },
-      write: { $0.map(inner.write) ?? .null })
+      write: { $0.map(inner.write) ?? .null },
+      fit: { $0 == .null ? .whole : inner.fit($0) },
+      isCatchAll: inner.isCatchAll, resolve: { $0.map(inner.resolve) })
   }
 
   static func optional(_ inner: FieldSchema<Value>, omitDefault: Bool = false) -> Self {
@@ -123,7 +167,7 @@ extension FieldSchema {
         let value = inner.read(json)
         return omitDefault && value == inner.defaultValue ? nil : value
       },
-      write: inner.write)
+      write: inner.write, fit: inner.fit, isCatchAll: inner.isCatchAll, resolve: inner.resolve)
   }
 
   /// Older spellings of a value, read as the value they name.
@@ -131,13 +175,200 @@ extension FieldSchema {
     Self(
       defaultValue: inner.defaultValue,
       read: { json in json.stringValue.flatMap { aliases[$0] } ?? inner.read(json) },
-      write: inner.write)
+      write: inner.write,
+      fit: { json in json.stringValue.flatMap { aliases[$0] } != nil ? .whole : inner.fit(json) },
+      isCatchAll: inner.isCatchAll, resolve: inner.resolve)
   }
 
   static func array<Item>(_ item: FieldSchema<Item>) -> Self where Value == [Item] {
     Self(
       defaultValue: [],
       read: { json in json.arrayValue?.compactMap(item.read) ?? [] },
-      write: { .array($0.map(item.write)) })
+      write: { .array($0.map(item.write)) },
+      fit: { json in json.arrayValue.map { .container($0.lazy.map(item.fit)) } ?? .none },
+      resolve: { $0.map(item.resolve) })
+  }
+
+  /// Lexical's `transformValue`, through the Swift copy of the function
+  /// Lexidraw named it by: it keeps a value, rewrites it, or reads it as absent.
+  /// Its default is the function's result for absence, which Lexical computes
+  /// and the schema carries.
+  static func transform(
+    _ inner: FieldSchema<Value>, _ transform: @escaping @Sendable (Value) -> Value?, default defaultValue: Value? = nil
+  ) -> Self {
+    Self(
+      defaultValue: defaultValue,
+      read: { inner.read($0).flatMap(transform) },
+      write: inner.write, fit: inner.fit, isCatchAll: inner.isCatchAll, resolve: inner.resolve)
+  }
+}
+
+extension FieldSchema where Value == JSONValue {
+  /// Lexical's `rawValue`: any value, as it is.
+  static var raw: Self {
+    Self(defaultValue: nil, read: { $0 }, write: { $0 }, fit: { _ in .viaCatchAll }, isCatchAll: true)
+  }
+
+  /// Lexidraw's `rawValueOr`: any value as it is, but null as `defaultValue`
+  /// where `nullAsAbsent`, as a node that read it with `??` does.
+  static func rawOr(_ defaultValue: JSONValue, nullAsAbsent: Bool = false) -> Self {
+    Self(
+      defaultValue: defaultValue, read: { nullAsAbsent && $0 == .null ? defaultValue : $0 }, write: { $0 },
+      fit: { _ in .viaCatchAll }, isCatchAll: true)
+  }
+
+  /// A stored value read through `schema`, as the JSON it reads as: how a
+  /// node that holds NodeState reads what it otherwise keeps as stored.
+  static func checked<Checked>(_ schema: FieldSchema<Checked>) -> Self {
+    Self(
+      defaultValue: schema.defaultValue.map(schema.write), read: { schema.read($0).map(schema.write) },
+      write: { $0 }, fit: schema.fit, isCatchAll: schema.isCatchAll)
+  }
+}
+
+/// A value a node keeps exactly as it was stored, typed where its shape reads
+/// it back as that JSON.
+public enum Shaped<Value: Equatable & Sendable>: Equatable, Sendable {
+  case typed(Value)
+  case stored(JSONValue)
+}
+
+extension FieldSchema {
+  /// A value `stored` reads, typed by `shape` where that writes it back as it
+  /// is, and kept as JSON otherwise.
+  static func shaped<Shape>(_ shape: FieldSchema<Shape>, _ stored: FieldSchema<JSONValue>) -> Self
+  where Value == Shaped<Shape> {
+    @Sendable func read(_ json: JSONValue) -> Shaped<Shape>? {
+      guard let value = stored.read(json) else { return nil }
+      if let typed = shape.read(value), shape.write(typed) == value { return .typed(typed) }
+      return .stored(value)
+    }
+    return Self(
+      defaultValue: stored.defaultValue.flatMap(read), read: read,
+      write: { value in
+        switch value {
+        case .typed(let typed): shape.write(typed)
+        case .stored(let json): json
+        }
+      },
+      fit: stored.fit, isCatchAll: stored.isCatchAll)
+  }
+
+  /// An editor state a node reads into an editor of its own, which registers
+  /// `types`, and writes as that editor saves it: its default where that
+  /// editor can't read it.
+  static func savedByEditor(of types: [String], _ inner: Self) -> Self where Value == JSONValue {
+    let types = Set(types)
+    var schema = inner
+    schema.resolve = { Editor.saved($0, registering: types) ?? inner.defaultValue ?? $0 }
+    return schema
+  }
+
+  /// A property Lexical writes as a new node holds it and never reads: any
+  /// stored value reads as `inner`'s default.
+  static func unread(_ inner: FieldSchema<Value>) -> Self {
+    Self(
+      defaultValue: inner.defaultValue, read: { _ in inner.defaultValue }, write: inner.write, fit: inner.fit,
+      isCatchAll: inner.isCatchAll)
+  }
+}
+
+extension FieldSchema where Value: DeclaredObject {
+  /// Lexical's `objectValue`, or Lexidraw's `openObjectValue`: a value that
+  /// isn't an object reads as the default one.
+  static var object: Self {
+    Self(
+      defaultValue: Value.defaultValue,
+      read: { json in if case .object(let object) = json { Value(object) } else { Value.defaultValue } },
+      write: { $0.json },
+      fit: { json in
+        guard case .object(let object) = json else { return .none }
+        if !Value.isOpen, object.keys.contains(where: { Value.fieldFits[$0] == nil }) { return .none }
+        return .container(object.lazy.compactMap { key, value in Value.fieldFits[key]?(value) })
+      },
+      resolve: { $0.asLoaded() })
+  }
+}
+
+extension FieldSchema {
+  func resolving(_ value: Value?) -> Value? {
+    value.map(resolve) ?? defaultValue
+  }
+
+  func resolving<Inner>(_ value: Nullable<Inner>) -> Nullable<Inner> where Value == Inner? {
+    switch value {
+    case .absent: defaultValue.map { $0.map(Nullable.value) ?? .null } ?? .absent
+    case .null: .null
+    case .value(let inner): resolve(inner).map(Nullable.value) ?? .null
+    }
+  }
+
+  func omittingDefault(_ value: Value?) -> Value? {
+    let resolved = value.map(resolve)
+    return resolved == defaultValue ? nil : resolved
+  }
+}
+
+/// A generated enum for a union: a case for each member, in Lexical's order.
+protocol JSONUnion: Equatable, Sendable {
+  /// What Lexical reads a value no member fits as; nil where it has none.
+  static var defaultValue: Self? { get }
+  static var members: [UnionMember<Self>] { get }
+}
+
+/// One member of a union: how well it fits a value, and the case it reads.
+struct UnionMember<Value: Equatable & Sendable>: Sendable {
+  let fit: @Sendable (JSONValue) -> Fit
+  let isCatchAll: Bool
+  let read: @Sendable (JSONValue) -> Value?
+  /// The JSON of a value that is this member's case, or nil.
+  let write: @Sendable (Value) -> JSONValue?
+  /// A value that is this member's case resolved; any other as it is.
+  var resolve: @Sendable (Value) -> Value = { $0 }
+
+  /// A member read by `schema`, as the case `wrap` makes.
+  static func member<Inner>(
+    _ schema: FieldSchema<Inner>, _ wrap: @escaping @Sendable (Inner) -> Value,
+    _ unwrap: @escaping @Sendable (Value) -> Inner?
+  ) -> Self {
+    Self(
+      fit: schema.fit, isCatchAll: schema.isCatchAll, read: { schema.read($0).map(wrap) },
+      write: { unwrap($0).map(schema.write) }, resolve: { value in unwrap(value).map { wrap(schema.resolve($0)) } ?? value })
+  }
+
+  /// A member that is the one value `json`, as a case without a payload.
+  static func literal(_ json: JSONValue, _ value: Value) -> Self {
+    Self(fit: { .of($0 == json) }, isCatchAll: false, read: { _ in value }, write: { $0 == value ? json : nil })
+  }
+}
+
+extension FieldSchema where Value: JSONUnion {
+  /// Lexical's `unionValue`: the member that fits a value best reads it, the
+  /// earliest where two fit as well, and a member that describes nothing
+  /// fits no better than coercibly (`$bestUnionMember`).
+  static var union: Self {
+    let members = Value.members
+    @Sendable func best(_ json: JSONValue) -> (member: UnionMember<Value>, fit: Fit)? {
+      var best: (member: UnionMember<Value>, rank: Fit, fit: Fit)?
+      for member in members {
+        let fit = member.fit(json)
+        let rank = fit < .coercible && member.isCatchAll ? .coercible : fit
+        if rank < (best?.rank ?? .none) {
+          best = (member, rank, fit)
+          if rank == .whole { break }
+        }
+      }
+      return best.map { ($0.member, $0.fit) }
+    }
+    return Self(
+      defaultValue: Value.defaultValue,
+      read: { json in
+        guard let best = best(json) else { return Value.defaultValue }
+        return best.member.read(json)
+      },
+      write: { value in members.lazy.compactMap { $0.write(value) }.first ?? .null },
+      fit: { best($0)?.fit ?? .none },
+      isCatchAll: members.allSatisfy(\.isCatchAll),
+      resolve: { value in members.reduce(value) { $1.resolve($0) } })
   }
 }

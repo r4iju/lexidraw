@@ -21,9 +21,9 @@ const ImageComponent = React.lazy(() => import("./ImageComponent"));
  * serialization and this one only adds the React component.
  */
 export class ImageNode extends HeadlessImageNode {
-  static getType = HeadlessImageNode.getType;
-  static clone = HeadlessImageNode.clone;
-  static importJSON = HeadlessImageNode.importJSON;
+  $config() {
+    return this.config("image", { extends: HeadlessImageNode });
+  }
 
   decorate(): React.JSX.Element {
     const figureWidth = $getFigure(this).width;

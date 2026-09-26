@@ -2,27 +2,34 @@ import {
   DecoratorBlockNode,
   type SerializedDecoratorBlockNode,
 } from "@lexical/react/LexicalDecoratorBlockNode";
-import type {
-  Klass,
-  DOMConversionMap,
-  DOMConversionOutput,
-  DOMExportOutput,
-  ElementFormatType,
-  LexicalNode,
-  NodeKey,
-  Spread,
+import {
+  $create,
+  type DOMConversionMap,
+  type DOMConversionOutput,
+  type DOMExportOutput,
+  type ElementFormatType,
+  type Klass,
+  type LexicalNode,
+  type NodeKey,
+  nodeSchema,
+  type Spread,
+  withField,
 } from "lexical";
-import { $create } from "lexical";
-import { $importNodeState, figureDOM } from "../figure.js";
-
-export type SerializedYouTubeNode = Spread<
-  {
-    videoID: string;
-    width?: number;
-    height?: number;
-  },
-  SerializedDecoratorBlockNode
->;
+import { type SchemaJSON, storedValue } from "../schema-values.js";
+import { figureDOM, figureState } from "../figure.js";
+import {
+  type ImportJSON,
+  storedFields,
+  withStoredJSON,
+  written,
+} from "../stored-fields.js";
+import { storedBlockFields } from "./stored-block.js";
+import {
+  type Size,
+  type StoredSizeAccessors,
+  storedSizeFields,
+  withStoredSize,
+} from "./stored-size.js";
 
 function $convertYoutubeElement(
   domNode: HTMLElement,
@@ -39,44 +46,44 @@ function $convertYoutubeElement(
   return null;
 }
 
+const { fields: youTubeFields, json: youTubeJSON } = storedFields({
+  ...storedBlockFields,
+  type: written,
+  version: written,
+  $: written,
+  videoID: withField(storedValue<string>(), { field: "__id" }),
+  ...storedSizeFields,
+});
+
+export type SerializedYouTubeNode = Spread<
+  SchemaJSON<typeof youTubeJSON>,
+  SerializedDecoratorBlockNode
+>;
+
+const youTubeSchema = nodeSchema<YouTubeNode>()(youTubeFields);
+
+export interface YouTubeNode extends StoredSizeAccessors {}
+
+// biome-ignore lint/suspicious/noUnsafeDeclarationMerging: withStoredSize installs the accessors the interface declares.
 export class YouTubeNode extends DecoratorBlockNode {
+  declare static importJSON: ImportJSON<YouTubeNode>;
   __id: string;
-  __width: "inherit" | number;
-  __height: "inherit" | number;
+  __width: Size;
+  __height: Size;
 
-  static getType(): string {
-    return "youtube";
+  $config() {
+    return this.config("youtube", {
+      extends: DecoratorBlockNode,
+      json: youTubeSchema,
+      stateConfigs: [figureState],
+    });
   }
 
-  static clone(node: YouTubeNode): YouTubeNode {
-    return new this(
-      node.__id,
-      node.__width,
-      node.__height,
-      node.__format,
-      node.__key,
-    );
-  }
-
-  static importJSON(serializedNode: SerializedYouTubeNode): YouTubeNode {
-    const node = YouTubeNode.$createYouTubeNode(
-      serializedNode.videoID,
-      serializedNode.width,
-      serializedNode.height,
-    );
-    node.setFormat(serializedNode.format);
-    return $importNodeState(node, serializedNode);
-  }
-
-  exportJSON(): SerializedYouTubeNode {
-    return {
-      ...super.exportJSON(),
-      type: "youtube",
-      version: 1,
-      videoID: this.__id,
-      width: this.__width === "inherit" ? 0 : this.__width,
-      height: this.__height === "inherit" ? 0 : this.__height,
-    };
+  afterCloneFrom(prevNode: this): void {
+    super.afterCloneFrom(prevNode);
+    this.__id = prevNode.__id;
+    this.__width = prevNode.__width;
+    this.__height = prevNode.__height;
   }
 
   constructor(
@@ -190,3 +197,7 @@ export class YouTubeNode extends DecoratorBlockNode {
     return this.__height;
   }
 }
+
+withStoredSize(YouTubeNode);
+
+withStoredJSON(YouTubeNode);

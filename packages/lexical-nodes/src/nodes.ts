@@ -1,6 +1,7 @@
 import { DocumentCodeNode } from "./nodes/DocumentCodeNode.js";
 import { CodeHighlightNode } from "@lexical/code";
 import { HorizontalRuleNode } from "@lexical/extension";
+import { HashtagNode } from "@lexical/hashtag";
 import { AutoLinkNode, LinkNode } from "@lexical/link";
 import { ListItemNode, ListNode } from "@lexical/list";
 import { MarkNode } from "@lexical/mark";
@@ -15,6 +16,7 @@ import { CollapsibleContainerNode } from "./nodes/CollapsibleContainerNode.js";
 import { CollapsibleContentNode } from "./nodes/CollapsibleContentNode.js";
 import { CollapsibleTitleNode } from "./nodes/CollapsibleTitleNode.js";
 import { CommentNode } from "./nodes/CommentNode.js";
+import { EmojiNode } from "./nodes/EmojiNode.js";
 import { EquationNode } from "./nodes/EquationNode.js";
 import { ExcalidrawNode } from "./nodes/ExcalidrawNode.js";
 import { FigmaNode } from "./nodes/FigmaNode.js";
@@ -24,8 +26,10 @@ import {
 } from "./nodes/FootnoteNode.js";
 import { ImageNode } from "./nodes/ImageNode.js";
 import { InlineImageNode } from "./nodes/InlineImageNode.js";
+import { KeywordNode } from "./nodes/KeywordNode.js";
 import { LayoutContainerNode } from "./nodes/LayoutContainerNode.js";
 import { LayoutItemNode } from "./nodes/LayoutItemNode.js";
+import { MentionNode } from "./nodes/MentionNode.js";
 import { MermaidNode } from "./nodes/MermaidNode.js";
 import { PageBreakNode } from "./nodes/PageBreakNode.js";
 import { PollNode } from "./nodes/PollNode.js";
@@ -85,4 +89,17 @@ export const CORE_NODES: Klass<LexicalNode>[] = [
   ThreadNode,
   FootnoteReferenceNode,
   FootnoteDefinitionNode,
+];
+
+/**
+ * Every node class whose JSON a stored document can hold, and so the node
+ * schema's contract: the document editor's, the text nodes caption and slide
+ * editors add, and the package's mention node.
+ */
+export const SCHEMA_NODES: Klass<LexicalNode>[] = [
+  ...CORE_NODES,
+  EmojiNode,
+  KeywordNode,
+  HashtagNode,
+  MentionNode,
 ];

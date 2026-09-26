@@ -17,9 +17,9 @@ const VideoComponent = React.lazy(() => import("./VideoComponent"));
 
 /** React half of the package's VideoNode; see ImageNode. */
 export class VideoNode extends HeadlessVideoNode {
-  static getType = HeadlessVideoNode.getType;
-  static clone = HeadlessVideoNode.clone;
-  static importJSON = HeadlessVideoNode.importJSON;
+  $config() {
+    return this.config("video", { extends: HeadlessVideoNode });
+  }
 
   decorate(_editor: LexicalEditor, _config: EditorConfig): React.JSX.Element {
     return (

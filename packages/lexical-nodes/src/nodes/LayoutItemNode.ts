@@ -1,22 +1,22 @@
-import type {
-  DOMConversionMap,
-  EditorConfig,
-  LexicalNode,
-  SerializedElementNode,
-} from "lexical";
-
 import { addClassNamesToElement } from "@lexical/utils";
-import { ElementNode } from "lexical";
-
-export type SerializedLayoutItemNode = SerializedElementNode;
+import {
+  type DOMConversionMap,
+  type EditorConfig,
+  ElementNode,
+  type LexicalNode,
+  nodeSchema,
+} from "lexical";
+import { type ImportJSON, withStoredJSON } from "../stored-fields.js";
+import { unreadElementOnlyFields } from "./stored-element.js";
 
 export class LayoutItemNode extends ElementNode {
-  static getType(): string {
-    return "layout-item";
-  }
+  declare static importJSON: ImportJSON<LayoutItemNode>;
 
-  static clone(node: LayoutItemNode): LayoutItemNode {
-    return new LayoutItemNode(node.__key);
+  $config() {
+    return this.config("layout-item", {
+      extends: ElementNode,
+      json: nodeSchema<LayoutItemNode>()(unreadElementOnlyFields),
+    });
   }
 
   createDOM(config: EditorConfig): HTMLElement {
@@ -36,20 +36,8 @@ export class LayoutItemNode extends ElementNode {
     return {};
   }
 
-  static importJSON(): LayoutItemNode {
-    return LayoutItemNode.$createLayoutItemNode();
-  }
-
   isShadowRoot(): boolean {
     return true;
-  }
-
-  exportJSON(): SerializedLayoutItemNode {
-    return {
-      ...super.exportJSON(),
-      type: "layout-item",
-      version: 1,
-    };
   }
 
   static $createLayoutItemNode(): LayoutItemNode {
@@ -62,3 +50,5 @@ export class LayoutItemNode extends ElementNode {
     return node instanceof LayoutItemNode;
   }
 }
+
+withStoredJSON(LayoutItemNode);

@@ -2,47 +2,51 @@ import {
   DecoratorBlockNode,
   type SerializedDecoratorBlockNode,
 } from "@lexical/react/LexicalDecoratorBlockNode";
-import type {
-  ElementFormatType,
-  Klass,
-  LexicalNode,
-  NodeKey,
-  Spread,
+import {
+  $create,
+  type ElementFormatType,
+  type Klass,
+  type LexicalNode,
+  type NodeKey,
+  nodeSchema,
+  type Spread,
+  withField,
 } from "lexical";
-import { $create } from "lexical";
-import { $importNodeState, figureDOM } from "../figure.js";
+import { type SchemaJSON, storedValue } from "../schema-values.js";
+import { figureDOM, figureState } from "../figure.js";
+import {
+  type ImportJSON,
+  storedFields,
+  withStoredJSON,
+  written,
+} from "../stored-fields.js";
+import { storedBlockFields } from "./stored-block.js";
+
+const { fields: figmaFields, json: figmaJSON } = storedFields({
+  ...storedBlockFields,
+  type: written,
+  version: written,
+  $: written,
+  documentID: withField(storedValue<string>(), { field: "__id" }),
+});
 
 export type SerializedFigmaNode = Spread<
-  {
-    documentID: string;
-  },
+  SchemaJSON<typeof figmaJSON>,
   SerializedDecoratorBlockNode
 >;
 
+const figmaSchema = nodeSchema<FigmaNode>()(figmaFields);
+
 export class FigmaNode extends DecoratorBlockNode {
+  declare static importJSON: ImportJSON<FigmaNode>;
   __id: string;
 
-  static getType(): string {
-    return "figma";
-  }
-
-  static clone(node: FigmaNode): FigmaNode {
-    return new this(node.__id, node.__format, node.__key);
-  }
-
-  static importJSON(serializedNode: SerializedFigmaNode): FigmaNode {
-    const node = FigmaNode.$createFigmaNode(serializedNode.documentID);
-    node.setFormat(serializedNode.format);
-    return $importNodeState(node, serializedNode);
-  }
-
-  exportJSON(): SerializedFigmaNode {
-    return {
-      ...super.exportJSON(),
-      documentID: this.__id,
-      type: "figma",
-      version: 1,
-    };
+  $config() {
+    return this.config("figma", {
+      extends: DecoratorBlockNode,
+      json: figmaSchema,
+      stateConfigs: [figureState],
+    });
   }
 
   constructor(id = "", format?: ElementFormatType, key?: NodeKey) {
@@ -90,3 +94,5 @@ export class FigmaNode extends DecoratorBlockNode {
     return node instanceof FigmaNode;
   }
 }
+
+withStoredJSON(FigmaNode);

@@ -117,9 +117,11 @@ function FootnoteMarker({
 
 /** React half of the package's FootnoteReferenceNode; see ImageNode. */
 export class FootnoteReferenceNode extends HeadlessFootnoteReferenceNode {
-  static getType = HeadlessFootnoteReferenceNode.getType;
-  static clone = HeadlessFootnoteReferenceNode.clone;
-  static importJSON = HeadlessFootnoteReferenceNode.importJSON;
+  $config() {
+    return this.config("footnote-reference", {
+      extends: HeadlessFootnoteReferenceNode,
+    });
+  }
 
   decorate(): React.JSX.Element {
     return <FootnoteMarker label={this.__label} nodeKey={this.__key} />;
