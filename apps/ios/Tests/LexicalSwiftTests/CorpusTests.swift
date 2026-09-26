@@ -18,7 +18,7 @@ struct CorpusTests {
         let fixture = try Fixture.record(start: state, commands: [], on: reference)
         let lexical = fixture.expected.state
         let lexicalSwift = try fixture.replay(on: Editor()).snapshot.state
-        failures += Corpus.differences(lexicalSwift["root"]!, lexical["root"]!, at: "root").map { "\(id): \($0)" }
+        failures += Corpus.differences(lexicalSwift["root"]!, lexical["root"]!, loaded: state["root"]!).map { "\(id): \($0)" }
 
         try reference.load(lexicalSwift)
         if try reference.snapshot().state != lexical {
@@ -84,32 +84,69 @@ struct Corpus {
     return try JSONDecoder().decode(JSONValue.self, from: data)
   }
 
-  /// Where LexicalSwift's save differs from Lexical's. A node LexicalSwift
-  /// keeps opaque writes back what it read, and a known node keeps the
-  /// properties its schema doesn't declare, where Lexical applies the custom
-  /// node's own defaults and drops what it doesn't know.
-  static func differences(_ lexicalSwift: JSONValue, _ lexical: JSONValue, at path: String) -> [String] {
-    guard case .object(let ours) = lexicalSwift, case .object(let theirs) = lexical else {
-      return lexicalSwift == lexical ? [] : ["\(path) isn't a node in both"]
-    }
-    guard ours["type"] == theirs["type"] else {
-      return ["\(path) is a \(ours["type"]?.stringValue ?? "?") node, not \(theirs["type"]?.stringValue ?? "?")"]
-    }
-    var found: [String] = []
-    if let payload = SerializedNode(json: lexicalSwift).payload {
-      for key in Set(ours.keys).union(theirs.keys) where key != "children" && ours[key] != theirs[key] {
-        if theirs[key] == nil, payload.unknownFields[key] != nil { continue }
-        found.append("\(path).\(key) differs")
+  /// Where LexicalSwift's save differs from Lexical's, apart from what #111
+  /// asks LexicalSwift to keep and Lexical's own classes rewrite: "Unknown
+  /// node types and unknown fields on known nodes survive load then save
+  /// unchanged". A node LexicalSwift doesn't know has to save what was loaded.
+  static func differences(_ lexicalSwift: JSONValue, _ lexical: JSONValue, loaded: JSONValue) -> [String] {
+    // Loading wraps, merges and drops only nodes LexicalSwift knows, so the
+    // others come in the same order.
+    var unknownNodes = preorder(loaded).filter { SerializedNode(json: $0).payload == nil }.makeIterator()
+
+    func differences(_ lexicalSwift: JSONValue, _ lexical: JSONValue, at path: String) -> [String] {
+      guard case .object(let ours) = lexicalSwift, case .object(let theirs) = lexical, ours["type"] == theirs["type"]
+      else { return ["\(path) is a \(lexicalSwift["type"]?.stringValue ?? "?") node, not \(lexical["type"]?.stringValue ?? "?")"] }
+      var found: [String] = []
+      if let payload = SerializedNode(json: lexicalSwift).payload {
+        for key in Set(ours.keys).union(theirs.keys).sorted() where key != "children" && ours[key] != theirs[key] {
+          if theirs[key] == nil, payload.unknownFields[key] != nil { continue }
+          found.append("\(path).\(key) differs")
+        }
+      } else {
+        guard case .object(let was) = unknownNodes.next(), was["type"] == ours["type"]
+        else { return ["\(path) isn't the node loaded there"] }
+        for key in Set(ours.keys).union(was.keys).sorted() where key != "children" && ours[key] != was[key] {
+          found.append("\(path).\(key) differs")
+        }
       }
+      let ourChildren = ours["children"]?.arrayValue ?? []
+      let theirChildren = theirs["children"]?.arrayValue ?? []
+      guard ourChildren.count == theirChildren.count else {
+        return found + ["\(path) has \(ourChildren.count) children, not \(theirChildren.count)"]
+      }
+      for (index, (mine, other)) in zip(ourChildren, theirChildren).enumerated() {
+        found += differences(mine, other, at: "\(path).\(index)(\(other["type"]?.stringValue ?? "?"))")
+      }
+      return found
     }
-    let ourChildren = ours["children"]?.arrayValue ?? []
-    let theirChildren = theirs["children"]?.arrayValue ?? []
-    guard ourChildren.count == theirChildren.count else {
-      return found + ["\(path) has \(ourChildren.count) children, not \(theirChildren.count)"]
-    }
-    for (index, (mine, other)) in zip(ourChildren, theirChildren).enumerated() {
-      found += differences(mine, other, at: "\(path).\(index)(\(other["type"]?.stringValue ?? "?"))")
-    }
-    return found
+    return differences(lexicalSwift, lexical, at: "root")
+  }
+
+  private static func preorder(_ node: JSONValue) -> [JSONValue] {
+    [node] + (node["children"]?.arrayValue ?? []).flatMap(preorder)
+  }
+}
+
+@Suite struct CorpusComparisonTests {
+  @Test func anOpaqueNodeSavesWhatWasLoadedWhateverLexicalSaves() {
+    let asLoaded: JSONValue = ["type": "not-a-node-type", "version": 1, "size": 1]
+    let asLexicalSaves: JSONValue = ["type": "not-a-node-type", "version": 1, "size": 2, "added": true]
+    let loaded = root([asLoaded])
+
+    #expect(Corpus.differences(root([paragraph([asLoaded])]), root([paragraph([asLexicalSaves])]), loaded: loaded) == [])
+    #expect(
+      Corpus.differences(root([paragraph([asLexicalSaves])]), root([paragraph([asLexicalSaves])]), loaded: loaded)
+        == ["root.0(paragraph).0(not-a-node-type).added differs", "root.0(paragraph).0(not-a-node-type).size differs"])
+  }
+
+  private func root(_ children: [JSONValue]) -> JSONValue {
+    ["type": "root", "version": 1, "direction": nil, "format": "", "indent": 0, "children": .array(children)]
+  }
+
+  private func paragraph(_ children: [JSONValue]) -> JSONValue {
+    [
+      "type": "paragraph", "version": 1, "direction": nil, "format": "", "indent": 0,
+      "textFormat": 0, "textStyle": "", "children": .array(children),
+    ]
   }
 }
