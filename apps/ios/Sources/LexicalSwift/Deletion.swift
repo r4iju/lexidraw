@@ -1,4 +1,5 @@
-import Foundation
+import JavaScriptCore
+import Synchronization
 
 /// `RangeSelection.deleteCharacter`, `deleteWord` and `deleteLine`, ported
 /// from `reference/deletion.ts`, which LexicalSwift is held to.
@@ -354,16 +355,6 @@ extension Unicode.Scalar {
     default: false
     }
   }
-
-  var isLetterOrNumber: Bool {
-    switch properties.generalCategory {
-    case .uppercaseLetter, .lowercaseLetter, .titlecaseLetter, .modifierLetter, .otherLetter, .decimalNumber,
-      .letterNumber, .otherNumber:
-      true
-    default:
-      false
-    }
-  }
 }
 
 /// A run of text by UTF-16 offsets, and whether it is a word.
@@ -380,22 +371,23 @@ extension String {
     return segments
   }
 
-  /// ICU's word segmentation, which `Intl.Segmenter` and WebKit use too. The
-  /// boundaries are where ICU's `\b` matches; ICU calls a segment a word
-  /// where it holds a letter or digit, or joins connector punctuation, as in
-  /// `__`.
+  /// `Intl.Segmenter`'s words: ICU's word break iterator says where words
+  /// end and which segments are words, as it does for the reference and for
+  /// WebKit on the same OS. Its rules change between OS releases, and
+  /// JavaScriptCore is the only public API on Apple platforms that exposes
+  /// them.
   var wordSegments: [Segment] {
-    let units = Array(utf16)
-    let matches = Self.wordBoundary.matches(in: self, range: NSRange(location: 0, length: units.count))
-    let boundaries = Set([0, units.count] + matches.map(\.range.location)).sorted()
-    return zip(boundaries, boundaries.dropFirst()).map { start, end in
-      let scalars = String(decoding: units[start..<end], as: UTF16.self).unicodeScalars
-      let isWord =
-        scalars.contains(where: \.isLetterOrNumber)
-        || scalars.count { $0.properties.generalCategory == .connectorPunctuation } > 1
-      return (start, end, isWord)
-    }
+    let segments = Self.segmentWords.withLock { $0.call(withArguments: [self]).toArray() as? [[Int]] } ?? []
+    return segments.map { ($0[0], $0[1], $0[2] == 1) }
   }
 
-  private static let wordBoundary = try! NSRegularExpression(pattern: #"\b"#, options: .useUnicodeWordBoundaries)
+  private static let segmentWords = Mutex(
+    JSContext().evaluateScript(
+      """
+      const segmenter = new Intl.Segmenter("en", { granularity: "word" });
+      (text) => Array.from(segmenter.segment(text), ({ index, segment, isWordLike }) =>
+        [index, index + segment.length, isWordLike ? 1 : 0]);
+      """
+    )!
+  )
 }

@@ -80,6 +80,18 @@ import Testing
     #expect(try fixture.replay(on: Editor()) == fixture.recorded)
   }
 
+  /// What counts as a word is ICU's to say, and its rules change between OS
+  /// releases: "½" is never a word, and on macOS 26 a word deleted forward
+  /// from the start of "7🇯🇵" takes all of it.
+  @Test(arguments: ["½ b", "7🇯🇵"])
+  func aWordDeleteAgreesWithTheReferenceOnThisOS(_ content: String) throws {
+    let commands: [EditorCommand] = [.caret(.text([0, 0], 0)), .deleteWord(backward: false)]
+    let fixture = try Fixture.record(
+      start: document(paragraph(text(content))), commands: commands, on: try Support.referenceEditor())
+
+    #expect(try fixture.replay(on: Editor()) == fixture.recorded)
+  }
+
   @Test func theSameSeedFindsTheSameFixture() throws {
     let reference = try Support.referenceEditor()
     var first = Fuzzer(seed: 11, reference: reference, candidate: DropsTypedNonASCII())
