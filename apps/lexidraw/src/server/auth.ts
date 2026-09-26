@@ -1,18 +1,13 @@
-import NextAuth, { type Session, type DefaultSession } from "next-auth";
-import Credentials from "next-auth/providers/credentials";
-import GitHubProvider from "next-auth/providers/github";
-import { DrizzleAdapter } from "@auth/drizzle-adapter";
+import type { Session, DefaultSession } from "next-auth";
 import { drizzle, schema, eq } from "@packages/drizzle";
-import { getSignInSchema } from "~/app/signin/schema";
-import { authorizeCredentials } from "~/server/auth/credentials";
-import { clientIp } from "~/server/auth/sign-in-rate-limit";
-import { sessionToken } from "~/server/auth/session-token";
+import { appleCredentials } from "~/server/auth/apple";
+import { createAuth } from "~/server/auth/create-auth";
+import {
+  SIGN_IN_PROVIDERS,
+  type SignInProvider,
+} from "~/lib/sign-in-providers";
 import env from "@packages/env";
 import { cookies as nextCookies } from "next/headers";
-
-type AdapterTables = NonNullable<
-  Parameters<typeof DrizzleAdapter<typeof drizzle>>[1]
->;
 
 // Define the structure for LLM config based on schema
 type LlmBaseConfig = {
@@ -79,124 +74,18 @@ declare module "next-auth" {
   // }
 }
 
-const isDev = process.env.NODE_ENV !== "production";
-// should only flip to true never force false
-const shouldTrustHost = isDev || Boolean(env.TRUST_HOST);
-const cookies = isDev
-  ? {
-      sessionToken: {
-        name: "authjs.session-token",
-        options: {
-          httpOnly: true,
-          sameSite: "lax" as const,
-          path: "/",
-          secure: false,
-        },
-      },
-      callbackUrl: {
-        name: "authjs.callback-url",
-        options: {
-          sameSite: "lax" as const,
-          path: "/",
-          secure: false,
-        },
-      },
-      csrfToken: {
-        name: "authjs.csrf-token",
-        options: {
-          httpOnly: true,
-          sameSite: "lax" as const,
-          path: "/",
-          secure: false,
-        },
-      },
-    }
-  : undefined;
+const apple = appleCredentials(env);
 
-const nextAuth = NextAuth({
-  ...(shouldTrustHost ? { trustHost: true } : {}),
-  cookies,
-  adapter: DrizzleAdapter(drizzle, {
-    // `emailVerified` is not the Date the adapter expects, but the adapter
-    // only ever writes null to it and nothing reads it back from it.
-    usersTable: schema.users as unknown as AdapterTables["usersTable"],
-    accountsTable: schema.accounts,
-  }),
-  pages: {
-    ...(shouldTrustHost
-      ? {
-          signIn: "/signin",
-          newUser: "/signup",
-          signOut: "/signout",
-          error: "/signin-error",
-        }
-      : {}),
+export const offeredProviders: readonly SignInProvider[] =
+  SIGN_IN_PROVIDERS.filter((provider) => provider !== "apple" || apple);
+
+const nextAuth = createAuth({
+  db: drizzle,
+  github: {
+    clientId: env.GITHUB_CLIENT_ID,
+    clientSecret: env.GITHUB_CLIENT_SECRET,
   },
-  callbacks: {
-    session: ({ session, token }) => {
-      return {
-        ...session,
-        user: {
-          ...session.user,
-          id: token.sub,
-          config: (token as unknown as { config?: unknown }).config,
-        },
-      };
-    },
-    jwt: (params) => sessionToken(drizzle, params),
-    signIn: () => {
-      return true;
-    },
-    redirect: ({ url, baseUrl }) => {
-      try {
-        // Allow relative callback URLs
-        if (url.startsWith("/")) return `${baseUrl}${url}`;
-        // Allow same-origin absolute URLs
-        const dest = new URL(url);
-        const base = new URL(baseUrl);
-        if (dest.origin === base.origin) return url;
-      } catch {
-        // fall through to default
-      }
-      // Fallback: send to dashboard
-      return `${baseUrl}/dashboard`;
-    },
-  },
-  providers: [
-    GitHubProvider({
-      clientId: env.GITHUB_CLIENT_ID,
-      clientSecret: env.GITHUB_CLIENT_SECRET,
-      authorization: { params: { scope: "read:user user:email" } },
-    }),
-    Credentials({
-      credentials: {
-        name: { label: "Name", type: "text" },
-        email: {
-          label: "Email",
-          type: "text",
-          placeholder: "someone@example.com",
-        },
-        password: { label: "Password", type: "password" },
-      },
-      authorize: async (credentials, request) => {
-        const SignInSchema = getSignInSchema();
-        const { email, password } = SignInSchema.parse(credentials);
-        return authorizeCredentials(email, password, clientIp(request.headers));
-      },
-    }),
-  ],
-  session: {
-    strategy: "jwt",
-    maxAge: 30 * 24 * 60 * 60, // 30 days
-    updateAge: 24 * 60 * 60, // 1 day
-    generateSessionToken: () => {
-      const array = new Uint8Array(32);
-      crypto.getRandomValues(array);
-      return Array.from(array, (byte) =>
-        byte.toString(16).padStart(2, "0"),
-      ).join("");
-    },
-  },
+  apple,
 });
 
 export const {

@@ -120,4 +120,25 @@ describe("saving settings", () => {
       verbosity: "high",
     });
   });
+
+  test("a changed email is no longer proven, an unchanged one stays proven", async () => {
+    const provenAt = Date.UTC(2026, 0, 1);
+    const verifiedAt = async () => {
+      const [row] = await db
+        .select({ emailVerified: schema.users.emailVerified })
+        .from(schema.users)
+        .where(eq(schema.users.id, SETTINGS_USER));
+      return row?.emailVerified;
+    };
+    await db
+      .update(schema.users)
+      .set({ emailVerified: provenAt })
+      .where(eq(schema.users.id, SETTINGS_USER));
+
+    await settings.updateProfile({ ...account, name: "Renamed" });
+    expect(await verifiedAt()).toBe(provenAt);
+
+    await settings.updateProfile({ ...account, email: "moved@example.test" });
+    expect(await verifiedAt()).toBeNull();
+  });
 });

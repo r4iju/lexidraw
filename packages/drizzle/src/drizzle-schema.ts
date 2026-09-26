@@ -129,7 +129,8 @@ export const users = sqliteTable(
     }>(),
     email: text("email"),
     password: text("password"),
-    emailVerified: numeric("emailVerified"),
+    /** When the email was last proven to belong to the user, in epoch ms. */
+    emailVerified: numeric("emailVerified", { mode: "number" }),
     image: text("image"),
     isActive: integer("isActive").notNull().default(1),
     createdAt: integer("createdAt", { mode: "timestamp_ms" })

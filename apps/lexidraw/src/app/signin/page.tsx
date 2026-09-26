@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AuthCard } from "~/components/auth-card";
+import { offeredProviders } from "~/server/auth";
 import FormSkeleton from "./skeleton";
 import SignInForm from "./form";
 import { callbackPath } from "./callback-path";
@@ -14,8 +15,8 @@ type Props = {
 };
 
 /**
- * A GitHub sign-in that fails comes back here with a code; the error page is
- * the one that explains it.
+ * A provider sign-in that fails comes back here with a code; the
+ * error page is the one that explains it.
  */
 async function RedirectFailedSignIn({ searchParams }: Props) {
   const { error } = await searchParams;
@@ -28,7 +29,12 @@ async function RedirectFailedSignIn({ searchParams }: Props) {
 /** Sends the user back to the page that asked them to sign in. */
 async function SignInFormReturning({ searchParams }: Props) {
   const { callbackUrl } = await searchParams;
-  return <SignInForm callbackPath={callbackPath(callbackUrl)} />;
+  return (
+    <SignInForm
+      callbackPath={callbackPath(callbackUrl)}
+      providers={offeredProviders}
+    />
+  );
 }
 
 export default function SignInPage({ searchParams }: Props) {

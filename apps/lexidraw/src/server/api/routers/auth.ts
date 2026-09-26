@@ -9,7 +9,7 @@ import {
   publicProcedure,
 } from "~/server/api/trpc";
 import { schema } from "@packages/drizzle";
-import { eq, inArray } from "@packages/drizzle";
+import { eq, inArray, sql } from "@packages/drizzle";
 import { errorCode } from "~/server/auth/error-code";
 import { hashPassword } from "~/server/auth/password";
 import { deleteAccount } from "~/server/account/delete-account";
@@ -69,6 +69,14 @@ export const authRouter = createTRPCRouter({
       });
     }
     return user;
+  }),
+  /** The providers linked to the caller's account. */
+  signInProviders: protectedProcedure.query(async ({ ctx }) => {
+    const rows = await ctx.drizzle
+      .select({ provider: schema.accounts.provider })
+      .from(schema.accounts)
+      .where(eq(schema.accounts.userId, ctx.session.user.id));
+    return rows.map((row) => row.provider);
   }),
   getLlmConfig: protectedProcedure.query(async ({ ctx }) => {
     const users = await ctx.drizzle
@@ -183,6 +191,8 @@ export const authRouter = createTRPCRouter({
         .set({
           name: input.name,
           email: input.email,
+          // A proof covers the address it was made for, never a new one.
+          emailVerified: sql`case when ${schema.users.email} = ${input.email} then ${schema.users.emailVerified} end`,
           config:
             nextConfig as unknown as (typeof schema.users.$inferInsert)["config"],
         })

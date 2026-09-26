@@ -10,17 +10,20 @@ import FormProvider from "~/components/hook-form";
 import { RHFTextField } from "~/components/hook-form";
 import { Button } from "~/components/ui/button";
 import { getDefaults } from "@packages/lib";
-import { GitHubMark } from "~/components/github-mark";
+import { ContinueWith } from "~/components/continue-with";
+import type { SignInProvider } from "~/lib/sign-in-providers";
 import { AuthDivider } from "~/components/auth-card";
 import type { SameSitePath } from "./callback-path";
 
 const WRONG_CREDENTIALS =
-  "That email and password don’t match. Try again or use GitHub.";
+  "That email and password don’t match. Try again, or sign in another way.";
 
 export default function SignInForm({
   callbackPath,
+  providers,
 }: {
   callbackPath: SameSitePath;
+  providers: readonly SignInProvider[];
 }) {
   const schema = getSignInSchema();
   const router = useRouter();
@@ -63,21 +66,9 @@ export default function SignInForm({
     setIsLoading(false);
   };
 
-  const handleGitHubSignin = async () => {
-    setSubmitError(null);
-    await signIn("github", { callbackUrl: callbackPath });
-  };
-
   return (
     <div className="flex flex-col gap-6">
-      <Button
-        variant="outline"
-        onClick={handleGitHubSignin}
-        className="w-full gap-2"
-      >
-        <GitHubMark className="size-4" />
-        Continue with GitHub
-      </Button>
+      <ContinueWith providers={providers} callbackPath={callbackPath} />
       <AuthDivider />
       <FormProvider methods={methods} onSubmit={handleSubmit(onSubmit)}>
         <div className="flex flex-col gap-4">

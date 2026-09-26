@@ -12,11 +12,17 @@ import { Button } from "~/components/ui/button";
 import { RHFTextField } from "~/components/hook-form";
 import { toast } from "sonner";
 import { getDefaults } from "@packages/lib";
-import { GitHubMark } from "~/components/github-mark";
+import { ContinueWith } from "~/components/continue-with";
+import { DASHBOARD } from "~/app/signin/callback-path";
+import type { SignInProvider } from "~/lib/sign-in-providers";
 import { AuthDivider } from "~/components/auth-card";
 import { signIn } from "next-auth/react";
 
-export default function SignUpForm() {
+export default function SignUpForm({
+  providers,
+}: {
+  providers: readonly SignInProvider[];
+}) {
   const schema = getSignUpSchema();
   const methods = useForm({
     resolver: standardSchemaResolver(schema),
@@ -54,24 +60,12 @@ export default function SignUpForm() {
       return;
     }
     toast.success(`Welcome to Lexidraw, ${data.name}.`);
-    router.push("/dashboard");
-  };
-
-  const handleGitHubSignup = async () => {
-    setSubmitError(null);
-    await signIn("github", { callbackUrl: "/dashboard" });
+    router.push(DASHBOARD);
   };
 
   return (
     <div className="flex flex-col gap-6">
-      <Button
-        variant="outline"
-        onClick={handleGitHubSignup}
-        className="w-full gap-2"
-      >
-        <GitHubMark className="size-4" />
-        Continue with GitHub
-      </Button>
+      <ContinueWith providers={providers} callbackPath={DASHBOARD} />
       <AuthDivider />
       <FormProvider methods={methods} onSubmit={handleSubmit(onSubmit)}>
         <div className="flex flex-col gap-4">

@@ -48,6 +48,7 @@ describe("Settings", () => {
       "Editor",
       "AI",
       "Read aloud",
+      "Sign-in methods",
       "API tokens",
       "Delete account",
     ]);

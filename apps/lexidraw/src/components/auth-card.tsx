@@ -37,7 +37,7 @@ export function AuthCard({
   );
 }
 
-/** The "or" rule between the GitHub button and the email form. */
+/** The "or" rule between the provider buttons and the email form. */
 export function AuthDivider() {
   return (
     <div className="flex items-center gap-3 text-xs text-muted-foreground">
