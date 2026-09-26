@@ -33,11 +33,7 @@ struct SignInView: View {
       .disabled(signingIn)
     }
     .padding()
-    .alert("Signed out", isPresented: .constant(model.notice != nil)) {
-      Button("OK") { model.notice = nil }
-    } message: {
-      Text(model.notice ?? "")
-    }
+    .alert("Signed out", message: $model.notice)
   }
 
   private func signIn() async {

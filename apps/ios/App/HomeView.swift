@@ -40,7 +40,7 @@ struct HomeView: View {
           Section("Files") {
             ForEach(home.files) { file in
               NavigationLink {
-                NotYet(title: file.title, systemImage: file.kind.systemImage, what: "Files open")
+                NotYet(title: file.title, systemImage: file.kind.systemImage, feature: "Files open")
               } label: {
                 VStack(alignment: .leading, spacing: 2) {
                   Label(file.title, systemImage: file.kind.systemImage)
@@ -71,7 +71,7 @@ struct HomeView: View {
     }
     .navigationTitle("Home")
     .navigationDestination(item: $openFolder) { folder in
-      NotYet(title: folder.title, systemImage: "folder", what: "Folders open")
+      NotYet(title: folder.title, systemImage: "folder", feature: "Folders open")
     }
     .toolbar {
       Menu {
@@ -82,11 +82,7 @@ struct HomeView: View {
         Label("Account", systemImage: "person.crop.circle")
       }
     }
-    .alert("Couldn't sign out", isPresented: .constant(signOutFailure != nil)) {
-      Button("OK") { signOutFailure = nil }
-    } message: {
-      Text(signOutFailure ?? "")
-    }
+    .alert("Couldn't sign out", message: $signOutFailure)
     .task { await load() }
     .refreshable { await load() }
   }
@@ -117,11 +113,12 @@ struct HomeView: View {
 private struct NotYet: View {
   let title: String
   let systemImage: String
-  let what: String
+  /// What doesn't work yet, as in "Folders open".
+  let feature: String
 
   var body: some View {
     ContentUnavailableView(
-      title, systemImage: systemImage, description: Text("\(what) in a later version of the app."))
+      title, systemImage: systemImage, description: Text("\(feature) in a later version of the app."))
   }
 }
 

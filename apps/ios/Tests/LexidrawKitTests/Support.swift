@@ -80,6 +80,16 @@ extension URLComponents {
   }
 }
 
+/// The server every test talks to, and what it says back.
+enum TestServer {
+  static let origin = URL(string: "https://lexidraw.test")!
+  static let issuedToken = #"{"token":"lxd_new","name":"iPhone","scope":"write"}"#
+
+  static func account(_ store: any TokenStore, _ server: FakeServer) -> Account {
+    Account(origin: origin, store: store, transport: server)
+  }
+}
+
 enum Fixtures {
   static func text(_ name: String) throws -> String {
     let url = Bundle.module.url(forResource: "Fixtures/\(name)", withExtension: nil)!

@@ -10,9 +10,7 @@ import Testing
   @Test func listsTheFoldersAboveTheFilesInTheWebsOrder() async throws {
     let listing = try Fixtures.text("root-listing.json")
     let server = FakeServer { _ in (200, listing) }
-    let account = Account(
-      origin: URL(string: "https://lexidraw.test")!, store: InMemoryTokenStore("lxd_home"), transport: server)
-    let session = try #require(try account.restore())
+    let session = try #require(try TestServer.account(InMemoryTokenStore("lxd_home"), server).restore())
 
     let home = try await session.home()
 
