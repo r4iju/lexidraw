@@ -102,7 +102,11 @@ extension Update {
     case .insertText(let text): try insertText(selection, text)
     case .deleteCharacter(let backward): try deleteCharacter(selection, backward: backward)
     case .deleteWord(let backward): try deleteWord(selection, backward: backward)
-    case .deleteLine(let backward): try deleteLine(selection, backward: backward)
+    case .deleteLine(let backward, let lineBoundary):
+      let boundary = try pointNode(lineBoundary)
+      try deleteLine(
+        selection, backward: backward,
+        lineBoundary: KeyPoint(key: boundary, offset: lineBoundary.offset, type: lineBoundary.type))
     case .insertParagraph: try insertParagraph(selection)
     case .insertLineBreak: try insertLineBreak(selection)
     case .formatText(let format): try formatText(selection, format)

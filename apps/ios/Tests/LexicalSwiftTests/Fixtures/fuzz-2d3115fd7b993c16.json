@@ -115,6 +115,14 @@
     },
     {
       "backward" : true,
+      "lineBoundary" : {
+        "offset" : 0,
+        "path" : [
+          0,
+          0
+        ],
+        "type" : "text"
+      },
       "type" : "deleteLine"
     },
     {

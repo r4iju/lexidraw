@@ -177,8 +177,11 @@ extension EditorCommand {
       point.path[depth] -= 1
       return point
     }
-    guard case .setSelection(let anchor, let focus) = self else { return self }
-    return .setSelection(anchor: adjust(anchor), focus: adjust(focus))
+    switch self {
+    case .setSelection(let anchor, let focus): return .setSelection(anchor: adjust(anchor), focus: adjust(focus))
+    case .deleteLine(let backward, let lineBoundary): return .deleteLine(backward: backward, lineBoundary: adjust(lineBoundary))
+    default: return self
+    }
   }
 }
 
@@ -199,10 +202,11 @@ struct Generator {
 
   /// Characters chosen to stress UTF-16 offsets and word boundaries: accents,
   /// combining marks, CJK, emoji that are several code units and several
-  /// scalars, and punctuation and spaces between words.
+  /// scalars, and punctuation and spaces between words; and Japanese words,
+  /// which ICU segments with a dictionary as no space marks where they end.
   private static let alphabet: [String] = [
     "a", "b", "z", " ", " ", ".", "_", "7", "é", "e\u{301}", "ß", "日", "本", "語", "한", "👍", "👍🏽",
-    "👨‍👩‍👧", "🇯🇵",
+    "👨‍👩‍👧", "🇯🇵", "日本語", "東京", "話す", "を", "は", "ひらがな", "カタカナ",
   ]
   private static let formats: [TextFormat] = [
     [], .bold, .italic, [.bold, .italic], .underline, .code, .subscript, .superscript,
@@ -245,8 +249,29 @@ struct Generator {
   /// sits on a grapheme boundary, and a point in a paragraph sits where no
   /// text is beside it to take it.
   static func isValid(_ command: EditorCommand, in snapshot: Snapshot) -> Bool {
-    guard case .setSelection(let anchor, let focus) = command else { return true }
-    return [anchor, focus].allSatisfy { points(in: snapshot.state).contains($0) }
+    switch command {
+    case .setSelection(let anchor, let focus):
+      [anchor, focus].allSatisfy { points(in: snapshot.state).contains($0) }
+    case .deleteLine(let backward, let lineBoundary):
+      snapshot.selection == nil || lineBoundary == Self.lineBoundary(in: snapshot, backward: backward)
+    default:
+      true
+    }
+  }
+
+  /// Where the focus's line starts or ends, taken to be where its paragraph
+  /// does, as in a view too wide to wrap it.
+  static func lineBoundary(in snapshot: Snapshot, backward: Bool) -> Point {
+    guard let focus = snapshot.selection?.focus else { return Point(path: [], offset: 0, type: .element) }
+    let path = focus.type == .element ? focus.path : focus.path.dropLast()
+    guard let paragraph = snapshot.state.node(at: Array(path)), paragraph["type"] == "paragraph",
+      let children = paragraph["children"]?.arrayValue
+    else { return focus }
+    let index = backward ? 0 : children.count - 1
+    guard children.indices.contains(index), let text = children[index]["text"]?.stringValue else {
+      return Point(path: Array(path), offset: backward ? 0 : children.count, type: .element)
+    }
+    return .text(path + [index], backward ? 0 : text.utf16.count)
   }
 
   /// Every point a user could put a selection's end at.
@@ -285,7 +310,7 @@ struct Generator {
     case ..<22: return .insertText(text(1...3))
     case ..<34: return .deleteCharacter(backward: backward)
     case ..<39: return .deleteWord(backward: backward)
-    case ..<42: return .deleteLine(backward: backward)
+    case ..<42: return .deleteLine(backward: backward, lineBoundary: Self.lineBoundary(in: snapshot, backward: backward))
     case ..<49: return .insertParagraph
     case ..<54: return .insertLineBreak
     case ..<62: return .formatText(TextFormatType.allCases.randomElement(using: &random)!)

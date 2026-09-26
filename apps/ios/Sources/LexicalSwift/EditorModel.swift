@@ -73,7 +73,9 @@ public enum EditorCommand: Equatable, Sendable {
   /// Backspace (`backward`) or forward delete, by one character, word or line.
   case deleteCharacter(backward: Bool)
   case deleteWord(backward: Bool)
-  case deleteLine(backward: Bool)
+  /// `lineBoundary` is where the view lays out the start of the caret's line,
+  /// or its end going forward.
+  case deleteLine(backward: Bool, lineBoundary: Point)
   /// Enter.
   case insertParagraph
   /// Shift-Enter.
@@ -141,7 +143,7 @@ public struct TextFormat: OptionSet, Codable, Hashable, Sendable {
 
 extension EditorCommand: Codable {
   private enum CodingKeys: String, CodingKey {
-    case type, anchor, focus, text, backward, format, milliseconds
+    case type, anchor, focus, text, backward, lineBoundary, format, milliseconds
   }
 
   /// The command's `type` in JSON.
@@ -180,7 +182,9 @@ extension EditorCommand: Codable {
     case .insertText: self = .insertText(try container.decode(String.self, forKey: .text))
     case .deleteCharacter: self = .deleteCharacter(backward: try backward())
     case .deleteWord: self = .deleteWord(backward: try backward())
-    case .deleteLine: self = .deleteLine(backward: try backward())
+    case .deleteLine:
+      self = .deleteLine(
+        backward: try backward(), lineBoundary: try container.decode(Point.self, forKey: .lineBoundary))
     case .insertParagraph: self = .insertParagraph
     case .insertLineBreak: self = .insertLineBreak
     case .formatText: self = .formatText(try container.decode(TextFormatType.self, forKey: .format))
@@ -200,8 +204,11 @@ extension EditorCommand: Codable {
       try container.encode(focus, forKey: .focus)
     case .insertText(let text):
       try container.encode(text, forKey: .text)
-    case .deleteCharacter(let backward), .deleteWord(let backward), .deleteLine(let backward):
+    case .deleteCharacter(let backward), .deleteWord(let backward):
       try container.encode(backward, forKey: .backward)
+    case .deleteLine(let backward, let lineBoundary):
+      try container.encode(backward, forKey: .backward)
+      try container.encode(lineBoundary, forKey: .lineBoundary)
     case .formatText(let format):
       try container.encode(format, forKey: .format)
     case .wait(let milliseconds):

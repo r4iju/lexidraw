@@ -1,9 +1,11 @@
+import Foundation
+
 /// `RangeSelection.deleteCharacter`, `deleteWord` and `deleteLine`, ported
-/// from `reference/deletion.ts`, which LexicalSwift is held to: Lexical's
-/// deletes, with `measure` standing in for moving a browser's caret.
+/// from `reference/deletion.ts`, which LexicalSwift is held to.
 extension Update {
-  enum Granularity {
-    case character, word, lineBoundary
+  enum Granularity: Equatable {
+    case character, word
+    case lineBoundary(KeyPoint)
   }
 
   mutating func deleteCharacter(_ selection: RangeSelection, backward isBackward: Bool) throws {
@@ -97,9 +99,9 @@ extension Update {
     }
   }
 
-  mutating func deleteLine(_ selection: RangeSelection, backward isBackward: Bool) throws {
+  mutating func deleteLine(_ selection: RangeSelection, backward isBackward: Bool, lineBoundary: KeyPoint) throws {
     let wasCollapsed = selection.isCollapsed
-    if selection.isCollapsed { try extendForDeletion(selection, backward: isBackward, .lineBoundary) }
+    if selection.isCollapsed { try extendForDeletion(selection, backward: isBackward, .lineBoundary(lineBoundary)) }
     if selection.isCollapsed {
       try deleteCharacter(selection, backward: isBackward)
     } else if findParent(from: selection.anchor.key, where: isBlock)
@@ -207,7 +209,13 @@ extension Update {
     let anchorNode = anchor.key
     let anchorOffset = anchor.offset
     let wasCollapsed = selection.isCollapsed
-    guard let landed = measure(selection.focus, backward: isBackward, granularity) else { return }
+    let landed: KeyPoint
+    if case .lineBoundary(let boundary) = granularity {
+      landed = boundary
+    } else {
+      guard let measured = measure(selection.focus, backward: isBackward, byWord: granularity == .word) else { return }
+      landed = measured
+    }
     if wasCollapsed, granularity == .character, anchor.type == .text {
       let edgeOffset = isBackward ? 0 : state.textSize(of: anchorNode)
       let clampedOffset =
@@ -231,10 +239,8 @@ extension Update {
     }
   }
 
-  /// Where a caret at `point` lands moved one `granularity` towards
-  /// `isBackward`, as `measure` in `reference/deletion.ts` models it.
-  private func measure(_ point: SelectionPoint, backward isBackward: Bool, _ granularity: Granularity) -> KeyPoint?
-  {
+  /// `measure` in `reference/deletion.ts`.
+  private func measure(_ point: SelectionPoint, backward isBackward: Bool, byWord: Bool) -> KeyPoint? {
     let element = point.type == .text ? state.parent(of: point.key) : point.key
     guard let element, state[element].isElement else { return nil }
     let children = Array(state.children(of: element))
@@ -249,7 +255,7 @@ extension Update {
       point.type == .text
       ? (state.index(of: point.key).map { starts[$0] } ?? 0) + point.offset
       : (starts.indices.contains(point.offset) ? starts[point.offset] : text.count)
-    let to = landing(text, from, backward: isBackward, granularity)
+    let to = landing(String(decoding: text, as: UTF16.self), from, backward: isBackward, byWord: byWord)
     if to == from { return point.value }
     let crossed = isBackward ? to : to - 1
     var at = 0
@@ -265,31 +271,15 @@ extension Update {
     return KeyPoint(key: element, offset: isBackward ? at : at + 1, type: .element)
   }
 
-  private func landing(_ text: [UTF16.CodeUnit], _ from: Int, backward isBackward: Bool, _ granularity: Granularity)
-    -> Int
-  {
-    let newline = UTF16.CodeUnit(10)
-    if granularity == .lineBoundary {
-      if isBackward {
-        guard from > 0 else { return 0 }
-        return (text[..<from].lastIndex(of: newline) ?? -1) + 1
-      }
-      return text[min(from, text.count)...].firstIndex(of: newline) ?? text.count
-    }
-    var units: [(start: Int, end: Int, word: Bool)] = []
-    var offset = 0
-    for character in String(decoding: text, as: UTF16.self) {
-      let end = offset + character.utf16.count
-      units.append((offset, end, character.unicodeScalars.first.map(\.isWordStart) ?? false))
-      offset = end
-    }
+  private func landing(_ text: String, _ from: Int, backward isBackward: Bool, byWord: Bool) -> Int {
+    let units = byWord ? text.wordSegments : text.graphemeSegments
     let ahead = isBackward ? Array(units.filter { $0.start < from }.reversed()) : units.filter { $0.end > from }
-    if granularity == .character {
+    if !byWord {
       guard let unit = ahead.first else { return from }
       return isBackward ? unit.start : unit.end
     }
-    var crossed = ahead.prefix { !$0.word }.count
-    crossed += ahead.dropFirst(crossed).prefix { $0.word }.count
+    var crossed = ahead.prefix { !$0.isWord }.count
+    if crossed < ahead.count { crossed += 1 }
     guard crossed > 0 else { return from }
     let last = ahead[crossed - 1]
     return isBackward ? last.start : last.end
@@ -365,15 +355,47 @@ extension Unicode.Scalar {
     }
   }
 
-  /// Whether `/^[\p{L}\p{N}_]/u` matches it: where a word starts.
-  var isWordStart: Bool {
-    if self == "_" { return true }
+  var isLetterOrNumber: Bool {
     switch properties.generalCategory {
     case .uppercaseLetter, .lowercaseLetter, .titlecaseLetter, .modifierLetter, .otherLetter, .decimalNumber,
       .letterNumber, .otherNumber:
-      return true
+      true
     default:
-      return false
+      false
     }
   }
+}
+
+/// A run of text by UTF-16 offsets, and whether it is a word.
+typealias Segment = (start: Int, end: Int, isWord: Bool)
+
+extension String {
+  var graphemeSegments: [Segment] {
+    var segments: [Segment] = []
+    var offset = 0
+    for character in self {
+      segments.append((offset, offset + character.utf16.count, false))
+      offset += character.utf16.count
+    }
+    return segments
+  }
+
+  /// ICU's word segmentation, which `Intl.Segmenter` and WebKit use too. The
+  /// boundaries are where ICU's `\b` matches; ICU calls a segment a word
+  /// where it holds a letter or digit, or joins connector punctuation, as in
+  /// `__`.
+  var wordSegments: [Segment] {
+    let units = Array(utf16)
+    let matches = Self.wordBoundary.matches(in: self, range: NSRange(location: 0, length: units.count))
+    let boundaries = Set([0, units.count] + matches.map(\.range.location)).sorted()
+    return zip(boundaries, boundaries.dropFirst()).map { start, end in
+      let scalars = String(decoding: units[start..<end], as: UTF16.self).unicodeScalars
+      let isWord =
+        scalars.contains(where: \.isLetterOrNumber)
+        || scalars.count { $0.properties.generalCategory == .connectorPunctuation } > 1
+      return (start, end, isWord)
+    }
+  }
+
+  private static let wordBoundary = try! NSRegularExpression(pattern: #"\b"#, options: .useUnicodeWordBoundaries)
 }

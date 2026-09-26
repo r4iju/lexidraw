@@ -4,10 +4,12 @@
  *
  * Lexical measures how far a deletion reaches by moving the browser's caret,
  * which a headless editor has no browser for, so it throws. Here `measure`
- * stands in for that one step with a model of where a caret lands, and
- * everything around it is Lexical's own code, so LexicalSwift is held to
- * Lexical on all but the measurement, and to this model on that. Removing a
- * segment of segmented text (mentions, #134) isn't transcribed, and throws.
+ * stands in for that one step by a character or word, with a model of where
+ * a caret lands, and a line's boundary is an input, since only the view that
+ * lays the line out knows it. Everything around that is Lexical's own code, so
+ * LexicalSwift is held to Lexical on all but the measurement, and to this
+ * model on that. Removing a segment of segmented text (mentions, #134) isn't
+ * transcribed, and throws.
  */
 import {
   $caretFromPoint,
@@ -275,9 +277,11 @@ export function $deleteCharacter(
   }
 }
 
+/** `lineBoundary` is where the caret's line starts, or ends going forward. */
 export function $deleteLine(
   selection: RangeSelection,
   isBackward: boolean,
+  lineBoundary: Position,
 ): void {
   const wasCollapsed = selection.isCollapsed();
   const anchorNode = $getNodeByKey(selection.anchor.key);
@@ -298,7 +302,12 @@ export function $deleteLine(
     return;
   }
   if (selection.isCollapsed()) {
-    $extendSelectionForDeletion(selection, isBackward, "lineboundary");
+    $extendSelectionForDeletion(
+      selection,
+      isBackward,
+      "lineboundary",
+      lineBoundary,
+    );
   }
   if (selection.isCollapsed()) {
     $deleteCharacter(selection, isBackward);
@@ -445,6 +454,7 @@ function $extendSelectionForDeletion(
   selection: RangeSelection,
   isBackward: boolean,
   granularity: Granularity,
+  lineBoundary?: Position,
 ): void {
   if (
     $modifySelectionAroundDecoratorsAndBlocks(
@@ -461,7 +471,10 @@ function $extendSelectionForDeletion(
   const anchorOffset = anchor.offset;
   const wasCollapsed = selection.isCollapsed();
   const focus = selection.focus;
-  const landed = measure(focus, isBackward, granularity);
+  const landed =
+    granularity === "lineboundary"
+      ? (lineBoundary ?? null)
+      : measure(focus, isBackward, granularity);
   if (landed === null) {
     return;
   }
@@ -528,15 +541,18 @@ function $extendSelectionForDeletion(
 }
 
 /** A place a caret can be, as the point a browser's would resolve to. */
-type Position = { key: NodeKey; offset: number; type: "text" | "element" };
+export type Position = {
+  key: NodeKey;
+  offset: number;
+  type: "text" | "element";
+};
 
 /**
  * Where a caret at `point` lands when moved one `granularity` towards
- * `isBackward`. The model reads the line of text the point is in, its
- * element's text with a line break reading as "\n": a character is a
- * grapheme; a word is a run of graphemes starting with a letter, digit or
- * underscore, reached past whatever else lies before it; and a line ends at a
- * line break or at the element's edge. It stays in the element, as the step
+ * `isBackward`. The model reads the text of the element the point is in, a
+ * line break reading as "\n": a character is a grapheme, and a word is a
+ * segment ICU's word segmentation calls word-like, as WebKit's is, reached
+ * past whatever else lies before it. It stays in the element, as the step
  * into a neighbouring block is Lexical's own, taken before measuring. Null,
  * like a browser with no selection, is an element holding anything but text
  * and line breaks, which the model doesn't lay out.
@@ -544,7 +560,7 @@ type Position = { key: NodeKey; offset: number; type: "text" | "element" };
 function measure(
   point: PointType,
   isBackward: boolean,
-  granularity: Granularity,
+  granularity: "character" | "word",
 ): Position | null {
   const pointNode = point.getNode();
   const element = point.type === "text" ? pointNode.getParent() : pointNode;
@@ -599,28 +615,24 @@ function measure(
   };
 }
 
-const graphemes = new Intl.Segmenter(undefined, { granularity: "grapheme" });
+const segmenters = {
+  character: new Intl.Segmenter("en", { granularity: "grapheme" }),
+  word: new Intl.Segmenter("en", { granularity: "word" }),
+};
 
 function landing(
   text: string,
   from: number,
   isBackward: boolean,
-  granularity: Granularity,
+  granularity: "character" | "word",
 ): number {
-  if (granularity === "lineboundary") {
-    return isBackward
-      ? from === 0
-        ? 0
-        : text.lastIndexOf("\n", from - 1) + 1
-      : text.indexOf("\n", from) === -1
-        ? text.length
-        : text.indexOf("\n", from);
-  }
-  const units = [...graphemes.segment(text)].map(({ index, segment }) => ({
-    start: index,
-    end: index + segment.length,
-    word: /^[\p{L}\p{N}_]/u.test(segment),
-  }));
+  const units = [...segmenters[granularity].segment(text)].map(
+    ({ index, segment, isWordLike }) => ({
+      start: index,
+      end: index + segment.length,
+      word: isWordLike === true,
+    }),
+  );
   const ahead = isBackward
     ? units.filter((unit) => unit.start < from).reverse()
     : units.filter((unit) => unit.end > from);
@@ -630,7 +642,7 @@ function landing(
   }
   let crossed = 0;
   while (crossed < ahead.length && !ahead[crossed]?.word) crossed++;
-  while (crossed < ahead.length && ahead[crossed]?.word) crossed++;
+  if (crossed < ahead.length) crossed++;
   const last = ahead[crossed - 1];
   return last === undefined ? from : isBackward ? last.start : last.end;
 }

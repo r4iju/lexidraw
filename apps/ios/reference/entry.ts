@@ -40,10 +40,8 @@ type PathPoint = { path: number[]; offset: number; type: "text" | "element" };
 type Command =
   | { type: "setSelection"; anchor: PathPoint; focus: PathPoint }
   | { type: "insertText"; text: string }
-  | {
-      type: "deleteCharacter" | "deleteWord" | "deleteLine";
-      backward: boolean;
-    }
+  | { type: "deleteCharacter" | "deleteWord"; backward: boolean }
+  | { type: "deleteLine"; backward: boolean; lineBoundary: PathPoint }
   | { type: "insertParagraph" }
   | { type: "insertLineBreak" }
   | { type: "formatText"; format: TextFormatType }
@@ -176,9 +174,15 @@ function run(command: Exclude<Command, { type: "undo" | "redo" | "wait" }>) {
     case "deleteWord":
       $deleteWord(selection, command.backward);
       return;
-    case "deleteLine":
-      $deleteLine(selection, command.backward);
+    case "deleteLine": {
+      const { lineBoundary } = command;
+      $deleteLine(selection, command.backward, {
+        key: pointNode(lineBoundary).getKey(),
+        offset: lineBoundary.offset,
+        type: lineBoundary.type,
+      });
       return;
+    }
     case "insertParagraph":
       selection.insertParagraph();
       return;
