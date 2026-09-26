@@ -173,13 +173,14 @@ describe("listening to a file", () => {
     });
   });
 
-  test("is made in a format the phone plays, whatever the web plays", async () => {
+  /** The web's Listen asks in these too, so both play one copy. */
+  test("is made in the caller's own read-aloud settings, Ogg included", async () => {
     started.length = 0;
 
     await callerOf(OGG_LISTENER).listen({ id: OGG_DOC });
 
     const [, , config] = started[0] ?? [];
-    expect(config).toMatchObject({ voiceId: "nova", format: "mp3" });
+    expect(config).toMatchObject({ voiceId: "nova", format: "ogg" });
   });
 
   test("of a document with nothing in it is refused, saying so", async () => {

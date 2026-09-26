@@ -1,7 +1,9 @@
-import { drizzle, schema, eq } from "@packages/drizzle";
+import { drizzle, schema } from "@packages/drizzle";
+import { jobOfRun } from "./job-of-run";
 
 export async function markJobErrorStep(
   docKey: string,
+  runId: string,
   message: string,
 ): Promise<void> {
   "use step";
@@ -12,6 +14,6 @@ export async function markJobErrorStep(
       error: message,
       updatedAt: new Date(),
     })
-    .where(eq(schema.ttsJobs.id, docKey))
+    .where(jobOfRun(docKey, runId))
     .execute();
 }

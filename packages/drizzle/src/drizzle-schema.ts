@@ -659,6 +659,11 @@ export const ttsJobs = sqliteTable(
     segmentCount: integer("segmentCount"),
     plannedCount: integer("plannedCount"),
     error: text("error"),
+    /**
+     * The run making the audio. A run that finds another here, or its job
+     * cancelled or gone, stops rather than pay for audio no one waits for.
+     */
+    runId: text("runId"),
     ttsConfig: text("ttsConfig", { mode: "json" }).$type<
       Record<string, unknown>
     >(),

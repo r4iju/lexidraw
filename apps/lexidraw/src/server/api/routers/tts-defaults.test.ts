@@ -104,7 +104,7 @@ describe.each([
 
       await listen(userId);
 
-      const cfg = started[0]?.at(-1) as { provider: string; voiceId: string };
+      const cfg = started[0]?.at(-2) as { provider: string; voiceId: string };
       expect({ provider: cfg?.provider, voiceId: cfg?.voiceId }).toEqual({
         provider: shown.provider,
         voiceId: shown.voiceId,

@@ -12,6 +12,7 @@ import { finalizeManifestStep } from "./finalize-manifest-step";
 import { markJobReadyStep } from "./mark-job-ready-step";
 import { persistToEntityStep } from "./persist-to-entity-step";
 import { markJobErrorStep } from "./mark-job-error-step";
+import { runIsCurrentStep } from "./run-is-current-step";
 
 function slugifySection(title: string | undefined, index: number): string {
   const base = (title || "untitled").toLowerCase().trim();
@@ -37,7 +38,8 @@ export async function generateDocumentTtsWorkflow(
   documentId: string,
   markdown: string,
   tts: TtsConfig,
-): Promise<{ manifestUrl: string; stitchedUrl?: string }> {
+  runId: string,
+): Promise<{ manifestUrl: string; stitchedUrl?: string } | undefined> {
   "use workflow";
   let docKey = "";
   try {
@@ -60,7 +62,8 @@ export async function generateDocumentTtsWorkflow(
       firstHashes: planned.slice(0, 3).map((p) => p.chunkHash),
     });
 
-    await updateJobStatusStep(docKey, documentId, "processing", planned.length); // documentId is entityId for documents
+    if (!(await runIsCurrentStep(docKey, runId))) return undefined;
+    await updateJobStatusStep(docKey, runId, "processing", planned.length);
 
     const results: Array<{
       index: number;
@@ -75,6 +78,7 @@ export async function generateDocumentTtsWorkflow(
 
     const BATCH = Number(process.env.TTS_WORKFLOW_BATCH_SIZE ?? "4");
     for (let i = 0; i < planned.length; i += BATCH) {
+      if (i > 0 && !(await runIsCurrentStep(docKey, runId))) return undefined;
       const slice = planned.slice(i, i + BATCH);
       const batch = await Promise.allSettled(
         slice.map((p) =>
@@ -109,7 +113,7 @@ export async function generateDocumentTtsWorkflow(
       }
       results.push(...successes);
       // Update progress after each batch completes
-      await updateProgressStep(docKey, results.length);
+      await updateProgressStep(docKey, runId, results.length);
     }
 
     const { manifestUrl, stitchedUrl } = await finalizeManifestStep(
@@ -119,7 +123,7 @@ export async function generateDocumentTtsWorkflow(
     );
 
     // Mark job ready
-    await markJobReadyStep(docKey, {
+    await markJobReadyStep(docKey, runId, {
       manifestUrl,
       stitchedUrl: stitchedUrl ?? null,
       segmentCount: results.length,
@@ -149,7 +153,7 @@ export async function generateDocumentTtsWorkflow(
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     if (docKey) {
-      await markJobErrorStep(docKey, message);
+      await markJobErrorStep(docKey, runId, message);
     }
     throw err;
   }

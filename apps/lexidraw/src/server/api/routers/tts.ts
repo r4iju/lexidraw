@@ -10,7 +10,6 @@ import { start } from "workflow/api";
 import { TRPCError } from "@trpc/server";
 import { PublicAccess } from "@packages/types";
 import { del } from "@vercel/blob";
-import type { TtsSegment } from "~/server/tts/types";
 import env from "@packages/env";
 import { htmlToPlainText } from "@packages/lexical-nodes";
 import {
@@ -20,9 +19,17 @@ import {
   parseEditorState,
 } from "~/server/documents/markdown";
 
+const JobStatus = z.enum([
+  "queued",
+  "processing",
+  "ready",
+  "error",
+  "cancelled",
+]);
+
 const TtsJobSnapshot = z.object({
   docKey: z.string(),
-  status: z.enum(["queued", "processing", "ready", "error", "cancelled"]),
+  status: JobStatus,
   manifestUrl: z.string().url().optional(),
   stitchedUrl: z.string().url().optional(),
   segmentCount: z.number().optional(),
@@ -152,104 +159,159 @@ async function latestJob(entityId: string): Promise<TtsJob | undefined> {
   return rows[0];
 }
 
+/** What a finished job's manifest lists; a missing or odd one lists nothing. */
+const Manifest = z.object({
+  segments: z.array(z.unknown()).catch([]),
+  stitchedUrl: z.string().optional().catch(undefined),
+});
+
 async function manifestOf(row: TtsJob | undefined) {
   if (!row?.manifestUrl) return { segments: [], stitchedUrl: undefined };
   const r = await fetch(row.manifestUrl, { cache: "no-store" });
   if (!r.ok) return { segments: [], stitchedUrl: row.stitchedUrl ?? undefined };
-  const json = (await r.json()) as {
-    segments?: unknown[];
-    stitchedUrl?: string;
-  };
+  const manifest = Manifest.catch({ segments: [] }).parse(await r.json());
   return {
-    segments: Array.isArray(json.segments) ? json.segments : [],
-    stitchedUrl: json.stitchedUrl ?? row.stitchedUrl ?? undefined,
+    segments: manifest.segments,
+    stitchedUrl: manifest.stitchedUrl ?? row.stitchedUrl ?? undefined,
   };
 }
 
+/** Starts a run that makes a job's audio, given the run's id. */
+type Starter = (runId: string) => Promise<unknown>;
+
 /**
- * Starts reading `entityId` aloud as `key`, or answers the job whose audio is
- * already made as it. `prepare` is asked for the run only when one is needed,
- * so a file whose audio is made isn't read again, and returns what starts it.
+ * A run that has made no progress for this long has died without saying so,
+ * as when its workflow was lost, and is started again.
+ */
+const STALLED_AFTER = 10 * 60 * 1000;
+
+const running = (job: TtsJob) =>
+  (job.status === "queued" || job.status === "processing") &&
+  Date.now() - new Date(job.updatedAt).getTime() < STALLED_AFTER;
+
+/**
+ * The job that makes `entityId`'s audio as `key`. One whose audio is made or
+ * being made is answered as it is, whoever started it, so asking again pays
+ * for nothing. Otherwise a run is started, from what `prepareStarter` gives
+ * back; it is asked only then, since reading a file for its text may fail.
+ * With `replacing`, the caller's runs in other voices are cancelled first,
+ * as the web's voice picker has always done.
  */
 async function startTtsJob({
   entityId,
   userId,
   key,
   cfg,
-  prepare,
+  prepareStarter,
+  replacing = false,
 }: {
   entityId: string;
   userId: string;
   key: string;
   cfg: VoiceConfig;
-  prepare: () => Promise<() => void> | (() => void);
+  prepareStarter: () => Starter | Promise<Starter>;
+  replacing?: boolean;
 }): Promise<TtsJob> {
-  await drizzle
-    .update(schema.ttsJobs)
-    .set({ status: "cancelled", updatedAt: new Date() })
-    .where(
-      and(
-        eq(schema.ttsJobs.entityId, entityId),
-        eq(schema.ttsJobs.userId, userId),
-        or(
-          eq(schema.ttsJobs.status, "queued"),
-          eq(schema.ttsJobs.status, "processing"),
+  if (replacing) {
+    await drizzle
+      .update(schema.ttsJobs)
+      .set({ status: "cancelled", updatedAt: new Date() })
+      .where(
+        and(
+          eq(schema.ttsJobs.entityId, entityId),
+          eq(schema.ttsJobs.userId, userId),
+          ne(schema.ttsJobs.id, key),
+          or(
+            eq(schema.ttsJobs.status, "queued"),
+            eq(schema.ttsJobs.status, "processing"),
+          ),
         ),
-      ),
-    )
-    .execute();
+      )
+      .execute();
+  }
   const existing = await drizzle.query.ttsJobs.findFirst({
     where: (t) => and(eq(t.id, key), eq(t.entityId, entityId)),
   });
-  if (existing?.status === "ready" && existing.manifestUrl) {
+  if (
+    existing &&
+    ((existing.status === "ready" && existing.manifestUrl) || running(existing))
+  ) {
     return existing;
   }
-  const run = await prepare();
+  const startRun = await prepareStarter();
+  const runId = crypto.randomUUID();
+  const fresh = {
+    status: "queued" as const,
+    runId,
+    ttsConfig: cfg,
+    manifestUrl: null,
+    stitchedUrl: null,
+    segmentCount: null,
+    plannedCount: null,
+    error: null,
+    updatedAt: new Date(),
+  };
   const [queued] = await drizzle
     .insert(schema.ttsJobs)
-    .values({
-      id: key,
-      entityId,
-      userId,
-      status: "queued",
-      ttsConfig: cfg as unknown as Record<string, unknown>,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    })
-    .onConflictDoUpdate({
-      target: schema.ttsJobs.id,
-      set: { status: "queued", updatedAt: new Date() },
-    })
+    .values({ id: key, entityId, userId, createdAt: new Date(), ...fresh })
+    .onConflictDoUpdate({ target: schema.ttsJobs.id, set: fresh })
     .returning();
   if (!queued) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-  run();
+  try {
+    await startRun(runId);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    await drizzle
+      .update(schema.ttsJobs)
+      .set({ status: "error", error: message, updatedAt: new Date() })
+      .where(and(eq(schema.ttsJobs.id, key), eq(schema.ttsJobs.runId, runId)))
+      .execute();
+    throw new TRPCError({
+      code: "INTERNAL_SERVER_ERROR",
+      message: "The audio couldn't be started",
+      cause: error,
+    });
+  }
   return queued;
 }
 
-/** A started job as the web's start calls answer it. */
-function startedSnapshotOf(job: TtsJob): TtsJobSnapshot {
-  if (job.status === "ready") {
-    const { error: _, ...ready } = snapshotOf(job);
-    return ready;
-  }
-  return {
-    docKey: job.id,
-    status: "queued",
-    updatedAt: new Date(job.updatedAt).toISOString(),
-  };
-}
+const documentRun =
+  (documentId: string, markdown: string, cfg: VoiceConfig): Starter =>
+  (runId) =>
+    start(generateDocumentTtsWorkflow, [documentId, markdown, cfg, runId]);
 
-/** The page a saved link was read into, as its read-aloud job reads it. */
+const articleRun =
+  (
+    articleId: string,
+    plainText: string,
+    html: string | undefined,
+    cfg: VoiceConfig,
+  ): Starter =>
+  (runId) =>
+    start(generateArticleTtsWorkflow, [articleId, plainText, html, cfg, runId]);
+
+const SavedLink = z.object({
+  distilled: z.object({ contentHtml: z.string().optional() }).optional(),
+});
+
+/** The page a saved link was read into, as its read-aloud run reads it. */
 function distilledHtmlOf(elements: string | null | undefined) {
   if (!elements) return undefined;
+  let parsed: unknown;
   try {
-    const parsed = JSON.parse(elements) as {
-      distilled?: { contentHtml?: string };
-    };
-    return parsed.distilled?.contentHtml;
+    parsed = JSON.parse(elements);
   } catch {
     return undefined;
   }
+  return SavedLink.safeParse(parsed).data?.distilled?.contentHtml;
+}
+
+async function articleHtmlOf(articleId: string) {
+  const entity = await drizzle.query.entities.findFirst({
+    where: (t) => eq(t.id, articleId),
+    columns: { elements: true },
+  });
+  return distilledHtmlOf(entity?.elements);
 }
 
 /** The caller's read-aloud settings, read fresh rather than from the session. */
@@ -259,89 +321,6 @@ async function storedTtsOf(userId: string) {
     columns: { config: true },
   });
   return user?.config?.tts;
-}
-
-async function startDocumentJob(
-  documentId: string,
-  userId: string,
-  cfg: VoiceConfig,
-  markdown: () => string,
-) {
-  return startTtsJob({
-    entityId: documentId,
-    userId,
-    key: computeDocKey(documentId, cfg),
-    cfg,
-    prepare: () => {
-      const text = markdown();
-      return () =>
-        void start(generateDocumentTtsWorkflow, [documentId, text, cfg]);
-    },
-  });
-}
-
-async function startArticleJob(
-  articleId: string,
-  userId: string,
-  cfg: VoiceConfig,
-  plainText: (html: string | undefined) => string,
-) {
-  return startTtsJob({
-    entityId: articleId,
-    userId,
-    key: computeArticleKey(articleId, cfg),
-    cfg,
-    prepare: async () => {
-      const entity = await drizzle.query.entities.findFirst({
-        where: (t) => eq(t.id, articleId),
-        columns: { elements: true },
-      });
-      const html = distilledHtmlOf(entity?.elements);
-      const text = plainText(html);
-      return () =>
-        void start(generateArticleTtsWorkflow, [articleId, text, html, cfg]);
-    },
-  });
-}
-
-/** A file that can be read aloud, as the web offers Listen on it. */
-async function listenableOrNotFound(id: string, userId: string) {
-  const [entity] = await drizzle
-    .select({
-      entityType: schema.entities.entityType,
-      elements: schema.entities.elements,
-    })
-    .from(schema.entities)
-    .leftJoin(
-      schema.sharedEntities,
-      and(
-        eq(schema.sharedEntities.entityId, schema.entities.id),
-        eq(schema.sharedEntities.userId, userId),
-      ),
-    )
-    .where(
-      and(
-        eq(schema.entities.id, id),
-        isNull(schema.entities.deletedAt),
-        or(
-          eq(schema.entities.userId, userId),
-          eq(schema.sharedEntities.userId, userId),
-          ne(schema.entities.publicAccess, PublicAccess.PRIVATE),
-        ),
-      ),
-    )
-    .limit(1)
-    .execute();
-  if (!entity) {
-    throw new TRPCError({ code: "NOT_FOUND", message: "Entity not found" });
-  }
-  if (entity.entityType !== "document" && entity.entityType !== "url") {
-    throw new TRPCError({
-      code: "BAD_REQUEST",
-      message: "Only documents and links can be read aloud",
-    });
-  }
-  return entity;
 }
 
 /** A document's text as the web's Listen reads it from the editor. */
@@ -371,11 +350,81 @@ function documentMarkdownOf(elements: string) {
   return markdown;
 }
 
-/** The caller's read-aloud settings, in a format any player plays. */
-async function listeningVoiceOf(userId: string): Promise<VoiceConfig> {
-  const settings = ttsConfigFor({}, await storedTtsOf(userId));
-  // AVFoundation and most players outside a browser don't play Ogg.
-  return settings.format === "ogg" ? { ...settings, format: "mp3" } : settings;
+/**
+ * How each kind of file is read aloud: the key its audio is kept under, and
+ * the run that reads its stored content, as the web's Listen reads it.
+ */
+const READERS = {
+  document: {
+    keyOf: computeDocKey,
+    runOf: (id: string, elements: string, cfg: VoiceConfig) =>
+      documentRun(id, documentMarkdownOf(elements), cfg),
+  },
+  url: {
+    keyOf: computeArticleKey,
+    runOf: (id: string, elements: string, cfg: VoiceConfig) => {
+      const html = distilledHtmlOf(elements);
+      if (!html) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "This link's page hasn't been read yet",
+        });
+      }
+      return articleRun(id, htmlToPlainText(html), html, cfg);
+    },
+  },
+} as const;
+
+/**
+ * A file that can be read aloud, as the web offers Listen on it, with how it
+ * is read, in the caller's own read-aloud settings.
+ */
+async function listenableOrNotFound(id: string, userId: string) {
+  const [[entity], stored] = await Promise.all([
+    drizzle
+      .select({
+        entityType: schema.entities.entityType,
+        elements: schema.entities.elements,
+      })
+      .from(schema.entities)
+      .leftJoin(
+        schema.sharedEntities,
+        and(
+          eq(schema.sharedEntities.entityId, schema.entities.id),
+          eq(schema.sharedEntities.userId, userId),
+        ),
+      )
+      .where(
+        and(
+          eq(schema.entities.id, id),
+          isNull(schema.entities.deletedAt),
+          or(
+            eq(schema.entities.userId, userId),
+            eq(schema.sharedEntities.userId, userId),
+            ne(schema.entities.publicAccess, PublicAccess.PRIVATE),
+          ),
+        ),
+      )
+      .limit(1)
+      .execute(),
+    storedTtsOf(userId),
+  ]);
+  if (!entity) {
+    throw new TRPCError({ code: "NOT_FOUND", message: "Entity not found" });
+  }
+  if (entity.entityType !== "document" && entity.entityType !== "url") {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: "Only documents and links can be read aloud",
+    });
+  }
+  const reader = READERS[entity.entityType];
+  const cfg = ttsConfigFor({}, stored);
+  return {
+    cfg,
+    key: reader.keyOf(id, cfg),
+    runOf: () => reader.runOf(id, entity.elements, cfg),
+  };
 }
 
 const ListenedSegment = z.object({
@@ -389,14 +438,7 @@ const ListenedSegment = z.object({
 /** How far a file's audio is, with its parts once all are made. */
 const Listening = z
   .object({
-    status: z.enum([
-      "none",
-      "queued",
-      "processing",
-      "ready",
-      "error",
-      "cancelled",
-    ]),
+    status: z.enum(["none", ...JobStatus.options]),
     plannedCount: z.number().int().optional(),
     segmentCount: z.number().int().optional(),
     error: z.string().optional(),
@@ -424,6 +466,50 @@ async function listeningOf(
   };
 }
 
+/** Whatever of `entityId`'s audio there is, and its job, so it is made anew. */
+async function deleteAudioOf(entityId: string, from: string) {
+  const row = await drizzle.query.ttsJobs.findFirst({
+    where: (t) => eq(t.entityId, entityId),
+  });
+  if (!row) return { deleted: false };
+
+  const urlsToDelete: string[] = [];
+  if (row.manifestUrl) {
+    urlsToDelete.push(row.manifestUrl);
+    try {
+      const manifestResponse = await fetch(row.manifestUrl, {
+        cache: "no-store",
+      });
+      if (manifestResponse.ok) {
+        const manifest = Manifest.parse(await manifestResponse.json());
+        if (manifest.stitchedUrl) urlsToDelete.push(manifest.stitchedUrl);
+        for (const segment of manifest.segments) {
+          const audioUrl = z.object({ audioUrl: z.string() }).safeParse(segment)
+            .data?.audioUrl;
+          if (audioUrl) urlsToDelete.push(audioUrl);
+        }
+      }
+    } catch (e) {
+      console.warn(`[trpc][tts][${from}] Failed to fetch manifest`, e);
+    }
+  }
+
+  if (urlsToDelete.length > 0) {
+    try {
+      await del(urlsToDelete);
+    } catch (e) {
+      console.warn(`[trpc][tts][${from}] Failed to delete some blobs`, e);
+    }
+  }
+
+  // A run still making it finds its job gone and stops.
+  await drizzle
+    .delete(schema.ttsJobs)
+    .where(eq(schema.ttsJobs.id, row.id))
+    .execute();
+  return { deleted: true };
+}
+
 const LISTEN_ERRORS = [400, 401, 403, 404, 422, 500];
 
 export const ttsRouter = createTRPCRouter({
@@ -444,13 +530,16 @@ export const ttsRouter = createTRPCRouter({
       const userId = ctx.session.user.id;
       await assertCanAccessDocumentOrThrow(userId, input.documentId);
       const cfg = ttsConfigFor(input, await storedTtsOf(userId));
-      const job = await startDocumentJob(
-        input.documentId,
+      const job = await startTtsJob({
+        entityId: input.documentId,
         userId,
+        key: computeDocKey(input.documentId, cfg),
         cfg,
-        () => input.markdown ?? "",
-      );
-      return startedSnapshotOf(job);
+        prepareStarter: () =>
+          documentRun(input.documentId, input.markdown ?? "", cfg),
+        replacing: true,
+      });
+      return snapshotOf(job);
     }),
 
   getDocumentTtsStatus: protectedProcedure
@@ -477,81 +566,11 @@ export const ttsRouter = createTRPCRouter({
   deleteDocumentTts: protectedProcedure
     .input(z.object({ documentId: z.string() }))
     .mutation(async ({ input, ctx }) => {
-      const userId = ctx.session?.user?.id;
-      await assertCanAccessDocumentOrThrow(userId, input.documentId);
-
-      const row = await drizzle.query.ttsJobs.findFirst({
-        where: (t) => eq(t.entityId, input.documentId),
-      });
-
-      if (!row) {
-        return { deleted: false };
-      }
-
-      const urlsToDelete: string[] = [];
-
-      // Fetch manifest to get all segment URLs
-      if (row.manifestUrl) {
-        urlsToDelete.push(row.manifestUrl);
-        try {
-          const manifestResponse = await fetch(row.manifestUrl, {
-            cache: "no-store",
-          });
-          if (manifestResponse.ok) {
-            const manifest = (await manifestResponse.json()) as {
-              segments?: TtsSegment[];
-              stitchedUrl?: string;
-            };
-
-            // Add stitched URL if it exists
-            if (manifest.stitchedUrl) {
-              urlsToDelete.push(manifest.stitchedUrl);
-            }
-
-            // Add all segment audio URLs
-            if (Array.isArray(manifest.segments)) {
-              for (const segment of manifest.segments) {
-                if (segment.audioUrl) {
-                  urlsToDelete.push(segment.audioUrl);
-                }
-              }
-            }
-          }
-        } catch (e) {
-          console.warn(
-            "[trpc][tts][deleteDocumentTts] Failed to fetch manifest",
-            e,
-          );
-        }
-      }
-
-      // Delete all blob files
-      if (urlsToDelete.length > 0) {
-        try {
-          await del(urlsToDelete);
-        } catch (e) {
-          console.warn(
-            "[trpc][tts][deleteDocumentTts] Failed to delete some blobs",
-            e,
-          );
-        }
-      }
-
-      // Reset database record
-      await drizzle
-        .update(schema.ttsJobs)
-        .set({
-          status: "queued",
-          manifestUrl: null,
-          stitchedUrl: null,
-          segmentCount: null,
-          error: null,
-          updatedAt: new Date(),
-        })
-        .where(eq(schema.ttsJobs.id, row.id))
-        .execute();
-
-      return { deleted: true };
+      await assertCanAccessDocumentOrThrow(
+        ctx.session.user.id,
+        input.documentId,
+      );
+      return deleteAudioOf(input.documentId, "deleteDocumentTts");
     }),
 
   startArticleTts: protectedProcedure
@@ -571,13 +590,21 @@ export const ttsRouter = createTRPCRouter({
       const userId = ctx.session.user.id;
       await assertCanAccessArticleOrThrow(userId, input.articleId);
       const cfg = ttsConfigFor(input, await storedTtsOf(userId));
-      const job = await startArticleJob(
-        input.articleId,
+      const job = await startTtsJob({
+        entityId: input.articleId,
         userId,
+        key: computeArticleKey(input.articleId, cfg),
         cfg,
-        () => input.plainText ?? "",
-      );
-      return startedSnapshotOf(job);
+        prepareStarter: async () =>
+          articleRun(
+            input.articleId,
+            input.plainText ?? "",
+            await articleHtmlOf(input.articleId),
+            cfg,
+          ),
+        replacing: true,
+      });
+      return snapshotOf(job);
     }),
 
   getArticleTtsStatus: protectedProcedure
@@ -604,81 +631,8 @@ export const ttsRouter = createTRPCRouter({
   deleteArticleTts: protectedProcedure
     .input(z.object({ articleId: z.string() }))
     .mutation(async ({ input, ctx }) => {
-      const userId = ctx.session?.user?.id;
-      await assertCanAccessArticleOrThrow(userId, input.articleId);
-
-      const row = await drizzle.query.ttsJobs.findFirst({
-        where: (t) => eq(t.entityId, input.articleId),
-      });
-
-      if (!row) {
-        return { deleted: false };
-      }
-
-      const urlsToDelete: string[] = [];
-
-      // Fetch manifest to get all segment URLs
-      if (row.manifestUrl) {
-        urlsToDelete.push(row.manifestUrl);
-        try {
-          const manifestResponse = await fetch(row.manifestUrl, {
-            cache: "no-store",
-          });
-          if (manifestResponse.ok) {
-            const manifest = (await manifestResponse.json()) as {
-              segments?: TtsSegment[];
-              stitchedUrl?: string;
-            };
-
-            // Add stitched URL if it exists
-            if (manifest.stitchedUrl) {
-              urlsToDelete.push(manifest.stitchedUrl);
-            }
-
-            // Add all segment audio URLs
-            if (Array.isArray(manifest.segments)) {
-              for (const segment of manifest.segments) {
-                if (segment.audioUrl) {
-                  urlsToDelete.push(segment.audioUrl);
-                }
-              }
-            }
-          }
-        } catch (e) {
-          console.warn(
-            "[trpc][tts][deleteArticleTts] Failed to fetch manifest",
-            e,
-          );
-        }
-      }
-
-      // Delete all blob files
-      if (urlsToDelete.length > 0) {
-        try {
-          await del(urlsToDelete);
-        } catch (e) {
-          console.warn(
-            "[trpc][tts][deleteArticleTts] Failed to delete some blobs",
-            e,
-          );
-        }
-      }
-
-      // Reset database record
-      await drizzle
-        .update(schema.ttsJobs)
-        .set({
-          status: "queued",
-          manifestUrl: null,
-          stitchedUrl: null,
-          segmentCount: null,
-          error: null,
-          updatedAt: new Date(),
-        })
-        .where(eq(schema.ttsJobs.id, row.id))
-        .execute();
-
-      return { deleted: true };
+      await assertCanAccessArticleOrThrow(ctx.session.user.id, input.articleId);
+      return deleteAudioOf(input.articleId, "deleteArticleTts");
     }),
 
   listen: protectedProcedure
@@ -697,22 +651,14 @@ export const ttsRouter = createTRPCRouter({
     .output(Listening)
     .mutation(async ({ input, ctx }) => {
       const userId = ctx.session.user.id;
-      const entity = await listenableOrNotFound(input.id, userId);
-      const cfg = await listeningVoiceOf(userId);
-      const job =
-        entity.entityType === "document"
-          ? await startDocumentJob(input.id, userId, cfg, () =>
-              documentMarkdownOf(entity.elements),
-            )
-          : await startArticleJob(input.id, userId, cfg, (html) => {
-              if (!html) {
-                throw new TRPCError({
-                  code: "BAD_REQUEST",
-                  message: "This link's page hasn't been read yet",
-                });
-              }
-              return htmlToPlainText(html);
-            });
+      const listenable = await listenableOrNotFound(input.id, userId);
+      const job = await startTtsJob({
+        entityId: input.id,
+        userId,
+        key: listenable.key,
+        cfg: listenable.cfg,
+        prepareStarter: listenable.runOf,
+      });
       return listeningOf(job);
     }),
 
@@ -731,13 +677,7 @@ export const ttsRouter = createTRPCRouter({
     .input(z.object({ id: z.string() }))
     .output(Listening)
     .query(async ({ input, ctx }) => {
-      const userId = ctx.session.user.id;
-      const entity = await listenableOrNotFound(input.id, userId);
-      const cfg = await listeningVoiceOf(userId);
-      const key =
-        entity.entityType === "document"
-          ? computeDocKey(input.id, cfg)
-          : computeArticleKey(input.id, cfg);
+      const { key } = await listenableOrNotFound(input.id, ctx.session.user.id);
       const job = await drizzle.query.ttsJobs.findFirst({
         where: (t) => and(eq(t.id, key), eq(t.entityId, input.id)),
       });
