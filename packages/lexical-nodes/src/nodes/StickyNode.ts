@@ -1,23 +1,35 @@
-import type {
-  Klass,
-  LexicalEditor,
-  LexicalNode,
-  NodeKey,
-  SerializedEditor,
-  SerializedLexicalNode,
-  Spread,
+import {
+  $create,
+  $setSelection,
+  createEditor,
+  DecoratorNode,
+  enumValue,
+  type Klass,
+  type LexicalEditor,
+  type LexicalNode,
+  type NodeKey,
+  nodeSchema,
+  numberValue,
+  type SerializedEditor,
+  type SerializedLexicalNode,
+  type Spread,
+  withAccessors,
+  withField,
 } from "lexical";
-import { $create, $setSelection, createEditor, DecoratorNode } from "lexical";
+import { type NestedEditorJSON, nestedEditorValue } from "../schema-values.js";
 
-export type StickyNoteColor =
-  | "pink"
-  | "yellow"
-  | "green"
-  | "blue"
-  | "red"
-  | "orange"
-  | "purple"
-  | "gray";
+const STICKY_NOTE_COLORS = [
+  "pink",
+  "yellow",
+  "green",
+  "blue",
+  "red",
+  "orange",
+  "purple",
+  "gray",
+] as const;
+
+export type StickyNoteColor = (typeof STICKY_NOTE_COLORS)[number];
 
 export type SerializedStickyNode = Spread<
   {
@@ -29,38 +41,29 @@ export type SerializedStickyNode = Spread<
   SerializedLexicalNode
 >;
 
+const stickySchema = nodeSchema<StickyNode>()({
+  caption: withAccessors(nestedEditorValue, {
+    getter: "getCaptionJSON",
+    setter: "setCaptionJSON",
+  }),
+  color: withField(enumValue(STICKY_NOTE_COLORS, "yellow"), {
+    field: "__color",
+  }),
+  xOffset: withField(numberValue(), { field: "__x" }),
+  yOffset: withField(numberValue(), { field: "__y" }),
+});
+
 export class StickyNode extends DecoratorNode<unknown> {
   __x: number;
   __y: number;
   __color: StickyNoteColor;
   __caption: LexicalEditor;
 
-  static getType(): string {
-    return "sticky";
-  }
-
-  static clone(node: StickyNode): StickyNode {
-    return new this(
-      node.__x,
-      node.__y,
-      node.__color,
-      node.__caption,
-      node.__key,
-    );
-  }
-
-  static importJSON(serializedNode: SerializedStickyNode): StickyNode {
-    const stickyNode = $create(StickyNode);
-    stickyNode.__x = serializedNode.xOffset;
-    stickyNode.__y = serializedNode.yOffset;
-    stickyNode.__color = serializedNode.color;
-    const caption = serializedNode.caption;
-    const nestedEditor = stickyNode.__caption;
-    const editorState = nestedEditor.parseEditorState(caption.editorState);
-    if (!editorState.isEmpty()) {
-      nestedEditor.setEditorState(editorState);
-    }
-    return stickyNode;
+  $config() {
+    return this.config("sticky", {
+      extends: DecoratorNode,
+      json: stickySchema,
+    });
   }
 
   constructor(
@@ -77,15 +80,24 @@ export class StickyNode extends DecoratorNode<unknown> {
     this.__color = color;
   }
 
-  exportJSON(): SerializedStickyNode {
-    return {
-      caption: this.__caption.toJSON(),
-      color: this.__color,
-      type: "sticky",
-      version: 1,
-      xOffset: this.__x,
-      yOffset: this.__y,
-    };
+  afterCloneFrom(prevNode: this): void {
+    super.afterCloneFrom(prevNode);
+    this.__x = prevNode.__x;
+    this.__y = prevNode.__y;
+    this.__color = prevNode.__color;
+    this.__caption = prevNode.__caption;
+  }
+
+  getCaptionJSON(): SerializedEditor {
+    return this.__caption.toJSON();
+  }
+
+  setCaptionJSON({ editorState }: NestedEditorJSON): this {
+    if (editorState) {
+      const state = this.__caption.parseEditorState(editorState);
+      if (!state.isEmpty()) this.__caption.setEditorState(state);
+    }
+    return this;
   }
 
   createDOM(): HTMLElement {
@@ -107,19 +119,9 @@ export class StickyNode extends DecoratorNode<unknown> {
 
   toggleColor(): void {
     const writable = this.getWritable();
-    const colors = [
-      "pink",
-      "yellow",
-      "green",
-      "blue",
-      "red",
-      "orange",
-      "purple",
-      "gray",
-    ];
-    const currentIndex = colors.indexOf(writable.__color);
-    const nextIndex = (currentIndex + 1) % colors.length;
-    writable.__color = colors[nextIndex] as StickyNoteColor;
+    const currentIndex = STICKY_NOTE_COLORS.indexOf(writable.__color);
+    const nextIndex = (currentIndex + 1) % STICKY_NOTE_COLORS.length;
+    writable.__color = STICKY_NOTE_COLORS[nextIndex] ?? "yellow";
   }
 
   isIsolated(): true {

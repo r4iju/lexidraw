@@ -4,10 +4,14 @@ import {
   type DOMExportOutput,
   type ElementDOMSlot,
   ElementNode,
+  enumValue,
   type LexicalNode,
   type NodeKey,
+  nodeSchema,
   type SerializedElementNode,
   type Spread,
+  stringValue,
+  withField,
 } from "lexical";
 
 /** GitHub's five alert kinds, the only ones a callout stores. */
@@ -76,6 +80,11 @@ function $convertCalloutElement(domNode: HTMLElement): DOMConversionOutput {
   };
 }
 
+const calloutSchema = nodeSchema<CalloutNode>()({
+  kind: withField(enumValue(CALLOUT_KINDS), { field: "__kind" }),
+  title: withField(stringValue(), { field: "__title" }),
+});
+
 export class CalloutNode extends ElementNode {
   __kind: CalloutKind;
   __title: string;
@@ -86,12 +95,11 @@ export class CalloutNode extends ElementNode {
     this.__title = title;
   }
 
-  static getType(): string {
-    return "callout";
-  }
-
-  static clone(node: CalloutNode): CalloutNode {
-    return new CalloutNode(node.__kind, node.__title, node.__key);
+  $config() {
+    return this.config("callout", {
+      extends: ElementNode,
+      json: calloutSchema,
+    });
   }
 
   createDOM(): HTMLElement {
@@ -128,23 +136,6 @@ export class CalloutNode extends ElementNode {
         domNode.dataset.calloutKind !== undefined
           ? { conversion: $convertCalloutElement, priority: 2 }
           : null,
-    };
-  }
-
-  static importJSON(json: SerializedCalloutNode): CalloutNode {
-    return CalloutNode.$createCalloutNode(
-      isCalloutKind(json.kind) ? json.kind : "note",
-      typeof json.title === "string" ? json.title : "",
-    ).updateFromJSON(json);
-  }
-
-  exportJSON(): SerializedCalloutNode {
-    return {
-      ...super.exportJSON(),
-      kind: this.getKind(),
-      title: this.getTitle(),
-      type: "callout",
-      version: 1,
     };
   }
 

@@ -1,11 +1,19 @@
 import {
-  DecoratorNode,
+  arrayValue,
+  booleanValue,
   type EditorConfig,
+  enumValue,
   type LexicalNode,
   type NodeKey,
+  nodeSchema,
+  optional,
   type SerializedLexicalNode,
+  stringValue,
+  withField,
 } from "lexical";
-import type { Comment } from "./CommentNode.js";
+import { openObjectValue } from "../schema-values.js";
+import { type Comment, commentValue } from "./CommentNode.js";
+import { MarkerNode, type SerializedMarkerFields } from "./MarkerNode.js";
 
 export type Thread = {
   comments: Comment[];
@@ -19,40 +27,35 @@ export type Thread = {
 export type SerializedThreadNode = {
   type: "thread";
   version: 1;
-  // original Lexical props
-  format: number;
-  indent: number;
-  direction: "ltr" | "rtl" | null;
-  children: SerializedLexicalNode[]; // will hold children, possibly CommentNodes
-  // our custom data
   thread: Thread;
-} & SerializedLexicalNode;
+} & SerializedMarkerFields &
+  SerializedLexicalNode;
+
+const threadValue = openObjectValue({
+  comments: arrayValue(commentValue),
+  id: stringValue(),
+  quote: stringValue(),
+  type: enumValue(["thread"]),
+  resolved: optional(booleanValue()),
+});
+
+const threadSchema = nodeSchema<ThreadNode>()({
+  thread: withField(threadValue, { field: "__thread" }),
+});
 
 /**
  * Serialization half of the comment thread marker; see ImageNode for the split.
  */
-export class ThreadNode extends DecoratorNode<unknown> {
-  // store the entire "thread" object here
+export class ThreadNode extends MarkerNode {
   __thread: Thread;
-  __format: number;
-  __indent: number;
-  __direction: "ltr" | "rtl" | null;
 
-  // Lexical constructs nodes with no arguments; every caller passes a thread.
-  constructor(thread?: Thread, key?: NodeKey) {
+  constructor(thread: Thread = threadValue.defaultValue, key?: NodeKey) {
     super(key);
-    this.__thread = thread as Thread;
-    this.__format = 0;
-    this.__indent = 0;
-    this.__direction = null;
+    this.__thread = thread;
   }
 
-  static getType(): string {
-    return "thread";
-  }
-
-  static clone(node: ThreadNode): ThreadNode {
-    return new this(node.__thread, node.__key);
+  $config() {
+    return this.config("thread", { extends: MarkerNode, json: threadSchema });
   }
 
   createDOM(_config: EditorConfig): HTMLElement {
@@ -65,14 +68,6 @@ export class ThreadNode extends DecoratorNode<unknown> {
     return false;
   }
 
-  setFormat(format: number): void {
-    this.__format = format;
-  }
-
-  setIndent(indent: number): void {
-    this.__indent = indent;
-  }
-
   getThread(): Thread {
     return this.getLatest().__thread;
   }
@@ -81,28 +76,6 @@ export class ThreadNode extends DecoratorNode<unknown> {
     const writable = this.getWritable();
     writable.__thread = thread;
     return writable;
-  }
-
-  exportJSON(): SerializedThreadNode {
-    return {
-      ...super.exportJSON(),
-      type: "thread",
-      thread: this.__thread,
-      version: 1,
-      format: this.__format,
-      indent: this.__indent,
-      direction: this.__direction,
-      children: [],
-    };
-  }
-
-  static importJSON(serializedNode: SerializedThreadNode): ThreadNode {
-    const node = new this(serializedNode.thread);
-    // for an advanced use-case, you might re-insert child comment nodes
-    // or do more advanced mapping. for now, we keep it simple.
-    node.setFormat(serializedNode.format);
-    node.setIndent(serializedNode.indent);
-    return node;
   }
 
   static $isThreadNode = (

@@ -3,33 +3,30 @@ import LexicalSwift
 import Testing
 
 @Suite struct SerializedNodeTests {
-  static let everyBuiltInNode: JSONValue = {
-    let url = Bundle.module.url(
-      forResource: "every-built-in-node", withExtension: "json", subdirectory: "Documents")!
-    return try! JSONDecoder().decode(JSONValue.self, from: Data(contentsOf: url))
-  }()
+  static let everyNode: JSONValue = try! JSONDecoder().decode(
+    JSONValue.self, from: Data(contentsOf: Support.everyNode))
 
-  static var root: JSONValue { everyBuiltInNode["root"]! }
+  static var root: JSONValue { everyNode["root"]! }
 
   @Test func theSyntheticDocumentIsWhatLexicalWrites() throws {
     let reference = try Support.referenceEditor()
-    try reference.load(Self.everyBuiltInNode)
+    try reference.load(Self.everyNode)
 
-    #expect(try reference.snapshot().state == Self.everyBuiltInNode)
+    #expect(try reference.snapshot().state == Self.everyNode)
   }
 
   @Test func theSyntheticDocumentHasEveryDeclaredNode() throws {
     let schema = try JSONDecoder().decode(JSONValue.self, from: Data(contentsOf: Support.nodeSchema))
     let declared = Set(schema["nodes"]?.arrayValue?.compactMap { $0["type"]?.stringValue } ?? [])
-    let present = Set(Self.everyBuiltInNode.nodePaths().compactMap {
-      Self.everyBuiltInNode.node(at: $0)?["type"]?.stringValue
+    let present = Set(Self.everyNode.nodePaths().compactMap {
+      Self.everyNode.node(at: $0)?["type"]?.stringValue
     })
 
     #expect(!declared.isEmpty)
     #expect(declared.subtracting(present).isEmpty)
   }
 
-  @Test func everyBuiltInNodeRoundTripsThroughCodableToEqualJSON() throws {
+  @Test func everyNodeRoundTripsThroughCodableToEqualJSON() throws {
     let decoded = try JSONDecoder().decode(SerializedNode.self, from: JSONEncoder().encode(Self.root))
     let encoded = try JSONDecoder().decode(JSONValue.self, from: JSONEncoder().encode(decoded))
 
@@ -48,7 +45,7 @@ import Testing
       for key in payload.unknownFields.keys where key != "version" {
         untyped.append("\(type(of: payload).type).\(key)")
       }
-      (payload as? any ElementNodePayload)?.children?.forEach(walk)
+      (payload as? any ParentNodePayload)?.children?.forEach(walk)
     }
 
     walk(SerializedNode(json: Self.root))
@@ -58,12 +55,8 @@ import Testing
 
   @Test func unknownFieldsAndNodesAreWrittenBackAsRead() {
     let future: JSONValue = ["type": "future-node", "version": 3, "shape": ["sides": [1, 2.5]]]
-    let callout: JSONValue = [
-      "type": "callout", "version": 1, "kind": "note", "children": [], "direction": nil,
-      "format": "", "indent": 0,
-    ]
     let heading: JSONValue = [
-      "type": "heading", "version": 1, "tag": "h3", "children": [future, callout],
+      "type": "heading", "version": 1, "tag": "h3", "children": [future],
       "direction": nil, "format": "", "indent": 0, "addedLater": ["nested": [true, nil]],
     ]
 
@@ -75,7 +68,7 @@ import Testing
       return
     }
     #expect(payload.tag == .h3)
-    #expect(payload.children == [.opaque(future), .opaque(callout)])
+    #expect(payload.children == [.opaque(future)])
   }
 
   @Test func aNullablePropertyTellsAbsentFromNullFromAValue() {
@@ -93,6 +86,7 @@ import Testing
   /// document means the same on both sides.
   @Test(arguments: [
     OddValue(at: [1], "tag", "h7"),
+    OddValue(at: [2], "shadowRoot", false),
     OddValue(at: [1], "direction", "up"),
     OddValue(at: [1], "format", 3),
     OddValue(at: [1], "indent", -2),
@@ -117,14 +111,36 @@ import Testing
     OddValue(at: [6, 0, 0], "colSpan", 0),
     OddValue(at: [6, 0, 0], "verticalAlign", "top"),
     OddValue(at: [6, 0, 0], "backgroundColor", 5),
+    OddValue(at: [7, 0], "className", 5),
+    OddValue(at: [7, 2], "mentionName", 7),
+    OddValue(at: [7, 4], "uuid", nil),
+    OddValue(at: [7, 5], "label", nil),
+    OddValue(at: [8], "kind", "shout"),
+    OddValue(at: [8], "title", 5),
+    OddValue(at: [9], "open", "yes"),
+    OddValue(at: [10], "templateColumns", 3),
+    OddValue(at: [10], "$.figure.width", "050%"),
+    OddValue(at: [10], "$.figure.width", "5%"),
+    OddValue(at: [10], "$.figure", "wide"),
+    OddValue(at: [12, 0], "direction", "rtl"),
+    OddValue(at: [12, 0], "comment", "gone"),
+    OddValue(at: [12, 0], "comment.timeStamp", "1"),
+    OddValue(at: [12, 1], "thread.comments", "none"),
+    OddValue(at: [12, 1], "thread.resolved", "yes"),
+    OddValue(at: [12, 2], "color", "teal"),
+    OddValue(at: [12, 2], "xOffset", "10"),
+    OddValue(at: [12, 2], "caption", 5),
+    OddValue(at: [12, 3], "options", 5),
+    OddValue(at: [12, 3], "options.0.votes", "u1"),
   ])
   func aValueOutsideItsDomainReadsAsLexicalReadsIt(_ odd: OddValue) throws {
-    let document = Self.everyBuiltInNode.settingField(odd.field, to: odd.value, at: odd.path)
+    let document = Self.everyNode.settingField(odd.field, to: odd.value, at: odd.path)
     let reference = try Support.referenceEditor()
     try reference.load(document)
-    let lexical = try reference.snapshot().state.node(at: odd.path)?[odd.field]
+    let lexical = try reference.snapshot().state.node(at: odd.path)?.value(at: odd.field)
 
-    let swift = SerializedNode(json: document["root"]!).json.nodeInRoot(at: odd.path)?[odd.field]
+    let swift = SerializedNode(json: document["root"]!).json.nodeInRoot(at: odd.path)?
+      .value(at: odd.field)
 
     #expect(swift == lexical)
   }
@@ -132,6 +148,7 @@ import Testing
 
 struct OddValue: CustomTestStringConvertible, Sendable {
   let path: [Int]
+  /// A property of the node, or a dotted path down into one.
   let field: String
   let value: JSONValue
 
@@ -165,16 +182,41 @@ extension JSONValue {
     }
   }
 
+  /// The value at a dotted path of keys and array indices.
+  func value(at keyPath: String) -> JSONValue? {
+    keyPath.split(separator: ".").reduce(self) { value, key in
+      switch value {
+      case .object(let object)?: object[String(key)]
+      case .array(let items)?: Int(key).flatMap { items.indices.contains($0) ? items[$0] : nil }
+      default: nil
+      }
+    }
+  }
+
+  func setting(_ keyPath: ArraySlice<Substring>, to value: JSONValue) -> JSONValue {
+    guard let key = keyPath.first else { return value }
+    switch self {
+    case .object(var object):
+      object[String(key)] = (object[String(key)] ?? .null).setting(keyPath.dropFirst(), to: value)
+      return .object(object)
+    case .array(var items):
+      guard let index = Int(key), items.indices.contains(index) else { return self }
+      items[index] = items[index].setting(keyPath.dropFirst(), to: value)
+      return .array(items)
+    default:
+      return self
+    }
+  }
+
   func settingField(_ field: String, to value: JSONValue, at path: [Int]) -> JSONValue {
     func set(_ node: JSONValue, _ path: ArraySlice<Int>) -> JSONValue {
       guard case .object(var object) = node else { return node }
       if let index = path.first, case .array(var children)? = object["children"] {
         children[index] = set(children[index], path.dropFirst())
         object["children"] = .array(children)
-      } else {
-        object[field] = value
+        return .object(object)
       }
-      return .object(object)
+      return node.setting(field.split(separator: ".")[...], to: value)
     }
     guard case .object(var state) = self, let root = state["root"] else { return self }
     state["root"] = set(root, path[...])

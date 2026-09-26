@@ -28,7 +28,7 @@ let package = Package(
     .testTarget(
       name: "LexicalSwiftTests",
       dependencies: ["LexicalSwift", "LexicalReference", "LexicalFuzz"],
-      resources: [.copy("Fixtures"), .copy("Documents")]
+      resources: [.copy("Fixtures")]
     ),
     .target(
       name: "LexidrawKit",

@@ -10,9 +10,9 @@ export type {
 
 /** React half of the package's StickyNode; see ImageNode. */
 export class StickyNode extends HeadlessStickyNode {
-  static getType = HeadlessStickyNode.getType;
-  static clone = HeadlessStickyNode.clone;
-  static importJSON = HeadlessStickyNode.importJSON;
+  $config() {
+    return this.config("sticky", { extends: HeadlessStickyNode });
+  }
 
   decorate(_editor: LexicalEditor, _config: EditorConfig): React.JSX.Element {
     return (

@@ -13,6 +13,7 @@ import {
   type Klass,
   type LexicalNode,
 } from "lexical";
+import { isOpenObject, transformName } from "./schema-values.js";
 
 /**
  * The language-neutral description of every node the editor registers: the
@@ -50,6 +51,7 @@ export type NodeDescription = {
   className: string;
   /** What Lexical writes as `version`; it never reads it back. */
   version: number;
+  /** Whether it writes `children`: every element, and a few that don't hold any. */
   children: boolean;
   fields: Record<string, FieldType>;
   /** NodeState, written flat beside the fields or nested under `$`. */
@@ -85,8 +87,13 @@ export type FieldType = { default?: JSONValue } & (
   | { kind: "optional"; inner: FieldType; omitDefault?: boolean }
   | { kind: "aliased"; inner: FieldType; aliases: Record<string, JSONValue> }
   | { kind: "union"; members: FieldType[] }
-  | { kind: "object"; fields: Record<string, FieldType> }
-  | { kind: "transform"; inner: FieldType }
+  | {
+      kind: "object";
+      fields: Record<string, FieldType>;
+      /** Keeps the keys it doesn't declare, and a union doesn't count them. */
+      open?: true;
+    }
+  | { kind: "transform"; inner: FieldType; name?: string }
 );
 
 export const NODE_SCHEMA_URL = new URL("../node-schema.json", import.meta.url);
@@ -262,7 +269,7 @@ function describe(type: string, klass: Klass<LexicalNode>): NodeDescription {
     type,
     className: klass.name,
     version: written.version,
-    children: $isElementNode(created),
+    children: $isElementNode(created) || "children" in written,
     fields,
     state,
   };
@@ -334,9 +341,16 @@ function fieldType(schema: AnySerializationSchema): FieldType {
             fieldType(field),
           ]),
         ),
+        ...(isOpenObject(meta) ? { open: true } : {}),
       });
     case "transform":
-      return withDefault({ kind: meta.kind, inner: fieldType(meta.inner) });
+      return withDefault(
+        definedOnly({
+          kind: meta.kind,
+          name: transformName(meta),
+          inner: fieldType(meta.inner),
+        }),
+      );
   }
 }
 

@@ -1,17 +1,19 @@
-import type {
-  DOMConversionMap,
-  DOMConversionOutput,
-  DOMExportOutput,
-  EditorConfig,
-  LexicalNode,
-  NodeKey,
-  SerializedElementNode,
-  Spread,
-} from "lexical";
-
 import { addClassNamesToElement } from "@lexical/utils";
-import { ElementNode } from "lexical";
-import { figureDOM } from "../figure.js";
+import {
+  type DOMConversionMap,
+  type DOMConversionOutput,
+  type DOMExportOutput,
+  type EditorConfig,
+  ElementNode,
+  type LexicalNode,
+  type NodeKey,
+  nodeSchema,
+  type SerializedElementNode,
+  type Spread,
+  stringValue,
+  withField,
+} from "lexical";
+import { figureDOM, figureState } from "../figure.js";
 
 export type SerializedLayoutContainerNode = Spread<
   {
@@ -35,20 +37,24 @@ function $convertLayoutContainerElement(
   return null;
 }
 
+const layoutContainerSchema = nodeSchema<LayoutContainerNode>()({
+  templateColumns: withField(stringValue(), { field: "__templateColumns" }),
+});
+
 export class LayoutContainerNode extends ElementNode {
   __templateColumns: string;
 
-  constructor(templateColumns: string, key?: NodeKey) {
+  constructor(templateColumns = "", key?: NodeKey) {
     super(key);
     this.__templateColumns = templateColumns;
   }
 
-  static getType(): string {
-    return "layout-container";
-  }
-
-  static clone(node: LayoutContainerNode): LayoutContainerNode {
-    return new LayoutContainerNode(node.__templateColumns, node.__key);
+  $config() {
+    return this.config("layout-container", {
+      extends: ElementNode,
+      json: layoutContainerSchema,
+      stateConfigs: [figureState],
+    });
   }
 
   createDOM(config: EditorConfig): HTMLElement {
@@ -91,27 +97,12 @@ export class LayoutContainerNode extends ElementNode {
     };
   }
 
-  static importJSON(json: SerializedLayoutContainerNode): LayoutContainerNode {
-    return LayoutContainerNode.$createLayoutContainerNode(
-      json.templateColumns,
-    ).updateFromJSON(json);
-  }
-
   isShadowRoot(): boolean {
     return true;
   }
 
   canBeEmpty(): boolean {
     return false;
-  }
-
-  exportJSON(): SerializedLayoutContainerNode {
-    return {
-      ...super.exportJSON(),
-      templateColumns: this.__templateColumns,
-      type: "layout-container",
-      version: 1,
-    };
   }
 
   getTemplateColumns(): string {

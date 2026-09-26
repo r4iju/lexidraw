@@ -6,12 +6,9 @@ import {
   ElementNode,
   type LexicalEditor,
   type LexicalNode,
-  type SerializedElementNode,
 } from "lexical";
 
 import { CollapsibleContainerNode } from "./CollapsibleContainerNode.js";
-
-type SerializedCollapsibleContentNode = SerializedElementNode;
 
 export function $convertAccordionContentElement(
   domNode: HTMLElement,
@@ -22,12 +19,8 @@ export function $convertAccordionContentElement(
 }
 
 export class CollapsibleContentNode extends ElementNode {
-  static getType(): string {
-    return "collapsible-content";
-  }
-
-  static clone(node: CollapsibleContentNode): CollapsibleContentNode {
-    return new CollapsibleContentNode(node.__key);
+  $config() {
+    return this.config("collapsible-content", { extends: ElementNode });
   }
 
   createDOM(_config: EditorConfig, editor: LexicalEditor): HTMLElement {
@@ -86,23 +79,10 @@ export class CollapsibleContentNode extends ElementNode {
     return { element };
   }
 
-  static importJSON(
-    _serializedNode: SerializedCollapsibleContentNode,
-  ): CollapsibleContentNode {
-    return CollapsibleContentNode.$createCollapsibleContentNode();
-  }
-
   isShadowRoot(): boolean {
     return true;
   }
 
-  exportJSON(): SerializedCollapsibleContentNode {
-    return {
-      ...super.exportJSON(),
-      type: "collapsible-content",
-      version: 1,
-    };
-  }
   static $createCollapsibleContentNode(): CollapsibleContentNode {
     return new CollapsibleContentNode();
   }

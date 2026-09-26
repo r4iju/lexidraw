@@ -6,7 +6,6 @@ import {
   type LexicalEditor,
   type LexicalNode,
   type RangeSelection,
-  type SerializedElementNode,
 } from "lexical";
 import { CollapsibleContainerNode } from "./CollapsibleContainerNode.js";
 
@@ -14,8 +13,6 @@ import { CollapsibleContainerNode } from "./CollapsibleContainerNode.js";
 // module has no React or icon dependency and loads outside the browser.
 const CHEVRON_RIGHT_SVG =
   '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-right text-muted-foreground pointer-events-none size-4 shrink-0 translate-y-0 transition-transform" aria-hidden="true"><path d="m9 18 6-6-6-6"></path></svg>';
-
-type SerializedCollapsibleTitleNode = SerializedElementNode;
 
 export function $convertAccordionTriggerElement(
   domNode: HTMLElement,
@@ -26,12 +23,8 @@ export function $convertAccordionTriggerElement(
 }
 
 export class CollapsibleTitleNode extends ElementNode {
-  static getType(): string {
-    return "collapsible-title";
-  }
-
-  static clone(node: CollapsibleTitleNode): CollapsibleTitleNode {
-    return new CollapsibleTitleNode(node.__key);
+  $config() {
+    return this.config("collapsible-title", { extends: ElementNode });
   }
 
   createDOM(_config: EditorConfig, editor: LexicalEditor): HTMLElement {
@@ -90,20 +83,6 @@ export class CollapsibleTitleNode extends ElementNode {
         }
         return null;
       },
-    };
-  }
-
-  static importJSON(
-    _serializedNode: SerializedCollapsibleTitleNode,
-  ): CollapsibleTitleNode {
-    return CollapsibleTitleNode.$createCollapsibleTitleNode();
-  }
-
-  exportJSON(): SerializedCollapsibleTitleNode {
-    return {
-      ...super.exportJSON(),
-      type: "collapsible-title",
-      version: 1,
     };
   }
 

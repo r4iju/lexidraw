@@ -4,7 +4,7 @@
  */
 import { createHeadlessEditor } from "@lexical/headless";
 import { createEmptyHistoryState, registerHistory } from "@lexical/history";
-import { CORE_NODES } from "@packages/lexical-nodes/nodes";
+import { SCHEMA_NODES } from "@packages/lexical-nodes/nodes";
 import {
   $createRangeSelection,
   $formatText,
@@ -63,7 +63,7 @@ function current(): LexicalEditor {
 
 function load(stateJSON: string): void {
   const next = createHeadlessEditor({
-    nodes: CORE_NODES,
+    nodes: SCHEMA_NODES,
     onError: (error) => {
       lastError = error;
     },

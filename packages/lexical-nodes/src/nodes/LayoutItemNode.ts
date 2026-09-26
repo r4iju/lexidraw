@@ -1,22 +1,11 @@
-import type {
-  DOMConversionMap,
-  EditorConfig,
-  LexicalNode,
-  SerializedElementNode,
-} from "lexical";
+import type { DOMConversionMap, EditorConfig, LexicalNode } from "lexical";
 
 import { addClassNamesToElement } from "@lexical/utils";
 import { ElementNode } from "lexical";
 
-export type SerializedLayoutItemNode = SerializedElementNode;
-
 export class LayoutItemNode extends ElementNode {
-  static getType(): string {
-    return "layout-item";
-  }
-
-  static clone(node: LayoutItemNode): LayoutItemNode {
-    return new LayoutItemNode(node.__key);
+  $config() {
+    return this.config("layout-item", { extends: ElementNode });
   }
 
   createDOM(config: EditorConfig): HTMLElement {
@@ -36,20 +25,8 @@ export class LayoutItemNode extends ElementNode {
     return {};
   }
 
-  static importJSON(): LayoutItemNode {
-    return LayoutItemNode.$createLayoutItemNode();
-  }
-
   isShadowRoot(): boolean {
     return true;
-  }
-
-  exportJSON(): SerializedLayoutItemNode {
-    return {
-      ...super.exportJSON(),
-      type: "layout-item",
-      version: 1,
-    };
   }
 
   static $createLayoutItemNode(): LayoutItemNode {

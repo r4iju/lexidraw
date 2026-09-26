@@ -10,9 +10,9 @@ export type {
 
 /** React half of the package's PollNode; see ImageNode. */
 export class PollNode extends HeadlessPollNode {
-  static getType = HeadlessPollNode.getType;
-  static clone = HeadlessPollNode.clone;
-  static importJSON = HeadlessPollNode.importJSON;
+  $config() {
+    return this.config("poll", { extends: HeadlessPollNode });
+  }
 
   decorate(): React.JSX.Element {
     return (

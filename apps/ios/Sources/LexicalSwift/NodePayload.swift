@@ -13,8 +13,36 @@ public protocol NodePayload: JSONCodable, Equatable, Sendable {
   func resolved() -> Self
 }
 
-public protocol ElementNodePayload: NodePayload {
+/// A node whose JSON lists children: every element, and the few decorators
+/// that write an always empty list.
+public protocol ParentNodePayload: NodePayload {
   var children: [SerializedNode]? { get set }
+}
+
+/// An object a node stores in a property, as the struct generated for it.
+/// Like a payload, it keeps absent properties absent and undeclared ones as
+/// they were read.
+public protocol ObjectPayload: JSONCodable, Equatable, Sendable {
+  var unknownFields: [String: JSONValue] { get set }
+}
+
+/// What reading a declared object as Lexical does takes.
+protocol DeclaredObject: ObjectPayload {
+  /// Whether a union counts it as fitting a value with undeclared keys.
+  static var isOpen: Bool { get }
+  /// What Lexical reads a value that isn't an object as.
+  static var defaultValue: Self { get }
+  static var fieldFits: [String: @Sendable (JSONValue) -> Fit] { get }
+  init(_ object: [String: JSONValue])
+}
+
+extension DeclaredObject {
+  public init(json: JSONValue) throws {
+    guard case .object(let object) = json else {
+      throw NodePayloadError(description: "Not an object")
+    }
+    self.init(object)
+  }
 }
 
 /// A value that is coded as the JSON it reads from and writes.
@@ -96,6 +124,27 @@ struct NodeFields {
     rest["type"] = .string(type)
   }
 
+  init(_ object: [String: JSONValue]) {
+    rest = object
+  }
+
+  init(over unknownFields: [String: JSONValue]) {
+    rest = unknownFields
+  }
+
+  /// The node state nested under `$`, taken off to be read or written. A `$`
+  /// that isn't an object stays where it is, as Lexical ignores it.
+  mutating func takeState() -> NodeFields {
+    guard case .object(let state)? = rest["$"] else { return NodeFields([:]) }
+    rest["$"] = nil
+    return NodeFields(state)
+  }
+
+  /// Puts back what `takeState` took, where there is any.
+  mutating func putState(_ state: NodeFields) {
+    if !state.rest.isEmpty { rest["$"] = .object(state.rest) }
+  }
+
   mutating func take<Value>(_ key: String, _ schema: FieldSchema<Value>) -> Value? {
     rest.removeValue(forKey: key).flatMap(schema.read)
   }
@@ -124,6 +173,23 @@ struct NodeFields {
     case .null: put(key, .some(nil), schema)
     case .value(let value): put(key, .some(value), schema)
     }
+  }
+
+  /// Node state, which Lexical leaves out where it is its default.
+  mutating func putUnlessDefault<Value>(_ key: String, _ value: Value?, _ schema: FieldSchema<Value>) {
+    if value != schema.defaultValue { put(key, value, schema) }
+  }
+
+  mutating func putNullableUnlessDefault<Value>(
+    _ key: String, _ value: Nullable<Value>, _ schema: FieldSchema<Value?>
+  ) {
+    let read: Value?? =
+      switch value {
+      case .absent: nil
+      case .null: .some(nil)
+      case .value(let value): .some(value)
+      }
+    if read != schema.defaultValue { putNullable(key, value, schema) }
   }
 
   mutating func putChildren(_ children: [SerializedNode]?) {

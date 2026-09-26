@@ -1,6 +1,69 @@
 {
   "nodes": [
     {
+      "type": "autocomplete",
+      "className": "AutocompleteNode",
+      "version": 1,
+      "children": false,
+      "fields": {
+        "detail": {
+          "kind": "aliased",
+          "inner": {
+            "kind": "number",
+            "default": 0
+          },
+          "aliases": {
+            "directionless": 1,
+            "unmergeable": 2
+          },
+          "default": 0
+        },
+        "format": {
+          "kind": "aliased",
+          "inner": {
+            "kind": "number",
+            "default": 0
+          },
+          "aliases": {
+            "bold": 1,
+            "capitalize": 1024,
+            "code": 16,
+            "highlight": 128,
+            "italic": 2,
+            "lowercase": 256,
+            "strikethrough": 4,
+            "subscript": 32,
+            "superscript": 64,
+            "underline": 8,
+            "uppercase": 512
+          },
+          "default": 0
+        },
+        "mode": {
+          "kind": "enum",
+          "values": [
+            "normal",
+            "token",
+            "segmented"
+          ],
+          "default": "normal"
+        },
+        "style": {
+          "kind": "string",
+          "default": ""
+        },
+        "text": {
+          "kind": "string",
+          "default": ""
+        },
+        "uuid": {
+          "kind": "string",
+          "default": ""
+        }
+      },
+      "state": {}
+    },
+    {
       "type": "autolink",
       "className": "AutoLinkNode",
       "version": 1,
@@ -89,6 +152,74 @@
       "state": {}
     },
     {
+      "type": "callout",
+      "className": "CalloutNode",
+      "version": 1,
+      "children": true,
+      "fields": {
+        "direction": {
+          "kind": "enum",
+          "values": [
+            null,
+            "ltr",
+            "rtl"
+          ],
+          "default": null
+        },
+        "format": {
+          "kind": "enum",
+          "values": [
+            "",
+            "left",
+            "start",
+            "center",
+            "right",
+            "end",
+            "justify"
+          ],
+          "default": ""
+        },
+        "indent": {
+          "kind": "number",
+          "min": 0,
+          "integer": true,
+          "default": 0
+        },
+        "kind": {
+          "kind": "enum",
+          "values": [
+            "note",
+            "tip",
+            "important",
+            "warning",
+            "caution"
+          ],
+          "default": "note"
+        },
+        "textFormat": {
+          "kind": "optional",
+          "inner": {
+            "kind": "number",
+            "default": 0
+          },
+          "omitDefault": true
+        },
+        "textStyle": {
+          "kind": "optional",
+          "inner": {
+            "kind": "string",
+            "default": ""
+          },
+          "omitDefault": true
+        },
+        "title": {
+          "kind": "string",
+          "default": ""
+        }
+      },
+      "state": {}
+    },
+    {
       "type": "code-highlight",
       "className": "CodeHighlightNode",
       "version": 1,
@@ -137,6 +268,426 @@
             },
             "default": null
           }
+        },
+        "mode": {
+          "kind": "enum",
+          "values": [
+            "normal",
+            "token",
+            "segmented"
+          ],
+          "default": "normal"
+        },
+        "style": {
+          "kind": "string",
+          "default": ""
+        },
+        "text": {
+          "kind": "string",
+          "default": ""
+        }
+      },
+      "state": {}
+    },
+    {
+      "type": "collapsible-container",
+      "className": "CollapsibleContainerNode",
+      "version": 1,
+      "children": true,
+      "fields": {
+        "direction": {
+          "kind": "enum",
+          "values": [
+            null,
+            "ltr",
+            "rtl"
+          ],
+          "default": null
+        },
+        "format": {
+          "kind": "enum",
+          "values": [
+            "",
+            "left",
+            "start",
+            "center",
+            "right",
+            "end",
+            "justify"
+          ],
+          "default": ""
+        },
+        "indent": {
+          "kind": "number",
+          "min": 0,
+          "integer": true,
+          "default": 0
+        },
+        "open": {
+          "kind": "boolean",
+          "default": false
+        },
+        "textFormat": {
+          "kind": "optional",
+          "inner": {
+            "kind": "number",
+            "default": 0
+          },
+          "omitDefault": true
+        },
+        "textStyle": {
+          "kind": "optional",
+          "inner": {
+            "kind": "string",
+            "default": ""
+          },
+          "omitDefault": true
+        }
+      },
+      "state": {}
+    },
+    {
+      "type": "collapsible-content",
+      "className": "CollapsibleContentNode",
+      "version": 1,
+      "children": true,
+      "fields": {
+        "direction": {
+          "kind": "enum",
+          "values": [
+            null,
+            "ltr",
+            "rtl"
+          ],
+          "default": null
+        },
+        "format": {
+          "kind": "enum",
+          "values": [
+            "",
+            "left",
+            "start",
+            "center",
+            "right",
+            "end",
+            "justify"
+          ],
+          "default": ""
+        },
+        "indent": {
+          "kind": "number",
+          "min": 0,
+          "integer": true,
+          "default": 0
+        },
+        "textFormat": {
+          "kind": "optional",
+          "inner": {
+            "kind": "number",
+            "default": 0
+          },
+          "omitDefault": true
+        },
+        "textStyle": {
+          "kind": "optional",
+          "inner": {
+            "kind": "string",
+            "default": ""
+          },
+          "omitDefault": true
+        }
+      },
+      "state": {}
+    },
+    {
+      "type": "collapsible-title",
+      "className": "CollapsibleTitleNode",
+      "version": 1,
+      "children": true,
+      "fields": {
+        "direction": {
+          "kind": "enum",
+          "values": [
+            null,
+            "ltr",
+            "rtl"
+          ],
+          "default": null
+        },
+        "format": {
+          "kind": "enum",
+          "values": [
+            "",
+            "left",
+            "start",
+            "center",
+            "right",
+            "end",
+            "justify"
+          ],
+          "default": ""
+        },
+        "indent": {
+          "kind": "number",
+          "min": 0,
+          "integer": true,
+          "default": 0
+        },
+        "textFormat": {
+          "kind": "optional",
+          "inner": {
+            "kind": "number",
+            "default": 0
+          },
+          "omitDefault": true
+        },
+        "textStyle": {
+          "kind": "optional",
+          "inner": {
+            "kind": "string",
+            "default": ""
+          },
+          "omitDefault": true
+        }
+      },
+      "state": {}
+    },
+    {
+      "type": "comment",
+      "className": "CommentNode",
+      "version": 1,
+      "children": true,
+      "fields": {
+        "comment": {
+          "kind": "object",
+          "fields": {
+            "author": {
+              "kind": "string",
+              "default": ""
+            },
+            "content": {
+              "kind": "string",
+              "default": ""
+            },
+            "deleted": {
+              "kind": "boolean",
+              "default": false
+            },
+            "id": {
+              "kind": "string",
+              "default": ""
+            },
+            "timeStamp": {
+              "kind": "number",
+              "default": 0
+            },
+            "type": {
+              "kind": "enum",
+              "values": [
+                "comment"
+              ],
+              "default": "comment"
+            }
+          },
+          "open": true,
+          "default": {
+            "author": "",
+            "content": "",
+            "deleted": false,
+            "id": "",
+            "timeStamp": 0,
+            "type": "comment"
+          }
+        },
+        "direction": {
+          "kind": "enum",
+          "values": [
+            null
+          ],
+          "default": null
+        },
+        "format": {
+          "kind": "number",
+          "default": 0
+        },
+        "indent": {
+          "kind": "number",
+          "default": 0
+        }
+      },
+      "state": {}
+    },
+    {
+      "type": "emoji",
+      "className": "EmojiNode",
+      "version": 1,
+      "children": false,
+      "fields": {
+        "className": {
+          "kind": "string",
+          "default": ""
+        },
+        "detail": {
+          "kind": "aliased",
+          "inner": {
+            "kind": "number",
+            "default": 0
+          },
+          "aliases": {
+            "directionless": 1,
+            "unmergeable": 2
+          },
+          "default": 0
+        },
+        "format": {
+          "kind": "aliased",
+          "inner": {
+            "kind": "number",
+            "default": 0
+          },
+          "aliases": {
+            "bold": 1,
+            "capitalize": 1024,
+            "code": 16,
+            "highlight": 128,
+            "italic": 2,
+            "lowercase": 256,
+            "strikethrough": 4,
+            "subscript": 32,
+            "superscript": 64,
+            "underline": 8,
+            "uppercase": 512
+          },
+          "default": 0
+        },
+        "mode": {
+          "kind": "enum",
+          "values": [
+            "normal",
+            "token",
+            "segmented"
+          ],
+          "default": "normal"
+        },
+        "style": {
+          "kind": "string",
+          "default": ""
+        },
+        "text": {
+          "kind": "string",
+          "default": ""
+        }
+      },
+      "state": {}
+    },
+    {
+      "type": "footnote-definition",
+      "className": "FootnoteDefinitionNode",
+      "version": 1,
+      "children": true,
+      "fields": {
+        "direction": {
+          "kind": "enum",
+          "values": [
+            null,
+            "ltr",
+            "rtl"
+          ],
+          "default": null
+        },
+        "format": {
+          "kind": "enum",
+          "values": [
+            "",
+            "left",
+            "start",
+            "center",
+            "right",
+            "end",
+            "justify"
+          ],
+          "default": ""
+        },
+        "indent": {
+          "kind": "number",
+          "min": 0,
+          "integer": true,
+          "default": 0
+        },
+        "label": {
+          "kind": "string",
+          "default": ""
+        },
+        "textFormat": {
+          "kind": "optional",
+          "inner": {
+            "kind": "number",
+            "default": 0
+          },
+          "omitDefault": true
+        },
+        "textStyle": {
+          "kind": "optional",
+          "inner": {
+            "kind": "string",
+            "default": ""
+          },
+          "omitDefault": true
+        }
+      },
+      "state": {}
+    },
+    {
+      "type": "footnote-reference",
+      "className": "FootnoteReferenceNode",
+      "version": 1,
+      "children": false,
+      "fields": {
+        "label": {
+          "kind": "string",
+          "default": ""
+        }
+      },
+      "state": {}
+    },
+    {
+      "type": "hashtag",
+      "className": "HashtagNode",
+      "version": 1,
+      "children": false,
+      "fields": {
+        "detail": {
+          "kind": "aliased",
+          "inner": {
+            "kind": "number",
+            "default": 0
+          },
+          "aliases": {
+            "directionless": 1,
+            "unmergeable": 2
+          },
+          "default": 0
+        },
+        "format": {
+          "kind": "aliased",
+          "inner": {
+            "kind": "number",
+            "default": 0
+          },
+          "aliases": {
+            "bold": 1,
+            "capitalize": 1024,
+            "code": 16,
+            "highlight": 128,
+            "italic": 2,
+            "lowercase": 256,
+            "strikethrough": 4,
+            "subscript": 32,
+            "superscript": 64,
+            "underline": 8,
+            "uppercase": 512
+          },
+          "default": 0
         },
         "mode": {
           "kind": "enum",
@@ -229,6 +780,203 @@
       "version": 1,
       "children": false,
       "fields": {},
+      "state": {}
+    },
+    {
+      "type": "keyword",
+      "className": "KeywordNode",
+      "version": 1,
+      "children": false,
+      "fields": {
+        "detail": {
+          "kind": "aliased",
+          "inner": {
+            "kind": "number",
+            "default": 0
+          },
+          "aliases": {
+            "directionless": 1,
+            "unmergeable": 2
+          },
+          "default": 0
+        },
+        "format": {
+          "kind": "aliased",
+          "inner": {
+            "kind": "number",
+            "default": 0
+          },
+          "aliases": {
+            "bold": 1,
+            "capitalize": 1024,
+            "code": 16,
+            "highlight": 128,
+            "italic": 2,
+            "lowercase": 256,
+            "strikethrough": 4,
+            "subscript": 32,
+            "superscript": 64,
+            "underline": 8,
+            "uppercase": 512
+          },
+          "default": 0
+        },
+        "mode": {
+          "kind": "enum",
+          "values": [
+            "normal",
+            "token",
+            "segmented"
+          ],
+          "default": "normal"
+        },
+        "style": {
+          "kind": "string",
+          "default": ""
+        },
+        "text": {
+          "kind": "string",
+          "default": ""
+        }
+      },
+      "state": {}
+    },
+    {
+      "type": "layout-container",
+      "className": "LayoutContainerNode",
+      "version": 1,
+      "children": true,
+      "fields": {
+        "direction": {
+          "kind": "enum",
+          "values": [
+            null,
+            "ltr",
+            "rtl"
+          ],
+          "default": null
+        },
+        "format": {
+          "kind": "enum",
+          "values": [
+            "",
+            "left",
+            "start",
+            "center",
+            "right",
+            "end",
+            "justify"
+          ],
+          "default": ""
+        },
+        "indent": {
+          "kind": "number",
+          "min": 0,
+          "integer": true,
+          "default": 0
+        },
+        "templateColumns": {
+          "kind": "string",
+          "default": ""
+        },
+        "textFormat": {
+          "kind": "optional",
+          "inner": {
+            "kind": "number",
+            "default": 0
+          },
+          "omitDefault": true
+        },
+        "textStyle": {
+          "kind": "optional",
+          "inner": {
+            "kind": "string",
+            "default": ""
+          },
+          "omitDefault": true
+        }
+      },
+      "state": {
+        "figure": {
+          "flat": false,
+          "value": {
+            "kind": "object",
+            "fields": {
+              "caption": {
+                "kind": "optional",
+                "inner": {
+                  "kind": "string",
+                  "default": ""
+                }
+              },
+              "width": {
+                "kind": "optional",
+                "inner": {
+                  "kind": "transform",
+                  "name": "figureWidth",
+                  "inner": {
+                    "kind": "string",
+                    "default": ""
+                  }
+                }
+              }
+            },
+            "default": {}
+          }
+        }
+      }
+    },
+    {
+      "type": "layout-item",
+      "className": "LayoutItemNode",
+      "version": 1,
+      "children": true,
+      "fields": {
+        "direction": {
+          "kind": "enum",
+          "values": [
+            null,
+            "ltr",
+            "rtl"
+          ],
+          "default": null
+        },
+        "format": {
+          "kind": "enum",
+          "values": [
+            "",
+            "left",
+            "start",
+            "center",
+            "right",
+            "end",
+            "justify"
+          ],
+          "default": ""
+        },
+        "indent": {
+          "kind": "number",
+          "min": 0,
+          "integer": true,
+          "default": 0
+        },
+        "textFormat": {
+          "kind": "optional",
+          "inner": {
+            "kind": "number",
+            "default": 0
+          },
+          "omitDefault": true
+        },
+        "textStyle": {
+          "kind": "optional",
+          "inner": {
+            "kind": "string",
+            "default": ""
+          },
+          "omitDefault": true
+        }
+      },
       "state": {}
     },
     {
@@ -533,6 +1281,77 @@
       "state": {}
     },
     {
+      "type": "mention",
+      "className": "MentionNode",
+      "version": 1,
+      "children": false,
+      "fields": {
+        "detail": {
+          "kind": "aliased",
+          "inner": {
+            "kind": "number",
+            "default": 0
+          },
+          "aliases": {
+            "directionless": 1,
+            "unmergeable": 2
+          },
+          "default": 0
+        },
+        "format": {
+          "kind": "aliased",
+          "inner": {
+            "kind": "number",
+            "default": 0
+          },
+          "aliases": {
+            "bold": 1,
+            "capitalize": 1024,
+            "code": 16,
+            "highlight": 128,
+            "italic": 2,
+            "lowercase": 256,
+            "strikethrough": 4,
+            "subscript": 32,
+            "superscript": 64,
+            "underline": 8,
+            "uppercase": 512
+          },
+          "default": 0
+        },
+        "mentionName": {
+          "kind": "string",
+          "default": ""
+        },
+        "mode": {
+          "kind": "enum",
+          "values": [
+            "normal",
+            "token",
+            "segmented"
+          ],
+          "default": "normal"
+        },
+        "style": {
+          "kind": "string",
+          "default": ""
+        },
+        "text": {
+          "kind": "string",
+          "default": ""
+        }
+      },
+      "state": {}
+    },
+    {
+      "type": "page-break",
+      "className": "PageBreakNode",
+      "version": 1,
+      "children": false,
+      "fields": {},
+      "state": {}
+    },
+    {
       "type": "paragraph",
       "className": "ParagraphNode",
       "version": 1,
@@ -571,6 +1390,50 @@
           "default": 0
         },
         "textStyle": {
+          "kind": "string",
+          "default": ""
+        }
+      },
+      "state": {}
+    },
+    {
+      "type": "poll",
+      "className": "PollNode",
+      "version": 1,
+      "children": false,
+      "fields": {
+        "options": {
+          "kind": "array",
+          "item": {
+            "kind": "object",
+            "fields": {
+              "text": {
+                "kind": "string",
+                "default": ""
+              },
+              "uid": {
+                "kind": "string",
+                "default": ""
+              },
+              "votes": {
+                "kind": "array",
+                "item": {
+                  "kind": "string",
+                  "default": ""
+                },
+                "default": []
+              }
+            },
+            "open": true,
+            "default": {
+              "text": "",
+              "uid": "",
+              "votes": []
+            }
+          },
+          "default": []
+        },
+        "question": {
           "kind": "string",
           "default": ""
         }
@@ -687,6 +1550,67 @@
             "default": ""
           },
           "omitDefault": true
+        }
+      },
+      "state": {}
+    },
+    {
+      "type": "sticky",
+      "className": "StickyNode",
+      "version": 1,
+      "children": false,
+      "fields": {
+        "caption": {
+          "kind": "object",
+          "fields": {
+            "editorState": {
+              "kind": "raw",
+              "default": {
+                "root": {
+                  "children": [],
+                  "direction": null,
+                  "format": "",
+                  "indent": 0,
+                  "type": "root",
+                  "version": 1
+                }
+              }
+            }
+          },
+          "default": {
+            "editorState": {
+              "root": {
+                "children": [],
+                "direction": null,
+                "format": "",
+                "indent": 0,
+                "type": "root",
+                "version": 1
+              }
+            }
+          }
+        },
+        "color": {
+          "kind": "enum",
+          "values": [
+            "pink",
+            "yellow",
+            "green",
+            "blue",
+            "red",
+            "orange",
+            "purple",
+            "gray"
+          ],
+          "default": "yellow"
+        },
+        "xOffset": {
+          "kind": "number",
+          "default": 0
+        },
+        "yOffset": {
+          "kind": "number",
+          "default": 0
         }
       },
       "state": {}
@@ -1039,33 +1963,122 @@
         }
       },
       "state": {}
+    },
+    {
+      "type": "thread",
+      "className": "ThreadNode",
+      "version": 1,
+      "children": true,
+      "fields": {
+        "direction": {
+          "kind": "enum",
+          "values": [
+            null
+          ],
+          "default": null
+        },
+        "format": {
+          "kind": "number",
+          "default": 0
+        },
+        "indent": {
+          "kind": "number",
+          "default": 0
+        },
+        "thread": {
+          "kind": "object",
+          "fields": {
+            "comments": {
+              "kind": "array",
+              "item": {
+                "kind": "object",
+                "fields": {
+                  "author": {
+                    "kind": "string",
+                    "default": ""
+                  },
+                  "content": {
+                    "kind": "string",
+                    "default": ""
+                  },
+                  "deleted": {
+                    "kind": "boolean",
+                    "default": false
+                  },
+                  "id": {
+                    "kind": "string",
+                    "default": ""
+                  },
+                  "timeStamp": {
+                    "kind": "number",
+                    "default": 0
+                  },
+                  "type": {
+                    "kind": "enum",
+                    "values": [
+                      "comment"
+                    ],
+                    "default": "comment"
+                  }
+                },
+                "open": true,
+                "default": {
+                  "author": "",
+                  "content": "",
+                  "deleted": false,
+                  "id": "",
+                  "timeStamp": 0,
+                  "type": "comment"
+                }
+              },
+              "default": []
+            },
+            "id": {
+              "kind": "string",
+              "default": ""
+            },
+            "quote": {
+              "kind": "string",
+              "default": ""
+            },
+            "resolved": {
+              "kind": "optional",
+              "inner": {
+                "kind": "boolean",
+                "default": false
+              }
+            },
+            "type": {
+              "kind": "enum",
+              "values": [
+                "thread"
+              ],
+              "default": "thread"
+            }
+          },
+          "open": true,
+          "default": {
+            "comments": [],
+            "id": "",
+            "quote": "",
+            "type": "thread"
+          }
+        }
+      },
+      "state": {}
     }
   ],
   "undeclared": [
     "article",
-    "autocomplete",
-    "callout",
     "chart",
     "code",
-    "collapsible-container",
-    "collapsible-content",
-    "collapsible-title",
-    "comment",
     "equation",
     "excalidraw",
     "figma",
-    "footnote-definition",
-    "footnote-reference",
     "image",
     "inline-image",
-    "layout-container",
-    "layout-item",
     "mermaid",
-    "page-break",
-    "poll",
     "slide-deck",
-    "sticky",
-    "thread",
     "tweet",
     "video",
     "youtube"
@@ -1137,6 +2150,12 @@
       "shadowRoot": false,
       "canBeEmpty": false
     },
+    "emoji": {
+      "kind": "text",
+      "inline": true,
+      "shadowRoot": false,
+      "canBeEmpty": false
+    },
     "equation": {
       "kind": "decorator",
       "inline": {
@@ -1169,6 +2188,12 @@
       "shadowRoot": false,
       "canBeEmpty": false
     },
+    "hashtag": {
+      "kind": "text",
+      "inline": true,
+      "shadowRoot": false,
+      "canBeEmpty": false
+    },
     "heading": {
       "kind": "element",
       "inline": false,
@@ -1189,6 +2214,12 @@
     },
     "inline-image": {
       "kind": "decorator",
+      "inline": true,
+      "shadowRoot": false,
+      "canBeEmpty": false
+    },
+    "keyword": {
+      "kind": "text",
       "inline": true,
       "shadowRoot": false,
       "canBeEmpty": false
@@ -1231,6 +2262,12 @@
     },
     "mark": {
       "kind": "element",
+      "inline": true,
+      "shadowRoot": false,
+      "canBeEmpty": false
+    },
+    "mention": {
+      "kind": "text",
       "inline": true,
       "shadowRoot": false,
       "canBeEmpty": false

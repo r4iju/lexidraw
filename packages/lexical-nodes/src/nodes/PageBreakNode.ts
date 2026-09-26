@@ -5,7 +5,6 @@ import {
   type DOMConversionMap,
   type DOMConversionOutput,
   type LexicalNode,
-  type NodeKey,
   type SerializedLexicalNode,
   type Klass,
 } from "lexical";
@@ -13,20 +12,8 @@ import {
 export type SerializedPageBreakNode = SerializedLexicalNode;
 
 export class PageBreakNode extends DecoratorNode<unknown> {
-  static getType(): string {
-    return "page-break";
-  }
-
-  static clone(node: PageBreakNode): PageBreakNode {
-    return new this(node.__key);
-  }
-
-  constructor(key?: NodeKey) {
-    super(key);
-  }
-
-  static importJSON(_serializedNode: SerializedPageBreakNode): PageBreakNode {
-    return PageBreakNode.$createPageBreakNode();
+  $config() {
+    return this.config("page-break", { extends: DecoratorNode });
   }
 
   static importDOM(): DOMConversionMap | null {
@@ -42,13 +29,6 @@ export class PageBreakNode extends DecoratorNode<unknown> {
           priority: COMMAND_PRIORITY_HIGH,
         };
       },
-    };
-  }
-
-  exportJSON(): SerializedLexicalNode {
-    return {
-      type: this.getType(),
-      version: 1,
     };
   }
 

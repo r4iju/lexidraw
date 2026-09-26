@@ -420,6 +420,373 @@
         "rowStriping": true,
         "type": "table",
         "version": 1
+      },
+      {
+        "children": [
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "token",
+            "style": "",
+            "text": "🙂",
+            "type": "emoji",
+            "version": 1,
+            "className": "emoji happysmile"
+          },
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": "congrats",
+            "type": "keyword",
+            "version": 1
+          },
+          {
+            "detail": 1,
+            "format": 0,
+            "mode": "segmented",
+            "style": "",
+            "text": "Ada",
+            "type": "mention",
+            "version": 1,
+            "mentionName": "Ada"
+          },
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": "#tag",
+            "type": "hashtag",
+            "version": 1
+          },
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "token",
+            "style": "",
+            "text": " suggestion",
+            "type": "autocomplete",
+            "version": 1,
+            "uuid": "session-1"
+          },
+          {
+            "type": "footnote-reference",
+            "version": 1,
+            "label": "1"
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "textFormat": 0,
+        "textStyle": "",
+        "type": "paragraph",
+        "version": 1
+      },
+      {
+        "children": [
+          {
+            "children": [
+              {
+                "detail": 0,
+                "format": 0,
+                "mode": "normal",
+                "style": "",
+                "text": "Careful",
+                "type": "text",
+                "version": 1
+              }
+            ],
+            "direction": null,
+            "format": "",
+            "indent": 0,
+            "textFormat": 0,
+            "textStyle": "",
+            "type": "paragraph",
+            "version": 1
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "callout",
+        "version": 1,
+        "kind": "warning",
+        "title": "Mind the gap"
+      },
+      {
+        "children": [
+          {
+            "children": [
+              {
+                "detail": 0,
+                "format": 0,
+                "mode": "normal",
+                "style": "",
+                "text": "Section",
+                "type": "text",
+                "version": 1
+              }
+            ],
+            "direction": null,
+            "format": "",
+            "indent": 0,
+            "type": "collapsible-title",
+            "version": 1
+          },
+          {
+            "children": [
+              {
+                "children": [
+                  {
+                    "detail": 0,
+                    "format": 0,
+                    "mode": "normal",
+                    "style": "",
+                    "text": "Inside",
+                    "type": "text",
+                    "version": 1
+                  }
+                ],
+                "direction": null,
+                "format": "",
+                "indent": 0,
+                "textFormat": 0,
+                "textStyle": "",
+                "type": "paragraph",
+                "version": 1
+              }
+            ],
+            "direction": null,
+            "format": "",
+            "indent": 0,
+            "type": "collapsible-content",
+            "version": 1
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "collapsible-container",
+        "version": 1,
+        "open": true
+      },
+      {
+        "children": [
+          {
+            "children": [
+              {
+                "children": [
+                  {
+                    "detail": 0,
+                    "format": 0,
+                    "mode": "normal",
+                    "style": "",
+                    "text": "Left",
+                    "type": "text",
+                    "version": 1
+                  }
+                ],
+                "direction": null,
+                "format": "",
+                "indent": 0,
+                "textFormat": 0,
+                "textStyle": "",
+                "type": "paragraph",
+                "version": 1
+              }
+            ],
+            "direction": null,
+            "format": "",
+            "indent": 0,
+            "type": "layout-item",
+            "version": 1
+          },
+          {
+            "children": [
+              {
+                "children": [
+                  {
+                    "detail": 0,
+                    "format": 0,
+                    "mode": "normal",
+                    "style": "",
+                    "text": "Right",
+                    "type": "text",
+                    "version": 1
+                  }
+                ],
+                "direction": null,
+                "format": "",
+                "indent": 0,
+                "textFormat": 0,
+                "textStyle": "",
+                "type": "paragraph",
+                "version": 1
+              }
+            ],
+            "direction": null,
+            "format": "",
+            "indent": 0,
+            "type": "layout-item",
+            "version": 1
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "layout-container",
+        "version": 1,
+        "$": {
+          "figure": {
+            "width": "wide"
+          }
+        },
+        "templateColumns": "1fr 2fr"
+      },
+      {
+        "type": "page-break",
+        "version": 1
+      },
+      {
+        "children": [
+          {
+            "type": "comment",
+            "version": 1,
+            "comment": {
+              "author": "Ada",
+              "content": "Nice",
+              "deleted": false,
+              "id": "c1",
+              "timeStamp": 1700000000000,
+              "type": "comment"
+            },
+            "format": 0,
+            "indent": 0,
+            "direction": null,
+            "children": []
+          },
+          {
+            "type": "thread",
+            "version": 1,
+            "thread": {
+              "comments": [
+                {
+                  "author": "Ada",
+                  "content": "Nice",
+                  "deleted": false,
+                  "id": "c1",
+                  "timeStamp": 1700000000000,
+                  "type": "comment"
+                }
+              ],
+              "id": "t1",
+              "quote": "quoted",
+              "type": "thread",
+              "resolved": true
+            },
+            "format": 0,
+            "indent": 0,
+            "direction": null,
+            "children": []
+          },
+          {
+            "caption": {
+              "editorState": {
+                "root": {
+                  "children": [
+                    {
+                      "children": [
+                        {
+                          "detail": 0,
+                          "format": 0,
+                          "mode": "normal",
+                          "style": "",
+                          "text": "Remember",
+                          "type": "text",
+                          "version": 1
+                        }
+                      ],
+                      "direction": null,
+                      "format": "",
+                      "indent": 0,
+                      "textFormat": 0,
+                      "textStyle": "",
+                      "type": "paragraph",
+                      "version": 1
+                    }
+                  ],
+                  "direction": null,
+                  "format": "",
+                  "indent": 0,
+                  "type": "root",
+                  "version": 1
+                }
+              }
+            },
+            "color": "green",
+            "type": "sticky",
+            "version": 1,
+            "xOffset": 10,
+            "yOffset": 20
+          },
+          {
+            "options": [
+              {
+                "text": "Pizza",
+                "uid": "abcde",
+                "votes": ["u1"]
+              },
+              {
+                "text": "Salad",
+                "uid": "fghij",
+                "votes": []
+              }
+            ],
+            "question": "Lunch?",
+            "type": "poll",
+            "version": 1
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "textFormat": 0,
+        "textStyle": "",
+        "type": "paragraph",
+        "version": 1
+      },
+      {
+        "children": [
+          {
+            "children": [
+              {
+                "detail": 0,
+                "format": 0,
+                "mode": "normal",
+                "style": "",
+                "text": "A note",
+                "type": "text",
+                "version": 1
+              }
+            ],
+            "direction": null,
+            "format": "",
+            "indent": 0,
+            "textFormat": 0,
+            "textStyle": "",
+            "type": "paragraph",
+            "version": 1
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "footnote-definition",
+        "version": 1,
+        "label": "1"
       }
     ],
     "direction": null,

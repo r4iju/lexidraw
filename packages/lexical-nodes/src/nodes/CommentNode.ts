@@ -1,10 +1,17 @@
 import {
-  DecoratorNode,
+  booleanValue,
   type EditorConfig,
+  enumValue,
   type LexicalNode,
   type NodeKey,
+  nodeSchema,
+  numberValue,
   type SerializedLexicalNode,
+  stringValue,
+  withField,
 } from "lexical";
+import { openObjectValue } from "../schema-values.js";
+import { MarkerNode, type SerializedMarkerFields } from "./MarkerNode.js";
 
 export type Comment = {
   author: string;
@@ -18,39 +25,36 @@ export type Comment = {
 export type SerializedCommentNode = {
   type: "comment";
   version: 1;
-  // original Lexical props
-  format: number;
-  indent: number;
-  direction: "ltr" | "rtl" | null;
-  children: SerializedLexicalNode[];
-  // our custom data
   comment: Comment;
-} & SerializedLexicalNode;
+} & SerializedMarkerFields &
+  SerializedLexicalNode;
+
+export const commentValue = openObjectValue({
+  author: stringValue(),
+  content: stringValue(),
+  deleted: booleanValue(),
+  id: stringValue(),
+  timeStamp: numberValue(),
+  type: enumValue(["comment"]),
+});
+
+const commentSchema = nodeSchema<CommentNode>()({
+  comment: withField(commentValue, { field: "__comment" }),
+});
 
 /**
  * Serialization half of the comment marker; see ImageNode for the split.
  */
-export class CommentNode extends DecoratorNode<unknown> {
+export class CommentNode extends MarkerNode {
   __comment: Comment;
-  __format: number;
-  __indent: number;
-  __direction: "ltr" | "rtl" | null;
 
-  // Lexical constructs nodes with no arguments; every caller passes a comment.
-  constructor(comment?: Comment, key?: NodeKey) {
+  $config() {
+    return this.config("comment", { extends: MarkerNode, json: commentSchema });
+  }
+
+  constructor(comment: Comment = commentValue.defaultValue, key?: NodeKey) {
     super(key);
-    this.__comment = comment as Comment;
-    this.__format = 0;
-    this.__indent = 0;
-    this.__direction = null;
-  }
-
-  static getType(): string {
-    return "comment";
-  }
-
-  static clone(node: CommentNode): CommentNode {
-    return new this(node.__comment, node.__key);
+    this.__comment = comment;
   }
 
   createDOM(_config: EditorConfig): HTMLElement {
@@ -61,34 +65,6 @@ export class CommentNode extends DecoratorNode<unknown> {
 
   updateDOM(): false {
     return false;
-  }
-
-  setFormat(format: number): void {
-    this.__format = format;
-  }
-
-  setIndent(indent: number): void {
-    this.__indent = indent;
-  }
-
-  exportJSON(): SerializedCommentNode {
-    return {
-      ...super.exportJSON(),
-      type: "comment",
-      comment: this.__comment,
-      format: this.__format,
-      indent: this.__indent,
-      direction: this.__direction,
-      children: [],
-      version: 1,
-    };
-  }
-
-  static importJSON(serializedNode: SerializedCommentNode): CommentNode {
-    const node = new this(serializedNode.comment);
-    node.setFormat(serializedNode.format);
-    node.setIndent(serializedNode.indent);
-    return node;
   }
 
   static $isCommentNode = (

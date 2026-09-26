@@ -6,9 +6,9 @@ export type { SerializedThreadNode } from "@packages/lexical-nodes";
 
 /** React half of the package's ThreadNode; see ImageNode. */
 export class ThreadNode extends HeadlessThreadNode {
-  static getType = HeadlessThreadNode.getType;
-  static clone = HeadlessThreadNode.clone;
-  static importJSON = HeadlessThreadNode.importJSON;
+  $config() {
+    return this.config("thread", { extends: HeadlessThreadNode });
+  }
 
   decorate(_editor: LexicalEditor, _config: EditorConfig): JSX.Element {
     // could be a small placeholder instead

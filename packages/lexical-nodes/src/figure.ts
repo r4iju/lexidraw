@@ -4,8 +4,12 @@ import {
   createState,
   type LexicalNode,
   NODE_STATE_KEY,
+  objectValue,
+  optional,
   type SerializedLexicalNode,
+  stringValue,
 } from "lexical";
+import { namedTransform } from "./schema-values.js";
 
 /**
  * How wide a figure sits: the text column when unset, the wide column, the
@@ -33,19 +37,17 @@ export function parseFigureWidth(value: unknown): FigureWidth | undefined {
   return share >= 10 && share < 100 ? `${share}%` : undefined;
 }
 
-function parseFigure(value: unknown): Figure {
-  if (!value || typeof value !== "object") return {};
-  const raw = value as Record<string, unknown>;
-  const figure: Figure = {};
-  const width = parseFigureWidth(raw.width);
-  if (width) figure.width = width;
-  if (typeof raw.caption === "string") figure.caption = raw.caption;
-  return figure;
-}
+const parseFigure = objectValue({
+  width: optional(
+    namedTransform("figureWidth", stringValue(), parseFigureWidth),
+  ),
+  caption: optional(stringValue()),
+});
 
 export const figureState = createState("figure", {
   parse: parseFigure,
-  isEqual: (a, b) => a.width === b.width && a.caption === b.caption,
+  isEqual: (a: Figure, b: Figure) =>
+    a.width === b.width && a.caption === b.caption,
 });
 
 export function $getFigure(node: LexicalNode): Figure {

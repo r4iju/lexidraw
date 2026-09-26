@@ -1,15 +1,20 @@
 import {
   $create,
+  arrayValue,
   DecoratorNode,
   type DOMConversionMap,
   type DOMConversionOutput,
   type DOMExportOutput,
+  type Klass,
   type LexicalNode,
   type NodeKey,
+  nodeSchema,
   type SerializedLexicalNode,
   type Spread,
-  type Klass,
+  stringValue,
+  withField,
 } from "lexical";
+import { openObjectValue } from "../schema-values.js";
 
 export type Options = readonly Option[];
 
@@ -27,12 +32,26 @@ export type SerializedPollNode = Spread<
   SerializedLexicalNode
 >;
 
+const pollSchema = nodeSchema<PollNode>()({
+  options: withField(
+    arrayValue(
+      openObjectValue({
+        text: stringValue(),
+        uid: stringValue(),
+        votes: arrayValue(stringValue()),
+      }),
+    ),
+    { field: "__options" },
+  ),
+  question: withField(stringValue(), { field: "__question" }),
+});
+
 export class PollNode extends DecoratorNode<unknown> {
   __question: string;
   __options: Options;
 
-  static getType(): string {
-    return "poll";
+  $config() {
+    return this.config("poll", { extends: DecoratorNode, json: pollSchema });
   }
 
   static $convertPollElement(domNode: HTMLElement): DOMConversionOutput | null {
@@ -53,27 +72,10 @@ export class PollNode extends DecoratorNode<unknown> {
     };
   }
 
-  static clone(node: PollNode): PollNode {
-    return new this(node.__question, node.__options, node.__key);
-  }
-
-  static importJSON(s: SerializedPollNode): PollNode {
-    return PollNode.$createPollNode(s.question, s.options);
-  }
-
   constructor(question = "", options: Options = [], key?: NodeKey) {
     super(key);
     this.__question = question;
     this.__options = options;
-  }
-
-  exportJSON(): SerializedPollNode {
-    return {
-      options: this.__options,
-      question: this.__question,
-      type: "poll",
-      version: 1,
-    };
   }
 
   getQuestion(): string {

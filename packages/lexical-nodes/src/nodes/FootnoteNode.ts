@@ -9,9 +9,12 @@ import {
   type Klass,
   type LexicalNode,
   type NodeKey,
+  nodeSchema,
   type SerializedElementNode,
   type SerializedLexicalNode,
   type Spread,
+  stringValue,
+  withField,
 } from "lexical";
 
 /** The fragment ids a footnote and its first marker link to each other by. */
@@ -23,6 +26,10 @@ export type SerializedFootnoteReferenceNode = Spread<
   SerializedLexicalNode
 >;
 
+const footnoteReferenceSchema = nodeSchema<FootnoteReferenceNode>()({
+  label: withField(stringValue(), { field: "__label" }),
+});
+
 /**
  * A footnote marker, `[^label]` in markdown. The label is how the markdown
  * names the note; the number a reader sees is the note's place among the
@@ -31,34 +38,16 @@ export type SerializedFootnoteReferenceNode = Spread<
 export class FootnoteReferenceNode extends DecoratorNode<unknown> {
   __label: string;
 
-  static getType(): string {
-    return "footnote-reference";
-  }
-
-  static clone(node: FootnoteReferenceNode): FootnoteReferenceNode {
-    return new this(node.__label, node.__key);
+  $config() {
+    return this.config("footnote-reference", {
+      extends: DecoratorNode,
+      json: footnoteReferenceSchema,
+    });
   }
 
   constructor(label = "", key?: NodeKey) {
     super(key);
     this.__label = label;
-  }
-
-  static importJSON(
-    serializedNode: SerializedFootnoteReferenceNode,
-  ): FootnoteReferenceNode {
-    return FootnoteReferenceNode.$createFootnoteReferenceNode(
-      serializedNode.label,
-    ).updateFromJSON(serializedNode);
-  }
-
-  exportJSON(): SerializedFootnoteReferenceNode {
-    return {
-      ...super.exportJSON(),
-      label: this.getLabel(),
-      type: "footnote-reference",
-      version: 1,
-    };
   }
 
   createDOM(): HTMLElement {
@@ -143,15 +132,18 @@ function footnoteDOM(label: string) {
   return { root, body, back };
 }
 
+const footnoteDefinitionSchema = nodeSchema<FootnoteDefinitionNode>()({
+  label: withField(stringValue(), { field: "__label" }),
+});
+
 export class FootnoteDefinitionNode extends ElementNode {
   __label: string;
 
-  static getType(): string {
-    return "footnote-definition";
-  }
-
-  static clone(node: FootnoteDefinitionNode): FootnoteDefinitionNode {
-    return new FootnoteDefinitionNode(node.__label, node.__key);
+  $config() {
+    return this.config("footnote-definition", {
+      extends: ElementNode,
+      json: footnoteDefinitionSchema,
+    });
   }
 
   constructor(label = "", key?: NodeKey) {
@@ -183,23 +175,6 @@ export class FootnoteDefinitionNode extends ElementNode {
     const { root, body, back } = footnoteDOM(this.__label);
     back.removeAttribute("contenteditable");
     return { element: root, append: (child) => body.append(child) };
-  }
-
-  static importJSON(
-    json: SerializedFootnoteDefinitionNode,
-  ): FootnoteDefinitionNode {
-    return FootnoteDefinitionNode.$createFootnoteDefinitionNode(
-      typeof json.label === "string" ? json.label : "",
-    ).updateFromJSON(json);
-  }
-
-  exportJSON(): SerializedFootnoteDefinitionNode {
-    return {
-      ...super.exportJSON(),
-      label: this.getLabel(),
-      type: "footnote-definition",
-      version: 1,
-    };
   }
 
   getLabel(): string {

@@ -2,20 +2,34 @@ import { expect, test } from "bun:test";
 import { createHeadlessEditor } from "@lexical/headless";
 import {
   ArtificialNode__DO_NOT_USE,
+  createState,
+  DecoratorNode,
   ElementNode,
+  nodeSchema,
+  numberValue,
+  objectValue,
   type SerializedElementNode,
+  type SerializedLexicalNode,
+  stringValue,
+  withField,
 } from "lexical";
 import {
   exportNodeSchema,
   NODE_SCHEMA_URL,
+  type NodeSchema,
   nodeSchemaFile,
 } from "./node-schema.js";
-import { CORE_NODES } from "./nodes.js";
+import { SCHEMA_NODES } from "./nodes.js";
+import { namedTransform, openObjectValue } from "./schema-values.js";
 
-const schema = exportNodeSchema(CORE_NODES);
+const schema = exportNodeSchema(SCHEMA_NODES);
 
 function node(type: string) {
-  return schema.nodes.find((candidate) => candidate.type === type);
+  return described(schema, type);
+}
+
+function described(exported: NodeSchema, type: string) {
+  return exported.nodes.find((candidate) => candidate.type === type);
 }
 
 test("names each node by its Lexical class", () => {
@@ -74,7 +88,7 @@ test("lists node state apart from fields", () => {
 
 test("covers every registered node but Lexical's never-stored artificial one, listing custom ones as undeclared by type", () => {
   const registered = [
-    ...createHeadlessEditor({ nodes: CORE_NODES })._nodes.keys(),
+    ...createHeadlessEditor({ nodes: SCHEMA_NODES })._nodes.keys(),
   ].filter((type) => type !== ArtificialNode__DO_NOT_USE.getType());
   const declared = schema.nodes.map((described) => described.type);
 
@@ -82,14 +96,130 @@ test("covers every registered node but Lexical's never-stored artificial one, li
   expect(declared).toEqual(
     expect.arrayContaining(["root", "paragraph", "text", "table", "link"]),
   );
-  expect(schema.undeclared).toEqual(
-    expect.arrayContaining(["callout", "code", "image", "autocomplete"]),
+  expect(schema.undeclared).toEqual(expect.arrayContaining(["code", "image"]));
+});
+
+test("the light custom nodes declare their JSON", () => {
+  const light = [
+    "emoji",
+    "keyword",
+    "mention",
+    "autocomplete",
+    "callout",
+    "collapsible-container",
+    "collapsible-content",
+    "collapsible-title",
+    "layout-container",
+    "layout-item",
+    "page-break",
+    "footnote-reference",
+    "footnote-definition",
+    "comment",
+    "thread",
+    "sticky",
+    "poll",
+  ];
+
+  expect(light.filter((type) => schema.undeclared.includes(type))).toEqual([]);
+  expect(node("emoji")?.fields.className).toEqual({
+    kind: "string",
+    default: "",
+  });
+  expect(node("layout-container")?.state.figure?.value).toMatchObject({
+    kind: "object",
+    fields: { width: { kind: "optional", inner: { name: "figureWidth" } } },
+  });
+  expect(node("thread")?.fields.thread).toMatchObject({
+    kind: "object",
+    open: true,
+  });
+  expect(node("thread")?.children).toBe(true);
+});
+
+test("tells an object that keeps the keys it doesn't declare from one that drops them", () => {
+  const shapes = nodeSchema<ShapesNode>()({
+    kept: withField(openObjectValue({ a: stringValue() }), { field: "__kept" }),
+    dropped: withField(objectValue({ b: numberValue() }), {
+      field: "__dropped",
+    }),
+  });
+  class ShapesNode extends DecoratorNode<null> {
+    __kept = { a: "" };
+    __dropped = { b: 0 };
+    $config() {
+      return this.config("shapes", { extends: DecoratorNode, json: shapes });
+    }
+    decorate() {
+      return null;
+    }
+  }
+
+  expect(described(exportNodeSchema([ShapesNode]), "shapes")?.fields).toEqual({
+    dropped: {
+      kind: "object",
+      fields: { b: { kind: "number", default: 0 } },
+      default: { b: 0 },
+    },
+    kept: {
+      kind: "object",
+      open: true,
+      fields: { a: { kind: "string", default: "" } },
+      default: { a: "" },
+    },
+  });
+});
+
+test("names the transform a value is read through, down in nested state", () => {
+  const even = namedTransform("even", numberValue(), (value) =>
+    value % 2 === 0 ? value : undefined,
+  );
+  const evenState = createState("even", { parse: even });
+  class EvenNode extends DecoratorNode<null> {
+    $config() {
+      return this.config("even", {
+        extends: DecoratorNode,
+        stateConfigs: [evenState],
+      });
+    }
+    decorate() {
+      return null;
+    }
+  }
+
+  expect(described(exportNodeSchema([EvenNode]), "even")?.state).toEqual({
+    even: {
+      flat: false,
+      value: {
+        kind: "transform",
+        name: "even",
+        inner: { kind: "number", default: 0 },
+        default: 0,
+      },
+    },
+  });
+});
+
+test("says a node has children when it writes a list of them, even one always empty", () => {
+  class MarkerNode extends DecoratorNode<null> {
+    $config() {
+      return this.config("marker", { extends: DecoratorNode });
+    }
+    exportJSON(): SerializedLexicalNode & { children: [] } {
+      return { ...super.exportJSON(), children: [] };
+    }
+    decorate() {
+      return null;
+    }
+  }
+
+  expect(described(exportNodeSchema([MarkerNode]), "marker")?.children).toBe(
+    true,
   );
 });
 
 test("says how every registered node sits in a document, and which field decides it where one does", () => {
   const registered = [
-    ...createHeadlessEditor({ nodes: CORE_NODES })._nodes.keys(),
+    ...createHeadlessEditor({ nodes: SCHEMA_NODES })._nodes.keys(),
   ].filter((type) => type !== ArtificialNode__DO_NOT_USE.getType());
 
   expect(Object.keys(schema.traits).sort()).toEqual(registered.sort());
