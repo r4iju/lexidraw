@@ -14,12 +14,13 @@ import {
 } from "lexical";
 import { type SchemaJSON, storedValue } from "../schema-values.js";
 import { figureDOM, figureState } from "../figure.js";
-import { inStoredOrder } from "../stored-order.js";
-
-export type SerializedLayoutContainerNode = Spread<
-  { templateColumns: string },
-  SerializedElementNode
->;
+import {
+  type ImportJSON,
+  storedFields,
+  withStoredJSON,
+  written,
+} from "../stored-fields.js";
+import { writtenElementFields } from "./stored-element.js";
 
 function $convertLayoutContainerElement(
   domNode: HTMLElement,
@@ -36,15 +37,20 @@ function $convertLayoutContainerElement(
   return null;
 }
 
-const layoutContainerFields = {
-  templateColumns: withField(storedValue<string>(), {
-    field: "__templateColumns",
-  }),
-};
+const { fields: layoutContainerFields, json: layoutContainerJSON } =
+  storedFields({
+    ...writtenElementFields,
+    type: written,
+    version: written,
+    $: written,
+    templateColumns: withField(storedValue<string>(), {
+      field: "__templateColumns",
+    }),
+  });
 
-/** @internal What {@link layoutContainerFields} write, which {@link SerializedLayoutContainerNode} is checked against. */
-export type LayoutContainerFieldsJSON = SchemaJSON<
-  typeof layoutContainerFields
+export type SerializedLayoutContainerNode = Spread<
+  SchemaJSON<typeof layoutContainerJSON>,
+  SerializedElementNode
 >;
 
 const layoutContainerSchema = nodeSchema<LayoutContainerNode>()(
@@ -52,15 +58,12 @@ const layoutContainerSchema = nodeSchema<LayoutContainerNode>()(
 );
 
 export class LayoutContainerNode extends ElementNode {
+  declare static importJSON: ImportJSON<LayoutContainerNode>;
   __templateColumns: string;
 
   constructor(templateColumns = "", key?: NodeKey) {
     super(key);
     this.__templateColumns = templateColumns;
-  }
-
-  exportJSON(): SerializedElementNode {
-    return inStoredOrder(super.exportJSON(), ["templateColumns"]);
   }
 
   $config() {
@@ -139,3 +142,5 @@ export class LayoutContainerNode extends ElementNode {
     return node instanceof LayoutContainerNode;
   }
 }
+
+withStoredJSON(LayoutContainerNode);

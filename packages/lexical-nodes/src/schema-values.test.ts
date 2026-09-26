@@ -1,9 +1,9 @@
 import { expect, test } from "bun:test";
 import {
   emptyOrStored,
+  annotationsOf,
   falseOrStored,
   rawValueOr,
-  readsNullAsAbsent,
   storedValue,
 } from "./schema-values.js";
 
@@ -24,8 +24,8 @@ test("a stored value with a default reads absence as it, and null only where tol
   expect(plain(5)).toBe(5);
   expect(nullAbsent(null)).toBe("[]");
   expect(nullAbsent("x")).toBe("x");
-  expect(readsNullAsAbsent(nullAbsent.meta)).toBe(true);
-  expect(readsNullAsAbsent(plain.meta)).toBe(false);
+  expect(annotationsOf(nullAbsent.meta).nullAsAbsent).toBe(true);
+  expect(annotationsOf(plain.meta).nullAsAbsent).toBeUndefined();
 });
 
 test('`|| false` and `|| ""` read nothing as the empty value and anything else as stored', () => {

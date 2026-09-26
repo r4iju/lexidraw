@@ -12,6 +12,12 @@ import {
   withField,
 } from "lexical";
 import { type SchemaJSON, shapedAs, storedValue } from "../schema-values.js";
+import {
+  type ImportJSON,
+  storedFields,
+  withStoredJSON,
+  written,
+} from "../stored-fields.js";
 import { MarkerNode, type SerializedMarkerNode } from "./MarkerNode.js";
 
 export type Comment = {
@@ -22,11 +28,6 @@ export type Comment = {
   timeStamp: number;
   type: "comment";
 };
-
-export type SerializedCommentNode = Spread<
-  { type: "comment"; version: 1; comment: Comment },
-  SerializedMarkerNode
->;
 
 export const commentShape = objectValue({
   author: stringValue(),
@@ -47,14 +48,22 @@ export const EMPTY_COMMENT: Comment = {
   type: "comment",
 };
 
-const commentFields = {
+const { fields: commentFields, json: commentJSON } = storedFields({
+  type: written,
+  version: written,
   comment: withField(shapedAs(commentShape, storedValue<Comment>()), {
     field: "__comment",
   }),
-};
+  format: written,
+  indent: written,
+  direction: written,
+  children: written,
+});
 
-/** @internal What {@link commentFields} write, which {@link SerializedCommentNode} is checked against. */
-export type CommentFieldsJSON = SchemaJSON<typeof commentFields>;
+export type SerializedCommentNode = Spread<
+  SchemaJSON<typeof commentJSON>,
+  SerializedMarkerNode
+>;
 
 const commentSchema = nodeSchema<CommentNode>()(commentFields);
 
@@ -62,6 +71,7 @@ const commentSchema = nodeSchema<CommentNode>()(commentFields);
  * Serialization half of the comment marker; see ImageNode for the split.
  */
 export class CommentNode extends MarkerNode {
+  declare static importJSON: ImportJSON<CommentNode>;
   __comment: Comment;
 
   $config() {
@@ -89,3 +99,5 @@ export class CommentNode extends MarkerNode {
     return node?.getType?.() === "comment";
   };
 }
+
+withStoredJSON(CommentNode);

@@ -7,7 +7,6 @@ import {
   type DOMExportOutput,
   type Klass,
   type LexicalNode,
-  type LexicalParseJSON,
   type NodeKey,
   nodeSchema,
   objectValue,
@@ -17,7 +16,12 @@ import {
   withField,
 } from "lexical";
 import { type SchemaJSON, shapedAs, storedValue } from "../schema-values.js";
-import { withoutNodeState } from "../stored-order.js";
+import {
+  type ImportJSON,
+  storedFields,
+  withStoredJSON,
+  written,
+} from "../stored-fields.js";
 
 export type Options = readonly Option[];
 
@@ -27,12 +31,7 @@ export type Option = Readonly<{
   votes: string[];
 }>;
 
-export type SerializedPollNode = Spread<
-  { question: string; options: Options },
-  SerializedLexicalNode
->;
-
-const pollFields = {
+const { fields: pollFields, json: pollJSON } = storedFields({
   options: withField(
     shapedAs(
       arrayValue(
@@ -47,23 +46,24 @@ const pollFields = {
     { field: "__options" },
   ),
   question: withField(storedValue<string>(), { field: "__question" }),
-};
+  type: written,
+  version: written,
+});
 
-/** @internal What {@link pollFields} write, which {@link SerializedPollNode} is checked against. */
-export type PollFieldsJSON = SchemaJSON<typeof pollFields>;
+export type SerializedPollNode = Spread<
+  SchemaJSON<typeof pollJSON>,
+  SerializedLexicalNode
+>;
 
 const pollSchema = nodeSchema<PollNode>()(pollFields);
 
 export class PollNode extends DecoratorNode<unknown> {
+  declare static importJSON: ImportJSON<PollNode>;
   __question: string;
   __options: Options;
 
   $config() {
     return this.config("poll", { extends: DecoratorNode, json: pollSchema });
-  }
-
-  updateFromJSON(json: LexicalParseJSON<SerializedLexicalNode>): this {
-    return super.updateFromJSON(withoutNodeState(json));
   }
 
   static $convertPollElement(domNode: HTMLElement): DOMConversionOutput | null {
@@ -202,3 +202,5 @@ export class PollNode extends DecoratorNode<unknown> {
     return node instanceof PollNode;
   }
 }
+
+withStoredJSON(PollNode);

@@ -1,26 +1,38 @@
 import {
   type EditorConfig,
   type LexicalNode,
-  type LexicalParseJSON,
   nodeSchema,
-  type SerializedLexicalNode,
   type SerializedTextNode,
+  type Spread,
   TextNode,
 } from "lexical";
-import { withoutNodeState } from "../stored-order.js";
+import type { SchemaJSON } from "../schema-values.js";
+import {
+  type ImportJSON,
+  storedFields,
+  withStoredJSON,
+  written,
+} from "../stored-fields.js";
 import { storedTextFields, textOrEmpty } from "./stored-text.js";
 
-export type SerializedKeywordNode = SerializedTextNode;
+const { fields: keywordFields, json: keywordJSON } = storedFields({
+  ...storedTextFields(textOrEmpty),
+  type: written,
+  version: written,
+});
 
-const keywordSchema = nodeSchema<KeywordNode>()(storedTextFields(textOrEmpty));
+export type SerializedKeywordNode = Spread<
+  SchemaJSON<typeof keywordJSON>,
+  SerializedTextNode
+>;
+
+const keywordSchema = nodeSchema<KeywordNode>()(keywordFields);
 
 export class KeywordNode extends TextNode {
+  declare static importJSON: ImportJSON<KeywordNode>;
+
   $config() {
     return this.config("keyword", { extends: TextNode, json: keywordSchema });
-  }
-
-  updateFromJSON(json: LexicalParseJSON<SerializedLexicalNode>): this {
-    return super.updateFromJSON(withoutNodeState(json));
   }
 
   createDOM(config: EditorConfig): HTMLElement {
@@ -42,6 +54,8 @@ export class KeywordNode extends TextNode {
     return true;
   }
 }
+
+withStoredJSON(KeywordNode);
 
 export function $createKeywordNode(keyword: string): KeywordNode {
   return new KeywordNode(keyword);

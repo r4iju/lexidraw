@@ -39,9 +39,9 @@ const unnamedStringAbsent = asStored(
 );
 
 /**
- * TextNode's properties as the text nodes here read them before they had
- * schemas: through TextNode's setters, which look a name up and store any
- * other value as it is, where TextNode's schema reads a number.
+ * TextNode's properties as the text nodes here read them: through
+ * TextNode's setters, which look a name up and store any other value as it
+ * is, where TextNode's schema reads a number.
  * @internal
  */
 export function storedTextFields(

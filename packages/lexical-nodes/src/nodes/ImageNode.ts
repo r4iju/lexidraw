@@ -37,7 +37,12 @@ import {
 } from "../schema-values.js";
 import { EmojiNode } from "./EmojiNode.js";
 import { KeywordNode } from "./KeywordNode.js";
-import { inStoredOrder } from "../stored-order.js";
+import {
+  type ImportJSON,
+  storedFields,
+  withStoredJSON,
+  written,
+} from "../stored-fields.js";
 import {
   type Size,
   type StoredSizeAccessors,
@@ -63,19 +68,6 @@ export interface UpdateImagePayload {
   height?: "inherit" | number;
 }
 
-export type SerializedImageNode = Spread<
-  {
-    altText: string;
-    caption: NestedEditorJSON;
-    height: number;
-    maxWidth: number;
-    showCaption: boolean;
-    src: string;
-    width: number;
-  },
-  SerializedLexicalNode
->;
-
 function createCaptionEditor(): LexicalEditor {
   return createEditor({
     nodes: [
@@ -91,9 +83,9 @@ function createCaptionEditor(): LexicalEditor {
   });
 }
 
-const imageFields = {
+const { fields: imageFields, json: imageJSON } = storedFields({
   altText: withField(storedValue<string>(), { field: "__altText" }),
-  caption: withAccessors(nestedEditorValue, {
+  caption: withAccessors(nestedEditorValue(createCaptionEditor), {
     getter: "getCaptionJSON",
     setter: "setCaptionJSON",
   }),
@@ -101,11 +93,16 @@ const imageFields = {
   maxWidth: withField(rawValueOr(500), { field: "__maxWidth" }),
   showCaption: withField(falseOrStored, { field: "__showCaption" }),
   src: withField(storedValue<string>(), { field: "__src" }),
+  type: written,
+  version: written,
   width: storedSizeFields.width,
-};
+  $: written,
+});
 
-/** @internal What {@link imageFields} write, which {@link SerializedImageNode} is checked against. */
-export type ImageFieldsJSON = SchemaJSON<typeof imageFields>;
+export type SerializedImageNode = Spread<
+  SchemaJSON<typeof imageJSON>,
+  SerializedLexicalNode
+>;
 
 const imageSchema = nodeSchema<ImageNode>()(imageFields);
 
@@ -118,6 +115,7 @@ export interface ImageNode extends StoredSizeAccessors {}
  */
 // biome-ignore lint/suspicious/noUnsafeDeclarationMerging: withStoredSize installs the accessors the interface declares.
 export class ImageNode extends DecoratorNode<unknown> {
+  declare static importJSON: ImportJSON<ImageNode>;
   __src: string;
   __altText: string;
   __width: Size;
@@ -201,10 +199,6 @@ export class ImageNode extends DecoratorNode<unknown> {
     node: LexicalNode | null | undefined,
   ): node is T {
     return node instanceof ImageNode;
-  }
-
-  exportJSON(): SerializedLexicalNode {
-    return inStoredOrder(super.exportJSON(), ["width", "$"]);
   }
 
   exportDOM(): DOMExportOutput {
@@ -374,3 +368,5 @@ export class ImageNode extends DecoratorNode<unknown> {
 }
 
 withStoredSize(ImageNode);
+
+withStoredJSON(ImageNode);

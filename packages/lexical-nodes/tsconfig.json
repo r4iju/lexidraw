@@ -16,7 +16,7 @@
     "declaration": true,
     "composite": true,
     "declarationMap": true,
-    /* The schema entries the nodes share, and the JSON their fields write, name Lexical types it doesn't export. */
+    /* The schema entries the nodes share name Lexical types it doesn't export. */
     "stripInternal": true,
     /* Node classes build DOM in createDOM; the module itself must load without one. */
     "lib": ["es2022", "dom", "dom.iterable"],

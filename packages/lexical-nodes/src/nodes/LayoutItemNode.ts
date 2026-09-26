@@ -4,23 +4,19 @@ import {
   type EditorConfig,
   ElementNode,
   type LexicalNode,
-  type LexicalParseJSON,
   nodeSchema,
-  type SerializedLexicalNode,
 } from "lexical";
-import { withoutNodeState } from "../stored-order.js";
-import { unreadElementFields } from "./stored-element.js";
+import { type ImportJSON, withStoredJSON } from "../stored-fields.js";
+import { unreadElementOnlyFields } from "./stored-element.js";
 
 export class LayoutItemNode extends ElementNode {
+  declare static importJSON: ImportJSON<LayoutItemNode>;
+
   $config() {
     return this.config("layout-item", {
       extends: ElementNode,
-      json: nodeSchema<LayoutItemNode>()(unreadElementFields),
+      json: nodeSchema<LayoutItemNode>()(unreadElementOnlyFields),
     });
-  }
-
-  updateFromJSON(json: LexicalParseJSON<SerializedLexicalNode>): this {
-    return super.updateFromJSON(withoutNodeState(json));
   }
 
   createDOM(config: EditorConfig): HTMLElement {
@@ -54,3 +50,5 @@ export class LayoutItemNode extends ElementNode {
     return node instanceof LayoutItemNode;
   }
 }
+
+withStoredJSON(LayoutItemNode);

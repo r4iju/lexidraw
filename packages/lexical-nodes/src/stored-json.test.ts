@@ -4,14 +4,13 @@ import { $dfs } from "@lexical/utils";
 import {
   $getRoot,
   ArtificialNode__DO_NOT_USE,
-  type SerializedEditorState,
+  type SerializedLexicalNode,
 } from "lexical";
 import { SCHEMA_NODES } from "./nodes.js";
+import { EMPTY_EDITOR_STATE, EMPTY_ROOT } from "./schema-values.js";
+import { EVERY_NODE_URL, storedDocument } from "./stored-fixtures.js";
 
-/** A stored document, as the nodes wrote it before they declared their JSON. */
-const EVERY_NODE = await Bun.file(
-  new URL("../test/every-node.json", import.meta.url),
-).json();
+const EVERY_NODE = await Bun.file(EVERY_NODE_URL).json();
 
 function editor() {
   return createHeadlessEditor({
@@ -27,20 +26,10 @@ function written(state: unknown) {
 }
 
 /** What a stored top-level node reads back as. */
-function readBack(node: object) {
+function readBack(node: SerializedLexicalNode) {
   const reader = editor();
-  reader.setEditorState(
-    reader.parseEditorState(
-      document([node]) as unknown as SerializedEditorState,
-    ),
-  );
+  reader.setEditorState(reader.parseEditorState(storedDocument([node])));
   return written(reader.getEditorState()).root.children[0];
-}
-
-function document(children: unknown[]) {
-  return {
-    root: { ...element("root", {}, children) },
-  };
 }
 
 function element(type: string, fields: object = {}, children: unknown[] = []) {
@@ -100,12 +89,10 @@ test("a stored document with every node reads and writes back unchanged", () => 
   expect(written(reader.getEditorState())).toEqual(EVERY_NODE);
 });
 
-const EMPTY_CAPTION = {
-  editorState: { root: element("root") },
-};
+const EMPTY_CAPTION = { editorState: EMPTY_EDITOR_STATE };
 
 /** The caption a video without one has always been given. */
-const VIDEO_CAPTION = { root: element("root", {}, [paragraph()]) };
+const VIDEO_CAPTION = { root: { ...EMPTY_ROOT, children: [paragraph()] } };
 
 test("every node keeps what it stores when it changes", () => {
   const reader = editor();
@@ -158,7 +145,7 @@ test("older shapes of the heavy nodes still read as they did", () => {
     captionsEnabled: false,
   });
   expect(
-    block("video", { src: "/a.mp4", caption: { root: element("root") } }),
+    block("video", { src: "/a.mp4", caption: EMPTY_EDITOR_STATE }),
   ).toMatchObject({ caption: VIDEO_CAPTION });
   expect(block("youtube", { videoID: "x", format: "" })).toMatchObject({
     width: 0,
@@ -216,9 +203,7 @@ test("values the nodes turned down before are still turned down", () => {
 test("a comment marker keeps its format and indent when it changes", () => {
   const reader = editor();
   reader.setEditorState(
-    reader.parseEditorState(
-      document([paragraph([comment])]) as unknown as SerializedEditorState,
-    ),
+    reader.parseEditorState(storedDocument([paragraph([comment])])),
   );
 
   reader.update(

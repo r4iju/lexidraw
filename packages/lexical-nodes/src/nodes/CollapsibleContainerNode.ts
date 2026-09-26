@@ -6,15 +6,17 @@ import {
   ElementNode,
   type LexicalEditor,
   type LexicalNode,
-  type LexicalParseJSON,
   type NodeKey,
   nodeSchema,
-  type SerializedLexicalNode,
   withField,
-  type SerializedElementNode,
 } from "lexical";
 import { storedValue } from "../schema-values.js";
-import { inStoredOrder, withoutNodeState } from "../stored-order.js";
+import {
+  type ImportJSON,
+  storedFields,
+  withStoredJSON,
+  written,
+} from "../stored-fields.js";
 import { unreadElementFields } from "./stored-element.js";
 
 /**
@@ -40,25 +42,25 @@ export function $convertAccordionItemElement(
   };
 }
 
-const collapsibleContainerSchema = nodeSchema<CollapsibleContainerNode>()({
+const { fields: collapsibleContainerFields } = storedFields({
+  children: written,
   ...unreadElementFields,
+  type: written,
+  version: written,
   open: withField(storedValue<boolean>(), { field: "__open" }),
 });
 
+const collapsibleContainerSchema = nodeSchema<CollapsibleContainerNode>()(
+  collapsibleContainerFields,
+);
+
 export class CollapsibleContainerNode extends ElementNode {
+  declare static importJSON: ImportJSON<CollapsibleContainerNode>;
   __open: boolean;
 
   constructor(open = false, key?: NodeKey) {
     super(key);
     this.__open = open;
-  }
-
-  exportJSON(): SerializedElementNode {
-    return inStoredOrder(super.exportJSON(), ["open"]);
-  }
-
-  updateFromJSON(json: LexicalParseJSON<SerializedLexicalNode>): this {
-    return super.updateFromJSON(withoutNodeState(json));
   }
 
   $config() {
@@ -176,3 +178,5 @@ export class CollapsibleContainerNode extends ElementNode {
     this.setOpen(!this.getOpen());
   }
 }
+
+withStoredJSON(CollapsibleContainerNode);

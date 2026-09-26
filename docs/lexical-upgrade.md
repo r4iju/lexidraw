@@ -45,6 +45,10 @@ cd apps/ios && FUZZ_STEPS=20000 bun run test
 bun run test:ts && bun run test
 ```
 
+A failure in `stored-bytes.test.ts`, `stored-json.test.ts` or
+`StoredBytesTests` means a stored document no longer saves as it did: see
+[Stored bytes](#stored-bytes).
+
 `bun run test` in `apps/ios` rebuilds the JS reference from the new Lexical,
 then runs the Swift tests against it:
 
@@ -68,3 +72,52 @@ then runs the Swift tests against it:
   replays a reported seed.
 
 The upgrade is done when all of these pass with a few different seeds.
+
+## Stored bytes
+
+`packages/lexical-nodes/test/stored-bytes.json` pins the bytes a stored
+document saves as. Each case is one stored node in a minimal document, as
+stored or with one property removed, reordered or given an odd value. With it
+is what the nodes saved for that document before they declared their schemas:
+commit 627e6f83 (`emanuel/110-node-schemas`) on Lexical 0.51.0, loaded and
+saved headless. `output` is left out where the save is the node as stored.
+`threw` marks a node those nodes couldn't read.
+
+It is a frozen record of that implementation. Nothing regenerates it from the
+current code, which would only make it agree with whatever the code does. It
+holds two changes accepted since: a slide deck's default box is
+`default-box-1`, and the 20 image, inline-image and sticky cases that threw
+now load.
+
+Three tests hold to it:
+
+- `stored-bytes.test.ts` in `packages/lexical-nodes`: the package's nodes save
+  each case as recorded.
+- `stored-json.test.ts` in `apps/lexidraw`: so do the web editor's nodes.
+- `StoredBytesTests` in `apps/ios`: LexicalSwift's editor loads and saves each
+  case as recorded, but for the properties a node doesn't declare, which it
+  keeps. The web opens LexicalSwift's save as it opens the original.
+
+When a Lexical bump makes it fail:
+
+1. List the cases that save differently, with both saves:
+
+   ```sh
+   cd packages/lexical-nodes && bun run stored-bytes
+   ```
+
+2. Decide whose change each one is.
+   - **Lexical's**: Lexical's own nodes (root, paragraph, text) change the same
+     way, or its changelog says so. Every stored document changes with the
+     upgrade, so record the new save for exactly those cases, and name the
+     Lexical change in the commit:
+
+     ```sh
+     bun run stored-bytes --rerecord "<case name>" "<case name>"
+     ```
+
+   - **A node's**: its schema reads or writes a property differently than it
+     did. Fix the node's `$config` and keep the record.
+3. Run `bun test` in `packages/lexical-nodes` and `apps/lexidraw`. Then run
+   `bun run codegen && bun run test` in `apps/ios`, and port the change to
+   LexicalSwift until `StoredBytesTests` passes.

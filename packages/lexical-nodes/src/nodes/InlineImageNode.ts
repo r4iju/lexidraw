@@ -11,7 +11,6 @@ import {
   type Klass,
   type LexicalEditor,
   type LexicalNode,
-  type LexicalParseJSON,
   LineBreakNode,
   type NodeKey,
   nodeSchema,
@@ -35,7 +34,12 @@ import {
 } from "../schema-values.js";
 import { EmojiNode } from "./EmojiNode.js";
 import { KeywordNode } from "./KeywordNode.js";
-import { inStoredOrder, withoutNodeState } from "../stored-order.js";
+import {
+  type ImportJSON,
+  storedFields,
+  withStoredJSON,
+  written,
+} from "../stored-fields.js";
 import {
   type Size,
   type StoredSizeAccessors,
@@ -79,20 +83,6 @@ function $convertInlineImageElement(domNode: Node): null | DOMConversionOutput {
   return null;
 }
 
-export type SerializedInlineImageNode = Spread<
-  {
-    altText: string;
-    caption: NestedEditorJSON;
-    height: number;
-    showCaption: boolean;
-    src: string;
-    width: number;
-    position?: Position;
-    captionsEnabled: boolean;
-  },
-  SerializedLexicalNode
->;
-
 function createCaptionEditor(): LexicalEditor {
   return createEditor({
     nodes: [
@@ -108,9 +98,9 @@ function createCaptionEditor(): LexicalEditor {
   });
 }
 
-const inlineImageFields = {
+const { fields: inlineImageFields, json: inlineImageJSON } = storedFields({
   altText: withField(storedValue<string>(), { field: "__altText" }),
-  caption: withAccessors(nestedEditorValue, {
+  caption: withAccessors(nestedEditorValue(createCaptionEditor), {
     getter: "getCaptionJSON",
     setter: "setCaptionJSON",
   }),
@@ -118,14 +108,18 @@ const inlineImageFields = {
   position: withField(storedValue<Position>(), { field: "__position" }),
   showCaption: withField(falseOrStored, { field: "__showCaption" }),
   src: withField(storedValue<string>(), { field: "__src" }),
+  type: written,
   captionsEnabled: withField(rawValueOr(true, { nullAsAbsent: true }), {
     field: "__captionsEnabled",
   }),
+  version: written,
   width: storedSizeFields.width,
-};
+});
 
-/** @internal What {@link inlineImageFields} write, which {@link SerializedInlineImageNode} is checked against. */
-export type InlineImageFieldsJSON = SchemaJSON<typeof inlineImageFields>;
+export type SerializedInlineImageNode = Spread<
+  SchemaJSON<typeof inlineImageJSON>,
+  SerializedLexicalNode
+>;
 
 const inlineImageSchema = nodeSchema<InlineImageNode>()(inlineImageFields);
 
@@ -133,6 +127,7 @@ export interface InlineImageNode extends StoredSizeAccessors {}
 
 // biome-ignore lint/suspicious/noUnsafeDeclarationMerging: withStoredSize installs the accessors the interface declares.
 export class InlineImageNode extends DecoratorNode<unknown> {
+  declare static importJSON: ImportJSON<InlineImageNode>;
   __src: string;
   __altText: string;
   __width: Size;
@@ -190,19 +185,6 @@ export class InlineImageNode extends DecoratorNode<unknown> {
     this.__caption = caption || createCaptionEditor();
     this.__position = position;
     this.__captionsEnabled = captionsEnabled ?? true;
-  }
-
-  exportJSON(): SerializedLexicalNode {
-    return inStoredOrder(super.exportJSON(), [
-      "type",
-      "captionsEnabled",
-      "version",
-      "width",
-    ]);
-  }
-
-  updateFromJSON(json: LexicalParseJSON<SerializedLexicalNode>): this {
-    return super.updateFromJSON(withoutNodeState(json));
   }
 
   exportDOM(): DOMExportOutput {
@@ -352,3 +334,5 @@ export class InlineImageNode extends DecoratorNode<unknown> {
 }
 
 withStoredSize(InlineImageNode);
+
+withStoredJSON(InlineImageNode);

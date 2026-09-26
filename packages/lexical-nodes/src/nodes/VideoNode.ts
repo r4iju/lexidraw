@@ -26,10 +26,17 @@ import {
   falseOrStored,
   holdsNodes,
   namedTransform,
+  readInto,
   type SchemaJSON,
+  EMPTY_ROOT,
   storedValue,
 } from "../schema-values.js";
-import { inStoredOrder } from "../stored-order.js";
+import {
+  type ImportJSON,
+  storedFields,
+  withStoredJSON,
+  written,
+} from "../stored-fields.js";
 import {
   type Size,
   type StoredSizeAccessors,
@@ -50,40 +57,42 @@ const EMPTY_PARAGRAPH: SerializedParagraphNode = {
 
 /** The caption a video starts with, as its editor writes it. */
 const EMPTY_CAPTION: SerializedEditorState = {
-  root: {
-    children: [EMPTY_PARAGRAPH],
-    direction: null,
-    format: "",
-    indent: 0,
-    type: "root",
-    version: 1,
-  },
+  root: { ...EMPTY_ROOT, children: [EMPTY_PARAGRAPH] },
 };
 
 /**
  * A caption with something in its root, or the one a video starts with: a
  * caption is never left without its paragraph.
  */
-const videoCaptionValue = namedTransform(
-  "videoCaption",
-  rawValue<unknown>(),
-  (value): SerializedEditorState => (holdsNodes(value) ? value : EMPTY_CAPTION),
+const videoCaptionValue = readInto(
+  createCaptionEditor,
+  namedTransform(
+    "videoCaption",
+    rawValue<unknown>(),
+    (value): SerializedEditorState =>
+      holdsNodes(value) ? value : EMPTY_CAPTION,
+  ),
 );
 
-const videoFields = {
+const { fields: videoFields, json: videoJSON } = storedFields({
   caption: withAccessors(videoCaptionValue, {
     getter: "getCaptionJSON",
     setter: "setCaptionJSON",
   }),
   height: storedSizeFields.height,
   src: withField(storedValue<string>(), { field: "__src" }),
+  type: written,
+  version: written,
   width: storedSizeFields.width,
   showCaption: withField(falseOrStored, { field: "__showCaption" }),
   captionsEnabled: withField(falseOrStored, { field: "__captionsEnabled" }),
-};
+  $: written,
+});
 
-/** @internal What {@link videoFields} write, which {@link SerializedVideoNode} is checked against. */
-export type VideoFieldsJSON = SchemaJSON<typeof videoFields>;
+export type SerializedVideoNode = Spread<
+  SchemaJSON<typeof videoJSON>,
+  SerializedLexicalNode
+>;
 
 const videoSchema = nodeSchema<VideoNode>()(videoFields);
 
@@ -105,18 +114,6 @@ function convertVideoElement(domNode: Node): null | DOMConversionOutput {
   return null;
 }
 
-export type SerializedVideoNode = Spread<
-  {
-    caption: SerializedEditorState;
-    height: number;
-    src: string;
-    width: number;
-    showCaption: boolean;
-    captionsEnabled: boolean;
-  },
-  SerializedLexicalNode
->;
-
 function createCaptionEditor(): LexicalEditor {
   const caption = createEditor();
   try {
@@ -137,6 +134,7 @@ export interface VideoNode extends StoredSizeAccessors {}
 
 // biome-ignore lint/suspicious/noUnsafeDeclarationMerging: withStoredSize installs the accessors the interface declares.
 export class VideoNode extends DecoratorNode<unknown> {
+  declare static importJSON: ImportJSON<VideoNode>;
   __src: string;
   __width: Size;
   __height: Size;
@@ -181,15 +179,6 @@ export class VideoNode extends DecoratorNode<unknown> {
       );
     }
     return this;
-  }
-
-  exportJSON(): SerializedLexicalNode {
-    return inStoredOrder(super.exportJSON(), [
-      "width",
-      "showCaption",
-      "captionsEnabled",
-      "$",
-    ]);
   }
 
   exportDOM(): DOMExportOutput {
@@ -302,3 +291,5 @@ export class VideoNode extends DecoratorNode<unknown> {
 }
 
 withStoredSize(VideoNode);
+
+withStoredJSON(VideoNode);

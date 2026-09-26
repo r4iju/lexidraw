@@ -1,12 +1,12 @@
-/// A JSON value, as Lexical serializes documents. Objects compare by value,
-/// not key order, and strings by code unit.
+/// A JSON value, as Lexical serializes documents. Objects keep JavaScript's
+/// key order but compare by value, and strings compare by code unit.
 public enum JSONValue: Hashable, Sendable {
   case null
   case bool(Bool)
   case number(Double)
   case string(String)
   case array([JSONValue])
-  case object([String: JSONValue])
+  case object(JSONObject)
 
   public subscript(key: String) -> JSONValue? {
     if case .object(let object) = self { object[key] } else { nil }
@@ -84,7 +84,8 @@ extension JSONValue: Codable {
     } else if let value = try? container.decode([JSONValue].self) {
       self = .array(value)
     } else {
-      self = .object(try container.decode([String: JSONValue].self))
+      // A decoder's keys come unordered; `init(parsing:)` keeps their order.
+      self = .object(JSONObject(try container.decode([String: JSONValue].self).sorted { $0.key < $1.key }.map { ($0.key, $0.value) }))
     }
   }
 
@@ -102,7 +103,7 @@ extension JSONValue: Codable {
       }
     case .string(let value): try container.encode(value)
     case .array(let value): try container.encode(value)
-    case .object(let value): try container.encode(value)
+    case .object(let value): try container.encode(Dictionary(uniqueKeysWithValues: value.map { ($0.key, $0.value) }))
     }
   }
 }
@@ -118,6 +119,6 @@ extension JSONValue: ExpressibleByNilLiteral, ExpressibleByBooleanLiteral,
   public init(stringLiteral value: String) { self = .string(value) }
   public init(arrayLiteral elements: JSONValue...) { self = .array(elements) }
   public init(dictionaryLiteral elements: (String, JSONValue)...) {
-    self = .object(Dictionary(uniqueKeysWithValues: elements))
+    self = .object(JSONObject(elements))
   }
 }

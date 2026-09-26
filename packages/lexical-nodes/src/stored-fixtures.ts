@@ -1,5 +1,6 @@
 import { createHeadlessEditor } from "@lexical/headless";
 import type { Klass, LexicalNode, SerializedLexicalNode } from "lexical";
+import { EMPTY_ROOT } from "./schema-values.js";
 
 /** A stored document that holds every node a document can. */
 export const EVERY_NODE_URL = new URL(
@@ -8,9 +9,8 @@ export const EVERY_NODE_URL = new URL(
 );
 
 /**
- * Stored nodes, as stored and odd, each with what the nodes wrote for it
- * before they declared their schemas (`emanuel/110-node-schemas`), recorded by
- * running those nodes headless.
+ * Stored nodes, as stored and odd, each with what it saved as before the
+ * nodes declared their schemas: "Stored bytes" in `docs/lexical-upgrade.md`.
  */
 export const STORED_BYTES_URL = new URL(
   "../test/stored-bytes.json",
@@ -35,21 +35,29 @@ export type StoredMismatch = {
   written: string;
 };
 
-const ROOT = {
-  direction: null,
-  format: "",
-  indent: 0,
-  type: "root",
-  version: 1,
-};
-
-function document(children: SerializedLexicalNode[]) {
-  return { root: { children, ...ROOT } };
+/** A stored document whose root holds `children`. */
+export function storedDocument(children: SerializedLexicalNode[]) {
+  return { root: { ...EMPTY_ROOT, children } };
 }
 
 /**
- * Loads and saves each case's document with `nodes`, as the web editor saves
- * one, and lists those whose save isn't the recorded string.
+ * The document `node` is in, loaded and saved with `nodes` as the web editor
+ * saves one.
+ */
+function savedWith(nodes: Klass<LexicalNode>[], node: SerializedLexicalNode) {
+  const editor = createHeadlessEditor({
+    nodes,
+    onError: (error) => {
+      throw error;
+    },
+  });
+  editor.setEditorState(editor.parseEditorState(storedDocument([node])));
+  return JSON.stringify(editor.getEditorState());
+}
+
+/**
+ * Loads and saves each case's document with `nodes`, and lists those whose
+ * save isn't the recorded string.
  */
 export function storedBytesMismatches(
   nodes: Klass<LexicalNode>[],
@@ -57,25 +65,43 @@ export function storedBytesMismatches(
 ): StoredMismatch[] {
   const mismatches: StoredMismatch[] = [];
   for (const { name, node, output, threw } of cases) {
-    const editor = createHeadlessEditor({
-      nodes,
-      onError: (error) => {
-        throw error;
-      },
-    });
     let written: string;
     try {
-      editor.setEditorState(editor.parseEditorState(document([node])));
-      written = JSON.stringify(editor.getEditorState());
+      written = savedWith(nodes, node);
     } catch (error) {
       written = `throws ${String(error)}`;
     }
     const expected = threw
       ? written
-      : JSON.stringify(document(output ?? [node]));
+      : JSON.stringify(storedDocument(output ?? [node]));
     if (written !== expected || written.startsWith("throws ")) {
       mismatches.push({ name, expected, written });
     }
   }
   return mismatches;
+}
+
+/**
+ * `cases` with those `named` recorded again: what `nodes` save for each now,
+ * left out where that is the node as stored.
+ */
+export function rerecorded(
+  nodes: Klass<LexicalNode>[],
+  cases: StoredCase[],
+  named: string[],
+): StoredCase[] {
+  return cases.map((stored) => {
+    if (!named.includes(stored.name)) return stored;
+    const { name, node } = stored;
+    const output: SerializedLexicalNode[] = JSON.parse(savedWith(nodes, node))
+      .root.children;
+    return JSON.stringify(output) === JSON.stringify([node])
+      ? { name, node }
+      : { name, node, output };
+  });
+}
+
+/** The committed file's exact text for `cases`, a case a line. */
+export function storedBytesFile(cases: StoredCase[]): string {
+  return `[\n${cases.map((stored) => JSON.stringify(stored)).join(",\n")}\n]\n`;
 }

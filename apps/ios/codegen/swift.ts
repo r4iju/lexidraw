@@ -45,6 +45,8 @@ const ENUM_NAMES: Record<string, string> = {
  */
 const OBJECT_NAMES: Record<string, string> = {
   caption: "NestedEditor",
+  // A sticky's editor reads every node the document's does.
+  "sticky.caption": "StickyCaption",
   "thread.thread": "CommentThread",
   "thread.thread.comments[]": "Comment",
   "poll.options[]": "PollOption",
@@ -70,10 +72,16 @@ const UNION_NAMES: Record<string, string> = {
 };
 
 /** Names a payload's own members take, which no field may reuse. */
-const RESERVED_MEMBERS = new Set(["children", "json", "type", "unknownFields"]);
+const RESERVED_MEMBERS = new Set([
+  "asLoaded",
+  "children",
+  "json",
+  "type",
+  "unknownFields",
+]);
 
 /** Names a declared object's own members take. */
-const RESERVED_OBJECT_MEMBERS = new Set(["json", "unknownFields"]);
+const RESERVED_OBJECT_MEMBERS = new Set(["asLoaded", "json", "unknownFields"]);
 
 const SWIFT_KEYWORDS = new Set(
   "associatedtype class deinit enum extension fileprivate func import init inout internal let open operator private precedencegroup protocol public rethrows static struct subscript typealias var break case catch continue default defer do else fallthrough for guard if in repeat return throw switch where while Any as await false is nil self Self super throws true try".split(
@@ -191,10 +199,10 @@ function serializedNode(nodes: NodeDescription[]): string[] {
     "    }",
     "  }",
     "",
-    "  public func resolved() -> SerializedNode {",
+    "  public func asLoaded() -> SerializedNode {",
     "    switch self {",
     ...cases.map(
-      ({ name }) => `    case .${name}(let node): .${name}(node.resolved())`,
+      ({ name }) => `    case .${name}(let node): .${name}(node.asLoaded())`,
     ),
     "    case .opaque: self",
     "    }",
@@ -293,28 +301,25 @@ function unionEnumeration(
 function unionCases(
   type: UnionType,
   path: string,
-): { name: string; type: FieldType; path: string; literal?: string }[] {
+): {
+  name: string;
+  type: FieldType;
+  path: string;
+  literal?: string;
+  /** Whether a JSON value is this case's. */
+  reads: (value: unknown) => boolean;
+}[] {
   const cases = type.members.map((member) => {
-    const constant = constantOf(member);
-    const name =
-      constant !== undefined
-        ? constant
-        : member.kind === "object"
-          ? objectCase(member, path)
-          : member.kind === "number"
-            ? member.integer
-              ? "integer"
-              : "number"
-            : member.kind === "string" || member.kind === "boolean"
-              ? member.kind
-              : undefined;
-    if (name === undefined) {
+    const described = memberCase(member, path);
+    if (described === undefined) {
       throw new Error(`${path}: codegen can't name a ${member.kind} member`);
     }
+    const constant = constantOf(member);
     return {
-      name: caseName(name),
+      name: caseName(described.name),
       type: member,
-      path: `${path}(${caseName(name)})`,
+      path: `${path}(${caseName(described.name)})`,
+      reads: described.reads,
       ...(constant !== undefined ? { literal: constant } : {}),
     };
   });
@@ -326,6 +331,39 @@ function unionCases(
   return cases;
 }
 
+/** What a union member's case is named, by its kind, and what it reads. */
+function memberCase(
+  member: FieldType,
+  path: string,
+): { name: string; reads: (value: unknown) => boolean } | undefined {
+  const constant = constantOf(member);
+  if (constant !== undefined) {
+    return { name: constant, reads: (value) => value === constant };
+  }
+  switch (member.kind) {
+    case "object": {
+      const [key, value] = discriminator(member, path);
+      return {
+        name: value,
+        reads: (read) => isJSONObject(read) && read[key] === value,
+      };
+    }
+    case "number":
+      return {
+        name: member.integer ? "integer" : "number",
+        reads: (value) => typeof value === "number",
+      };
+    case "string":
+    case "boolean":
+      return {
+        name: member.kind,
+        reads: (value) => typeof value === member.kind,
+      };
+    default:
+      return undefined;
+  }
+}
+
 /** The one value an enum of one string admits. */
 function constantOf(type: FieldType): string | undefined {
   return type.kind === "enum" &&
@@ -333,10 +371,6 @@ function constantOf(type: FieldType): string | undefined {
     typeof type.values[0] === "string"
     ? type.values[0]
     : undefined;
-}
-
-function objectCase(type: ObjectType, path: string): string {
-  return discriminator(type, path)[1];
 }
 
 /** An object member's one constant field, and its value. */
@@ -364,18 +398,7 @@ function unionLiteral(
   names: Names,
 ): string {
   for (const member of unionCases(type, path)) {
-    const matches =
-      member.literal !== undefined
-        ? value === member.literal
-        : member.type.kind === "object"
-          ? hasConstant(value, discriminator(member.type, path))
-          : typeof value ===
-            (member.type.kind === "boolean"
-              ? "boolean"
-              : member.type.kind === "string"
-                ? "string"
-                : "number");
-    if (!matches) continue;
+    if (!member.reads(value)) continue;
     if (member.literal !== undefined) return `.${member.name}`;
     const payload =
       member.type.kind === "object"
@@ -384,10 +407,6 @@ function unionLiteral(
     return `.${member.name}(${payload})`;
   }
   throw new Error(`${path}: no member reads its default`);
-}
-
-function hasConstant(value: unknown, [key, constant]: [string, string]) {
-  return isJSONObject(value) && value[key] === constant;
 }
 
 function isJSONObject(value: unknown): value is Record<string, unknown> {
@@ -453,39 +472,59 @@ function members(
     });
 }
 
+/** How a payload or object puts its fields in order as it writes them. */
+type Ordering = {
+  /** Lines that note, as the fields are read, an order to write them in. */
+  read: string[];
+  /** The keys to write first, in order. */
+  written: string;
+  /** Nested state it declares, which Lexical writes after the state it doesn't. */
+  nestedState: string[];
+};
+
 /** The body shared by payloads and objects: properties, reading, writing. */
 function memberLines(
   fields: Member[],
   start: { read: string; write: string },
   extra: { read: string[]; write: string[] },
   keepsUndeclared: boolean,
+  ordering: Ordering,
 ): {
   properties: string[];
   read: string[];
   write: string[];
-  resolved: string[];
+  asLoaded: string[];
   schema: string[];
 } {
-  const nested = fields.some(({ place }) => place === "nested state");
+  const nested = ordering.nestedState.length > 0;
+  const checked = fields.some(({ withState }) => withState);
   const into = ({ place }: Member) =>
     place === "nested state" ? "state" : "fields";
   const readBy = ({ name, withState }: Member) =>
     withState
       ? `holdsState ? Schema.${withState.name} : Schema.${name}`
       : `Schema.${name}`;
+  // Fields are bound with `var` where anything takes off or puts on them.
   const binding = (line: string, changes: string[]) =>
-    fields.length + changes.length > 0 ? line : line.replace("var ", "let ");
+    `    ${fields.length + changes.length > 0 ? "var" : "let"} ${line}`;
   return {
-    properties: fields.map(
-      ({ name, property }) => `  public var ${name}: ${property}`,
-    ),
+    properties: [
+      ...fields.map(
+        ({ name, property }) => `  public var ${name}: ${property}`,
+      ),
+      ...(checked ? ["  var holdsState = false"] : []),
+    ],
     read: [
       binding(start.read, extra.read),
-      ...(fields.some(({ withState }) => withState)
-        ? ["    let holdsState = fields.holdsState"]
-        : []),
+      ...ordering.read,
+      ...(checked ? ["    holdsState = fields.holdsState"] : []),
       ...extra.read,
-      ...(nested ? ["    var state = fields.takeState()"] : []),
+      ...(nested
+        ? [
+            "    var state = fields.takeState()",
+            "    stateOrder = StoredOrder(state.keys)",
+          ]
+        : []),
       ...fields.map(
         (member) =>
           `    ${member.name} = ${into(member)}.take${member.accessor}(${swiftString(member.key)}, ${readBy(member)})`,
@@ -501,16 +540,20 @@ function memberLines(
         (member) =>
           `    ${into(member)}.put${member.accessor}${member.writes === "unlessDefault" ? "UnlessDefault" : ""}(${swiftString(member.key)}, ${member.name}, Schema.${member.name})`,
       ),
-      ...(nested ? ["    fields.putState(state)"] : []),
-      "    return fields.json",
+      ...(nested
+        ? [
+            `    fields.putState(state, after: ${swiftStrings(ordering.nestedState)}, in: stateOrder)`,
+          ]
+        : []),
+      `    return fields.json(in: ${ordering.written})`,
     ],
-    resolved:
+    asLoaded:
       fields.length > 0
         ? [
             "    var node = self",
             ...fields.map(
-              ({ name, writes }) =>
-                `    node.${name} = Schema.${name}.${writes === "unlessDefault" ? "omittingDefault" : "resolving"}(${name})`,
+              (member) =>
+                `    node.${member.name} = ${member.withState ? `(${readBy(member)})` : readBy(member)}.${member.writes === "unlessDefault" ? "omittingDefault" : "resolving"}(${member.name})`,
             ),
             "    return node",
           ]
@@ -534,6 +577,10 @@ function memberLines(
   };
 }
 
+function swiftStrings(strings: string[]): string {
+  return `[${strings.map(swiftString).join(", ")}]`;
+}
+
 function payload(node: NodeDescription, names: Names): string[] {
   const fields = members(
     [
@@ -552,29 +599,36 @@ function payload(node: NodeDescription, names: Names): string[] {
     names,
     (key) => `${node.type}.${key}`,
   );
+  const children = node.order.includes("children");
+  const nestedState = Object.keys(node.state).filter(
+    (key) => !node.state[key]?.flat,
+  );
   const lines = memberLines(
     fields,
     {
-      read: "    var fields = try NodeFields(reading: json, as: Self.type)",
+      read: "fields = try NodeFields(reading: json, as: Self.type)",
       write:
-        "    var fields = NodeFields(writing: Self.type, version: Self.version, over: unknownFields)",
+        "fields = NodeFields(writing: Self.type, version: Self.version, over: unknownFields)",
     },
     {
       read: [
-        ...(node.keepsState ? ["    fields.spreadState()"] : []),
-        ...(node.children ? ["    children = fields.takeChildren()"] : []),
+        ...(node.order.includes("$") ? ["    fields.spreadState()"] : []),
+        ...(children ? ["    children = fields.takeChildren()"] : []),
       ],
-      write: node.children ? ["    fields.putChildren(children)"] : [],
+      write: children ? ["    fields.putChildren(children)"] : [],
     },
     true,
+    { read: [], written: "Self.keyOrder", nestedState },
   );
   return [
-    `public struct ${payloadName(node)}: ${node.children ? "ParentNodePayload" : "NodePayload"} {`,
+    `public struct ${payloadName(node)}: ${children ? "ParentNodePayload" : "NodePayload"} {`,
     `  public static let type = ${swiftString(node.type)}`,
     `  public static let version = ${node.version}`,
-    ...(node.children ? ["  public var children: [SerializedNode]?"] : []),
+    `  public static let keyOrder: [String] = ${swiftStrings(node.order)}`,
+    ...(children ? ["  public var children: [SerializedNode]?"] : []),
     ...lines.properties,
-    "  public var unknownFields: [String: JSONValue]",
+    "  public var unknownFields: JSONObject",
+    ...(nestedState.length > 0 ? ["  var stateOrder = StoredOrder()"] : []),
     "",
     "  public init(json: JSONValue) throws {",
     ...lines.read,
@@ -584,8 +638,8 @@ function payload(node: NodeDescription, names: Names): string[] {
     ...lines.write,
     "  }",
     "",
-    "  public func resolved() -> Self {",
-    ...lines.resolved,
+    "  public func asLoaded() -> Self {",
+    ...lines.asLoaded,
     "  }",
     ...lines.schema,
     "}",
@@ -605,21 +659,33 @@ function declaredObject(
     names,
     (key) => `${path}.${key}`,
   );
+  // Lexical writes an object it keeps as stored as it was stored, and one it
+  // reads in the order it declares.
+  const open = type.open === true;
   const lines = memberLines(
     fields,
     {
-      read: "    var fields = NodeFields(object)",
-      write: "    var fields = NodeFields(over: unknownFields)",
+      read: "fields = NodeFields(object)",
+      write: "fields = NodeFields(over: unknownFields)",
     },
     { read: [], write: [] },
-    type.open === true,
+    open,
+    open
+      ? {
+          read: ["    storedOrder = StoredOrder(object.keys)"],
+          written: "storedOrder.keys + Self.keyOrder",
+          nestedState: [],
+        }
+      : { read: [], written: "Self.keyOrder", nestedState: [] },
   );
   return [
     `public struct ${name}: DeclaredObject {`,
     ...lines.properties,
-    "  public var unknownFields: [String: JSONValue]",
+    "  public var unknownFields: JSONObject",
+    ...(open ? ["  var storedOrder = StoredOrder()"] : []),
     "",
-    `  static let isOpen = ${type.open === true}`,
+    `  static let isOpen = ${open}`,
+    `  static let keyOrder: [String] = ${swiftStrings(Object.keys(type.fields))}`,
     `  static let defaultValue = Self(${swiftJSON(defaultOf(type, path))})`,
     `  static let fieldFits: [String: @Sendable (JSONValue) -> Fit] = ${
       fields.length === 0
@@ -627,12 +693,16 @@ function declaredObject(
         : `[${fields.map(({ key, name }) => `${swiftString(key)}: Schema.${name}.fit`).join(", ")}]`
     }`,
     "",
-    "  init(_ object: [String: JSONValue]) {",
+    "  init(_ object: JSONObject) {",
     ...lines.read,
     "  }",
     "",
     "  public var json: JSONValue {",
     ...lines.write,
+    "  }",
+    "",
+    "  func asLoaded() -> Self {",
+    ...lines.asLoaded,
     "  }",
     ...lines.schema,
     "}",
@@ -769,9 +839,12 @@ function swiftField(
         );
       }
       const inner = swiftField(type.inner, names, where);
+      const transform = `.transform(${inner.schema}, Transforms.${identifier(type.name)}${type.default === undefined ? "" : `, default: ${literal(type.default, type, names, where)}`})`;
       return {
         ...inner,
-        schema: `.transform(${inner.schema}, Transforms.${identifier(type.name)})`,
+        schema: type.nestedEditor
+          ? `.savedByEditor(of: ${swiftStrings(type.nestedEditor)}, ${transform})`
+          : transform,
       };
     }
   }
@@ -1047,9 +1120,9 @@ function swiftJSON(value: unknown): string {
   if (!isJSONObject(value)) {
     throw new Error(`${String(value)} isn't a JSON value`);
   }
-  const entries = Object.entries(value)
-    .filter(([, member]) => member !== undefined)
-    .sort(([a], [b]) => byCodeUnits(a, b));
+  const entries = Object.entries(value).filter(
+    ([, member]) => member !== undefined,
+  );
   return entries.length === 0
     ? "[:]"
     : `[${entries.map(([key, member]) => `${swiftString(key)}: ${swiftJSON(member)}`).join(", ")}]`;

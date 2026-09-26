@@ -13,21 +13,45 @@ import {
   type SerializationSchemaValue,
   type SerializedEditor,
   type SerializedEditorState,
+  type SerializedRootNode,
   transformValue,
 } from "lexical";
+
+/**
+ * What other implementations need to know about a value that its schema's
+ * meta doesn't say.
+ */
+export type Annotations = {
+  /** The name they give their own copy of a transform's function by. */
+  transform?: string;
+  /** Null reads as absence does, as the default. */
+  nullAsAbsent?: true;
+  /** What a value kept as stored is, where it reads back as itself. */
+  shape?: AnySerializationSchema;
+  /** How the value is read where the node holds NodeState. */
+  checkedWithState?: AnySerializationSchema;
+  /** Written as the node holds it, and never read. */
+  writtenOnly?: true;
+  /**
+   * Makes the editor the node reads an editor state into, and writes it back
+   * from as that editor saves it.
+   */
+  nestedEditor?: () => LexicalEditor;
+};
 
 /**
  * Keyed by the meta, which `withField` and `withAccessors` carry over to the
  * schema they wrap; the schema object itself is a new one in each.
  */
-const TRANSFORM_NAMES = new WeakMap<SerializationSchemaMeta, string>();
-const NULL_AS_ABSENT = new WeakSet<SerializationSchemaMeta>();
-const SHAPES = new WeakMap<SerializationSchemaMeta, AnySerializationSchema>();
-const CHECKED_WITH_STATE = new WeakMap<
-  SerializationSchemaMeta,
-  AnySerializationSchema
->();
-const WRITTEN_ONLY = new WeakSet<SerializationSchemaMeta>();
+const ANNOTATIONS = new WeakMap<SerializationSchemaMeta, Annotations>();
+
+function annotate(meta: SerializationSchemaMeta, annotations: Annotations) {
+  ANNOTATIONS.set(meta, { ...ANNOTATIONS.get(meta), ...annotations });
+}
+
+export function annotationsOf(meta: SerializationSchemaMeta): Annotations {
+  return ANNOTATIONS.get(meta) ?? {};
+}
 
 /**
  * Lexical's `transformValue` for a check or normalisation that keeps a value
@@ -40,7 +64,7 @@ export function namedTransform<T, Out extends T | undefined, In = T>(
   transform: (value: T) => Out,
 ): SerializationSchema<Out, never, In> {
   const schema = transformValue(inner, transform);
-  TRANSFORM_NAMES.set(schema.meta, name);
+  annotate(schema.meta, { transform: name });
   return schema;
 }
 
@@ -57,12 +81,6 @@ export type SchemaJSON<F extends SerializationSchemaFields> = {
     ? K
     : never]?: SerializationSchemaValue<F[K]>;
 };
-
-export function transformName(
-  meta: SerializationSchemaMeta,
-): string | undefined {
-  return TRANSFORM_NAMES.get(meta);
-}
 
 /** A flag read as `value || false` reads it: false for none, else as stored. */
 export const falseOrStored = namedTransform(
@@ -103,12 +121,8 @@ export function rawValueOr<T>(
     value === undefined || (nullAsAbsent && value === null)
       ? defaultValue
       : raw(value);
-  if (nullAsAbsent) NULL_AS_ABSENT.add(raw.meta);
+  if (nullAsAbsent) annotate(raw.meta, { nullAsAbsent: true });
   return Object.assign(read, { ...raw, defaultValue });
-}
-
-export function readsNullAsAbsent(meta: SerializationSchemaMeta): boolean {
-  return NULL_AS_ABSENT.has(meta);
 }
 
 /**
@@ -120,14 +134,8 @@ export function shapedAs<T>(
   shape: AnySerializationSchema,
   raw: SerializationSchema<T, never, unknown>,
 ): SerializationSchema<T, never, unknown> {
-  SHAPES.set(raw.meta, shape);
+  annotate(raw.meta, { shape });
   return raw;
-}
-
-export function shapeOf(
-  meta: SerializationSchemaMeta,
-): AnySerializationSchema | undefined {
-  return SHAPES.get(meta);
 }
 
 /**
@@ -138,14 +146,8 @@ export function checkedWithState<T>(
   checked: AnySerializationSchema,
   raw: SerializationSchema<T, never, unknown>,
 ): SerializationSchema<T, never, unknown> {
-  CHECKED_WITH_STATE.set(raw.meta, checked);
+  annotate(raw.meta, { checkedWithState: checked });
   return raw;
-}
-
-export function checkOf(
-  meta: SerializationSchemaMeta,
-): AnySerializationSchema | undefined {
-  return CHECKED_WITH_STATE.get(meta);
 }
 
 /**
@@ -153,20 +155,13 @@ export function checkOf(
  * reads: whatever was stored, it writes `schema`'s default.
  */
 export function writtenOnly<S extends AnySerializationSchema>(schema: S): S {
-  WRITTEN_ONLY.add(schema.meta);
+  annotate(schema.meta, { writtenOnly: true });
   return schema;
 }
 
-export function isWrittenOnly(meta: SerializationSchemaMeta): boolean {
-  return WRITTEN_ONLY.has(meta);
-}
-
 /**
- * `schema` typed as a node holds what it reads, where Lexical types a schema
- * that can read a property as absent `T | undefined`. The nodes read their
- * JSON by hand before they had schemas, and held whatever was stored under
- * the type they declared, absent included; they hold it so still, so what
- * they write is what they read.
+ * `schema` typed as the node holds what it reads: as it was stored, absent
+ * included, the way the nodes read their JSON before they had schemas.
  */
 export function asStored<T, In>(
   schema: SerializationSchema<T | undefined, never, In>,
@@ -181,17 +176,18 @@ export function storedValue<T>(): SerializationSchema<T, never, unknown> {
 
 type EditorStateJSON = SerializedEditor["editorState"];
 
-/** What an editor with nothing in it writes. */
-const EMPTY_EDITOR_STATE: EditorStateJSON = {
-  root: {
-    children: [],
-    direction: null,
-    format: "",
-    indent: 0,
-    type: "root",
-    version: 1,
-  },
+/** The root of an editor with nothing in it, as it's written. */
+export const EMPTY_ROOT: SerializedRootNode = {
+  children: [],
+  direction: null,
+  format: "",
+  indent: 0,
+  type: "root",
+  version: 1,
 };
+
+/** What an editor with nothing in it writes. */
+export const EMPTY_EDITOR_STATE: EditorStateJSON = { root: EMPTY_ROOT };
 
 /** Whether `value` is an editor state with something in its root. */
 export function holdsNodes(value: unknown): value is SerializedEditorState {
@@ -217,25 +213,39 @@ function parsedOrNothing(text: string): unknown {
   }
 }
 
+/** `schema`'s value is an editor state the node reads into `makeEditor`'s. */
+export function readInto<S extends AnySerializationSchema>(
+  makeEditor: () => LexicalEditor,
+  schema: S,
+): S {
+  annotate(schema.meta, { nestedEditor: makeEditor });
+  return schema;
+}
+
 /**
  * A nested editor's JSON, as `LexicalEditor.toJSON` writes it. A node writes
  * the editor it holds whatever it read, so JSON that holds nothing reads as
  * the empty editor it will write.
  */
-export const nestedEditorValue = objectValue({
-  editorState: namedTransform(
-    "nestedEditorState",
-    rawValueOr<unknown>(EMPTY_EDITOR_STATE),
-    (stored): EditorStateJSON => {
-      const state =
-        typeof stored === "string" ? parsedOrNothing(stored) : stored;
-      return holdsNodes(state) ? state : EMPTY_EDITOR_STATE;
-    },
-  ),
-});
+export function nestedEditorValue(makeEditor: () => LexicalEditor) {
+  return objectValue({
+    editorState: readInto(
+      makeEditor,
+      namedTransform(
+        "nestedEditorState",
+        rawValueOr<unknown>(EMPTY_EDITOR_STATE),
+        (stored): EditorStateJSON => {
+          const state =
+            typeof stored === "string" ? parsedOrNothing(stored) : stored;
+          return holdsNodes(state) ? state : EMPTY_EDITOR_STATE;
+        },
+      ),
+    ),
+  });
+}
 
 export type NestedEditorJSON = SerializationSchemaValue<
-  typeof nestedEditorValue
+  ReturnType<typeof nestedEditorValue>
 >;
 
 /**

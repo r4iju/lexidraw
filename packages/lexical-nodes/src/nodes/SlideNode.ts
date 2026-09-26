@@ -5,7 +5,6 @@ import {
   type EditorConfig,
   type Klass,
   type LexicalNode,
-  type LexicalParseJSON,
   type NodeKey,
   nodeSchema,
   type ParagraphNode,
@@ -19,7 +18,12 @@ import {
   type KeyedSerializedEditorState,
 } from "../keyed-editor-state.js";
 import { rawValueOr, type SchemaJSON, shapedAs } from "../schema-values.js";
-import { inStoredOrder, withoutNodeState } from "../stored-order.js";
+import {
+  type ImportJSON,
+  storedFields,
+  withStoredJSON,
+  written,
+} from "../stored-fields.js";
 import { shapeFromZod } from "../zod-shape.js";
 import { CHART_TYPES } from "./ChartNode.js";
 
@@ -128,11 +132,6 @@ export type SlideData = z.infer<typeof SlideSchema>;
 
 export type SlideDeckData = z.infer<typeof SlideDeckSchema>;
 
-export type SerializedSlideDeckNode = Spread<
-  { type: "slide-deck"; data: SlideDeckData; version: 1 },
-  SerializedLexicalNode
->;
-
 /** What a deck made without data, or stored without any, holds. */
 const DEFAULT_DECK: SlideDeckData = {
   slides: [
@@ -155,7 +154,9 @@ const DEFAULT_DECK: SlideDeckData = {
   currentSlideId: "default-slide-1",
 };
 
-const slideFields = {
+const { fields: slideFields, json: slideJSON } = storedFields({
+  type: written,
+  version: written,
   data: withField(
     shapedAs(
       shapeFromZod(SlideDeckSchema),
@@ -163,10 +164,12 @@ const slideFields = {
     ),
     { field: "__data" },
   ),
-};
+});
 
-/** @internal What {@link slideFields} write, which {@link SerializedSlideDeckNode} is checked against. */
-export type SlideFieldsJSON = SchemaJSON<typeof slideFields>;
+export type SerializedSlideDeckNode = Spread<
+  SchemaJSON<typeof slideJSON>,
+  SerializedLexicalNode
+>;
 
 const slideSchema = nodeSchema<SlideNode>()(slideFields);
 
@@ -174,6 +177,7 @@ const slideSchema = nodeSchema<SlideNode>()(slideFields);
  * Serialization half of the slide deck block; see ImageNode for the split.
  */
 export class SlideNode extends DecoratorNode<unknown> {
+  declare static importJSON: ImportJSON<SlideNode>;
   __data: SlideDeckData;
 
   $config() {
@@ -189,14 +193,6 @@ export class SlideNode extends DecoratorNode<unknown> {
   ) {
     super(key);
     this.__data = data;
-  }
-
-  exportJSON(): SerializedLexicalNode {
-    return inStoredOrder(super.exportJSON(), ["data"]);
-  }
-
-  updateFromJSON(json: LexicalParseJSON<SerializedLexicalNode>): this {
-    return super.updateFromJSON(withoutNodeState(json));
   }
 
   createDOM(config: EditorConfig): HTMLElement {
@@ -248,3 +244,5 @@ export class SlideNode extends DecoratorNode<unknown> {
     return node instanceof SlideNode;
   }
 }
+
+withStoredJSON(SlideNode);

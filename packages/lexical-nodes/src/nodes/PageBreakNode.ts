@@ -5,21 +5,34 @@ import {
   type DOMConversionMap,
   type DOMConversionOutput,
   type LexicalNode,
-  type LexicalParseJSON,
+  nodeSchema,
   type SerializedLexicalNode,
   type Klass,
 } from "lexical";
-import { withoutNodeState } from "../stored-order.js";
+import {
+  type ImportJSON,
+  storedFields,
+  withStoredJSON,
+  written,
+} from "../stored-fields.js";
 
 export type SerializedPageBreakNode = SerializedLexicalNode;
 
-export class PageBreakNode extends DecoratorNode<unknown> {
-  $config() {
-    return this.config("page-break", { extends: DecoratorNode });
-  }
+const { fields: pageBreakFields } = storedFields({
+  type: written,
+  version: written,
+});
 
-  updateFromJSON(json: LexicalParseJSON<SerializedLexicalNode>): this {
-    return super.updateFromJSON(withoutNodeState(json));
+const pageBreakSchema = nodeSchema<PageBreakNode>()(pageBreakFields);
+
+export class PageBreakNode extends DecoratorNode<unknown> {
+  declare static importJSON: ImportJSON<PageBreakNode>;
+
+  $config() {
+    return this.config("page-break", {
+      extends: DecoratorNode,
+      json: pageBreakSchema,
+    });
   }
 
   static importDOM(): DOMConversionMap | null {
@@ -73,3 +86,5 @@ export class PageBreakNode extends DecoratorNode<unknown> {
     return node instanceof PageBreakNode;
   }
 }
+
+withStoredJSON(PageBreakNode);

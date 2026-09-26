@@ -7,7 +7,6 @@ import {
   type Klass,
   type LexicalEditor,
   type LexicalNode,
-  type LexicalParseJSON,
   type NodeKey,
   nodeSchema,
   type SerializedEditor,
@@ -24,7 +23,12 @@ import {
   shapedAs,
   storedValue,
 } from "../schema-values.js";
-import { inStoredOrder, withoutNodeState } from "../stored-order.js";
+import {
+  type ImportJSON,
+  storedFields,
+  withStoredJSON,
+  written,
+} from "../stored-fields.js";
 
 const STICKY_NOTE_COLORS = [
   "pink",
@@ -39,18 +43,8 @@ const STICKY_NOTE_COLORS = [
 
 export type StickyNoteColor = (typeof STICKY_NOTE_COLORS)[number];
 
-export type SerializedStickyNode = Spread<
-  {
-    xOffset: number;
-    yOffset: number;
-    color: StickyNoteColor;
-    caption: NestedEditorJSON;
-  },
-  SerializedLexicalNode
->;
-
-const stickyFields = {
-  caption: withAccessors(nestedEditorValue, {
+const { fields: stickyFields, json: stickyJSON } = storedFields({
+  caption: withAccessors(nestedEditorValue(createEditor), {
     getter: "getCaptionJSON",
     setter: "setCaptionJSON",
   }),
@@ -61,16 +55,21 @@ const stickyFields = {
     ),
     { field: "__color" },
   ),
+  type: written,
+  version: written,
   xOffset: withField(storedValue<number>(), { field: "__x" }),
   yOffset: withField(storedValue<number>(), { field: "__y" }),
-};
+});
 
-/** @internal What {@link stickyFields} write, which {@link SerializedStickyNode} is checked against. */
-export type StickyFieldsJSON = SchemaJSON<typeof stickyFields>;
+export type SerializedStickyNode = Spread<
+  SchemaJSON<typeof stickyJSON>,
+  SerializedLexicalNode
+>;
 
 const stickySchema = nodeSchema<StickyNode>()(stickyFields);
 
 export class StickyNode extends DecoratorNode<unknown> {
+  declare static importJSON: ImportJSON<StickyNode>;
   __x: number;
   __y: number;
   __color: StickyNoteColor;
@@ -103,21 +102,6 @@ export class StickyNode extends DecoratorNode<unknown> {
     this.__y = prevNode.__y;
     this.__color = prevNode.__color;
     this.__caption = prevNode.__caption;
-  }
-
-  exportJSON(): SerializedLexicalNode {
-    return inStoredOrder(super.exportJSON(), [
-      "caption",
-      "color",
-      "type",
-      "version",
-      "xOffset",
-      "yOffset",
-    ]);
-  }
-
-  updateFromJSON(json: LexicalParseJSON<SerializedLexicalNode>): this {
-    return super.updateFromJSON(withoutNodeState(json));
   }
 
   getCaptionJSON(): SerializedEditor {
@@ -177,3 +161,5 @@ export class StickyNode extends DecoratorNode<unknown> {
     return node;
   }
 }
+
+withStoredJSON(StickyNode);

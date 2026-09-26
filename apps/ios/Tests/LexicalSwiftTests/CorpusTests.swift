@@ -21,12 +21,12 @@ struct CorpusTests {
         failures += Corpus.differences(lexicalSwift["root"]!, lexical["root"]!, loaded: state["root"]!).map { "\(id): \($0)" }
 
         try reference.load(lexicalSwift)
-        if try reference.snapshot().state != lexical {
+        if try reference.snapshot().state.stringified != lexical.stringified {
           failures.append("\(id): Lexical reads LexicalSwift's save as a different document")
         }
         let resaved = Editor()
         try resaved.load(lexical)
-        if try resaved.snapshot().state != lexical {
+        if try resaved.snapshot().state.stringified != lexical.stringified {
           failures.append("\(id): LexicalSwift changes the document Lexical saved")
         }
       } catch {
@@ -67,7 +67,7 @@ struct Corpus {
           folders.append(id)
         } else {
           let elements = try await get("entities/\(id)", [])["elements"]?.stringValue ?? ""
-          documents.append((id, try JSONDecoder().decode(JSONValue.self, from: Data(elements.utf8))))
+          documents.append((id, try JSONValue(parsing: elements)))
         }
       }
     }
@@ -84,8 +84,8 @@ struct Corpus {
     return try JSONDecoder().decode(JSONValue.self, from: data)
   }
 
-  /// Where LexicalSwift's save differs from Lexical's, apart from what #111
-  /// asks LexicalSwift to keep and Lexical's own classes rewrite: "Unknown
+  /// Where LexicalSwift's save differs from Lexical's, byte for byte, apart
+  /// from what #111 asks LexicalSwift to keep that Lexical drops: "Unknown
   /// node types and unknown fields on known nodes survive load then save
   /// unchanged". A node LexicalSwift doesn't know has to save what was loaded.
   static func differences(_ lexicalSwift: JSONValue, _ lexical: JSONValue, loaded: JSONValue) -> [String] {
@@ -97,11 +97,16 @@ struct Corpus {
       guard case .object(let ours) = lexicalSwift, case .object(let theirs) = lexical, ours["type"] == theirs["type"]
       else { return ["\(path) is a \(lexicalSwift["type"]?.stringValue ?? "?") node, not \(lexical["type"]?.stringValue ?? "?")"] }
       var found: [String] = []
-      if let payload = SerializedNode(json: lexicalSwift).payload {
-        for key in Set(ours.keys).union(theirs.keys).sorted() where key != "children" && ours[key] != theirs[key] {
-          if theirs[key] == nil, payload.unknownFields[key] != nil { continue }
+      var node = ours
+      node["children"] = nil
+      if let payload = SerializedNode(json: .object(node)).payload {
+        let written = type(of: payload).keyOrder
+        let mine = ours.keys.filter { $0 != "children" && (written.contains($0) || payload.unknownFields[$0] == nil) }
+        let lexicals = theirs.keys.filter { $0 != "children" }
+        for key in Set(mine).union(lexicals).sorted() where ours[key]?.stringified != theirs[key]?.stringified {
           found.append("\(path).\(key) differs")
         }
+        if found.isEmpty, mine != lexicals { found.append("\(path) writes its keys in another order") }
       } else {
         guard case .object(let was) = unknownNodes.next(), was["type"] == ours["type"]
         else { return ["\(path) isn't the node loaded there"] }
@@ -137,6 +142,21 @@ struct Corpus {
     #expect(
       Corpus.differences(root([paragraph([asLexicalSaves])]), root([paragraph([asLexicalSaves])]), loaded: loaded)
         == ["root.0(paragraph).0(not-a-node-type).added differs", "root.0(paragraph).0(not-a-node-type).size differs"])
+  }
+
+  @Test func aNodeLexicalSwiftModelsIsHeldToLexicalsSaveButForWhatItKeepsThatLexicalDrops() throws {
+    let lexical = try JSONValue(
+      parsing: #"{"children":[],"direction":null,"format":"","indent":0,"type":"root","version":1}"#)
+    let kept = try JSONValue(
+      parsing: #"{"children":[],"direction":null,"format":"","indent":0,"type":"root","version":1,"extra":1}"#)
+    let reordered = try JSONValue(
+      parsing: #"{"children":[],"format":"","direction":null,"indent":0,"type":"root","version":1}"#)
+    let withState = try JSONValue(
+      parsing: #"{"children":[],"direction":null,"format":"","indent":0,"type":"root","version":1,"$":{"extra":1}}"#)
+
+    #expect(Corpus.differences(kept, lexical, loaded: kept) == [])
+    #expect(Corpus.differences(reordered, lexical, loaded: reordered) == ["root writes its keys in another order"])
+    #expect(Corpus.differences(withState, lexical, loaded: withState) == ["root.$ differs"])
   }
 
   private func root(_ children: [JSONValue]) -> JSONValue {

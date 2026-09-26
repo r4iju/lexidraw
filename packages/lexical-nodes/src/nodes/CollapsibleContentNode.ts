@@ -6,13 +6,11 @@ import {
   ElementNode,
   type LexicalEditor,
   type LexicalNode,
-  type LexicalParseJSON,
   nodeSchema,
-  type SerializedLexicalNode,
 } from "lexical";
-import { withoutNodeState } from "../stored-order.js";
+import { type ImportJSON, withStoredJSON } from "../stored-fields.js";
 import { CollapsibleContainerNode } from "./CollapsibleContainerNode.js";
-import { unreadElementFields } from "./stored-element.js";
+import { unreadElementOnlyFields } from "./stored-element.js";
 
 export function $convertAccordionContentElement(
   domNode: HTMLElement,
@@ -23,15 +21,13 @@ export function $convertAccordionContentElement(
 }
 
 export class CollapsibleContentNode extends ElementNode {
+  declare static importJSON: ImportJSON<CollapsibleContentNode>;
+
   $config() {
     return this.config("collapsible-content", {
       extends: ElementNode,
-      json: nodeSchema<CollapsibleContentNode>()(unreadElementFields),
+      json: nodeSchema<CollapsibleContentNode>()(unreadElementOnlyFields),
     });
-  }
-
-  updateFromJSON(json: LexicalParseJSON<SerializedLexicalNode>): this {
-    return super.updateFromJSON(withoutNodeState(json));
   }
 
   createDOM(_config: EditorConfig, editor: LexicalEditor): HTMLElement {
@@ -104,3 +100,5 @@ export class CollapsibleContentNode extends ElementNode {
     return node instanceof CollapsibleContentNode;
   }
 }
+
+withStoredJSON(CollapsibleContentNode);

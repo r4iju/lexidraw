@@ -70,6 +70,19 @@ public final class Editor: EditorModel {
     guard !state.nodes.isEmpty else { throw EditorError.invalidState("No document loaded") }
     return Snapshot(state: state.json, selection: state.pathSelection)
   }
+
+  /// `state` as an editor that registers `types` saves it once it has read
+  /// it, or nil where that editor can't read it: Lexical refuses a type it
+  /// hasn't registered.
+  static func saved(_ state: JSONValue, registering types: Set<String>) -> JSONValue? {
+    func registered(_ node: JSONValue) -> Bool {
+      guard let type = node["type"]?.stringValue, types.contains(type) else { return false }
+      return node["children"]?.arrayValue?.allSatisfy(registered) ?? true
+    }
+    guard let root = state["root"], registered(root) else { return nil }
+    let editor = Editor()
+    return (try? editor.load(state)).flatMap { try? editor.snapshot().state }
+  }
 }
 
 extension Node {
@@ -83,9 +96,8 @@ extension Node {
     }
   }
 
-  /// Fields no payload type reads, but the version every node writes.
-  private static func isPlain(_ unknownFields: [String: JSONValue]) -> Bool {
-    unknownFields.keys.allSatisfy { $0 == "version" }
+  private static func isPlain(_ unknownFields: JSONObject) -> Bool {
+    unknownFields.isEmpty
   }
 }
 

@@ -7,7 +7,6 @@ import {
   type EditorConfig,
   type Klass,
   type LexicalNode,
-  type LexicalParseJSON,
   type NodeKey,
   nodeSchema,
   type SerializedLexicalNode,
@@ -15,12 +14,12 @@ import {
   withField,
 } from "lexical";
 import { rawValueOr, type SchemaJSON } from "../schema-values.js";
-import { withoutNodeState } from "../stored-order.js";
-
-export type SerializedEquationNode = Spread<
-  { equation: string; inline: boolean },
-  SerializedLexicalNode
->;
+import {
+  type ImportJSON,
+  storedFields,
+  withStoredJSON,
+  written,
+} from "../stored-fields.js";
 
 function $convertEquationElement(
   domNode: HTMLElement,
@@ -37,13 +36,17 @@ function $convertEquationElement(
   return null;
 }
 
-const equationFields = {
+const { fields: equationFields, json: equationJSON } = storedFields({
   equation: withField(rawValueOr(""), { field: "__equation" }),
   inline: withField(rawValueOr(false), { field: "__inline" }),
-};
+  type: written,
+  version: written,
+});
 
-/** @internal What {@link equationFields} write, which {@link SerializedEquationNode} is checked against. */
-export type EquationFieldsJSON = SchemaJSON<typeof equationFields>;
+export type SerializedEquationNode = Spread<
+  SchemaJSON<typeof equationJSON>,
+  SerializedLexicalNode
+>;
 
 const equationSchema = nodeSchema<EquationNode>()(equationFields);
 
@@ -53,6 +56,7 @@ const equationSchema = nodeSchema<EquationNode>()(equationFields);
  * KaTeX dependency.
  */
 export class EquationNode extends DecoratorNode<unknown> {
+  declare static importJSON: ImportJSON<EquationNode>;
   __equation: string;
   __inline: boolean;
 
@@ -61,10 +65,6 @@ export class EquationNode extends DecoratorNode<unknown> {
       extends: DecoratorNode,
       json: equationSchema,
     });
-  }
-
-  updateFromJSON(json: LexicalParseJSON<SerializedLexicalNode>): this {
-    return super.updateFromJSON(withoutNodeState(json));
   }
 
   constructor(equation = "", inline?: boolean, key?: NodeKey) {
@@ -154,3 +154,5 @@ export class EquationNode extends DecoratorNode<unknown> {
     return node instanceof EquationNode;
   }
 }
+
+withStoredJSON(EquationNode);

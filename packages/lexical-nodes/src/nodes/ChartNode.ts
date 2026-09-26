@@ -12,7 +12,12 @@ import {
 } from "lexical";
 import { figureDOM, figureState } from "../figure.js";
 import { rawValueOr, type SchemaJSON } from "../schema-values.js";
-import { inStoredOrder } from "../stored-order.js";
+import {
+  type ImportJSON,
+  storedFields,
+  withStoredJSON,
+  written,
+} from "../stored-fields.js";
 import { type Size, zeroAsInheritSize } from "./stored-size.js";
 
 /** Every chart a chart node or slide can draw. */
@@ -28,33 +33,26 @@ export const CHART_TYPES = [
 
 export type ChartType = (typeof CHART_TYPES)[number];
 
-export type SerializedChartNode = Spread<
-  {
-    type: "chart";
-    version: 1;
-    chartType: ChartType;
-    chartData: string;
-    chartConfig: string;
-    width: Size;
-    height: Size;
-  },
-  SerializedLexicalNode
->;
-
-const chartFields = {
+const { fields: chartFields, json: chartJSON } = storedFields({
+  type: written,
+  version: written,
   chartType: withField(rawValueOr<ChartType>("bar"), { field: "__chartType" }),
   chartData: withField(rawValueOr("[]"), { field: "__chartData" }),
   chartConfig: withField(rawValueOr("{}"), { field: "__chartConfig" }),
   width: withField(zeroAsInheritSize, { field: "__width" }),
   height: withField(zeroAsInheritSize, { field: "__height" }),
-};
+  $: written,
+});
 
-/** @internal What {@link chartFields} write, which {@link SerializedChartNode} is checked against. */
-export type ChartFieldsJSON = SchemaJSON<typeof chartFields>;
+export type SerializedChartNode = Spread<
+  SchemaJSON<typeof chartJSON>,
+  SerializedLexicalNode
+>;
 
 const chartSchema = nodeSchema<ChartNode>()(chartFields);
 
 export class ChartNode extends DecoratorNode<unknown> {
+  declare static importJSON: ImportJSON<ChartNode>;
   __chartType: ChartType;
   __chartData: string;
   __chartConfig: string;
@@ -161,17 +159,6 @@ export class ChartNode extends DecoratorNode<unknown> {
     return false;
   }
 
-  exportJSON(): SerializedLexicalNode {
-    return inStoredOrder(super.exportJSON(), [
-      "chartType",
-      "chartData",
-      "chartConfig",
-      "width",
-      "height",
-      "$",
-    ]);
-  }
-
   createDOM(_config: EditorConfig): HTMLElement {
     const element = document.createElement("div");
     element.dataset.mediaType = "chart";
@@ -184,3 +171,5 @@ export class ChartNode extends DecoratorNode<unknown> {
     return false;
   }
 }
+
+withStoredJSON(ChartNode);

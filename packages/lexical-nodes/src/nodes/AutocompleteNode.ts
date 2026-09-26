@@ -1,34 +1,37 @@
 import {
   type EditorConfig,
-  type LexicalParseJSON,
   type NodeKey,
   nodeSchema,
-  type SerializedLexicalNode,
   type SerializedTextNode,
   type Spread,
   TextNode,
   withField,
 } from "lexical";
 import { type SchemaJSON, storedValue } from "../schema-values.js";
-import { inStoredOrder, withoutNodeState } from "../stored-order.js";
+import {
+  type ImportJSON,
+  storedFields,
+  withStoredJSON,
+  written,
+} from "../stored-fields.js";
 import { storedTextFields, textOrEmpty } from "./stored-text.js";
 
+const { fields: autocompleteFields, json: autocompleteJSON } = storedFields({
+  ...storedTextFields(textOrEmpty),
+  type: written,
+  version: written,
+  uuid: withField(storedValue<string>(), { field: "__uuid" }),
+});
+
 export type SerializedAutocompleteNode = Spread<
-  { uuid: string },
+  SchemaJSON<typeof autocompleteJSON>,
   SerializedTextNode
 >;
-
-const autocompleteFields = {
-  ...storedTextFields(textOrEmpty),
-  uuid: withField(storedValue<string>(), { field: "__uuid" }),
-};
-
-/** @internal What {@link autocompleteFields} write, which {@link SerializedAutocompleteNode} is checked against. */
-export type AutocompleteFieldsJSON = SchemaJSON<typeof autocompleteFields>;
 
 const autocompleteSchema = nodeSchema<AutocompleteNode>()(autocompleteFields);
 
 export class AutocompleteNode extends TextNode {
+  declare static importJSON: ImportJSON<AutocompleteNode>;
   /**
    * A unique uuid is generated for each session and assigned to the instance.
    * This helps to:
@@ -49,14 +52,6 @@ export class AutocompleteNode extends TextNode {
   constructor(text = "", uuid = "", key?: NodeKey) {
     super(text, key);
     this.__uuid = uuid;
-  }
-
-  exportJSON(): SerializedTextNode {
-    return inStoredOrder(super.exportJSON(), ["uuid"]);
-  }
-
-  updateFromJSON(json: LexicalParseJSON<SerializedLexicalNode>): this {
-    return super.updateFromJSON(withoutNodeState(json));
   }
 
   createDOM(config: EditorConfig): HTMLElement {
@@ -83,3 +78,5 @@ export class AutocompleteNode extends TextNode {
     return new AutocompleteNode(text, uuid).setMode("token");
   }
 }
+
+withStoredJSON(AutocompleteNode);

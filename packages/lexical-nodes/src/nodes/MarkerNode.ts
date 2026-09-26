@@ -1,33 +1,32 @@
 import {
   DecoratorNode,
   enumValue,
-  type LexicalParseJSON,
   nodeSchema,
   type SerializedLexicalNode,
   type Spread,
   withField,
 } from "lexical";
 import { type SchemaJSON, storedValue } from "../schema-values.js";
-import { inStoredOrder, withoutNodeState } from "../stored-order.js";
-
-/** What a comment or thread marker writes before its own data. */
-export type SerializedMarkerNode = Spread<
-  { format: number; indent: number; direction: null; children: [] },
-  SerializedLexicalNode
->;
+import { storedFields } from "../stored-fields.js";
 
 /**
  * The element fields a comment or thread marker once copied, stored as they
  * were read: `direction` was never set, so it is always null.
  */
-const markerFields = {
+const { fields: markerFields, json: markerJSON } = storedFields({
   format: withField(storedValue<number>(), { field: "__format" }),
   indent: withField(storedValue<number>(), { field: "__indent" }),
   direction: withField(enumValue([null]), { field: "__direction" }),
-};
+});
 
-/** @internal What {@link markerFields} write, which {@link SerializedMarkerNode} is checked against. */
-export type MarkerFieldsJSON = SchemaJSON<typeof markerFields>;
+/**
+ * What a comment or thread marker writes beside its own data, and an empty
+ * list of children, which it has never held.
+ */
+export type SerializedMarkerNode = Spread<
+  SchemaJSON<typeof markerJSON> & { children: [] },
+  SerializedLexicalNode
+>;
 
 const markerSchema = nodeSchema<MarkerNode>()(markerFields);
 
@@ -42,21 +41,5 @@ export class MarkerNode extends DecoratorNode<unknown> {
       extends: DecoratorNode,
       json: markerSchema,
     });
-  }
-
-  /**
-   * `type` and `version` first, then everything else, and an empty list of
-   * children, which a marker has never held but has always written.
-   */
-  exportJSON(): SerializedLexicalNode {
-    const json = { ...super.exportJSON(), children: [] };
-    const rest = Object.keys(json).filter(
-      (key) => key !== "type" && key !== "version",
-    );
-    return inStoredOrder(json, rest);
-  }
-
-  updateFromJSON(json: LexicalParseJSON<SerializedLexicalNode>): this {
-    return super.updateFromJSON(withoutNodeState(json));
   }
 }

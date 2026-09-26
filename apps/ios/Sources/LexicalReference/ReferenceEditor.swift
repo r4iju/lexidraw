@@ -31,8 +31,10 @@ public final class ReferenceEditor: EditorModel {
     self.api = api
   }
 
+  /// JSON crosses as the text JavaScript reads and writes, so key order
+  /// crosses with it.
   public func load(_ state: JSONValue) throws {
-    _ = try call("load", String(decoding: try encoder.encode(state), as: UTF8.self))
+    _ = try call("load", state.stringified)
   }
 
   @discardableResult
@@ -42,7 +44,12 @@ public final class ReferenceEditor: EditorModel {
   }
 
   public func snapshot() throws -> Snapshot {
-    try decoder.decode(Snapshot.self, from: Data(try call("snapshot").utf8))
+    let snapshot = try JSONValue(parsing: call("snapshot"))
+    var selection: Selection?
+    if let json = snapshot["selection"], json != .null {
+      selection = try decoder.decode(Selection.self, from: Data(json.stringified.utf8))
+    }
+    return Snapshot(state: snapshot["state"] ?? .null, selection: selection)
   }
 
   private func call(_ name: String, _ argument: String? = nil) throws -> String {

@@ -14,13 +14,8 @@ import {
   type Klass,
   type LexicalNode,
 } from "lexical";
-import {
-  checkOf,
-  isWrittenOnly,
-  readsNullAsAbsent,
-  shapeOf,
-  transformName,
-} from "./schema-values.js";
+import { annotationsOf } from "./schema-values.js";
+import { writtenOrder } from "./stored-fields.js";
 
 /**
  * The language-neutral description of every node the editor registers: the
@@ -56,14 +51,14 @@ export type NodeDescription = {
   className: string;
   /** What Lexical writes as `version`; it never reads it back. */
   version: number;
-  /** Whether it writes `children`: every element, and a few that don't hold any. */
-  children: boolean;
   /**
-   * Whether it writes back the NodeState it was read with, under `$`, where
-   * Lexical reads it as an object's properties: a string's characters, an
-   * array's items, nothing of a number. Some nodes read none.
+   * Every key it can write, in the order it writes them. `children` is there
+   * for every element and a few nodes that write an always empty list. `$` is
+   * there where it writes back the NodeState it was read with, which Lexical
+   * reads as an object's properties: a string's characters, an array's items,
+   * nothing of a number.
    */
-  keepsState: boolean;
+  order: string[];
   fields: Record<string, FieldType>;
   /** NodeState, written flat beside the fields or nested under `$`. */
   state: Record<string, { flat: boolean; value: FieldType }>;
@@ -117,6 +112,7 @@ export type FieldType = { default?: JSONValue } & (
   | { kind: "union"; members: FieldType[] }
   | {
       kind: "object";
+      /** In the order Lexical writes them. */
       fields: Record<string, FieldType>;
       /**
        * Keeps the keys it doesn't declare, and a union doesn't count them:
@@ -124,7 +120,17 @@ export type FieldType = { default?: JSONValue } & (
        */
       open?: true;
     }
-  | { kind: "transform"; inner: FieldType; name?: string }
+  | {
+      kind: "transform";
+      inner: FieldType;
+      name?: string;
+      /**
+       * The types the editor the node reads this editor state into has. It
+       * writes the state as that editor saves it, and its default where that
+       * editor can't read it.
+       */
+      nestedEditor?: string[];
+    }
 );
 
 export const NODE_SCHEMA_URL = new URL("../node-schema.json", import.meta.url);
@@ -294,21 +300,64 @@ function describe(type: string, klass: Klass<LexicalNode>): NodeDescription {
       `${type}'s class is called ${klass.name}; export with Lexical's development build`,
     );
   }
-  const read = $parseSerializedNode({ ...written, $: { probe: true } });
+  const probed = Object.keys(
+    $parseSerializedNode({ ...written, $: { probe: true } }).exportJSON(),
+  );
+  const order = [
+    ...(writtenOrder(klass) ??
+      naturalOrder(klass, probed, Object.keys(fields), state)),
+  ];
+  const placed = order.filter((key) => probed.includes(key));
+  if (placed.join() !== probed.join()) {
+    throw new Error(
+      `${type} writes ${probed.join(", ")}, not in the order ${order.join(", ")}`,
+    );
+  }
   return {
     type,
     className: klass.name,
     version: written.version,
-    children: $isElementNode(created) || "children" in written,
-    keepsState: "$" in read.exportJSON(),
+    order,
     fields,
     state,
   };
 }
 
+/**
+ * The order a node whose JSON is Lexical's own writes in: what it wrote, with
+ * what it left out put where Lexical writes it. An element's `children` come
+ * first, then its fields, `type` and `version`, its flat NodeState and `$`.
+ */
+function naturalOrder(
+  klass: Klass<LexicalNode>,
+  written: string[],
+  fields: string[],
+  state: NodeDescription["state"],
+): string[] {
+  const flat = Object.keys(state).filter((key) => state[key]?.flat);
+  const natural = [
+    ...($isElementNode($create(klass)) ? ["children"] : []),
+    ...fields,
+    "type",
+    "version",
+    ...flat,
+    "$",
+  ];
+  const order = [...written];
+  natural.forEach((key, index) => {
+    if (order.includes(key) || (key === "$" && !written.includes("$"))) return;
+    const before = natural
+      .slice(0, index)
+      .reverse()
+      .find((earlier) => order.includes(earlier));
+    order.splice(before === undefined ? 0 : order.indexOf(before) + 1, 0, key);
+  });
+  return order;
+}
+
 /** A node's own field: as {@link fieldType}, or unread where it's written only. */
 function fieldOf(schema: AnySerializationSchema): FieldType {
-  if (!isWrittenOnly(schema.meta)) return fieldType(schema);
+  if (!annotationsOf(schema.meta).writtenOnly) return fieldType(schema);
   const { getter } = schema;
   const gated = typeof getter === "object" && getter?.when !== undefined;
   return {
@@ -330,11 +379,14 @@ function fieldType(schema: AnySerializationSchema, stored = false): FieldType {
     case "boolean":
       return withDefault({ kind: meta.kind });
     case "raw": {
-      const shape = shapeOf(meta);
-      const withState = checkOf(meta);
+      const {
+        nullAsAbsent,
+        shape,
+        checkedWithState: withState,
+      } = annotationsOf(meta);
       return withDefault({
         kind: meta.kind,
-        ...(readsNullAsAbsent(meta) ? { nullAsAbsent: true } : {}),
+        ...(nullAsAbsent ? { nullAsAbsent } : {}),
         ...(shape ? { shape: fieldType(shape, true) } : {}),
         ...(withState ? { withState: described(withState) } : {}),
       });
@@ -389,21 +441,25 @@ function fieldType(schema: AnySerializationSchema, stored = false): FieldType {
       return withDefault({
         kind: meta.kind,
         fields: Object.fromEntries(
-          sortedEntries(meta.fields).map(([key, field]) => [
+          Object.entries(meta.fields).map(([key, field]) => [
             key,
             described(field),
           ]),
         ),
         ...(stored ? { open: true } : {}),
       });
-    case "transform":
+    case "transform": {
+      const { transform, nestedEditor } = annotationsOf(meta);
       return withDefault(
         definedOnly({
           kind: meta.kind,
-          name: transformName(meta),
+          name: transform,
           inner: described(meta.inner),
+          nestedEditor:
+            nestedEditor && [...nestedEditor()._nodes.keys()].sort(byCodeUnits),
         }),
       );
+    }
   }
 }
 

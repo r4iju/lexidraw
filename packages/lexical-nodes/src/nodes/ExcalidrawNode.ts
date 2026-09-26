@@ -16,24 +16,29 @@ import {
 } from "lexical";
 import { figureDOM, figureState, naturalSizeState } from "../figure.js";
 import { rawValueOr, type SchemaJSON } from "../schema-values.js";
-import { inStoredOrder } from "../stored-order.js";
+import {
+  type ImportJSON,
+  storedFields,
+  withStoredJSON,
+  written,
+} from "../stored-fields.js";
 import { inheritOrStoredSize, type Size } from "./stored-size.js";
 
-export type SerializedExcalidrawNode = Spread<
-  { data: string; width: Size; height: Size },
-  SerializedLexicalNode
->;
-
-const excalidrawFields = {
+const { fields: excalidrawFields, json: excalidrawJSON } = storedFields({
   data: withField(rawValueOr("[]", { nullAsAbsent: true }), {
     field: "__data",
   }),
-  width: withField(inheritOrStoredSize, { field: "__width" }),
   height: withField(inheritOrStoredSize, { field: "__height" }),
-};
+  type: written,
+  version: written,
+  width: withField(inheritOrStoredSize, { field: "__width" }),
+  $: written,
+});
 
-/** @internal What {@link excalidrawFields} write, which {@link SerializedExcalidrawNode} is checked against. */
-export type ExcalidrawFieldsJSON = SchemaJSON<typeof excalidrawFields>;
+export type SerializedExcalidrawNode = Spread<
+  SchemaJSON<typeof excalidrawJSON>,
+  SerializedLexicalNode
+>;
 
 const excalidrawSchema = nodeSchema<ExcalidrawNode>()(excalidrawFields);
 
@@ -41,6 +46,7 @@ const excalidrawSchema = nodeSchema<ExcalidrawNode>()(excalidrawFields);
  * Serialization half of the excalidraw block; see ImageNode for the split.
  */
 export class ExcalidrawNode extends DecoratorNode<unknown> {
+  declare static importJSON: ImportJSON<ExcalidrawNode>;
   __data: string;
   /** Only an insertion opens the drawing modal, so clones never inherit it. */
   __justInserted?: boolean;
@@ -67,10 +73,6 @@ export class ExcalidrawNode extends DecoratorNode<unknown> {
     this.__justInserted = justInserted;
     this.__width = width;
     this.__height = height;
-  }
-
-  exportJSON(): SerializedLexicalNode {
-    return inStoredOrder(super.exportJSON(), ["type", "version", "width", "$"]);
   }
 
   createDOM(_config: EditorConfig): HTMLElement {
@@ -190,3 +192,5 @@ export class ExcalidrawNode extends DecoratorNode<unknown> {
     return null;
   }
 }
+
+withStoredJSON(ExcalidrawNode);

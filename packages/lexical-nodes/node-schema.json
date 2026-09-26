@@ -4,8 +4,12 @@
       "type": "article",
       "className": "ArticleNode",
       "version": 1,
-      "children": false,
-      "keepsState": false,
+      "order": [
+        "format",
+        "type",
+        "version",
+        "data"
+      ],
       "fields": {
         "data": {
           "kind": "raw",
@@ -15,47 +19,25 @@
               {
                 "kind": "object",
                 "fields": {
+                  "mode": {
+                    "kind": "enum",
+                    "values": [
+                      "url"
+                    ],
+                    "default": "url"
+                  },
+                  "url": {
+                    "kind": "string",
+                    "default": ""
+                  },
                   "distilled": {
                     "kind": "object",
                     "fields": {
-                      "bestImageUrl": {
-                        "kind": "optional",
-                        "inner": {
-                          "kind": "nullable",
-                          "inner": {
-                            "kind": "string",
-                            "default": ""
-                          },
-                          "default": null
-                        }
-                      },
-                      "byline": {
-                        "kind": "optional",
-                        "inner": {
-                          "kind": "nullable",
-                          "inner": {
-                            "kind": "string",
-                            "default": ""
-                          },
-                          "default": null
-                        }
-                      },
-                      "contentHtml": {
+                      "title": {
                         "kind": "string",
                         "default": ""
                       },
-                      "datePublished": {
-                        "kind": "optional",
-                        "inner": {
-                          "kind": "nullable",
-                          "inner": {
-                            "kind": "string",
-                            "default": ""
-                          },
-                          "default": null
-                        }
-                      },
-                      "excerpt": {
+                      "byline": {
                         "kind": "optional",
                         "inner": {
                           "kind": "nullable",
@@ -77,17 +59,6 @@
                           "default": null
                         }
                       },
-                      "title": {
-                        "kind": "string",
-                        "default": ""
-                      },
-                      "updatedAt": {
-                        "kind": "optional",
-                        "inner": {
-                          "kind": "string",
-                          "default": ""
-                        }
-                      },
                       "wordCount": {
                         "kind": "optional",
                         "inner": {
@@ -98,6 +69,50 @@
                           },
                           "default": null
                         }
+                      },
+                      "updatedAt": {
+                        "kind": "optional",
+                        "inner": {
+                          "kind": "string",
+                          "default": ""
+                        }
+                      },
+                      "contentHtml": {
+                        "kind": "string",
+                        "default": ""
+                      },
+                      "bestImageUrl": {
+                        "kind": "optional",
+                        "inner": {
+                          "kind": "nullable",
+                          "inner": {
+                            "kind": "string",
+                            "default": ""
+                          },
+                          "default": null
+                        }
+                      },
+                      "excerpt": {
+                        "kind": "optional",
+                        "inner": {
+                          "kind": "nullable",
+                          "inner": {
+                            "kind": "string",
+                            "default": ""
+                          },
+                          "default": null
+                        }
+                      },
+                      "datePublished": {
+                        "kind": "optional",
+                        "inner": {
+                          "kind": "nullable",
+                          "inner": {
+                            "kind": "string",
+                            "default": ""
+                          },
+                          "default": null
+                        }
                       }
                     },
                     "open": true,
@@ -105,17 +120,6 @@
                       "title": "",
                       "contentHtml": ""
                     }
-                  },
-                  "mode": {
-                    "kind": "enum",
-                    "values": [
-                      "url"
-                    ],
-                    "default": "url"
-                  },
-                  "url": {
-                    "kind": "string",
-                    "default": ""
                   }
                 },
                 "open": true,
@@ -131,10 +135,6 @@
               {
                 "kind": "object",
                 "fields": {
-                  "entityId": {
-                    "kind": "string",
-                    "default": ""
-                  },
                   "mode": {
                     "kind": "enum",
                     "values": [
@@ -142,21 +142,18 @@
                     ],
                     "default": "entity"
                   },
+                  "entityId": {
+                    "kind": "string",
+                    "default": ""
+                  },
                   "snapshot": {
                     "kind": "optional",
                     "inner": {
                       "kind": "object",
                       "fields": {
-                        "bestImageUrl": {
-                          "kind": "optional",
-                          "inner": {
-                            "kind": "nullable",
-                            "inner": {
-                              "kind": "string",
-                              "default": ""
-                            },
-                            "default": null
-                          }
+                        "title": {
+                          "kind": "string",
+                          "default": ""
                         },
                         "byline": {
                           "kind": "optional",
@@ -169,10 +166,6 @@
                             "default": null
                           }
                         },
-                        "contentHtml": {
-                          "kind": "string",
-                          "default": ""
-                        },
                         "siteName": {
                           "kind": "optional",
                           "inner": {
@@ -184,9 +177,16 @@
                             "default": null
                           }
                         },
-                        "title": {
-                          "kind": "string",
-                          "default": ""
+                        "wordCount": {
+                          "kind": "optional",
+                          "inner": {
+                            "kind": "nullable",
+                            "inner": {
+                              "kind": "number",
+                              "default": 0
+                            },
+                            "default": null
+                          }
                         },
                         "updatedAt": {
                           "kind": "optional",
@@ -195,13 +195,17 @@
                             "default": ""
                           }
                         },
-                        "wordCount": {
+                        "contentHtml": {
+                          "kind": "string",
+                          "default": ""
+                        },
+                        "bestImageUrl": {
                           "kind": "optional",
                           "inner": {
                             "kind": "nullable",
                             "inner": {
-                              "kind": "number",
-                              "default": 0
+                              "kind": "string",
+                              "default": ""
                             },
                             "default": null
                           }
@@ -247,8 +251,16 @@
       "type": "autocomplete",
       "className": "AutocompleteNode",
       "version": 1,
-      "children": false,
-      "keepsState": false,
+      "order": [
+        "detail",
+        "format",
+        "mode",
+        "style",
+        "text",
+        "type",
+        "version",
+        "uuid"
+      ],
       "fields": {
         "detail": {
           "kind": "aliased",
@@ -312,8 +324,22 @@
       "type": "autolink",
       "className": "AutoLinkNode",
       "version": 1,
-      "children": true,
-      "keepsState": true,
+      "order": [
+        "children",
+        "isUnlinked",
+        "rel",
+        "target",
+        "title",
+        "url",
+        "direction",
+        "format",
+        "indent",
+        "textFormat",
+        "textStyle",
+        "type",
+        "version",
+        "$"
+      ],
       "fields": {
         "direction": {
           "kind": "enum",
@@ -401,8 +427,19 @@
       "type": "callout",
       "className": "CalloutNode",
       "version": 1,
-      "children": true,
-      "keepsState": true,
+      "order": [
+        "children",
+        "direction",
+        "format",
+        "indent",
+        "textFormat",
+        "textStyle",
+        "type",
+        "version",
+        "$",
+        "kind",
+        "title"
+      ],
       "fields": {
         "direction": {
           "kind": "enum",
@@ -470,8 +507,16 @@
       "type": "chart",
       "className": "ChartNode",
       "version": 1,
-      "children": false,
-      "keepsState": true,
+      "order": [
+        "type",
+        "version",
+        "chartType",
+        "chartData",
+        "chartConfig",
+        "width",
+        "height",
+        "$"
+      ],
       "fields": {
         "chartConfig": {
           "kind": "raw",
@@ -512,13 +557,6 @@
             "shape": {
               "kind": "object",
               "fields": {
-                "caption": {
-                  "kind": "optional",
-                  "inner": {
-                    "kind": "string",
-                    "default": ""
-                  }
-                },
                 "width": {
                   "kind": "optional",
                   "inner": {
@@ -528,6 +566,13 @@
                       "kind": "string",
                       "default": ""
                     }
+                  }
+                },
+                "caption": {
+                  "kind": "optional",
+                  "inner": {
+                    "kind": "string",
+                    "default": ""
                   }
                 }
               },
@@ -542,8 +587,20 @@
       "type": "code",
       "className": "DocumentCodeNode",
       "version": 1,
-      "children": true,
-      "keepsState": true,
+      "order": [
+        "children",
+        "language",
+        "direction",
+        "format",
+        "indent",
+        "textFormat",
+        "textStyle",
+        "type",
+        "version",
+        "$",
+        "showLineNumbers",
+        "theme"
+      ],
       "fields": {
         "direction": {
           "kind": "enum",
@@ -616,8 +673,17 @@
       "type": "code-highlight",
       "className": "CodeHighlightNode",
       "version": 1,
-      "children": false,
-      "keepsState": true,
+      "order": [
+        "highlightType",
+        "detail",
+        "format",
+        "mode",
+        "style",
+        "text",
+        "type",
+        "version",
+        "$"
+      ],
       "fields": {
         "detail": {
           "kind": "aliased",
@@ -687,8 +753,17 @@
       "type": "collapsible-container",
       "className": "CollapsibleContainerNode",
       "version": 1,
-      "children": true,
-      "keepsState": false,
+      "order": [
+        "children",
+        "direction",
+        "format",
+        "indent",
+        "textFormat",
+        "textStyle",
+        "type",
+        "version",
+        "open"
+      ],
       "fields": {
         "direction": {
           "kind": "unread",
@@ -751,8 +826,16 @@
       "type": "collapsible-content",
       "className": "CollapsibleContentNode",
       "version": 1,
-      "children": true,
-      "keepsState": false,
+      "order": [
+        "children",
+        "direction",
+        "format",
+        "indent",
+        "textFormat",
+        "textStyle",
+        "type",
+        "version"
+      ],
       "fields": {
         "direction": {
           "kind": "unread",
@@ -812,8 +895,16 @@
       "type": "collapsible-title",
       "className": "CollapsibleTitleNode",
       "version": 1,
-      "children": true,
-      "keepsState": false,
+      "order": [
+        "children",
+        "direction",
+        "format",
+        "indent",
+        "textFormat",
+        "textStyle",
+        "type",
+        "version"
+      ],
       "fields": {
         "direction": {
           "kind": "unread",
@@ -873,8 +964,15 @@
       "type": "comment",
       "className": "CommentNode",
       "version": 1,
-      "children": true,
-      "keepsState": false,
+      "order": [
+        "type",
+        "version",
+        "comment",
+        "format",
+        "indent",
+        "direction",
+        "children"
+      ],
       "fields": {
         "comment": {
           "kind": "raw",
@@ -940,8 +1038,16 @@
       "type": "emoji",
       "className": "EmojiNode",
       "version": 1,
-      "children": false,
-      "keepsState": false,
+      "order": [
+        "detail",
+        "format",
+        "mode",
+        "style",
+        "text",
+        "type",
+        "version",
+        "className"
+      ],
       "fields": {
         "className": {
           "kind": "raw"
@@ -1005,8 +1111,12 @@
       "type": "equation",
       "className": "EquationNode",
       "version": 1,
-      "children": false,
-      "keepsState": false,
+      "order": [
+        "equation",
+        "inline",
+        "type",
+        "version"
+      ],
       "fields": {
         "equation": {
           "kind": "raw",
@@ -1023,8 +1133,14 @@
       "type": "excalidraw",
       "className": "ExcalidrawNode",
       "version": 1,
-      "children": false,
-      "keepsState": true,
+      "order": [
+        "data",
+        "height",
+        "type",
+        "version",
+        "width",
+        "$"
+      ],
       "fields": {
         "data": {
           "kind": "raw",
@@ -1050,13 +1166,6 @@
             "shape": {
               "kind": "object",
               "fields": {
-                "caption": {
-                  "kind": "optional",
-                  "inner": {
-                    "kind": "string",
-                    "default": ""
-                  }
-                },
                 "width": {
                   "kind": "optional",
                   "inner": {
@@ -1066,6 +1175,13 @@
                       "kind": "string",
                       "default": ""
                     }
+                  }
+                },
+                "caption": {
+                  "kind": "optional",
+                  "inner": {
+                    "kind": "string",
+                    "default": ""
                   }
                 }
               },
@@ -1084,11 +1200,11 @@
               "inner": {
                 "kind": "object",
                 "fields": {
-                  "height": {
+                  "width": {
                     "kind": "number",
                     "default": 0
                   },
-                  "width": {
+                  "height": {
                     "kind": "number",
                     "default": 0
                   }
@@ -1108,8 +1224,13 @@
       "type": "figma",
       "className": "FigmaNode",
       "version": 1,
-      "children": false,
-      "keepsState": true,
+      "order": [
+        "format",
+        "type",
+        "version",
+        "$",
+        "documentID"
+      ],
       "fields": {
         "documentID": {
           "kind": "raw"
@@ -1139,13 +1260,6 @@
             "shape": {
               "kind": "object",
               "fields": {
-                "caption": {
-                  "kind": "optional",
-                  "inner": {
-                    "kind": "string",
-                    "default": ""
-                  }
-                },
                 "width": {
                   "kind": "optional",
                   "inner": {
@@ -1155,6 +1269,13 @@
                       "kind": "string",
                       "default": ""
                     }
+                  }
+                },
+                "caption": {
+                  "kind": "optional",
+                  "inner": {
+                    "kind": "string",
+                    "default": ""
                   }
                 }
               },
@@ -1169,8 +1290,18 @@
       "type": "footnote-definition",
       "className": "FootnoteDefinitionNode",
       "version": 1,
-      "children": true,
-      "keepsState": true,
+      "order": [
+        "children",
+        "direction",
+        "format",
+        "indent",
+        "textFormat",
+        "textStyle",
+        "type",
+        "version",
+        "$",
+        "label"
+      ],
       "fields": {
         "direction": {
           "kind": "enum",
@@ -1227,8 +1358,12 @@
       "type": "footnote-reference",
       "className": "FootnoteReferenceNode",
       "version": 1,
-      "children": false,
-      "keepsState": true,
+      "order": [
+        "type",
+        "version",
+        "$",
+        "label"
+      ],
       "fields": {
         "label": {
           "kind": "raw"
@@ -1240,8 +1375,16 @@
       "type": "hashtag",
       "className": "HashtagNode",
       "version": 1,
-      "children": false,
-      "keepsState": true,
+      "order": [
+        "detail",
+        "format",
+        "mode",
+        "style",
+        "text",
+        "type",
+        "version",
+        "$"
+      ],
       "fields": {
         "detail": {
           "kind": "aliased",
@@ -1300,8 +1443,18 @@
       "type": "heading",
       "className": "HeadingNode",
       "version": 1,
-      "children": true,
-      "keepsState": true,
+      "order": [
+        "children",
+        "tag",
+        "direction",
+        "format",
+        "indent",
+        "textFormat",
+        "textStyle",
+        "type",
+        "version",
+        "$"
+      ],
       "fields": {
         "direction": {
           "kind": "enum",
@@ -1366,8 +1519,11 @@
       "type": "horizontalrule",
       "className": "HorizontalRuleNode",
       "version": 1,
-      "children": false,
-      "keepsState": true,
+      "order": [
+        "type",
+        "version",
+        "$"
+      ],
       "fields": {},
       "state": {}
     },
@@ -1375,8 +1531,18 @@
       "type": "image",
       "className": "ImageNode",
       "version": 1,
-      "children": false,
-      "keepsState": true,
+      "order": [
+        "altText",
+        "caption",
+        "height",
+        "maxWidth",
+        "showCaption",
+        "src",
+        "type",
+        "version",
+        "width",
+        "$"
+      ],
       "fields": {
         "altText": {
           "kind": "raw"
@@ -1400,6 +1566,18 @@
                   }
                 }
               },
+              "nestedEditor": [
+                "artificial",
+                "emoji",
+                "hashtag",
+                "keyword",
+                "linebreak",
+                "link",
+                "paragraph",
+                "root",
+                "tab",
+                "text"
+              ],
               "default": {
                 "root": {
                   "children": [],
@@ -1465,13 +1643,6 @@
             "shape": {
               "kind": "object",
               "fields": {
-                "caption": {
-                  "kind": "optional",
-                  "inner": {
-                    "kind": "string",
-                    "default": ""
-                  }
-                },
                 "width": {
                   "kind": "optional",
                   "inner": {
@@ -1481,6 +1652,13 @@
                       "kind": "string",
                       "default": ""
                     }
+                  }
+                },
+                "caption": {
+                  "kind": "optional",
+                  "inner": {
+                    "kind": "string",
+                    "default": ""
                   }
                 }
               },
@@ -1499,11 +1677,11 @@
               "inner": {
                 "kind": "object",
                 "fields": {
-                  "height": {
+                  "width": {
                     "kind": "number",
                     "default": 0
                   },
-                  "width": {
+                  "height": {
                     "kind": "number",
                     "default": 0
                   }
@@ -1523,8 +1701,18 @@
       "type": "inline-image",
       "className": "InlineImageNode",
       "version": 1,
-      "children": false,
-      "keepsState": false,
+      "order": [
+        "altText",
+        "caption",
+        "height",
+        "position",
+        "showCaption",
+        "src",
+        "type",
+        "captionsEnabled",
+        "version",
+        "width"
+      ],
       "fields": {
         "altText": {
           "kind": "raw"
@@ -1548,6 +1736,18 @@
                   }
                 }
               },
+              "nestedEditor": [
+                "artificial",
+                "emoji",
+                "hashtag",
+                "keyword",
+                "linebreak",
+                "link",
+                "paragraph",
+                "root",
+                "tab",
+                "text"
+              ],
               "default": {
                 "root": {
                   "children": [],
@@ -1615,8 +1815,15 @@
       "type": "keyword",
       "className": "KeywordNode",
       "version": 1,
-      "children": false,
-      "keepsState": false,
+      "order": [
+        "detail",
+        "format",
+        "mode",
+        "style",
+        "text",
+        "type",
+        "version"
+      ],
       "fields": {
         "detail": {
           "kind": "aliased",
@@ -1677,8 +1884,18 @@
       "type": "layout-container",
       "className": "LayoutContainerNode",
       "version": 1,
-      "children": true,
-      "keepsState": true,
+      "order": [
+        "children",
+        "direction",
+        "format",
+        "indent",
+        "textFormat",
+        "textStyle",
+        "type",
+        "version",
+        "$",
+        "templateColumns"
+      ],
       "fields": {
         "direction": {
           "kind": "enum",
@@ -1736,13 +1953,6 @@
             "shape": {
               "kind": "object",
               "fields": {
-                "caption": {
-                  "kind": "optional",
-                  "inner": {
-                    "kind": "string",
-                    "default": ""
-                  }
-                },
                 "width": {
                   "kind": "optional",
                   "inner": {
@@ -1752,6 +1962,13 @@
                       "kind": "string",
                       "default": ""
                     }
+                  }
+                },
+                "caption": {
+                  "kind": "optional",
+                  "inner": {
+                    "kind": "string",
+                    "default": ""
                   }
                 }
               },
@@ -1766,8 +1983,16 @@
       "type": "layout-item",
       "className": "LayoutItemNode",
       "version": 1,
-      "children": true,
-      "keepsState": false,
+      "order": [
+        "children",
+        "direction",
+        "format",
+        "indent",
+        "textFormat",
+        "textStyle",
+        "type",
+        "version"
+      ],
       "fields": {
         "direction": {
           "kind": "unread",
@@ -1827,8 +2052,11 @@
       "type": "linebreak",
       "className": "LineBreakNode",
       "version": 1,
-      "children": false,
-      "keepsState": true,
+      "order": [
+        "type",
+        "version",
+        "$"
+      ],
       "fields": {},
       "state": {}
     },
@@ -1836,8 +2064,21 @@
       "type": "link",
       "className": "LinkNode",
       "version": 1,
-      "children": true,
-      "keepsState": true,
+      "order": [
+        "children",
+        "rel",
+        "target",
+        "title",
+        "url",
+        "direction",
+        "format",
+        "indent",
+        "textFormat",
+        "textStyle",
+        "type",
+        "version",
+        "$"
+      ],
       "fields": {
         "direction": {
           "kind": "enum",
@@ -1921,8 +2162,20 @@
       "type": "list",
       "className": "ListNode",
       "version": 1,
-      "children": true,
-      "keepsState": true,
+      "order": [
+        "children",
+        "listType",
+        "start",
+        "tag",
+        "direction",
+        "format",
+        "indent",
+        "textFormat",
+        "textStyle",
+        "type",
+        "version",
+        "$"
+      ],
       "fields": {
         "direction": {
           "kind": "enum",
@@ -2004,8 +2257,19 @@
       "type": "listitem",
       "className": "ListItemNode",
       "version": 1,
-      "children": true,
-      "keepsState": true,
+      "order": [
+        "children",
+        "checked",
+        "indent",
+        "value",
+        "direction",
+        "format",
+        "textFormat",
+        "textStyle",
+        "type",
+        "version",
+        "$"
+      ],
       "fields": {
         "checked": {
           "kind": "optional",
@@ -2071,8 +2335,18 @@
       "type": "mark",
       "className": "MarkNode",
       "version": 1,
-      "children": true,
-      "keepsState": true,
+      "order": [
+        "children",
+        "ids",
+        "direction",
+        "format",
+        "indent",
+        "textFormat",
+        "textStyle",
+        "type",
+        "version",
+        "$"
+      ],
       "fields": {
         "direction": {
           "kind": "enum",
@@ -2133,8 +2407,16 @@
       "type": "mention",
       "className": "MentionNode",
       "version": 1,
-      "children": false,
-      "keepsState": false,
+      "order": [
+        "detail",
+        "format",
+        "mode",
+        "style",
+        "text",
+        "type",
+        "version",
+        "mentionName"
+      ],
       "fields": {
         "detail": {
           "kind": "aliased",
@@ -2197,8 +2479,14 @@
       "type": "mermaid",
       "className": "MermaidNode",
       "version": 1,
-      "children": false,
-      "keepsState": true,
+      "order": [
+        "type",
+        "version",
+        "schema",
+        "width",
+        "height",
+        "$"
+      ],
       "fields": {
         "height": {
           "kind": "transform",
@@ -2231,13 +2519,6 @@
             "shape": {
               "kind": "object",
               "fields": {
-                "caption": {
-                  "kind": "optional",
-                  "inner": {
-                    "kind": "string",
-                    "default": ""
-                  }
-                },
                 "width": {
                   "kind": "optional",
                   "inner": {
@@ -2247,6 +2528,13 @@
                       "kind": "string",
                       "default": ""
                     }
+                  }
+                },
+                "caption": {
+                  "kind": "optional",
+                  "inner": {
+                    "kind": "string",
+                    "default": ""
                   }
                 }
               },
@@ -2265,11 +2553,11 @@
               "inner": {
                 "kind": "object",
                 "fields": {
-                  "height": {
+                  "width": {
                     "kind": "number",
                     "default": 0
                   },
-                  "width": {
+                  "height": {
                     "kind": "number",
                     "default": 0
                   }
@@ -2289,8 +2577,10 @@
       "type": "page-break",
       "className": "PageBreakNode",
       "version": 1,
-      "children": false,
-      "keepsState": false,
+      "order": [
+        "type",
+        "version"
+      ],
       "fields": {},
       "state": {}
     },
@@ -2298,8 +2588,17 @@
       "type": "paragraph",
       "className": "ParagraphNode",
       "version": 1,
-      "children": true,
-      "keepsState": true,
+      "order": [
+        "children",
+        "direction",
+        "format",
+        "indent",
+        "textFormat",
+        "textStyle",
+        "type",
+        "version",
+        "$"
+      ],
       "fields": {
         "direction": {
           "kind": "enum",
@@ -2344,8 +2643,12 @@
       "type": "poll",
       "className": "PollNode",
       "version": 1,
-      "children": false,
-      "keepsState": false,
+      "order": [
+        "options",
+        "question",
+        "type",
+        "version"
+      ],
       "fields": {
         "options": {
           "kind": "raw",
@@ -2391,8 +2694,18 @@
       "type": "quote",
       "className": "QuoteNode",
       "version": 1,
-      "children": true,
-      "keepsState": true,
+      "order": [
+        "children",
+        "direction",
+        "format",
+        "indent",
+        "textFormat",
+        "textStyle",
+        "type",
+        "version",
+        "shadowRoot",
+        "$"
+      ],
       "fields": {
         "direction": {
           "kind": "enum",
@@ -2453,8 +2766,17 @@
       "type": "root",
       "className": "RootNode",
       "version": 1,
-      "children": true,
-      "keepsState": true,
+      "order": [
+        "children",
+        "direction",
+        "format",
+        "indent",
+        "textFormat",
+        "textStyle",
+        "type",
+        "version",
+        "$"
+      ],
       "fields": {
         "direction": {
           "kind": "enum",
@@ -2507,8 +2829,11 @@
       "type": "slide-deck",
       "className": "SlideNode",
       "version": 1,
-      "children": false,
-      "keepsState": false,
+      "order": [
+        "type",
+        "version",
+        "data"
+      ],
       "fields": {
         "data": {
           "kind": "raw",
@@ -2516,6 +2841,374 @@
           "shape": {
             "kind": "object",
             "fields": {
+              "slides": {
+                "kind": "array",
+                "item": {
+                  "kind": "object",
+                  "fields": {
+                    "id": {
+                      "kind": "string",
+                      "default": ""
+                    },
+                    "elements": {
+                      "kind": "array",
+                      "item": {
+                        "kind": "union",
+                        "members": [
+                          {
+                            "kind": "object",
+                            "fields": {
+                              "kind": {
+                                "kind": "enum",
+                                "values": [
+                                  "box"
+                                ],
+                                "default": "box"
+                              },
+                              "id": {
+                                "kind": "string",
+                                "default": ""
+                              },
+                              "x": {
+                                "kind": "number",
+                                "default": 0
+                              },
+                              "y": {
+                                "kind": "number",
+                                "default": 0
+                              },
+                              "width": {
+                                "kind": "union",
+                                "members": [
+                                  {
+                                    "kind": "number",
+                                    "default": 0
+                                  },
+                                  {
+                                    "kind": "enum",
+                                    "values": [
+                                      "inherit"
+                                    ],
+                                    "default": "inherit"
+                                  }
+                                ]
+                              },
+                              "height": {
+                                "kind": "union",
+                                "members": [
+                                  {
+                                    "kind": "number",
+                                    "default": 0
+                                  },
+                                  {
+                                    "kind": "enum",
+                                    "values": [
+                                      "inherit"
+                                    ],
+                                    "default": "inherit"
+                                  }
+                                ]
+                              },
+                              "version": {
+                                "kind": "optional",
+                                "inner": {
+                                  "kind": "number",
+                                  "default": 0
+                                }
+                              },
+                              "zIndex": {
+                                "kind": "number",
+                                "default": 0
+                              },
+                              "editorStateJSON": {
+                                "kind": "raw"
+                              },
+                              "backgroundColor": {
+                                "kind": "optional",
+                                "inner": {
+                                  "kind": "string",
+                                  "default": ""
+                                }
+                              }
+                            },
+                            "open": true,
+                            "default": {
+                              "kind": "box",
+                              "id": "",
+                              "x": 0,
+                              "y": 0,
+                              "zIndex": 0
+                            }
+                          },
+                          {
+                            "kind": "object",
+                            "fields": {
+                              "kind": {
+                                "kind": "enum",
+                                "values": [
+                                  "image"
+                                ],
+                                "default": "image"
+                              },
+                              "id": {
+                                "kind": "string",
+                                "default": ""
+                              },
+                              "x": {
+                                "kind": "number",
+                                "default": 0
+                              },
+                              "y": {
+                                "kind": "number",
+                                "default": 0
+                              },
+                              "width": {
+                                "kind": "union",
+                                "members": [
+                                  {
+                                    "kind": "number",
+                                    "default": 0
+                                  },
+                                  {
+                                    "kind": "enum",
+                                    "values": [
+                                      "inherit"
+                                    ],
+                                    "default": "inherit"
+                                  }
+                                ]
+                              },
+                              "height": {
+                                "kind": "union",
+                                "members": [
+                                  {
+                                    "kind": "number",
+                                    "default": 0
+                                  },
+                                  {
+                                    "kind": "enum",
+                                    "values": [
+                                      "inherit"
+                                    ],
+                                    "default": "inherit"
+                                  }
+                                ]
+                              },
+                              "version": {
+                                "kind": "optional",
+                                "inner": {
+                                  "kind": "number",
+                                  "default": 0
+                                }
+                              },
+                              "zIndex": {
+                                "kind": "number",
+                                "default": 0
+                              },
+                              "url": {
+                                "kind": "string",
+                                "default": ""
+                              }
+                            },
+                            "open": true,
+                            "default": {
+                              "kind": "image",
+                              "id": "",
+                              "x": 0,
+                              "y": 0,
+                              "zIndex": 0,
+                              "url": ""
+                            }
+                          },
+                          {
+                            "kind": "object",
+                            "fields": {
+                              "kind": {
+                                "kind": "enum",
+                                "values": [
+                                  "chart"
+                                ],
+                                "default": "chart"
+                              },
+                              "id": {
+                                "kind": "string",
+                                "default": ""
+                              },
+                              "x": {
+                                "kind": "number",
+                                "default": 0
+                              },
+                              "y": {
+                                "kind": "number",
+                                "default": 0
+                              },
+                              "width": {
+                                "kind": "union",
+                                "members": [
+                                  {
+                                    "kind": "number",
+                                    "default": 0
+                                  },
+                                  {
+                                    "kind": "enum",
+                                    "values": [
+                                      "inherit"
+                                    ],
+                                    "default": "inherit"
+                                  }
+                                ]
+                              },
+                              "height": {
+                                "kind": "union",
+                                "members": [
+                                  {
+                                    "kind": "number",
+                                    "default": 0
+                                  },
+                                  {
+                                    "kind": "enum",
+                                    "values": [
+                                      "inherit"
+                                    ],
+                                    "default": "inherit"
+                                  }
+                                ]
+                              },
+                              "version": {
+                                "kind": "optional",
+                                "inner": {
+                                  "kind": "number",
+                                  "default": 0
+                                }
+                              },
+                              "zIndex": {
+                                "kind": "number",
+                                "default": 0
+                              },
+                              "chartType": {
+                                "kind": "enum",
+                                "values": [
+                                  "bar",
+                                  "line",
+                                  "area",
+                                  "pie",
+                                  "radar",
+                                  "scatter",
+                                  "composed"
+                                ],
+                                "default": "bar"
+                              },
+                              "chartData": {
+                                "kind": "string",
+                                "default": ""
+                              },
+                              "chartConfig": {
+                                "kind": "string",
+                                "default": ""
+                              }
+                            },
+                            "open": true,
+                            "default": {
+                              "kind": "chart",
+                              "id": "",
+                              "x": 0,
+                              "y": 0,
+                              "zIndex": 0,
+                              "chartType": "bar",
+                              "chartData": "",
+                              "chartConfig": ""
+                            }
+                          }
+                        ]
+                      },
+                      "default": []
+                    },
+                    "backgroundColor": {
+                      "kind": "optional",
+                      "inner": {
+                        "kind": "string",
+                        "default": ""
+                      }
+                    },
+                    "slideMetadata": {
+                      "kind": "optional",
+                      "inner": {
+                        "kind": "object",
+                        "fields": {
+                          "purpose": {
+                            "kind": "optional",
+                            "inner": {
+                              "kind": "string",
+                              "default": ""
+                            }
+                          },
+                          "storyboardTitle": {
+                            "kind": "optional",
+                            "inner": {
+                              "kind": "string",
+                              "default": ""
+                            }
+                          },
+                          "keyMessage": {
+                            "kind": "optional",
+                            "inner": {
+                              "kind": "string",
+                              "default": ""
+                            }
+                          },
+                          "keyVisualHint": {
+                            "kind": "optional",
+                            "inner": {
+                              "kind": "string",
+                              "default": ""
+                            }
+                          },
+                          "takeAwayMessage": {
+                            "kind": "optional",
+                            "inner": {
+                              "kind": "string",
+                              "default": ""
+                            }
+                          },
+                          "layoutTemplateHint": {
+                            "kind": "optional",
+                            "inner": {
+                              "kind": "string",
+                              "default": ""
+                            }
+                          },
+                          "speakerNotes": {
+                            "kind": "optional",
+                            "inner": {
+                              "kind": "string",
+                              "default": ""
+                            }
+                          },
+                          "sourceMaterialRefs": {
+                            "kind": "optional",
+                            "inner": {
+                              "kind": "array",
+                              "item": {
+                                "kind": "string",
+                                "default": ""
+                              },
+                              "default": []
+                            }
+                          }
+                        },
+                        "open": true,
+                        "default": {}
+                      }
+                    }
+                  },
+                  "open": true,
+                  "default": {
+                    "id": "",
+                    "elements": []
+                  }
+                },
+                "default": []
+              },
               "currentSlideId": {
                 "kind": "nullable",
                 "inner": {
@@ -2529,13 +3222,6 @@
                 "inner": {
                   "kind": "object",
                   "fields": {
-                    "audiencePersonaSummary": {
-                      "kind": "optional",
-                      "inner": {
-                        "kind": "string",
-                        "default": ""
-                      }
-                    },
                     "bigIdea": {
                       "kind": "optional",
                       "inner": {
@@ -2543,7 +3229,7 @@
                         "default": ""
                       }
                     },
-                    "originalUserPrompt": {
+                    "audiencePersonaSummary": {
                       "kind": "optional",
                       "inner": {
                         "kind": "string",
@@ -2564,14 +3250,21 @@
                         "default": ""
                       }
                     },
-                    "targetDurationMinutes": {
+                    "originalUserPrompt": {
+                      "kind": "optional",
+                      "inner": {
+                        "kind": "string",
+                        "default": ""
+                      }
+                    },
+                    "targetSlideCount": {
                       "kind": "optional",
                       "inner": {
                         "kind": "number",
                         "default": 0
                       }
                     },
-                    "targetSlideCount": {
+                    "targetDurationMinutes": {
                       "kind": "optional",
                       "inner": {
                         "kind": "number",
@@ -2583,18 +3276,18 @@
                       "inner": {
                         "kind": "object",
                         "fields": {
+                          "templateName": {
+                            "kind": "optional",
+                            "inner": {
+                              "kind": "string",
+                              "default": ""
+                            }
+                          },
                           "colorPalette": {
                             "kind": "optional",
                             "inner": {
                               "kind": "object",
                               "fields": {
-                                "accent": {
-                                  "kind": "optional",
-                                  "inner": {
-                                    "kind": "string",
-                                    "default": ""
-                                  }
-                                },
                                 "primary": {
                                   "kind": "optional",
                                   "inner": {
@@ -2609,14 +3302,14 @@
                                     "default": ""
                                   }
                                 },
-                                "slideBackground": {
+                                "accent": {
                                   "kind": "optional",
                                   "inner": {
                                     "kind": "string",
                                     "default": ""
                                   }
                                 },
-                                "textBody": {
+                                "slideBackground": {
                                   "kind": "optional",
                                   "inner": {
                                     "kind": "string",
@@ -2629,17 +3322,17 @@
                                     "kind": "string",
                                     "default": ""
                                   }
+                                },
+                                "textBody": {
+                                  "kind": "optional",
+                                  "inner": {
+                                    "kind": "string",
+                                    "default": ""
+                                  }
                                 }
                               },
                               "open": true,
                               "default": {}
-                            }
-                          },
-                          "customTokens": {
-                            "kind": "optional",
-                            "inner": {
-                              "kind": "string",
-                              "default": ""
                             }
                           },
                           "fonts": {
@@ -2647,6 +3340,13 @@
                             "inner": {
                               "kind": "object",
                               "fields": {
+                                "heading": {
+                                  "kind": "optional",
+                                  "inner": {
+                                    "kind": "string",
+                                    "default": ""
+                                  }
+                                },
                                 "body": {
                                   "kind": "optional",
                                   "inner": {
@@ -2655,13 +3355,6 @@
                                   }
                                 },
                                 "caption": {
-                                  "kind": "optional",
-                                  "inner": {
-                                    "kind": "string",
-                                    "default": ""
-                                  }
-                                },
-                                "heading": {
                                   "kind": "optional",
                                   "inner": {
                                     "kind": "string",
@@ -2680,7 +3373,7 @@
                               "default": ""
                             }
                           },
-                          "templateName": {
+                          "customTokens": {
                             "kind": "optional",
                             "inner": {
                               "kind": "string",
@@ -2696,374 +3389,6 @@
                   "open": true,
                   "default": {}
                 }
-              },
-              "slides": {
-                "kind": "array",
-                "item": {
-                  "kind": "object",
-                  "fields": {
-                    "backgroundColor": {
-                      "kind": "optional",
-                      "inner": {
-                        "kind": "string",
-                        "default": ""
-                      }
-                    },
-                    "elements": {
-                      "kind": "array",
-                      "item": {
-                        "kind": "union",
-                        "members": [
-                          {
-                            "kind": "object",
-                            "fields": {
-                              "backgroundColor": {
-                                "kind": "optional",
-                                "inner": {
-                                  "kind": "string",
-                                  "default": ""
-                                }
-                              },
-                              "editorStateJSON": {
-                                "kind": "raw"
-                              },
-                              "height": {
-                                "kind": "union",
-                                "members": [
-                                  {
-                                    "kind": "number",
-                                    "default": 0
-                                  },
-                                  {
-                                    "kind": "enum",
-                                    "values": [
-                                      "inherit"
-                                    ],
-                                    "default": "inherit"
-                                  }
-                                ]
-                              },
-                              "id": {
-                                "kind": "string",
-                                "default": ""
-                              },
-                              "kind": {
-                                "kind": "enum",
-                                "values": [
-                                  "box"
-                                ],
-                                "default": "box"
-                              },
-                              "version": {
-                                "kind": "optional",
-                                "inner": {
-                                  "kind": "number",
-                                  "default": 0
-                                }
-                              },
-                              "width": {
-                                "kind": "union",
-                                "members": [
-                                  {
-                                    "kind": "number",
-                                    "default": 0
-                                  },
-                                  {
-                                    "kind": "enum",
-                                    "values": [
-                                      "inherit"
-                                    ],
-                                    "default": "inherit"
-                                  }
-                                ]
-                              },
-                              "x": {
-                                "kind": "number",
-                                "default": 0
-                              },
-                              "y": {
-                                "kind": "number",
-                                "default": 0
-                              },
-                              "zIndex": {
-                                "kind": "number",
-                                "default": 0
-                              }
-                            },
-                            "open": true,
-                            "default": {
-                              "kind": "box",
-                              "id": "",
-                              "x": 0,
-                              "y": 0,
-                              "zIndex": 0
-                            }
-                          },
-                          {
-                            "kind": "object",
-                            "fields": {
-                              "height": {
-                                "kind": "union",
-                                "members": [
-                                  {
-                                    "kind": "number",
-                                    "default": 0
-                                  },
-                                  {
-                                    "kind": "enum",
-                                    "values": [
-                                      "inherit"
-                                    ],
-                                    "default": "inherit"
-                                  }
-                                ]
-                              },
-                              "id": {
-                                "kind": "string",
-                                "default": ""
-                              },
-                              "kind": {
-                                "kind": "enum",
-                                "values": [
-                                  "image"
-                                ],
-                                "default": "image"
-                              },
-                              "url": {
-                                "kind": "string",
-                                "default": ""
-                              },
-                              "version": {
-                                "kind": "optional",
-                                "inner": {
-                                  "kind": "number",
-                                  "default": 0
-                                }
-                              },
-                              "width": {
-                                "kind": "union",
-                                "members": [
-                                  {
-                                    "kind": "number",
-                                    "default": 0
-                                  },
-                                  {
-                                    "kind": "enum",
-                                    "values": [
-                                      "inherit"
-                                    ],
-                                    "default": "inherit"
-                                  }
-                                ]
-                              },
-                              "x": {
-                                "kind": "number",
-                                "default": 0
-                              },
-                              "y": {
-                                "kind": "number",
-                                "default": 0
-                              },
-                              "zIndex": {
-                                "kind": "number",
-                                "default": 0
-                              }
-                            },
-                            "open": true,
-                            "default": {
-                              "kind": "image",
-                              "id": "",
-                              "x": 0,
-                              "y": 0,
-                              "zIndex": 0,
-                              "url": ""
-                            }
-                          },
-                          {
-                            "kind": "object",
-                            "fields": {
-                              "chartConfig": {
-                                "kind": "string",
-                                "default": ""
-                              },
-                              "chartData": {
-                                "kind": "string",
-                                "default": ""
-                              },
-                              "chartType": {
-                                "kind": "enum",
-                                "values": [
-                                  "bar",
-                                  "line",
-                                  "area",
-                                  "pie",
-                                  "radar",
-                                  "scatter",
-                                  "composed"
-                                ],
-                                "default": "bar"
-                              },
-                              "height": {
-                                "kind": "union",
-                                "members": [
-                                  {
-                                    "kind": "number",
-                                    "default": 0
-                                  },
-                                  {
-                                    "kind": "enum",
-                                    "values": [
-                                      "inherit"
-                                    ],
-                                    "default": "inherit"
-                                  }
-                                ]
-                              },
-                              "id": {
-                                "kind": "string",
-                                "default": ""
-                              },
-                              "kind": {
-                                "kind": "enum",
-                                "values": [
-                                  "chart"
-                                ],
-                                "default": "chart"
-                              },
-                              "version": {
-                                "kind": "optional",
-                                "inner": {
-                                  "kind": "number",
-                                  "default": 0
-                                }
-                              },
-                              "width": {
-                                "kind": "union",
-                                "members": [
-                                  {
-                                    "kind": "number",
-                                    "default": 0
-                                  },
-                                  {
-                                    "kind": "enum",
-                                    "values": [
-                                      "inherit"
-                                    ],
-                                    "default": "inherit"
-                                  }
-                                ]
-                              },
-                              "x": {
-                                "kind": "number",
-                                "default": 0
-                              },
-                              "y": {
-                                "kind": "number",
-                                "default": 0
-                              },
-                              "zIndex": {
-                                "kind": "number",
-                                "default": 0
-                              }
-                            },
-                            "open": true,
-                            "default": {
-                              "kind": "chart",
-                              "id": "",
-                              "x": 0,
-                              "y": 0,
-                              "zIndex": 0,
-                              "chartType": "bar",
-                              "chartData": "",
-                              "chartConfig": ""
-                            }
-                          }
-                        ]
-                      },
-                      "default": []
-                    },
-                    "id": {
-                      "kind": "string",
-                      "default": ""
-                    },
-                    "slideMetadata": {
-                      "kind": "optional",
-                      "inner": {
-                        "kind": "object",
-                        "fields": {
-                          "keyMessage": {
-                            "kind": "optional",
-                            "inner": {
-                              "kind": "string",
-                              "default": ""
-                            }
-                          },
-                          "keyVisualHint": {
-                            "kind": "optional",
-                            "inner": {
-                              "kind": "string",
-                              "default": ""
-                            }
-                          },
-                          "layoutTemplateHint": {
-                            "kind": "optional",
-                            "inner": {
-                              "kind": "string",
-                              "default": ""
-                            }
-                          },
-                          "purpose": {
-                            "kind": "optional",
-                            "inner": {
-                              "kind": "string",
-                              "default": ""
-                            }
-                          },
-                          "sourceMaterialRefs": {
-                            "kind": "optional",
-                            "inner": {
-                              "kind": "array",
-                              "item": {
-                                "kind": "string",
-                                "default": ""
-                              },
-                              "default": []
-                            }
-                          },
-                          "speakerNotes": {
-                            "kind": "optional",
-                            "inner": {
-                              "kind": "string",
-                              "default": ""
-                            }
-                          },
-                          "storyboardTitle": {
-                            "kind": "optional",
-                            "inner": {
-                              "kind": "string",
-                              "default": ""
-                            }
-                          },
-                          "takeAwayMessage": {
-                            "kind": "optional",
-                            "inner": {
-                              "kind": "string",
-                              "default": ""
-                            }
-                          }
-                        },
-                        "open": true,
-                        "default": {}
-                      }
-                    }
-                  },
-                  "open": true,
-                  "default": {
-                    "id": "",
-                    "elements": []
-                  }
-                },
-                "default": []
               }
             },
             "open": true,
@@ -3133,8 +3458,14 @@
       "type": "sticky",
       "className": "StickyNode",
       "version": 1,
-      "children": false,
-      "keepsState": false,
+      "order": [
+        "caption",
+        "color",
+        "type",
+        "version",
+        "xOffset",
+        "yOffset"
+      ],
       "fields": {
         "caption": {
           "kind": "object",
@@ -3155,6 +3486,57 @@
                   }
                 }
               },
+              "nestedEditor": [
+                "article",
+                "artificial",
+                "autocomplete",
+                "autolink",
+                "callout",
+                "chart",
+                "code",
+                "code-highlight",
+                "collapsible-container",
+                "collapsible-content",
+                "collapsible-title",
+                "comment",
+                "emoji",
+                "equation",
+                "excalidraw",
+                "figma",
+                "footnote-definition",
+                "footnote-reference",
+                "hashtag",
+                "heading",
+                "horizontalrule",
+                "image",
+                "inline-image",
+                "keyword",
+                "layout-container",
+                "layout-item",
+                "linebreak",
+                "link",
+                "list",
+                "listitem",
+                "mark",
+                "mention",
+                "mermaid",
+                "page-break",
+                "paragraph",
+                "poll",
+                "quote",
+                "root",
+                "slide-deck",
+                "sticky",
+                "tab",
+                "table",
+                "tablecell",
+                "tablerow",
+                "text",
+                "thread",
+                "tweet",
+                "video",
+                "youtube"
+              ],
               "default": {
                 "root": {
                   "children": [],
@@ -3210,8 +3592,16 @@
       "type": "tab",
       "className": "TabNode",
       "version": 1,
-      "children": false,
-      "keepsState": true,
+      "order": [
+        "detail",
+        "mode",
+        "text",
+        "format",
+        "style",
+        "type",
+        "version",
+        "$"
+      ],
       "fields": {
         "detail": {
           "kind": "number",
@@ -3260,8 +3650,21 @@
       "type": "table",
       "className": "TableNode",
       "version": 1,
-      "children": true,
-      "keepsState": true,
+      "order": [
+        "children",
+        "colWidths",
+        "frozenColumnCount",
+        "frozenRowCount",
+        "rowStriping",
+        "direction",
+        "format",
+        "indent",
+        "textFormat",
+        "textStyle",
+        "type",
+        "version",
+        "$"
+      ],
       "fields": {
         "colWidths": {
           "kind": "optional",
@@ -3349,8 +3752,23 @@
       "type": "tablecell",
       "className": "TableCellNode",
       "version": 1,
-      "children": true,
-      "keepsState": true,
+      "order": [
+        "children",
+        "backgroundColor",
+        "colSpan",
+        "headerState",
+        "rowSpan",
+        "verticalAlign",
+        "width",
+        "direction",
+        "format",
+        "indent",
+        "textFormat",
+        "textStyle",
+        "type",
+        "version",
+        "$"
+      ],
       "fields": {
         "backgroundColor": {
           "kind": "nullable",
@@ -3443,8 +3861,18 @@
       "type": "tablerow",
       "className": "TableRowNode",
       "version": 1,
-      "children": true,
-      "keepsState": true,
+      "order": [
+        "children",
+        "height",
+        "direction",
+        "format",
+        "indent",
+        "textFormat",
+        "textStyle",
+        "type",
+        "version",
+        "$"
+      ],
       "fields": {
         "direction": {
           "kind": "enum",
@@ -3504,8 +3932,16 @@
       "type": "text",
       "className": "TextNode",
       "version": 1,
-      "children": false,
-      "keepsState": true,
+      "order": [
+        "detail",
+        "format",
+        "mode",
+        "style",
+        "text",
+        "type",
+        "version",
+        "$"
+      ],
       "fields": {
         "detail": {
           "kind": "aliased",
@@ -3564,8 +4000,15 @@
       "type": "thread",
       "className": "ThreadNode",
       "version": 1,
-      "children": true,
-      "keepsState": false,
+      "order": [
+        "type",
+        "version",
+        "thread",
+        "format",
+        "indent",
+        "direction",
+        "children"
+      ],
       "fields": {
         "direction": {
           "kind": "enum",
@@ -3638,19 +4081,19 @@
                 "kind": "string",
                 "default": ""
               },
-              "resolved": {
-                "kind": "optional",
-                "inner": {
-                  "kind": "boolean",
-                  "default": false
-                }
-              },
               "type": {
                 "kind": "enum",
                 "values": [
                   "thread"
                 ],
                 "default": "thread"
+              },
+              "resolved": {
+                "kind": "optional",
+                "inner": {
+                  "kind": "boolean",
+                  "default": false
+                }
               }
             },
             "open": true,
@@ -3669,8 +4112,13 @@
       "type": "tweet",
       "className": "TweetNode",
       "version": 1,
-      "children": false,
-      "keepsState": true,
+      "order": [
+        "format",
+        "type",
+        "version",
+        "$",
+        "id"
+      ],
       "fields": {
         "format": {
           "kind": "raw",
@@ -3700,13 +4148,6 @@
             "shape": {
               "kind": "object",
               "fields": {
-                "caption": {
-                  "kind": "optional",
-                  "inner": {
-                    "kind": "string",
-                    "default": ""
-                  }
-                },
                 "width": {
                   "kind": "optional",
                   "inner": {
@@ -3716,6 +4157,13 @@
                       "kind": "string",
                       "default": ""
                     }
+                  }
+                },
+                "caption": {
+                  "kind": "optional",
+                  "inner": {
+                    "kind": "string",
+                    "default": ""
                   }
                 }
               },
@@ -3730,8 +4178,17 @@
       "type": "video",
       "className": "VideoNode",
       "version": 1,
-      "children": false,
-      "keepsState": true,
+      "order": [
+        "caption",
+        "height",
+        "src",
+        "type",
+        "version",
+        "width",
+        "showCaption",
+        "captionsEnabled",
+        "$"
+      ],
       "fields": {
         "caption": {
           "kind": "transform",
@@ -3739,6 +4196,57 @@
           "inner": {
             "kind": "raw"
           },
+          "nestedEditor": [
+            "article",
+            "artificial",
+            "autocomplete",
+            "autolink",
+            "callout",
+            "chart",
+            "code",
+            "code-highlight",
+            "collapsible-container",
+            "collapsible-content",
+            "collapsible-title",
+            "comment",
+            "emoji",
+            "equation",
+            "excalidraw",
+            "figma",
+            "footnote-definition",
+            "footnote-reference",
+            "hashtag",
+            "heading",
+            "horizontalrule",
+            "image",
+            "inline-image",
+            "keyword",
+            "layout-container",
+            "layout-item",
+            "linebreak",
+            "link",
+            "list",
+            "listitem",
+            "mark",
+            "mention",
+            "mermaid",
+            "page-break",
+            "paragraph",
+            "poll",
+            "quote",
+            "root",
+            "slide-deck",
+            "sticky",
+            "tab",
+            "table",
+            "tablecell",
+            "tablerow",
+            "text",
+            "thread",
+            "tweet",
+            "video",
+            "youtube"
+          ],
           "default": {
             "root": {
               "children": [
@@ -3805,13 +4313,6 @@
             "shape": {
               "kind": "object",
               "fields": {
-                "caption": {
-                  "kind": "optional",
-                  "inner": {
-                    "kind": "string",
-                    "default": ""
-                  }
-                },
                 "width": {
                   "kind": "optional",
                   "inner": {
@@ -3821,6 +4322,13 @@
                       "kind": "string",
                       "default": ""
                     }
+                  }
+                },
+                "caption": {
+                  "kind": "optional",
+                  "inner": {
+                    "kind": "string",
+                    "default": ""
                   }
                 }
               },
@@ -3835,8 +4343,15 @@
       "type": "youtube",
       "className": "YouTubeNode",
       "version": 1,
-      "children": false,
-      "keepsState": true,
+      "order": [
+        "format",
+        "type",
+        "version",
+        "$",
+        "videoID",
+        "width",
+        "height"
+      ],
       "fields": {
         "format": {
           "kind": "raw",
@@ -3882,13 +4397,6 @@
             "shape": {
               "kind": "object",
               "fields": {
-                "caption": {
-                  "kind": "optional",
-                  "inner": {
-                    "kind": "string",
-                    "default": ""
-                  }
-                },
                 "width": {
                   "kind": "optional",
                   "inner": {
@@ -3898,6 +4406,13 @@
                       "kind": "string",
                       "default": ""
                     }
+                  }
+                },
+                "caption": {
+                  "kind": "optional",
+                  "inner": {
+                    "kind": "string",
+                    "default": ""
                   }
                 }
               },

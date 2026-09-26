@@ -7,7 +7,6 @@ import {
   type ElementFormatType,
   type Klass,
   type LexicalNode,
-  type LexicalParseJSON,
   type NodeKey,
   nodeSchema,
   type Spread,
@@ -15,25 +14,31 @@ import {
 } from "lexical";
 import { type SchemaJSON, storedValue } from "../schema-values.js";
 import { figureDOM, figureState } from "../figure.js";
-import { inStoredOrder } from "../stored-order.js";
-import { storedBlockFields, withStoredBlockFormat } from "./stored-block.js";
+import {
+  type ImportJSON,
+  storedFields,
+  withStoredJSON,
+  written,
+} from "../stored-fields.js";
+import { storedBlockFields } from "./stored-block.js";
+
+const { fields: figmaFields, json: figmaJSON } = storedFields({
+  ...storedBlockFields,
+  type: written,
+  version: written,
+  $: written,
+  documentID: withField(storedValue<string>(), { field: "__id" }),
+});
 
 export type SerializedFigmaNode = Spread<
-  { documentID: string },
+  SchemaJSON<typeof figmaJSON>,
   SerializedDecoratorBlockNode
 >;
-
-const figmaFields = {
-  ...storedBlockFields,
-  documentID: withField(storedValue<string>(), { field: "__id" }),
-};
-
-/** @internal What {@link figmaFields} write, which {@link SerializedFigmaNode} is checked against. */
-export type FigmaFieldsJSON = SchemaJSON<typeof figmaFields>;
 
 const figmaSchema = nodeSchema<FigmaNode>()(figmaFields);
 
 export class FigmaNode extends DecoratorBlockNode {
+  declare static importJSON: ImportJSON<FigmaNode>;
   __id: string;
 
   $config() {
@@ -47,14 +52,6 @@ export class FigmaNode extends DecoratorBlockNode {
   constructor(id = "", format?: ElementFormatType, key?: NodeKey) {
     super(format, key);
     this.__id = id;
-  }
-
-  updateFromJSON(json: LexicalParseJSON<SerializedDecoratorBlockNode>): this {
-    return super.updateFromJSON(withStoredBlockFormat(json));
-  }
-
-  exportJSON(): SerializedDecoratorBlockNode {
-    return inStoredOrder(super.exportJSON(), ["documentID"]);
   }
 
   createDOM(): HTMLElement {
@@ -97,3 +94,5 @@ export class FigmaNode extends DecoratorBlockNode {
     return node instanceof FigmaNode;
   }
 }
+
+withStoredJSON(FigmaNode);

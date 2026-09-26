@@ -10,7 +10,6 @@ import {
   enumValue,
   type Klass,
   type LexicalNode,
-  type LexicalParseJSON,
   type NodeKey,
   nodeSchema,
   nullable,
@@ -28,12 +27,12 @@ import {
   shapedAs,
   storedValue,
 } from "../schema-values.js";
-import { inStoredOrder, withoutNodeState } from "../stored-order.js";
-
-export type SerializedArticleNode = Spread<
-  { data: ArticleNodeData },
-  SerializedDecoratorBlockNode
->;
+import {
+  type ImportJSON,
+  storedFields,
+  withStoredJSON,
+  written,
+} from "../stored-fields.js";
 
 const optionalText = () => optional(nullable(stringValue()));
 
@@ -73,15 +72,19 @@ const articleDataShape = unionValue([
   }),
 ]);
 
-const articleFields = {
+const { fields: articleFields, json: articleJSON } = storedFields({
   format: withField(emptyOrStored<ElementFormatType>(), { field: "__format" }),
+  type: written,
+  version: written,
   data: withField(shapedAs(articleDataShape, storedValue<ArticleNodeData>()), {
     field: "__data",
   }),
-};
+});
 
-/** @internal What {@link articleFields} write, which {@link SerializedArticleNode} is checked against. */
-export type ArticleFieldsJSON = SchemaJSON<typeof articleFields>;
+export type SerializedArticleNode = Spread<
+  SchemaJSON<typeof articleJSON>,
+  SerializedDecoratorBlockNode
+>;
 
 const articleSchema = nodeSchema<ArticleNode>()(articleFields);
 
@@ -89,6 +92,7 @@ const articleSchema = nodeSchema<ArticleNode>()(articleFields);
  * Serialization half of the article block; see ImageNode for the split.
  */
 export class ArticleNode extends DecoratorBlockNode {
+  declare static importJSON: ImportJSON<ArticleNode>;
   __data: ArticleNodeData;
 
   $config() {
@@ -105,14 +109,6 @@ export class ArticleNode extends DecoratorBlockNode {
   ) {
     super(format, key);
     this.__data = data;
-  }
-
-  exportJSON(): SerializedDecoratorBlockNode {
-    return inStoredOrder(super.exportJSON(), ["data"]);
-  }
-
-  updateFromJSON(json: LexicalParseJSON<SerializedArticleNode>): this {
-    return super.updateFromJSON(withoutNodeState(json));
   }
 
   exportDOM(): DOMExportOutput {
@@ -148,3 +144,5 @@ export class ArticleNode extends DecoratorBlockNode {
     w.__data = next;
   }
 }
+
+withStoredJSON(ArticleNode);

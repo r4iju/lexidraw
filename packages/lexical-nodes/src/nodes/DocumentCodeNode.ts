@@ -1,4 +1,4 @@
-import { CodeNode, type SerializedCodeNode } from "@lexical/code";
+import { CodeNode } from "@lexical/code";
 import {
   type EditorConfig,
   enumValue,
@@ -10,9 +10,15 @@ import {
   withField,
 } from "lexical";
 import { namedTransform, rawValueOr } from "../schema-values.js";
-import { inStoredOrder } from "../stored-order.js";
+import {
+  type ImportJSON,
+  storedFields,
+  withStoredJSON,
+  written,
+} from "../stored-fields.js";
 
-const documentCodeSchema = nodeSchema<DocumentCodeNode>()({
+const { fields: documentCodeFields } = storedFields({
+  children: written,
   // CodeNode's schema reads a language as a string or null, where its setter
   // then holds an empty one, or null, as none.
   language: withAccessors(
@@ -25,6 +31,14 @@ const documentCodeSchema = nodeSchema<DocumentCodeNode>()({
     ),
     { getter: { field: "__language" }, setter: "setLanguage" },
   ),
+  direction: written,
+  format: written,
+  indent: written,
+  textFormat: written,
+  textStyle: written,
+  type: written,
+  version: written,
+  $: written,
   showLineNumbers: withField(rawValueOr(false, { nullAsAbsent: true }), {
     field: "__showLineNumbers",
   }),
@@ -36,7 +50,10 @@ const documentCodeSchema = nodeSchema<DocumentCodeNode>()({
   }),
 });
 
+const documentCodeSchema = nodeSchema<DocumentCodeNode>()(documentCodeFields);
+
 export class DocumentCodeNode extends CodeNode {
+  declare static importJSON: ImportJSON<DocumentCodeNode>;
   /** CodeNode's constructor and setter both store a language as `|| undefined`. */
   declare __language: string | undefined;
   __showLineNumbers = false;
@@ -49,11 +66,6 @@ export class DocumentCodeNode extends CodeNode {
   }
   getThemeJSON(): undefined {
     return undefined;
-  }
-  /** Lexical writes the absent theme as an undefined key, which code never had. */
-  exportJSON(): SerializedCodeNode {
-    const { theme: _theme, ...json } = super.exportJSON();
-    return inStoredOrder(json, ["showLineNumbers"]);
   }
   getTheme() {
     return "none";
@@ -95,3 +107,5 @@ export class DocumentCodeNode extends CodeNode {
     return false;
   }
 }
+
+withStoredJSON(DocumentCodeNode);

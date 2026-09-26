@@ -22,18 +22,20 @@ extension EditorState {
     if let children = node.children {
       fields["children"] = .array(children.map(json(of:)))
     }
-    return .object(fields)
+    guard let payload = node.payload.payload else { return .object(fields) }
+    return .object(fields.ordered(by: type(of: payload).keyOrder))
   }
 
   /// An element's text format and style are what new text in it takes. A
-  /// paragraph always writes them, from its first text where it has one;
-  /// another block writes them only where it has no text to take them from.
-  private func writeTextStyles(of node: Node, into fields: inout [String: JSONValue]) {
+  /// paragraph writes its first text's, where it has one, as that text holds
+  /// them, and leaves out any the text doesn't hold; another block writes
+  /// them only where it has no text to take them from.
+  private func writeTextStyles(of node: Node, into fields: inout JSONObject) {
     let firstText = node.children?.lazy.map { self[$0] }.first(where: \.isText)?.payload.json
     if node.type == "paragraph" {
       if let firstText {
-        fields["textFormat"] = firstText["format"] ?? 0
-        fields["textStyle"] = firstText["style"] ?? ""
+        fields["textFormat"] = firstText["format"]
+        fields["textStyle"] = firstText["style"]
       }
       return
     }

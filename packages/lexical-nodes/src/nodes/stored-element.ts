@@ -1,5 +1,16 @@
 import { enumValue, numberValue, stringValue, withAccessors } from "lexical";
 import { writtenOnly } from "../schema-values.js";
+import { storedFields, written } from "../stored-fields.js";
+
+/** Where an element writes its children and what ElementNode declares. */
+export const writtenElementFields = {
+  children: written,
+  direction: written,
+  format: written,
+  indent: written,
+  textFormat: written,
+  textStyle: written,
+} as const;
 
 /**
  * ElementNode's properties for the elements that write them but never read
@@ -40,3 +51,15 @@ export const unreadElementFields = {
     setter: null,
   }),
 };
+
+/**
+ * The fields of an element that writes {@link unreadElementFields} and
+ * nothing of its own.
+ * @internal
+ */
+export const { fields: unreadElementOnlyFields } = storedFields({
+  children: written,
+  ...unreadElementFields,
+  type: written,
+  version: written,
+});

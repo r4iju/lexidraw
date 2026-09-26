@@ -13,6 +13,12 @@ import {
   withField,
 } from "lexical";
 import { type SchemaJSON, shapedAs, storedValue } from "../schema-values.js";
+import {
+  type ImportJSON,
+  storedFields,
+  withStoredJSON,
+  written,
+} from "../stored-fields.js";
 import { type Comment, commentShape } from "./CommentNode.js";
 import { MarkerNode, type SerializedMarkerNode } from "./MarkerNode.js";
 
@@ -25,11 +31,6 @@ export type Thread = {
   resolved?: boolean;
 };
 
-export type SerializedThreadNode = Spread<
-  { type: "thread"; version: 1; thread: Thread },
-  SerializedMarkerNode
->;
-
 /** A thread with nothing in it, which a marker made from nothing holds. */
 const EMPTY_THREAD: Thread = {
   comments: [],
@@ -38,7 +39,9 @@ const EMPTY_THREAD: Thread = {
   type: "thread",
 };
 
-const threadFields = {
+const { fields: threadFields, json: threadJSON } = storedFields({
+  type: written,
+  version: written,
   thread: withField(
     shapedAs(
       objectValue({
@@ -52,10 +55,16 @@ const threadFields = {
     ),
     { field: "__thread" },
   ),
-};
+  format: written,
+  indent: written,
+  direction: written,
+  children: written,
+});
 
-/** @internal What {@link threadFields} write, which {@link SerializedThreadNode} is checked against. */
-export type ThreadFieldsJSON = SchemaJSON<typeof threadFields>;
+export type SerializedThreadNode = Spread<
+  SchemaJSON<typeof threadJSON>,
+  SerializedMarkerNode
+>;
 
 const threadSchema = nodeSchema<ThreadNode>()(threadFields);
 
@@ -63,6 +72,7 @@ const threadSchema = nodeSchema<ThreadNode>()(threadFields);
  * Serialization half of the comment thread marker; see ImageNode for the split.
  */
 export class ThreadNode extends MarkerNode {
+  declare static importJSON: ImportJSON<ThreadNode>;
   __thread: Thread;
 
   constructor(thread: Thread = EMPTY_THREAD, key?: NodeKey) {
@@ -100,3 +110,5 @@ export class ThreadNode extends MarkerNode {
     return node?.getType?.() === "thread";
   };
 }
+
+withStoredJSON(ThreadNode);

@@ -6,11 +6,16 @@ public protocol NodePayload: JSONCodable, Equatable, Sendable {
   static var type: String { get }
   /// What Lexical writes as `version`.
   static var version: Int { get }
-  /// Properties the schema doesn't declare, written back as read.
-  var unknownFields: [String: JSONValue] { get set }
+  /// Every key Lexical writes for the node, in the order it writes them.
+  static var keyOrder: [String] { get }
+  /// Properties the schema doesn't declare, written back as read after the
+  /// ones it does.
+  var unknownFields: JSONObject { get set }
   /// As Lexical holds the node once read: fields left out take their
-  /// defaults, and node state at its default is left out.
-  func resolved() -> Self
+  /// defaults, down through the objects they hold, node state at its default
+  /// is left out, and an editor state the node reads into an editor of its
+  /// own is as that editor saves it.
+  func asLoaded() -> Self
 }
 
 /// A node whose JSON lists children: every element, and the few decorators
@@ -23,7 +28,7 @@ public protocol ParentNodePayload: NodePayload {
 /// Like a payload, it keeps absent properties absent and undeclared ones as
 /// they were read.
 public protocol ObjectPayload: JSONCodable, Equatable, Sendable {
-  var unknownFields: [String: JSONValue] { get set }
+  var unknownFields: JSONObject { get set }
 }
 
 /// What reading a declared object as Lexical does takes.
@@ -33,7 +38,11 @@ protocol DeclaredObject: ObjectPayload {
   /// What Lexical reads a value that isn't an object as.
   static var defaultValue: Self { get }
   static var fieldFits: [String: @Sendable (JSONValue) -> Fit] { get }
-  init(_ object: [String: JSONValue])
+  /// Its keys in the order Lexical declares them.
+  static var keyOrder: [String] { get }
+  init(_ object: JSONObject)
+  /// As Lexical holds it once read, as a node's `asLoaded` is.
+  func asLoaded() -> Self
 }
 
 extension DeclaredObject {
@@ -74,12 +83,14 @@ public struct NodeTraits: Equatable, Sendable {
 
   public enum Trait: Equatable, Sendable {
     case fixed(Bool)
+    /// The property it follows, which a stored node can hold as any value:
+    /// Lexical tests what it returns as JavaScript tests a condition.
     case field(String)
 
     public func value(in json: JSONValue) -> Bool {
       switch self {
       case .fixed(let value): value
-      case .field(let key): json[key] == .bool(true)
+      case .field(let key): json[key]?.isTruthy ?? false
       }
     }
   }
@@ -107,9 +118,21 @@ public struct NodePayloadError: Error, CustomStringConvertible {
   public let description: String
 }
 
+/// The order keys were read in, where Lexical writes them back in that order.
+/// Lexical's own equality doesn't see it, so neither does this.
+public struct StoredOrder: Equatable, Sendable {
+  var keys: [String]
+
+  init(_ keys: [String] = []) {
+    self.keys = keys
+  }
+
+  public static func == (_: StoredOrder, _: StoredOrder) -> Bool { true }
+}
+
 /// A node's properties while its payload reads them off or writes them back.
 struct NodeFields {
-  private(set) var rest: [String: JSONValue]
+  private(set) var rest: JSONObject
 
   init(reading json: JSONValue, as type: String) throws {
     guard case .object(let object) = json, object["type"] == .string(type) else {
@@ -117,22 +140,26 @@ struct NodeFields {
     }
     rest = object
     rest["type"] = nil
+    rest["version"] = nil
   }
 
-  /// Lexical writes a node's `version` whatever was stored.
-  init(writing type: String, version: Int, over unknownFields: [String: JSONValue]) {
+  /// Every node declares `version`, and Lexical writes its own whatever was
+  /// stored.
+  init(writing type: String, version: Int, over unknownFields: JSONObject) {
     rest = unknownFields
     rest["type"] = .string(type)
     rest["version"] = .number(Double(version))
   }
 
-  init(_ object: [String: JSONValue]) {
+  init(_ object: JSONObject) {
     rest = object
   }
 
-  init(over unknownFields: [String: JSONValue]) {
+  init(over unknownFields: JSONObject) {
     rest = unknownFields
   }
+
+  var keys: [String] { rest.keys }
 
   /// Whether the node holds NodeState as Lexical tells: `$` is truthy.
   var holdsState: Bool { rest["$"]?.isTruthy ?? false }
@@ -142,14 +169,13 @@ struct NodeFields {
   /// has any. It's written only where it holds some.
   mutating func spreadState() {
     guard let state = rest["$"] else { return }
-    let spread: [String: JSONValue] =
+    let spread: JSONObject =
       switch state {
       case .object(let object): object
-      case .array(let items):
-        Dictionary(uniqueKeysWithValues: items.enumerated().map { (String($0.offset), $0.element) })
+      case .array(let items): JSONObject(items.enumerated().map { (String($0.offset), $0.element) })
       case .string(let string):
-        Dictionary(
-          uniqueKeysWithValues: string.utf16.enumerated().map {
+        JSONObject(
+          string.utf16.enumerated().map {
             (String($0.offset), .string(String(decoding: [$0.element], as: UTF16.self)))
           })
       default: [:]
@@ -168,6 +194,14 @@ struct NodeFields {
   /// Puts back what `takeState` took, where there is any.
   mutating func putState(_ state: NodeFields) {
     if !state.rest.isEmpty { rest["$"] = .object(state.rest) }
+  }
+
+  /// Puts back what `takeState` took, as Lexical writes NodeState: the state
+  /// it doesn't declare first, then what it declares, `known`, in the order
+  /// it was read in.
+  mutating func putState(_ state: NodeFields, after known: [String], in order: StoredOrder) {
+    let undeclared = state.rest.keys.filter { !known.contains($0) }
+    putState(NodeFields(state.rest.ordered(by: undeclared + order.keys + known)))
   }
 
   mutating func take<Value>(_ key: String, _ schema: FieldSchema<Value>) -> Value? {
@@ -221,5 +255,6 @@ struct NodeFields {
     if let children { rest["children"] = .array(children.map(\.json)) }
   }
 
-  var json: JSONValue { .object(rest) }
+  /// The fields, with the keys `order` lists first.
+  func json(in order: [String]) -> JSONValue { .object(rest.ordered(by: order)) }
 }

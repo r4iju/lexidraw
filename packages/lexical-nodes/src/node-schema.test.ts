@@ -6,6 +6,7 @@ import {
   DecoratorNode,
   ElementNode,
   numberValue,
+  objectValue,
   type SerializedElementNode,
   type SerializedLexicalNode,
 } from "lexical";
@@ -17,11 +18,36 @@ import {
 } from "./node-schema.js";
 import { SCHEMA_NODES } from "./nodes.js";
 import { namedTransform } from "./schema-values.js";
+import {
+  EVERY_NODE_URL,
+  STORED_BYTES_URL,
+  type StoredCase,
+} from "./stored-fixtures.js";
 
 const schema = exportNodeSchema(SCHEMA_NODES);
 
 function node(type: string) {
   return described(schema, type);
+}
+
+type WrittenNode = { type: string } & Record<string, unknown>;
+
+/**
+ * `node` and every node under it: its children, and the root of an editor
+ * nested in one of its fields, as a caption is.
+ */
+function nodesIn(node: WrittenNode): WrittenNode[] {
+  const nested = Object.values(node).flatMap((value) => {
+    if (typeof value !== "object" || value === null) return [];
+    const editor = "editorState" in value ? value.editorState : value;
+    return typeof editor === "object" && editor !== null && "root" in editor
+      ? [editor.root as WrittenNode]
+      : [];
+  });
+  const children = Array.isArray(node.children)
+    ? (node.children as WrittenNode[])
+    : [];
+  return [node, ...[...children, ...nested].flatMap(nodesIn)];
 }
 
 function described(exported: NodeSchema, type: string) {
@@ -119,7 +145,7 @@ test("describes the light custom nodes' figures and threads", () => {
       fields: { width: { kind: "optional", inner: { name: "figureWidth" } } },
     },
   });
-  expect(node("thread")?.children).toBe(true);
+  expect(node("thread")?.order).toContain("children");
 });
 
 test("an object in a value kept as stored keeps the keys it doesn't declare", () => {
@@ -206,11 +232,83 @@ test("describes a property written as the node holds it but never read", () => {
   });
 });
 
-test("says which nodes keep the NodeState they were read with", () => {
-  expect(node("paragraph")?.keepsState).toBe(true);
-  expect(node("image")?.keepsState).toBe(true);
-  expect(node("emoji")?.keepsState).toBe(false);
-  expect(node("slide-deck")?.keepsState).toBe(false);
+test("lists each node's keys in the order it writes them", () => {
+  expect(node("paragraph")?.order).toEqual([
+    "children",
+    "direction",
+    "format",
+    "indent",
+    "textFormat",
+    "textStyle",
+    "type",
+    "version",
+    "$",
+  ]);
+  expect(node("emoji")?.order).toEqual([
+    "detail",
+    "format",
+    "mode",
+    "style",
+    "text",
+    "type",
+    "version",
+    "className",
+  ]);
+});
+
+test("every node the web saved has its keys in that order", async () => {
+  const cases: StoredCase[] = await Bun.file(STORED_BYTES_URL).json();
+  const saved = cases.flatMap(({ node, output, threw }) =>
+    threw ? [] : (output ?? [node]),
+  );
+  const editor = createHeadlessEditor({ nodes: SCHEMA_NODES });
+  editor.setEditorState(
+    editor.parseEditorState(await Bun.file(EVERY_NODE_URL).text()),
+  );
+  const outOfOrder = [...saved, editor.getEditorState().toJSON().root].flatMap(
+    (json) =>
+      nodesIn(json).flatMap((written) => {
+        const order = node(written.type)?.order ?? [];
+        const keys = Object.keys(written);
+        const placed = order.filter((key) => keys.includes(key));
+        return placed.length === keys.length &&
+          placed.every((key, index) => key === keys[index])
+          ? []
+          : [`${written.type}: ${keys.join(", ")}`];
+      }),
+  );
+
+  expect(saved.length).toBeGreaterThan(4000);
+  expect(outOfOrder).toEqual([]);
+});
+
+test("says which nodes keep the NodeState they were read with, by placing it", () => {
+  expect(node("paragraph")?.order).toContain("$");
+  expect(node("image")?.order).toContain("$");
+  expect(node("emoji")?.order).not.toContain("$");
+  expect(node("slide-deck")?.order).not.toContain("$");
+});
+
+test("lists an object's fields in the order Lexical writes them", () => {
+  const pointState = createState("point", {
+    parse: objectValue({ y: numberValue(), x: numberValue() }),
+  });
+  class PointNode extends DecoratorNode<null> {
+    $config() {
+      return this.config("point", {
+        extends: DecoratorNode,
+        stateConfigs: [pointState],
+      });
+    }
+    decorate() {
+      return null;
+    }
+  }
+  const point = described(exportNodeSchema([PointNode]), "point")?.state.point;
+
+  expect(
+    point?.value.kind === "object" && Object.keys(point.value.fields),
+  ).toEqual(["y", "x"]);
 });
 
 test("names the transform a value is read through, down in nested state", () => {
@@ -243,6 +341,41 @@ test("names the transform a value is read through, down in nested state", () => 
   });
 });
 
+test("says which node types an editor nested in a field reads, as the node makes that editor", () => {
+  const nestedIn = (type: string, path: string[]) =>
+    path.reduce<unknown>(
+      (at, key) => (at as Record<string, unknown>)[key],
+      node(type)?.fields,
+    ) as { nestedEditor?: string[] };
+  const imageCaption = nestedIn("image", ["caption", "fields", "editorState"]);
+  const stickyCaption = nestedIn("sticky", [
+    "caption",
+    "fields",
+    "editorState",
+  ]);
+
+  const everyType = [
+    ...createHeadlessEditor({ nodes: SCHEMA_NODES })._nodes.keys(),
+  ].sort();
+
+  expect(imageCaption.nestedEditor).toEqual([
+    "artificial",
+    "emoji",
+    "hashtag",
+    "keyword",
+    "linebreak",
+    "link",
+    "paragraph",
+    "root",
+    "tab",
+    "text",
+  ]);
+  // Made without a config, as the document's editor reads it, an editor
+  // takes that editor's nodes.
+  expect(stickyCaption.nestedEditor).toEqual(everyType);
+  expect(nestedIn("video", ["caption"]).nestedEditor).toEqual(everyType);
+});
+
 test("says a node has children when it writes a list of them, even one always empty", () => {
   class MarkerNode extends DecoratorNode<null> {
     $config() {
@@ -256,9 +389,12 @@ test("says a node has children when it writes a list of them, even one always em
     }
   }
 
-  expect(described(exportNodeSchema([MarkerNode]), "marker")?.children).toBe(
-    true,
-  );
+  expect(described(exportNodeSchema([MarkerNode]), "marker")?.order).toEqual([
+    "type",
+    "version",
+    "$",
+    "children",
+  ]);
 });
 
 test("says how every registered node sits in a document, and which field decides it where one does", () => {

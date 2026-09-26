@@ -17,24 +17,28 @@ import {
   withField,
 } from "lexical";
 import { type SchemaJSON, storedValue } from "../schema-values.js";
-import { inStoredOrder } from "../stored-order.js";
+import {
+  type ImportJSON,
+  storedFields,
+  withStoredJSON,
+  written,
+} from "../stored-fields.js";
+import { writtenElementFields } from "./stored-element.js";
 
 /** The fragment ids a footnote and its first marker link to each other by. */
 export const footnoteId = (label: string) => `fn-${label}`;
 export const footnoteReferenceId = (label: string) => `fnref-${label}`;
 
-export type SerializedFootnoteReferenceNode = Spread<
-  { label: string },
-  SerializedLexicalNode
->;
-
-const footnoteReferenceFields = {
+const { fields: footnoteReferenceFields, json: footnoteReferenceJSON } = storedFields({
+  type: written,
+  version: written,
+  $: written,
   label: withField(storedValue<string>(), { field: "__label" }),
-};
+});
 
-/** @internal What {@link footnoteReferenceFields} write, which {@link SerializedFootnoteReferenceNode} is checked against. */
-export type FootnoteReferenceFieldsJSON = SchemaJSON<
-  typeof footnoteReferenceFields
+export type SerializedFootnoteReferenceNode = Spread<
+  SchemaJSON<typeof footnoteReferenceJSON>,
+  SerializedLexicalNode
 >;
 
 const footnoteReferenceSchema = nodeSchema<FootnoteReferenceNode>()(
@@ -47,6 +51,7 @@ const footnoteReferenceSchema = nodeSchema<FootnoteReferenceNode>()(
  * notes, which the editor's subclass works out.
  */
 export class FootnoteReferenceNode extends DecoratorNode<unknown> {
+  declare static importJSON: ImportJSON<FootnoteReferenceNode>;
   __label: string;
 
   $config() {
@@ -59,10 +64,6 @@ export class FootnoteReferenceNode extends DecoratorNode<unknown> {
   constructor(label = "", key?: NodeKey) {
     super(key);
     this.__label = label;
-  }
-
-  exportJSON(): SerializedLexicalNode {
-    return inStoredOrder(super.exportJSON(), ["label"]);
   }
 
   createDOM(): HTMLElement {
@@ -116,11 +117,6 @@ export class FootnoteReferenceNode extends DecoratorNode<unknown> {
   }
 }
 
-export type SerializedFootnoteDefinitionNode = Spread<
-  { label: string },
-  SerializedElementNode
->;
-
 /**
  * The note itself, `[^label]: text` in markdown. Its number is drawn by a
  * CSS counter over the notes, which sit together at the end of the document
@@ -147,13 +143,17 @@ function footnoteDOM(label: string) {
   return { root, body, back };
 }
 
-const footnoteDefinitionFields = {
+const { fields: footnoteDefinitionFields, json: footnoteDefinitionJSON } = storedFields({
+  ...writtenElementFields,
+  type: written,
+  version: written,
+  $: written,
   label: withField(stringValue(), { field: "__label" }),
-};
+});
 
-/** @internal What {@link footnoteDefinitionFields} write, which {@link SerializedFootnoteDefinitionNode} is checked against. */
-export type FootnoteDefinitionFieldsJSON = SchemaJSON<
-  typeof footnoteDefinitionFields
+export type SerializedFootnoteDefinitionNode = Spread<
+  SchemaJSON<typeof footnoteDefinitionJSON>,
+  SerializedElementNode
 >;
 
 const footnoteDefinitionSchema = nodeSchema<FootnoteDefinitionNode>()(
@@ -161,6 +161,7 @@ const footnoteDefinitionSchema = nodeSchema<FootnoteDefinitionNode>()(
 );
 
 export class FootnoteDefinitionNode extends ElementNode {
+  declare static importJSON: ImportJSON<FootnoteDefinitionNode>;
   __label: string;
 
   $config() {
@@ -173,10 +174,6 @@ export class FootnoteDefinitionNode extends ElementNode {
   constructor(label = "", key?: NodeKey) {
     super(key);
     this.__label = label;
-  }
-
-  exportJSON(): SerializedElementNode {
-    return inStoredOrder(super.exportJSON(), ["label"]);
   }
 
   createDOM(): HTMLElement {
@@ -275,3 +272,7 @@ export function $gatherFootnotes(): string[] {
   if (!inPlace && ordered.length > 0) root.append(...ordered);
   return missing;
 }
+
+withStoredJSON(FootnoteReferenceNode);
+
+withStoredJSON(FootnoteDefinitionNode);

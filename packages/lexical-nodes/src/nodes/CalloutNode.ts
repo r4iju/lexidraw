@@ -13,8 +13,14 @@ import {
   stringValue,
   withField,
 } from "lexical";
-import { inStoredOrder } from "../stored-order.js";
 import type { SchemaJSON } from "../schema-values.js";
+import {
+  type ImportJSON,
+  storedFields,
+  withStoredJSON,
+  written,
+} from "../stored-fields.js";
+import { writtenElementFields } from "./stored-element.js";
 
 /** GitHub's five alert kinds, the only ones a callout stores. */
 export const CALLOUT_KINDS = [
@@ -37,11 +43,6 @@ export const CALLOUT_LABELS: Record<CalloutKind, string> = {
 
 export const isCalloutKind = (value: unknown): value is CalloutKind =>
   CALLOUT_KINDS.includes(value as CalloutKind);
-
-export type SerializedCalloutNode = Spread<
-  { kind: CalloutKind; title: string },
-  SerializedElementNode
->;
 
 /**
  * The header is the node's own chrome, drawn beside the children rather than
@@ -82,17 +83,24 @@ function $convertCalloutElement(domNode: HTMLElement): DOMConversionOutput {
   };
 }
 
-const calloutFields = {
+const { fields: calloutFields, json: calloutJSON } = storedFields({
+  ...writtenElementFields,
+  type: written,
+  version: written,
+  $: written,
   kind: withField(enumValue(CALLOUT_KINDS), { field: "__kind" }),
   title: withField(stringValue(), { field: "__title" }),
-};
+});
 
-/** @internal What {@link calloutFields} write, which {@link SerializedCalloutNode} is checked against. */
-export type CalloutFieldsJSON = SchemaJSON<typeof calloutFields>;
+export type SerializedCalloutNode = Spread<
+  SchemaJSON<typeof calloutJSON>,
+  SerializedElementNode
+>;
 
 const calloutSchema = nodeSchema<CalloutNode>()(calloutFields);
 
 export class CalloutNode extends ElementNode {
+  declare static importJSON: ImportJSON<CalloutNode>;
   __kind: CalloutKind;
   __title: string;
 
@@ -100,10 +108,6 @@ export class CalloutNode extends ElementNode {
     super(key);
     this.__kind = kind;
     this.__title = title;
-  }
-
-  exportJSON(): SerializedElementNode {
-    return inStoredOrder(super.exportJSON(), ["kind", "title"]);
   }
 
   $config() {
@@ -191,3 +195,5 @@ export class CalloutNode extends ElementNode {
     return node instanceof CalloutNode;
   }
 }
+
+withStoredJSON(CalloutNode);

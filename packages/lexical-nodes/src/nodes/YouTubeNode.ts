@@ -10,7 +10,6 @@ import {
   type ElementFormatType,
   type Klass,
   type LexicalNode,
-  type LexicalParseJSON,
   type NodeKey,
   nodeSchema,
   type Spread,
@@ -18,19 +17,19 @@ import {
 } from "lexical";
 import { type SchemaJSON, storedValue } from "../schema-values.js";
 import { figureDOM, figureState } from "../figure.js";
-import { inStoredOrder } from "../stored-order.js";
-import { storedBlockFields, withStoredBlockFormat } from "./stored-block.js";
+import {
+  type ImportJSON,
+  storedFields,
+  withStoredJSON,
+  written,
+} from "../stored-fields.js";
+import { storedBlockFields } from "./stored-block.js";
 import {
   type Size,
   type StoredSizeAccessors,
   storedSizeFields,
   withStoredSize,
 } from "./stored-size.js";
-
-export type SerializedYouTubeNode = Spread<
-  { videoID: string; width: number; height: number },
-  SerializedDecoratorBlockNode
->;
 
 function $convertYoutubeElement(
   domNode: HTMLElement,
@@ -47,14 +46,19 @@ function $convertYoutubeElement(
   return null;
 }
 
-const youTubeFields = {
+const { fields: youTubeFields, json: youTubeJSON } = storedFields({
   ...storedBlockFields,
+  type: written,
+  version: written,
+  $: written,
   videoID: withField(storedValue<string>(), { field: "__id" }),
   ...storedSizeFields,
-};
+});
 
-/** @internal What {@link youTubeFields} write, which {@link SerializedYouTubeNode} is checked against. */
-export type YouTubeFieldsJSON = SchemaJSON<typeof youTubeFields>;
+export type SerializedYouTubeNode = Spread<
+  SchemaJSON<typeof youTubeJSON>,
+  SerializedDecoratorBlockNode
+>;
 
 const youTubeSchema = nodeSchema<YouTubeNode>()(youTubeFields);
 
@@ -62,6 +66,7 @@ export interface YouTubeNode extends StoredSizeAccessors {}
 
 // biome-ignore lint/suspicious/noUnsafeDeclarationMerging: withStoredSize installs the accessors the interface declares.
 export class YouTubeNode extends DecoratorBlockNode {
+  declare static importJSON: ImportJSON<YouTubeNode>;
   __id: string;
   __width: Size;
   __height: Size;
@@ -79,14 +84,6 @@ export class YouTubeNode extends DecoratorBlockNode {
     this.__id = prevNode.__id;
     this.__width = prevNode.__width;
     this.__height = prevNode.__height;
-  }
-
-  updateFromJSON(json: LexicalParseJSON<SerializedDecoratorBlockNode>): this {
-    return super.updateFromJSON(withStoredBlockFormat(json));
-  }
-
-  exportJSON(): SerializedDecoratorBlockNode {
-    return inStoredOrder(super.exportJSON(), ["videoID", "width", "height"]);
   }
 
   constructor(
@@ -202,3 +199,5 @@ export class YouTubeNode extends DecoratorBlockNode {
 }
 
 withStoredSize(YouTubeNode);
+
+withStoredJSON(YouTubeNode);

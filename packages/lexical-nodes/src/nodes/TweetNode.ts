@@ -10,7 +10,6 @@ import {
   type ElementFormatType,
   type Klass,
   type LexicalNode,
-  type LexicalParseJSON,
   type NodeKey,
   nodeSchema,
   type Spread,
@@ -18,8 +17,13 @@ import {
 } from "lexical";
 import { type SchemaJSON, storedValue } from "../schema-values.js";
 import { figureDOM, figureState } from "../figure.js";
-import { inStoredOrder } from "../stored-order.js";
-import { storedBlockFields, withStoredBlockFormat } from "./stored-block.js";
+import {
+  type ImportJSON,
+  storedFields,
+  withStoredJSON,
+  written,
+} from "../stored-fields.js";
+import { storedBlockFields } from "./stored-block.js";
 
 function $convertTweetElement(
   domNode: HTMLDivElement,
@@ -32,22 +36,23 @@ function $convertTweetElement(
   return null;
 }
 
+const { fields: tweetFields, json: tweetJSON } = storedFields({
+  ...storedBlockFields,
+  type: written,
+  version: written,
+  $: written,
+  id: withField(storedValue<string>(), { field: "__id" }),
+});
+
 export type SerializedTweetNode = Spread<
-  { id: string },
+  SchemaJSON<typeof tweetJSON>,
   SerializedDecoratorBlockNode
 >;
-
-const tweetFields = {
-  ...storedBlockFields,
-  id: withField(storedValue<string>(), { field: "__id" }),
-};
-
-/** @internal What {@link tweetFields} write, which {@link SerializedTweetNode} is checked against. */
-export type TweetFieldsJSON = SchemaJSON<typeof tweetFields>;
 
 const tweetSchema = nodeSchema<TweetNode>()(tweetFields);
 
 export class TweetNode extends DecoratorBlockNode {
+  declare static importJSON: ImportJSON<TweetNode>;
   __id: string;
 
   $config() {
@@ -70,14 +75,6 @@ export class TweetNode extends DecoratorBlockNode {
         };
       },
     };
-  }
-
-  updateFromJSON(json: LexicalParseJSON<SerializedDecoratorBlockNode>): this {
-    return super.updateFromJSON(withStoredBlockFormat(json));
-  }
-
-  exportJSON(): SerializedDecoratorBlockNode {
-    return inStoredOrder(super.exportJSON(), ["id"]);
   }
 
   createDOM(): HTMLElement {
@@ -133,3 +130,5 @@ export class TweetNode extends DecoratorBlockNode {
     return node instanceof TweetNode;
   }
 }
+
+withStoredJSON(TweetNode);

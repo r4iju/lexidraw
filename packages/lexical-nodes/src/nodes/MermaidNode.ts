@@ -13,26 +13,31 @@ import {
 } from "lexical";
 import { figureDOM, figureState, naturalSizeState } from "../figure.js";
 import { rawValueOr, type SchemaJSON } from "../schema-values.js";
-import { inStoredOrder } from "../stored-order.js";
+import {
+  type ImportJSON,
+  storedFields,
+  withStoredJSON,
+  written,
+} from "../stored-fields.js";
 import { type Size, zeroAsInheritSize } from "./stored-size.js";
-
-/** Stored in the editor state */
-export type SerializedMermaidNode = Spread<
-  { type: "mermaid"; version: 1; schema: string; width: Size; height: Size },
-  SerializedLexicalNode
->;
 
 /** What a new diagram, or one stored without its source, draws. */
 const DEFAULT_SCHEMA = "graph TD;\n  A[Start] --> B>Stop]";
 
-const mermaidFields = {
+const { fields: mermaidFields, json: mermaidJSON } = storedFields({
+  type: written,
+  version: written,
   schema: withField(rawValueOr(DEFAULT_SCHEMA), { field: "__schema" }),
   width: withField(zeroAsInheritSize, { field: "__width" }),
   height: withField(zeroAsInheritSize, { field: "__height" }),
-};
+  $: written,
+});
 
-/** @internal What {@link mermaidFields} write, which {@link SerializedMermaidNode} is checked against. */
-export type MermaidFieldsJSON = SchemaJSON<typeof mermaidFields>;
+/** Stored in the editor state */
+export type SerializedMermaidNode = Spread<
+  SchemaJSON<typeof mermaidJSON>,
+  SerializedLexicalNode
+>;
 
 const mermaidSchema = nodeSchema<MermaidNode>()(mermaidFields);
 
@@ -40,6 +45,7 @@ const mermaidSchema = nodeSchema<MermaidNode>()(mermaidFields);
  * Serialization half of the mermaid block; see ImageNode for the split.
  */
 export class MermaidNode extends DecoratorNode<unknown> {
+  declare static importJSON: ImportJSON<MermaidNode>;
   __schema: string;
   __width: number | "inherit";
   __height: number | "inherit";
@@ -101,15 +107,6 @@ export class MermaidNode extends DecoratorNode<unknown> {
     return false;
   }
 
-  exportJSON(): SerializedLexicalNode {
-    return inStoredOrder(super.exportJSON(), [
-      "schema",
-      "width",
-      "height",
-      "$",
-    ]);
-  }
-
   createDOM(_config: EditorConfig): HTMLElement {
     const element = document.createElement("div");
     element.dataset.mediaType = "mermaid";
@@ -148,3 +145,5 @@ export class MermaidNode extends DecoratorNode<unknown> {
     return node instanceof MermaidNode;
   }
 }
+
+withStoredJSON(MermaidNode);

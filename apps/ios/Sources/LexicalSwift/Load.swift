@@ -9,10 +9,10 @@ extension Update {
       return create(.opaque(json), type: type, children: nil)
     }
     guard traits.kind == .element else {
-      return create(SerializedNode(json: json).resolved(), type: type, children: nil)
+      return create(SerializedNode(json: json).asLoaded(), type: type, children: nil)
     }
     let children = fields.removeValue(forKey: "children")?.arrayValue ?? []
-    let key = create(SerializedNode(json: .object(fields)).resolved(), type: type, children: [])
+    let key = create(SerializedNode(json: .object(fields)).asLoaded(), type: type, children: [])
     for child in children {
       try append(key, [parse(child)])
     }

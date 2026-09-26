@@ -75,7 +75,7 @@ struct Update {
   mutating func create(_ type: String) -> NodeKey {
     let traits = NodeTraits.byType[type] ?? .unregistered
     return create(
-      SerializedNode(json: ["type": .string(type)]).resolved(), type: type,
+      SerializedNode(json: ["type": .string(type)]).asLoaded(), type: type,
       children: traits.kind == .element ? [] : nil)
   }
 

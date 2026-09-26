@@ -54,7 +54,7 @@ enum Transforms {
   /// `nestedEditorState`: a state with something in its root, parsed first
   /// where it was stored as JSON text, or the empty editor's.
   static func nestedEditorState(_ value: JSONValue) -> JSONValue? {
-    let state = value.stringValue.flatMap { try? JSONDecoder().decode(JSONValue.self, from: Data($0.utf8)) } ?? value
+    let state = value.stringValue.flatMap { try? JSONValue(parsing: $0) } ?? value
     if holdsNodes(state) { return state }
     return ["root": ["children": [], "direction": nil, "format": "", "indent": 0, "type": "root", "version": 1]]
   }

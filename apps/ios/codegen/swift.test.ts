@@ -12,8 +12,7 @@ test("names each node's Swift type and case after its Lexical class", () => {
         type: "horizontalrule",
         className: "HorizontalRuleNode",
         version: 1,
-        children: false,
-        keepsState: true,
+        order: ["type", "version", "$"],
         fields: {},
         state: {},
       },
@@ -40,8 +39,7 @@ const marker = {
   type: "marker",
   className: "MarkerNode",
   version: 1,
-  children: true,
-  keepsState: true,
+  order: ["type", "version", "$", "children", "board", "note"],
   fields: {
     board: {
       kind: "object",
@@ -88,7 +86,7 @@ test("an object is a struct named after its field, which keeps the keys it doesn
   expect(swift).toContain("public struct Note: DeclaredObject {");
   expect(swift).toContain("  static let isOpen = true");
   expect(swift).toContain(
-    '  static let defaultValue = Self(["replies": [], "text": ""])',
+    '  static let defaultValue = Self(["text": "", "replies": []])',
   );
   expect(swift).toContain("  public var replies: [Replies]?");
   expect(swift).toContain("public struct Board: DeclaredObject {");
@@ -120,6 +118,64 @@ test("state nested under $ is read from there, beside the state it doesn't decla
   expect(swift).toContain("    var state = fields.takeState()");
   expect(swift).toContain('    figure = state.take("figure", Schema.figure)');
   expect(swift).toContain("    fields.putState(state)");
+});
+
+test("a node writes its keys in the order Lexical writes them, and the ones it doesn't declare after", () => {
+  const swift = swiftForNodeSchema({ nodes: [marker], traits: {} });
+
+  expect(swift).toContain(
+    '  public static let keyOrder: [String] = ["type", "version", "$", "children", "board", "note"]',
+  );
+  expect(swift).toContain("    return fields.json(in: Self.keyOrder)");
+});
+
+test("nested state is written back in the order it was read, after the state it doesn't declare, as Lexical does", () => {
+  const swift = swiftForNodeSchema({ nodes: [marker], traits: {} });
+
+  expect(swift).toContain("  var stateOrder = StoredOrder()");
+  expect(swift).toContain("    stateOrder = StoredOrder(state.keys)");
+  expect(swift).toContain(
+    '    fields.putState(state, after: ["figure"], in: stateOrder)',
+  );
+});
+
+test("an object kept as stored writes its keys as they were stored, and one Lexical reads in the order it declares", () => {
+  const swift = swiftForNodeSchema({ nodes: [marker], traits: {} });
+  const board = swift.slice(swift.indexOf("public struct Board"));
+  const note = swift.slice(swift.indexOf("public struct Note"));
+
+  expect(note).toContain(
+    '  static let keyOrder: [String] = ["text", "replies"]',
+  );
+  expect(note).toContain("    storedOrder = StoredOrder(object.keys)");
+  expect(note).toContain(
+    "    return fields.json(in: storedOrder.keys + Self.keyOrder)",
+  );
+  expect(board).toContain('  static let keyOrder: [String] = ["editorState"]');
+  expect(board).toContain("    return fields.json(in: Self.keyOrder)");
+});
+
+test("a payload with nothing to take off or put on its fields binds them with let", () => {
+  const swift = swiftForNodeSchema({
+    nodes: [
+      {
+        type: "break",
+        className: "BreakNode",
+        version: 1,
+        order: ["type", "version"],
+        fields: {},
+        state: {},
+      },
+    ],
+    traits: {},
+  });
+
+  expect(swift).toContain(
+    "    let fields = try NodeFields(reading: json, as: Self.type)",
+  );
+  expect(swift).toContain(
+    "    let fields = NodeFields(writing: Self.type, version: Self.version, over: unknownFields)",
+  );
 });
 
 test("state is left out where it is its default, as Lexical leaves it out", () => {
@@ -164,7 +220,9 @@ test("objects that share a name have to be the same object", () => {
     state: {},
   } satisfies NodeDescription;
 
-  expect(() => swiftForNodeSchema({ nodes: [marker, clash], traits: {} })).toThrow(/Note/);
+  expect(() =>
+    swiftForNodeSchema({ nodes: [marker, clash], traits: {} }),
+  ).toThrow(/Note/);
 });
 
 test("a field that can only be null is a Never that is null or absent", () => {
@@ -174,8 +232,7 @@ test("a field that can only be null is a Never that is null or absent", () => {
         type: "pin",
         className: "PinNode",
         version: 1,
-        children: false,
-        keepsState: true,
+        order: ["direction", "type", "version", "$"],
         fields: { direction: { kind: "enum", values: [null], default: null } },
         state: {},
       },
@@ -194,8 +251,7 @@ const sized = {
   type: "sized",
   className: "SizedNode",
   version: 1,
-  children: false,
-  keepsState: true,
+  order: ["size", "type", "version", "$"],
   fields: {
     size: {
       kind: "union",
@@ -269,15 +325,27 @@ test("an enum, a struct and a union can't share a name", () => {
     fields: { board: { kind: "enum", values: ["a", "b"], default: "a" } },
   } satisfies NodeDescription;
 
-  expect(() => swiftForNodeSchema({ nodes: [marker, board], traits: {} })).toThrow(/Board/);
+  expect(() =>
+    swiftForNodeSchema({ nodes: [marker, board], traits: {} }),
+  ).toThrow(/Board/);
 });
 
 const embed = {
   type: "embed",
   className: "EmbedNode",
   version: 2,
-  children: false,
-  keepsState: false,
+  order: [
+    "data",
+    "deck",
+    "detail",
+    "direction",
+    "format",
+    "height",
+    "notes",
+    "textFormat",
+    "type",
+    "version",
+  ],
   fields: {
     data: { kind: "raw", default: "[]", nullAsAbsent: true },
     deck: {
@@ -301,6 +369,18 @@ const embed = {
     direction: {
       kind: "unread",
       inner: { kind: "enum", values: [null, "ltr", "rtl"], default: null },
+    },
+    height: {
+      kind: "transform",
+      name: "storedSize",
+      inner: { kind: "raw" },
+      default: 0,
+    },
+    notes: {
+      kind: "transform",
+      name: "nestedEditorState",
+      inner: { kind: "raw" },
+      nestedEditor: ["paragraph", "root", "text"],
     },
     format: {
       kind: "raw",
@@ -347,10 +427,35 @@ test("a spelling read through a transform of a stored value is that value's JSON
   );
 });
 
+test("a transform reads absence as the default Lexical computes for it", () => {
+  const swift = swiftForNodeSchema({ nodes: [embed], traits: {} });
+
+  expect(swift).toContain(
+    "    static let height: FieldSchema<JSONValue> = .transform(.raw, Transforms.storedSize, default: 0)",
+  );
+});
+
+test("an editor state a node reads into an editor of its own is resolved as that editor saves it", () => {
+  const swift = swiftForNodeSchema({ nodes: [embed], traits: {} });
+
+  expect(swift).toContain(
+    '    static let notes: FieldSchema<JSONValue> = .savedByEditor(of: ["paragraph", "root", "text"], .transform(.raw, Transforms.nestedEditorState))',
+  );
+});
+
+test("an object resolves its fields as a node does", () => {
+  const swift = swiftForNodeSchema({ nodes: [marker], traits: {} });
+  const note = swift.slice(swift.indexOf("public struct Note"));
+
+  expect(note).toContain("  func asLoaded() -> Self {");
+  expect(note).toContain("    node.text = Schema.text.resolving(text)");
+});
+
 test("a value checked where the node holds NodeState reads through the check there", () => {
   const swift = swiftForNodeSchema({ nodes: [embed], traits: {} });
 
-  expect(swift).toContain("    let holdsState = fields.holdsState");
+  expect(swift).toContain("  var holdsState = false");
+  expect(swift).toContain("    holdsState = fields.holdsState");
   expect(swift).toContain(
     '    format = fields.take("format", holdsState ? Schema.formatWithState : Schema.format)',
   );
@@ -358,6 +463,14 @@ test("a value checked where the node holds NodeState reads through the check the
     "    static let formatWithState: FieldSchema<JSONValue> = .checked(.enumeration(default: ElementFormat.empty))",
   );
   expect(swift).toContain('    fields.put("format", format, Schema.format)');
+});
+
+test("a value checked where the node holds NodeState reads absence as the check's default there", () => {
+  const swift = swiftForNodeSchema({ nodes: [embed], traits: {} });
+
+  expect(swift).toContain(
+    "    node.format = (holdsState ? Schema.formatWithState : Schema.format).resolving(format)",
+  );
 });
 
 test("a property Lexical writes but never reads is read as its default, and left out where a gate keeps it out", () => {

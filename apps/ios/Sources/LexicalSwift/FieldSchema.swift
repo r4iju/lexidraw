@@ -10,6 +10,9 @@ struct FieldSchema<Value: Equatable & Sendable>: Sendable {
   let fit: @Sendable (JSONValue) -> Fit
   /// Whether it describes nothing: a raw value, or a wrapper of one.
   var isCatchAll = false
+  /// A value read as the node holding it has it once loaded, where that isn't
+  /// what reading gave.
+  var resolve: @Sendable (Value) -> Value = { $0 }
 }
 
 /// Lexical's measure of how well a schema fits a value (`$fitOf`): lower fits
@@ -154,7 +157,7 @@ extension FieldSchema {
       },
       write: { $0.map(inner.write) ?? .null },
       fit: { $0 == .null ? .whole : inner.fit($0) },
-      isCatchAll: inner.isCatchAll)
+      isCatchAll: inner.isCatchAll, resolve: { $0.map(inner.resolve) })
   }
 
   static func optional(_ inner: FieldSchema<Value>, omitDefault: Bool = false) -> Self {
@@ -164,7 +167,7 @@ extension FieldSchema {
         let value = inner.read(json)
         return omitDefault && value == inner.defaultValue ? nil : value
       },
-      write: inner.write, fit: inner.fit, isCatchAll: inner.isCatchAll)
+      write: inner.write, fit: inner.fit, isCatchAll: inner.isCatchAll, resolve: inner.resolve)
   }
 
   /// Older spellings of a value, read as the value they name.
@@ -174,7 +177,7 @@ extension FieldSchema {
       read: { json in json.stringValue.flatMap { aliases[$0] } ?? inner.read(json) },
       write: inner.write,
       fit: { json in json.stringValue.flatMap { aliases[$0] } != nil ? .whole : inner.fit(json) },
-      isCatchAll: inner.isCatchAll)
+      isCatchAll: inner.isCatchAll, resolve: inner.resolve)
   }
 
   static func array<Item>(_ item: FieldSchema<Item>) -> Self where Value == [Item] {
@@ -182,16 +185,21 @@ extension FieldSchema {
       defaultValue: [],
       read: { json in json.arrayValue?.compactMap(item.read) ?? [] },
       write: { .array($0.map(item.write)) },
-      fit: { json in json.arrayValue.map { .container($0.lazy.map(item.fit)) } ?? .none })
+      fit: { json in json.arrayValue.map { .container($0.lazy.map(item.fit)) } ?? .none },
+      resolve: { $0.map(item.resolve) })
   }
 
   /// Lexical's `transformValue`, through the Swift copy of the function
   /// Lexidraw named it by: it keeps a value, rewrites it, or reads it as absent.
-  static func transform(_ inner: FieldSchema<Value>, _ transform: @escaping @Sendable (Value) -> Value?) -> Self {
+  /// Its default is the function's result for absence, which Lexical computes
+  /// and the schema carries.
+  static func transform(
+    _ inner: FieldSchema<Value>, _ transform: @escaping @Sendable (Value) -> Value?, default defaultValue: Value? = nil
+  ) -> Self {
     Self(
-      defaultValue: inner.defaultValue.flatMap(transform),
+      defaultValue: defaultValue,
       read: { inner.read($0).flatMap(transform) },
-      write: inner.write, fit: inner.fit, isCatchAll: inner.isCatchAll)
+      write: inner.write, fit: inner.fit, isCatchAll: inner.isCatchAll, resolve: inner.resolve)
   }
 }
 
@@ -246,6 +254,16 @@ extension FieldSchema {
       fit: stored.fit, isCatchAll: stored.isCatchAll)
   }
 
+  /// An editor state a node reads into an editor of its own, which registers
+  /// `types`, and writes as that editor saves it: its default where that
+  /// editor can't read it.
+  static func savedByEditor(of types: [String], _ inner: Self) -> Self where Value == JSONValue {
+    let types = Set(types)
+    var schema = inner
+    schema.resolve = { Editor.saved($0, registering: types) ?? inner.defaultValue ?? $0 }
+    return schema
+  }
+
   /// A property Lexical writes as a new node holds it and never reads: any
   /// stored value reads as `inner`'s default.
   static func unread(_ inner: FieldSchema<Value>) -> Self {
@@ -267,22 +285,27 @@ extension FieldSchema where Value: DeclaredObject {
         guard case .object(let object) = json else { return .none }
         if !Value.isOpen, object.keys.contains(where: { Value.fieldFits[$0] == nil }) { return .none }
         return .container(object.lazy.compactMap { key, value in Value.fieldFits[key]?(value) })
-      })
+      },
+      resolve: { $0.asLoaded() })
   }
 }
 
 extension FieldSchema {
   func resolving(_ value: Value?) -> Value? {
-    value ?? defaultValue
+    value.map(resolve) ?? defaultValue
   }
 
   func resolving<Inner>(_ value: Nullable<Inner>) -> Nullable<Inner> where Value == Inner? {
-    guard case .absent = value, let fallback = defaultValue else { return value }
-    return fallback.map(Nullable.value) ?? .null
+    switch value {
+    case .absent: defaultValue.map { $0.map(Nullable.value) ?? .null } ?? .absent
+    case .null: .null
+    case .value(let inner): resolve(inner).map(Nullable.value) ?? .null
+    }
   }
 
   func omittingDefault(_ value: Value?) -> Value? {
-    value == defaultValue ? nil : value
+    let resolved = value.map(resolve)
+    return resolved == defaultValue ? nil : resolved
   }
 }
 
@@ -300,6 +323,8 @@ struct UnionMember<Value: Equatable & Sendable>: Sendable {
   let read: @Sendable (JSONValue) -> Value?
   /// The JSON of a value that is this member's case, or nil.
   let write: @Sendable (Value) -> JSONValue?
+  /// A value that is this member's case resolved; any other as it is.
+  var resolve: @Sendable (Value) -> Value = { $0 }
 
   /// A member read by `schema`, as the case `wrap` makes.
   static func member<Inner>(
@@ -308,7 +333,7 @@ struct UnionMember<Value: Equatable & Sendable>: Sendable {
   ) -> Self {
     Self(
       fit: schema.fit, isCatchAll: schema.isCatchAll, read: { schema.read($0).map(wrap) },
-      write: { unwrap($0).map(schema.write) })
+      write: { unwrap($0).map(schema.write) }, resolve: { value in unwrap(value).map { wrap(schema.resolve($0)) } ?? value })
   }
 
   /// A member that is the one value `json`, as a case without a payload.
@@ -343,6 +368,7 @@ extension FieldSchema where Value: JSONUnion {
       },
       write: { value in members.lazy.compactMap { $0.write(value) }.first ?? .null },
       fit: { best($0)?.fit ?? .none },
-      isCatchAll: members.allSatisfy(\.isCatchAll))
+      isCatchAll: members.allSatisfy(\.isCatchAll),
+      resolve: { value in members.reduce(value) { $1.resolve($0) } })
   }
 }
