@@ -1,0 +1,21 @@
+{
+  "name": "@apps/ios",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build:reference": "bun build reference/entry.ts --target=browser --format=iife --minify --define 'process.env.NODE_ENV=\"development\"' --outfile reference/dist/lexical-reference.js",
+    "test": "bun run build:reference && swift test",
+    "test:ts": "tsgo --noEmit",
+    "lint": "bun x @biomejs/biome check ."
+  },
+  "dependencies": {
+    "@lexical/headless": "^0.51.0",
+    "@packages/lexical-nodes": "workspace:*",
+    "lexical": "^0.51.0"
+  },
+  "devDependencies": {
+    "@typescript/native-preview": "^7.0.0-dev.20260707.2",
+    "typescript": "^7.0.2"
+  }
+}
