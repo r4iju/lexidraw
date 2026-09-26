@@ -1,0 +1,222 @@
+{
+  "recordedWith": "Chrome/153.0.8010.36",
+  "keys": [
+    "n",
+    "i",
+    "h",
+    "o",
+    "n",
+    "n"
+  ],
+  "candidate": "日本",
+  "marked": [
+    "n",
+    "に",
+    "にh",
+    "にほ",
+    "にほn",
+    "にほん",
+    "日本"
+  ],
+  "cases": [
+    {
+      "name": "after-text",
+      "start": {
+        "root": {
+          "type": "root",
+          "version": 1,
+          "children": [
+            {
+              "type": "paragraph",
+              "version": 1,
+              "children": [
+                {
+                  "type": "text",
+                  "version": 1,
+                  "text": "今日は",
+                  "detail": 0,
+                  "format": 0,
+                  "mode": "normal",
+                  "style": ""
+                }
+              ],
+              "direction": null,
+              "format": "",
+              "indent": 0,
+              "textFormat": 0,
+              "textStyle": ""
+            }
+          ],
+          "direction": null,
+          "format": "",
+          "indent": 0
+        }
+      },
+      "shortcuts": [],
+      "saved": {
+        "root": {
+          "children": [
+            {
+              "children": [
+                {
+                  "detail": 0,
+                  "format": 0,
+                  "mode": "normal",
+                  "style": "",
+                  "text": "今日は日本",
+                  "type": "text",
+                  "version": 1
+                }
+              ],
+              "direction": null,
+              "format": "",
+              "indent": 0,
+              "textFormat": 0,
+              "textStyle": "",
+              "type": "paragraph",
+              "version": 1
+            }
+          ],
+          "direction": null,
+          "format": "",
+          "indent": 0,
+          "type": "root",
+          "version": 1
+        }
+      }
+    },
+    {
+      "name": "empty-paragraph",
+      "start": {
+        "root": {
+          "type": "root",
+          "version": 1,
+          "children": [
+            {
+              "type": "paragraph",
+              "version": 1,
+              "children": [],
+              "direction": null,
+              "format": "",
+              "indent": 0,
+              "textFormat": 0,
+              "textStyle": ""
+            }
+          ],
+          "direction": null,
+          "format": "",
+          "indent": 0
+        }
+      },
+      "shortcuts": [],
+      "saved": {
+        "root": {
+          "children": [
+            {
+              "children": [
+                {
+                  "detail": 0,
+                  "format": 0,
+                  "mode": "normal",
+                  "style": "",
+                  "text": "日本",
+                  "type": "text",
+                  "version": 1
+                }
+              ],
+              "direction": null,
+              "format": "",
+              "indent": 0,
+              "textFormat": 0,
+              "textStyle": "",
+              "type": "paragraph",
+              "version": 1
+            }
+          ],
+          "direction": null,
+          "format": "",
+          "indent": 0,
+          "type": "root",
+          "version": 1
+        }
+      }
+    },
+    {
+      "name": "after-bold-shortcut",
+      "start": {
+        "root": {
+          "type": "root",
+          "version": 1,
+          "children": [
+            {
+              "type": "paragraph",
+              "version": 1,
+              "children": [
+                {
+                  "type": "text",
+                  "version": 1,
+                  "text": "今日は",
+                  "detail": 0,
+                  "format": 0,
+                  "mode": "normal",
+                  "style": ""
+                }
+              ],
+              "direction": null,
+              "format": "",
+              "indent": 0,
+              "textFormat": 0,
+              "textStyle": ""
+            }
+          ],
+          "direction": null,
+          "format": "",
+          "indent": 0
+        }
+      },
+      "shortcuts": [
+        "b"
+      ],
+      "saved": {
+        "root": {
+          "children": [
+            {
+              "children": [
+                {
+                  "detail": 0,
+                  "format": 0,
+                  "mode": "normal",
+                  "style": "",
+                  "text": "今日は",
+                  "type": "text",
+                  "version": 1
+                },
+                {
+                  "detail": 0,
+                  "format": 1,
+                  "mode": "normal",
+                  "style": "",
+                  "text": "日本",
+                  "type": "text",
+                  "version": 1
+                }
+              ],
+              "direction": null,
+              "format": "",
+              "indent": 0,
+              "textFormat": 0,
+              "textStyle": "",
+              "type": "paragraph",
+              "version": 1
+            }
+          ],
+          "direction": null,
+          "format": "",
+          "indent": 0,
+          "type": "root",
+          "version": 1
+        }
+      }
+    }
+  ]
+}

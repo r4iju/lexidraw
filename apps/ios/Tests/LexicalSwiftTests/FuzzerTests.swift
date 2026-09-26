@@ -9,6 +9,9 @@ import Testing
     let editor = Editor()
     func load(_ state: JSONValue) throws { try editor.load(state) }
     func snapshot() throws -> Snapshot { try editor.snapshot() }
+    func selection() throws -> Selection? { try editor.selection() }
+    func node(at path: [Int]) throws -> JSONValue { try editor.node(at: path) }
+    func childKeys(at path: [Int]) throws -> [String] { try editor.childKeys(at: path) }
     func apply(_ command: EditorCommand) throws -> ChangeSet {
       if case .insertText(let text) = command, let last = text.last, !last.isASCII {
         return try editor.apply(.insertText(String(text.dropLast())))
@@ -41,6 +44,9 @@ import Testing
     let editor = Editor()
     func load(_ state: JSONValue) throws { try editor.load(state) }
     func snapshot() throws -> Snapshot { try editor.snapshot() }
+    func selection() throws -> Selection? { try editor.selection() }
+    func node(at path: [Int]) throws -> JSONValue { try editor.node(at: path) }
+    func childKeys(at path: [Int]) throws -> [String] { try editor.childKeys(at: path) }
     func apply(_ command: EditorCommand) throws -> ChangeSet {
       try editor.apply(command)
       return ChangeSet()
@@ -62,6 +68,9 @@ import Testing
     let editor = Editor()
     func load(_ state: JSONValue) throws { try editor.load(state) }
     func snapshot() throws -> Snapshot { try editor.snapshot() }
+    func selection() throws -> Selection? { try editor.selection() }
+    func node(at path: [Int]) throws -> JSONValue { try editor.node(at: path) }
+    func childKeys(at path: [Int]) throws -> [String] { try editor.childKeys(at: path) }
     func apply(_ command: EditorCommand) throws -> ChangeSet {
       do {
         return try editor.apply(command)

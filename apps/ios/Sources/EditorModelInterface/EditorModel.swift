@@ -12,6 +12,18 @@ public protocol EditorModel: AnyObject {
 
   /// The serialized editor state and the selection.
   func snapshot() throws -> Snapshot
+
+  /// The selection alone, without serializing the document.
+  func selection() throws -> Selection?
+
+  /// The node at `path`, with everything under it, as the state saves it.
+  func node(at path: [Int]) throws -> JSONValue
+
+  /// Names for the children of the element at `path`. A child keeps its name
+  /// for as long as it stays in the document, wherever it moves, so a view can
+  /// tell which children an update added, removed or kept. Names mean nothing
+  /// across models.
+  func childKeys(at path: [Int]) throws -> [String]
 }
 
 public struct Snapshot: Codable, Equatable, Sendable {
@@ -220,7 +232,7 @@ extension EditorCommand: Codable {
 }
 
 /// The paths, in the document after an update, of the nodes it created or
-/// changed. Removing a node changes its parent.
+/// changed. Adding or removing a node changes its parent.
 public struct ChangeSet: Equatable, Sendable {
   public var changed: Set<[Int]>
 

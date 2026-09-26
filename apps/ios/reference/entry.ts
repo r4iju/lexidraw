@@ -7,10 +7,13 @@ import { createEmptyHistoryState, registerHistory } from "@lexical/history";
 import { SCHEMA_NODES } from "@packages/lexical-nodes/nodes";
 import {
   $createRangeSelection,
+  $exportNodeJSON,
   $formatText,
   $getNodeByKey,
   $getRoot,
   $getSelection,
+  $getSlot,
+  $getSlotNames,
   $isElementNode,
   $isRangeSelection,
   $isTextNode,
@@ -135,20 +138,68 @@ function replacedKeys(before: EditorState, after: EditorState): string[] {
 
 function snapshot(): string {
   const state = current().getEditorState();
-  return state.read(() => {
-    const selection = $getSelection();
-    return JSON.stringify({
-      state: state.toJSON(),
-      selection: $isRangeSelection(selection)
-        ? {
-            anchor: pathPoint(selection.anchor),
-            focus: pathPoint(selection.focus),
-            format: selection.format,
-            style: selection.style,
-          }
-        : null,
+  return state.read(() =>
+    JSON.stringify({ state: state.toJSON(), selection: pathSelection() }),
+  );
+}
+
+function selection(): string {
+  return current()
+    .getEditorState()
+    .read(() => JSON.stringify(pathSelection()));
+}
+
+function node(pathJSON: string): string {
+  return current()
+    .getEditorState()
+    .read(() => JSON.stringify(exportNode(nodeAt(JSON.parse(pathJSON)))));
+}
+
+function childKeys(pathJSON: string): string {
+  return current()
+    .getEditorState()
+    .read(() => {
+      const node = nodeAt(JSON.parse(pathJSON));
+      return JSON.stringify($isElementNode(node) ? node.getChildrenKeys() : []);
     });
-  });
+}
+
+function pathSelection() {
+  const selection = $getSelection();
+  return $isRangeSelection(selection)
+    ? {
+        anchor: pathPoint(selection.anchor),
+        focus: pathPoint(selection.focus),
+        format: selection.format,
+        style: selection.style,
+      }
+    : null;
+}
+
+/**
+ * A node as `EditorState.toJSON` writes it, children and slots included:
+ * Lexical's own `$exportNodeToJSON`, which it doesn't export.
+ */
+type ExportedNode = ReturnType<typeof $exportNodeJSON> & {
+  children?: ExportedNode[];
+};
+
+function exportNode(node: LexicalNode): ExportedNode {
+  const json: ExportedNode = { ...$exportNodeJSON(node) };
+  if ($isElementNode(node)) {
+    json.children = node.getChildren().map(exportNode);
+  }
+  const slots = $getSlotNames(node);
+  if (slots.length > 0) {
+    json.$slots = Object.fromEntries(
+      slots.map((name) => {
+        const slot = $getSlot(node, name);
+        if (!slot) throw new Error(`Slot ${name} resolved to no node`);
+        return [name, exportNode(slot)];
+      }),
+    );
+  }
+  return json;
 }
 
 function run(command: Exclude<Command, { type: "undo" | "redo" | "wait" }>) {
@@ -361,5 +412,5 @@ function pathPoint(point: PointType): PathPoint {
 }
 
 Object.assign(globalThis, {
-  LexicalReference: { load, apply, snapshot },
+  LexicalReference: { load, apply, snapshot, selection, node, childKeys },
 });

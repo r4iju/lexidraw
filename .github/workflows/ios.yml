@@ -25,6 +25,8 @@ jobs:
           -skipPackagePluginValidation
           CODE_SIGNING_ALLOWED=NO
         working-directory: apps/ios
+      - run: bun run test:ui CODE_SIGNING_ALLOWED=NO
+        working-directory: apps/ios
       - if: failure()
         uses: actions/upload-artifact@v4
         with:

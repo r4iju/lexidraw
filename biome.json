@@ -34,6 +34,7 @@
       "!**/.next",
       "!**/.build",
       "!apps/ios/Tests/**/Fixtures",
+      "!apps/ios/EditorUITests/Fixtures",
       "!packages/lexical-nodes/node-schema.json",
       "!packages/lexical-nodes/test/stored-bytes.json",
       "!**/dist",
