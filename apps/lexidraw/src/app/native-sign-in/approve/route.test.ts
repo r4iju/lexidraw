@@ -190,6 +190,32 @@ describe("a native app signing out", () => {
     ).toBeNull();
   });
 
+  test("works for a read token too, since revoking only takes access away", async () => {
+    const { token } = await settingsCaller().create({
+      name: "Read-only CLI",
+      scope: "read",
+      expiresInDays: null,
+    });
+
+    const revoked = await call("POST", "/me/token/revoke", { body: {}, token });
+    expect(revoked.response.status).toBe(200);
+    expect((await call("GET", "/me", { token })).response.status).toBe(401);
+  });
+
+  test("is not found for a token that no longer exists", async () => {
+    const caller = tokensRouter.createCaller({
+      drizzle: db,
+      schema,
+      session: { user: { id: USER }, expires: "" },
+      auth: { kind: "token", tokenId: "deleted-token", scope: "write" },
+      headers: new Headers(),
+    } as never);
+
+    await expect(caller.revokeCurrent({})).rejects.toMatchObject({
+      code: "NOT_FOUND",
+    });
+  });
+
   test("is refused to a browser session, which has no token to revoke", async () => {
     await expect(settingsCaller().revokeCurrent({})).rejects.toMatchObject({
       code: "FORBIDDEN",

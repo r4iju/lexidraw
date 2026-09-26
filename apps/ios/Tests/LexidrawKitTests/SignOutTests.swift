@@ -37,4 +37,13 @@ import Testing
     #expect(store.token == nil)
   }
 
+  /// Gone from the server altogether, so nothing is left that it would take.
+  @Test func takesATokenTheServerNoLongerHasAsRevoked() async throws {
+    let server = FakeServer { _ in (404, #"{"message":"NOT_FOUND","code":"NOT_FOUND"}"#) }
+    let store = InMemoryTokenStore("lxd_deleted")
+    let session = try #require(try TestServer.account(store, server).restore())
+
+    #expect(try await session.signOut() == .revoked)
+    #expect(store.token == nil)
+  }
 }

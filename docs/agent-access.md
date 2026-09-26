@@ -35,7 +35,7 @@ loading tool schemas into the agent's context until they are needed.
   revoke). Admin area lists and revokes any user's tokens.
 - A token revokes itself with `POST /me/token/revoke`, which is how a device
   signs out. It takes only a token, never a browser session, and revokes the
-  one presented and no other. It is a mutation, so it needs `write` like any.
+  one presented and no other. A token of either scope may call it.
 - No rate limiting in v1. Add at the context check if ever needed.
 
 ### Native sign-in

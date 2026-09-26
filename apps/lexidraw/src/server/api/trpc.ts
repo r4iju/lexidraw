@@ -103,7 +103,8 @@ const t = initTRPC
 
 export const createTRPCRouter = t.router;
 
-// Every procedure starts here so token scope is enforced even on public ones.
+// Every procedure but `tokenRelinquishProcedure` starts here, so token scope is
+// enforced even on public ones.
 const scopedProcedure = t.procedure.use(({ ctx, type, next }) => {
   if (!tokenMayRun(ctx.auth, type)) {
     throw new TRPCError({
@@ -116,8 +117,8 @@ const scopedProcedure = t.procedure.use(({ ctx, type, next }) => {
 
 export const publicProcedure = scopedProcedure;
 
-export const protectedProcedure = scopedProcedure.use(({ ctx, next }) => {
-  if (!ctx.session || !ctx.session.user) {
+const signedIn = t.middleware(({ ctx, next }) => {
+  if (!ctx.session?.user) {
     throw new TRPCError({ code: "UNAUTHORIZED" });
   }
   return next({
@@ -127,6 +128,8 @@ export const protectedProcedure = scopedProcedure.use(({ ctx, next }) => {
     },
   });
 });
+
+export const protectedProcedure = scopedProcedure.use(signedIn);
 
 /** For token management and admin work: a browser session, never a token. */
 export const sessionOnlyProcedure = protectedProcedure.use(({ ctx, next }) => {
@@ -139,16 +142,21 @@ export const sessionOnlyProcedure = protectedProcedure.use(({ ctx, next }) => {
   return next();
 });
 
-/** For what a token asks about itself: an API token, never a browser session. */
-export const tokenOnlyProcedure = protectedProcedure.use(({ ctx, next }) => {
-  if (ctx.auth.kind !== "token") {
-    throw new TRPCError({
-      code: "FORBIDDEN",
-      message: "This operation is only available to API tokens",
-    });
-  }
-  return next({ ctx: { auth: ctx.auth } });
-});
+/**
+ * For a token giving up its own access: an API token, never a browser
+ * session, and of any scope, since taking access away needs no `write`.
+ */
+export const tokenRelinquishProcedure = t.procedure
+  .use(signedIn)
+  .use(({ ctx, next }) => {
+    if (ctx.auth.kind !== "token") {
+      throw new TRPCError({
+        code: "FORBIDDEN",
+        message: "This operation is only available to API tokens",
+      });
+    }
+    return next({ ctx: { auth: ctx.auth } });
+  });
 
 export const adminProcedure = sessionOnlyProcedure.use(
   async ({ ctx, next }) => {

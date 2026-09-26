@@ -4,7 +4,7 @@ import { TRPCError } from "@trpc/server";
 import {
   createTRPCRouter,
   sessionOnlyProcedure,
-  tokenOnlyProcedure,
+  tokenRelinquishProcedure,
 } from "~/server/api/trpc";
 import { createApiToken } from "~/server/auth/api-tokens";
 
@@ -66,7 +66,7 @@ export const tokensRouter = createTRPCRouter({
     }),
 
   /** Signing out a device: the token the request carries, and no other. */
-  revokeCurrent: tokenOnlyProcedure
+  revokeCurrent: tokenRelinquishProcedure
     .meta({
       openapi: {
         method: "POST",
@@ -76,15 +76,26 @@ export const tokensRouter = createTRPCRouter({
         description:
           "For signing a device or a CLI out. Every later request with the token is a 401; other tokens are untouched.",
         protect: true,
+        // A POST has no 404 by default; a token whose row is gone is one.
+        errorResponses: [400, 401, 403, 404, 500],
       },
     })
     .input(z.object({}))
     .output(z.object({ id: z.string() }))
     .mutation(async ({ ctx }) => {
-      await ctx.drizzle
+      const result = await ctx.drizzle
         .update(ctx.schema.apiTokens)
         .set({ revokedAt: new Date() })
-        .where(eq(ctx.schema.apiTokens.id, ctx.auth.tokenId));
+        .where(
+          and(
+            eq(ctx.schema.apiTokens.id, ctx.auth.tokenId),
+            eq(ctx.schema.apiTokens.userId, ctx.session.user.id),
+          ),
+        )
+        .returning({ id: ctx.schema.apiTokens.id });
+      if (result.length === 0) {
+        throw new TRPCError({ code: "NOT_FOUND" });
+      }
       return { id: ctx.auth.tokenId };
     }),
 });

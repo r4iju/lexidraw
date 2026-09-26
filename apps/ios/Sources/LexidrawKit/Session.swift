@@ -25,8 +25,8 @@ public struct Session: Sendable {
     let outcome: SignOut
     do {
       switch try await client.tokensRevokeCurrent(body: .json(.init())) {
-      // A token the server no longer takes has been revoked already.
-      case .ok, .unauthorized: outcome = .revoked
+      // A token the server no longer takes, or no longer has, is revoked already.
+      case .ok, .unauthorized, .notFound: outcome = .revoked
       default: outcome = .stillValidOnServer
       }
     } catch {
