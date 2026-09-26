@@ -33,6 +33,42 @@ import UniformTypeIdentifiers
     #expect(throws: ImageFile.TooLarge.self) { try ImageFile(data: picked) }
   }
 
+  /// `normalizeSVG`, as Chrome serializes what it gives, so an SVG placed
+  /// here is stored as the same bytes, under the same id, as on the web.
+  @Test(arguments: [
+    (
+      "<?xml version=\"1.0\"?>\n<!-- c -->\n<svg xmlns=\"http://www.w3.org/2000/svg\"\n  width='30' height=\"20\">\n  <rect   width=\"1\" height='1'/>\n</svg>\n",
+      "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"30\" height=\"20\" viewBox=\"0 0 30 20\">\n  <rect width=\"1\" height=\"1\"/>\n</svg>",
+      30, 20
+    ),
+    (
+      "<svg width=\"100%\"><circle r=\"5\"></circle></svg>",
+      "<svg width=\"50\" xmlns=\"http://www.w3.org/2000/svg\" height=\"50\" viewBox=\"0 0 50 50\"><circle r=\"5\"/></svg>",
+      50, 50
+    ),
+    (
+      "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"10cm\" height=\"auto\" viewBox=\"-5 -5 40 30\"/>",
+      "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"10cm\" height=\"50\" viewBox=\"-5 -5 40 30\"/>",
+      378, 50
+    ),
+    (
+      "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0,0,40,30\" title=\"a &amp; b &lt; c\"><text>x &amp; y &#65;</text></svg>",
+      "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0,0,40,30\" title=\"a &amp; b &lt; c\" width=\"50\" height=\"50\"><text>x &amp; y A</text></svg>",
+      50, 50
+    ),
+  ])
+  func normalizesAnSVGAsTheWebDoes(_ picked: String, _ stored: String, _ width: Int, _ height: Int) throws {
+    let file = try ImageFile(data: Data(picked.utf8))
+    #expect(String(decoding: file.data, as: UTF8.self) == stored)
+    #expect(file.mimeType == .svg)
+    #expect((file.width, file.height) == (width, height))
+    #expect(file.id == Insecure.SHA1.hash(data: file.data).map { String(format: "%02x", $0) }.joined())
+  }
+
+  @Test func refusesAnSVGThatIsNotWellFormed() {
+    #expect(throws: ImageFile.Unreadable.self) { try ImageFile(data: Data("<svg><rect></svg>".utf8)) }
+  }
+
   @Test func refusesWhatIsNotAnImage() {
     #expect(throws: ImageFile.Unreadable.self) { try ImageFile(data: Data("not an image".utf8)) }
   }

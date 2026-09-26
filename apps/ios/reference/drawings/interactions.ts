@@ -42,11 +42,14 @@ export type Style =
   | "strokeStyle"
   | "roughness";
 
+/** An image a step drops: a drawn one, or an SVG file as written. */
+export type DroppedFile = ImageFile | { svg: string };
+
 export type Interaction = {
   name: string;
   before?: Skeleton[];
   /** Images the steps drop, recorded beside the fixture as scenes' are. */
-  files?: Record<string, ImageFile>;
+  files?: Record<string, DroppedFile>;
   steps: Step[];
 };
 
@@ -739,6 +742,16 @@ export const INTERACTIONS: Interaction[] = [
       },
     },
     steps: [{ drop: [400, 300], file: "photo" }],
+  },
+  {
+    // Sized by its viewBox, which the editor writes in as its size.
+    name: "place-an-svg",
+    files: {
+      logo: {
+        svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 80"><rect x="10" y="10" width="100" height="60" fill="#1971c2"/></svg>',
+      },
+    },
+    steps: [{ drop: [400, 300], file: "logo" }],
   },
   {
     name: "resize-an-image-from-a-corner",

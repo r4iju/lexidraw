@@ -5,8 +5,9 @@ import ImageIO
 import UniformTypeIdentifiers
 
 /// An image picked to place in a drawing, made ready to store as the web
-/// makes a dropped file ready: no more than 1440 pixels on a side, and named
-/// by the SHA-1 of the bytes stored, the only name the server takes. A kind of image the server doesn't
+/// makes a dropped file ready: no more than 1440 pixels on a side, or an SVG
+/// normalized as the web normalizes it, and named by the SHA-1 of the bytes
+/// stored, the only name the server takes. A kind of image the server doesn't
 /// store, as a photo from the library often is, becomes a JPEG, or a PNG
 /// when it has transparency.
 public struct ImageFile: Sendable {
@@ -33,13 +34,15 @@ public struct ImageFile: Sendable {
       let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
       let width = properties[kCGImagePropertyPixelWidth] as? Int,
       let height = properties[kCGImagePropertyPixelHeight] as? Int
-    else { throw Unreadable() }
+    else {
+      // ImageIO doesn't read SVG.
+      guard let svg = NormalizedSVG(picked) else { throw Unreadable() }
+      try self.init(stored: svg.data, mimeType: .svg, width: svg.width, height: svg.height)
+      return
+    }
     let orientation = properties[kCGImagePropertyOrientation] as? Int ?? 1
     if let mimeType = Self.stored[type], max(width, height) <= Self.maxSide, orientation == 1 {
-      self.mimeType = mimeType
-      data = picked
-      self.width = width
-      self.height = height
+      try self.init(stored: picked, mimeType: mimeType, width: width, height: height)
     } else {
       // The thumbnail is turned upright, as a browser shows the image.
       guard
@@ -62,13 +65,18 @@ public struct ImageFile: Sendable {
       CGImageDestinationAddImage(
         destination, image, [kCGImageDestinationLossyCompressionQuality: 0.9] as CFDictionary)
       guard CGImageDestinationFinalize(destination) else { throw Unreadable() }
-      mimeType = output == .png ? .png : .jpeg
-      data = encoded as Data
-      self.width = image.width
-      self.height = image.height
+      try self.init(
+        stored: encoded as Data, mimeType: output == .png ? .png : .jpeg, width: image.width, height: image.height)
     }
+  }
+
+  private init(stored data: Data, mimeType: DrawingFileType, width: Int, height: Int) throws {
     guard data.count <= maxDrawingFileBytes else { throw TooLarge() }
     id = Insecure.SHA1.hash(data: data).map { String(format: "%02x", $0) }.joined()
+    self.mimeType = mimeType
+    self.data = data
+    self.width = width
+    self.height = height
   }
 }
 

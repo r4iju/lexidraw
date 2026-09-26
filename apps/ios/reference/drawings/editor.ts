@@ -17,8 +17,7 @@ import { createElement } from "react";
 import { createRoot } from "react-dom/client";
 
 import { drawImageFiles } from "./image-file.js";
-import type { Step } from "./interactions.js";
-import type { ImageFile } from "./scenes.js";
+import type { DroppedFile, Step } from "./interactions.js";
 
 type Played = Exclude<
   Step,
@@ -30,7 +29,7 @@ declare global {
     EXCALIDRAW_ASSET_PATH?: string;
     load: (elements: unknown[]) => Promise<void>;
     play: (step: Played) => Promise<void>;
-    useFiles: (files: Record<string, ImageFile>) => Record<string, string>;
+    useFiles: (files: Record<string, DroppedFile>) => Record<string, string>;
     elements: () => unknown[];
   }
 }
@@ -52,7 +51,14 @@ let api: ExcalidrawImperativeAPI | undefined;
 let files: Record<string, string> = {};
 
 window.useFiles = (specs) => {
-  files = drawImageFiles(specs);
+  files = Object.fromEntries(
+    Object.entries(specs).map(([name, spec]) => [
+      name,
+      "svg" in spec
+        ? `data:image/svg+xml;base64,${btoa(spec.svg)}`
+        : (drawImageFiles({ [name]: spec })[name] ?? ""),
+    ]),
+  );
   return files;
 };
 let pointer = { type: "touch", pressure: 0.5 };
@@ -150,8 +156,9 @@ async function drop([x, y]: [number, number], name: string) {
   const bytes = Uint8Array.from(atob(dataURL.split(",")[1] ?? ""), (c) =>
     c.charCodeAt(0),
   );
+  const type = dataURL.slice("data:".length, dataURL.indexOf(";"));
   const transfer = new DataTransfer();
-  transfer.items.add(new File([bytes], `${name}.png`, { type: "image/png" }));
+  transfer.items.add(new File([bytes], name, { type }));
   const before = api?.getSceneElementsIncludingDeleted().length ?? 0;
   document.querySelector(".excalidraw-container")?.dispatchEvent(
     new DragEvent("drop", {

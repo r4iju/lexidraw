@@ -14,7 +14,7 @@
  *   Tests/DrawingKitTests/Fixtures/Interactions/<script>/
  *     script.json         the steps, and the elements they start from
  *     after.json          every element the editor ends with, deleted ones too
- *     files/<name>.png    the images the steps drop, if any
+ *     files/<name>.<ext>  the images the steps drop, if any, as dropped
  *
  * Run with `bun run record:drawings` after bumping `@excalidraw/excalidraw`;
  * it needs Playwright's Chromium (`bunx playwright install chromium`). The
@@ -179,9 +179,15 @@ try {
       (files) => window.useFiles(files),
       interaction.files ?? {},
     );
-    for (const [id, dataURL] of Object.entries(files)) {
+    for (const [name, dataURL] of Object.entries(files)) {
       await mkdir(join(directory, "files"), { recursive: true });
-      await writeFile(join(directory, "files", `${id}.png`), pngBytes(dataURL));
+      const extension = dataURL.startsWith("data:image/svg+xml;")
+        ? "svg"
+        : "png";
+      await writeFile(
+        join(directory, "files", `${name}.${extension}`),
+        Buffer.from(dataURL.slice(dataURL.indexOf(",") + 1), "base64"),
+      );
     }
     for (const step of interaction.steps) await play(page, step);
     await writeFile(

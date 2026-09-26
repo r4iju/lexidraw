@@ -153,6 +153,7 @@ hand:
 - The file types a drawing stores and the largest file it stores are
   generated from the server's by `bun run codegen`, into
   `Sources/LexidrawJSON/DrawingFiles.swift`.
-- An SVG image made on the web is drawn by WebKit onto a canvas, as the web
-  draws it, since ImageIO doesn't read SVG. For the same reason an SVG file
-  can't be placed from the app.
+- An SVG image is drawn by WebKit onto a canvas, as the web draws it, since
+  ImageIO doesn't read SVG. An SVG file placed from Files is normalized as
+  the web normalizes one, and written out as Chrome writes it, so it is
+  stored as the same bytes under the same id.
