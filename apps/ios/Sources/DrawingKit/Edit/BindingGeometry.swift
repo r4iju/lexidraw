@@ -6,21 +6,21 @@ import Foundation
 
 private let precision = 1e-4
 
-private func pointsEqual(_ a: Point2D, _ b: Point2D) -> Bool {
+func pointsEqual(_ a: Point2D, _ b: Point2D) -> Bool {
   abs(a.x - b.x) < precision && abs(a.y - b.y) < precision
 }
 
 /// `vectorFromPoint(p, origin)`.
-private func vector(_ p: Point2D, from origin: Point2D) -> Point2D { Point2D(p.x - origin.x, p.y - origin.y) }
+func vector(_ p: Point2D, from origin: Point2D) -> Point2D { Point2D(p.x - origin.x, p.y - origin.y) }
 
 /// `pointFromVector(v, offset)`.
-private func point(_ v: Point2D, from offset: Point2D) -> Point2D { Point2D(offset.x + v.x, offset.y + v.y) }
+func point(_ v: Point2D, from offset: Point2D) -> Point2D { Point2D(offset.x + v.x, offset.y + v.y) }
 
-private func scaled(_ v: Point2D, _ scalar: Double) -> Point2D { Point2D(v.x * scalar, v.y * scalar) }
+func scaled(_ v: Point2D, _ scalar: Double) -> Point2D { Point2D(v.x * scalar, v.y * scalar) }
 
-private func cross(_ a: Point2D, _ b: Point2D) -> Double { a.x * b.y - b.x * a.y }
+func cross(_ a: Point2D, _ b: Point2D) -> Double { a.x * b.y - b.x * a.y }
 
-private func normalized(_ v: Point2D) -> Point2D {
+func normalized(_ v: Point2D) -> Point2D {
   let m = (v.x * v.x + v.y * v.y).squareRoot()
   return m == 0 ? Point2D(0, 0) : Point2D(v.x / m, v.y / m)
 }
@@ -369,6 +369,11 @@ extension DrawingElement {
       sides.compactMap { intersection(rotated, $0) }.map { $0.rotated(around: center, by: angle) }
       + corners.flatMap { DrawingKit.intersections($0, rotated) }.map { $0.rotated(around: center, by: angle) }
     return found.enumerated().filter { index, p in found.firstIndex { pointsEqual(p, $0) } == index }.map(\.1)
+  }
+
+  /// `intersectElementWithLineSegment`, for the segment from `a` to `b`.
+  func outlineIntersections(_ a: Point2D, _ b: Point2D, offset: Double = 0) -> [Point2D] {
+    intersections(with: Segment(a, b), offset: offset)
   }
 
   /// `determineFocusDistance`: where, across the shape, the line from `a`

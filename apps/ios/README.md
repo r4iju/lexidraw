@@ -139,8 +139,9 @@ hand:
   leaves it, even while it still overlaps, as on the web. A frame moves with
   what it holds, keeps what its new box holds once resized, and grouping
   takes shapes out of their frames unless all are in the same one.
-- An arrow bound to a shape follows it, but an elbow arrow keeps its elbows
-  where they were; the app draws no elbow arrows of its own.
+- An arrow bound to a shape follows it, and an elbow arrow is routed around
+  the shapes again as the web routes it, also when a shape it is bound to is
+  deleted; the app draws no elbow arrows of its own.
 - Entering or leaving a group to edit one of its elements is a step to
   undo, as on the web.
 - The style panel offers the web's first five colours of each kind, and the

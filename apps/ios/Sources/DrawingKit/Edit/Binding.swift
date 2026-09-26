@@ -35,7 +35,6 @@ private func bindings(of element: RawElement) -> [(key: String, id: String)] {
 }
 
 /// Arrows that bind to shapes and follow them, as `binding.ts` has it.
-/// Elbow arrows keep their bindings but aren't routed again here.
 extension DrawingEditor {
   func restored(_ id: String) -> DrawingElement? { element(id).flatMap(DrawingElement.init(restoring:)) }
 
@@ -189,11 +188,16 @@ extension DrawingEditor {
         guard let binding = raw[end.key] else { continue }
         rescaled[end.key] = rescaledBinding(binding, of: changed, newSize)
       }
+      let ownBindings = newSize == nil
       if simultaneouslyUpdated.contains(raw.id) {
-        mutate(raw.id, rescaled)
+        if restored(raw.id)?.isElbowArrow == true {
+          mutateElbowArrow(raw.id, rescaled, ownBindings: ownBindings)
+        } else {
+          mutate(raw.id, rescaled)
+        }
         continue
       }
-      guard let arrow = restored(raw.id), !arrow.isElbowArrow else { continue }
+      guard let arrow = restored(raw.id) else { continue }
       var targets: [(index: Int, point: Point2D)] = []
       for (position, end) in [ArrowEnd.start, .end].enumerated() {
         guard let shape = shapes[position], shape.isBindable else { continue }
@@ -207,7 +211,19 @@ extension DrawingEditor {
       for end in [ArrowEnd.start, .end] where bindingTarget(raw, end) == changedId {
         otherUpdates[end.key] = rescaled[end.key]
       }
-      movePoints(raw.id, targets, otherUpdates)
+      if arrow.isElbowArrow {
+        // `_updatePoints`: an elbow arrow is given its new ends only, and
+        // keeps only fixed point bindings.
+        var updates = otherUpdates.mapValues { fixedPoint(of: $0) == nil ? JSONValue.null : $0 }
+        let points = raw.points
+        updates["points"] = .points([
+          targets.first { $0.index == 0 }?.point ?? points[0],
+          targets.first { $0.index == points.count - 1 }?.point ?? points[points.count - 1],
+        ])
+        mutateElbowArrow(raw.id, updates, ownBindings: ownBindings)
+      } else {
+        movePoints(raw.id, targets, otherUpdates)
+      }
       if let label = arrow.boundTextId, let text = element(label), !text.isDeleted {
         layOutLabel(of: raw.id, handle: nil)
       }
@@ -236,6 +252,10 @@ extension DrawingEditor {
   {
     guard let binding, let target = binding["elementId"]?.stringValue else { return nil }
     if target != shape.id && arrow.points.count > 2 { return nil }
+    if arrow.isElbowArrow, let ratio = fixedPoint(of: binding) {
+      let p = shape.globalFixedPoint(ratio)
+      return Point2D(p.x - arrow.x, p.y - arrow.y)
+    }
     let edge = end == .start ? 0 : arrow.points.count - 1
     let adjacent = end == .start ? 1 : edge - 1
     let p = shape.boundEdge(

@@ -159,6 +159,25 @@ const cornered: Skeleton = {
   seed: 23,
 };
 
+/** An elbow arrow from the rectangle's right side towards the ellipse. */
+const elbow = (ends: Record<string, { id: string }>): Skeleton => ({
+  type: "arrow",
+  id: "elbow",
+  x: 220,
+  y: 190,
+  elbowed: true,
+  roundness: null,
+  points: [
+    [0, 0],
+    [90, 0],
+    [90, 20],
+    [180, 20],
+  ],
+  endArrowhead: "arrow",
+  seed: 14,
+  ...ends,
+});
+
 /** An arrow from near the rectangle's right side to inside the ellipse's left. */
 const joinLeftToRight: Step[] = [
   { tool: "arrow" },
@@ -982,5 +1001,82 @@ export const INTERACTIONS: Interaction[] = [
         ],
       ),
     ],
+  },
+  {
+    name: "elbow-arrow-follows-a-shape",
+    before: [left, elbow({ start: { id: "left" } })],
+    steps: drag(
+      [100, 190],
+      [
+        [90, 230],
+        [80, 300],
+      ],
+    ),
+  },
+  {
+    name: "elbow-arrow-between-moved-shapes",
+    before: [
+      left,
+      right,
+      elbow({ start: { id: "left" }, end: { id: "right" } }),
+    ],
+    steps: drag(
+      [520, 210],
+      [
+        [540, 260],
+        [560, 330],
+      ],
+    ),
+  },
+  {
+    name: "elbow-arrow-selected-with-one-of-its-shapes",
+    before: [
+      left,
+      right,
+      elbow({ start: { id: "left" }, end: { id: "right" } }),
+    ],
+    steps: [
+      ...drag(
+        [60, 120],
+        [
+          [300, 200],
+          [405, 260],
+        ],
+      ),
+      ...drag(
+        [160, 170],
+        [
+          [150, 220],
+          [140, 280],
+        ],
+      ),
+    ],
+  },
+  {
+    name: "elbow-arrow-with-a-placed-segment-follows-a-shape",
+    before: [
+      left,
+      right,
+      {
+        ...elbow({ start: { id: "left" }, end: { id: "right" } }),
+        fixedSegments: [{ index: 2, start: [90, 0], end: [90, 20] }],
+      },
+    ],
+    steps: drag(
+      [520, 210],
+      [
+        [540, 260],
+        [560, 330],
+      ],
+    ),
+  },
+  {
+    name: "delete-a-shape-an-elbow-arrow-is-bound-to",
+    before: [
+      left,
+      right,
+      elbow({ start: { id: "left" }, end: { id: "right" } }),
+    ],
+    steps: [...tap([519, 210]), { press: "Delete" }],
   },
 ];

@@ -1,0 +1,139 @@
+[
+  {
+    "id": "left",
+    "type": "rectangle",
+    "x": 100,
+    "y": 150,
+    "width": 120,
+    "height": 80,
+    "angle": 0,
+    "strokeColor": "#1e1e1e",
+    "backgroundColor": "transparent",
+    "fillStyle": "solid",
+    "strokeWidth": 2,
+    "strokeStyle": "solid",
+    "roughness": 1,
+    "opacity": 100,
+    "groupIds": [],
+    "frameId": null,
+    "index": "a0",
+    "roundness": null,
+    "seed": 11,
+    "version": 3,
+    "versionNonce": 1,
+    "isDeleted": false,
+    "boundElements": [
+      {
+        "id": "elbow",
+        "type": "arrow"
+      }
+    ],
+    "updated": 1,
+    "link": null,
+    "locked": false
+  },
+  {
+    "id": "right",
+    "type": "ellipse",
+    "x": 440,
+    "y": 290,
+    "width": 120,
+    "height": 80,
+    "angle": 0,
+    "strokeColor": "#1e1e1e",
+    "backgroundColor": "transparent",
+    "fillStyle": "solid",
+    "strokeWidth": 2,
+    "strokeStyle": "solid",
+    "roughness": 1,
+    "opacity": 100,
+    "groupIds": [],
+    "frameId": null,
+    "index": "a1",
+    "roundness": null,
+    "seed": 12,
+    "version": 5,
+    "versionNonce": 2062639488,
+    "isDeleted": false,
+    "boundElements": [
+      {
+        "id": "elbow",
+        "type": "arrow"
+      }
+    ],
+    "updated": 1790443435799,
+    "link": null,
+    "locked": false
+  },
+  {
+    "id": "elbow",
+    "type": "arrow",
+    "x": 220,
+    "y": 190.00799999999998,
+    "width": 220,
+    "height": 140,
+    "angle": 0,
+    "strokeColor": "#1e1e1e",
+    "backgroundColor": "transparent",
+    "fillStyle": "solid",
+    "strokeWidth": 2,
+    "strokeStyle": "solid",
+    "roughness": 1,
+    "opacity": 100,
+    "groupIds": [],
+    "frameId": null,
+    "index": "a2",
+    "roundness": null,
+    "seed": 14,
+    "version": 6,
+    "versionNonce": 692662656,
+    "isDeleted": false,
+    "boundElements": [],
+    "updated": 1790443435799,
+    "link": null,
+    "locked": false,
+    "points": [
+      [
+        0,
+        0
+      ],
+      [
+        110,
+        0
+      ],
+      [
+        110,
+        140
+      ],
+      [
+        220,
+        140
+      ]
+    ],
+    "lastCommittedPoint": null,
+    "startBinding": {
+      "elementId": "left",
+      "fixedPoint": [
+        1,
+        0.5001
+      ],
+      "focus": 0,
+      "gap": 0
+    },
+    "endBinding": {
+      "elementId": "right",
+      "fixedPoint": [
+        0,
+        0.5001
+      ],
+      "focus": 0,
+      "gap": 0
+    },
+    "startArrowhead": null,
+    "endArrowhead": "arrow",
+    "elbowed": true,
+    "fixedSegments": null,
+    "startIsSpecial": null,
+    "endIsSpecial": null
+  }
+]

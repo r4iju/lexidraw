@@ -363,6 +363,12 @@ public final class DrawingEditor {
     case .resize, .rotate: resizing = true
     default: resizing = false
     }
+    if gesture.dragged, let hit = gesture.hit, let shape = restored(hit), !shape.isDeleted, shape.isBindable {
+      for entry in shape.boundElements where entry.type == .arrow {
+        guard let arrow = restored(entry.id), !arrow.isDeleted, arrow.isElbowArrow else { continue }
+        mutateElbowArrow(entry.id, [:], ownBindings: true)
+      }
+    }
     if gesture.dragged, case .none = gesture.action {
       updateFramesAfterDrag(to: point, highlight: gesture.frameToHighlight)
     } else if resizing {
@@ -458,9 +464,25 @@ public final class DrawingEditor {
 
   /// `dragSelectedElements`: each selected element, what a selected frame
   /// holds, and the text each holds, moved from where it was when the drag
-  /// began, and the arrows bound to it following.
+  /// began, and the arrows bound to it following. An elbow arrow bound at
+  /// both ends moves only with both its shapes, and one bound at all
+  /// doesn't move on its own.
   private func drag(_ gesture: Gesture, by offset: Point2D) {
-    let selected = withFrameChildren(selectedElements)
+    let chosen = selectedElements
+    func bound(_ element: RawElement, _ key: String) -> String? { element[key]?["elementId"]?.stringValue }
+    func isElbowArrow(_ element: RawElement) -> Bool { restored(element.id)?.isElbowArrow ?? false }
+    if chosen.count == 1, isElbowArrow(chosen[0]),
+      bound(chosen[0], "startBinding") != nil || bound(chosen[0], "endBinding") != nil
+    {
+      return
+    }
+    let chosenIds = Set(chosen.map(\.id))
+    let selected = withFrameChildren(
+      chosen.filter { element in
+        guard isElbowArrow(element), let start = bound(element, "startBinding"), let end = bound(element, "endBinding")
+        else { return true }
+        return chosenIds.contains(start) && chosenIds.contains(end)
+      })
     let ids = Set(selected.map(\.id))
     // `calculateOffset`: the offset as the selection's corner moves by it.
     let originals = makeGeometry(of: selected.map { gesture.originals[$0.id] ?? $0 })
@@ -497,6 +519,7 @@ public final class DrawingEditor {
   public func deleteSelection() {
     guard editing == nil, !selectedIds.isEmpty else { return }
     let selected = selectedIds
+    releaseElbowArrows(boundTo: selected)
     for position in store.indices where !store[position].isDeleted {
       let element = store[position]
       let container = element["containerId"]?.stringValue
@@ -509,6 +532,34 @@ public final class DrawingEditor {
     if let group = editingGroupId { selectAfterDeletingIn(group) }
     tool = .selection
     capture()
+  }
+
+  /// `deleteSelectedElements`: an elbow arrow lets go of each shape about
+  /// to be deleted and is routed again, from the elements as they were
+  /// before any is deleted.
+  private func releaseElbowArrows(boundTo selected: Set<String>) {
+    let deletedFrames = Set(store.filter { !$0.isDeleted && selected.contains($0.id) && $0.type?.isFrameLike == true }
+      .map(\.id))
+    for element in store where !element.isDeleted && selected.contains(element.id) {
+      let container = element["containerId"]?.stringValue.flatMap(self.element)
+      if frameId(element).map(deletedFrames.contains) == true
+        || container.flatMap(frameId).map(deletedFrames.contains) == true
+      {
+        continue
+      }
+      for entry in element["boundElements"]?.arrayValue ?? [] {
+        guard let id = entry["id"]?.stringValue, let arrow = restored(id), !arrow.isDeleted, arrow.isElbowArrow,
+          let raw = self.element(id)
+        else { continue }
+        var updates: RawElement = [:]
+        for key in ["startBinding", "endBinding"] {
+          guard let binding = raw[key] else { continue }
+          updates[key] = binding["elementId"]?.stringValue == element.id ? .null : binding
+        }
+        mutateElbowArrow(id, updates, ownBindings: true)
+        if let points = self.element(id)?["points"] { mutateElbowArrow(id, ["points": points], ownBindings: true) }
+      }
+    }
   }
 
   /// What `deleteSelectedElements` and `handleGroupEditingState` select
