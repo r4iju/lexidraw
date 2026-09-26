@@ -24,7 +24,7 @@ extension Update {
       if self[previous].text.isEmpty {
         try remove(previous)
       } else if canMerge(previous, node) {
-        node = try merge(previous, node)
+        node = try merge(previous, with: node)
         break
       } else {
         break
@@ -34,7 +34,7 @@ extension Update {
       if self[next].text.isEmpty {
         try remove(next)
       } else if canMerge(node, next) {
-        node = try merge(node, next)
+        node = try merge(node, with: next)
         break
       } else {
         break
@@ -45,16 +45,8 @@ extension Update {
   private func canMerge(_ first: NodeKey, _ second: NodeKey) -> Bool {
     guard let a = self[first].textNode, let b = self[second].textNode else { return false }
     let state = a.unknownFields["$"]
-    return a.mode == b.mode && a.format == b.format && a.style == b.style
+    return a.mode == b.mode && a.format == b.format && (a.style ?? "").isIdentical(to: b.style ?? "")
       && (state == nil || state == b.unknownFields["$"])
-  }
-
-  /// `first.mergeWithSibling(second)`, for `second` right after `first`.
-  private mutating func merge(_ first: NodeKey, _ second: NodeKey) throws -> NodeKey {
-    try setText(first, self[first].text + self[second].text)
-    markDirty(first)
-    try remove(second)
-    return first
   }
 
   /// Lexical's `setTextContent`.
@@ -62,7 +54,7 @@ extension Update {
     guard case .text(var node) = self[key].payload else {
       throw EditorError.unsupported("Setting the text of a \(self[key].type) node")
     }
-    guard node.text != text else { return }
+    guard !(node.text ?? "").isIdentical(to: text) else { return }
     node.text = text
     modify(key) { $0.payload = .text(node) }
   }

@@ -37,10 +37,7 @@ public struct Fuzzer {
         guard let command = generator.command(for: try reference.snapshot()) else { break }
         commands.append(command)
         stepsRun += 1
-        guard let agreed = agree(on: command) else {
-          throw FuzzerError("The reference refused a generated command: \(command)")
-        }
-        if !agreed {
+        if !agree(on: command) {
           let script = shrink((start, commands))
           let fixture = try Fixture.record(start: script.start, commands: script.commands, on: reference)
           return Finding(fixture: fixture, stepsRun: stepsRun)
@@ -62,11 +59,9 @@ public struct Fuzzer {
   }
 
   /// Applies `command` to both models and says whether the candidate agreed,
-  /// or nil when the reference refused it.
-  private func agree(on command: EditorCommand) -> Bool? {
-    let expected = step(reference, command)
-    guard expected.change != nil, expected.snapshot != nil else { return nil }
-    return step(candidate, command) == expected
+  /// refusing it too where the reference refused it.
+  private func agree(on command: EditorCommand) -> Bool {
+    step(candidate, command) == step(reference, command)
   }
 
   /// Whether the script makes the candidate diverge. Only scripts the
@@ -79,10 +74,10 @@ public struct Fuzzer {
     }
     guard (try? candidate.load(script.start)) != nil else { return true }
     for command in script.commands {
-      guard let before = try? reference.snapshot(), Generator.isValid(command, in: before.state),
-        let agreed = agree(on: command)
-      else { return false }
-      if !agreed { return true }
+      guard let before = try? reference.snapshot(), Generator.isValid(command, in: before.state) else {
+        return false
+      }
+      if !agree(on: command) { return true }
     }
     return false
   }
@@ -121,12 +116,16 @@ public struct Fuzzer {
       result.append((script.start.updatingNode(at: path) { _ in nil }, commands))
     }
     for (index, command) in script.commands.enumerated() {
-      guard case .setSelection(let anchor, let focus) = command, anchor == focus, anchor.offset > 0 else {
-        continue
+      guard case .setSelection(let anchor, let focus) = command else { continue }
+      let simpler =
+        anchor == focus
+        ? [Point(path: anchor.path, offset: 0, type: anchor.type)].filter { $0 != anchor }.map(EditorCommand.caret)
+        : [.caret(anchor), .caret(focus)]
+      for replacement in simpler {
+        var commands = script.commands
+        commands[index] = replacement
+        result.append((script.start, commands))
       }
-      var commands = script.commands
-      commands[index] = .caret(Point(path: anchor.path, offset: 0, type: anchor.type))
-      result.append((script.start, commands))
     }
     for path in paths {
       guard let text = script.start.node(at: path)?["text"]?.stringValue else { continue }
@@ -157,6 +156,9 @@ extension EditorCommand {
   fileprivate func adjustingPaths(forRemovalOf removed: [Int]) -> EditorCommand {
     func adjust(_ point: Point) -> Point {
       let depth = removed.count - 1
+      if point.type == .element, point.path == Array(removed.dropLast()), point.offset > removed[depth] {
+        return Point(path: point.path, offset: point.offset - 1, type: .element)
+      }
       guard point.path.count > depth, point.path[..<depth] == removed[..<depth],
         point.path[depth] > removed[depth]
       else { return point }
@@ -179,44 +181,76 @@ extension String {
   }
 }
 
-/// Random documents and commands within what LexicalSwift handles so far.
+/// Random documents of paragraphs, text and line breaks, and random editing
+/// commands a user could issue against them.
 struct Generator {
   private var random: SplitMix64
 
-  /// Characters chosen to stress UTF-16 offsets: accents, combining marks,
-  /// CJK, and emoji that are several code units and several scalars.
+  /// Characters chosen to stress UTF-16 offsets and word boundaries: accents,
+  /// combining marks, CJK, emoji that are several code units and several
+  /// scalars, and punctuation and spaces between words.
   private static let alphabet: [String] = [
-    "a", "b", "z", " ", ".", "é", "e\u{301}", "ß", "日", "本", "語", "한", "👍", "👍🏽", "👨‍👩‍👧", "🇯🇵",
+    "a", "b", "z", " ", " ", ".", "_", "7", "é", "e\u{301}", "ß", "日", "本", "語", "한", "👍", "👍🏽",
+    "👨‍👩‍👧", "🇯🇵",
   ]
-  private static let formats = [0, 1, 2, 3, 8, 16]
+  private static let formats = [0, 1, 2, 3, 8, 16, 32, 64]
+  private static let styles = ["", "", "", "color: red;"]
 
   init(seed: UInt64) {
     random = SplitMix64(seed: seed)
   }
 
   mutating func document() -> JSONValue {
-    LexicalJSON.document(
-      (0..<Int.random(in: 1...3, using: &random)).map { _ in
-        var previousFormat: Int?
-        return LexicalJSON.paragraph(
-          (0..<Int.random(in: 1...3, using: &random)).map { _ in
-            // Adjacent text with the same format would be merged by Lexical.
-            let format = Self.formats.filter { $0 != previousFormat }.randomElement(using: &random)!
-            previousFormat = format
-            return LexicalJSON.text(text(1...5), format: format)
-          })
-      })
+    LexicalJSON.document((0..<Int.random(in: 1...3, using: &random)).map { _ in paragraph() })
   }
 
-  /// Whether a user could issue `command` against `state`: a caret must sit
-  /// in a text node, on a grapheme boundary.
+  private mutating func paragraph() -> JSONValue {
+    var children: [JSONValue] = []
+    var previous: (format: Int, style: String)?
+    for _ in 0..<Int.random(in: 0...4, using: &random) {
+      if Int.random(in: 0..<4, using: &random) == 0 {
+        children.append(LexicalJSON.lineBreak)
+        previous = nil
+        continue
+      }
+      // Adjacent text alike would be merged by Lexical.
+      var format: Int
+      var style: String
+      repeat {
+        format = Self.formats.randomElement(using: &random)!
+        style = Self.styles.randomElement(using: &random)!
+      } while previous.map { $0 == (format, style) } == true
+      previous = (format, style)
+      children.append(LexicalJSON.text(text(1...5), format: format, style: style))
+    }
+    return LexicalJSON.paragraph(
+      children, textFormat: Self.formats.randomElement(using: &random)!,
+      textStyle: Self.styles.randomElement(using: &random)!)
+  }
+
+  /// Whether a user could issue `command` against `state`: a point in text
+  /// sits on a grapheme boundary, and a point in a paragraph sits where no
+  /// text is beside it to take it.
   static func isValid(_ command: EditorCommand, in state: JSONValue) -> Bool {
     guard case .setSelection(let anchor, let focus) = command else { return true }
-    return [anchor, focus].allSatisfy { point in
-      guard point.type == .text, let text = state.node(at: point.path)?["text"]?.stringValue else {
-        return false
+    return [anchor, focus].allSatisfy { points(in: state).contains($0) }
+  }
+
+  /// Every point a user could put a selection's end at.
+  private static func points(in state: JSONValue) -> [Point] {
+    state.nodePaths().flatMap { path -> [Point] in
+      guard let node = state.node(at: path) else { return [] }
+      switch node["type"]?.stringValue {
+      case "text":
+        return graphemeBoundaries(of: node["text"]?.stringValue ?? "").map { .text(path, $0) }
+      case "paragraph":
+        let isText = (node["children"]?.arrayValue ?? []).map { $0["type"] == "text" }
+        return (0...isText.count).filter { offset in
+          (offset == 0 || !isText[offset - 1]) && (offset == isText.count || !isText[offset])
+        }.map { Point(path: path, offset: $0, type: .element) }
+      default:
+        return []
       }
-      return graphemeBoundaries(of: text).contains(point.offset)
     }
   }
 
@@ -225,14 +259,26 @@ struct Generator {
   }
 
   mutating func command(for snapshot: Snapshot) -> EditorCommand? {
-    if snapshot.selection != nil, Int.random(in: 0..<10, using: &random) < 7 {
-      return .insertText(text(1...3))
+    let roll = Int.random(in: 0..<100, using: &random)
+    let backward = Int.random(in: 0..<3, using: &random) > 0
+    switch roll {
+    case ..<22 where snapshot.selection == nil, 70..<85:
+      let points = Self.points(in: snapshot.state)
+      guard let anchor = points.randomElement(using: &random) else { return .selectAll }
+      let isRange = Int.random(in: 0..<3, using: &random) == 0
+      return .setSelection(anchor: anchor, focus: isRange ? points.randomElement(using: &random)! : anchor)
+    case ..<22: return .insertText(text(1...3))
+    case ..<34: return .deleteCharacter(backward: backward)
+    case ..<39: return .deleteWord(backward: backward)
+    case ..<42: return .deleteLine(backward: backward)
+    case ..<49: return .insertParagraph
+    case ..<54: return .insertLineBreak
+    case ..<62: return .formatText(TextFormat.allCases.randomElement(using: &random)!)
+    case ..<64: return .selectAll
+    case ..<70: return .wait(milliseconds: [500, 1000, 2000].randomElement(using: &random)!)
+    case ..<94: return .undo
+    default: return .redo
     }
-    let texts = snapshot.state.nodePaths().filter { snapshot.state.node(at: $0)?["type"] == "text" }
-    guard let path = texts.randomElement(using: &random),
-      let text = snapshot.state.node(at: path)?["text"]?.stringValue
-    else { return nil }
-    return .caret(.text(path, Self.graphemeBoundaries(of: text).randomElement(using: &random)!))
   }
 
   private mutating func text(_ length: ClosedRange<Int>) -> String {

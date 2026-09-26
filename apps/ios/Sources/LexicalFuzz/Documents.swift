@@ -3,19 +3,23 @@ import LexicalSwift
 /// Builders for serialized Lexical nodes, in exactly the shape Lexical writes
 /// them, so a generated document loads without being normalized.
 public enum LexicalJSON {
-  public static func text(_ text: String, format: Int = 0) -> JSONValue {
+  public static func text(_ text: String, format: Int = 0, style: String = "") -> JSONValue {
     [
-      "detail": 0, "format": .number(Double(format)), "mode": "normal", "style": "",
+      "detail": 0, "format": .number(Double(format)), "mode": "normal", "style": .string(style),
       "text": .string(text), "type": "text", "version": 1,
     ]
   }
 
-  /// Lexical gives a loaded paragraph the format of its first text.
-  public static func paragraph(_ children: [JSONValue]) -> JSONValue {
-    let textFormat = children.first?["format"]?.intValue ?? 0
+  public static let lineBreak: JSONValue = ["type": "linebreak", "version": 1]
+
+  /// Lexical writes a paragraph's text format and style from its first text,
+  /// and from what it holds for new text only where it has none.
+  public static func paragraph(_ children: [JSONValue], textFormat: Int = 0, textStyle: String = "") -> JSONValue {
+    let firstText = children.first { $0["type"] == "text" }
     return [
       "children": .array(children), "direction": nil, "format": "", "indent": 0,
-      "textFormat": .number(Double(textFormat)), "textStyle": "", "type": "paragraph", "version": 1,
+      "textFormat": firstText?["format"] ?? .number(Double(textFormat)),
+      "textStyle": firstText?["style"] ?? .string(textStyle), "type": "paragraph", "version": 1,
     ]
   }
 

@@ -5,6 +5,11 @@ import OrderedCollections
 /// garbage collection and the change set see what Lexical's would.
 struct Update {
   var state: EditorState
+  /// The committed state the update started from.
+  let base: EditorState
+  /// Lexical's `$getSelection()` in an update: a copy of the committed
+  /// selection until the update sets another.
+  var selection: RangeSelection?
   private(set) var nextKey: NodeKey
   /// In the order Lexical first marks them, which is the order its
   /// transforms visit them in.
@@ -16,8 +21,14 @@ struct Update {
 
   init(_ state: EditorState, nextKey: NodeKey) {
     self.state = state
+    base = state
+    selection = state.selection.map(RangeSelection.init)
     self.nextKey = nextKey
   }
+
+  /// Whether the update marked any node, which is what makes Lexical commit
+  /// it even where the nodes it marked have gone again.
+  var hasDirtyNodes: Bool { !touched.isEmpty }
 
   subscript(key: NodeKey) -> Node { state[key] }
 
@@ -117,10 +128,14 @@ struct Update {
     markDirty(parent)
     var after = start + deleteCount < children.count ? children[start + deleteCount] : nil
     var before = start > 0 ? children[start - 1] : nil
+    var removed: [NodeKey] = []
+    var doomed = before.map(state.nextSibling(of:)) ?? children.first
     for _ in 0..<deleteCount {
-      let doomed = state[parent].children![before.flatMap { state[parent].children!.firstIndex(of: $0) }.map { $0 + 1 } ?? 0]
-      markDirty(doomed)
-      detach(doomed)
+      let key = doomed!
+      doomed = state.nextSibling(of: key)
+      markDirty(key)
+      detach(key)
+      removed.append(key)
     }
     var previous = before
     for node in nodes {
@@ -135,6 +150,7 @@ struct Update {
       detach(node)
       let index = previous.flatMap { state[parent].children!.firstIndex(of: $0) }.map { $0 + 1 } ?? 0
       if let previous { markDirty(previous) }
+      guard node != parent else { throw EditorError.invalidState("append: attempting to append self") }
       state.nodes[parent]!.children!.insert(node, at: index)
       state.nodes[node]!.parent = parent
       previous = node
@@ -144,6 +160,23 @@ struct Update {
       if let previous { markDirty(previous) }
     } else if let previous {
       markDirty(previous)
+    }
+    guard !removed.isEmpty, let selection else { return }
+    let state = state
+    let isRemoved = { (point: SelectionPoint) -> Bool in
+      var node: NodeKey? = point.key
+      while let current = node {
+        if removed.contains(current), !nodes.contains(current) { return true }
+        node = state.parent(of: current)
+      }
+      return false
+    }
+    for point in [selection.anchor, selection.focus] where isRemoved(point) {
+      moveSelectionPoint(point, toSiblingOf: point.key, in: parent, previous: before, next: after)
+    }
+    let emptied = state[parent]
+    if emptied.children!.isEmpty, !emptied.canBeEmpty, !emptied.isRootOrShadowRoot {
+      try remove(parent)
     }
   }
 
@@ -164,63 +197,139 @@ struct Update {
   }
 
   /// Lexical's `insertBefore`.
-  mutating func insert(_ node: NodeKey, before sibling: NodeKey) throws {
+  mutating func insert(_ node: NodeKey, before sibling: NodeKey, restoringSelection: Bool = true) throws {
     try checkInsertion(node, besides: sibling)
     markDirty(sibling)
     markDirty(node)
+    let selection = restoringSelection ? selection : nil
+    let oldParent = state[node].parent
+    let oldIndex = oldParent.flatMap { oldParent in
+      selection.flatMap { touches($0, oldParent) ? state.index(of: node) : nil }
+    }
     detach(node)
+    if let selection, let oldParent, let oldIndex {
+      try updateElementSelection(selection, onCreatingOrDeletingIn: oldParent, at: oldIndex, times: -1)
+    }
+    let previous = state.previousSibling(of: sibling)
     let parent = state[sibling].parent!
-    let index = state[parent].children!.firstIndex(of: sibling)!
-    if index > 0 { markDirty(state[parent].children![index - 1]) }
     markDirty(parent)
-    state.nodes[parent]!.children!.insert(node, at: index)
+    let index = selection.flatMap { touches($0, parent) ? state.index(of: sibling) : nil }
+    if let previous { markDirty(previous) }
+    state.nodes[parent]!.children!.insert(node, at: state.index(of: sibling)!)
     state.nodes[node]!.parent = parent
+    if let selection, let index {
+      try updateElementSelection(selection, onCreatingOrDeletingIn: parent, at: index, times: 1)
+    }
   }
 
   /// Lexical's `insertAfter`.
-  mutating func insert(_ node: NodeKey, after sibling: NodeKey) throws {
+  mutating func insert(_ node: NodeKey, after sibling: NodeKey, restoringSelection: Bool = true) throws {
     try checkInsertion(node, besides: sibling)
     markDirty(sibling)
     markDirty(node)
+    let selection = restoringSelection ? selection : nil
+    let oldParent = state[node].parent
+    var anchorOnNode = false
+    var focusOnNode = false
+    var oldIndex: Int?
+    if let selection, let oldParent, touches(selection, oldParent) {
+      let index = state.index(of: node)!
+      oldIndex = index
+      let isOnNode = { (point: SelectionPoint) in
+        point.type == .element && point.key == oldParent && point.offset == index + 1
+      }
+      anchorOnNode = isOnNode(selection.anchor)
+      focusOnNode = isOnNode(selection.focus)
+    }
     detach(node)
+    if let selection, let oldParent, let oldIndex {
+      try updateElementSelection(selection, onCreatingOrDeletingIn: oldParent, at: oldIndex, times: -1)
+    }
+    let next = state.nextSibling(of: sibling)
     let parent = state[sibling].parent!
-    let index = state[parent].children!.firstIndex(of: sibling)!
     markDirty(parent)
-    if index + 1 < state[parent].children!.count { markDirty(state[parent].children![index + 1]) }
-    state.nodes[parent]!.children!.insert(node, at: index + 1)
+    if let next { markDirty(next) }
+    state.nodes[parent]!.children!.insert(node, at: state.index(of: sibling)! + 1)
     state.nodes[node]!.parent = parent
+    if let selection, anchorOnNode || focusOnNode || touches(selection, parent) {
+      let index = state.index(of: sibling)!
+      try updateElementSelection(selection, onCreatingOrDeletingIn: parent, at: index + 1, times: 1)
+      if anchorOnNode { selection.anchor.set(parent, index + 2, .element) }
+      if focusOnNode { selection.focus.set(parent, index + 2, .element) }
+    }
   }
 
   /// Lexical's `replace`, which leaves the replaced node's children with it.
+  /// The selection it restores is a copy, which then becomes the selection.
   @discardableResult
   mutating func replace(_ node: NodeKey, with replacement: NodeKey) throws -> NodeKey {
+    let selection = selection?.clone()
     try checkInsertion(replacement, besides: node)
-    let parent = state[node].parent!
     markDirty(replacement)
+    let parent = state[node].parent!
     markDirty(parent)
+    let oldParent = state[replacement].parent
+    let oldIndex = oldParent.flatMap { oldParent in
+      selection.flatMap { touches($0, oldParent) ? state.index(of: replacement) : nil }
+    }
     detach(replacement)
-    let index = state[parent].children!.firstIndex(of: node)!
-    detach(node)
-    let siblings = state[parent].children!
-    if index > 0 { markDirty(siblings[index - 1]) }
-    if index < siblings.count { markDirty(siblings[index]) }
+    if let selection, let oldParent, let oldIndex {
+      try updateElementSelection(selection, onCreatingOrDeletingIn: oldParent, at: oldIndex, times: -1)
+    }
+    let previous = state.previousSibling(of: node)
+    let next = state.nextSibling(of: node)
+    let index = state.index(of: node)!
+    try removeNode(node, restoringSelection: false, preservingEmptyParent: true)
+    if let previous { markDirty(previous) }
+    if let next { markDirty(next) }
     state.nodes[parent]!.children!.insert(replacement, at: index)
     state.nodes[replacement]!.parent = parent
+    if let selection {
+      setSelection(selection)
+      for point in [selection.anchor, selection.focus] where point.key == node {
+        movePoint(point, toEndOf: replacement)
+      }
+    }
     return replacement
   }
 
-  /// Lexical's `remove`: a parent left empty that can't be goes too.
+  /// Lexical's `remove`: a parent left empty that can't be goes too, and the
+  /// selection moves off what goes.
   mutating func remove(_ node: NodeKey, preservingEmptyParent: Bool = false) throws {
+    try removeNode(node, restoringSelection: true, preservingEmptyParent: preservingEmptyParent)
+  }
+
+  /// Lexical's `$removeNode`.
+  mutating func removeNode(_ node: NodeKey, restoringSelection: Bool, preservingEmptyParent: Bool = false) throws {
     guard let parent = state[node].parent else { return }
-    detach(node)
+    let selection = moveChildrenSelectionToParent(node)
+    var moved = false
+    if let selection, restoringSelection {
+      for point in [selection.anchor, selection.focus] where point.key == node {
+        moveSelectionPoint(
+          point, toSiblingOf: node, in: parent, previous: state.previousSibling(of: node),
+          next: state.nextSibling(of: node))
+        moved = true
+      }
+    }
+    if let selection, restoringSelection, !moved, touches(selection, parent) {
+      let index = state.index(of: node)!
+      detach(node)
+      try updateElementSelection(selection, onCreatingOrDeletingIn: parent, at: index, times: -1)
+    } else {
+      detach(node)
+    }
     let emptied = state[parent]
     if !preservingEmptyParent, !emptied.isRootOrShadowRoot, !emptied.canBeEmpty, emptied.children!.isEmpty {
-      try remove(parent)
+      try removeNode(parent, restoringSelection: restoringSelection)
+    }
+    if restoringSelection, selection != nil, emptied.isRoot, state[parent].children!.isEmpty {
+      selectEnd(parent)
     }
   }
 
   private func checkInsertion(_ node: NodeKey, besides sibling: NodeKey) throws {
-    if state[node].isText, let parent = state[sibling].parent, state[parent].isRoot {
+    if let parent = state[sibling].parent, state[parent].isRoot, !state[node].isElement, !state[node].isDecorator {
       throw EditorError.invalidState("Only element or decorator nodes can be inserted to the root node")
     }
   }
@@ -269,15 +378,28 @@ struct Update {
   }
 
   /// Lexical's `$garbageCollectDetachedNodes`: dirty nodes left out of the
-  /// document go, with everything under them.
+  /// document go, with everything under them, and those the update created
+  /// are no longer counted as changed.
   mutating func collectGarbage() {
-    let dirty = Array(dirtyElements.keys) + Array(dirtyLeaves)
-    for key in dirty where state.nodes[key] != nil && !state.isAttached(key) {
-      var doomed = [key]
-      while let next = doomed.popLast() {
-        guard let node = state.nodes.removeValue(forKey: next) else { continue }
-        doomed += node.children ?? []
-      }
+    var doomed: [NodeKey] = []
+    for key in dirtyElements.keys where state.nodes[key] != nil && !state.isAttached(key) {
+      collect(key, into: &doomed)
+      if base.nodes[key] == nil { dirtyElements.removeValue(forKey: key) }
+      doomed.append(key)
+    }
+    for key in dirtyLeaves where state.nodes[key] != nil && !state.isAttached(key) {
+      if base.nodes[key] == nil { dirtyLeaves.remove(key) }
+      doomed.append(key)
+    }
+    for key in doomed { state.nodes.removeValue(forKey: key) }
+  }
+
+  /// `$garbageCollectDetachedDeepChildNodes`.
+  private mutating func collect(_ element: NodeKey, into doomed: inout [NodeKey]) {
+    for child in state.children(of: element) where state[child].parent == element {
+      if state[child].isElement { collect(child, into: &doomed) }
+      if base.nodes[child] == nil { dirtyElements.removeValue(forKey: child) }
+      doomed.append(child)
     }
   }
 

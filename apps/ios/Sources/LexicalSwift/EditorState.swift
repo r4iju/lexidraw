@@ -10,7 +10,7 @@ public struct EditorState: Sendable {
   static let rootKey: NodeKey = 0
 
   var nodes: TreeDictionary<NodeKey, Node>
-  var selection: RangeSelection?
+  var selection: KeySelection?
 
   subscript(key: NodeKey) -> Node { nodes[key]! }
 
@@ -81,6 +81,36 @@ extension EditorState {
       let index = siblings.firstIndex(of: key), index + 1 < siblings.count
     else { return nil }
     return siblings[index + 1]
+  }
+
+  func firstChild(of key: NodeKey) -> NodeKey? { self[key].children?.first }
+
+  func lastChild(of key: NodeKey) -> NodeKey? { self[key].children?.last }
+
+  func childCount(of key: NodeKey) -> Int { self[key].children?.count ?? 0 }
+
+  func child(of key: NodeKey, at index: Int) -> NodeKey? {
+    guard let children = self[key].children, children.indices.contains(index) else { return nil }
+    return children[index]
+  }
+
+  /// A text node's length in UTF-16 code units, which Lexical's offsets count.
+  func textSize(of key: NodeKey) -> Int { self[key].text.utf16.count }
+
+  /// Lexical's `getTextContent`: a line break reads as a newline, and blocks
+  /// are set apart by a blank line.
+  func textContent(of key: NodeKey) -> String {
+    let node = self[key]
+    if node.isLineBreak { return "\n" }
+    guard let children = node.children else { return node.text }
+    var text = ""
+    for (index, child) in children.enumerated() {
+      text += textContent(of: child)
+      if self[child].isElement, index != children.count - 1, !self[child].isInline {
+        text += "\n\n"
+      }
+    }
+    return text
   }
 
   func isAttached(_ key: NodeKey) -> Bool {

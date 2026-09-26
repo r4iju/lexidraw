@@ -1,6 +1,6 @@
 /// A JSON value, as Lexical serializes documents. Objects compare by value,
-/// not key order.
-public enum JSONValue: Equatable, Hashable, Sendable {
+/// not key order, and strings by code unit.
+public enum JSONValue: Hashable, Sendable {
   case null
   case bool(Bool)
   case number(Double)
@@ -22,6 +22,40 @@ public enum JSONValue: Equatable, Hashable, Sendable {
 
   public var arrayValue: [JSONValue]? {
     if case .array(let value) = self { value } else { nil }
+  }
+}
+
+extension JSONValue {
+  public static func == (lhs: JSONValue, rhs: JSONValue) -> Bool {
+    switch (lhs, rhs) {
+    case (.null, .null): true
+    case (.bool(let a), .bool(let b)): a == b
+    case (.number(let a), .number(let b)): a == b
+    case (.string(let a), .string(let b)): a.isIdentical(to: b)
+    case (.array(let a), .array(let b)): a == b
+    case (.object(let a), .object(let b)): a == b
+    default: false
+    }
+  }
+
+  public func hash(into hasher: inout Hasher) {
+    switch self {
+    case .null: hasher.combine(0)
+    case .bool(let value): hasher.combine(value)
+    case .number(let value): hasher.combine(value)
+    case .string(let value): hasher.combine(Array(value.utf16))
+    case .array(let value): hasher.combine(value)
+    case .object(let value): hasher.combine(value)
+    }
+  }
+}
+
+extension String {
+  /// JavaScript's `===`. Swift's `==` holds canonically equivalent strings
+  /// equal, but Lexical keeps text as typed, so "é" typed over "e\u{301}"
+  /// is a change.
+  func isIdentical(to other: String) -> Bool {
+    utf16.elementsEqual(other.utf16)
   }
 }
 

@@ -1,0 +1,241 @@
+{
+  "changes" : [
+    {
+      "changed" : [
+
+      ]
+    },
+    {
+      "changed" : [
+        [
+
+        ],
+        [
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "changed" : [
+        [
+
+        ],
+        [
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "changed" : [
+        [
+
+        ],
+        [
+          0
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          1
+        ],
+        [
+          1,
+          0
+        ],
+        [
+          2
+        ]
+      ]
+    },
+    {
+      "changed" : [
+
+      ],
+      "everything" : true
+    },
+    {
+      "changed" : [
+
+      ]
+    },
+    {
+      "changed" : [
+        [
+
+        ],
+        [
+          0
+        ],
+        [
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "changed" : [
+
+      ]
+    }
+  ],
+  "commands" : [
+    {
+      "anchor" : {
+        "offset" : 2,
+        "path" : [
+          0,
+          0
+        ],
+        "type" : "text"
+      },
+      "focus" : {
+        "offset" : 2,
+        "path" : [
+          0,
+          0
+        ],
+        "type" : "text"
+      },
+      "type" : "setSelection"
+    },
+    {
+      "backward" : true,
+      "type" : "deleteLine"
+    },
+    {
+      "text" : "é",
+      "type" : "insertText"
+    },
+    {
+      "type" : "insertParagraph"
+    },
+    {
+      "type" : "undo"
+    },
+    {
+      "anchor" : {
+        "offset" : 3,
+        "path" : [
+          0,
+          0
+        ],
+        "type" : "text"
+      },
+      "focus" : {
+        "offset" : 0,
+        "path" : [
+          1
+        ],
+        "type" : "element"
+      },
+      "type" : "setSelection"
+    },
+    {
+      "text" : "é",
+      "type" : "insertText"
+    },
+    {
+      "type" : "redo"
+    }
+  ],
+  "expected" : {
+    "selection" : {
+      "anchor" : {
+        "offset" : 5,
+        "path" : [
+          0,
+          0
+        ],
+        "type" : "text"
+      },
+      "focus" : {
+        "offset" : 5,
+        "path" : [
+          0,
+          0
+        ],
+        "type" : "text"
+      },
+      "format" : 8,
+      "style" : ""
+    },
+    "state" : {
+      "root" : {
+        "children" : [
+          {
+            "children" : [
+              {
+                "detail" : 0,
+                "format" : 8,
+                "mode" : "normal",
+                "style" : "",
+                "text" : "é_.é",
+                "type" : "text",
+                "version" : 1
+              }
+            ],
+            "direction" : null,
+            "format" : "",
+            "indent" : 0,
+            "textFormat" : 8,
+            "textStyle" : "",
+            "type" : "paragraph",
+            "version" : 1
+          }
+        ],
+        "direction" : null,
+        "format" : "",
+        "indent" : 0,
+        "type" : "root",
+        "version" : 1
+      }
+    }
+  },
+  "start" : {
+    "root" : {
+      "children" : [
+        {
+          "children" : [
+            {
+              "detail" : 0,
+              "format" : 8,
+              "mode" : "normal",
+              "style" : "",
+              "text" : "ba_.é",
+              "type" : "text",
+              "version" : 1
+            }
+          ],
+          "direction" : null,
+          "format" : "",
+          "indent" : 0,
+          "textFormat" : 8,
+          "textStyle" : "",
+          "type" : "paragraph",
+          "version" : 1
+        },
+        {
+          "children" : [
+
+          ],
+          "direction" : null,
+          "format" : "",
+          "indent" : 0,
+          "textFormat" : 64,
+          "textStyle" : "",
+          "type" : "paragraph",
+          "version" : 1
+        }
+      ],
+      "direction" : null,
+      "format" : "",
+      "indent" : 0,
+      "type" : "root",
+      "version" : 1
+    }
+  }
+}

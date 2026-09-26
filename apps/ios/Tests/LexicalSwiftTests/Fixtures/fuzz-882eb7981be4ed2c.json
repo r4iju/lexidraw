@@ -1,0 +1,188 @@
+{
+  "changes" : [
+    {
+      "changed" : [
+
+      ]
+    },
+    {
+      "changed" : [
+        [
+
+        ],
+        [
+          0
+        ],
+        [
+          1
+        ]
+      ]
+    },
+    {
+      "changed" : [
+        [
+
+        ],
+        [
+          1
+        ],
+        [
+          1,
+          0
+        ]
+      ]
+    },
+    {
+      "changed" : [
+        [
+
+        ],
+        [
+          1
+        ],
+        [
+          1,
+          0
+        ],
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "changed" : [
+
+      ]
+    },
+    null
+  ],
+  "commands" : [
+    {
+      "type" : "selectAll"
+    },
+    {
+      "type" : "insertParagraph"
+    },
+    {
+      "text" : "🇯🇵_b",
+      "type" : "insertText"
+    },
+    {
+      "type" : "insertLineBreak"
+    },
+    {
+      "anchor" : {
+        "offset" : 5,
+        "path" : [
+          1,
+          0
+        ],
+        "type" : "text"
+      },
+      "focus" : {
+        "offset" : 0,
+        "path" : [
+          0
+        ],
+        "type" : "element"
+      },
+      "type" : "setSelection"
+    },
+    {
+      "text" : "👍🏽",
+      "type" : "insertText"
+    }
+  ],
+  "expected" : {
+    "selection" : {
+      "anchor" : {
+        "offset" : 5,
+        "path" : [
+          1,
+          0
+        ],
+        "type" : "text"
+      },
+      "focus" : {
+        "offset" : 0,
+        "path" : [
+          0
+        ],
+        "type" : "element"
+      },
+      "format" : 0,
+      "style" : ""
+    },
+    "state" : {
+      "root" : {
+        "children" : [
+          {
+            "children" : [
+
+            ],
+            "direction" : null,
+            "format" : "",
+            "indent" : 0,
+            "textFormat" : 16,
+            "textStyle" : "",
+            "type" : "paragraph",
+            "version" : 1
+          },
+          {
+            "children" : [
+              {
+                "detail" : 0,
+                "format" : 0,
+                "mode" : "normal",
+                "style" : "",
+                "text" : "🇯🇵_b",
+                "type" : "text",
+                "version" : 1
+              },
+              {
+                "type" : "linebreak",
+                "version" : 1
+              }
+            ],
+            "direction" : null,
+            "format" : "",
+            "indent" : 0,
+            "textFormat" : 0,
+            "textStyle" : "",
+            "type" : "paragraph",
+            "version" : 1
+          }
+        ],
+        "direction" : null,
+        "format" : "",
+        "indent" : 0,
+        "type" : "root",
+        "version" : 1
+      }
+    }
+  },
+  "start" : {
+    "root" : {
+      "children" : [
+        {
+          "children" : [
+
+          ],
+          "direction" : null,
+          "format" : "",
+          "indent" : 0,
+          "textFormat" : 16,
+          "textStyle" : "",
+          "type" : "paragraph",
+          "version" : 1
+        }
+      ],
+      "direction" : null,
+      "format" : "",
+      "indent" : 0,
+      "type" : "root",
+      "version" : 1
+    }
+  }
+}

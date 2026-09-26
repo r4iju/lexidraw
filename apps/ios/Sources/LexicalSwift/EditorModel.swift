@@ -70,19 +70,42 @@ public enum EditorCommand: Equatable, Sendable {
   /// follow what it lands in.
   case setSelection(anchor: Point, focus: Point)
   case insertText(String)
+  /// Backspace (`backward`) or forward delete, by one character, word or line.
+  case deleteCharacter(backward: Bool)
+  case deleteWord(backward: Bool)
+  case deleteLine(backward: Bool)
+  /// Enter.
+  case insertParagraph
+  /// Shift-Enter.
+  case insertLineBreak
+  /// Toggles a format on the selected text, or on what a caret types next.
+  case formatText(TextFormat)
+  case selectAll
+  case undo
+  case redo
+  /// Lets time pass, which decides whether history merges the next edit into
+  /// the last.
+  case wait(milliseconds: Int)
 
   public static func caret(_ point: Point) -> EditorCommand {
     .setSelection(anchor: point, focus: point)
   }
 }
 
+/// Lexical's `TextFormatType`, named as it names them.
+public enum TextFormat: String, Codable, CaseIterable, Sendable {
+  case bold, italic, strikethrough, underline, code, `subscript`, superscript, highlight, lowercase,
+    uppercase, capitalize
+}
+
 extension EditorCommand: Codable {
   private enum CodingKeys: String, CodingKey {
-    case type, anchor, focus, text
+    case type, anchor, focus, text, backward, format, milliseconds
   }
 
   public init(from decoder: any Decoder) throws {
     let container = try decoder.container(keyedBy: CodingKeys.self)
+    func backward() throws -> Bool { try container.decode(Bool.self, forKey: .backward) }
     switch try container.decode(String.self, forKey: .type) {
     case "setSelection":
       self = .setSelection(
@@ -90,6 +113,16 @@ extension EditorCommand: Codable {
         focus: try container.decode(Point.self, forKey: .focus))
     case "insertText":
       self = .insertText(try container.decode(String.self, forKey: .text))
+    case "deleteCharacter": self = .deleteCharacter(backward: try backward())
+    case "deleteWord": self = .deleteWord(backward: try backward())
+    case "deleteLine": self = .deleteLine(backward: try backward())
+    case "insertParagraph": self = .insertParagraph
+    case "insertLineBreak": self = .insertLineBreak
+    case "formatText": self = .formatText(try container.decode(TextFormat.self, forKey: .format))
+    case "selectAll": self = .selectAll
+    case "undo": self = .undo
+    case "redo": self = .redo
+    case "wait": self = .wait(milliseconds: try container.decode(Int.self, forKey: .milliseconds))
     case let type:
       throw DecodingError.dataCorruptedError(
         forKey: .type, in: container, debugDescription: "Unknown command \(type)")
@@ -106,6 +139,35 @@ extension EditorCommand: Codable {
     case .insertText(let text):
       try container.encode("insertText", forKey: .type)
       try container.encode(text, forKey: .text)
+    case .deleteCharacter(let backward), .deleteWord(let backward), .deleteLine(let backward):
+      try container.encode(name, forKey: .type)
+      try container.encode(backward, forKey: .backward)
+    case .formatText(let format):
+      try container.encode("formatText", forKey: .type)
+      try container.encode(format, forKey: .format)
+    case .wait(let milliseconds):
+      try container.encode("wait", forKey: .type)
+      try container.encode(milliseconds, forKey: .milliseconds)
+    case .insertParagraph, .insertLineBreak, .selectAll, .undo, .redo:
+      try container.encode(name, forKey: .type)
+    }
+  }
+
+  /// The command's `type` in JSON.
+  public var name: String {
+    switch self {
+    case .setSelection: "setSelection"
+    case .insertText: "insertText"
+    case .deleteCharacter: "deleteCharacter"
+    case .deleteWord: "deleteWord"
+    case .deleteLine: "deleteLine"
+    case .insertParagraph: "insertParagraph"
+    case .insertLineBreak: "insertLineBreak"
+    case .formatText: "formatText"
+    case .selectAll: "selectAll"
+    case .undo: "undo"
+    case .redo: "redo"
+    case .wait: "wait"
     }
   }
 }
@@ -114,26 +176,32 @@ extension EditorCommand: Codable {
 /// changed. Removing a node changes its parent.
 public struct ChangeSet: Equatable, Sendable {
   public var changed: Set<[Int]>
+  /// Undo and redo put back a whole saved document, so a view redraws all of
+  /// it and `changed` is empty.
+  public var everything: Bool
 
-  public init(changed: Set<[Int]> = []) {
+  public init(changed: Set<[Int]> = [], everything: Bool = false) {
     self.changed = changed
+    self.everything = everything
   }
 }
 
 extension ChangeSet: Codable {
   private enum CodingKeys: String, CodingKey {
-    case changed
+    case changed, everything
   }
 
   public init(from decoder: any Decoder) throws {
     let container = try decoder.container(keyedBy: CodingKeys.self)
     changed = Set(try container.decode([[Int]].self, forKey: .changed))
+    everything = try container.decodeIfPresent(Bool.self, forKey: .everything) ?? false
   }
 
   /// Sorted, so a recorded fixture's bytes don't depend on hashing.
   public func encode(to encoder: any Encoder) throws {
     var container = encoder.container(keyedBy: CodingKeys.self)
     try container.encode(changed.sorted { $0.lexicographicallyPrecedes($1) }, forKey: .changed)
+    if everything { try container.encode(true, forKey: .everything) }
   }
 }
 
