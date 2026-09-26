@@ -11,6 +11,8 @@ struct Update {
   /// selection until the update sets another.
   var selection: RangeSelection?
   private(set) var nextKey: NodeKey
+  /// What sets this update apart from every other on the same editor.
+  let revision: Int
   /// In the order Lexical first marks them, which is the order its
   /// transforms visit them in.
   var dirtyLeaves: OrderedSet<NodeKey> = []
@@ -19,11 +21,12 @@ struct Update {
   /// Every node marked in this update, which the transforms' rounds forget.
   private(set) var touched: Set<NodeKey> = []
 
-  init(_ state: EditorState, nextKey: NodeKey) {
+  init(_ state: EditorState, nextKey: NodeKey, revision: Int) {
     self.state = state
     base = state
     selection = state.selection.map(RangeSelection.init)
     self.nextKey = nextKey
+    self.revision = revision
   }
 
   /// Whether the update marked any node, which is what makes Lexical commit
@@ -46,6 +49,7 @@ struct Update {
 
   private mutating func markOwnDirty(_ key: NodeKey) {
     touched.insert(key)
+    state.nodes[key]!.revision = revision
     if state[key].isElement {
       dirtyElements[key] = true
     } else {

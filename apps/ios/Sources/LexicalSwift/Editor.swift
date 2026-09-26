@@ -3,6 +3,7 @@
 public final class Editor: EditorModel {
   public private(set) var state = EditorState(nodes: [:], selection: nil)
   private var nextKey: NodeKey = 0
+  private var revisions = 0
   private var history = History(EditorState(nodes: [:], selection: nil))
   private var now = 0
   /// Whether the document holds only what the editing commands are ported
@@ -14,7 +15,7 @@ public final class Editor: EditorModel {
 
   public func load(_ json: JSONValue) throws {
     guard let root = json["root"], root["type"] == "root" else { throw EditorError.invalidState("No root") }
-    var update = Update(EditorState(nodes: [:], selection: nil), nextKey: 0)
+    var update = Update(EditorState(nodes: [:], selection: nil), nextKey: 0, revision: nextRevision())
     _ = try update.parse(root)
     try update.applyTransforms()
     update.collectGarbage()
@@ -35,12 +36,12 @@ public final class Editor: EditorModel {
     case .undo, .redo:
       let restored = command == .undo ? history.undo(at: now) : history.redo(at: now)
       guard let restored else { return ChangeSet(changed: []) }
-      state = restored
-      return ChangeSet(changed: [], everything: true)
+      defer { state = restored }
+      return ChangeSet(changed: restored.changedPaths(since: state))
     default:
       guard isEditable else { throw EditorError.unsupported("Editing a document with more than plain paragraphs") }
     }
-    var update = Update(state, nextKey: nextKey)
+    var update = Update(state, nextKey: nextKey, revision: nextRevision())
     try update.run(command)
     try update.applyTransforms()
     update.collectGarbage()
@@ -58,6 +59,11 @@ public final class Editor: EditorModel {
     state = next
     nextKey = update.nextKey
     return update.changes
+  }
+
+  private func nextRevision() -> Int {
+    revisions += 1
+    return revisions
   }
 
   public func snapshot() throws -> Snapshot {

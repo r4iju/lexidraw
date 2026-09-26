@@ -11,81 +11,19 @@
 
         ],
         [
-          0
-        ],
-        [
-          0,
-          0
-        ]
-      ]
-    },
-    {
-      "changed" : [
-
-      ]
-    },
-    {
-      "changed" : [
-        [
-
-        ],
-        [
-          0
-        ],
-        [
-          0,
-          0
-        ],
-        [
-          0,
-          1
-        ]
-      ]
-    },
-    {
-      "changed" : [
-
-      ]
-    },
-    {
-      "changed" : [
-        [
-
-        ],
-        [
-          0
-        ],
-        [
-          0,
-          0
-        ],
-        [
-          0,
-          1
-        ],
-        [
           1
         ],
         [
           1,
           0
-        ]
-      ]
-    },
-    {
-      "changed" : [
-        [
-
         ],
         [
-          1,
+          2
+        ],
+        [
+          2,
           0
         ]
-      ]
-    },
-    {
-      "changed" : [
-
       ]
     },
     {
@@ -104,55 +42,41 @@
     },
     {
       "changed" : [
+        [
 
-      ],
-      "everything" : true
+        ],
+        [
+          1
+        ],
+        [
+          1,
+          0
+        ],
+        [
+          2
+        ],
+        [
+          2,
+          0
+        ]
+      ]
     }
   ],
   "commands" : [
     {
       "anchor" : {
-        "offset" : 0,
+        "offset" : 1,
         "path" : [
+          1,
           0
-        ],
-        "type" : "element"
-      },
-      "focus" : {
-        "offset" : 0,
-        "path" : [
-          0
-        ],
-        "type" : "element"
-      },
-      "type" : "setSelection"
-    },
-    {
-      "text" : "👨‍👩‍👧",
-      "type" : "insertText"
-    },
-    {
-      "format" : "bold",
-      "type" : "formatText"
-    },
-    {
-      "text" : "ßaé",
-      "type" : "insertText"
-    },
-    {
-      "anchor" : {
-        "offset" : 2,
-        "path" : [
-          0,
-          1
         ],
         "type" : "text"
       },
       "focus" : {
-        "offset" : 2,
+        "offset" : 1,
         "path" : [
-          0,
-          1
+          1,
+          0
         ],
         "type" : "text"
       },
@@ -162,55 +86,31 @@
       "type" : "insertParagraph"
     },
     {
-      "text" : "👍🏽한語",
-      "type" : "insertText"
-    },
-    {
-      "anchor" : {
-        "offset" : 6,
-        "path" : [
-          1,
-          0
-        ],
-        "type" : "text"
-      },
-      "focus" : {
-        "offset" : 7,
-        "path" : [
-          1,
-          0
-        ],
-        "type" : "text"
-      },
-      "type" : "setSelection"
-    },
-    {
-      "text" : "é",
-      "type" : "insertText"
-    },
-    {
       "type" : "undo"
+    },
+    {
+      "type" : "redo"
     }
   ],
   "expected" : {
     "selection" : {
       "anchor" : {
-        "offset" : 6,
+        "offset" : 0,
         "path" : [
-          1,
+          2,
           0
         ],
         "type" : "text"
       },
       "focus" : {
-        "offset" : 7,
+        "offset" : 0,
         "path" : [
-          1,
+          2,
           0
         ],
         "type" : "text"
       },
-      "format" : 1,
+      "format" : 0,
       "style" : ""
     },
     "state" : {
@@ -223,16 +123,7 @@
                 "format" : 0,
                 "mode" : "normal",
                 "style" : "",
-                "text" : "👨‍👩‍👧",
-                "type" : "text",
-                "version" : 1
-              },
-              {
-                "detail" : 0,
-                "format" : 1,
-                "mode" : "normal",
-                "style" : "",
-                "text" : "ßa",
+                "text" : "ab",
                 "type" : "text",
                 "version" : 1
               }
@@ -249,10 +140,10 @@
             "children" : [
               {
                 "detail" : 0,
-                "format" : 1,
+                "format" : 0,
                 "mode" : "normal",
                 "style" : "",
-                "text" : "👍🏽한語é",
+                "text" : "c",
                 "type" : "text",
                 "version" : 1
               }
@@ -260,7 +151,27 @@
             "direction" : null,
             "format" : "",
             "indent" : 0,
-            "textFormat" : 1,
+            "textFormat" : 0,
+            "textStyle" : "",
+            "type" : "paragraph",
+            "version" : 1
+          },
+          {
+            "children" : [
+              {
+                "detail" : 0,
+                "format" : 0,
+                "mode" : "normal",
+                "style" : "",
+                "text" : "d",
+                "type" : "text",
+                "version" : 1
+              }
+            ],
+            "direction" : null,
+            "format" : "",
+            "indent" : 0,
+            "textFormat" : 0,
             "textStyle" : "",
             "type" : "paragraph",
             "version" : 1
@@ -279,12 +190,40 @@
       "children" : [
         {
           "children" : [
-
+            {
+              "detail" : 0,
+              "format" : 0,
+              "mode" : "normal",
+              "style" : "",
+              "text" : "ab",
+              "type" : "text",
+              "version" : 1
+            }
           ],
           "direction" : null,
           "format" : "",
           "indent" : 0,
-          "textFormat" : 16,
+          "textFormat" : 0,
+          "textStyle" : "",
+          "type" : "paragraph",
+          "version" : 1
+        },
+        {
+          "children" : [
+            {
+              "detail" : 0,
+              "format" : 0,
+              "mode" : "normal",
+              "style" : "",
+              "text" : "cd",
+              "type" : "text",
+              "version" : 1
+            }
+          ],
+          "direction" : null,
+          "format" : "",
+          "indent" : 0,
+          "textFormat" : 0,
           "textStyle" : "",
           "type" : "paragraph",
           "version" : 1

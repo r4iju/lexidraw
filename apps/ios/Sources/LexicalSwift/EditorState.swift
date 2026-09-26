@@ -29,6 +29,9 @@ struct Node: Sendable {
   /// The node's own properties as Lexical holds them once read. An element's
   /// children are held apart, in `children`.
   var payload: SerializedNode
+  /// The update that last marked the node, standing in for the identity of
+  /// Lexical's node object, which each update that marks a node replaces.
+  var revision = 0
 
   init(_ payload: SerializedNode, type: String, children: OrderedSet<NodeKey>?) {
     self.type = type
@@ -133,6 +136,12 @@ extension EditorState {
       current = parent
     }
     return path.reversed()
+  }
+
+  /// The paths of the nodes an update between `earlier` and this state
+  /// marked, as undo and redo report them.
+  func changedPaths(since earlier: EditorState) -> Set<[Int]> {
+    Set(nodes.compactMap { key, node in earlier.nodes[key]?.revision == node.revision ? nil : path(of: key) })
   }
 
   func key(at path: [Int]) -> NodeKey? {

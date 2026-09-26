@@ -18,6 +18,7 @@ import {
   $setSelection,
   HISTORIC_TAG,
   IS_ALL_FORMATTING,
+  type EditorState,
   type LexicalEditor,
   type LexicalNode,
   type PointType,
@@ -54,7 +55,6 @@ type Command =
 let editor: LexicalEditor | null = null;
 let lastError: unknown = null;
 let changed: number[][] = [];
-let everything = false;
 /** The clock history reads, which only `wait` moves. */
 let now = 0;
 
@@ -79,17 +79,15 @@ function load(stateJSON: string): void {
   registerHistory(next, createEmptyHistoryState(), 1000, () => now);
   next.setEditorState(parsed);
   next.registerUpdateListener(
-    ({ dirtyElements, dirtyLeaves, editorState, tags }) => {
-      // Undo and redo swap in a whole saved state.
-      everything = tags.has(HISTORIC_TAG);
-      if (everything) {
-        changed = [];
-        return;
-      }
-      const keys = [...dirtyLeaves];
-      for (const [key, intentional] of dirtyElements) {
-        if (intentional) keys.push(key);
-      }
+    ({ dirtyElements, dirtyLeaves, editorState, prevEditorState, tags }) => {
+      const keys = tags.has(HISTORIC_TAG)
+        ? replacedKeys(prevEditorState, editorState)
+        : [
+            ...dirtyLeaves,
+            ...[...dirtyElements]
+              .filter(([, intentional]) => intentional)
+              .map(([key]) => key),
+          ];
       changed = editorState.read(() =>
         keys.flatMap((key) => {
           const node = $getNodeByKey(key);
@@ -105,7 +103,6 @@ function apply(commandJSON: string): string {
   const command = JSON.parse(commandJSON) as Command;
   lastError = null;
   changed = [];
-  everything = false;
   switch (command.type) {
     case "undo":
     case "redo":
@@ -124,7 +121,18 @@ function apply(commandJSON: string): string {
       current().update(() => run(command), { discrete: true });
   }
   if (lastError) throw lastError;
-  return JSON.stringify(everything ? { changed, everything } : { changed });
+  return JSON.stringify({ changed });
+}
+
+/**
+ * The nodes undo or redo changed, which mark nothing dirty as they swap in a
+ * saved state whole. An update copies each node it changes, so these are the
+ * nodes that aren't the same object in both states.
+ */
+function replacedKeys(before: EditorState, after: EditorState): string[] {
+  return [...after._nodeMap]
+    .filter(([key, node]) => before._nodeMap.get(key) !== node)
+    .map(([key]) => key);
 }
 
 function snapshot(): string {

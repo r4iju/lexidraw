@@ -216,32 +216,26 @@ extension EditorCommand: Codable {
 /// changed. Removing a node changes its parent.
 public struct ChangeSet: Equatable, Sendable {
   public var changed: Set<[Int]>
-  /// Undo and redo put back a whole saved document, so a view redraws all of
-  /// it and `changed` is empty.
-  public var everything: Bool
 
-  public init(changed: Set<[Int]> = [], everything: Bool = false) {
+  public init(changed: Set<[Int]> = []) {
     self.changed = changed
-    self.everything = everything
   }
 }
 
 extension ChangeSet: Codable {
   private enum CodingKeys: String, CodingKey {
-    case changed, everything
+    case changed
   }
 
   public init(from decoder: any Decoder) throws {
     let container = try decoder.container(keyedBy: CodingKeys.self)
     changed = Set(try container.decode([[Int]].self, forKey: .changed))
-    everything = try container.decodeIfPresent(Bool.self, forKey: .everything) ?? false
   }
 
   /// Sorted, so a recorded fixture's bytes don't depend on hashing.
   public func encode(to encoder: any Encoder) throws {
     var container = encoder.container(keyedBy: CodingKeys.self)
     try container.encode(changed.sorted { $0.lexicographicallyPrecedes($1) }, forKey: .changed)
-    if everything { try container.encode(true, forKey: .everything) }
   }
 }
 
