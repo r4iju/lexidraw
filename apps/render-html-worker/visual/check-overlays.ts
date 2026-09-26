@@ -3,7 +3,7 @@ import { writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import type { Page } from "puppeteer";
 import { appUrl } from "./app-url";
-import { signInToDev } from "./check-typography";
+import { signInToDev } from "@packages/dev-stack";
 
 const CONTENT = '[id^="lexical-content-"]';
 const BAR = '[role="toolbar"][data-bar-mode]';
@@ -181,7 +181,7 @@ export async function checkOverlays(
   if (!page.listenerCount("dialog"))
     page.on("dialog", (dialog) => void dialog.accept());
   await page.bringToFront();
-  await signInToDev(page);
+  await signInToDev(page, appUrl);
 
   // Phone: the bar, and what it opens as sheets.
   await page.setViewport(PHONE);

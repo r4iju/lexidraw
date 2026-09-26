@@ -7,9 +7,11 @@
     "build:reference": "bun build reference/entry.ts --target=browser --format=iife --minify --define 'process.env.NODE_ENV=\"development\"' --outfile reference/dist/lexical-reference.js",
     "codegen": "bun codegen/write.ts",
     "test": "bun test ./codegen && bun run build:reference && swift test",
+    "test:ui": "scripts/test-ui.sh",
     "test:corpus": "bun run build:reference && LEXIDRAW_TOKEN=\"${LEXIDRAW_TOKEN:-$(security find-generic-password -s cli/lexidraw -a prod -w)}\" swift test --filter CorpusTests",
-    "test:ts": "tsgo --noEmit && tsgo --noEmit --project codegen",
-    "lint": "bun x @biomejs/biome check ."
+    "test:ts": "tsgo --noEmit && tsgo --noEmit --project codegen && tsgo --noEmit --project recording",
+    "lint": "bun x @biomejs/biome check .",
+    "record:composition": "TEST_RUNNER_RECORD_COMPOSITION=1 scripts/test-ui.sh -only-testing:EditorUITests/EditorUITests/testJapaneseCompositionSavesWhatTheWebEditorSaves && bun recording/composition.ts"
   },
   "dependencies": {
     "@lexical/headless": "^0.51.0",
@@ -18,8 +20,11 @@
     "lexical": "^0.51.0"
   },
   "devDependencies": {
+    "@packages/dev-stack": "workspace:*",
     "@types/bun": "1.3.0",
     "@typescript/native-preview": "^7.0.0-dev.20260707.2",
-    "typescript": "^7.0.2"
+    "puppeteer": "^25.11.0",
+    "typescript": "^7.0.2",
+    "zod": "^4.6.5"
   }
 }

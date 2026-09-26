@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 import { PNG } from "pngjs";
 import pixelmatch from "pixelmatch";
 import puppeteer from "puppeteer";
+import { devCli } from "@packages/dev-stack";
 import { appUrl } from "./app-url";
 import { checkRichBlocks } from "./check-rich-blocks";
 import { checkFrame, checkHomeToolbar } from "./check-frame";
@@ -38,29 +39,10 @@ if (process.env.CI)
   );
 await mkdir(output, { recursive: true });
 
-async function cli(...args: string[]) {
-  const child = Bun.spawn(
-    ["bun", resolve(root, "apps/cli/src/main.ts"), "--profile", "dev", ...args],
-    {
-      cwd: root,
-      stdout: "pipe",
-      stderr: "pipe",
-      // Never let a shell override redirect this suite to production.
-      env: {
-        ...process.env,
-        LEXIDRAW_URL: appUrl,
-        LEXIDRAW_TOKEN: undefined,
-      },
-    },
-  );
-  const [stdout, stderr, status] = await Promise.all([
-    new Response(child.stdout).text(),
-    new Response(child.stderr).text(),
-    child.exited,
-  ]);
-  if (status) throw new Error(stderr);
-  return JSON.parse(stdout);
-}
+// The suite reads fields straight off what the CLI prints, which it trusts
+// as the dev app's own reply.
+// biome-ignore lint/suspicious/noExplicitAny: see above
+const cli: (...args: string[]) => Promise<any> = devCli(appUrl);
 
 /** The text of a document as it prints, from its PDF saved as `name`. */
 async function printedText(id: string, name: string) {

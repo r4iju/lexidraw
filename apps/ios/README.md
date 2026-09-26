@@ -27,6 +27,30 @@ only commands both accepted. Last run, on macOS 27 with words from
 `Intl.Segmenter`: seeds 101 to 110, 100,000 steps each, 1,000,000 in all,
 with no divergence; 632 commands were refused by both, for the same reason.
 
+## Editor harness and UI scripts
+
+The **EditorHarness** scheme is an app with one document in the TextKit
+editor (`Sources/TextKitEditor`), for trying the editor on a simulator. It
+edits with LexicalSwift, or with the JS reference when launched with
+`EDITOR_MODEL=reference` (run `bun run build:reference` before building).
+Save writes the document to `EDITOR_SAVE_PATH`, or `saved.json` in its
+Documents, and each call the keyboard made on the editor to
+`EDITOR_INPUT_LOG`.
+
+`bun run test:ui` runs the scheme's tests on a simulator it makes and
+deletes after (`scripts/test-ui.sh`): the UI scripts, `EditorUITests`, and
+`TextKitEditorTests` on iOS, where `EditorViewTests` run the hardware keys
+XCUITest can't press. The UI scripts type through the simulator's keyboards,
+once with each model, and compare the document the harness saves. The
+Japanese script composes on the software keyboard and checks three things:
+that the keyboard made the calls recorded in
+`EditorUITests/Fixtures/web-composition.json`, that the view showed each
+composition where the caret was, and that the harness saved what the web
+editor saved for the same calls. `bun run record:composition` records both
+sides: the UI script writes the calls, then `recording/composition.ts` makes
+them through Chrome's IME input on a local dev stack (`LEXIDRAW_DEV_URL`)
+with the dev account and adds what the web saved.
+
 ## TestFlight
 
 The **iOS TestFlight** workflow runs by hand on `master`. It tests, archives,
@@ -70,3 +94,14 @@ hand:
 - Where a listen stopped is kept on the device. The web keeps none to share.
 - A document's audio, once made, plays even after the document changes, as
   on the web. Making it again is done on the web.
+- Text an input method is composing stays in the view until it is committed,
+  and reaches the model as one `insertText`. The web editor saves the same
+  document for a composition as for typing its result, and Lexical keeps it
+  as one history step either way.
+- The editor-model interface is its own module, `EditorModelInterface`, so
+  the editor can't reach into LexicalSwift. Views tell which blocks an
+  update added, removed or kept by `childKeys`, as Lexical's reconciler does
+  by node key; keys stay out of `ChangeSet`, which the fuzzer compares.
+- A line break is U+2028 in the editor's text, which breaks the line without
+  ending the paragraph as TextKit sees it.
+- Copy, cut and paste come with #118, which owns the clipboard.

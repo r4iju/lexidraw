@@ -83,6 +83,25 @@ public final class Editor: EditorModel {
     let editor = Editor()
     return (try? editor.load(state)).flatMap { try? editor.snapshot().state }
   }
+
+  public func selection() throws -> Selection? {
+    guard !state.nodes.isEmpty else { throw EditorError.invalidState("No document loaded") }
+    return state.pathSelection
+  }
+
+  public func node(at path: [Int]) throws -> JSONValue {
+    state.json(of: try key(at: path))
+  }
+
+  public func childKeys(at path: [Int]) throws -> [String] {
+    state.children(of: try key(at: path)).map(String.init)
+  }
+
+  private func key(at path: [Int]) throws -> NodeKey {
+    guard !state.nodes.isEmpty else { throw EditorError.invalidState("No document loaded") }
+    guard let key = state.key(at: path) else { throw EditorError.noNode(path: path) }
+    return key
+  }
 }
 
 extension Node {

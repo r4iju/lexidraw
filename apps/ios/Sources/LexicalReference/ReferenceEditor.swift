@@ -52,6 +52,22 @@ public final class ReferenceEditor: EditorModel {
     return Snapshot(state: snapshot["state"] ?? .null, selection: selection)
   }
 
+  public func selection() throws -> Selection? {
+    try decoder.decode(Selection?.self, from: Data(try call("selection").utf8))
+  }
+
+  public func node(at path: [Int]) throws -> JSONValue {
+    try decoder.decode(JSONValue.self, from: Data(try call("node", try pathJSON(path)).utf8))
+  }
+
+  public func childKeys(at path: [Int]) throws -> [String] {
+    try decoder.decode([String].self, from: Data(try call("childKeys", try pathJSON(path)).utf8))
+  }
+
+  private func pathJSON(_ path: [Int]) throws -> String {
+    String(decoding: try encoder.encode(path), as: UTF8.self)
+  }
+
   private func call(_ name: String, _ argument: String? = nil) throws -> String {
     context.exception = nil
     let result = api.invokeMethod(name, withArguments: argument.map { [$0] } ?? [])

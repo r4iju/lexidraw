@@ -65,7 +65,7 @@ extension String {
   /// JavaScript's `===`. Swift's `==` holds canonically equivalent strings
   /// equal, but Lexical keeps text as typed, so "é" typed over "e\u{301}"
   /// is a change.
-  func isIdentical(to other: String) -> Bool {
+  package func isIdentical(to other: String) -> Bool {
     utf16.elementsEqual(other.utf16)
   }
 }

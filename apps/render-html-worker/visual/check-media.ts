@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import type { Page } from "puppeteer";
-import { signInToDev } from "./check-typography";
+import { signInToDev } from "@packages/dev-stack";
 import { appUrl } from "./app-url";
 
 export async function checkMedia(
@@ -8,7 +8,7 @@ export async function checkMedia(
   fixtureId: string,
   output: string,
 ) {
-  await signInToDev(page);
+  await signInToDev(page, appUrl);
   await page.goto(`${appUrl}/documents/${fixtureId}`, {
     waitUntil: "networkidle2",
   });
