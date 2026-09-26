@@ -17,11 +17,11 @@ import Testing
   }
 
   /// Both models keep it exactly, so a measurement opens what Lexical would.
-  @Test(arguments: EditorModelChoice.allCases)
-  func loadsAndSavesUnchanged(_ choice: EditorModelChoice) throws {
+  @Test(arguments: EditorModelChoice.allCases, [SyntheticDocument.small, .large])
+  func loadsAndSavesUnchanged(_ choice: EditorModelChoice, _ document: SyntheticDocument) throws {
     let model = try choice.make(referenceScript: Support.iosRoot.appending(path: "reference/dist/lexical-reference.js"))
-    try model.load(SyntheticDocument.small.state)
-    #expect(try model.snapshot().state == SyntheticDocument.small.state)
+    try model.load(document.state)
+    #expect(try model.snapshot().state == document.state)
   }
 
   static func words(_ node: JSONValue) -> Int {
