@@ -5,12 +5,68 @@ import OpenAPIRuntime
 import SwiftUI
 
 /// The drawing editor on a bundled drawing, with no server, for trying the
-/// editor and for the UI tests. Saves are kept in memory.
+/// editor and for the UI tests. Saves are kept in memory. It shows how many
+/// hardware key presses came up the responder chain unhandled, for tests that
+/// wait for the simulator to deliver one.
 @main
-struct HarnessApp: App {
-  var body: some Scene {
-    WindowGroup {
-      NavigationStack { HarnessView() }
+final class HarnessDelegate: UIResponder, UIApplicationDelegate {
+  func application(
+    _ application: UIApplication, configurationForConnecting session: UISceneSession,
+    options: UIScene.ConnectionOptions
+  ) -> UISceneConfiguration {
+    let configuration = UISceneConfiguration(name: nil, sessionRole: session.role)
+    configuration.delegateClass = HarnessScene.self
+    return configuration
+  }
+}
+
+final class HarnessScene: UIResponder, UIWindowSceneDelegate {
+  var window: UIWindow?
+
+  func scene(_ scene: UIScene, willConnectTo session: UISceneSession, options: UIScene.ConnectionOptions) {
+    guard let scene = scene as? UIWindowScene else { return }
+    let window = UIWindow(windowScene: scene)
+    window.rootViewController = KeyCountingHost()
+    window.makeKeyAndVisible()
+    self.window = window
+  }
+}
+
+@MainActor @Observable
+final class HardwareKeys {
+  var count = 0
+}
+
+/// The root of every view in the harness, so the last to be offered a key
+/// press before the application.
+final class KeyCountingHost: UIHostingController<HarnessRoot> {
+  private let keys: HardwareKeys
+
+  init() {
+    let keys = HardwareKeys()
+    self.keys = keys
+    super.init(rootView: HarnessRoot(keys: keys))
+  }
+
+  required init?(coder: NSCoder) { fatalError("KeyCountingHost is made in code") }
+
+  override func pressesBegan(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
+    keys.count += presses.count
+    super.pressesBegan(presses, with: event)
+  }
+}
+
+struct HarnessRoot: View {
+  let keys: HardwareKeys
+
+  var body: some View {
+    NavigationStack {
+      HarnessView()
+        .toolbar {
+          ToolbarItem(placement: .topBarLeading) {
+            Text("\(keys.count)").accessibilityIdentifier("hardware keys")
+          }
+        }
     }
   }
 }

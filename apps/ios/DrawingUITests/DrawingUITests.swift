@@ -13,16 +13,7 @@ class DrawingUITestCase: XCTestCase {
     XCTAssertTrue(app.buttons["Insert Image"].waitForExistence(timeout: 20))
   }
 
-  private var hasPressedAKey = false
-
-  /// Presses `key` on the hardware keyboard. The simulator drops the first
-  /// shortcut after an input view comes up, as #113 found for a text view
-  /// too, so a Shift press goes first.
-  func press(_ key: String, _ modifiers: XCUIElement.KeyModifierFlags = []) {
-    if !hasPressedAKey { app.typeKey(XCUIKeyboardKey.shift.rawValue, modifierFlags: []) }
-    hasPressedAKey = true
-    app.typeKey(key, modifierFlags: modifiers)
-  }
+  lazy var keyboard = HardwareKeyboard(app, typingInto: app)
 
   /// A point on the screen, as a fraction of its width and height.
   func point(_ x: Double, _ y: Double) -> XCUICoordinate {
@@ -64,7 +55,7 @@ final class MenuKeyboardUITests: DrawingUITestCase {
 
 final class CanvasKeysUITests: DrawingUITestCase {
   func testAKeyChoosesATool() {
-    press("r")
+    keyboard.press("r")
     XCTAssertTrue(app.buttons["Rectangle"].isSelected)
   }
 
@@ -74,30 +65,30 @@ final class CanvasKeysUITests: DrawingUITestCase {
     point(0.5, 0.3).tap()
     XCTAssertTrue(app.buttons["Photo Library"].waitForNonExistence(timeout: 5))
 
-    press("o")
+    keyboard.press("o")
     XCTAssertTrue(app.buttons["Ellipse"].isSelected)
     point(0.3, 0.2).press(forDuration: 0.1, thenDragTo: point(0.6, 0.28))
     let redo = app.buttons["Redo"]
     XCTAssertTrue(waitUntil { self.app.buttons["Undo"].isEnabled }, "no ellipse was drawn")
-    press("z", .command)
+    keyboard.press("z", .command)
     XCTAssertTrue(waitUntil { redo.isEnabled }, "Command-Z undid nothing after the menu")
   }
 
   func testCommandZUndoesOneEditAndShiftCommandZRedoesIt() {
-    press("r")
+    keyboard.press("r")
     point(0.3, 0.72).press(forDuration: 0.1, thenDragTo: point(0.6, 0.8))
-    press("r")
+    keyboard.press("r")
     point(0.3, 0.2).press(forDuration: 0.1, thenDragTo: point(0.6, 0.28))
     let undo = app.buttons["Undo"]
     let redo = app.buttons["Redo"]
     XCTAssertTrue(undo.waitForExistence(timeout: 3))
     XCTAssertFalse(redo.isEnabled)
 
-    press("z", .command)
+    keyboard.press("z", .command)
     XCTAssertTrue(waitUntil { redo.isEnabled })
     XCTAssertTrue(undo.isEnabled, "Command-Z undid more than one edit")
 
-    press("z", [.command, .shift])
+    keyboard.press("z", [.command, .shift])
     XCTAssertTrue(waitUntil { !redo.isEnabled })
   }
 }

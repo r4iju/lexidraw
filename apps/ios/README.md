@@ -60,7 +60,11 @@ runs its UI tests, `DrawingUITests`, on a simulator it makes and deletes
 after (`scripts/test-drawing-ui.sh`). They press keys on the simulator's
 hardware keyboard, and once one is pressed no software keyboard comes up
 until the next boot, so the tests that check the software keyboard run
-first, alone, on the fresh boot.
+first, alone, on the fresh boot. Both harnesses show how many hardware keys
+reached them unhandled, and both UI test targets press keys through
+`UITestSupport/HardwareKeyboard.swift`, which waits for that count before
+the first real key. `scripts/simulator.sh` makes the simulators for both
+scripts.
 
 ## TestFlight
 

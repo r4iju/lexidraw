@@ -85,6 +85,7 @@ targets:
     platform: iOS
     sources:
       - EditorUITests
+      - UITestSupport
     dependencies:
       - target: EditorHarness
       - package: LexidrawIOS
@@ -124,6 +125,7 @@ targets:
     platform: iOS
     sources:
       - DrawingUITests
+      - UITestSupport
     dependencies:
       - target: DrawingHarness
     settings:
