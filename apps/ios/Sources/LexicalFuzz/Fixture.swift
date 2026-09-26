@@ -6,38 +6,37 @@ import LexicalSwift
 public struct Fixture: Codable, Equatable, Sendable {
   public var start: JSONValue
   public var commands: [EditorCommand]
-  /// Indexes of the commands the reference refused (threw on).
-  public var refused: [Int]
+  /// What each command changed, or nil where the reference refused it.
+  public var changes: [ChangeSet?]
   public var expected: Snapshot
 
-  public init(start: JSONValue, commands: [EditorCommand], refused: [Int], expected: Snapshot) {
+  public init(start: JSONValue, commands: [EditorCommand], changes: [ChangeSet?], expected: Snapshot) {
     self.start = start
     self.commands = commands
-    self.refused = refused
+    self.changes = changes
     self.expected = expected
   }
 
   public struct Outcome: Equatable, Sendable {
-    public var refused: [Int]
+    public var changes: [ChangeSet?]
     public var snapshot: Snapshot
   }
 
+  public var recorded: Outcome { Outcome(changes: changes, snapshot: expected) }
+
   public func replay(on model: some EditorModel) throws -> Outcome {
     try model.load(start)
-    var refused: [Int] = []
-    for (index, command) in commands.enumerated() {
-      do { try model.apply(command) } catch { refused.append(index) }
-    }
-    return Outcome(refused: refused, snapshot: try model.snapshot())
+    let changes = commands.map { try? model.apply($0) }
+    return Outcome(changes: changes, snapshot: try model.snapshot())
   }
 
   /// Runs the script on the reference and keeps what it produced.
   public static func record(start: JSONValue, commands: [EditorCommand], on reference: some EditorModel)
     throws -> Fixture
   {
-    let draft = Fixture(start: start, commands: commands, refused: [], expected: Snapshot(state: start, selection: nil))
+    let draft = Fixture(start: start, commands: commands, changes: [], expected: Snapshot(state: start, selection: nil))
     let outcome = try draft.replay(on: reference)
-    return Fixture(start: start, commands: commands, refused: outcome.refused, expected: outcome.snapshot)
+    return Fixture(start: start, commands: commands, changes: outcome.changes, expected: outcome.snapshot)
   }
 
   public static func read(from url: URL) throws -> Fixture {
@@ -47,11 +46,11 @@ public struct Fixture: Codable, Equatable, Sendable {
   /// Writes the fixture into `folder`, named by its content so the same
   /// divergence found twice is one file.
   @discardableResult
-  public func write(into folder: URL, prefix: String = "fuzz") throws -> URL {
+  public func write(into folder: URL) throws -> URL {
     let encoder = JSONEncoder()
     encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
     let data = try encoder.encode(self)
-    let url = folder.appending(path: "\(prefix)-\(fnv1a(data)).json")
+    let url = folder.appending(path: "fuzz-\(fnv1a(data)).json")
     try (data + Data("\n".utf8)).write(to: url)
     return url
   }

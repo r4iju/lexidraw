@@ -1,7 +1,5 @@
 /// The editor-model interface: everything a view needs from a document model,
 /// and the seam the reference fixtures and differential fuzzer test at.
-/// LexicalSwift's `Editor` and the JS reference both implement it, so a view
-/// built on it works with either.
 public protocol EditorModel: AnyObject {
   /// Replaces the document with a serialized Lexical editor state
   /// (`{"root": …}`) and clears the selection.
@@ -112,13 +110,30 @@ extension EditorCommand: Codable {
   }
 }
 
-/// The nodes an update created, changed or removed, by node key. Keys are
-/// only meaningful within one implementation.
-public struct ChangeSet: Codable, Equatable, Sendable {
-  public var changed: Set<String>
+/// The paths, in the document after an update, of the nodes it created or
+/// changed. Removing a node changes its parent.
+public struct ChangeSet: Equatable, Sendable {
+  public var changed: Set<[Int]>
 
-  public init(changed: Set<String> = []) {
+  public init(changed: Set<[Int]> = []) {
     self.changed = changed
+  }
+}
+
+extension ChangeSet: Codable {
+  private enum CodingKeys: String, CodingKey {
+    case changed
+  }
+
+  public init(from decoder: any Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    changed = Set(try container.decode([[Int]].self, forKey: .changed))
+  }
+
+  /// Sorted, so a recorded fixture's bytes don't depend on hashing.
+  public func encode(to encoder: any Encoder) throws {
+    var container = encoder.container(keyedBy: CodingKeys.self)
+    try container.encode(changed.sorted { $0.lexicographicallyPrecedes($1) }, forKey: .changed)
   }
 }
 

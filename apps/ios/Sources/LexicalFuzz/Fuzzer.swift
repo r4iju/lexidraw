@@ -1,7 +1,7 @@
 import LexicalSwift
 
 /// Differential fuzzer: drives the reference and a candidate with the same
-/// random scripts, compares refusals and snapshots after every command, and
+/// random scripts, compares change sets and snapshots after every command, and
 /// shrinks the first divergence to a minimal fixture recorded from the
 /// reference. Deterministic for a given seed.
 public struct Fuzzer {
@@ -37,13 +37,12 @@ public struct Fuzzer {
         guard let command = generator.command(for: try reference.snapshot()) else { break }
         commands.append(command)
         stepsRun += 1
-        let expected = step(reference, command)
-        guard !expected.refused, expected.snapshot != nil else {
+        guard let agreed = agree(on: command) else {
           throw FuzzerError("The reference refused a generated command: \(command)")
         }
-        if step(candidate, command) != expected {
-          let (start, commands) = shrink(start: start, commands: commands)
-          let fixture = try Fixture.record(start: start, commands: commands, on: reference)
+        if !agreed {
+          let script = shrink((start, commands))
+          let fixture = try Fixture.record(start: script.start, commands: script.commands, on: reference)
           return Finding(fixture: fixture, stepsRun: stepsRun)
         }
       }
@@ -51,39 +50,45 @@ public struct Fuzzer {
     return nil
   }
 
+  private typealias Script = (start: JSONValue, commands: [EditorCommand])
+
   private struct Step: Equatable {
-    var refused: Bool
+    var change: ChangeSet?
     var snapshot: Snapshot?
   }
 
   private func step(_ model: any EditorModel, _ command: EditorCommand) -> Step {
-    let refused = (try? model.apply(command)) == nil
-    return Step(refused: refused, snapshot: try? model.snapshot())
+    Step(change: try? model.apply(command), snapshot: try? model.snapshot())
   }
 
-  /// Whether the script makes the candidate diverge, counting only scripts
-  /// the generator could have produced: a document the reference loads
-  /// unchanged, and commands it accepts. Shrinking otherwise drifts into
-  /// load normalization or refusals, which the corpus check and explicit
-  /// fixtures cover instead.
-  private func diverges(start: JSONValue, commands: [EditorCommand]) -> Bool {
-    guard (try? reference.load(start)) != nil, (try? reference.snapshot())?.state == start else {
+  /// Applies `command` to both models and says whether the candidate agreed,
+  /// or nil when the reference refused it.
+  private func agree(on command: EditorCommand) -> Bool? {
+    let expected = step(reference, command)
+    guard expected.change != nil, expected.snapshot != nil else { return nil }
+    return step(candidate, command) == expected
+  }
+
+  /// Whether the script makes the candidate diverge. Only scripts the
+  /// generator could have produced count (a document the reference loads
+  /// unchanged, and commands valid in it that the reference accepts), so a
+  /// shrunk fixture stays inside what the fuzzer tests.
+  private func diverges(_ script: Script) -> Bool {
+    guard (try? reference.load(script.start)) != nil, (try? reference.snapshot())?.state == script.start else {
       return false
     }
-    guard (try? candidate.load(start)) != nil else { return true }
-    for command in commands {
-      guard let before = try? reference.snapshot(), Generator.isValid(command, in: before.state) else {
-        return false
-      }
-      let expected = step(reference, command)
-      guard !expected.refused, expected.snapshot != nil else { return false }
-      if step(candidate, command) != expected { return true }
+    guard (try? candidate.load(script.start)) != nil else { return true }
+    for command in script.commands {
+      guard let before = try? reference.snapshot(), Generator.isValid(command, in: before.state),
+        let agreed = agree(on: command)
+      else { return false }
+      if !agreed { return true }
     }
     return false
   }
 
-  private func shrink(start: JSONValue, commands: [EditorCommand]) -> (JSONValue, [EditorCommand]) {
-    var best = (start: start, commands: commands)
+  private func shrink(_ script: Script) -> Script {
+    var best = script
     var improved = true
     while improved {
       improved = false
@@ -92,7 +97,7 @@ public struct Fuzzer {
         // on load; take Lexical's own version so the document stays canonical.
         guard (try? reference.load(candidate.start)) != nil,
           let start = try? reference.snapshot().state,
-          diverges(start: start, commands: candidate.commands)
+          diverges((start, candidate.commands))
         else { continue }
         best = (start, candidate.commands)
         improved = true
@@ -103,10 +108,8 @@ public struct Fuzzer {
   }
 
   /// One-step reductions of a script, most aggressive first.
-  private func smaller(than script: (start: JSONValue, commands: [EditorCommand]))
-    -> [(start: JSONValue, commands: [EditorCommand])]
-  {
-    var result: [(start: JSONValue, commands: [EditorCommand])] = []
+  private func smaller(than script: Script) -> [Script] {
+    var result: [Script] = []
     for index in script.commands.indices.reversed() {
       var commands = script.commands
       commands.remove(at: index)
