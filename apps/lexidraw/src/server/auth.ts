@@ -10,6 +10,10 @@ import { sessionToken } from "~/server/auth/session-token";
 import env from "@packages/env";
 import { cookies as nextCookies } from "next/headers";
 
+type AdapterTables = NonNullable<
+  Parameters<typeof DrizzleAdapter<typeof drizzle>>[1]
+>;
+
 // Define the structure for LLM config based on schema
 type LlmBaseConfig = {
   modelId: string;
@@ -112,7 +116,12 @@ const cookies = isDev
 const nextAuth = NextAuth({
   ...(shouldTrustHost ? { trustHost: true } : {}),
   cookies,
-  adapter: DrizzleAdapter(drizzle as (typeof DrizzleAdapter)["arguments"]),
+  adapter: DrizzleAdapter(drizzle, {
+    // `emailVerified` is not the Date the adapter expects, but the adapter
+    // only ever writes null to it and nothing reads it back from it.
+    usersTable: schema.users as unknown as AdapterTables["usersTable"],
+    accountsTable: schema.accounts,
+  }),
   pages: {
     ...(shouldTrustHost
       ? {

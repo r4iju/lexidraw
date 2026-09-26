@@ -22,14 +22,15 @@ export const accounts = sqliteTable(
     type: text("type").notNull(),
     provider: text("provider").notNull(),
     providerAccountId: text("providerAccountId").notNull(),
-    refreshToken: text("refresh_token"),
-    accessToken: text("access_token"),
-    expiresAt: integer("expires_at"),
-    tokenType: text("token_type"),
+    // Named as Auth.js's adapter writes them, so the tokens it links land.
+    refresh_token: text("refresh_token"),
+    access_token: text("access_token"),
+    expires_at: integer("expires_at"),
+    token_type: text("token_type"),
     scope: text("scope"),
-    idToken: text("id_token"),
-    sessionState: text("session_state"),
-    refreshTokenExpiresIn: integer("refresh_token_expires_in"),
+    id_token: text("id_token"),
+    session_state: text("session_state"),
+    refresh_token_expires_in: integer("refresh_token_expires_in"),
     createdAt: integer("createdAt", { mode: "timestamp_ms" })
       .notNull()
       .default(sql`1735950685000`)
