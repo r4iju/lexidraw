@@ -35,6 +35,17 @@ const env = createEnv({
     VERCEL_BLOB_STORAGE_HOST_DEV: z.url(),
     GITHUB_CLIENT_ID: z.string().min(1),
     GITHUB_CLIENT_SECRET: z.string().min(1),
+    // The only URLs native sign-in hands a one-time code to, compared exactly.
+    NATIVE_SIGN_IN_CALLBACKS: z
+      .string()
+      .default("lexidraw://auth/callback")
+      .transform((value) =>
+        value
+          .split(",")
+          .map((url) => url.trim())
+          .filter(Boolean),
+      )
+      .pipe(z.array(z.url()).min(1)),
     ICE_SERVER_CONFIG: z.preprocess(
       (val) => {
         if (typeof val === "string") {
@@ -124,6 +135,7 @@ const env = createEnv({
     VERCEL_BLOB_STORAGE_HOST_DEV: process.env.VERCEL_BLOB_STORAGE_HOST_DEV,
     GITHUB_CLIENT_ID: process.env.GITHUB_CLIENT_ID,
     GITHUB_CLIENT_SECRET: process.env.GITHUB_CLIENT_SECRET,
+    NATIVE_SIGN_IN_CALLBACKS: process.env.NATIVE_SIGN_IN_CALLBACKS,
     OPENAI_API_KEY: process.env.OPENAI_API_KEY,
     GOOGLE_API_KEY: process.env.GOOGLE_API_KEY,
     OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY,

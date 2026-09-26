@@ -400,6 +400,28 @@ export const apiTokens = sqliteTable(
   ],
 );
 
+/**
+ * A one-time code a native app trades for a personal access token. Only the
+ * SHA-256 of the code is stored. A spent code keeps its row, with the token it
+ * bought, so a replay can revoke that token.
+ */
+export const nativeSignInCodes = sqliteTable(
+  "NativeSignInCodes",
+  {
+    codeHash: text("codeHash").primaryKey().notNull(),
+    userId: text("userId")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade", onUpdate: "cascade" }),
+    codeChallenge: text("codeChallenge").notNull(),
+    redirectUri: text("redirectUri").notNull(),
+    deviceName: text("deviceName").notNull(),
+    expiresAt: integer("expiresAt", { mode: "timestamp_ms" }).notNull(),
+    usedAt: integer("usedAt", { mode: "timestamp_ms" }),
+    tokenId: text("tokenId"),
+  },
+  (table) => [index("NativeSignInCode_expiresAt_idx").on(table.expiresAt)],
+);
+
 // Credential sign-in attempts per fixed window. The key is the SHA-256 of
 // `email:<address>` or `ip:<address>`, so no email or IP is stored.
 export const signInAttempts = sqliteTable(

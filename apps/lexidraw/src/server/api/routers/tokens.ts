@@ -2,7 +2,7 @@ import { z } from "zod";
 import { and, desc, eq } from "@packages/drizzle";
 import { TRPCError } from "@trpc/server";
 import { createTRPCRouter, sessionOnlyProcedure } from "~/server/api/trpc";
-import { generateApiToken, hashApiToken } from "~/server/auth/api-token-format";
+import { createApiToken } from "~/server/auth/api-tokens";
 
 const MAX_TOKEN_TTL_DAYS = 3650;
 
@@ -31,32 +31,16 @@ export const tokensRouter = createTRPCRouter({
 
   create: sessionOnlyProcedure
     .input(CreateApiToken)
-    .mutation(async ({ ctx, input }) => {
-      const token = generateApiToken();
-      const expiresAt = input.expiresInDays
-        ? new Date(Date.now() + input.expiresInDays * 24 * 60 * 60 * 1000)
-        : null;
-      const [row] = await ctx.drizzle
-        .insert(ctx.schema.apiTokens)
-        .values({
-          userId: ctx.session.user.id,
-          name: input.name,
-          scope: input.scope,
-          tokenHash: hashApiToken(token),
-          expiresAt,
-        })
-        .returning({
-          id: ctx.schema.apiTokens.id,
-          name: ctx.schema.apiTokens.name,
-          scope: ctx.schema.apiTokens.scope,
-          expiresAt: ctx.schema.apiTokens.expiresAt,
-        });
-      if (!row) {
-        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-      }
-      // The plaintext leaves the server exactly once, here.
-      return { ...row, token };
-    }),
+    .mutation(({ ctx, input }) =>
+      createApiToken(ctx.drizzle, {
+        userId: ctx.session.user.id,
+        name: input.name,
+        scope: input.scope,
+        expiresAt: input.expiresInDays
+          ? new Date(Date.now() + input.expiresInDays * 24 * 60 * 60 * 1000)
+          : null,
+      }),
+    ),
 
   revoke: sessionOnlyProcedure
     .input(z.object({ id: z.string() }))

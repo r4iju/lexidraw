@@ -1,6 +1,11 @@
 import { drizzle, eq, schema } from "@packages/drizzle";
 import type { Session } from "next-auth";
-import { hashApiToken, type RequestAuth } from "./api-token-format";
+import {
+  type ApiTokenScope,
+  generateApiToken,
+  hashApiToken,
+  type RequestAuth,
+} from "./api-token-format";
 
 const LAST_USED_WRITE_INTERVAL_MS = 60_000;
 
@@ -8,6 +13,33 @@ export type ResolvedApiToken = {
   session: Session;
   auth: Extract<RequestAuth, { kind: "token" }>;
 };
+
+/**
+ * Mints a token for `userId`. The plaintext is in the answer and nowhere else:
+ * the caller hands it over once, and only its hash is stored.
+ */
+export async function createApiToken(
+  db: Pick<typeof drizzle, "insert">,
+  input: {
+    userId: string;
+    name: string;
+    scope: ApiTokenScope;
+    expiresAt: Date | null;
+  },
+) {
+  const token = generateApiToken();
+  const [row] = await db
+    .insert(schema.apiTokens)
+    .values({ ...input, tokenHash: hashApiToken(token) })
+    .returning({
+      id: schema.apiTokens.id,
+      name: schema.apiTokens.name,
+      scope: schema.apiTokens.scope,
+      expiresAt: schema.apiTokens.expiresAt,
+    });
+  if (!row) throw new Error("Inserting an API token returned no row");
+  return { ...row, token };
+}
 
 /**
  * Resolves a bearer token to the same session shape a cookie login produces,

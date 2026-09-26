@@ -58,6 +58,20 @@ export const createRestContext = async (opts: { headers: Headers }) => {
   return createTRPCContext(opts);
 };
 
+/**
+ * Context for a REST operation the document publishes without security. It is
+ * nobody, whatever the request carries: no cookie session and no token.
+ */
+export const createAnonymousRestContext = (opts: {
+  headers: Headers;
+}): Awaited<ReturnType<typeof createTRPCContext>> => ({
+  drizzle,
+  schema,
+  session: null,
+  auth: { kind: "session" },
+  ...opts,
+});
+
 const t = initTRPC
   .meta<OpenApiMeta>()
   .context<typeof createTRPCContext>()

@@ -5295,6 +5295,88 @@
           }
         }
       }
+    },
+    "/native-sign-in/token": {
+      "post": {
+        "operationId": "nativeSignIn-exchange",
+        "summary": "Trade a native sign-in code for a personal access token",
+        "description": "The code arrives at the app's callback after the user approves at /native-sign-in; it is single-use and expires a minute after it is issued. `codeVerifier` is the PKCE verifier behind the S256 challenge sent there, and `redirectUri` the callback it was sent with. Answers a write-scope token named for the device. Every failure is the same 400, and a code presented twice also revokes the token it was first traded for.",
+        "tags": ["auth"],
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "code": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "codeVerifier": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9._~-]{43,128}$"
+                  },
+                  "redirectUri": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 2048
+                  }
+                },
+                "required": ["code", "codeVerifier", "redirectUri"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "token": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "scope": {
+                      "type": "string",
+                      "enum": ["read", "write"]
+                    }
+                  },
+                  "required": ["token", "name", "scope"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {

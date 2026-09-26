@@ -125,15 +125,25 @@ describe("openApiDocument", () => {
     expect(operation?.security).toEqual([{ bearerAuth: [] }]);
   });
 
+  // A native app has no token until this answers, so it is the one operation
+  // the route serves to anybody.
+  it("publishes the native sign-in exchange without security", () => {
+    const operation = document.paths?.["/native-sign-in/token"]?.post;
+    expect(operation).toBeDefined();
+    expect(operation?.tags).toEqual(["auth"]);
+    expect(operation?.security).toBeUndefined();
+  });
+
   it("exposes nothing else", () => {
     const operations = Object.entries(document.paths ?? {}).flatMap(
       ([path, item]) =>
         Object.keys(item ?? {}).map((method) => `${method} ${path}`),
     );
     expect(operations.toSorted()).toEqual(
-      expectedOperations
-        .map(([path, method]) => `${method} ${path}`)
-        .toSorted(),
+      [
+        ...expectedOperations.map(([path, method]) => `${method} ${path}`),
+        "post /native-sign-in/token",
+      ].toSorted(),
     );
   });
 
