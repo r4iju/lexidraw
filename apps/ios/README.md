@@ -33,7 +33,13 @@ both, and 287 sessions ended where Lexical made a node LexicalSwift doesn't
 make yet. With lists, checklists and their shortcuts (#116): seeds 11621 to
 11625, 20,000 steps each, and seed 11610, 200,000 steps, 300,000 in all,
 with no divergence; 5,693 commands were refused by both, and 122 sessions
-ended on a shortcut or node not ported yet.
+ended on a shortcut or node not ported yet. With links, autolinks, their
+shortcut, copy, cut and paste (#118), pasting what the last copy or cut
+put on the clipboard, or text, some with HTML, as from another app: seeds
+1, 3, 5, 7, 11, 13, 17, 23, 42 and 2026, 20,000 steps each, and seed 118,
+100,000 steps, 300,000 in all, with no divergence; 7,686 commands were
+refused by both, and 320 sessions ended on a shortcut or node not ported
+yet.
 
 ## Editor harness and UI scripts
 
