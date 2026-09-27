@@ -98,7 +98,7 @@ import Testing
 
   @Test func findsAShortcutEnterFinishes() throws {
     var fuzzer = Fuzzer(
-      seed: 2, reference: try Support.referenceEditor(), candidate: TakesEnterAfterAShortcutAsANewLine())
+      seed: 1, reference: try Support.referenceEditor(), candidate: TakesEnterAfterAShortcutAsANewLine())
 
     let fixture = try #require(try fuzzer.run(steps: 2000)).fixture
 
@@ -122,7 +122,7 @@ import Testing
 
   @Test func indentsItemsAsDeepAsTheWebIndents() throws {
     let candidate = NotesIndentsAtTheCap()
-    var fuzzer = Fuzzer(seed: 7, reference: try Support.referenceEditor(), candidate: candidate)
+    var fuzzer = Fuzzer(seed: 1, reference: try Support.referenceEditor(), candidate: candidate)
 
     #expect(try fuzzer.run(steps: 3_000)?.fixture == nil)
     #expect(candidate.indentsAtTheCap > 0)
