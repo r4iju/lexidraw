@@ -271,6 +271,10 @@ extension Update {
   private mutating func replaceBlock(
     _ transformer: MarkdownTransformer, _ parent: NodeKey, _ children: [NodeKey], _ groups: [String?]
   ) throws {
+    if let listType = transformer.name.listType {
+      var mode = ListReplaceMode.shortcut
+      return try listReplace(parent, listType, children, groups, &mode)
+    }
     switch transformer.name {
     case .heading:
       guard let hashes = groups[1], let tag = HeadingTag(rawValue: "h\(hashes.utf16.count)") else {
@@ -287,35 +291,34 @@ extension Update {
         try insert(line, before: parent)
       }
       selectNext(line)
-    case .unorderedList, .orderedList, .checkList:
-      let listType: ListType =
-        switch transformer.name {
-        case .unorderedList: .bullet
-        case .orderedList: .number
-        default: .check
-        }
-      var notImporting: [Int]?
-      try listReplace(parent, listType, children, groups, importColumns: &notImporting)
     case .table: try replaceWithTable(parent, groups)
     default:
       throw EditorError.unsupported("The markdown shortcut \(transformer.name.rawValue)")
     }
   }
 
+  /// How `listReplace` runs.
+  enum ListReplaceMode {
+    /// Typed, leaving the caret at the item's start.
+    case shortcut
+    /// Imported, with the columns its list levels open at, which a line's
+    /// indent is measured against. Blank lines between its list lines leave
+    /// the list open.
+    case `import`(columns: [Int])
+  }
+
   /// `listReplace`: the block becomes an item of the list of `listType`
   /// beside it, or of a new one, nested as deep as the spaces and tabs
-  /// before the marker say. An import passes the columns its list levels
-  /// open at, which a line's indent is measured against, and blank lines
-  /// between its list lines leave the list open.
+  /// before the marker say.
   mutating func listReplace(
     _ parent: NodeKey, _ listType: ListType, _ children: [NodeKey], _ groups: [String?],
-    importColumns columns: inout [Int]?
+    _ mode: inout ListReplaceMode
   ) throws {
     var previous = state.previousSibling(of: parent)
     let next = state.nextSibling(of: parent)
-    if columns != nil {
+    if case .import = mode {
       while let block = previous, isEmptyMarkdownParagraph(block) { previous = state.previousSibling(of: block) }
-      if !(previous.map(isList) ?? false) { columns = [] }
+      if !(previous.map(isList) ?? false) { mode = .import(columns: []) }
     }
     let item = create(SerializedListItemNode.type)
     if listType == .check, case .listItem(var payload) = state[item].payload {
@@ -328,7 +331,7 @@ extension Update {
     let firstMatchChar = groups[0].flatMap { $0.unicodeScalars.dropFirst(groups[1]?.unicodeScalars.count ?? 0).first }
     let marker = listType != .number ? firstMatchChar.flatMap { ListMarker(rawValue: String($0)) } : nil
     let indent =
-      if let open = columns, !open.isEmpty { Self.columnIndent(open, groups[1] ?? "") } else {
+      if case .import(let open) = mode, !open.isEmpty { Self.columnIndent(open, groups[1] ?? "") } else {
         Self.markdownIndent(groups[1] ?? "")
       }
     if let next, self.listType(next) == listType {
@@ -348,7 +351,7 @@ extension Update {
       try replace(parent, with: list)
     }
     try append(item, children)
-    if columns == nil { selectElement(item, 0, 0) }
+    if case .shortcut = mode { selectElement(item, 0, 0) }
     if indent > 0 {
       try setIndent(item, indent)
       try retypeNestedList(item, listType, start: start)
@@ -357,7 +360,10 @@ extension Update {
       modifyList(list) { $0.setMarkdownMarker(marker) }
       knowsListMarker = true
     }
-    if columns != nil { Self.setOpenColumn(&columns!, indent, groups, listType) }
+    if case .import(var open) = mode {
+      Self.setOpenColumn(&open, indent, groups, listType)
+      mode = .import(columns: open)
+    }
   }
 
   /// `getColumn`: the column the text after `whitespace` starts at, a tab
@@ -617,5 +623,21 @@ extension Array where Element == UTF16.CodeUnit {
   /// `isEqualSubString`.
   fileprivate func has(_ tag: [UTF16.CodeUnit], at start: Int) -> Bool {
     tag.indices.allSatisfy { self[safe: start + $0] == tag[$0] }
+  }
+}
+
+extension MarkdownTransformer.Name {
+  /// The type of list a list transformer makes, and nil for the rest.
+  var listType: ListType? {
+    switch self {
+    case .unorderedList: .bullet
+    case .orderedList: .number
+    case .checkList: .check
+    case .callout, .admonition, .details, .columns, .blockEquationFence, .tweet, .article, .placeholderBlock,
+      .blockEquation, .image, .equation, .literalDollar, .placeholderInline, .footnoteDefinition, .footnoteReference,
+      .table, .hr, .emoji, .heading, .quote, .code, .inlineCode, .boldItalicStar, .boldItalicUnderscore, .boldStar,
+      .boldUnderscore, .highlight, .italicStar, .italicUnderscore, .strikethrough, .link:
+      nil
+    }
   }
 }

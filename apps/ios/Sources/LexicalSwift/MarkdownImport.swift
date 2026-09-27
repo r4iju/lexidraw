@@ -62,6 +62,10 @@ enum MarkdownImport {
       guard let match = transformer.regExp?.firstMatch(in: lineString), let whole = match.groups[0] else { continue }
       let matched = Text(whole.utf16)
       text.text = Text(line.dropFirst(matched.count))
+      if let listType = transformer.name.listType {
+        block = .listItem(listType, groups: match.groups)
+        break transformers
+      }
       switch transformer.name {
       // Each gives the line back and declines. A table does in a cell, as
       // no table goes inside a table.
@@ -75,9 +79,6 @@ enum MarkdownImport {
         }
         block = .heading(tag)
       case .quote: block = .quote
-      case .checkList: block = .listItem(.check, groups: match.groups)
-      case .unorderedList: block = .listItem(.bullet, groups: match.groups)
-      case .orderedList: block = .listItem(.number, groups: match.groups)
       default:
         try requirePorted(transformer.name)
         throw EditorError.unsupported("Importing the markdown \(transformer.name.rawValue)")
@@ -503,7 +504,7 @@ extension Update {
   /// blocks of `lines` appended to `container`, a line that makes none
   /// joining the block before it.
   mutating func importMarkdown(_ lines: [MarkdownImport.Line], into container: NodeKey) throws {
-    var columns: [Int]? = []
+    var mode = ListReplaceMode.import(columns: [])
     for line in lines {
       let paragraph = create(SerializedParagraphNode.type)
       let text = line.text.map { createText(MarkdownImport.string($0.text), format: $0.format) }
@@ -526,7 +527,7 @@ extension Update {
           try replace(paragraph, with: quote)
         }
       case .listItem(let listType, let groups):
-        try listReplace(paragraph, listType, text, groups, importColumns: &columns)
+        try listReplace(paragraph, listType, text, groups, &mode)
       }
       guard state.parent(of: paragraph) != nil, !line.isEmpty, let previous = state.previousSibling(of: paragraph),
         let target = lineJoinTarget(previous), !state.textContent(of: target).isEmpty
