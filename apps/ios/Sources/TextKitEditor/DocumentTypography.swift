@@ -107,18 +107,19 @@ struct DocumentTypography: Sendable {
       ?? headings[type]?.fontSize ?? 1
   }
 
-  /// A block's space before and after it, in ems of the body text. The
-  /// space between two blocks is the larger of the first's after and the
-  /// second's before, as CSS collapses margins, and the first block has
-  /// none before it.
+  /// A block's space before and after it, in ems of the body text, after
+  /// `previous`, or first in the document for none.
   func space(_ block: StyledBlock, after previous: StyledBlock?, width: Double) -> (before: Double, after: Double) {
     let size = fontSize(block, width: width)
-    if let heading = heading(block) {
-      let adjacent = previous.map { self.heading($0) != nil } == true
-      return (heading.before * size * (adjacent ? adjacentHeadingBefore : 1), heading.after * size)
-    }
-    if block == .rule { return (rule.margin, rule.margin) }
-    return (0, blockAfter)
+    let (before, after): (Double, Double) =
+      if let heading = heading(block) {
+        (heading.before * size * (previous.flatMap(self.heading) != nil ? adjacentHeadingBefore : 1), heading.after * size)
+      } else if block == .rule {
+        (rule.margin, rule.margin)
+      } else {
+        (0, blockAfter)
+      }
+    return (previous == nil ? 0 : before, after)
   }
 }
 

@@ -151,7 +151,7 @@ import UIKit
   }
 
   /// The larger of the block's space after it and the next block's before
-  /// it.
+  /// it, as CSS collapses margins.
   private func spaceAfter(_ index: Int) -> CGFloat {
     let block = styled(index)
     let after = typesetting.space(block, after: index > 0 ? styled(index - 1) : nil).after
