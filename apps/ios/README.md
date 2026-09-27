@@ -266,7 +266,9 @@ hand:
 - HTML pasted from another app goes in as the plain text beside it. Pasting
   it as rich text, images and charts included, is #168.
 - The edit menu offers Add Link for a selection, and Open, Edit and Remove
-  for a caret in a link; a tap on a link's text offers the same. A caret
+  for a caret in a link, Open only for the protocols the web opens a link
+  with; a tap on a link's text offers the same. Saving no URL keeps the
+  link, as on the web. A caret
   just after a link's last character is in the link, as a browser puts it
   in the text before it.
 - Typing `[text](url)` makes a link by Lexical's own LINK transformer. Its

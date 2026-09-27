@@ -292,6 +292,21 @@ import UIKit
     #expect(view.link(at: 2) == nil)
   }
 
+  /// The web opens a link only with a protocol it supports, so no other
+  /// link is offered to open.
+  @Test(arguments: [("mailto:a@b.io", true), ("TEL:+1", true), ("ftp://x.io", false), ("javascript:x()", false)])
+  func theEditMenuOffersToOpenALinkOnlyWithAProtocolTheWebOpens(_ url: String, _ opens: Bool) throws {
+    let (view, _) = try editing(LexicalJSON.paragraph([LexicalJSON.link(url, [LexicalJSON.text("the site")])]))
+    var opened: URL?
+    view.open = { opened = $0 }
+    select(view, 2, 2)
+
+    view.openLink()
+
+    #expect(linkActions(view, 2, 2) == (opens ? ["Open Link"] : []) + ["Edit Link…", "Remove Link"])
+    #expect(opened == (opens ? URL(string: url) : nil))
+  }
+
   @Test func addingALinkLinksTheSelectionToTheURLGiven() throws {
     let (view, model) = try editing(LexicalJSON.paragraph([LexicalJSON.text("hello world")]))
     var offered: String?
@@ -325,6 +340,18 @@ import UIKit
 
     #expect(offered == "https://a.io")
     #expect(try paragraphs(model).first?["children"]?.arrayValue?[1]["url"] == "https://b.io")
+  }
+
+  /// As on the web, saving no URL changes nothing; removing is its own
+  /// action.
+  @Test func editingALinkToNoURLKeepsIt() throws {
+    let (view, model) = try editing(Self.linked)
+    view.askForURL = { _, answer in answer("") }
+    select(view, 6, 6)
+
+    view.editLink()
+
+    #expect(try paragraphs(model) == [Self.linked])
   }
 
   @Test func removingALinkLeavesItsText() throws {

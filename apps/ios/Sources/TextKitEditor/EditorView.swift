@@ -705,13 +705,11 @@ public final class EditorView: UIScrollView, UITextInput {
     ask(for: "https://") { [self] url in perform(.toggleLink(url: url), fromInput: false) }
   }
 
-  /// Changes the URL of the link the selection is in to one asked for, or
-  /// removes the link where none is given.
+  /// Changes the URL of the link the selection is in to one asked for, as
+  /// the web's link editor saves it.
   public func editLink() {
     guard let url = selectedLink else { return }
-    ask(for: url.absoluteString) { [self] url in
-      perform(url.isEmpty ? .toggleLink(url: nil) : .editLink(url: url), fromInput: false)
-    }
+    ask(for: url.absoluteString) { [self] url in perform(.editLink(url: url), fromInput: false) }
   }
 
   /// Leaves the text of the link the selection is in, unlinked.
@@ -721,7 +719,13 @@ public final class EditorView: UIScrollView, UITextInput {
   }
 
   public func openLink() {
-    if let url = selectedLink { open(url) }
+    if let url = selectedLink, Self.webOpens(url) { open(url) }
+  }
+
+  /// Whether the web opens a link to `url`, which it does only with a
+  /// protocol it supports.
+  private static func webOpens(_ url: URL) -> Bool {
+    url.scheme.map { supportedURLProtocols.contains($0.lowercased() + ":") } ?? false
   }
 
   @objc private func linkFromKeyboard() {
@@ -756,8 +760,8 @@ public final class EditorView: UIScrollView, UITextInput {
   }
 
   /// What the edit menu offers for links: to link a selection, or for a
-  /// selection in a link, to open, edit or unlink it. `caret`, where given,
-  /// is where the caret goes first.
+  /// selection in a link, to open it where the web would, edit or unlink
+  /// it. `caret`, where given, is where the caret goes first.
   private func linkActions(in range: NSRange, caret: Int? = nil) -> [UIMenuElement] {
     func action(_ title: String, _ symbol: String, _ act: @escaping (EditorView) -> Void) -> UIAction {
       UIAction(title: title, image: UIImage(systemName: symbol)) { [weak self] _ in
@@ -766,11 +770,10 @@ public final class EditorView: UIScrollView, UITextInput {
         act(self)
       }
     }
-    if link(at: caret ?? range.location) != nil {
-      let open = action("Open Link", "safari") { $0.openLink() }
-      guard isEditable else { return [open] }
-      return [
-        open,
+    if let url = link(at: caret ?? range.location) {
+      let open = Self.webOpens(url) ? [action("Open Link", "safari") { $0.openLink() }] : []
+      guard isEditable else { return open }
+      return open + [
         action("Edit Link…", "pencil") { $0.editLink() },
         action("Remove Link", "link.badge.minus") { $0.removeLink() },
       ]
