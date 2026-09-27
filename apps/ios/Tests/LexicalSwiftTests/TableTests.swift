@@ -385,6 +385,33 @@ import Testing
     #expect(inCell.expected.selection?.anchor == cell(0, 0, 1))
   }
 
+  /// Up or Down from an empty block, or from beside it in the root, selects
+  /// a rule it moves toward, which leaves no range selected. From a block
+  /// with text, and with Shift, the caret moves as the platform moves it.
+  @Test func anArrowTowardARuleSelectsItFromAnEmptyBlock() throws {
+    let rule = LexicalJSON.horizontalRule
+    let first = Point(path: [0], offset: 0, type: .element)
+    let down = try agreed(
+      document(paragraph(), rule, paragraph(text("ab"))), [.caret(first), arrow(.down, native: first)])
+    #expect(down.expected.selection == nil)
+
+    let third = Point(path: [2], offset: 0, type: .element)
+    let up = try agreed(document(paragraph(text("ab")), rule, paragraph()), [.caret(third), arrow(.up, native: third)])
+    #expect(up.expected.selection == nil)
+
+    let beside = Point(path: [], offset: 1, type: .element)
+    let fromRoot = try agreed(document(paragraph(text("a")), rule), [.caret(beside), arrow(.down, native: beside)])
+    #expect(fromRoot.expected.selection == nil)
+
+    let withText = try agreed(
+      document(paragraph(text("ab")), rule), [.caret(.text([0, 0], 1)), arrow(.down, native: .text([0, 0], 2))])
+    #expect(withText.expected.selection?.anchor == .text([0, 0], 2))
+
+    let shifted = try agreed(
+      document(paragraph(), rule), [.caret(first), arrow(.down, extend: true, native: first)])
+    #expect(shifted.expected.selection?.anchor == first)
+  }
+
   private func tablePath(_ selection: Selection?) -> [Int]? {
     if case .table(let table, _, _, _) = selection { table } else { nil }
   }

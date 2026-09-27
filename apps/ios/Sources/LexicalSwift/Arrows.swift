@@ -79,6 +79,7 @@ extension Update {
       let handled =
         try atRootEdge
         || !event.shiftKey && tryBlockCursorShadowRootNavigation(selection, key == .up ? .previous : .next)
+        || !event.shiftKey && tryDecoratorLineNavigation(selection, key == .up ? .previous : .next)
       if handled { event.defaultPrevented = true }
       return handled
     case .left, .right:
@@ -170,6 +171,37 @@ extension Update {
       break
     }
     return false
+  }
+
+  /// `$tryDecoratorLineNavigation`: from an empty block, or from beside
+  /// it in a root, onto the block decorator a line up or down reaches.
+  /// Lexical selects it with a NodeSelection, which LexicalSwift holds as no
+  /// selection. From a block with text Lexical asks the DOM whether the line
+  /// move leaves the block, and the reference, with no DOM, leaves the key
+  /// to the platform. `$tryInlineGridLineNavigation`, which runs next, finds
+  /// no DOM either.
+  private mutating func tryDecoratorLineNavigation(_ selection: RangeSelection, _ direction: CaretDirection) throws
+    -> Bool
+  {
+    guard selection.isCollapsed else { return false }
+    let (focus, state) = (selection.focus, self.state)
+    let isSelectableBlockDecorator = { (key: NodeKey) in state[key].isDecorator && !state[key].isInline }
+    if focus.type == .element, state[focus.key].isRootOrShadowRoot {
+      guard let child = state.nodeAtCaret(try state.caret(from: focus, direction)), isSelectableBlockDecorator(child)
+      else { return false }
+      current = nil
+      return true
+    }
+    let start = state[focus.key].isElement ? focus.key : state.parent(of: focus.key)
+    let isTopBlock = { (key: NodeKey) in
+      state[key].isElement && !state[key].isInline && (state.parent(of: key).map { state[$0].isRootOrShadowRoot } ?? false)
+    }
+    guard let start, let block = findParent(from: start, where: isTopBlock),
+      let sibling = direction == .next ? state.nextSibling(of: block) : state.previousSibling(of: block),
+      isSelectableBlockDecorator(sibling), state.textContent(of: block).isEmpty
+    else { return false }
+    current = nil
+    return true
   }
 
   /// `$shouldOverrideDefaultCharacterSelection`, left to right.
