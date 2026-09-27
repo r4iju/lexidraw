@@ -1,11 +1,10 @@
 import "server-only";
-import { chunkTextByParagraphs } from "~/lib/chunk-text";
 import {
+  chunkSections,
+  htmlToSpeechText,
   normalizeForTts,
   splitHtmlIntoSections,
-  chunkSections,
 } from "~/lib/markdown-for-tts";
-import { htmlToPlainText } from "@packages/lexical-nodes";
 import type { TtsConfig } from "../document-tts/generate-document-tts-workflow";
 import { chooseProvider } from "../document-tts/common";
 import { defaultVoice } from "~/app/settings/schema";
@@ -56,57 +55,15 @@ export async function planChunksStep(
 
   const hardCap = 4000;
 
-  let chunks: Array<{
-    index: number;
-    text: string;
-    sectionTitle?: string;
-    sectionIndex?: number;
-    headingDepth?: number;
-  }>;
-
-  if (htmlContent) {
-    const htmlSections = splitHtmlIntoSections(htmlContent);
-
-    if (htmlSections.length > 0 && htmlSections[0]?.title !== undefined) {
-      const sections = htmlSections.map((section) => ({
-        title: section.title,
-        depth: section.depth,
-        body: htmlToPlainText(section.body),
-        index: section.index,
-      }));
-
-      const docChunks = chunkSections(sections, {
-        targetSize: 1400,
-        hardCap,
-      });
-
-      chunks = docChunks.map((c) => ({
-        index: c.index,
-        text: c.text,
-        sectionTitle: c.sectionTitle,
-        sectionIndex: c.sectionIndex,
-        headingDepth: c.headingDepth,
-      }));
-    } else {
-      const textChunks = chunkTextByParagraphs(plainText, {
-        targetSize: 1400,
-        hardCap,
-      });
-      chunks = textChunks.map((c) => ({
-        index: c.index,
-        text: c.text,
-      }));
-    }
-  } else {
-    const textChunks = chunkTextByParagraphs(plainText, {
-      targetSize: 1400,
-      hardCap,
-    });
-    chunks = textChunks.map((c) => ({
-      index: c.index,
-      text: c.text,
-    }));
-  }
+  // Sections by heading when the article has its HTML, else the text whole.
+  const sections = htmlContent
+    ? splitHtmlIntoSections(htmlContent).map((section) => ({
+        ...section,
+        title: section.title && htmlToSpeechText(section.title),
+        body: htmlToSpeechText(section.body),
+      }))
+    : [{ title: undefined, depth: 0, body: plainText, index: 0 }];
+  const chunks: ArticleChunk[] = chunkSections(sections, { hardCap });
 
   const planned = chunks.map((c) => {
     const normalizedText = normalizeForTts(c.text);
