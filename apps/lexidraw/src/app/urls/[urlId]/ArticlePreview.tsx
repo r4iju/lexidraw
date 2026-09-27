@@ -29,7 +29,12 @@ import { toast } from "sonner";
 import { api } from "~/trpc/react";
 import { htmlToPlainText } from "@packages/lexical-nodes";
 import { labelForLanguage, titleize } from "~/lib/i18n";
-import { servedFormat, TTS_DEFAULTS, TTS_FORMATS } from "~/app/settings/schema";
+import {
+  languageMatters,
+  servedFormat,
+  TTS_DEFAULTS,
+  TTS_FORMATS,
+} from "~/app/settings/schema";
 
 type Props = {
   entity: RouterOutputs["entities"]["load"];
@@ -611,33 +616,35 @@ export default function ArticlePreview({
                           </SelectContent>
                         </Select>
                       </div>
-                      <div>
-                        <label
-                          htmlFor={`${uid}-tts-lang`}
-                          className="block text-xs mb-1"
-                        >
-                          Language
-                        </label>
-                        <Select
-                          name={`${uid}-tts-lang`}
-                          value={ttsCfg.languageCode}
-                          onValueChange={(v) =>
-                            setTtsCfg((s) => ({ ...s, languageCode: v }))
-                          }
-                          disabled={false}
-                        >
-                          <SelectTrigger id={`${uid}-tts-lang`}>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {catalogLanguages.map((lc) => (
-                              <SelectItem key={lc} value={lc}>
-                                {labelForLanguage(lc)}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
+                      {languageMatters(ttsCfg.provider) && (
+                        <div>
+                          <label
+                            htmlFor={`${uid}-tts-lang`}
+                            className="block text-xs mb-1"
+                          >
+                            Language
+                          </label>
+                          <Select
+                            name={`${uid}-tts-lang`}
+                            value={ttsCfg.languageCode}
+                            onValueChange={(v) =>
+                              setTtsCfg((s) => ({ ...s, languageCode: v }))
+                            }
+                            disabled={false}
+                          >
+                            <SelectTrigger id={`${uid}-tts-lang`}>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {catalogLanguages.map((lc) => (
+                                <SelectItem key={lc} value={lc}>
+                                  {labelForLanguage(lc)}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
                       <div>
                         <label
                           htmlFor={`${uid}-tts-family`}

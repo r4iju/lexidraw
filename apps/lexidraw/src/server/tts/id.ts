@@ -1,5 +1,6 @@
 import "server-only";
 import crypto from "node:crypto";
+import { languageMatters } from "~/app/settings/schema";
 
 export type TtsConfigResolved = {
   provider: string;
@@ -21,6 +22,10 @@ export function stableHash(
   return h.digest("hex");
 }
 
+// Left out where the service ignores it, so changing it keeps the audio.
+const languageOf = (cfg: TtsConfigResolved) =>
+  languageMatters(cfg.provider) ? (cfg.languageCode ?? "") : "";
+
 export function computeDocKey(
   documentId: string,
   cfg: TtsConfigResolved,
@@ -31,7 +36,7 @@ export function computeDocKey(
     cfg.voiceId,
     cfg.speed,
     cfg.format,
-    cfg.languageCode ?? "",
+    languageOf(cfg),
     cfg.sampleRate ?? "",
   ]);
 }
@@ -46,7 +51,7 @@ export function computeArticleKey(
     cfg.voiceId,
     cfg.speed,
     cfg.format,
-    cfg.languageCode ?? "",
+    languageOf(cfg),
     cfg.sampleRate ?? "",
   ]);
 }
@@ -61,7 +66,7 @@ export function computeChunkHash(
     cfg.voiceId,
     cfg.speed,
     cfg.format,
-    cfg.languageCode ?? "",
+    languageOf(cfg),
     cfg.sampleRate ?? "",
     "md-v1",
   ]);

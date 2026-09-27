@@ -211,6 +211,15 @@ describe("a Gemini reading", () => {
     });
   });
 
+  test("asks for words of other languages to be said as their speakers say them", async () => {
+    const { sent } = await read({});
+
+    const [text] = sent.body.input as {
+      annotations?: { style: string }[];
+    }[];
+    expect(text?.annotations?.[0]?.style).toContain("native speaker");
+  });
+
   test("asked to be faster says so in its style, not in the text it reads", async () => {
     const { sent } = await read({ speed: 1.5 });
 

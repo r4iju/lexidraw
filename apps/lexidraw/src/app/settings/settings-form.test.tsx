@@ -152,6 +152,27 @@ describe("Settings", () => {
     await view.unmount();
   });
 
+  test("a language is asked for only by Kokoro, the one service that needs it", async () => {
+    const language = () =>
+      document.querySelector("input[name='tts.languageCode']");
+    const gemini = await render(<SettingsForm {...props()} />);
+    expect(language()).toBeNull();
+    await gemini.unmount();
+
+    const kokoro = await render(
+      <SettingsForm
+        {...props({
+          user: {
+            ...props().user,
+            config: { tts: { provider: "kokoro" } },
+          } as Props["user"],
+        })}
+      />,
+    );
+    expect(language()).not.toBeNull();
+    await kokoro.unmount();
+  });
+
   test("a Gemini voice shows by its name and character", async () => {
     const view = await render(
       <SettingsForm
