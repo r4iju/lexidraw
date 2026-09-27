@@ -16,7 +16,8 @@ import {
 
 /**
  * TablePlugin's props for a document: the web passes them to TablePlugin,
- * and the iOS reference registers what they turn on.
+ * and the iOS reference registers what they turn on, short of horizontal
+ * scrolling, which only changes the DOM.
  */
 export const DOCUMENT_TABLE_PLUGIN = {
   hasCellMerge: true,

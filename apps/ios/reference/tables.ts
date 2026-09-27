@@ -1,41 +1,36 @@
 /**
- * What @lexical/table@0.51.0 does to the selection and to editing in a
- * table, transcribed from `$handleTableSelectionChangeCommand`,
- * `applyTableHandlers` and `TableObserver`. TablePlugin registers these
- * against each table's DOM, which a headless editor has none of.
+ * What @lexical/table does to the selection and to editing in a table that
+ * a headless editor can't run from the package. TablePlugin registers these
+ * handlers against each table's DOM, in `applyTableHandlers` and the
+ * selection observer, so they are copied here, each naming the function it
+ * copies. What needs no DOM, such as `TableObserver`'s methods, is the
+ * package's own.
  *
  * Their DOM-only parts are left out. Pointer drags aren't modelled, and a
  * table selection is made the way a shift-click or shift-arrow makes one: a
  * range from one cell to another, turned into cells when the selection
- * changes. A native caret beside a table is also left out, so the web's
- * paragraph insertion at a table's edge never applies.
+ * changes.
  */
 import {
   $computeTableMap,
   $createTableSelectionFrom,
   $findCellNode,
   $findTableNode,
-  $isTableCellNode,
   $isTableSelection,
   $isTableNode,
   $isTableRowNode,
   type TableCellNode,
   type TableNode,
+  TableObserver,
   type TableSelection,
 } from "@lexical/table";
 import { $dfs } from "@lexical/utils";
 import {
-  $copyNode,
-  $createParagraphNode,
-  $createRangeSelection,
-  $createTextNode,
   $findMatchingParent,
-  $getNodeByKey,
+  $getEditor,
   $getSelection,
   $isElementNode,
-  $isParagraphNode,
   $isRangeSelection,
-  $isRootNode,
   $setSelection,
   type BaseSelection,
   type RangeSelection,
@@ -43,7 +38,14 @@ import {
 } from "lexical";
 
 /**
- * `$fixRangeSelectionForSelectedTable`: a range reaching into a table from
+ * The package the copies below come from, which the test pins: the copies
+ * need checking again against another version.
+ */
+export const COPIED_FROM = "@lexical/table@0.51.0";
+
+/**
+ * Copies `$fixRangeSelectionForSelectedTable`, from the selection observer's
+ * `$handleTableSelectionChangeCommand`: a range reaching into a table from
  * outside takes in the whole table, and one from cell to cell of a table
  * becomes a table selection.
  */
@@ -115,7 +117,7 @@ function $tables(): TableNode[] {
     .filter($isTableNode);
 }
 
-/** `$isSelectionInTable`. */
+/** Copies `$isSelectionInTable`. */
 function $isSelectionInTable(
   selection: BaseSelection | null,
   tableNode: TableNode,
@@ -128,7 +130,8 @@ function $isSelectionInTable(
 }
 
 /**
- * Each table's KEY_BACKSPACE_COMMAND and KEY_DELETE_COMMAND handler: a range
+ * Copies `applyTableHandlers`'s `$deleteCellHandler`, each table's
+ * KEY_BACKSPACE_COMMAND and KEY_DELETE_COMMAND handler: a range
  * with one end in a table grows around it, so the delete takes the table
  * whole; a table selection's cells are cleared. True where that handled it.
  */
@@ -155,7 +158,7 @@ export function $deleteCellHandler(): boolean {
     }
     if (!$isSelectionInTable(selection, tableNode)) continue;
     if ($isTableSelection(selection)) {
-      $clearText(selection);
+      $observer(tableNode.getKey()).$clearText();
       return true;
     }
   }
@@ -163,91 +166,53 @@ export function $deleteCellHandler(): boolean {
 }
 
 /**
- * Each table's DELETE_CHARACTER_COMMAND, DELETE_WORD_COMMAND and
- * DELETE_LINE_COMMAND handler: a table selection's cells are cleared.
+ * Copies `applyTableHandlers`'s `$deleteTextHandler`, each table's
+ * DELETE_CHARACTER_COMMAND, DELETE_WORD_COMMAND and DELETE_LINE_COMMAND
+ * handler: a table selection's cells are cleared.
  */
 export function $deleteTextHandler(): boolean {
   const selection = $getSelection();
   if (!$isTableSelection(selection)) return false;
-  $clearText(selection);
+  $observer(selection.tableKey).$clearText();
   return true;
 }
 
 /**
- * Each table's CONTROLLED_TEXT_INSERTION_COMMAND handler: typing over a
- * table selection clears it, `$clearHighlight`, and types nowhere.
+ * Copies what `TableObserver.$clearHighlight` leaves of the selection, for
+ * each table's CONTROLLED_TEXT_INSERTION_COMMAND handler over a table
+ * selection. The method itself looks up the table's DOM.
  */
 export function $clearHighlight(): void {
   if ($getSelection() !== null) $setSelection(null);
 }
 
-/** Each table's FORMAT_TEXT_COMMAND handler, `$formatCells`. */
+/** Each table's FORMAT_TEXT_COMMAND handler over a table selection. */
 export function $formatCells(
   selection: TableSelection,
   type: TextFormatType,
 ): void {
-  const formatSelection = $createRangeSelection();
-  const { anchor, focus } = formatSelection;
-  const cellNodes = selection.getNodes().filter($isTableCellNode);
-  const firstCell = cellNodes[0];
-  if (!firstCell) throw new Error("No table cells present");
-  const paragraph = firstCell.getFirstChild();
-  const alignFormatWith = $isParagraphNode(paragraph)
-    ? paragraph.getFormatFlags(type, null)
-    : null;
-  for (const cellNode of cellNodes) {
-    anchor.set(cellNode.getKey(), 0, "element");
-    focus.set(cellNode.getKey(), cellNode.getChildrenSize(), "element");
-    formatSelection.formatText(type, alignFormatWith);
-  }
-  $setSelection(selection);
+  $observer(selection.tableKey).$formatCells(type);
 }
 
 /**
- * `TableObserver.$clearText`: the selected cells keep an empty paragraph
- * each, or the table goes where every cell is selected.
+ * A table's `TableObserver`, for the methods that touch no DOM: its
+ * constructor tracks the table's element, which a headless editor has none
+ * of, so this one has no element and no cells of it.
  */
-function $clearText(selection: TableSelection): void {
-  const tableNode = $getNodeByKey(selection.tableKey);
-  if (!$isTableNode(tableNode)) throw new Error("Expected TableNode.");
-  const selectedNodes = selection.getNodes().filter($isTableCellNode);
-  const firstRow = tableNode.getFirstChild();
-  const lastRow = tableNode.getLastChild();
-  const isEntireTableSelected =
-    selectedNodes.length > 0 &&
-    $isTableRowNode(firstRow) &&
-    $isTableRowNode(lastRow) &&
-    selectedNodes[0] === firstRow.getFirstChild() &&
-    selectedNodes[selectedNodes.length - 1] === lastRow.getLastChild();
-  if (isEntireTableSelected) {
-    tableNode.selectPrevious();
-    const parent = tableNode.getParent();
-    tableNode.remove();
-    if ($isRootNode(parent) && parent.isEmpty()) {
-      // INSERT_PARAGRAPH_COMMAND, which rich text answers.
-      const rangeSelection = $getSelection();
-      if ($isRangeSelection(rangeSelection)) rangeSelection.insertParagraph();
-    }
-    return;
-  }
-  for (const cellNode of selectedNodes) {
-    const firstChild = cellNode.getFirstChild();
-    const paragraphNode = $isParagraphNode(firstChild)
-      ? $copyNode(firstChild)
-      : $createParagraphNode();
-    paragraphNode.append($createTextNode());
-    cellNode.append(paragraphNode);
-    for (const child of cellNode.getChildren()) {
-      if (child !== paragraphNode) child.remove();
-    }
-  }
-  $setSelection(null);
+function $observer(tableNodeKey: string): TableObserver {
+  const observer: TableObserver = Object.create(TableObserver.prototype);
+  return Object.assign(observer, {
+    editor: $getEditor(),
+    table: { columns: 0, domRows: [], rows: 0 },
+    tableNodeKey,
+  });
 }
 
 /**
- * Each table's KEY_TAB_COMMAND handler: a caret in a cell moves to the end of
- * the next cell or the previous, and out of the table past its last or
- * first. False where the table doesn't take the Tab.
+ * Copies `applyTableHandlers`'s KEY_TAB_COMMAND handler, which TablePlugin
+ * registers with `hasTabHandler`: a caret in a cell moves to the end of the
+ * next cell or the previous, and out of the table past its last or first.
+ * False where the table doesn't take the Tab.
  */
 export function $tabHandler(backward: boolean): boolean {
   const selection = $getSelection();
@@ -260,7 +225,7 @@ export function $tabHandler(backward: boolean): boolean {
   return true;
 }
 
-/** `$selectAdjacentCell`. */
+/** Copies `$selectAdjacentCell`. */
 function $selectAdjacentCell(
   tableCellNode: TableCellNode,
   direction: "next" | "previous",

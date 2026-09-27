@@ -64,7 +64,6 @@ import {
   $isElementNode,
   $isRangeSelection,
   $isTextNode,
-  $selectAll,
   $setSelection,
   COMPOSITION_END_TAG,
   COMMAND_PRIORITY_LOW,
@@ -364,7 +363,8 @@ function rangeSelection(): RangeSelection {
 
 /**
  * What TablePlugin registers with the web's props, short of what it binds to
- * each table's DOM, which `tables.ts` transcribes.
+ * each table's DOM, which `tables.ts` copies. `hasTabHandler` is read where
+ * Tab runs.
  */
 function registerTables(next: LexicalEditor): void {
   const { hasCellMerge, hasCellBackgroundColor, hasNestedTables } =
@@ -503,10 +503,7 @@ function run(
     return;
   }
   if (command.type === "selectAll") {
-    // Rich text answers what the table's handler leaves.
-    if (!current().dispatchCommand(SELECT_ALL_COMMAND, null as never)) {
-      $selectAll(null);
-    }
+    current().dispatchCommand(SELECT_ALL_COMMAND, null as never);
     return;
   }
   const selection = $getSelection();
@@ -569,7 +566,9 @@ function run(
       editor.dispatchCommand(OUTDENT_CONTENT_COMMAND, undefined);
       return;
     case "tab":
-      if ($tabHandler(command.backward)) return;
+      if (DOCUMENT_TABLE_PLUGIN.hasTabHandler && $tabHandler(command.backward)) {
+        return;
+      }
       editor.dispatchCommand(KEY_TAB_COMMAND, key(command.backward));
       return;
     case "toggleLink":
