@@ -285,6 +285,41 @@ class EditorUITests: XCTestCase {
     XCTAssertEqual(try cellTexts(), [["", "b!"], ["", ""]])
   }
 
+  /// Shift and Down at a cell's last line select the cell, as
+  /// @lexical/table's handler does, and then Shift and an arrow move the
+  /// selection's focus a cell at a time. What Command-B makes bold shows
+  /// which cells were selected, and Command-I which were after.
+  func testShiftArrowsMakeAndChangeATableSelection() throws {
+    open(LexicalJSON.document([LexicalJSON.table([["a", "b"], ["c", "d"]]), LexicalJSON.paragraph([])]))
+    tap(Self.inLetter(column: 0))
+
+    keyboard.press(.downArrow, .shift)
+    keyboard.press(.downArrow, .shift)
+    keyboard.press(.rightArrow, .shift)
+    keyboard.press("b", .command)
+    XCTAssertEqual(try cells(formatted: .bold), [[true, true], [true, true]])
+
+    keyboard.press(.leftArrow, .shift)
+    keyboard.press("i", .command)
+    XCTAssertEqual(try cells(formatted: .italic), [[true, false], [true, false]])
+  }
+
+  /// The handle at the end of selected cells, dragged into another cell,
+  /// selects the cells up to it.
+  func testDraggingAHandleChangesATableSelection() throws {
+    open(LexicalJSON.document([LexicalJSON.table([["a", "b", "c"]]), LexicalJSON.paragraph([])]))
+    tap(Self.inLetter(column: 0))
+    keyboard.press(.downArrow, .shift)
+
+    dragHandle(from: Self.letterEnd(column: 0), to: Self.inLetter(column: 2))
+    keyboard.press("b", .command)
+    XCTAssertEqual(try cells(formatted: .bold), [[true, true, true]])
+
+    dragHandle(from: Self.letterEnd(column: 2), to: Self.inLetter(column: 1))
+    keyboard.press("i", .command)
+    XCTAssertEqual(try cells(formatted: .italic), [[true, true, false]])
+  }
+
   /// Romaji to kana to kanji on the Japanese keyboard. The keyboard's calls
   /// are what `web-composition.json` recorded from iOS, the view shows the
   /// composition where the caret was, and the harness saves what the web
@@ -381,6 +416,52 @@ class EditorUITests: XCTestCase {
     let top = 16 + 22 + 8.5
     let rowHeight = 8 + 15 * 1.5 + 8 + 1
     return CGPoint(x: 16 + 16, y: top + rowHeight * (CGFloat(row) + 0.5))
+  }
+
+  /// Where the letter in a cell of the first row of a table of letters at
+  /// the top of the document ends, at the foot of the line, where UIKit
+  /// takes hold of the handle there. Points from the editor's top left.
+  private static func letterEnd(column: Int) -> CGPoint {
+    let start = cellStart(column: column)
+    return CGPoint(x: start.x + 1 + 12 + 8.5, y: start.y + 15 * 1.5 / 2)
+  }
+
+  private static func inLetter(column: Int) -> CGPoint {
+    let start = cellStart(column: column)
+    return CGPoint(x: start.x + 1 + 12 + 4, y: start.y)
+  }
+
+  /// The left edge of a cell of the first row of a table of letters,
+  /// halfway down it. A cell of one letter is as wide as the letter and its
+  /// padding, which no least width widens on the web.
+  private static func cellStart(column: Int) -> CGPoint {
+    CGPoint(x: 16 + 34.5 * CGFloat(column), y: 16 + (8 + 15 * 1.5 + 8 + 1) / 2)
+  }
+
+  private func tap(_ point: CGPoint) {
+    editor.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: point.x, dy: point.y)).tap()
+  }
+
+  /// Drags the selection handle at `start` to `end`, points from the
+  /// editor's top left.
+  private func dragHandle(from start: CGPoint, to end: CGPoint) {
+    let origin = editor.coordinate(withNormalizedOffset: .zero)
+    origin.withOffset(CGVector(dx: start.x, dy: start.y)).press(
+      forDuration: 0.1, thenDragTo: origin.withOffset(CGVector(dx: end.x, dy: end.y)), withVelocity: .slow,
+      thenHoldForDuration: 0.3)
+  }
+
+  /// Whether each cell of the saved document's table has `format`, row by
+  /// row.
+  private func cells(formatted format: TextFormat) throws -> [[Bool]] {
+    let blocks = try saved()["root"]?["children"]?.arrayValue ?? []
+    return (blocks.first { $0["type"] == "table" }?["children"]?.arrayValue ?? []).map { row in
+      (row["children"]?.arrayValue ?? []).map { cell in
+        let texts = (cell["children"]?.arrayValue ?? []).flatMap { $0["children"]?.arrayValue ?? [] }
+        return !texts.isEmpty
+          && texts.allSatisfy { TextFormat(rawValue: Int($0["format"]?.numberValue ?? 0)).contains(format) }
+      }
+    }
   }
 
   /// Double-taps the word at `point`, points from the editor's top left, for
