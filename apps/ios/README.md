@@ -237,3 +237,17 @@ hand:
 - ⌘⌥0 to ⌘⌥3 and ⌘⌥Q set the block type from a hardware keyboard, the web's
   shortcuts. The app has no block menu yet. Headings 4 to 6 come only from
   typing `####` to `######`, as on the web, where #135 owns the block menu.
+- The web's editor and the reference register lists, checklists and Tab
+  through one function, `registerDocumentEditing`, so the reference edits
+  lists as the web's editor does rather than as a description of it.
+- A tap within 40 points of a checklist item's left, from its box on,
+  checks or unchecks it and leaves the caret where it was, as the web's
+  MobileCheckListPlugin does on a phone.
+- Lists are drawn with the web theme's lengths: 1.625em for a list, 1.75em
+  more for a checklist's box, 0.25em between items and 40 points a level of
+  indent. The theme's colours become the system's: a checked box is filled
+  in the tint colour, and markers and done items are in the secondary label
+  colour.
+- Tab indents where the selection starts at the start of a block or spans
+  blocks, and types a tab elsewhere, as the web's TabIndentationPlugin does.
+  A tab lines up to the browser's default stops, eight spaces apart.
