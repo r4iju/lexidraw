@@ -256,6 +256,35 @@ class EditorUITests: XCTestCase {
     XCTAssertEqual(try saved(), flat)
   }
 
+  /// A table from the edit menu's Table menu, typed into cell by cell with
+  /// Tab and Shift-Tab, then given and relieved of rows and columns there.
+  func testTablesFromTheEditMenu() throws {
+    open(LexicalJSON.document([LexicalJSON.paragraph([LexicalJSON.text("Hello")])]))
+
+    chooseFromEditMenu(at: CGPoint(x: 16 + 20, y: 16 + 11), "Table", "Insert Table…")
+    for (name, count) in [("Rows", "2"), ("Columns", "2")] {
+      let field = app.alerts.textFields[name]
+      field.tap()
+      field.typeText(XCUIKeyboardKey.delete.rawValue + count)
+    }
+    app.alerts.buttons["Insert Table"].tap()
+    editor.typeText("a")
+    keyboard.press(.tab)
+    editor.typeText("b")
+    keyboard.press(.tab)
+    editor.typeText("c")
+    keyboard.press(.tab, .shift)
+    editor.typeText("!")
+    XCTAssertEqual(try cellTexts(), [["a", "b!"], ["c", ""]])
+
+    chooseFromEditMenu(at: Self.firstCell(row: 1), "Table", "Insert Row Above")
+    chooseFromEditMenu(at: Self.firstCell(row: 0), "Table", "Insert Column Right")
+    chooseFromEditMenu(at: Self.firstCell(row: 2), "Table", "Delete Row")
+    XCTAssertEqual(try cellTexts(), [["a", "", "b!"], ["", "", ""]])
+    chooseFromEditMenu(at: Self.firstCell(row: 0), "Table", "Delete Column")
+    XCTAssertEqual(try cellTexts(), [["", "b!"], ["", ""]])
+  }
+
   /// Romaji to kana to kanji on the Japanese keyboard. The keyboard's calls
   /// are what `web-composition.json` recorded from iOS, the view shows the
   /// composition where the caret was, and the harness saves what the web
@@ -344,6 +373,54 @@ class EditorUITests: XCTestCase {
     let x = 16 + (list.padding + list.box.size / 2) * em
     editor.coordinate(withNormalizedOffset: .zero)
       .withOffset(CGVector(dx: x, dy: 16 + 11 + CGFloat(item) * (22 + list.itemSpacing * em))).tap()
+  }
+
+  /// A point in the first cell of `row` of a table below one line of text,
+  /// its rows a line of table text tall.
+  private static func firstCell(row: Int) -> CGPoint {
+    let top = 16 + 22 + 8.5
+    let rowHeight = 8 + 15 * 1.5 + 8 + 1
+    return CGPoint(x: 16 + 16, y: top + rowHeight * (CGFloat(row) + 0.5))
+  }
+
+  /// Double-taps the word at `point`, points from the editor's top left, for
+  /// the edit menu, then chooses `path` from it.
+  private func chooseFromEditMenu(at point: CGPoint, _ path: String...) {
+    editor.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: point.x, dy: point.y)).doubleTap()
+    for title in path {
+      // An item of the menu's row, or of the list the row opens into.
+      let item = app.descendants(matching: .any).matching(
+        NSPredicate(
+          format: "label == %@ AND elementType IN %@", title,
+          [XCUIElement.ElementType.menuItem.rawValue, XCUIElement.ElementType.button.rawValue])
+      ).firstMatch
+      let nextPage = app.buttons["Next Page"]
+      let shown = XCTNSPredicateExpectation(
+        predicate: NSPredicate { _, _ in item.exists || nextPage.exists }, object: nil)
+      _ = XCTWaiter.wait(for: [shown], timeout: 5)
+      if !item.exists, nextPage.exists { nextPage.tap() }
+      XCTAssertTrue(item.waitForExistence(timeout: 5), "No \(title) in the edit menu: \(app.debugDescription)")
+      // The list's last items can be under the keyboard until it scrolls.
+      for _ in 0..<3 where !item.isHittable {
+        let screen = app.coordinate(withNormalizedOffset: .zero)
+        let list = CGVector(dx: item.frame.midX, dy: item.frame.minY - 60)
+        screen.withOffset(list).press(forDuration: 0.1, thenDragTo: screen.withOffset(CGVector(dx: list.dx, dy: list.dy - 150)))
+      }
+      item.tap()
+    }
+  }
+
+  /// The text of each cell of the saved document's table, row by row.
+  private func cellTexts() throws -> [[String]] {
+    let blocks = try saved()["root"]?["children"]?.arrayValue ?? []
+    XCTAssertEqual(blocks.compactMap { $0["type"]?.stringValue }, ["paragraph", "table", "paragraph"])
+    return (blocks.first { $0["type"] == "table" }?["children"]?.arrayValue ?? []).map { row in
+      (row["children"]?.arrayValue ?? []).map { cell in
+        (cell["children"]?.arrayValue ?? []).flatMap { block in
+          (block["children"]?.arrayValue ?? []).compactMap { $0["text"]?.stringValue }
+        }.joined()
+      }
+    }
   }
 
   /// Saves through the harness and reads back what it wrote.
