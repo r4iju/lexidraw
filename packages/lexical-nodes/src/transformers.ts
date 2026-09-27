@@ -268,11 +268,11 @@ export function createTableTransformer(
         }
         previousSibling.append(...table.getChildren());
         parentNode.remove();
+        previousSibling.selectEnd();
       } else {
         parentNode.replace(table);
+        table.selectEnd();
       }
-
-      table.selectEnd();
     },
     type: "element",
   };

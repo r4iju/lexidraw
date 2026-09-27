@@ -317,3 +317,105 @@ test("a row typed inside a cell stays as typed, as no table goes inside a table"
     [[""], [""]],
   ]);
 });
+
+test("a row typed under a table with as many columns joins it, with the caret at its end", async () => {
+  const errors: unknown[] = [];
+  const e = createHeadlessEditor({
+    nodes: CORE_NODES,
+    onError: (error) => errors.push(error),
+  });
+  registerMarkdownShortcuts(e, CORE_TRANSFORMERS);
+  e.update(
+    () => {
+      const paragraph = $createParagraphNode();
+      $getRoot().append($createDocumentTable(1, 2), paragraph);
+      paragraph.append($createTextNode("|c|d|"));
+      paragraph.selectEnd();
+    },
+    { discrete: true },
+  );
+  e.update(
+    () => {
+      const selection = $getSelection();
+      if (!$isRangeSelection(selection)) throw new Error("Expected a caret");
+      selection.insertText(" ");
+    },
+    { discrete: true },
+  );
+  // The shortcut runs in an update the update listener queues.
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  expect(errors).toEqual([]);
+  expect(cellContents(e)).toEqual([
+    [[""], [""]],
+    [["c"], ["d"]],
+  ]);
+  e.getEditorState().read(() => {
+    expect($getRoot().getChildrenSize()).toBe(1);
+    const selection = $getSelection();
+    if (!$isRangeSelection(selection)) throw new Error("Expected a caret");
+    expect(selection.anchor.getNode().getTextContent()).toBe("d");
+    expect(selection.anchor.offset).toBe(1);
+  });
+});
+
+test("a divider typed under a table makes its last row the header, with the caret at the table's end", async () => {
+  const e = editor();
+  registerMarkdownShortcuts(e, CORE_TRANSFORMERS);
+  e.update(
+    () => {
+      const paragraph = $createParagraphNode();
+      const table = $createDocumentTable(2, 2);
+      $getRoot().append(
+        table,
+        paragraph,
+        $createParagraphNode().append($createTextNode("after")),
+      );
+      table
+        .getLastChildOrThrow<TableRowNode>()
+        .getLastChildOrThrow<TableCellNode>()
+        .getFirstChildOrThrow<ParagraphNode>()
+        .append($createTextNode("d"));
+      paragraph.append($createTextNode("|:---|---:|"));
+      paragraph.selectEnd();
+    },
+    { discrete: true },
+  );
+  e.update(
+    () => {
+      const selection = $getSelection();
+      if (!$isRangeSelection(selection)) throw new Error("Expected a caret");
+      selection.insertText(" ");
+    },
+    { discrete: true },
+  );
+  // The shortcut runs in an update the update listener queues.
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  e.getEditorState().read(() => {
+    expect(
+      $table()
+        .getChildren<TableRowNode>()
+        .map((row) =>
+          row
+            .getChildren<TableCellNode>()
+            .map((cell) => [cell.getHeaderStyles(), cell.getFormatType()]),
+        ),
+    ).toEqual([
+      [
+        [1, ""],
+        [1, ""],
+      ],
+      [
+        [1, "left"],
+        [1, "right"],
+      ],
+    ]);
+    expect($getRoot().getChildrenSize()).toBe(2);
+    const selection = $getSelection();
+    if (!$isRangeSelection(selection)) throw new Error("Expected a caret");
+    // Removing the line moves the caret to the end of the block before it.
+    expect(selection.anchor.getNode().is($table())).toBe(true);
+    expect(selection.anchor.offset).toBe(2);
+  });
+});
