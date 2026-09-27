@@ -258,6 +258,38 @@ test.each([
     ".document-link",
   );
 });
+test("reads a rule, and the outline the theme's class draws around a selected one", async () => {
+  const swift = swiftForTypography(await readWebStyles());
+
+  expect(swift).toContain(
+    "rule: Rule(width: 1, color: .border, margin: 2, selected: Outline(width: 2, color: .primary, offset: 3)),",
+  );
+});
+
+test("refuses a selected rule drawn other than by a solid outline", async () => {
+  const styles = await readWebStyles();
+  const dashed = styles.documentCSS.replace(
+    "outline: 2px solid var(--primary);",
+    "outline: 2px dashed var(--primary);",
+  );
+  const shadowed = styles.documentCSS.replace(
+    "outline-offset: 3px;",
+    "outline-offset: 3px;\n  box-shadow: 0 0 4px var(--primary);",
+  );
+
+  expect(dashed).not.toBe(styles.documentCSS);
+  expect(shadowed).not.toBe(styles.documentCSS);
+  expect(() => swiftForTypography({ ...styles, documentCSS: dashed })).toThrow(
+    "2px dashed",
+  );
+  expect(() =>
+    swiftForTypography({ ...styles, documentCSS: shadowed }),
+  ).toThrow("box-shadow");
+  expect(() =>
+    swiftForTypography({ ...styles, ruleSelectedClass: "selected" }),
+  ).toThrow(".selected");
+});
+
 test("reads a table as .document-table and the theme's selected cell set it", async () => {
   const swift = swiftForTypography(await readWebStyles());
 

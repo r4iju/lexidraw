@@ -17,13 +17,15 @@ const GLOBALS_CSS_URL = new URL(
 );
 
 /**
- * The web editor's stylesheets, the classes its theme gives a quote and a
- * selected table cell, and what it lays a table out by besides them.
+ * The web editor's stylesheets, the classes its theme gives a quote, a
+ * selected rule and a selected table cell, and what it lays a table out by
+ * besides them.
  */
 export type WebStyles = {
   documentCSS: string;
   globalsCSS: string;
   quoteClass: string;
+  ruleSelectedClass: string;
   tableCellSelectedClass: string;
   tableLayout: Record<keyof typeof DOCUMENT_TABLE_LAYOUT, number>;
 };
@@ -33,6 +35,7 @@ export async function readWebStyles(): Promise<WebStyles> {
     documentCSS: await Bun.file(DOCUMENT_CSS_URL).text(),
     globalsCSS: await Bun.file(GLOBALS_CSS_URL).text(),
     quoteClass: theme.quote,
+    ruleSelectedClass: theme.hrSelected,
     tableCellSelectedClass: theme.tableCellSelected,
     tableLayout: DOCUMENT_TABLE_LAYOUT,
   };
@@ -190,6 +193,17 @@ export function swiftForTypography(styles: WebStyles): string {
   if (ruleBefore !== ruleAfter) {
     throw new Error("A rule has other space before it than after it");
   }
+  const ruleSelected = declarations(css, `.${styles.ruleSelectedClass}`);
+  const read = new Set(["outline", "outline-offset"]);
+  for (const property of ruleSelected.values.keys()) {
+    if (!read.has(property)) {
+      throw new Error(
+        `${ruleSelected.selector} sets ${property}, which isn't read yet`,
+      );
+    }
+  }
+  const [outlineWidth, outlineColor] = border(value(ruleSelected, "outline"));
+  const outlineOffset = value(ruleSelected, "outline-offset");
 
   const link = declarations(css, ".document-link");
   const decoration = /^underline (\S+)$/.exec(value(link, "text-decoration"));
@@ -232,7 +246,8 @@ export function swiftForTypography(styles: WebStyles): string {
     `    languages: [${swiftForLanguages(css).join(", ")}],`,
     `    list: List(${listFields.join(", ")}),`,
     `    quote: Quote(borderWidth: ${points(quoteBorderWidth)}, borderColor: ${colors.name(quoteBorderColor)}, paddingStart: ${ems(quotePaddingStart)}),`,
-    `    rule: Rule(width: ${points(ruleWidth)}, color: ${colors.name(ruleColor)}, margin: ${ems(ruleBefore)}),`,
+    `    rule: Rule(width: ${points(ruleWidth)}, color: ${colors.name(ruleColor)}, margin: ${ems(ruleBefore)}, ` +
+      `selected: Outline(width: ${points(outlineWidth)}, color: ${colors.name(outlineColor)}, offset: ${points(outlineOffset)})),`,
     `    link: Link(color: ${colors.name(value(link, "color"))}, underlineThickness: ${points(decoration[1])}, underlineOffset: ${number(underlineOffset[1])}, underlineOpacity: ${Number(underline[1]) / 100}),`,
     `    table: ${swiftForTable(css, colors, content, styles)})`,
     "}",
@@ -596,10 +611,10 @@ function pair(text: string): [string, string] {
   return [start, end ?? start];
 }
 
-/** A border's width and colour, which must be solid. */
+/** A border's or an outline's width and colour, which must be solid. */
 function border(text: string): [string, string] {
   const match = /^(\S+) solid (.+)$/.exec(text);
-  if (!match?.[1] || !match[2]) throw new Error(`Not a solid border: ${text}`);
+  if (!match?.[1] || !match[2]) throw new Error(`Not solid: ${text}`);
   return [match[1], match[2]];
 }
 

@@ -344,6 +344,42 @@ import UIKit
     #expect(Self.isNear(plain, Self.white), "\(plain)")
   }
 
+  /// A rule selected whole is outlined as the web outlines a selected
+  /// embed, in the theme's primary colour 3 points out from it, and not
+  /// before it's selected.
+  @Test
+  func aSelectedRuleIsOutlinedAsOnTheWeb() throws {
+    let view = try Self.host(
+      LexicalJSON.document([
+        LexicalJSON.paragraph([LexicalJSON.text("a")]), LexicalJSON.horizontalRule, LexicalJSON.paragraph([]),
+      ]))
+    view.window?.overrideUserInterfaceStyle = .light
+    #expect(view.becomeFirstResponder())
+    let caret = view.caretRect(for: try position(view, 2))
+    /// Where the rule's box is, in the view's bounds: its line runs across
+    /// the middle of the caret beside it.
+    let line = view.convert(
+      CGRect(x: caret.minX, y: caret.midY - 0.5, width: view.bounds.width - 2 * caret.minX, height: 1),
+      from: view.textInputView
+    ).offsetBy(dx: -view.bounds.minX, dy: -view.bounds.minY)
+    let top = CGPoint(x: line.midX, y: line.minY - 4)
+    let left = CGPoint(x: line.minX - 4, y: line.midY)
+    let inside = CGPoint(x: line.midX, y: line.minY - 1.5)
+
+    let before = snapshot(view)
+    #expect(Self.isNear(try pixel(before, at: top), Self.white))
+
+    view.selectedTextRange = view.textRange(from: try position(view, 4), to: try position(view, 4))
+    view.deleteBackward()
+    view.layoutIfNeeded()
+
+    let image = snapshot(view)
+    let (above, beside, between) = (try pixel(image, at: top), try pixel(image, at: left), try pixel(image, at: inside))
+    #expect(Self.isNear(above, Self.primary), "\(above)")
+    #expect(Self.isNear(beside, Self.primary), "\(beside)")
+    #expect(Self.isNear(between, Self.white), "\(between)")
+  }
+
   /// A cell's background colour fills it, and is all a selected cell shows,
   /// as the web's inline `background-color` wins over the tint.
   @Test
@@ -542,6 +578,8 @@ import UIKit
   static let white: RGB = (255, 255, 255)
   /// The theme's `--muted`, light.
   static let muted: RGB = (238, 238, 241)
+  /// The theme's primary colour, light.
+  static let primary: RGB = (115, 72, 226)
   /// The theme's primary colour at 10% over white, light.
   static let tinted: RGB = (255 * 0.9 + 115 * 0.1, 255 * 0.9 + 72 * 0.1, 255 * 0.9 + 226 * 0.1)
 

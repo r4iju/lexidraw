@@ -194,6 +194,7 @@ import UIKit
       }
     laidOut[index] = block
     showTableSelection(in: block, at: index)
+    showRuleSelection(in: block, at: index)
     measure(index, block)
     return block
   }
@@ -271,6 +272,18 @@ import UIKit
   private func showTableSelection(in block: any LaidOutBlock, at index: Int) {
     guard let table = block as? TableBlock else { return }
     table.selectedCells = tableSelection?.block == index ? tableSelection?.cells ?? [] : []
+  }
+
+  /// The rule blocks selected whole, outlined as the web outlines them.
+  var selectedRules: Set<Int> = [] {
+    didSet {
+      guard selectedRules != oldValue else { return }
+      for (index, block) in laidOut { showRuleSelection(in: block, at: index) }
+    }
+  }
+
+  private func showRuleSelection(in block: any LaidOutBlock, at index: Int) {
+    (block as? RuleBlock)?.isSelected = selectedRules.contains(index)
   }
 
   // MARK: Geometry
@@ -622,17 +635,36 @@ private final class EmbedBlock: LaidOutBlock {
 }
 
 /// A horizontal rule, the caret before it or after it as tall as a line of
-/// text.
+/// text, outlined where it's selected.
 private final class RuleBlock: LaidOutBlock {
   private let container = UIView()
   private let line = UIView()
+  private let outline = UIView()
+  private let selectedOutline: DocumentTypography.Outline
   private let caretHeight: CGFloat
 
   init(rule: DocumentTypography.Rule, caretHeight: CGFloat, width: CGFloat) {
     self.caretHeight = caretHeight
+    selectedOutline = rule.selected
     line.backgroundColor = rule.color.color
     line.frame = CGRect(x: 0, y: 0, width: width, height: rule.width)
     container.addSubview(line)
+    outline.isHidden = true
+    outline.layer.borderWidth = rule.selected.width
+    container.addSubview(outline)
+    placeOutline()
+  }
+
+  var isSelected = false {
+    didSet {
+      outline.isHidden = !isSelected
+      redraw()
+    }
+  }
+
+  private func placeOutline() {
+    let reach = selectedOutline.offset + selectedOutline.width
+    outline.frame = line.frame.insetBy(dx: -reach, dy: -reach)
   }
 
   var view: UIView { container }
@@ -642,9 +674,13 @@ private final class RuleBlock: LaidOutBlock {
 
   func set(text: NSAttributedString, kind: DocumentText.BlockKind, width: CGFloat) {
     line.frame.size.width = width
+    placeOutline()
   }
 
-  func redraw() {}
+  /// A layer's border takes a colour for one appearance.
+  func redraw() {
+    outline.layer.borderColor = selectedOutline.color.color.resolvedColor(with: container.traitCollection).cgColor
+  }
 
   func segments(_ range: NSRange) -> [CGRect] {
     let frame = line.frame.insetBy(dx: 0, dy: (line.frame.height - caretHeight) / 2)

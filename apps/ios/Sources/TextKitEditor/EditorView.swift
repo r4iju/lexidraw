@@ -34,6 +34,9 @@ public final class EditorView: UIScrollView, UITextInput {
   /// Where the model's caret sits at the root, between blocks, as the child
   /// it is before; a caret beside a table is drawn there, not in the text.
   private var caretBeforeBlock: Int?
+  /// Whether the model's selection is of nodes, which the web outlines
+  /// rather than highlighting their text.
+  private var isNodeSelection = false
   private var composition: Composition?
   /// When the model last heard from the view, for the time its history
   /// merges edits by.
@@ -172,6 +175,8 @@ public final class EditorView: UIScrollView, UITextInput {
       if !fromInput { inputDelegate?.selectionDidChange(self) }
     }
     layout.tableSelection = cells
+    isNodeSelection = if case .node = selection { true } else { false }
+    layout.selectedRules = selection.map(selectedRules) ?? []
     guard let selection, let (anchor, focus) = offsets(of: selection) else { return }
     if !fromInput { inputDelegate?.selectionWillChange(self) }
     self.anchor = anchor
@@ -185,6 +190,11 @@ public final class EditorView: UIScrollView, UITextInput {
   /// the first of the anchor and focus cells to the end of the other, where
   /// their handles are.
   private func offsets(of selection: Selection) -> (anchor: Int, focus: Int)? {
+    // Selected nodes have no caret, so the view selects the first one's text.
+    if case .node(let nodes) = selection {
+      guard let first = nodes.first, let range = document.range(of: first) else { return nil }
+      return (range.location, NSMaxRange(range))
+    }
     guard case .table(_, let anchorCell, let focusCell, _) = selection else {
       guard let anchor = document.offset(of: selection.anchor), let focus = document.offset(of: selection.focus) else {
         return nil
@@ -202,6 +212,18 @@ public final class EditorView: UIScrollView, UITextInput {
       case .table = document.kind(ofBlock: path[0])
     else { return nil }
     return (path[0], Set(cells.filter { $0.count == 3 }.map { TableView.CellIndex(row: $0[1], index: $0[2]) }))
+  }
+
+  /// The rule blocks among the nodes a node selection has.
+  private func selectedRules(_ selection: Selection) -> Set<Int> {
+    guard case .node(let nodes) = selection else { return [] }
+    return Set(
+      nodes.compactMap { path in
+        guard path.count == 1, path[0] < document.blockCount,
+          document.kind(ofBlock: path[0]) == .embedded(type: StyledBlock.ruleType)
+        else { return nil }
+        return path[0]
+      })
   }
 
   /// Tells the model where the view's selection is, which it needs before
@@ -278,6 +300,8 @@ public final class EditorView: UIScrollView, UITextInput {
 
   public func setMarkedText(_ markedText: String?, selectedRange: NSRange) {
     let text = markedText ?? ""
+    // Selected nodes have no caret to compose at, as a browser shows none.
+    if isNodeSelection, composition == nil { return report(.setMarkedText(text, selectedRange: selectedRange)) }
     let replaced = selected
     var composition =
       self.composition
@@ -494,6 +518,7 @@ public final class EditorView: UIScrollView, UITextInput {
   /// at each end.
   public func selectionRects(for range: UITextRange) -> [UITextSelectionRect] {
     guard let range = range as? TextRange else { return [] }
+    if isNodeSelection { return [] }
     if layout.tableSelection != nil {
       let ends = [range.range.location, NSMaxRange(range.range)].compactMap {
         segments(NSRange(location: $0, length: 0)).first

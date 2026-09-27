@@ -287,6 +287,37 @@ import UIKit
     view.perform(try #require(command.action), with: command)
   }
 
+  /// Backspace from an empty block after a rule takes the block and selects
+  /// the rule whole, as on the web: the view highlights no text for it,
+  /// typing and composing leave it be, and Backspace again deletes it.
+  @Test func backspaceSelectsARuleWholeAndThenDeletesIt() throws {
+    let (model, view) = try host(
+      LexicalJSON.document([
+        LexicalJSON.paragraph([LexicalJSON.text("a")]), LexicalJSON.horizontalRule, LexicalJSON.paragraph([]),
+      ]), caretAt: 4)
+
+    view.deleteBackward()
+    #expect(try model.selection() == .node(nodes: [[1]]))
+    let selected = try #require(view.selectedTextRange)
+    #expect(view.offset(from: view.beginningOfDocument, to: selected.start) == 2)
+    #expect(view.offset(from: view.beginningOfDocument, to: selected.end) == 3)
+    #expect(view.selectionRects(for: selected).isEmpty)
+
+    let document = try model.snapshot().state
+    let text = try LayoutTests.text(of: view)
+    view.insertText("x")
+    view.setMarkedText("か", selectedRange: NSRange(location: 1, length: 0))
+    #expect(view.markedTextRange == nil)
+    view.unmarkText()
+    #expect(try model.snapshot().state == document)
+    #expect(try LayoutTests.text(of: view) == text)
+    #expect(try model.selection() == .node(nodes: [[1]]))
+
+    view.deleteBackward()
+    let types = try paragraphs(model).compactMap { $0["type"]?.stringValue }
+    #expect(types == ["paragraph"])
+  }
+
   @Test func tabIndentsAnItemAndShiftTabOutdentsIt() throws {
     let (model, view) = try host(
       LexicalJSON.document([

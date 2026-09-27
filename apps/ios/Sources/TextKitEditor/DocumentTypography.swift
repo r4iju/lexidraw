@@ -109,6 +109,15 @@ struct DocumentTypography: Sendable {
     var color: ThemeColor
     /// Before it and after it, in ems of the body text.
     var margin: Double
+    /// Drawn around it where it's selected whole.
+    var selected: Outline
+  }
+
+  /// A line around a box, `offset` points out from it, `width` points wide.
+  struct Outline: Sendable {
+    var width: Double
+    var color: ThemeColor
+    var offset: Double
   }
 
   /// A link's text, underlined in its colour at `underlineOpacity`, the

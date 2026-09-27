@@ -61,6 +61,7 @@ export const theme = {
   tableSelection: "",
   tableSelected: "outline outline-2 outline-primary",
   heading: { h1: "", h2: "", h3: "", h4: "", h5: "", h6: "" },
+  hrSelected: "document-rule-selected",
   image: "editor-image",
   embedBlock: {
     base: "document-embed-block",

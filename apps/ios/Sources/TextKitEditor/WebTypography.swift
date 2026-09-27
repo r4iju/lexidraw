@@ -21,7 +21,7 @@ extension DocumentTypography {
     languages: [Language(tags: ["ja", "zh"], lineHeight: 1.8, letterSpacing: 0.02)],
     list: List(padding: 1.625, itemSpacing: 0.25, markerColor: .mutedForeground, checklistPadding: 1.75, box: Box(top: 0.3, size: 1, borderWidth: 1.5, borderColor: .mutedForeground, cornerRadius: 4, checkedColor: .primary, tick: Tick(left: 0.34, top: 0.45, width: 0.3, height: 0.5, lineWidth: 1.5, color: .primaryForeground)), doneColor: .mutedForeground),
     quote: Quote(borderWidth: 3, borderColor: .border, paddingStart: 1),
-    rule: Rule(width: 1, color: .border, margin: 2),
+    rule: Rule(width: 1, color: .border, margin: 2, selected: Outline(width: 2, color: .primary, offset: 3)),
     link: Link(color: .primary, underlineThickness: 1, underlineOffset: 0.2, underlineOpacity: 0.4),
     table: Table(fontSize: 0.9375, lineHeight: 1.5, letterSpacing: 0, tabularFigures: true, margin: 1.75, paddingX: 12, paddingY: 8, border: 1, borderColor: .border, cornerRadius: 6, minimumWidth: 120, minimumViewportShare: 0.4, emptyWidth: 96, headerBackground: .muted, headerWeight: 600, selection: .primary.opacity(0.1), shadowWidth: 10, shadowColor: .mutedForeground, pinned: Pinned(width: 639, inset: 1, background: .card, headerBackground: .muted, shadowX: 6, shadowBlur: 8, shadowSpread: -6), unpinnedColumns: 3, shortColumns: 16, scrollingColumns: 5))
 }

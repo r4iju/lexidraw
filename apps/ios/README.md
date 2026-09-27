@@ -338,6 +338,16 @@ hand:
   the command's `native` point is where the platform's move goes. No inline
   element in the web's editor displays as a grid, so rich text's line move
   past inline grids never runs.
+- A rule an arrow or Backspace reaches is selected whole, as Lexical's
+  `NodeSelection`, in both models. Backspace and Delete remove it; Enter and
+  Shift-Enter start the block after it; copy and cut take it, with `\n` as
+  its text; pasted nodes take its place and pasted text goes nowhere; a link
+  wraps it in a link of its own; a list lists the block it's in; typing,
+  formats, block types, indenting and Tab leave it be, as they answer a range
+  only. The view outlines it as the web outlines a selected embed, and
+  highlights no text.
+- Left and Right leave a selected rule as in left-to-right text; right to
+  left is #149's (explicit writing direction).
 - A caret beside a table lies flat, under the table before it or else over
   the table after it, as the block cursor of Lexical's playground does,
   since the web's theme gives the block cursor no style.
