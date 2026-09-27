@@ -98,7 +98,7 @@ import Testing
 
   @Test func findsAShortcutEnterFinishes() throws {
     var fuzzer = Fuzzer(
-      seed: 7, reference: try Support.referenceEditor(), candidate: TakesEnterAfterAShortcutAsANewLine())
+      seed: 2, reference: try Support.referenceEditor(), candidate: TakesEnterAfterAShortcutAsANewLine())
 
     let fixture = try #require(try fuzzer.run(steps: 2000)).fixture
 

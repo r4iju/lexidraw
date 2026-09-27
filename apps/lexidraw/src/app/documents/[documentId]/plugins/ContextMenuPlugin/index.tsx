@@ -34,13 +34,12 @@ import {
   DropdownMenuTrigger,
 } from "~/components/ui/dropdown-menu";
 import { IS_APPLE } from "../../shared/environment";
-import { useGetSelectedNode } from "../../utils/getSelectedNode";
-import { useSanitizeUrl } from "../../utils/url";
 import { INSERT_INLINE_COMMAND } from "../CommentPlugin";
 import { $blockTypeOf } from "../ToolbarPlugin/block-actions";
 import { deleteBlock } from "../ToolbarPlugin/block-commands";
 import { type BlockType, BlockTypeItems } from "../ToolbarPlugin/block-format";
 import { formatShortcut } from "../ToolbarPlugin/toolbar";
+import { $getSelectedNode, sanitizeUrl } from "@packages/lexical-nodes/links";
 
 const PASTE_KEYS = formatShortcut("Mod+V").label;
 
@@ -118,8 +117,6 @@ function Item({
  */
 export default function ContextMenuPlugin(): JSX.Element | null {
   const [editor] = useLexicalComposerContext();
-  const getSelectedNode = useGetSelectedNode();
-  const sanitizeUrl = useSanitizeUrl();
   const [target, setTarget] = useState<Target | null>(null);
 
   useEffect(() => {
@@ -130,7 +127,7 @@ export default function ContextMenuPlugin(): JSX.Element | null {
       editor.read(() => {
         const selection = $getSelection();
         const node = $isRangeSelection(selection)
-          ? getSelectedNode(selection)
+          ? $getSelectedNode(selection)
           : selection?.getNodes()[0];
         const block = node?.getTopLevelElement() ?? null;
         setTarget({
@@ -148,7 +145,7 @@ export default function ContextMenuPlugin(): JSX.Element | null {
       previous?.removeEventListener("contextmenu", onContextMenu);
       root?.addEventListener("contextmenu", onContextMenu);
     });
-  }, [editor, getSelectedNode]);
+  }, [editor]);
 
   if (!target) return null;
   return (

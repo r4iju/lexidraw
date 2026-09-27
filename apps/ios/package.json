@@ -17,11 +17,15 @@
     "record:drawings": "bun run reference/drawings/record.ts"
   },
   "dependencies": {
+    "@lexical/clipboard": "^0.51.0",
+    "@lexical/extension": "^0.51.0",
     "@lexical/headless": "^0.51.0",
     "@lexical/history": "^0.51.0",
+    "@lexical/link": "^0.51.0",
     "@lexical/list": "^0.51.0",
     "@lexical/markdown": "^0.51.0",
     "@lexical/rich-text": "^0.51.0",
+    "@lexical/selection": "^0.51.0",
     "@packages/lexical-nodes": "workspace:*",
     "@packages/types": "workspace:*",
     "lexical": "^0.51.0"
@@ -39,6 +43,7 @@
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "typescript": "^7.0.2",
+    "whatwg-url": "14.2.0",
     "zod": "^4.6.5"
   }
 }

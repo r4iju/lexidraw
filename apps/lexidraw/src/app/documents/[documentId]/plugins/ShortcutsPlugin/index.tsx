@@ -20,9 +20,9 @@ import {
 import { type Dispatch, useEffect } from "react";
 
 import { useToolbarState } from "../../context/toolbar-context";
-import { useSanitizeUrl } from "../../utils/url";
 import { useToolbarUtils } from "../ToolbarPlugin/utils";
 import { useShortcuts } from "./shortcuts";
+import { sanitizeUrl } from "@packages/lexical-nodes/links";
 
 export default function ShortcutsPlugin({
   editor,
@@ -71,8 +71,6 @@ export default function ShortcutsPlugin({
     formatQuote,
     clearFormatting,
   } = useToolbarUtils();
-
-  const sanitizeUrl = useSanitizeUrl();
 
   useEffect(() => {
     const keyboardShortcutsHandler = (payload: KeyboardEvent) => {
@@ -203,7 +201,6 @@ export default function ShortcutsPlugin({
     isDecreaseFontSize,
     isClearFormatting,
     isInsertLink,
-    sanitizeUrl,
     formatParagraph,
     formatHeading,
     formatBulletList,

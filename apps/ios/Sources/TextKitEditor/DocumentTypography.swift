@@ -104,6 +104,16 @@ struct DocumentTypography: Sendable {
     var margin: Double
   }
 
+  /// A link's text, underlined in its colour at `underlineOpacity`, the
+  /// underline's top `underlineOffset` below the baseline, in ems of the
+  /// block's text, and `underlineThickness` points thick.
+  struct Link: Sendable {
+    var color: ThemeColor
+    var underlineThickness: Double
+    var underlineOffset: Double
+    var underlineOpacity: Double
+  }
+
   var color: ThemeColor
   var lineHeight: Double
   var letterSpacing: Double
@@ -122,6 +132,7 @@ struct DocumentTypography: Sendable {
   var list: List
   var quote: Quote
   var rule: Rule
+  var link: Link
 
   /// As the web sets a document in `language`, a BCP 47 tag.
   func forLanguage(_ language: String?) -> DocumentTypography {

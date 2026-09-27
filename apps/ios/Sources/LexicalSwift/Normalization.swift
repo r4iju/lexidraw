@@ -60,14 +60,20 @@ extension Update {
       && (state == nil || state == b.unknownFields["$"])
   }
 
-  /// Lexical's `setTextContent`.
+  /// Lexical's `setTextContent`, which leaves a tab's text a tab.
   mutating func setText(_ key: NodeKey, _ text: String) throws {
-    guard case .text(var node) = self[key].payload else {
+    switch self[key].payload {
+    case .text(var node):
+      guard !(node.text ?? "").isIdentical(to: text) else { return }
+      node.text = text
+      modify(key) { $0.payload = .text(node) }
+    case .tab(var node):
+      guard node.text != "\t" else { return }
+      node.text = "\t"
+      modify(key) { $0.payload = .tab(node) }
+    default:
       throw EditorError.unsupported("Setting the text of a \(self[key].type) node")
     }
-    guard !(node.text ?? "").isIdentical(to: text) else { return }
-    node.text = text
-    modify(key) { $0.payload = .text(node) }
   }
 
   /// Every node class's `$transform` that runs on elements.
@@ -83,6 +89,8 @@ extension Update {
     case SerializedListItemNode.type:
       try wrapInList(key)
       if state.isAttached(key) { try syncListItemTextStyle(key) }
+    case SerializedLinkNode.type:
+      try transformLink(key)
     default: break
     }
   }
@@ -160,12 +168,10 @@ extension Update {
   }
 
   /// ListItemNode's transform: a list item outside a list goes into a bullet
-  /// list, with the list items beside it.
+  /// list, with the list items beside it, which goes beside the top-level
+  /// node it was in.
   private mutating func wrapInList(_ key: NodeKey) throws {
     guard let parent = self[key].parent, self[parent].type != SerializedListNode.type else { return }
-    guard self[parent].isRootOrShadowRoot else {
-      throw EditorError.unsupported("A list item in a \(self[parent].type) node rather than a list")
-    }
     let list = createList(.bullet)
     let siblings = self[parent].children!
     let index = siblings.firstIndex(of: key)!
@@ -174,5 +180,9 @@ extension Update {
     let end = items[(index + 1)...].firstIndex(of: false) ?? siblings.count
     try insert(list, before: key)
     try splice(list, 0, deleting: 0, inserting: Array(siblings[first..<end]))
+    guard !self[parent].isRootOrShadowRoot else { return }
+    try insertAtNearestRoot(
+      list, state.rewind(.sibling(list, .next)), SplitOptions(splitsAtEdges: false, removesEmptyDestination: true))
+    if isEmpty(parent), state.isAttached(parent) { try remove(parent) }
   }
 }

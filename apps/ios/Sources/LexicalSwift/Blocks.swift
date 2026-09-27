@@ -149,7 +149,7 @@ extension Update {
 }
 
 /// The properties ElementNode keeps, which a paragraph, a heading, a quote,
-/// a list, a list item and the root save.
+/// a list, a list item, a link and the root save.
 protocol ElementFields {
   var direction: Nullable<Direction> { get set }
   var format: ElementFormat? { get set }
@@ -164,6 +164,8 @@ extension SerializedQuoteNode: ElementFields {}
 extension SerializedListNode: ElementFields {}
 extension SerializedListItemNode: ElementFields {}
 extension SerializedRootNode: ElementFields {}
+extension SerializedLinkNode: ElementFields {}
+extension SerializedAutoLinkNode: ElementFields {}
 
 extension SerializedNode {
   var elementFields: (any ElementFields)? {
@@ -175,6 +177,8 @@ extension SerializedNode {
       case .list(let node): node
       case .listItem(let node): node
       case .root(let node): node
+      case .link(let node): node
+      case .autoLink(let node): node
       default: nil
       }
     }
@@ -186,6 +190,8 @@ extension SerializedNode {
       case let node as SerializedListNode: self = .list(node)
       case let node as SerializedListItemNode: self = .listItem(node)
       case let node as SerializedRootNode: self = .root(node)
+      case let node as SerializedLinkNode: self = .link(node)
+      case let node as SerializedAutoLinkNode: self = .autoLink(node)
       default: break
       }
     }

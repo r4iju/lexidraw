@@ -35,9 +35,9 @@ import {
 import { createPortal } from "react-dom";
 import { useFinePointer } from "~/hooks/use-media-query";
 import { placeFloating } from "~/lib/place-floating";
-import { useGetSelectedNode } from "../../utils/getSelectedNode";
 import { INSERT_INLINE_COMMAND } from "../CommentPlugin";
 import { Toolbar, ToolbarButton } from "../ToolbarPlugin/toolbar";
+import { $getSelectedNode } from "@packages/lexical-nodes/links";
 
 type Mark = {
   format: TextFormatType;
@@ -260,7 +260,6 @@ export default function FloatingTextFormatToolbarPlugin({
 }): JSX.Element | null {
   const [editor] = useLexicalComposerContext();
   const fine = useFinePointer();
-  const getSelectedNode = useGetSelectedNode();
   const [isText, setIsText] = useState(false);
   const [isLink, setIsLink] = useState(false);
   const [formats, setFormats] = useState<Set<TextFormatType>>(new Set());
@@ -281,7 +280,7 @@ export default function FloatingTextFormatToolbarPlugin({
         setIsText(false);
         return;
       }
-      const node = getSelectedNode(selection);
+      const node = $getSelectedNode(selection);
       setFormats(
         new Set(
           [...ALL_FORMATS, "code" as const].filter((format) =>
@@ -296,7 +295,7 @@ export default function FloatingTextFormatToolbarPlugin({
           ($isTextNode(node) || $isParagraphNode(node)),
       );
     });
-  }, [editor, getSelectedNode]);
+  }, [editor]);
 
   useEffect(() => {
     document.addEventListener("selectionchange", update);

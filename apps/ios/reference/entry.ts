@@ -2,8 +2,15 @@
  * The editor-model interface over headless Lexical, for ReferenceEditor.swift
  * to call with JSON strings.
  */
-import { createHeadlessEditor } from "@lexical/headless";
+import { $exportMimeTypeFromSelection } from "@lexical/clipboard";
+import { namedSignals } from "@lexical/extension";
 import { createEmptyHistoryState, registerHistory } from "@lexical/history";
+import { createHeadlessEditor } from "@lexical/headless";
+import {
+  registerAutoLink,
+  registerLink,
+  TOGGLE_LINK_COMMAND,
+} from "@lexical/link";
 import { registerMarkdownShortcuts } from "@lexical/markdown";
 import {
   $setBlockType,
@@ -19,12 +26,19 @@ import {
 } from "@lexical/list";
 import { registerRichText } from "@lexical/rich-text";
 import { registerDocumentEditing } from "@packages/lexical-nodes/document-editing";
+import {
+  AUTOLINK_MATCHERS,
+  EDITOR_NAMESPACE,
+  saveLink,
+  validateUrl,
+} from "@packages/lexical-nodes/links";
 import { SCHEMA_NODES } from "@packages/lexical-nodes/nodes";
 import { createTransformers } from "@packages/lexical-nodes/transformers";
 import {
   $createRangeSelection,
   $exportNodeJSON,
   $formatText,
+  $getEditor,
   $getNodeByKey,
   $getRoot,
   $getSelection,
@@ -37,9 +51,11 @@ import {
   $setSelection,
   COMPOSITION_END_TAG,
   COMMAND_PRIORITY_LOW,
+  CUT_TAG,
   DELETE_CHARACTER_COMMAND,
   HISTORIC_TAG,
   INDENT_CONTENT_COMMAND,
+  INTERNAL_$expandSelectionToWholeDocument,
   IS_ALL_FORMATTING,
   KEY_ENTER_COMMAND,
   type EditorState,
@@ -50,6 +66,8 @@ import {
   type LexicalNode,
   type NodeKey,
   OUTDENT_CONTENT_COMMAND,
+  PASTE_COMMAND,
+  type PasteCommandType,
   type PointType,
   REDO_COMMAND,
   type RangeSelection,
@@ -63,8 +81,19 @@ import {
   $normalizeSelectionPointsForBoundaries,
 } from "./deletion.js";
 import { EditorError } from "./editor-error.js";
+import "./url.js";
 
 type PathPoint = { path: number[]; offset: number; type: "text" | "element" };
+
+/** `LexicalClipboardPayload.mimeType` in EditorModel.swift. */
+const LEXICAL_MIME_TYPE = "application/x-lexical-editor";
+
+/** `Clipboard` in EditorModel.swift. */
+type Clipboard = {
+  "text/plain": string;
+  "text/html"?: string;
+  [LEXICAL_MIME_TYPE]?: unknown;
+};
 
 type Command =
   | { type: "setSelection"; anchor: PathPoint; focus: PathPoint }
@@ -79,6 +108,10 @@ type Command =
   | { type: "removeList" | "indent" | "outdent" }
   | { type: "tab"; backward: boolean }
   | { type: "toggleChecked"; path: number[] }
+  | { type: "toggleLink"; url: string | null }
+  | { type: "editLink"; url: string }
+  | { type: "copy" | "cut" }
+  | { type: "paste"; clipboard: Clipboard }
   | { type: "selectAll" }
   | { type: "undo" }
   | { type: "redo" }
@@ -91,6 +124,8 @@ let lastError: unknown = null;
  * own after the command's, which the command's change set takes in.
  */
 const changed = new Set<NodeKey>();
+/** What the command being applied put on the clipboard. */
+let clipboard: Clipboard | undefined;
 /** The clock history reads, which only `wait` moves. */
 let now = 0;
 
@@ -101,6 +136,7 @@ function current(): LexicalEditor {
 
 function load(stateJSON: string): void {
   const next = createHeadlessEditor({
+    namespace: EDITOR_NAMESPACE,
     nodes: SCHEMA_NODES,
     onError: (error) => {
       lastError = error;
@@ -131,6 +167,13 @@ function load(stateJSON: string): void {
     },
     COMMAND_PRIORITY_LOW,
   );
+  // The document editor's link plugins, in the order it mounts them.
+  registerAutoLink(next, {
+    changeHandlers: [],
+    excludeParents: [],
+    matchers: AUTOLINK_MATCHERS,
+  });
+  registerLink(next, namedSignals({ attributes: undefined, validateUrl }));
   next.setEditorState(parsed);
   next.registerUpdateListener(
     ({ dirtyElements, dirtyLeaves, editorState, prevEditorState, tags }) => {
@@ -153,6 +196,7 @@ function apply(commandJSON: string): string {
   const command = JSON.parse(commandJSON) as Command;
   lastError = null;
   changed.clear();
+  clipboard = undefined;
   switch (command.type) {
     case "undo":
     case "redo":
@@ -170,6 +214,9 @@ function apply(commandJSON: string): string {
         tag: COMPOSITION_END_TAG,
       });
       break;
+    case "cut":
+      cut();
+      break;
     default:
       current().update(() => run(command), { discrete: true });
   }
@@ -181,7 +228,7 @@ function apply(commandJSON: string): string {
       return node ? [pathOf(node)] : [];
     }),
   );
-  return JSON.stringify({ changed: paths });
+  return JSON.stringify({ changed: paths, clipboard });
 }
 
 /**
@@ -195,6 +242,93 @@ function commitQueuedUpdates(): void {
     current().read(() => {});
     if (current().getEditorState() === before) return;
   }
+}
+
+/** Rich text's cut. */
+function cut(): void {
+  current().update(
+    () => {
+      const selection = rangeSelection();
+      if (!selection.isCollapsed()) {
+        INTERNAL_$expandSelectionToWholeDocument(selection);
+      }
+      clipboard = copy(selection);
+    },
+    { discrete: true, tag: CUT_TAG },
+  );
+  if (lastError) return;
+  current().update(() => rangeSelection().removeText(), {
+    discrete: true,
+    tag: CUT_TAG,
+  });
+}
+
+/**
+ * What a copy puts on the clipboard, which is nothing for a collapsed
+ * selection.
+ */
+function copy(selection: RangeSelection): Clipboard | undefined {
+  if (selection.isCollapsed()) return undefined;
+  const lexical = $exportMimeTypeFromSelection(LEXICAL_MIME_TYPE, selection);
+  return {
+    "text/plain": $exportMimeTypeFromSelection("text/plain", selection) ?? "",
+    ...(lexical === null
+      ? {}
+      : { [LEXICAL_MIME_TYPE]: JSON.parse(lexical) as unknown }),
+  };
+}
+
+/**
+ * A paste as the web editor takes it: its link plugin's handler first, which
+ * links selected text to a pasted URL, then rich text's.
+ */
+function paste(pasted: Clipboard): void {
+  const event = new ClipboardEvent(dataTransfer(pasted));
+  current().dispatchCommand(
+    PASTE_COMMAND,
+    event as unknown as PasteCommandType,
+  );
+}
+
+/**
+ * The DOM's events, as far as Lexical's paste handlers read one. They tell
+ * them apart by their classes' names, from the globals of those names.
+ */
+const ClipboardEvent = class ClipboardEvent {
+  constructor(readonly clipboardData: DataTransfer) {}
+  preventDefault(): void {}
+};
+Object.assign(globalThis, {
+  ClipboardEvent,
+  DragEvent: class DragEvent {},
+  InputEvent: class InputEvent {},
+  KeyboardEvent: class KeyboardEvent {},
+});
+
+/** A `DataTransfer` holding `pasted`, as far as Lexical reads one. */
+function dataTransfer(pasted: Clipboard): DataTransfer {
+  const lexical = pasted[LEXICAL_MIME_TYPE];
+  const data: Record<string, string | undefined> = {
+    "text/plain": pasted["text/plain"],
+    "text/html": pasted["text/html"],
+    [LEXICAL_MIME_TYPE]:
+      lexical === undefined ? undefined : JSON.stringify(lexical),
+  };
+  return {
+    types: Object.keys(data).filter((type) => data[type] !== undefined),
+    files: [],
+    // "text" is the DOM's old name for plain text, which the link plugin uses.
+    getData: (type: string) =>
+      data[type === "text" ? "text/plain" : type] ?? "",
+  } as unknown as DataTransfer;
+}
+
+function rangeSelection(): RangeSelection {
+  const selection = $getSelection();
+  if (!$isRangeSelection(selection)) {
+    throw new EditorError("noSelection", "No range selection");
+  }
+  return selection;
 }
 
 /**
@@ -293,7 +427,9 @@ function key(shiftKey = false): KeyboardEvent {
   } as unknown as KeyboardEvent;
 }
 
-function run(command: Exclude<Command, { type: "undo" | "redo" | "wait" }>) {
+function run(
+  command: Exclude<Command, { type: "undo" | "redo" | "wait" | "cut" }>,
+) {
   const editor = current();
   if (command.type === "setSelection") {
     setSelection(command.anchor, command.focus);
@@ -312,10 +448,7 @@ function run(command: Exclude<Command, { type: "undo" | "redo" | "wait" }>) {
     $selectAll(null);
     return;
   }
-  const selection = $getSelection();
-  if (!$isRangeSelection(selection)) {
-    throw new EditorError("noSelection", "No range selection");
-  }
+  const selection = rangeSelection();
   switch (command.type) {
     case "insertText":
     case "commitComposition":
@@ -367,6 +500,18 @@ function run(command: Exclude<Command, { type: "undo" | "redo" | "wait" }>) {
       return;
     case "tab":
       editor.dispatchCommand(KEY_TAB_COMMAND, key(command.backward));
+      return;
+    case "toggleLink":
+      $getEditor().dispatchCommand(TOGGLE_LINK_COMMAND, command.url);
+      return;
+    case "editLink":
+      saveLink($getEditor(), command.url);
+      return;
+    case "copy":
+      clipboard = copy(selection);
+      return;
+    case "paste":
+      paste(command.clipboard);
       return;
   }
 }

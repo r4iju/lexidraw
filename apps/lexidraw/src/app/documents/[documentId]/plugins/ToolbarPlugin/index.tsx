@@ -75,8 +75,6 @@ import { useDocumentSettings } from "../../context/document-settings-context";
 import { useSignedIn } from "../../context/signed-in-context";
 import type { rootTypeToRootName } from "../../context/toolbar-context";
 import { IS_APPLE } from "../../shared/environment";
-import { useGetSelectedNode } from "../../utils/getSelectedNode";
-import { useSanitizeUrl } from "../../utils/url";
 import { ListenControls, ListenItems } from "../TtsToolbar";
 import { AiItems, AiMenu, DeveloperItems, DeveloperMenu } from "./ai-menu";
 import { $blockTypeOf, BlockActionItems } from "./block-actions";
@@ -100,6 +98,7 @@ import {
   ToolbarMenu,
 } from "./toolbar";
 import { useToolbarUtils } from "./utils";
+import { $getSelectedNode, sanitizeUrl } from "@packages/lexical-nodes/links";
 
 const MARKS: {
   format: TextFormatType;
@@ -159,7 +158,6 @@ export default function ToolbarPlugin({
   const [selectedElementKey, setSelectedElementKey] = useState<NodeKey | null>(
     null,
   );
-  const getSelectedNode = useGetSelectedNode();
   const { defaultFontFamily } = useDocumentSettings();
   const { clearFormatting } = useToolbarUtils();
   const [modal, showModal] = useModal();
@@ -175,8 +173,6 @@ export default function ToolbarPlugin({
   const [isRTL, setIsRTL] = useState(false);
   const [codeLanguage, setCodeLanguage] = useState<string>("");
   const [isEditable, setIsEditable] = useState(() => activeEditor.isEditable());
-
-  const sanitizeUrl = useSanitizeUrl();
 
   const $updateToolbar = useCallback(() => {
     const selection = $getSelection();
@@ -213,7 +209,7 @@ export default function ToolbarPlugin({
         setIsRTL(dir === "rtl");
       }
 
-      const node = getSelectedNode(selection);
+      const node = $getSelectedNode(selection);
       const parent = node.getParent();
       setIsLink($isLinkNode(parent) || $isLinkNode(node));
 
@@ -280,7 +276,7 @@ export default function ToolbarPlugin({
       // Table selections don't carry inline font-size; keep/default
       setFontSize("16px");
     }
-  }, [activeEditor, getSelectedNode]);
+  }, [activeEditor]);
 
   useEffect(() => {
     return editor.registerCommand(
@@ -338,7 +334,7 @@ export default function ToolbarPlugin({
       setIsLinkEditMode(false);
       activeEditor.dispatchCommand(TOGGLE_LINK_COMMAND, null);
     }
-  }, [activeEditor, isLink, sanitizeUrl, setIsLinkEditMode]);
+  }, [activeEditor, isLink, setIsLinkEditMode]);
 
   useEffect(() => {
     return activeEditor.registerCommand(

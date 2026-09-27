@@ -1,5 +1,4 @@
 import {
-  $createLinkNode,
   $isAutoLinkNode,
   $isLinkNode,
   TOGGLE_LINK_COMMAND,
@@ -23,12 +22,15 @@ import { type Dispatch, useCallback, useEffect, useRef, useState } from "react";
 import type * as React from "react";
 import { createPortal } from "react-dom";
 
-import { useGetSelectedNode } from "../../../utils/getSelectedNode";
-import { useSanitizeUrl } from "../../../utils/url";
 import { Button } from "~/components/ui/button";
 import { CheckIcon, XIcon } from "lucide-react";
 import Link from "next/link";
 import { Input } from "~/components/ui/input";
+import {
+  $getSelectedNode,
+  sanitizeUrl,
+  saveLink,
+} from "@packages/lexical-nodes/links";
 
 function FloatingLinkEditor({
   editor,
@@ -52,8 +54,6 @@ function FloatingLinkEditor({
   const [lastSelection, setLastSelection] = useState<BaseSelection | null>(
     null,
   );
-  const getSelectedNode = useGetSelectedNode();
-  const sanitizeUrl = useSanitizeUrl();
 
   const VERTICAL_GAP = 10;
   const HORIZONTAL_OFFSET = 5;
@@ -102,7 +102,7 @@ function FloatingLinkEditor({
   const $updateLinkEditor = useCallback(() => {
     const selection = $getSelection();
     if ($isRangeSelection(selection)) {
-      const node = getSelectedNode(selection);
+      const node = $getSelectedNode(selection);
       const linkParent = $findMatchingParent(node, $isLinkNode);
 
       if (linkParent) {
@@ -152,7 +152,6 @@ function FloatingLinkEditor({
     return true;
   }, [
     editor,
-    getSelectedNode,
     isLinkEditMode,
     linkUrl,
     setFloatingElemPositionForLinkEditor,
@@ -241,21 +240,7 @@ function FloatingLinkEditor({
   const handleLinkSubmission = () => {
     if (lastSelection !== null) {
       if (linkUrl !== "") {
-        editor.dispatchCommand(TOGGLE_LINK_COMMAND, sanitizeUrl(editedLinkUrl));
-        editor.update(() => {
-          const selection = $getSelection();
-          if ($isRangeSelection(selection)) {
-            const parent = getSelectedNode(selection).getParent();
-            if ($isAutoLinkNode(parent)) {
-              const linkNode = $createLinkNode(parent.getURL(), {
-                rel: parent.__rel,
-                target: parent.__target,
-                title: parent.__title,
-              });
-              parent.replace(linkNode, true);
-            }
-          }
-        });
+        saveLink(editor, editedLinkUrl);
       }
       setEditedLinkUrl("https://");
       setIsLinkEditMode(false);
@@ -380,13 +365,12 @@ function useFloatingLinkEditorToolbar(
 ): React.JSX.Element | null {
   const [activeEditor, setActiveEditor] = useState(editor);
   const [isLink, setIsLink] = useState(false);
-  const getSelectedNode = useGetSelectedNode();
 
   useEffect(() => {
     function $updateToolbar() {
       const selection = $getSelection();
       if ($isRangeSelection(selection)) {
-        const focusNode = getSelectedNode(selection);
+        const focusNode = $getSelectedNode(selection);
         const focusLinkNode = $findMatchingParent(focusNode, $isLinkNode);
         const focusAutoLinkNode = $findMatchingParent(
           focusNode,
@@ -436,7 +420,7 @@ function useFloatingLinkEditorToolbar(
         (payload) => {
           const selection = $getSelection();
           if ($isRangeSelection(selection)) {
-            const node = getSelectedNode(selection);
+            const node = $getSelectedNode(selection);
             const linkNode = $findMatchingParent(node, $isLinkNode);
             if ($isLinkNode(linkNode) && (payload.metaKey || payload.ctrlKey)) {
               window.open(linkNode.getURL(), "_blank");
@@ -448,7 +432,7 @@ function useFloatingLinkEditorToolbar(
         COMMAND_PRIORITY_LOW,
       ),
     );
-  }, [editor, getSelectedNode]);
+  }, [editor]);
 
   return createPortal(
     <FloatingLinkEditor

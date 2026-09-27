@@ -1,5 +1,11 @@
 import OrderedCollections
 
+/// The update tags Lexical's history reads: a paste or cut is an undo step
+/// of its own.
+enum UpdateTag {
+  case paste, cut
+}
+
 /// One update to a state, as Lexical runs `editor.update`: nodes change
 /// through the same operations, marking the same nodes dirty, so transforms,
 /// garbage collection and the change set see what Lexical's would.
@@ -27,6 +33,9 @@ struct Update {
   var knowsListMarker: Bool
   /// This update's share of `Editor.shortcutsDeclinedAsNotPorted`.
   var shortcutsDeclinedAsNotPorted = 0
+  var tags: Set<UpdateTag> = []
+  /// What the update put on the clipboard.
+  var clipboard: Clipboard?
 
   init(_ state: EditorState, nextKey: NodeKey, revision: Int, knowsListMarker: Bool = false) {
     self.state = state
@@ -385,6 +394,7 @@ struct Update {
           }
           if state.nodes[key]?.type == SerializedTextNode.type, state.isAttached(key) {
             try syncListItem(withFirstText: key)
+            if state.isAttached(key) { try transformAutoLinkText(key) }
           }
           allLeaves.append(key)
         }

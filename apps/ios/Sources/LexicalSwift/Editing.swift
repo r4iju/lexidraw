@@ -89,8 +89,8 @@ extension Update {
 
   /// A block's `insertNewAfter`: what Enter puts after it. After a
   /// paragraph or a quote, it is `ParagraphNode.insertNewAfter`'s paragraph,
-  /// and after a list item a copy of it. A list doesn't split, as an element
-  /// that doesn't say how doesn't.
+  /// after a list item a copy of it, and after a link, `LinkNode`'s, a copy of
+  /// it too. A list doesn't split, as an element that doesn't say how doesn't.
   mutating func insertNewAfter(_ block: NodeKey, _ selection: RangeSelection, restoringSelection: Bool) throws
     -> NodeKey?
   {
@@ -99,6 +99,11 @@ extension Update {
       let item = copyNode(block)
       try insert(item, after: block, restoringSelection: restoringSelection)
       return item
+    }
+    if state[block].isLink {
+      let link = copyNode(block)
+      try insert(link, after: block, restoringSelection: restoringSelection)
+      return link
     }
     let type = state[block].type
     if type == SerializedHeadingNode.type {
@@ -270,10 +275,16 @@ extension Update {
       {
         point.set(parentPrevious, state.textSize(of: parentPrevious), .text)
       }
-    } else if point.offset == state.textSize(of: node), isBackward, let next = state.nextSibling(of: node),
-      state[next].isElement, state[next].isInline
-    {
-      point.set(next, 0, .element)
+    } else if point.offset == state.textSize(of: node) {
+      let next = state.nextSibling(of: node)
+      if isBackward, let next, state[next].isElement, state[next].isInline {
+        point.set(next, 0, .element)
+      } else if isCollapsed || isBackward, next == nil, parentIsInline, let parent, !state[parent].canInsertTextAfter,
+        state.textContent(of: parent).utf16.count > 1, let parentNext = state.nextSibling(of: parent),
+        state[parentNext].isText
+      {
+        point.set(parentNext, 0, .text)
+      }
     }
   }
 
@@ -465,13 +476,19 @@ extension Update {
     guard state[anchor].isText else { throw EditorError.invalidState("insertText: anchor is not a text node") }
     let offset = selection.anchor.offset
     let size = state.textSize(of: anchor)
-    if (offset == 0 || offset == size), !canInsertTextBeside(anchor) {
-      if text.isEmpty { return }
-      try redirectInsertion(selection, from: anchor, atStart: offset == 0, format: format, style: style)
-      return try insertText(selection, text)
-    }
     if text.isEmpty { return }
     let parent = state[anchor].parent!
+    let needsRedirect =
+      (offset == 0
+        && (!state[anchor].canInsertTextBefore
+          || (!state[parent].canInsertTextBefore && state.previousSibling(of: anchor) == nil)))
+      || (offset == size
+        && (!state[anchor].canInsertTextAfter
+          || (!state[parent].canInsertTextAfter && state.nextSibling(of: anchor) == nil)))
+    if needsRedirect {
+      try redirectText(selection, text, from: anchor, atStart: offset == 0, format: format, style: style)
+      return
+    }
     let parentIsInline = state[parent].isInline
     let atStartOfInline = parentIsInline && offset == 0 && state.previousSibling(of: anchor) == nil
     let atEndOfInline = parentIsInline && offset == state.textSize(of: anchor) && state.nextSibling(of: anchor) == nil
@@ -489,31 +506,34 @@ extension Update {
     spliceText(anchor, at: offset, deleting: 0, inserting: text, movingSelection: true)
   }
 
-  /// TextNode's `canInsertTextBefore` and `canInsertTextAfter`, which a
-  /// TabNode turns down.
-  private func canInsertTextBeside(_ key: NodeKey) -> Bool { state[key].type != SerializedTabNode.type }
-
-  /// Where `insertText` can't type beside `anchor`, it types into the text
-  /// beside it, or into new text it puts there.
-  private mutating func redirectInsertion(
-    _ selection: RangeSelection, from anchor: NodeKey, atStart: Bool, format: TextFormat, style: String
+  /// `insertText` where the anchor's text or its parent refuses what's typed
+  /// at its edge: it goes into the text beside it, or new text beside it.
+  private mutating func redirectText(
+    _ selection: RangeSelection, _ text: String, from anchor: NodeKey, atStart: Bool, format: TextFormat, style: String
   ) throws {
-    let beside = atStart ? state.previousSibling(of: anchor) : state.nextSibling(of: anchor)
-    if let beside, state[beside].isText, canInsertTextBeside(beside), !isTokenOrSegmented(beside) {
-      if atStart { selectText(beside) } else { selectText(beside, 0, 0) }
-      return
-    }
-    let text = createText("", format: format, style: style)
-    if atStart {
-      try insert(text, before: anchor)
+    let parent = state[anchor].parent!
+    let sibling = atStart ? state.previousSibling(of: anchor) : state.nextSibling(of: anchor)
+    if let sibling, state[sibling].isText, atStart ? state[sibling].canInsertTextAfter : state[sibling].canInsertTextBefore,
+      !isTokenOrSegmented(sibling)
+    {
+      if atStart { selectText(sibling) } else { selectText(sibling, 0, 0) }
     } else {
-      try insert(text, after: anchor)
+      let node = createText("", format: format, style: style)
+      if atStart {
+        try insert(node, before: state[parent].canInsertTextBefore ? anchor : parent)
+        selectText(node)
+      } else {
+        try insert(node, after: state[parent].canInsertTextAfter ? anchor : parent)
+        selectText(node, 0, 0)
+      }
     }
-    selectText(text)
+    try insertText(selection, text)
   }
 
-  private func isTokenOrSegmented(_ key: NodeKey) -> Bool {
-    if case .text(let node) = state[key].payload { node.mode == .token || node.mode == .segmented } else { false }
+  /// `$isTokenOrSegmented`, which a tab is too.
+  func isTokenOrSegmented(_ key: NodeKey) -> Bool {
+    if state[key].type == SerializedTabNode.type { return true }
+    return state[key].textNode.map { $0.mode == .token || $0.mode == .segmented } ?? false
   }
 
   /// Lexical's `$transferStartingElementPointToTextPoint`: puts empty text
@@ -582,24 +602,27 @@ extension Update {
 
   // MARK: Splitting blocks
 
-  /// `RangeSelection.insertParagraph`.
-  mutating func insertParagraph(_ selection: RangeSelection) throws {
+  /// `RangeSelection.insertParagraph`, which gives the block it starts, if
+  /// any.
+  @discardableResult
+  mutating func insertParagraph(_ selection: RangeSelection) throws -> NodeKey? {
     if !selection.isCollapsed { try removeText(selection) }
     let anchor = selection.anchor
     if anchor.type == .element, state[anchor.key].isRootOrShadowRoot {
       let paragraph = create(SerializedParagraphNode.type)
       try splice(anchor.key, anchor.offset, deleting: 0, inserting: [paragraph])
       selectElement(paragraph)
-      return
+      return paragraph
     }
     let (_, index) = try removeTextAndSplitBlock(selection)
     guard let block = findParent(from: selection.anchor.key, where: isBlock), state[block].isElement else {
       throw EditorError.invalidState("Expected ancestor to be a block ElementNode")
     }
     let moving = state.child(of: block, at: index).map { [$0] + nextSiblings(of: $0) } ?? []
-    guard let newBlock = try insertNewAfter(block, selection, restoringSelection: false) else { return }
+    guard let newBlock = try insertNewAfter(block, selection, restoringSelection: false) else { return nil }
     try append(newBlock, moving)
     selectStart(newBlock)
+    return newBlock
   }
 
   /// Lexical's `$removeTextAndSplitBlock`: splits up to the block the
@@ -652,7 +675,8 @@ extension Update {
     try insertNodes(selection, [create(SerializedLineBreakNode.type)])
   }
 
-  /// `RangeSelection.insertNodes`, for inline nodes.
+  /// `RangeSelection.insertNodes`, for documents without code blocks or
+  /// named slots.
   mutating func insertNodes(_ selection: RangeSelection, _ nodes: [NodeKey]) throws {
     guard let last = nodes.last else { return }
     if !selection.isCollapsed { try removeText(selection) }
@@ -664,36 +688,238 @@ extension Update {
       if let selected { selectEnd(selected) }
       return
     }
-    let first = try state.startEnd(selection).start
-    let firstBlock = findParent(from: first.key, where: isBlock)
-    guard nodes.allSatisfy({ state[$0].isInline }) else {
-      throw EditorError.unsupported("Inserting blocks")
+    let firstPoint = try state.startEnd(selection).start
+    let startBlock = findParent(from: firstPoint.key, where: isBlock)
+    if let startBlock, state[startBlock].type == SerializedDocumentCodeNode.type {
+      throw EditorError.unsupported("Inserting into a code block isn't supported yet (#132)")
     }
-    guard let firstBlock, state[firstBlock].isElement else {
-      throw EditorError.invalidState("Expected a block ElementNode ancestor")
+    if !nodes.contains(where: { (state[$0].isElement || state[$0].isDecorator) && !state[$0].isInline }) {
+      guard let startBlock, state[startBlock].isElement else {
+        throw EditorError.invalidState("Expected a block ElementNode ancestor")
+      }
+      let (container, index) = try removeTextAndSplitBlock(selection, stoppingAtUnsplittable: true)
+      try splice(state[container].isElement ? container : startBlock, index, deleting: 0, inserting: nodes)
+      selectEnd(last)
+      return
     }
-    let (container, index) = try removeTextAndSplitBlock(selection, stoppingAtUnsplittable: true)
-    try splice(state[container].isElement ? container : firstBlock, index, deleting: 0, inserting: nodes)
-    selectEnd(last)
+    guard let block = startBlock else { return try insertBlocksAtNearestRoot(selection, nodes) }
+    if state[block].isElement, !isParentRequired(block), !state[state.parent(of: block)!].isRootOrShadowRoot {
+      let (_, index) = try removeTextAndSplitBlock(selection)
+      let inlineNodes = inlineContent(of: nodes)
+      try splice(block, index, deleting: 0, inserting: inlineNodes)
+      if let last = inlineNodes.last { selectEnd(last) } else { selectElement(block, index, index) }
+      return
+    }
+    let blocksParent = try wrapInlineNodes(nodes)
+    guard let nodeToSelect = lastDescendant(of: blocksParent) else { return }
+    let blocks = Array(state.children(of: blocksParent))
+    let isAfterEmptyLine = isPointAfterEmptyLine(firstPoint)
+    // Lexical holds the block it starts in as the node object of that
+    // moment, and tells it from the block it ends in by identity. Writing to
+    // a node not yet written to in the update makes another object of it, so
+    // to Lexical that block is then another, which loses a line break ending
+    // it.
+    var firstBlockWasWritten = state[block].revision == revision
+    let insertedParagraph = !state[block].isElement || !isEmpty(block) ? try insertParagraph(selection) : nil
+    var targetBlock: NodeKey? = block
+    if insertedParagraph != nil, !state.isAttached(block) {
+      targetBlock = findParent(from: selection.anchor.key, where: isBlock)
+      firstBlockWasWritten = targetBlock.map { state[$0].revision == revision } ?? false
+    }
+    guard let firstBlock = targetBlock else { throw EditorError.invalidState("Expected a block ancestor") }
+    let lastToInsert = blocks.last
+    var firstToInsert = blocks.first
+    if let first = firstToInsert, !isAfterEmptyLine, state[first].isElement, isBlock(first), !isEmpty(first),
+      state[firstBlock].isElement, !isEmpty(firstBlock) || canMergeWhenEmpty(firstBlock)
+    {
+      try append(firstBlock, Array(state.children(of: first)))
+      firstToInsert = blocks.dropFirst().first
+    }
+    if let firstToInsert {
+      var current = firstBlock
+      for node in [firstToInsert] + nextSiblings(of: firstToInsert) {
+        try insert(node, after: current)
+        current = node
+      }
+    }
+    let lastInsertedBlock = findParent(from: nodeToSelect, where: isBlock)
+    let insertSelection = selectEnd(nodeToSelect)
+    if let insertedParagraph {
+      if let lastInsertedBlock, state[lastInsertedBlock].isElement,
+        canMergeWhenEmpty(insertedParagraph) || lastToInsert.map(isBlock) == true
+      {
+        try append(lastInsertedBlock, Array(state.children(of: insertedParagraph)))
+        try remove(insertedParagraph)
+      } else if isEmpty(insertedParagraph) {
+        try remove(insertedParagraph)
+      }
+    }
+    if state[firstBlock].isElement, isEmpty(firstBlock) {
+      try remove(firstBlock)
+    } else if let lastChild = state.lastChild(of: firstBlock), state[lastChild].isLineBreak,
+      lastInsertedBlock != firstBlock || (!firstBlockWasWritten && state[firstBlock].revision == revision)
+    {
+      try remove(lastChild)
+    }
+    let caret = state.normalize(try state.caret(from: insertSelection.anchor, .next))
+    setPoint(insertSelection.anchor, from: caret)
+    setPoint(insertSelection.focus, from: caret)
   }
 
-  /// Lexical's `$wrapInlineNodes`: runs of inline nodes in paragraphs, under
-  /// a paragraph standing in for the root they go into.
+  /// Lexical's `$isPointAfterEmptyLine`: two line breaks before a point make
+  /// an empty line, after which blocks go in whole.
+  private func isPointAfterEmptyLine(_ point: SelectionPoint) -> Bool {
+    guard let before = nodeBeforePoint(point), state[before].isLineBreak,
+      let previous = state.previousSibling(of: before)
+    else { return false }
+    return state[previous].isLineBreak
+  }
+
+  /// Lexical's `$getNodeBeforePoint`: the node before a point in its block,
+  /// looking out of inline elements, or nil where text is before it.
+  private func nodeBeforePoint(_ point: SelectionPoint) -> NodeKey? {
+    if point.offset > 0 {
+      return point.type == .element && state[point.key].isElement ? state.child(of: point.key, at: point.offset - 1) : nil
+    }
+    var child: NodeKey? = point.key
+    while let current = child, !isBlock(current), !state[current].isRootOrShadowRoot {
+      if let previous = state.previousSibling(of: current) { return previous }
+      child = state.parent(of: current)
+    }
+    return nil
+  }
+
+  /// Lexical's `$isInlineRunNode`.
+  private func isInlineRunNode(_ key: NodeKey) -> Bool {
+    let node = state[key]
+    return node.isLineBreak || node.isText || ((node.isElement || node.isDecorator) && node.isInline)
+      || isParentRequired(key)
+  }
+
+  /// `canMergeWhenEmpty`, which Lexical's quote and list item override.
+  func canMergeWhenEmpty(_ key: NodeKey) -> Bool {
+    [SerializedQuoteNode.type, SerializedListItemNode.type].contains(state[key].type)
+  }
+
+  /// `isParentRequired`, which Lexical's list item overrides.
+  func isParentRequired(_ key: NodeKey) -> Bool {
+    state[key].type == SerializedListItemNode.type
+  }
+
+  /// Where no block holds the caret, as on a list or text in one,
+  /// `insertNodes` puts the blocks beside the top-level node it's in,
+  /// splitting what's between.
+  private mutating func insertBlocksAtNearestRoot(_ selection: RangeSelection, _ nodes: [NodeKey]) throws {
+    let blocksParent = try wrapInlineNodes(nodes)
+    let nodeToSelect = lastDescendant(of: blocksParent)
+    var caret = try state.caret(from: selection.anchor, .next)
+    for block in Array(state.children(of: blocksParent)) {
+      caret = try insertAtNearestRoot(block, caret)
+    }
+    if let nodeToSelect { selectEnd(nodeToSelect) }
+  }
+
+  /// `$splitAtPointCaretNext`'s options, where a caller changes them.
+  struct SplitOptions {
+    /// Whether a parent that can be empty splits where nothing of it would
+    /// be left on one side.
+    var splitsAtEdges = true
+    /// Whether an empty parent at a child caret goes, rather than staying.
+    var removesEmptyDestination = false
+  }
+
+  /// `$insertNodeToNearestRootAtCaret` at a caret facing forward: `node`,
+  /// taken from where it is, goes beside the top-level node the caret is in,
+  /// in a paragraph where it's inline. Gives the caret after it.
+  @discardableResult
+  mutating func insertAtNearestRoot(_ node: NodeKey, _ caret: Caret, _ options: SplitOptions = SplitOptions()) throws
+    -> Caret
+  {
+    var insertCaret = caret
+    if case .text(let origin, _, let offset) = caret {
+      if offset == 0 {
+        insertCaret = state.flipped(.sibling(origin, .previous))
+      } else if offset == state.textSize(of: origin) {
+        insertCaret = .sibling(origin, .next)
+      }
+    }
+    if insertCaret.origin == node {
+      guard insertCaret.isSibling else { throw EditorError.invalidState("A node can't be inserted into itself") }
+      insertCaret = state.rewind(insertCaret)
+    }
+    if node == state.nodeAtCaret(insertCaret) || node == state.nodeAtCaret(state.flipped(insertCaret)) {
+      try remove(node, preservingEmptyParent: true)
+    }
+    while let next = try splitAtPointCaretNext(insertCaret, options) { insertCaret = next }
+    if state[node].isInline {
+      let paragraph = create(SerializedParagraphNode.type)
+      try append(paragraph, [node])
+      try insert(paragraph, at: insertCaret)
+    } else {
+      try insert(node, at: insertCaret)
+    }
+    return .sibling(node, .next)
+  }
+
+  /// `$splitAtPointCaretNext`, facing forward: the caret after text split
+  /// at a text caret, or beside the parent, after moving what's past `caret`
+  /// into a copy of the parent, or nil at a root or shadow root.
+  private mutating func splitAtPointCaretNext(_ caret: Caret, _ options: SplitOptions) throws -> Caret? {
+    if case .text(let origin, _, let offset) = caret {
+      return .sibling(try splitText(origin, at: [offset])[0], .next)
+    }
+    guard let parentCaret = state.parentCaret(caret, .shadowRoot) else { return nil }
+    let origin = parentCaret.origin
+    if caret.isChild {
+      if options.removesEmptyDestination, isEmpty(origin) {
+        let before = state.rewind(parentCaret)
+        try remove(origin)
+        return before
+      }
+      if !(state[origin].canBeEmpty && options.splitsAtEdges) { return state.rewind(parentCaret) }
+    }
+    var siblings: [NodeKey] = []
+    var sibling = state.adjacentCaret(caret)
+    while let current = sibling {
+      siblings.append(current.origin)
+      sibling = state.adjacentCaret(current)
+    }
+    if !siblings.isEmpty || (!options.removesEmptyDestination && state[origin].canBeEmpty && options.splitsAtEdges) {
+      let copy = copyNode(origin)
+      try splice(copy, 0, deleting: 0, inserting: siblings)
+      try insert(copy, at: parentCaret)
+    }
+    return parentCaret
+  }
+
+  /// Lexical's `$extractInlineFromBlocks`: what of `nodes` can go in a
+  /// line, blocks giving their inline content, without line breaks.
+  private func inlineContent(of nodes: [NodeKey]) -> [NodeKey] {
+    nodes.flatMap { node -> [NodeKey] in
+      if state[node].isLineBreak { return [] }
+      guard (state[node].isElement || state[node].isDecorator) && !state[node].isInline else { return [node] }
+      return state[node].isElement ? inlineContent(of: Array(state.children(of: node))) : []
+    }
+  }
+
+  /// Lexical's `$wrapInlineNodes`: runs of inline nodes in paragraphs, or
+  /// in a bullet list where a list item starts one, under a paragraph
+  /// standing in for the root they go into.
   private mutating func wrapInlineNodes(_ nodes: [NodeKey]) throws -> NodeKey {
     let root = create(SerializedParagraphNode.type)
     var block: NodeKey?
     for (index, node) in nodes.enumerated() {
-      guard state[node].isInline else {
+      guard isInlineRunNode(node) else {
         try append(root, [node])
         block = nil
         continue
       }
       if block == nil {
-        let paragraph = create(SerializedParagraphNode.type)
-        block = paragraph
-        try append(root, [paragraph])
+        let parent = isParentRequired(node) ? createList(.bullet) : create(SerializedParagraphNode.type)
+        block = parent
+        try append(root, [parent])
         let next = index + 1 < nodes.count ? nodes[index + 1] : nil
-        if state[node].isLineBreak, next.map({ !state[$0].isInline }) ?? true { continue }
+        if state[node].isLineBreak, next.map({ !isInlineRunNode($0) }) ?? true { continue }
       }
       try append(block!, [node])
     }

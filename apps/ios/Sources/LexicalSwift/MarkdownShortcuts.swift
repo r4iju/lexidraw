@@ -34,7 +34,6 @@ struct MarkdownTransformer: Sendable {
     .equation: 132, .code: 132,
     .table: 117,
     .emoji: 134,
-    .link: 118,
   ]
 
   /// `compositionEndTriggerChars`: the characters that can finish a
@@ -379,11 +378,87 @@ extension Update {
     guard let trigger = units[safe: offset - 1].map({ String(decoding: [$0], as: UTF16.self) }) else { return false }
     let text = String(decoding: units.prefix(offset), as: UTF16.self)
     for transformer in MarkdownTransformer.textMatch where transformer.trigger == trigger {
-      guard let regExp = transformer.regExp, regExp.firstMatch(in: text) != nil else { continue }
+      guard let match = transformer.regExp?.firstMatch(in: text), let whole = match.groups[0] else { continue }
       try requirePorted(transformer)
-      throw EditorError.unsupported("The markdown shortcut \(transformer.name.rawValue)")
+      let end = match.index + whole.utf16.count
+      let matched =
+        match.index == 0 ? try splitText(anchor, at: [end])[0] : try splitText(anchor, at: [match.index, end])[1]
+      selectNext(matched, 0, 0)
+      try replaceText(transformer, matched, match.groups)
+      return true
     }
     return false
+  }
+
+  /// A text match transformer's `replace`.
+  private mutating func replaceText(_ transformer: MarkdownTransformer, _ matched: NodeKey, _ groups: [String?]) throws {
+    switch transformer.name {
+    case .link:
+      guard findParent(from: matched, where: { state[$0].isLink }) == nil else { return }
+      let url = try Self.unescapeText(groups[2] ?? groups[3] ?? "")
+      let title = try (groups[4] ?? groups[5] ?? groups[6]).map { try Self.unescapeText($0) }
+      let link = createLink(url, rel: .null, target: .null, title: title.map(Nullable.value) ?? .null)
+      let linkText = groups[1] ?? ""
+      let opening = linkText.count { $0 == "[" }
+      let closing = linkText.count { $0 == "]" }
+      if opening < closing { return }
+      var parsedLinkText = linkText
+      var outsideLinkText = ""
+      if opening > closing {
+        let parts = linkText.components(separatedBy: "[")
+        outsideLinkText = "[" + parts[0]
+        parsedLinkText = parts.dropFirst().joined(separator: "[")
+      }
+      let format = format(of: matched)
+      try append(link, [createText(parsedLinkText, format: format)])
+      try replace(matched, with: link)
+      if !outsideLinkText.isEmpty {
+        try insert(createText(outsideLinkText, format: format), before: link)
+      }
+    default:
+      throw EditorError.unsupported("The markdown shortcut \(transformer.name.rawValue)")
+    }
+  }
+
+  /// `unescapeText` from @lexical/markdown: a backslash before ASCII
+  /// punctuation goes, then a decimal character reference is the character,
+  /// which past Unicode fails as `String.fromCodePoint` does.
+  private static func unescapeText(_ value: String) throws -> String {
+    let text = Array(value.utf16)
+    var unescaped: [UTF16.CodeUnit] = []
+    var index = 0
+    while index < text.count {
+      if text[index] == backslash, let next = text[safe: index + 1], isASCIIPunctuation(next) {
+        index += 1
+      }
+      unescaped.append(text[index])
+      index += 1
+    }
+    var decoded: [UTF16.CodeUnit] = []
+    index = 0
+    while index < unescaped.count {
+      let digits = unescaped.dropFirst(index + 2).prefix { (zero...nine).contains($0) }
+      guard unescaped.has(characterReferenceStart, at: index), !digits.isEmpty,
+        unescaped[safe: digits.endIndex] == semicolon
+      else {
+        decoded.append(unescaped[index])
+        index += 1
+        continue
+      }
+      let number = String(decoding: digits, as: UTF16.self)
+      guard let codePoint = UInt32(number), codePoint <= 0x10FFFF else {
+        throw EditorError.invalidState("unescapeText: RangeError: Invalid code point \(number)")
+      }
+      decoded += Unicode.Scalar(codePoint).map { Array(String($0).utf16) } ?? [UTF16.CodeUnit(codePoint)]
+      index = digits.endIndex + 1
+    }
+    return String(decoding: decoded, as: UTF16.self)
+  }
+
+  /// `[!-/:-@[-`{-~]`.
+  private static func isASCIIPunctuation(_ character: UTF16.CodeUnit) -> Bool {
+    (0x21...0x7E).contains(character) && !(zero...nine).contains(character)
+      && !(0x41...0x5A).contains(character) && !(0x61...0x7A).contains(character)
   }
 
   /// `$runTextFormatTransformers`: a closing tag typed after an opening one
@@ -470,6 +545,11 @@ extension Update {
   private static let punctuationOrSpace = JSRegExp("[!-/:-@[-`{-~\\s]", flags: "")
   private static let space = " ".utf16.first!
   private static let backtick = "`".utf16.first!
+  private static let backslash = "\\".utf16.first!
+  private static let semicolon = ";".utf16.first!
+  private static let zero = "0".utf16.first!
+  private static let nine = "9".utf16.first!
+  private static let characterReferenceStart = Array("&#".utf16)
 }
 
 extension Array where Element == UTF16.CodeUnit {

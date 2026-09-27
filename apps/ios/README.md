@@ -33,6 +33,11 @@ both, and 287 sessions ended where Lexical made a node LexicalSwift doesn't
 make yet. With lists, checklists and their shortcuts (#116): seeds 11621 to
 11625, 20,000 steps each, and seed 11610, 200,000 steps, 300,000 in all,
 with no divergence; 5,693 commands were refused by both, and 122 sessions
+ended on a shortcut or node not ported yet. With links, autolinks, their
+shortcut, copy, cut and paste (#118), pasting what the last copy or cut
+put on the clipboard, or text, some with HTML, as from another app: seeds
+1 to 10, 20,000 steps each, and seed 11, 100,000 steps, 300,000 in all,
+with no divergence; 9,122 commands were refused by both, and 270 sessions
 ended on a shortcut or node not ported yet.
 
 ## Editor harness and UI scripts
@@ -118,9 +123,9 @@ hand:
   what to do next belong to #130, which brings document editing.
 - Until saving comes, documents open in the editor as a preview: edits work,
   and a notice above the document says they aren't saved. A document the
-  user may only read says so instead, and takes no keyboard; selecting its
-  text waits for copy (#118). So does one with a node LexicalSwift doesn't
-  edit yet, and the notice says why.
+  user may only read says so instead, and brings up no keyboard, but its
+  text can be selected and copied. So does one with a node LexicalSwift
+  doesn't edit yet, and the notice says why.
 - The share extension signs in with the app's token through a Keychain
   access group named for the app's own App ID, the group the token was
   already kept in. So it needs no app group and no capability in the portal,
@@ -147,7 +152,6 @@ hand:
   by node key; keys stay out of `ChangeSet`, which the fuzzer compares.
 - A line break is U+2028 in the editor's text, which breaks the line without
   ending the paragraph as TextKit sees it.
-- Copy, cut and paste come with #118, which owns the clipboard.
 - Drawings are drawn by `DrawingKit`, a port of Excalidraw's renderer with
   its Rough.js and perfect-freehand, and checked against what web Excalidraw
   draws: `bun run record:drawings` exports the scenes in
@@ -248,3 +252,31 @@ hand:
 - Tab indents where the selection starts at the start of a block or spans
   blocks, and types a tab elsewhere, as the web's TabIndentationPlugin does.
   A tab lines up to a browser's default tab stops.
+- Links, autolinks and the clipboard follow the web editor's own
+  configuration, not a description of it. Its autolink matchers,
+  `validateUrl`, `sanitizeUrl`, link editor's save and namespace live in
+  `@packages/lexical-nodes/links`, which the web editor and the reference
+  import and codegen bundles into `LinkConfiguration.swift` for LexicalSwift
+  to run in JavaScriptCore. JavaScriptCore has no `URL`, so the reference
+  and the bundle carry whatwg-url's, the URL Standard's own, over the
+  `TextEncoder` and `TextDecoder` LexicalSwift defines.
+- The model's link and clipboard commands are the web's: `toggleLink` is
+  `TOGGLE_LINK_COMMAND`, `editLink` is the floating link editor's save,
+  and `copy`, `cut` and `paste` are rich text's.
+- Copy puts plain text and Lexical's JSON (`application/x-lexical-editor`)
+  on the pasteboard, and no HTML. Other apps get the plain text. Lexical's
+  JSON that Lexical can't insert where the caret is goes in as the plain
+  text, as on the web.
+- HTML pasted from another app goes in as the plain text beside it. Pasting
+  it as rich text, images and charts included, is #168.
+- The edit menu offers Add Link for a selection, and Open, Edit and Remove
+  for a caret in a link, Open only for the protocols the web opens a link
+  with; a tap on a link's text offers the same. Saving no URL keeps the
+  link, as on the web. A caret
+  just after a link's last character is in the link, as a browser puts it
+  in the text before it.
+- Typing `[text](url)` makes a link by Lexical's own LINK transformer. Its
+  `unescapeText` is ported: a backslash escapes punctuation and a character
+  reference in the URL decodes as on the web, and the fuzzer types both. One
+  past Unicode fails as on the web, and the model then keeps what was typed
+  and reports the error, as Lexical reports it to `onError`.

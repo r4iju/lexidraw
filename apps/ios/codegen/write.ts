@@ -7,6 +7,12 @@ import {
   swiftForDrawingFiles,
 } from "./drawing-files";
 import {
+  LINK_PROTOCOLS_PATH,
+  LINKS_PATH,
+  swiftForLinkProtocols,
+  swiftForLinks,
+} from "./links";
+import {
   MARKDOWN_TRANSFORMERS_PATH,
   swiftForMarkdownTransformers,
 } from "./markdown";
@@ -36,3 +42,5 @@ await Bun.write(
   DOCUMENT_TYPOGRAPHY_PATH,
   swiftForTypography(await readWebStyles()),
 );
+await Bun.write(LINKS_PATH, await swiftForLinks());
+await Bun.write(LINK_PROTOCOLS_PATH, swiftForLinkProtocols());

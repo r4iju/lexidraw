@@ -41,7 +41,7 @@
                 "format": 0,
                 "mode": "normal",
                 "style": "",
-                "text": "link",
+                "text": "link ",
                 "type": "text",
                 "version": 1
               }
@@ -63,7 +63,7 @@
                 "format": 0,
                 "mode": "normal",
                 "style": "",
-                "text": "example.com",
+                "text": "www.example.com",
                 "type": "text",
                 "version": 1
               }
@@ -76,7 +76,7 @@
             "target": null,
             "title": null,
             "type": "autolink",
-            "url": "https://example.com",
+            "url": "https://www.example.com",
             "version": 1
           },
           {
@@ -86,7 +86,7 @@
                 "format": 0,
                 "mode": "normal",
                 "style": "",
-                "text": "marked",
+                "text": " marked",
                 "type": "text",
                 "version": 1
               }

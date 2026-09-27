@@ -229,3 +229,32 @@ test.each([
     selector,
   );
 });
+
+test("reads a link's colour and underline", async () => {
+  const swift = swiftForTypography(await readWebStyles());
+
+  expect(swift).toContain(
+    "link: Link(color: .primary, underlineThickness: 1, underlineOffset: 0.2, underlineOpacity: 0.4))",
+  );
+});
+
+test.each([
+  ["text-decoration: underline 1px;", "text-decoration: underline wavy 1px;"],
+  ["text-underline-offset: 0.2em;", "text-underline-offset: auto;"],
+  [
+    "text-underline-offset: 0.2em;",
+    "text-underline-offset: 0.2em; text-decoration-skip-ink: none;",
+  ],
+  [
+    "text-decoration-color: color-mix(in oklab, currentColor 40%, transparent);",
+    "text-decoration-color: var(--border);",
+  ],
+])("refuses a link underlined as isn't read: %p", async (from, to) => {
+  const styles = await readWebStyles();
+  const documentCSS = styles.documentCSS.replace(from, to);
+
+  expect(documentCSS).not.toBe(styles.documentCSS);
+  expect(() => swiftForTypography({ ...styles, documentCSS })).toThrow(
+    ".document-link",
+  );
+});
