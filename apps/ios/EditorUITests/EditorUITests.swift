@@ -340,10 +340,10 @@ class EditorUITests: XCTestCase {
   /// its items one line each.
   private func tapBox(ofItem item: Int) {
     let em: CGFloat = 17
-    let layout = ListAndIndentLayout.self
-    let x = 16 + (layout.listPadding + layout.boxSize / 2) * em
+    let list = ListAndIndentLayout.list
+    let x = 16 + (list.padding + list.box.size / 2) * em
     editor.coordinate(withNormalizedOffset: .zero)
-      .withOffset(CGVector(dx: x, dy: 16 + 11 + CGFloat(item) * (22 + layout.itemSpacing * em))).tap()
+      .withOffset(CGVector(dx: x, dy: 16 + 11 + CGFloat(item) * (22 + list.itemSpacing * em))).tap()
   }
 
   /// Saves through the harness and reads back what it wrote.

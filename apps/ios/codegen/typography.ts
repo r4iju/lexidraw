@@ -110,6 +110,62 @@ export function swiftForTypography(styles: WebStyles): string {
   );
   const [quotePaddingStart] = pair(value(quote, "padding-inline"));
 
+  const list = declarations(
+    css,
+    `.document-content :is(ul, ol)${NOT_IN_DECORATOR}`,
+  );
+  const nextItem = declarations(
+    css,
+    `.document-content li + li${NOT_IN_DECORATOR}`,
+  );
+  const itemSpacing = value(nextItem, "margin-block-start");
+  const nested = declarations(
+    css,
+    `.document-content li :is(ul, ol)${NOT_IN_DECORATOR}`,
+  );
+  const [nestedBefore, nestedAfter] = pair(value(nested, "margin-block"));
+  if (nestedBefore !== itemSpacing || nestedAfter !== "0") {
+    throw new Error(
+      `${nested.selector} is spaced other than an item, which isn't read yet`,
+    );
+  }
+  const marker = declarations(
+    css,
+    `.document-content li${NOT_IN_DECORATOR}::marker`,
+  );
+  const task = declarations(css, ".document-content li.document-task");
+  const [taskPadding] = pair(value(task, "padding-inline"));
+  const box = declarations(css, ".document-task::before");
+  if (value(box, "width") !== value(box, "height")) {
+    throw new Error(`${box.selector} isn't square`);
+  }
+  const [boxBorderWidth, boxBorderColor] = border(value(box, "border"));
+  const done = declarations(css, ".document-task-done");
+  const checked = declarations(css, ".document-task-done::before");
+  if (value(checked, "background") !== value(checked, "border-color")) {
+    throw new Error(`${checked.selector} is filled other than it's outlined`);
+  }
+  const tick = declarations(css, ".document-task-done::after");
+  const tickColor = /^solid (.+)$/.exec(value(tick, "border"))?.[1];
+  const tickLineWidth = /^0 (\S+) \1 0$/.exec(value(tick, "border-width"))?.[1];
+  if (!tickColor || !tickLineWidth) {
+    throw new Error(`${tick.selector} isn't a tick drawn as an L`);
+  }
+  const listFields = [
+    `padding: ${ems(value(list, "padding-inline-start"))}`,
+    `itemSpacing: ${ems(itemSpacing)}`,
+    `markerColor: ${colors.name(value(marker, "color"))}`,
+    `checklistPadding: ${ems(taskPadding)}`,
+    `box: Box(top: ${ems(value(box, "top"))}, size: ${ems(value(box, "width"))}, ` +
+      `borderWidth: ${points(boxBorderWidth)}, borderColor: ${colors.name(boxBorderColor)}, ` +
+      `cornerRadius: ${points(value(box, "border-radius"))}, ` +
+      `checkedColor: ${colors.name(value(checked, "background"))}, ` +
+      `tick: Tick(left: ${ems(value(tick, "left"))}, top: ${ems(value(tick, "top"))}, ` +
+      `width: ${ems(value(tick, "width"))}, height: ${ems(value(tick, "height"))}, ` +
+      `lineWidth: ${points(tickLineWidth)}, color: ${colors.name(tickColor)}))`,
+    `doneColor: ${colors.name(value(done, "color"))}`,
+  ];
+
   const hr = declarations(css, ".document-content hr");
   const [ruleWidth, ruleColor] = border(value(hr, "border-top"));
   const [ruleBefore, ruleAfter] = pair(value(hr, "margin-block"));
@@ -134,6 +190,7 @@ export function swiftForTypography(styles: WebStyles): string {
     `    adjacentHeadingBefore: ${1 / number(halved[1])},`,
     `    narrow: [${swiftForNarrow(css).join(", ")}],`,
     `    languages: [${swiftForLanguages(css).join(", ")}],`,
+    `    list: List(${listFields.join(", ")}),`,
     `    quote: Quote(borderWidth: ${points(quoteBorderWidth)}, borderColor: ${colors.name(quoteBorderColor)}, paddingStart: ${ems(quotePaddingStart)}),`,
     `    rule: Rule(width: ${points(ruleWidth)}, color: ${colors.name(ruleColor)}, margin: ${ems(ruleBefore)}))`,
     "}",

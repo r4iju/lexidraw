@@ -98,7 +98,8 @@ import UIKit
       if item.isChecklistItem {
         drawBox(item, at: CGPoint(x: origin.x, y: origin.y + line.frame.minY), in: context)
       } else if let marker = item.marker {
-        let text = NSAttributedString(string: marker, attributes: [.font: item.font, .foregroundColor: UIColor.secondaryLabel])
+        let text = NSAttributedString(
+          string: marker, attributes: [.font: item.font, .foregroundColor: ListAndIndentLayout.list.markerColor.color])
         let size = text.size()
         text.draw(at: CGPoint(x: origin.x + item.textStart - size.width, y: origin.y + line.baseline - item.font.ascender))
       }
@@ -108,31 +109,34 @@ import UIKit
   /// A checklist item's box as the web's theme draws it: outlined, or when
   /// checked filled and ticked.
   private func drawBox(_ item: ListAndIndentLayout.Item, at origin: CGPoint, in context: CGContext) {
+    let theme = ListAndIndentLayout.list.box
     let box = item.box.offsetBy(dx: origin.x, dy: origin.y)
-    let border = ListAndIndentLayout.boxBorder
-    let outline = UIBezierPath(
-      roundedRect: box.insetBy(dx: border / 2, dy: border / 2), cornerRadius: ListAndIndentLayout.boxCornerRadius)
+    let border = theme.borderWidth
+    let outline = UIBezierPath(roundedRect: box.insetBy(dx: border / 2, dy: border / 2), cornerRadius: theme.cornerRadius)
     outline.lineWidth = border
     if item.item.checked {
-      UIColor.tintColor.setFill()
-      UIColor.tintColor.setStroke()
+      theme.checkedColor.color.setFill()
+      theme.checkedColor.color.setStroke()
       outline.fill()
       outline.stroke()
-      // An L 0.3em wide and 0.5em tall, turned 45°, as the theme's ::after.
-      let tick = CGRect(x: box.minX + 0.34 * item.em, y: box.minY + 0.15 * item.em, width: 0.3 * item.em, height: 0.5 * item.em)
+      let tick = theme.tick
+      let bounds = CGRect(
+        x: box.minX + tick.left * item.em, y: box.minY + (tick.top - theme.top) * item.em, width: tick.width * item.em,
+        height: tick.height * item.em)
+      let line = tick.lineWidth
       context.saveGState()
-      context.translateBy(x: tick.midX, y: tick.midY)
+      context.translateBy(x: bounds.midX, y: bounds.midY)
       context.rotate(by: .pi / 4)
       let mark = UIBezierPath()
-      mark.move(to: CGPoint(x: tick.width / 2 - border / 2, y: -tick.height / 2))
-      mark.addLine(to: CGPoint(x: tick.width / 2 - border / 2, y: tick.height / 2 - border / 2))
-      mark.addLine(to: CGPoint(x: -tick.width / 2, y: tick.height / 2 - border / 2))
-      mark.lineWidth = border
-      UIColor.systemBackground.setStroke()
+      mark.move(to: CGPoint(x: bounds.width / 2 - line / 2, y: -bounds.height / 2))
+      mark.addLine(to: CGPoint(x: bounds.width / 2 - line / 2, y: bounds.height / 2 - line / 2))
+      mark.addLine(to: CGPoint(x: -bounds.width / 2, y: bounds.height / 2 - line / 2))
+      mark.lineWidth = line
+      tick.color.color.setStroke()
       mark.stroke()
       context.restoreGState()
     } else {
-      UIColor.secondaryLabel.setStroke()
+      theme.borderColor.color.setStroke()
       outline.stroke()
     }
   }

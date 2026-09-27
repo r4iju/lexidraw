@@ -51,6 +51,46 @@ struct DocumentTypography: Sendable {
     var letterSpacing: Double?
   }
 
+  /// Lists and checklists. Lengths are in ems of an item's text.
+  struct List: Sendable {
+    /// How far in a list takes its items, past their markers.
+    var padding: Double
+    /// Between an item and the next, or the list nested after it.
+    var itemSpacing: Double
+    var markerColor: ThemeColor
+    /// How much further a checklist takes its items, past their boxes.
+    var checklistPadding: Double
+    var box: Box
+    /// A checked item's text.
+    var doneColor: ThemeColor
+  }
+
+  /// A checklist item's box, at the start of its padding.
+  struct Box: Sendable {
+    /// Below the top of its item.
+    var top: Double
+    var size: Double
+    /// In points, as are the corners.
+    var borderWidth: Double
+    var borderColor: ThemeColor
+    var cornerRadius: Double
+    /// What a checked box is filled and outlined with.
+    var checkedColor: ThemeColor
+    var tick: Tick
+  }
+
+  /// A checked box's tick: the right and bottom of a rectangle turned 45°,
+  /// from the start of the item's padding and the top of the item.
+  struct Tick: Sendable {
+    var left: Double
+    var top: Double
+    var width: Double
+    var height: Double
+    /// In points.
+    var lineWidth: Double
+    var color: ThemeColor
+  }
+
   struct Quote: Sendable {
     var borderWidth: Double
     var borderColor: ThemeColor
@@ -79,6 +119,7 @@ struct DocumentTypography: Sendable {
   var narrow: [Narrow]
   /// Ordered as `narrow` is.
   var languages: [Language]
+  var list: List
   var quote: Quote
   var rule: Rule
 

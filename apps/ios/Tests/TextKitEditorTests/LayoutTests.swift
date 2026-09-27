@@ -128,9 +128,9 @@ import UIKit
 
     #expect(try Self.text(of: view) == "a\nb\nc")
     let layout = ListAndIndentLayout.self
-    #expect(abs(try caret(0).minX - layout.listPadding * em) < 0.5)
-    #expect(abs(try caret(2).minX - (2 * layout.listPadding + layout.checklistPadding) * em) < 0.5)
-    #expect(abs(try caret(2).midY - (try caret(0)).midY - TypographyTests.paragraphLine * em - layout.itemSpacing * em) < 1)
+    #expect(abs(try caret(0).minX - layout.list.padding * em) < 0.5)
+    #expect(abs(try caret(2).minX - (2 * layout.list.padding + layout.list.checklistPadding) * em) < 0.5)
+    #expect(abs(try caret(2).midY - (try caret(0)).midY - TypographyTests.paragraphLine * em - layout.list.itemSpacing * em) < 1)
     #expect(abs(try caret(4).minX - 2 * layout.indentWidth) < 0.5)
     try Self.expectEveryCaretToLandOnItself(view)
   }
@@ -193,7 +193,7 @@ import UIKit
 
   /// Each item shows the marker the web's theme gives it, numbered from its
   /// list's start and styled by how deep it is, or in a checklist a box, its
-  /// text struck through once checked.
+  /// text struck through and in the theme's colour once checked.
   @Test
   func itemsShowTheirMarkersAndBoxes() throws {
     let model = Editor()
@@ -220,6 +220,15 @@ import UIKit
       styled.attribute(.strikethroughStyle, at: offset, effectiveRange: nil) != nil
     }
     #expect([6, 8].map(isStruckThrough) == [true, false])
+    let done = try #require(styled.attribute(.foregroundColor, at: 6, effectiveRange: nil) as? UIColor)
+    let theme = DocumentTypography.web.list.doneColor
+    for (style, expected) in [(UIUserInterfaceStyle.light, theme.light), (.dark, theme.dark)] {
+      var (red, green, blue, alpha): (CGFloat, CGFloat, CGFloat, CGFloat) = (0, 0, 0, 0)
+      done.resolvedColor(with: UITraitCollection(userInterfaceStyle: style)).getRed(&red, green: &green, blue: &blue, alpha: &alpha)
+      #expect(
+        abs(red - expected.red) < 0.001 && abs(green - expected.green) < 0.001 && abs(blue - expected.blue) < 0.001,
+        "a done item's text in \(style == .dark ? "dark" : "light")")
+    }
   }
 
   /// Scrolling up from the middle of a long document, through blocks laid

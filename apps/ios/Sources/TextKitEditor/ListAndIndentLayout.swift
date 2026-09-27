@@ -3,23 +3,13 @@ import EditorModelInterface
 import UIKit
 
 /// List items and indented blocks laid out as the web's theme lays them out
-/// (document.css), in em of the font of the newline ending the line unless
-/// said otherwise.
+/// (`DocumentTypography.List`), in em of the font of the newline ending the
+/// line.
 ///
 /// Offsets are into the text that `DocumentText` marked, `.listItem` and
 /// `.elementIndent` on the lines they describe.
 struct ListAndIndentLayout {
-  /// How far in a list takes its items, past their markers.
-  static let listPadding: CGFloat = 1.625
-  /// How much further a checklist takes its items, past their boxes.
-  static let checklistPadding: CGFloat = 1.75
-  static let itemSpacing: CGFloat = 0.25
-  /// How far a box is below the top of its item, and its size.
-  static let boxTop: CGFloat = 0.3
-  static let boxSize: CGFloat = 1
-  /// Points.
-  static let boxBorder: CGFloat = 1.5
-  static let boxCornerRadius: CGFloat = 4
+  static let list = DocumentTypography.web.list
   /// Points a level of indent, as Lexical pads an indented block.
   static let indentWidth: CGFloat = 40
   /// Points from a box's left in which a tap toggles its item, as far as the
@@ -34,13 +24,15 @@ struct ListAndIndentLayout {
     var font: UIFont
 
     var textStart: CGFloat {
-      item.lists.reduce(0) { $0 + (listPadding + ($1 == .check ? checklistPadding : 0)) * em }
+      item.lists.reduce(0) { $0 + (list.padding + ($1 == .check ? list.checklistPadding : 0)) * em }
     }
     var isChecklistItem: Bool { item.lists.last == .check }
 
     /// The item's box, from the top of its first line.
     var box: CGRect {
-      CGRect(x: textStart - checklistPadding * em, y: boxTop * em, width: boxSize * em, height: boxSize * em)
+      CGRect(
+        x: textStart - list.checklistPadding * em, y: list.box.top * em, width: list.box.size * em,
+        height: list.box.size * em)
     }
 
     /// Where a tap toggles the item, from the top of its first line.
@@ -113,10 +105,10 @@ struct ListAndIndentLayout {
         layout.items.append(line)
         paragraph.firstLineHeadIndent = line.textStart
         paragraph.headIndent = line.textStart
-        if NSMaxRange(enclosing) < string.length { paragraph.paragraphSpacing = Self.itemSpacing * font.pointSize }
+        if NSMaxRange(enclosing) < string.length { paragraph.paragraphSpacing = Self.list.itemSpacing * font.pointSize }
         if line.isChecklistItem, item.checked {
           styled.addAttributes(
-            [.foregroundColor: UIColor.secondaryLabel, .strikethroughStyle: NSUnderlineStyle.single.rawValue], range: range)
+            [.foregroundColor: Self.list.doneColor.color, .strikethroughStyle: NSUnderlineStyle.single.rawValue], range: range)
         }
       } else if let indent {
         // Lexical indents with `padding-inline-start`, which takes the place
