@@ -144,7 +144,11 @@ extension EditorState {
         if self[node].type == SerializedTableCellNode.type { cells.append(node) }
         children(of: node).reversed().forEach(visit)
       }
-      try Update(self, nextKey: 0, revision: 0).cells(of: table).forEach(visit)
+      do {
+        try Update(self, nextKey: 0, revision: 0).cells(of: table).forEach(visit)
+      } catch let error as EditorError where error == Update.noCell {
+        throw EditorError.tableSelectionOverAHole
+      }
       return .table(table: tablePath, anchor: anchor, focus: focus, cells: cells.compactMap(path(of:)))
     }
   }

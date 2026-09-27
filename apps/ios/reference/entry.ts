@@ -444,6 +444,11 @@ function snapshot(): string {
   );
 }
 
+/** The state alone, which reads back where the selection doesn't. */
+function serializedState(): string {
+  return JSON.stringify(current().getEditorState().toJSON());
+}
+
 function selection(): string {
   return current()
     .getEditorState()
@@ -474,7 +479,7 @@ function pathSelection() {
       table: pathOf(table),
       anchor: pathOf(selection.anchor.getNode()),
       focus: pathOf(selection.focus.getNode()),
-      cells: selection.getNodes().filter($isTableCellNode).map(pathOf),
+      cells: selectedNodes(selection).filter($isTableCellNode).map(pathOf),
     };
   }
   return $isRangeSelection(selection)
@@ -485,6 +490,34 @@ function pathSelection() {
         style: selection.style,
       }
     : null;
+}
+
+/**
+ * `TableSelection.getNodes`, which reads `map[row][column]` for each place
+ * in the selection's rectangle and fails where the table's map has none, as
+ * where a cell spans rows past the table's end.
+ */
+function selectedNodes(selection: TableSelection): LexicalNode[] {
+  try {
+    return selection.getNodes();
+  } catch (error) {
+    // JavaScriptCore's messages for reading a place in a missing row, and
+    // for a missing place in a row.
+    const isAHole =
+      error instanceof TypeError &&
+      (/^undefined is not an object \(evaluating '[^']*'\)$/.test(
+        error.message,
+      ) ||
+        error.message ===
+          "Cannot destructure property 'cell' from null or undefined value");
+    if (isAHole) {
+      throw new EditorError(
+        "invalidState",
+        "TableSelection.getNodes read a cell the table hasn't got",
+      );
+    }
+    throw error;
+  }
 }
 
 /**
@@ -1046,5 +1079,13 @@ function pathPoint(point: PointType): PathPoint {
 }
 
 Object.assign(globalThis, {
-  LexicalReference: { load, apply, snapshot, selection, node, childKeys },
+  LexicalReference: {
+    load,
+    apply,
+    snapshot,
+    serializedState,
+    selection,
+    node,
+    childKeys,
+  },
 });

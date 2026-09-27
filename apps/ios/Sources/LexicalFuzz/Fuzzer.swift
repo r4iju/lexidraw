@@ -15,7 +15,8 @@ public struct Fuzzer {
   public private(set) var refusals = 0
   /// Sessions ended as `isNotPortedYet` says.
   public private(set) var sessionsEndedNotPortedYet = 0
-  /// Sessions ended where neither model could read its state back.
+  /// Sessions ended where neither model could read its selection back, as
+  /// `EditorError.tableSelectionOverAHole` says, with the same tree.
   public private(set) var sessionsEndedUnreadable = 0
 
   /// The node types Lexical's markdown shortcuts make that LexicalSwift's
@@ -59,11 +60,10 @@ public struct Fuzzer {
       }
       try candidate.load(start)
       for _ in 0..<sessionLength where stepsRun < steps {
-        // The step before agreed, so neither model can read back what it
-        // came to, and there's nothing to go on from. Lexical can't read
-        // back a table selection over a table a range deleted across two
-        // tables left ragged, for one.
-        guard let snapshot = try? reference.snapshot() else {
+        // Where the reference can't read its selection back, the step before
+        // agreed, so neither model can, and there's nothing to go on from.
+        let (snapshot, isSelectionUnreadable) = try Fixture.readBack(reference)
+        if isSelectionUnreadable {
           sessionsEndedUnreadable += 1
           break
         }
@@ -94,11 +94,14 @@ public struct Fuzzer {
 
   private struct Step: Equatable {
     var change: Fixture.Change
-    var snapshot: Snapshot?
+    var snapshot: Snapshot
+    var isSelectionUnreadable: Bool
   }
 
   private func step(_ model: any EditorModel, _ command: EditorCommand) throws -> Step {
-    Step(change: try Fixture.Change(applying: command, to: model), snapshot: try? model.snapshot())
+    let change = try Fixture.Change(applying: command, to: model)
+    let (snapshot, isSelectionUnreadable) = try Fixture.readBack(model)
+    return Step(change: change, snapshot: snapshot, isSelectionUnreadable: isSelectionUnreadable)
   }
 
   private enum Verdict: Equatable {
@@ -115,9 +118,9 @@ public struct Fuzzer {
     let declinedAShortcut = shortcutsDeclined > declinedBefore
     let referenceStep = try step(reference, command)
     if candidateStep == referenceStep { return .agreed(referenceStep) }
-    if let before, let after = referenceStep.snapshot,
+    if let before,
       Self.isNotPortedYet(
-        candidate: candidateStep.change, referenceBefore: before, referenceAfter: after,
+        candidate: candidateStep.change, referenceBefore: before, referenceAfter: referenceStep.snapshot,
         declinedAShortcut: declinedAShortcut)
     {
       return .notPortedYet

@@ -148,8 +148,12 @@ public final class Editor: EditorModel {
   }
 
   public func snapshot() throws -> Snapshot {
+    Snapshot(state: try serializedState(), selection: try state.pathSelection())
+  }
+
+  public func serializedState() throws -> JSONValue {
     guard !state.nodes.isEmpty else { throw EditorError.invalidState("No document loaded") }
-    return Snapshot(state: state.json, selection: try state.pathSelection())
+    return state.json
   }
 
   /// `state` as an editor that registers `types` saves it once it has read

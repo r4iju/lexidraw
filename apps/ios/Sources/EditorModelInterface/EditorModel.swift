@@ -17,6 +17,10 @@ public protocol EditorModel: AnyObject {
   /// The serialized editor state and the selection.
   func snapshot() throws -> Snapshot
 
+  /// The serialized editor state alone, which reads back where the
+  /// selection doesn't.
+  func serializedState() throws -> JSONValue
+
   /// The selection alone, without serializing the document.
   func selection() throws -> Selection?
 
@@ -28,6 +32,10 @@ public protocol EditorModel: AnyObject {
   /// tell which children an update added, removed or kept. Names mean nothing
   /// across models.
   func childKeys(at path: [Int]) throws -> [String]
+}
+
+extension EditorModel {
+  public func serializedState() throws -> JSONValue { ["root": try node(at: [])] }
 }
 
 public struct Snapshot: Codable, Equatable, Sendable {
@@ -529,4 +537,10 @@ public enum EditorError: Error, Equatable {
     case .invalidState: .invalidState
     }
   }
+
+  /// Lexical's `TableSelection.getNodes` reading a cell where the table's
+  /// map has none, as where a cell spans rows past the table's end, so
+  /// neither model can read that selection back.
+  public static let tableSelectionOverAHole = EditorError.invalidState(
+    "TableSelection.getNodes read a cell the table hasn't got")
 }

@@ -8,12 +8,19 @@ public struct Fixture: Codable, Equatable, Sendable {
   public var commands: [EditorCommand]
   public var changes: [Change]
   public var expected: Snapshot
+  /// True where the script ends on a selection the reference can't read
+  /// back, so `expected` holds its tree and no selection.
+  public var isSelectionUnreadable: Bool?
 
-  public init(start: JSONValue, commands: [EditorCommand], changes: [Change], expected: Snapshot) {
+  public init(
+    start: JSONValue, commands: [EditorCommand], changes: [Change], expected: Snapshot,
+    isSelectionUnreadable: Bool? = nil
+  ) {
     self.start = start
     self.commands = commands
     self.changes = changes
     self.expected = expected
+    self.isSelectionUnreadable = isSelectionUnreadable
   }
 
   /// What a command changed, or the kind of error it was refused with.
@@ -35,14 +42,29 @@ public struct Fixture: Codable, Equatable, Sendable {
   public struct Outcome: Equatable, Sendable {
     public var changes: [Change]
     public var snapshot: Snapshot
+    public var isSelectionUnreadable = false
   }
 
-  public var recorded: Outcome { Outcome(changes: changes, snapshot: expected) }
+  public var recorded: Outcome {
+    Outcome(changes: changes, snapshot: expected, isSelectionUnreadable: isSelectionUnreadable ?? false)
+  }
 
   public func replay(on model: some EditorModel) throws -> Outcome {
     try model.load(start)
     let changes = try commands.map { try Change(applying: $0, to: model) }
-    return Outcome(changes: changes, snapshot: try model.snapshot())
+    let (snapshot, isSelectionUnreadable) = try Self.readBack(model)
+    return Outcome(changes: changes, snapshot: snapshot, isSelectionUnreadable: isSelectionUnreadable)
+  }
+
+  /// `model`'s snapshot, or, where its selection is a table selection over
+  /// a hole in its table, its tree and no selection. Any other failure is
+  /// thrown on.
+  static func readBack(_ model: some EditorModel) throws -> (snapshot: Snapshot, isSelectionUnreadable: Bool) {
+    do {
+      return (try model.snapshot(), false)
+    } catch let error as EditorError where error == .tableSelectionOverAHole {
+      return (Snapshot(state: try model.serializedState(), selection: nil), true)
+    }
   }
 
   /// Runs the script on the reference and keeps what it produced.
@@ -51,7 +73,9 @@ public struct Fixture: Codable, Equatable, Sendable {
   {
     let draft = Fixture(start: start, commands: commands, changes: [], expected: Snapshot(state: start, selection: nil))
     let outcome = try draft.replay(on: reference)
-    return Fixture(start: start, commands: commands, changes: outcome.changes, expected: outcome.snapshot)
+    return Fixture(
+      start: start, commands: commands, changes: outcome.changes, expected: outcome.snapshot,
+      isSelectionUnreadable: outcome.isSelectionUnreadable ? true : nil)
   }
 
   public static func read(from url: URL) throws -> Fixture {

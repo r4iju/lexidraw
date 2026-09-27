@@ -115,12 +115,13 @@ extension Update {
   /// reaches, as nil.
   typealias TableMap = [[TableMapValue?]]
 
-  /// `map[row][column]` where Lexical reads a property of it, which throws
-  /// where there's no cell.
+  /// What reading a property of `map[row][column]` throws where there's no
+  /// cell.
+  static let noCell = EditorError.invalidState("Cannot read properties of undefined (reading 'cell')")
+
+  /// `map[row][column]` where Lexical reads a property of it.
   private func entry(_ row: [TableMapValue?]?, _ column: Int) throws -> TableMapValue {
-    guard let row, row.indices.contains(column), let value = row[column] else {
-      throw EditorError.invalidState("Cannot read properties of undefined (reading 'cell')")
-    }
+    guard let row, row.indices.contains(column), let value = row[column] else { throw Self.noCell }
     return value
   }
 
