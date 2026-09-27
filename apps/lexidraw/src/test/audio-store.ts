@@ -17,6 +17,10 @@ export function fakeAudioStore({
     paidFor: [] as string[],
     /** Runs as each chunk is asked after, before the answer. */
     beforeChunk: async () => {},
+    /** Whether a chunk was made before; replaceable per test. */
+    madeBefore,
+    /** The voice service's answer to a request for speech. */
+    speech: () => new Response(new Uint8Array([1, 2, 3])),
     restore: () => {
       globalThis.fetch = realFetch;
     },
@@ -29,11 +33,13 @@ export function fakeAudioStore({
         return new Response(null, { status: 404 });
       await store.beforeChunk();
       store.chunksAsked.push(pathname);
-      return new Response(null, { status: madeBefore(pathname) ? 200 : 404 });
+      return new Response(null, {
+        status: store.madeBefore(pathname) ? 200 : 404,
+      });
     }
     if (url.pathname.endsWith("/audio/speech")) {
       store.paidFor.push(String(init?.body ?? ""));
-      return new Response(new Uint8Array([1, 2, 3]));
+      return store.speech();
     }
     return realFetch(input, init);
   }) as typeof fetch;
