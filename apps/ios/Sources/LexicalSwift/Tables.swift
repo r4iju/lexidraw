@@ -1,3 +1,5 @@
+import OrderedCollections
+
 /// @lexical/table@0.51.0 as a document's tables use it: the transforms
 /// TablePlugin registers, the insert-table dialog and the table menu, and
 /// what each table's handlers do to the selection and to editing in it, as
@@ -216,6 +218,12 @@ extension Update {
 
   /// `TableSelection.getNodes()`'s cells, row by row.
   func cells(of selection: TableSelection) throws -> [NodeKey] {
+    Array(OrderedSet(try rectCells(of: selection)))
+  }
+
+  /// The cell at each place of a table selection's rectangle, row by row,
+  /// a merged cell at each place it covers.
+  private func rectCells(of selection: TableSelection) throws -> [NodeKey] {
     guard state.nodes[selection.table] != nil, state.nodes[selection.anchor] != nil, state.nodes[selection.focus] != nil
     else { return [] }
     let (anchorCell, _, table) = try nodeTriplet(selection.anchor)
@@ -228,11 +236,47 @@ extension Update {
     var cells: [NodeKey] = []
     for row in boundary.minRow...boundary.maxRow {
       for column in boundary.minColumn...boundary.maxColumn {
-        let cell = try entry(map, row, column).cell.key
-        if !cells.contains(cell) { cells.append(cell) }
+        cells.append(try entry(map, row, column).cell.key)
       }
     }
     return cells
+  }
+
+  /// `TableSelection.getNodes()`: the table, then row by row each selected
+  /// cell's row where it's a new one, and the cell with all it holds, as
+  /// `$visitRecursively` visits it: last child first.
+  func nodes(in selection: TableSelection) throws -> [NodeKey] {
+    let cells = try rectCells(of: selection)
+    guard !cells.isEmpty else { return [] }
+    var nodes: OrderedSet<NodeKey> = [selection.table]
+    var lastRow: NodeKey?
+    func visit(_ node: NodeKey) {
+      nodes.append(node)
+      state.children(of: node).reversed().forEach(visit)
+    }
+    for cell in cells {
+      guard let row = state.parent(of: cell), isRow(row) else {
+        throw EditorError.invalidState("Expected TableCellNode parent to be a TableRowNode")
+      }
+      if row != lastRow {
+        nodes.append(row)
+        lastRow = row
+      }
+      if !nodes.contains(cell) { visit(cell) }
+    }
+    return Array(nodes)
+  }
+
+  /// `TableSelection.getTextContent`: each selected cell's text, and a tab
+  /// after it or, before a cell of another row or at the end, a newline.
+  func textContent(_ selection: TableSelection) throws -> String {
+    let cells = try nodes(in: selection).filter(isCell)
+    var text = ""
+    for (index, cell) in cells.enumerated() {
+      let next = index + 1 < cells.count ? state.parent(of: cells[index + 1]) : nil
+      text += state.textContent(of: cell) + (next != state.parent(of: cell) ? "\n" : "\t")
+    }
+    return text
   }
 
   /// `$getTableCellNodeRect`.
@@ -544,8 +588,8 @@ extension Update {
   }
 
   /// `$insertTableColumnAtNode`, which moves the selection to the first new
-  /// cell.
-  private mutating func insertTableColumn(at cell: NodeKey, after: Bool) throws {
+  /// cell where `movingSelection`.
+  private mutating func insertTableColumn(at cell: NodeKey, after: Bool, movingSelection: Bool = true) throws {
     let table = try nodeTriplet(cell).table
     let (map, cellValue, _) = try computeTableMap(table, cell, cell)
     let insertAfterColumn = after ? cellValue.startColumn + colSpan(of: cell) - 1 : cellValue.startColumn - 1
@@ -592,7 +636,7 @@ extension Update {
         setColSpan(current.cell.key, colSpan(current.cell) + 1)
       }
     }
-    if let firstInserted { moveSelection(toCell: firstInserted) }
+    if let firstInserted, movingSelection { moveSelection(toCell: firstInserted) }
     if var widths = colWidths(of: table) {
       let index = max(insertAfterColumn, 0)
       guard widths.indices.contains(index) else {
@@ -710,6 +754,300 @@ extension Update {
     }
   }
 
+  // MARK: The clipboard
+
+  /// TablePlugin's SELECTION_INSERT_CLIPBOARD_NODES_COMMAND handler: over
+  /// selected cells, pasted nodes without a table go in as their text, a
+  /// table alone pasted into a grid is laid out over it, and a table with
+  /// anything else is turned away. False where it leaves the nodes to the
+  /// selection.
+  mutating func tableSelectionInsertClipboardNodes(_ nodes: [NodeKey], _ target: ClipboardSelection) throws -> Bool {
+    guard nodes.contains(where: holdsTable) else {
+      guard case .cells(let selection) = target else { return false }
+      var text = ""
+      var lastWasBlock = false
+      for node in nodes {
+        let isBlock = state[node].isElement && !state[node].isInline
+        if !text.isEmpty, isBlock || lastWasBlock { text += "\n" }
+        text += state.textContent(of: node)
+        lastWasBlock = isBlock
+      }
+      try insertRawText(selection, text)
+      return true
+    }
+    if case .range(let selection) = target,
+      findParent(from: selection.anchor.key, where: isCell) == nil || findParent(from: selection.focus.key, where: isCell) == nil
+    {
+      return false
+    }
+    if nodes.count == 1, isTable(nodes[0]) { return try insertTableIntoGrid(nodes[0], target) }
+    // The web's tables don't nest, so a table pasted with more is refused.
+    return true
+  }
+
+  private func holdsTable(_ node: NodeKey) -> Bool {
+    isTable(node) || state.children(of: node).contains(where: holdsTable)
+  }
+
+  /// `TableSelection.insertRawText`: the text cut into cells at tabs and
+  /// into rows at line ends, and laid out over the grid from the anchor's
+  /// cell as a pasted table is.
+  mutating func insertRawText(_ selection: TableSelection, _ text: String) throws {
+    var units = Array(text.utf16)
+    guard !units.isEmpty else { return }
+    if units.last == 10 { units.removeLast() }
+    let table = create(SerializedTableNode.type)
+    for line in units.split(separator: 10, omittingEmptySubsequences: false) {
+      let row = create(SerializedTableRowNode.type)
+      for cellText in line.split(separator: 9, omittingEmptySubsequences: false) {
+        let cell = createCell(headerState: HeaderState.none)
+        let paragraph = create(SerializedParagraphNode.type)
+        if !cellText.isEmpty { try append(paragraph, [createText(String(decoding: cellText, as: UTF16.self))]) }
+        try append(cell, [paragraph])
+        try append(row, [cell])
+      }
+      try append(table, [row])
+    }
+    let anchorCell = try cellNodes(selection).anchor
+    let range = selectElement(anchorCell, 0, state.childCount(of: anchorCell))
+    _ = try insertTableIntoGrid(table, .range(range))
+  }
+
+  /// `TableSelection.insertNodes`: into the focus cell, its content selected
+  /// whole.
+  mutating func insertNodes(_ selection: TableSelection, _ nodes: [NodeKey]) throws {
+    guard state[selection.focus].isElement else {
+      throw EditorError.invalidState("Expected TableSelection focus to be an ElementNode")
+    }
+    let range = selectElement(selection.focus, 0, state.childCount(of: selection.focus))
+    normalizeSelection(range)
+    try insertNodes(range, nodes)
+  }
+
+  /// `$getCellNodes`: the cells a table selection's points are in, which
+  /// are in one table.
+  private func cellNodes(_ selection: TableSelection) throws -> (anchor: NodeKey, focus: NodeKey) {
+    let anchor = try nodeTriplet(selection.anchor)
+    let focus = try nodeTriplet(selection.focus)
+    guard anchor.table == focus.table else {
+      throw EditorError.invalidState("Expected TableSelection anchor and focus to be in the same table")
+    }
+    return (anchor.cell, focus.cell)
+  }
+
+  /// `$insertTableIntoGrid`: `template`'s cells laid out over the grid from
+  /// the anchor's cell, growing it where they reach past it, and over no
+  /// more than the selected cells of a table selection. The grid's merged
+  /// cells there are split, the template's merged again, and each cell
+  /// takes its template's content, fill and alignment.
+  mutating func insertTableIntoGrid(_ template: NodeKey, _ target: ClipboardSelection) throws -> Bool {
+    let (anchorKey, focusKey): (NodeKey, NodeKey)
+    switch target {
+    case .range(let selection): (anchorKey, focusKey) = (selection.anchor.key, selection.focus.key)
+    case .cells(let selection): (anchorKey, focusKey) = (selection.anchor, selection.focus)
+    }
+    let (anchorCell, _, grid) = try nodeTriplet(anchorKey)
+    guard let focusCell = findParent(from: focusKey, where: isCell) else { return false }
+    let (initialMap, anchorValue, focusValue) = try computeTableMap(grid, anchorCell, focusCell)
+    let (templateMap, _, _) = try computeTableMapSkipCellCheck(template, nil, nil)
+    let initialRowCount = initialMap.count
+    let initialColumnCount = initialMap.first?.count ?? 0
+    var (startRow, startColumn) = (anchorValue.startRow, anchorValue.startColumn)
+    var affectedRowCount = templateMap.count
+    var affectedColumnCount = templateMap.first?.count ?? 0
+    let isTableSelection = if case .cells = target { true } else { false }
+    if isTableSelection {
+      let boundary = rectBoundary(initialMap, anchorValue, focusValue)
+      (startRow, startColumn) = (boundary.minRow, boundary.minColumn)
+      affectedRowCount = min(affectedRowCount, boundary.maxRow - boundary.minRow + 1)
+      affectedColumnCount = min(affectedColumnCount, boundary.maxColumn - boundary.minColumn + 1)
+    }
+
+    var didMerge = false
+    var unmerged: Set<NodeKey> = []
+    for row in stride(from: startRow, to: min(initialRowCount, startRow + affectedRowCount), by: 1) {
+      for column in stride(from: startColumn, to: min(initialColumnCount, startColumn + affectedColumnCount), by: 1) {
+        let cell = try entry(initialMap, row, column).cell
+        guard !unmerged.contains(cell.key), rowSpan(cell) != 1 || colSpan(cell) != 1 else { continue }
+        try unmergeCell(cell)
+        unmerged.insert(cell.key)
+        didMerge = true
+      }
+    }
+
+    markDirty(grid)
+    var (interimMap, _, _) = try computeTableMapSkipCellCheck(grid, nil, nil)
+    for _ in stride(from: 0, to: affectedRowCount - initialRowCount + startRow, by: 1) {
+      try insertTableRow(at: try entry(interimMap, initialRowCount - 1, 0).cell.key, after: true)
+    }
+    for _ in stride(from: 0, to: affectedColumnCount - initialColumnCount + startColumn, by: 1) {
+      try insertTableColumn(
+        at: try entry(interimMap, 0, initialColumnCount - 1).cell.key, after: true, movingSelection: false)
+    }
+    markDirty(grid)
+    (interimMap, _, _) = try computeTableMapSkipCellCheck(grid, nil, nil)
+
+    for row in startRow..<(startRow + affectedRowCount) {
+      for column in startColumn..<(startColumn + affectedColumnCount) {
+        let (templateRow, templateColumn) = (row - startRow, column - startColumn)
+        let templateValue = try entry(templateMap, templateRow, templateColumn)
+        guard templateValue.startRow == templateRow, templateValue.startColumn == templateColumn else { continue }
+        let templateCell = templateValue.cell.key
+        let (spanRows, spanColumns) = (rowSpan(templateValue.cell), colSpan(templateValue.cell))
+        if spanRows != 1 || spanColumns != 1 {
+          var cells: [NodeKey] = []
+          for r in stride(from: row, to: min(row + spanRows, startRow + affectedRowCount), by: 1) {
+            for c in stride(from: column, to: min(column + spanColumns, startColumn + affectedColumnCount), by: 1) {
+              cells.append(try entry(interimMap, r, c).cell.key)
+            }
+          }
+          try mergeCells(cells)
+          didMerge = true
+        }
+        let cell = try entry(interimMap, row, column).cell.key
+        if let fields = cellNode(templateCell) {
+          if case .value(let color) = fields.backgroundColor { modifyCell(cell) { $0.backgroundColor = .value(color) } }
+          if let align = fields.verticalAlign { modifyCell(cell) { $0.verticalAlign = align } }
+        }
+        let originalChildren = Array(state.children(of: cell))
+        for child in Array(state.children(of: templateCell)) {
+          // Lexical wraps a text in a paragraph and then appends the text
+          // itself, leaving the paragraph empty and out of the document.
+          if state[child].isText { try append(create(SerializedParagraphNode.type), [child]) }
+          try append(cell, [child])
+        }
+        for child in originalChildren { try remove(child) }
+      }
+    }
+
+    if isTableSelection, didMerge {
+      markDirty(grid)
+      let (finalMap, _, _) = try computeTableMapSkipCellCheck(grid, nil, nil)
+      selectEnd(try entry(finalMap, anchorValue.startRow, anchorValue.startColumn).cell.key)
+    }
+    return true
+  }
+
+  /// `$unmergeCellNode`: a merged cell split into cells of one place each,
+  /// the new ones empty copies of it, each a header where every cell of
+  /// its column or row is one.
+  private mutating func unmergeCell(_ read: CellRead) throws {
+    let (cell, row, grid) = try nodeTriplet(read.key)
+    let (spanColumns, spanRows) = (colSpan(read), rowSpan(read))
+    guard spanColumns != 1 || spanRows != 1 else { return }
+    let (map, value, _) = try computeTableMap(grid, cell, cell)
+    let (startColumn, startRow) = (value.startColumn, value.startRow)
+    let columnCount = map.first?.count ?? 0
+    let colStyles = try (0..<spanColumns).map { i in
+      var style = headerState(of: cell) & HeaderState.column
+      var rowIndex = 0
+      while style != 0, rowIndex < map.count {
+        style &= headerState(of: try entry(map, rowIndex, i + startColumn).cell.key)
+        rowIndex += 1
+      }
+      return style
+    }
+    let rowStyles = try (0..<spanRows).map { i in
+      var style = headerState(of: cell) & HeaderState.row
+      var columnIndex = 0
+      while style != 0, columnIndex < columnCount {
+        style &= headerState(of: try entry(map, i + startRow, columnIndex).cell.key)
+        columnIndex += 1
+      }
+      return style
+    }
+    func splitCell(_ update: inout Update, _ headerState: Int) throws -> NodeKey {
+      let split = update.copyNode(cell)
+      update.modifyCell(split) {
+        $0.colSpan = 1
+        $0.rowSpan = 1
+        $0.headerState = Double(headerState)
+        $0.width = nil
+      }
+      try update.append(split, [update.create(SerializedParagraphNode.type)])
+      return split
+    }
+    if spanColumns > 1 {
+      for i in 1..<spanColumns {
+        try insert(splitCell(&self, colStyles[i] | rowStyles[0]), after: cell)
+      }
+      setColSpan(cell, 1)
+    }
+    guard spanRows > 1 else { return }
+    var currentRowNode = row
+    for i in 1..<spanRows {
+      let currentRow = startRow + i
+      guard let next = state.nextSibling(of: currentRowNode), isRow(next) else {
+        throw EditorError.invalidState("Expected row next sibling to be a row")
+      }
+      currentRowNode = next
+      var insertAfterCell: NodeKey?
+      var column = 0
+      while column < startColumn {
+        let beside = try entry(map, currentRow, column)
+        if beside.startRow == currentRow { insertAfterCell = beside.cell.key }
+        column += max(colSpan(beside.cell), 1)
+      }
+      for j in stride(from: spanColumns - 1, through: 0, by: -1) {
+        let split = try splitCell(&self, colStyles[j] | rowStyles[i])
+        if let insertAfterCell {
+          try insert(split, after: insertAfterCell)
+        } else {
+          try insertFirst(next, split)
+        }
+      }
+    }
+    setRowSpan(cell, 1)
+  }
+
+  /// `$mergeCells`: the cells merged into the top left one of the rectangle
+  /// they span, which takes in the content of those that have any.
+  private mutating func mergeCells(_ cells: [NodeKey]) throws {
+    guard let first = cells.first else { return }
+    guard let table = findParent(from: first, where: isTable) else {
+      throw EditorError.invalidState("Expected table cell to be inside of table.")
+    }
+    let (map, _, _) = try computeTableMapSkipCellCheck(table, nil, nil)
+    var bounds: (minRow: Int, maxRow: Int, minColumn: Int, maxColumn: Int)?
+    var processed: Set<NodeKey> = []
+    for value in map.joined().compactMap(\.self) where !processed.contains(value.cell.key) {
+      guard cells.contains(value.cell.key) else { continue }
+      processed.insert(value.cell.key)
+      let lastRow = value.startRow + max(rowSpan(value.cell), 1) - 1
+      let lastColumn = value.startColumn + max(colSpan(value.cell), 1) - 1
+      bounds = (
+        min(bounds?.minRow ?? value.startRow, value.startRow), max(bounds?.maxRow ?? lastRow, lastRow),
+        min(bounds?.minColumn ?? value.startColumn, value.startColumn), max(bounds?.maxColumn ?? lastColumn, lastColumn)
+      )
+    }
+    guard let bounds else { return }
+    let target = try entry(map, bounds.minRow, bounds.minColumn).cell.key
+    setColSpan(target, bounds.maxColumn - bounds.minColumn + 1)
+    setRowSpan(target, bounds.maxRow - bounds.minRow + 1)
+    var seen: Set<NodeKey> = [target]
+    for row in bounds.minRow...bounds.maxRow {
+      for column in bounds.minColumn...bounds.maxColumn {
+        let cell = try entry(map, row, column).cell.key
+        guard seen.insert(cell).inserted else { continue }
+        if !containsEmptyParagraph(cell) {
+          // The target's own empty paragraph goes before content comes in.
+          if containsEmptyParagraph(target) {
+            for child in Array(state.children(of: target)) { try remove(child) }
+          }
+          try append(target, Array(state.children(of: cell)))
+        }
+        try remove(cell)
+      }
+    }
+    if isEmpty(target) { try append(target, [create(SerializedParagraphNode.type)]) }
+  }
+
+  /// `$cellContainsEmptyParagraph`.
+  private func containsEmptyParagraph(_ cell: NodeKey) -> Bool {
+    guard state.childCount(of: cell) == 1, let child = state.firstChild(of: cell) else { return false }
+    return state[child].type == SerializedParagraphNode.type && isEmpty(child)
+  }
+
   /// `$moveSelectionToCell`.
   private mutating func moveSelection(toCell cell: NodeKey) {
     if let first = firstDescendant(of: cell) {
@@ -770,30 +1108,53 @@ extension Update {
   /// so the delete takes the table whole; a table selection's cells are
   /// cleared. True where that handled it.
   mutating func deleteCellHandler() throws -> Bool {
+    for table in tables() where try deleteCellHandler(table) { return true }
+    return false
+  }
+
+  /// One table's `$deleteCellHandler`.
+  private mutating func deleteCellHandler(_ table: NodeKey) throws -> Bool {
+    guard let (anchor, focus) = try? selectionPoints() else { return false }
+    let isAnchorInside = hasAncestor(anchor.key, table)
+    let isFocusInside = hasAncestor(focus.key, table)
+    if isAnchorInside != isFocusInside {
+      let (tablePoint, outerPoint) = isAnchorInside ? (anchor, focus) : (focus, anchor)
+      let outer = outerPoint.value
+      let grown = try state.isBefore(tablePoint, outerPoint) ? selectPrevious(table) : selectNext(table)
+      (isAnchorInside ? grown.focus : grown.anchor).set(outer)
+      return false
+    }
+    guard isAnchorInside, let tableSelection else { return false }
+    try clearText(tableSelection, observing: table)
+    return true
+  }
+
+  /// Each table's CUT_COMMAND handler, which takes a cut from rich text in
+  /// a document with a table: the selection is copied, then deleted as that
+  /// table's `$deleteCellHandler` deletes, and a range's text removed. True
+  /// where a table's handler took the cut.
+  mutating func cutHandler() throws -> Bool {
     for table in tables() {
-      guard let (anchor, focus) = try? selectionPoints() else { return false }
-      let isAnchorInside = hasAncestor(anchor.key, table)
-      let isFocusInside = hasAncestor(focus.key, table)
-      if isAnchorInside != isFocusInside {
-        let (tablePoint, outerPoint) = isAnchorInside ? (anchor, focus) : (focus, anchor)
-        let outer = outerPoint.value
-        let grown = try state.isBefore(tablePoint, outerPoint) ? selectPrevious(table) : selectNext(table)
-        (isAnchorInside ? grown.focus : grown.anchor).set(outer)
-        continue
+      if let selection {
+        clipboard = try copy(selection) ?? Clipboard(plainText: "")
+        _ = try deleteCellHandler(table)
+        try removeText(selection)
+        return true
       }
-      guard isAnchorInside, let tableSelection else { continue }
-      try clearText(tableSelection)
-      return true
+      guard let tableSelection else { return false }
+      clipboard = try copy(tableSelection)
+      if try deleteCellHandler(table) { return true }
     }
     return false
   }
 
-  /// `TableObserver.$clearText`: the selected cells keep an empty paragraph
-  /// each, or the table goes where every cell is selected.
-  mutating func clearText(_ selection: TableSelection) throws {
-    guard isTable(selection.table) else { throw EditorError.invalidState("Expected TableNode.") }
-    let table = selection.table
-    let cells = try cells(of: selection)
+  /// `TableObserver.$clearText`, the observer's of `table`: the selected
+  /// cells keep an empty paragraph each, or the table goes where its first
+  /// and last cells are the first and last selected.
+  mutating func clearText(_ selection: TableSelection, observing table: NodeKey? = nil) throws {
+    let table = table ?? selection.table
+    guard isTable(table) else { throw EditorError.invalidState("Expected TableNode.") }
+    let cells = try nodes(in: selection).filter(isCell)
     let firstRow = state.firstChild(of: table)
     let lastRow = state.lastChild(of: table)
     if let firstRow, let lastRow, isRow(firstRow), isRow(lastRow), !cells.isEmpty,
@@ -825,7 +1186,7 @@ extension Update {
   /// selected cell's content, toggled as its first cell's paragraph has
   /// the format.
   mutating func formatCells(_ selection: TableSelection, _ type: TextFormatType) throws {
-    let cells = try cells(of: selection)
+    let cells = try nodes(in: selection).filter(isCell)
     guard let firstCell = cells.first else { throw EditorError.invalidState("No table cells present") }
     let align = state.firstChild(of: firstCell).flatMap { paragraph in
       state[paragraph].type == SerializedParagraphNode.type

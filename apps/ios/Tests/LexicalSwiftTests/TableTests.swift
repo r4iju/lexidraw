@@ -182,6 +182,25 @@ import Testing
           cells: [[1, 0, 0], [1, 0, 0, 0, 0, 1], [1, 0, 0, 0, 0, 0], [1, 0, 1]]))
   }
 
+  /// The cells of a table in a selected cell are among those cleared, so
+  /// with one in the last cell, not every cell of the table is selected
+  /// first to last, and the table stays.
+  @Test func clearingCellsTakesInTheCellsOfATableInACell() throws {
+    let holding = LexicalJSON.element(
+      "tablecell", [LexicalJSON.table([["x", "y"]]), paragraph(text("b"))],
+      ["backgroundColor": nil, "colSpan": 1, "headerState": 0, "rowSpan": 1])
+    let start = document(
+      paragraph(text("before")), table([[tableCell("a"), holding]]), paragraph(text("after")))
+    let selected = EditorCommand.setSelection(anchor: .text([1, 0, 0, 0, 0], 0), focus: .text([1, 0, 1, 1, 0], 1))
+
+    let cleared = try agreed(start, [selected, .deleteCharacter(backward: true)])
+    #expect(types(cleared.expected) == ["paragraph", "table", "paragraph"])
+    #expect(cellTexts(cleared.expected, table: 1) == [["", ""]])
+
+    let bold = try agreed(start, [selected, .formatText(.bold)])
+    #expect(node(bold.expected, [1, 0, 1, 0, 0, 0, 0, 0])?["format"] == 1)
+  }
+
   @Test func formattingATableSelectionFormatsEveryCell() throws {
     let fixture = try agreed(
       grid, [.setSelection(anchor: cell(0, 0, 0), focus: cell(1, 0, 0)), .formatText(.bold), .formatText(.bold)])
@@ -443,6 +462,140 @@ import Testing
     let shifted = try agreed(
       document(paragraph(), rule), [.caret(first), arrow(.down, extend: true, native: first)])
     #expect(shifted.expected.selection?.anchor == first)
+  }
+
+  // MARK: The clipboard
+
+  private func clipboard(_ fixture: Fixture) -> Clipboard? {
+    if case .applied(let changes) = fixture.changes.last { changes.clipboard } else { nil }
+  }
+
+  private func tableCell(_ content: String, colSpan: Int = 1, _ fields: JSONObject = [:]) -> JSONValue {
+    var all: JSONObject = ["backgroundColor": nil, "colSpan": .number(Double(colSpan)), "headerState": 0, "rowSpan": 1]
+    for (key, value) in fields { all[key] = value }
+    return LexicalJSON.element("tablecell", [paragraph(text(content))], all)
+  }
+
+  private func table(_ rows: [[JSONValue]]) -> JSONValue {
+    LexicalJSON.element("table", rows.map { LexicalJSON.element("tablerow", $0) })
+  }
+
+  private let everyCell = EditorCommand.setSelection(anchor: .text([1, 0, 0, 0, 0], 0), focus: .text([1, 1, 1, 0, 0], 0))
+
+  /// A table pasted into a cell fills the grid from that cell, growing it
+  /// where it's bigger, rather than going inside the cell.
+  @Test func aTablePastedIntoACellFillsTheGridFromThere() throws {
+    let fits = try agreed(grid, [.caret(cell(0, 0, 1)), .paste(copied("x\ty\n", LexicalJSON.table([["x", "y"]])))])
+    #expect(cellTexts(fits.expected, table: 1) == [["x", "y"], ["c", "d"]])
+
+    let grows = try agreed(
+      grid, [.caret(cell(1, 1, 0)), .paste(copied("", LexicalJSON.table([["1", "2"], ["3", "4"]])))])
+    #expect(cellTexts(grows.expected, table: 1) == [["a", "b", ""], ["c", "1", "2"], ["", "3", "4"]])
+  }
+
+  /// A pasted table's merged cells merge the grid's, the grid's merged
+  /// cells under it are split, and its cells' fills and alignments carry
+  /// over.
+  @Test func aPastedTableBringsItsMergesAndFills() throws {
+    let template = table([
+      [tableCell("wide", colSpan: 2, ["backgroundColor": "#eee", "verticalAlign": "middle"])],
+      [tableCell("p"), tableCell("q")],
+    ])
+    let merged = try agreed(grid, [.caret(cell(0, 0, 0)), .paste(copied("", template))])
+    #expect(cellTexts(merged.expected, table: 1) == [["wide"], ["p", "q"]])
+    #expect(node(merged.expected, [1, 0, 0])?["colSpan"] == 2)
+    #expect(node(merged.expected, [1, 0, 0])?["backgroundColor"] == "#eee")
+    #expect(node(merged.expected, [1, 0, 0])?["verticalAlign"] == "middle")
+
+    let split = try agreed(
+      document(table([[tableCell("wide", colSpan: 2)], [tableCell("a"), tableCell("b")]])),
+      [.caret(.text([0, 0, 0, 0, 0], 0)), .paste(copied("", LexicalJSON.table([["x", "y"]])))])
+    #expect(cellTexts(split.expected, table: 0) == [["x", "y"], ["a", "b"]])
+  }
+
+  /// Over selected cells, a pasted table fills no more than they span.
+  @Test func aTablePastedOverSelectedCellsFillsNoMoreThanThem() throws {
+    let fixture = try agreed(
+      grid,
+      [.setSelection(anchor: cell(0, 0, 0), focus: cell(0, 1, 0)), .paste(copied("", LexicalJSON.table([["1", "2"], ["3", "4"]])))])
+
+    #expect(cellTexts(fixture.expected, table: 1) == [["1", "2"], ["c", "d"]])
+  }
+
+  /// Text pasted over selected cells is cut into cells at tabs and into
+  /// rows at line ends, and fills the grid from the anchor's cell; pasted
+  /// blocks are pasted as their text, a line each.
+  @Test func textPastedOverSelectedCellsFillsCellsByTabsAndLines() throws {
+    let tsv = try agreed(grid, [everyCell, plain("1\t2\n3\t4\n")])
+    #expect(cellTexts(tsv.expected, table: 1) == [["1", "2"], ["3", "4"]])
+
+    let wider = try agreed(grid, [everyCell, plain("1\t2\t3")])
+    #expect(cellTexts(wider.expected, table: 1) == [["1", "2", "3"], ["c", "d", ""]])
+
+    let blocks = try agreed(grid, [everyCell, .paste(ClipboardTests.paragraphs)])
+    #expect(cellTexts(blocks.expected, table: 1) == [["one", "b"], ["two", "d"]])
+
+    let url = try agreed(grid, [everyCell, plain("https://a.io")])
+    #expect(node(url.expected, [1, 0, 0, 0, 0])?["type"] == "autolink")
+  }
+
+  /// A table with anything beside it is turned away from a cell, as no
+  /// table goes inside a table.
+  @Test func aTableWithMorePastedIntoACellIsTurnedAway() throws {
+    let fixture = try agreed(
+      grid, [.caret(cell(0, 0, 1)), .paste(copied("", LexicalJSON.table([["x"]]), paragraph(text("y"))))])
+
+    #expect(!fixture.changes.contains { if case .refused = $0 { true } else { false } })
+    #expect(cellTexts(fixture.expected, table: 1) == [["a", "b"], ["c", "d"]])
+  }
+
+  /// Copying selected cells puts on the clipboard their table, holding
+  /// the rows and cells selected, and their text set out by tabs and lines,
+  /// which a paste into another cell lays out again.
+  @Test func copyingSelectedCellsCopiesTheirTable() throws {
+    let fixture = try agreed(grid, [.setSelection(anchor: cell(0, 1, 0), focus: cell(1, 1, 0)), .copy])
+    let copied = try #require(clipboard(fixture))
+    #expect(copied.plainText == "b\nd\n")
+    #expect(copied.lexical?.nodes.map { $0["type"] } == ["table"])
+
+    let pasted = try agreed(grid, [.caret(cell(0, 0, 0)), .paste(copied)])
+    #expect(cellTexts(pasted.expected, table: 1) == [["b", "b"], ["d", "d"]])
+  }
+
+  /// Cutting selected cells copies them and empties them, in one step that
+  /// undo takes back.
+  @Test func cuttingSelectedCellsCopiesAndEmptiesThem() throws {
+    let selected = EditorCommand.setSelection(anchor: cell(0, 1, 0), focus: cell(1, 1, 0))
+    let cut = try agreed(grid, [selected, .cut])
+    #expect(clipboard(cut)?.plainText == "b\nd\n")
+    #expect(cellTexts(cut.expected, table: 1) == [["a", ""], ["c", ""]])
+
+    let undone = try agreed(grid, [selected, .cut, .undo])
+    #expect(cellTexts(undone.expected, table: 1) == [["a", "b"], ["c", "d"]])
+  }
+
+  /// With a table in the document, the table's handler cuts a range, in one
+  /// update: a caret's cut empties the clipboard, a whole document isn't
+  /// widened to its blocks first, and a range reaching into the table takes
+  /// the table and reaches on to the start of the block after it.
+  @Test func aTableCutsARangeInItsDocument() throws {
+    let caret = try agreed(grid, [.caret(.text([0, 0], 2)), .cut])
+    #expect(clipboard(caret) == Clipboard(plainText: ""))
+
+    let whole = try agreed(grid, [.setSelection(anchor: .text([0, 0], 0), focus: .text([2, 0], 5)), .cut, .undo])
+    #expect(!whole.changes.contains { if case .refused = $0 { true } else { false } })
+
+    let into = try agreed(grid, [.setSelection(anchor: .text([0, 0], 2), focus: cell(0, 0, 1)), .cut])
+    #expect(types(into.expected) == ["paragraph"])
+    #expect(node(into.expected, [0, 0])?["text"] == "beafter")
+  }
+
+  /// A link over selected cells changes nothing, as Lexical's `$toggleLink`
+  /// leaves a table selection be.
+  @Test func aLinkOverSelectedCellsChangesNothing() throws {
+    let fixture = try agreed(grid, [everyCell, .toggleLink(url: "https://a.io"), .editLink(url: "https://b.io"), .toggleLink(url: nil)])
+
+    #expect(fixture.changes.dropFirst() == [.applied(ChangeSet()), .applied(ChangeSet()), .applied(ChangeSet())])
   }
 
   private func tablePath(_ selection: Selection?) -> [Int]? {

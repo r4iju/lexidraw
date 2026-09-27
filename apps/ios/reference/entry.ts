@@ -113,6 +113,7 @@ import "./url.js";
 import {
   $checkSelectionForTable,
   $clearHighlight,
+  $cutHandler,
   $deleteCellHandler,
   $deleteTextHandler,
   $fixRangeSelectionForSelectedTable,
@@ -301,8 +302,21 @@ function commitQueuedUpdates(): void {
   }
 }
 
-/** Rich text's cut. */
+/**
+ * A cut: each table's handler takes it where the document has a table, in
+ * the one update its command runs in, and rich text's otherwise.
+ */
 function cut(): void {
+  let isCutByATable = false;
+  current().update(
+    () => {
+      isCutByATable = $cutHandler((selection) => {
+        clipboard = clipboardData(selection);
+      });
+    },
+    { discrete: true },
+  );
+  if (lastError || isCutByATable) return;
   current().update(
     () => {
       const selection = rangeSelection();
@@ -322,10 +336,15 @@ function cut(): void {
 
 /**
  * What a copy puts on the clipboard, which is nothing for a collapsed
- * selection.
+ * range.
  */
-function copy(selection: RangeSelection): Clipboard | undefined {
-  if (selection.isCollapsed()) return undefined;
+function copy(selection: BaseSelection): Clipboard | undefined {
+  if ($isRangeSelection(selection) && selection.isCollapsed()) return undefined;
+  return clipboardData(selection);
+}
+
+/** `$getClipboardDataFromSelection`, short of the HTML (#168). */
+function clipboardData(selection: BaseSelection): Clipboard {
   const lexical = $exportMimeTypeFromSelection(LEXICAL_MIME_TYPE, selection);
   return {
     "text/plain": $exportMimeTypeFromSelection("text/plain", selection) ?? "",
@@ -586,16 +605,10 @@ function run(
       $setBlockType(selection, command.blockType);
       return;
     case "insertList":
-      editor.dispatchCommand(LIST_COMMANDS[command.listType], undefined);
-      return;
     case "removeList":
-      editor.dispatchCommand(REMOVE_LIST_COMMAND, undefined);
-      return;
     case "indent":
-      editor.dispatchCommand(INDENT_CONTENT_COMMAND, undefined);
-      return;
     case "outdent":
-      editor.dispatchCommand(OUTDENT_CONTENT_COMMAND, undefined);
+      runOnBlocks(command);
       return;
     case "tab":
       if (
@@ -787,13 +800,45 @@ function runOnCells(
     case "removeList":
     case "indent":
     case "outdent":
-    case "toggleLink":
-    case "editLink":
-    case "copy":
-    case "paste":
       throw new EditorError("unsupported", `${command.type} over table cells`);
+    case "toggleLink":
+      current().dispatchCommand(TOGGLE_LINK_COMMAND, command.url);
+      return;
+    case "editLink":
+      saveLink(current(), command.url);
+      return;
+    case "copy":
+      clipboard = copy(selection);
+      return;
+    case "paste":
+      paste(command.clipboard);
+      return;
     default:
       runOnTable(command);
+  }
+}
+
+/** The toolbar's list, indent and outdent buttons. */
+function runOnBlocks(
+  command: Extract<
+    Command,
+    { type: "insertList" | "removeList" | "indent" | "outdent" }
+  >,
+) {
+  const editor = current();
+  switch (command.type) {
+    case "insertList":
+      editor.dispatchCommand(LIST_COMMANDS[command.listType], undefined);
+      return;
+    case "removeList":
+      editor.dispatchCommand(REMOVE_LIST_COMMAND, undefined);
+      return;
+    case "indent":
+      editor.dispatchCommand(INDENT_CONTENT_COMMAND, undefined);
+      return;
+    case "outdent":
+      editor.dispatchCommand(OUTDENT_CONTENT_COMMAND, undefined);
+      return;
   }
 }
 

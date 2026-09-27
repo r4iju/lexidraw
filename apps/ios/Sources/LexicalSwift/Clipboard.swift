@@ -8,16 +8,31 @@ extension Update {
   func copy(_ selection: RangeSelection) throws -> Clipboard? {
     guard !selection.isCollapsed else { return nil }
     let selected = try nodes(in: selection)
-    var nodes: [JSONValue] = []
-    if !selected.isEmpty {
-      let selectedSet = Set(selected)
-      for child in state.children(of: EditorState.rootKey) {
-        try appendJSON(child, selection, selectedSet, into: &nodes)
-      }
-    }
     return Clipboard(
-      plainText: try textContent(selection, selected),
-      lexical: selected.isEmpty ? nil : LexicalClipboardPayload(namespace: editorNamespace, nodes: nodes))
+      plainText: try textContent(selection, selected), lexical: try lexicalContent(.range(selection), selected))
+  }
+
+  /// `$getClipboardDataFromSelection` for selected cells.
+  func copy(_ selection: TableSelection) throws -> Clipboard {
+    Clipboard(
+      plainText: try textContent(selection), lexical: try lexicalContent(.cells(selection), nodes(in: selection)))
+  }
+
+  /// A selection a copy is of or a paste goes into.
+  enum ClipboardSelection {
+    case range(RangeSelection)
+    case cells(TableSelection)
+  }
+
+  /// `$getLexicalContent`: nothing where nothing is selected.
+  private func lexicalContent(_ copied: ClipboardSelection, _ selected: [NodeKey]) throws -> LexicalClipboardPayload? {
+    guard !selected.isEmpty else { return nil }
+    let selectedSet = Set(selected)
+    var nodes: [JSONValue] = []
+    for child in state.children(of: EditorState.rootKey) {
+      try appendJSON(child, copied, selectedSet, into: &nodes)
+    }
+    return LexicalClipboardPayload(namespace: editorNamespace, nodes: nodes)
   }
 
   /// A cut's copy: a selection of the whole document widens to its blocks
@@ -33,21 +48,26 @@ extension Update {
   /// its place.
   @discardableResult
   private func appendJSON(
-    _ key: NodeKey, _ selection: RangeSelection, _ selected: Set<NodeKey>, into target: inout [JSONValue]
+    _ key: NodeKey, _ copied: ClipboardSelection, _ selected: Set<NodeKey>, into target: inout [JSONValue]
   ) throws -> Bool {
-    var shouldInclude = isSelected(key, selection, selected)
+    var shouldInclude = isSelected(key, copied, selected)
     guard case .object(var json) = state.json(of: key, includingChildren: false) else {
       preconditionFailure("A node's JSON is an object")
     }
     if state[key].isText {
-      let text = try slicedText(key, selection, isSelected: shouldInclude)
+      let text =
+        if case .range(let selection) = copied {
+          try slicedText(key, selection, isSelected: shouldInclude)
+        } else {
+          state[key].text
+        }
       json["text"] = .string(text)
       if text.isEmpty { shouldInclude = false }
     }
     var children: [JSONValue] = []
     for child in state.children(of: key) {
-      let includesChild = try appendJSON(child, selection, selected, into: &children)
-      if !shouldInclude, includesChild, try extractsWithChild(key, child, selection) { shouldInclude = true }
+      let includesChild = try appendJSON(child, copied, selected, into: &children)
+      if !shouldInclude, includesChild, try extractsWithChild(key, child, copied) { shouldInclude = true }
     }
     guard shouldInclude else {
       target += children
@@ -59,10 +79,10 @@ extension Update {
   }
 
   /// `LexicalNode.isSelected`.
-  private func isSelected(_ key: NodeKey, _ selection: RangeSelection, _ selected: Set<NodeKey>) -> Bool {
+  private func isSelected(_ key: NodeKey, _ copied: ClipboardSelection, _ selected: Set<NodeKey>) -> Bool {
     let isSelected = selected.contains(key)
     let node = state[key]
-    guard !node.isText, selection.anchor.type == .element, selection.focus.type == .element else { return isSelected }
+    guard case .range(let selection) = copied, !node.isText, selection.anchor.type == .element, selection.focus.type == .element else { return isSelected }
     if selection.isCollapsed { return false }
     if node.isDecorator, node.isInline, let parent = state.parent(of: key),
       let firstPoint = try? state.startEnd(selection).start, firstPoint.key == parent,
@@ -88,11 +108,13 @@ extension Update {
   /// any of its items, a list item with all of its text selected from inside
   /// it, a link keeps a selection inside it, and a paragraph holding
   /// alignment or indent that's wholly selected goes as a block rather than
-  /// as its text.
-  private func extractsWithChild(_ key: NodeKey, _ child: NodeKey, _ selection: RangeSelection) throws -> Bool {
+  /// as its text. Only a heading and a list go with a child over selected
+  /// cells.
+  private func extractsWithChild(_ key: NodeKey, _ child: NodeKey, _ copied: ClipboardSelection) throws -> Bool {
     let node = state[key]
     if node.type == SerializedHeadingNode.type { return true }
     if isList(key) { return isListItem(child) }
+    guard case .range(let selection) = copied else { return false }
     if isListItem(key) {
       guard hasAncestor(selection.anchor.key, key), hasAncestor(selection.focus.key, key) else { return false }
       return try state.textContent(of: key).utf16.count == textContent(selection).utf16.count
@@ -153,13 +175,22 @@ extension Update {
   // MARK: Pasting
 
   /// The web editor's `PASTE_COMMAND`: its Link plugin links selected text to
-  /// a pasted URL, and otherwise rich text inserts the clipboard, as Lexical
-  /// nodes where they're from an editor of the same namespace, else as the
-  /// plain text.
+  /// a pasted URL, and otherwise rich text inserts the clipboard.
   mutating func paste(_ selection: RangeSelection, _ clipboard: Clipboard) throws {
     if try pastesAsLink(selection, clipboard.plainText) {
       return try toggleLinkCommand(selection, url: clipboard.plainText)
     }
+    try paste(clipboard, into: .range(selection))
+  }
+
+  /// `PASTE_COMMAND` over selected cells, which rich text answers.
+  mutating func paste(_ selection: TableSelection, _ clipboard: Clipboard) throws {
+    try paste(clipboard, into: .cells(selection))
+  }
+
+  /// Rich text's paste: the clipboard as Lexical nodes where they're from an
+  /// editor of the same namespace, else as the plain text.
+  private mutating func paste(_ clipboard: Clipboard, into target: ClipboardSelection) throws {
     tags.insert(.paste)
     if let nodes = pastedNodes(clipboard.lexical) {
       // `$defaultLexicalEditorImporter` catches what reading and inserting
@@ -173,12 +204,27 @@ extension Update {
             state[refused].portingIssue.map { "Pasting \(type) nodes isn't supported yet (#\($0))" }
               ?? "Pasting \(type) nodes LexicalSwift doesn't edit isn't supported")
         }
-        try insertNodes(selection, parsed)
-        try updateSelectionOnInsert(selection)
+        try insertGeneratedNodes(parsed, target)
         return
       } catch EditorError.invalidState {}
     }
-    try insertRawText(clipboard.plainText)
+    switch target {
+    case .range: try insertRawText(clipboard.plainText)
+    case .cells(let selection): try insertRawText(selection, clipboard.plainText)
+    }
+  }
+
+  /// `$insertGeneratedNodes`, which the table plugin's handler answers
+  /// first.
+  private mutating func insertGeneratedNodes(_ nodes: [NodeKey], _ target: ClipboardSelection) throws {
+    if try tableSelectionInsertClipboardNodes(nodes, target) { return }
+    switch target {
+    case .range(let selection):
+      try insertNodes(selection, nodes)
+      try updateSelectionOnInsert(selection)
+    case .cells(let selection):
+      try insertNodes(selection, nodes)
+    }
   }
 
   /// The Link plugin's paste handler: a URL over selected simple text.

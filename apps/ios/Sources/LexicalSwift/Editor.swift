@@ -53,6 +53,9 @@ public final class Editor: EditorModel {
         let compositionEnd = if case .commitComposition = command { true } else { false }
         return try commit(compositionEnd: compositionEnd) { try $0.run(command) }
       }
+      var isCutByATable = false
+      let byATable = try commit { isCutByATable = try $0.cutHandler() }
+      if isCutByATable { return byATable }
       // Rich text's cut is two updates: a copy, then a delete.
       let copied = try commit(tags: [.cut]) { try $0.copyForCut() }
       var changes = try commit(tags: [.cut]) { update in
@@ -282,6 +285,10 @@ extension Update {
     case .insertParagraph, .insertLineBreak: break
     // Neither the table's Tab nor Tab indentation's answers cells.
     case .tab: break
+    // `$toggleLink` leaves a table selection be.
+    case .toggleLink, .editLink: break
+    case .copy: clipboard = try copy(selection)
+    case .paste(let clipboard): try paste(selection, clipboard)
     default: try runOnTable(command)
     }
   }

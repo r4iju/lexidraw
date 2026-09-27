@@ -171,31 +171,61 @@ function $isSelectionInTable(
  * whole; a table selection's cells are cleared. True where that handled it.
  */
 export function $deleteCellHandler(): boolean {
+  return $tables().some($tableDeleteCellHandler);
+}
+
+/** One table's `$deleteCellHandler`. */
+function $tableDeleteCellHandler(tableNode: TableNode): boolean {
+  const selection = $getSelection();
+  if (!($isRangeSelection(selection) || $isTableSelection(selection))) {
+    return false;
+  }
+  const isAnchorInside = tableNode.isParentOf(selection.anchor.getNode());
+  const isFocusInside = tableNode.isParentOf(selection.focus.getNode());
+  if (isAnchorInside !== isFocusInside) {
+    const tablePoint = isAnchorInside ? "anchor" : "focus";
+    const outerPoint = isAnchorInside ? "focus" : "anchor";
+    const { key, offset, type } = selection[outerPoint];
+    const newSelection =
+      tableNode[
+        selection[tablePoint].isBefore(selection[outerPoint])
+          ? "selectPrevious"
+          : "selectNext"
+      ]();
+    newSelection[outerPoint].set(key, offset, type);
+    return false;
+  }
+  if (!$isSelectionInTable(selection, tableNode)) return false;
+  if ($isTableSelection(selection)) {
+    $observer(tableNode.getKey()).$clearText();
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Copies `applyTableHandlers`'s CUT_COMMAND handler, each table's, which
+ * takes a cut from rich text in a document with a table: the selection is
+ * copied, then deleted as that table's `$deleteCellHandler` deletes, and a
+ * range's text removed. `copy` puts the selection on the clipboard, as
+ * `copyToClipboard` does with `$getClipboardDataFromSelection`'s data. True
+ * where a table's handler took the cut.
+ */
+export function $cutHandler(
+  copy: (selection: RangeSelection | TableSelection) => void,
+): boolean {
   for (const tableNode of $tables()) {
     const selection = $getSelection();
-    if (!($isRangeSelection(selection) || $isTableSelection(selection))) {
+    if (!($isTableSelection(selection) || $isRangeSelection(selection))) {
       return false;
     }
-    const isAnchorInside = tableNode.isParentOf(selection.anchor.getNode());
-    const isFocusInside = tableNode.isParentOf(selection.focus.getNode());
-    if (isAnchorInside !== isFocusInside) {
-      const tablePoint = isAnchorInside ? "anchor" : "focus";
-      const outerPoint = isAnchorInside ? "focus" : "anchor";
-      const { key, offset, type } = selection[outerPoint];
-      const newSelection =
-        tableNode[
-          selection[tablePoint].isBefore(selection[outerPoint])
-            ? "selectPrevious"
-            : "selectNext"
-        ]();
-      newSelection[outerPoint].set(key, offset, type);
-      continue;
-    }
-    if (!$isSelectionInTable(selection, tableNode)) continue;
-    if ($isTableSelection(selection)) {
-      $observer(tableNode.getKey()).$clearText();
+    copy(selection);
+    const intercepted = $tableDeleteCellHandler(tableNode);
+    if ($isRangeSelection(selection)) {
+      selection.removeText();
       return true;
     }
+    if (intercepted) return true;
   }
   return false;
 }
