@@ -82,7 +82,9 @@ beforeAll(async () => {
               },
             ],
           })
-        : realFetch(input)) as typeof fetch;
+        : String(input).startsWith("https://blob.test/")
+          ? new Response(null, { status: 404 })
+          : realFetch(input)) as typeof fetch;
   await db.insert(schema.users).values([
     { id: OWNER, name: "Owner", email: "lsn-owner@example.test" },
     { id: STRANGER, name: "Stranger", email: "lsn-stranger@example.test" },
@@ -218,6 +220,29 @@ describe("listening to a file", () => {
     await db
       .update(schema.ttsJobs)
       .set({ status: "ready", manifestUrl: MANIFEST, segmentCount: 2 })
+      .where(eq(schema.ttsJobs.entityId, DOC));
+  });
+
+  test("once made, with its manifest unreadable, answers its parts from its run's plan", async () => {
+    await db
+      .update(schema.ttsJobs)
+      .set({
+        status: "ready",
+        runId: "run-live",
+        manifestUrl: "https://blob.test/tts/doc/lsn/missing.json",
+        segmentCount: 3,
+      })
+      .where(eq(schema.ttsJobs.entityId, DOC));
+
+    const listening = await callerOf(OWNER).listening({ id: DOC });
+
+    expect(listening).toMatchObject({
+      status: "ready",
+      segments: PLAN.segments,
+    });
+    await db
+      .update(schema.ttsJobs)
+      .set({ manifestUrl: MANIFEST, segmentCount: 2 })
       .where(eq(schema.ttsJobs.entityId, DOC));
   });
 
