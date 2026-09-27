@@ -1,7 +1,7 @@
-/// Lists, checklists, indenting and Tab, ported from lexical@0.51.0 as the
-/// document editor registers them (`registerDocumentEditing` in
-/// @packages/lexical-nodes): @lexical/list's commands and ListItemNode's
-/// overrides, rich text's indent handlers and Tab indentation.
+/// Lists, checklists, indenting and Tab, ported from lexical@0.51.0 and
+/// `registerDocumentEditing` in @packages/lexical-nodes: @lexical/list's
+/// commands and ListItemNode's overrides, rich text's indent handlers and
+/// Tab indentation.
 extension Update {
   // MARK: Nodes
 
@@ -14,7 +14,7 @@ extension Update {
     let list = create(SerializedListNode.type)
     if case .list(var payload) = state[list].payload {
       payload.listType = listType
-      payload.tag = listType == .number ? .ol : .ul
+      payload.tag = listType.tag
       state.nodes[list]!.payload = .list(payload)
     }
     return list
@@ -312,7 +312,7 @@ extension Update {
     let newList = copyNode(list)
     modifyList(newList) {
       $0.listType = listType
-      $0.tag = listType == .number ? .ol : .ul
+      $0.tag = listType.tag
     }
     try splice(newList, 0, deleting: 0, inserting: Array(state.children(of: list)))
     try replace(list, with: newList)
@@ -378,8 +378,7 @@ extension Update {
         let itemFields = state[item].payload.elementFields
         let indent = indent(of: item)
         modifyElement(paragraph) {
-          $0.textStyle = selection.style
-          $0.textFormat = Double(selection.format.rawValue)
+          $0.takeTextFormatAndStyle(of: selection)
           $0.format = itemFields?.format
           $0.indent = indent
           $0.direction = itemFields?.direction ?? .null
@@ -405,11 +404,7 @@ extension Update {
     var emptyItem: NodeKey?
     if isListItem(anchor), isEmpty(anchor) {
       emptyItem = anchor
-    } else if state[anchor].isText, let parent = state.parent(of: anchor), isListItem(parent),
-      state.children(of: parent).allSatisfy({
-        state[$0].isText && state[$0].text.unicodeScalars.allSatisfy(\.isJavaScriptWhitespace)
-      })
-    {
+    } else if state[anchor].isText, let parent = state.parent(of: anchor), isListItem(parent), isBlank(parent) {
       emptyItem = parent
     }
     guard let item = emptyItem else { return false }
@@ -625,4 +620,17 @@ extension Update {
     try setTextStyle(item, style)
     try setTextFormat(item, format)
   }
+}
+
+extension ListType {
+  init(_ listType: EditorCommand.ListType) {
+    switch listType {
+    case .bullet: self = .bullet
+    case .number: self = .number
+    case .check: self = .check
+    }
+  }
+
+  /// The tag Lexical gives a list of this type.
+  var tag: ListTag { self == .number ? .ol : .ul }
 }

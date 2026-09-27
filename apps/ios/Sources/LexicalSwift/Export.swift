@@ -15,7 +15,7 @@ extension EditorState {
           fields["checked"] = nil
         }
       case .list(let list):
-        fields["tag"] = .string(list.listType == .number ? ListTag.ol.rawValue : ListTag.ul.rawValue)
+        fields["tag"] = .string((list.listType?.tag ?? .ul).rawValue)
       default: break
       }
     }

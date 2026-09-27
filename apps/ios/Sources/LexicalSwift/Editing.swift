@@ -80,6 +80,13 @@ extension Update {
     modifyElement(element) { $0.textStyle = style }
   }
 
+  /// Whether an element holds only text, and that only whitespace.
+  func isBlank(_ element: NodeKey) -> Bool {
+    state.children(of: element).allSatisfy {
+      state[$0].isText && state[$0].text.unicodeScalars.allSatisfy(\.isJavaScriptWhitespace)
+    }
+  }
+
   /// A block's `insertNewAfter`: what Enter puts after it. After a
   /// paragraph or a quote, it is `ParagraphNode.insertNewAfter`'s paragraph,
   /// and after a list item a copy of it. A list doesn't split, as an element
@@ -102,8 +109,7 @@ extension Update {
     else { throw EditorError.unsupported("Splitting a \(type) node") }
     let paragraph = create(SerializedParagraphNode.type)
     modifyElement(paragraph) {
-      $0.textFormat = Double(selection.format.rawValue)
-      $0.textStyle = selection.style
+      $0.takeTextFormatAndStyle(of: selection)
       $0.direction = old.direction
       $0.format = old.format
     }
@@ -817,5 +823,14 @@ extension TextFormatType {
       }
     toggled.subtract(excluded)
     return toggled
+  }
+}
+
+extension ElementFields {
+  /// The format and style a new block keeps for text typed into it: the
+  /// selection's.
+  mutating func takeTextFormatAndStyle(of selection: RangeSelection) {
+    textFormat = Double(selection.format.rawValue)
+    textStyle = selection.style
   }
 }

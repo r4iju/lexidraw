@@ -183,10 +183,7 @@ extension Update {
     case SerializedParagraphNode.type: break
     default: return false
     }
-    let isBlank = state.children(of: key).allSatisfy { child in
-      state[child].isText && state[child].text.unicodeScalars.allSatisfy(\.isJavaScriptWhitespace)
-    }
-    guard isBlank else { return false }
+    guard isBlank(key) else { return false }
     if state.nextSibling(of: key) != nil {
       selectNext(key)
     } else if state.previousSibling(of: key) != nil {

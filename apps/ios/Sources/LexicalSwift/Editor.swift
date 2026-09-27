@@ -176,7 +176,7 @@ extension Update {
     case .insertLineBreak: try insertLineBreak(selection)
     case .formatText(let format): try formatText(selection, format)
     case .setBlockType(let type): try setBlockType(selection, type)
-    case .insertList(let listType): try insertList(ListType(rawValue: listType.rawValue)!)
+    case .insertList(let listType): try insertList(ListType(listType))
     case .removeList: try removeList()
     case .indent: try indentContent()
     case .outdent: try outdentContent()
