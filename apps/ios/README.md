@@ -37,8 +37,8 @@ Save writes the document to `EDITOR_SAVE_PATH`, or `saved.json` in its
 Documents, and each call the keyboard made on the editor to
 `EDITOR_INPUT_LOG`.
 With `EDITOR_PREVIEW_ACCESS` (`EDIT` or `READ`) it opens the app's document
-screen instead, on `tracer.json` served with that access, for
-`DocumentPreviewUITests`.
+screen instead, on `EDITOR_DOCUMENT` (a serialized editor state) or else
+`tracer.json`, served with that access, for `DocumentPreviewUITests`.
 
 `bun run test:ui` runs the scheme's tests on a simulator it makes and
 deletes after (`scripts/test-ui.sh`): the UI scripts, `EditorUITests`, and
