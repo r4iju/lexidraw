@@ -110,6 +110,30 @@ import UIKit
     }
   }
 
+  /// A list item's text starts past its marker, 1.625em in for each list
+  /// around it and 1.75em more for each checklist, with items 0.25em apart;
+  /// an indented paragraph starts 40pt in for each level.
+  @Test
+  func itemsAndIndentedBlocksStartAsFarInAsOnTheWeb() throws {
+    let view = try Self.host(
+      LexicalJSON.document([
+        LexicalJSON.list(
+          .bullet, [.item([LexicalJSON.text("a")]), .nested(.check, [.item([LexicalJSON.text("b")])])]),
+        LexicalJSON.paragraph([LexicalJSON.text("c")], indent: 2),
+      ]))
+    let em = UIFont.preferredFont(forTextStyle: .body).pointSize
+    func caret(_ offset: Int) throws -> CGRect {
+      view.caretRect(for: try #require(view.position(from: view.beginningOfDocument, offset: offset)))
+    }
+
+    #expect(try Self.text(of: view) == "a\nb\nc")
+    #expect(abs(try caret(0).minX - 1.625 * em) < 0.5)
+    #expect(abs(try caret(2).minX - (2 * 1.625 + 1.75) * em) < 0.5)
+    #expect(abs(try caret(2).minY - (try caret(0)).maxY - 0.25 * em) < 1)
+    #expect(abs(try caret(4).minX - 80) < 0.5)
+    try Self.expectEveryCaretToLandOnItself(view)
+  }
+
   /// Scrolling up from the middle of a long document, through blocks laid
   /// out for the first time, moves the text exactly as far as the scroll.
   @Test

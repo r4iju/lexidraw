@@ -219,6 +219,43 @@ class EditorUITests: XCTestCase {
       try saved(), LexicalJSON.document([LexicalJSON.paragraph([LexicalJSON.text("👨‍👩‍👧yx👍🏽🇯🇵")])]))
   }
 
+  func testTappingABoxChecksItsItemAndLeavesTheCaret() throws {
+    open(
+      LexicalJSON.document([
+        LexicalJSON.list(.check, [.item([LexicalJSON.text("one")]), .item([LexicalJSON.text("two")])])
+      ]))
+
+    tapBox(ofItem: 0)
+    editor.typeText("!")
+
+    XCTAssertEqual(
+      try saved(),
+      LexicalJSON.document([
+        LexicalJSON.list(.check, [.item([LexicalJSON.text("one")], checked: true), .item([LexicalJSON.text("two!")])])
+      ]))
+  }
+
+  func testTabNestsAnItemAndShiftTabBringsItBack() throws {
+    let flat = LexicalJSON.document([
+      LexicalJSON.list(.bullet, [.item([LexicalJSON.text("one")]), .item([LexicalJSON.text("two")])])
+    ])
+    open(flat)
+    // Tab indents where the caret is at the start of the item; elsewhere it
+    // types a tab.
+    keyboard.press(.leftArrow, .command)
+
+    keyboard.press(.tab)
+    XCTAssertEqual(
+      try saved(),
+      LexicalJSON.document([
+        LexicalJSON.list(
+          .bullet, [.item([LexicalJSON.text("one")]), .nested(.bullet, [.item([LexicalJSON.text("two")])])])
+      ]))
+
+    keyboard.press(.tab, .shift)
+    XCTAssertEqual(try saved(), flat)
+  }
+
   /// Romaji to kana to kanji on the Japanese keyboard. The keyboard's calls
   /// are what `web-composition.json` recorded from iOS, the view shows the
   /// composition where the caret was, and the harness saves what the web
@@ -297,6 +334,15 @@ class EditorUITests: XCTestCase {
   private func tapText(atPoints x: CGFloat, line: Int) {
     editor.coordinate(withNormalizedOffset: .zero)
       .withOffset(CGVector(dx: x, dy: 16 + 11 + CGFloat(line) * 22)).tap()
+  }
+
+  /// Taps the box of item `item` of a checklist at the top of the document,
+  /// its items one line each: the box starts 1.625em into the text, and
+  /// items are 0.25em apart.
+  private func tapBox(ofItem item: Int) {
+    let em: CGFloat = 17
+    editor.coordinate(withNormalizedOffset: .zero)
+      .withOffset(CGVector(dx: 16 + 1.625 * em + 8, dy: 16 + 11 + CGFloat(item) * (22 + 0.25 * em))).tap()
   }
 
   /// Saves through the harness and reads back what it wrote.

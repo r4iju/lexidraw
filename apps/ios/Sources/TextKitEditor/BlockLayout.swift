@@ -319,6 +319,13 @@ import UIKit
     let (_, block, start, local) = locate(offset)
     return start + block.lineBoundary(at: local, backward: backward)
   }
+
+  /// The path of the checklist item whose box a tap at `point` toggles.
+  func checklistItem(at point: CGPoint) -> [Int]? {
+    guard document.blockCount > 0 else { return nil }
+    let index = blockIndex(atY: point.y)
+    return block(index).checklistItem(at: CGPoint(x: point.x, y: point.y - top(index))).map { [index] + $0.path }
+  }
 }
 
 /// A block laid out, with its view. Offsets are into the block; geometry is
@@ -338,10 +345,12 @@ import UIKit
   func lineBoundary(at offset: Int, backward: Bool) -> Int
   /// Scrolls within the block, where it can, to show `offset`.
   func reveal(_ offset: Int)
+  func checklistItem(at point: CGPoint) -> DocumentText.ListItem?
 }
 
 extension LaidOutBlock {
   func reveal(_ offset: Int) {}
+  func checklistItem(at point: CGPoint) -> DocumentText.ListItem? { nil }
 }
 
 private final class TextBlock: LaidOutBlock {
@@ -377,6 +386,7 @@ private final class TextBlock: LaidOutBlock {
     box.offset(movingVerticallyFrom: offset, direction, x: x)
   }
   func lineBoundary(at offset: Int, backward: Bool) -> Int { box.lineBoundary(at: offset, backward: backward) }
+  func checklistItem(at point: CGPoint) -> DocumentText.ListItem? { box.checklistItem(at: point) }
 
   final class BoxView: UIView {
     var box: TextBox?

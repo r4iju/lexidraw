@@ -4,7 +4,8 @@ import UIKit
 /// Text laid out whole by TextKit 2 at a width, for a block or a table cell.
 /// Offsets are into the text; geometry is from the box's top left. The text
 /// keeps the newline that follows it in the document, so an empty block
-/// still has a line to put the caret on.
+/// still has a line to put the caret on. List items and indented blocks
+/// are laid out and drawn as their lines say (`Lines`).
 @MainActor final class TextBox {
   private let storage = NSTextStorage()
   private let contentStorage = NSTextContentStorage()
@@ -14,11 +15,13 @@ import UIKit
   /// The lines as laid out, the extra one TextKit adds after a final newline
   /// left out.
   private var lines: [Line] = []
+  private var listLines = Lines()
 
   private struct Line {
     var frame: CGRect
     var range: NSRange
     var inset: CGFloat
+    var baseline: CGFloat
   }
 
   init(_ text: NSAttributedString, width: CGFloat) {
@@ -36,7 +39,9 @@ import UIKit
   var length: Int { max(storage.length - 1, 0) }
 
   func set(_ text: NSAttributedString) {
-    contentStorage.performEditingTransaction { storage.setAttributedString(text) }
+    let (styled, listLines) = Lines.styled(text)
+    self.listLines = listLines
+    contentStorage.performEditingTransaction { storage.setAttributedString(styled) }
     measure()
   }
 
@@ -58,7 +63,8 @@ import UIKit
         self.lines.append(
           Line(
             frame: line.typographicBounds.offsetBy(dx: origin.x, dy: origin.y), range: range,
-            inset: self.placement(of: line, at: start).inset))
+            inset: self.placement(of: line, at: start).inset,
+            baseline: origin.y + line.typographicBounds.minY + line.glyphOrigin.y))
       }
       return true
     }
@@ -85,6 +91,58 @@ import UIKit
       }
       return true
     }
+    for item in listLines.items {
+      guard let line = lines.first(where: { $0.range.location >= item.range.location }) else { continue }
+      if item.isChecklistItem {
+        drawBox(item, at: CGPoint(x: origin.x, y: origin.y + line.frame.minY), in: context)
+      } else if let marker = item.marker {
+        let text = NSAttributedString(string: marker, attributes: [.font: item.font, .foregroundColor: UIColor.secondaryLabel])
+        let size = text.size()
+        text.draw(at: CGPoint(x: origin.x + item.textStart - size.width, y: origin.y + line.baseline - item.font.ascender))
+      }
+    }
+  }
+
+  /// A checklist item's box as the web's theme draws it: outlined, or when
+  /// checked filled and ticked.
+  private func drawBox(_ item: Lines.Item, at origin: CGPoint, in context: CGContext) {
+    let box = item.box.offsetBy(dx: origin.x, dy: origin.y)
+    let border: CGFloat = 1.5
+    let outline = UIBezierPath(roundedRect: box.insetBy(dx: border / 2, dy: border / 2), cornerRadius: 4)
+    outline.lineWidth = border
+    if item.item.checked {
+      UIColor.tintColor.setFill()
+      UIColor.tintColor.setStroke()
+      outline.fill()
+      outline.stroke()
+      // An L 0.3em wide and 0.5em tall, turned 45°, as the theme's ::after.
+      let tick = CGRect(x: box.minX + 0.34 * item.em, y: box.minY + 0.15 * item.em, width: 0.3 * item.em, height: 0.5 * item.em)
+      context.saveGState()
+      context.translateBy(x: tick.midX, y: tick.midY)
+      context.rotate(by: .pi / 4)
+      let mark = UIBezierPath()
+      mark.move(to: CGPoint(x: tick.width / 2 - border / 2, y: -tick.height / 2))
+      mark.addLine(to: CGPoint(x: tick.width / 2 - border / 2, y: tick.height / 2 - border / 2))
+      mark.addLine(to: CGPoint(x: -tick.width / 2, y: tick.height / 2 - border / 2))
+      mark.lineWidth = border
+      UIColor.systemBackground.setStroke()
+      mark.stroke()
+      context.restoreGState()
+    } else {
+      UIColor.secondaryLabel.setStroke()
+      outline.stroke()
+    }
+  }
+
+  /// The checklist item whose box a tap at `point` toggles.
+  func checklistItem(at point: CGPoint) -> DocumentText.ListItem? {
+    for item in listLines.items where item.isChecklistItem {
+      let itemLines = lines.filter { NSLocationInRange($0.range.location, item.range) || $0.range.location == item.range.location }
+      guard let first = itemLines.first, let last = itemLines.last else { continue }
+      let area = item.toggleArea(height: last.frame.maxY - first.frame.minY).offsetBy(dx: 0, dy: first.frame.minY)
+      if area.contains(point) { return item.item }
+    }
+    return nil
   }
 
   /// Where a line of the paragraph at `offset` has its text, as CSS sets

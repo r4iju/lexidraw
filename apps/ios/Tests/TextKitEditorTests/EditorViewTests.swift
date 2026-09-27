@@ -104,12 +104,10 @@ import UIKit
   /// ⌘⌥0 to ⌘⌥3 and ⌘⌥Q set the block type, as on the web.
   @Test(arguments: [("1", "h1"), ("2", "h2"), ("3", "h3"), ("q", "quote"), ("0", "paragraph")])
   func commandOptionKeysSetTheBlockType(_ input: String, _ type: String) throws {
-    let model = Editor()
-    try model.load(LexicalJSON.document([LexicalJSON.heading("h4", [LexicalJSON.text("one")])]))
-    let view = try hostEditing(model, caretAt: 1)
-    let command = try #require(view.keyCommands?.first { $0.input == input && $0.modifierFlags == [.command, .alternate] })
+    let (model, view) = try host(
+      LexicalJSON.document([LexicalJSON.heading("h4", [LexicalJSON.text("one")])]), caretAt: 1)
 
-    view.perform(try #require(command.action), with: command)
+    try press(input, [.command, .alternate], in: view)
 
     let block = try model.snapshot().state["root"]?["children"]?.arrayValue?.first
     #expect((block?["type"] == "heading" ? block?["tag"] : block?["type"])?.stringValue == type)
@@ -119,9 +117,7 @@ import UIKit
   /// A composition reaches the model as one commit, which can finish a
   /// markdown shortcut as the end of a composition does on the web.
   @Test func aCompositionThatEndsInASpaceFinishesAShortcut() throws {
-    let model = Editor()
-    try model.load(LexicalJSON.document([LexicalJSON.paragraph([])]))
-    let view = try hostEditing(model, caretAt: 0)
+    let (model, view) = try host(LexicalJSON.document([LexicalJSON.paragraph([])]), caretAt: 0)
 
     view.setMarkedText("# ", selectedRange: NSRange(location: 2, length: 0))
     view.unmarkText()
@@ -129,23 +125,70 @@ import UIKit
     #expect(try model.snapshot().state["root"]?["children"]?.arrayValue?.first?["type"] == "heading")
   }
 
+  @Test func tabIndentsAnItemAndShiftTabOutdentsIt() throws {
+    let (model, view) = try host(
+      LexicalJSON.document([
+        LexicalJSON.list(.bullet, [.item([LexicalJSON.text("a")]), .item([LexicalJSON.text("b")])])
+      ]), caretAt: 2)
+
+    try press("\t", [], in: view)
+    #expect(
+      try model.snapshot().state
+        == LexicalJSON.document([
+          LexicalJSON.list(.bullet, [.item([LexicalJSON.text("a")]), .nested(.bullet, [.item([LexicalJSON.text("b")])])])
+        ]))
+
+    try press("\t", .shift, in: view)
+    #expect(
+      try model.snapshot().state
+        == LexicalJSON.document([
+          LexicalJSON.list(.bullet, [.item([LexicalJSON.text("a")]), .item([LexicalJSON.text("b")])])
+        ]))
+  }
+
+  @Test func tabInsideTextInsertsATab() throws {
+    let (model, view) = try host(LexicalJSON.document([LexicalJSON.paragraph([LexicalJSON.text("ab")])]), caretAt: 1)
+
+    try press("\t", [], in: view)
+
+    #expect(
+      try model.snapshot().state
+        == LexicalJSON.document([
+          LexicalJSON.paragraph([LexicalJSON.text("a"), LexicalJSON.tab(), LexicalJSON.text("b")])
+        ]))
+  }
+
+  @Test func listsComeAndGoAndIndentFromTheView() throws {
+    let (model, view) = try host(LexicalJSON.document([LexicalJSON.paragraph([LexicalJSON.text("a")])]), caretAt: 1)
+
+    view.insertList(.check)
+    #expect(
+      try model.snapshot().state == LexicalJSON.document([LexicalJSON.list(.check, [.item([LexicalJSON.text("a")])])]))
+
+    view.removeList()
+    view.indent()
+    view.indent()
+    view.outdent()
+    #expect(
+      try model.snapshot().state == LexicalJSON.document([LexicalJSON.paragraph([LexicalJSON.text("a")], indent: 1)]))
+  }
+
   /// The paragraph's text after the key command for `input` and `modifiers`
   /// runs with the caret `caretAt` UTF-16 offsets into `text`.
   private func text(
     afterPressing input: String, _ modifiers: UIKeyModifierFlags, in text: String, caretAt offset: Int
   ) throws -> String {
-    let model = Editor()
-    try model.load(LexicalJSON.document([LexicalJSON.paragraph([LexicalJSON.text(text)])]))
-    let view = try hostEditing(model, caretAt: offset)
-    let command = try #require(view.keyCommands?.first { $0.input == input && $0.modifierFlags == modifiers })
-    let action = try #require(command.action)
-    view.perform(action, with: command)
+    let (model, view) = try host(LexicalJSON.document([LexicalJSON.paragraph([LexicalJSON.text(text)])]), caretAt: offset)
+    try press(input, modifiers, in: view)
     let paragraph = try model.snapshot().state["root"]?["children"]?.arrayValue?.first
     return paragraph?["children"]?.arrayValue?.first?["text"]?.stringValue ?? ""
   }
 
-  /// A view of `model` in a window, with the caret `offset` into its text.
-  private func hostEditing(_ model: Editor, caretAt offset: Int) throws -> EditorView {
+  /// A view of `document`, first responder with the caret `caretAt` UTF-16
+  /// offsets into its text.
+  private func host(_ document: JSONValue, caretAt offset: Int) throws -> (Editor, EditorView) {
+    let model = Editor()
+    try model.load(document)
     let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 600))
     let view = EditorView(model: model)
     view.frame = window.bounds
@@ -155,7 +198,14 @@ import UIKit
     view.layoutIfNeeded()
     let caret = try #require(view.position(from: view.beginningOfDocument, offset: offset))
     view.selectedTextRange = view.textRange(from: caret, to: caret)
-    return view
+    return (model, view)
+  }
+
+  /// Runs the key command for `input` and `modifiers` as UIKit would.
+  private func press(_ input: String, _ modifiers: UIKeyModifierFlags, in view: EditorView) throws {
+    let command = try #require(view.keyCommands?.first { $0.input == input && $0.modifierFlags == modifiers })
+    let action = try #require(command.action)
+    view.perform(action, with: command)
   }
 }
 #endif
