@@ -7,6 +7,7 @@ import LexicalSwift
 public final class ReferenceEditor: EditorModel {
   private let context: JSContext
   private let api: JSValue
+  private let runTimers: JSValue
   private let encoder = JSONEncoder()
   private let decoder = JSONDecoder()
 
@@ -14,12 +15,16 @@ public final class ReferenceEditor: EditorModel {
   public init(scriptURL: URL) throws {
     guard let context = JSContext() else { throw ReferenceError("Couldn't create a JSContext") }
     self.context = context
-    // Lexical only needs these hosts' globals to exist; a timer would mean an
-    // update escaped the synchronous path the model relies on.
+    // Lexical only needs the console to exist. Its one timer resets how many
+    // updates in a row update listeners have queued, so timers run as the
+    // call that set them returns, as the next task would before a user can
+    // do anything else.
     context.evaluateScript(
       """
       var console = { log() {}, info() {}, warn() {}, error() {}, debug() {} };
-      function setTimeout() { throw new Error("setTimeout is not available to the reference"); }
+      var timers = [];
+      function setTimeout(callback) { timers.push(callback); return timers.length; }
+      function runTimers() { while (timers.length > 0) timers.shift()(); }
       """)
     context.evaluateScript(try String(contentsOf: scriptURL, encoding: .utf8), withSourceURL: scriptURL)
     if let exception = context.exception {
@@ -29,6 +34,7 @@ public final class ReferenceEditor: EditorModel {
       throw ReferenceError("The reference bundle didn't define LexicalReference")
     }
     self.api = api
+    runTimers = context.objectForKeyedSubscript("runTimers")
   }
 
   /// JSON crosses as the text JavaScript reads and writes, so key order
@@ -74,7 +80,10 @@ public final class ReferenceEditor: EditorModel {
   private func call(_ name: String, _ argument: String? = nil) throws -> String {
     context.exception = nil
     let result = api.invokeMethod(name, withArguments: argument.map { [$0] } ?? [])
-    if let exception = context.exception {
+    let exception = context.exception
+    context.exception = nil
+    runTimers.call(withArguments: [])
+    if let exception = exception ?? context.exception {
       context.exception = nil
       throw Self.error(from: exception)
     }

@@ -100,11 +100,11 @@ extension EditorState {
   /// A text node's length in UTF-16 code units, which Lexical's offsets count.
   func textSize(of key: NodeKey) -> Int { self[key].text.utf16.count }
 
-  /// Lexical's `getTextContent`: a line break reads as a newline, and blocks
-  /// are set apart by a blank line.
+  /// Lexical's `getTextContent`: a line break and a horizontal rule read as
+  /// a newline, and blocks are set apart by a blank line.
   func textContent(of key: NodeKey) -> String {
     let node = self[key]
-    if node.isLineBreak { return "\n" }
+    if node.isLineBreak || node.type == SerializedHorizontalRuleNode.type { return "\n" }
     guard let children = node.children else { return node.text }
     var text = ""
     for (index, child) in children.enumerated() {

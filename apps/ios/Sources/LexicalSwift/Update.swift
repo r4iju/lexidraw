@@ -417,9 +417,8 @@ struct Update {
     }
   }
 
-  /// The paths of what changed, in the document after the update.
-  var changes: ChangeSet {
-    let keys = Array(dirtyLeaves) + dirtyElements.filter(\.value).map(\.key)
-    return ChangeSet(changed: Set(keys.compactMap { state.nodes[$0] == nil ? nil : state.path(of: $0) }))
+  /// What changed: the leaves and the elements themselves the update marked.
+  var changedKeys: [NodeKey] {
+    Array(dirtyLeaves) + dirtyElements.filter(\.value).map(\.key)
   }
 }

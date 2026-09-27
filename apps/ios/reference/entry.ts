@@ -4,11 +4,13 @@
  */
 import { createHeadlessEditor } from "@lexical/headless";
 import { createEmptyHistoryState, registerHistory } from "@lexical/history";
+import { registerMarkdownShortcuts } from "@lexical/markdown";
 import {
   $setBlockType,
   type BlockType,
 } from "@packages/lexical-nodes/block-type";
 import { SCHEMA_NODES } from "@packages/lexical-nodes/nodes";
+import { createTransformers } from "@packages/lexical-nodes/transformers";
 import {
   $createRangeSelection,
   $exportNodeJSON,
@@ -25,9 +27,11 @@ import {
   $setSelection,
   HISTORIC_TAG,
   IS_ALL_FORMATTING,
+  KEY_ENTER_COMMAND,
   type EditorState,
   type LexicalEditor,
   type LexicalNode,
+  type NodeKey,
   type PointType,
   REDO_COMMAND,
   type RangeSelection,
@@ -60,7 +64,11 @@ type Command =
 
 let editor: LexicalEditor | null = null;
 let lastError: unknown = null;
-let changed: number[][] = [];
+/**
+ * What the updates a command makes change. A shortcut is an update of its
+ * own after the command's, which the command's change set takes in.
+ */
+const changed = new Set<NodeKey>();
 /** The clock history reads, which only `wait` moves. */
 let now = 0;
 
@@ -94,21 +102,17 @@ function load(stateJSON: string): void {
               .filter(([, intentional]) => intentional)
               .map(([key]) => key),
           ];
-      changed = editorState.read(() =>
-        keys.flatMap((key) => {
-          const node = $getNodeByKey(key);
-          return node ? [pathOf(node)] : [];
-        }),
-      );
+      for (const key of keys) changed.add(key);
     },
   );
+  registerMarkdownShortcuts(next, createTransformers());
   editor = next;
 }
 
 function apply(commandJSON: string): string {
   const command = JSON.parse(commandJSON) as Command;
   lastError = null;
-  changed = [];
+  changed.clear();
   switch (command.type) {
     case "undo":
     case "redo":
@@ -116,9 +120,6 @@ function apply(commandJSON: string): string {
         command.type === "undo" ? UNDO_COMMAND : REDO_COMMAND,
         undefined,
       );
-      // History commits the state it restores in a microtask, before anything
-      // else a user could do; reading commits it now.
-      current().read(() => {});
       break;
     case "wait":
       now += command.milliseconds;
@@ -126,8 +127,28 @@ function apply(commandJSON: string): string {
     default:
       current().update(() => run(command), { discrete: true });
   }
+  commitQueuedUpdates();
   if (lastError) throw lastError;
-  return JSON.stringify({ changed });
+  const paths = current().read(() =>
+    [...changed].flatMap((key) => {
+      const node = $getNodeByKey(key);
+      return node ? [pathOf(node)] : [];
+    }),
+  );
+  return JSON.stringify({ changed: paths });
+}
+
+/**
+ * History commits the state it restores, and a markdown shortcut the update
+ * it queues, in a microtask, before anything else a user could do. Reading
+ * commits them now, and a shortcut's update can queue another.
+ */
+function commitQueuedUpdates(): void {
+  for (;;) {
+    const before = current().getEditorState();
+    current().read(() => {});
+    if (current().getEditorState() === before) return;
+  }
 }
 
 /**
@@ -240,7 +261,10 @@ function run(command: Exclude<Command, { type: "undo" | "redo" | "wait" }>) {
       return;
     }
     case "insertParagraph":
-      selection.insertParagraph();
+      // Enter, which a markdown shortcut can take before it splits the block.
+      if (!current().dispatchCommand(KEY_ENTER_COMMAND, null)) {
+        selection.insertParagraph();
+      }
       return;
     case "insertLineBreak":
       selection.insertLineBreak(false);

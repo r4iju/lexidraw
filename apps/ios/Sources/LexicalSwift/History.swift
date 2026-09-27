@@ -22,8 +22,12 @@ struct History {
     current = loaded
   }
 
-  /// A committed update, from `previous` to `next`, at `time`.
-  mutating func record(_ update: Update, from previous: EditorState, to next: EditorState, at time: Int) {
+  /// A committed update, from `previous` to `next`, at `time`. One `pushing`
+  /// a new undo step, as `HISTORY_PUSH_TAG` does, joins the last only where
+  /// it changed nothing.
+  mutating func record(
+    _ update: Update, from previous: EditorState, to next: EditorState, at time: Int, pushing: Bool = false
+  ) {
     let changeType = Self.changeType(update, from: previous, to: next)
     let movesOnlySelection = update.dirtyLeaves.isEmpty && update.dirtyElements.isEmpty
     defer {
@@ -35,7 +39,8 @@ struct History {
       return
     }
     let merges =
-      (changeType != .other && changeType == previousChangeType && time < previousChangeTime + Self.delay)
+      (!pushing && changeType != .other && changeType == previousChangeType
+        && time < previousChangeTime + Self.delay)
       || (update.dirtyLeaves.count == 1 && Self.isTextUnchanged(update.dirtyLeaves[0], from: previous, to: next))
     if !merges {
       redoStack = []

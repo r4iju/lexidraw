@@ -670,9 +670,12 @@ extension Update {
 
   // MARK: Formatting
 
-  /// Lexical's `$formatText`.
-  mutating func formatText(_ selection: RangeSelection, _ type: TextFormatType) throws {
-    let align = type.toggled(in: selection.format, aligningWith: nil)
+  /// Lexical's `$formatText`: `type` goes on or off as `align` has it, or
+  /// as toggling it in the selection's format would leave it.
+  mutating func formatText(_ selection: RangeSelection, _ type: TextFormatType, aligningWith align: TextFormat? = nil)
+    throws
+  {
+    let align = align ?? type.toggled(in: selection.format, aligningWith: nil)
     try updateTextFormat(selection) { type.toggled(in: $0, aligningWith: align) }
   }
 
