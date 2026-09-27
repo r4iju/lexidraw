@@ -600,15 +600,16 @@ extension Update {
 
   // MARK: Splitting blocks
 
-  /// `RangeSelection.insertParagraph`.
-  mutating func insertParagraph(_ selection: RangeSelection) throws {
+  /// `RangeSelection.insertParagraph`, which gives the block it starts.
+  @discardableResult
+  mutating func insertParagraph(_ selection: RangeSelection) throws -> NodeKey {
     if !selection.isCollapsed { try removeText(selection) }
     let anchor = selection.anchor
     if anchor.type == .element, state[anchor.key].isRootOrShadowRoot {
       let paragraph = create(SerializedParagraphNode.type)
       try splice(anchor.key, anchor.offset, deleting: 0, inserting: [paragraph])
       selectElement(paragraph)
-      return
+      return paragraph
     }
     let (_, index) = try removeTextAndSplitBlock(selection)
     guard let block = findParent(from: selection.anchor.key, where: isBlock), state[block].isElement else {
@@ -618,6 +619,7 @@ extension Update {
     guard let newBlock = try insertNewAfter(block, selection, restoringSelection: false) else { return }
     try append(newBlock, moving)
     selectStart(newBlock)
+    return newBlock
   }
 
   /// Lexical's `$removeTextAndSplitBlock`: splits up to the block the
@@ -670,7 +672,8 @@ extension Update {
     try insertNodes(selection, [create(SerializedLineBreakNode.type)])
   }
 
-  /// `RangeSelection.insertNodes`, for inline nodes.
+  /// `RangeSelection.insertNodes`, for documents without code blocks or
+  /// named slots.
   mutating func insertNodes(_ selection: RangeSelection, _ nodes: [NodeKey]) throws {
     guard let last = nodes.last else { return }
     if !selection.isCollapsed { try removeText(selection) }
@@ -682,17 +685,112 @@ extension Update {
       if let selected { selectEnd(selected) }
       return
     }
-    let first = try state.startEnd(selection).start
-    let firstBlock = findParent(from: first.key, where: isBlock)
-    guard nodes.allSatisfy({ state[$0].isInline }) else {
-      throw EditorError.unsupported("Inserting blocks")
+    let firstPoint = try state.startEnd(selection).start
+    let startBlock = findParent(from: firstPoint.key, where: isBlock)
+    if let startBlock, state[startBlock].type == SerializedDocumentCodeNode.type {
+      throw EditorError.unsupported("Inserting into a code block")
     }
-    guard let firstBlock, state[firstBlock].isElement else {
-      throw EditorError.invalidState("Expected a block ElementNode ancestor")
+    if !nodes.contains(where: { (state[$0].isElement || state[$0].isDecorator) && !state[$0].isInline }) {
+      guard let startBlock, state[startBlock].isElement else {
+        throw EditorError.invalidState("Expected a block ElementNode ancestor")
+      }
+      let (container, index) = try removeTextAndSplitBlock(selection, stoppingAtUnsplittable: true)
+      try splice(state[container].isElement ? container : startBlock, index, deleting: 0, inserting: nodes)
+      selectEnd(last)
+      return
     }
-    let (container, index) = try removeTextAndSplitBlock(selection, stoppingAtUnsplittable: true)
-    try splice(state[container].isElement ? container : firstBlock, index, deleting: 0, inserting: nodes)
-    selectEnd(last)
+    guard let block = startBlock,
+      !state[block].isElement || isParentRequired(block) || state[state.parent(of: block)!].isRootOrShadowRoot
+    else {
+      throw EditorError.unsupported("Inserting blocks where no block can go")
+    }
+    let blocksParent = try wrapInlineNodes(nodes)
+    guard let nodeToSelect = lastDescendant(of: blocksParent) else { return }
+    let blocks = Array(state.children(of: blocksParent))
+    let isAfterEmptyLine = isPointAfterEmptyLine(firstPoint)
+    let insertedParagraph = !state[block].isElement || !isEmpty(block) ? try insertParagraph(selection) : nil
+    var targetBlock: NodeKey? = block
+    if insertedParagraph != nil, !state.isAttached(block) {
+      targetBlock = findParent(from: selection.anchor.key, where: isBlock)
+    }
+    guard let firstBlock = targetBlock else { throw EditorError.invalidState("Expected a block ancestor") }
+    let lastToInsert = blocks.last
+    var firstToInsert = blocks.first
+    if let first = firstToInsert, !isAfterEmptyLine, state[first].isElement, isBlock(first), !isEmpty(first),
+      state[firstBlock].isElement, !isEmpty(firstBlock) || canMergeWhenEmpty(firstBlock)
+    {
+      try append(firstBlock, Array(state.children(of: first)))
+      firstToInsert = blocks.dropFirst().first
+    }
+    if let firstToInsert {
+      var current = firstBlock
+      for node in [firstToInsert] + nextSiblings(of: firstToInsert) {
+        try insert(node, after: current)
+        current = node
+      }
+    }
+    let lastInsertedBlock = findParent(from: nodeToSelect, where: isBlock)
+    let insertSelection = selectEnd(nodeToSelect)
+    if let insertedParagraph {
+      if let lastInsertedBlock, state[lastInsertedBlock].isElement,
+        canMergeWhenEmpty(insertedParagraph) || lastToInsert.map(isBlock) == true
+      {
+        try append(lastInsertedBlock, Array(state.children(of: insertedParagraph)))
+        try remove(insertedParagraph)
+      } else if isEmpty(insertedParagraph) {
+        try remove(insertedParagraph)
+      }
+    }
+    if state[firstBlock].isElement, isEmpty(firstBlock) {
+      try remove(firstBlock)
+    } else if let lastChild = state.lastChild(of: firstBlock), state[lastChild].isLineBreak,
+      lastInsertedBlock != firstBlock
+    {
+      try remove(lastChild)
+    }
+    let caret = state.normalize(try state.caret(from: insertSelection.anchor, .next))
+    setPoint(insertSelection.anchor, from: caret)
+    setPoint(insertSelection.focus, from: caret)
+  }
+
+  /// Lexical's `$isPointAfterEmptyLine`: two line breaks before a point make
+  /// an empty line, after which blocks go in whole.
+  private func isPointAfterEmptyLine(_ point: SelectionPoint) -> Bool {
+    guard let before = nodeBeforePoint(point), state[before].isLineBreak,
+      let previous = state.previousSibling(of: before)
+    else { return false }
+    return state[previous].isLineBreak
+  }
+
+  /// Lexical's `$getNodeBeforePoint`: the node before a point in its block,
+  /// looking out of inline elements, or nil where text is before it.
+  private func nodeBeforePoint(_ point: SelectionPoint) -> NodeKey? {
+    if point.offset > 0 {
+      return point.type == .element && state[point.key].isElement ? state.child(of: point.key, at: point.offset - 1) : nil
+    }
+    var child: NodeKey? = point.key
+    while let current = child, !isBlock(current), !state[current].isRootOrShadowRoot {
+      if let previous = state.previousSibling(of: current) { return previous }
+      child = state.parent(of: current)
+    }
+    return nil
+  }
+
+  /// Lexical's `$isInlineRunNode`.
+  private func isInlineRunNode(_ key: NodeKey) -> Bool {
+    let node = state[key]
+    return node.isLineBreak || node.isText || ((node.isElement || node.isDecorator) && node.isInline)
+      || isParentRequired(key)
+  }
+
+  /// `canMergeWhenEmpty`, which Lexical's quote and list item override.
+  func canMergeWhenEmpty(_ key: NodeKey) -> Bool {
+    [SerializedQuoteNode.type, SerializedListItemNode.type].contains(state[key].type)
+  }
+
+  /// `isParentRequired`, which Lexical's list item overrides.
+  func isParentRequired(_ key: NodeKey) -> Bool {
+    state[key].type == SerializedListItemNode.type
   }
 
   /// Lexical's `$wrapInlineNodes`: runs of inline nodes in paragraphs, under
@@ -701,7 +799,10 @@ extension Update {
     let root = create(SerializedParagraphNode.type)
     var block: NodeKey?
     for (index, node) in nodes.enumerated() {
-      guard state[node].isInline else {
+      if isParentRequired(node) {
+        throw EditorError.unsupported("Wrapping a \(state[node].type) node in its parent")
+      }
+      guard isInlineRunNode(node) else {
         try append(root, [node])
         block = nil
         continue
@@ -711,7 +812,7 @@ extension Update {
         block = paragraph
         try append(root, [paragraph])
         let next = index + 1 < nodes.count ? nodes[index + 1] : nil
-        if state[node].isLineBreak, next.map({ !state[$0].isInline }) ?? true { continue }
+        if state[node].isLineBreak, next.map({ !isInlineRunNode($0) }) ?? true { continue }
       }
       try append(block!, [node])
     }

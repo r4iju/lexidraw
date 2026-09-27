@@ -196,7 +196,7 @@ extension Update {
   }
 
   /// `INTERNAL_$expandSelectionToWholeDocument`.
-  private func expandToWholeDocument(_ selection: RangeSelection) throws {
+  func expandToWholeDocument(_ selection: RangeSelection) throws {
     let root = EditorState.rootKey
     guard !isEmpty(root), try isFullySelected(root, selection) else { return }
     selection.anchor.set(root, 0, .element)
@@ -204,7 +204,7 @@ extension Update {
   }
 
   /// `$isBlockFullySelected`.
-  private func isFullySelected(_ block: NodeKey, _ selection: RangeSelection) throws -> Bool {
+  func isFullySelected(_ block: NodeKey, _ selection: RangeSelection) throws -> Bool {
     let range = state.inDirection(try state.caretRange(from: selection), .next)
     let start = state.normalize(.child(block, .next))
     let end = state.inDirection(state.normalize(.child(block, .previous)), .next)

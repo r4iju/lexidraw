@@ -1,6 +1,7 @@
 extension EditorState {
-  /// A node as Lexical's `exportJSON` writes it, children included.
-  func json(of key: NodeKey) -> JSONValue {
+  /// A node as Lexical's `exportJSON` writes it, children included unless
+  /// left out, as a copy leaves out those not selected.
+  func json(of key: NodeKey, includingChildren: Bool = true) -> JSONValue {
     let node = self[key]
     guard case .object(var fields) = node.payload.json else { return node.payload.json }
     if let payload = node.payload.payload {
@@ -20,7 +21,7 @@ extension EditorState {
       }
     }
     if let children = node.children {
-      fields["children"] = .array(children.map(json(of:)))
+      fields["children"] = .array(includingChildren ? children.map { json(of: $0) } : [])
     }
     guard let payload = node.payload.payload else { return .object(fields) }
     return .object(fields.ordered(by: type(of: payload).keyOrder))

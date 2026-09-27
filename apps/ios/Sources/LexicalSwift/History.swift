@@ -28,7 +28,7 @@ struct History {
   mutating func record(
     _ update: Update, from previous: EditorState, to next: EditorState, at time: Int, pushing: Bool = false
   ) {
-    let changeType = Self.changeType(update, from: previous, to: next)
+    let changeType = update.tags.isEmpty ? Self.changeType(update, from: previous, to: next) : .other
     let movesOnlySelection = update.dirtyLeaves.isEmpty && update.dirtyElements.isEmpty
     defer {
       previousChangeTime = time

@@ -121,6 +121,13 @@ public enum EditorCommand: Equatable, Sendable {
   case toggleLink(url: String?)
   /// The web's link editor saving `url` for the link the selection is in.
   case editLink(url: String)
+  /// Copies the selection; the change set holds what it put on the clipboard.
+  case copy
+  /// Copies the selection and deletes it.
+  case cut
+  /// Pastes as the web's rich-text editor does: Lexical nodes copied from a
+  /// document, or else the plain text.
+  case paste(Clipboard)
   case undo
   case redo
   /// Lets time pass, which decides whether history merges the next edit into
@@ -191,14 +198,14 @@ public struct TextFormat: OptionSet, Codable, Hashable, Sendable {
 
 extension EditorCommand: Codable {
   private enum CodingKeys: String, CodingKey {
-    case type, anchor, focus, text, backward, lineBoundary, format, blockType, listType, path, milliseconds, url
+    case type, anchor, focus, text, backward, lineBoundary, format, blockType, listType, path, milliseconds, url, clipboard
   }
 
   /// The command's `type` in JSON.
   private enum Kind: String, Codable {
     case setSelection, insertText, commitComposition, deleteCharacter, deleteWord, deleteLine, insertParagraph, insertLineBreak,
       formatText, setBlockType, insertList, removeList, indent, outdent, tab, toggleChecked, selectAll, toggleLink, editLink,
-      undo, redo, wait
+      copy, cut, paste, undo, redo, wait
   }
 
   private var kind: Kind {
@@ -222,6 +229,9 @@ extension EditorCommand: Codable {
     case .selectAll: .selectAll
     case .toggleLink: .toggleLink
     case .editLink: .editLink
+    case .copy: .copy
+    case .cut: .cut
+    case .paste: .paste
     case .undo: .undo
     case .redo: .redo
     case .wait: .wait
@@ -258,6 +268,9 @@ extension EditorCommand: Codable {
     case .selectAll: self = .selectAll
     case .toggleLink: self = .toggleLink(url: try container.decodeIfPresent(String.self, forKey: .url))
     case .editLink: self = .editLink(url: try container.decode(String.self, forKey: .url))
+    case .copy: self = .copy
+    case .cut: self = .cut
+    case .paste: self = .paste(try container.decode(Clipboard.self, forKey: .clipboard))
     case .undo: self = .undo
     case .redo: self = .redo
     case .wait: self = .wait(milliseconds: try container.decode(Int.self, forKey: .milliseconds))
@@ -292,9 +305,35 @@ extension EditorCommand: Codable {
       try container.encode(url, forKey: .url)
     case .editLink(let url):
       try container.encode(url, forKey: .url)
-    case .insertParagraph, .insertLineBreak, .removeList, .indent, .outdent, .selectAll, .undo, .redo:
+    case .paste(let clipboard):
+      try container.encode(clipboard, forKey: .clipboard)
+    case .insertParagraph, .insertLineBreak, .removeList, .indent, .outdent, .selectAll, .copy, .cut, .undo, .redo:
       break
     }
+  }
+}
+
+/// What a copy puts on the clipboard, or a paste takes from it, by the MIME
+/// types Lexical writes and reads.
+public struct Clipboard: Codable, Equatable, Sendable {
+  public var plainText: String
+  /// Pastes as the plain text beside it, as Lexical does where it has no DOM
+  /// to read HTML with.
+  public var html: String?
+  /// The copied nodes, `{"namespace": …, "nodes": […]}`. They paste as nodes
+  /// only into an editor of the same namespace.
+  public var lexical: JSONValue?
+
+  public init(plainText: String, html: String? = nil, lexical: JSONValue? = nil) {
+    self.plainText = plainText
+    self.html = html
+    self.lexical = lexical
+  }
+
+  private enum CodingKeys: String, CodingKey {
+    case plainText = "text/plain"
+    case html = "text/html"
+    case lexical = "application/x-lexical-editor"
   }
 }
 
@@ -302,26 +341,31 @@ extension EditorCommand: Codable {
 /// changed. Adding or removing a node changes its parent.
 public struct ChangeSet: Equatable, Sendable {
   public var changed: Set<[Int]>
+  /// What a copy or cut put on the clipboard: nothing for an empty selection.
+  public var clipboard: Clipboard?
 
-  public init(changed: Set<[Int]> = []) {
+  public init(changed: Set<[Int]> = [], clipboard: Clipboard? = nil) {
     self.changed = changed
+    self.clipboard = clipboard
   }
 }
 
 extension ChangeSet: Codable {
   private enum CodingKeys: String, CodingKey {
-    case changed
+    case changed, clipboard
   }
 
   public init(from decoder: any Decoder) throws {
     let container = try decoder.container(keyedBy: CodingKeys.self)
     changed = Set(try container.decode([[Int]].self, forKey: .changed))
+    clipboard = try container.decodeIfPresent(Clipboard.self, forKey: .clipboard)
   }
 
   /// Sorted, so a recorded fixture's bytes don't depend on hashing.
   public func encode(to encoder: any Encoder) throws {
     var container = encoder.container(keyedBy: CodingKeys.self)
     try container.encode(changed.sorted { $0.lexicographicallyPrecedes($1) }, forKey: .changed)
+    try container.encodeIfPresent(clipboard, forKey: .clipboard)
   }
 }
 

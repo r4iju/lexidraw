@@ -2,6 +2,10 @@
  * The editor-model interface over headless Lexical, for ReferenceEditor.swift
  * to call with JSON strings.
  */
+import {
+  $exportMimeTypeFromSelection,
+  $insertDataTransferForRichText,
+} from "@lexical/clipboard";
 import { namedSignals } from "@lexical/extension";
 import { createEmptyHistoryState, registerHistory } from "@lexical/history";
 import { createHeadlessEditor } from "@lexical/headless";
@@ -36,6 +40,7 @@ import {
 import { SCHEMA_NODES } from "@packages/lexical-nodes/nodes";
 import { createTransformers } from "@packages/lexical-nodes/transformers";
 import {
+  $addUpdateTag,
   $createRangeSelection,
   $exportNodeJSON,
   $formatText,
@@ -52,9 +57,11 @@ import {
   $setSelection,
   COMPOSITION_END_TAG,
   COMMAND_PRIORITY_LOW,
+  CUT_TAG,
   DELETE_CHARACTER_COMMAND,
   HISTORIC_TAG,
   INDENT_CONTENT_COMMAND,
+  INTERNAL_$expandSelectionToWholeDocument,
   IS_ALL_FORMATTING,
   KEY_ENTER_COMMAND,
   type EditorState,
@@ -65,6 +72,9 @@ import {
   type LexicalNode,
   type NodeKey,
   OUTDENT_CONTENT_COMMAND,
+  PASTE_COMMAND,
+  PASTE_TAG,
+  type PasteCommandType,
   type PointType,
   REDO_COMMAND,
   type RangeSelection,
@@ -81,6 +91,13 @@ import { EditorError } from "./editor-error.js";
 
 type PathPoint = { path: number[]; offset: number; type: "text" | "element" };
 
+/** `Clipboard` in EditorModel.swift. */
+type Clipboard = {
+  "text/plain": string;
+  "text/html"?: string;
+  "application/x-lexical-editor"?: unknown;
+};
+
 type Command =
   | { type: "setSelection"; anchor: PathPoint; focus: PathPoint }
   | { type: "insertText" | "commitComposition"; text: string }
@@ -96,6 +113,8 @@ type Command =
   | { type: "toggleChecked"; path: number[] }
   | { type: "toggleLink"; url: string | null }
   | { type: "editLink"; url: string }
+  | { type: "copy" | "cut" }
+  | { type: "paste"; clipboard: Clipboard }
   | { type: "selectAll" }
   | { type: "undo" }
   | { type: "redo" }
@@ -108,6 +127,8 @@ let lastError: unknown = null;
  * own after the command's, which the command's change set takes in.
  */
 const changed = new Set<NodeKey>();
+/** What the command being applied put on the clipboard. */
+let clipboard: Clipboard | undefined;
 /** The clock history reads, which only `wait` moves. */
 let now = 0;
 
@@ -178,6 +199,7 @@ function apply(commandJSON: string): string {
   const command = JSON.parse(commandJSON) as Command;
   lastError = null;
   changed.clear();
+  clipboard = undefined;
   switch (command.type) {
     case "undo":
     case "redo":
@@ -195,6 +217,9 @@ function apply(commandJSON: string): string {
         tag: COMPOSITION_END_TAG,
       });
       break;
+    case "cut":
+      cut();
+      break;
     default:
       current().update(() => run(command), { discrete: true });
   }
@@ -206,7 +231,7 @@ function apply(commandJSON: string): string {
       return node ? [pathOf(node)] : [];
     }),
   );
-  return JSON.stringify({ changed: paths });
+  return JSON.stringify({ changed: paths, clipboard });
 }
 
 /**
@@ -220,6 +245,92 @@ function commitQueuedUpdates(): void {
     current().read(() => {});
     if (current().getEditorState() === before) return;
   }
+}
+
+/**
+ * Rich text's cut, as two updates: one widens a selection of the whole
+ * document to its blocks and copies it, and the next deletes it.
+ */
+function cut(): void {
+  current().update(
+    () => {
+      const selection = rangeSelection();
+      if (!selection.isCollapsed()) {
+        INTERNAL_$expandSelectionToWholeDocument(selection);
+      }
+      clipboard = copy(selection);
+    },
+    { discrete: true, tag: CUT_TAG },
+  );
+  if (lastError) return;
+  current().update(() => rangeSelection().removeText(), {
+    discrete: true,
+    tag: CUT_TAG,
+  });
+}
+
+/**
+ * What a copy puts on the clipboard, which is nothing for a collapsed
+ * selection. The HTML Lexical would add needs a DOM.
+ */
+function copy(selection: RangeSelection): Clipboard | undefined {
+  if (selection.isCollapsed()) return undefined;
+  const lexical = $exportMimeTypeFromSelection(
+    "application/x-lexical-editor",
+    selection,
+  );
+  return {
+    "text/plain": $exportMimeTypeFromSelection("text/plain", selection) ?? "",
+    ...(lexical === null
+      ? {}
+      : { "application/x-lexical-editor": JSON.parse(lexical) as unknown }),
+  };
+}
+
+/**
+ * A paste as the web editor takes it: its link plugin's handler first, which
+ * links selected text to a pasted URL, then rich text's.
+ */
+function paste(selection: RangeSelection, pasted: Clipboard): void {
+  const event = new ClipboardEvent(dataTransfer(pasted));
+  const payload = event as unknown as PasteCommandType;
+  if ($getEditor().dispatchCommand(PASTE_COMMAND, payload)) return;
+  $addUpdateTag(PASTE_TAG);
+  $insertDataTransferForRichText(event.clipboardData, selection);
+}
+
+/**
+ * The DOM's `ClipboardEvent`, as far as Lexical's paste handlers read one.
+ * They tell it by its class's name, from the global of that name.
+ */
+const ClipboardEvent = class ClipboardEvent {
+  constructor(readonly clipboardData: DataTransfer) {}
+  preventDefault(): void {}
+};
+Object.assign(globalThis, { ClipboardEvent });
+
+/** A `DataTransfer` holding `pasted`, as far as Lexical reads one. */
+function dataTransfer(pasted: Clipboard): DataTransfer {
+  const lexical = pasted["application/x-lexical-editor"];
+  const data: Record<string, string | undefined> = {
+    "text/plain": pasted["text/plain"],
+    "text/html": pasted["text/html"],
+    "application/x-lexical-editor":
+      lexical === undefined ? undefined : JSON.stringify(lexical),
+  };
+  return {
+    // "text" is the DOM's old name for plain text, which the link plugin uses.
+    getData: (type: string) =>
+      data[type === "text" ? "text/plain" : type] ?? "",
+  } as DataTransfer;
+}
+
+function rangeSelection(): RangeSelection {
+  const selection = $getSelection();
+  if (!$isRangeSelection(selection)) {
+    throw new EditorError("noSelection", "No range selection");
+  }
+  return selection;
 }
 
 /**
@@ -318,7 +429,9 @@ function key(shiftKey = false): KeyboardEvent {
   } as unknown as KeyboardEvent;
 }
 
-function run(command: Exclude<Command, { type: "undo" | "redo" | "wait" }>) {
+function run(
+  command: Exclude<Command, { type: "undo" | "redo" | "wait" | "cut" }>,
+) {
   const editor = current();
   if (command.type === "setSelection") {
     setSelection(command.anchor, command.focus);
@@ -337,10 +450,7 @@ function run(command: Exclude<Command, { type: "undo" | "redo" | "wait" }>) {
     $selectAll(null);
     return;
   }
-  const selection = $getSelection();
-  if (!$isRangeSelection(selection)) {
-    throw new EditorError("noSelection", "No range selection");
-  }
+  const selection = rangeSelection();
   switch (command.type) {
     case "insertText":
     case "commitComposition":
@@ -398,6 +508,12 @@ function run(command: Exclude<Command, { type: "undo" | "redo" | "wait" }>) {
       return;
     case "editLink":
       editLink(command.url);
+      return;
+    case "copy":
+      clipboard = copy(selection);
+      return;
+    case "paste":
+      paste(selection, command.clipboard);
       return;
   }
 }

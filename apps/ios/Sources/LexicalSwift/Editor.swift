@@ -49,31 +49,52 @@ public final class Editor: EditorModel {
     }
     let saved = (state, nextKey, history, knowsListMarker)
     do {
-      var update = Update(state, nextKey: nextKey, revision: nextRevision(), knowsListMarker: knowsListMarker)
-      try update.run(command)
-      shortcutsDeclinedAsNotPorted += update.shortcutsDeclinedAsNotPorted
-      var previous = state
-      guard try commit(&update) else { return ChangeSet(changed: []) }
-      var changed = update.changedKeys
-      var compositionEnd = if case .commitComposition = command { true } else { false }
-      // `registerMarkdownShortcuts`: an update that finishes a shortcut sets
-      // off one of its own, which can finish another.
-      while let caret = state.markdownShortcutCaret(
-        after: previous, dirtyLeaves: update.dirtyLeaves, compositionEnd: compositionEnd)
-      {
-        compositionEnd = false
-        previous = state
-        update = Update(state, nextKey: nextKey, revision: nextRevision(), knowsListMarker: knowsListMarker)
-        let isShortcut = try update.runMarkdownShortcut(at: caret)
-        shortcutsDeclinedAsNotPorted += update.shortcutsDeclinedAsNotPorted
-        guard try commit(&update, pushingHistory: isShortcut) else { break }
-        changed += update.changedKeys
+      guard command == .cut else {
+        let compositionEnd = if case .commitComposition = command { true } else { false }
+        return try commit(compositionEnd: compositionEnd) { try $0.run(command) }
       }
-      return ChangeSet(changed: Set(changed.compactMap(state.path(of:))))
+      // Rich text's cut is two updates: one widens a selection of the whole
+      // document to its blocks and copies it, and the next deletes it.
+      let copied = try commit(tags: [.cut]) { try $0.copyForCut() }
+      var changes = try commit(tags: [.cut]) { update in
+        guard let selection = update.selection else { throw EditorError.noSelection }
+        try update.removeText(selection)
+      }
+      changes.clipboard = copied.clipboard
+      return changes
     } catch {
       (state, nextKey, history, knowsListMarker) = saved
       throw error
     }
+  }
+
+  /// Runs and commits an update, then the markdown shortcuts it sets off:
+  /// `registerMarkdownShortcuts` runs an update of its own after one that
+  /// finishes a shortcut, which can finish another.
+  private func commit(
+    tags: Set<UpdateTag> = [], compositionEnd: Bool = false, _ run: (inout Update) throws -> Void
+  ) throws -> ChangeSet {
+    var update = Update(state, nextKey: nextKey, revision: nextRevision(), knowsListMarker: knowsListMarker)
+    update.tags = tags
+    try run(&update)
+    shortcutsDeclinedAsNotPorted += update.shortcutsDeclinedAsNotPorted
+    let clipboard = update.clipboard
+    var previous = state
+    guard try commit(&update) else { return ChangeSet(changed: [], clipboard: clipboard) }
+    var changed = update.changedKeys
+    var compositionEnd = compositionEnd
+    while let caret = state.markdownShortcutCaret(
+      after: previous, dirtyLeaves: update.dirtyLeaves, compositionEnd: compositionEnd)
+    {
+      compositionEnd = false
+      previous = state
+      update = Update(state, nextKey: nextKey, revision: nextRevision(), knowsListMarker: knowsListMarker)
+      let isShortcut = try update.runMarkdownShortcut(at: caret)
+      shortcutsDeclinedAsNotPorted += update.shortcutsDeclinedAsNotPorted
+      guard try commit(&update, pushingHistory: isShortcut) else { break }
+      changed += update.changedKeys
+    }
+    return ChangeSet(changed: Set(changed.compactMap(state.path(of:))), clipboard: clipboard)
   }
 
   /// Lexical commits an update that marked a node or moved the selection,
@@ -140,7 +161,7 @@ public final class Editor: EditorModel {
 }
 
 extension Node {
-  fileprivate var isEditable: Bool {
+  var isEditable: Bool {
     switch payload {
     case .root(let node): node.unknownFields.isEmpty
     case .paragraph(let node): node.unknownFields.isEmpty
@@ -193,6 +214,8 @@ extension Update {
     case .tab(let backward): try tab(selection, backward: backward)
     case .toggleLink(let url): try toggleLinkCommand(selection, url: url)
     case .editLink(let url): try editLink(selection, url: url)
+    case .copy: clipboard = try copy(selection)
+    case .paste(let clipboard): try paste(selection, clipboard)
     default: throw EditorError.unsupported(command.name)
     }
   }

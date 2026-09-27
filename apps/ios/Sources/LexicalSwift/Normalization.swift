@@ -60,14 +60,20 @@ extension Update {
       && (state == nil || state == b.unknownFields["$"])
   }
 
-  /// Lexical's `setTextContent`.
+  /// Lexical's `setTextContent`, which leaves a tab's text a tab.
   mutating func setText(_ key: NodeKey, _ text: String) throws {
-    guard case .text(var node) = self[key].payload else {
+    switch self[key].payload {
+    case .text(var node):
+      guard !(node.text ?? "").isIdentical(to: text) else { return }
+      node.text = text
+      modify(key) { $0.payload = .text(node) }
+    case .tab(var node):
+      guard node.text != "\t" else { return }
+      node.text = "\t"
+      modify(key) { $0.payload = .tab(node) }
+    default:
       throw EditorError.unsupported("Setting the text of a \(self[key].type) node")
     }
-    guard !(node.text ?? "").isIdentical(to: text) else { return }
-    node.text = text
-    modify(key) { $0.payload = .text(node) }
   }
 
   /// Every node class's `$transform` that runs on elements.
