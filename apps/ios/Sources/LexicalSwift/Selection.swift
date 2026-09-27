@@ -137,11 +137,12 @@ extension EditorState {
       guard let tablePath = path(of: table.table), let anchor = path(of: table.anchor), let focus = path(of: table.focus)
       else { return nil }
       // The reference lists the cells among `getNodes`, which takes in what
-      // the selected cells hold, a table's cells included.
+      // the selected cells hold, a table's cells included, as
+      // `$visitRecursively` does: last child first.
       var cells: [NodeKey] = []
       func visit(_ node: NodeKey) {
         if self[node].type == SerializedTableCellNode.type { cells.append(node) }
-        children(of: node).forEach(visit)
+        children(of: node).reversed().forEach(visit)
       }
       try Update(self, nextKey: 0, revision: 0).cells(of: table).forEach(visit)
       return .table(table: tablePath, anchor: anchor, focus: focus, cells: cells.compactMap(path(of:)))

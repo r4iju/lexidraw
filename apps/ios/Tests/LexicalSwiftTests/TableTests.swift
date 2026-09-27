@@ -155,7 +155,8 @@ import Testing
   }
 
   /// A table selection's nodes take in what its cells hold, a table in one
-  /// of them included, so its cells are among the cells selected.
+  /// of them included, so its cells are among the cells selected, in the
+  /// order `$visitRecursively` visits them: last child first.
   @Test func aTableSelectionTakesInTheCellsOfATableInACell() throws {
     func cell(_ children: [JSONValue]) -> JSONValue {
       [
@@ -165,7 +166,7 @@ import Testing
     }
     let row: JSONValue = [
       "type": "tablerow", "version": 1, "direction": nil, "format": "", "indent": 0,
-      "children": [cell([LexicalJSON.table([["x"]]), paragraph(text("a"))]), cell([paragraph(text("b"))])],
+      "children": [cell([LexicalJSON.table([["x", "y"]]), paragraph(text("a"))]), cell([paragraph(text("b"))])],
     ]
     let table: JSONValue = [
       "type": "table", "version": 1, "direction": nil, "format": "", "indent": 0, "children": [row],
@@ -176,7 +177,9 @@ import Testing
 
     #expect(
       fixture.expected.selection
-        == .table(table: [1], anchor: [1, 0, 0], focus: [1, 0, 1], cells: [[1, 0, 0], [1, 0, 0, 0, 0, 0], [1, 0, 1]]))
+        == .table(
+          table: [1], anchor: [1, 0, 0], focus: [1, 0, 1],
+          cells: [[1, 0, 0], [1, 0, 0, 0, 0, 1], [1, 0, 0, 0, 0, 0], [1, 0, 1]]))
   }
 
   @Test func formattingATableSelectionFormatsEveryCell() throws {

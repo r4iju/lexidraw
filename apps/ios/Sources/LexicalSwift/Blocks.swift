@@ -11,12 +11,12 @@ extension Update {
 
   /// `$setBlockType` over cells. A table selection's points are on cells,
   /// which aren't blocks, so `$setBlocksType` takes the blocks among the
-  /// selected cells' nodes alone.
+  /// selected cells' nodes alone, in `getNodes`' order.
   mutating func setBlockType(_ selection: TableSelection, _ type: BlockType) throws {
     var blocks: [NodeKey] = []
     func visit(_ node: NodeKey) {
       if state[node].isElement, isBlock(node) { blocks.append(node) }
-      state.children(of: node).forEach(visit)
+      state.children(of: node).reversed().forEach(visit)
     }
     try cells(of: selection).forEach(visit)
     try replace(blocks, with: type)
