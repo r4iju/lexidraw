@@ -247,6 +247,8 @@ extension EditorCommand {
     case .setSelection(let anchor, let focus): return .setSelection(anchor: adjust(anchor), focus: adjust(focus))
     case .deleteLine(let backward, let lineBoundary): return .deleteLine(backward: backward, lineBoundary: adjust(lineBoundary))
     case .toggleChecked(let path): return .toggleChecked(path: adjust(Point(path: path, offset: 0, type: .text)).path)
+    case .arrow(let key, let extend, let native, let atCellEdge):
+      return .arrow(key, extend: extend, native: adjust(native), atCellEdge: atCellEdge)
     default: return self
     }
   }
@@ -480,6 +482,8 @@ struct Generator {
       snapshot.selection == nil || lineBoundary == Self.lineBoundary(in: snapshot, backward: backward)
     case .toggleChecked(let path):
       checkboxes(in: snapshot.state).contains(path)
+    case .arrow(_, _, let native, _):
+      points(in: snapshot.state).contains(native)
     default:
       true
     }
@@ -507,9 +511,14 @@ struct Generator {
       || (node["type"] == "listitem" && node["children"]?.arrayValue?.first?["type"] != "list")
   }
 
-  /// Every point a user could put a selection's end at.
+  /// Every point a user could put a selection's end at, beside a table
+  /// at the top level among them.
   private static func points(in state: JSONValue) -> [Point] {
-    state.nodePaths().flatMap { path -> [Point] in
+    let blocks = (state["root"]?["children"]?.arrayValue ?? []).map { $0["type"] == "table" }
+    let besideTables = (0...blocks.count).filter { offset in
+      (offset > 0 && blocks[offset - 1]) || (offset < blocks.count && blocks[offset])
+    }.map { Point(path: [], offset: $0, type: .element) }
+    return besideTables + state.nodePaths().flatMap { path -> [Point] in
       guard let node = state.node(at: path) else { return [] }
       switch node["type"]?.stringValue {
       case "text", "tab":
@@ -541,7 +550,7 @@ struct Generator {
 
   mutating func command(for snapshot: Snapshot) -> EditorCommand? {
     if !typing.isEmpty { return typing.removeFirst() }
-    let roll = Int.random(in: 0..<107, using: &random)
+    let roll = Int.random(in: 0..<119, using: &random)
     let backward = Int.random(in: 0..<3, using: &random) > 0
     switch roll {
     // With nothing selected, as after undoing back to the loaded document, a
@@ -594,7 +603,12 @@ struct Generator {
     case ..<103: return .insertTableRow(after: backward)
     case ..<105: return .insertTableColumn(after: backward)
     case ..<106: return .deleteTableRow
-    default: return .deleteTableColumn
+    case ..<107: return .deleteTableColumn
+    default:
+      let native = Self.points(in: snapshot.state).randomElement(using: &random) ?? Point(path: [], offset: 0, type: .element)
+      return .arrow(
+        ArrowKey.allCases.randomElement(using: &random)!, extend: Int.random(in: 0..<3, using: &random) == 0,
+        native: native, atCellEdge: Bool.random(using: &random))
     }
   }
 

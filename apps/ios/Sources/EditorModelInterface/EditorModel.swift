@@ -192,6 +192,12 @@ public enum EditorCommand: Equatable, Sendable {
   case insertTableColumn(after: Bool)
   case deleteTableRow
   case deleteTableColumn
+  /// An arrow key, with Shift (`extend`) or without. What Lexical doesn't
+  /// take it leaves to the platform, which moves the focus to `native`, and
+  /// the anchor with it without Shift. `atCellEdge` says the caret's line is
+  /// the first of its table cell going up, or the last going down, which
+  /// @lexical/table measures in the DOM.
+  case arrow(ArrowKey, extend: Bool, native: Point, atCellEdge: Bool)
   case undo
   case redo
   /// Lets time pass, which decides whether history merges the next edit into
@@ -211,6 +217,10 @@ public enum EditorCommand: Equatable, Sendable {
 /// What a block of text is: a paragraph, a heading by its tag, or a quote.
 public enum BlockType: String, Codable, CaseIterable, Sendable {
   case paragraph, h1, h2, h3, h4, h5, h6, quote
+}
+
+public enum ArrowKey: String, Codable, CaseIterable, Sendable {
+  case left, right, up, down
 }
 
 /// Lexical's `TextFormatType`: a text format by the name Lexical gives it.
@@ -263,14 +273,15 @@ public struct TextFormat: OptionSet, Codable, Hashable, Sendable {
 extension EditorCommand: Codable {
   private enum CodingKeys: String, CodingKey {
     case type, anchor, focus, text, backward, lineBoundary, format, blockType, listType, path, milliseconds, url, clipboard,
-      rows, columns, after
+      rows, columns, after, key, extend, native, atCellEdge
   }
 
   /// The command's `type` in JSON.
   private enum Kind: String, Codable {
     case setSelection, insertText, commitComposition, deleteCharacter, deleteWord, deleteLine, insertParagraph, insertLineBreak,
       formatText, setBlockType, insertList, removeList, indent, outdent, tab, toggleChecked, selectAll, toggleLink, editLink,
-      copy, cut, paste, insertTable, insertTableRow, insertTableColumn, deleteTableRow, deleteTableColumn, undo, redo, wait
+      copy, cut, paste, insertTable, insertTableRow, insertTableColumn, deleteTableRow, deleteTableColumn, arrow, undo, redo,
+      wait
   }
 
   private var kind: Kind {
@@ -302,6 +313,7 @@ extension EditorCommand: Codable {
     case .insertTableColumn: .insertTableColumn
     case .deleteTableRow: .deleteTableRow
     case .deleteTableColumn: .deleteTableColumn
+    case .arrow: .arrow
     case .undo: .undo
     case .redo: .redo
     case .wait: .wait
@@ -349,6 +361,11 @@ extension EditorCommand: Codable {
     case .insertTableColumn: self = .insertTableColumn(after: try after())
     case .deleteTableRow: self = .deleteTableRow
     case .deleteTableColumn: self = .deleteTableColumn
+    case .arrow:
+      self = .arrow(
+        try container.decode(ArrowKey.self, forKey: .key), extend: try container.decode(Bool.self, forKey: .extend),
+        native: try container.decode(Point.self, forKey: .native),
+        atCellEdge: try container.decode(Bool.self, forKey: .atCellEdge))
     case .undo: self = .undo
     case .redo: self = .redo
     case .wait: self = .wait(milliseconds: try container.decode(Int.self, forKey: .milliseconds))
@@ -390,6 +407,11 @@ extension EditorCommand: Codable {
       try container.encode(columns, forKey: .columns)
     case .insertTableRow(let after), .insertTableColumn(let after):
       try container.encode(after, forKey: .after)
+    case .arrow(let key, let extend, let native, let atCellEdge):
+      try container.encode(key, forKey: .key)
+      try container.encode(extend, forKey: .extend)
+      try container.encode(native, forKey: .native)
+      try container.encode(atCellEdge, forKey: .atCellEdge)
     case .insertParagraph, .insertLineBreak, .removeList, .indent, .outdent, .selectAll, .copy, .cut, .deleteTableRow,
       .deleteTableColumn, .undo, .redo:
       break

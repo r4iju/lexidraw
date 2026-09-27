@@ -128,7 +128,7 @@ extension Update {
     return value
   }
 
-  private func entry(_ map: TableMap, _ row: Int, _ column: Int) throws -> TableMapValue {
+  func entry(_ map: TableMap, _ row: Int, _ column: Int) throws -> TableMapValue {
     try entry(map.indices.contains(row) ? map[row] : nil, column)
   }
 
@@ -189,7 +189,7 @@ extension Update {
 
   /// `$computeTableCellRectBoundary`: the rectangle holding both cells,
   /// grown until no merged cell crosses its edge.
-  private func rectBoundary(_ map: TableMap, _ a: TableMapValue, _ b: TableMapValue) -> (
+  func rectBoundary(_ map: TableMap, _ a: TableMapValue, _ b: TableMapValue) -> (
     minColumn: Int, minRow: Int, maxColumn: Int, maxRow: Int
   ) {
     var minColumn = min(a.startColumn, b.startColumn)
@@ -761,7 +761,7 @@ extension Update {
   }
 
   /// The tables in the order TablePlugin gives each its handlers.
-  private func tables() -> [NodeKey] {
+  func tables() -> [NodeKey] {
     var tables: [NodeKey] = []
     var stack = [EditorState.rootKey]
     while let node = stack.popLast() {

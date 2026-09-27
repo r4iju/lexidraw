@@ -248,6 +248,132 @@ import Testing
     #expect(cellTexts(fixture.expected, table: 1) == [["a", "b"], ["c", "d"]])
   }
 
+  // MARK: Arrow keys
+
+  /// A document ending in a table, whose last cell is `d`.
+  private let trailing = document(paragraph(text("before")), LexicalJSON.table([["a", "b"], ["c", "d"]]))
+
+  private func arrow(_ key: ArrowKey, extend: Bool = false, native: Point, atCellEdge: Bool = false) -> EditorCommand {
+    .arrow(key, extend: extend, native: native, atCellEdge: atCellEdge)
+  }
+
+  /// Shift and an arrow over selected cells moves the focus a whole cell,
+  /// as far as the table goes.
+  @Test func shiftArrowOverATableSelectionMovesItsFocusACell() throws {
+    let across = EditorCommand.setSelection(anchor: cell(0, 0, 1), focus: cell(0, 1, 0))
+    let down = try agreed(grid, [across, arrow(.down, extend: true, native: cell(1, 1, 0))])
+    #expect(
+      down.expected.selection
+        == .table(table: [1], anchor: [1, 0, 0], focus: [1, 1, 1], cells: [[1, 0, 0], [1, 0, 1], [1, 1, 0], [1, 1, 1]]))
+
+    let back = try agreed(
+      grid, [across, arrow(.down, extend: true, native: cell(1, 1, 0)), arrow(.left, extend: true, native: cell(1, 1, 0))])
+    #expect(back.expected.selection == .table(table: [1], anchor: [1, 0, 0], focus: [1, 1, 0], cells: [[1, 0, 0], [1, 1, 0]]))
+
+    let shrunk = try agreed(grid, [across, arrow(.left, extend: true, native: cell(0, 1, 0))])
+    #expect(shrunk.expected.selection == .table(table: [1], anchor: [1, 0, 0], focus: [1, 0, 0], cells: [[1, 0, 0]]))
+
+    let past = try agreed(grid, [across, arrow(.right, extend: true, native: cell(0, 1, 1))])
+    #expect(past.expected.selection == .table(table: [1], anchor: [1, 0, 0], focus: [1, 0, 1], cells: [[1, 0, 0], [1, 0, 1]]))
+    #expect(past.changes.last == .applied(ChangeSet()))
+  }
+
+  /// An arrow without Shift over selected cells leaves a caret at the end
+  /// of the focus cell.
+  @Test func anArrowOverATableSelectionLeavesACaretInItsFocus() throws {
+    let fixture = try agreed(
+      grid, [.setSelection(anchor: cell(0, 0, 1), focus: cell(1, 1, 0)), arrow(.up, native: cell(0, 0, 0))])
+
+    #expect(fixture.expected.selection?.anchor == cell(1, 1, 1))
+    #expect(fixture.expected.selection?.isCollapsed == true)
+  }
+
+  /// Left and right cross into the cell beside; up and down at the cell's
+  /// edge go to the cell above or below.
+  @Test func arrowsMoveBetweenCells() throws {
+    let right = try agreed(grid, [.caret(cell(0, 0, 1)), arrow(.right, native: cell(0, 0, 1))])
+    #expect(right.expected.selection?.anchor == cell(0, 1, 0))
+
+    let left = try agreed(grid, [.caret(cell(0, 1, 0)), arrow(.left, native: cell(0, 1, 0))])
+    #expect(left.expected.selection?.anchor == cell(0, 0, 1))
+
+    let up = try agreed(grid, [.caret(cell(1, 0, 0)), arrow(.up, native: cell(1, 0, 0), atCellEdge: true)])
+    #expect(up.expected.selection?.anchor == cell(0, 0, 1))
+
+    let down = try agreed(grid, [.caret(cell(0, 1, 1)), arrow(.down, native: cell(0, 1, 1), atCellEdge: true)])
+    #expect(down.expected.selection?.anchor == cell(1, 1, 0))
+
+    let shifted = try agreed(grid, [.caret(cell(0, 0, 1)), arrow(.right, extend: true, native: cell(0, 0, 1))])
+    #expect(shifted.expected.selection == .table(table: [1], anchor: [1, 0, 0], focus: [1, 0, 1], cells: [[1, 0, 0], [1, 0, 1]]))
+  }
+
+  /// Arrows past a table's last cell leave it, beside the table where it
+  /// ends the document, and typing there starts a paragraph.
+  @Test func arrowsLeaveATableAtTheEndOfTheDocument() throws {
+    let beside = Point(path: [], offset: 2, type: .element)
+    let down = try agreed(
+      trailing, [.caret(cell(1, 0, 1)), arrow(.down, native: cell(1, 0, 1), atCellEdge: true), .insertText("x")])
+    #expect(types(down.expected) == ["paragraph", "table", "paragraph"])
+    #expect(node(down.expected, [2, 0])?["text"] == "x")
+
+    let right = try agreed(trailing, [.caret(cell(1, 1, 1)), arrow(.right, native: cell(1, 1, 1))])
+    #expect(right.expected.selection?.anchor == beside)
+
+    let into = try agreed(trailing, [.caret(beside), arrow(.left, native: beside)])
+    #expect(into.expected.selection?.anchor == cell(1, 1, 1))
+
+    let stays = try agreed(trailing, [.caret(beside), arrow(.down, native: beside)])
+    #expect(stays.expected.selection?.anchor == beside)
+  }
+
+  /// Shift and an arrow from beside a table, a step Lexical leaves the
+  /// platform to measure, reads back where the platform moved.
+  @Test func aStepLexicalLeavesToThePlatformIsReadBack() throws {
+    let beside = Point(path: [], offset: 2, type: .element)
+    let fixture = try agreed(trailing, [.caret(beside), arrow(.left, extend: true, native: cell(1, 1, 1))])
+
+    #expect(!fixture.changes.contains { if case .refused = $0 { true } else { false } })
+    #expect(fixture.expected.selection?.focus == cell(1, 1, 1))
+  }
+
+  /// Left from the start of the block after a table goes to the end of its
+  /// last cell, and with Shift takes in the table.
+  @Test func leftFromAfterATableEntersIt() throws {
+    let into = try agreed(grid, [.caret(.text([2, 0], 0)), arrow(.left, native: .text([1, 1, 1, 0, 0], 1))])
+    #expect(into.expected.selection?.anchor == cell(1, 1, 1))
+
+    let over = try agreed(grid, [.caret(.text([2, 0], 0)), arrow(.left, extend: true, native: .text([1, 1, 1, 0, 0], 1))])
+    #expect(over.expected.selection?.focus == Point(path: [], offset: 1, type: .element))
+  }
+
+  /// Shift-Down from the block above a table takes in the whole table.
+  @Test func shiftDownIntoATableTakesItIn() throws {
+    let fixture = try agreed(grid, [.caret(.text([0, 0], 3)), arrow(.down, extend: true, native: cell(0, 0, 1))])
+
+    #expect(fixture.expected.selection?.focus == Point(path: [1, 1, 1], offset: 1, type: .element))
+  }
+
+  /// Down into a table from above lands in its first cell, wherever the
+  /// platform put the caret, as a table that scrolls sideways has it.
+  @Test func downIntoATableLandsInItsFirstCell() throws {
+    let fixture = try agreed(grid, [.caret(.text([0, 0], 6)), arrow(.down, native: cell(0, 1, 1))])
+
+    #expect(fixture.expected.selection?.anchor == cell(0, 0, 0))
+  }
+
+  /// What no handler takes goes where the platform moves it.
+  @Test func anArrowNothingTakesMovesAsThePlatformDoes() throws {
+    let caret = try agreed(grid, [.caret(.text([0, 0], 2)), arrow(.right, native: .text([0, 0], 3))])
+    #expect(caret.expected.selection?.anchor == .text([0, 0], 3))
+
+    let range = try agreed(grid, [.caret(.text([0, 0], 2)), arrow(.right, extend: true, native: .text([0, 0], 3))])
+    #expect(range.expected.selection?.anchor == .text([0, 0], 2))
+    #expect(range.expected.selection?.focus == .text([0, 0], 3))
+
+    let inCell = try agreed(grid, [.caret(cell(0, 0, 0)), arrow(.down, native: cell(0, 0, 1))])
+    #expect(inCell.expected.selection?.anchor == cell(0, 0, 1))
+  }
+
   private func tablePath(_ selection: Selection?) -> [Int]? {
     if case .table(let table, _, _, _) = selection { table } else { nil }
   }

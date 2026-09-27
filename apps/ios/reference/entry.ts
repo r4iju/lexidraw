@@ -5,7 +5,6 @@
 import { $exportMimeTypeFromSelection } from "@lexical/clipboard";
 import { namedSignals, signal } from "@lexical/extension";
 import { createEmptyHistoryState, registerHistory } from "@lexical/history";
-import { createHeadlessEditor } from "@lexical/headless";
 import {
   registerAutoLink,
   registerLink,
@@ -56,6 +55,7 @@ import {
   $exportNodeJSON,
   $formatText,
   $getEditor,
+  $getNearestRootOrShadowRoot,
   $getNodeByKey,
   $getRoot,
   $getSelection,
@@ -63,9 +63,12 @@ import {
   $getSlotNames,
   $isElementNode,
   $isRangeSelection,
+  $isRootNode,
   $isTextNode,
   $setSelection,
   COMPOSITION_END_TAG,
+  type BaseSelection,
+  createEditor,
   COMMAND_PRIORITY_LOW,
   CUT_TAG,
   DELETE_CHARACTER_COMMAND,
@@ -78,6 +81,10 @@ import {
   KEY_BACKSPACE_COMMAND,
   KEY_DELETE_COMMAND,
   KEY_TAB_COMMAND,
+  KEY_ARROW_DOWN_COMMAND,
+  KEY_ARROW_LEFT_COMMAND,
+  KEY_ARROW_RIGHT_COMMAND,
+  KEY_ARROW_UP_COMMAND,
   type LexicalEditor,
   type LexicalNode,
   type NodeKey,
@@ -92,20 +99,28 @@ import {
   UNDO_COMMAND,
 } from "lexical";
 import {
+  $applyRange,
   $deleteCharacter,
   $deleteLine,
   $deleteWord,
   $normalizeSelectionPointsForBoundaries,
+  $shrinkSelectionToRoot,
+  $swapPoints,
+  type Position,
 } from "./deletion.js";
 import { EditorError } from "./editor-error.js";
 import "./url.js";
 import {
+  $checkSelectionForTable,
   $clearHighlight,
   $deleteCellHandler,
   $deleteTextHandler,
   $fixRangeSelectionForSelectedTable,
   $formatCells,
   $tabHandler,
+  type ArrowKeyEvent,
+  registerTableArrowKeys,
+  takeTableToCheck,
 } from "./tables.js";
 
 type PathPoint = { path: number[]; offset: number; type: "text" | "element" };
@@ -142,6 +157,13 @@ type Command =
   | { type: "insertTable"; rows: number; columns: number }
   | { type: "insertTableRow" | "insertTableColumn"; after: boolean }
   | { type: "deleteTableRow" | "deleteTableColumn" }
+  | {
+      type: "arrow";
+      key: "left" | "right" | "up" | "down";
+      extend: boolean;
+      native: PathPoint;
+      atCellEdge: boolean;
+    }
   | { type: "undo" }
   | { type: "redo" }
   | { type: "wait"; milliseconds: number };
@@ -163,8 +185,13 @@ function current(): LexicalEditor {
   return editor;
 }
 
+/**
+ * An editor with no root element rather than a headless one, which throws
+ * where rich text's arrow keys ask for the root element; without one, an
+ * editor updates as a headless one does.
+ */
 function load(stateJSON: string): void {
-  const next = createHeadlessEditor({
+  const next = createEditor({
     namespace: EDITOR_NAMESPACE,
     nodes: SCHEMA_NODES,
     onError: (error) => {
@@ -376,6 +403,7 @@ function registerTables(next: LexicalEditor): void {
       if (node.getBackgroundColor() !== null) node.setBackgroundColor(null);
     });
   }
+  registerTableArrowKeys(next);
   registerDocumentTableInsertion(next);
 }
 
@@ -506,6 +534,10 @@ function run(
     current().dispatchCommand(SELECT_ALL_COMMAND, null as never);
     return;
   }
+  if (command.type === "arrow") {
+    arrow(command);
+    return;
+  }
   const selection = $getSelection();
   if ($isTableSelection(selection)) {
     runOnCells(command, selection);
@@ -588,6 +620,123 @@ function run(
   }
 }
 
+const ARROW_COMMANDS = {
+  down: KEY_ARROW_DOWN_COMMAND,
+  left: KEY_ARROW_LEFT_COMMAND,
+  right: KEY_ARROW_RIGHT_COMMAND,
+  up: KEY_ARROW_UP_COMMAND,
+};
+
+/**
+ * An arrow key as a browser has it: the handlers first, and where none
+ * takes the key or stops it, the browser's own move; then the selection
+ * change that follows either.
+ */
+function arrow(command: Extract<Command, { type: "arrow" }>): void {
+  const before = $getSelection()?.clone() ?? null;
+  const event: ArrowKeyEvent = {
+    atCellEdge: command.atCellEdge,
+    defaultPrevented: false,
+    preventDefault() {
+      this.defaultPrevented = true;
+    },
+    shiftKey: command.extend,
+    stopImmediatePropagation() {},
+    stopPropagation() {},
+  };
+  let handled: boolean;
+  try {
+    handled = current().dispatchCommand(
+      ARROW_COMMANDS[command.key],
+      event as unknown as KeyboardEvent,
+    );
+  } catch (error) {
+    if (!(error instanceof Error && error.message === MISSING_WINDOW)) {
+      throw error;
+    }
+    $moveNatively(command);
+    handled = true;
+  }
+  const tableToCheck = takeTableToCheck();
+  if (!handled && !event.defaultPrevented) {
+    const anchor =
+      command.extend && $isRangeSelection(before)
+        ? pathPoint(before.anchor)
+        : command.native;
+    setSelection(anchor, command.native);
+  } else if (!$reselect(before)) {
+    return;
+  }
+  if (tableToCheck && $checkSelectionForTable(tableToCheck, before)) {
+    $reselect(before);
+  }
+}
+
+/**
+ * What `RangeSelection.modify` throws on reaching for the browser's
+ * selection, which an editor with no root element has none of.
+ */
+const MISSING_WINDOW = "window object not found";
+
+/**
+ * The rest of `RangeSelection.modify` after the browser's selection moves
+ * its focus to `native`: that selection read back, and when extending,
+ * kept to the anchor's root and pointed the way the browser's points.
+ */
+function $moveNatively(command: Extract<Command, { type: "arrow" }>): void {
+  const selection = $getSelection();
+  if (!$isRangeSelection(selection)) return;
+  const native: Position = {
+    key: pointNode(command.native).getKey(),
+    offset: command.native.offset,
+    type: command.native.type,
+  };
+  if (!command.extend) {
+    $applyRange(selection, native, native);
+    selection.dirty = true;
+    return;
+  }
+  const anchorNode = selection.anchor.getNode();
+  const root = $isRootNode(anchorNode)
+    ? anchorNode
+    : $getNearestRootOrShadowRoot(anchorNode);
+  const moved = selection.clone();
+  moved.focus.set(native.key, native.offset, native.type);
+  const anchorIsAtStart = !moved.isBackward();
+  const { key, offset, type } = selection.anchor;
+  const anchor: Position = { key, offset, type };
+  if (anchorIsAtStart) $applyRange(selection, anchor, native);
+  else $applyRange(selection, native, anchor);
+  selection.dirty = true;
+  $shrinkSelectionToRoot(selection, command.key === "left", root);
+  if (!anchorIsAtStart) $swapPoints(selection);
+}
+
+/**
+ * The selection change a browser has after Lexical moves a range: the
+ * DOM's selection read back, as `setSelection` reads a user's. Lexical
+ * skips one inside text at both ends as its own. False where there was
+ * none.
+ */
+function $reselect(before: BaseSelection | null): boolean {
+  const selection = $getSelection();
+  const inText = (point: PointType) =>
+    point.type === "text" &&
+    point.offset !== 0 &&
+    point.offset !== point.getNode().getTextContentSize();
+  if (
+    !$isRangeSelection(selection) ||
+    ($isRangeSelection(before) &&
+      before.anchor.is(selection.anchor) &&
+      before.focus.is(selection.focus)) ||
+    (inText(selection.anchor) && inText(selection.focus))
+  ) {
+    return false;
+  }
+  setSelection(pathPoint(selection.anchor), pathPoint(selection.focus));
+  return true;
+}
+
 /** A table selection, where each table's handlers answer first. */
 function runOnCells(
   command: Exclude<
@@ -597,6 +746,7 @@ function runOnCells(
         | "setSelection"
         | "toggleChecked"
         | "selectAll"
+        | "arrow"
         | "undo"
         | "redo"
         | "wait"

@@ -224,6 +224,9 @@ extension Update {
     if case .setSelection(let anchor, let focus) = command {
       return try placeSelection(anchor, focus)
     }
+    if case .arrow(let key, let extend, let native, let atCellEdge) = command {
+      return try arrow(key, extend: extend, native: native, atCellEdge: atCellEdge)
+    }
     if command == .selectAll {
       // Rich text answers what the table's handler leaves.
       if try !selectAllCells() { selectAll() }
@@ -295,7 +298,7 @@ extension Update {
   }
 
   /// `setSelection` in `reference/entry.ts`.
-  private mutating func placeSelection(_ anchorAt: Point, _ focusAt: Point) throws {
+  mutating func placeSelection(_ anchorAt: Point, _ focusAt: Point) throws {
     let last = selection
     let placed = RangeSelection(
       anchor: SelectionPoint(try pointNode(anchorAt), anchorAt.offset, anchorAt.type),
@@ -352,7 +355,7 @@ extension Update {
   }
 
   /// `pointNode` in `reference/entry.ts`.
-  private func pointNode(_ point: Point) throws -> NodeKey {
+  func pointNode(_ point: Point) throws -> NodeKey {
     guard let key = state.key(at: point.path) else { throw EditorError.noNode(path: point.path) }
     let node = state[key]
     let size =
