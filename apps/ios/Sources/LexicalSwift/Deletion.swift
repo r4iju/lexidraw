@@ -17,6 +17,16 @@ extension Update {
       let initialRange = state.extendToRange(initialCaret)
       let (before, after) = state.textSlices(initialRange)
       if [before, after].allSatisfy({ ($0?.distance ?? 0) == 0 }) {
+        if anchor.type == .element, let adjacent = state.nodeAtCaret(initialCaret), state[adjacent].isElement,
+          needsBlockCursorBeside(adjacent)
+        {
+          let container = state.parent(of: adjacent)
+          try remove(adjacent)
+          if let restored = try restoreEmptyContainerParagraph(container, removed: adjacent) {
+            _ = selectStart(restored)
+          }
+          return
+        }
         enum Merge {
           case initial
           case nextBlock(NodeKey)
@@ -202,6 +212,16 @@ extension Update {
     let start = state.normalize(.child(block, .next))
     let end = state.inDirection(state.normalize(.child(block, .previous)), .next)
     return state.compareNext(range.anchor, start) <= 0 && state.compareNext(range.focus, end) >= 0
+  }
+
+  /// `$needsBlockCursorBeside`: a block no caret goes in.
+  private func needsBlockCursorBeside(_ key: NodeKey) -> Bool {
+    let node = state[key]
+    if node.isInline { return false }
+    if node.isDecorator { return true }
+    guard node.isElement else { return false }
+    if node.isShadowRoot { return !(state.parent(of: key).map { state[$0].isRootOrShadowRoot } ?? false) }
+    return !node.canBeEmpty
   }
 
   /// `$updateCaretSelectionForUnicodeCharacter`: a deletion of more than one

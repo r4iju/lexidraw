@@ -1,0 +1,211 @@
+{
+  "changes" : [
+    {
+      "changed" : [
+
+      ]
+    },
+    {
+      "changed" : [
+        [
+
+        ],
+        [
+          0
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          1
+        ],
+        [
+          1,
+          0
+        ],
+        [
+          2
+        ]
+      ]
+    },
+    {
+      "changed" : [
+        [
+
+        ],
+        [
+          1
+        ]
+      ]
+    },
+    {
+      "changed" : [
+        [
+
+        ],
+        [
+          0
+        ],
+        [
+          1
+        ]
+      ]
+    },
+    {
+      "changed" : [
+        [
+
+        ],
+        [
+          0
+        ]
+      ]
+    }
+  ],
+  "commands" : [
+    {
+      "anchor" : {
+        "offset" : 3,
+        "path" : [
+          0,
+          0
+        ],
+        "type" : "text"
+      },
+      "focus" : {
+        "offset" : 3,
+        "path" : [
+          0,
+          0
+        ],
+        "type" : "text"
+      },
+      "type" : "setSelection"
+    },
+    {
+      "type" : "insertParagraph"
+    },
+    {
+      "backward" : false,
+      "type" : "deleteWord"
+    },
+    {
+      "backward" : false,
+      "type" : "deleteCharacter"
+    },
+    {
+      "backward" : false,
+      "type" : "deleteWord"
+    }
+  ],
+  "expected" : {
+    "selection" : {
+      "anchor" : {
+        "offset" : 1,
+        "path" : [
+
+        ],
+        "type" : "element"
+      },
+      "focus" : {
+        "offset" : 1,
+        "path" : [
+
+        ],
+        "type" : "element"
+      },
+      "format" : 64,
+      "style" : ""
+    },
+    "state" : {
+      "root" : {
+        "children" : [
+          {
+            "children" : [
+              {
+                "detail" : 0,
+                "format" : 64,
+                "mode" : "normal",
+                "style" : "",
+                "text" : "本語日",
+                "type" : "text",
+                "version" : 1
+              }
+            ],
+            "direction" : null,
+            "format" : "",
+            "indent" : 0,
+            "textFormat" : 64,
+            "textStyle" : "",
+            "type" : "paragraph",
+            "version" : 1
+          }
+        ],
+        "direction" : null,
+        "format" : "",
+        "indent" : 0,
+        "type" : "root",
+        "version" : 1
+      }
+    }
+  },
+  "start" : {
+    "root" : {
+      "children" : [
+        {
+          "children" : [
+            {
+              "detail" : 0,
+              "format" : 64,
+              "mode" : "normal",
+              "style" : "",
+              "text" : "本語日本",
+              "type" : "text",
+              "version" : 1
+            }
+          ],
+          "direction" : null,
+          "format" : "",
+          "indent" : 0,
+          "textFormat" : 64,
+          "textStyle" : "",
+          "type" : "paragraph",
+          "version" : 1
+        },
+        {
+          "children" : [
+            {
+              "checked" : true,
+              "children" : [
+                {
+                  "type" : "linebreak",
+                  "version" : 1
+                }
+              ],
+              "direction" : null,
+              "format" : "",
+              "indent" : 0,
+              "type" : "listitem",
+              "value" : 1,
+              "version" : 1
+            }
+          ],
+          "direction" : null,
+          "format" : "",
+          "indent" : 0,
+          "listType" : "check",
+          "start" : 1,
+          "tag" : "ul",
+          "type" : "list",
+          "version" : 1
+        }
+      ],
+      "direction" : null,
+      "format" : "",
+      "indent" : 0,
+      "type" : "root",
+      "version" : 1
+    }
+  }
+}

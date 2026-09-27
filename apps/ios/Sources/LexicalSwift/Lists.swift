@@ -337,7 +337,8 @@ extension Update {
       }
       target = previous
     } else if let next, self.listType(next) == listType {
-      try insert(item, before: state.firstChild(of: next)!)
+      guard let first = state.firstChild(of: next) else { throw EditorError.invalidState("An empty list") }
+      try insert(item, before: first)
       target = next
     } else {
       let list = createList(listType)

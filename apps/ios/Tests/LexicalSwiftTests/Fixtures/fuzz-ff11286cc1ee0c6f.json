@@ -1,0 +1,269 @@
+{
+  "changes" : [
+    {
+      "changed" : [
+
+      ]
+    },
+    {
+      "changed" : [
+        [
+
+        ],
+        [
+          0
+        ],
+        [
+          1
+        ],
+        [
+          1,
+          0
+        ]
+      ]
+    },
+    {
+      "changed" : [
+        [
+
+        ],
+        [
+          0
+        ],
+        [
+          1
+        ],
+        [
+          1,
+          0
+        ],
+        [
+          1,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "changed" : [
+        [
+
+        ],
+        [
+          0
+        ],
+        [
+          1
+        ],
+        [
+          1,
+          0
+        ]
+      ]
+    },
+    {
+      "changed" : [
+        [
+
+        ],
+        [
+          1
+        ],
+        [
+          2
+        ],
+        [
+          2,
+          0
+        ]
+      ]
+    },
+    {
+      "changed" : [
+        [
+
+        ],
+        [
+          1
+        ],
+        [
+          2
+        ],
+        [
+          2,
+          0
+        ],
+        [
+          2,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "changed" : [
+
+      ]
+    },
+    {
+      "changed" : [
+        [
+
+        ],
+        [
+          0
+        ],
+        [
+          1
+        ]
+      ]
+    },
+    {
+      "changed" : [
+        [
+
+        ],
+        [
+          0
+        ]
+      ]
+    }
+  ],
+  "commands" : [
+    {
+      "anchor" : {
+        "offset" : 0,
+        "path" : [
+          0,
+          0
+        ],
+        "type" : "text"
+      },
+      "focus" : {
+        "offset" : 0,
+        "path" : [
+          0,
+          0
+        ],
+        "type" : "text"
+      },
+      "type" : "setSelection"
+    },
+    {
+      "type" : "insertParagraph"
+    },
+    {
+      "listType" : "check",
+      "type" : "insertList"
+    },
+    {
+      "type" : "undo"
+    },
+    {
+      "type" : "insertParagraph"
+    },
+    {
+      "listType" : "bullet",
+      "type" : "insertList"
+    },
+    {
+      "anchor" : {
+        "offset" : 0,
+        "path" : [
+          1
+        ],
+        "type" : "element"
+      },
+      "focus" : {
+        "offset" : 0,
+        "path" : [
+          1
+        ],
+        "type" : "element"
+      },
+      "type" : "setSelection"
+    },
+    {
+      "backward" : false,
+      "type" : "deleteCharacter"
+    },
+    {
+      "backward" : false,
+      "type" : "deleteCharacter"
+    }
+  ],
+  "expected" : {
+    "selection" : {
+      "anchor" : {
+        "offset" : 1,
+        "path" : [
+
+        ],
+        "type" : "element"
+      },
+      "focus" : {
+        "offset" : 1,
+        "path" : [
+
+        ],
+        "type" : "element"
+      },
+      "format" : 64,
+      "style" : "color: red;"
+    },
+    "state" : {
+      "root" : {
+        "children" : [
+          {
+            "children" : [
+
+            ],
+            "direction" : null,
+            "format" : "",
+            "indent" : 0,
+            "textFormat" : 64,
+            "textStyle" : "color: red;",
+            "type" : "paragraph",
+            "version" : 1
+          }
+        ],
+        "direction" : null,
+        "format" : "",
+        "indent" : 0,
+        "type" : "root",
+        "version" : 1
+      }
+    }
+  },
+  "start" : {
+    "root" : {
+      "children" : [
+        {
+          "children" : [
+            {
+              "detail" : 0,
+              "format" : 64,
+              "mode" : "normal",
+              "style" : "color: red;",
+              "text" : "_",
+              "type" : "text",
+              "version" : 1
+            }
+          ],
+          "direction" : null,
+          "format" : "",
+          "indent" : 0,
+          "textFormat" : 64,
+          "textStyle" : "color: red;",
+          "type" : "paragraph",
+          "version" : 1
+        }
+      ],
+      "direction" : null,
+      "format" : "",
+      "indent" : 0,
+      "type" : "root",
+      "version" : 1
+    }
+  }
+}

@@ -82,10 +82,12 @@ extension Update {
 
   /// A block's `insertNewAfter`: what Enter puts after it. After a
   /// paragraph or a quote, it is `ParagraphNode.insertNewAfter`'s paragraph,
-  /// and after a list item a copy of it.
+  /// and after a list item a copy of it. A list doesn't split, as an element
+  /// that doesn't say how doesn't.
   mutating func insertNewAfter(_ block: NodeKey, _ selection: RangeSelection, restoringSelection: Bool) throws
-    -> NodeKey
+    -> NodeKey?
   {
+    if isList(block) { return nil }
     if isListItem(block) {
       let item = copyNode(block)
       try insert(item, after: block, restoringSelection: restoringSelection)
@@ -589,7 +591,7 @@ extension Update {
       throw EditorError.invalidState("Expected ancestor to be a block ElementNode")
     }
     let moving = state.child(of: block, at: index).map { [$0] + nextSiblings(of: $0) } ?? []
-    let newBlock = try insertNewAfter(block, selection, restoringSelection: false)
+    guard let newBlock = try insertNewAfter(block, selection, restoringSelection: false) else { return }
     try append(newBlock, moving)
     selectStart(newBlock)
   }
@@ -630,8 +632,11 @@ extension Update {
       let point = RangeSelection(
         anchor: SelectionPoint(node, offset, .element), focus: SelectionPoint(node, offset, .element), format: [],
         style: "")
-      let newElement = try insertNewAfter(node, point, restoringSelection: true)
-      try append(newElement, [first] + nextSiblings(of: first))
+      if let newElement = try insertNewAfter(node, point, restoringSelection: true) {
+        try append(newElement, [first] + nextSiblings(of: first))
+      } else if stoppingAtUnsplittable {
+        return (node, offset)
+      }
     }
     return (parent, state.index(of: node)! + 1)
   }
