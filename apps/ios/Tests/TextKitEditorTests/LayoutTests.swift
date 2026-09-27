@@ -130,9 +130,53 @@ import UIKit
     let layout = ListAndIndentLayout.self
     #expect(abs(try caret(0).minX - layout.listPadding * em) < 0.5)
     #expect(abs(try caret(2).minX - (2 * layout.listPadding + layout.checklistPadding) * em) < 0.5)
-    #expect(abs(try caret(2).minY - (try caret(0)).maxY - layout.itemSpacing * em) < 1)
+    #expect(abs(try caret(2).midY - (try caret(0)).midY - TypographyTests.paragraphLine * em - layout.itemSpacing * em) < 1)
     #expect(abs(try caret(4).minX - 2 * layout.indentWidth) < 0.5)
     try Self.expectEveryCaretToLandOnItself(view)
+  }
+
+  /// A marker is set as high on its line as the item's text: an item whose
+  /// text is its own marker shows the two alike.
+  @Test
+  func aMarkerSitsAsHighAsItsItemsText() throws {
+    let view = try Self.host(LexicalJSON.document([LexicalJSON.list(.number, [.item([LexicalJSON.text("1.")])])]))
+    let textStart = view.caretRect(for: view.beginningOfDocument).minX
+    let canvas = view.textInputView
+    let image = UIGraphicsImageRenderer(bounds: canvas.bounds).image { context in
+      UIColor.white.setFill()
+      context.fill(canvas.bounds)
+      canvas.layer.render(in: context.cgContext)
+    }
+
+    let marker = try #require(Self.inkedRows(image, from: 0, to: textStart))
+    let text = try #require(Self.inkedRows(image, from: textStart, to: canvas.bounds.width))
+    #expect(abs(marker.lowerBound - text.lowerBound) < 0.5 && abs(marker.upperBound - text.upperBound) < 0.5, "\(marker), \(text)")
+  }
+
+  /// The top and bottom, in points, of what is drawn darker than a white
+  /// background between `minX` and `maxX`.
+  static func inkedRows(_ image: UIImage, from minX: CGFloat, to maxX: CGFloat) -> ClosedRange<CGFloat>? {
+    guard let cgImage = image.cgImage else { return nil }
+    let (width, height) = (cgImage.width, cgImage.height)
+    var pixels = [UInt8](repeating: 0, count: width * height * 4)
+    let drawn = pixels.withUnsafeMutableBytes { buffer in
+      let context = CGContext(
+        data: buffer.baseAddress, width: width, height: height, bitsPerComponent: 8, bytesPerRow: width * 4,
+        space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+      context?.draw(cgImage, in: CGRect(x: 0, y: 0, width: width, height: height))
+      return context != nil
+    }
+    guard drawn else { return nil }
+    let scale = image.scale
+    let columns = max(Int(minX * scale), 0)..<min(Int(maxX * scale), width)
+    let rows = (0..<height).filter { row in
+      columns.contains { column in
+        let pixel = (row * width + column) * 4
+        return pixels[pixel..<pixel + 3].contains { $0 < 200 }
+      }
+    }
+    guard let top = rows.first, let bottom = rows.last else { return nil }
+    return CGFloat(top) / scale...CGFloat(bottom + 1) / scale
   }
 
   /// Each item shows the marker the web's theme gives it, numbered from its

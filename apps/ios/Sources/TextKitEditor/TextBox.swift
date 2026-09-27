@@ -21,6 +21,7 @@ import UIKit
     var frame: CGRect
     var range: NSRange
     var inset: CGFloat
+    /// Where the line's text sits as drawn, raised as `placement` says.
     var baseline: CGFloat
   }
 
@@ -60,11 +61,12 @@ import UIKit
       for line in fragment.textLineFragments {
         let range = NSRange(location: start + line.characterRange.location, length: line.characterRange.length)
         guard range.length > 0 || self.lines.isEmpty else { continue }
+        let placement = self.placement(of: line, at: start)
         self.lines.append(
           Line(
             frame: line.typographicBounds.offsetBy(dx: origin.x, dy: origin.y), range: range,
-            inset: self.placement(of: line, at: start).inset,
-            baseline: origin.y + line.typographicBounds.minY + line.glyphOrigin.y))
+            inset: placement.inset,
+            baseline: origin.y + line.typographicBounds.minY + line.glyphOrigin.y - placement.raise))
       }
       return true
     }
