@@ -272,7 +272,7 @@ hand:
   just after a link's last character is in the link, as a browser puts it
   in the text before it.
 - Typing `[text](url)` makes a link by Lexical's own LINK transformer. Its
-  `unescapeText` runs in JavaScriptCore, so a character reference in the URL
-  decodes as on the web; one past Unicode fails there, and the model then
-  keeps what was typed and reports the error, as Lexical reports it to
-  `onError`.
+  `unescapeText` is ported: a backslash escapes punctuation and a character
+  reference in the URL decodes as on the web, and the fuzzer types both. One
+  past Unicode fails as on the web, and the model then keeps what was typed
+  and reports the error, as Lexical reports it to `onError`.

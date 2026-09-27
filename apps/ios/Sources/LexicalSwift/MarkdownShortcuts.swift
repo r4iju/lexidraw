@@ -420,32 +420,46 @@ extension Update {
     }
   }
 
-  /// `unescapeText` from @lexical/markdown, run in JavaScriptCore so that
-  /// character references decode, and fail to, as they do on the web.
+  /// `unescapeText` from @lexical/markdown: a backslash before ASCII
+  /// punctuation goes, then a decimal character reference is the character,
+  /// which past Unicode fails as `String.fromCodePoint` does.
   private static func unescapeText(_ value: String) throws -> String {
-    try unescapeTextScript.withLock { context in
-      let result = context.objectForKeyedSubscript("unescapeText").call(withArguments: [value])
-      if let exception = context.exception {
-        context.exception = nil
-        throw EditorError.invalidState("unescapeText: \(exception)")
+    let text = Array(value.utf16)
+    var unescaped: [UTF16.CodeUnit] = []
+    var index = 0
+    while index < text.count {
+      if text[index] == backslash, let next = text[safe: index + 1], isASCIIPunctuation(next) {
+        index += 1
       }
-      return result?.toString() ?? value
+      unescaped.append(text[index])
+      index += 1
     }
+    var decoded: [UTF16.CodeUnit] = []
+    index = 0
+    while index < unescaped.count {
+      let digits = unescaped.dropFirst(index + 2).prefix { (zero...nine).contains($0) }
+      guard unescaped.has(characterReferenceStart, at: index), !digits.isEmpty,
+        unescaped[safe: digits.endIndex] == semicolon
+      else {
+        decoded.append(unescaped[index])
+        index += 1
+        continue
+      }
+      let number = String(decoding: digits, as: UTF16.self)
+      guard let codePoint = UInt32(number), codePoint <= 0x10FFFF else {
+        throw EditorError.invalidState("unescapeText: RangeError: Invalid code point \(number)")
+      }
+      decoded += Unicode.Scalar(codePoint).map { Array(String($0).utf16) } ?? [UTF16.CodeUnit(codePoint)]
+      index = digits.endIndex + 1
+    }
+    return String(decoding: decoded, as: UTF16.self)
   }
 
-  private static let unescapeTextScript: Mutex<JSContext> = {
-    let context = JSContext()!
-    context.evaluateScript(
-      """
-      function unescapeText(value) {
-        return value
-          .replace(/\\\\([!-/:-@[-`{-~])/g, '$1')
-          .replace(/&#(\\d+);/g, (_, codePoint) => String.fromCodePoint(Number(codePoint)));
-      }
-      """
-    )
-    return Mutex(context)
-  }()
+  /// `[!-/:-@[-`{-~]`.
+  private static func isASCIIPunctuation(_ character: UTF16.CodeUnit) -> Bool {
+    (0x21...0x7E).contains(character) && !(zero...nine).contains(character)
+      && !(0x41...0x5A).contains(character) && !(0x61...0x7A).contains(character)
+  }
 
   /// `$runTextFormatTransformers`: a closing tag typed after an opening one
   /// formats the text between them and removes both.
@@ -531,6 +545,11 @@ extension Update {
   private static let punctuationOrSpace = JSRegExp("[!-/:-@[-`{-~\\s]", flags: "")
   private static let space = " ".utf16.first!
   private static let backtick = "`".utf16.first!
+  private static let backslash = "\\".utf16.first!
+  private static let semicolon = ";".utf16.first!
+  private static let zero = "0".utf16.first!
+  private static let nine = "9".utf16.first!
+  private static let characterReferenceStart = Array("&#".utf16)
 }
 
 extension Array where Element == UTF16.CodeUnit {

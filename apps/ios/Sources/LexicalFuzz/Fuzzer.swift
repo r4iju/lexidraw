@@ -276,7 +276,7 @@ struct Generator {
   private static let alphabet: [String] = [
     "a", "b", "z", " ", " ", ".", "_", "7", "1", "é", "e\u{301}", "ß", "日", "本", "語", "한", "👍", "👍🏽",
     "👨‍👩‍👧", "🇯🇵", "日本語", "東京", "話す", "を", "は", "ひらがな", "カタカナ", "#", ">", "*", "~", "=", "`", "-", "[", "]", "(",
-    ")",
+    ")", "\\", "&", ";",
   ]
   private static let formats: [TextFormat] = [
     [], .bold, .italic, [.bold, .italic], .underline, .code, .subscript, .superscript,
@@ -290,7 +290,7 @@ struct Generator {
     "# ", "### ", "###### ", "####### ", "> ", "--- ", "*** ", "___ ", "*a*", "**a**", "***a***", "_a_", "__a__",
     "~~a~~", "==a==", "`a`", "`**a**", "*a *", "a_b_", "- ", "* ", "+ ", "1. ", "7. ", "    - ", "        1. ", "[ ] ",
     "[x] ", "- [ ] ", "\t- ", "``` ", "[a](b)", "[a]()", "[[a](b)", "[a](<b c> \"t\")", "[a](https://x.io)",
-    "![a](b)",
+    "![a](b)", "[a](b\\))", "[a](\\a)", "[a](&#33;)", "[a](\\&#33;)", "[a](&#128077)", "[a](b \"\\\"t\")",
   ]
   /// The rest of a shortcut being typed.
   private var typing: [EditorCommand] = []

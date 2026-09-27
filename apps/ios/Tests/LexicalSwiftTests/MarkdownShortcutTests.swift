@@ -297,6 +297,19 @@ import Testing
       commands: [caretInEmptyParagraph] + typing("[a](b\\)&#33;)"),
       expected: document(paragraph(shortcutLink("b)!", text("a"))))),
     Script(
+      name: "a backslash before a letter in a link's URL stays", start: emptyParagraph,
+      commands: [caretInEmptyParagraph] + typing("[a](b\\c)"), expected: document(paragraph(shortcutLink("b\\c", text("a"))))),
+    Script(
+      name: "a doubled backslash in a link's URL is one", start: emptyParagraph,
+      commands: [caretInEmptyParagraph] + typing("[a](b\\\\)"), expected: document(paragraph(shortcutLink("b\\", text("a"))))),
+    Script(
+      name: "a character reference in a link's URL needs its semicolon", start: emptyParagraph,
+      commands: [caretInEmptyParagraph] + typing("[a](&#33)"), expected: document(paragraph(shortcutLink("&#33", text("a"))))),
+    Script(
+      name: "an escaped ampersand in a link's URL still starts a character reference", start: emptyParagraph,
+      commands: [caretInEmptyParagraph] + typing("[a](\\&#128077;)"),
+      expected: document(paragraph(shortcutLink("👍", text("a"))))),
+    Script(
       name: "a link to a character past Unicode fails and leaves what was typed", start: emptyParagraph,
       commands: [caretInEmptyParagraph] + typing("[a](&#1114112;)"), expected: document(paragraph(text("[a](&#1114112;)")))),
     Script(
