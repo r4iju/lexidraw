@@ -73,8 +73,8 @@ extension Update {
     }
   }
 
-  /// ElementNode's `canIndent`, which a list turns down.
-  private func canIndent(_ block: NodeKey) -> Bool { !isList(block) }
+  /// ElementNode's `canIndent`, which a list and a table's nodes turn down.
+  private func canIndent(_ block: NodeKey) -> Bool { !isList(block) && !isTable(block) && !isRow(block) && !isCell(block) }
 
   /// `$getListDepth`.
   private func listDepth(_ list: NodeKey) throws -> Int {
