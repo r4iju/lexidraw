@@ -155,6 +155,31 @@ import Testing
     #expect(try fixture.replay(on: Editor()) == fixture.recorded)
   }
 
+  /// Rows of random cells, typed and checked against Lexical, one for every
+  /// ten of FUZZ_STEPS from FUZZ_SEED. The first row that disagrees is
+  /// written as a fixture to commit.
+  @Test func randomCellsImportAsLexicalImportsThem() throws {
+    let count = (Support.environment("FUZZ_STEPS").flatMap(Int.init) ?? 2_000) / 10
+    let seed = Support.environment("FUZZ_SEED").flatMap(UInt64.init) ?? UInt64.random(in: 0...UInt64.max)
+    let reference = try Support.referenceEditor()
+    var rows = MarkdownRows(seed: seed)
+    var declined = 0
+    for _ in 0..<count {
+      let row = rows.next()
+      let fixture = try Fixture.record(start: Self.emptyParagraph, commands: Self.row(row), on: reference)
+      let editor = Editor()
+      let outcome = try fixture.replay(on: editor)
+      if editor.shortcutsDeclinedAsNotPorted > 0 {
+        declined += 1
+      } else if outcome != fixture.recorded {
+        let url = try fixture.write(into: Support.fixturesSource)
+        Issue.record("Seed \(seed): \(row) diverged; fixture written to \(url.path)")
+        return
+      }
+    }
+    print("Seed \(seed): \(count - declined) rows agreed, \(declined) declined as not ported yet")
+  }
+
   /// A hard break a cell imported keeps its marker in the line break, and a
   /// document holding one opens to edit.
   @Test(arguments: [#"a\\nb"#, #"a  \nb"#])

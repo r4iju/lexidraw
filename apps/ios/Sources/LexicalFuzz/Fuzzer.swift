@@ -282,7 +282,7 @@ struct Generator {
   private static let alphabet: [String] = [
     "a", "b", "z", " ", " ", ".", "_", "7", "1", "é", "e\u{301}", "ß", "日", "本", "語", "한", "👍", "👍🏽",
     "👨‍👩‍👧", "🇯🇵", "日本語", "東京", "話す", "を", "は", "ひらがな", "カタカナ", "#", ">", "*", "~", "=", "`", "-", "[", "]", "(",
-    ")", "\\", "&", ";",
+    ")", "\\", "&", ";", "|",
   ]
   private static let formats: [TextFormat] = [
     [], .bold, .italic, [.bold, .italic], .underline, .code, .subscript, .superscript,
@@ -297,6 +297,7 @@ struct Generator {
     "~~a~~", "==a==", "`a`", "`**a**", "*a *", "a_b_", "- ", "* ", "+ ", "1. ", "7. ", "    - ", "        1. ", "[ ] ",
     "[x] ", "- [ ] ", "\t- ", "``` ", "[a](b)", "[a]()", "[[a](b)", "[a](<b c> \"t\")", "[a](https://x.io)",
     "![a](b)", "[a](b\\))", "[a](\\a)", "[a](&#33;)", "[a](\\&#33;)", "[a](&#128077)", "[a](b \"\\\"t\")",
+    "|a| ", "|a|b| ", "|---| ", "|:---:|---:| ",
   ]
   /// The rest of a shortcut being typed.
   private var typing: [EditorCommand] = []
@@ -562,7 +563,9 @@ struct Generator {
       return .setSelection(anchor: anchor, focus: isRange ? points.randomElement(using: &random)! : anchor)
     case ..<9: return .insertText(text(1...3))
     case ..<16:
-      let shortcut = Self.shortcuts.randomElement(using: &random)!
+      let shortcut =
+        Int.random(in: 0..<4, using: &random) == 0
+        ? MarkdownRows.row(using: &random) + " " : Self.shortcuts.randomElement(using: &random)!
       typing =
         switch Int.random(in: 0..<4, using: &random) {
         case 0: [.insertText(shortcut), .insertParagraph]
