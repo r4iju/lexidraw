@@ -114,6 +114,8 @@ export function swiftForTypography(styles: WebStyles): string {
     css,
     `.document-content :is(ul, ol)${NOT_IN_DECORATOR}`,
   );
+  const item = declarations(css, `.document-content li${NOT_IN_DECORATOR}`);
+  refuseOtherThan(item, "margin-block", "0");
   const nextItem = declarations(
     css,
     `.document-content li + li${NOT_IN_DECORATOR}`,
@@ -134,18 +136,26 @@ export function swiftForTypography(styles: WebStyles): string {
     `.document-content li${NOT_IN_DECORATOR}::marker`,
   );
   const task = declarations(css, ".document-content li.document-task");
-  const [taskPadding] = pair(value(task, "padding-inline"));
+  const [taskPadding, taskPaddingEnd] = pair(value(task, "padding-inline"));
+  if (taskPaddingEnd !== "0") {
+    throw new Error(
+      `${task.selector} has padding at its end, which isn't read yet`,
+    );
+  }
   const box = declarations(css, ".document-task::before");
+  refuseOtherThan(box, "inset-inline-start", "0");
   if (value(box, "width") !== value(box, "height")) {
     throw new Error(`${box.selector} isn't square`);
   }
   const [boxBorderWidth, boxBorderColor] = border(value(box, "border"));
   const done = declarations(css, ".document-task-done");
+  refuseOtherThan(done, "text-decoration", "line-through");
   const checked = declarations(css, ".document-task-done::before");
   if (value(checked, "background") !== value(checked, "border-color")) {
     throw new Error(`${checked.selector} is filled other than it's outlined`);
   }
   const tick = declarations(css, ".document-task-done::after");
+  refuseOtherThan(tick, "transform", "rotate(45deg)");
   const tickColor = /^solid (.+)$/.exec(value(tick, "border"))?.[1];
   const tickLineWidth = /^0 (\S+) \1 0$/.exec(value(tick, "border-width"))?.[1];
   if (!tickColor || !tickLineWidth) {
@@ -345,6 +355,20 @@ function value(where: Declarations, property: string): string {
     throw new Error(`${where.selector} sets no ${property}`);
   }
   return found;
+}
+
+/** Throws unless `where` sets `property` to `expected`, the one value read. */
+function refuseOtherThan(
+  where: Declarations,
+  property: string,
+  expected: string,
+) {
+  const found = value(where, property);
+  if (found !== expected) {
+    throw new Error(
+      `${where.selector} sets ${property} to ${found} rather than ${expected}, which isn't read yet`,
+    );
+  }
 }
 
 /** A shorthand's start and end: one value is both. */

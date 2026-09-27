@@ -187,3 +187,45 @@ test("refuses a nested list spaced other than an item", async () => {
     ".document-content li :is(ul, ol)",
   );
 });
+
+test.each([
+  [
+    ".document-content li:not([data-lexical-decorator] *)",
+    "margin-block: 0;",
+    "margin-block: 0.5em 0;",
+  ],
+  [
+    ".document-content li.document-task",
+    "padding-inline: 1.75em 0;",
+    "padding-inline: 1.75em 1em;",
+  ],
+  [
+    ".document-task::before",
+    "inset-inline-start: 0;",
+    "inset-inline-start: 0.25em;",
+  ],
+  [
+    ".document-task-done",
+    "text-decoration: line-through;",
+    "text-decoration: underline;",
+  ],
+  [
+    ".document-task-done::after",
+    "transform: rotate(45deg);",
+    "transform: rotate(30deg);",
+  ],
+])("refuses a list whose %p sets other than %p", async (selector, from, to) => {
+  const styles = await readWebStyles();
+  const rule = styles.documentCSS.indexOf(`\n${selector} {`);
+  const at = styles.documentCSS.indexOf(from, rule);
+  expect(rule).toBeGreaterThan(-1);
+  expect(at).toBeGreaterThan(rule);
+  const documentCSS =
+    styles.documentCSS.slice(0, at) +
+    to +
+    styles.documentCSS.slice(at + from.length);
+
+  expect(() => swiftForTypography({ ...styles, documentCSS })).toThrow(
+    selector,
+  );
+});
