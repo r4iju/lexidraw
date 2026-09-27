@@ -178,7 +178,10 @@ public struct Fuzzer {
       result.append((script.start, commands))
     }
     let paths = script.start.nodePaths().filter { !$0.isEmpty }
-    for path in paths.reversed() {
+    // A whole block first, so a table goes in one step rather than a node at
+    // a time.
+    let depths = Set(paths.map(\.count)).sorted()
+    for path in depths.flatMap({ depth in paths.reversed().filter { $0.count == depth } }) {
       let commands = script.commands.map { $0.adjustingPaths(forRemovalOf: path) }
       result.append((script.start.updatingNode(at: path) { _ in nil }, commands))
     }
@@ -260,8 +263,9 @@ extension String {
 }
 
 /// Random documents of paragraphs, headings, quotes, lists and horizontal
-/// rules, with text, tabs, line breaks and links, and random editing commands a
-/// user could issue against them.
+/// rules, with text, tabs, line breaks and links, and tables of paragraphs
+/// with merged cells, and random editing commands a user could issue against
+/// them.
 struct Generator {
   private var random: SplitMix64
   /// What the last copy or cut put on the clipboard, for a paste in the same
@@ -313,6 +317,10 @@ struct Generator {
   mutating func document() -> JSONValue {
     var blocks: [JSONValue] = []
     for _ in 0..<Int.random(in: 1...3, using: &random) {
+      if Int.random(in: 0..<3, using: &random) == 0 {
+        blocks.append(table())
+        continue
+      }
       // Lexical joins a list to the list of its type after it.
       let previousType = blocks.last?["listType"]?.stringValue.flatMap(ListType.init(rawValue:))
       blocks.append(block(unlike: previousType))
@@ -328,6 +336,46 @@ struct Generator {
     case 3...5: list(unlike: previousType)
     default: paragraph()
     }
+  }
+
+  /// A table as the web's menu leaves one: up to three rows and columns,
+  /// perhaps a merged block of cells, and perhaps a width per column.
+  private mutating func table() -> JSONValue {
+    let rowCount = Int.random(in: 1...3, using: &random)
+    let columnCount = Int.random(in: 1...3, using: &random)
+    var merged: (row: Int, column: Int, rowSpan: Int, colSpan: Int)?
+    if Int.random(in: 0..<2, using: &random) == 0 {
+      let row = Int.random(in: 0..<rowCount, using: &random)
+      let column = Int.random(in: 0..<columnCount, using: &random)
+      merged = (
+        row, column, Int.random(in: 1...(rowCount - row), using: &random),
+        Int.random(in: 1...(columnCount - column), using: &random)
+      )
+    }
+    let rows: [JSONValue] = (0..<rowCount).map { row in
+      let cells: [JSONValue] = (0..<columnCount).compactMap { column in
+        var span = (row: 1, column: 1)
+        if let merged, (merged.row..<merged.row + merged.rowSpan).contains(row),
+          (merged.column..<merged.column + merged.colSpan).contains(column)
+        {
+          guard row == merged.row, column == merged.column else { return nil }
+          span = (merged.rowSpan, merged.colSpan)
+        }
+        let blocks = (0..<Int.random(in: 1...2, using: &random)).map { _ in paragraph() }
+        return LexicalJSON.element(
+          "tablecell", blocks,
+          [
+            "backgroundColor": ([nil, "#eee"] as [JSONValue]).randomElement(using: &random)!, "colSpan": .number(Double(span.column)),
+            "headerState": .number(Double(Int.random(in: 0...3, using: &random))), "rowSpan": .number(Double(span.row)),
+          ])
+      }
+      return LexicalJSON.element("tablerow", cells)
+    }
+    let widths: JSONObject =
+      Int.random(in: 0..<2, using: &random) == 0
+      ? [:]
+      : ["colWidths": .array((0..<columnCount).map { _ in ([80, 92.5, 120] as [JSONValue]).randomElement(using: &random)! })]
+    return LexicalJSON.element("table", rows, widths)
   }
 
   private mutating func paragraph() -> JSONValue {
@@ -493,7 +541,7 @@ struct Generator {
 
   mutating func command(for snapshot: Snapshot) -> EditorCommand? {
     if !typing.isEmpty { return typing.removeFirst() }
-    let roll = Int.random(in: 0..<100, using: &random)
+    let roll = Int.random(in: 0..<107, using: &random)
     let backward = Int.random(in: 0..<3, using: &random) > 0
     switch roll {
     // With nothing selected, as after undoing back to the loaded document, a
@@ -540,7 +588,13 @@ struct Generator {
     case ..<63: return .cut
     case ..<83: return .paste(pasted())
     case ..<94: return .undo
-    default: return .redo
+    case ..<100: return .redo
+    case ..<101:
+      return .insertTable(rows: Int.random(in: 1...3, using: &random), columns: Int.random(in: 1...3, using: &random))
+    case ..<103: return .insertTableRow(after: backward)
+    case ..<105: return .insertTableColumn(after: backward)
+    case ..<106: return .deleteTableRow
+    default: return .deleteTableColumn
     }
   }
 
