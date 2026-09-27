@@ -48,3 +48,11 @@ func paragraph(_ children: JSONValue...) -> JSONValue {
 func document(_ children: JSONValue...) -> JSONValue {
   LexicalJSON.document(children)
 }
+
+func heading(_ tag: String, _ children: JSONValue...) -> JSONValue {
+  LexicalJSON.heading(tag, children)
+}
+
+func quote(_ children: JSONValue...) -> JSONValue {
+  LexicalJSON.quote(children)
+}

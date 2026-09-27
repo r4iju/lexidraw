@@ -101,6 +101,34 @@ import UIKit
     #expect(view.accessibilityValue == "Watch this\nyoutube\nafter\n")
   }
 
+  /// ⌘⌥0 to ⌘⌥3 and ⌘⌥Q set the block type, as on the web.
+  @Test(arguments: [("1", "h1"), ("2", "h2"), ("3", "h3"), ("q", "quote"), ("0", "paragraph")])
+  func commandOptionKeysSetTheBlockType(_ input: String, _ type: String) throws {
+    let model = Editor()
+    try model.load(LexicalJSON.document([LexicalJSON.heading("h4", [LexicalJSON.text("one")])]))
+    let view = try hostEditing(model, caretAt: 1)
+    let command = try #require(view.keyCommands?.first { $0.input == input && $0.modifierFlags == [.command, .alternate] })
+
+    view.perform(try #require(command.action), with: command)
+
+    let block = try model.snapshot().state["root"]?["children"]?.arrayValue?.first
+    #expect((block?["type"] == "heading" ? block?["tag"] : block?["type"])?.stringValue == type)
+    #expect(block?["children"]?.arrayValue?.first?["text"] == "one")
+  }
+
+  /// A composition reaches the model as one commit, which can finish a
+  /// markdown shortcut as the end of a composition does on the web.
+  @Test func aCompositionThatEndsInASpaceFinishesAShortcut() throws {
+    let model = Editor()
+    try model.load(LexicalJSON.document([LexicalJSON.paragraph([])]))
+    let view = try hostEditing(model, caretAt: 0)
+
+    view.setMarkedText("# ", selectedRange: NSRange(location: 2, length: 0))
+    view.unmarkText()
+
+    #expect(try model.snapshot().state["root"]?["children"]?.arrayValue?.first?["type"] == "heading")
+  }
+
   /// The paragraph's text after the key command for `input` and `modifiers`
   /// runs with the caret `caretAt` UTF-16 offsets into `text`.
   private func text(
@@ -108,6 +136,16 @@ import UIKit
   ) throws -> String {
     let model = Editor()
     try model.load(LexicalJSON.document([LexicalJSON.paragraph([LexicalJSON.text(text)])]))
+    let view = try hostEditing(model, caretAt: offset)
+    let command = try #require(view.keyCommands?.first { $0.input == input && $0.modifierFlags == modifiers })
+    let action = try #require(command.action)
+    view.perform(action, with: command)
+    let paragraph = try model.snapshot().state["root"]?["children"]?.arrayValue?.first
+    return paragraph?["children"]?.arrayValue?.first?["text"]?.stringValue ?? ""
+  }
+
+  /// A view of `model` in a window, with the caret `offset` into its text.
+  private func hostEditing(_ model: Editor, caretAt offset: Int) throws -> EditorView {
     let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 600))
     let view = EditorView(model: model)
     view.frame = window.bounds
@@ -117,11 +155,7 @@ import UIKit
     view.layoutIfNeeded()
     let caret = try #require(view.position(from: view.beginningOfDocument, offset: offset))
     view.selectedTextRange = view.textRange(from: caret, to: caret)
-    let command = try #require(view.keyCommands?.first { $0.input == input && $0.modifierFlags == modifiers })
-    let action = try #require(command.action)
-    view.perform(action, with: command)
-    let paragraph = try model.snapshot().state["root"]?["children"]?.arrayValue?.first
-    return paragraph?["children"]?.arrayValue?.first?["text"]?.stringValue ?? ""
+    return view
   }
 }
 #endif

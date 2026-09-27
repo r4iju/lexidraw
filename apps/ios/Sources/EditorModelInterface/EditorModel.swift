@@ -86,6 +86,9 @@ public enum EditorCommand: Equatable, Sendable {
   /// follow what it lands in.
   case setSelection(anchor: Point, focus: Point)
   case insertText(String)
+  /// Ends a composition: its text, typed as one update Lexical tags as a
+  /// composition's end.
+  case commitComposition(String)
   /// Backspace (`backward`) or forward delete, by one character, word or line.
   case deleteCharacter(backward: Bool)
   case deleteWord(backward: Bool)
@@ -98,6 +101,9 @@ public enum EditorCommand: Equatable, Sendable {
   case insertLineBreak
   /// Toggles a format on the selected text, or on what a caret types next.
   case formatText(TextFormatType)
+  /// Makes every block the selection touches a paragraph, heading or quote,
+  /// as the web toolbar's block menu does.
+  case setBlockType(BlockType)
   case selectAll
   case undo
   case redo
@@ -108,6 +114,11 @@ public enum EditorCommand: Equatable, Sendable {
   public static func caret(_ point: Point) -> EditorCommand {
     .setSelection(anchor: point, focus: point)
   }
+}
+
+/// What a block of text is: a paragraph, a heading by its tag, or a quote.
+public enum BlockType: String, Codable, CaseIterable, Sendable {
+  case paragraph, h1, h2, h3, h4, h5, h6, quote
 }
 
 /// Lexical's `TextFormatType`: a text format by the name Lexical gives it.
@@ -159,25 +170,27 @@ public struct TextFormat: OptionSet, Codable, Hashable, Sendable {
 
 extension EditorCommand: Codable {
   private enum CodingKeys: String, CodingKey {
-    case type, anchor, focus, text, backward, lineBoundary, format, milliseconds
+    case type, anchor, focus, text, backward, lineBoundary, format, blockType, milliseconds
   }
 
   /// The command's `type` in JSON.
   private enum Kind: String, Codable {
-    case setSelection, insertText, deleteCharacter, deleteWord, deleteLine, insertParagraph, insertLineBreak,
-      formatText, selectAll, undo, redo, wait
+    case setSelection, insertText, commitComposition, deleteCharacter, deleteWord, deleteLine, insertParagraph, insertLineBreak,
+      formatText, setBlockType, selectAll, undo, redo, wait
   }
 
   private var kind: Kind {
     switch self {
     case .setSelection: .setSelection
     case .insertText: .insertText
+    case .commitComposition: .commitComposition
     case .deleteCharacter: .deleteCharacter
     case .deleteWord: .deleteWord
     case .deleteLine: .deleteLine
     case .insertParagraph: .insertParagraph
     case .insertLineBreak: .insertLineBreak
     case .formatText: .formatText
+    case .setBlockType: .setBlockType
     case .selectAll: .selectAll
     case .undo: .undo
     case .redo: .redo
@@ -196,6 +209,7 @@ extension EditorCommand: Codable {
         anchor: try container.decode(Point.self, forKey: .anchor),
         focus: try container.decode(Point.self, forKey: .focus))
     case .insertText: self = .insertText(try container.decode(String.self, forKey: .text))
+    case .commitComposition: self = .commitComposition(try container.decode(String.self, forKey: .text))
     case .deleteCharacter: self = .deleteCharacter(backward: try backward())
     case .deleteWord: self = .deleteWord(backward: try backward())
     case .deleteLine:
@@ -204,6 +218,7 @@ extension EditorCommand: Codable {
     case .insertParagraph: self = .insertParagraph
     case .insertLineBreak: self = .insertLineBreak
     case .formatText: self = .formatText(try container.decode(TextFormatType.self, forKey: .format))
+    case .setBlockType: self = .setBlockType(try container.decode(BlockType.self, forKey: .blockType))
     case .selectAll: self = .selectAll
     case .undo: self = .undo
     case .redo: self = .redo
@@ -218,7 +233,7 @@ extension EditorCommand: Codable {
     case .setSelection(let anchor, let focus):
       try container.encode(anchor, forKey: .anchor)
       try container.encode(focus, forKey: .focus)
-    case .insertText(let text):
+    case .insertText(let text), .commitComposition(let text):
       try container.encode(text, forKey: .text)
     case .deleteCharacter(let backward), .deleteWord(let backward):
       try container.encode(backward, forKey: .backward)
@@ -227,6 +242,8 @@ extension EditorCommand: Codable {
       try container.encode(lineBoundary, forKey: .lineBoundary)
     case .formatText(let format):
       try container.encode(format, forKey: .format)
+    case .setBlockType(let blockType):
+      try container.encode(blockType, forKey: .blockType)
     case .wait(let milliseconds):
       try container.encode(milliseconds, forKey: .milliseconds)
     case .insertParagraph, .insertLineBreak, .selectAll, .undo, .redo:

@@ -7,9 +7,8 @@ public final class Editor: EditorModel {
   private var history = History(EditorState(nodes: [:], selection: nil))
   private var now = 0
   /// Whether the document holds only what the editing commands are ported
-  /// for: paragraphs, line breaks and text in any format, with no field the
-  /// payload types don't model. The other nodes come with #115 to #118 and
-  /// #131 to #134.
+  /// for: paragraphs, headings, quotes, horizontal rules, line breaks and
+  /// text in any format, with no field the payload types don't model.
   public private(set) var isEditable = false
 
   public init() {}
@@ -42,24 +41,50 @@ public final class Editor: EditorModel {
     default:
       guard isEditable else { throw EditorError.unsupported("Editing a document with a node LexicalSwift doesn't edit yet") }
     }
-    var update = Update(state, nextKey: nextKey, revision: nextRevision())
-    try update.run(command)
+    let saved = (state, nextKey, history)
+    do {
+      var update = Update(state, nextKey: nextKey, revision: nextRevision())
+      try update.run(command)
+      var previous = state
+      guard try commit(&update) else { return ChangeSet(changed: []) }
+      var changed = update.changedKeys
+      var compositionEnd = if case .commitComposition = command { true } else { false }
+      // `registerMarkdownShortcuts`: an update that finishes a shortcut sets
+      // off one of its own, which can finish another.
+      while let caret = state.markdownShortcutCaret(
+        after: previous, dirtyLeaves: update.dirtyLeaves, compositionEnd: compositionEnd)
+      {
+        compositionEnd = false
+        previous = state
+        update = Update(state, nextKey: nextKey, revision: nextRevision())
+        let isShortcut = try update.runMarkdownShortcut(at: caret)
+        guard try commit(&update, pushingHistory: isShortcut) else { break }
+        changed += update.changedKeys
+      }
+      return ChangeSet(changed: Set(changed.compactMap(state.path(of:))))
+    } catch {
+      (state, nextKey, history) = saved
+      throw error
+    }
+  }
+
+  /// Lexical commits an update that marked a node or moved the selection,
+  /// and drops one that did neither. Returns whether `update` committed.
+  private func commit(_ update: inout Update, pushingHistory: Bool = false) throws -> Bool {
     try update.applyTransforms()
     update.collectGarbage()
     let selection = update.selection
     if let selection, update.state.nodes[selection.anchor.key] == nil || update.state.nodes[selection.focus.key] == nil {
       throw EditorError.invalidState("Selection has been lost")
     }
-    // Lexical commits an update that marked a node or moved the selection,
-    // and drops one that did neither.
     let movesSelection = selection.map { $0.dirty || !$0.is(state.selection) } ?? (state.selection != nil)
-    guard update.hasDirtyNodes || movesSelection else { return ChangeSet(changed: []) }
+    guard update.hasDirtyNodes || movesSelection else { return false }
     var next = update.state
     next.selection = selection?.saved
-    history.record(update, from: state, to: next, at: now)
+    history.record(update, from: state, to: next, at: now, pushing: pushingHistory)
     state = next
     nextKey = update.nextKey
-    return update.changes
+    return true
   }
 
   private func nextRevision() -> Int {
@@ -110,7 +135,10 @@ extension Node {
     switch payload {
     case .root(let node): node.unknownFields.isEmpty
     case .paragraph(let node): node.unknownFields.isEmpty
+    case .heading(let node): node.unknownFields.isEmpty
+    case .quote(let node): node.unknownFields.isEmpty && node.shadowRoot != true
     case .lineBreak(let node): node.unknownFields.isEmpty
+    case .horizontalRule(let node): node.unknownFields.isEmpty
     case .text(let node): node.unknownFields.isEmpty && node.mode == .normal && (node.detail ?? 0) == 0
     default: false
     }
@@ -127,7 +155,7 @@ extension Update {
     }
     guard let selection else { throw EditorError.noSelection }
     switch command {
-    case .insertText(let text): try insertText(selection, text)
+    case .insertText(let text), .commitComposition(let text): try insertText(selection, text)
     case .deleteCharacter(let backward): try deleteCharacter(selection, backward: backward)
     case .deleteWord(let backward): try deleteWord(selection, backward: backward)
     case .deleteLine(let backward, let lineBoundary):
@@ -135,9 +163,11 @@ extension Update {
       try deleteLine(
         selection, backward: backward,
         lineBoundary: KeyPoint(key: boundary, offset: lineBoundary.offset, type: lineBoundary.type))
-    case .insertParagraph: try insertParagraph(selection)
+    case .insertParagraph:
+      if try !runMarkdownShortcutOnEnter(selection) { try insertParagraph(selection) }
     case .insertLineBreak: try insertLineBreak(selection)
     case .formatText(let format): try formatText(selection, format)
+    case .setBlockType(let type): try setBlockType(selection, type)
     default: throw EditorError.unsupported(command.name)
     }
   }

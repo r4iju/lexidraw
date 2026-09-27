@@ -45,7 +45,22 @@ extension Update {
               break walk
             }
           } else if node.isDecorator {
-            throw EditorError.unsupported("Deleting a decorator")
+            // A horizontal rule, the one decorator LexicalSwift edits, isn't
+            // isolated, can be selected from the keyboard and isn't inline.
+            let anchorOrigin = initialRange.anchor.origin
+            if case .nextBlock = merge, state[anchorOrigin].isElement, isEmpty(anchorOrigin) {
+              try remove(anchorOrigin)
+              // Lexical selects the decorator with a NodeSelection, which
+              // LexicalSwift holds as no selection.
+              self.selection = nil
+            } else {
+              let container = state.parent(of: origin)
+              try remove(origin)
+              if let restored = try restoreEmptyContainerParagraph(container, removed: origin) {
+                selectStart(restored)
+              }
+            }
+            return
           } else if node.isLineBreak {
             try remove(origin)
             return
@@ -142,11 +157,21 @@ extension Update {
     return false
   }
 
-  /// `collapseAtStart` of the root, which keeps the caret where it is, and
-  /// of a paragraph, which goes when it holds only blank text.
+  /// `collapseAtStart` of the root, which keeps the caret where it is, of a
+  /// heading or quote, and of a paragraph, which goes when it holds only
+  /// blank text.
   private mutating func collapseElementAtStart(_ key: NodeKey) throws -> Bool {
-    if state[key].isRoot { return true }
-    guard state[key].type == SerializedParagraphNode.type else { return false }
+    switch state[key].type {
+    case SerializedRootNode.type: return true
+    case SerializedHeadingNode.type:
+      try collapseHeadingAtStart(key)
+      return true
+    case SerializedQuoteNode.type:
+      try collapseQuoteAtStart(key)
+      return true
+    case SerializedParagraphNode.type: break
+    default: return false
+    }
     let isBlank = state.children(of: key).allSatisfy { child in
       state[child].isText && state[child].text.unicodeScalars.allSatisfy(\.isJavaScriptWhitespace)
     }
@@ -205,7 +230,7 @@ extension Update {
   private mutating func extendForDeletion(
     _ selection: RangeSelection, backward isBackward: Bool, _ granularity: Granularity
   ) throws {
-    if try extendAroundBlocks(selection, backward: isBackward, granularity) { return }
+    if try extendAroundDecoratorsAndBlocks(selection, backward: isBackward, granularity) { return }
     let anchor = selection.anchor
     let anchorNode = anchor.key
     let anchorOffset = anchor.offset
@@ -237,6 +262,9 @@ extension Update {
     selection.dirty = true
     if try !shrinkToRoot(selection, backward: isBackward, root), isBackward {
       swapPoints(selection)
+    }
+    if case .lineBoundary = granularity {
+      _ = try extendAroundDecoratorsAndBlocks(selection, backward: isBackward, granularity, includingBlocks: false)
     }
   }
 
@@ -323,27 +351,40 @@ extension Update {
   }
 
   /// `$modifySelectionAroundDecoratorsAndBlocks` extending a selection: a
-  /// focus at the end of a block reaches into the block beside it.
-  private func extendAroundBlocks(_ selection: RangeSelection, backward isBackward: Bool, _ granularity: Granularity)
-    throws -> Bool
-  {
+  /// focus beside a decorator reaches over it, and one at the end of a block
+  /// into the block beside it.
+  private func extendAroundDecoratorsAndBlocks(
+    _ selection: RangeSelection, backward isBackward: Bool, _ granularity: Granularity, includingBlocks: Bool = true
+  ) throws -> Bool {
     let initialFocus = try state.caret(from: selection.focus, isBackward ? .previous : .next)
+    let isLineBoundary = if case .lineBoundary = granularity { true } else { false }
     var focus = initialFocus
-    if !state.isExtendableTextCaret(focus), state.nodeAtCaret(focus) == nil {
-      for caret in state.nodeCarets(state.extendToRange(initialFocus), .shadowRoot) {
-        if caret.isChild {
-          if !state[caret.origin].isInline { focus = caret }
-        } else if state[caret.origin].isElement {
-          continue
-        } else if state[caret.origin].isDecorator, !state[caret.origin].isInline {
-          focus = caret
+    var checkForBlock = includingBlocks
+    if !state.isExtendableTextCaret(focus) {
+      var sibling = state.adjacentCaret(focus)
+      while let caret = sibling {
+        checkForBlock = false
+        guard state[caret.origin].isDecorator else { break }
+        focus = caret
+        guard isLineBoundary, state[caret.origin].isInline else { break }
+        sibling = state.adjacentCaret(caret)
+      }
+      if checkForBlock {
+        for caret in state.nodeCarets(state.extendToRange(initialFocus), .shadowRoot) {
+          if caret.isChild {
+            if !state[caret.origin].isInline { focus = caret }
+          } else if state[caret.origin].isElement {
+            continue
+          } else if state[caret.origin].isDecorator, !state[caret.origin].isInline {
+            focus = caret
+          }
+          break
         }
-        break
       }
     }
     guard focus != initialFocus else { return false }
     setPoint(selection.focus, from: state.normalize(focus))
-    return true
+    return checkForBlock || !isLineBoundary
   }
 }
 

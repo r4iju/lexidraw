@@ -63,6 +63,47 @@ import Testing
     #expect(try fixture.replay(on: Editor()) == fixture.recorded)
   }
 
+  /// LexicalSwift that takes a composition as typing, so it misses a
+  /// shortcut a composition finishes.
+  final class TakesACompositionAsTyping: LexicalSwiftWith {
+    override func apply(_ command: EditorCommand) throws -> ChangeSet {
+      if case .commitComposition(let text) = command { return try editor.apply(.insertText(text)) }
+      return try editor.apply(command)
+    }
+  }
+
+  @Test func findsAShortcutACompositionFinishes() throws {
+    var fuzzer = Fuzzer(seed: 7, reference: try Support.referenceEditor(), candidate: TakesACompositionAsTyping())
+
+    let fixture = try #require(try fuzzer.run(steps: 2000)).fixture
+
+    guard case .commitComposition = fixture.commands.last else {
+      Issue.record("The shrunk script should end by committing a composition")
+      return
+    }
+  }
+
+  /// LexicalSwift that takes Enter after a block's shortcut as a new line.
+  final class TakesEnterAfterAShortcutAsANewLine: LexicalSwiftWith {
+    override func apply(_ command: EditorCommand) throws -> ChangeSet {
+      if command == .insertParagraph, let anchor = try editor.selection()?.anchor, anchor.type == .text,
+        let text = try editor.node(at: anchor.path)["text"]?.stringValue, try Regex("(#{1,6}|>) ").wholeMatch(in: text) != nil
+      {
+        return try editor.apply(.insertLineBreak)
+      }
+      return try editor.apply(command)
+    }
+  }
+
+  @Test func findsAShortcutEnterFinishes() throws {
+    var fuzzer = Fuzzer(
+      seed: 7, reference: try Support.referenceEditor(), candidate: TakesEnterAfterAShortcutAsANewLine())
+
+    let fixture = try #require(try fuzzer.run(steps: 2000)).fixture
+
+    #expect(fixture.commands.last == .insertParagraph)
+  }
+
   /// LexicalSwift that refuses what Lexical refuses, but for another reason.
   final class RefusesAsUnsupported: LexicalSwiftWith {
     override func apply(_ command: EditorCommand) throws -> ChangeSet {
@@ -103,6 +144,49 @@ import Testing
     #expect(try first.run(steps: 500)?.fixture == second.run(steps: 500)?.fixture)
   }
 
+  @Test func theTypesNotPortedYetAreWhatTheShortcutsNotPortedYetMake() {
+    #expect(Fuzzer.notPortedYet == Editor.typesMarkdownShortcutsNotPortedYetMake)
+    #expect(Fuzzer.notPortedYet.isSuperset(of: ["list", "listitem", "code"]))
+  }
+
+  @Test func noTypeLexicalSwiftEditsIsNotPortedYet() {
+    #expect(
+      Fuzzer.notPortedYet.isDisjoint(with: ["root", "paragraph", "heading", "quote", "text", "linebreak", "horizontalrule"]))
+  }
+
+  /// Typing "- " makes a list in Lexical, where LexicalSwift keeps the text.
+  private func typingAListShortcut() throws -> (fixture: Fixture, candidate: Fixture.Outcome, before: Snapshot) {
+    let reference = try Support.referenceEditor()
+    let start = document(paragraph())
+    let caret = EditorCommand.caret(Point(path: [0], offset: 0, type: .element))
+    let before = try Fixture.record(start: start, commands: [caret, .insertText("-")], on: reference).expected
+    let fixture = try Fixture.record(
+      start: start, commands: [caret, .insertText("-"), .insertText(" ")], on: reference)
+    return (fixture, try fixture.replay(on: Editor()), before)
+  }
+
+  @Test func aSessionEndsWhereLexicalMakesWhatLexicalSwiftDoesNotEditYet() throws {
+    let (fixture, candidate, before) = try typingAListShortcut()
+
+    #expect(
+      Fuzzer.isNotPortedYet(candidate: candidate.changes.last!, referenceBefore: before, referenceAfter: fixture.expected))
+  }
+
+  @Test func refusingWhereLexicalMakesWhatLexicalSwiftDoesNotEditYetDisagrees() throws {
+    let (fixture, _, before) = try typingAListShortcut()
+
+    #expect(
+      !Fuzzer.isNotPortedYet(
+        candidate: .refused(.unsupported), referenceBefore: before, referenceAfter: fixture.expected))
+  }
+
+  @Test func doingOtherwiseWhereLexicalMakesNothingNewDisagrees() throws {
+    let (_, _, before) = try typingAListShortcut()
+
+    #expect(
+      !Fuzzer.isNotPortedYet(candidate: .applied(ChangeSet(changed: [[0]])), referenceBefore: before, referenceAfter: before))
+  }
+
   /// The differential check proper. Budget and seed come from FUZZ_STEPS and
   /// FUZZ_SEED; every divergence is written as a fixture to commit.
   @Test func lexicalSwiftMatchesTheReference() throws {
@@ -121,7 +205,9 @@ import Testing
       let url = try finding.fixture.write(into: Support.fixturesSource)
       Issue.record("Seed \(seed) diverged after \(finding.stepsRun) steps; shrunk fixture written to \(url.path)")
     } else {
-      print("Seed \(seed): \(steps) steps agreed, and \(fuzzer.refusals) commands both refused")
+      print(
+        "Seed \(seed): \(steps) steps agreed, \(fuzzer.refusals) commands both refused, and "
+          + "\(fuzzer.sessionsEndedNotPortedYet) sessions ended where Lexical made a node not ported yet")
     }
   }
 }

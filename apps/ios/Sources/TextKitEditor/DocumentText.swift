@@ -68,6 +68,9 @@ public final class DocumentText {
 
   public func kind(ofBlock index: Int) -> BlockKind { blocks[index].kind }
 
+  /// The block's type, which for a heading is its tag.
+  public func type(ofBlock index: Int) -> String { blocks[index].type }
+
   /// The index of the block `offset` is in, the newline ending it included.
   public func blockIndex(at offset: Int) -> Int {
     blocks.indices.lastIndex(bisecting: { starts[$0] <= offset })

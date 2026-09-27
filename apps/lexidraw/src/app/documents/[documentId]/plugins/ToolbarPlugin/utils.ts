@@ -6,8 +6,6 @@ import {
 } from "@lexical/list";
 import { $isDecoratorBlockNode } from "@lexical/react/LexicalDecoratorBlockNode";
 import {
-  $createHeadingNode,
-  $createQuoteNode,
   $isHeadingNode,
   $isQuoteNode,
   type HeadingTagType,
@@ -15,6 +13,7 @@ import {
 import { $patchStyleText, $setBlocksType } from "@lexical/selection";
 import { $isTableSelection } from "@lexical/table";
 import { $getNearestBlockElementAncestorOrThrow } from "@lexical/utils";
+import { $setBlockType } from "@packages/lexical-nodes/block-type";
 import {
   $createParagraphNode,
   $getSelection,
@@ -155,7 +154,7 @@ export const useToolbarUtils = () => {
     editor.update(() => {
       const selection = $getSelection();
       if ($isRangeSelection(selection)) {
-        $setBlocksType(selection, () => $createParagraphNode());
+        $setBlockType(selection, "paragraph");
       }
     });
   };
@@ -167,8 +166,7 @@ export const useToolbarUtils = () => {
   ) => {
     if (blockType !== headingSize) {
       editor.update(() => {
-        const selection = $getSelection();
-        $setBlocksType(selection, () => $createHeadingNode(headingSize));
+        $setBlockType($getSelection(), headingSize);
       });
     }
   };
@@ -200,8 +198,7 @@ export const useToolbarUtils = () => {
   const formatQuote = (editor: LexicalEditor, blockType: string) => {
     if (blockType !== "quote") {
       editor.update(() => {
-        const selection = $getSelection();
-        $setBlocksType(selection, () => $createQuoteNode());
+        $setBlockType($getSelection(), "quote");
       });
     }
   };
