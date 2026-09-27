@@ -37,4 +37,4 @@ await Bun.write(
   DOCUMENT_TYPOGRAPHY_PATH,
   swiftForTypography(await readWebStyles()),
 );
-await Bun.write(LINKS_PATH, swiftForLinks());
+await Bun.write(LINKS_PATH, await swiftForLinks());

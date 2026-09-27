@@ -516,7 +516,7 @@ extension Update {
     if let sibling, state[sibling].isText, atStart ? state[sibling].canInsertTextAfter : state[sibling].canInsertTextBefore,
       !isTokenOrSegmented(sibling)
     {
-      atStart ? selectText(sibling) : selectText(sibling, 0, 0)
+      if atStart { selectText(sibling) } else { selectText(sibling, 0, 0) }
     } else {
       let node = createText("", format: format, style: style)
       if atStart {

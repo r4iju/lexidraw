@@ -1,6 +1,3 @@
-import JavaScriptCore
-import Synchronization
-
 extension Node {
   /// A `LinkNode`, which an `AutoLinkNode` is too.
   var isLink: Bool { type == SerializedLinkNode.type || isAutoLink }
@@ -15,8 +12,8 @@ extension Node {
 }
 
 /// `@lexical/link`'s `TOGGLE_LINK_COMMAND` handlers and `LinkNode`'s
-/// transform, ported from lexical@0.51.0, with the web editor's link
-/// configuration (`LinkConfiguration.swift`).
+/// transform, ported from lexical@0.51.0, with the web editor's
+/// `validateUrl`.
 extension Update {
   /// `TOGGLE_LINK_COMMAND` with a URL or nil, handled as the web editor
   /// registers its handlers: the AutoLink plugin's, then the Link plugin's
@@ -28,7 +25,7 @@ extension Update {
         modifyLink(parent) { $0.isUnlinked = !($0.isUnlinked ?? false) }
       }
     }
-    guard url.map(Self.validateUrl) ?? true else { return }
+    guard url.map(WebLinks.validateUrl) ?? true else { return }
     try toggleLink(url)
   }
 
@@ -341,46 +338,4 @@ extension Update {
       return
     }
   }
-
-  // MARK: The web's configuration
-
-  /// `validateUrl` in `packages/lexical-nodes/src/links.ts`.
-  static func validateUrl(_ url: String) -> Bool {
-    url == "https://" || JavaScriptPattern.firstMatch(LinkPatterns.linkURL, in: url) != nil
-  }
-}
-
-/// JavaScript's regular expressions, which the web's link patterns are
-/// written in and which ICU reads differently: `[` inside a class, `\s`,
-/// lookbehind.
-enum JavaScriptPattern {
-  /// The first match of the JavaScript literal `pattern` in `text`: where it
-  /// starts, in UTF-16 code units, and what it matched.
-  static func firstMatch(_ pattern: String, in text: String) -> (index: Int, text: String)? {
-    exec.withLock { exec in
-      guard let match = exec.call(withArguments: [pattern, text]), !match.isNull,
-        let index = match.atIndex(0)?.toInt32(), let matched = match.atIndex(1)?.toString()
-      else { return nil }
-      return (Int(index), matched)
-    }
-  }
-
-  private static let exec = Mutex(
-    JSContext().evaluateScript(
-      """
-      (() => {
-        const compiled = new Map();
-        return (pattern, text) => {
-          let regExp = compiled.get(pattern);
-          if (!regExp) {
-            regExp = (0, eval)(pattern);
-            compiled.set(pattern, regExp);
-          }
-          const match = regExp.exec(text);
-          return match && [match.index, match[0]];
-        };
-      })()
-      """
-    )!
-  )
 }

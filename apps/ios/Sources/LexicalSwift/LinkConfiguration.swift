@@ -4,9 +4,40 @@
 /// paste as nodes.
 public let editorNamespace = #"Lexidraw"#
 
-/// The link patterns in `packages/lexical-nodes/src/links.ts`.
-enum LinkPatterns {
-  static let autoLinkURL = #"/((https?:\/\/(www\.)?)|(www\.))[-a-zA-Z0-9@:%._+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_+.~#?&//=]*)(?<![-.+():%])/"#
-  static let autoLinkEmail = #"/(([^<>()[\]\\.,;:\s@"]+(\.[^<>()[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))/"#
-  static let linkURL = #"/((([A-Za-z]{3,9}:(?:\/\/)?)(?:[-;:&=+$,\w]+@)?[A-Za-z0-9.-]+|(?:www.|[-;:&=+$,\w]+@)[A-Za-z0-9.-]+)((?:\/[+~%/.\w-_]*)?\??(?:[-+=&;%@.\w_]*)#?(?:[\w]*))?)/"#
-}
+/// `packages/lexical-nodes/src/links.ts`, bundled: it sets
+/// `linkConfiguration` to the web editor's autolink `matchers` and
+/// `validateUrl`.
+let linkConfigurationScript = #"""
+(() => {
+  var SUPPORTED_URL_PROTOCOLS = new Set(["http:", "https:", "mailto:", "sms:", "tel:"]);
+  function createLinkMatcherWithRegExp(regExp, urlTransformer = (text) => text) {
+    return (text) => {
+      const match = regExp.exec(text);
+      if (match === null) {
+        return null;
+      }
+      return {
+        index: match.index,
+        length: match[0].length,
+        text: match[0],
+        url: urlTransformer(match[0])
+      };
+    };
+  }
+
+  var AUTOLINK_URL_REGEX = /((https?:\/\/(www\.)?)|(www\.))[-a-zA-Z0-9@:%._+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_+.~#?&//=]*)(?<![-.+():%])/;
+  var AUTOLINK_EMAIL_REGEX = /(([^<>()[\]\\.,;:\s@"]+(\.[^<>()[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))/;
+  var AUTOLINK_MATCHERS = [
+    createLinkMatcherWithRegExp(AUTOLINK_URL_REGEX, (text) => text.startsWith("http") ? text : `https://${text}`),
+    createLinkMatcherWithRegExp(AUTOLINK_EMAIL_REGEX, (text) => `mailto:${text}`)
+  ];
+  var LINK_URL_REGEX = /((([A-Za-z]{3,9}:(?:\/\/)?)(?:[-;:&=+$,\w]+@)?[A-Za-z0-9.-]+|(?:www.|[-;:&=+$,\w]+@)[A-Za-z0-9.-]+)((?:\/[+~%/.\w-_]*)?\??(?:[-+=&;%@.\w_]*)#?(?:[\w]*))?)/;
+  function validateUrl(url) {
+    return url === "https://" || LINK_URL_REGEX.test(url);
+  }
+
+  Object.assign(globalThis, {
+    linkConfiguration: { matchers: AUTOLINK_MATCHERS, validateUrl }
+  });
+})();
+"""#

@@ -385,6 +385,7 @@ struct Update {
           }
           if state.nodes[key]?.type == SerializedTextNode.type, state.isAttached(key) {
             try syncListItem(withFirstText: key)
+            if state.isAttached(key) { try transformAutoLinkText(key) }
           }
           allLeaves.append(key)
         }
