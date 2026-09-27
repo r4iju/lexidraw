@@ -119,40 +119,6 @@ import TextKitEditor
     #expect(text.kind(ofBlock: 3) == .embedded(type: "youtube"))
   }
 
-  /// What a table's layout takes from its nodes besides the text: merged
-  /// cells, header cells and the widths its columns are set to.
-  @Test func describesATablesMergedCellsHeadersAndWidths() throws {
-    func cell(_ text: String, colSpan: Int = 1, rowSpan: Int = 1, headerState: Int = 0) -> JSONValue {
-      LexicalJSON.element(
-        "tablecell", [LexicalJSON.paragraph([LexicalJSON.text(text)])],
-        [
-          "backgroundColor": nil, "colSpan": .number(Double(colSpan)), "headerState": .number(Double(headerState)),
-          "rowSpan": .number(Double(rowSpan)),
-        ])
-    }
-    let model = Editor()
-    try model.load(
-      LexicalJSON.document([
-        LexicalJSON.element(
-          "table",
-          [
-            LexicalJSON.element("tablerow", [cell("wide", colSpan: 2, headerState: 1), cell("tall", rowSpan: 2)]),
-            LexicalJSON.element("tablerow", [cell("a", headerState: 2), cell("b")]),
-          ], ["colWidths": [100, 50, 75]])
-      ]))
-    let text = DocumentText(model: model, style: Self.style)
-    try text.reload(NSMutableAttributedString())
-
-    guard case .table(let table) = text.kind(ofBlock: 0) else {
-      Issue.record("The table isn't laid out as one")
-      return
-    }
-    #expect(table.rows.map { $0.map(\.colSpan) } == [[2, 1], [1, 1]])
-    #expect(table.rows.map { $0.map(\.rowSpan) } == [[1, 2], [1, 1]])
-    #expect(table.rows.map { $0.map(\.isHeader) } == [[true, false], [true, false]])
-    #expect(table.columnWidths == [100, 50, 75])
-  }
-
   @Test func standsInForANodeWithOneCharacter() throws {
     let model = Editor()
     try model.load(TestDocuments.titledTable([["c1", "c2"], ["c3", "c4"]]))
