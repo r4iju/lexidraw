@@ -30,6 +30,10 @@ func plain(_ text: String) -> EditorCommand { .paste(Clipboard(plainText: text))
     Scenario(
       "copying from a paragraph's end into its last text", lineBreaks,
       [.setSelection(anchor: Point(path: [0], offset: 3, type: .element), focus: .text([0, 2], 1)), .copy]),
+    Scenario("copying part of a heading", document(heading("h2", text("hello"))), [select([0, 0], 1, [0, 0], 4), .copy]),
+    Scenario("copying part of a quote", document(quote(text("hello"))), [select([0, 0], 1, [0, 0], 4), .copy]),
+    Scenario(
+      "pasting part of a heading", twoParagraphs, [caret([0, 0], 1), .paste(copied("ell", heading("h2", text("ell"))))]),
     Scenario("copying inside a link", linked, [select([0, 1, 0], 1, [0, 1, 0], 5), .copy]),
     Scenario("copying across a link", linked, [select([0, 0], 1, [0, 1, 0], 3), .copy]),
     Scenario("copying over a whole link", linked, [select([0, 0], 1, [0, 2], 2), .copy]),

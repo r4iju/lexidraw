@@ -92,11 +92,12 @@ extension Update {
     return Self.slice(text, range)
   }
 
-  /// `extractWithChild`: a link keeps a selection inside it, and a paragraph
-  /// holding alignment or indent that's wholly selected goes as a block
-  /// rather than as its text.
+  /// `extractWithChild`: a heading goes with any of its text, a link keeps
+  /// a selection inside it, and a paragraph holding alignment or indent
+  /// that's wholly selected goes as a block rather than as its text.
   private func extractsWithChild(_ key: NodeKey, _ selection: RangeSelection) throws -> Bool {
     let node = state[key]
+    if node.type == SerializedHeadingNode.type { return true }
     if node.isLink {
       let holds = { (point: SelectionPoint) in point.key == key || self.hasAncestor(point.key, key) }
       guard holds(selection.anchor), holds(selection.focus) else { return false }
