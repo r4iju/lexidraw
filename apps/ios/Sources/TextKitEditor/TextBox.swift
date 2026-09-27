@@ -5,7 +5,7 @@ import UIKit
 /// Offsets are into the text; geometry is from the box's top left. The text
 /// keeps the newline that follows it in the document, so an empty block
 /// still has a line to put the caret on. List items and indented blocks
-/// are laid out and drawn as their lines say (`Lines`).
+/// are laid out and drawn as their lines say (`ListAndIndentLayout`).
 @MainActor final class TextBox {
   private let storage = NSTextStorage()
   private let contentStorage = NSTextContentStorage()
@@ -15,7 +15,7 @@ import UIKit
   /// The lines as laid out, the extra one TextKit adds after a final newline
   /// left out.
   private var lines: [Line] = []
-  private var listLines = Lines()
+  private var listLayout = ListAndIndentLayout()
 
   private struct Line {
     var frame: CGRect
@@ -39,8 +39,8 @@ import UIKit
   var length: Int { max(storage.length - 1, 0) }
 
   func set(_ text: NSAttributedString) {
-    let (styled, listLines) = Lines.styled(text)
-    self.listLines = listLines
+    let (styled, listLayout) = ListAndIndentLayout.styled(text)
+    self.listLayout = listLayout
     contentStorage.performEditingTransaction { storage.setAttributedString(styled) }
     measure()
   }
@@ -91,7 +91,7 @@ import UIKit
       }
       return true
     }
-    for item in listLines.items {
+    for item in listLayout.items {
       guard let line = lines.first(where: { $0.range.location >= item.range.location }) else { continue }
       if item.isChecklistItem {
         drawBox(item, at: CGPoint(x: origin.x, y: origin.y + line.frame.minY), in: context)
@@ -105,10 +105,11 @@ import UIKit
 
   /// A checklist item's box as the web's theme draws it: outlined, or when
   /// checked filled and ticked.
-  private func drawBox(_ item: Lines.Item, at origin: CGPoint, in context: CGContext) {
+  private func drawBox(_ item: ListAndIndentLayout.Item, at origin: CGPoint, in context: CGContext) {
     let box = item.box.offsetBy(dx: origin.x, dy: origin.y)
-    let border: CGFloat = 1.5
-    let outline = UIBezierPath(roundedRect: box.insetBy(dx: border / 2, dy: border / 2), cornerRadius: 4)
+    let border = ListAndIndentLayout.boxBorder
+    let outline = UIBezierPath(
+      roundedRect: box.insetBy(dx: border / 2, dy: border / 2), cornerRadius: ListAndIndentLayout.boxCornerRadius)
     outline.lineWidth = border
     if item.item.checked {
       UIColor.tintColor.setFill()
@@ -136,7 +137,7 @@ import UIKit
 
   /// The checklist item whose box a tap at `point` toggles.
   func checklistItem(at point: CGPoint) -> DocumentText.ListItem? {
-    for item in listLines.items where item.isChecklistItem {
+    for item in listLayout.items where item.isChecklistItem {
       let itemLines = lines.filter { NSLocationInRange($0.range.location, item.range) || $0.range.location == item.range.location }
       guard let first = itemLines.first, let last = itemLines.last else { continue }
       let area = item.toggleArea(height: last.frame.maxY - first.frame.minY).offsetBy(dx: 0, dy: first.frame.minY)

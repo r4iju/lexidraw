@@ -2,15 +2,30 @@
 import EditorModelInterface
 import UIKit
 
-/// List items and indented blocks as the web's theme shows them
-/// (document.css): each list takes its items in 1.625em, past the marker,
-/// and a checklist 1.75em more, past the box; items are 0.25em apart; each
-/// level of indent is 40pt, as Lexical pads an indented block. Lengths in em
-/// are of the font of the newline ending the line.
+/// List items and indented blocks laid out as the web's theme lays them out
+/// (document.css), in em of the font of the newline ending the line unless
+/// said otherwise.
 ///
 /// Offsets are into the text that `DocumentText` marked, `.listItem` and
 /// `.elementIndent` on the lines they describe.
-struct Lines {
+struct ListAndIndentLayout {
+  /// How far in a list takes its items, past their markers.
+  static let listPadding: CGFloat = 1.625
+  /// How much further a checklist takes its items, past their boxes.
+  static let checklistPadding: CGFloat = 1.75
+  static let itemSpacing: CGFloat = 0.25
+  /// How far a box is below the top of its item, and its size.
+  static let boxTop: CGFloat = 0.3
+  static let boxSize: CGFloat = 1
+  /// Points.
+  static let boxBorder: CGFloat = 1.5
+  static let boxCornerRadius: CGFloat = 4
+  /// Points a level of indent, as Lexical pads an indented block.
+  static let indentWidth: CGFloat = 40
+  /// Points from a box's left in which a tap toggles its item, as far as the
+  /// web's MobileCheckListPlugin reaches.
+  static let toggleWidth: CGFloat = 40
+
   /// A list item's line: where its text starts, and its marker or box.
   struct Item {
     var item: DocumentText.ListItem
@@ -18,15 +33,18 @@ struct Lines {
     var em: CGFloat
     var font: UIFont
 
-    var textStart: CGFloat { item.lists.reduce(0) { $0 + (1.625 + ($1 == .check ? 1.75 : 0)) * em } }
+    var textStart: CGFloat {
+      item.lists.reduce(0) { $0 + (listPadding + ($1 == .check ? checklistPadding : 0)) * em }
+    }
     var isChecklistItem: Bool { item.lists.last == .check }
 
     /// The item's box, from the top of its first line.
-    var box: CGRect { CGRect(x: textStart - 1.75 * em, y: 0.3 * em, width: em, height: em) }
+    var box: CGRect {
+      CGRect(x: textStart - checklistPadding * em, y: boxTop * em, width: boxSize * em, height: boxSize * em)
+    }
 
-    /// Where a tap toggles the item, across the box and past it as far as
-    /// the web's MobileCheckListPlugin reaches, from the top of its first line.
-    func toggleArea(height: CGFloat) -> CGRect { CGRect(x: textStart - 1.75 * em, y: 0, width: 40, height: height) }
+    /// Where a tap toggles the item, from the top of its first line.
+    func toggleArea(height: CGFloat) -> CGRect { CGRect(x: box.minX, y: 0, width: toggleWidth, height: height) }
 
     /// The marker the web's theme gives an item of a bullet or numbered list
     /// this deep: disc, circle, square and decimal, lower-alpha, lower-roman
@@ -75,9 +93,9 @@ struct Lines {
   private(set) var items: [Item] = []
 
   /// `text` laid out as its lines say, and the items in it.
-  static func styled(_ text: NSAttributedString) -> (NSAttributedString, Lines) {
+  static func styled(_ text: NSAttributedString) -> (NSAttributedString, ListAndIndentLayout) {
     let styled = NSMutableAttributedString(attributedString: text)
-    var lines = Lines()
+    var layout = ListAndIndentLayout()
     let string = text.string as NSString
     string.enumerateSubstrings(in: NSRange(location: 0, length: string.length), options: [.byParagraphs, .substringNotRequired]) {
       _, range, enclosing, _ in
@@ -92,21 +110,21 @@ struct Lines {
         .mutableCopy() as? NSMutableParagraphStyle ?? NSMutableParagraphStyle()
       if let item {
         let line = Item(item: item, range: range, em: font.pointSize, font: font)
-        lines.items.append(line)
+        layout.items.append(line)
         paragraph.firstLineHeadIndent = line.textStart
         paragraph.headIndent = line.textStart
-        if NSMaxRange(enclosing) < string.length { paragraph.paragraphSpacing = 0.25 * font.pointSize }
+        if NSMaxRange(enclosing) < string.length { paragraph.paragraphSpacing = Self.itemSpacing * font.pointSize }
         if line.isChecklistItem, item.checked {
           styled.addAttributes(
             [.foregroundColor: UIColor.secondaryLabel, .strikethroughStyle: NSUnderlineStyle.single.rawValue], range: range)
         }
       } else if let indent {
-        paragraph.firstLineHeadIndent = CGFloat(indent) * 40
-        paragraph.headIndent = CGFloat(indent) * 40
+        paragraph.firstLineHeadIndent = CGFloat(indent) * Self.indentWidth
+        paragraph.headIndent = CGFloat(indent) * Self.indentWidth
       }
       styled.addAttribute(.paragraphStyle, value: paragraph, range: enclosing)
     }
-    return (styled, lines)
+    return (styled, layout)
   }
 }
 #endif

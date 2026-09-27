@@ -110,9 +110,9 @@ import UIKit
     }
   }
 
-  /// A list item's text starts past its marker, 1.625em in for each list
-  /// around it and 1.75em more for each checklist, with items 0.25em apart;
-  /// an indented paragraph starts 40pt in for each level.
+  /// A list item's text starts past the marker of each list around it and
+  /// the box of each checklist, and an indented paragraph a level of indent
+  /// in for each level.
   @Test
   func itemsAndIndentedBlocksStartAsFarInAsOnTheWeb() throws {
     let view = try Self.host(
@@ -127,11 +127,43 @@ import UIKit
     }
 
     #expect(try Self.text(of: view) == "a\nb\nc")
-    #expect(abs(try caret(0).minX - 1.625 * em) < 0.5)
-    #expect(abs(try caret(2).minX - (2 * 1.625 + 1.75) * em) < 0.5)
-    #expect(abs(try caret(2).minY - (try caret(0)).maxY - 0.25 * em) < 1)
-    #expect(abs(try caret(4).minX - 80) < 0.5)
+    let layout = ListAndIndentLayout.self
+    #expect(abs(try caret(0).minX - layout.listPadding * em) < 0.5)
+    #expect(abs(try caret(2).minX - (2 * layout.listPadding + layout.checklistPadding) * em) < 0.5)
+    #expect(abs(try caret(2).minY - (try caret(0)).maxY - layout.itemSpacing * em) < 1)
+    #expect(abs(try caret(4).minX - 2 * layout.indentWidth) < 0.5)
     try Self.expectEveryCaretToLandOnItself(view)
+  }
+
+  /// Each item shows the marker the web's theme gives it, numbered from its
+  /// list's start and styled by how deep it is, or in a checklist a box, its
+  /// text struck through once checked.
+  @Test
+  func itemsShowTheirMarkersAndBoxes() throws {
+    let model = Editor()
+    try model.load(
+      LexicalJSON.document([
+        LexicalJSON.list(
+          .number,
+          [
+            .item([LexicalJSON.text("a")]),
+            .nested(.number, [.item([LexicalJSON.text("b")]), .nested(.bullet, [.item([LexicalJSON.text("c")])])]),
+          ], start: 3),
+        LexicalJSON.list(.check, [.item([LexicalJSON.text("d")], checked: true), .item([LexicalJSON.text("e")])]),
+      ]))
+    let body = UIFont.preferredFont(forTextStyle: .body)
+    let storage = NSMutableAttributedString()
+    try DocumentText(model: model, style: { _, _ in [.font: body] }).reload(storage)
+
+    let (styled, layout) = ListAndIndentLayout.styled(storage)
+
+    #expect(styled.string == "a\nb\nc\nd\ne\n")
+    #expect(layout.items.map(\.marker) == ["3. ", "a. ", "\u{25AA} ", nil, nil])
+    #expect(layout.items.map(\.isChecklistItem) == [false, false, false, true, true])
+    func isStruckThrough(_ offset: Int) -> Bool {
+      styled.attribute(.strikethroughStyle, at: offset, effectiveRange: nil) != nil
+    }
+    #expect([6, 8].map(isStruckThrough) == [true, false])
   }
 
   /// Scrolling up from the middle of a long document, through blocks laid

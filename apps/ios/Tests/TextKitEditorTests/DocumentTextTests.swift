@@ -73,39 +73,6 @@ import TextKitEditor
     }
   }
 
-  /// Each item's line, the newline ending it included, says which item it
-  /// is and in which lists; an indented block's lines say how far in it is.
-  @Test func marksListItemsAndIndentedBlocks() throws {
-    let model = Editor()
-    try model.load(
-      LexicalJSON.document([
-        LexicalJSON.list(
-          .number,
-          [
-            .item([LexicalJSON.text("a")]),
-            .nested(.check, [.item([LexicalJSON.text("b")], checked: true), .item([])]),
-          ], start: 3),
-        LexicalJSON.paragraph([LexicalJSON.text("p")], indent: 2),
-      ]))
-    let text = DocumentText(model: model, style: Self.style)
-    let storage = NSMutableAttributedString()
-
-    try text.reload(storage)
-
-    #expect(storage.string == "a\nb\n\np\n")
-    let a = DocumentText.ListItem(path: [0], lists: [.number], value: 3, checked: false)
-    let b = DocumentText.ListItem(path: [1, 0, 0], lists: [.number, .check], value: 1, checked: true)
-    let empty = DocumentText.ListItem(path: [1, 0, 1], lists: [.number, .check], value: 2, checked: false)
-    func item(at offset: Int) -> DocumentText.ListItem? {
-      storage.attribute(.listItem, at: offset, effectiveRange: nil) as? DocumentText.ListItem
-    }
-    #expect((0..<5).map(item) == [a, a, b, b, empty])
-    #expect(item(at: 5) == nil)
-    #expect((0..<7).map { storage.attribute(.elementIndent, at: $0, effectiveRange: nil) as? Int } == [nil, nil, nil, nil, nil, 2, 2])
-    #expect(text.attributes(at: 4, format: [])[.listItem] as? DocumentText.ListItem == empty)
-    #expect(text.attributes(at: 5, format: [])[.elementIndent] as? Int == 2)
-  }
-
   @Test func showsANodeWithNoTextAsOneCharacter() throws {
     let model = Editor()
     try model.load(

@@ -1,6 +1,6 @@
 import EditorModelInterface
 import LexicalFuzz
-import TextKitEditor
+@testable import TextKitEditor
 import UIKit
 import XCTest
 
@@ -337,12 +337,13 @@ class EditorUITests: XCTestCase {
   }
 
   /// Taps the box of item `item` of a checklist at the top of the document,
-  /// its items one line each: the box starts 1.625em into the text, and
-  /// items are 0.25em apart.
+  /// its items one line each.
   private func tapBox(ofItem item: Int) {
     let em: CGFloat = 17
+    let layout = ListAndIndentLayout.self
+    let x = 16 + (layout.listPadding + layout.boxSize / 2) * em
     editor.coordinate(withNormalizedOffset: .zero)
-      .withOffset(CGVector(dx: 16 + 1.625 * em + 8, dy: 16 + 11 + CGFloat(item) * (22 + 0.25 * em))).tap()
+      .withOffset(CGVector(dx: x, dy: 16 + 11 + CGFloat(item) * (22 + layout.itemSpacing * em))).tap()
   }
 
   /// Saves through the harness and reads back what it wrote.

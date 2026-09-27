@@ -36,20 +36,13 @@ public final class DocumentText {
   }
 
   /// A list item, for the layout to put its marker or checkbox beside it.
-  public struct ListItem: Hashable, Sendable {
+  struct ListItem: Hashable, Sendable {
     /// The item's path from the block at the root it is in.
-    public var path: [Int]
+    var path: [Int]
     /// The lists around the item, outermost first.
-    public var lists: [EditorCommand.ListType]
-    public var value: Int
-    public var checked: Bool
-
-    public init(path: [Int], lists: [EditorCommand.ListType], value: Int, checked: Bool) {
-      self.path = path
-      self.lists = lists
-      self.value = value
-      self.checked = checked
-    }
+    var lists: [EditorCommand.ListType]
+    var value: Int
+    var checked: Bool
   }
 
   /// How a block at the root is laid out.
@@ -415,7 +408,7 @@ extension Range<Int> {
 
 extension NSAttributedString.Key {
   /// A `DocumentText.ListItem`, on the line of the item it describes.
-  public static let listItem = NSAttributedString.Key("TextKitEditor.listItem")
+  static let listItem = NSAttributedString.Key("TextKitEditor.listItem")
   /// How many levels in a block is indented, on its lines.
-  public static let elementIndent = NSAttributedString.Key("TextKitEditor.elementIndent")
+  static let elementIndent = NSAttributedString.Key("TextKitEditor.elementIndent")
 }
