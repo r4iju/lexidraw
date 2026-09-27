@@ -35,6 +35,13 @@ let linkConfigurationScript = #"""
   function validateUrl(url) {
     return url === "https://" || LINK_URL_REGEX.test(url);
   }
+  var SUPPORTED_URL_PROTOCOLS2 = new Set([
+    "http:",
+    "https:",
+    "mailto:",
+    "sms:",
+    "tel:"
+  ]);
 
   Object.assign(globalThis, {
     linkConfiguration: { matchers: AUTOLINK_MATCHERS, validateUrl }
