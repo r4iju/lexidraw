@@ -39,7 +39,7 @@ extension Update {
       try append(table, [row])
     }
 
-    if let previous = state.previousSibling(of: parent), isTable(previous), tableColumnsSize(previous) == columns {
+    if let previous = state.previousSibling(of: parent), isTable(previous), try tableColumnsSize(previous) == columns {
       let header = state.firstChild(of: previous).map { Array(state.children(of: $0)) } ?? []
       for row in state.children(of: table) {
         for (index, cell) in state.children(of: row).enumerated() {
@@ -61,10 +61,12 @@ extension Update {
   /// ends the table. Under no table the divider just goes.
   private mutating func makeLastRowAHeader(_ parent: NodeKey, divider: String) throws {
     guard let table = state.previousSibling(of: parent), isTable(table) else { return }
-    guard let lastRow = state.lastChild(of: table), isRow(lastRow) else { return }
+    guard let lastRow = state.lastChild(of: table), isRow(lastRow) else {
+      throw EditorError.invalidState("A table ends in something other than a row")
+    }
     let delimiters = Array(divider.utf16).split(separator: Self.pipe, omittingEmptySubsequences: false)
     for (index, cell) in state.children(of: lastRow).enumerated() {
-      guard isCell(cell) else { return }
+      guard isCell(cell) else { throw EditorError.invalidState("A row holds something other than a cell") }
       let delimiter = MarkdownImport.trimmed(delimiters[safe: index + 1] ?? [])
       let (opens, closes) = (delimiter.first == Self.colon, delimiter.last == Self.colon)
       let format: ElementFormat = opens ? (closes ? .center : .left) : closes ? .right : .empty
@@ -76,8 +78,10 @@ extension Update {
   }
 
   /// `getTableColumnsSize`: how many cells the first row has.
-  private func tableColumnsSize(_ table: NodeKey) -> Int {
-    guard let row = state.firstChild(of: table), isRow(row) else { return 0 }
+  private func tableColumnsSize(_ table: NodeKey) throws -> Int {
+    guard let row = state.firstChild(of: table), isRow(row) else {
+      throw EditorError.invalidState("A table starts with something other than a row")
+    }
     return state.childCount(of: row)
   }
 
