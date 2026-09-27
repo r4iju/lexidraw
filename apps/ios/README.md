@@ -36,10 +36,9 @@ with no divergence; 5,693 commands were refused by both, and 122 sessions
 ended on a shortcut or node not ported yet. With links, autolinks, their
 shortcut, copy, cut and paste (#118), pasting what the last copy or cut
 put on the clipboard, or text, some with HTML, as from another app: seeds
-1, 3, 5, 7, 11, 13, 17, 23, 42 and 2026, 20,000 steps each, and seed 118,
-100,000 steps, 300,000 in all, with no divergence; 7,686 commands were
-refused by both, and 320 sessions ended on a shortcut or node not ported
-yet.
+1 to 10, 20,000 steps each, and seed 11, 100,000 steps, 300,000 in all,
+with no divergence; 9,123 commands were refused by both, and 268 sessions
+ended on a shortcut or node not ported yet.
 
 ## Editor harness and UI scripts
 
