@@ -259,27 +259,45 @@ extension Update {
 
   // MARK: Transform
 
-  /// `$linkNodeTransform`: a link merges with a like link beside it.
+  /// `$linkNodeTransform`: a block in a link goes beside the top-level node
+  /// the link is in, its children in a copy of the link, and a link merges
+  /// with a like link beside it.
   mutating func transformLink(_ link: NodeKey) throws {
-    if state.children(of: link).contains(where: { state[$0].isElement && !state[$0].isInline }) {
-      throw EditorError.unsupported("A block in a link")
-    }
     let selection = self.selection
     var anchorPair = try selection.map { try caretPair($0.anchor) }
     var focusPair = try selection.map { try caretPair($0.focus) }
-    if let previous = state.previousSibling(of: link), shouldMergeLinks(previous, link) {
-      anchorPair = anchorPair.map { fixMergeBoundary($0, absorbing: previous, merging: link) }
-      focusPair = focusPair.map { fixMergeBoundary($0, absorbing: previous, merging: link) }
-      try append(previous, Array(state.children(of: link)))
-      try remove(link)
-      restoreSelection(selection, anchorPair, focusPair)
-      return
+    var transformed = false
+    var next = state.firstChild(of: link)
+    while let child = next {
+      next = state.nextSibling(of: child)
+      guard state[child].isElement, !state[child].isInline else { continue }
+      let blockChildren = Array(state.children(of: child))
+      if !blockChildren.isEmpty {
+        let innerLink = copyNode(link)
+        try append(innerLink, blockChildren)
+        try append(child, [innerLink])
+        transformed = true
+      }
+      try insertAtNearestRoot(child, state.rewind(.sibling(child, .next)), SplitOptions(splitsAtEdges: false))
     }
-    guard let next = state.nextSibling(of: link), shouldMergeLinks(link, next) else { return }
-    anchorPair = anchorPair.map { fixMergeBoundary($0, absorbing: link, merging: next) }
-    focusPair = focusPair.map { fixMergeBoundary($0, absorbing: link, merging: next) }
-    try append(link, Array(state.children(of: next)))
-    try remove(next)
+    if state.isAttached(link) {
+      if let previous = state.previousSibling(of: link), shouldMergeLinks(previous, link) {
+        anchorPair = anchorPair.map { fixMergeBoundary($0, absorbing: previous, merging: link) }
+        focusPair = focusPair.map { fixMergeBoundary($0, absorbing: previous, merging: link) }
+        try append(previous, Array(state.children(of: link)))
+        try remove(link)
+        restoreSelection(selection, anchorPair, focusPair)
+        return
+      }
+      if let next = state.nextSibling(of: link), shouldMergeLinks(link, next) {
+        anchorPair = anchorPair.map { fixMergeBoundary($0, absorbing: link, merging: next) }
+        focusPair = focusPair.map { fixMergeBoundary($0, absorbing: link, merging: next) }
+        try append(link, Array(state.children(of: next)))
+        try remove(next)
+        transformed = true
+      }
+    }
+    guard transformed else { return }
     if isEmpty(link) {
       let parent = state.parent(of: link)
       try remove(link)

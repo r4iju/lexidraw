@@ -819,9 +819,22 @@ extension Update {
     if let nodeToSelect { selectEnd(nodeToSelect) }
   }
 
-  /// `$insertNodeToNearestRootAtCaret` for a block not yet in the
-  /// document, at a caret facing forward. Gives the caret after the block.
-  private mutating func insertAtNearestRoot(_ block: NodeKey, _ caret: Caret) throws -> Caret {
+  /// `$splitAtPointCaretNext`'s options, where a caller changes them.
+  struct SplitOptions {
+    /// Whether a parent that can be empty splits where nothing of it would
+    /// be left on one side.
+    var splitsAtEdges = true
+    /// Whether an empty parent at a child caret goes, rather than staying.
+    var removesEmptyDestination = false
+  }
+
+  /// `$insertNodeToNearestRootAtCaret` at a caret facing forward: `node`,
+  /// taken from where it is, goes beside the top-level node the caret is in,
+  /// in a paragraph where it's inline. Gives the caret after it.
+  @discardableResult
+  mutating func insertAtNearestRoot(_ node: NodeKey, _ caret: Caret, _ options: SplitOptions = SplitOptions()) throws
+    -> Caret
+  {
     var insertCaret = caret
     if case .text(let origin, _, let offset) = caret {
       if offset == 0 {
@@ -830,29 +843,48 @@ extension Update {
         insertCaret = .sibling(origin, .next)
       }
     }
-    while let next = try splitAtPointCaretNext(insertCaret) { insertCaret = next }
-    try insert(block, at: insertCaret)
-    return .sibling(block, .next)
+    if insertCaret.origin == node {
+      guard insertCaret.isSibling else { throw EditorError.invalidState("A node can't be inserted into itself") }
+      insertCaret = state.rewind(insertCaret)
+    }
+    if node == state.nodeAtCaret(insertCaret) || node == state.nodeAtCaret(state.flipped(insertCaret)) {
+      try remove(node, preservingEmptyParent: true)
+    }
+    while let next = try splitAtPointCaretNext(insertCaret, options) { insertCaret = next }
+    if state[node].isInline {
+      let paragraph = create(SerializedParagraphNode.type)
+      try append(paragraph, [node])
+      try insert(paragraph, at: insertCaret)
+    } else {
+      try insert(node, at: insertCaret)
+    }
+    return .sibling(node, .next)
   }
 
-  /// `$splitAtPointCaretNext` with its defaults, facing forward: the caret
-  /// after text split at a text caret, or beside the parent, after moving
-  /// what's past `caret` into a copy of the parent, or nil at a root or
-  /// shadow root.
-  private mutating func splitAtPointCaretNext(_ caret: Caret) throws -> Caret? {
+  /// `$splitAtPointCaretNext`, facing forward: the caret after text split
+  /// at a text caret, or beside the parent, after moving what's past `caret`
+  /// into a copy of the parent, or nil at a root or shadow root.
+  private mutating func splitAtPointCaretNext(_ caret: Caret, _ options: SplitOptions) throws -> Caret? {
     if case .text(let origin, _, let offset) = caret {
       return .sibling(try splitText(origin, at: [offset])[0], .next)
     }
     guard let parentCaret = state.parentCaret(caret, .shadowRoot) else { return nil }
     let origin = parentCaret.origin
-    if caret.isChild, !state[origin].canBeEmpty { return state.rewind(parentCaret) }
+    if caret.isChild {
+      if options.removesEmptyDestination, isEmpty(origin) {
+        let before = state.rewind(parentCaret)
+        try remove(origin)
+        return before
+      }
+      if !(state[origin].canBeEmpty && options.splitsAtEdges) { return state.rewind(parentCaret) }
+    }
     var siblings: [NodeKey] = []
     var sibling = state.adjacentCaret(caret)
     while let current = sibling {
       siblings.append(current.origin)
       sibling = state.adjacentCaret(current)
     }
-    if !siblings.isEmpty || state[origin].canBeEmpty {
+    if !siblings.isEmpty || (!options.removesEmptyDestination && state[origin].canBeEmpty && options.splitsAtEdges) {
       let copy = copyNode(origin)
       try splice(copy, 0, deleting: 0, inserting: siblings)
       try insert(copy, at: parentCaret)
@@ -870,24 +902,22 @@ extension Update {
     }
   }
 
-  /// Lexical's `$wrapInlineNodes`: runs of inline nodes in paragraphs, under
-  /// a paragraph standing in for the root they go into.
+  /// Lexical's `$wrapInlineNodes`: runs of inline nodes in paragraphs, or
+  /// in a bullet list where a list item starts one, under a paragraph
+  /// standing in for the root they go into.
   private mutating func wrapInlineNodes(_ nodes: [NodeKey]) throws -> NodeKey {
     let root = create(SerializedParagraphNode.type)
     var block: NodeKey?
     for (index, node) in nodes.enumerated() {
-      if isParentRequired(node) {
-        throw EditorError.unsupported("Wrapping a \(state[node].type) node in its parent")
-      }
       guard isInlineRunNode(node) else {
         try append(root, [node])
         block = nil
         continue
       }
       if block == nil {
-        let paragraph = create(SerializedParagraphNode.type)
-        block = paragraph
-        try append(root, [paragraph])
+        let parent = isParentRequired(node) ? createList(.bullet) : create(SerializedParagraphNode.type)
+        block = parent
+        try append(root, [parent])
         let next = index + 1 < nodes.count ? nodes[index + 1] : nil
         if state[node].isLineBreak, next.map({ !isInlineRunNode($0) }) ?? true { continue }
       }

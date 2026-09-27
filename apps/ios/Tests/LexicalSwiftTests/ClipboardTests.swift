@@ -26,6 +26,8 @@ func plain(_ text: String) -> EditorCommand { .paste(Clipboard(plainText: text))
   ]
   static let paragraphs = copied(
     "one\n\ntwo", paragraph(text("one")), paragraph(text("two", format: .italic)))
+  static let bareItem = LexicalJSON.element("listitem", [text("z")], ["value": 1])
+  static let blockInALink = link("https://a.io", paragraph(text("x")))
 
   static let scenarios: [Scenario] = [
     Scenario("copying part of a text", helloWorld, [select([0, 0], 6, [0, 0], 11), .copy]),
@@ -120,6 +122,17 @@ func plain(_ text: String) -> EditorCommand { .paste(Clipboard(plainText: text))
     Scenario("pasting a paragraph", helloWorld, [caret([0, 0], 5), .paste(copied("x", paragraph(text("x", format: .bold))))]),
     Scenario("pasting an empty paragraph", helloWorld, [caret([0, 0], 5), .paste(copied("", paragraph(), paragraph()))]),
     Scenario("pasting a URL in a paragraph", helloWorld, [caret([0, 0], 5), .paste(copied("www.a.io", paragraph(text(" www.a.io "))))]),
+    Scenario("pasting a list item without its list", helloWorld, [caret([0, 0], 5), .paste(copied("z", bareItem))]),
+    Scenario("pasting text then a list item", helloWorld, [caret([0, 0], 5), .paste(copied("xz", text("x"), bareItem))]),
+    Scenario("pasting a list item then text", helloWorld, [caret([0, 0], 5), .paste(copied("zx", bareItem, text("x")))]),
+    Scenario("pasting two list items without their list", empty, [.caret(Point(path: [0], offset: 0, type: .element)), .paste(copied("zz", bareItem, bareItem))]),
+    Scenario("pasting a link holding a paragraph", helloWorld, [caret([0, 0], 5), .paste(copied("x", blockInALink))]),
+    Scenario(
+      "pasting a paragraph with a link holding a paragraph", helloWorld,
+      [caret([0, 0], 5), .paste(copied("axb", paragraph(text("a"), blockInALink, text("b"))))]),
+    Scenario(
+      "pasting a link holding an empty paragraph", helloWorld,
+      [caret([0, 0], 5), .paste(copied("", link("https://a.io", text("a"), paragraph(), text("b"))))]),
     Scenario("pasting nodes from another editor", helloWorld, [caret([0, 0], 5), .paste(copied("x", text("x"), namespace: "Other"))]),
     Scenario("pasting nodes Lexidraw doesn't have", helloWorld, [caret([0, 0], 5), .paste(copied("x", ["type": "nope", "version": 1]))]),
     Scenario("pasting after cutting everything", twoParagraphs, [caret([0, 0], 1), .selectAll, .cut, .paste(paragraphs)]),
