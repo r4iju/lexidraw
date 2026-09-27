@@ -38,19 +38,19 @@ shortcut, copy, cut and paste (#118), pasting what the last copy or cut
 put on the clipboard, or text, some with HTML, as from another app: seeds
 1 to 10, 20,000 steps each, and seed 11, 100,000 steps, 300,000 in all,
 with no divergence; 9,122 commands were refused by both, and 270 sessions
-ended on a shortcut or node not ported yet.
 ended on a shortcut or node not ported yet. With tables, table selections,
 arrow keys and GFM table rows (#117), a quarter of the shortcuts typed being
-a row of random markdown cells: seeds 1, 7, 42, 2026, 987654321 and 11701
-to 11705, 20,000 steps each, and seed 11700, 200,000 steps, 400,000 in all,
-with no divergence; 44,675 commands were refused by both, 133 sessions ended
-on a shortcut or node not ported yet, and 12 where neither model could read
-its state back: a range deleted across two tables leaves them ragged, as
-Lexical leaves them, and Lexical's `TableSelection.getNodes` throws over a
-ragged table. `FUZZ_SEED=<n> FUZZ_STEPS=<n> swift test --filter
-randomCellsImportAsLexicalImportsThem` types a row of random markdown cells
-for each ten steps: seeds 1, 2, 3, 42 and 2026 at 20,000 steps, and 7 and 99
-at 200,000, 50,000 rows in all, with no divergence; 197 held markdown not
+a row of random markdown cells, and a rule selected whole: seeds 1, 7, 42,
+2026, 987654321 and 11701 to 11705, 20,000 steps each, and seed 11700,
+200,000 steps, 400,000 in all, with no divergence; 64,524 commands were
+refused by both, 253 sessions ended on a shortcut or node not ported yet,
+and 26 where neither model could read its selection back: a table
+selection over a hole in its table, where a cell spans rows past the
+table's end, or of a cell a command removed. `FUZZ_SEED=<n>
+FUZZ_STEPS=<n> swift test --filter randomCellsImportAsLexicalImportsThem`
+types a row of random markdown cells, links among them, for each ten
+steps: seeds 1, 2, 3, 42 and 2026 at 20,000 steps, and 7 and 99 at
+200,000, 50,000 rows in all, with no divergence; 812 held markdown not
 ported yet, which LexicalSwift declines, leaving the row as typed.
 
 ## Editor harness and UI scripts
