@@ -66,6 +66,8 @@ export default function ArticlePreview({
   const [segments, setSegments] = useState<TtsSegment[]>([]);
   const [stitchedUrl, setStitchedUrl] = useState<string | undefined>(undefined);
   const [ttsError, setTtsError] = useState<string | null>(null);
+  // Whether parts are still being made, after the ones listed.
+  const [making, setMaking] = useState(false);
   const [autoTriggered, setAutoTriggered] = useState(false);
   const uid = useId();
 
@@ -356,10 +358,13 @@ export default function ArticlePreview({
         { id: toastId, duration: Infinity },
       );
 
-      // Poll status until ready
+      // Polls until ready, listing the parts made so far to play from the
+      // first; it gives up only when a minute passes with none made.
       let delay = 1000;
       const max = 60_000;
-      const startTime = Date.now();
+      let startTime = Date.now();
+      let listed = 0;
+      setMaking(true);
       for (;;) {
         const snap = await utils.tts.getArticleTtsStatus.fetch({
           articleId: entity.id,
@@ -372,6 +377,18 @@ export default function ArticlePreview({
         const totalSegments = snap.plannedCount ?? snap.segmentCount ?? 1;
         const progress =
           totalSegments > 0 ? (completedSegments / totalSegments) * 100 : 0;
+
+        if (snap.status === "processing" && completedSegments > listed) {
+          const made = await utils.tts.getArticleTtsManifest.fetch({
+            articleId: entity.id,
+          });
+          if (made.segments.length > listed) {
+            listed = made.segments.length;
+            setStitchedUrl(undefined);
+            setSegments(made.segments as TtsSegment[]);
+          }
+          startTime = Date.now();
+        }
 
         if (snap.status === "ready") {
           // Use segmentCount from status response, which is already set when ready
@@ -399,8 +416,9 @@ export default function ArticlePreview({
               ? (manifest.segments as TtsSegment[])
               : [],
           );
+          // One already playing its parts plays on, not the whole file.
           setStitchedUrl(
-            typeof manifest.stitchedUrl === "string"
+            listed === 0 && typeof manifest.stitchedUrl === "string"
               ? manifest.stitchedUrl
               : undefined,
           );
@@ -458,6 +476,7 @@ export default function ArticlePreview({
       toast.error(msg, { id: toastId });
     } finally {
       setIsGenerating(false);
+      setMaking(false);
     }
   }, [
     sourceUrl,
@@ -875,6 +894,7 @@ export default function ArticlePreview({
             <ArticleAudioPlayer
               segments={segments}
               preferredPlaybackRate={preferredPlaybackRate}
+              making={making}
             />
           </div>
         ) : null}

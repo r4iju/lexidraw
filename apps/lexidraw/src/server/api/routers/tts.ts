@@ -4,6 +4,7 @@ import { and, eq, or, isNull, ne, desc } from "drizzle-orm";
 import { createTRPCRouter, protectedProcedure } from "~/server/api/trpc";
 import { listenSettings, servedFormat } from "~/app/settings/schema";
 import { computeDocKey, computeArticleKey } from "~/server/tts/id";
+import { planPathOf } from "~/server/tts/parts";
 import { generateDocumentTtsWorkflow } from "~/workflows/document-tts/generate-document-tts-workflow";
 import { generateArticleTtsWorkflow } from "~/workflows/article-tts/generate-article-tts-workflow";
 import { start } from "workflow/api";
@@ -166,15 +167,37 @@ const Manifest = z.object({
   stitchedUrl: z.string().optional().catch(undefined),
 });
 
+async function manifestAt(url: string) {
+  const r = await fetch(url, { cache: "no-store" }).catch(() => undefined);
+  if (!r?.ok) return undefined;
+  return Manifest.catch({ segments: [] }).parse(
+    await r.json().catch(() => ({})),
+  );
+}
+
+/**
+ * The parts of a job's audio a listener can play: all of a finished job's,
+ * and while one runs, those made so far, from the start of its run's plan.
+ */
 async function manifestOf(row: TtsJob | undefined) {
-  if (!row?.manifestUrl) return { segments: [], stitchedUrl: undefined };
-  const r = await fetch(row.manifestUrl, { cache: "no-store" });
-  if (!r.ok) return { segments: [], stitchedUrl: row.stitchedUrl ?? undefined };
-  const manifest = Manifest.catch({ segments: [] }).parse(await r.json());
-  return {
-    segments: manifest.segments,
-    stitchedUrl: manifest.stitchedUrl ?? row.stitchedUrl ?? undefined,
-  };
+  if (row?.status === "ready" && row.manifestUrl) {
+    const manifest = await manifestAt(row.manifestUrl);
+    return {
+      segments: manifest?.segments ?? [],
+      stitchedUrl: manifest?.stitchedUrl ?? row.stitchedUrl ?? undefined,
+    };
+  }
+  const made = row?.segmentCount ?? 0;
+  if (row && running(row) && row.runId && made > 0) {
+    const plan = await manifestAt(
+      `${env.VERCEL_BLOB_STORAGE_HOST}/${planPathOf(row.id, row.runId)}`,
+    );
+    return {
+      segments: plan?.segments.slice(0, made) ?? [],
+      stitchedUrl: undefined,
+    };
+  }
+  return { segments: [], stitchedUrl: undefined };
 }
 
 /** Starts a run that makes a job's audio, given the run's id. */
@@ -436,7 +459,7 @@ const ListenedSegment = z.object({
   durationSec: z.number().optional(),
 });
 
-/** How far a file's audio is, with its parts once all are made. */
+/** How far a file's audio is, with the parts made so far, from the start. */
 const Listening = z
   .object({
     status: z.enum(["none", ...JobStatus.options]),
@@ -451,13 +474,10 @@ async function listeningOf(
   job: TtsJob | undefined,
 ): Promise<z.infer<typeof Listening>> {
   if (!job) return { status: "none", segments: [] };
-  const segments =
-    job.status === "ready"
-      ? (await manifestOf(job)).segments.flatMap((segment) => {
-          const parsed = ListenedSegment.safeParse(segment);
-          return parsed.success ? [parsed.data] : [];
-        })
-      : [];
+  const segments = (await manifestOf(job)).segments.flatMap((segment) => {
+    const parsed = ListenedSegment.safeParse(segment);
+    return parsed.success ? [parsed.data] : [];
+  });
   return {
     status: job.status,
     plannedCount: job.plannedCount ?? undefined,
@@ -670,7 +690,7 @@ export const ttsRouter = createTRPCRouter({
         path: "/entities/{id}/listen",
         tags: ["entities"],
         summary:
-          "How far the caller's audio of a document or link is, with its parts once all are made",
+          "How far the caller's audio of a document or link is, with the parts made so far",
         protect: true,
         errorResponses: LISTEN_ERRORS,
       },

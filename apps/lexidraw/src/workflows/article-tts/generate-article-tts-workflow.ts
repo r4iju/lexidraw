@@ -11,6 +11,7 @@ import { updateProgressStep } from "../document-tts/update-progress-step";
 import { finalizeManifestStep } from "./finalize-manifest-step";
 import { markJobReadyStep } from "../document-tts/mark-job-ready-step";
 import { markJobErrorStep } from "../document-tts/mark-job-error-step";
+import { publishPlanStep } from "../document-tts/publish-plan-step";
 import { runIsCurrentStep } from "../document-tts/run-is-current-step";
 import { persistToEntityStep } from "./persist-to-entity-step";
 
@@ -59,6 +60,7 @@ export async function generateArticleTtsWorkflow(
     });
 
     if (!(await runIsCurrentStep(articleKey, runId))) return undefined;
+    await publishPlanStep(articleKey, runId, tts.format, planned);
     await updateJobStatusStep(articleKey, runId, "processing", planned.length);
 
     const results: Array<{
@@ -71,11 +73,15 @@ export async function generateArticleTtsWorkflow(
       headingDepth?: number;
     }> = [];
 
+    // Parts are made in order, a batch at a time, so the parts made are
+    // always the first ones; the first two alone, so listening starts on the
+    // first while the second is made.
     const BATCH = Number(process.env.TTS_WORKFLOW_BATCH_SIZE ?? "4");
-    for (let i = 0; i < planned.length; i += BATCH) {
+    for (let i = 0; i < planned.length; ) {
+      const size = i < 2 ? 1 : BATCH;
       if (i > 0 && !(await runIsCurrentStep(articleKey, runId)))
         return undefined;
-      const slice = planned.slice(i, i + BATCH);
+      const slice = planned.slice(i, i + size);
       const batch = await Promise.allSettled(
         slice.map((p) =>
           ensureChunkSynthesizedStep({
@@ -106,7 +112,7 @@ export async function generateArticleTtsWorkflow(
         );
       if (reasons.length > 0) {
         throw new Error(
-          `Could not make ${reasons.length} of chunks ${i}-${Math.min(i + BATCH - 1, planned.length - 1)}: ${[...new Set(reasons)].join("; ")}`,
+          `Could not make ${reasons.length} of chunks ${i}-${Math.min(i + size - 1, planned.length - 1)}: ${[...new Set(reasons)].join("; ")}`,
         );
       }
       const successes = batch.map(
@@ -114,6 +120,7 @@ export async function generateArticleTtsWorkflow(
       );
       results.push(...successes);
       await updateProgressStep(articleKey, runId, results.length);
+      i += size;
     }
 
     const { manifestUrl, stitchedUrl } = await finalizeManifestStep(

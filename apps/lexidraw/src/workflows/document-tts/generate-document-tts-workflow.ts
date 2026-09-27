@@ -12,6 +12,7 @@ import { finalizeManifestStep } from "./finalize-manifest-step";
 import { markJobReadyStep } from "./mark-job-ready-step";
 import { persistToEntityStep } from "./persist-to-entity-step";
 import { markJobErrorStep } from "./mark-job-error-step";
+import { publishPlanStep } from "./publish-plan-step";
 import { runIsCurrentStep } from "./run-is-current-step";
 
 function slugifySection(title: string | undefined, index: number): string {
@@ -63,6 +64,15 @@ export async function generateDocumentTtsWorkflow(
     });
 
     if (!(await runIsCurrentStep(docKey, runId))) return undefined;
+    await publishPlanStep(
+      docKey,
+      runId,
+      tts.format,
+      planned.map((p) => ({
+        ...p,
+        sectionId: slugifySection(p.sectionTitle, p.sectionIndex ?? 0),
+      })),
+    );
     await updateJobStatusStep(docKey, runId, "processing", planned.length);
 
     const results: Array<{
@@ -76,10 +86,14 @@ export async function generateDocumentTtsWorkflow(
       chunkHash: string;
     }> = [];
 
+    // Parts are made in order, a batch at a time, so the parts made are
+    // always the first ones; the first two alone, so listening starts on the
+    // first while the second is made.
     const BATCH = Number(process.env.TTS_WORKFLOW_BATCH_SIZE ?? "4");
-    for (let i = 0; i < planned.length; i += BATCH) {
+    for (let i = 0; i < planned.length; ) {
+      const size = i < 2 ? 1 : BATCH;
       if (i > 0 && !(await runIsCurrentStep(docKey, runId))) return undefined;
-      const slice = planned.slice(i, i + BATCH);
+      const slice = planned.slice(i, i + size);
       const batch = await Promise.allSettled(
         slice.map((p) =>
           ensureChunkSynthesizedStep({
@@ -104,15 +118,15 @@ export async function generateDocumentTtsWorkflow(
         );
       if (reasons.length > 0) {
         throw new Error(
-          `Could not make ${reasons.length} of chunks ${i}-${Math.min(i + BATCH - 1, planned.length - 1)}: ${[...new Set(reasons)].join("; ")}`,
+          `Could not make ${reasons.length} of chunks ${i}-${Math.min(i + size - 1, planned.length - 1)}: ${[...new Set(reasons)].join("; ")}`,
         );
       }
       const successes = batch.map(
         (r) => (r as PromiseFulfilledResult<(typeof results)[number]>).value,
       );
       results.push(...successes);
-      // Update progress after each batch completes
       await updateProgressStep(docKey, runId, results.length);
+      i += size;
     }
 
     const { manifestUrl, stitchedUrl } = await finalizeManifestStep(

@@ -22,9 +22,15 @@ Object.assign(env, { OPENAI_API_KEY: env.OPENAI_API_KEY || "sk-test" });
 
 // `.env.test` carries a real store token, so nothing here may reach the store.
 const realBlob = await import("@vercel/blob");
+/** What each run publishes as its plan, by path. */
+const plans = new Map<string, { segments: { audioUrl: string }[] }>();
 mock.module("@vercel/blob", () => ({
   ...realBlob,
-  put: async (pathname: string) => ({ url: `${HOST}/${pathname}`, pathname }),
+  put: async (pathname: string, body: unknown) => {
+    if (pathname.startsWith("tts/plans/"))
+      plans.set(pathname, JSON.parse(String(body)));
+    return { url: `${HOST}/${pathname}`, pathname };
+  },
 }));
 // Every chunk is made already, so a run pays for nothing.
 const store = fakeAudioStore({ madeBefore: () => true });
@@ -43,10 +49,11 @@ const VOICE = {
   languageCode: "en-US",
 };
 const KEY = computeDocKey(DOC, VOICE);
-/** Twelve sections, so three batches of four chunks. */
+/** Twelve sections, and as many parts or more. */
 const MARKDOWN = Array.from(
   { length: 12 },
-  (_, i) => `## Part ${i}\n\n${"A sentence of the report. ".repeat(60)}`,
+  (_, i) =>
+    `## Part ${i}\n\n${`A sentence of part ${i} of the report. `.repeat(60)}`,
 ).join("\n\n");
 
 const jobOf = async () =>
@@ -90,6 +97,28 @@ describe("a read-aloud run", () => {
     expect(await jobOf()).toMatchObject({ status: "ready" });
   });
 
+  test("publishes its parts first, then makes them in order, the first alone", async () => {
+    const made: number[] = [];
+    store.beforeChunk = async () => {
+      made.push((await jobOf())?.segmentCount ?? 0);
+    };
+
+    await generateDocumentTtsWorkflow(DOC, MARKDOWN, VOICE, "run-1");
+
+    const plan = plans.get(`tts/plans/${KEY}/run-1.json`);
+    const job = await jobOf();
+    expect(plan?.segments).toHaveLength(job?.plannedCount ?? -1);
+    // Each part's audio is where the plan said it would be.
+    const planned = plan?.segments.map((s) =>
+      new URL(s.audioUrl).pathname.slice(1),
+    );
+    expect(planned?.toSorted()).toEqual(store.chunksAsked.toSorted());
+    // How many were made as each was asked after: none, then one, then two
+    // for a batch of four; never a part before those ahead of it.
+    expect(made.slice(0, 7)).toEqual([0, 1, 2, 2, 2, 2, 6]);
+    expect(job?.segmentCount).toBe(job?.plannedCount);
+  });
+
   test("whose job was cancelled makes no more parts", async () => {
     store.beforeChunk = async () => {
       await db
@@ -100,7 +129,7 @@ describe("a read-aloud run", () => {
 
     await generateDocumentTtsWorkflow(DOC, MARKDOWN, VOICE, "run-1");
 
-    expect(store.chunksAsked).toHaveLength(4);
+    expect(store.chunksAsked).toHaveLength(1);
     expect(await jobOf()).toMatchObject({ status: "cancelled" });
   });
 
@@ -114,7 +143,7 @@ describe("a read-aloud run", () => {
 
     await generateDocumentTtsWorkflow(DOC, MARKDOWN, VOICE, "run-1");
 
-    expect(store.chunksAsked).toHaveLength(4);
+    expect(store.chunksAsked).toHaveLength(1);
     expect(await jobOf()).toMatchObject({
       status: "queued",
       runId: "run-2",

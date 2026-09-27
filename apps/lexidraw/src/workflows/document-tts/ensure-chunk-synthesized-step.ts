@@ -5,6 +5,7 @@ import { createKokoroTtsProvider } from "~/server/tts/providers/kokoro";
 import { createOpenAiTtsProvider } from "~/server/tts/providers/openai";
 import env from "@packages/env";
 import { buildSsmlFromParagraphs } from "~/lib/ssml";
+import { chunkPathOf } from "~/server/tts/parts";
 
 export async function ensureChunkSynthesizedStep(args: {
   index: number;
@@ -32,10 +33,7 @@ export async function ensureChunkSynthesizedStep(args: {
   chunkHash: string;
 }> {
   "use step";
-  const segmentFormat: "mp3" | "ogg" | "wav" =
-    process.env.TTS_STITCH_WITH_FFMPEG === "true" ? "wav" : args.format;
-
-  const path = `tts/chunks/${args.chunkHash}.${segmentFormat}`;
+  const path = chunkPathOf(args.chunkHash, args.format);
   const existingUrl = `${env.VERCEL_BLOB_STORAGE_HOST}/${path}`;
 
   // Checked before a provider is paid, since any run in the same voice may
