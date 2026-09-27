@@ -54,6 +54,18 @@ export function swiftForTypography(styles: WebStyles): string {
   if (blockBefore !== "0" || value(first, "margin-block-start") !== "0") {
     throw new Error("A block has space before it, which isn't read yet");
   }
+  const paragraph = declarations(css, `.document-content p${NOT_IN_DECORATOR}`);
+  const [paragraphBefore, paragraphAfter] = pair(
+    value(paragraph, "margin-block"),
+  );
+  if (
+    resolve(paragraphBefore, paragraph) !== resolve(blockBefore, block) ||
+    resolve(paragraphAfter, paragraph) !== resolve(blockAfter, block)
+  ) {
+    throw new Error(
+      `${paragraph.selector} has other space than every block, which isn't read yet`,
+    );
+  }
 
   const heading = declarations(
     css,
@@ -70,7 +82,7 @@ export function swiftForTypography(styles: WebStyles): string {
     const fields = [
       `fontSize: ${ems(value(own, "font-size"))}`,
       `lineHeight: ${number(value(own, "line-height"))}`,
-      `letterSpacing: ${ems(or("letter-spacing", () => "0"))}`,
+      `letterSpacing: ${ems(or("letter-spacing", () => heading.values.get("letter-spacing") ?? "0"))}`,
       `before: ${ems(resolve(headingBefore, own))}`,
       `after: ${ems(resolve(headingAfter, own))}`,
       `color: ${colors.name(or("color", () => value(heading, "color")))}`,
@@ -272,6 +284,9 @@ class ThemeColors {
         this.collect(declarations(node, ".dark"), this.dark);
       }
     });
+    if (this.dark.size === 0) {
+      throw new Error("The stylesheet has no rule for .dark on the screen");
+    }
   }
 
   private collect(from: Declarations, into: Map<string, string>) {
