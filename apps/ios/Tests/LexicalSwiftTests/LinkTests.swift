@@ -106,6 +106,30 @@ func autoLink(_ url: String, _ children: JSONValue...) -> JSONValue { LexicalJSO
     #expect(try fixture.replay(on: Editor()) == fixture.recorded)
   }
 
+  /// `SANITIZED_URLS` in packages/lexical-nodes/src/links.test.ts, which
+  /// holds them to the browser's own `URL`, as a link saves them: the ones
+  /// `validateUrl` then takes.
+  static let sanitizedURLs: [(typed: String, saved: String)] = [
+    ("HTTPS://Example.COM", "https://example.com/"),
+    ("https://example.com/a b?c=d e#f", "https://example.com/a%20b?c=d%20e#f"),
+    ("https://münchen.de/straße", "https://xn--mnchen-3ya.de/stra%C3%9Fe"),
+    ("http://a.io:80/./b/../c", "http://a.io/c"),
+    ("mailto:Me@B.io", "mailto:Me@B.io"),
+    ("ftp://x", "about:blank"),
+    ("javascript:alert(1)", "about:blank"),
+    ("www.a.io", "www.a.io"),
+  ]
+
+  @Test(arguments: sanitizedURLs)
+  func editingALinkSavesTheURLAsTheBrowserWritesIt(_ typed: String, _ saved: String) throws {
+    let fixture = try Scenario("", Self.linked, [caret([0, 1, 0], 3), .editLink(url: typed)]).recorded()
+
+    let editor = Editor()
+
+    #expect(try fixture.replay(on: editor) == fixture.recorded)
+    #expect(try editor.node(at: [0, 1])["url"] == .string(saved))
+  }
+
   @Test func toggleLinkLinksTheSelection() throws {
     let fixture = try Scenario("", Self.helloWorld, [select([0, 0], 6, [0, 0], 11), .toggleLink(url: "https://")])
       .recorded()

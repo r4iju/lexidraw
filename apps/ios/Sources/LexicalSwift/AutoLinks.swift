@@ -263,8 +263,8 @@ extension UTF16.CodeUnit {
   }
 }
 
-/// The web editor's autolink matchers and `validateUrl`, run as the web runs
-/// them: `linkConfigurationScript` is their code, bundled.
+/// The web editor's autolink matchers, `validateUrl` and `sanitizeUrl`, run
+/// as the web runs them: `linkConfigurationScript` is their code, bundled.
 enum WebLinks {
   /// `LinkMatcherResult`, less the attributes none of the web's matchers
   /// give.
@@ -294,9 +294,14 @@ enum WebLinks {
     configuration.withLock { $0.forProperty("validateUrl").call(withArguments: [url]).toBool() }
   }
 
+  static func sanitizeUrl(_ url: String) -> String {
+    configuration.withLock { $0.forProperty("sanitizeUrl").call(withArguments: [url]).toString() }
+  }
+
   private static let configuration = Mutex(
     {
       let context = JSContext()!
+      context.defineTextEncoding()
       context.evaluateScript(linkConfigurationScript)
       return context.objectForKeyedSubscript("linkConfiguration")!
     }()

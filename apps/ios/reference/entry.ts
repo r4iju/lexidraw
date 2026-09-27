@@ -7,14 +7,11 @@ import { namedSignals } from "@lexical/extension";
 import { createEmptyHistoryState, registerHistory } from "@lexical/history";
 import { createHeadlessEditor } from "@lexical/headless";
 import {
-  $createLinkNode,
-  $isAutoLinkNode,
   registerAutoLink,
   registerLink,
   TOGGLE_LINK_COMMAND,
 } from "@lexical/link";
 import { registerMarkdownShortcuts } from "@lexical/markdown";
-import { $isAtNodeEnd } from "@lexical/selection";
 import {
   $setBlockType,
   type BlockType,
@@ -32,6 +29,7 @@ import { registerDocumentEditing } from "@packages/lexical-nodes/document-editin
 import {
   AUTOLINK_MATCHERS,
   EDITOR_NAMESPACE,
+  saveLink,
   validateUrl,
 } from "@packages/lexical-nodes/links";
 import { SCHEMA_NODES } from "@packages/lexical-nodes/nodes";
@@ -83,6 +81,7 @@ import {
   $normalizeSelectionPointsForBoundaries,
 } from "./deletion.js";
 import { EditorError } from "./editor-error.js";
+import "./url.js";
 
 type PathPoint = { path: number[]; offset: number; type: "text" | "element" };
 
@@ -506,7 +505,7 @@ function run(
       $getEditor().dispatchCommand(TOGGLE_LINK_COMMAND, command.url);
       return;
     case "editLink":
-      editLink(command.url);
+      saveLink($getEditor(), command.url);
       return;
     case "copy":
       clipboard = copy(selection);
@@ -515,42 +514,6 @@ function run(
       paste(command.clipboard);
       return;
   }
-}
-
-/**
- * The link editor's save on the web: the link takes the URL, and an autolink
- * becomes a link, which typing no longer relinks.
- */
-function editLink(url: string): void {
-  $getEditor().dispatchCommand(TOGGLE_LINK_COMMAND, url);
-  const selection = $getSelection();
-  if (!$isRangeSelection(selection)) return;
-  const parent = selectedNode(selection).getParent();
-  if ($isAutoLinkNode(parent)) {
-    parent.replace(
-      $createLinkNode(parent.getURL(), {
-        rel: parent.__rel,
-        target: parent.__target,
-        title: parent.__title,
-      }),
-      true,
-    );
-  }
-}
-
-/** `getSelectedNode` in the web editor's utils. */
-function selectedNode(selection: RangeSelection): LexicalNode {
-  const { anchor, focus } = selection;
-  const anchorNode = anchor.getNode();
-  const focusNode = focus.getNode();
-  if (anchorNode === focusNode) return anchorNode;
-  return selection.isBackward()
-    ? $isAtNodeEnd(focus)
-      ? anchorNode
-      : focusNode
-    : $isAtNodeEnd(anchor)
-      ? anchorNode
-      : focusNode;
 }
 
 /**

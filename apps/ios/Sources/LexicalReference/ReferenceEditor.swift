@@ -26,6 +26,7 @@ public final class ReferenceEditor: EditorModel {
       function setTimeout(callback) { timers.push(callback); return timers.length; }
       function runTimers() { while (timers.length > 0) timers.shift()(); }
       """)
+    context.defineTextEncoding()
     context.evaluateScript(try String(contentsOf: scriptURL, encoding: .utf8), withSourceURL: scriptURL)
     if let exception = context.exception {
       throw ReferenceError("The reference bundle failed to load: \(exception)")

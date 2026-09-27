@@ -17,8 +17,8 @@ const SCRIPT_ENTRY = fileURLToPath(
 );
 
 /**
- * The document editor's namespace, and its autolink matchers and
- * `validateUrl` bundled as a script, for LexicalSwift to run the web's own
+ * The document editor's namespace, and its autolink matchers, `validateUrl`
+ * and `sanitizeUrl` bundled as a script, for LexicalSwift to run the web's own
  * code where the web's link plugins call it.
  */
 export async function swiftForLinks(): Promise<string> {
@@ -45,9 +45,9 @@ export async function swiftForLinks(): Promise<string> {
     "/// paste as nodes.",
     `public let editorNamespace = ${swiftRawString(EDITOR_NAMESPACE)}`,
     "",
-    "/// `packages/lexical-nodes/src/links.ts`, bundled: it sets",
-    "/// `linkConfiguration` to the web editor's autolink `matchers` and",
-    "/// `validateUrl`.",
+    "/// `packages/lexical-nodes/src/links.ts`, bundled with whatwg-url for",
+    "/// its `URL`: it sets `linkConfiguration` to the web editor's autolink",
+    "/// `matchers`, `validateUrl` and `sanitizeUrl`.",
     `let linkConfigurationScript = ${swiftRawString(script)}`,
   ];
   return `${lines.join("\n")}\n`;

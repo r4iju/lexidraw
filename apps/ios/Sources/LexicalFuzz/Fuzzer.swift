@@ -298,8 +298,11 @@ struct Generator {
   private static let autoLinks: [(text: String, url: String)] = [
     ("www.a.io", "https://www.a.io"), ("me@b.io", "mailto:me@b.io"), ("https://c.io/d?e=f", "https://c.io/d?e=f"),
   ]
-  /// URLs for a link, and what the web's link editor refuses.
-  private static let urls: [String] = ["https://a.io", "https://x.io", "https://", "nope"]
+  /// URLs for a link, ones the web's link editor rewrites, and what it
+  /// refuses.
+  private static let urls: [String] = [
+    "https://a.io", "https://x.io", "https://", "nope", "HTTPS://Example.com", "ftp://x", "https://münchen.de",
+  ]
   /// What plain text from another app breaks into lines, tabs and links at.
   private static let pastedParts = ["\n", "\r\n", "\r", "\t", " ", "https://x.io"] + autoLinks.map(\.text)
 

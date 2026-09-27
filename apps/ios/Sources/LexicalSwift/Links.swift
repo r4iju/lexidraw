@@ -30,10 +30,10 @@ extension Update {
     try toggleLink(url)
   }
 
-  /// The web's link editor saving a URL: the link takes it, and an autolink
-  /// becomes a link that typing no longer relinks.
+  /// `saveLink`, the web's link editor saving a URL: the link takes it
+  /// sanitized, and an autolink becomes a link that typing no longer relinks.
   mutating func editLink(_ selection: RangeSelection, url: String) throws {
-    try toggleLinkCommand(selection, url: url)
+    try toggleLinkCommand(selection, url: WebLinks.sanitizeUrl(url))
     guard let selection = self.selection, let parent = state.parent(of: try selectedNode(selection)),
       case .autoLink(let autoLink) = state[parent].payload
     else { return }

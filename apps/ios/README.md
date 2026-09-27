@@ -254,9 +254,12 @@ hand:
   A tab lines up to a browser's default tab stops.
 - Links, autolinks and the clipboard follow the web editor's own
   configuration, not a description of it. Its autolink matchers,
-  `validateUrl` and namespace live in `@packages/lexical-nodes/links`, which
-  the web editor and the reference import and codegen bundles into
-  `LinkConfiguration.swift` for LexicalSwift to run in JavaScriptCore.
+  `validateUrl`, `sanitizeUrl`, link editor's save and namespace live in
+  `@packages/lexical-nodes/links`, which the web editor and the reference
+  import and codegen bundles into `LinkConfiguration.swift` for LexicalSwift
+  to run in JavaScriptCore. JavaScriptCore has no `URL`, so the reference
+  and the bundle carry whatwg-url's, the URL Standard's own, over the
+  `TextEncoder` and `TextDecoder` LexicalSwift defines.
 - The model's link and clipboard commands are the web's: `toggleLink` is
   `TOGGLE_LINK_COMMAND`, `editLink` is the floating link editor's save,
   and `copy`, `cut` and `paste` are rich text's.
