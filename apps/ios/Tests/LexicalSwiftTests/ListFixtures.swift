@@ -3,9 +3,9 @@ import LexicalFuzz
 import LexicalSwift
 import Testing
 
-/// The scripts behind the list, checklist and indent fixtures in Fixtures/,
-/// which `FixtureReplayTests` holds LexicalSwift and the reference to. They
-/// are recorded from the reference with
+/// The scripts behind the list, checklist, indent, Tab and Enter fixtures in
+/// Fixtures/, which `FixtureReplayTests` holds LexicalSwift and the reference
+/// to. They are recorded from the reference with
 /// `RECORD_FIXTURES=1 swift test --filter ListFixtures`.
 @Suite struct ListFixtures {
   typealias Script = (name: String, start: JSONValue, commands: [EditorCommand])
@@ -143,6 +143,11 @@ import Testing
       document(paragraph(text("a")), paragraph(text("b"))),
       [.setSelection(anchor: .text([0, 0], 0), focus: .text([1, 0], 1)), .tab(backward: false), .indent,
        .tab(backward: true)]
+    ),
+    (
+      "enter-leaves-behind-a-case-format-the-caret-would-type-in",
+      document(paragraph(text("a"))),
+      [.caret(.text([0, 0], 1)), .formatText(.uppercase), .formatText(.bold), .insertParagraph, .insertText("b")]
     ),
     (
       "a-list-comes-and-goes-with-undo-and-redo",

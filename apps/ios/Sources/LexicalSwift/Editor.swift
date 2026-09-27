@@ -172,7 +172,7 @@ extension Update {
         selection, backward: backward,
         lineBoundary: KeyPoint(key: boundary, offset: lineBoundary.offset, type: lineBoundary.type))
     case .insertParagraph:
-      if try !runMarkdownShortcutOnEnter(selection) { try insertParagraphCommand(selection) }
+      if try !runMarkdownShortcutOnEnter(selection) { try enter(selection) }
     case .insertLineBreak: try insertLineBreak(selection)
     case .formatText(let format): try formatText(selection, format)
     case .setBlockType(let type): try setBlockType(selection, type)

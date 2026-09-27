@@ -453,9 +453,21 @@ extension Update {
     return true
   }
 
-  /// INSERT_PARAGRAPH_COMMAND: Enter.
-  mutating func insertParagraphCommand(_ selection: RangeSelection) throws {
+  /// KEY_ENTER_COMMAND's handlers after the markdown shortcuts': rich text's,
+  /// which escapes the case formats, then INSERT_PARAGRAPH_COMMAND's, the
+  /// list's before rich text's.
+  mutating func enter(_ selection: RangeSelection) throws {
+    escapeCaseFormats(selection)
     if try !insertParagraphLeavingList() { try insertParagraph(selection) }
+  }
+
+  /// `$escapeFormatsForTrigger` with rich text's default triggers: the caret
+  /// stops typing capitalized, lowercase or uppercase on Enter, Space and
+  /// Tab.
+  private func escapeCaseFormats(_ selection: RangeSelection) {
+    for format in [TextFormatType.capitalize, .lowercase, .uppercase] where selection.format.contains(format.format) {
+      selection.setFormat(format.toggled(in: selection.format, aligningWith: nil))
+    }
   }
 
   /// KEY_BACKSPACE_COMMAND's handlers: the list's, at the start of an item,
@@ -556,14 +568,12 @@ extension Update {
     return depth > Self.maxListDepth
   }
 
-  /// KEY_TAB_COMMAND: rich text's handler drops the case formats the caret
-  /// would type in, then Tab indentation's indents on Tab, and outdents on
-  /// Shift-Tab, where the selection takes in a block or starts at the start
-  /// of one, and otherwise either inserts a tab.
+  /// KEY_TAB_COMMAND: rich text's handler escapes the case formats, then Tab
+  /// indentation's indents on Tab, and outdents on Shift-Tab, where the
+  /// selection takes in a block or starts at the start of one, and otherwise
+  /// either inserts a tab.
   mutating func tab(_ selection: RangeSelection, backward: Bool) throws {
-    for format in [TextFormatType.capitalize, .lowercase, .uppercase] where selection.format.contains(format.format) {
-      selection.setFormat(format.toggled(in: selection.format, aligningWith: nil))
-    }
+    escapeCaseFormats(selection)
     guard try indentsOverTab(selection) else { return try insertTab(selection) }
     if backward {
       try outdentContent()
