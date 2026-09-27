@@ -162,6 +162,20 @@ import UIKit
     #expect(try text(afterPressing: "\t", [], in: "one", caretAt: 3) == "one\t")
   }
 
+  /// Over selected cells, Tab is taken by nothing, so it types nothing and
+  /// the cells stay selected.
+  @Test func tabOverSelectedCellsLeavesThemSelected() throws {
+    let (view, model) = try tableView(caretAfter: "one")
+    let two = try #require(view.position(from: view.beginningOfDocument, offset: 5))
+    view.selectedTextRange = view.textRange(from: view.beginningOfDocument, to: two)
+    let selected = try model.selection()
+    #expect(selected?.table == [0])
+
+    try press("\t", [], in: view)
+
+    #expect(try model.selection() == selected)
+  }
+
   private func tableView(caretAfter word: String) throws -> (EditorView, Editor) {
     let model = Editor()
     try model.load(LexicalJSON.document([LexicalJSON.table([["one", "two"]])]))
