@@ -702,7 +702,7 @@ extension Update {
       selectEnd(last)
       return
     }
-    guard let block = startBlock else { throw EditorError.unsupported("Inserting blocks where no block can go") }
+    guard let block = startBlock else { return try insertBlocksAtNearestRoot(selection, nodes) }
     if state[block].isElement, !isParentRequired(block), !state[state.parent(of: block)!].isRootOrShadowRoot {
       let (_, index) = try removeTextAndSplitBlock(selection)
       let inlineNodes = inlineContent(of: nodes)
@@ -804,6 +804,51 @@ extension Update {
   /// `isParentRequired`, which Lexical's list item overrides.
   func isParentRequired(_ key: NodeKey) -> Bool {
     state[key].type == SerializedListItemNode.type
+  }
+
+  /// Where no block holds the caret, as on a list, `insertNodes` puts the
+  /// blocks beside the top-level node it's in, splitting what's between.
+  private mutating func insertBlocksAtNearestRoot(_ selection: RangeSelection, _ nodes: [NodeKey]) throws {
+    guard selection.anchor.type == .element else {
+      throw EditorError.unsupported("Inserting blocks at text no block holds")
+    }
+    let blocksParent = try wrapInlineNodes(nodes)
+    let nodeToSelect = lastDescendant(of: blocksParent)
+    var caret = try state.caret(from: selection.anchor, .next)
+    for block in Array(state.children(of: blocksParent)) {
+      caret = try insertAtNearestRoot(block, caret)
+    }
+    if let nodeToSelect { selectEnd(nodeToSelect) }
+  }
+
+  /// `$insertNodeToNearestRootAtCaret` for a block not yet in the document,
+  /// at a caret beside or in an element. Gives the caret after the block.
+  private mutating func insertAtNearestRoot(_ block: NodeKey, _ caret: Caret) throws -> Caret {
+    var insertCaret = caret
+    while let next = try splitAtPointCaretNext(insertCaret) { insertCaret = next }
+    try insert(block, at: insertCaret)
+    return .sibling(block, .next)
+  }
+
+  /// `$splitAtPointCaretNext` with its defaults: the caret beside the
+  /// parent, after moving what's past `caret` into a copy of the parent,
+  /// or nil at a root or shadow root.
+  private mutating func splitAtPointCaretNext(_ caret: Caret) throws -> Caret? {
+    guard let parentCaret = state.parentCaret(caret, .shadowRoot) else { return nil }
+    let origin = parentCaret.origin
+    if caret.isChild, !state[origin].canBeEmpty { return state.rewind(parentCaret) }
+    var siblings: [NodeKey] = []
+    var sibling = state.adjacentCaret(caret)
+    while let current = sibling {
+      siblings.append(current.origin)
+      sibling = state.adjacentCaret(current)
+    }
+    if !siblings.isEmpty || state[origin].canBeEmpty {
+      let copy = copyNode(origin)
+      try splice(copy, 0, deleting: 0, inserting: siblings)
+      try insert(copy, at: parentCaret)
+    }
+    return parentCaret
   }
 
   /// Lexical's `$extractInlineFromBlocks`: what of `nodes` can go in a
