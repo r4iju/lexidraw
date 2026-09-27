@@ -39,6 +39,19 @@ put on the clipboard, or text, some with HTML, as from another app: seeds
 1 to 10, 20,000 steps each, and seed 11, 100,000 steps, 300,000 in all,
 with no divergence; 9,122 commands were refused by both, and 270 sessions
 ended on a shortcut or node not ported yet.
+ended on a shortcut or node not ported yet. With tables, table selections,
+arrow keys and GFM table rows (#117), a quarter of the shortcuts typed being
+a row of random markdown cells: seeds 1, 7, 42, 2026, 987654321 and 11701
+to 11705, 20,000 steps each, and seed 11700, 200,000 steps, 400,000 in all,
+with no divergence; 44,675 commands were refused by both, 133 sessions ended
+on a shortcut or node not ported yet, and 12 where neither model could read
+its state back: a range deleted across two tables leaves them ragged, as
+Lexical leaves them, and Lexical's `TableSelection.getNodes` throws over a
+ragged table. `FUZZ_SEED=<n> FUZZ_STEPS=<n> swift test --filter
+randomCellsImportAsLexicalImportsThem` types a row of random markdown cells
+for each ten steps: seeds 1, 2, 3, 42 and 2026 at 20,000 steps, and 7 and 99
+at 200,000, 50,000 rows in all, with no divergence; 197 held markdown not
+ported yet, which LexicalSwift declines, leaving the row as typed.
 
 ## Editor harness and UI scripts
 
@@ -284,14 +297,45 @@ hand:
   `TablePlugin` settings. The reference registers those settings and the
   web's insert handler from `packages/lexical-nodes` (`tables.ts`), which the
   web uses too, rather than a copy. Cells selected together are a
-  `Selection` with `table` set to the table's path, as Lexical's
-  `TableSelection` is.
+  `Selection.table`, holding the table's path, the anchor and focus cells and
+  every cell selected, as Lexical's `TableSelection` does.
 - No table goes inside a table, whether the caret is in a cell or cells are
   selected. `@lexical/table` refused only the first, so the web's insert
-  handler now refuses both (#117).
-- What `@lexical/table` does only in the DOM, such as dragging across cells,
-  isn't modelled: the view turns a range from one cell to another into a
-  table selection by sending it, as the DOM's selection change does.
+  handler now refuses both (#117). For the same reason the web's GFM table
+  transformer now leaves a row typed or imported inside a cell as text.
+- A row typed under a table with as many columns joins it, with the caret at
+  its end. The web's table transformer meant to do this but selected the
+  table it had just emptied, so the shortcut failed and left the text; it
+  now selects the end of the table joined (#117).
+- A row typed as GFM, such as `|a|b|` and a space, makes a table as the web's
+  table transformer does, taking in the rows typed above it; a divider row
+  under a table makes its last row a header row, aligned as the colons say.
+  Each cell's text is imported as `@lexical/markdown`'s importer imports it
+  (`MarkdownImport.swift`, apart from the transformer, since the web runs the
+  same importer): the `\n` and `\|` escapes, lines, headings, quotes, rules,
+  lists and checklists, emphasis and code by CommonMark's delimiter rules,
+  backslash escapes and character references. A cell holding markdown that a
+  transformer LexicalSwift doesn't port yet, such as a link or a code block,
+  leaves the whole row as typed; `MarkdownTransformer.notPortedYet` names
+  the issue that ports each, and porting it turns it on inside cells too.
+- A character reference past Unicode's end, such as `&#99999999;`, makes the
+  web's import throw, so the shortcut's update fails and the row stays as
+  typed. LexicalSwift refuses the command as the reference does, keeping
+  the text typed before it.
+- What `@lexical/table` does only in the DOM isn't modelled: dragging across
+  cells, which the view turns into a table selection by sending the range,
+  as the DOM's selection change does; the paragraph
+  `$getTableEdgeCursorPosition` adds at a table's edge; typeahead; moving by
+  line onto a rule from a block with text, where Lexical asks the DOM
+  whether the move leaves the block (from an empty block, or beside it,
+  Up and Down select the rule, as the web does), and past inline grids;
+  right-to-left and vertical writing;
+  pointer and triple-click selection; Escape; copy and paste, which #118
+  owns; and the observer's DOM bookkeeping. Arrow keys at a table's edge put
+  a caret beside it, as the web's keyboard does.
+- A caret beside a table lies flat, under the table before it or else over
+  the table after it, as the block cursor of Lexical's playground does,
+  since the web's theme gives the block cursor no style.
 - Enter over a table selection does nothing, as rich text's Enter answers a
   range selection only. Tab in a cell moves between cells as `@lexical/table`
   moves it, ahead of Tab indentation; over a table selection neither answers,
@@ -303,16 +347,23 @@ hand:
   `$tableTransform` does, so a column insert always has a width beside it to
   copy; one without is an invariant failure.
 - A table selection is drawn as the web draws it: the theme's primary colour
-  at 10% over the selected cells, and no text highlighted. The focus-cell
-  and table-outline classes the theme names are never applied by
-  `@lexical/table` 0.51, so they aren't drawn.
-- Typing over a table selection types nothing and leaves nothing selected,
-  as on the web; the next key types where the selection ended.
+  at 10% over the selected cells, and no text highlighted. A cell's own
+  fill, a header's and, on a narrow screen, the pinned first column's win
+  over the tint, as they do in `document.css`, so those cells show no tint
+  when selected. The focus-cell and table-outline classes the theme names
+  are never applied by `@lexical/table` 0.51, so they aren't drawn.
+- Rich text stops typing capitalized, lowercase or uppercase on Enter and
+  Tab, as on the web. The web also does on the Space key's keydown, which
+  the model doesn't see: typing a space is text like any other.
+- Typing over a table selection, or finishing a composition over it, types
+  nothing and leaves nothing selected, as on the web; the next key types
+  where the selection ended.
 - Tables lay out as `document.css` lays out `.document-table`, with its
   padding, borders, header fill, numeric columns aligned right and short
   columns kept whole, but no wider than the text, without the web's 44rem
-  measure. The pinned first column, cell background colours, vertical
-  alignment, cell widths and the web's floating cell menu are left out.
+  measure. Cell fills, stored column widths and the pinned first column on
+  a narrow screen are drawn; vertical alignment and the web's floating cell
+  menu are left out.
 - The web's table menu is the Table menu in the edit menu: Insert Table…
   with the web's dialog, five rows and columns to begin with, or in a table
   inserting rows and columns and deleting them. Deleting the table, headers
