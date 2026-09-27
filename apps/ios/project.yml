@@ -31,6 +31,10 @@ targets:
         product: LexidrawKit
       - package: LexidrawIOS
         product: DrawingKit
+      - package: LexidrawIOS
+        product: TextKitEditor
+      - package: LexidrawIOS
+        product: LexicalSwift
       - target: ShareExtension
     settings:
       base:
@@ -63,6 +67,8 @@ targets:
     sources:
       - EditorHarness
       - App/MessageAlert.swift
+      - App/DocumentView.swift
+      - App/Loaded.swift
       # Built by `bun run build:reference`; without it only LexicalSwift runs.
       - path: reference/dist/lexical-reference.js
         buildPhase: resources
@@ -72,6 +78,8 @@ targets:
         product: TextKitEditor
       - package: LexidrawIOS
         product: LexicalSwift
+      - package: LexidrawIOS
+        product: LexidrawKit
       - package: LexidrawIOS
         product: LexicalReference
       - package: LexidrawIOS

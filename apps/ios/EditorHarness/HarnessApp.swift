@@ -15,11 +15,19 @@ import TextKitEditor
 /// instead; with `EDITOR_SCROLL_REPORT` a `ScrollProbe` scrolls it through.
 /// It shows how many hardware key presses the editor passed on unhandled,
 /// for scripts that wait for the simulator to deliver one.
+/// `EDITOR_PREVIEW_ACCESS` opens the app's document screen instead, as a
+/// `DocumentPreview`.
 @main
 struct HarnessApp: App {
   var body: some Scene {
     WindowGroup {
-      NavigationStack { HarnessView() }
+      NavigationStack {
+        if let access = ProcessInfo.processInfo.environment["EDITOR_PREVIEW_ACCESS"] {
+          DocumentPreview(access: access)
+        } else {
+          HarnessView()
+        }
+      }
     }
   }
 }

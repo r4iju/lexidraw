@@ -61,6 +61,12 @@ struct OpenLink<Label: View>: View {
       } label: {
         label
       }
+    } else if file.kind == .document, let session {
+      NavigationLink {
+        DocumentScreen(session: session, id: file.id, title: file.title)
+      } label: {
+        label
+      }
     } else {
       NavigationLink {
         NotYet(title: file.title, systemImage: file.kind.systemImage, feature: "Files open")
