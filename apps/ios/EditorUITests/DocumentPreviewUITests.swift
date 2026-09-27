@@ -1,3 +1,5 @@
+import EditorModelInterface
+import LexicalFuzz
 import XCTest
 
 /// The app's document screen in the harness, on a document its server
@@ -30,9 +32,24 @@ final class DocumentPreviewUITests: XCTestCase {
     XCTAssertFalse(app.staticTexts["Preview: changes aren’t saved"].exists)
   }
 
-  private func open(access: String) -> XCUIApplication {
+  /// Every edit would be refused, so the keyboard isn't offered, and the
+  /// screen says why.
+  func testADocumentTheAppCantEditYetOpensReadOnly() {
+    let document = LexicalJSON.document([
+      LexicalJSON.paragraph([LexicalJSON.text("Watch this")]), LexicalJSON.youtube("dQw4w9WgXcQ"),
+    ])
+    let app = open(access: "EDIT", document: document)
+
+    XCTAssertTrue(app.staticTexts["Read only: this document has parts the app can’t edit yet"].waitForExistence(timeout: 10))
+    XCTAssertFalse(app.staticTexts["Preview: changes aren’t saved"].exists)
+  }
+
+  private func open(access: String, document: JSONValue? = nil) -> XCUIApplication {
     let app = XCUIApplication()
     app.launchEnvironment["EDITOR_PREVIEW_ACCESS"] = access
+    if let document {
+      app.launchEnvironment["EDITOR_DOCUMENT"] = String(decoding: try! JSONEncoder().encode(document), as: UTF8.self)
+    }
     app.launch()
     return app
   }

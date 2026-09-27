@@ -4,9 +4,9 @@ import LexidrawKit
 import OpenAPIRuntime
 import SwiftUI
 
-/// The app's document screen on `tracer.json`, served with the access
-/// `EDITOR_PREVIEW_ACCESS` names (`EDIT` or `READ`) by a server that
-/// answers nothing else.
+/// The app's document screen on `EDITOR_DOCUMENT` or `tracer.json`, served
+/// with the access `EDITOR_PREVIEW_ACCESS` names (`EDIT` or `READ`) by a
+/// server that answers nothing else.
 struct DocumentPreview: View {
   @State private var session: Result<Session, any Error>
 
@@ -39,10 +39,12 @@ private struct PreviewServer: ClientTransport {
     -> (HTTPResponse, HTTPBody?)
   {
     guard operationID == "entities-load" else { return (HTTPResponse(status: .notFound), nil) }
-    let url = Bundle.main.url(forResource: "tracer", withExtension: "json")!
+    let elements =
+      try ProcessInfo.processInfo.environment["EDITOR_DOCUMENT"]
+      ?? String(contentsOf: Bundle.main.url(forResource: "tracer", withExtension: "json")!, encoding: .utf8)
     let loaded: [String: Any] = [
       "id": Self.documentId, "title": "Tracer", "entityType": "document", "appState": NSNull(),
-      "elements": String(decoding: try Data(contentsOf: url), as: UTF8.self), "publicAccess": "PRIVATE",
+      "elements": elements, "publicAccess": "PRIVATE",
       "shared": false, "accessLevel": access, "updatedAt": "2026-09-25T09:30:00.000Z",
     ]
     var response = HTTPResponse(status: .ok)
