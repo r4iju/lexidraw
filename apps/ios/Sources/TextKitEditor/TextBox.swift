@@ -70,15 +70,45 @@ import UIKit
     height = ceil(bottom)
   }
 
+  /// TextKit sets text at the foot of a line taller than it, where CSS sets
+  /// it in the middle, so each paragraph is drawn raised by half the room
+  /// its lines have over its text.
   func draw(at origin: CGPoint, in context: CGContext) {
     layoutManager.enumerateTextLayoutFragments(from: layoutManager.documentRange.location, options: []) { fragment in
       let frame = fragment.layoutFragmentFrame
-      fragment.draw(at: CGPoint(x: origin.x + frame.minX, y: origin.y + frame.minY), in: context)
+      let raise = self.halfLeading(at: self.offset(fragment.rangeInElement.location))
+      fragment.draw(at: CGPoint(x: origin.x + frame.minX, y: origin.y + frame.minY - raise), in: context)
       return true
     }
   }
 
+  /// Half what a line of the paragraph at `offset` has over the height of
+  /// its text.
+  private func halfLeading(at offset: Int) -> CGFloat {
+    guard storage.length > 0 else { return 0 }
+    let at = min(offset, storage.length - 1)
+    guard let paragraph = storage.attribute(.paragraphStyle, at: at, effectiveRange: nil) as? NSParagraphStyle,
+      let font = storage.attribute(.font, at: at, effectiveRange: nil) as? UIFont, paragraph.maximumLineHeight > 0
+    else { return 0 }
+    return max(paragraph.maximumLineHeight - font.lineHeight, 0) / 2
+  }
+
+  /// The space after the last paragraph, which ends the text.
+  var spacingAfter: CGFloat {
+    guard storage.length > 0 else { return 0 }
+    return (storage.attribute(.paragraphStyle, at: storage.length - 1, effectiveRange: nil) as? NSParagraphStyle)?
+      .paragraphSpacing ?? 0
+  }
+
+  /// A caret is as tall as the text it is in, in the middle of its line.
   func segments(_ range: NSRange) -> [CGRect] {
+    let frames = lineSegments(range)
+    guard range.length == 0 else { return frames }
+    let leading = halfLeading(at: range.location)
+    return frames.map { $0.insetBy(dx: 0, dy: min(leading, $0.height / 2)) }
+  }
+
+  private func lineSegments(_ range: NSRange) -> [CGRect] {
     let start = min(max(range.location, 0), length)
     let end = min(max(NSMaxRange(range), start), storage.length)
     guard let from = location(start), let to = location(end), let textRange = NSTextRange(location: from, end: to)

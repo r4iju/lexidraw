@@ -21,6 +21,7 @@ public final class EditorView: UIScrollView, UITextInput {
   private let document: DocumentText
   private let storage = NSTextStorage()
   private let layout: BlockLayout
+  private let typesetting: Typesetting
 
   /// The selection as UTF-16 offsets into the text; `focus` is the end that
   /// moves.
@@ -38,13 +39,15 @@ public final class EditorView: UIScrollView, UITextInput {
   public var markedTextStyle: [NSAttributedString.Key: Any]?
   public private(set) lazy var tokenizer: any UITextInputTokenizer = UITextInputStringTokenizer(textInput: self)
 
-  public init(
-    model: any EditorModel, style: @escaping DocumentText.Style = EditorView.defaultStyle, isEditable: Bool = true
-  ) {
+  /// `style` sets the text's attributes in place of the web's typography.
+  public init(model: any EditorModel, style: DocumentText.Style? = nil, isEditable: Bool = true) {
     self.model = model
     self.isEditable = isEditable
-    document = DocumentText(model: model, style: style, standIn: BlockLayout.standIn)
-    layout = BlockLayout(storage: storage, document: document)
+    let typesetting = Typesetting(.web)
+    self.typesetting = typesetting
+    document = DocumentText(
+      model: model, style: style ?? { typesetting.attributes($0, $1) }, standIn: BlockLayout.standIn)
+    layout = BlockLayout(storage: storage, document: document, typesetting: typesetting)
     super.init(frame: .zero)
     backgroundColor = .systemBackground
     alwaysBounceVertical = true
@@ -481,6 +484,12 @@ public final class EditorView: UIScrollView, UITextInput {
       command(UIKeyCommand.inputDelete, .command, #selector(deleteLineBackward)),
       command(Self.forwardDelete, [], #selector(deleteForward)),
       command(Self.forwardDelete, .alternate, #selector(deleteWordForward)),
+      // The web's block shortcuts.
+      command("0", [.command, .alternate], #selector(makeParagraph)),
+      command("1", [.command, .alternate], #selector(makeHeading1)),
+      command("2", [.command, .alternate], #selector(makeHeading2)),
+      command("3", [.command, .alternate], #selector(makeHeading3)),
+      command("q", [.command, .alternate], #selector(makeQuote)),
     ]
   }
 
@@ -543,6 +552,22 @@ public final class EditorView: UIScrollView, UITextInput {
     }
   }
 
+  /// Makes each block the selection touches a block of `type`, as the web's
+  /// block menu does, which leaves a heading or quote already of that type
+  /// as it is.
+  public func setBlockType(_ type: BlockType) {
+    if type != .paragraph, document.blockCount > 0, document.type(ofBlock: document.blockIndex(at: anchor)) == type.rawValue {
+      return
+    }
+    perform(.setBlockType(type), fromInput: false)
+  }
+
+  @objc private func makeParagraph() { setBlockType(.paragraph) }
+  @objc private func makeHeading1() { setBlockType(.h1) }
+  @objc private func makeHeading2() { setBlockType(.h2) }
+  @objc private func makeHeading3() { setBlockType(.h3) }
+  @objc private func makeQuote() { setBlockType(.quote) }
+
   public override func toggleBoldface(_ sender: Any?) { perform(.formatText(.bold), fromInput: false) }
   public override func toggleItalics(_ sender: Any?) { perform(.formatText(.italic), fromInput: false) }
   public override func toggleUnderline(_ sender: Any?) { perform(.formatText(.underline), fromInput: false) }
@@ -569,37 +594,12 @@ public final class EditorView: UIScrollView, UITextInput {
 
   public override func layoutSubviews() {
     super.layoutSubviews()
-    layout.layoutViewport(of: self)
-  }
-
-  // MARK: Style
-
-  /// Below each block at the root.
-  nonisolated static var blockSpacing: CGFloat { UIFont.preferredFont(forTextStyle: .body).pointSize * 0.5 }
-
-  /// Body text in the system font, formats as the web editor shows them.
-  nonisolated public static func defaultStyle(_ blockType: String, _ format: TextFormat) -> [NSAttributedString.Key: Any] {
-    let body = UIFont.preferredFont(forTextStyle: .body)
-    var traits = body.fontDescriptor.symbolicTraits
-    if format.contains(.bold) { traits.insert(.traitBold) }
-    if format.contains(.italic) { traits.insert(.traitItalic) }
-    var font =
-      format.contains(.code)
-      ? UIFont.monospacedSystemFont(ofSize: body.pointSize * 0.9, weight: traits.contains(.traitBold) ? .bold : .regular)
-      : UIFont(descriptor: body.fontDescriptor.withSymbolicTraits(traits) ?? body.fontDescriptor, size: 0)
-    let paragraph = NSMutableParagraphStyle()
-    paragraph.paragraphSpacing = blockSpacing
-    var attributes: [NSAttributedString.Key: Any] = [.foregroundColor: UIColor.label, .paragraphStyle: paragraph]
-    if format.contains(.subscript) || format.contains(.superscript) {
-      font = font.withSize(font.pointSize * 0.75)
-      attributes[.baselineOffset] = (format.contains(.superscript) ? 0.4 : -0.2) * body.pointSize
+    let narrow = bounds.width <= typesetting.typography.narrowWidth
+    if narrow != typesetting.isNarrow, composition == nil {
+      typesetting.isNarrow = narrow
+      render(nil)
     }
-    attributes[.font] = font
-    if format.contains(.underline) { attributes[.underlineStyle] = NSUnderlineStyle.single.rawValue }
-    if format.contains(.strikethrough) { attributes[.strikethroughStyle] = NSUnderlineStyle.single.rawValue }
-    if format.contains(.code) { attributes[.backgroundColor] = UIColor.secondarySystemFill }
-    if format.contains(.highlight) { attributes[.backgroundColor] = UIColor.systemYellow.withAlphaComponent(0.4) }
-    return attributes
+    layout.layoutViewport(of: self)
   }
 }
 

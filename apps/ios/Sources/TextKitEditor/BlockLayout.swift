@@ -11,6 +11,9 @@ import UIKit
 /// scrolls sideways, an embedded node as a view. Only blocks near the
 /// viewport are laid out; the others have estimated heights until they are.
 ///
+/// Blocks are spaced as the web spaces them (`Typesetting`), the space
+/// after each block counted in its height.
+///
 /// Wherever a block's height changes above what is on screen, the view
 /// scrolls by as much, so what is on screen stays put.
 @MainActor final class BlockLayout {
@@ -21,6 +24,7 @@ import UIKit
   let surface = UIView()
   private let storage: NSTextStorage
   private let document: DocumentText
+  private let typesetting: Typesetting
   private weak var scrollView: UIScrollView?
   private var width: CGFloat = 0
   private var heights: [CGFloat] = []
@@ -38,9 +42,10 @@ import UIKit
   /// back, before the farthest are let go.
   private static let keptBlocks = 120
 
-  init(storage: NSTextStorage, document: DocumentText) {
+  init(storage: NSTextStorage, document: DocumentText, typesetting: Typesetting) {
     self.storage = storage
     self.document = document
+    self.typesetting = typesetting
   }
 
   /// A block of its own is a view; only a node inside a line of text stands
@@ -60,7 +65,9 @@ import UIKit
       reset()
       return
     }
+    var respaced: [Int] = []
     for splice in splices {
+      if splice.new.lowerBound > 0 { respaced.append(splice.new.lowerBound - 1) }
       let reused = splice.old.count == 1 && splice.new.count == 1 ? laidOut[splice.old.lowerBound] : nil
       for index in splice.old { laidOut.removeValue(forKey: index)?.view.removeFromSuperview() }
       let shift = splice.new.count - splice.old.count
@@ -75,6 +82,11 @@ import UIKit
         laidOut[splice.new.lowerBound] = reused
         measure(splice.new.lowerBound, reused)
       }
+    }
+    // The space after a block depends on the block after it.
+    for index in respaced where heights.indices.contains(index) {
+      let height = (laidOut[index]?.height ?? estimatedContent(index)) + spaceAfter(index)
+      if heights[index] != height { replaceHeights(index..<(index + 1), with: [height]) }
     }
     scrollView?.setNeedsLayout()
   }
@@ -118,20 +130,33 @@ import UIKit
 
   private func measure(_ index: Int, _ block: any LaidOutBlock) {
     measured[index] = true
-    if heights[index] != block.height { replaceHeights(index..<(index + 1), with: [block.height]) }
+    let height = block.height + spaceAfter(index)
+    if heights[index] != height { replaceHeights(index..<(index + 1), with: [height]) }
   }
 
-  private func estimate(_ index: Int) -> CGFloat {
-    let body = UIFont.preferredFont(forTextStyle: .body)
+  private func estimate(_ index: Int) -> CGFloat { estimatedContent(index) + spaceAfter(index) }
+
+  private func estimatedContent(_ index: Int) -> CGFloat {
+    let type = document.type(ofBlock: index)
     switch document.kind(ofBlock: index) {
-    case .embedded: return EmbedBlock.height
-    case .table(let cells): return CGFloat(cells.count) * (body.lineHeight + 2 * TableView.padding) + 1 + EditorView.blockSpacing
+    case .embedded(DocumentTypography.ruleType): return typesetting.typography.rule.width
+    case .embedded: return PlaceholderView.height
+    case .table(let cells): return CGFloat(cells.count) * (typesetting.lineHeight(type) + 2 * TableView.padding) + 1
     case .text:
-      let characterWidth = body.pointSize * 0.5
+      let characterWidth = typesetting.fontSize(type) * 0.5
       let perLine = max(width / characterWidth, 1)
       let lines = max(ceil(CGFloat(document.range(ofBlock: index).length) / perLine), 1)
-      return lines * body.lineHeight + EditorView.blockSpacing
+      return lines * typesetting.lineHeight(type)
     }
+  }
+
+  /// The larger of the block's space after it and the next block's before
+  /// it.
+  private func spaceAfter(_ index: Int) -> CGFloat {
+    let type = document.type(ofBlock: index)
+    let after = typesetting.space(type, after: index > 0 ? document.type(ofBlock: index - 1) : nil).after
+    guard index + 1 < document.blockCount else { return after }
+    return max(after, typesetting.space(document.type(ofBlock: index + 1), after: type).before)
   }
 
   /// The block at `y`, clamped to the document.
@@ -154,6 +179,9 @@ import UIKit
       switch kind {
       case .text: TextBlock(text: text, width: width)
       case .table: TableBlock(text: text, kind: kind, width: width) { [weak self] in self?.onScrollSideways?() }
+      case .embedded(DocumentTypography.ruleType):
+        RuleBlock(
+          rule: typesetting.typography.rule, caretHeight: UIFont.preferredFont(forTextStyle: .body).lineHeight, width: width)
       case .embedded(let type): EmbedBlock(type: type, width: width)
       }
     laidOut[index] = block
@@ -174,7 +202,7 @@ import UIKit
       let within = heights.isEmpty ? 0 : (visibleTop - top(anchor)) / max(heights[anchor], 1)
       self.width = width
       for (index, block) in laidOut { block.set(text: text(ofBlock: index), kind: block.kind, width: width) }
-      heights = heights.indices.map { laidOut[$0]?.height ?? estimate($0) }
+      heights = heights.indices.map { index in laidOut[index].map { $0.height + spaceAfter(index) } ?? estimate(index) }
       measured = heights.indices.map { laidOut[$0] != nil }
       validTops = 0
       if !heights.isEmpty { scrollView.contentOffset.y = top(anchor) + within * heights[anchor] + Self.margin }
@@ -296,6 +324,7 @@ import UIKit
 @MainActor private protocol LaidOutBlock: AnyObject {
   var view: UIView { get }
   var kind: DocumentText.BlockKind { get }
+  /// Without the space after it.
   var height: CGFloat { get }
   /// Whether this can show a block of `kind` once given its text.
   func canShow(_ kind: DocumentText.BlockKind) -> Bool
@@ -320,17 +349,23 @@ private final class TextBlock: LaidOutBlock {
   init(text: NSAttributedString, width: CGFloat) {
     box = TextBox(text, width: width)
     drawing.box = box
+    drawing.border = Self.border(text)
   }
 
   var view: UIView { drawing }
   var kind: DocumentText.BlockKind { .text }
-  var height: CGFloat { box.height }
+  var height: CGFloat { box.height - box.spacingAfter }
   func canShow(_ kind: DocumentText.BlockKind) -> Bool { kind == .text }
 
   func set(text: NSAttributedString, kind: DocumentText.BlockKind, width: CGFloat) {
     box.set(width: width)
     box.set(text)
+    drawing.border = Self.border(text)
     drawing.setNeedsDisplay()
+  }
+
+  private static func border(_ text: NSAttributedString) -> LeadingBorder? {
+    text.length > 0 ? text.attribute(.leadingBorder, at: 0, effectiveRange: nil) as? LeadingBorder : nil
   }
 
   func redraw() { drawing.setNeedsDisplay() }
@@ -343,6 +378,7 @@ private final class TextBlock: LaidOutBlock {
 
   final class BoxView: UIView {
     var box: TextBox?
+    var border: LeadingBorder?
 
     override init(frame: CGRect) {
       super.init(frame: frame)
@@ -355,6 +391,10 @@ private final class TextBlock: LaidOutBlock {
 
     override func draw(_ rect: CGRect) {
       guard let box, let context = UIGraphicsGetCurrentContext() else { return }
+      if let border {
+        border.color.setFill()
+        context.fill(CGRect(x: 0, y: 0, width: border.width, height: box.height - box.spacingAfter))
+      }
       box.draw(at: .zero, in: context)
     }
   }
@@ -385,7 +425,7 @@ private final class TableBlock: LaidOutBlock {
   }
 
   var view: UIView { holder }
-  var height: CGFloat { table.height + EditorView.blockSpacing }
+  var height: CGFloat { table.height }
   func canShow(_ kind: DocumentText.BlockKind) -> Bool { if case .table = kind { true } else { false } }
 
   func set(text: NSAttributedString, kind: DocumentText.BlockKind, width: CGFloat) {
@@ -459,7 +499,6 @@ private final class TableBlock: LaidOutBlock {
 
 /// An embedded node, the caret before it or after it.
 private final class EmbedBlock: LaidOutBlock {
-  static var height: CGFloat { PlaceholderView.height + EditorView.blockSpacing }
 
   private let container = UIView()
   private let placeholder: PlaceholderView
@@ -474,7 +513,7 @@ private final class EmbedBlock: LaidOutBlock {
 
   var view: UIView { container }
   var kind: DocumentText.BlockKind { .embedded(type: type) }
-  var height: CGFloat { Self.height }
+  var height: CGFloat { PlaceholderView.height }
   func canShow(_ kind: DocumentText.BlockKind) -> Bool { kind == self.kind }
 
   func set(text: NSAttributedString, kind: DocumentText.BlockKind, width: CGFloat) {
@@ -490,6 +529,44 @@ private final class EmbedBlock: LaidOutBlock {
   }
 
   func offset(closestTo point: CGPoint) -> Int { point.x < placeholder.frame.midX ? 0 : 1 }
+  func offset(movingVerticallyFrom offset: Int, _ direction: NSTextSelectionNavigation.Direction, x: CGFloat) -> Int? {
+    nil
+  }
+  func lineBoundary(at offset: Int, backward: Bool) -> Int { backward ? 0 : 1 }
+}
+
+/// A horizontal rule, the caret before it or after it as tall as a line of
+/// text.
+private final class RuleBlock: LaidOutBlock {
+  private let container = UIView()
+  private let line = UIView()
+  private let caretHeight: CGFloat
+
+  init(rule: DocumentTypography.Rule, caretHeight: CGFloat, width: CGFloat) {
+    self.caretHeight = caretHeight
+    line.backgroundColor = rule.color.color
+    line.frame = CGRect(x: 0, y: 0, width: width, height: rule.width)
+    container.addSubview(line)
+  }
+
+  var view: UIView { container }
+  var kind: DocumentText.BlockKind { .embedded(type: DocumentTypography.ruleType) }
+  var height: CGFloat { line.frame.height }
+  func canShow(_ kind: DocumentText.BlockKind) -> Bool { kind == self.kind }
+
+  func set(text: NSAttributedString, kind: DocumentText.BlockKind, width: CGFloat) {
+    line.frame.size.width = width
+  }
+
+  func redraw() {}
+
+  func segments(_ range: NSRange) -> [CGRect] {
+    let frame = line.frame.insetBy(dx: 0, dy: (line.frame.height - caretHeight) / 2)
+    if range.length > 0 { return range.location == 0 ? [frame] : [] }
+    return [CGRect(x: range.location == 0 ? frame.minX : frame.maxX, y: frame.minY, width: 0, height: frame.height)]
+  }
+
+  func offset(closestTo point: CGPoint) -> Int { point.x < line.frame.midX ? 0 : 1 }
   func offset(movingVerticallyFrom offset: Int, _ direction: NSTextSelectionNavigation.Direction, x: CGFloat) -> Int? {
     nil
   }

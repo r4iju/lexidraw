@@ -130,10 +130,10 @@ import UIKit
     #expect(jumps == [])
   }
 
-  static func host(_ document: JSONValue) throws -> EditorView {
+  static func host(_ document: JSONValue, width: CGFloat = 390) throws -> EditorView {
     let model = Editor()
     try model.load(document)
-    let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 600))
+    let window = UIWindow(frame: CGRect(x: 0, y: 0, width: width, height: 600))
     let view = EditorView(model: model)
     view.frame = window.bounds
     window.addSubview(view)

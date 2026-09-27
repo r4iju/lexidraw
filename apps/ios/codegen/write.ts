@@ -11,6 +11,11 @@ import {
   swiftForMarkdownTransformers,
 } from "./markdown";
 import { SERIALIZED_NODES_PATH, swiftForNodeSchema } from "./swift";
+import {
+  DOCUMENT_TYPOGRAPHY_PATH,
+  readWebStyles,
+  swiftForTypography,
+} from "./typography";
 
 await Bun.write(
   SERIALIZED_NODES_PATH,
@@ -26,4 +31,8 @@ await Bun.write(
 await Bun.write(
   MARKDOWN_TRANSFORMERS_PATH,
   swiftForMarkdownTransformers(createTransformers()),
+);
+await Bun.write(
+  DOCUMENT_TYPOGRAPHY_PATH,
+  swiftForTypography(await readWebStyles()),
 );
