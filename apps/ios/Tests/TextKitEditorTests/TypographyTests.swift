@@ -9,18 +9,11 @@ import UIKit
 /// Blocks set and spaced as the web's stylesheet sets them, an em being
 /// the body text's size, seen through where UIKit is told carets are.
 @MainActor @Suite struct TypographyTests {
-  static let web = DocumentTypography.web
   static let em = UIFont.preferredFont(forTextStyle: .body).pointSize
 
-  /// A line of a block of `type`, which a caret is centred in.
-  static func lineHeight(_ type: BlockType, narrow: Bool = true) -> CGFloat {
-    guard let heading = web.headings[type] else { return web.lineHeight * em }
-    return heading.lineHeight * fontSize(type, narrow: narrow)
-  }
-
-  static func fontSize(_ type: BlockType, narrow: Bool = true) -> CGFloat {
-    (narrow ? web.narrow.first?.headingSizes[type] : nil).map { $0 * em } ?? (web.headings[type]?.fontSize ?? 1) * em
-  }
+  /// document.css's sizes and lines, in ems, at a phone's width.
+  nonisolated static let (h1Size, wideH1Size, h2Size) = (1.625, 1.875, 1.5)
+  nonisolated static let (paragraphLine, h1Line, wideH1Line, h2Line) = (1.6, 1.25 * h1Size, 1.25 * wideH1Size, 1.3 * h2Size)
 
   static func caret(_ view: EditorView, before text: String) throws -> CGRect {
     let offset = (try LayoutTests.text(of: view) as NSString).range(of: text).location
@@ -31,9 +24,8 @@ import UIKit
     #expect(abs(actual - expected) < within, "\(what): \(actual), not \(expected)")
   }
 
-  /// Space between blocks is the larger of the space after one and before
-  /// the next, as CSS collapses margins, and a heading right after another
-  /// has half its space before.
+  /// Blocks are spaced as the web spaces them, a heading right after
+  /// another with half its space before.
   @Test func blocksAreSpacedAsTheWebSpacesThem() throws {
     let view = try LayoutTests.host(
       LexicalJSON.document([
@@ -43,30 +35,23 @@ import UIKit
         LexicalJSON.quote([LexicalJSON.text("Quote")]),
         LexicalJSON.paragraph([LexicalJSON.text("end")]),
       ]))
-    let (h1, h2) = (try #require(Self.web.headings[.h1]), try #require(Self.web.headings[.h2]))
-    let (h1Size, h2Size) = (Self.fontSize(.h1), Self.fontSize(.h2))
     let (paragraph, one, two, quote, end) = (
       try Self.caret(view, before: "para"), try Self.caret(view, before: "One"), try Self.caret(view, before: "Two"),
       try Self.caret(view, before: "Quote"), try Self.caret(view, before: "end")
     )
 
-    Self.expectNear(paragraph.midY, Self.lineHeight(.paragraph) / 2, "the first block has no space before it")
+    Self.expectNear(paragraph.midY, Self.paragraphLine / 2 * Self.em, "the first block has no space before it")
     Self.expectNear(
-      one.midY - paragraph.midY,
-      Self.lineHeight(.paragraph) / 2 + max(Self.web.blockAfter * Self.em, h1.before * h1Size) + Self.lineHeight(.h1) / 2,
+      one.midY - paragraph.midY, (Self.paragraphLine / 2 + 1.6 * Self.h1Size + Self.h1Line / 2) * Self.em,
       "a paragraph to a heading")
     Self.expectNear(
-      two.midY - one.midY,
-      Self.lineHeight(.h1) / 2 + max(h1.after * h1Size, Self.web.adjacentHeadingBefore * h2.before * h2Size)
-        + Self.lineHeight(.h2) / 2,
+      two.midY - one.midY, (Self.h1Line / 2 + 1.6 * Self.h2Size / 2 + Self.h2Line / 2) * Self.em,
       "a heading to the heading after it")
     Self.expectNear(
-      quote.midY - two.midY, Self.lineHeight(.h2) / 2 + h2.after * h2Size + Self.lineHeight(.quote) / 2,
+      quote.midY - two.midY, (Self.h2Line / 2 + 0.4 * Self.h2Size + Self.paragraphLine / 2) * Self.em,
       "a heading to a quote")
-    Self.expectNear(
-      end.midY - quote.midY, Self.lineHeight(.quote) / 2 + Self.web.blockAfter * Self.em + Self.lineHeight(.paragraph) / 2,
-      "a quote to a paragraph")
-    Self.expectNear(quote.minX, Self.web.quote.borderWidth + Self.web.quote.paddingStart * Self.em, "a quote's text")
+    Self.expectNear(end.midY - quote.midY, (Self.paragraphLine + 0.75) * Self.em, "a quote to a paragraph")
+    Self.expectNear(quote.minX, 3 + Self.em, "a quote's text")
     Self.expectNear(paragraph.minX, 0, "a paragraph's text")
     try LayoutTests.expectEveryCaretToLandOnItself(view)
   }
@@ -79,7 +64,7 @@ import UIKit
         LexicalJSON.heading("h1", [LexicalJSON.text("One")]),
         LexicalJSON.paragraph([LexicalJSON.text("para")]),
       ]))
-    let heading = UIFont.systemFont(ofSize: Self.fontSize(.h1), weight: .semibold)
+    let heading = UIFont.systemFont(ofSize: Self.h1Size * Self.em, weight: .semibold)
 
     Self.expectNear(try Self.caret(view, before: "One").height, heading.lineHeight, "in a heading")
     Self.expectNear(
@@ -88,19 +73,18 @@ import UIKit
 
   /// The web sets top-level headings smaller in a view no wider than a
   /// phone's.
-  @Test(arguments: [(390, true), (820, false)])
-  func aTopLevelHeadingIsSmallerOnANarrowView(_ width: CGFloat, _ narrow: Bool) throws {
+  @Test(arguments: [(390, h1Size, h1Line), (820, wideH1Size, wideH1Line)])
+  func aTopLevelHeadingIsSmallerOnANarrowView(_ width: CGFloat, _ size: Double, _ line: Double) throws {
     let view = try LayoutTests.host(
       LexicalJSON.document([
         LexicalJSON.heading("h1", [LexicalJSON.text("One")]),
         LexicalJSON.paragraph([LexicalJSON.text("para")]),
       ]), width: width)
-    let h1 = try #require(Self.web.headings[.h1])
+    let one = try Self.caret(view, before: "One")
 
+    Self.expectNear(one.midY, line / 2 * Self.em, "a heading \(width) wide, first, with no space before it")
     Self.expectNear(
-      try Self.caret(view, before: "para").midY - Self.caret(view, before: "One").midY,
-      Self.lineHeight(.h1, narrow: narrow) / 2 + h1.after * Self.fontSize(.h1, narrow: narrow)
-        + Self.lineHeight(.paragraph) / 2,
+      try Self.caret(view, before: "para").midY - one.midY, (line / 2 + 0.4 * size + Self.paragraphLine / 2) * Self.em,
       "from a heading \(width) wide to a paragraph")
   }
 
@@ -112,11 +96,9 @@ import UIKit
         LexicalJSON.horizontalRule,
         LexicalJSON.paragraph([LexicalJSON.text("below")]),
       ]))
-    let room = Self.web.rule.margin * Self.em
-
     Self.expectNear(
       try Self.caret(view, before: "below").midY - Self.caret(view, before: "above").midY,
-      Self.lineHeight(.paragraph) + 2 * room + Self.web.rule.width, "across a rule")
+      (Self.paragraphLine + 2 * 2) * Self.em + 1, "across a rule")
     let offset = "above\n".utf16.count
     let before = view.caretRect(for: try #require(view.position(from: view.beginningOfDocument, offset: offset)))
     let after = view.caretRect(for: try #require(view.position(from: view.beginningOfDocument, offset: offset + 1)))
@@ -140,12 +122,9 @@ import UIKit
     view.setBlockType(.h2)
     view.layoutIfNeeded()
 
-    let h2 = try #require(Self.web.headings[.h2])
     Self.expectNear(
       try Self.caret(view, before: "Two").midY - Self.caret(view, before: "para").midY,
-      Self.lineHeight(.paragraph) / 2 + max(Self.web.blockAfter * Self.em, h2.before * Self.fontSize(.h2))
-        + Self.lineHeight(.h2) / 2,
-      "a paragraph to the heading after it")
+      (Self.paragraphLine / 2 + 1.6 * Self.h2Size + Self.h2Line / 2) * Self.em, "a paragraph to the heading after it")
     try LayoutTests.expectEveryCaretToLandOnItself(view)
   }
 
@@ -165,7 +144,7 @@ import UIKit
     Self.expectNear(paragraph[.kern] as? CGFloat ?? 0, letterSpacing * Self.em, "a paragraph's letters", within: 0.001)
     Self.expectNear((h3[.paragraphStyle] as? NSParagraphStyle)?.minimumLineHeight ?? 0, 1.4 * 1.25 * Self.em, "an h3's line")
     Self.expectNear(h3[.kern] as? CGFloat ?? 0, letterSpacing * Self.em, "an h3's letters", within: 0.001)
-    Self.expectNear(h1[.kern] as? CGFloat ?? 0, -0.015 * 1.625 * Self.em, "a narrow h1's letters", within: 0.001)
+    Self.expectNear(h1[.kern] as? CGFloat ?? 0, -0.015 * Self.h1Size * Self.em, "a narrow h1's letters", within: 0.001)
   }
 }
 #endif
