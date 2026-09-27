@@ -22,6 +22,7 @@ extension Update {
   /// `arrow` in `reference/entry.ts`.
   mutating func arrow(_ key: ArrowKey, extend: Bool, native: Point, atCellEdge: Bool) throws {
     let before = selection?.clone()
+    let wereNodesSelected = nodeSelection != nil
     var event = ArrowEvent(shiftKey: extend, atCellEdge: atCellEdge, native: native)
     let direction: ArrowDirection =
       switch key {
@@ -37,7 +38,11 @@ extension Update {
     }
     if !handled { handled = try richTextArrow(&event, key) }
     if !handled, !event.defaultPrevented {
-      let anchor = extend ? before.flatMap { state.point($0.anchor.value) } ?? native : native
+      // Rich text turns selected nodes into the range the platform extends,
+      // and where it leaves them selected the platform shows no caret to move.
+      if wereNodesSelected, nodeSelection != nil { return }
+      let extended = wereNodesSelected ? selection : before
+      let anchor = extend ? extended.flatMap { state.point($0.anchor.value) } ?? native : native
       try placeSelection(anchor, native)
     } else if try !reselect(before) {
       return
@@ -66,8 +71,20 @@ extension Update {
 
   // MARK: Rich text
 
-  /// Rich text's KEY_ARROW handlers for a range selection.
+  /// Rich text's KEY_ARROW handlers: selected nodes are left, or with Shift
+  /// made a range, which the handlers for a range then take.
   private mutating func richTextArrow(_ event: inout ArrowEvent, _ key: ArrowKey) throws -> Bool {
+    if let nodes = nodeSelection {
+      let selected = self.nodes(in: nodes)
+      // `$isParentRTL` reads the parent's computed style, which a document
+      // without a DOM hasn't got, as the reference hasn't: left to right.
+      let direction: CaretDirection = key == .up || key == .left ? .previous : .next
+      if let first = selected.first, try !(event.shiftKey && convertContiguousNodeSelection(selected, direction)) {
+        event.defaultPrevented = true
+        exitNodeSelection(toward: first, direction)
+        return true
+      }
+    }
     guard let selection else { return false }
     let root = EditorState.rootKey
     switch key {
@@ -96,6 +113,41 @@ extension Update {
       }
       return true
     }
+  }
+
+  /// `$exitNodeSelectionToward`: to beside the node, where a table is next
+  /// to it, or else into what's next to it.
+  private mutating func exitNodeSelection(toward node: NodeKey, _ direction: CaretDirection) {
+    let sibling = direction == .next ? state.nextSibling(of: node) : state.previousSibling(of: node)
+    if let sibling, state[sibling].isElement, !state[sibling].isInline, state[sibling].isShadowRoot {
+      let caret = Caret.sibling(node, direction)
+      setSelection(from: CaretRange(anchor: caret, focus: caret))
+    } else if direction == .next {
+      selectNext(node, 0, 0)
+    } else {
+      selectPrevious(node)
+    }
+  }
+
+  /// `$convertContiguousNodeSelection`: selected siblings side by side
+  /// become the range over them, facing `direction`. False where they
+  /// aren't side by side.
+  private mutating func convertContiguousNodeSelection(_ nodes: [NodeKey], _ direction: CaretDirection) throws -> Bool {
+    var carets = nodes.map { Caret.sibling($0, .next) }
+    var sortError: (any Error)?
+    carets.sort { a, b in
+      do { return try state.compareNext(a, b) < 0 } catch {
+        sortError = error
+        return false
+      }
+    }
+    if let sortError { throw sortError }
+    guard let first = carets.first, let last = carets.last else { return false }
+    for (caret, next) in zip(carets, carets.dropFirst()) where state.nodeAtCaret(caret) != next.origin {
+      return false
+    }
+    setSelection(from: state.inDirection(CaretRange(anchor: state.rewind(first), focus: last), direction))
+    return true
   }
 
   /// `$isBlockCursorAtRootEdge`.
@@ -173,8 +225,7 @@ extension Update {
 
   /// `$tryDecoratorLineNavigation`: from an empty block, or from beside
   /// it in a root, onto the block decorator a line up or down reaches.
-  /// Lexical selects it with a NodeSelection, which LexicalSwift holds as no
-  /// selection. From a block with text it asks the DOM's selection whether
+  /// From a block with text it asks the DOM's selection whether
   /// the line move leaves the block, which `native` answers, as in
   /// `reference/entry.ts`. `$tryInlineGridLineNavigation`, which runs next,
   /// finds no inline element the web displays as a grid.
@@ -187,7 +238,7 @@ extension Update {
     if focus.type == .element, state[focus.key].isRootOrShadowRoot {
       guard let child = state.nodeAtCaret(try state.caret(from: focus, direction)), isSelectableBlockDecorator(child)
       else { return false }
-      current = nil
+      selectNode(child)
       return true
     }
     let start = state[focus.key].isElement ? focus.key : state.parent(of: focus.key)
@@ -201,7 +252,7 @@ extension Update {
     if !state.textContent(of: block).isEmpty, native != state.point(focus.value) {
       if findParent(from: try pointNode(native), where: { $0 == block }) != nil { return false }
     }
-    current = nil
+    selectNode(sibling)
     return true
   }
 

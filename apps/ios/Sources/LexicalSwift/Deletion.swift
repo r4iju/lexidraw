@@ -74,9 +74,7 @@ extension Update {
             let anchorOrigin = initialRange.anchor.origin
             if case .nextBlock = merge, state[anchorOrigin].isElement, isEmpty(anchorOrigin) {
               try remove(anchorOrigin)
-              // Lexical selects the decorator with a NodeSelection, which
-              // LexicalSwift holds as no selection.
-              current = nil
+              selectNode(origin)
             } else {
               let container = state.parent(of: origin)
               try remove(origin)
@@ -185,6 +183,18 @@ extension Update {
       return !(state.parent(of: key).map { state[$0].isElement && state[$0].isShadowRoot } ?? false)
     }
     return !node.canBeEmpty
+  }
+
+  /// `NodeSelection.deleteNodes`: the caret goes after the first node, and
+  /// the nodes go.
+  mutating func deleteNodes(_ selection: NodeSelection) throws {
+    let nodes = self.nodes(in: selection)
+    if let first = nodes.first {
+      let caret = Caret.sibling(first, .next)
+      setSelection(from: CaretRange(anchor: caret, focus: caret))
+    }
+    for node in nodes { try remove(node) }
+    try ensureRootHasParagraph()
   }
 
   private mutating func ensureRootHasParagraph() throws {
@@ -455,9 +465,7 @@ extension Update {
     }
     guard focus != initialFocus else { return false }
     if move, !isLineBoundary, state[focus.origin].isDecorator {
-      // Lexical selects it with a NodeSelection, which LexicalSwift holds as
-      // no selection.
-      current = nil
+      selectNode(focus.origin)
       return true
     }
     let normalized = state.normalize(focus)

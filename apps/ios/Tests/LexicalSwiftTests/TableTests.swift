@@ -438,23 +438,23 @@ import Testing
   }
 
   /// Up or Down from an empty block, or from beside it in the root, selects
-  /// a rule it moves toward, which leaves no range selected. From a block
-  /// with text where the platform's line move stays in it, and with Shift,
-  /// the caret moves as the platform moves it.
+  /// a rule it moves toward, whole. From a block with text where the
+  /// platform's line move stays in it, and with Shift, the caret moves as the
+  /// platform moves it.
   @Test func anArrowTowardARuleSelectsItFromAnEmptyBlock() throws {
     let rule = LexicalJSON.horizontalRule
     let first = Point(path: [0], offset: 0, type: .element)
     let down = try agreed(
       document(paragraph(), rule, paragraph(text("ab"))), [.caret(first), arrow(.down, native: first)])
-    #expect(down.expected.selection == nil)
+    #expect(down.expected.selection == .node(nodes: [[1]]))
 
     let third = Point(path: [2], offset: 0, type: .element)
     let up = try agreed(document(paragraph(text("ab")), rule, paragraph()), [.caret(third), arrow(.up, native: third)])
-    #expect(up.expected.selection == nil)
+    #expect(up.expected.selection == .node(nodes: [[1]]))
 
     let beside = Point(path: [], offset: 1, type: .element)
     let fromRoot = try agreed(document(paragraph(text("a")), rule), [.caret(beside), arrow(.down, native: beside)])
-    #expect(fromRoot.expected.selection == nil)
+    #expect(fromRoot.expected.selection == .node(nodes: [[1]]))
 
     let withText = try agreed(
       document(paragraph(text("ab")), rule), [.caret(.text([0, 0], 1)), arrow(.down, native: .text([0, 0], 2))])
@@ -472,15 +472,15 @@ import Testing
     let rule = LexicalJSON.horizontalRule
     let below = document(paragraph(text("ab")), rule, paragraph(text("c")))
     let leaving = try agreed(below, [.caret(.text([0, 0], 1)), arrow(.down, native: .text([2, 0], 1))])
-    #expect(leaving.expected.selection == nil)
+    #expect(leaving.expected.selection == .node(nodes: [[1]]))
 
     let staying = try agreed(below, [.caret(.text([0, 0], 2)), arrow(.down, native: .text([0, 0], 2))])
-    #expect(staying.expected.selection == nil)
+    #expect(staying.expected.selection == .node(nodes: [[1]]))
 
     let above = document(rule, paragraph(text("ab")))
     let start = Point(path: [], offset: 0, type: .element)
     let up = try agreed(above, [.caret(.text([1, 0], 1)), arrow(.up, native: start)])
-    #expect(up.expected.selection == nil)
+    #expect(up.expected.selection == .node(nodes: [[0]]))
 
     let inBlock = try agreed(above, [.caret(.text([1, 0], 1)), arrow(.up, native: .text([1, 0], 0))])
     #expect(inBlock.expected.selection?.anchor == .text([1, 0], 0))

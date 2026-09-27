@@ -1,7 +1,11 @@
+import OrderedCollections
+
 /// A selection as a committed state keeps it, by node key.
 enum KeySelection: Equatable, Sendable {
   case range(KeyRange)
   case table(TableSelection)
+  /// The keys a node selection holds, a removed node's among them.
+  case node(OrderedSet<NodeKey>)
 }
 
 /// A range selection's points, format and style.
@@ -114,6 +118,31 @@ final class RangeSelection {
   }
 }
 
+/// Lexical's `NodeSelection`: nodes selected whole, by key, in the order
+/// they were added. It keeps the key of a node removed since, as Lexical's
+/// does, and a committed one with no keys at all is no selection.
+final class NodeSelection {
+  private(set) var keys: OrderedSet<NodeKey>
+  var dirty = false
+
+  init(_ keys: OrderedSet<NodeKey> = []) {
+    self.keys = keys
+  }
+
+  func add(_ key: NodeKey) {
+    dirty = true
+    keys.append(key)
+  }
+
+  func has(_ key: NodeKey) -> Bool { keys.contains(key) }
+
+  /// The same nodes, in any order.
+  func `is`(_ other: KeySelection?) -> Bool {
+    guard case .node(let other) = other else { return false }
+    return Set(keys) == Set(other)
+  }
+}
+
 /// @lexical/table's `TableSelection`: the cells of a table's rectangle from
 /// the anchor cell to the focus cell.
 struct TableSelection: Equatable, Sendable {
@@ -150,6 +179,8 @@ extension EditorState {
         throw EditorError.tableSelectionOverAHole
       }
       return .table(table: tablePath, anchor: anchor, focus: focus, cells: cells.compactMap(path(of:)))
+    case .node(let keys):
+      return .node(nodes: keys.compactMap(path(of:)))
     }
   }
 }

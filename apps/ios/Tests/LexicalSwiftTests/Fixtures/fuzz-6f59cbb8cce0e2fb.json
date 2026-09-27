@@ -82,6 +82,13 @@
     }
   ],
   "expected" : {
+    "selection" : {
+      "nodes" : [
+        [
+          1
+        ]
+      ]
+    },
     "state" : {
       "root" : {
         "children" : [

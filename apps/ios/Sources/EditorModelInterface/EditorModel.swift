@@ -48,7 +48,8 @@ public struct Snapshot: Codable, Equatable, Sendable {
   }
 }
 
-/// Lexical's selection: a range, or the cells of a table. Nodes are addressed
+/// Lexical's selection: a range, the cells of a table, or nodes selected
+/// whole. Nodes are addressed
 /// by path (child indexes from the root) rather than node key, so two
 /// implementations can be compared.
 public enum Selection: Equatable, Sendable {
@@ -59,29 +60,43 @@ public enum Selection: Equatable, Sendable {
   /// `anchor` cell to the `focus` cell, grown until no merged cell crosses
   /// its edge. `cells` are the paths of the cells it has, row by row.
   case table(table: [Int], anchor: [Int], focus: [Int], cells: [[Int]])
+  /// Lexical's `NodeSelection`, of a rule an arrow or a deletion reaches:
+  /// the nodes in the order they were selected, short of any removed since.
+  case node(nodes: [[Int]])
 
-  /// The anchor, which for a table selection is the start of its cell.
+  /// The anchor, which for a table selection is the start of its cell, and
+  /// for selected nodes the point before the first, or the root's start
+  /// where none is left.
   public var anchor: Point {
     switch self {
     case .range(let anchor, _, _, _): anchor
     case .table(_, let anchor, _, _): Point(path: anchor, offset: 0, type: .element)
+    case .node(let nodes): Self.before(nodes.first)
     }
   }
 
-  /// The focus, which for a table selection is the start of its cell.
+  /// The focus, which for a table selection is the start of its cell, and
+  /// for selected nodes the same as the anchor.
   public var focus: Point {
     switch self {
     case .range(_, let focus, _, _): focus
     case .table(_, _, let focus, _): Point(path: focus, offset: 0, type: .element)
+    case .node(let nodes): Self.before(nodes.first)
     }
   }
 
-  /// A range's format; a table selection has none.
+  private static func before(_ node: [Int]?) -> Point {
+    guard let node, let index = node.last else { return Point(path: [], offset: 0, type: .element) }
+    return Point(path: Array(node.dropLast()), offset: index, type: .element)
+  }
+
+  /// A range's format; a table selection and selected nodes have none.
   public var format: TextFormat {
     if case .range(_, _, let format, _) = self { format } else { [] }
   }
 
-  /// Whether it's a caret. A table selection never is, even of one cell.
+  /// Whether it's a caret. A table selection never is, even of one cell,
+  /// and nor are selected nodes.
   public var isCollapsed: Bool {
     if case .range(let anchor, let focus, _, _) = self { anchor == focus } else { false }
   }
@@ -89,12 +104,14 @@ public enum Selection: Equatable, Sendable {
 
 extension Selection: Codable {
   private enum CodingKeys: String, CodingKey {
-    case anchor, focus, format, style, table, cells
+    case anchor, focus, format, style, table, cells, nodes
   }
 
   public init(from decoder: any Decoder) throws {
     let container = try decoder.container(keyedBy: CodingKeys.self)
-    if let table = try container.decodeIfPresent([Int].self, forKey: .table) {
+    if let nodes = try container.decodeIfPresent([[Int]].self, forKey: .nodes) {
+      self = .node(nodes: nodes)
+    } else if let table = try container.decodeIfPresent([Int].self, forKey: .table) {
       self = .table(
         table: table, anchor: try container.decode([Int].self, forKey: .anchor),
         focus: try container.decode([Int].self, forKey: .focus), cells: try container.decode([[Int]].self, forKey: .cells))
@@ -119,6 +136,8 @@ extension Selection: Codable {
       try container.encode(anchor, forKey: .anchor)
       try container.encode(focus, forKey: .focus)
       try container.encode(cells, forKey: .cells)
+    case .node(let nodes):
+      try container.encode(nodes, forKey: .nodes)
     }
   }
 }

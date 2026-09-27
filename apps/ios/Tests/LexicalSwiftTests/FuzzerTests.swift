@@ -164,7 +164,7 @@ import Testing
 
   @Test func loadsListsMarkedWithEachMarkNestedOrNotAndTypesATabbedShortcut() throws {
     let candidate = NotesMarkersAndTabbedShortcuts()
-    var fuzzer = Fuzzer(seed: 7, reference: try Support.referenceEditor(), candidate: candidate)
+    var fuzzer = Fuzzer(seed: 1, reference: try Support.referenceEditor(), candidate: candidate)
 
     #expect(try fuzzer.run(steps: 3_000)?.fixture == nil)
     #expect(

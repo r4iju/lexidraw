@@ -59,6 +59,10 @@ public final class Editor: EditorModel {
       // Rich text's cut is two updates: a copy, then a delete.
       let copied = try commit(tags: [.cut]) { try $0.copyForCut() }
       var changes = try commit(tags: [.cut]) { update in
+        if let nodes = update.nodeSelection {
+          for node in update.nodes(in: nodes) { try update.remove(node) }
+          return
+        }
         guard let selection = update.selection else { throw EditorError.noSelection }
         try update.removeText(selection)
       }
@@ -128,6 +132,12 @@ public final class Editor: EditorModel {
     case .table(let selection, let isDirty):
       saved = .table(selection)
       movesSelection = isDirty || saved != state.selection
+    case .node(let selection) where selection.keys.isEmpty:
+      saved = nil
+      movesSelection = state.selection != nil
+    case .node(let selection):
+      saved = .node(selection.keys)
+      movesSelection = selection.dirty || !selection.is(state.selection)
     case nil:
       saved = nil
       movesSelection = state.selection != nil
@@ -245,6 +255,9 @@ extension Update {
     if let tableSelection {
       return try run(command, onCells: tableSelection)
     }
+    if let nodeSelection {
+      return try run(command, onNodes: nodeSelection)
+    }
     guard let selection else { throw EditorError.noSelection }
     switch command {
     case .insertText(let text), .commitComposition(let text): try insertText(selection, text)
@@ -295,6 +308,32 @@ extension Update {
     // `$removeList` and `$handleIndentAndOutdent` answer a range selection
     // alone.
     case .removeList, .indent, .outdent: break
+    case .copy: clipboard = try copy(selection)
+    case .paste(let clipboard): try paste(selection, clipboard)
+    default: try runOnTable(command)
+    }
+  }
+
+  /// Selected nodes, as an arrow or a deletion selects a rule, where rich
+  /// text's handlers answer the web's keys and menus.
+  private mutating func run(_ command: EditorCommand, onNodes selection: NodeSelection) throws {
+    switch command {
+    // A browser shows no caret to type at.
+    case .insertText, .commitComposition: break
+    case .deleteCharacter: try deleteNodes(selection)
+    // Rich text deletes a word or a line from a range selection alone.
+    case .deleteWord, .deleteLine: break
+    case .insertParagraph: try enter(selection, lineBreak: false)
+    case .insertLineBreak: try enter(selection, lineBreak: true)
+    // `$updateTextFormat` formats inline nodes and `$setBlocksType` changes
+    // elements, and a selected rule is neither.
+    case .formatText, .setBlockType: break
+    case .insertList(let listType): try insertList(selection, ListType(listType))
+    // `$removeList`, `$handleIndentAndOutdent` and Tab indentation answer a
+    // range selection alone.
+    case .removeList, .indent, .outdent, .tab: break
+    case .toggleLink(let url): try toggleLinkCommand(selection, url: url)
+    case .editLink(let url): try toggleLinkCommand(selection, url: WebLinks.sanitizeUrl(url))
     case .copy: clipboard = try copy(selection)
     case .paste(let clipboard): try paste(selection, clipboard)
     default: try runOnTable(command)

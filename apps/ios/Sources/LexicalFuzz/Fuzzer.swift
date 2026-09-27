@@ -552,6 +552,24 @@ struct Generator {
     }
   }
 
+  /// For each rule at the top level, a caret at the edge of the block beside
+  /// it and the arrow from there toward it, the platform leaving the caret
+  /// where it is.
+  private static func stepsOntoRules(in state: JSONValue) -> [(caret: Point, key: EditorCommand)] {
+    let blocks = state["root"]?["children"]?.arrayValue ?? []
+    let points = points(in: state)
+    return blocks.indices.filter { blocks[$0]["type"] == "horizontalrule" }.flatMap { rule in
+      var steps: [(caret: Point, key: EditorCommand)] = []
+      if let end = points.last(where: { $0.path.first == rule - 1 }) {
+        steps.append((end, .arrow(.down, extend: false, native: end, atCellEdge: false)))
+      }
+      if let start = points.first(where: { $0.path.first == rule + 1 }) {
+        steps.append((start, .arrow(.up, extend: false, native: start, atCellEdge: false)))
+      }
+      return steps
+    }
+  }
+
   /// The items of checklists that show a box to tap: those holding content.
   private static func checkboxes(in state: JSONValue) -> [[Int]] {
     state.nodePaths().filter { path in
@@ -624,6 +642,17 @@ struct Generator {
     case ..<105: return .insertTableColumn(after: backward)
     case ..<106: return .deleteTableRow
     case ..<107: return .deleteTableColumn
+    // An arrow from the block beside a rule that selects the rule whole,
+    // which random points and arrows seldom line up, or else a rule pasted
+    // as the web copies one.
+    case ..<111:
+      guard let (caret, key) = Self.stepsOntoRules(in: snapshot.state).randomElement(using: &random) else {
+        return .paste(
+          Clipboard(
+            plainText: "\n", lexical: LexicalClipboardPayload(namespace: editorNamespace, nodes: [LexicalJSON.horizontalRule])))
+      }
+      typing = [key]
+      return .setSelection(anchor: caret, focus: caret)
     default:
       let native = Self.points(in: snapshot.state).randomElement(using: &random) ?? Point(path: [], offset: 0, type: .element)
       return .arrow(

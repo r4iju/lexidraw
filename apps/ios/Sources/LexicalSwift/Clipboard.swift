@@ -18,10 +18,19 @@ extension Update {
       plainText: try textContent(selection), lexical: try lexicalContent(.cells(selection), nodes(in: selection)))
   }
 
+  /// `$getClipboardDataFromSelection` for selected nodes: their text, and
+  /// the nodes.
+  func copy(_ selection: NodeSelection) throws -> Clipboard {
+    let selected = nodes(in: selection)
+    return Clipboard(
+      plainText: selected.map(state.textContent(of:)).joined(), lexical: try lexicalContent(.nodes(selection), selected))
+  }
+
   /// A selection a copy is of or a paste goes into.
   enum ClipboardSelection {
     case range(RangeSelection)
     case cells(TableSelection)
+    case nodes(NodeSelection)
   }
 
   /// `$getLexicalContent`: nothing where nothing is selected.
@@ -38,6 +47,10 @@ extension Update {
   /// A cut's copy: a selection of the whole document widens to its blocks
   /// first.
   mutating func copyForCut() throws {
+    if let nodeSelection {
+      clipboard = try copy(nodeSelection)
+      return
+    }
     guard let selection else { throw EditorError.noSelection }
     if !selection.isCollapsed { try expandToWholeDocument(selection) }
     clipboard = try copy(selection)
@@ -183,6 +196,11 @@ extension Update {
     try paste(clipboard, into: .range(selection))
   }
 
+  /// `PASTE_COMMAND` over selected nodes, which rich text answers.
+  mutating func paste(_ selection: NodeSelection, _ clipboard: Clipboard) throws {
+    try paste(clipboard, into: .nodes(selection))
+  }
+
   /// `PASTE_COMMAND` over selected cells, which rich text answers.
   mutating func paste(_ selection: TableSelection, _ clipboard: Clipboard) throws {
     try paste(clipboard, into: .cells(selection))
@@ -211,6 +229,8 @@ extension Update {
     switch target {
     case .range: try insertRawText(clipboard.plainText)
     case .cells(let selection): try insertRawText(selection, clipboard.plainText)
+    // `NodeSelection.insertRawText` does nothing.
+    case .nodes: break
     }
   }
 
@@ -223,6 +243,8 @@ extension Update {
       try insertNodes(selection, nodes)
       try updateSelectionOnInsert(selection)
     case .cells(let selection):
+      try insertNodes(selection, nodes)
+    case .nodes(let selection):
       try insertNodes(selection, nodes)
     }
   }

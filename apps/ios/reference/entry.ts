@@ -67,6 +67,7 @@ import {
   $hasAncestor,
   $isDecoratorNode,
   $isElementNode,
+  $isNodeSelection,
   $isRangeSelection,
   $isRootNode,
   $isRootOrShadowRoot,
@@ -95,6 +96,7 @@ import {
   type LexicalEditor,
   type LexicalNode,
   type NodeKey,
+  type NodeSelection,
   OUTDENT_CONTENT_COMMAND,
   PASTE_COMMAND,
   type PasteCommandType,
@@ -327,8 +329,8 @@ function cut(): void {
   if (lastError || isCutByATable) return;
   current().update(
     () => {
-      const selection = rangeSelection();
-      if (!selection.isCollapsed()) {
+      const selection = selectionToCut();
+      if ($isRangeSelection(selection) && !selection.isCollapsed()) {
         INTERNAL_$expandSelectionToWholeDocument(selection);
       }
       clipboard = copy(selection);
@@ -336,10 +338,20 @@ function cut(): void {
     { discrete: true, tag: CUT_TAG },
   );
   if (lastError) return;
-  current().update(() => rangeSelection().removeText(), {
-    discrete: true,
-    tag: CUT_TAG,
-  });
+  current().update(
+    () => {
+      const selection = selectionToCut();
+      if ($isRangeSelection(selection)) selection.removeText();
+      else for (const node of selection.getNodes()) node.remove();
+    },
+    { discrete: true, tag: CUT_TAG },
+  );
+}
+
+/** What rich text's cut takes: a range, or selected nodes. */
+function selectionToCut(): RangeSelection | NodeSelection {
+  const selection = $getSelection();
+  return $isNodeSelection(selection) ? selection : rangeSelection();
 }
 
 /**
@@ -497,6 +509,9 @@ function pathSelection() {
       cells: selectedNodes(selection).filter($isTableCellNode).map(pathOf),
     };
   }
+  if ($isNodeSelection(selection)) {
+    return { nodes: selection.getNodes().map(pathOf) };
+  }
   return $isRangeSelection(selection)
     ? {
         anchor: pathPoint(selection.anchor),
@@ -608,6 +623,10 @@ function run(
   const selection = $getSelection();
   if ($isTableSelection(selection)) {
     runOnCells(command, selection);
+    return;
+  }
+  if ($isNodeSelection(selection)) {
+    runOnNodes(command, selection);
     return;
   }
   if (!$isRangeSelection(selection)) {
@@ -724,9 +743,13 @@ function arrow(command: Extract<Command, { type: "arrow" }>): void {
   }
   const tableToCheck = takeTableToCheck();
   if (!handled && !event.defaultPrevented) {
+    // Rich text turns selected nodes into the range the browser extends,
+    // and where it leaves them selected the browser shows no caret to move.
+    const extended = $isNodeSelection(before) ? $getSelection() : before;
+    if ($isNodeSelection(extended)) return;
     const anchor =
-      command.extend && $isRangeSelection(before)
-        ? pathPoint(before.anchor)
+      command.extend && $isRangeSelection(extended)
+        ? pathPoint(extended.anchor)
         : command.native;
     setSelection(anchor, command.native);
   } else if (!$reselect(before)) {
@@ -928,6 +951,81 @@ function runOnCells(
       return;
     case "editLink":
       saveLink(current(), command.url);
+      return;
+    case "copy":
+      clipboard = copy(selection);
+      return;
+    case "paste":
+      paste(command.clipboard);
+      return;
+    default:
+      runOnTable(command);
+  }
+}
+
+/**
+ * A selected node, as a rule is where an arrow or a deletion reaches it,
+ * which rich text's handlers answer as the web's keys and menus send them.
+ */
+function runOnNodes(
+  command: Exclude<
+    Command,
+    {
+      type:
+        | "setSelection"
+        | "toggleChecked"
+        | "selectAll"
+        | "arrow"
+        | "undo"
+        | "redo"
+        | "wait"
+        | "cut";
+    }
+  >,
+  selection: NodeSelection,
+) {
+  const editor = current();
+  switch (command.type) {
+    case "insertText":
+    case "commitComposition":
+      selection.insertText();
+      return;
+    case "deleteCharacter":
+      editor.dispatchCommand(
+        command.backward ? KEY_BACKSPACE_COMMAND : KEY_DELETE_COMMAND,
+        key(),
+      );
+      return;
+    case "deleteWord":
+    case "deleteLine":
+      // Rich text deletes a word or a line from a range selection alone.
+      return;
+    case "insertParagraph":
+      editor.dispatchCommand(KEY_ENTER_COMMAND, null);
+      return;
+    case "insertLineBreak":
+      editor.dispatchCommand(KEY_ENTER_COMMAND, key(true));
+      return;
+    case "formatText":
+      $formatText(selection, command.format);
+      return;
+    case "setBlockType":
+      $setBlockType(selection, command.blockType);
+      return;
+    case "tab":
+      editor.dispatchCommand(KEY_TAB_COMMAND, key(command.backward));
+      return;
+    case "insertList":
+    case "removeList":
+    case "indent":
+    case "outdent":
+      runOnBlocks(command);
+      return;
+    case "toggleLink":
+      editor.dispatchCommand(TOGGLE_LINK_COMMAND, command.url);
+      return;
+    case "editLink":
+      saveLink(editor, command.url);
       return;
     case "copy":
       clipboard = copy(selection);

@@ -395,11 +395,17 @@ extension Update {
   /// `$insertDocumentTable` in @packages/lexical-nodes: the web's
   /// INSERT_TABLE_COMMAND.
   mutating func insertDocumentTable(rows: Int, columns: Int) throws {
-    guard tableSelection == nil, let selection, findParent(from: selection.anchor.key, where: isTable) == nil else {
-      return
+    let initial: Caret
+    if let nodeSelection, let last = nodes(in: nodeSelection).last {
+      initial = .sibling(last, .next)
+    } else {
+      guard tableSelection == nil, let selection, findParent(from: selection.anchor.key, where: isTable) == nil else {
+        return
+      }
+      initial = try state.caret(from: selection.focus, .next)
     }
     let table = try createDocumentTable(rows: rows, columns: columns)
-    try insertNodeToNearestRoot(table, selection)
+    try insertNodeToNearestRoot(table, from: initial)
     selectStart(table)
   }
 
@@ -421,22 +427,16 @@ extension Update {
     return table
   }
 
-  /// `$insertNodeToNearestRoot` from @lexical/utils, with a range selection.
-  private mutating func insertNodeToNearestRoot(_ node: NodeKey, _ selection: RangeSelection) throws {
-    let initial = try state.caret(from: selection.focus, .next)
+  /// `$insertNodeToNearestRoot` from @lexical/utils, from a range
+  /// selection's focus or after the last selected node.
+  private mutating func insertNodeToNearestRoot(_ node: NodeKey, from initial: Caret) throws {
     let hasContentAfter =
       state.isExtendableTextCaret(initial)
       || adjacentSiblingOrParentSiblingCaret(initial.isText ? state.siblingCaret(initial) : initial) != nil
     let inserted = try insertNodeToNearestRoot(node, at: initial, splittingLast: !hasContentAfter)
     let adjacent = state.adjacentChildCaret(inserted)
     let caret = adjacent.map { $0.isChild ? state.normalize($0) : inserted } ?? inserted
-    let target =
-      self.selection
-      ?? RangeSelection(
-        anchor: SelectionPoint(EditorState.rootKey, 0, .element), focus: SelectionPoint(EditorState.rootKey, 0, .element),
-        format: [], style: "")
-    updateSelection(target, from: CaretRange(anchor: caret, focus: caret))
-    setSelection(target)
+    setSelection(from: CaretRange(anchor: caret, focus: caret))
   }
 
   /// `$getAdjacentSiblingOrParentSiblingCaret` within the nearest root or
@@ -776,10 +776,14 @@ extension Update {
       try insertRawText(selection, text)
       return true
     }
-    if case .range(let selection) = target,
-      findParent(from: selection.anchor.key, where: isCell) == nil || findParent(from: selection.focus.key, where: isCell) == nil
-    {
+    switch target {
+    case .range(let selection)
+    where findParent(from: selection.anchor.key, where: isCell) == nil
+      || findParent(from: selection.focus.key, where: isCell) == nil:
       return false
+    // Selected nodes aren't a grid's.
+    case .nodes: return false
+    default: break
     }
     if nodes.count == 1, isTable(nodes[0]) { return try insertTableIntoGrid(nodes[0], target) }
     // The web's tables don't nest, so a table pasted with more is refused.
@@ -846,6 +850,7 @@ extension Update {
     switch target {
     case .range(let selection): (anchorKey, focusKey) = (selection.anchor.key, selection.focus.key)
     case .cells(let selection): (anchorKey, focusKey) = (selection.anchor, selection.focus)
+    case .nodes: return false
     }
     let (anchorCell, _, grid) = try nodeTriplet(anchorKey)
     guard let focusCell = findParent(from: focusKey, where: isCell) else { return false }

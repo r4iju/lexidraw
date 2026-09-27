@@ -300,6 +300,12 @@ extension Update {
     try makeLists(of: nodes, listType)
   }
 
+  /// `$insertList` over selected nodes, which makes lists of the blocks
+  /// they're in.
+  mutating func insertList(_ selection: NodeSelection, _ listType: ListType) throws {
+    try makeLists(of: nodes(in: selection), listType)
+  }
+
   /// `$insertList` over selected cells, which makes lists of every block
   /// among their nodes.
   mutating func insertList(_ selection: TableSelection, _ listType: ListType) throws {
@@ -475,6 +481,17 @@ extension Update {
   mutating func enter(_ selection: RangeSelection) throws {
     escapeCaseFormats(selection)
     if try !insertParagraphLeavingList() { try insertParagraph(selection) }
+  }
+
+  /// Rich text's Enter, Shift too where `lineBreak`, over selected nodes: a
+  /// block decorator selected alone takes it as a caret after it would.
+  mutating func enter(_ selection: NodeSelection, lineBreak: Bool) throws {
+    let nodes = self.nodes(in: selection)
+    guard nodes.count == 1, let node = nodes.first, state[node].isDecorator, !state[node].isInline else { return }
+    let after = selectNext(node)
+    guard lineBreak else { return try enter(after) }
+    escapeCaseFormats(after)
+    try insertLineBreak(after)
   }
 
   /// `$escapeFormatsForTrigger` with rich text's default triggers: the caret
