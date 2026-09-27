@@ -651,7 +651,8 @@ extension Update {
   /// `$deleteTableRowAtSelection`.
   mutating func deleteTableRowAtSelection() throws {
     let (anchor, focus) = try selectionPoints()
-    let (first, last) = try state.isBefore(focus, anchor) ? (focus.key, anchor.key) : (anchor.key, focus.key)
+    let isBackward = try selection.map(state.isBackward) ?? state.isBefore(focus, anchor)
+    let (first, last) = isBackward ? (focus.key, anchor.key) : (anchor.key, focus.key)
     let (anchorCell, _, table) = try nodeTriplet(first)
     let focusCell = try nodeTriplet(last).cell
     let (map, anchorValue, focusValue) = try computeTableMap(table, anchorCell, focusCell)

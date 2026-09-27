@@ -598,8 +598,9 @@ import Testing
 
   /// With a table in the document, the table's handler cuts a range, in one
   /// update: a caret's cut empties the clipboard, a whole document isn't
-  /// widened to its blocks first, and a range reaching into the table takes
-  /// the table and reaches on to the start of the block after it.
+  /// widened to its blocks first, a range reaching into the table takes the
+  /// table and reaches on to the start of the block after it, and a range
+  /// from an empty block cuts as the copy before it read the range's way.
   @Test func aTableCutsARangeInItsDocument() throws {
     let caret = try agreed(grid, [.caret(.text([0, 0], 2)), .cut])
     #expect(clipboard(caret) == Clipboard(plainText: ""))
@@ -610,6 +611,12 @@ import Testing
     let into = try agreed(grid, [.setSelection(anchor: .text([0, 0], 2), focus: cell(0, 0, 1)), .cut])
     #expect(types(into.expected) == ["paragraph"])
     #expect(node(into.expected, [0, 0])?["text"] == "beafter")
+
+    let formatted = document(
+      paragraph(), paragraph(text("abcd", format: .italic), text("x", format: .code)), LexicalJSON.table([["a"]]))
+    let fromAnEmptyBlock = try agreed(
+      formatted, [.setSelection(anchor: Point(path: [0], offset: 0, type: .element), focus: .text([1, 0], 3)), .cut])
+    #expect(node(fromAnEmptyBlock.expected, [0])?["children"]?.arrayValue?.compactMap { $0["text"]?.stringValue } == ["d", "x"])
   }
 
   /// A link over selected cells changes nothing, as Lexical's `$toggleLink`

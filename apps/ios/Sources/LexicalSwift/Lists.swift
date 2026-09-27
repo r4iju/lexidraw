@@ -618,7 +618,7 @@ extension Update {
   /// `$indentOverTab`.
   private func indentsOverTab(_ selection: RangeSelection) throws -> Bool {
     if try nodes(in: selection).contains(where: { isBlockElement($0) && canIndent($0) }) { return true }
-    let first = try state.startEnd(selection).start
+    let first = try state.isBefore(selection.focus, selection.anchor) ? selection.focus : selection.anchor
     let block = try nearestBlockElement(first.key)
     guard canIndent(block) else { return false }
     let start = RangeSelection(

@@ -456,7 +456,7 @@ extension Update {
     var format = selection.format
     var style = selection.style
     if !selection.isCollapsed {
-      let first = try state.startEnd(selection).start
+      let first = try state.isBefore(selection.focus, selection.anchor) ? selection.focus : selection.anchor
       if state[first.key].isText {
         format = self.format(of: first.key)
         style = self.style(of: first.key)

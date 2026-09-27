@@ -48,6 +48,7 @@ final class SelectionPoint {
     self.key = key
     self.offset = offset
     self.type = type
+    selection?.cachedIsBackward = nil
     selection?.dirty = true
   }
 
@@ -68,6 +69,10 @@ final class RangeSelection {
   var format: TextFormat
   var style: String
   var dirty = false
+  /// Lexical's `_cachedIsBackward`, kept until a point moves. A point's
+  /// offset can outlive its text part way through an edit, where Lexical
+  /// reads this rather than the points.
+  var cachedIsBackward: Bool?
 
   init(anchor: SelectionPoint, focus: SelectionPoint, format: TextFormat, style: String) {
     self.anchor = anchor

@@ -313,7 +313,12 @@ extension EditorState {
     return try compareNext(normalize(try caret(from: a, .next)), normalize(try caret(from: b, .next))) < 0
   }
 
-  func isBackward(_ selection: RangeSelection) throws -> Bool { try isBefore(selection.focus, selection.anchor) }
+  func isBackward(_ selection: RangeSelection) throws -> Bool {
+    if let cached = selection.cachedIsBackward { return cached }
+    let isBackward = try isBefore(selection.focus, selection.anchor)
+    selection.cachedIsBackward = isBackward
+    return isBackward
+  }
 
   /// The selection's points in document order.
   func startEnd(_ selection: RangeSelection) throws -> (start: SelectionPoint, end: SelectionPoint) {

@@ -151,7 +151,9 @@ extension Update {
     let nodes = try selected ?? self.nodes(in: selection)
     guard let first = nodes.first, let last = nodes.last else { return "" }
     let (anchor, focus) = (selection.anchor, selection.focus)
-    let (start, end) = try ends(of: selection)
+    let isBefore = try state.isBefore(anchor, focus)
+    let (anchorOffset, focusOffset) = characterOffsets(selection)
+    let (startOffset, endOffset) = isBefore ? (anchorOffset, focusOffset) : (focusOffset, anchorOffset)
     var text = ""
     var previousWasElement = true
     for key in nodes {
@@ -166,7 +168,7 @@ extension Update {
         let isWhole = key == first && key == last && anchor.type == .element && focus.type == .element
           && focus.offset != anchor.offset
         text +=
-          isWhole ? node.text : slice(key, from: key == first ? start.offset : nil, to: key == last ? end.offset : nil)
+          isWhole ? node.text : slice(key, from: key == first ? startOffset : nil, to: key == last ? endOffset : nil)
       } else if node.isDecorator || node.isLineBreak, key != last || !selection.isCollapsed {
         text += state.textContent(of: key)
       }
