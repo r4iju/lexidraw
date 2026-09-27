@@ -118,14 +118,14 @@ import Testing
       commands: [caretInEmptyParagraph] + typing("- "), expected: document(list(.bullet, [.item([])]))),
     Script(
       name: "* makes a bulleted list that keeps its marker", start: emptyParagraph,
-      commands: [caretInEmptyParagraph] + typing("* "), expected: document(list(.bullet, [.item([])], marker: "*"))),
+      commands: [caretInEmptyParagraph] + typing("* "), expected: document(list(.bullet, [.item([])], marker: .asterisk))),
     Script(
       name: "+ makes a bulleted list that keeps its marker", start: emptyParagraph,
-      commands: [caretInEmptyParagraph] + typing("+ "), expected: document(list(.bullet, [.item([])], marker: "+"))),
+      commands: [caretInEmptyParagraph] + typing("+ "), expected: document(list(.bullet, [.item([])], marker: .plus))),
     Script(
       name: "* after a zero-width no-break space keeps its marker, as JavaScript's trim strips the space",
       start: emptyParagraph, commands: [caretInEmptyParagraph] + typing("\u{FEFF}* "),
-      expected: document(list(.bullet, [.item([])], marker: "*"))),
+      expected: document(list(.bullet, [.item([])], marker: .asterisk))),
     Script(
       name: "1. makes a numbered list", start: emptyParagraph,
       commands: [caretInEmptyParagraph] + typing("1. "), expected: document(list(.number, [.item([])]))),
@@ -141,7 +141,7 @@ import Testing
     Script(
       name: "a composition of * [x] makes a checked item with the bullet's marker", start: emptyParagraph,
       commands: [caretInEmptyParagraph, .commitComposition("* [x] ")],
-      expected: document(list(.check, [.item([], checked: true)], marker: "*"))),
+      expected: document(list(.check, [.item([], checked: true)], marker: .asterisk))),
     Script(
       name: "- typed before text makes the text an item", start: document(paragraph(text("ab"))),
       commands: [.caret(.text([0, 0], 0))] + typing("- "), expected: document(list(.bullet, [.item([text("ab")])]))),
@@ -190,7 +190,7 @@ import Testing
       name: "an indented * nests a list that keeps its marker",
       start: document(list(.bullet, [.item([text("a")])]), paragraph()),
       commands: [.caret(Point(path: [1], offset: 0, type: .element))] + typing("    * "),
-      expected: document(list(.bullet, [.item([text("a")]), .nested(.bullet, [.item([])], marker: "*")]))),
+      expected: document(list(.bullet, [.item([text("a")]), .nested(.bullet, [.item([])], marker: .asterisk)]))),
     Script(
       name: "eight spaces before - nest an item two deep in a list of its own", start: emptyParagraph,
       commands: [caretInEmptyParagraph] + typing("        - ") + [.insertText("a")],
@@ -198,26 +198,26 @@ import Testing
     Script(
       name: "a list nested by indenting doesn't keep the marker of the list it copies", start: emptyParagraph,
       commands: [caretInEmptyParagraph] + typing("* ") + [.insertText("a"), .insertParagraph, .insertText("b"), .indent],
-      expected: document(list(.bullet, [.item([text("a")]), .nested(.bullet, [.item([text("b")])])], marker: "*"))),
+      expected: document(list(.bullet, [.item([text("a")]), .nested(.bullet, [.item([text("b")])])], marker: .asterisk))),
     Script(
       name: "- after a list kept as * joins it and marks it -",
-      start: document(list(.bullet, [.item([text("a")])], marker: "*"), paragraph()),
+      start: document(list(.bullet, [.item([text("a")])], marker: .asterisk), paragraph()),
       commands: [.caret(Point(path: [1], offset: 0, type: .element))] + typing("- "),
       expected: document(list(.bullet, [.item([text("a")]), .item([])]))),
     Script(
       name: "a list nested in a list loaded as * is one too, as no shortcut has told Lexical what the marker is",
-      start: document(list(.bullet, [.item([text("a")]), .item([text("b")])], marker: "*")),
+      start: document(list(.bullet, [.item([text("a")]), .item([text("b")])], marker: .asterisk)),
       commands: [.caret(.text([0, 1, 0], 0)), .indent],
       expected: document(
-        list(.bullet, [.item([text("a")]), .nested(.bullet, [.item([text("b")])], marker: "*")], marker: "*"))),
+        list(.bullet, [.item([text("a")]), .nested(.bullet, [.item([text("b")])], marker: .asterisk)], marker: .asterisk))),
     Script(
       name: "a list nested in a list loaded as * after a shortcut has marked a list is back to -",
-      start: document(list(.bullet, [.item([text("a")]), .item([text("b")])], marker: "*"), paragraph(), paragraph()),
+      start: document(list(.bullet, [.item([text("a")]), .item([text("b")])], marker: .asterisk), paragraph(), paragraph()),
       commands: [.caret(Point(path: [2], offset: 0, type: .element))] + typing("- ") + [
         .caret(.text([0, 1, 0], 0)), .indent,
       ],
       expected: document(
-        list(.bullet, [.item([text("a")]), .nested(.bullet, [.item([text("b")])])], marker: "*"), paragraph(),
+        list(.bullet, [.item([text("a")]), .nested(.bullet, [.item([text("b")])])], marker: .asterisk), paragraph(),
         list(.bullet, [.item([])]))),
     Script(
       name: "undo after a list shortcut gives back what was typed", start: emptyParagraph,

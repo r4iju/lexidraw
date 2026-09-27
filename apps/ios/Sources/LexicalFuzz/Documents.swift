@@ -55,20 +55,19 @@ public enum LexicalJSON {
   /// item of its own.
   public enum ListEntry {
     case item([JSONValue], checked: Bool = false)
-    case nested(ListType, [ListEntry], start: Int = 1, marker: String? = nil)
+    case nested(ListType, [ListEntry], start: Int = 1, marker: ListMarker? = nil)
   }
 
   /// A list of `entries`, each item numbered, indented to its depth and, in
   /// a checklist, checked or not, as Lexical writes it: an item holding a
-  /// nested list is unchecked. `marker` is the `*` or `+` a markdown
-  /// shortcut keeps in the list's NodeState.
-  public static func list(_ listType: ListType, _ entries: [ListEntry], start: Int = 1, marker: String? = nil)
+  /// nested list is unchecked.
+  public static func list(_ listType: ListType, _ entries: [ListEntry], start: Int = 1, marker: ListMarker? = nil)
     -> JSONValue
   {
     list(listType, entries, start: start, marker: marker, depth: 0)
   }
 
-  private static func list(_ listType: ListType, _ entries: [ListEntry], start: Int, marker: String?, depth: Int)
+  private static func list(_ listType: ListType, _ entries: [ListEntry], start: Int, marker: ListMarker?, depth: Int)
     -> JSONValue
   {
     var value = start
@@ -90,7 +89,7 @@ public enum LexicalJSON {
     var fields: JSONObject = [
       "listType": .string(listType.rawValue), "start": .number(Double(start)), "tag": .string(tag),
     ]
-    if let marker { fields["$"] = ["mdListMarker": .string(marker)] }
+    if let marker, marker != .default { fields["$"] = ["mdListMarker": .string(marker.rawValue)] }
     return element("list", items, fields)
   }
 

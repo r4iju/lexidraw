@@ -199,7 +199,7 @@ import Testing
   }
 }
 
-func list(_ listType: ListType, _ entries: [LexicalJSON.ListEntry], start: Int = 1, marker: String? = nil) -> JSONValue {
+func list(_ listType: ListType, _ entries: [LexicalJSON.ListEntry], start: Int = 1, marker: ListMarker? = nil) -> JSONValue {
   LexicalJSON.list(listType, entries, start: start, marker: marker)
 }
 

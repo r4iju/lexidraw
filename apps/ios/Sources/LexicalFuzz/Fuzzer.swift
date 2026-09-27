@@ -331,7 +331,7 @@ struct Generator {
     let start = listType == .number && Int.random(in: 0..<4, using: &random) == 0 ? 3 : 1
     let chain = Int.random(in: 0..<4, using: &random) == 0
     let deepest = chain ? Int.random(in: 5...8, using: &random) : 3
-    let marker = listType != .number && Int.random(in: 0..<4, using: &random) == 0 ? "*" : nil
+    let marker = listType != .number && Int.random(in: 0..<4, using: &random) == 0 ? ListMarker.asterisk : nil
     return LexicalJSON.list(
       listType, listEntries(depth: 1, deepest: deepest, chain: chain), start: start, marker: marker)
   }

@@ -306,8 +306,7 @@ extension Update {
     // `match[0].trim()[0]`: the leading whitespace is group 1, which takes
     // all of it as JavaScript's `\s` and `trim` count it.
     let firstMatchChar = groups[0].flatMap { $0.unicodeScalars.dropFirst(groups[1]?.unicodeScalars.count ?? 0).first }
-      .map { String($0) }
-    let marker = listType != .number ? firstMatchChar.flatMap { ["-", "*", "+"].contains($0) ? $0 : nil } : nil
+    let marker = listType != .number ? firstMatchChar.flatMap { ListMarker(rawValue: String($0)) } : nil
     let indent = Self.markdownIndent(groups[1] ?? "")
     if let next, self.listType(next) == listType {
       if let first = state.firstChild(of: next) {

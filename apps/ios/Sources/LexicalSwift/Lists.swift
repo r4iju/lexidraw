@@ -23,8 +23,7 @@ extension Update {
 
   /// Lexical's `$copyNode`: a node like `key` under a new key, in no parent
   /// and without children. A copy of a checked item starts unchecked, and a
-  /// copy of a list is back to the default markdown marker once the editor
-  /// knows it.
+  /// copy of a list takes the default marker where `knowsListMarker`.
   mutating func copyNode(_ key: NodeKey) -> NodeKey {
     let node = state[key]
     var payload = node.payload
@@ -33,7 +32,7 @@ extension Update {
       payload = .listItem(item)
     }
     if case .list(var list) = payload, knowsListMarker {
-      list.setMarkdownMarker("-")
+      list.setMarkdownMarker(.default)
       payload = .list(list)
     }
     return create(payload, type: node.type, children: node.isElement ? [] : nil)
@@ -663,19 +662,28 @@ extension ListType {
   var tag: ListTag { self == .number ? .ol : .ul }
 }
 
+/// The mark a bulleted list or checklist was typed with, which
+/// @lexical/markdown keeps in the list's NodeState as `mdListMarker` for
+/// exporting it. NodeState doesn't write the default, `-`.
+public enum ListMarker: String, CaseIterable, Sendable {
+  case dash = "-"
+  case asterisk = "*"
+  case plus = "+"
+
+  public static let `default` = dash
+}
+
 extension SerializedListNode {
-  /// Whether all the list holds that LexicalSwift doesn't read is the `*`
-  /// or `+` a shortcut marked it with.
+  /// Whether all the list holds that LexicalSwift doesn't read is a marker
+  /// other than the default.
   var holdsOnlyAMarkdownMarker: Bool {
-    unknownFields == ["$": ["mdListMarker": "*"]] || unknownFields == ["$": ["mdListMarker": "+"]]
+    ListMarker.allCases.contains { $0 != .default && unknownFields == ["$": ["mdListMarker": .string($0.rawValue)]] }
   }
 
-  /// `$setState(list, listMarkerState, marker)` from @lexical/markdown: the
-  /// `-`, `*` or `+` a list was typed with, kept for exporting it. `-` is the
-  /// default, which NodeState doesn't write.
-  mutating func setMarkdownMarker(_ marker: String) {
+  /// `$setState(list, listMarkerState, marker)`.
+  mutating func setMarkdownMarker(_ marker: ListMarker) {
     var nodeState: JSONObject = if case .object(let object)? = unknownFields["$"] { object } else { [:] }
-    nodeState["mdListMarker"] = marker == "-" ? nil : .string(marker)
+    nodeState["mdListMarker"] = marker == .default ? nil : .string(marker.rawValue)
     unknownFields["$"] = nodeState.isEmpty ? nil : .object(nodeState)
   }
 }
