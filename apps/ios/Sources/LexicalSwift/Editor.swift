@@ -12,6 +12,9 @@ public final class Editor: EditorModel {
   /// don't model.
   public private(set) var isEditable = false
   private var knowsListMarker = false
+  /// How many markdown shortcuts this editor has left as typed where Lexical
+  /// runs a transformer LexicalSwift doesn't port yet.
+  public private(set) var shortcutsDeclinedAsNotPorted = 0
 
   public init() {}
 
@@ -48,6 +51,7 @@ public final class Editor: EditorModel {
     do {
       var update = Update(state, nextKey: nextKey, revision: nextRevision(), knowsListMarker: knowsListMarker)
       try update.run(command)
+      shortcutsDeclinedAsNotPorted += update.shortcutsDeclinedAsNotPorted
       var previous = state
       guard try commit(&update) else { return ChangeSet(changed: []) }
       var changed = update.changedKeys
@@ -61,6 +65,7 @@ public final class Editor: EditorModel {
         previous = state
         update = Update(state, nextKey: nextKey, revision: nextRevision(), knowsListMarker: knowsListMarker)
         let isShortcut = try update.runMarkdownShortcut(at: caret)
+        shortcutsDeclinedAsNotPorted += update.shortcutsDeclinedAsNotPorted
         guard try commit(&update, pushingHistory: isShortcut) else { break }
         changed += update.changedKeys
       }

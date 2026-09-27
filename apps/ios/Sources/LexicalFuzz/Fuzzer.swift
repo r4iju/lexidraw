@@ -13,7 +13,8 @@ public struct Fuzzer {
 
   /// Commands both refused, which don't count as steps.
   public private(set) var refusals = 0
-  /// Sessions ended where Lexical made a node LexicalSwift doesn't edit yet.
+  /// Sessions ended where LexicalSwift declined a shortcut it doesn't port
+  /// yet and disagreed, or where Lexical made a node it doesn't edit yet.
   public private(set) var sessionsEndedNotPortedYet = 0
 
   /// The node types Lexical's markdown shortcuts make that LexicalSwift's
@@ -21,14 +22,15 @@ public struct Fuzzer {
   public static let notPortedYet = Editor.typesMarkdownShortcutsNotPortedYetMake
 
   /// Whether a step ends its session rather than disagreeing: LexicalSwift
-  /// took what was typed as text where Lexical made a node of a type not
+  /// took what was typed as text where it declined a shortcut not ported
+  /// yet (`declinedAShortcut`), or where Lexical made a node of a type not
   /// ported yet. Nothing after it could agree.
-  public static func isNotPortedYet(candidate: Fixture.Change, referenceBefore: Snapshot, referenceAfter: Snapshot)
-    -> Bool
-  {
+  public static func isNotPortedYet(
+    candidate: Fixture.Change, referenceBefore: Snapshot, referenceAfter: Snapshot, declinedAShortcut: Bool = false
+  ) -> Bool {
     guard case .applied = candidate else { return false }
     let made = referenceAfter.state.nodeTypes.subtracting(referenceBefore.state.nodeTypes)
-    return !made.isDisjoint(with: notPortedYet)
+    return declinedAShortcut || !made.isDisjoint(with: notPortedYet)
   }
 
   private let reference: any EditorModel
@@ -98,37 +100,53 @@ public struct Fuzzer {
   /// Applies `command` to both models, and says whether they agreed.
   private func verdict(_ command: EditorCommand) throws -> Verdict {
     let before = try? reference.snapshot()
+    let declinedBefore = shortcutsDeclined
     let candidateStep = try step(candidate, command)
+    let declinedAShortcut = shortcutsDeclined > declinedBefore
     let referenceStep = try step(reference, command)
     if candidateStep == referenceStep { return .agreed(referenceStep) }
     if let before, let after = referenceStep.snapshot,
-      Self.isNotPortedYet(candidate: candidateStep.change, referenceBefore: before, referenceAfter: after)
+      Self.isNotPortedYet(
+        candidate: candidateStep.change, referenceBefore: before, referenceAfter: after,
+        declinedAShortcut: declinedAShortcut)
     {
       return .notPortedYet
     }
     return .diverged
   }
 
-  /// Whether the script makes the candidate diverge. Only scripts the
-  /// generator could have produced count (a document the reference loads
-  /// unchanged, and commands valid in it that the reference accepts), so a
-  /// shrunk fixture stays inside what the fuzzer tests.
-  private func diverges(_ script: Script) throws -> Bool {
-    guard (try? reference.load(script.start)) != nil, (try? reference.snapshot())?.state == script.start else {
-      return false
-    }
-    guard (try? candidate.load(script.start)) != nil else { return true }
-    for command in script.commands {
-      guard let before = try? reference.snapshot(), Generator.isValid(command, in: before) else {
-        return false
-      }
+  private var shortcutsDeclined: Int {
+    (candidate as? any DeclinesShortcutsNotPortedYet)?.shortcutsDeclinedAsNotPorted ?? 0
+  }
+
+  /// What a script comes to.
+  public enum ScriptVerdict: Equatable, Sendable {
+    case agreed
+    /// Its session ends where LexicalSwift doesn't port something yet.
+    case endedNotPortedYet
+    case diverged
+  }
+
+  /// What the fuzzer makes of a script, step by step as `run` does, or nil
+  /// where the generator couldn't have produced it: only a document the
+  /// reference loads unchanged, and commands valid in it that the reference
+  /// accepts, count, so a shrunk fixture stays inside what the fuzzer tests.
+  public func verdict(start: JSONValue, commands: [EditorCommand]) throws -> ScriptVerdict? {
+    guard (try? reference.load(start)) != nil, (try? reference.snapshot())?.state == start else { return nil }
+    guard (try? candidate.load(start)) != nil else { return .diverged }
+    for command in commands {
+      guard let before = try? reference.snapshot(), Generator.isValid(command, in: before) else { return nil }
       switch try verdict(command) {
       case .agreed: continue
-      case .notPortedYet: return false
-      case .diverged: return true
+      case .notPortedYet: return .endedNotPortedYet
+      case .diverged: return .diverged
       }
     }
-    return false
+    return .agreed
+  }
+
+  private func diverges(_ script: Script) throws -> Bool {
+    try verdict(start: script.start, commands: script.commands) == .diverged
   }
 
   private func shrink(_ script: Script) throws -> Script {
@@ -506,3 +524,11 @@ public struct FuzzerError: Error, CustomStringConvertible {
   public let description: String
   init(_ description: String) { self.description = description }
 }
+
+/// A candidate that counts the markdown shortcuts it declined because it
+/// doesn't port their transformers yet.
+public protocol DeclinesShortcutsNotPortedYet: EditorModel {
+  var shortcutsDeclinedAsNotPorted: Int { get }
+}
+
+extension Editor: DeclinesShortcutsNotPortedYet {}

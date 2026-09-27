@@ -4,8 +4,9 @@ import Testing
 
 @Suite struct FuzzerTests {
   /// LexicalSwift with a change to what `apply` does, for a bug to find.
-  class LexicalSwiftWith: EditorModel {
+  class LexicalSwiftWith: DeclinesShortcutsNotPortedYet {
     let editor = Editor()
+    var shortcutsDeclinedAsNotPorted: Int { editor.shortcutsDeclinedAsNotPorted }
     func load(_ state: JSONValue) throws { try editor.load(state) }
     var isEditable: Bool { editor.isEditable }
     func snapshot() throws -> Snapshot { try editor.snapshot() }
@@ -212,6 +213,44 @@ import Testing
       !Fuzzer.isNotPortedYet(candidate: .applied(ChangeSet(changed: [[0]])), referenceBefore: before, referenceAfter: before))
   }
 
+  /// Typing into a list straight after the list takes the caret, Lexical's
+  /// CODE transformer takes the list for the block: its items go into a code
+  /// block and lift back out of it into a list, and the emptied code block
+  /// goes. No code node is left, but LexicalSwift declined the shortcut, so
+  /// the session ends rather than disagreeing (seed 11610).
+  @Test func aSessionEndsWhereLexicalSwiftDeclinesAShortcutNotPortedYet() throws {
+    let fuzzer = Fuzzer(seed: 0, reference: try Support.referenceEditor(), candidate: Editor())
+
+    let verdict = try fuzzer.verdict(
+      start: document(heading("h3"), list(.number, [.item([])])),
+      commands: [EditorCommand.caret(Point(path: [0], offset: 0, type: .element)), .insertList(.number)]
+        + "``` ".map { EditorCommand.insertText(String($0)) })
+
+    #expect(verdict == .endedNotPortedYet)
+  }
+
+  /// LexicalSwift that says it declined a shortcut at every command.
+  final class SaysItDeclinesEveryShortcut: LexicalSwiftWith {
+    private var commands = 0
+    override var shortcutsDeclinedAsNotPorted: Int { commands }
+    override func apply(_ command: EditorCommand) throws -> ChangeSet {
+      commands += 1
+      return try editor.apply(command)
+    }
+  }
+
+  /// A declined shortcut ends a session only on a step that disagrees.
+  @Test func aDeclinedShortcutWhereBothAgreeCarriesOn() throws {
+    let fuzzer = Fuzzer(seed: 0, reference: try Support.referenceEditor(), candidate: SaysItDeclinesEveryShortcut())
+
+    let verdict = try fuzzer.verdict(
+      start: document(paragraph()),
+      commands: [EditorCommand.caret(Point(path: [0], offset: 0, type: .element))]
+        + "ab ".map { EditorCommand.insertText(String($0)) })
+
+    #expect(verdict == .agreed)
+  }
+
   /// The differential check proper. Budget and seed come from FUZZ_STEPS and
   /// FUZZ_SEED; every divergence is written as a fixture to commit.
   @Test func lexicalSwiftMatchesTheReference() throws {
@@ -232,7 +271,7 @@ import Testing
     } else {
       print(
         "Seed \(seed): \(steps) steps agreed, \(fuzzer.refusals) commands both refused, and "
-          + "\(fuzzer.sessionsEndedNotPortedYet) sessions ended where Lexical made a node not ported yet")
+          + "\(fuzzer.sessionsEndedNotPortedYet) sessions ended on a shortcut or node not ported yet")
     }
   }
 }

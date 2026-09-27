@@ -150,6 +150,7 @@ extension Update {
         || runTextMatchTransformers(anchor, offset)
         || runTextFormatTransformers(anchor, offset)
     } catch is NotPortedYet {
+      shortcutsDeclinedAsNotPorted += 1
       return false
     }
   }
@@ -168,6 +169,7 @@ extension Update {
         || runElementTransformers(
           parent, anchor, offset, MarkdownTransformer.element.filter(\.triggerOnEnter), onEnter: true)
     } catch is NotPortedYet {
+      shortcutsDeclinedAsNotPorted += 1
       return false
     }
   }
