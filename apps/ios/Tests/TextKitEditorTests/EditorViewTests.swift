@@ -243,6 +243,23 @@ import UIKit
       ])
   }
 
+  @Test func aPasteTheModelRefusesSaysWhy() throws {
+    let (view, model) = try editing(LexicalJSON.paragraph([LexicalJSON.text("hello")]))
+    let image: JSONValue = ["type": "image", "version": 1, "src": "https://a.io/b.png"]
+    let payload = LexicalClipboardPayload(namespace: editorNamespace, nodes: [image])
+    view.pasteboard.setItems([
+      ["public.utf8-plain-text": "", "application/x-lexical-editor": try JSONEncoder().encode(payload)]
+    ])
+    var told: String?
+    view.tellRefusal = { told = $0 }
+    select(view, 5, 5)
+
+    view.paste(nil)
+
+    #expect(told == "Pasting image nodes isn't supported yet (#131)")
+    #expect(try paragraphs(model) == [LexicalJSON.paragraph([LexicalJSON.text("hello")])])
+  }
+
   @Test func offersToCopyOnlyASelectionAndToPasteOnlyWhatThereIs() throws {
     let (view, _) = try editing(LexicalJSON.paragraph([LexicalJSON.text("hello")]))
     select(view, 2, 2)

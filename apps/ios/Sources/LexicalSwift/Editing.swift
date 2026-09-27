@@ -691,7 +691,7 @@ extension Update {
     let firstPoint = try state.startEnd(selection).start
     let startBlock = findParent(from: firstPoint.key, where: isBlock)
     if let startBlock, state[startBlock].type == SerializedDocumentCodeNode.type {
-      throw EditorError.unsupported("Inserting into a code block")
+      throw EditorError.unsupported("Inserting into a code block isn't supported yet (#132)")
     }
     if !nodes.contains(where: { (state[$0].isElement || state[$0].isDecorator) && !state[$0].isInline }) {
       guard let startBlock, state[startBlock].isElement else {

@@ -89,11 +89,12 @@ public final class EditorView: UIScrollView, UITextInput {
   // MARK: Commands
 
   /// Sends `command` to the model and shows what it changed. A command the
-  /// model refuses leaves the document as it was, so there is nothing to show.
+  /// model refuses leaves the document as it was, so there is nothing to show,
+  /// though where `tellsRefusal` the user is told why.
   /// UIKit's own input calls expect the text and selection they asked for
   /// without being told; anything else tells the input delegate.
   @discardableResult
-  private func perform(_ command: EditorCommand, fromInput: Bool) -> ChangeSet? {
+  private func perform(_ command: EditorCommand, fromInput: Bool, tellsRefusal: Bool = false) -> ChangeSet? {
     guard isEditable || !command.edits else { return nil }
     let now = ProcessInfo.processInfo.systemUptime
     let elapsed = Int((now - lastCommand) * 1000)
@@ -106,6 +107,7 @@ public final class EditorView: UIScrollView, UITextInput {
       change = try model.apply(command)
     } catch EditorError.unsupported(let what) {
       Self.log.notice("The model can't \(command.name, privacy: .public) here yet: \(what, privacy: .public)")
+      if tellsRefusal { tell(refusal: what) }
       return nil
     } catch {
       failed("The model refused \(command.name)", error)
@@ -572,7 +574,7 @@ public final class EditorView: UIScrollView, UITextInput {
     case #selector(copy(_:)): selected.length > 0
     case #selector(cut(_:)): isEditable && selected.length > 0
     case #selector(paste(_:)):
-      isEditable && (pasteboard.hasStrings || pasteboard.contains(pasteboardTypes: [Self.lexicalType]))
+      isEditable && (pasteboard.hasStrings || pasteboard.contains(pasteboardTypes: [LexicalClipboardPayload.mimeType]))
     case #selector(makeTextWritingDirectionLeftToRight(_:)), #selector(makeTextWritingDirectionRightToLeft(_:)):
       false
     default: super.canPerformAction(action, withSender: sender)
@@ -657,7 +659,20 @@ public final class EditorView: UIScrollView, UITextInput {
       try? JSONDecoder().decode(LexicalClipboardPayload.self, from: $0)
     }
     let html = pasteboard.data(forPasteboardType: UTType.html.identifier).map { String(decoding: $0, as: UTF8.self) }
-    perform(.paste(Clipboard(plainText: pasteboard.string ?? "", html: html, lexical: lexical)), fromInput: false)
+    perform(
+      .paste(Clipboard(plainText: pasteboard.string ?? "", html: html, lexical: lexical)), fromInput: false,
+      tellsRefusal: true)
+  }
+
+  /// Tells the user why an edit they asked for wasn't made. Unless set, an
+  /// alert tells.
+  public var tellRefusal: ((_ reason: String) -> Void)?
+
+  private func tell(refusal reason: String) {
+    if let tellRefusal { return tellRefusal(reason) }
+    let alert = UIAlertController(title: "Not Supported Yet", message: reason, preferredStyle: .alert)
+    alert.addAction(UIAlertAction(title: "OK", style: .default))
+    presenter?.present(alert, animated: true)
   }
 
   // MARK: Links

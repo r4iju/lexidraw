@@ -187,6 +187,20 @@ extension Node {
     default: false
     }
   }
+
+  /// The issue that ports editing nodes of this type, where one does.
+  var portingIssue: Int? { Self.portingIssues[type] }
+
+  private static let portingIssues: [String: Int] = [
+    "table": 117, "tablerow": 117, "tablecell": 117,
+    "image": 131, "inline-image": 131, "video": 131, "youtube": 131, "tweet": 131, "figma": 131,
+    "code": 132, "code-highlight": 132, "mermaid": 132, "equation": 132, "chart": 132,
+    "callout": 133, "collapsible-container": 133, "collapsible-content": 133, "collapsible-title": 133,
+    "layout-container": 133, "layout-item": 133, "page-break": 133, "slide-deck": 133, "sticky": 133,
+    "poll": 134, "comment": 134, "thread": 134, "mention": 134, "hashtag": 134, "emoji": 134, "keyword": 134,
+    "footnote-definition": 134, "footnote-reference": 134, "article": 134, "mark": 134,
+    "excalidraw": 139,
+  ]
 }
 
 extension Update {

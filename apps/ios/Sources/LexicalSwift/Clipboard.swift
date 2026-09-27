@@ -163,8 +163,11 @@ extension Update {
     tags.insert(.paste)
     if let nodes = pastedNodes(clipboard.lexical) {
       let parsed = try nodes.map { try parse($0) }
-      guard parsed.allSatisfy(isEditableTree) else {
-        throw EditorError.unsupported("Pasting nodes LexicalSwift doesn't edit")
+      if let refused = parsed.lazy.compactMap(firstUneditable).first {
+        let type = state[refused].type
+        throw EditorError.unsupported(
+          state[refused].portingIssue.map { "Pasting \(type) nodes isn't supported yet (#\($0))" }
+            ?? "Pasting \(type) nodes LexicalSwift doesn't edit isn't supported")
       }
       try insertNodes(selection, parsed)
       try updateSelectionOnInsert(selection)
@@ -193,8 +196,8 @@ extension Update {
     return (json["children"]?.arrayValue ?? []).allSatisfy(isRegistered)
   }
 
-  private func isEditableTree(_ key: NodeKey) -> Bool {
-    state[key].isEditable && state.children(of: key).allSatisfy(isEditableTree)
+  private func firstUneditable(_ key: NodeKey) -> NodeKey? {
+    state[key].isEditable ? state.children(of: key).lazy.compactMap(firstUneditable).first : key
   }
 
   /// `$updateSelectionOnInsert`: a caret takes the format and style of the
