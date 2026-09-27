@@ -53,6 +53,8 @@
         "@lexical/markdown": "^0.51.0",
         "@lexical/rich-text": "^0.51.0",
         "@lexical/selection": "^0.51.0",
+        "@lexical/table": "^0.51.0",
+        "@lexical/utils": "^0.51.0",
         "@packages/lexical-nodes": "workspace:*",
         "@packages/types": "workspace:*",
         "lexical": "^0.51.0",

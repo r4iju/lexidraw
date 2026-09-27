@@ -16,6 +16,10 @@ struct Update {
   /// Lexical's `$getSelection()` in an update: a copy of the committed
   /// selection until the update sets another.
   var selection: RangeSelection?
+  /// The selection where it's a table selection, which `selection` is nil
+  /// beside. `tableSelectionIsDirty` says the update set it.
+  var tableSelection: TableSelection?
+  var tableSelectionIsDirty = false
   private(set) var nextKey: NodeKey
   /// What sets this update apart from every other on the same editor.
   let revision: Int
@@ -40,7 +44,10 @@ struct Update {
   init(_ state: EditorState, nextKey: NodeKey, revision: Int, knowsListMarker: Bool = false) {
     self.state = state
     base = state
-    selection = state.selection.map(RangeSelection.init)
+    if let saved = state.selection {
+      tableSelection = TableSelection(saved)
+      selection = tableSelection == nil ? RangeSelection(saved) : nil
+    }
     self.nextKey = nextKey
     self.revision = revision
     self.knowsListMarker = knowsListMarker

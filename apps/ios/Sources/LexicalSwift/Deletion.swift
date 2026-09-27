@@ -13,6 +13,13 @@ extension Update {
     let wasCollapsed = selection.isCollapsed
     if selection.isCollapsed {
       let anchor = selection.anchor
+      if forwardDeletion(anchor, backward: isBackward) {
+        let next = state[anchor.key].isElement ? state.nextSibling(of: anchor.key) : nil
+        let isEmptyBeforeShadowRoot =
+          state[anchor.key].isElement && isEmpty(anchor.key)
+          && next.map { state[$0].isElement && state[$0].isShadowRoot } == true
+        if !isEmptyBeforeShadowRoot { return }
+      }
       let initialCaret = try state.caret(from: anchor, isBackward ? .previous : .next)
       let initialRange = state.extendToRange(initialCaret)
       let (before, after) = state.textSlices(initialRange)
@@ -23,7 +30,7 @@ extension Update {
           let container = state.parent(of: adjacent)
           try remove(adjacent)
           if let restored = try restoreEmptyContainerParagraph(container, removed: adjacent) {
-            _ = selectStart(restored)
+            selectStart(restored)
           }
           return
         }
@@ -40,7 +47,14 @@ extension Update {
             if node.isInline {
               continue
             } else if node.isShadowRoot {
-              throw EditorError.unsupported("Deleting into a shadow root")
+              if case .block = merge { break walk }
+              let start = initialRange.anchor.origin
+              if state[start].isElement, isEmpty(start) {
+                let caret = state.normalize(caret)
+                updateSelection(selection, from: CaretRange(anchor: caret, focus: caret))
+                try remove(start)
+              }
+              return
             }
             switch merge {
             case .nextBlock(let block), .block(_, let block): merge = .block(caret: caret, block: block)
@@ -116,7 +130,10 @@ extension Update {
 
   mutating func deleteWord(_ selection: RangeSelection, backward isBackward: Bool) throws {
     let wasCollapsed = selection.isCollapsed
-    if selection.isCollapsed { try extendForDeletion(selection, backward: isBackward, .word) }
+    if selection.isCollapsed {
+      if forwardDeletion(selection.anchor, backward: isBackward) { return }
+      try extendForDeletion(selection, backward: isBackward, .word)
+    }
     if selection.isCollapsed {
       try deleteCharacter(selection, backward: isBackward)
     } else {
@@ -144,6 +161,32 @@ extension Update {
 
   // MARK: Lexical's helpers
 
+  /// `RangeSelection.forwardDeletion`: deleting forward from the end of a
+  /// block stops at a shadow root after it, a table, whose content mustn't
+  /// merge into the block.
+  private func forwardDeletion(_ anchor: SelectionPoint, backward isBackward: Bool) -> Bool {
+    let node = anchor.key
+    let atEnd =
+      anchor.type == .element
+      ? state[node].isElement && anchor.offset == state.childCount(of: node)
+      : anchor.offset == state.textSize(of: node)
+    guard !isBackward, atEnd else { return false }
+    let next = state.nextSibling(of: node) ?? state.parent(of: node).flatMap(state.nextSibling(of:))
+    return next.map { state[$0].isElement && state[$0].isShadowRoot } ?? false
+  }
+
+  /// Lexical's `$needsBlockCursorBeside`.
+  private func needsBlockCursorBeside(_ key: NodeKey) -> Bool {
+    let node = state[key]
+    if node.isInline { return false }
+    if node.isDecorator { return true }
+    guard node.isElement else { return false }
+    if node.isShadowRoot {
+      return !(state.parent(of: key).map { state[$0].isElement && state[$0].isShadowRoot } ?? false)
+    }
+    return !node.canBeEmpty
+  }
+
   private mutating func ensureRootHasParagraph() throws {
     let root = EditorState.rootKey
     guard isEmpty(root) else { return }
@@ -167,12 +210,12 @@ extension Update {
     return false
   }
 
-  /// `collapseAtStart` of the root, which keeps the caret where it is, of a
-  /// heading or quote, of a list item, and of a paragraph, which goes when
-  /// it holds only blank text.
+  /// `collapseAtStart` of the root and of a table cell, which keep the caret
+  /// where it is, of a heading or quote, of a list item, and of a paragraph,
+  /// which goes when it holds only blank text.
   private mutating func collapseElementAtStart(_ key: NodeKey) throws -> Bool {
     switch state[key].type {
-    case SerializedRootNode.type: return true
+    case SerializedRootNode.type, SerializedTableCellNode.type: return true
     case SerializedHeadingNode.type:
       try collapseHeadingAtStart(key)
       return true

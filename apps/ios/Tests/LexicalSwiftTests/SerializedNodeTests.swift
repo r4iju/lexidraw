@@ -168,8 +168,9 @@ import Testing
     try reference.load(document)
     let lexical = try reference.snapshot().state.node(at: odd.path)?.value(at: odd.field)
 
-    let swift = SerializedNode(json: document["root"]!).json.nodeInRoot(at: odd.path)?
-      .value(at: odd.field)
+    let editor = Editor()
+    try editor.load(document)
+    let swift = try editor.snapshot().state.node(at: odd.path)?.value(at: odd.field)
 
     #expect(swift == lexical)
   }

@@ -3,7 +3,7 @@
  * to call with JSON strings.
  */
 import { $exportMimeTypeFromSelection } from "@lexical/clipboard";
-import { namedSignals } from "@lexical/extension";
+import { namedSignals, signal } from "@lexical/extension";
 import { createEmptyHistoryState, registerHistory } from "@lexical/history";
 import { createHeadlessEditor } from "@lexical/headless";
 import {
@@ -32,8 +32,24 @@ import {
   saveLink,
   validateUrl,
 } from "@packages/lexical-nodes/links";
+import {
+  $deleteTableColumnAtSelection,
+  $deleteTableRowAtSelection,
+  $insertTableRowAtSelection,
+  $isTableSelection,
+  INSERT_TABLE_COMMAND,
+  registerTableCellUnmergeTransform,
+  registerTablePlugin,
+  TableCellNode,
+  type TableSelection,
+} from "@lexical/table";
 import { SCHEMA_NODES } from "@packages/lexical-nodes/nodes";
 import { createTransformers } from "@packages/lexical-nodes/transformers";
+import {
+  $insertDocumentTableColumns,
+  DOCUMENT_TABLE_PLUGIN,
+  registerDocumentTableInsertion,
+} from "@packages/lexical-nodes/tables";
 import {
   $createRangeSelection,
   $exportNodeJSON,
@@ -71,6 +87,7 @@ import {
   type PointType,
   REDO_COMMAND,
   type RangeSelection,
+  SELECT_ALL_COMMAND,
   type TextFormatType,
   UNDO_COMMAND,
 } from "lexical";
@@ -82,6 +99,14 @@ import {
 } from "./deletion.js";
 import { EditorError } from "./editor-error.js";
 import "./url.js";
+import {
+  $clearHighlight,
+  $deleteCellHandler,
+  $deleteTextHandler,
+  $fixRangeSelectionForSelectedTable,
+  $formatCells,
+  $tabHandler,
+} from "./tables.js";
 
 type PathPoint = { path: number[]; offset: number; type: "text" | "element" };
 
@@ -110,9 +135,13 @@ type Command =
   | { type: "toggleChecked"; path: number[] }
   | { type: "toggleLink"; url: string | null }
   | { type: "editLink"; url: string }
-  | { type: "copy" | "cut" }
+  | { type: "copy" }
+  | { type: "cut" }
   | { type: "paste"; clipboard: Clipboard }
   | { type: "selectAll" }
+  | { type: "insertTable"; rows: number; columns: number }
+  | { type: "insertTableRow" | "insertTableColumn"; after: boolean }
+  | { type: "deleteTableRow" | "deleteTableColumn" }
   | { type: "undo" }
   | { type: "redo" }
   | { type: "wait"; milliseconds: number };
@@ -167,12 +196,13 @@ function load(stateJSON: string): void {
     },
     COMMAND_PRIORITY_LOW,
   );
-  // The document editor's link plugins, in the order it mounts them.
+  // The document editor's link and table plugins, in the order it mounts them.
   registerAutoLink(next, {
     changeHandlers: [],
     excludeParents: [],
     matchers: AUTOLINK_MATCHERS,
   });
+  registerTables(next);
   registerLink(next, namedSignals({ attributes: undefined, validateUrl }));
   next.setEditorState(parsed);
   next.registerUpdateListener(
@@ -332,6 +362,23 @@ function rangeSelection(): RangeSelection {
 }
 
 /**
+ * What TablePlugin registers with the web's props, short of what it binds to
+ * each table's DOM, which `tables.ts` transcribes.
+ */
+function registerTables(next: LexicalEditor): void {
+  const { hasCellMerge, hasCellBackgroundColor, hasNestedTables } =
+    DOCUMENT_TABLE_PLUGIN;
+  registerTablePlugin(next, { hasNestedTables: signal(hasNestedTables) });
+  if (!hasCellMerge) registerTableCellUnmergeTransform(next);
+  if (!hasCellBackgroundColor) {
+    next.registerNodeTransform(TableCellNode, (node) => {
+      if (node.getBackgroundColor() !== null) node.setBackgroundColor(null);
+    });
+  }
+  registerDocumentTableInsertion(next);
+}
+
+/**
  * The nodes undo or redo changed, which mark nothing dirty as they swap in a
  * saved state whole. An update copies each node it changes, so these are the
  * nodes that aren't the same object in both states.
@@ -372,6 +419,17 @@ function childKeys(pathJSON: string): string {
 
 function pathSelection() {
   const selection = $getSelection();
+  if ($isTableSelection(selection)) {
+    const table = $getNodeByKey(selection.tableKey);
+    if (!table) throw new EditorError("invalidState", "A lost table");
+    return {
+      anchor: pathPoint(selection.anchor),
+      focus: pathPoint(selection.focus),
+      format: 0,
+      style: "",
+      table: pathOf(table),
+    };
+  }
   return $isRangeSelection(selection)
     ? {
         anchor: pathPoint(selection.anchor),
@@ -445,21 +503,33 @@ function run(
     return;
   }
   if (command.type === "selectAll") {
-    $selectAll(null);
+    // Rich text answers what the table's handler leaves.
+    if (!current().dispatchCommand(SELECT_ALL_COMMAND, null as never)) {
+      $selectAll(null);
+    }
     return;
   }
-  const selection = rangeSelection();
+  const selection = $getSelection();
+  if ($isTableSelection(selection)) {
+    runOnCells(command, selection);
+    return;
+  }
+  if (!$isRangeSelection(selection)) {
+    throw new EditorError("noSelection", "No range selection");
+  }
   switch (command.type) {
     case "insertText":
     case "commitComposition":
       selection.insertText(command.text);
       return;
-    case "deleteCharacter":
+    case "deleteCharacter": {
+      if ($deleteCellHandler()) return;
       editor.dispatchCommand(
         command.backward ? KEY_BACKSPACE_COMMAND : KEY_DELETE_COMMAND,
         key(),
       );
       return;
+    }
     case "deleteWord":
       $deleteWord(selection, command.backward);
       return;
@@ -499,6 +569,7 @@ function run(
       editor.dispatchCommand(OUTDENT_CONTENT_COMMAND, undefined);
       return;
     case "tab":
+      if ($tabHandler(command.backward)) return;
       editor.dispatchCommand(KEY_TAB_COMMAND, key(command.backward));
       return;
     case "toggleLink":
@@ -512,6 +583,100 @@ function run(
       return;
     case "paste":
       paste(command.clipboard);
+      return;
+    default:
+      runOnTable(command);
+  }
+}
+
+/** A table selection, where each table's handlers answer first. */
+function runOnCells(
+  command: Exclude<
+    Command,
+    {
+      type:
+        | "setSelection"
+        | "toggleChecked"
+        | "selectAll"
+        | "undo"
+        | "redo"
+        | "wait"
+        | "cut";
+    }
+  >,
+  selection: TableSelection,
+) {
+  switch (command.type) {
+    case "insertText":
+    case "commitComposition":
+      $clearHighlight();
+      return;
+    case "deleteCharacter":
+      $deleteCellHandler();
+      return;
+    case "deleteWord":
+    case "deleteLine":
+      $deleteTextHandler();
+      return;
+    case "formatText":
+      $formatCells(selection, command.format);
+      return;
+    case "setBlockType":
+      $setBlockType(selection, command.blockType);
+      return;
+    case "insertParagraph":
+    case "insertLineBreak":
+      // Rich text's Enter answers a range selection alone.
+      return;
+    case "tab":
+      current().dispatchCommand(KEY_TAB_COMMAND, key(command.backward));
+      return;
+    case "insertList":
+    case "removeList":
+    case "indent":
+    case "outdent":
+    case "toggleLink":
+    case "editLink":
+    case "copy":
+    case "paste":
+      throw new EditorError("unsupported", `${command.type} over table cells`);
+    default:
+      runOnTable(command);
+  }
+}
+
+/** The insert-table dialog and the table menu. */
+function runOnTable(
+  command: Extract<
+    Command,
+    {
+      type:
+        | "insertTable"
+        | "insertTableRow"
+        | "insertTableColumn"
+        | "deleteTableRow"
+        | "deleteTableColumn";
+    }
+  >,
+) {
+  switch (command.type) {
+    case "insertTable":
+      current().dispatchCommand(INSERT_TABLE_COMMAND, {
+        rows: String(command.rows),
+        columns: String(command.columns),
+      });
+      return;
+    case "insertTableRow":
+      $insertTableRowAtSelection(command.after);
+      return;
+    case "insertTableColumn":
+      $insertDocumentTableColumns(command.after);
+      return;
+    case "deleteTableRow":
+      $deleteTableRowAtSelection();
+      return;
+    case "deleteTableColumn":
+      $deleteTableColumnAtSelection();
       return;
   }
 }
@@ -570,6 +735,7 @@ function setSelection(anchorAt: PathPoint, focusAt: PathPoint): void {
   } else {
     selection.format = combinedFormat(selection, anchorAt, focusAt);
   }
+  $fixRangeSelectionForSelectedTable(selection);
 }
 
 /** `$updateSelectionFormatStyle` from Lexical's selection-change handler. */

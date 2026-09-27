@@ -40,23 +40,31 @@ public struct Snapshot: Codable, Equatable, Sendable {
   }
 }
 
-/// A range selection. Points are addressed by path (child indexes from the
-/// root) rather than node key, so two implementations can be compared.
+/// A range selection, or a table selection: Lexical's `TableSelection`,
+/// the rectangle of cells between the anchor's cell and the focus's. Points
+/// are addressed by path (child indexes from the root) rather than node key,
+/// so two implementations can be compared.
 public struct Selection: Codable, Equatable, Sendable {
   public var anchor: Point
   public var focus: Point
   /// The format new text takes, as Lexical's `RangeSelection.format`.
   public var format: TextFormat
   public var style: String
+  /// The table whose cells a table selection selects; nil for a range. Its
+  /// anchor and focus are then the start of a cell each, and it has no
+  /// format or style.
+  public var table: [Int]?
 
-  public init(anchor: Point, focus: Point, format: TextFormat, style: String) {
+  public init(anchor: Point, focus: Point, format: TextFormat, style: String, table: [Int]? = nil) {
     self.anchor = anchor
     self.focus = focus
     self.format = format
     self.style = style
+    self.table = table
   }
 
-  public var isCollapsed: Bool { anchor == focus }
+  /// Whether it's a caret. A table selection never is, even of one cell.
+  public var isCollapsed: Bool { table == nil && anchor == focus }
 }
 
 public struct Point: Codable, Equatable, Hashable, Sendable {
@@ -128,6 +136,14 @@ public enum EditorCommand: Equatable, Sendable {
   /// Pastes as the web's rich-text editor does: Lexical nodes copied from a
   /// document, or else the plain text.
   case paste(Clipboard)
+  /// The web's insert-table dialog: a table after the caret's block, with a
+  /// header row, and the caret in its first cell.
+  case insertTable(rows: Int, columns: Int)
+  /// The web's table menu, on the rows or columns the selection is in.
+  case insertTableRow(after: Bool)
+  case insertTableColumn(after: Bool)
+  case deleteTableRow
+  case deleteTableColumn
   case undo
   case redo
   /// Lets time pass, which decides whether history merges the next edit into
@@ -198,14 +214,15 @@ public struct TextFormat: OptionSet, Codable, Hashable, Sendable {
 
 extension EditorCommand: Codable {
   private enum CodingKeys: String, CodingKey {
-    case type, anchor, focus, text, backward, lineBoundary, format, blockType, listType, path, milliseconds, url, clipboard
+    case type, anchor, focus, text, backward, lineBoundary, format, blockType, listType, path, milliseconds, url, clipboard,
+      rows, columns, after
   }
 
   /// The command's `type` in JSON.
   private enum Kind: String, Codable {
     case setSelection, insertText, commitComposition, deleteCharacter, deleteWord, deleteLine, insertParagraph, insertLineBreak,
       formatText, setBlockType, insertList, removeList, indent, outdent, tab, toggleChecked, selectAll, toggleLink, editLink,
-      copy, cut, paste, undo, redo, wait
+      copy, cut, paste, insertTable, insertTableRow, insertTableColumn, deleteTableRow, deleteTableColumn, undo, redo, wait
   }
 
   private var kind: Kind {
@@ -232,6 +249,11 @@ extension EditorCommand: Codable {
     case .copy: .copy
     case .cut: .cut
     case .paste: .paste
+    case .insertTable: .insertTable
+    case .insertTableRow: .insertTableRow
+    case .insertTableColumn: .insertTableColumn
+    case .deleteTableRow: .deleteTableRow
+    case .deleteTableColumn: .deleteTableColumn
     case .undo: .undo
     case .redo: .redo
     case .wait: .wait
@@ -243,6 +265,7 @@ extension EditorCommand: Codable {
   public init(from decoder: any Decoder) throws {
     let container = try decoder.container(keyedBy: CodingKeys.self)
     func backward() throws -> Bool { try container.decode(Bool.self, forKey: .backward) }
+    func after() throws -> Bool { try container.decode(Bool.self, forKey: .after) }
     switch try container.decode(Kind.self, forKey: .type) {
     case .setSelection:
       self = .setSelection(
@@ -271,6 +294,13 @@ extension EditorCommand: Codable {
     case .copy: self = .copy
     case .cut: self = .cut
     case .paste: self = .paste(try container.decode(Clipboard.self, forKey: .clipboard))
+    case .insertTable:
+      self = .insertTable(
+        rows: try container.decode(Int.self, forKey: .rows), columns: try container.decode(Int.self, forKey: .columns))
+    case .insertTableRow: self = .insertTableRow(after: try after())
+    case .insertTableColumn: self = .insertTableColumn(after: try after())
+    case .deleteTableRow: self = .deleteTableRow
+    case .deleteTableColumn: self = .deleteTableColumn
     case .undo: self = .undo
     case .redo: self = .redo
     case .wait: self = .wait(milliseconds: try container.decode(Int.self, forKey: .milliseconds))
@@ -307,7 +337,13 @@ extension EditorCommand: Codable {
       try container.encode(url, forKey: .url)
     case .paste(let clipboard):
       try container.encode(clipboard, forKey: .clipboard)
-    case .insertParagraph, .insertLineBreak, .removeList, .indent, .outdent, .selectAll, .copy, .cut, .undo, .redo:
+    case .insertTable(let rows, let columns):
+      try container.encode(rows, forKey: .rows)
+      try container.encode(columns, forKey: .columns)
+    case .insertTableRow(let after), .insertTableColumn(let after):
+      try container.encode(after, forKey: .after)
+    case .insertParagraph, .insertLineBreak, .removeList, .indent, .outdent, .selectAll, .copy, .cut, .deleteTableRow,
+      .deleteTableColumn, .undo, .redo:
       break
     }
   }

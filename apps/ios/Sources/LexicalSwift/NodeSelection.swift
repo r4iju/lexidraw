@@ -5,6 +5,20 @@ extension Update {
   mutating func setSelection(_ selection: RangeSelection) {
     selection.dirty = true
     self.selection = selection
+    tableSelection = nil
+  }
+
+  /// Lexical's `$setSelection` with a table selection.
+  mutating func setSelection(_ selection: TableSelection) {
+    self.selection = nil
+    tableSelection = selection
+    tableSelectionIsDirty = true
+  }
+
+  /// Lexical's `$setSelection(null)`.
+  mutating func clearSelection() {
+    selection = nil
+    tableSelection = nil
   }
 
   /// Lexical's `$internalMakeRangeSelection`.
@@ -12,8 +26,7 @@ extension Update {
   mutating func makeSelection(_ anchor: KeyPoint, _ focus: KeyPoint) -> RangeSelection {
     let selection = RangeSelection(
       anchor: SelectionPoint(anchor), focus: SelectionPoint(focus), format: [], style: "")
-    selection.dirty = true
-    self.selection = selection
+    setSelection(selection)
     return selection
   }
 

@@ -1,9 +1,12 @@
-/// A range selection as a committed state keeps it, its points by node key.
+/// A selection as a committed state keeps it, its points by node key.
 struct KeySelection: Equatable, Sendable {
   var anchor: KeyPoint
   var focus: KeyPoint
   var format: TextFormat
   var style: String
+  /// The table a table selection is of, whose points are then the start of
+  /// its anchor and focus cells; nil for a range.
+  var table: NodeKey? = nil
 }
 
 struct KeyPoint: Equatable, Sendable {
@@ -84,7 +87,7 @@ final class RangeSelection {
   }
 
   func `is`(_ other: KeySelection?) -> Bool {
-    guard let other else { return false }
+    guard let other, other.table == nil else { return false }
     return anchor.value == other.anchor && focus.value == other.focus && format == other.format
       && style.isIdentical(to: other.style)
   }
@@ -108,6 +111,31 @@ final class RangeSelection {
   }
 }
 
+/// @lexical/table's `TableSelection`: the cells of a table's rectangle from
+/// the anchor cell to the focus cell.
+struct TableSelection: Equatable {
+  var table: NodeKey
+  var anchor: NodeKey
+  var focus: NodeKey
+
+  init(table: NodeKey, anchor: NodeKey, focus: NodeKey) {
+    self.table = table
+    self.anchor = anchor
+    self.focus = focus
+  }
+
+  init?(_ saved: KeySelection) {
+    guard let table = saved.table else { return nil }
+    self.init(table: table, anchor: saved.anchor.key, focus: saved.focus.key)
+  }
+
+  var saved: KeySelection {
+    KeySelection(
+      anchor: KeyPoint(key: anchor, offset: 0, type: .element), focus: KeyPoint(key: focus, offset: 0, type: .element),
+      format: [], style: "", table: table)
+  }
+}
+
 extension EditorState {
   func point(_ point: KeyPoint) -> Point? {
     path(of: point.key).map { Point(path: $0, offset: point.offset, type: point.type) }
@@ -115,6 +143,8 @@ extension EditorState {
 
   var pathSelection: Selection? {
     guard let selection, let anchor = point(selection.anchor), let focus = point(selection.focus) else { return nil }
-    return Selection(anchor: anchor, focus: focus, format: selection.format, style: selection.style)
+    return Selection(
+      anchor: anchor, focus: focus, format: selection.format, style: selection.style,
+      table: selection.table.flatMap(path(of:)))
   }
 }

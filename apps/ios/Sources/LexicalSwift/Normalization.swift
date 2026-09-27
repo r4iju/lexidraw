@@ -91,6 +91,12 @@ extension Update {
       if state.isAttached(key) { try syncListItemTextStyle(key) }
     case SerializedLinkNode.type:
       try transformLink(key)
+    case SerializedTableCellNode.type:
+      try transformCell(key)
+    case SerializedTableRowNode.type:
+      try transformRow(key)
+    case SerializedTableNode.type:
+      try transformTable(key)
     default: break
     }
   }
