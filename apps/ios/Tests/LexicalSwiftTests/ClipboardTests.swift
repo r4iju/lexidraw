@@ -16,6 +16,9 @@ func plain(_ text: String) -> EditorCommand { .paste(Clipboard(plainText: text))
   static let lineBreaks = document(paragraph(text("one"), LexicalJSON.lineBreak, text("two")))
   static let emptyLine = document(paragraph(text("one"), LexicalJSON.lineBreak, LexicalJSON.lineBreak, text("two")))
   static let empty = document(paragraph())
+  static let items = document(LexicalJSON.list(.bullet, [.item([]), .item([text("xy")])]))
+  static let nested = document(
+    LexicalJSON.list(.bullet, [.nested(.number, [.item([text("ab", format: .code)])])]))
   static let paragraphs = copied(
     "one\n\ntwo", paragraph(text("one")), paragraph(text("two", format: .italic)))
 
@@ -91,6 +94,11 @@ func plain(_ text: String) -> EditorCommand { .paste(Clipboard(plainText: text))
     Scenario("pasting paragraphs after an empty line", emptyLine, [caret([0, 3], 0), .paste(paragraphs)]),
     Scenario("pasting paragraphs before a line break", lineBreaks, [caret([0, 0], 3), .paste(paragraphs)]),
     Scenario("pasting paragraphs inside a link", linked, [caret([0, 1, 0], 3), .paste(paragraphs)]),
+    Scenario("copying list items", items, [.setSelection(anchor: Point(path: [0, 0], offset: 0, type: .element), focus: .text([0, 1, 0], 2)), .copy]),
+    Scenario("copying all of a list item's text", items, [select([0, 1, 0], 0, [0, 1, 0], 2), .copy]),
+    Scenario("copying part of a list item's text", items, [select([0, 1, 0], 0, [0, 1, 0], 1), .copy]),
+    Scenario("pasting paragraphs into a list item", items, [caret([0, 1, 0], 1), .paste(paragraphs)]),
+    Scenario("pasting paragraphs twice into a nested list item", nested, [caret([0, 0, 0, 0, 0], 0), .paste(paragraphs), .paste(paragraphs)]),
     Scenario("pasting a paragraph", helloWorld, [caret([0, 0], 5), .paste(copied("x", paragraph(text("x", format: .bold))))]),
     Scenario("pasting an empty paragraph", helloWorld, [caret([0, 0], 5), .paste(copied("", paragraph(), paragraph()))]),
     Scenario("pasting a URL in a paragraph", helloWorld, [caret([0, 0], 5), .paste(copied("www.a.io", paragraph(text(" www.a.io "))))]),

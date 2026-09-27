@@ -1,0 +1,1044 @@
+{
+  "changes" : [
+    {
+      "changed" : [
+
+      ]
+    },
+    {
+      "changed" : [
+        [
+
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          2
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          1
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          1,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          2
+        ]
+      ]
+    },
+    {
+      "changed" : [
+        [
+
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          1
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          2
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          3
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          4
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          5
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          5,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          6
+        ]
+      ]
+    }
+  ],
+  "commands" : [
+    {
+      "anchor" : {
+        "offset" : 0,
+        "path" : [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "type" : "text"
+      },
+      "focus" : {
+        "offset" : 0,
+        "path" : [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "type" : "text"
+      },
+      "type" : "setSelection"
+    },
+    {
+      "clipboard" : {
+        "application/x-lexical-editor" : {
+          "namespace" : "Lexidraw",
+          "nodes" : [
+            {
+              "children" : [
+                {
+                  "children" : [
+                    {
+                      "detail" : 0,
+                      "format" : 1,
+                      "mode" : "normal",
+                      "style" : "",
+                      "text" : "https://x.io\rhttps://x.ioé",
+                      "type" : "text",
+                      "version" : 1
+                    },
+                    {
+                      "detail" : 0,
+                      "format" : 64,
+                      "mode" : "normal",
+                      "style" : "",
+                      "text" : "_한日本語1",
+                      "type" : "text",
+                      "version" : 1
+                    }
+                  ],
+                  "direction" : null,
+                  "format" : "",
+                  "indent" : 0,
+                  "type" : "listitem",
+                  "value" : 1,
+                  "version" : 1
+                }
+              ],
+              "direction" : null,
+              "format" : "",
+              "indent" : 0,
+              "listType" : "bullet",
+              "start" : 1,
+              "tag" : "ul",
+              "type" : "list",
+              "version" : 1
+            },
+            {
+              "children" : [
+                {
+                  "detail" : 0,
+                  "format" : 2,
+                  "mode" : "normal",
+                  "style" : "",
+                  "text" : "を*",
+                  "type" : "text",
+                  "version" : 1
+                },
+                {
+                  "children" : [
+                    {
+                      "detail" : 0,
+                      "format" : 2,
+                      "mode" : "normal",
+                      "style" : "",
+                      "text" : "話す",
+                      "type" : "text",
+                      "version" : 1
+                    }
+                  ],
+                  "direction" : null,
+                  "format" : "",
+                  "indent" : 0,
+                  "rel" : "noreferrer",
+                  "target" : null,
+                  "title" : null,
+                  "type" : "link",
+                  "url" : "https://a.io",
+                  "version" : 1
+                }
+              ],
+              "direction" : null,
+              "format" : "",
+              "indent" : 0,
+              "textFormat" : 2,
+              "textStyle" : "",
+              "type" : "paragraph",
+              "version" : 1
+            }
+          ]
+        },
+        "text/plain" : "https://x.io\rhttps://x.ioé_한日本語1\nを*話す"
+      },
+      "type" : "paste"
+    },
+    {
+      "clipboard" : {
+        "application/x-lexical-editor" : {
+          "namespace" : "Lexidraw",
+          "nodes" : [
+            {
+              "children" : [
+                {
+                  "children" : [
+                    {
+                      "detail" : 0,
+                      "format" : 1,
+                      "mode" : "normal",
+                      "style" : "",
+                      "text" : "https://x.io\rhttps://x.ioé",
+                      "type" : "text",
+                      "version" : 1
+                    },
+                    {
+                      "detail" : 0,
+                      "format" : 64,
+                      "mode" : "normal",
+                      "style" : "",
+                      "text" : "_한日本語1",
+                      "type" : "text",
+                      "version" : 1
+                    }
+                  ],
+                  "direction" : null,
+                  "format" : "",
+                  "indent" : 0,
+                  "type" : "listitem",
+                  "value" : 1,
+                  "version" : 1
+                }
+              ],
+              "direction" : null,
+              "format" : "",
+              "indent" : 0,
+              "listType" : "bullet",
+              "start" : 1,
+              "tag" : "ul",
+              "type" : "list",
+              "version" : 1
+            },
+            {
+              "children" : [
+                {
+                  "detail" : 0,
+                  "format" : 2,
+                  "mode" : "normal",
+                  "style" : "",
+                  "text" : "を*",
+                  "type" : "text",
+                  "version" : 1
+                },
+                {
+                  "children" : [
+                    {
+                      "detail" : 0,
+                      "format" : 2,
+                      "mode" : "normal",
+                      "style" : "",
+                      "text" : "話す",
+                      "type" : "text",
+                      "version" : 1
+                    }
+                  ],
+                  "direction" : null,
+                  "format" : "",
+                  "indent" : 0,
+                  "rel" : "noreferrer",
+                  "target" : null,
+                  "title" : null,
+                  "type" : "link",
+                  "url" : "https://a.io",
+                  "version" : 1
+                }
+              ],
+              "direction" : null,
+              "format" : "",
+              "indent" : 0,
+              "textFormat" : 2,
+              "textStyle" : "",
+              "type" : "paragraph",
+              "version" : 1
+            }
+          ]
+        },
+        "text/plain" : "https://x.io\rhttps://x.ioé_한日本語1\nを*話す"
+      },
+      "type" : "paste"
+    }
+  ],
+  "expected" : {
+    "selection" : {
+      "anchor" : {
+        "offset" : 2,
+        "path" : [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          5,
+          0
+        ],
+        "type" : "text"
+      },
+      "focus" : {
+        "offset" : 2,
+        "path" : [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          5,
+          0
+        ],
+        "type" : "text"
+      },
+      "format" : 2,
+      "style" : ""
+    },
+    "state" : {
+      "root" : {
+        "children" : [
+          {
+            "children" : [
+              {
+                "children" : [
+                  {
+                    "children" : [
+                      {
+                        "children" : [
+                          {
+                            "children" : [
+                              {
+                                "children" : [
+                                  {
+                                    "children" : [
+                                      {
+                                        "children" : [
+                                          {
+                                            "children" : [
+                                              {
+                                                "children" : [
+                                                  {
+                                                    "children" : [
+                                                      {
+                                                        "children" : [
+                                                          {
+                                                            "children" : [
+                                                              {
+                                                                "detail" : 0,
+                                                                "format" : 1,
+                                                                "mode" : "normal",
+                                                                "style" : "",
+                                                                "text" : "https://x.io",
+                                                                "type" : "text",
+                                                                "version" : 1
+                                                              }
+                                                            ],
+                                                            "direction" : null,
+                                                            "format" : "",
+                                                            "indent" : 0,
+                                                            "isUnlinked" : false,
+                                                            "rel" : null,
+                                                            "target" : null,
+                                                            "title" : null,
+                                                            "type" : "autolink",
+                                                            "url" : "https://x.io",
+                                                            "version" : 1
+                                                          },
+                                                          {
+                                                            "detail" : 0,
+                                                            "format" : 1,
+                                                            "mode" : "normal",
+                                                            "style" : "",
+                                                            "text" : "\rhttps://x.ioé",
+                                                            "type" : "text",
+                                                            "version" : 1
+                                                          },
+                                                          {
+                                                            "detail" : 0,
+                                                            "format" : 64,
+                                                            "mode" : "normal",
+                                                            "style" : "",
+                                                            "text" : "_한日本語1",
+                                                            "type" : "text",
+                                                            "version" : 1
+                                                          }
+                                                        ],
+                                                        "direction" : null,
+                                                        "format" : "",
+                                                        "indent" : 5,
+                                                        "type" : "listitem",
+                                                        "value" : 1,
+                                                        "version" : 1
+                                                      }
+                                                    ],
+                                                    "direction" : null,
+                                                    "format" : "",
+                                                    "indent" : 0,
+                                                    "listType" : "bullet",
+                                                    "start" : 1,
+                                                    "tag" : "ul",
+                                                    "type" : "list",
+                                                    "version" : 1
+                                                  },
+                                                  {
+                                                    "children" : [
+                                                      {
+                                                        "detail" : 0,
+                                                        "format" : 2,
+                                                        "mode" : "normal",
+                                                        "style" : "",
+                                                        "text" : "を*",
+                                                        "type" : "text",
+                                                        "version" : 1
+                                                      },
+                                                      {
+                                                        "children" : [
+                                                          {
+                                                            "detail" : 0,
+                                                            "format" : 2,
+                                                            "mode" : "normal",
+                                                            "style" : "",
+                                                            "text" : "話す",
+                                                            "type" : "text",
+                                                            "version" : 1
+                                                          }
+                                                        ],
+                                                        "direction" : null,
+                                                        "format" : "",
+                                                        "indent" : 0,
+                                                        "rel" : "noreferrer",
+                                                        "target" : null,
+                                                        "title" : null,
+                                                        "type" : "link",
+                                                        "url" : "https://a.io",
+                                                        "version" : 1
+                                                      },
+                                                      {
+                                                        "detail" : 0,
+                                                        "format" : 1,
+                                                        "mode" : "normal",
+                                                        "style" : "",
+                                                        "text" : "https://x.io\rhttps://x.ioé",
+                                                        "type" : "text",
+                                                        "version" : 1
+                                                      },
+                                                      {
+                                                        "detail" : 0,
+                                                        "format" : 64,
+                                                        "mode" : "normal",
+                                                        "style" : "",
+                                                        "text" : "_한日本語1",
+                                                        "type" : "text",
+                                                        "version" : 1
+                                                      },
+                                                      {
+                                                        "detail" : 0,
+                                                        "format" : 2,
+                                                        "mode" : "normal",
+                                                        "style" : "",
+                                                        "text" : "を*",
+                                                        "type" : "text",
+                                                        "version" : 1
+                                                      },
+                                                      {
+                                                        "children" : [
+                                                          {
+                                                            "detail" : 0,
+                                                            "format" : 2,
+                                                            "mode" : "normal",
+                                                            "style" : "",
+                                                            "text" : "話す",
+                                                            "type" : "text",
+                                                            "version" : 1
+                                                          }
+                                                        ],
+                                                        "direction" : null,
+                                                        "format" : "",
+                                                        "indent" : 0,
+                                                        "rel" : "noreferrer",
+                                                        "target" : null,
+                                                        "title" : null,
+                                                        "type" : "link",
+                                                        "url" : "https://a.io",
+                                                        "version" : 1
+                                                      },
+                                                      {
+                                                        "children" : [
+                                                          {
+                                                            "detail" : 0,
+                                                            "format" : 32,
+                                                            "mode" : "normal",
+                                                            "style" : "",
+                                                            "text" : "http://c.f",
+                                                            "type" : "text",
+                                                            "version" : 1
+                                                          }
+                                                        ],
+                                                        "direction" : null,
+                                                        "format" : "",
+                                                        "indent" : 0,
+                                                        "isUnlinked" : true,
+                                                        "rel" : null,
+                                                        "target" : null,
+                                                        "title" : null,
+                                                        "type" : "autolink",
+                                                        "url" : "http://c.f",
+                                                        "version" : 1
+                                                      }
+                                                    ],
+                                                    "direction" : null,
+                                                    "format" : "",
+                                                    "indent" : 0,
+                                                    "textFormat" : 2,
+                                                    "textStyle" : "",
+                                                    "type" : "paragraph",
+                                                    "version" : 1
+                                                  }
+                                                ],
+                                                "direction" : null,
+                                                "format" : "",
+                                                "indent" : 4,
+                                                "type" : "listitem",
+                                                "value" : 1,
+                                                "version" : 1
+                                              }
+                                            ],
+                                            "direction" : null,
+                                            "format" : "",
+                                            "indent" : 0,
+                                            "listType" : "number",
+                                            "start" : 1,
+                                            "tag" : "ol",
+                                            "type" : "list",
+                                            "version" : 1
+                                          }
+                                        ],
+                                        "direction" : null,
+                                        "format" : "",
+                                        "indent" : 3,
+                                        "type" : "listitem",
+                                        "value" : 1,
+                                        "version" : 1
+                                      }
+                                    ],
+                                    "direction" : null,
+                                    "format" : "",
+                                    "indent" : 0,
+                                    "listType" : "number",
+                                    "start" : 1,
+                                    "tag" : "ol",
+                                    "type" : "list",
+                                    "version" : 1
+                                  }
+                                ],
+                                "direction" : null,
+                                "format" : "",
+                                "indent" : 2,
+                                "type" : "listitem",
+                                "value" : 1,
+                                "version" : 1
+                              }
+                            ],
+                            "direction" : null,
+                            "format" : "",
+                            "indent" : 0,
+                            "listType" : "bullet",
+                            "start" : 1,
+                            "tag" : "ul",
+                            "type" : "list",
+                            "version" : 1
+                          }
+                        ],
+                        "direction" : null,
+                        "format" : "",
+                        "indent" : 1,
+                        "type" : "listitem",
+                        "value" : 1,
+                        "version" : 1
+                      }
+                    ],
+                    "direction" : null,
+                    "format" : "",
+                    "indent" : 0,
+                    "listType" : "number",
+                    "start" : 1,
+                    "tag" : "ol",
+                    "type" : "list",
+                    "version" : 1
+                  }
+                ],
+                "direction" : null,
+                "format" : "",
+                "indent" : 0,
+                "type" : "listitem",
+                "value" : 1,
+                "version" : 1
+              }
+            ],
+            "direction" : null,
+            "format" : "",
+            "indent" : 0,
+            "listType" : "bullet",
+            "start" : 1,
+            "tag" : "ul",
+            "type" : "list",
+            "version" : 1
+          }
+        ],
+        "direction" : null,
+        "format" : "",
+        "indent" : 0,
+        "type" : "root",
+        "version" : 1
+      }
+    }
+  },
+  "start" : {
+    "root" : {
+      "children" : [
+        {
+          "children" : [
+            {
+              "children" : [
+                {
+                  "children" : [
+                    {
+                      "children" : [
+                        {
+                          "children" : [
+                            {
+                              "children" : [
+                                {
+                                  "children" : [
+                                    {
+                                      "children" : [
+                                        {
+                                          "children" : [
+                                            {
+                                              "children" : [
+                                                {
+                                                  "children" : [
+                                                    {
+                                                      "children" : [
+                                                        {
+                                                          "children" : [
+                                                            {
+                                                              "detail" : 0,
+                                                              "format" : 32,
+                                                              "mode" : "normal",
+                                                              "style" : "",
+                                                              "text" : "http://c.f",
+                                                              "type" : "text",
+                                                              "version" : 1
+                                                            }
+                                                          ],
+                                                          "direction" : null,
+                                                          "format" : "",
+                                                          "indent" : 0,
+                                                          "isUnlinked" : true,
+                                                          "rel" : null,
+                                                          "target" : null,
+                                                          "title" : null,
+                                                          "type" : "autolink",
+                                                          "url" : "http://c.f",
+                                                          "version" : 1
+                                                        }
+                                                      ],
+                                                      "direction" : null,
+                                                      "format" : "",
+                                                      "indent" : 5,
+                                                      "type" : "listitem",
+                                                      "value" : 1,
+                                                      "version" : 1
+                                                    }
+                                                  ],
+                                                  "direction" : null,
+                                                  "format" : "",
+                                                  "indent" : 0,
+                                                  "listType" : "bullet",
+                                                  "start" : 1,
+                                                  "tag" : "ul",
+                                                  "type" : "list",
+                                                  "version" : 1
+                                                }
+                                              ],
+                                              "direction" : null,
+                                              "format" : "",
+                                              "indent" : 4,
+                                              "type" : "listitem",
+                                              "value" : 1,
+                                              "version" : 1
+                                            }
+                                          ],
+                                          "direction" : null,
+                                          "format" : "",
+                                          "indent" : 0,
+                                          "listType" : "number",
+                                          "start" : 1,
+                                          "tag" : "ol",
+                                          "type" : "list",
+                                          "version" : 1
+                                        }
+                                      ],
+                                      "direction" : null,
+                                      "format" : "",
+                                      "indent" : 3,
+                                      "type" : "listitem",
+                                      "value" : 1,
+                                      "version" : 1
+                                    }
+                                  ],
+                                  "direction" : null,
+                                  "format" : "",
+                                  "indent" : 0,
+                                  "listType" : "number",
+                                  "start" : 1,
+                                  "tag" : "ol",
+                                  "type" : "list",
+                                  "version" : 1
+                                }
+                              ],
+                              "direction" : null,
+                              "format" : "",
+                              "indent" : 2,
+                              "type" : "listitem",
+                              "value" : 1,
+                              "version" : 1
+                            }
+                          ],
+                          "direction" : null,
+                          "format" : "",
+                          "indent" : 0,
+                          "listType" : "bullet",
+                          "start" : 1,
+                          "tag" : "ul",
+                          "type" : "list",
+                          "version" : 1
+                        }
+                      ],
+                      "direction" : null,
+                      "format" : "",
+                      "indent" : 1,
+                      "type" : "listitem",
+                      "value" : 1,
+                      "version" : 1
+                    }
+                  ],
+                  "direction" : null,
+                  "format" : "",
+                  "indent" : 0,
+                  "listType" : "number",
+                  "start" : 1,
+                  "tag" : "ol",
+                  "type" : "list",
+                  "version" : 1
+                }
+              ],
+              "direction" : null,
+              "format" : "",
+              "indent" : 0,
+              "type" : "listitem",
+              "value" : 1,
+              "version" : 1
+            }
+          ],
+          "direction" : null,
+          "format" : "",
+          "indent" : 0,
+          "listType" : "bullet",
+          "start" : 1,
+          "tag" : "ul",
+          "type" : "list",
+          "version" : 1
+        }
+      ],
+      "direction" : null,
+      "format" : "",
+      "indent" : 0,
+      "type" : "root",
+      "version" : 1
+    }
+  }
+}

@@ -46,7 +46,7 @@ extension Update {
     var children: [JSONValue] = []
     for child in state.children(of: key) {
       let includesChild = try appendJSON(child, selection, selected, into: &children)
-      if !shouldInclude, includesChild, try extractsWithChild(key, selection) { shouldInclude = true }
+      if !shouldInclude, includesChild, try extractsWithChild(key, child, selection) { shouldInclude = true }
     }
     guard shouldInclude else {
       target += children
@@ -92,12 +92,19 @@ extension Update {
     return Self.slice(text, range)
   }
 
-  /// `extractWithChild`: a heading goes with any of its text, a link keeps
-  /// a selection inside it, and a paragraph holding alignment or indent
-  /// that's wholly selected goes as a block rather than as its text.
-  private func extractsWithChild(_ key: NodeKey, _ selection: RangeSelection) throws -> Bool {
+  /// `extractWithChild`: a heading goes with any of its text, a list with
+  /// any of its items, a list item with all of its text selected from inside
+  /// it, a link keeps a selection inside it, and a paragraph holding
+  /// alignment or indent that's wholly selected goes as a block rather than
+  /// as its text.
+  private func extractsWithChild(_ key: NodeKey, _ child: NodeKey, _ selection: RangeSelection) throws -> Bool {
     let node = state[key]
     if node.type == SerializedHeadingNode.type { return true }
+    if isList(key) { return isListItem(child) }
+    if isListItem(key) {
+      guard hasAncestor(selection.anchor.key, key), hasAncestor(selection.focus.key, key) else { return false }
+      return try state.textContent(of: key).utf16.count == textContent(selection).utf16.count
+    }
     if node.isLink {
       let holds = { (point: SelectionPoint) in point.key == key || self.hasAncestor(point.key, key) }
       guard holds(selection.anchor), holds(selection.focus) else { return false }

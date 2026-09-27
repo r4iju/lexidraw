@@ -700,10 +700,13 @@ extension Update {
       selectEnd(last)
       return
     }
-    guard let block = startBlock,
-      !state[block].isElement || isParentRequired(block) || state[state.parent(of: block)!].isRootOrShadowRoot
-    else {
-      throw EditorError.unsupported("Inserting blocks where no block can go")
+    guard let block = startBlock else { throw EditorError.unsupported("Inserting blocks where no block can go") }
+    if state[block].isElement, !isParentRequired(block), !state[state.parent(of: block)!].isRootOrShadowRoot {
+      let (_, index) = try removeTextAndSplitBlock(selection)
+      let inlineNodes = inlineContent(of: nodes)
+      try splice(block, index, deleting: 0, inserting: inlineNodes)
+      if let last = inlineNodes.last { selectEnd(last) } else { selectElement(block, index, index) }
+      return
     }
     let blocksParent = try wrapInlineNodes(nodes)
     guard let nodeToSelect = lastDescendant(of: blocksParent) else { return }
@@ -799,6 +802,16 @@ extension Update {
   /// `isParentRequired`, which Lexical's list item overrides.
   func isParentRequired(_ key: NodeKey) -> Bool {
     state[key].type == SerializedListItemNode.type
+  }
+
+  /// Lexical's `$extractInlineFromBlocks`: what of `nodes` can go in a
+  /// line, blocks giving their inline content, without line breaks.
+  private func inlineContent(of nodes: [NodeKey]) -> [NodeKey] {
+    nodes.flatMap { node -> [NodeKey] in
+      if state[node].isLineBreak { return [] }
+      guard (state[node].isElement || state[node].isDecorator) && !state[node].isInline else { return [node] }
+      return state[node].isElement ? inlineContent(of: Array(state.children(of: node))) : []
+    }
   }
 
   /// Lexical's `$wrapInlineNodes`: runs of inline nodes in paragraphs, under
