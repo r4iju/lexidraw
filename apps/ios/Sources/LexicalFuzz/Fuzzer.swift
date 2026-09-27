@@ -15,6 +15,10 @@ public struct Fuzzer {
   public private(set) var refusals = 0
   /// Sessions ended as `isNotPortedYet` says.
   public private(set) var sessionsEndedNotPortedYet = 0
+  /// Sessions ended where neither model could read its selection back, as
+  /// `EditorError.tableSelectionOverAHole` and `.tableSelectionOfAGoneNode`
+  /// say, with the same tree.
+  public private(set) var sessionsEndedUnreadable = 0
 
   /// The node types Lexical's markdown shortcuts make that LexicalSwift's
   /// don't yet.
@@ -57,7 +61,14 @@ public struct Fuzzer {
       }
       try candidate.load(start)
       for _ in 0..<sessionLength where stepsRun < steps {
-        guard let command = generator.command(for: try reference.snapshot()) else { break }
+        // Where the reference can't read its selection back, the step before
+        // agreed, so neither model can, and there's nothing to go on from.
+        let (snapshot, isSelectionUnreadable) = try Fixture.readBack(reference)
+        if isSelectionUnreadable {
+          sessionsEndedUnreadable += 1
+          break
+        }
+        guard let command = generator.command(for: snapshot) else { break }
         commands.append(command)
         let verdict = try verdict(command)
         if verdict == .notPortedYet {
@@ -84,11 +95,14 @@ public struct Fuzzer {
 
   private struct Step: Equatable {
     var change: Fixture.Change
-    var snapshot: Snapshot?
+    var snapshot: Snapshot
+    var isSelectionUnreadable: Bool
   }
 
   private func step(_ model: any EditorModel, _ command: EditorCommand) throws -> Step {
-    Step(change: try Fixture.Change(applying: command, to: model), snapshot: try? model.snapshot())
+    let change = try Fixture.Change(applying: command, to: model)
+    let (snapshot, isSelectionUnreadable) = try Fixture.readBack(model)
+    return Step(change: change, snapshot: snapshot, isSelectionUnreadable: isSelectionUnreadable)
   }
 
   private enum Verdict: Equatable {
@@ -105,9 +119,9 @@ public struct Fuzzer {
     let declinedAShortcut = shortcutsDeclined > declinedBefore
     let referenceStep = try step(reference, command)
     if candidateStep == referenceStep { return .agreed(referenceStep) }
-    if let before, let after = referenceStep.snapshot,
+    if let before,
       Self.isNotPortedYet(
-        candidate: candidateStep.change, referenceBefore: before, referenceAfter: after,
+        candidate: candidateStep.change, referenceBefore: before, referenceAfter: referenceStep.snapshot,
         declinedAShortcut: declinedAShortcut)
     {
       return .notPortedYet
@@ -157,8 +171,11 @@ public struct Fuzzer {
       for candidate in smaller(than: best) {
         // Removing a node can leave its parent in a shape Lexical would rewrite
         // on load; take Lexical's own version so the document stays canonical.
+        // That version can be the document the node came from, and taking it
+        // would take the same script over and over.
         guard (try? reference.load(candidate.start)) != nil,
           let start = try? reference.snapshot().state,
+          start != best.start || candidate.commands != best.commands,
           try diverges((start, candidate.commands))
         else { continue }
         best = (start, candidate.commands)
@@ -178,7 +195,10 @@ public struct Fuzzer {
       result.append((script.start, commands))
     }
     let paths = script.start.nodePaths().filter { !$0.isEmpty }
-    for path in paths.reversed() {
+    // A whole block first, so a table goes in one step rather than a node at
+    // a time.
+    let depths = Set(paths.map(\.count)).sorted()
+    for path in depths.flatMap({ depth in paths.reversed().filter { $0.count == depth } }) {
       let commands = script.commands.map { $0.adjustingPaths(forRemovalOf: path) }
       result.append((script.start.updatingNode(at: path) { _ in nil }, commands))
     }
@@ -244,6 +264,8 @@ extension EditorCommand {
     case .setSelection(let anchor, let focus): return .setSelection(anchor: adjust(anchor), focus: adjust(focus))
     case .deleteLine(let backward, let lineBoundary): return .deleteLine(backward: backward, lineBoundary: adjust(lineBoundary))
     case .toggleChecked(let path): return .toggleChecked(path: adjust(Point(path: path, offset: 0, type: .text)).path)
+    case .arrow(let key, let extend, let native, let atCellEdge):
+      return .arrow(key, extend: extend, native: adjust(native), atCellEdge: atCellEdge)
     default: return self
     }
   }
@@ -260,8 +282,9 @@ extension String {
 }
 
 /// Random documents of paragraphs, headings, quotes, lists and horizontal
-/// rules, with text, tabs, line breaks and links, and random editing commands a
-/// user could issue against them.
+/// rules, with text, tabs, line breaks and links, and tables of paragraphs
+/// with merged cells, and random editing commands a user could issue against
+/// them.
 struct Generator {
   private var random: SplitMix64
   /// What the last copy or cut put on the clipboard, for a paste in the same
@@ -276,7 +299,7 @@ struct Generator {
   private static let alphabet: [String] = [
     "a", "b", "z", " ", " ", ".", "_", "7", "1", "é", "e\u{301}", "ß", "日", "本", "語", "한", "👍", "👍🏽",
     "👨‍👩‍👧", "🇯🇵", "日本語", "東京", "話す", "を", "は", "ひらがな", "カタカナ", "#", ">", "*", "~", "=", "`", "-", "[", "]", "(",
-    ")", "\\", "&", ";",
+    ")", "\\", "&", ";", "|",
   ]
   private static let formats: [TextFormat] = [
     [], .bold, .italic, [.bold, .italic], .underline, .code, .subscript, .superscript,
@@ -291,6 +314,7 @@ struct Generator {
     "~~a~~", "==a==", "`a`", "`**a**", "*a *", "a_b_", "- ", "* ", "+ ", "1. ", "7. ", "    - ", "        1. ", "[ ] ",
     "[x] ", "- [ ] ", "\t- ", "``` ", "[a](b)", "[a]()", "[[a](b)", "[a](<b c> \"t\")", "[a](https://x.io)",
     "![a](b)", "[a](b\\))", "[a](\\a)", "[a](&#33;)", "[a](\\&#33;)", "[a](&#128077)", "[a](b \"\\\"t\")",
+    "|a| ", "|a|b| ", "|---| ", "|:---:|---:| ",
   ]
   /// The rest of a shortcut being typed.
   private var typing: [EditorCommand] = []
@@ -313,6 +337,10 @@ struct Generator {
   mutating func document() -> JSONValue {
     var blocks: [JSONValue] = []
     for _ in 0..<Int.random(in: 1...3, using: &random) {
+      if Int.random(in: 0..<3, using: &random) == 0 {
+        blocks.append(table())
+        continue
+      }
       // Lexical joins a list to the list of its type after it.
       let previousType = blocks.last?["listType"]?.stringValue.flatMap(ListType.init(rawValue:))
       blocks.append(block(unlike: previousType))
@@ -328,6 +356,46 @@ struct Generator {
     case 3...5: list(unlike: previousType)
     default: paragraph()
     }
+  }
+
+  /// A table as the web's menu leaves one: up to three rows and columns,
+  /// perhaps a merged block of cells, and perhaps a width per column.
+  private mutating func table() -> JSONValue {
+    let rowCount = Int.random(in: 1...3, using: &random)
+    let columnCount = Int.random(in: 1...3, using: &random)
+    var merged: (row: Int, column: Int, rowSpan: Int, colSpan: Int)?
+    if Int.random(in: 0..<2, using: &random) == 0 {
+      let row = Int.random(in: 0..<rowCount, using: &random)
+      let column = Int.random(in: 0..<columnCount, using: &random)
+      merged = (
+        row, column, Int.random(in: 1...(rowCount - row), using: &random),
+        Int.random(in: 1...(columnCount - column), using: &random)
+      )
+    }
+    let rows: [JSONValue] = (0..<rowCount).map { row in
+      let cells: [JSONValue] = (0..<columnCount).compactMap { column in
+        var span = (row: 1, column: 1)
+        if let merged, (merged.row..<merged.row + merged.rowSpan).contains(row),
+          (merged.column..<merged.column + merged.colSpan).contains(column)
+        {
+          guard row == merged.row, column == merged.column else { return nil }
+          span = (merged.rowSpan, merged.colSpan)
+        }
+        let blocks = (0..<Int.random(in: 1...2, using: &random)).map { _ in paragraph() }
+        return LexicalJSON.element(
+          "tablecell", blocks,
+          [
+            "backgroundColor": ([nil, "#eee"] as [JSONValue]).randomElement(using: &random)!, "colSpan": .number(Double(span.column)),
+            "headerState": .number(Double(Int.random(in: 0...3, using: &random))), "rowSpan": .number(Double(span.row)),
+          ])
+      }
+      return LexicalJSON.element("tablerow", cells)
+    }
+    let widths: JSONObject =
+      Int.random(in: 0..<2, using: &random) == 0
+      ? [:]
+      : ["colWidths": .array((0..<columnCount).map { _ in ([80, 92.5, 120] as [JSONValue]).randomElement(using: &random)! })]
+    return LexicalJSON.element("table", rows, widths)
   }
 
   private mutating func paragraph() -> JSONValue {
@@ -432,6 +500,8 @@ struct Generator {
       snapshot.selection == nil || lineBoundary == Self.lineBoundary(in: snapshot, backward: backward)
     case .toggleChecked(let path):
       checkboxes(in: snapshot.state).contains(path)
+    case .arrow(_, _, let native, _):
+      points(in: snapshot.state).contains(native)
     default:
       true
     }
@@ -459,9 +529,14 @@ struct Generator {
       || (node["type"] == "listitem" && node["children"]?.arrayValue?.first?["type"] != "list")
   }
 
-  /// Every point a user could put a selection's end at.
+  /// Every point a user could put a selection's end at, beside a table
+  /// at the top level among them.
   private static func points(in state: JSONValue) -> [Point] {
-    state.nodePaths().flatMap { path -> [Point] in
+    let blocks = (state["root"]?["children"]?.arrayValue ?? []).map { $0["type"] == "table" }
+    let besideTables = (0...blocks.count).filter { offset in
+      (offset > 0 && blocks[offset - 1]) || (offset < blocks.count && blocks[offset])
+    }.map { Point(path: [], offset: $0, type: .element) }
+    return besideTables + state.nodePaths().flatMap { path -> [Point] in
       guard let node = state.node(at: path) else { return [] }
       switch node["type"]?.stringValue {
       case "text", "tab":
@@ -474,6 +549,24 @@ struct Generator {
       default:
         return []
       }
+    }
+  }
+
+  /// For each rule at the top level, a caret at the edge of the block beside
+  /// it and the arrow from there toward it, the platform leaving the caret
+  /// where it is.
+  private static func stepsOntoRules(in state: JSONValue) -> [(caret: Point, key: EditorCommand)] {
+    let blocks = state["root"]?["children"]?.arrayValue ?? []
+    let points = points(in: state)
+    return blocks.indices.filter { blocks[$0]["type"] == "horizontalrule" }.flatMap { rule in
+      var steps: [(caret: Point, key: EditorCommand)] = []
+      if let end = points.last(where: { $0.path.first == rule - 1 }) {
+        steps.append((end, .arrow(.down, extend: false, native: end, atCellEdge: false)))
+      }
+      if let start = points.first(where: { $0.path.first == rule + 1 }) {
+        steps.append((start, .arrow(.up, extend: false, native: start, atCellEdge: false)))
+      }
+      return steps
     }
   }
 
@@ -493,7 +586,7 @@ struct Generator {
 
   mutating func command(for snapshot: Snapshot) -> EditorCommand? {
     if !typing.isEmpty { return typing.removeFirst() }
-    let roll = Int.random(in: 0..<100, using: &random)
+    let roll = Int.random(in: 0..<119, using: &random)
     let backward = Int.random(in: 0..<3, using: &random) > 0
     switch roll {
     // With nothing selected, as after undoing back to the loaded document, a
@@ -505,7 +598,9 @@ struct Generator {
       return .setSelection(anchor: anchor, focus: isRange ? points.randomElement(using: &random)! : anchor)
     case ..<9: return .insertText(text(1...3))
     case ..<16:
-      let shortcut = Self.shortcuts.randomElement(using: &random)!
+      let shortcut =
+        Int.random(in: 0..<4, using: &random) == 0
+        ? MarkdownRows.row(using: &random) + " " : Self.shortcuts.randomElement(using: &random)!
       typing =
         switch Int.random(in: 0..<4, using: &random) {
         case 0: [.insertText(shortcut), .insertParagraph]
@@ -540,7 +635,29 @@ struct Generator {
     case ..<63: return .cut
     case ..<83: return .paste(pasted())
     case ..<94: return .undo
-    default: return .redo
+    case ..<100: return .redo
+    case ..<101:
+      return .insertTable(rows: Int.random(in: 1...3, using: &random), columns: Int.random(in: 1...3, using: &random))
+    case ..<103: return .insertTableRow(after: backward)
+    case ..<105: return .insertTableColumn(after: backward)
+    case ..<106: return .deleteTableRow
+    case ..<107: return .deleteTableColumn
+    // An arrow from the block beside a rule that selects the rule whole,
+    // which random points and arrows seldom line up, or else a rule pasted
+    // as the web copies one.
+    case ..<111:
+      guard let (caret, key) = Self.stepsOntoRules(in: snapshot.state).randomElement(using: &random) else {
+        return .paste(
+          Clipboard(
+            plainText: "\n", lexical: LexicalClipboardPayload(namespace: editorNamespace, nodes: [LexicalJSON.horizontalRule])))
+      }
+      typing = [key]
+      return .setSelection(anchor: caret, focus: caret)
+    default:
+      let native = Self.points(in: snapshot.state).randomElement(using: &random) ?? Point(path: [], offset: 0, type: .element)
+      return .arrow(
+        ArrowKey.allCases.randomElement(using: &random)!, extend: Int.random(in: 0..<3, using: &random) == 0,
+        native: native, atCellEdge: Bool.random(using: &random))
     }
   }
 

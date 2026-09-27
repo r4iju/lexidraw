@@ -1,14 +1,28 @@
 import { expect, test } from "bun:test";
-import { HEADING, type Transformer } from "@lexical/markdown";
+import { HEADING, LINK, type Transformer } from "@lexical/markdown";
+import { BLOCK_EQUATION_FENCE } from "@packages/lexical-nodes/decorator-transformers";
 import { createTransformers } from "@packages/lexical-nodes/transformers";
 import {
+  MARKDOWN_PATTERNS,
   MARKDOWN_TRANSFORMERS_PATH,
   swiftForMarkdownTransformers,
 } from "./markdown";
 
 test("the committed markdown transformers are a fresh codegen of the web editor's", async () => {
   const committed = await Bun.file(MARKDOWN_TRANSFORMERS_PATH).text();
-  expect(committed).toBe(swiftForMarkdownTransformers(createTransformers()));
+  expect(committed).toBe(
+    swiftForMarkdownTransformers(createTransformers(), MARKDOWN_PATTERNS),
+  );
+});
+
+test("gives a pattern the web exports by its name", () => {
+  const swift = swiftForMarkdownTransformers([], {
+    TABLE_ROW_DIVIDER_REG_EXP: /^\|-{3,}$/,
+  });
+
+  expect(swift).toContain(
+    'static let tableRowDividerRegExp = JSRegExp("^\\\\|-{3,}$", flags: "")',
+  );
 });
 
 test("names a transformer by the name its package exports it by", () => {
@@ -53,4 +67,34 @@ test("lists the node types a transformer can make", () => {
   expect(swiftForMarkdownTransformers([HEADING])).toContain(
     'makes: ["heading"]',
   );
+});
+
+test("gives a text match the pattern it imports with", () => {
+  const swift = swiftForMarkdownTransformers([LINK]);
+
+  expect(swift).toContain(
+    `importRegExp: JSRegExp("${LINK.importRegExp?.source.replace(/[\\"]/g, (character) => `\\${character}`)}", flags: "")`,
+  );
+});
+
+test("refuses a text match that ends its match in code", () => {
+  const ending: Transformer = { ...LINK, getEndIndex: () => false };
+
+  expect(() => swiftForMarkdownTransformers([ending])).toThrow(
+    "ends its match in code",
+  );
+});
+
+test("gives a multiline element the pattern that ends it", () => {
+  const swift = swiftForMarkdownTransformers([BLOCK_EQUATION_FENCE]);
+
+  expect(swift).toContain(
+    'regExp: JSRegExp("^\\\\s*\\\\$\\\\$\\\\s*$", flags: ""), regExpEnd: JSRegExp("^\\\\s*\\\\$\\\\$\\\\s*$", flags: ""), isEndRequired: true',
+  );
+});
+
+test("gives a pattern that counts its matches its global flag", () => {
+  const swift = swiftForMarkdownTransformers([], { OPEN: /<a>/gi });
+
+  expect(swift).toContain('static let open = JSRegExp("<a>", flags: "gi")');
 });

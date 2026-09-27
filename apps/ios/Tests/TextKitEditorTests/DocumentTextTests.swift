@@ -107,12 +107,14 @@ import TextKitEditor
     #expect((0..<text.blockCount).map { shown(text.range(ofBlock: $0)) } == ["Title", "before", "c1\nc2\nc3\nc4", "\u{FFFC}", "after"])
     #expect(storage.attribute(.blockType, at: 0, effectiveRange: nil) as? String == "h2")
     #expect(text.kind(ofBlock: 1) == .text)
-    guard case .table(let cells) = text.kind(ofBlock: 2) else {
+    guard case .table(let table) = text.kind(ofBlock: 2) else {
       Issue.record("The table isn't laid out as one")
       return
     }
-    let table = text.range(ofBlock: 2).location
-    #expect(cells.map { $0.map { shown(NSRange(location: table + $0.location, length: $0.length)) } } == [["c1", "c2"], ["c3", "c4"]])
+    let start = text.range(ofBlock: 2).location
+    #expect(
+      table.rows.map { $0.map { shown(NSRange(location: start + $0.range.location, length: $0.range.length)) } }
+        == [["c1", "c2"], ["c3", "c4"]])
     #expect(text.blockIndex(at: NSMaxRange(text.range(ofBlock: 2))) == 2)
     #expect(text.kind(ofBlock: 3) == .embedded(type: "youtube"))
   }

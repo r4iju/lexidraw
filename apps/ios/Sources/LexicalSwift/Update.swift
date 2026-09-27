@@ -15,7 +15,7 @@ struct Update {
   let base: EditorState
   /// Lexical's `$getSelection()` in an update: a copy of the committed
   /// selection until the update sets another.
-  var selection: RangeSelection?
+  var current: Current?
   private(set) var nextKey: NodeKey
   /// What sets this update apart from every other on the same editor.
   let revision: Int
@@ -40,10 +40,34 @@ struct Update {
   init(_ state: EditorState, nextKey: NodeKey, revision: Int, knowsListMarker: Bool = false) {
     self.state = state
     base = state
-    selection = state.selection.map(RangeSelection.init)
+    switch state.selection {
+    case .range(let saved): current = .range(RangeSelection(saved))
+    case .table(let saved): current = .table(saved, isDirty: false)
+    case .node(let keys): current = .node(NodeSelection(keys))
+    case nil: current = nil
+    }
     self.nextKey = nextKey
     self.revision = revision
     self.knowsListMarker = knowsListMarker
+  }
+
+  /// A range, whose points record that the update moved them, a table
+  /// selection and whether the update set it, or selected nodes.
+  enum Current {
+    case range(RangeSelection)
+    case table(TableSelection, isDirty: Bool)
+    case node(NodeSelection)
+  }
+
+  /// The selection where it's a range.
+  var selection: RangeSelection? { if case .range(let selection) = current { selection } else { nil } }
+
+  /// The selection where it's of nodes.
+  var nodeSelection: NodeSelection? { if case .node(let selection) = current { selection } else { nil } }
+
+  /// The selection where it's a table selection.
+  var tableSelection: TableSelection? {
+    if case .table(let selection, _) = current { selection } else { nil }
   }
 
   /// Whether the update marked any node, which is what makes Lexical commit
@@ -337,6 +361,7 @@ struct Update {
   /// Lexical's `$removeNode`.
   mutating func removeNode(_ node: NodeKey, restoringSelection: Bool, preservingEmptyParent: Bool = false) throws {
     guard let parent = state[node].parent else { return }
+    let hadSelection = current != nil
     let selection = moveChildrenSelectionToParent(node)
     var moved = false
     if let selection, restoringSelection {
@@ -346,6 +371,8 @@ struct Update {
           next: state.nextSibling(of: node))
         moved = true
       }
+    } else if let nodes = nodeSelection, restoringSelection, nodes.has(node) {
+      selectPrevious(node)
     }
     if let selection, restoringSelection, !moved, touches(selection, parent) {
       let index = state.index(of: node)!
@@ -358,7 +385,7 @@ struct Update {
     if !preservingEmptyParent, !emptied.isRootOrShadowRoot, !emptied.canBeEmpty, emptied.children!.isEmpty {
       try removeNode(parent, restoringSelection: restoringSelection)
     }
-    if restoringSelection, selection != nil, emptied.isRoot, state[parent].children!.isEmpty {
+    if restoringSelection, hadSelection, emptied.isRoot, state[parent].children!.isEmpty {
       selectEnd(parent)
     }
   }

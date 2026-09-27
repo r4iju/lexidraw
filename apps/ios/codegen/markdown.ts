@@ -5,6 +5,7 @@ import * as blockTransformers from "@packages/lexical-nodes/block-transformers";
 import * as decoratorTransformers from "@packages/lexical-nodes/decorator-transformers";
 import * as footnoteTransformers from "@packages/lexical-nodes/footnote-transformers";
 import * as webTransformers from "@packages/lexical-nodes/transformers";
+import { swiftString } from "./swift";
 
 export const MARKDOWN_TRANSFORMERS_PATH = fileURLToPath(
   new URL(
@@ -36,14 +37,25 @@ const EXPORTED = [
   ),
 ].filter((entry): entry is [string, Transformer] => isTransformer(entry[1]));
 
+/** Patterns the web's transformers match with besides their own. */
+export const MARKDOWN_PATTERNS = {
+  TABLE_ROW_DIVIDER_REG_EXP: webTransformers.TABLE_ROW_DIVIDER_REG_EXP,
+  FENCE: blockTransformers.FENCE,
+  ADMONITION_END: blockTransformers.ADMONITION_END,
+  DETAILS_OPEN: blockTransformers.DETAILS_OPEN,
+  DETAILS_CLOSE: blockTransformers.DETAILS_CLOSE,
+  COLUMNS_CLOSE: blockTransformers.COLUMNS_CLOSE,
+};
+
 /**
  * The web editor's markdown transformers in Swift, in the order they run, for
- * LexicalSwift's shortcuts to run as `registerMarkdownShortcuts` does.
- * JavaScriptCore evaluates their regular expressions, so they match as the
- * web's do.
+ * LexicalSwift's shortcuts to run as `registerMarkdownShortcuts` does, and
+ * `patterns` by the names they're exported by. JavaScriptCore evaluates their
+ * regular expressions, so they match as the web's do.
  */
 export function swiftForMarkdownTransformers(
   transformers: Transformer[],
+  patterns: Record<string, RegExp> = {},
 ): string {
   const names = new Set<string>();
   const entries = transformers.map((transformer) => {
@@ -65,6 +77,11 @@ export function swiftForMarkdownTransformers(
     "  enum Name: String, Sendable {",
     ...[...names].map((name) => `    case ${camelCase(name)} = "${name}"`),
     "  }",
+    ...Object.entries(patterns).flatMap(([name, regExp]) => [
+      "",
+      `  /// \`${name}\` in @packages/lexical-nodes.`,
+      `  static let ${camelCase(name)} = ${swiftForPattern(regExp)}`,
+    ]),
     "}",
   ];
   return `${lines.join("\n")}\n`;
@@ -81,6 +98,11 @@ function swiftForTransformer(transformer: Transformer, name: string): string {
     case "multiline-element": {
       fields.push(`regExp: ${swiftForRegExp(transformer.regExpStart)}`);
       const end = transformer.regExpEnd;
+      if (end) {
+        fields.push(
+          `regExpEnd: ${swiftForRegExp("regExp" in end ? end.regExp : end)}`,
+        );
+      }
       if (end && (!("optional" in end) || !end.optional)) {
         fields.push("isEndRequired: true");
       }
@@ -88,8 +110,18 @@ function swiftForTransformer(transformer: Transformer, name: string): string {
       return `MarkdownTransformer(kind: .multilineElement, ${fields.join(", ")})`;
     }
     case "text-match":
+      if (transformer.getEndIndex) {
+        throw new Error(
+          `The text match ${name} ends its match in code, which Swift can't run`,
+        );
+      }
       if (transformer.regExp && transformer.replace) {
         fields.push(`regExp: ${swiftForRegExp(transformer.regExp)}`);
+      }
+      if (transformer.importRegExp && transformer.replace) {
+        fields.push(
+          `importRegExp: ${swiftForRegExp(transformer.importRegExp)}`,
+        );
       }
       if (transformer.trigger !== undefined) {
         fields.push(`trigger: ${swiftString(transformer.trigger)}`);
@@ -153,20 +185,24 @@ function isTransformer(value: unknown): value is Transformer {
   );
 }
 
-function swiftForRegExp(regExp: RegExp): string {
+/** A pattern matched once, which can't depend on where it last matched. */
+export function swiftForRegExp(regExp: RegExp): string {
   if (regExp.global || regExp.sticky) {
     throw new Error(
-      `/${regExp.source}/${regExp.flags} keeps where it last matched, which a shortcut's match can't depend on`,
+      `/${regExp.source}/${regExp.flags} keeps where it last matched, which a single match can't depend on`,
+    );
+  }
+  return swiftForPattern(regExp);
+}
+
+/** A pattern, which one that's global counts matches with. */
+function swiftForPattern(regExp: RegExp): string {
+  if (regExp.sticky) {
+    throw new Error(
+      `/${regExp.source}/${regExp.flags} matches only where it last matched`,
     );
   }
   return `JSRegExp(${swiftString(regExp.source)}, flags: ${swiftString(regExp.flags)})`;
-}
-
-function swiftString(text: string): string {
-  if (/[^\x20-\x7e]/.test(text)) {
-    throw new Error(`No Swift literal for ${JSON.stringify(text)}`);
-  }
-  return `"${text.replace(/[\\"]/g, (character) => `\\${character}`)}"`;
 }
 
 /** `Callout` as `CALLOUT`, `FootnoteReference` as `FOOTNOTE_REFERENCE`. */

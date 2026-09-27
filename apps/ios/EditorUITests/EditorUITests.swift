@@ -256,6 +256,70 @@ class EditorUITests: XCTestCase {
     XCTAssertEqual(try saved(), flat)
   }
 
+  /// A table from the edit menu's Table menu, typed into cell by cell with
+  /// Tab and Shift-Tab, then given and relieved of rows and columns there.
+  func testTablesFromTheEditMenu() throws {
+    open(LexicalJSON.document([LexicalJSON.paragraph([LexicalJSON.text("Hello")])]))
+
+    chooseFromEditMenu(at: CGPoint(x: 16 + 20, y: 16 + 11), "Table", "Insert Table…")
+    for (name, count) in [("Rows", "2"), ("Columns", "2")] {
+      let field = app.alerts.textFields[name]
+      field.tap()
+      field.typeText(XCUIKeyboardKey.delete.rawValue + count)
+    }
+    app.alerts.buttons["Insert Table"].tap()
+    editor.typeText("a")
+    keyboard.press(.tab)
+    editor.typeText("b")
+    keyboard.press(.tab)
+    editor.typeText("c")
+    keyboard.press(.tab, .shift)
+    editor.typeText("!")
+    XCTAssertEqual(try cellTexts(), [["a", "b!"], ["c", ""]])
+
+    chooseFromEditMenu(at: Self.firstCell(row: 1), "Table", "Insert Row Above")
+    chooseFromEditMenu(at: Self.firstCell(row: 0), "Table", "Insert Column Right")
+    chooseFromEditMenu(at: Self.firstCell(row: 2), "Table", "Delete Row")
+    XCTAssertEqual(try cellTexts(), [["a", "", "b!"], ["", "", ""]])
+    chooseFromEditMenu(at: Self.firstCell(row: 0), "Table", "Delete Column")
+    XCTAssertEqual(try cellTexts(), [["", "b!"], ["", ""]])
+  }
+
+  /// Shift and Down at a cell's last line select the cell, as
+  /// @lexical/table's handler does, and then Shift and an arrow move the
+  /// selection's focus a cell at a time. What Command-B makes bold shows
+  /// which cells were selected, and Command-I which were after.
+  func testShiftArrowsMakeAndChangeATableSelection() throws {
+    open(LexicalJSON.document([LexicalJSON.table([["a", "b"], ["c", "d"]]), LexicalJSON.paragraph([])]))
+    tap(Self.inLetter(column: 0))
+
+    keyboard.press(.downArrow, .shift)
+    keyboard.press(.downArrow, .shift)
+    keyboard.press(.rightArrow, .shift)
+    keyboard.press("b", .command)
+    XCTAssertEqual(try cells(formatted: .bold), [[true, true], [true, true]])
+
+    keyboard.press(.leftArrow, .shift)
+    keyboard.press("i", .command)
+    XCTAssertEqual(try cells(formatted: .italic), [[true, false], [true, false]])
+  }
+
+  /// The handle at the end of selected cells, dragged into another cell,
+  /// selects the cells up to it.
+  func testDraggingAHandleChangesATableSelection() throws {
+    open(LexicalJSON.document([LexicalJSON.table([["a", "b", "c"]]), LexicalJSON.paragraph([])]))
+    tap(Self.inLetter(column: 0))
+    keyboard.press(.downArrow, .shift)
+
+    dragHandle(from: Self.letterEnd(column: 0), to: Self.inLetter(column: 2))
+    keyboard.press("b", .command)
+    XCTAssertEqual(try cells(formatted: .bold), [[true, true, true]])
+
+    dragHandle(from: Self.letterEnd(column: 2), to: Self.inLetter(column: 1))
+    keyboard.press("i", .command)
+    XCTAssertEqual(try cells(formatted: .italic), [[true, true, false]])
+  }
+
   /// Romaji to kana to kanji on the Japanese keyboard. The keyboard's calls
   /// are what `web-composition.json` recorded from iOS, the view shows the
   /// composition where the caret was, and the harness saves what the web
@@ -344,6 +408,107 @@ class EditorUITests: XCTestCase {
     let x = 16 + (list.padding + list.box.size / 2) * em
     editor.coordinate(withNormalizedOffset: .zero)
       .withOffset(CGVector(dx: x, dy: 16 + 11 + CGFloat(item) * (22 + list.itemSpacing * em))).tap()
+  }
+
+  /// A point in the first cell of `row` of a table below one line of text,
+  /// past the table's margin, its rows a line of table text tall.
+  private static func firstCell(row: Int) -> CGPoint {
+    let em: CGFloat = 17
+    let (web, table) = (DocumentTypography.web, DocumentTypography.web.table)
+    let top = 16 + (web.lineHeight + table.margin) * em
+    let rowHeight = 2 * table.paddingY + table.fontSize * table.lineHeight * em + table.border
+    return CGPoint(x: 16 + 16, y: top + rowHeight * (CGFloat(row) + 0.5))
+  }
+
+  /// Where the letter in a cell of the first row of a table of letters at
+  /// the top of the document ends, at the foot of the line, where UIKit
+  /// takes hold of the handle there. Points from the editor's top left.
+  private static func letterEnd(column: Int) -> CGPoint {
+    let start = cellStart(column: column)
+    return CGPoint(x: start.x + 1 + 12 + 8.5, y: start.y + 15 * 1.5 / 2)
+  }
+
+  private static func inLetter(column: Int) -> CGPoint {
+    let start = cellStart(column: column)
+    return CGPoint(x: start.x + 1 + 12 + 4, y: start.y)
+  }
+
+  /// The left edge of a cell of the first row of a table of letters,
+  /// halfway down it. A cell of one letter is as wide as the letter and its
+  /// padding, which no least width widens on the web.
+  private static func cellStart(column: Int) -> CGPoint {
+    CGPoint(x: 16 + 34.5 * CGFloat(column), y: 16 + (8 + 15 * 1.5 + 8 + 1) / 2)
+  }
+
+  private func tap(_ point: CGPoint) {
+    editor.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: point.x, dy: point.y)).tap()
+  }
+
+  /// Drags the selection handle at `start` to `end`, points from the
+  /// editor's top left.
+  private func dragHandle(from start: CGPoint, to end: CGPoint) {
+    let origin = editor.coordinate(withNormalizedOffset: .zero)
+    origin.withOffset(CGVector(dx: start.x, dy: start.y)).press(
+      forDuration: 0.1, thenDragTo: origin.withOffset(CGVector(dx: end.x, dy: end.y)), withVelocity: .slow,
+      thenHoldForDuration: 0.3)
+  }
+
+  /// Whether each cell of the saved document's table has `format`, row by
+  /// row.
+  private func cells(formatted format: TextFormat) throws -> [[Bool]] {
+    let blocks = try saved()["root"]?["children"]?.arrayValue ?? []
+    return (blocks.first { $0["type"] == "table" }?["children"]?.arrayValue ?? []).map { row in
+      (row["children"]?.arrayValue ?? []).map { cell in
+        let texts = (cell["children"]?.arrayValue ?? []).flatMap { $0["children"]?.arrayValue ?? [] }
+        return !texts.isEmpty
+          && texts.allSatisfy { TextFormat(rawValue: Int($0["format"]?.numberValue ?? 0)).contains(format) }
+      }
+    }
+  }
+
+  /// Double-taps the word at `point`, points from the editor's top left, for
+  /// the edit menu, then chooses `path` from it.
+  private func chooseFromEditMenu(at point: CGPoint, _ path: String...) {
+    editor.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: point.x, dy: point.y)).doubleTap()
+    for title in path {
+      // An item of the menu's row, or of the list the row opens into.
+      let item = app.descendants(matching: .any).matching(
+        NSPredicate(
+          format: "label == %@ AND elementType IN %@", title,
+          [XCUIElement.ElementType.menuItem.rawValue, XCUIElement.ElementType.button.rawValue])
+      ).firstMatch
+      // A narrow screen pages the menu: its row on iOS 26, into a list on
+      // iOS 27.
+      let forward = app.buttons.matching(NSPredicate(format: "label IN %@", ["Forward", "Next Page"])).firstMatch
+      let shown = XCTNSPredicateExpectation(
+        predicate: NSPredicate { _, _ in item.exists || forward.exists }, object: nil)
+      _ = XCTWaiter.wait(for: [shown], timeout: 5)
+      for _ in 0..<4 where !item.exists && forward.exists {
+        forward.tap()
+        _ = item.waitForExistence(timeout: 1)
+      }
+      XCTAssertTrue(item.waitForExistence(timeout: 5), "No \(title) in the edit menu: \(app.debugDescription)")
+      // The list's last items can be under the keyboard until it scrolls.
+      for _ in 0..<3 where !item.isHittable {
+        let screen = app.coordinate(withNormalizedOffset: .zero)
+        let list = CGVector(dx: item.frame.midX, dy: item.frame.minY - 60)
+        screen.withOffset(list).press(forDuration: 0.1, thenDragTo: screen.withOffset(CGVector(dx: list.dx, dy: list.dy - 150)))
+      }
+      item.tap()
+    }
+  }
+
+  /// The text of each cell of the saved document's table, row by row.
+  private func cellTexts() throws -> [[String]] {
+    let blocks = try saved()["root"]?["children"]?.arrayValue ?? []
+    XCTAssertEqual(blocks.compactMap { $0["type"]?.stringValue }, ["paragraph", "table", "paragraph"])
+    return (blocks.first { $0["type"] == "table" }?["children"]?.arrayValue ?? []).map { row in
+      (row["children"]?.arrayValue ?? []).map { cell in
+        (cell["children"]?.arrayValue ?? []).flatMap { block in
+          (block["children"]?.arrayValue ?? []).compactMap { $0["text"]?.stringValue }
+        }.joined()
+      }
+    }
   }
 
   /// Saves through the harness and reads back what it wrote.

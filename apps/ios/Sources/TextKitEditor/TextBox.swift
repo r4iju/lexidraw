@@ -36,6 +36,14 @@ import UIKit
 
   var width: CGFloat { container.size.width }
 
+  /// The space after the last paragraph, which `height` counts and a table
+  /// cell leaves out, as the web leaves out its last paragraph's margin.
+  var trailingSpacing: CGFloat {
+    guard storage.length > 0 else { return 0 }
+    let style = storage.attribute(.paragraphStyle, at: storage.length - 1, effectiveRange: nil) as? NSParagraphStyle
+    return style?.paragraphSpacing ?? 0
+  }
+
   /// The text's length, without the final newline.
   var length: Int { max(storage.length - 1, 0) }
 
@@ -262,6 +270,19 @@ import UIKit
       let inset = lines.last { $0.frame.minY <= frame.midY }?.inset ?? 0
       return frame.insetBy(dx: 0, dy: min(inset, frame.height / 2))
     }
+  }
+
+  /// Where the attachment at `offset` is drawn, if there's one there.
+  func attachmentFrame(at offset: Int) -> CGRect? {
+    guard let location = location(offset), let fragment = layoutManager.textLayoutFragment(for: location) else {
+      return nil
+    }
+    let frame = fragment.frameForTextAttachment(at: location)
+    guard !frame.isEmpty else { return nil }
+    let start = self.offset(fragment.rangeInElement.location)
+    let line = fragment.textLineFragments.first { $0.characterRange.contains(offset - start) }
+    let raise = line.map { placement(of: $0, at: start).raise } ?? 0
+    return frame.offsetBy(dx: fragment.layoutFragmentFrame.minX, dy: fragment.layoutFragmentFrame.minY - raise)
   }
 
   private func lineSegments(_ range: NSRange) -> [CGRect] {

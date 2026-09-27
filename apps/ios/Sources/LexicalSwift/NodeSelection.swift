@@ -4,7 +4,66 @@ extension Update {
   /// Lexical's `$setSelection`.
   mutating func setSelection(_ selection: RangeSelection) {
     selection.dirty = true
-    self.selection = selection
+    current = .range(selection)
+  }
+
+  /// Lexical's `$setSelection` with a table selection.
+  mutating func setSelection(_ selection: TableSelection) {
+    current = .table(selection, isDirty: true)
+  }
+
+  /// Lexical's `$setSelection` with a node selection.
+  mutating func setSelection(_ selection: NodeSelection) {
+    selection.dirty = true
+    current = .node(selection)
+  }
+
+  /// `NodeSelection.getNodes`: the selected nodes the state still has.
+  func nodes(in selection: NodeSelection) -> [NodeKey] {
+    selection.keys.filter { state.nodes[$0] != nil }
+  }
+
+  /// `NodeSelection.insertNodes`: the nodes go in after the last selected
+  /// node, which go.
+  mutating func insertNodes(_ selection: NodeSelection, _ nodes: [NodeKey]) throws {
+    let selected = self.nodes(in: selection)
+    guard let last = selected.last else { return }
+    let atEnd: RangeSelection
+    if state[last].isText {
+      atEnd = selectText(last)
+    } else {
+      let index = state.index(of: last)! + 1
+      atEnd = selectElement(state[last].parent!, index, index)
+    }
+    try insertNodes(atEnd, nodes)
+    for node in selected { try remove(node) }
+  }
+
+  /// A node selection of `key` alone, as Lexical makes one for a decorator
+  /// an arrow or a deletion reaches.
+  mutating func selectNode(_ key: NodeKey) {
+    let selection = NodeSelection()
+    selection.add(key)
+    setSelection(selection)
+  }
+
+  /// Lexical's `$setSelectionFromCaretRange`: the range selection, or a new
+  /// one, takes the carets' points.
+  @discardableResult
+  mutating func setSelection(from range: CaretRange) -> RangeSelection {
+    let selection =
+      self.selection
+      ?? RangeSelection(
+        anchor: SelectionPoint(EditorState.rootKey, 0, .element), focus: SelectionPoint(EditorState.rootKey, 0, .element),
+        format: [], style: "")
+    updateSelection(selection, from: range)
+    setSelection(selection)
+    return selection
+  }
+
+  /// Lexical's `$setSelection(null)`.
+  mutating func clearSelection() {
+    current = nil
   }
 
   /// Lexical's `$internalMakeRangeSelection`.
@@ -12,8 +71,7 @@ extension Update {
   mutating func makeSelection(_ anchor: KeyPoint, _ focus: KeyPoint) -> RangeSelection {
     let selection = RangeSelection(
       anchor: SelectionPoint(anchor), focus: SelectionPoint(focus), format: [], style: "")
-    selection.dirty = true
-    self.selection = selection
+    setSelection(selection)
     return selection
   }
 

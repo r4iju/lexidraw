@@ -1,6 +1,4 @@
-import JavaScriptCore
 import OrderedCollections
-import Synchronization
 
 /// A markdown transformer as @lexical/markdown describes one.
 /// `MarkdownTransformers.swift` lists the web editor's.
@@ -13,6 +11,10 @@ struct MarkdownTransformer: Sendable {
   let name: Name
   /// `regExp`, or a multiline element transformer's `regExpStart`.
   var regExp: JSRegExp?
+  /// A multiline element transformer's `regExpEnd`.
+  var regExpEnd: JSRegExp?
+  /// A text match's `importRegExp`, which finds it anywhere in a line.
+  var importRegExp: JSRegExp?
   var triggerOnEnter = false
   /// Whether a multiline element transformer needs a closing line, which
   /// typing never gives it.
@@ -29,11 +31,13 @@ struct MarkdownTransformer: Sendable {
   /// ports each. Where one would turn what was typed into something else,
   /// the text stays as typed and no transformer after it runs, as none would
   /// after it on the web.
+  /// Those that make something only of imported markdown, as a table
+  /// cell's text is, are here for that.
   static let notPortedYet: [Name: Int] = [
     .tweet: 131, .image: 131,
-    .equation: 132, .code: 132,
-    .table: 117,
-    .emoji: 134,
+    .equation: 132, .code: 132, .blockEquation: 132, .blockEquationFence: 132,
+    .callout: 133, .admonition: 133, .details: 133, .columns: 133,
+    .emoji: 134, .footnoteDefinition: 134, .footnoteReference: 134,
   ]
 
   /// `compositionEndTriggerChars`: the characters that can finish a
@@ -41,44 +45,19 @@ struct MarkdownTransformer: Sendable {
   static let compositionEndTriggers = Set(
     " ".utf16 + textFormat.compactMap(\.tag.utf16.last) + textMatch.compactMap { $0.trigger?.utf16.last })
 
+  /// The pattern of the web's transformer `name`: its `regExp`, or a
+  /// multiline element transformer's `regExpStart`.
+  static func regExp(of name: Name) -> JSRegExp {
+    guard let regExp = web.first(where: { $0.name == name })?.regExp else {
+      preconditionFailure("The web has no \(name.rawValue) matching a pattern")
+    }
+    return regExp
+  }
+
   static let element = web.filter { $0.kind == .element }
   static let multilineElement = web.filter { $0.kind == .multilineElement }
   static let textMatch = web.filter { $0.kind == .textMatch }
   static let textFormat = web.filter { $0.kind == .textFormat }
-}
-
-/// A JavaScript regular expression. JavaScriptCore evaluates it, so it
-/// matches as it does in the web editor.
-struct JSRegExp: Sendable {
-  let source: String
-  let flags: String
-
-  init(_ source: String, flags: String) {
-    self.source = source
-    self.flags = flags
-  }
-
-  /// `text.match(regExp)`: where the first match starts, in UTF-16 code
-  /// units, and its groups, the whole match first.
-  func firstMatch(in text: String) -> (index: Int, groups: [String?])? {
-    let result = Self.match.withLock { $0.call(withArguments: [source, flags, text]) }
-    guard let values = result?.toArray(), let index = values.first as? Int else { return nil }
-    return (index, values.dropFirst().map { $0 as? String })
-  }
-
-  private static let match = Mutex(
-    JSContext().evaluateScript(
-      """
-      const compiled = new Map();
-      (source, flags, text) => {
-        const key = `/${source}/${flags}`;
-        if (!compiled.has(key)) compiled.set(key, new RegExp(source, flags));
-        const match = text.match(compiled.get(key));
-        return match && [match.index, ...Array.from(match, (group) => group ?? null)];
-      }
-      """
-    )!
-  )
 }
 
 extension EditorState {
@@ -89,8 +68,8 @@ extension EditorState {
   func markdownShortcutCaret(after previous: EditorState, dirtyLeaves: OrderedSet<NodeKey>, compositionEnd: Bool)
     -> KeyPoint?
   {
-    guard let before = previous.selection, let after = selection, after.anchor == after.focus,
-      compositionEnd || !RangeSelection(after).is(before)
+    guard case .range(let before) = previous.selection, case .range(let after) = selection,
+      after.anchor == after.focus, compositionEnd || !RangeSelection(after).is(.range(before))
     else { return nil }
     let anchor = after.anchor
     guard nodes[anchor.key]?.isText == true, dirtyLeaves.contains(anchor.key) else { return nil }
@@ -129,7 +108,7 @@ extension Editor {
 }
 
 /// Where a transformer not ported yet matches, which ends the shortcut.
-private struct NotPortedYet: Error {}
+struct NotPortedYet: Error {}
 
 /// `registerMarkdownShortcuts` from @lexical/markdown, with the web editor's
 /// transformers.
@@ -252,6 +231,7 @@ extension Update {
     case .heading, .code: return type == SerializedQuoteNode.type
     case .unorderedList, .orderedList, .checkList:
       return type == SerializedQuoteNode.type || type == SerializedHeadingNode.type
+    case .table: return state.parent(of: parent).map(isCell) ?? false
     // They make something only of imported markdown.
     case .callout, .admonition, .details, .columns, .blockEquation, .blockEquationFence, .article,
       .placeholderBlock, .footnoteDefinition:
@@ -264,6 +244,10 @@ extension Update {
   private mutating func replaceBlock(
     _ transformer: MarkdownTransformer, _ parent: NodeKey, _ children: [NodeKey], _ groups: [String?]
   ) throws {
+    if let listType = transformer.name.listType {
+      var mode = ListReplaceMode.shortcut
+      return try listReplace(parent, listType, children, groups, &mode)
+    }
     switch transformer.name {
     case .heading:
       guard let hashes = groups[1], let tag = HeadingTag(rawValue: "h\(hashes.utf16.count)") else {
@@ -280,22 +264,35 @@ extension Update {
         try insert(line, before: parent)
       }
       selectNext(line)
-    case .unorderedList: try replaceBlock(parent, withListItemOf: .bullet, children, groups)
-    case .orderedList: try replaceBlock(parent, withListItemOf: .number, children, groups)
-    case .checkList: try replaceBlock(parent, withListItemOf: .check, children, groups)
+    case .table: try replaceWithTable(parent, groups)
     default:
       throw EditorError.unsupported("The markdown shortcut \(transformer.name.rawValue)")
     }
   }
 
+  /// How `listReplace` runs.
+  enum ListReplaceMode {
+    /// Typed, leaving the caret at the item's start.
+    case shortcut
+    /// Imported, with the columns its list levels open at, which a line's
+    /// indent is measured against. Blank lines between its list lines leave
+    /// the list open.
+    case `import`(columns: [Int])
+  }
+
   /// `listReplace`: the block becomes an item of the list of `listType`
   /// beside it, or of a new one, nested as deep as the spaces and tabs
   /// before the marker say.
-  private mutating func replaceBlock(
-    _ parent: NodeKey, withListItemOf listType: ListType, _ children: [NodeKey], _ groups: [String?]
+  mutating func listReplace(
+    _ parent: NodeKey, _ listType: ListType, _ children: [NodeKey], _ groups: [String?],
+    _ mode: inout ListReplaceMode
   ) throws {
-    let previous = state.previousSibling(of: parent)
+    var previous = state.previousSibling(of: parent)
     let next = state.nextSibling(of: parent)
+    if case .import = mode {
+      while let block = previous, isEmptyMarkdownParagraph(block) { previous = state.previousSibling(of: block) }
+      if !(previous.map(isList) ?? false) { mode = .import(columns: []) }
+    }
     let item = create(SerializedListItemNode.type)
     if listType == .check, case .listItem(var payload) = state[item].payload {
       payload.checked = groups[3]?.lowercased() == "x"
@@ -306,7 +303,10 @@ extension Update {
     // all of it as JavaScript's `\s` and `trim` count it.
     let firstMatchChar = groups[0].flatMap { $0.unicodeScalars.dropFirst(groups[1]?.unicodeScalars.count ?? 0).first }
     let marker = listType != .number ? firstMatchChar.flatMap { ListMarker(rawValue: String($0)) } : nil
-    let indent = Self.markdownIndent(groups[1] ?? "")
+    let indent =
+      if case .import(let open) = mode, !open.isEmpty { Self.columnIndent(open, groups[1] ?? "") } else {
+        Self.markdownIndent(groups[1] ?? "")
+      }
     if let next, self.listType(next) == listType {
       if let first = state.firstChild(of: next) {
         try insert(item, before: first)
@@ -324,7 +324,7 @@ extension Update {
       try replace(parent, with: list)
     }
     try append(item, children)
-    selectElement(item, 0, 0)
+    if case .shortcut = mode { selectElement(item, 0, 0) }
     if indent > 0 {
       try setIndent(item, indent)
       try retypeNestedList(item, listType, start: start)
@@ -333,7 +333,49 @@ extension Update {
       modifyList(list) { $0.setMarkdownMarker(marker) }
       knowsListMarker = true
     }
+    if case .import(var open) = mode {
+      Self.setOpenColumn(&open, indent, groups, listType)
+      mode = .import(columns: open)
+    }
   }
+
+  /// `getColumn`: the column the text after `whitespace` starts at, a tab
+  /// going on to the next multiple of four.
+  private static func column(_ whitespace: some StringProtocol) -> Int {
+    whitespace.unicodeScalars.reduce(0) { column, scalar in column + (scalar == "\t" ? 4 - column % 4 : 1) }
+  }
+
+  /// `getColumnIndent`: the innermost open level whose content column
+  /// `whitespace` reaches.
+  private static func columnIndent(_ columns: [Int], _ whitespace: String) -> Int {
+    let column = column(whitespace)
+    return (columns.lastIndex { column >= $0 }).map { $0 + 1 } ?? 0
+  }
+
+  /// `setOpenColumn`: the content column the line leaves open for the lines
+  /// under it, closing the levels it stepped back out of.
+  private static func setOpenColumn(_ columns: inout [Int], _ indent: Int, _ groups: [String?], _ listType: ListType) {
+    for level in columns.count..<max(indent, columns.count) { columns.append((level + 1) * 4) }
+    columns.removeLast(columns.count - indent)
+    columns.append(contentColumn(groups, listType))
+  }
+
+  /// `getContentColumn`: where the marker ends, a checklist's box being
+  /// content, and no more than four columns past where it starts.
+  private static func contentColumn(_ groups: [String?], _ listType: ListType) -> Int {
+    let whitespace = groups[1] ?? ""
+    var prefix = groups[0] ?? ""
+    if listType == .check, let bullet = bullet.firstMatch(in: MarkdownImport.string(prefix.utf16.dropFirst(whitespace.utf16.count))),
+      let marker = bullet.groups[0]
+    {
+      prefix = whitespace + marker
+    }
+    return min(column(prefix), column(whitespace) + 4)
+  }
+
+  /// `getContentColumn`'s `/^[-*+]\s/`, which UNORDERED_LIST's pattern
+  /// matches alike in text that starts past the whitespace.
+  private static let bullet = MarkdownTransformer.regExp(of: .unorderedList)
 
   /// `getIndent`: a level for each tab, and for each four spaces.
   private static func markdownIndent(_ whitespace: String) -> Int {
@@ -553,13 +595,24 @@ extension Update {
 }
 
 extension Array where Element == UTF16.CodeUnit {
-  /// A JavaScript string's `text[index]`, which is undefined out of range.
-  subscript(safe index: Int) -> UTF16.CodeUnit? {
-    indices.contains(index) ? self[index] : nil
-  }
-
   /// `isEqualSubString`.
   fileprivate func has(_ tag: [UTF16.CodeUnit], at start: Int) -> Bool {
     tag.indices.allSatisfy { self[safe: start + $0] == tag[$0] }
+  }
+}
+
+extension MarkdownTransformer.Name {
+  /// The type of list a list transformer makes, and nil for the rest.
+  var listType: ListType? {
+    switch self {
+    case .unorderedList: .bullet
+    case .orderedList: .number
+    case .checkList: .check
+    case .callout, .admonition, .details, .columns, .blockEquationFence, .tweet, .article, .placeholderBlock,
+      .blockEquation, .image, .equation, .literalDollar, .placeholderInline, .footnoteDefinition, .footnoteReference,
+      .table, .hr, .emoji, .heading, .quote, .code, .inlineCode, .boldItalicStar, .boldItalicUnderscore, .boldStar,
+      .boldUnderscore, .highlight, .italicStar, .italicUnderscore, .strikethrough, .link:
+      nil
+    }
   }
 }

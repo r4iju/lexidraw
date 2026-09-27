@@ -88,7 +88,7 @@ function resolveCallout(
 const calloutHead = (kind: CalloutKind, title: string) =>
   `> [!${kind.toUpperCase()}]${title ? ` ${title}` : ""}`;
 
-const FENCE = /^\s*(`{3,}|~{3,})/;
+export const FENCE = /^\s*(`{3,}|~{3,})/;
 
 /**
  * Walks `lines` from `from`, skipping fenced code, and answers the index of
@@ -195,7 +195,7 @@ export function createCalloutTransformer(
 
 const ADMONITION_START =
   /^(:{3,})\s*([A-Za-z][\w-]*)(?:\[(.*)\])?(?:\s+(.*?))?\s*$/;
-const ADMONITION_END = /^:{3,}\s*$/;
+export const ADMONITION_END = /^:{3,}\s*$/;
 
 /**
  * Docusaurus admonitions, `:::tip[Title]` down to a bare `:::`. They import
@@ -247,8 +247,8 @@ export function createAdmonitionTransformer(
   };
 }
 
-const DETAILS_OPEN = /<details(?:\s[^>]*)?>/gi;
-const DETAILS_CLOSE = /<\/details\s*>/gi;
+export const DETAILS_OPEN = /<details(?:\s[^>]*)?>/gi;
+export const DETAILS_CLOSE = /<\/details\s*>/gi;
 const SUMMARY = /^\s*<summary>(.*?)<\/summary>\s*/is;
 const count = (pattern: RegExp) => (line: string) =>
   line.match(pattern)?.length ?? 0;
@@ -351,7 +351,7 @@ export function createDetailsTransformer(
 }
 
 const COLUMNS_OPEN = /^\s*<columns(?:\s[^>]*)?>\s*$/i;
-const COLUMNS_CLOSE = /^\s*<\/columns\s*>\s*$/i;
+export const COLUMNS_CLOSE = /^\s*<\/columns\s*>\s*$/i;
 const COLUMN_OPEN = /^\s*<column(?:\s[^>]*)?>(.*)$/i;
 const COLUMN_CLOSE = /^(.*?)<\/column\s*>\s*$/i;
 

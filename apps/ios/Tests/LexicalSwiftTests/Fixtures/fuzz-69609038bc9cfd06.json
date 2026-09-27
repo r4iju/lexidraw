@@ -1,0 +1,692 @@
+{
+  "changes" : [
+    {
+      "changed" : [
+
+      ]
+    },
+    {
+      "changed" : [
+        [
+
+        ],
+        [
+          0,
+          1,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "changed" : [
+        [
+
+        ],
+        [
+          0,
+          1,
+          0
+        ],
+        [
+          0,
+          1,
+          0,
+          0
+        ],
+        [
+          0,
+          1,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          1,
+          0,
+          1
+        ],
+        [
+          0,
+          1,
+          0,
+          1,
+          0
+        ]
+      ]
+    },
+    {
+      "changed" : [
+        [
+
+        ],
+        [
+          0,
+          1,
+          0
+        ],
+        [
+          0,
+          1,
+          0,
+          1
+        ],
+        [
+          0,
+          1,
+          0,
+          2
+        ],
+        [
+          0,
+          1,
+          0,
+          2,
+          0
+        ]
+      ]
+    },
+    {
+      "changed" : [
+
+      ]
+    },
+    {
+      "changed" : [
+
+      ]
+    },
+    {
+      "changed" : [
+        [
+
+        ],
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          1,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          2
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          2,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          2,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          1
+        ]
+      ]
+    },
+    {
+      "changed" : [
+
+      ]
+    }
+  ],
+  "commands" : [
+    {
+      "anchor" : {
+        "offset" : 0,
+        "path" : [
+          0,
+          1,
+          0,
+          0,
+          0
+        ],
+        "type" : "text"
+      },
+      "focus" : {
+        "offset" : 0,
+        "path" : [
+          0,
+          1,
+          0,
+          0,
+          0
+        ],
+        "type" : "text"
+      },
+      "type" : "setSelection"
+    },
+    {
+      "text" : "*",
+      "type" : "insertText"
+    },
+    {
+      "type" : "insertParagraph"
+    },
+    {
+      "type" : "insertParagraph"
+    },
+    {
+      "backward" : false,
+      "type" : "tab"
+    },
+    {
+      "atCellEdge" : true,
+      "extend" : true,
+      "key" : "down",
+      "native" : {
+        "offset" : 2,
+        "path" : [
+          0,
+          1,
+          0,
+          2,
+          0
+        ],
+        "type" : "text"
+      },
+      "type" : "arrow"
+    },
+    {
+      "columns" : 1,
+      "rows" : 3,
+      "type" : "insertTable"
+    },
+    {
+      "anchor" : {
+        "offset" : 0,
+        "path" : [
+          0,
+          0,
+          0,
+          1
+        ],
+        "type" : "element"
+      },
+      "focus" : {
+        "offset" : 0,
+        "path" : [
+          0,
+          1,
+          0,
+          0,
+          0
+        ],
+        "type" : "text"
+      },
+      "type" : "setSelection"
+    }
+  ],
+  "expected" : {
+    "selection" : {
+      "anchor" : [
+        0,
+        0,
+        0
+      ],
+      "cells" : [
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          2,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          1,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          1,
+          0
+        ]
+      ],
+      "focus" : [
+        0,
+        1,
+        0
+      ],
+      "table" : [
+        0
+      ]
+    },
+    "state" : {
+      "root" : {
+        "children" : [
+          {
+            "children" : [
+              {
+                "children" : [
+                  {
+                    "backgroundColor" : null,
+                    "children" : [
+                      {
+                        "children" : [
+                          {
+                            "children" : [
+                              {
+                                "backgroundColor" : null,
+                                "children" : [
+                                  {
+                                    "children" : [
+
+                                    ],
+                                    "direction" : null,
+                                    "format" : "",
+                                    "indent" : 0,
+                                    "textFormat" : 0,
+                                    "textStyle" : "",
+                                    "type" : "paragraph",
+                                    "version" : 1
+                                  }
+                                ],
+                                "colSpan" : 1,
+                                "direction" : null,
+                                "format" : "",
+                                "headerState" : 1,
+                                "indent" : 0,
+                                "rowSpan" : 1,
+                                "type" : "tablecell",
+                                "version" : 1
+                              }
+                            ],
+                            "direction" : null,
+                            "format" : "",
+                            "indent" : 0,
+                            "type" : "tablerow",
+                            "version" : 1
+                          },
+                          {
+                            "children" : [
+                              {
+                                "backgroundColor" : null,
+                                "children" : [
+                                  {
+                                    "children" : [
+
+                                    ],
+                                    "direction" : null,
+                                    "format" : "",
+                                    "indent" : 0,
+                                    "textFormat" : 0,
+                                    "textStyle" : "",
+                                    "type" : "paragraph",
+                                    "version" : 1
+                                  }
+                                ],
+                                "colSpan" : 1,
+                                "direction" : null,
+                                "format" : "",
+                                "headerState" : 0,
+                                "indent" : 0,
+                                "rowSpan" : 1,
+                                "type" : "tablecell",
+                                "version" : 1
+                              }
+                            ],
+                            "direction" : null,
+                            "format" : "",
+                            "indent" : 0,
+                            "type" : "tablerow",
+                            "version" : 1
+                          },
+                          {
+                            "children" : [
+                              {
+                                "backgroundColor" : null,
+                                "children" : [
+                                  {
+                                    "children" : [
+
+                                    ],
+                                    "direction" : null,
+                                    "format" : "",
+                                    "indent" : 0,
+                                    "textFormat" : 0,
+                                    "textStyle" : "",
+                                    "type" : "paragraph",
+                                    "version" : 1
+                                  }
+                                ],
+                                "colSpan" : 1,
+                                "direction" : null,
+                                "format" : "",
+                                "headerState" : 0,
+                                "indent" : 0,
+                                "rowSpan" : 1,
+                                "type" : "tablecell",
+                                "version" : 1
+                              }
+                            ],
+                            "direction" : null,
+                            "format" : "",
+                            "indent" : 0,
+                            "type" : "tablerow",
+                            "version" : 1
+                          }
+                        ],
+                        "direction" : null,
+                        "format" : "",
+                        "indent" : 0,
+                        "type" : "table",
+                        "version" : 1
+                      },
+                      {
+                        "children" : [
+
+                        ],
+                        "direction" : null,
+                        "format" : "",
+                        "indent" : 0,
+                        "textFormat" : 0,
+                        "textStyle" : "",
+                        "type" : "paragraph",
+                        "version" : 1
+                      }
+                    ],
+                    "colSpan" : 1,
+                    "direction" : null,
+                    "format" : "",
+                    "headerState" : 0,
+                    "indent" : 0,
+                    "rowSpan" : 1,
+                    "type" : "tablecell",
+                    "version" : 1
+                  }
+                ],
+                "direction" : null,
+                "format" : "",
+                "indent" : 0,
+                "type" : "tablerow",
+                "version" : 1
+              },
+              {
+                "children" : [
+                  {
+                    "backgroundColor" : "#eee",
+                    "children" : [
+                      {
+                        "children" : [
+                          {
+                            "detail" : 0,
+                            "format" : 32,
+                            "mode" : "normal",
+                            "style" : "",
+                            "text" : "*",
+                            "type" : "text",
+                            "version" : 1
+                          }
+                        ],
+                        "direction" : null,
+                        "format" : "",
+                        "indent" : 1,
+                        "textFormat" : 32,
+                        "textStyle" : "",
+                        "type" : "paragraph",
+                        "version" : 1
+                      },
+                      {
+                        "children" : [
+
+                        ],
+                        "direction" : null,
+                        "format" : "",
+                        "indent" : 0,
+                        "textFormat" : 32,
+                        "textStyle" : "",
+                        "type" : "paragraph",
+                        "version" : 1
+                      },
+                      {
+                        "children" : [
+                          {
+                            "detail" : 0,
+                            "format" : 32,
+                            "mode" : "normal",
+                            "style" : "",
+                            "text" : "-=",
+                            "type" : "text",
+                            "version" : 1
+                          }
+                        ],
+                        "direction" : null,
+                        "format" : "",
+                        "indent" : 0,
+                        "textFormat" : 32,
+                        "textStyle" : "",
+                        "type" : "paragraph",
+                        "version" : 1
+                      }
+                    ],
+                    "colSpan" : 1,
+                    "direction" : null,
+                    "format" : "",
+                    "headerState" : 1,
+                    "indent" : 0,
+                    "rowSpan" : 1,
+                    "type" : "tablecell",
+                    "version" : 1
+                  }
+                ],
+                "direction" : null,
+                "format" : "",
+                "indent" : 0,
+                "type" : "tablerow",
+                "version" : 1
+              }
+            ],
+            "colWidths" : [
+              92.5
+            ],
+            "direction" : null,
+            "format" : "",
+            "indent" : 0,
+            "type" : "table",
+            "version" : 1
+          },
+          {
+            "type" : "horizontalrule",
+            "version" : 1
+          }
+        ],
+        "direction" : null,
+        "format" : "",
+        "indent" : 0,
+        "type" : "root",
+        "version" : 1
+      }
+    }
+  },
+  "start" : {
+    "root" : {
+      "children" : [
+        {
+          "children" : [
+            {
+              "children" : [
+                {
+                  "backgroundColor" : null,
+                  "children" : [
+                    {
+                      "children" : [
+
+                      ],
+                      "direction" : null,
+                      "format" : "",
+                      "indent" : 0,
+                      "textFormat" : 0,
+                      "textStyle" : "",
+                      "type" : "paragraph",
+                      "version" : 1
+                    }
+                  ],
+                  "colSpan" : 1,
+                  "direction" : null,
+                  "format" : "",
+                  "headerState" : 0,
+                  "indent" : 0,
+                  "rowSpan" : 1,
+                  "type" : "tablecell",
+                  "version" : 1
+                }
+              ],
+              "direction" : null,
+              "format" : "",
+              "indent" : 0,
+              "type" : "tablerow",
+              "version" : 1
+            },
+            {
+              "children" : [
+                {
+                  "backgroundColor" : "#eee",
+                  "children" : [
+                    {
+                      "children" : [
+                        {
+                          "detail" : 0,
+                          "format" : 32,
+                          "mode" : "normal",
+                          "style" : "",
+                          "text" : "-=",
+                          "type" : "text",
+                          "version" : 1
+                        }
+                      ],
+                      "direction" : null,
+                      "format" : "",
+                      "indent" : 1,
+                      "textFormat" : 32,
+                      "textStyle" : "",
+                      "type" : "paragraph",
+                      "version" : 1
+                    }
+                  ],
+                  "colSpan" : 1,
+                  "direction" : null,
+                  "format" : "",
+                  "headerState" : 1,
+                  "indent" : 0,
+                  "rowSpan" : 1,
+                  "type" : "tablecell",
+                  "version" : 1
+                }
+              ],
+              "direction" : null,
+              "format" : "",
+              "indent" : 0,
+              "type" : "tablerow",
+              "version" : 1
+            }
+          ],
+          "colWidths" : [
+            92.5
+          ],
+          "direction" : null,
+          "format" : "",
+          "indent" : 0,
+          "type" : "table",
+          "version" : 1
+        },
+        {
+          "type" : "horizontalrule",
+          "version" : 1
+        }
+      ],
+      "direction" : null,
+      "format" : "",
+      "indent" : 0,
+      "type" : "root",
+      "version" : 1
+    }
+  }
+}

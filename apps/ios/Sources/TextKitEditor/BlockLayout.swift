@@ -1,4 +1,5 @@
 #if canImport(UIKit)
+import CSSValues
 import EditorModelInterface
 import UIKit
 
@@ -141,7 +142,9 @@ import UIKit
     switch document.kind(ofBlock: index) {
     case .embedded where block == .rule: return typesetting.typography.rule.width
     case .embedded: return PlaceholderView.height
-    case .table(let cells): return CGFloat(cells.count) * (typesetting.lineHeight(block) + 2 * TableView.padding) + 1
+    case .table(let table):
+      let style = typesetting.typography.table
+      return CGFloat(table.rows.count) * (typesetting.lineHeight(block) + 2 * style.paddingY + style.border) + style.border
     case .text:
       let characterWidth = typesetting.fontSize(block) * 0.5
       let perLine = max(width / characterWidth, 1)
@@ -179,14 +182,23 @@ import UIKit
     let text = text(ofBlock: index)
     let block: any LaidOutBlock =
       switch kind {
-      case .text: TextBlock(text: text, width: width)
-      case .table: TableBlock(text: text, kind: kind, width: width) { [weak self] in self?.onScrollSideways?() }
+      case .text: TextBlock(text: text, width: width, selectedOutline: typesetting.typography.rule.selected)
+      case .table:
+        TableBlock(
+          text: text, kind: kind, width: width, style: typesetting.typography.table,
+          selectedOutline: typesetting.typography.rule.selected
+        ) { [weak self] in
+          self?.onScrollSideways?()
+        }
       case .embedded where styled(index) == .rule:
         RuleBlock(
           rule: typesetting.typography.rule, caretHeight: UIFont.preferredFont(forTextStyle: .body).lineHeight, width: width)
       case .embedded(let type): EmbedBlock(type: type, width: width)
       }
     laidOut[index] = block
+    showTableSelection(in: block, at: index)
+    showRuleSelection(in: block, at: index)
+    showSelectedCharacters(in: block, at: index)
     measure(index, block)
     return block
   }
@@ -251,6 +263,47 @@ import UIKit
 
   func redraw() {
     for block in laidOut.values { block.redraw() }
+  }
+
+  /// The cells of the table block a table selection has, drawn as the web
+  /// draws them.
+  var tableSelection: (block: Int, cells: Set<TableView.CellIndex>)? {
+    didSet {
+      for (index, block) in laidOut { showTableSelection(in: block, at: index) }
+    }
+  }
+
+  private func showTableSelection(in block: any LaidOutBlock, at index: Int) {
+    guard let table = block as? TableBlock else { return }
+    table.selectedCells = tableSelection?.block == index ? tableSelection?.cells ?? [] : []
+  }
+
+  /// The rule blocks selected whole, outlined as the web outlines them.
+  var selectedRules: Set<Int> = [] {
+    didSet {
+      guard selectedRules != oldValue else { return }
+      for (index, block) in laidOut { showRuleSelection(in: block, at: index) }
+    }
+  }
+
+  private func showRuleSelection(in block: any LaidOutBlock, at index: Int) {
+    (block as? RuleBlock)?.isSelected = selectedRules.contains(index)
+  }
+
+  /// Where nodes selected whole stand in a line of text, outlined as the web
+  /// outlines a selected rule.
+  var selectedCharacters: Set<Int> = [] {
+    didSet {
+      guard selectedCharacters != oldValue else { return }
+      for (index, block) in laidOut { showSelectedCharacters(in: block, at: index) }
+    }
+  }
+
+  private func showSelectedCharacters(in block: any LaidOutBlock, at index: Int) {
+    let range = document.range(ofBlock: index)
+    let offsets = selectedCharacters.filter { NSLocationInRange($0, range) }.map { $0 - range.location }
+    (block as? TextBlock)?.selectedCharacters = offsets
+    (block as? TableBlock)?.selectedCharacters = offsets
   }
 
   // MARK: Geometry
@@ -326,6 +379,42 @@ import UIKit
     let index = blockIndex(atY: point.y)
     return block(index).checklistItem(at: CGPoint(x: point.x, y: point.y - top(index))).map { [index] + $0.path }
   }
+
+  /// Whether `offset` is on the first line of its table cell, going up, or
+  /// on the last, going down. Outside a table it isn't.
+  func isAtCellEdge(_ offset: Int, _ direction: NSTextSelectionNavigation.Direction) -> Bool {
+    guard document.blockCount > 0 else { return false }
+    let (_, block, _, local) = locate(offset)
+    return (block as? TableBlock)?.isAtCellEdge(local, direction) ?? false
+  }
+
+  /// A caret at the root before the block at `index`, where a table is
+  /// beside it: under the table before it, else over the one after it. It
+  /// lies flat, as the block cursor of Lexical's playground does, since the
+  /// document's theme gives it none (`blockCursor`); nil beside no table.
+  func caret(beforeBlock index: Int) -> CGRect? {
+    let isTable = { (index: Int) in
+      guard (0..<self.document.blockCount).contains(index), case .table = self.document.kind(ofBlock: index) else {
+        return false
+      }
+      return true
+    }
+    let gap = index > 0 ? spaceAfter(index - 1) : 0
+    let y: CGFloat
+    if isTable(index - 1) {
+      y = top(index - 1) + block(index - 1).height + gap / 2 - Self.flatCaretHeight / 2
+    } else if isTable(index) {
+      y = top(index) - gap / 2 - Self.flatCaretHeight / 2
+    } else {
+      return nil
+    }
+    return CGRect(x: 0, y: y, width: Self.flatCaretWidth, height: Self.flatCaretHeight)
+  }
+
+  /// The web draws no caret beside a table or rule, so this is the
+  /// playground's block cursor, 20px wide and a caret thick.
+  private static let flatCaretWidth: CGFloat = 20
+  private static let flatCaretHeight: CGFloat = 2
 }
 
 /// A block laid out, with its view. Offsets are into the block; geometry is
@@ -356,11 +445,30 @@ extension LaidOutBlock {
 private final class TextBlock: LaidOutBlock {
   private let box: TextBox
   private let drawing = BoxView()
+  private let selectedOutline: DocumentTypography.Outline
+  private var outlines: [OutlineView] = []
 
-  init(text: NSAttributedString, width: CGFloat) {
+  init(text: NSAttributedString, width: CGFloat, selectedOutline: DocumentTypography.Outline) {
     box = TextBox(text, width: width)
+    self.selectedOutline = selectedOutline
     drawing.box = box
     drawing.border = Self.border(text)
+  }
+
+  /// The offsets of the attachments to outline.
+  var selectedCharacters: [Int] = [] {
+    didSet { placeOutlines() }
+  }
+
+  private func placeOutlines() {
+    let frames = selectedCharacters.sorted().compactMap(box.attachmentFrame)
+    while outlines.count < frames.count {
+      let outline = OutlineView(selectedOutline)
+      drawing.addSubview(outline)
+      outlines.append(outline)
+    }
+    while outlines.count > frames.count { outlines.removeLast().removeFromSuperview() }
+    for (outline, frame) in zip(outlines, frames) { outline.surround(frame) }
   }
 
   var view: UIView { drawing }
@@ -373,13 +481,18 @@ private final class TextBlock: LaidOutBlock {
     box.set(text)
     drawing.border = Self.border(text)
     drawing.setNeedsDisplay()
+    placeOutlines()
   }
 
   private static func border(_ text: NSAttributedString) -> LeadingBorder? {
     text.length > 0 ? text.attribute(.leadingBorder, at: 0, effectiveRange: nil) as? LeadingBorder : nil
   }
 
-  func redraw() { drawing.setNeedsDisplay() }
+  func redraw() {
+    drawing.setNeedsDisplay()
+    for outline in outlines { outline.redraw() }
+  }
+
   func segments(_ range: NSRange) -> [CGRect] { box.segments(range) }
   func offset(closestTo point: CGPoint) -> Int { box.offset(closestTo: point) }
   func offset(movingVerticallyFrom offset: Int, _ direction: NSTextSelectionNavigation.Direction, x: CGFloat) -> Int? {
@@ -417,22 +530,33 @@ private final class TableBlock: LaidOutBlock {
   private let table: TableView
   private let holder: TableHolder
 
-  init(text: NSAttributedString, kind: DocumentText.BlockKind, width: CGFloat, onScroll: @escaping () -> Void) {
+  init(
+    text: NSAttributedString, kind: DocumentText.BlockKind, width: CGFloat, style: DocumentTypography.Table,
+    selectedOutline: DocumentTypography.Outline, onScroll: @escaping () -> Void
+  ) {
     self.kind = kind
-    table = TableView(cells: Self.cells(text, kind))
+    table = TableView(
+      cells: Self.cells(text, kind), columnWidths: Self.table(kind)?.columnWidths, width: width, style: style,
+      selectedOutline: selectedOutline)
     table.onScroll = onScroll
     holder = TableHolder(table)
-    table.frame = CGRect(x: 0, y: 0, width: width, height: table.height)
   }
 
-  private var ranges: [[NSRange]] {
-    if case .table(let cells) = kind { cells } else { [] }
+  private static func table(_ kind: DocumentText.BlockKind) -> DocumentText.Table? {
+    if case .table(let table) = kind { table } else { nil }
   }
 
-  private static func cells(_ text: NSAttributedString, _ kind: DocumentText.BlockKind) -> [[NSAttributedString]] {
-    guard case .table(let cells) = kind else { return [] }
-    return cells.map { row in
-      row.map { text.attributedSubstring(from: NSRange(location: $0.location, length: min($0.length + 1, text.length - $0.location))) }
+  private var rows: [[DocumentText.Table.Cell]] { Self.table(kind)?.rows ?? [] }
+
+  private static func cells(_ text: NSAttributedString, _ kind: DocumentText.BlockKind) -> [[TableView.Cell]] {
+    (table(kind)?.rows ?? []).map { row in
+      row.map { cell in
+        let range = NSRange(location: cell.range.location, length: min(cell.range.length + 1, text.length - cell.range.location))
+        return TableView.Cell(
+          text: text.attributedSubstring(from: range), colSpan: cell.colSpan, rowSpan: cell.rowSpan,
+          isHeader: cell.isHeader, background: cell.backgroundColor.flatMap(CSSColor.init).map { UIColor(css: $0) },
+          width: cell.width.map { CGFloat($0) }, verticalAlign: cell.verticalAlign)
+      }
     }
   }
 
@@ -442,32 +566,56 @@ private final class TableBlock: LaidOutBlock {
 
   func set(text: NSAttributedString, kind: DocumentText.BlockKind, width: CGFloat) {
     self.kind = kind
-    table.set(cells: Self.cells(text, kind))
-    table.frame = CGRect(x: 0, y: 0, width: width, height: table.height)
+    table.set(cells: Self.cells(text, kind), columnWidths: Self.table(kind)?.columnWidths, width: width)
+    showSelectedCharacters()
   }
 
   func redraw() { table.redraw() }
 
-  /// The cell `offset` is in, the end of each cell included in it.
-  private func cell(at offset: Int) -> (row: Int, column: Int, range: NSRange)? {
-    for (row, cells) in ranges.enumerated() {
-      for (column, range) in cells.enumerated() where offset <= NSMaxRange(range) { return (row, column, range) }
-    }
-    guard let row = ranges.indices.last, let column = ranges[row].indices.last else { return nil }
-    return (row, column, ranges[row][column])
+  var selectedCells: Set<TableView.CellIndex> {
+    get { table.selectedCells }
+    set { table.selectedCells = newValue }
   }
+
+  /// The offsets of the attachments to outline.
+  var selectedCharacters: [Int] = [] {
+    didSet { showSelectedCharacters() }
+  }
+
+  private func showSelectedCharacters() {
+    var inCells: [TableView.CellIndex: [Int]] = [:]
+    for offset in selectedCharacters {
+      guard let (cell, local) = cell(at: offset) else { continue }
+      inCells[cell, default: []].append(local)
+    }
+    table.selectedCharacters = inCells
+  }
+
+  /// The cell `offset` is in, the end of each cell included in it, and the
+  /// offset in its text.
+  private func cell(at offset: Int) -> (cell: TableView.CellIndex, local: Int)? {
+    for (row, cells) in rows.enumerated() {
+      for (index, cell) in cells.enumerated() where offset <= NSMaxRange(cell.range) {
+        return (TableView.CellIndex(row: row, index: index), offset - cell.range.location)
+      }
+    }
+    guard let row = rows.lastIndex(where: { !$0.isEmpty }), let last = rows[row].last else { return nil }
+    return (TableView.CellIndex(row: row, index: rows[row].count - 1), offset - last.range.location)
+  }
+
+  private func range(of cell: TableView.CellIndex) -> NSRange { rows[cell.row][cell.index].range }
 
   func segments(_ range: NSRange) -> [CGRect] {
     var frames: [CGRect] = []
-    for (row, cells) in ranges.enumerated() {
-      for (column, cell) in cells.enumerated() {
-        let start = max(range.location, cell.location)
-        let end = min(NSMaxRange(range), NSMaxRange(cell))
-        guard start < end || (range.length == 0 && self.cell(at: range.location).map({ $0.row == row && $0.column == column }) == true)
-        else { continue }
-        let origin = table.textOrigin(row: row, column: column)
-        let local = NSRange(location: start - cell.location, length: max(end - start, 0))
-        frames += table.cells[row][column].segments(local).map { $0.offsetBy(dx: origin.x, dy: origin.y) }
+    let caretCell = range.length == 0 ? cell(at: range.location)?.cell : nil
+    for (row, cells) in rows.enumerated() {
+      for (index, cell) in cells.enumerated() {
+        let start = max(range.location, cell.range.location)
+        let end = min(NSMaxRange(range), NSMaxRange(cell.range))
+        let at = TableView.CellIndex(row: row, index: index)
+        guard start < end || caretCell == at else { continue }
+        let local = NSRange(location: start - cell.range.location, length: max(end - start, 0))
+        frames += table.segments(local, in: at)
       }
     }
     // A caret or selection shows only where the table does.
@@ -479,33 +627,32 @@ private final class TableBlock: LaidOutBlock {
   }
 
   func reveal(_ offset: Int) {
-    guard let (row, column, _) = cell(at: offset) else { return }
-    table.scrollToShow(row: row, column: column)
+    guard let (cell, _) = cell(at: offset) else { return }
+    table.scrollToShow(cell)
   }
 
   func offset(closestTo point: CGPoint) -> Int {
-    guard let (row, column) = table.cell(at: point) else { return 0 }
-    let origin = table.textOrigin(row: row, column: column)
-    let local = table.cells[row][column].offset(closestTo: CGPoint(x: point.x - origin.x, y: point.y - origin.y))
-    return ranges[row][column].location + local
+    guard let (cell, local) = table.offset(closestTo: point) else { return 0 }
+    return range(of: cell).location + local
   }
 
   /// Up and down move through a cell's lines, then to the cell above or
   /// below, then out of the table.
   func offset(movingVerticallyFrom offset: Int, _ direction: NSTextSelectionNavigation.Direction, x: CGFloat) -> Int? {
-    guard let (row, column, range) = cell(at: offset) else { return nil }
-    let origin = table.textOrigin(row: row, column: column)
-    if let moved = table.cells[row][column].offset(movingVerticallyFrom: offset - range.location, direction, x: x - origin.x) {
-      return range.location + moved
-    }
-    let next = direction == .up ? row - 1 : row + 1
-    guard table.cellFrames.indices.contains(next), let frame = table.cellFrames[next].first else { return nil }
-    return self.offset(closestTo: CGPoint(x: x, y: direction == .up ? frame.maxY - TableView.padding - 1 : frame.minY + TableView.padding + 1))
+    guard let (cell, local) = cell(at: offset),
+      let (moved, movedLocal) = table.offset(movingVerticallyFrom: local, in: cell, direction, x: x)
+    else { return nil }
+    return range(of: moved).location + movedLocal
+  }
+
+  func isAtCellEdge(_ offset: Int, _ direction: NSTextSelectionNavigation.Direction) -> Bool {
+    guard let (cell, local) = cell(at: offset) else { return false }
+    return table.isOnEdgeLine(local, of: cell, direction)
   }
 
   func lineBoundary(at offset: Int, backward: Bool) -> Int {
-    guard let (row, column, range) = cell(at: offset) else { return offset }
-    return range.location + table.cells[row][column].lineBoundary(at: offset - range.location, backward: backward)
+    guard let (cell, local) = cell(at: offset) else { return offset }
+    return range(of: cell).location + table.lineBoundary(at: local, in: cell, backward: backward)
   }
 }
 
@@ -548,17 +695,29 @@ private final class EmbedBlock: LaidOutBlock {
 }
 
 /// A horizontal rule, the caret before it or after it as tall as a line of
-/// text.
+/// text, outlined where it's selected.
 private final class RuleBlock: LaidOutBlock {
   private let container = UIView()
   private let line = UIView()
+  private let outline: OutlineView
   private let caretHeight: CGFloat
 
   init(rule: DocumentTypography.Rule, caretHeight: CGFloat, width: CGFloat) {
     self.caretHeight = caretHeight
+    outline = OutlineView(rule.selected)
     line.backgroundColor = rule.color.color
     line.frame = CGRect(x: 0, y: 0, width: width, height: rule.width)
     container.addSubview(line)
+    outline.isHidden = true
+    container.addSubview(outline)
+    outline.surround(line.frame)
+  }
+
+  var isSelected = false {
+    didSet {
+      outline.isHidden = !isSelected
+      redraw()
+    }
   }
 
   var view: UIView { container }
@@ -568,9 +727,10 @@ private final class RuleBlock: LaidOutBlock {
 
   func set(text: NSAttributedString, kind: DocumentText.BlockKind, width: CGFloat) {
     line.frame.size.width = width
+    outline.surround(line.frame)
   }
 
-  func redraw() {}
+  func redraw() { outline.redraw() }
 
   func segments(_ range: NSRange) -> [CGRect] {
     let frame = line.frame.insetBy(dx: 0, dy: (line.frame.height - caretHeight) / 2)
@@ -583,5 +743,30 @@ private final class RuleBlock: LaidOutBlock {
     nil
   }
   func lineBoundary(at offset: Int, backward: Bool) -> Int { backward ? 0 : 1 }
+}
+/// The web's outline around a node selected whole.
+private final class OutlineView: UIView {
+  private let outline: DocumentTypography.Outline
+
+  init(_ outline: DocumentTypography.Outline) {
+    self.outline = outline
+    super.init(frame: .zero)
+    isUserInteractionEnabled = false
+    layer.borderWidth = outline.width
+    redraw()
+  }
+
+  required init?(coder: NSCoder) { fatalError("OutlineView is made in code") }
+
+  /// Outlines `frame`, as far out from it as the web's `outline-offset`.
+  func surround(_ frame: CGRect) {
+    let reach = outline.offset + outline.width
+    self.frame = frame.insetBy(dx: -reach, dy: -reach)
+  }
+
+  /// A layer's border takes a colour for one appearance.
+  func redraw() {
+    layer.borderColor = outline.color.color.resolvedColor(with: traitCollection).cgColor
+  }
 }
 #endif

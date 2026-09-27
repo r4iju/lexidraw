@@ -100,6 +100,9 @@ import UIKit
     let keys = view.keyCommands ?? []
     #expect(!keys.contains { [UIKeyCommand.inputDelete, "\u{7F}", "\r", "k"].contains($0.input) })
     #expect(keys.contains { $0.input == UIKeyCommand.inputLeftArrow && $0.modifierFlags.isEmpty })
+    let whole = try #require(view.textRange(from: view.beginningOfDocument, to: view.endOfDocument))
+    let menu = view.editMenu(for: whole, suggestedActions: [])
+    #expect(menu?.children.contains { $0.title == "Table" } != true)
   }
 
   /// VoiceOver names a block the editor can't show yet by its type, where
@@ -138,6 +141,181 @@ import UIKit
     view.unmarkText()
 
     #expect(try model.snapshot().state["root"]?["children"]?.arrayValue?.first?["type"] == "heading")
+  }
+
+  /// Tab moves to the end of the next table cell, and Shift-Tab to the
+  /// end of the one before, as @lexical/table's Tab does.
+  @Test func tabMovesBetweenTableCells() throws {
+    let (view, model) = try tableView(caretAfter: "one")
+    try press("\t", [], in: view)
+    view.insertText("!")
+    try press("\t", .shift, in: view)
+    view.insertText("?")
+
+    let rows = try model.snapshot().state["root"]?["children"]?.arrayValue?.first?["children"]?.arrayValue ?? []
+    let texts: [[String]] = rows.map { row in
+      (row["children"]?.arrayValue ?? []).map { cell in
+        let paragraph = cell["children"]?.arrayValue?.first
+        return paragraph?["children"]?.arrayValue?.first?["text"]?.stringValue ?? ""
+      }
+    }
+    #expect(texts == [["one?", "two!"]])
+  }
+
+  /// Outside a table, Tab types a tab, as the key did before tables took it.
+  @Test func tabOutsideATableTypesATab() throws {
+    #expect(try text(afterPressing: "\t", [], in: "one", caretAt: 3) == "one\t")
+  }
+
+  /// Over selected cells, Tab is taken by nothing, so it types nothing and
+  /// the cells stay selected.
+  @Test func tabOverSelectedCellsLeavesThemSelected() throws {
+    let (view, model) = try tableView(caretAfter: "one")
+    let two = try #require(view.position(from: view.beginningOfDocument, offset: 5))
+    view.selectedTextRange = view.textRange(from: view.beginningOfDocument, to: two)
+    let selected = try model.selection()
+    guard case .table(table: [0], _, _, _) = selected else {
+      Issue.record("Expected cells selected, not \(String(describing: selected))")
+      return
+    }
+
+    try press("\t", [], in: view)
+
+    #expect(try model.selection() == selected)
+  }
+
+  /// Shift and an arrow over selected cells move the focus a whole cell, as
+  /// @lexical/table's arrow keys do, so the cells selected grow and shrink.
+  @Test func shiftArrowsMoveSelectedCellsFocusACellAtATime() throws {
+    let (view, model) = try tableView([["one", "two", "six"], ["three", "four", "ten"]], caretAfter: "one")
+    try press(UIKeyCommand.inputRightArrow, .shift, in: view)
+    #expect(try selectedCells(model) == [[0, 0, 0], [0, 0, 1]])
+    try press(UIKeyCommand.inputRightArrow, .shift, in: view)
+    #expect(try selectedCells(model) == [[0, 0, 0], [0, 0, 1], [0, 0, 2]])
+    try press(UIKeyCommand.inputDownArrow, .shift, in: view)
+    #expect(try selectedCells(model) == [[0, 0, 0], [0, 0, 1], [0, 0, 2], [0, 1, 0], [0, 1, 1], [0, 1, 2]])
+    try press(UIKeyCommand.inputLeftArrow, .shift, in: view)
+    #expect(try selectedCells(model) == [[0, 0, 0], [0, 0, 1], [0, 1, 0], [0, 1, 1]])
+  }
+
+  /// Selected cells keep a handle in the anchor cell and one in the focus
+  /// cell, and a handle moved to another cell selects what the model makes
+  /// of the range it gives.
+  @Test func selectedCellsKeepHandlesThatChangeWhichAreSelected() throws {
+    let (view, model) = try tableView([["one", "two"], ["three", "four"]], caretAfter: "one")
+    let whole = try #require(view.textRange(from: view.beginningOfDocument, to: view.endOfDocument))
+    let text = try #require(view.text(in: whole)) as NSString
+    func offset(_ word: String, _ within: Int) -> Int { text.range(of: word).location + within }
+    func position(_ offset: Int) throws -> UITextPosition {
+      try #require(view.position(from: view.beginningOfDocument, offset: offset))
+    }
+    func select(_ from: Int, _ to: Int) throws {
+      view.selectedTextRange = view.textRange(from: try position(from), to: try position(to))
+    }
+    try select(offset("one", 0), offset("two", 1))
+    #expect(try selectedCells(model) == [[0, 0, 0], [0, 0, 1]])
+
+    let selected = try #require(view.selectedTextRange)
+    let rects = view.selectionRects(for: selected)
+    let start = try #require(rects.first { $0.containsStart }).rect
+    let end = try #require(rects.first { $0.containsEnd }).rect
+    let startCaret = view.caretRect(for: try position(offset("one", 0)))
+    let endCaret = view.caretRect(for: try position(offset("two", 3)))
+    #expect(start.origin == startCaret.origin && start.height == startCaret.height)
+    #expect(end.origin == endCaret.origin && end.height == endCaret.height)
+
+    try select(offset("one", 0), offset("four", 2))
+    #expect(try selectedCells(model) == [[0, 0, 0], [0, 0, 1], [0, 1, 0], [0, 1, 1]])
+    try select(offset("one", 0), offset("three", 2))
+    #expect(try selectedCells(model) == [[0, 0, 0], [0, 1, 0]])
+  }
+
+  /// Down from a table's last row, at the end of the document, leaves the
+  /// table: the caret is beside it at the root, and drawn under it.
+  @Test func downLeavesATableAtTheEndOfTheDocument() throws {
+    let (view, model) = try tableView([["one"], ["two"]], caretAfter: "two")
+    let inCell = view.caretRect(for: try #require(view.selectedTextRange).start)
+    try press(UIKeyCommand.inputDownArrow, [], in: view)
+
+    let selection = try #require(try model.selection())
+    #expect(selection.isCollapsed && selection.focus == Point(path: [], offset: 1, type: .element))
+    let caret = view.caretRect(for: try #require(view.selectedTextRange).start)
+    #expect(caret.minY > inCell.maxY)
+    #expect(caret.width > caret.height)
+
+    try press(UIKeyCommand.inputUpArrow, [], in: view)
+    #expect(view.caretRect(for: try #require(view.selectedTextRange).start) == inCell)
+  }
+
+  /// A tap past a cell's text, which UIKit resolves through the character
+  /// there, keeps the caret in the cell rather than taking the newline that
+  /// ends it and landing in the next.
+  @Test func theCharacterPastACellsTextIsInTheCell() throws {
+    let (view, _) = try tableView([["a", "b"]], caretAfter: "b")
+    let end = try #require(view.position(from: view.beginningOfDocument, offset: 1))
+    let caret = view.caretRect(for: end)
+
+    let range = try #require(view.characterRange(at: CGPoint(x: caret.maxX + 2, y: caret.midY)))
+
+    #expect(view.compare(range.end, to: end) != .orderedDescending)
+  }
+
+  private func selectedCells(_ model: Editor) throws -> [[Int]]? {
+    guard case .table(_, _, _, let cells) = try model.selection() else { return nil }
+    return cells
+  }
+
+  private func tableView(_ rows: [[String]] = [["one", "two"]], caretAfter word: String) throws -> (EditorView, Editor) {
+    let model = Editor()
+    try model.load(LexicalJSON.document([LexicalJSON.table(rows)]))
+    let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 600))
+    let view = EditorView(model: model)
+    view.frame = window.bounds
+    window.addSubview(view)
+    window.makeKeyAndVisible()
+    #expect(view.becomeFirstResponder())
+    view.layoutIfNeeded()
+    let whole = try #require(view.textRange(from: view.beginningOfDocument, to: view.endOfDocument))
+    let text = try #require(view.text(in: whole)) as NSString
+    let caret = try #require(view.position(from: view.beginningOfDocument, offset: NSMaxRange(text.range(of: word))))
+    view.selectedTextRange = view.textRange(from: caret, to: caret)
+    return (view, model)
+  }
+
+  private func press(_ input: String, _ modifiers: UIKeyModifierFlags, in view: EditorView) throws {
+    let command = try #require(view.keyCommands?.first { $0.input == input && $0.modifierFlags == modifiers })
+    view.perform(try #require(command.action), with: command)
+  }
+
+  /// Backspace from an empty block after a rule takes the block and selects
+  /// the rule whole, as on the web: the view highlights no text for it,
+  /// typing and composing leave it be, and Backspace again deletes it.
+  @Test func backspaceSelectsARuleWholeAndThenDeletesIt() throws {
+    let (model, view) = try host(
+      LexicalJSON.document([
+        LexicalJSON.paragraph([LexicalJSON.text("a")]), LexicalJSON.horizontalRule, LexicalJSON.paragraph([]),
+      ]), caretAt: 4)
+
+    view.deleteBackward()
+    #expect(try model.selection() == .node(nodes: [[1]]))
+    let selected = try #require(view.selectedTextRange)
+    #expect(view.offset(from: view.beginningOfDocument, to: selected.start) == 2)
+    #expect(view.offset(from: view.beginningOfDocument, to: selected.end) == 3)
+    #expect(view.selectionRects(for: selected).isEmpty)
+
+    let document = try model.snapshot().state
+    let text = try LayoutTests.text(of: view)
+    view.insertText("x")
+    view.setMarkedText("か", selectedRange: NSRange(location: 1, length: 0))
+    #expect(view.markedTextRange == nil)
+    view.unmarkText()
+    #expect(try model.snapshot().state == document)
+    #expect(try LayoutTests.text(of: view) == text)
+    #expect(try model.selection() == .node(nodes: [[1]]))
+
+    view.deleteBackward()
+    let types = try paragraphs(model).compactMap { $0["type"]?.stringValue }
+    #expect(types == ["paragraph"])
   }
 
   @Test func tabIndentsAnItemAndShiftTabOutdentsIt() throws {
@@ -284,6 +462,29 @@ import UIKit
     #expect(linkActions(view, 6, 6) == [])
   }
 
+  @Test func theEditMenuOffersTheLinkActionsAndTheTableMenu() throws {
+    let (view, _) = try editing(LexicalJSON.paragraph([LexicalJSON.text("hello world")]))
+
+    let menu = view.editMenu(for: try #require(range(view, 6, 11)), suggestedActions: [])
+
+    #expect(menu?.children.map(\.title) == ["Add Link…", "Table"])
+  }
+
+  /// The link actions and the Table menu come straight after UIKit's cut,
+  /// copy and paste, as the web's context menu has Link straight after its
+  /// clipboard actions, and ahead of UIKit's Look Up and Share.
+  @Test func theEditMenusOwnActionsFollowTheClipboardOnes() throws {
+    let (view, _) = try editing(LexicalJSON.paragraph([LexicalJSON.text("hello world")]))
+    let suggested = [
+      UIMenu(title: "Clipboard", identifier: .standardEdit, children: [UIAction(title: "Copy") { _ in }]),
+      UIMenu(title: "Share", identifier: .share, children: [UIAction(title: "Share…") { _ in }]),
+    ]
+
+    let menu = view.editMenu(for: try #require(range(view, 6, 11)), suggestedActions: suggested)
+
+    #expect(menu?.children.map(\.title) == ["Clipboard", "Add Link…", "Table", "Share"])
+  }
+
   @Test func theEditMenuInALinkOffersToOpenEditOrRemoveIt() throws {
     let (view, _) = try editing(Self.linked)
 
@@ -422,7 +623,7 @@ import UIKit
   /// The titles the edit menu adds for links over UIKit's own.
   private func linkActions(_ view: EditorView, _ start: Int, _ end: Int) -> [String] {
     guard let range = range(view, start, end) else { return [] }
-    return view.editMenu(for: range, suggestedActions: [])?.children.map(\.title) ?? []
+    return view.editMenu(for: range, suggestedActions: [])?.children.map(\.title).filter { $0 != "Table" } ?? []
   }
 
   private func paragraphs(_ model: Editor) throws -> [JSONValue] {
@@ -437,7 +638,7 @@ import UIKit
     let (model, view) = try host(LexicalJSON.document([LexicalJSON.paragraph([LexicalJSON.text(text)])]), caretAt: offset)
     try press(input, modifiers, in: view)
     let paragraph = try model.snapshot().state["root"]?["children"]?.arrayValue?.first
-    return paragraph?["children"]?.arrayValue?.first?["text"]?.stringValue ?? ""
+    return (paragraph?["children"]?.arrayValue ?? []).compactMap { $0["text"]?.stringValue }.joined()
   }
 
   /// A view of `document`, first responder with the caret `caretAt` UTF-16
@@ -455,13 +656,6 @@ import UIKit
     let caret = try #require(view.position(from: view.beginningOfDocument, offset: offset))
     view.selectedTextRange = view.textRange(from: caret, to: caret)
     return (model, view)
-  }
-
-  /// Runs the key command for `input` and `modifiers` as UIKit would.
-  private func press(_ input: String, _ modifiers: UIKeyModifierFlags, in view: EditorView) throws {
-    let command = try #require(view.keyCommands?.first { $0.input == input && $0.modifierFlags == modifiers })
-    let action = try #require(command.action)
-    view.perform(action, with: command)
   }
 }
 #endif

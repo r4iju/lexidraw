@@ -31,6 +31,12 @@ public final class EditorView: UIScrollView, UITextInput {
   /// moves.
   private var anchor = 0
   private var focus = 0
+  /// Where the model's caret sits at the root, between blocks, as the child
+  /// it is before; a caret beside a table is drawn there, not in the text.
+  private var caretBeforeBlock: Int?
+  /// Whether the model's selection is of nodes, which the web outlines
+  /// rather than highlighting their text.
+  private var isNodeSelection = false
   private var composition: Composition?
   /// When the model last heard from the view, for the time its history
   /// merges edits by.
@@ -92,10 +98,13 @@ public final class EditorView: UIScrollView, UITextInput {
   /// model refuses leaves the document as it was, so there is nothing to show,
   /// though where `tellsRefusal` the user is told why.
   /// UIKit's own input calls expect the text and selection they asked for
-  /// without being told; anything else tells the input delegate.
+  /// without being told; anything else tells the input delegate. Returns
+  /// what the command changed, where the model took it.
   @discardableResult
   private func perform(_ command: EditorCommand, fromInput: Bool, tellsRefusal: Bool = false) -> ChangeSet? {
     guard isEditable || !command.edits else { return nil }
+    // A model left with no selection takes the view's before an edit.
+    if command.editsAtSelection, modelSelection() == nil { sendSelection() }
     let now = ProcessInfo.processInfo.systemUptime
     let elapsed = Int((now - lastCommand) * 1000)
     lastCommand = now
@@ -158,14 +167,78 @@ public final class EditorView: UIScrollView, UITextInput {
   }
 
   private func showModelSelection(fromInput: Bool) {
-    guard let selection = modelSelection(), let anchor = document.offset(of: selection.anchor),
-      let focus = document.offset(of: selection.focus)
-    else { return }
+    let selection = modelSelection()
+    let cells = selection.flatMap(selectedCells)
+    if selection == nil, layout.tableSelection != nil {
+      if !fromInput { inputDelegate?.selectionWillChange(self) }
+      anchor = focus
+      if !fromInput { inputDelegate?.selectionDidChange(self) }
+    }
+    layout.tableSelection = cells
+    isNodeSelection = if case .node = selection { true } else { false }
+    layout.selectedRules = selection.map(selectedRules) ?? []
+    layout.selectedCharacters = selection.map(selectedCharacters) ?? []
+    guard let selection, let (anchor, focus) = offsets(of: selection) else { return }
     if !fromInput { inputDelegate?.selectionWillChange(self) }
     self.anchor = anchor
     self.focus = focus
+    caretBeforeBlock = selection.isCollapsed && selection.focus.path.isEmpty ? selection.focus.offset : nil
     if !fromInput { inputDelegate?.selectionDidChange(self) }
     scrollToCaret()
+  }
+
+  /// Where the view has `selection`. Selected cells run from the start of
+  /// the first of the anchor and focus cells to the end of the other, where
+  /// their handles are.
+  private func offsets(of selection: Selection) -> (anchor: Int, focus: Int)? {
+    // Selected nodes have no caret, so the view selects the first one's text.
+    if case .node(let nodes) = selection {
+      guard let first = nodes.first, let range = document.range(of: first) else { return nil }
+      return (range.location, NSMaxRange(range))
+    }
+    guard case .table(_, let anchorCell, let focusCell, _) = selection else {
+      guard let anchor = document.offset(of: selection.anchor), let focus = document.offset(of: selection.focus) else {
+        return nil
+      }
+      return (anchor, focus)
+    }
+    guard let anchor = document.range(of: anchorCell), let focus = document.range(of: focusCell) else { return nil }
+    return anchor.location <= focus.location
+      ? (anchor.location, NSMaxRange(focus)) : (NSMaxRange(anchor), focus.location)
+  }
+
+  /// The table block a table selection is in, and the cells it has.
+  private func selectedCells(_ selection: Selection) -> (block: Int, cells: Set<TableView.CellIndex>)? {
+    guard case .table(let path, _, _, let cells) = selection, path.count == 1, path[0] < document.blockCount,
+      case .table = document.kind(ofBlock: path[0])
+    else { return nil }
+    return (path[0], Set(cells.filter { $0.count == 3 }.map { TableView.CellIndex(row: $0[1], index: $0[2]) }))
+  }
+
+  /// The rule blocks among the nodes a node selection has.
+  private func selectedRules(_ selection: Selection) -> Set<Int> {
+    guard case .node(let nodes) = selection else { return [] }
+    return Set(
+      nodes.compactMap { path in
+        guard path.count == 1, path[0] < document.blockCount,
+          document.kind(ofBlock: path[0]) == .embedded(type: StyledBlock.ruleType)
+        else { return nil }
+        return path[0]
+      })
+  }
+
+  /// Where the nodes a node selection has stand in a line of text, as the
+  /// one character each is there.
+  private func selectedCharacters(_ selection: Selection) -> Set<Int> {
+    guard case .node(let nodes) = selection else { return [] }
+    let text = storage.string as NSString
+    return Set(
+      nodes.compactMap { path in
+        guard path.count > 1, let range = document.range(of: path), range.length == 1,
+          text.character(at: range.location) == 0xFFFC
+        else { return nil }
+        return range.location
+      })
   }
 
   /// Tells the model where the view's selection is, which it needs before
@@ -178,9 +251,9 @@ public final class EditorView: UIScrollView, UITextInput {
   /// a selection anew would reset the format a caret types in, which a
   /// shortcut such as ⌘B may just have set.
   private func syncSelection() {
-    guard let selection = modelSelection(), document.offset(of: selection.anchor) == anchor,
-      document.offset(of: selection.focus) == focus
-    else { return sendSelection() }
+    guard let selection = modelSelection(), let offsets = offsets(of: selection), offsets == (anchor, focus) else {
+      return sendSelection()
+    }
   }
 
   /// Text typed, pasted or `composed`, each newline a new paragraph as
@@ -242,6 +315,8 @@ public final class EditorView: UIScrollView, UITextInput {
 
   public func setMarkedText(_ markedText: String?, selectedRange: NSRange) {
     let text = markedText ?? ""
+    // Selected nodes have no caret to compose at, as a browser shows none.
+    if isNodeSelection, composition == nil { return report(.setMarkedText(text, selectedRange: selectedRange)) }
     let replaced = selected
     var composition =
       self.composition
@@ -292,7 +367,8 @@ public final class EditorView: UIScrollView, UITextInput {
     set {
       guard let range = newValue as? TextRange else { return }
       let snapped = wholeCharacters(range.range)
-      guard composition != nil || snapped != selected else { return }
+      guard composition != nil || snapped != selected || caretBeforeBlock != nil else { return }
+      caretBeforeBlock = nil
       anchor = snapped.location
       focus = NSMaxRange(snapped)
       if composition == nil { sendSelection() }
@@ -302,6 +378,7 @@ public final class EditorView: UIScrollView, UITextInput {
 
   /// Moves the caret by keyboard, or extends the selection's moving end.
   private func move(to offset: Int, extending: Bool) {
+    caretBeforeBlock = nil
     inputDelegate?.selectionWillChange(self)
     focus = clamp(offset)
     if !extending { anchor = focus }
@@ -331,6 +408,7 @@ public final class EditorView: UIScrollView, UITextInput {
     guard let range = range as? TextRange else { return }
     commitMarkedText()
     let replaced = wholeCharacters(range.range)
+    caretBeforeBlock = nil
     anchor = replaced.location
     focus = NSMaxRange(replaced)
     sendSelection()
@@ -398,6 +476,8 @@ public final class EditorView: UIScrollView, UITextInput {
     Self.log.notice("Setting a writing direction isn't supported yet (#149)")
   }
 
+  private static let newline = "\n".utf16.first!
+
   /// The offset one user-perceived character on, so a joined emoji or flag
   /// is passed over whole.
   private func character(after offset: Int) -> Int {
@@ -439,14 +519,31 @@ public final class EditorView: UIScrollView, UITextInput {
   }
 
   public func caretRect(for position: UITextPosition) -> CGRect {
-    guard let position = position as? TextPosition,
-      let frame = segments(NSRange(location: clamp(position.offset), length: 0)).first
-    else { return .zero }
+    guard let position = position as? TextPosition else { return .zero }
+    if let caretBeforeBlock, anchor == focus, position.offset == focus,
+      let caret = layout.caret(beforeBlock: caretBeforeBlock)
+    {
+      return caret
+    }
+    guard let frame = segments(NSRange(location: clamp(position.offset), length: 0)).first else { return .zero }
     return CGRect(x: frame.minX, y: frame.minY, width: 2, height: frame.height)
   }
 
+  /// Selected table cells are tinted instead, as on the web, with a handle
+  /// at each end.
   public func selectionRects(for range: UITextRange) -> [UITextSelectionRect] {
     guard let range = range as? TextRange else { return [] }
+    if isNodeSelection { return [] }
+    if layout.tableSelection != nil {
+      let ends = [range.range.location, NSMaxRange(range.range)].compactMap {
+        segments(NSRange(location: $0, length: 0)).first
+      }
+      guard ends.count == 2 else { return [] }
+      return [
+        SelectionRect(ends[0], containsStart: true, containsEnd: false),
+        SelectionRect(ends[1], containsStart: false, containsEnd: true),
+      ]
+    }
     let frames = segments(range.range).filter { $0.width > 0 }
     return frames.enumerated().map { index, frame in
       SelectionRect(frame, containsStart: index == 0, containsEnd: index == frames.count - 1)
@@ -466,8 +563,16 @@ public final class EditorView: UIScrollView, UITextInput {
 
   public func characterRange(at point: CGPoint) -> UITextRange? {
     guard let position = closestPosition(to: point) as? TextPosition else { return nil }
-    let end = character(after: position.offset)
-    return TextRange(NSRange(location: position.offset, length: end - position.offset))
+    let offset = position.offset
+    // The newline ending a block or a cell isn't where a tap lands: UIKit
+    // would put the caret past it, in what comes next.
+    if offset < storage.length, (storage.string as NSString).character(at: offset) == Self.newline {
+      let start = character(before: offset)
+      let isLineStart = start == offset || (storage.string as NSString).character(at: start) == Self.newline
+      return TextRange(NSRange(location: isLineStart ? offset : start, length: isLineStart ? 0 : offset - start))
+    }
+    let end = character(after: offset)
+    return TextRange(NSRange(location: offset, length: end - offset))
   }
 
   private func scrollToCaret() {
@@ -523,19 +628,34 @@ public final class EditorView: UIScrollView, UITextInput {
   @objc private func insertLineBreak() { perform(.insertLineBreak, fromInput: false) }
 
   @objc private func moveLeft() {
-    move(to: anchor == focus ? character(before: focus) : selected.location, extending: false)
+    arrow(.left, extend: false, to: anchor == focus ? character(before: focus) : selected.location)
   }
 
   @objc private func moveRight() {
-    move(to: anchor == focus ? character(after: focus) : NSMaxRange(selected), extending: false)
+    arrow(.right, extend: false, to: anchor == focus ? character(after: focus) : NSMaxRange(selected))
   }
 
-  @objc private func moveUp() { move(to: line(from: focus, .up) ?? 0, extending: false) }
-  @objc private func moveDown() { move(to: line(from: focus, .down) ?? lastOffset, extending: false) }
-  @objc private func extendLeft() { move(to: character(before: focus), extending: true) }
-  @objc private func extendRight() { move(to: character(after: focus), extending: true) }
-  @objc private func extendUp() { move(to: line(from: focus, .up) ?? 0, extending: true) }
-  @objc private func extendDown() { move(to: line(from: focus, .down) ?? lastOffset, extending: true) }
+  @objc private func moveUp() { arrow(.up, extend: false, to: line(from: focus, .up) ?? 0) }
+  @objc private func moveDown() { arrow(.down, extend: false, to: line(from: focus, .down) ?? lastOffset) }
+  @objc private func extendLeft() { arrow(.left, extend: true, to: character(before: focus)) }
+  @objc private func extendRight() { arrow(.right, extend: true, to: character(after: focus)) }
+  @objc private func extendUp() { arrow(.up, extend: true, to: line(from: focus, .up) ?? 0) }
+  @objc private func extendDown() { arrow(.down, extend: true, to: line(from: focus, .down) ?? lastOffset) }
+
+  /// An arrow key, which the model answers as Lexical does, given `offset`,
+  /// where the platform would move the focus. A model that can't edit the
+  /// document can't move its selection either, so the view moves its own.
+  private func arrow(_ key: ArrowKey, extend: Bool, to offset: Int) {
+    guard model.isEditable else { return move(to: offset, extending: extend) }
+    let atCellEdge =
+      switch key {
+      case .up: layout.isAtCellEdge(focus, .up)
+      case .down: layout.isAtCellEdge(focus, .down)
+      case .left, .right: false
+      }
+    let native = document.point(at: clamp(offset))
+    perform(.arrow(key, extend: extend, native: native, atCellEdge: atCellEdge), fromInput: false)
+  }
   @objc private func moveToLineStart() { move(to: lineBoundary(backward: true) ?? focus, extending: false) }
   @objc private func moveToLineEnd() { move(to: lineBoundary(backward: false) ?? focus, extending: false) }
   @objc private func deleteWordBackward() { perform(.deleteWord(backward: true), fromInput: false) }
@@ -596,6 +716,81 @@ public final class EditorView: UIScrollView, UITextInput {
   @objc private func makeHeading2() { setBlockType(.h2) }
   @objc private func makeHeading3() { setBlockType(.h3) }
   @objc private func makeQuote() { setBlockType(.quote) }
+
+  /// The edit menu with the link actions for the range, and a Table menu
+  /// where the document can be edited: the web's insert-table dialog, or its
+  /// table menu's row and column actions in a table. They follow UIKit's
+  /// cut, copy and paste, as Link follows the web context menu's clipboard
+  /// actions; at the end, a narrow screen's menu pages them out of sight, or
+  /// its list runs them under the keyboard.
+  public func editMenu(for textRange: UITextRange, suggestedActions: [UIMenuElement]) -> UIMenu? {
+    guard let range = textRange as? TextRange else { return nil }
+    let own = linkActions(in: range.range) + (isEditable ? [tableMenu()] : [])
+    let clipboard = suggestedActions.firstIndex { ($0 as? UIMenu)?.identifier == .standardEdit }
+    var children = suggestedActions
+    children.insert(contentsOf: own, at: clipboard.map { $0 + 1 } ?? children.endIndex)
+    return UIMenu(children: children)
+  }
+
+  private func tableMenu() -> UIMenu {
+    func action(_ title: String, _ command: EditorCommand, destructive: Bool = false) -> UIAction {
+      UIAction(title: title, attributes: destructive ? .destructive : []) { [weak self] _ in
+        self?.perform(command, fromInput: false)
+      }
+    }
+    let actions: [UIMenuElement] =
+      isInTable
+      ? [
+        action("Insert Row Above", .insertTableRow(after: false)),
+        action("Insert Row Below", .insertTableRow(after: true)),
+        action("Insert Column Left", .insertTableColumn(after: false)),
+        action("Insert Column Right", .insertTableColumn(after: true)),
+        action("Delete Column", .deleteTableColumn, destructive: true),
+        action("Delete Row", .deleteTableRow, destructive: true),
+      ]
+      : [UIAction(title: "Insert Table…") { [weak self] _ in self?.askForTable() }]
+    return UIMenu(title: "Table", image: UIImage(systemName: "tablecells"), children: actions)
+  }
+
+  private var isInTable: Bool {
+    guard let selection = modelSelection(), let block = selection.anchor.path.first, block < document.blockCount,
+      case .table = document.kind(ofBlock: block)
+    else { return false }
+    return true
+  }
+
+  /// The web's insert-table dialog: rows and columns, five of each to begin
+  /// with, up to 500 rows and 50 columns.
+  private func askForTable() {
+    let alert = UIAlertController(title: "Insert Table", message: nil, preferredStyle: .alert)
+    var insert: UIAlertAction?
+    func count(_ index: Int) -> Int? { alert.textFields?[index].text.flatMap { Int($0) } }
+    func isValid() -> Bool {
+      guard let rows = count(0), let columns = count(1) else { return false }
+      return (1...500).contains(rows) && (1...50).contains(columns)
+    }
+    for (name, limit) in [("Rows", 500), ("Columns", 50)] {
+      alert.addTextField { field in
+        field.text = "5"
+        field.placeholder = "# of \(name.lowercased()) (1-\(limit))"
+        field.accessibilityLabel = name
+        field.keyboardType = .numberPad
+        field.addAction(UIAction { _ in insert?.isEnabled = isValid() }, for: .editingChanged)
+      }
+    }
+    alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+    insert = UIAlertAction(title: "Insert Table", style: .default) { [weak self] _ in
+      guard let rows = count(0), let columns = count(1) else { return }
+      self?.perform(.insertTable(rows: rows, columns: columns), fromInput: false)
+    }
+    alert.addAction(insert!)
+    alert.preferredAction = insert
+    var responder: UIResponder? = self
+    while let current = responder, !(current is UIViewController) { responder = current.next }
+    var presenter = responder as? UIViewController
+    while let presented = presenter?.presentedViewController { presenter = presented }
+    presenter?.present(alert, animated: true)
+  }
 
   public override func toggleBoldface(_ sender: Any?) { perform(.formatText(.bold), fromInput: false) }
   public override func toggleItalics(_ sender: Any?) { perform(.formatText(.italic), fromInput: false) }
@@ -782,11 +977,6 @@ public final class EditorView: UIScrollView, UITextInput {
     return [action("Add Link…", "link") { $0.addLink() }]
   }
 
-  public func editMenu(for textRange: UITextRange, suggestedActions: [UIMenuElement]) -> UIMenu? {
-    guard let range = textRange as? TextRange else { return nil }
-    return UIMenu(children: suggestedActions + linkActions(in: range.range))
-  }
-
   /// The character of a link's text a tap is on, which the caret goes after.
   private func linkCharacter(at point: CGPoint) -> NSRange? {
     guard let character = characterRange(at: point) as? TextRange, character.range.length > 0,
@@ -813,11 +1003,21 @@ public final class EditorView: UIScrollView, UITextInput {
 }
 
 extension EditorCommand {
+  /// Whether the command acts at the selection, so the model needs one.
+  fileprivate var editsAtSelection: Bool {
+    switch self {
+    case .setSelection, .wait, .undo, .redo, .selectAll: false
+    default: true
+    }
+  }
+}
+
+extension EditorCommand {
   /// Whether the command can change the document, not only where the
   /// selection is.
   fileprivate var edits: Bool {
     switch self {
-    case .setSelection, .selectAll, .wait, .copy: false
+    case .setSelection, .selectAll, .arrow, .wait, .copy: false
     default: true
     }
   }

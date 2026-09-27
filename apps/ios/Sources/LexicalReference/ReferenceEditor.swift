@@ -62,6 +62,10 @@ public final class ReferenceEditor: EditorModel {
     return Snapshot(state: snapshot["state"] ?? .null, selection: selection)
   }
 
+  public func serializedState() throws -> JSONValue {
+    try JSONValue(parsing: call("serializedState"))
+  }
+
   public func selection() throws -> Selection? {
     try decoder.decode(Selection?.self, from: Data(try call("selection").utf8))
   }
@@ -96,8 +100,9 @@ public final class ReferenceEditor: EditorModel {
   /// The `EditorError` a thrown `EditorError` from `reference/editor-error.ts`
   /// stands for.
   private static func error(from exception: JSValue) -> EditorError {
-    let message = exception.toString() ?? "\(exception)"
-    switch exception.forProperty("kind")?.toString().flatMap(EditorError.Kind.init) {
+    let kind = exception.forProperty("kind")?.toString().flatMap(EditorError.Kind.init)
+    let message = (kind == nil ? exception.toString() : exception.forProperty("message")?.toString()) ?? "\(exception)"
+    switch kind {
     case .noNode: return .noNode(path: (exception.forProperty("path")?.toArray() as? [Int]) ?? [])
     case .noSelection: return .noSelection
     case .unsupported: return .unsupported(message)

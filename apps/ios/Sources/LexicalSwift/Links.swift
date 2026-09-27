@@ -30,6 +30,28 @@ extension Update {
     try toggleLink(url)
   }
 
+  /// `TOGGLE_LINK_COMMAND` over selected nodes, which the Link plugin
+  /// answers alone: `$toggleLink` wraps each node in a link of its own,
+  /// or relinks or unlinks the link it's in.
+  mutating func toggleLinkCommand(_ selection: NodeSelection, url: String?) throws {
+    guard url.map(WebLinks.validateUrl) ?? true else { return }
+    var updated: Set<NodeKey> = []
+    for node in nodes(in: selection) {
+      let link = findParent(from: node, where: isNonAutoLink)
+      switch (url, link) {
+      case (nil, let link?):
+        try insert(node, before: link)
+        if state.childCount(of: link) == 0 { try remove(link) }
+      case (nil, nil): break
+      case (let url?, let link?): updateLink(link, url, &updated)
+      case (let url?, nil):
+        let created = createLink(url, rel: .value("noreferrer"), target: .null, title: .null)
+        try insert(created, before: node)
+        try append(created, [node])
+      }
+    }
+  }
+
   /// `saveLink`, the web's link editor saving a URL: the link takes it
   /// sanitized, and an autolink becomes a link that typing no longer relinks.
   mutating func editLink(_ selection: RangeSelection, url: String) throws {

@@ -98,7 +98,7 @@ import Testing
 
   @Test func findsAShortcutEnterFinishes() throws {
     var fuzzer = Fuzzer(
-      seed: 2, reference: try Support.referenceEditor(), candidate: TakesEnterAfterAShortcutAsANewLine())
+      seed: 1, reference: try Support.referenceEditor(), candidate: TakesEnterAfterAShortcutAsANewLine())
 
     let fixture = try #require(try fuzzer.run(steps: 2000)).fixture
 
@@ -122,7 +122,7 @@ import Testing
 
   @Test func indentsItemsAsDeepAsTheWebIndents() throws {
     let candidate = NotesIndentsAtTheCap()
-    var fuzzer = Fuzzer(seed: 7, reference: try Support.referenceEditor(), candidate: candidate)
+    var fuzzer = Fuzzer(seed: 1, reference: try Support.referenceEditor(), candidate: candidate)
 
     #expect(try fuzzer.run(steps: 3_000)?.fixture == nil)
     #expect(candidate.indentsAtTheCap > 0)
@@ -164,7 +164,7 @@ import Testing
 
   @Test func loadsListsMarkedWithEachMarkNestedOrNotAndTypesATabbedShortcut() throws {
     let candidate = NotesMarkersAndTabbedShortcuts()
-    var fuzzer = Fuzzer(seed: 7, reference: try Support.referenceEditor(), candidate: candidate)
+    var fuzzer = Fuzzer(seed: 1, reference: try Support.referenceEditor(), candidate: candidate)
 
     #expect(try fuzzer.run(steps: 3_000)?.fixture == nil)
     #expect(
@@ -172,6 +172,127 @@ import Testing
         == [.init(marker: "*", nested: false), .init(marker: "+", nested: false), .init(marker: "*", nested: true),
           .init(marker: "+", nested: true)])
     #expect(candidate.tabbedShortcuts > 0)
+  }
+
+  /// A model that can't read back the selection of any state a command
+  /// changed, as Lexical can't read back a table selection over a hole in
+  /// its table, failing with `failure`.
+  class ReadsBackOnlyWhatItLoaded: EditorModel {
+    let model: any EditorModel
+    let failure: EditorError
+    var changed = false
+    init(_ model: any EditorModel, failing failure: EditorError = .tableSelectionOverAHole) {
+      self.model = model
+      self.failure = failure
+    }
+    func load(_ state: JSONValue) throws {
+      try model.load(state)
+      changed = false
+    }
+    var isEditable: Bool { model.isEditable }
+    func snapshot() throws -> Snapshot {
+      if changed { throw failure }
+      return try model.snapshot()
+    }
+    func serializedState() throws -> JSONValue { try model.serializedState() }
+    func selection() throws -> Selection? { try model.selection() }
+    func node(at path: [Int]) throws -> JSONValue { try model.node(at: path) }
+    func childKeys(at path: [Int]) throws -> [String] { try model.childKeys(at: path) }
+    func apply(_ command: EditorCommand) throws -> ChangeSet {
+      let changes = try model.apply(command)
+      changed = true
+      return changes
+    }
+  }
+
+  @Test func aSessionEndsWhereNeitherModelCanReadItsSelectionBackOverTheSameTree() throws {
+    var fuzzer = Fuzzer(
+      seed: 7, reference: ReadsBackOnlyWhatItLoaded(try Support.referenceEditor()),
+      candidate: ReadsBackOnlyWhatItLoaded(Editor()))
+
+    #expect(try fuzzer.run(steps: 20) == nil)
+    #expect(fuzzer.sessionsEndedUnreadable > 0)
+  }
+
+  /// A model whose selection doesn't read back, and whose tree then loses
+  /// every block.
+  final class LosesItsBlocksWhereItsSelectionDoesntReadBack: ReadsBackOnlyWhatItLoaded {
+    override func serializedState() throws -> JSONValue {
+      changed ? ["root": LexicalJSON.element("root", [])] : try model.serializedState()
+    }
+  }
+
+  @Test func treesThatDifferWhereNeitherSelectionReadsBackDiverge() throws {
+    var fuzzer = Fuzzer(
+      seed: 7, reference: ReadsBackOnlyWhatItLoaded(try Support.referenceEditor()),
+      candidate: LosesItsBlocksWhereItsSelectionDoesntReadBack(Editor()))
+
+    let fixture = try #require(try fuzzer.run(steps: 20)).fixture
+
+    #expect(fixture.isSelectionUnreadable == true)
+    #expect(fixture.commands.count == 1)
+  }
+
+  @Test func aSelectionOnlyOneModelReadsBackDiverges() throws {
+    var fuzzer = Fuzzer(
+      seed: 7, reference: ReadsBackOnlyWhatItLoaded(try Support.referenceEditor()), candidate: Editor())
+
+    #expect(try fuzzer.run(steps: 20) != nil)
+  }
+
+  @Test func aReferenceThatFailsToReadBackForAnotherReasonStopsTheRun() throws {
+    var fuzzer = Fuzzer(
+      seed: 7,
+      reference: ReadsBackOnlyWhatItLoaded(try Support.referenceEditor(), failing: .invalidState("TypeError: x is null")),
+      candidate: ReadsBackOnlyWhatItLoaded(Editor(), failing: .invalidState("TypeError: x is null")))
+
+    #expect(throws: EditorError.invalidState("TypeError: x is null")) { try fuzzer.run(steps: 20) }
+  }
+
+  /// Lexical can't read back a table selection over a cell spanning rows
+  /// past its table's end, and neither can LexicalSwift, for the same
+  /// reason.
+  @Test func bothModelsFailToReadBackASelectionOverAHoleInATable() throws {
+    func cell(_ content: String, rowSpan: Int = 1) -> JSONValue {
+      LexicalJSON.element(
+        "tablecell", [paragraph(text(content))],
+        ["backgroundColor": nil, "colSpan": 1, "headerState": 0, "rowSpan": .number(Double(rowSpan))])
+    }
+    let start = document(
+      LexicalJSON.element(
+        "table", [
+          LexicalJSON.element("tablerow", [cell("a"), cell("b")]),
+          LexicalJSON.element("tablerow", [cell("c", rowSpan: 2), cell("d")]),
+        ]))
+
+    let fixture = try Fixture.record(
+      start: start, commands: [.setSelection(anchor: .text([0, 0, 0, 0, 0], 1), focus: .text([0, 1, 0, 0, 0], 1))],
+      on: try Support.referenceEditor())
+
+    #expect(fixture.isSelectionUnreadable == true)
+    #expect(try fixture.replay(on: Editor()) == fixture.recorded)
+  }
+
+  /// Nor can either read back a table selection once its anchor or focus
+  /// cell is gone, as where listing a rule in a cell lists its table.
+  @Test func bothModelsFailToReadBackATableSelectionWhoseCellIsGone() throws {
+    func cell(_ children: JSONValue...) -> JSONValue {
+      LexicalJSON.element("tablecell", children, ["backgroundColor": nil, "colSpan": 1, "headerState": 0, "rowSpan": 1])
+    }
+    let start = document(
+      LexicalJSON.element(
+        "table", [
+          LexicalJSON.element("tablerow", [cell(paragraph(text("a"))), cell(paragraph(text("b")))]),
+          LexicalJSON.element("tablerow", [cell(paragraph(text("c")), LexicalJSON.horizontalRule), cell(paragraph(text("d")))]),
+        ]))
+
+    let fixture = try Fixture.record(
+      start: start,
+      commands: [.setSelection(anchor: .text([0, 0, 1, 0, 0], 0), focus: .text([0, 1, 0, 0, 0], 1)), .insertList(.bullet)],
+      on: try Support.referenceEditor())
+
+    #expect(fixture.isSelectionUnreadable == true)
+    #expect(try fixture.replay(on: Editor()) == fixture.recorded)
   }
 
   /// LexicalSwift that refuses what Lexical refuses, but for another reason.
@@ -343,8 +464,9 @@ import Testing
       Issue.record("Seed \(seed) diverged after \(finding.stepsRun) steps; shrunk fixture written to \(url.path)")
     } else {
       print(
-        "Seed \(seed): \(steps) steps agreed, \(fuzzer.refusals) commands both refused, and "
-          + "\(fuzzer.sessionsEndedNotPortedYet) sessions ended on a shortcut or node not ported yet")
+        "Seed \(seed): \(steps) steps agreed, \(fuzzer.refusals) commands both refused, "
+          + "\(fuzzer.sessionsEndedNotPortedYet) sessions ended on a shortcut or node not ported yet, and "
+          + "\(fuzzer.sessionsEndedUnreadable) where neither model could read its selection back, over the same tree")
     }
   }
 }

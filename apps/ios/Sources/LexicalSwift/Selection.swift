@@ -1,5 +1,15 @@
-/// A range selection as a committed state keeps it, its points by node key.
-struct KeySelection: Equatable, Sendable {
+import OrderedCollections
+
+/// A selection as a committed state keeps it, by node key.
+enum KeySelection: Equatable, Sendable {
+  case range(KeyRange)
+  case table(TableSelection)
+  /// The keys a node selection holds, a removed node's among them.
+  case node(OrderedSet<NodeKey>)
+}
+
+/// A range selection's points, format and style.
+struct KeyRange: Equatable, Sendable {
   var anchor: KeyPoint
   var focus: KeyPoint
   var format: TextFormat
@@ -38,6 +48,7 @@ final class SelectionPoint {
     self.key = key
     self.offset = offset
     self.type = type
+    selection?.cachedIsBackward = nil
     selection?.dirty = true
   }
 
@@ -58,6 +69,10 @@ final class RangeSelection {
   var format: TextFormat
   var style: String
   var dirty = false
+  /// Lexical's `_cachedIsBackward`, kept until a point moves. A point's
+  /// offset can outlive its text part way through an edit, where Lexical
+  /// reads this rather than the points.
+  var cachedIsBackward: Bool?
 
   init(anchor: SelectionPoint, focus: SelectionPoint, format: TextFormat, style: String) {
     self.anchor = anchor
@@ -68,13 +83,13 @@ final class RangeSelection {
     focus.selection = self
   }
 
-  convenience init(_ saved: KeySelection) {
+  convenience init(_ saved: KeyRange) {
     self.init(
       anchor: SelectionPoint(saved.anchor), focus: SelectionPoint(saved.focus), format: saved.format,
       style: saved.style)
   }
 
-  var saved: KeySelection { KeySelection(anchor: anchor.value, focus: focus.value, format: format, style: style) }
+  var saved: KeyRange { KeyRange(anchor: anchor.value, focus: focus.value, format: format, style: style) }
 
   var isCollapsed: Bool { anchor.is(focus) }
 
@@ -84,7 +99,7 @@ final class RangeSelection {
   }
 
   func `is`(_ other: KeySelection?) -> Bool {
-    guard let other else { return false }
+    guard case .range(let other) = other else { return false }
     return anchor.value == other.anchor && focus.value == other.focus && format == other.format
       && style.isIdentical(to: other.style)
   }
@@ -108,13 +123,69 @@ final class RangeSelection {
   }
 }
 
+/// Lexical's `NodeSelection`: nodes selected whole, by key, in the order
+/// they were added. It keeps the key of a node removed since, as Lexical's
+/// does, and a committed one with no keys at all is no selection.
+final class NodeSelection {
+  private(set) var keys: OrderedSet<NodeKey>
+  var dirty = false
+
+  init(_ keys: OrderedSet<NodeKey> = []) {
+    self.keys = keys
+  }
+
+  func add(_ key: NodeKey) {
+    dirty = true
+    keys.append(key)
+  }
+
+  func has(_ key: NodeKey) -> Bool { keys.contains(key) }
+
+  /// The same nodes, in any order.
+  func `is`(_ other: KeySelection?) -> Bool {
+    guard case .node(let other) = other else { return false }
+    return Set(keys) == Set(other)
+  }
+}
+
+/// @lexical/table's `TableSelection`: the cells of a table's rectangle from
+/// the anchor cell to the focus cell.
+struct TableSelection: Equatable, Sendable {
+  var table: NodeKey
+  var anchor: NodeKey
+  var focus: NodeKey
+}
+
 extension EditorState {
   func point(_ point: KeyPoint) -> Point? {
     path(of: point.key).map { Point(path: $0, offset: point.offset, type: point.type) }
   }
 
-  var pathSelection: Selection? {
-    guard let selection, let anchor = point(selection.anchor), let focus = point(selection.focus) else { return nil }
-    return Selection(anchor: anchor, focus: focus, format: selection.format, style: selection.style)
+  func pathSelection() throws -> Selection? {
+    switch selection {
+    case nil: return nil
+    case .range(let range):
+      guard let anchor = point(range.anchor), let focus = point(range.focus) else { return nil }
+      return .range(anchor: anchor, focus: focus, format: range.format, style: range.style)
+    case .table(let table):
+      guard let tablePath = path(of: table.table), let anchor = path(of: table.anchor), let focus = path(of: table.focus)
+      else { throw EditorError.tableSelectionOfAGoneNode }
+      // The reference lists the cells among `getNodes`, which takes in what
+      // the selected cells hold, a table's cells included, as
+      // `$visitRecursively` does: last child first.
+      var cells: [NodeKey] = []
+      func visit(_ node: NodeKey) {
+        if self[node].type == SerializedTableCellNode.type { cells.append(node) }
+        children(of: node).reversed().forEach(visit)
+      }
+      do {
+        try Update(self, nextKey: 0, revision: 0).cells(of: table).forEach(visit)
+      } catch let error as EditorError where error == Update.noCell {
+        throw EditorError.tableSelectionOverAHole
+      }
+      return .table(table: tablePath, anchor: anchor, focus: focus, cells: cells.compactMap(path(of:)))
+    case .node(let keys):
+      return .node(nodes: keys.compactMap(path(of:)))
+    }
   }
 }

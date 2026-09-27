@@ -9,7 +9,7 @@ public final class Editor: EditorModel {
   /// Whether the document holds only what the editing commands are ported
   /// for: paragraphs, headings, quotes, lists, horizontal rules, line
   /// breaks, tabs and text in any format, with no field the payload types
-  /// don't model.
+  /// don't model, and tables of them.
   public private(set) var isEditable = false
   private var knowsListMarker = false
   /// How many markdown shortcuts this editor has left as typed where Lexical
@@ -53,9 +53,16 @@ public final class Editor: EditorModel {
         let compositionEnd = if case .commitComposition = command { true } else { false }
         return try commit(compositionEnd: compositionEnd) { try $0.run(command) }
       }
+      var isCutByATable = false
+      let byATable = try commit { isCutByATable = try $0.cutHandler() }
+      if isCutByATable { return byATable }
       // Rich text's cut is two updates: a copy, then a delete.
       let copied = try commit(tags: [.cut]) { try $0.copyForCut() }
       var changes = try commit(tags: [.cut]) { update in
+        if let nodes = update.nodeSelection {
+          for node in update.nodes(in: nodes) { try update.remove(node) }
+          return
+        }
         guard let selection = update.selection else { throw EditorError.noSelection }
         try update.removeText(selection)
       }
@@ -111,14 +118,33 @@ public final class Editor: EditorModel {
   private func commit(_ update: inout Update, pushingHistory: Bool = false) throws -> Bool {
     try update.applyTransforms()
     update.collectGarbage()
-    let selection = update.selection
-    if let selection, update.state.nodes[selection.anchor.key] == nil || update.state.nodes[selection.focus.key] == nil {
+    if let selection = update.selection,
+      update.state.nodes[selection.anchor.key] == nil || update.state.nodes[selection.focus.key] == nil
+    {
       throw EditorError.invalidState("Selection has been lost")
     }
-    let movesSelection = selection.map { $0.dirty || !$0.is(state.selection) } ?? (state.selection != nil)
+    let saved: KeySelection?
+    let movesSelection: Bool
+    switch update.current {
+    case .range(let selection):
+      saved = .range(selection.saved)
+      movesSelection = selection.dirty || !selection.is(state.selection)
+    case .table(let selection, let isDirty):
+      saved = .table(selection)
+      movesSelection = isDirty || saved != state.selection
+    case .node(let selection) where selection.keys.isEmpty:
+      saved = nil
+      movesSelection = state.selection != nil
+    case .node(let selection):
+      saved = .node(selection.keys)
+      movesSelection = selection.dirty || !selection.is(state.selection)
+    case nil:
+      saved = nil
+      movesSelection = state.selection != nil
+    }
     guard update.hasDirtyNodes || movesSelection else { return false }
     var next = update.state
-    next.selection = selection?.saved
+    next.selection = saved
     history.record(update, from: state, to: next, at: now, pushing: pushingHistory)
     state = next
     nextKey = update.nextKey
@@ -132,8 +158,12 @@ public final class Editor: EditorModel {
   }
 
   public func snapshot() throws -> Snapshot {
+    Snapshot(state: try serializedState(), selection: try state.pathSelection())
+  }
+
+  public func serializedState() throws -> JSONValue {
     guard !state.nodes.isEmpty else { throw EditorError.invalidState("No document loaded") }
-    return Snapshot(state: state.json, selection: state.pathSelection)
+    return state.json
   }
 
   /// `state` as an editor that registers `types` saves it once it has read
@@ -151,7 +181,7 @@ public final class Editor: EditorModel {
 
   public func selection() throws -> Selection? {
     guard !state.nodes.isEmpty else { throw EditorError.invalidState("No document loaded") }
-    return state.pathSelection
+    return try state.pathSelection()
   }
 
   public func node(at path: [Int]) throws -> JSONValue {
@@ -178,10 +208,13 @@ extension Node {
     case .quote(let node): node.unknownFields.isEmpty && node.shadowRoot != true
     case .list(let node): node.unknownFields.isEmpty || node.holdsOnlyAMarkdownMarker
     case .listItem(let node): node.unknownFields.isEmpty
-    case .lineBreak(let node): node.unknownFields.isEmpty
+    case .lineBreak(let node): node.unknownFields.isEmpty || node.holdsOnlyAMarkdownHardLineBreak
     case .horizontalRule(let node): node.unknownFields.isEmpty
     case .link(let node): node.unknownFields.isEmpty
     case .autoLink(let node): node.unknownFields.isEmpty
+    case .table(let node): node.unknownFields.isEmpty
+    case .tableRow(let node): node.unknownFields.isEmpty
+    case .tableCell(let node): node.unknownFields.isEmpty
     case .text(let node): node.unknownFields.isEmpty && node.mode == .normal && (node.detail ?? 0) == 0
     case .tab(let node): node.unknownFields.isEmpty && node.detail == Double(TextDetail.unmergeable.rawValue)
     default: false
@@ -208,17 +241,30 @@ extension Update {
     if case .setSelection(let anchor, let focus) = command {
       return try placeSelection(anchor, focus)
     }
+    if case .arrow(let key, let extend, let native, let atCellEdge) = command {
+      return try arrow(key, extend: extend, native: native, atCellEdge: atCellEdge)
+    }
     if command == .selectAll {
-      return selectAll()
+      // Rich text answers what the table's handler leaves.
+      if try !selectAllCells() { selectAll() }
+      return
     }
     if case .toggleChecked(let path) = command {
       return try toggleChecked(at: path)
     }
+    if let tableSelection {
+      return try run(command, onCells: tableSelection)
+    }
+    if let nodeSelection {
+      return try run(command, onNodes: nodeSelection)
+    }
     guard let selection else { throw EditorError.noSelection }
     switch command {
     case .insertText(let text), .commitComposition(let text): try insertText(selection, text)
-    case .deleteCharacter(true): try backspace(selection)
-    case .deleteCharacter(false): try deleteCharacter(selection, backward: false)
+    case .deleteCharacter(let backward):
+      if try deleteCellHandler() { return }
+      guard let grown = self.selection else { return }
+      if backward { try backspace(grown) } else { try deleteCharacter(grown, backward: false) }
     case .deleteWord(let backward): try deleteWord(selection, backward: backward)
     case .deleteLine(let backward, let lineBoundary):
       let boundary = try pointNode(lineBoundary)
@@ -234,17 +280,80 @@ extension Update {
     case .removeList: try removeList()
     case .indent: try indentContent()
     case .outdent: try outdentContent()
-    case .tab(let backward): try tab(selection, backward: backward)
     case .toggleLink(let url): try toggleLinkCommand(selection, url: url)
     case .editLink(let url): try editLink(selection, url: url)
     case .copy: clipboard = try copy(selection)
     case .paste(let clipboard): try paste(selection, clipboard)
+    case .tab(let backward):
+      if try !tabHandler(backward: backward) { try tab(selection, backward: backward) }
+    default: try runOnTable(command)
+    }
+  }
+
+  /// A table selection, where each table's handlers answer first.
+  private mutating func run(_ command: EditorCommand, onCells selection: TableSelection) throws {
+    switch command {
+    case .insertText, .commitComposition: clearSelection()
+    case .deleteCharacter: _ = try deleteCellHandler()
+    case .deleteWord, .deleteLine: try clearText(selection)
+    case .formatText(let format): try formatCells(selection, format)
+    case .setBlockType(let type): try setBlockType(selection, type)
+    // Rich text's Enter answers a range selection alone.
+    case .insertParagraph, .insertLineBreak: break
+    // Neither the table's Tab nor Tab indentation's answers cells.
+    case .tab: break
+    // `$toggleLink` leaves a table selection be.
+    case .toggleLink, .editLink: break
+    case .insertList(let listType): try insertList(selection, ListType(listType))
+    // `$removeList` and `$handleIndentAndOutdent` answer a range selection
+    // alone.
+    case .removeList, .indent, .outdent: break
+    case .copy: clipboard = try copy(selection)
+    case .paste(let clipboard): try paste(selection, clipboard)
+    default: try runOnTable(command)
+    }
+  }
+
+  /// Selected nodes, as an arrow or a deletion selects a rule, where rich
+  /// text's handlers answer the web's keys and menus.
+  private mutating func run(_ command: EditorCommand, onNodes selection: NodeSelection) throws {
+    switch command {
+    // A browser shows no caret to type at.
+    case .insertText, .commitComposition: break
+    case .deleteCharacter: try deleteNodes(selection)
+    // Rich text deletes a word or a line from a range selection alone.
+    case .deleteWord, .deleteLine: break
+    case .insertParagraph: try enter(selection, lineBreak: false)
+    case .insertLineBreak: try enter(selection, lineBreak: true)
+    // `$updateTextFormat` formats inline nodes and `$setBlocksType` changes
+    // elements, and a selected rule is neither.
+    case .formatText, .setBlockType: break
+    case .insertList(let listType): try insertList(selection, ListType(listType))
+    // `$removeList`, `$handleIndentAndOutdent` and Tab indentation answer a
+    // range selection alone.
+    case .removeList, .indent, .outdent, .tab: break
+    case .toggleLink(let url): try toggleLinkCommand(selection, url: url)
+    case .editLink(let url): try toggleLinkCommand(selection, url: WebLinks.sanitizeUrl(url))
+    case .copy: clipboard = try copy(selection)
+    case .paste(let clipboard): try paste(selection, clipboard)
+    default: try runOnTable(command)
+    }
+  }
+
+  /// The insert-table dialog and the table menu.
+  private mutating func runOnTable(_ command: EditorCommand) throws {
+    switch command {
+    case .insertTable(let rows, let columns): try insertDocumentTable(rows: rows, columns: columns)
+    case .insertTableRow(let after): try insertTableRowAtSelection(after: after)
+    case .insertTableColumn(let after): try insertDocumentTableColumns(after: after)
+    case .deleteTableRow: try deleteTableRowAtSelection()
+    case .deleteTableColumn: try deleteTableColumnAtSelection()
     default: throw EditorError.unsupported(command.name)
     }
   }
 
   /// `setSelection` in `reference/entry.ts`.
-  private mutating func placeSelection(_ anchorAt: Point, _ focusAt: Point) throws {
+  mutating func placeSelection(_ anchorAt: Point, _ focusAt: Point) throws {
     let last = selection
     let placed = RangeSelection(
       anchor: SelectionPoint(try pointNode(anchorAt), anchorAt.offset, anchorAt.type),
@@ -278,6 +387,7 @@ extension Update {
     } else {
       placed.format = try combinedFormat(placed, anchorAt, focusAt)
     }
+    try fixRangeSelectionForSelectedTable(placed)
   }
 
   /// `combinedFormat` in `reference/entry.ts`.
@@ -300,7 +410,7 @@ extension Update {
   }
 
   /// `pointNode` in `reference/entry.ts`.
-  private func pointNode(_ point: Point) throws -> NodeKey {
+  func pointNode(_ point: Point) throws -> NodeKey {
     guard let key = state.key(at: point.path) else { throw EditorError.noNode(path: point.path) }
     let node = state[key]
     let size =

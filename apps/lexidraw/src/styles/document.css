@@ -1260,7 +1260,8 @@ div.editor-equation {
   }
 }
 .document-embed-selected,
-.document-page-break-selected {
+.document-page-break-selected,
+.document-rule-selected {
   outline: 2px solid var(--primary);
   outline-offset: 3px;
 }

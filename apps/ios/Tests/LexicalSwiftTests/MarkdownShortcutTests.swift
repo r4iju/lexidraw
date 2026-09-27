@@ -351,7 +351,7 @@ import Testing
   /// Typing that a transformer LexicalSwift doesn't port yet turns into
   /// something else in Lexical, and what LexicalSwift leaves instead.
   static let notPortedYet: [Script] = [
-    "``` ", ":smile:", "$x$", "|a| ", "![a](b)",
+    "``` ", ":smile:", "$x$", "![a](b)",
   ].map { keys in
     Script(
       name: keys, start: emptyParagraph, commands: [caretInEmptyParagraph] + typing(keys),

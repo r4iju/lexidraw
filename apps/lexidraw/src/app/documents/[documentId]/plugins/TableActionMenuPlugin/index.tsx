@@ -9,7 +9,6 @@ import {
   $getTableColumnIndexFromTableCellNode,
   $getTableNodeFromLexicalNodeOrThrow,
   $getTableRowIndexFromTableCellNode,
-  $insertTableColumnAtSelection,
   $insertTableRowAtSelection,
   $isTableCellNode,
   $isTableRowNode,
@@ -41,6 +40,10 @@ import {
   useState,
 } from "react";
 import { createPortal } from "react-dom";
+import {
+  $insertDocumentTableColumns,
+  $tableMenuCounts,
+} from "@packages/lexical-nodes";
 
 import useModal from "~/hooks/useModal";
 import { cn } from "~/lib/utils";
@@ -195,22 +198,6 @@ function TableActionMenu({
     }
   };
 
-  const computeSelectionCount = useCallback(
-    (
-      selection: TableSelection,
-    ): {
-      columns: number;
-      rows: number;
-    } => {
-      const selectionShape = selection.getShape();
-      return {
-        columns: selectionShape.toX - selectionShape.fromX + 1,
-        rows: selectionShape.toY - selectionShape.fromY + 1,
-      };
-    },
-    [],
-  );
-
   useEffect(() => {
     return editor.registerMutationListener(TableCellNode, (nodeMutations) => {
       const nodeUpdated =
@@ -230,8 +217,8 @@ function TableActionMenu({
       const selection = $getSelection();
       // Merge cells
       if ($isTableSelection(selection)) {
-        const currentSelectionCounts = computeSelectionCount(selection);
-        updateSelectionCounts(computeSelectionCount(selection));
+        const currentSelectionCounts = $tableMenuCounts();
+        updateSelectionCounts(currentSelectionCounts);
         setCanMergeCells(
           isTableSelectionRectangular(selection) &&
             (currentSelectionCounts.columns > 1 ||
@@ -241,7 +228,7 @@ function TableActionMenu({
       // Unmerge cell
       setCanUnmergeCell($canUnmerge());
     });
-  }, [computeSelectionCount, editor, $canUnmerge, isTableSelectionRectangular]);
+  }, [editor, $canUnmerge, isTableSelectionRectangular]);
 
   const clearTableSelection = useCallback(() => {
     editor.update(() => {
@@ -274,7 +261,7 @@ function TableActionMenu({
     editor.update(() => {
       const selection = $getSelection();
       if ($isTableSelection(selection)) {
-        const { columns, rows } = computeSelectionCount(selection);
+        const { columns, rows } = $tableMenuCounts();
         const nodes = selection.getNodes();
         let firstCell: null | TableCellNode = null;
         for (let i = 0; i < nodes.length; i++) {
@@ -330,13 +317,11 @@ function TableActionMenu({
   const insertTableColumnAtSelection = useCallback(
     (shouldInsertAfter: boolean) => {
       editor.update(() => {
-        for (let i = 0; i < selectionCounts.columns; i++) {
-          $insertTableColumnAtSelection(shouldInsertAfter);
-        }
+        $insertDocumentTableColumns(shouldInsertAfter);
         onClose();
       });
     },
-    [editor, onClose, selectionCounts.columns],
+    [editor, onClose],
   );
 
   const deleteTableRowAtSelection = useCallback(() => {

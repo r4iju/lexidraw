@@ -26,6 +26,7 @@ let package = Package(
       dependencies: [.product(name: "OrderedCollections", package: "swift-collections")]
     ),
     .target(name: "EditorModelInterface", dependencies: ["LexidrawJSON"]),
+    .target(name: "CSSValues"),
     .target(
       name: "LexicalSwift",
       dependencies: [
@@ -41,7 +42,7 @@ let package = Package(
       dependencies: ["LexicalSwift", "LexicalReference", "LexicalFuzz"],
       resources: [.copy("Fixtures")]
     ),
-    .target(name: "TextKitEditor", dependencies: ["EditorModelInterface"]),
+    .target(name: "TextKitEditor", dependencies: ["EditorModelInterface", "CSSValues"]),
     .testTarget(
       name: "TextKitEditorTests",
       dependencies: ["TextKitEditor", "LexicalSwift", "LexicalReference", "LexicalFuzz"]
@@ -67,7 +68,7 @@ let package = Package(
     ),
     .target(
       name: "DrawingKit",
-      dependencies: ["LexidrawJSON"],
+      dependencies: ["LexidrawJSON", "CSSValues"],
       resources: [.copy("Fonts")]
     ),
     .testTarget(

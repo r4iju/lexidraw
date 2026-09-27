@@ -234,7 +234,7 @@ test("reads a link's colour and underline", async () => {
   const swift = swiftForTypography(await readWebStyles());
 
   expect(swift).toContain(
-    "link: Link(color: .primary, underlineThickness: 1, underlineOffset: 0.2, underlineOpacity: 0.4))",
+    "link: Link(color: .primary, underlineThickness: 1, underlineOffset: 0.2, underlineOpacity: 0.4),",
   );
 });
 
@@ -256,5 +256,110 @@ test.each([
   expect(documentCSS).not.toBe(styles.documentCSS);
   expect(() => swiftForTypography({ ...styles, documentCSS })).toThrow(
     ".document-link",
+  );
+});
+test("reads a rule, and the outline the theme's class draws around a selected one", async () => {
+  const swift = swiftForTypography(await readWebStyles());
+
+  expect(swift).toContain(
+    "rule: Rule(width: 1, color: .border, margin: 2, selected: Outline(width: 2, color: .primary, offset: 3)),",
+  );
+});
+
+test("refuses a selected rule drawn other than by a solid outline", async () => {
+  const styles = await readWebStyles();
+  const dashed = styles.documentCSS.replace(
+    "outline: 2px solid var(--primary);",
+    "outline: 2px dashed var(--primary);",
+  );
+  const shadowed = styles.documentCSS.replace(
+    "outline-offset: 3px;",
+    "outline-offset: 3px;\n  box-shadow: 0 0 4px var(--primary);",
+  );
+
+  expect(dashed).not.toBe(styles.documentCSS);
+  expect(shadowed).not.toBe(styles.documentCSS);
+  expect(() => swiftForTypography({ ...styles, documentCSS: dashed })).toThrow(
+    "2px dashed",
+  );
+  expect(() =>
+    swiftForTypography({ ...styles, documentCSS: shadowed }),
+  ).toThrow("box-shadow");
+  expect(() =>
+    swiftForTypography({ ...styles, ruleSelectedClass: "selected" }),
+  ).toThrow(".selected");
+});
+
+test("reads a table as .document-table and the theme's selected cell set it", async () => {
+  const swift = swiftForTypography(await readWebStyles());
+
+  expect(swift).toContain(
+    "table: Table(fontSize: 0.9375, lineHeight: 1.5, letterSpacing: 0, tabularFigures: true, margin: 1.75, paddingX: 12, paddingY: 8, border: 1, borderColor: .border, cornerRadius: 6, minimumWidth: 120, minimumViewportShare: 0.4, emptyWidth: 96, headerBackground: .muted, headerWeight: 600, selection: .primary.opacity(0.1), shadowWidth: 10, shadowColor: .mutedForeground, pinned: Pinned(width: 639, inset: 1, background: .card, headerBackground: .muted, shadowX: 6, shadowBlur: 8, shadowSpread: -6), unpinnedColumns: 3, shortColumns: 16, scrollingColumns: 5, number: ",
+  );
+});
+
+test("refuses a table cell padded as isn't read", async () => {
+  const styles = await readWebStyles();
+  const documentCSS = styles.documentCSS.replace(
+    /(\.document-table :is\(td, th\) \{\s*padding:)[^;]*;/,
+    "$1 8px 12px 4px;",
+  );
+
+  expect(() => swiftForTypography({ ...styles, documentCSS })).toThrow(
+    "8px 12px 4px",
+  );
+});
+
+test("refuses a selected cell's class that isn't a theme colour", async () => {
+  const styles = await readWebStyles();
+
+  expect(() =>
+    swiftForTypography({ ...styles, tableCellSelectedClass: "bg-sky-100" }),
+  ).toThrow("bg-sky-100");
+});
+
+test("gives a table the column counts the web lays it out by", async () => {
+  const styles = await readWebStyles();
+  const tableLayout = {
+    unpinnedColumns: 4,
+    shortColumns: 12,
+    scrollingColumns: 6,
+  };
+
+  expect(swiftForTypography({ ...styles, tableLayout })).toContain(
+    "unpinnedColumns: 4, shortColumns: 12, scrollingColumns: 6",
+  );
+});
+
+test("gives a table the web's number and wide patterns, past ASCII as escapes", async () => {
+  const styles = await readWebStyles();
+  // biome-ignore lint/complexity/useRegexLiterals: Bun escapes a literal's characters past ASCII; a string keeps them.
+  const number = new RegExp("^[¥]\\d+円?$", "u");
+  const tablePatterns = { number, wide: /[\p{Script=Han}]/u };
+
+  expect(swiftForTypography({ ...styles, tablePatterns })).toContain(
+    'number: JSRegExp("^[\\u{a5}]\\\\d+\\u{5186}?$", flags: "u"), wide: JSRegExp("[\\\\p{Script=Han}]", flags: "u")',
+  );
+});
+
+test("refuses a table pattern that keeps where it last matched", async () => {
+  const styles = await readWebStyles();
+  const tablePatterns = { number: /^\d+$/g, wide: /[\p{Script=Han}]/u };
+
+  expect(() => swiftForTypography({ ...styles, tablePatterns })).toThrow(
+    "/^\\d+$/g",
+  );
+});
+
+test("refuses a table cell set other than at the top", async () => {
+  const styles = await readWebStyles();
+  const documentCSS = styles.documentCSS.replace(
+    /(\.document-table :is\(td, th\) \{[^}]*vertical-align:)\s*top;/,
+    "$1 middle;",
+  );
+
+  expect(documentCSS).not.toBe(styles.documentCSS);
+  expect(() => swiftForTypography({ ...styles, documentCSS })).toThrow(
+    "vertical-align",
   );
 });

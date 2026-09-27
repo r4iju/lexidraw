@@ -3,9 +3,8 @@
  * to call with JSON strings.
  */
 import { $exportMimeTypeFromSelection } from "@lexical/clipboard";
-import { namedSignals } from "@lexical/extension";
+import { namedSignals, signal } from "@lexical/extension";
 import { createEmptyHistoryState, registerHistory } from "@lexical/history";
-import { createHeadlessEditor } from "@lexical/headless";
 import {
   registerAutoLink,
   registerLink,
@@ -32,24 +31,52 @@ import {
   saveLink,
   validateUrl,
 } from "@packages/lexical-nodes/links";
+import {
+  $deleteTableColumnAtSelection,
+  $deleteTableRowAtSelection,
+  $insertTableRowAtSelection,
+  $isTableCellNode,
+  $isTableSelection,
+  INSERT_TABLE_COMMAND,
+  registerTableCellUnmergeTransform,
+  registerTablePlugin,
+  TableCellNode,
+  type TableSelection,
+} from "@lexical/table";
 import { SCHEMA_NODES } from "@packages/lexical-nodes/nodes";
 import { createTransformers } from "@packages/lexical-nodes/transformers";
 import {
+  $insertDocumentTableColumns,
+  DOCUMENT_TABLE_PLUGIN,
+  registerDocumentTableInsertion,
+} from "@packages/lexical-nodes/tables";
+import {
   $createRangeSelection,
+  $createNodeSelection,
   $exportNodeJSON,
+  $findMatchingParent,
   $formatText,
   $getEditor,
+  $getNearestRootOrShadowRoot,
   $getNodeByKey,
   $getRoot,
   $getSelection,
   $getSlot,
+  $getSiblingCaret,
   $getSlotNames,
+  $hasAncestor,
+  $isDecoratorNode,
   $isElementNode,
+  $isNodeSelection,
   $isRangeSelection,
+  $isRootNode,
+  $isRootOrShadowRoot,
   $isTextNode,
-  $selectAll,
   $setSelection,
   COMPOSITION_END_TAG,
+  type BaseSelection,
+  createEditor,
+  COMMAND_PRIORITY_EDITOR,
   COMMAND_PRIORITY_LOW,
   CUT_TAG,
   DELETE_CHARACTER_COMMAND,
@@ -62,26 +89,49 @@ import {
   KEY_BACKSPACE_COMMAND,
   KEY_DELETE_COMMAND,
   KEY_TAB_COMMAND,
+  KEY_ARROW_DOWN_COMMAND,
+  KEY_ARROW_LEFT_COMMAND,
+  KEY_ARROW_RIGHT_COMMAND,
+  KEY_ARROW_UP_COMMAND,
   type LexicalEditor,
   type LexicalNode,
   type NodeKey,
+  type NodeSelection,
   OUTDENT_CONTENT_COMMAND,
   PASTE_COMMAND,
   type PasteCommandType,
   type PointType,
   REDO_COMMAND,
   type RangeSelection,
+  SELECT_ALL_COMMAND,
   type TextFormatType,
   UNDO_COMMAND,
 } from "lexical";
 import {
+  $applyRange,
   $deleteCharacter,
   $deleteLine,
   $deleteWord,
   $normalizeSelectionPointsForBoundaries,
+  $shrinkSelectionToRoot,
+  $swapPoints,
+  type Position,
 } from "./deletion.js";
 import { EditorError } from "./editor-error.js";
 import "./url.js";
+import {
+  $checkSelectionForTable,
+  $clearHighlight,
+  $cutHandler,
+  $deleteCellHandler,
+  $deleteTextHandler,
+  $fixRangeSelectionForSelectedTable,
+  $formatCells,
+  $tabHandler,
+  type ArrowKeyEvent,
+  registerTableArrowKeys,
+  takeTableToCheck,
+} from "./tables.js";
 
 type PathPoint = { path: number[]; offset: number; type: "text" | "element" };
 
@@ -110,9 +160,20 @@ type Command =
   | { type: "toggleChecked"; path: number[] }
   | { type: "toggleLink"; url: string | null }
   | { type: "editLink"; url: string }
-  | { type: "copy" | "cut" }
+  | { type: "copy" }
+  | { type: "cut" }
   | { type: "paste"; clipboard: Clipboard }
   | { type: "selectAll" }
+  | { type: "insertTable"; rows: number; columns: number }
+  | { type: "insertTableRow" | "insertTableColumn"; after: boolean }
+  | { type: "deleteTableRow" | "deleteTableColumn" }
+  | {
+      type: "arrow";
+      key: "left" | "right" | "up" | "down";
+      extend: boolean;
+      native: PathPoint;
+      atCellEdge: boolean;
+    }
   | { type: "undo" }
   | { type: "redo" }
   | { type: "wait"; milliseconds: number };
@@ -134,8 +195,13 @@ function current(): LexicalEditor {
   return editor;
 }
 
+/**
+ * An editor with no root element rather than a headless one, which throws
+ * where rich text's arrow keys ask for the root element; without one, an
+ * editor updates as a headless one does.
+ */
 function load(stateJSON: string): void {
-  const next = createHeadlessEditor({
+  const next = createEditor({
     namespace: EDITOR_NAMESPACE,
     nodes: SCHEMA_NODES,
     onError: (error) => {
@@ -150,6 +216,7 @@ function load(stateJSON: string): void {
   // Registered first, so the loaded document is where undoing stops.
   registerHistory(next, createEmptyHistoryState(), 1000, () => now);
   registerRichText(next);
+  registerLineMoveOntoBlockDecorators(next);
   // A headless editor refuses root listeners, where an editor without a root
   // element calls them only with none; the checklist's pointer handling
   // registers one, which does nothing without a root.
@@ -167,12 +234,13 @@ function load(stateJSON: string): void {
     },
     COMMAND_PRIORITY_LOW,
   );
-  // The document editor's link plugins, in the order it mounts them.
+  // The document editor's link and table plugins, in the order it mounts them.
   registerAutoLink(next, {
     changeHandlers: [],
     excludeParents: [],
     matchers: AUTOLINK_MATCHERS,
   });
+  registerTables(next);
   registerLink(next, namedSignals({ attributes: undefined, validateUrl }));
   next.setEditorState(parsed);
   next.registerUpdateListener(
@@ -244,12 +312,25 @@ function commitQueuedUpdates(): void {
   }
 }
 
-/** Rich text's cut. */
+/**
+ * A cut: each table's handler takes it where the document has a table, in
+ * the one update its command runs in, and rich text's otherwise.
+ */
 function cut(): void {
+  let isCutByATable = false;
   current().update(
     () => {
-      const selection = rangeSelection();
-      if (!selection.isCollapsed()) {
+      isCutByATable = $cutHandler((selection) => {
+        clipboard = clipboardData(selection);
+      });
+    },
+    { discrete: true },
+  );
+  if (lastError || isCutByATable) return;
+  current().update(
+    () => {
+      const selection = selectionToCut();
+      if ($isRangeSelection(selection) && !selection.isCollapsed()) {
         INTERNAL_$expandSelectionToWholeDocument(selection);
       }
       clipboard = copy(selection);
@@ -257,18 +338,33 @@ function cut(): void {
     { discrete: true, tag: CUT_TAG },
   );
   if (lastError) return;
-  current().update(() => rangeSelection().removeText(), {
-    discrete: true,
-    tag: CUT_TAG,
-  });
+  current().update(
+    () => {
+      const selection = selectionToCut();
+      if ($isRangeSelection(selection)) selection.removeText();
+      else for (const node of selection.getNodes()) node.remove();
+    },
+    { discrete: true, tag: CUT_TAG },
+  );
+}
+
+/** What rich text's cut takes: a range, or selected nodes. */
+function selectionToCut(): RangeSelection | NodeSelection {
+  const selection = $getSelection();
+  return $isNodeSelection(selection) ? selection : rangeSelection();
 }
 
 /**
  * What a copy puts on the clipboard, which is nothing for a collapsed
- * selection.
+ * range.
  */
-function copy(selection: RangeSelection): Clipboard | undefined {
-  if (selection.isCollapsed()) return undefined;
+function copy(selection: BaseSelection): Clipboard | undefined {
+  if ($isRangeSelection(selection) && selection.isCollapsed()) return undefined;
+  return clipboardData(selection);
+}
+
+/** `$getClipboardDataFromSelection`, short of the HTML (#168). */
+function clipboardData(selection: BaseSelection): Clipboard {
   const lexical = $exportMimeTypeFromSelection(LEXICAL_MIME_TYPE, selection);
   return {
     "text/plain": $exportMimeTypeFromSelection("text/plain", selection) ?? "",
@@ -332,6 +428,25 @@ function rangeSelection(): RangeSelection {
 }
 
 /**
+ * What TablePlugin registers with the web's props, short of what it binds to
+ * each table's DOM, which `tables.ts` copies. `hasTabHandler` is read where
+ * Tab runs.
+ */
+function registerTables(next: LexicalEditor): void {
+  const { hasCellMerge, hasCellBackgroundColor, hasNestedTables } =
+    DOCUMENT_TABLE_PLUGIN;
+  registerTablePlugin(next, { hasNestedTables: signal(hasNestedTables) });
+  if (!hasCellMerge) registerTableCellUnmergeTransform(next);
+  if (!hasCellBackgroundColor) {
+    next.registerNodeTransform(TableCellNode, (node) => {
+      if (node.getBackgroundColor() !== null) node.setBackgroundColor(null);
+    });
+  }
+  registerTableArrowKeys(next);
+  registerDocumentTableInsertion(next);
+}
+
+/**
  * The nodes undo or redo changed, which mark nothing dirty as they swap in a
  * saved state whole. An update copies each node it changes, so these are the
  * nodes that aren't the same object in both states.
@@ -347,6 +462,11 @@ function snapshot(): string {
   return state.read(() =>
     JSON.stringify({ state: state.toJSON(), selection: pathSelection() }),
   );
+}
+
+/** The state alone, which reads back where the selection doesn't. */
+function serializedState(): string {
+  return JSON.stringify(current().getEditorState().toJSON());
 }
 
 function selection(): string {
@@ -372,6 +492,26 @@ function childKeys(pathJSON: string): string {
 
 function pathSelection() {
   const selection = $getSelection();
+  if ($isTableSelection(selection)) {
+    const table = $getNodeByKey(selection.tableKey);
+    const anchor = $getNodeByKey(selection.anchor.key);
+    const focus = $getNodeByKey(selection.focus.key);
+    if (!table || !anchor || !focus) {
+      throw new EditorError(
+        "invalidState",
+        "A table selection's table, anchor cell or focus cell is gone",
+      );
+    }
+    return {
+      table: pathOf(table),
+      anchor: pathOf(anchor),
+      focus: pathOf(focus),
+      cells: selectedNodes(selection).filter($isTableCellNode).map(pathOf),
+    };
+  }
+  if ($isNodeSelection(selection)) {
+    return { nodes: selection.getNodes().map(pathOf) };
+  }
   return $isRangeSelection(selection)
     ? {
         anchor: pathPoint(selection.anchor),
@@ -380,6 +520,34 @@ function pathSelection() {
         style: selection.style,
       }
     : null;
+}
+
+/**
+ * `TableSelection.getNodes`, which reads `map[row][column]` for each place
+ * in the selection's rectangle and fails where the table's map has none, as
+ * where a cell spans rows past the table's end.
+ */
+function selectedNodes(selection: TableSelection): LexicalNode[] {
+  try {
+    return selection.getNodes();
+  } catch (error) {
+    // JavaScriptCore's messages for reading a place in a missing row, and
+    // for a missing place in a row.
+    const isAHole =
+      error instanceof TypeError &&
+      (/^undefined is not an object \(evaluating '[^']*'\)$/.test(
+        error.message,
+      ) ||
+        error.message ===
+          "Cannot destructure property 'cell' from null or undefined value");
+    if (isAHole) {
+      throw new EditorError(
+        "invalidState",
+        "TableSelection.getNodes read a cell the table hasn't got",
+      );
+    }
+    throw error;
+  }
 }
 
 /**
@@ -445,21 +613,38 @@ function run(
     return;
   }
   if (command.type === "selectAll") {
-    $selectAll(null);
+    current().dispatchCommand(SELECT_ALL_COMMAND, null as never);
     return;
   }
-  const selection = rangeSelection();
+  if (command.type === "arrow") {
+    arrow(command);
+    return;
+  }
+  const selection = $getSelection();
+  if ($isTableSelection(selection)) {
+    runOnCells(command, selection);
+    return;
+  }
+  if ($isNodeSelection(selection)) {
+    runOnNodes(command, selection);
+    return;
+  }
+  if (!$isRangeSelection(selection)) {
+    throw new EditorError("noSelection", "No range selection");
+  }
   switch (command.type) {
     case "insertText":
     case "commitComposition":
       selection.insertText(command.text);
       return;
-    case "deleteCharacter":
+    case "deleteCharacter": {
+      if ($deleteCellHandler()) return;
       editor.dispatchCommand(
         command.backward ? KEY_BACKSPACE_COMMAND : KEY_DELETE_COMMAND,
         key(),
       );
       return;
+    }
     case "deleteWord":
       $deleteWord(selection, command.backward);
       return;
@@ -487,18 +672,18 @@ function run(
       $setBlockType(selection, command.blockType);
       return;
     case "insertList":
-      editor.dispatchCommand(LIST_COMMANDS[command.listType], undefined);
-      return;
     case "removeList":
-      editor.dispatchCommand(REMOVE_LIST_COMMAND, undefined);
-      return;
     case "indent":
-      editor.dispatchCommand(INDENT_CONTENT_COMMAND, undefined);
-      return;
     case "outdent":
-      editor.dispatchCommand(OUTDENT_CONTENT_COMMAND, undefined);
+      runOnBlocks(command);
       return;
     case "tab":
+      if (
+        DOCUMENT_TABLE_PLUGIN.hasTabHandler &&
+        $tabHandler(command.backward)
+      ) {
+        return;
+      }
       editor.dispatchCommand(KEY_TAB_COMMAND, key(command.backward));
       return;
     case "toggleLink":
@@ -512,6 +697,403 @@ function run(
       return;
     case "paste":
       paste(command.clipboard);
+      return;
+    default:
+      runOnTable(command);
+  }
+}
+
+const ARROW_COMMANDS = {
+  down: KEY_ARROW_DOWN_COMMAND,
+  left: KEY_ARROW_LEFT_COMMAND,
+  right: KEY_ARROW_RIGHT_COMMAND,
+  up: KEY_ARROW_UP_COMMAND,
+};
+
+/**
+ * An arrow key as a browser has it: the handlers first, and where none
+ * takes the key or stops it, the browser's own move; then the selection
+ * change that follows either.
+ */
+function arrow(command: Extract<Command, { type: "arrow" }>): void {
+  const before = $getSelection()?.clone() ?? null;
+  const event: LineMoveEvent = {
+    atCellEdge: command.atCellEdge,
+    native: command.native,
+    defaultPrevented: false,
+    preventDefault() {
+      this.defaultPrevented = true;
+    },
+    shiftKey: command.extend,
+    stopImmediatePropagation() {},
+    stopPropagation() {},
+  };
+  let handled: boolean;
+  try {
+    handled = current().dispatchCommand(
+      ARROW_COMMANDS[command.key],
+      event as unknown as KeyboardEvent,
+    );
+  } catch (error) {
+    if (!(error instanceof Error && error.message === MISSING_WINDOW)) {
+      throw error;
+    }
+    $moveNatively(command);
+    handled = true;
+  }
+  const tableToCheck = takeTableToCheck();
+  if (!handled && !event.defaultPrevented) {
+    // Rich text turns selected nodes into the range the browser extends,
+    // and where it leaves them selected the browser shows no caret to move.
+    const extended = $isNodeSelection(before) ? $getSelection() : before;
+    if ($isNodeSelection(extended)) return;
+    const anchor =
+      command.extend && $isRangeSelection(extended)
+        ? pathPoint(extended.anchor)
+        : command.native;
+    setSelection(anchor, command.native);
+  } else if (!$reselect(before)) {
+    return;
+  }
+  if (tableToCheck && $checkSelectionForTable(tableToCheck, before)) {
+    $reselect(before);
+  }
+}
+
+/** An arrow key's event, with where the platform's move takes the focus. */
+type LineMoveEvent = ArrowKeyEvent & { native: PathPoint };
+
+/**
+ * The rest of rich text's `$tryDecoratorLineNavigation` for Up and Down,
+ * which asks the DOM's selection whether a line move from a block with text
+ * leaves it toward a block decorator beside it, and selects the decorator
+ * where the move leaves the block or doesn't move. Registered after rich
+ * text, so it runs where rich text, with no DOM, gave the key up; the
+ * platform's line move is `native`. `$tryInlineGridLineNavigation`, which
+ * runs next, finds no inline element the web displays as a grid.
+ */
+function registerLineMoveOntoBlockDecorators(next: LexicalEditor): void {
+  for (const [command, isBackward] of [
+    [KEY_ARROW_UP_COMMAND, true],
+    [KEY_ARROW_DOWN_COMMAND, false],
+  ] as const) {
+    next.registerCommand(
+      command,
+      (keyEvent) => {
+        const event = keyEvent as unknown as LineMoveEvent;
+        const selection = $getSelection();
+        if (event.shiftKey || !$isRangeSelection(selection)) return false;
+        if (!selection.isCollapsed()) return false;
+        const focus = selection.focus;
+        const focusNode = focus.getNode();
+        if (focus.type === "element" && $isRootOrShadowRoot(focusNode)) {
+          return false;
+        }
+        const topBlock = $findMatchingParent(
+          $isElementNode(focusNode) ? focusNode : focusNode.getParentOrThrow(),
+          (node) =>
+            $isElementNode(node) &&
+            !node.isInline() &&
+            $isRootOrShadowRoot(node.getParent()),
+        );
+        if (topBlock === null) return false;
+        const sibling = $getSiblingCaret(
+          topBlock,
+          isBackward ? "previous" : "next",
+        ).getNodeAtCaret();
+        if (
+          !$isDecoratorNode(sibling) ||
+          sibling.isInline() ||
+          sibling.isIsolated() ||
+          !sibling.isKeyboardSelectable()
+        ) {
+          return false;
+        }
+        const moved = pointNode(event.native);
+        const at = pathPoint(focus);
+        const didNotMove =
+          event.native.offset === at.offset &&
+          event.native.type === at.type &&
+          event.native.path.join() === at.path.join();
+        if (
+          !didNotMove &&
+          (moved.is(topBlock) || $hasAncestor(moved, topBlock))
+        ) {
+          return false;
+        }
+        const nodeSelection = $createNodeSelection();
+        nodeSelection.add(sibling.getKey());
+        $setSelection(nodeSelection);
+        event.preventDefault();
+        return true;
+      },
+      COMMAND_PRIORITY_EDITOR,
+    );
+  }
+}
+
+/**
+ * What `RangeSelection.modify` throws on reaching for the browser's
+ * selection, which an editor with no root element has none of.
+ */
+const MISSING_WINDOW = "window object not found";
+
+/**
+ * The rest of `RangeSelection.modify` after the browser's selection moves
+ * its focus to `native`: that selection read back, and when extending,
+ * kept to the anchor's root and pointed the way the browser's points.
+ */
+function $moveNatively(command: Extract<Command, { type: "arrow" }>): void {
+  const selection = $getSelection();
+  if (!$isRangeSelection(selection)) return;
+  const native: Position = {
+    key: pointNode(command.native).getKey(),
+    offset: command.native.offset,
+    type: command.native.type,
+  };
+  if (!command.extend) {
+    $applyRange(selection, native, native);
+    selection.dirty = true;
+    return;
+  }
+  const anchorNode = selection.anchor.getNode();
+  const root = $isRootNode(anchorNode)
+    ? anchorNode
+    : $getNearestRootOrShadowRoot(anchorNode);
+  const moved = selection.clone();
+  moved.focus.set(native.key, native.offset, native.type);
+  const anchorIsAtStart = !moved.isBackward();
+  const { key, offset, type } = selection.anchor;
+  const anchor: Position = { key, offset, type };
+  if (anchorIsAtStart) $applyRange(selection, anchor, native);
+  else $applyRange(selection, native, anchor);
+  selection.dirty = true;
+  $shrinkSelectionToRoot(selection, command.key === "left", root);
+  if (!anchorIsAtStart) $swapPoints(selection);
+}
+
+/**
+ * The selection change a browser has after Lexical moves a range: the
+ * DOM's selection read back, as `setSelection` reads a user's. Lexical
+ * skips one inside text at both ends as its own. False where there was
+ * none.
+ */
+function $reselect(before: BaseSelection | null): boolean {
+  const selection = $getSelection();
+  const inText = (point: PointType) =>
+    point.type === "text" &&
+    point.offset !== 0 &&
+    point.offset !== point.getNode().getTextContentSize();
+  if (
+    !$isRangeSelection(selection) ||
+    ($isRangeSelection(before) &&
+      before.anchor.is(selection.anchor) &&
+      before.focus.is(selection.focus)) ||
+    (inText(selection.anchor) && inText(selection.focus))
+  ) {
+    return false;
+  }
+  setSelection(pathPoint(selection.anchor), pathPoint(selection.focus));
+  return true;
+}
+
+/** A table selection, where each table's handlers answer first. */
+function runOnCells(
+  command: Exclude<
+    Command,
+    {
+      type:
+        | "setSelection"
+        | "toggleChecked"
+        | "selectAll"
+        | "arrow"
+        | "undo"
+        | "redo"
+        | "wait"
+        | "cut";
+    }
+  >,
+  selection: TableSelection,
+) {
+  switch (command.type) {
+    case "insertText":
+    case "commitComposition":
+      $clearHighlight();
+      return;
+    case "deleteCharacter":
+      $deleteCellHandler();
+      return;
+    case "deleteWord":
+    case "deleteLine":
+      $deleteTextHandler();
+      return;
+    case "formatText":
+      $formatCells(selection, command.format);
+      return;
+    case "setBlockType":
+      $setBlockType(selection, command.blockType);
+      return;
+    case "insertParagraph":
+    case "insertLineBreak":
+      // Rich text's Enter answers a range selection alone.
+      return;
+    case "tab":
+      current().dispatchCommand(KEY_TAB_COMMAND, key(command.backward));
+      return;
+    case "insertList":
+    case "removeList":
+    case "indent":
+    case "outdent":
+      runOnBlocks(command);
+      return;
+    case "toggleLink":
+      current().dispatchCommand(TOGGLE_LINK_COMMAND, command.url);
+      return;
+    case "editLink":
+      saveLink(current(), command.url);
+      return;
+    case "copy":
+      clipboard = copy(selection);
+      return;
+    case "paste":
+      paste(command.clipboard);
+      return;
+    default:
+      runOnTable(command);
+  }
+}
+
+/**
+ * A selected node, as a rule is where an arrow or a deletion reaches it,
+ * which rich text's handlers answer as the web's keys and menus send them.
+ */
+function runOnNodes(
+  command: Exclude<
+    Command,
+    {
+      type:
+        | "setSelection"
+        | "toggleChecked"
+        | "selectAll"
+        | "arrow"
+        | "undo"
+        | "redo"
+        | "wait"
+        | "cut";
+    }
+  >,
+  selection: NodeSelection,
+) {
+  const editor = current();
+  switch (command.type) {
+    case "insertText":
+    case "commitComposition":
+      selection.insertText();
+      return;
+    case "deleteCharacter":
+      editor.dispatchCommand(
+        command.backward ? KEY_BACKSPACE_COMMAND : KEY_DELETE_COMMAND,
+        key(),
+      );
+      return;
+    case "deleteWord":
+    case "deleteLine":
+      // Rich text deletes a word or a line from a range selection alone.
+      return;
+    case "insertParagraph":
+      editor.dispatchCommand(KEY_ENTER_COMMAND, null);
+      return;
+    case "insertLineBreak":
+      editor.dispatchCommand(KEY_ENTER_COMMAND, key(true));
+      return;
+    case "formatText":
+      $formatText(selection, command.format);
+      return;
+    case "setBlockType":
+      $setBlockType(selection, command.blockType);
+      return;
+    case "tab":
+      editor.dispatchCommand(KEY_TAB_COMMAND, key(command.backward));
+      return;
+    case "insertList":
+    case "removeList":
+    case "indent":
+    case "outdent":
+      runOnBlocks(command);
+      return;
+    case "toggleLink":
+      editor.dispatchCommand(TOGGLE_LINK_COMMAND, command.url);
+      return;
+    case "editLink":
+      saveLink(editor, command.url);
+      return;
+    case "copy":
+      clipboard = copy(selection);
+      return;
+    case "paste":
+      paste(command.clipboard);
+      return;
+    default:
+      runOnTable(command);
+  }
+}
+
+/** The toolbar's list, indent and outdent buttons. */
+function runOnBlocks(
+  command: Extract<
+    Command,
+    { type: "insertList" | "removeList" | "indent" | "outdent" }
+  >,
+) {
+  const editor = current();
+  switch (command.type) {
+    case "insertList":
+      editor.dispatchCommand(LIST_COMMANDS[command.listType], undefined);
+      return;
+    case "removeList":
+      editor.dispatchCommand(REMOVE_LIST_COMMAND, undefined);
+      return;
+    case "indent":
+      editor.dispatchCommand(INDENT_CONTENT_COMMAND, undefined);
+      return;
+    case "outdent":
+      editor.dispatchCommand(OUTDENT_CONTENT_COMMAND, undefined);
+      return;
+  }
+}
+
+/** The insert-table dialog and the table menu. */
+function runOnTable(
+  command: Extract<
+    Command,
+    {
+      type:
+        | "insertTable"
+        | "insertTableRow"
+        | "insertTableColumn"
+        | "deleteTableRow"
+        | "deleteTableColumn";
+    }
+  >,
+) {
+  switch (command.type) {
+    case "insertTable":
+      current().dispatchCommand(INSERT_TABLE_COMMAND, {
+        rows: String(command.rows),
+        columns: String(command.columns),
+      });
+      return;
+    case "insertTableRow":
+      $insertTableRowAtSelection(command.after);
+      return;
+    case "insertTableColumn":
+      $insertDocumentTableColumns(command.after);
+      return;
+    case "deleteTableRow":
+      $deleteTableRowAtSelection();
+      return;
+    case "deleteTableColumn":
+      $deleteTableColumnAtSelection();
       return;
   }
 }
@@ -570,6 +1152,7 @@ function setSelection(anchorAt: PathPoint, focusAt: PathPoint): void {
   } else {
     selection.format = combinedFormat(selection, anchorAt, focusAt);
   }
+  $fixRangeSelectionForSelectedTable(selection);
 }
 
 /** `$updateSelectionFormatStyle` from Lexical's selection-change handler. */
@@ -682,5 +1265,13 @@ function pathPoint(point: PointType): PathPoint {
 }
 
 Object.assign(globalThis, {
-  LexicalReference: { load, apply, snapshot, selection, node, childKeys },
+  LexicalReference: {
+    load,
+    apply,
+    snapshot,
+    serializedState,
+    selection,
+    node,
+    childKeys,
+  },
 });

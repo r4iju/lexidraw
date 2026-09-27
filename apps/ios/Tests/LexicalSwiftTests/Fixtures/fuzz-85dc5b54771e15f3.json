@@ -1,0 +1,825 @@
+{
+  "changes" : [
+    {
+      "changed" : [
+
+      ]
+    },
+    {
+      "changed" : [
+        [
+
+        ],
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          1
+        ],
+        [
+          0,
+          0,
+          0,
+          1,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "changed" : [
+        [
+
+        ],
+        [
+          0
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          1
+        ],
+        [
+          0,
+          1,
+          0
+        ],
+        [
+          0,
+          1,
+          0,
+          0
+        ],
+        [
+          0,
+          2
+        ]
+      ]
+    },
+    {
+      "changed" : [
+
+      ]
+    },
+    {
+      "changed" : [
+        [
+
+        ],
+        [
+          0
+        ],
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "changed" : [
+        [
+          0
+        ],
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          1
+        ],
+        [
+          0,
+          0,
+          0,
+          1,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "changed" : [
+        [
+
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          1,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          1,
+          1
+        ],
+        [
+          0,
+          1,
+          0
+        ],
+        [
+          0,
+          1,
+          0,
+          0
+        ],
+        [
+          0,
+          1,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          2,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          2,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        [
+          0,
+          2,
+          0,
+          0,
+          0,
+          0,
+          1,
+          0
+        ],
+        [
+          0,
+          2,
+          0,
+          0,
+          0,
+          0,
+          1,
+          1
+        ],
+        [
+          0,
+          2,
+          0,
+          0,
+          0,
+          0,
+          1,
+          2
+        ],
+        [
+          0,
+          2,
+          0,
+          0,
+          0,
+          0,
+          1,
+          3
+        ]
+      ]
+    },
+    {
+      "changed" : [
+
+      ]
+    },
+    {
+      "changed" : [
+        [
+
+        ],
+        [
+          0
+        ],
+        [
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "changed" : [
+        [
+
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "changed" : [
+        [
+
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "changed" : [
+        [
+
+        ],
+        [
+          0
+        ],
+        [
+          1
+        ],
+        [
+          2
+        ]
+      ]
+    }
+  ],
+  "commands" : [
+    {
+      "anchor" : {
+        "offset" : 0,
+        "path" : [
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "type" : "text"
+      },
+      "focus" : {
+        "offset" : 0,
+        "path" : [
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "type" : "text"
+      },
+      "type" : "setSelection"
+    },
+    {
+      "type" : "insertParagraph"
+    },
+    {
+      "after" : true,
+      "type" : "insertTableRow"
+    },
+    {
+      "atCellEdge" : true,
+      "extend" : true,
+      "key" : "right",
+      "native" : {
+        "offset" : 2,
+        "path" : [
+          0,
+          2,
+          0,
+          1,
+          3
+        ],
+        "type" : "text"
+      },
+      "type" : "arrow"
+    },
+    {
+      "clipboard" : {
+        "text/plain" : "a"
+      },
+      "type" : "paste"
+    },
+    {
+      "type" : "undo"
+    },
+    {
+      "listType" : "bullet",
+      "type" : "insertList"
+    },
+    {
+      "anchor" : {
+        "offset" : 0,
+        "path" : [
+          0,
+          0,
+          0,
+          0,
+          1,
+          1
+        ],
+        "type" : "text"
+      },
+      "focus" : {
+        "offset" : 0,
+        "path" : [
+          0,
+          0,
+          0,
+          0,
+          1,
+          1
+        ],
+        "type" : "text"
+      },
+      "type" : "setSelection"
+    },
+    {
+      "type" : "deleteTableRow"
+    },
+    {
+      "type" : "indent"
+    },
+    {
+      "clipboard" : {
+        "application/x-lexical-editor" : {
+          "namespace" : "Lexidraw",
+          "nodes" : [
+            {
+              "type" : "horizontalrule",
+              "version" : 1
+            }
+          ]
+        },
+        "text/plain" : "\n"
+      },
+      "type" : "paste"
+    },
+    {
+      "type" : "insertParagraph"
+    }
+  ],
+  "expected" : {
+    "selection" : {
+      "anchor" : {
+        "offset" : 0,
+        "path" : [
+          2
+        ],
+        "type" : "element"
+      },
+      "focus" : {
+        "offset" : 0,
+        "path" : [
+          2
+        ],
+        "type" : "element"
+      },
+      "format" : 0,
+      "style" : "color: red;"
+    },
+    "state" : {
+      "root" : {
+        "children" : [
+          {
+            "children" : [
+              {
+                "children" : [
+                  {
+                    "backgroundColor" : null,
+                    "children" : [
+                      {
+                        "children" : [
+                          {
+                            "children" : [
+                              {
+                                "type" : "horizontalrule",
+                                "version" : 1
+                              }
+                            ],
+                            "direction" : null,
+                            "format" : "",
+                            "indent" : 0,
+                            "type" : "listitem",
+                            "value" : 1,
+                            "version" : 1
+                          }
+                        ],
+                        "direction" : null,
+                        "format" : "",
+                        "indent" : 0,
+                        "listType" : "bullet",
+                        "start" : 1,
+                        "tag" : "ul",
+                        "type" : "list",
+                        "version" : 1
+                      }
+                    ],
+                    "colSpan" : 1,
+                    "direction" : null,
+                    "format" : "",
+                    "headerState" : 0,
+                    "indent" : 0,
+                    "rowSpan" : 1,
+                    "type" : "tablecell",
+                    "version" : 1
+                  }
+                ],
+                "direction" : null,
+                "format" : "",
+                "indent" : 0,
+                "type" : "tablerow",
+                "version" : 1
+              },
+              {
+                "children" : [
+                  {
+                    "backgroundColor" : null,
+                    "children" : [
+                      {
+                        "children" : [
+                          {
+                            "children" : [
+                              {
+                                "children" : [
+                                  {
+                                    "children" : [
+
+                                    ],
+                                    "direction" : null,
+                                    "format" : "",
+                                    "indent" : 1,
+                                    "type" : "listitem",
+                                    "value" : 1,
+                                    "version" : 1
+                                  },
+                                  {
+                                    "children" : [
+                                      {
+                                        "detail" : 2,
+                                        "format" : 0,
+                                        "mode" : "normal",
+                                        "style" : "color: red;",
+                                        "text" : "\t",
+                                        "type" : "tab",
+                                        "version" : 1
+                                      },
+                                      {
+                                        "type" : "linebreak",
+                                        "version" : 1
+                                      },
+                                      {
+                                        "detail" : 0,
+                                        "format" : 8,
+                                        "mode" : "normal",
+                                        "style" : "",
+                                        "text" : "_",
+                                        "type" : "text",
+                                        "version" : 1
+                                      },
+                                      {
+                                        "detail" : 0,
+                                        "format" : 32,
+                                        "mode" : "normal",
+                                        "style" : "",
+                                        "text" : "a7",
+                                        "type" : "text",
+                                        "version" : 1
+                                      }
+                                    ],
+                                    "direction" : null,
+                                    "format" : "",
+                                    "indent" : 1,
+                                    "type" : "listitem",
+                                    "value" : 2,
+                                    "version" : 1
+                                  }
+                                ],
+                                "direction" : null,
+                                "format" : "",
+                                "indent" : 0,
+                                "listType" : "bullet",
+                                "start" : 1,
+                                "tag" : "ul",
+                                "type" : "list",
+                                "version" : 1
+                              }
+                            ],
+                            "direction" : null,
+                            "format" : "",
+                            "indent" : 0,
+                            "type" : "listitem",
+                            "value" : 1,
+                            "version" : 1
+                          }
+                        ],
+                        "direction" : null,
+                        "format" : "",
+                        "indent" : 0,
+                        "listType" : "bullet",
+                        "start" : 1,
+                        "tag" : "ul",
+                        "type" : "list",
+                        "version" : 1
+                      }
+                    ],
+                    "colSpan" : 1,
+                    "direction" : null,
+                    "format" : "",
+                    "headerState" : 3,
+                    "indent" : 0,
+                    "rowSpan" : 1,
+                    "type" : "tablecell",
+                    "version" : 1
+                  }
+                ],
+                "direction" : null,
+                "format" : "",
+                "indent" : 0,
+                "type" : "tablerow",
+                "version" : 1
+              }
+            ],
+            "colWidths" : [
+              92.5
+            ],
+            "direction" : null,
+            "format" : "",
+            "indent" : 0,
+            "type" : "table",
+            "version" : 1
+          },
+          {
+            "children" : [
+
+            ],
+            "direction" : null,
+            "format" : "",
+            "indent" : 0,
+            "textFormat" : 0,
+            "textStyle" : "",
+            "type" : "paragraph",
+            "version" : 1
+          },
+          {
+            "children" : [
+
+            ],
+            "direction" : null,
+            "format" : "",
+            "indent" : 0,
+            "textFormat" : 0,
+            "textStyle" : "color: red;",
+            "type" : "paragraph",
+            "version" : 1
+          }
+        ],
+        "direction" : null,
+        "format" : "",
+        "indent" : 0,
+        "type" : "root",
+        "version" : 1
+      }
+    }
+  },
+  "start" : {
+    "root" : {
+      "children" : [
+        {
+          "children" : [
+            {
+              "children" : [
+                {
+                  "backgroundColor" : "#eee",
+                  "children" : [
+                    {
+                      "children" : [
+                        {
+                          "detail" : 0,
+                          "format" : 0,
+                          "mode" : "normal",
+                          "style" : "color: red;",
+                          "text" : "な",
+                          "type" : "text",
+                          "version" : 1
+                        },
+                        {
+                          "detail" : 0,
+                          "format" : 2,
+                          "mode" : "normal",
+                          "style" : "",
+                          "text" : "京",
+                          "type" : "text",
+                          "version" : 1
+                        }
+                      ],
+                      "direction" : null,
+                      "format" : "",
+                      "indent" : 0,
+                      "textFormat" : 0,
+                      "textStyle" : "color: red;",
+                      "type" : "paragraph",
+                      "version" : 1
+                    }
+                  ],
+                  "colSpan" : 1,
+                  "direction" : null,
+                  "format" : "",
+                  "headerState" : 0,
+                  "indent" : 0,
+                  "rowSpan" : 1,
+                  "type" : "tablecell",
+                  "version" : 1
+                }
+              ],
+              "direction" : null,
+              "format" : "",
+              "indent" : 0,
+              "type" : "tablerow",
+              "version" : 1
+            },
+            {
+              "children" : [
+                {
+                  "backgroundColor" : null,
+                  "children" : [
+                    {
+                      "children" : [
+
+                      ],
+                      "direction" : null,
+                      "format" : "",
+                      "indent" : 1,
+                      "textFormat" : 2,
+                      "textStyle" : "",
+                      "type" : "paragraph",
+                      "version" : 1
+                    },
+                    {
+                      "children" : [
+                        {
+                          "detail" : 2,
+                          "format" : 0,
+                          "mode" : "normal",
+                          "style" : "color: red;",
+                          "text" : "\t",
+                          "type" : "tab",
+                          "version" : 1
+                        },
+                        {
+                          "type" : "linebreak",
+                          "version" : 1
+                        },
+                        {
+                          "detail" : 0,
+                          "format" : 8,
+                          "mode" : "normal",
+                          "style" : "",
+                          "text" : "_",
+                          "type" : "text",
+                          "version" : 1
+                        },
+                        {
+                          "detail" : 0,
+                          "format" : 32,
+                          "mode" : "normal",
+                          "style" : "",
+                          "text" : "a7",
+                          "type" : "text",
+                          "version" : 1
+                        }
+                      ],
+                      "direction" : null,
+                      "format" : "",
+                      "indent" : 1,
+                      "textFormat" : 0,
+                      "textStyle" : "color: red;",
+                      "type" : "paragraph",
+                      "version" : 1
+                    }
+                  ],
+                  "colSpan" : 1,
+                  "direction" : null,
+                  "format" : "",
+                  "headerState" : 3,
+                  "indent" : 0,
+                  "rowSpan" : 1,
+                  "type" : "tablecell",
+                  "version" : 1
+                }
+              ],
+              "direction" : null,
+              "format" : "",
+              "indent" : 0,
+              "type" : "tablerow",
+              "version" : 1
+            }
+          ],
+          "colWidths" : [
+            92.5
+          ],
+          "direction" : null,
+          "format" : "",
+          "indent" : 0,
+          "type" : "table",
+          "version" : 1
+        }
+      ],
+      "direction" : null,
+      "format" : "",
+      "indent" : 0,
+      "type" : "root",
+      "version" : 1
+    }
+  }
+}

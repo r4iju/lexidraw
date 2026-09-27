@@ -155,7 +155,18 @@
                   {
                     "backgroundColor" : null,
                     "children" : [
+                      {
+                        "children" : [
 
+                        ],
+                        "direction" : null,
+                        "format" : "",
+                        "indent" : 0,
+                        "textFormat" : 0,
+                        "textStyle" : "",
+                        "type" : "paragraph",
+                        "version" : 1
+                      }
                     ],
                     "colSpan" : 1,
                     "direction" : null,

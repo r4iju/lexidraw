@@ -651,7 +651,7 @@ function landing(
  * `RangeSelection.applyDOMRange` for positions `measure` gives, which are
  * already the points a DOM position resolves to.
  */
-function $applyRange(
+export function $applyRange(
   selection: RangeSelection,
   start: Position,
   end: Position,
@@ -666,7 +666,7 @@ function $applyRange(
   $normalizeSelection(selection);
 }
 
-function $shrinkSelectionToRoot(
+export function $shrinkSelectionToRoot(
   selection: RangeSelection,
   isBackward: boolean,
   root: LexicalNode,
@@ -693,7 +693,7 @@ function $shrinkSelectionToRoot(
   return true;
 }
 
-function $swapPoints(selection: RangeSelection): void {
+export function $swapPoints(selection: RangeSelection): void {
   const focus = selection.focus;
   const anchor = selection.anchor;
   const anchorKey = anchor.key;

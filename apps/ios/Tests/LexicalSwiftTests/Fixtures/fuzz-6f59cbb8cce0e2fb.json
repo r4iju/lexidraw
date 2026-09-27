@@ -1,0 +1,167 @@
+{
+  "changes" : [
+    {
+      "changed" : [
+
+      ]
+    },
+    {
+      "changed" : [
+        [
+
+        ],
+        [
+          0
+        ]
+      ]
+    },
+    {
+      "changed" : [
+        [
+
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          1
+        ]
+      ]
+    },
+    {
+      "changed" : [
+
+      ]
+    }
+  ],
+  "commands" : [
+    {
+      "atCellEdge" : true,
+      "extend" : true,
+      "key" : "up",
+      "native" : {
+        "offset" : 9,
+        "path" : [
+          0,
+          0
+        ],
+        "type" : "text"
+      },
+      "type" : "arrow"
+    },
+    {
+      "backward" : true,
+      "lineBoundary" : {
+        "offset" : 0,
+        "path" : [
+          0,
+          0
+        ],
+        "type" : "text"
+      },
+      "type" : "deleteLine"
+    },
+    {
+      "listType" : "number",
+      "type" : "insertList"
+    },
+    {
+      "atCellEdge" : true,
+      "extend" : false,
+      "key" : "down",
+      "native" : {
+        "offset" : 0,
+        "path" : [
+          0,
+          0
+        ],
+        "type" : "element"
+      },
+      "type" : "arrow"
+    }
+  ],
+  "expected" : {
+    "selection" : {
+      "nodes" : [
+        [
+          1
+        ]
+      ]
+    },
+    "state" : {
+      "root" : {
+        "children" : [
+          {
+            "children" : [
+              {
+                "children" : [
+
+                ],
+                "direction" : null,
+                "format" : "",
+                "indent" : 0,
+                "textFormat" : 16,
+                "type" : "listitem",
+                "value" : 1,
+                "version" : 1
+              }
+            ],
+            "direction" : null,
+            "format" : "",
+            "indent" : 0,
+            "listType" : "number",
+            "start" : 1,
+            "tag" : "ol",
+            "type" : "list",
+            "version" : 1
+          },
+          {
+            "type" : "horizontalrule",
+            "version" : 1
+          }
+        ],
+        "direction" : null,
+        "format" : "",
+        "indent" : 0,
+        "type" : "root",
+        "version" : 1
+      }
+    }
+  },
+  "start" : {
+    "root" : {
+      "children" : [
+        {
+          "children" : [
+            {
+              "detail" : 0,
+              "format" : 16,
+              "mode" : "normal",
+              "style" : "",
+              "text" : "bカタカナカタカナ",
+              "type" : "text",
+              "version" : 1
+            }
+          ],
+          "direction" : null,
+          "format" : "",
+          "indent" : 0,
+          "textFormat" : 16,
+          "textStyle" : "",
+          "type" : "paragraph",
+          "version" : 1
+        },
+        {
+          "type" : "horizontalrule",
+          "version" : 1
+        }
+      ],
+      "direction" : null,
+      "format" : "",
+      "indent" : 0,
+      "type" : "root",
+      "version" : 1
+    }
+  }
+}

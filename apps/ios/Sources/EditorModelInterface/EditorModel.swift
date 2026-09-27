@@ -17,6 +17,10 @@ public protocol EditorModel: AnyObject {
   /// The serialized editor state and the selection.
   func snapshot() throws -> Snapshot
 
+  /// The serialized editor state alone, which reads back where the
+  /// selection doesn't.
+  func serializedState() throws -> JSONValue
+
   /// The selection alone, without serializing the document.
   func selection() throws -> Selection?
 
@@ -30,6 +34,10 @@ public protocol EditorModel: AnyObject {
   func childKeys(at path: [Int]) throws -> [String]
 }
 
+extension EditorModel {
+  public func serializedState() throws -> JSONValue { ["root": try node(at: [])] }
+}
+
 public struct Snapshot: Codable, Equatable, Sendable {
   public var state: JSONValue
   public var selection: Selection?
@@ -40,23 +48,98 @@ public struct Snapshot: Codable, Equatable, Sendable {
   }
 }
 
-/// A range selection. Points are addressed by path (child indexes from the
-/// root) rather than node key, so two implementations can be compared.
-public struct Selection: Codable, Equatable, Sendable {
-  public var anchor: Point
-  public var focus: Point
-  /// The format new text takes, as Lexical's `RangeSelection.format`.
-  public var format: TextFormat
-  public var style: String
+/// Lexical's selection: a range, the cells of a table, or nodes selected
+/// whole. Nodes are addressed
+/// by path (child indexes from the root) rather than node key, so two
+/// implementations can be compared.
+public enum Selection: Equatable, Sendable {
+  /// Lexical's `RangeSelection`, with the format new text takes (its
+  /// `format`) and style.
+  case range(anchor: Point, focus: Point, format: TextFormat, style: String)
+  /// Lexical's `TableSelection`: the rectangle of `table`'s cells from the
+  /// `anchor` cell to the `focus` cell, grown until no merged cell crosses
+  /// its edge. `cells` are the paths of the cells it has, row by row.
+  case table(table: [Int], anchor: [Int], focus: [Int], cells: [[Int]])
+  /// Lexical's `NodeSelection`, of a rule an arrow or a deletion reaches:
+  /// the nodes in the order they were selected, short of any removed since.
+  case node(nodes: [[Int]])
 
-  public init(anchor: Point, focus: Point, format: TextFormat, style: String) {
-    self.anchor = anchor
-    self.focus = focus
-    self.format = format
-    self.style = style
+  /// The anchor, which for a table selection is the start of its cell, and
+  /// for selected nodes the point before the first, or the root's start
+  /// where none is left.
+  public var anchor: Point {
+    switch self {
+    case .range(let anchor, _, _, _): anchor
+    case .table(_, let anchor, _, _): Point(path: anchor, offset: 0, type: .element)
+    case .node(let nodes): Self.before(nodes.first)
+    }
   }
 
-  public var isCollapsed: Bool { anchor == focus }
+  /// The focus, which for a table selection is the start of its cell, and
+  /// for selected nodes the same as the anchor.
+  public var focus: Point {
+    switch self {
+    case .range(_, let focus, _, _): focus
+    case .table(_, _, let focus, _): Point(path: focus, offset: 0, type: .element)
+    case .node(let nodes): Self.before(nodes.first)
+    }
+  }
+
+  private static func before(_ node: [Int]?) -> Point {
+    guard let node, let index = node.last else { return Point(path: [], offset: 0, type: .element) }
+    return Point(path: Array(node.dropLast()), offset: index, type: .element)
+  }
+
+  /// A range's format; a table selection and selected nodes have none.
+  public var format: TextFormat {
+    if case .range(_, _, let format, _) = self { format } else { [] }
+  }
+
+  /// Whether it's a caret. A table selection never is, even of one cell,
+  /// and nor are selected nodes.
+  public var isCollapsed: Bool {
+    if case .range(let anchor, let focus, _, _) = self { anchor == focus } else { false }
+  }
+}
+
+extension Selection: Codable {
+  private enum CodingKeys: String, CodingKey {
+    case anchor, focus, format, style, table, cells, nodes
+  }
+
+  public init(from decoder: any Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    if let nodes = try container.decodeIfPresent([[Int]].self, forKey: .nodes) {
+      self = .node(nodes: nodes)
+    } else if let table = try container.decodeIfPresent([Int].self, forKey: .table) {
+      self = .table(
+        table: table, anchor: try container.decode([Int].self, forKey: .anchor),
+        focus: try container.decode([Int].self, forKey: .focus), cells: try container.decode([[Int]].self, forKey: .cells))
+    } else {
+      self = .range(
+        anchor: try container.decode(Point.self, forKey: .anchor), focus: try container.decode(Point.self, forKey: .focus),
+        format: try container.decode(TextFormat.self, forKey: .format),
+        style: try container.decode(String.self, forKey: .style))
+    }
+  }
+
+  public func encode(to encoder: any Encoder) throws {
+    var container = encoder.container(keyedBy: CodingKeys.self)
+    switch self {
+    case .range(let anchor, let focus, let format, let style):
+      try container.encode(anchor, forKey: .anchor)
+      try container.encode(focus, forKey: .focus)
+      try container.encode(format, forKey: .format)
+      try container.encode(style, forKey: .style)
+    case .table(let table, let anchor, let focus, let cells):
+      try container.encode(table, forKey: .table)
+      try container.encode(anchor, forKey: .anchor)
+      try container.encode(focus, forKey: .focus)
+      try container.encode(cells, forKey: .cells)
+    case .node(let nodes):
+      try container.encode(nodes, forKey: .nodes)
+    }
+  }
 }
 
 public struct Point: Codable, Equatable, Hashable, Sendable {
@@ -128,6 +211,20 @@ public enum EditorCommand: Equatable, Sendable {
   /// Pastes as the web's rich-text editor does: Lexical nodes copied from a
   /// document, or else the plain text.
   case paste(Clipboard)
+  /// The web's insert-table dialog: a table after the caret's block, with a
+  /// header row, and the caret in its first cell.
+  case insertTable(rows: Int, columns: Int)
+  /// The web's table menu, on the rows or columns the selection is in.
+  case insertTableRow(after: Bool)
+  case insertTableColumn(after: Bool)
+  case deleteTableRow
+  case deleteTableColumn
+  /// An arrow key, with Shift (`extend`) or without. What Lexical doesn't
+  /// take it leaves to the platform, which moves the focus to `native`, and
+  /// the anchor with it without Shift. `atCellEdge` says the caret's line is
+  /// the first of its table cell going up, or the last going down, which
+  /// @lexical/table measures in the DOM.
+  case arrow(ArrowKey, extend: Bool, native: Point, atCellEdge: Bool)
   case undo
   case redo
   /// Lets time pass, which decides whether history merges the next edit into
@@ -147,6 +244,10 @@ public enum EditorCommand: Equatable, Sendable {
 /// What a block of text is: a paragraph, a heading by its tag, or a quote.
 public enum BlockType: String, Codable, CaseIterable, Sendable {
   case paragraph, h1, h2, h3, h4, h5, h6, quote
+}
+
+public enum ArrowKey: String, Codable, CaseIterable, Sendable {
+  case left, right, up, down
 }
 
 /// Lexical's `TextFormatType`: a text format by the name Lexical gives it.
@@ -198,14 +299,16 @@ public struct TextFormat: OptionSet, Codable, Hashable, Sendable {
 
 extension EditorCommand: Codable {
   private enum CodingKeys: String, CodingKey {
-    case type, anchor, focus, text, backward, lineBoundary, format, blockType, listType, path, milliseconds, url, clipboard
+    case type, anchor, focus, text, backward, lineBoundary, format, blockType, listType, path, milliseconds, url, clipboard,
+      rows, columns, after, key, extend, native, atCellEdge
   }
 
   /// The command's `type` in JSON.
   private enum Kind: String, Codable {
     case setSelection, insertText, commitComposition, deleteCharacter, deleteWord, deleteLine, insertParagraph, insertLineBreak,
       formatText, setBlockType, insertList, removeList, indent, outdent, tab, toggleChecked, selectAll, toggleLink, editLink,
-      copy, cut, paste, undo, redo, wait
+      copy, cut, paste, insertTable, insertTableRow, insertTableColumn, deleteTableRow, deleteTableColumn, arrow, undo, redo,
+      wait
   }
 
   private var kind: Kind {
@@ -232,6 +335,12 @@ extension EditorCommand: Codable {
     case .copy: .copy
     case .cut: .cut
     case .paste: .paste
+    case .insertTable: .insertTable
+    case .insertTableRow: .insertTableRow
+    case .insertTableColumn: .insertTableColumn
+    case .deleteTableRow: .deleteTableRow
+    case .deleteTableColumn: .deleteTableColumn
+    case .arrow: .arrow
     case .undo: .undo
     case .redo: .redo
     case .wait: .wait
@@ -243,6 +352,7 @@ extension EditorCommand: Codable {
   public init(from decoder: any Decoder) throws {
     let container = try decoder.container(keyedBy: CodingKeys.self)
     func backward() throws -> Bool { try container.decode(Bool.self, forKey: .backward) }
+    func after() throws -> Bool { try container.decode(Bool.self, forKey: .after) }
     switch try container.decode(Kind.self, forKey: .type) {
     case .setSelection:
       self = .setSelection(
@@ -271,6 +381,18 @@ extension EditorCommand: Codable {
     case .copy: self = .copy
     case .cut: self = .cut
     case .paste: self = .paste(try container.decode(Clipboard.self, forKey: .clipboard))
+    case .insertTable:
+      self = .insertTable(
+        rows: try container.decode(Int.self, forKey: .rows), columns: try container.decode(Int.self, forKey: .columns))
+    case .insertTableRow: self = .insertTableRow(after: try after())
+    case .insertTableColumn: self = .insertTableColumn(after: try after())
+    case .deleteTableRow: self = .deleteTableRow
+    case .deleteTableColumn: self = .deleteTableColumn
+    case .arrow:
+      self = .arrow(
+        try container.decode(ArrowKey.self, forKey: .key), extend: try container.decode(Bool.self, forKey: .extend),
+        native: try container.decode(Point.self, forKey: .native),
+        atCellEdge: try container.decode(Bool.self, forKey: .atCellEdge))
     case .undo: self = .undo
     case .redo: self = .redo
     case .wait: self = .wait(milliseconds: try container.decode(Int.self, forKey: .milliseconds))
@@ -307,7 +429,18 @@ extension EditorCommand: Codable {
       try container.encode(url, forKey: .url)
     case .paste(let clipboard):
       try container.encode(clipboard, forKey: .clipboard)
-    case .insertParagraph, .insertLineBreak, .removeList, .indent, .outdent, .selectAll, .copy, .cut, .undo, .redo:
+    case .insertTable(let rows, let columns):
+      try container.encode(rows, forKey: .rows)
+      try container.encode(columns, forKey: .columns)
+    case .insertTableRow(let after), .insertTableColumn(let after):
+      try container.encode(after, forKey: .after)
+    case .arrow(let key, let extend, let native, let atCellEdge):
+      try container.encode(key, forKey: .key)
+      try container.encode(extend, forKey: .extend)
+      try container.encode(native, forKey: .native)
+      try container.encode(atCellEdge, forKey: .atCellEdge)
+    case .insertParagraph, .insertLineBreak, .removeList, .indent, .outdent, .selectAll, .copy, .cut, .deleteTableRow,
+      .deleteTableColumn, .undo, .redo:
       break
     }
   }
@@ -423,4 +556,16 @@ public enum EditorError: Error, Equatable {
     case .invalidState: .invalidState
     }
   }
+
+  /// Lexical's `TableSelection.getNodes` reading a cell where the table's
+  /// map has none, as where a cell spans rows past the table's end, so
+  /// neither model can read that selection back.
+  public static let tableSelectionOverAHole = EditorError.invalidState(
+    "TableSelection.getNodes read a cell the table hasn't got")
+
+  /// A table selection whose table, anchor cell or focus cell a command
+  /// removed, which Lexical leaves in place, so neither model can read that
+  /// selection back.
+  public static let tableSelectionOfAGoneNode = EditorError.invalidState(
+    "A table selection's table, anchor cell or focus cell is gone")
 }
