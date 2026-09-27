@@ -69,7 +69,8 @@ public struct Fuzzer {
           let fixture = try Fixture.record(start: script.start, commands: script.commands, on: reference)
           return Finding(fixture: fixture, stepsRun: stepsRun)
         }
-        if case .applied = step.change {
+        if case .applied(let changes) = step.change {
+          if let clipboard = changes.clipboard { generator.clipboard = clipboard }
           stepsRun += 1
         } else {
           refusals += 1
@@ -259,10 +260,13 @@ extension String {
 }
 
 /// Random documents of paragraphs, headings, quotes, lists and horizontal
-/// rules, with text, tabs and line breaks, and random editing commands a
+/// rules, with text, tabs, line breaks and links, and random editing commands a
 /// user could issue against them.
 struct Generator {
   private var random: SplitMix64
+  /// What the last copy or cut put on the clipboard, for a paste in the same
+  /// document or a later one.
+  var clipboard: Clipboard?
 
   /// Characters chosen to stress UTF-16 offsets and word boundaries: accents,
   /// combining marks, CJK, emoji that are several code units and several
@@ -288,6 +292,14 @@ struct Generator {
   ]
   /// The rest of a shortcut being typed.
   private var typing: [EditorCommand] = []
+  /// Text the web's autolink matchers link, and the URL each links it to.
+  private static let autoLinks: [(text: String, url: String)] = [
+    ("www.a.io", "https://www.a.io"), ("me@b.io", "mailto:me@b.io"), ("https://c.io/d?e=f", "https://c.io/d?e=f"),
+  ]
+  /// URLs for a link, and what the web's link editor refuses.
+  private static let urls: [String] = ["https://a.io", "https://x.io", "https://", "nope"]
+  /// What plain text from another app breaks into lines, tabs and links at.
+  private static let pastedParts = ["\n", "\r\n", "\r", "\t", " ", "https://x.io"] + autoLinks.map(\.text)
 
   init(seed: UInt64) {
     random = SplitMix64(seed: seed)
@@ -357,7 +369,8 @@ struct Generator {
     var children: [JSONValue] = []
     var previous: (format: TextFormat, style: String)?
     for _ in 0..<Int.random(in: 0...4, using: &random) {
-      switch Int.random(in: 0..<8, using: &random) {
+      let isAfterLink = ["link", "autolink"].contains(children.last?["type"]?.stringValue)
+      switch Int.random(in: 0..<10, using: &random) {
       case 0, 1:
         children.append(LexicalJSON.lineBreak)
         previous = nil
@@ -366,6 +379,24 @@ struct Generator {
         children.append(
           LexicalJSON.tab(
             format: Self.formats.randomElement(using: &random)!, style: Self.styles.randomElement(using: &random)!))
+        previous = nil
+        continue
+      // Lexical joins a link to one of the same URL beside it.
+      case 3 where !isAfterLink:
+        children.append(LexicalJSON.link(Self.urls.randomElement(using: &random)!, texts(1...2)))
+        previous = nil
+        continue
+      // An autolink stays linked only where a separator or nothing is beside it.
+      case 4 where !isAfterLink:
+        if case .object(var last)? = children.last, let text = last["text"]?.stringValue, last["type"] == "text" {
+          last["text"] = .string(text + " ")
+          children[children.count - 1] = .object(last)
+        }
+        let link = Self.autoLinks.randomElement(using: &random)!
+        children.append(
+          LexicalJSON.autoLink(
+            link.url, [LexicalJSON.text(link.text, format: Self.formats.randomElement(using: &random)!)],
+            isUnlinked: Int.random(in: 0..<4, using: &random) == 0))
         previous = nil
         continue
       default: break
@@ -378,7 +409,9 @@ struct Generator {
         style = Self.styles.randomElement(using: &random)!
       } while previous.map { $0 == (format, style) } == true
       previous = (format, style)
-      children.append(LexicalJSON.text(text(1...5), format: format, style: style))
+      let text = text(1...5)
+      children.append(
+        LexicalJSON.text(children.last?["type"] == "autolink" ? " " + text : text, format: format, style: style))
     }
     return children
   }
@@ -460,13 +493,13 @@ struct Generator {
     switch roll {
     // With nothing selected, as after undoing back to the loaded document, a
     // user puts the selection somewhere before doing anything else.
-    case _ where snapshot.selection == nil, 57..<72:
+    case _ where snapshot.selection == nil, 63..<75:
       let points = Self.points(in: snapshot.state)
       guard let anchor = points.randomElement(using: &random) else { return .selectAll }
       let isRange = Int.random(in: 0..<3, using: &random) == 0
       return .setSelection(anchor: anchor, focus: isRange ? points.randomElement(using: &random)! : anchor)
-    case ..<10: return .insertText(text(1...3))
-    case ..<18:
+    case ..<9: return .insertText(text(1...3))
+    case ..<16:
       let shortcut = Self.shortcuts.randomElement(using: &random)!
       typing =
         switch Int.random(in: 0..<4, using: &random) {
@@ -479,26 +512,52 @@ struct Generator {
         return .setSelection(anchor: start, focus: start)
       }
       return typing.removeFirst()
-    case ..<28: return .deleteCharacter(backward: backward)
-    case ..<32: return .deleteWord(backward: backward)
-    case ..<35: return .deleteLine(backward: backward, lineBoundary: Self.lineBoundary(in: snapshot, backward: backward))
-    case ..<41: return .insertParagraph
-    case ..<45: return .insertLineBreak
-    case ..<50: return .formatText(TextFormatType.allCases.randomElement(using: &random)!)
-    case ..<52: return .setBlockType(BlockType.allCases.randomElement(using: &random)!)
-    case ..<54: return .selectAll
-    case ..<57: return .wait(milliseconds: [500, 1000, 2000].randomElement(using: &random)!)
-    case ..<76: return .insertList(EditorCommand.ListType.allCases.randomElement(using: &random)!)
-    case ..<78: return .removeList
-    case ..<80: return .indent
-    case ..<82: return .outdent
-    case ..<86: return .tab(backward: Int.random(in: 0..<3, using: &random) == 0)
-    case ..<88:
+    case ..<23: return .deleteCharacter(backward: backward)
+    case ..<26: return .deleteWord(backward: backward)
+    case ..<28: return .deleteLine(backward: backward, lineBoundary: Self.lineBoundary(in: snapshot, backward: backward))
+    case ..<32: return .insertParagraph
+    case ..<35: return .insertLineBreak
+    case ..<39: return .formatText(TextFormatType.allCases.randomElement(using: &random)!)
+    case ..<41: return .setBlockType(BlockType.allCases.randomElement(using: &random)!)
+    case ..<42: return .selectAll
+    case ..<44: return .wait(milliseconds: [500, 1000, 2000].randomElement(using: &random)!)
+    case ..<47: return .insertList(EditorCommand.ListType.allCases.randomElement(using: &random)!)
+    case ..<48: return .removeList
+    case ..<50: return .indent
+    case ..<51: return .outdent
+    case ..<54: return .tab(backward: Int.random(in: 0..<3, using: &random) == 0)
+    case ..<56:
       guard let box = Self.checkboxes(in: snapshot.state).randomElement(using: &random) else { return .undo }
       return .toggleChecked(path: box)
-    case ..<96: return .undo
+    case ..<58: return .toggleLink(url: Int.random(in: 0..<4, using: &random) == 0 ? nil : Self.urls.randomElement(using: &random)!)
+    case ..<59: return .editLink(url: Self.urls.randomElement(using: &random)!)
+    case ..<61: return .copy
+    case ..<63: return .cut
+    case ..<83: return .paste(pasted())
+    case ..<94: return .undo
     default: return .redo
     }
+  }
+
+  /// What the last copy or cut put on the clipboard, or text from another
+  /// app, which may come with HTML.
+  private mutating func pasted() -> Clipboard {
+    if let clipboard, Bool.random(using: &random) { return clipboard }
+    let text = (0..<Int.random(in: 1...4, using: &random)).map { _ in
+      Bool.random(using: &random) ? self.text(1...3) : Self.pastedParts.randomElement(using: &random)!
+    }.joined()
+    return Clipboard(plainText: text, html: Int.random(in: 0..<4, using: &random) == 0 ? "<b>\(text)</b>" : nil)
+  }
+
+  /// Adjacent text of different formats, which Lexical keeps apart.
+  private mutating func texts(_ count: ClosedRange<Int>) -> [JSONValue] {
+    var formats: [TextFormat] = []
+    for _ in 0..<Int.random(in: count, using: &random) {
+      var format: TextFormat
+      repeat { format = Self.formats.randomElement(using: &random)! } while format == formats.last
+      formats.append(format)
+    }
+    return formats.map { LexicalJSON.text(text(1...5), format: $0) }
   }
 
   private mutating func text(_ length: ClosedRange<Int>) -> String {
