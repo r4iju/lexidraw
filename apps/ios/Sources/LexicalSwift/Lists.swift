@@ -297,6 +297,16 @@ extension Update {
       try replaceList(list, listType)
       return
     }
+    try makeLists(of: nodes, listType)
+  }
+
+  /// `$insertList` over selected cells, which makes lists of every block
+  /// among their nodes.
+  mutating func insertList(_ selection: TableSelection, _ listType: ListType) throws {
+    try makeLists(of: nodes(in: selection), listType)
+  }
+
+  private mutating func makeLists(of nodes: [NodeKey], _ listType: ListType) throws {
     var handled: Set<NodeKey> = []
     for node in nodes {
       if state[node].isElement, isEmpty(node), !isListItem(node), !handled.contains(node) {

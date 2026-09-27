@@ -800,7 +800,8 @@ function runOnCells(
     case "removeList":
     case "indent":
     case "outdent":
-      throw new EditorError("unsupported", `${command.type} over table cells`);
+      runOnBlocks(command);
+      return;
     case "toggleLink":
       current().dispatchCommand(TOGGLE_LINK_COMMAND, command.url);
       return;

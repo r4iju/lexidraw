@@ -287,6 +287,10 @@ extension Update {
     case .tab: break
     // `$toggleLink` leaves a table selection be.
     case .toggleLink, .editLink: break
+    case .insertList(let listType): try insertList(selection, ListType(listType))
+    // `$removeList` and `$handleIndentAndOutdent` answer a range selection
+    // alone.
+    case .removeList, .indent, .outdent: break
     case .copy: clipboard = try copy(selection)
     case .paste(let clipboard): try paste(selection, clipboard)
     default: try runOnTable(command)

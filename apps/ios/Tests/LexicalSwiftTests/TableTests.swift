@@ -598,6 +598,53 @@ import Testing
     #expect(fixture.changes.dropFirst() == [.applied(ChangeSet()), .applied(ChangeSet()), .applied(ChangeSet())])
   }
 
+  // MARK: Lists and indents
+
+  /// A list over selected cells makes a list of each block in them, a
+  /// table's in a cell too, and makes each list in them one of its type.
+  @Test func aListOverSelectedCellsListsTheBlocksInThem() throws {
+    let listed = LexicalJSON.element(
+      "tablecell", [LexicalJSON.list(.number, [.item([text("c")])])],
+      ["backgroundColor": nil, "colSpan": 1, "headerState": 0, "rowSpan": 1])
+    let holding = LexicalJSON.element(
+      "tablecell", [LexicalJSON.table([["x"]]), paragraph(text("d"))],
+      ["backgroundColor": nil, "colSpan": 1, "headerState": 0, "rowSpan": 1])
+    let empty = LexicalJSON.element(
+      "tablecell", [paragraph()], ["backgroundColor": nil, "colSpan": 1, "headerState": 0, "rowSpan": 1])
+    let start = document(
+      paragraph(text("before")), table([[tableCell("a"), empty], [listed, holding]]), paragraph(text("after")))
+
+    let selected = EditorCommand.setSelection(anchor: .text([1, 0, 0, 0, 0], 0), focus: .text([1, 1, 1, 1, 0], 1))
+
+    let fixture = try agreed(start, [selected, .insertList(.bullet)])
+
+    for path in [[1, 0, 0, 0], [1, 0, 1, 0], [1, 1, 0, 0], [1, 1, 1, 0, 0, 0, 0], [1, 1, 1, 1]] {
+      #expect(node(fixture.expected, path)?["listType"] == "bullet", "at \(path)")
+    }
+    #expect(node(fixture.expected, [1, 1, 1, 0])?["type"] == "table")
+  }
+
+  /// Neither removing a list nor indenting nor outdenting answers selected
+  /// cells, lists in them or not.
+  @Test func removingAListAndIndentingOverSelectedCellsChangeNothing() throws {
+    let listed = document(
+      paragraph(text("before")),
+      table([
+        [tableCell("a"), tableCell("b")],
+        [
+          LexicalJSON.element(
+            "tablecell", [LexicalJSON.list(.bullet, [.item([text("c")])])],
+            ["backgroundColor": nil, "colSpan": 1, "headerState": 0, "rowSpan": 1]),
+          tableCell("d"),
+        ],
+      ]),
+      paragraph(text("after")))
+
+    let fixture = try agreed(listed, [everyCell, .removeList, .indent, .outdent])
+
+    #expect(fixture.changes.dropFirst() == [.applied(ChangeSet()), .applied(ChangeSet()), .applied(ChangeSet())])
+  }
+
   private func tablePath(_ selection: Selection?) -> [Int]? {
     if case .table(let table, _, _, _) = selection { table } else { nil }
   }
