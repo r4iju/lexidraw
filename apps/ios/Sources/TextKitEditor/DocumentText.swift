@@ -327,6 +327,12 @@ public final class DocumentText {
     /// The lists around the node being added.
     private var lists: [EditorCommand.ListType] = []
 
+    init(style: @escaping Style, standIn: StandIn?, blockType: String) {
+      self.style = style
+      self.standIn = standIn
+      self.blockType = blockType
+    }
+
     /// Inline elements, which sit in a line of text rather than on their own.
     private static let inlineElements: Set<String> = ["link", "autolink", "mark"]
 
