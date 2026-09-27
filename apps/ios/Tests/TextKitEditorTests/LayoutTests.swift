@@ -258,10 +258,11 @@ import UIKit
     let a = try caret(view, "a\n")
     let narrow = try caret(view, "i i")
     let end = try caret(view, "end")
-    let font = try #require(Typesetting(.web).attributes(.table, [])[.font] as? UIFont)
+    let table = DocumentTypography.web.table
+    let font = UIFont.systemFont(ofSize: table.fontSize * UIFont.preferredFont(forTextStyle: .body).pointSize)
     let aWide = ceil(NSAttributedString(string: "a", attributes: [.font: font]).size().width)
-    #expect(abs(narrow.minX - a.minX - (aWide + 2 * 12 + 1)) < 1, "\(narrow.minX - a.minX)")
-    #expect(abs(end.minX - narrow.minX - 120) < 1, "\(end.minX - narrow.minX)")
+    #expect(abs(narrow.minX - a.minX - (aWide + 2 * table.paddingX + table.border)) < 1, "\(narrow.minX - a.minX)")
+    #expect(abs(end.minX - narrow.minX - table.minimumWidth) < 1, "\(end.minX - narrow.minX)")
   }
 
   /// A column of sentences wraps within the text's width rather than

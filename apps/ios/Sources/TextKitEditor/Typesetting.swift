@@ -32,10 +32,31 @@ final class Typesetting {
 
   func fontSize(_ block: StyledBlock) -> CGFloat { typography.fontSize(block, width: width) * em }
 
-  func lineHeight(_ block: StyledBlock) -> CGFloat {
-    let lineHeight =
-      block == .table ? typography.table.lineHeight : typography.heading(block)?.lineHeight ?? typography.lineHeight
-    return lineHeight * fontSize(block)
+  func lineHeight(_ block: StyledBlock) -> CGFloat { setting(block).lineHeight * fontSize(block) }
+
+  /// What a block's text is set by besides its size and weight: a table's
+  /// by the table's typography, the rest by the body's or their heading's.
+  private struct TextSetting {
+    /// In ems of the text.
+    var lineHeight: Double
+    var kern: CGFloat
+    var paragraphSpacing: CGFloat
+    var tabularFigures: Bool
+  }
+
+  private func setting(_ block: StyledBlock) -> TextSetting {
+    let size = fontSize(block)
+    if block == .table {
+      let table = typography.table
+      return TextSetting(
+        lineHeight: table.lineHeight, kern: CGFloat(table.letterSpacing) * size,
+        paragraphSpacing: typography.blockAfter * size, tabularFigures: table.tabularFigures)
+    }
+    let heading = typography.heading(block)
+    return TextSetting(
+      lineHeight: heading?.lineHeight ?? typography.lineHeight,
+      kern: CGFloat(heading?.letterSpacing.map { $0 * size } ?? typography.letterSpacing * em),
+      paragraphSpacing: space(block, after: nil).after, tabularFigures: false)
   }
 
   func space(_ block: StyledBlock, after previous: StyledBlock?) -> (before: CGFloat, after: CGFloat) {
@@ -49,6 +70,7 @@ final class Typesetting {
   func attributes(_ block: StyledBlock, _ format: TextFormat) -> [NSAttributedString.Key: Any] {
     let size = fontSize(block)
     let heading = typography.heading(block)
+    let setting = setting(block)
     let weight: UIFont.Weight = format.contains(.bold) ? .bold : heading.map { _ in Self.weight(typography.headingWeight) } ?? .regular
     var font =
       format.contains(.code)
@@ -57,28 +79,23 @@ final class Typesetting {
     if format.contains(.italic), let italic = font.fontDescriptor.withSymbolicTraits(.traitItalic) {
       font = UIFont(descriptor: italic, size: 0)
     }
-    if block == .table, typography.table.tabularFigures {
+    if setting.tabularFigures {
       let tabular = font.fontDescriptor.addingAttributes([
         .featureSettings: [[UIFontDescriptor.FeatureKey.type: kNumberSpacingType, .selector: kMonospacedNumbersSelector]]
       ])
       font = UIFont(descriptor: tabular, size: 0)
     }
     let paragraph = NSMutableParagraphStyle()
-    paragraph.minimumLineHeight = lineHeight(block)
+    paragraph.minimumLineHeight = setting.lineHeight * size
     paragraph.maximumLineHeight = paragraph.minimumLineHeight
-    paragraph.paragraphSpacing =
-      block == .table ? typography.blockAfter * size : space(block, after: nil).after
+    paragraph.paragraphSpacing = setting.paragraphSpacing
     // A browser's tab stops, every eight spaces.
     paragraph.tabStops = []
     paragraph.defaultTabInterval = 8 * (" " as NSString).size(withAttributes: [.font: UIFont.systemFont(ofSize: size)]).width
     var attributes: [NSAttributedString.Key: Any] = [
       .foregroundColor: (heading?.color ?? typography.color).color, .paragraphStyle: paragraph,
     ]
-    let kern =
-      block == .table
-      ? CGFloat(typography.table.letterSpacing) * size
-      : CGFloat(heading?.letterSpacing.map { $0 * size } ?? typography.letterSpacing * em)
-    if kern != 0 { attributes[.kern] = kern }
+    if setting.kern != 0 { attributes[.kern] = setting.kern }
     if block == .text(.quote) {
       let quote = typography.quote
       paragraph.firstLineHeadIndent = quote.borderWidth + quote.paddingStart * size
