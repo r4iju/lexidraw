@@ -602,7 +602,7 @@ extension Update {
     if var widths = colWidths(of: table) {
       let index = max(insertAfterColumn, 0)
       guard widths.indices.contains(index) else {
-        throw EditorError.unsupported("A column width Lexical leaves undefined")
+        throw EditorError.invalidState("After $tableTransform a table has a width for each column")
       }
       widths.insert(widths[index], at: index)
       setColWidths(table, widths)

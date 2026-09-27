@@ -185,6 +185,21 @@ import Testing
     #expect(types(gone.expected) == ["paragraph", "paragraph"])
   }
 
+  /// A table's widths are as many as its columns once loaded, which is
+  /// what lets a column insert always copy a width beside it.
+  @Test func loadingGivesATableAWidthForEachColumn() throws {
+    func widths(_ stored: JSONValue) throws -> JSONValue? {
+      guard case .object(var table) = LexicalJSON.table([["a", "b", "c"]]) else { return nil }
+      table["colWidths"] = stored
+      let fixture = try agreed(document(.object(table)), [.caret(.text([0, 0, 0, 0, 0], 0))])
+      return node(fixture.expected, [0])?["colWidths"]
+    }
+
+    #expect(try widths([80]) == [80, 80, 80])
+    #expect(try widths([80, 90, 100, 110]) == [80, 90, 100])
+    #expect(try widths([80, nil, 90]) == [80, 0, 90])
+  }
+
   @Test func tableCommandsOutsideATableAreRefused() throws {
     let fixture = try agreed(
       grid, [.caret(.text([0, 0], 1)), .insertTableRow(after: true), .deleteTableColumn, .insertTable(rows: 1, columns: 1)])
