@@ -138,6 +138,14 @@ export function defaultVoice(provider: string, languageCode?: string): string {
   return "alloy";
 }
 
+/**
+ * Whether a service reads by the language chosen. Gemini and OpenAI tell the
+ * language of each word apart themselves; Kokoro reads in its voice's.
+ */
+export function languageMatters(provider: string): boolean {
+  return provider === "kokoro";
+}
+
 /** The audio formats each service makes. */
 export const TTS_FORMATS: Record<TtsProvider, TtsSettings["format"][]> = {
   google: ["mp3", "wav"],

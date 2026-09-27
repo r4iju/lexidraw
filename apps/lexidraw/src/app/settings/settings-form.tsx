@@ -25,6 +25,7 @@ import { api } from "~/trpc/react";
 import type { RouterOutputs } from "~/trpc/shared";
 import {
   defaultVoice,
+  languageMatters,
   type SettingsInput,
   savedTts,
   TTS_DEFAULTS,
@@ -479,6 +480,21 @@ function ThemeSelect() {
   );
 }
 
+/** The language, asked for only by a service that reads by it. */
+function LanguageField() {
+  const chosen = useWatch<FormValues, "tts.provider">({ name: "tts.provider" });
+  const provider = chosen === DEFAULT ? TTS_DEFAULTS.provider : chosen;
+  if (!languageMatters(provider)) return null;
+  return (
+    <RHFTextField
+      name="tts.languageCode"
+      label="Language"
+      placeholder={`Default (${TTS_DEFAULTS.languageCode})`}
+      helperText="A language code, such as en-US or sv-SE."
+    />
+  );
+}
+
 /**
  * The voice, whose default follows the service and language chosen. Gemini's
  * voices are picked from its list; the others' are typed.
@@ -640,12 +656,7 @@ export function SettingsForm(props: Props) {
             defaultValue={TTS_DEFAULTS.speed}
             format={(value) => `${value}×`}
           />
-          <RHFTextField
-            name="tts.languageCode"
-            label="Language"
-            placeholder={`Default (${TTS_DEFAULTS.languageCode})`}
-            helperText="A language code, such as en-US or sv-SE. Gemini also recognizes the language on its own."
-          />
+          <LanguageField />
         </Section>
       </div>
 

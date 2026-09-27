@@ -41,7 +41,12 @@ import { labelForLanguage, titleize } from "~/lib/i18n";
 import { useEntityId } from "~/hooks/use-entity-id";
 import { DropdownMenuItem } from "~/components/ui/dropdown-menu";
 import { ToolbarMenu, ToolbarTooltip } from "./ToolbarPlugin/toolbar";
-import { servedFormat, TTS_DEFAULTS, TTS_FORMATS } from "~/app/settings/schema";
+import {
+  languageMatters,
+  servedFormat,
+  TTS_DEFAULTS,
+  TTS_FORMATS,
+} from "~/app/settings/schema";
 
 type Listen = {
   documentId: string;
@@ -490,29 +495,34 @@ export function ListenProvider({ children }: { children: ReactNode }) {
                 </SelectContent>
               </Select>
             </div>
-            <div>
-              <label htmlFor={`${uid}-tts-lang`} className="block text-xs mb-1">
-                Language
-              </label>
-              <Select
-                name={`${uid}-tts-lang`}
-                value={ttsCfg.languageCode}
-                onValueChange={(v) =>
-                  setTtsCfg((s) => ({ ...s, languageCode: v }))
-                }
-              >
-                <SelectTrigger id={`${uid}-tts-lang`}>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {catalogLanguages.map((lc) => (
-                    <SelectItem key={lc} value={lc}>
-                      {labelForLanguage(lc)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {languageMatters(ttsCfg.provider) && (
+              <div>
+                <label
+                  htmlFor={`${uid}-tts-lang`}
+                  className="block text-xs mb-1"
+                >
+                  Language
+                </label>
+                <Select
+                  name={`${uid}-tts-lang`}
+                  value={ttsCfg.languageCode}
+                  onValueChange={(v) =>
+                    setTtsCfg((s) => ({ ...s, languageCode: v }))
+                  }
+                >
+                  <SelectTrigger id={`${uid}-tts-lang`}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {catalogLanguages.map((lc) => (
+                      <SelectItem key={lc} value={lc}>
+                        {labelForLanguage(lc)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             <div>
               <label
                 htmlFor={`${uid}-tts-family`}

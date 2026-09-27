@@ -90,16 +90,15 @@ beforeAll(async () => {
       config: { tts: { format: "ogg" } },
     },
   ]);
-  await db
-    .insert(schema.entities)
-    .values(
-      [NEW, STALE, PICKED, CHIRP, CLOUD, OPENAI_VOICE, GEMINI_OGG]
-        .flatMap((userId) => [
-          entity(`${userId}_doc`, "document", userId),
-          entity(`${userId}_article`, "url", userId),
-        ])
-        .concat(entity(`${NEW}_ogg_doc`, "document", NEW)),
-    );
+  await db.insert(schema.entities).values(
+    [NEW, STALE, PICKED, CHIRP, CLOUD, OPENAI_VOICE, GEMINI_OGG]
+      .flatMap((userId) => [
+        entity(`${userId}_doc`, "document", userId),
+        entity(`${userId}_article`, "url", userId),
+      ])
+      .concat(entity(`${NEW}_ogg_doc`, "document", NEW))
+      .concat(entity(`${NEW}_lang_doc`, "document", NEW)),
+  );
 });
 
 const listens = {
@@ -181,5 +180,23 @@ describe("read-aloud in Gemini for an account that asked for Ogg", () => {
 
     const cfg = started[0]?.at(-2) as { format: string };
     expect(cfg?.format).toBe("mp3");
+  });
+});
+
+describe("read-aloud in Gemini, which tells languages apart itself", () => {
+  test("keeps the audio made when only the language changes", async () => {
+    const read = (languageCode: string) =>
+      ttsRouter.createCaller(contextOf(NEW)).startDocumentTts({
+        documentId: `${NEW}_lang_doc`,
+        markdown: "Hej hej.",
+        languageCode,
+      });
+    started.length = 0;
+
+    const first = await read("en-US");
+    const second = await read("sv-SE");
+
+    expect(second.docKey).toBe(first.docKey);
+    expect(started).toHaveLength(1);
   });
 });

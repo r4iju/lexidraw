@@ -55,7 +55,9 @@ function mp3Of(wav: Buffer): Buffer {
 
 /**
  * How the voice reads. Gemini reads its text verbatim, so pace can only be
- * asked for here, and only roughly: it takes no rate.
+ * asked for here, and only roughly: it takes no rate. Gemini tells each
+ * word's language apart itself, but without being asked, says a lone foreign
+ * word (a heading, a dish) with the accent of the text around it.
  */
 function styleFor(speed = 1): string {
   const pace =
@@ -68,7 +70,7 @@ function styleFor(speed = 1): string {
           : speed > 1.05
             ? ", speaking a little quickly"
             : "";
-  return `clear, natural narration${pace}`;
+  return `clear, natural narration${pace}; pronounce each word from another language as a native speaker of that language would`;
 }
 
 type Interaction = {
