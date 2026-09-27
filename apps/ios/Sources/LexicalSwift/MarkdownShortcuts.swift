@@ -13,6 +13,8 @@ struct MarkdownTransformer: Sendable {
   let name: Name
   /// `regExp`, or a multiline element transformer's `regExpStart`.
   var regExp: JSRegExp?
+  /// A text match's `importRegExp`, which finds it anywhere in a line.
+  var importRegExp: JSRegExp?
   var triggerOnEnter = false
   /// Whether a multiline element transformer needs a closing line, which
   /// typing never gives it.

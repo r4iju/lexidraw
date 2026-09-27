@@ -88,8 +88,18 @@ function swiftForTransformer(transformer: Transformer, name: string): string {
       return `MarkdownTransformer(kind: .multilineElement, ${fields.join(", ")})`;
     }
     case "text-match":
+      if (transformer.getEndIndex) {
+        throw new Error(
+          `The text match ${name} ends its match in code, which Swift can't run`,
+        );
+      }
       if (transformer.regExp && transformer.replace) {
         fields.push(`regExp: ${swiftForRegExp(transformer.regExp)}`);
+      }
+      if (transformer.importRegExp && transformer.replace) {
+        fields.push(
+          `importRegExp: ${swiftForRegExp(transformer.importRegExp)}`,
+        );
       }
       if (transformer.trigger !== undefined) {
         fields.push(`trigger: ${swiftString(transformer.trigger)}`);

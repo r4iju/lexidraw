@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { HEADING, type Transformer } from "@lexical/markdown";
+import { HEADING, LINK, type Transformer } from "@lexical/markdown";
 import { createTransformers } from "@packages/lexical-nodes/transformers";
 import {
   MARKDOWN_TRANSFORMERS_PATH,
@@ -52,5 +52,21 @@ test("refuses a transformer no package exports", () => {
 test("lists the node types a transformer can make", () => {
   expect(swiftForMarkdownTransformers([HEADING])).toContain(
     'makes: ["heading"]',
+  );
+});
+
+test("gives a text match the pattern it imports with", () => {
+  const swift = swiftForMarkdownTransformers([LINK]);
+
+  expect(swift).toContain(
+    `importRegExp: JSRegExp("${LINK.importRegExp?.source.replace(/[\\"]/g, (character) => `\\${character}`)}", flags: "")`,
+  );
+});
+
+test("refuses a text match that ends its match in code", () => {
+  const ending: Transformer = { ...LINK, getEndIndex: () => false };
+
+  expect(() => swiftForMarkdownTransformers([ending])).toThrow(
+    "ends its match in code",
   );
 });
