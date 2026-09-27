@@ -247,6 +247,19 @@ import UIKit
     #expect(view.caretRect(for: try #require(view.selectedTextRange).start) == inCell)
   }
 
+  /// A tap past a cell's text, which UIKit resolves through the character
+  /// there, keeps the caret in the cell rather than taking the newline that
+  /// ends it and landing in the next.
+  @Test func theCharacterPastACellsTextIsInTheCell() throws {
+    let (view, _) = try tableView([["a", "b"]], caretAfter: "b")
+    let end = try #require(view.position(from: view.beginningOfDocument, offset: 1))
+    let caret = view.caretRect(for: end)
+
+    let range = try #require(view.characterRange(at: CGPoint(x: caret.maxX + 2, y: caret.midY)))
+
+    #expect(view.compare(range.end, to: end) != .orderedDescending)
+  }
+
   private func selectedCells(_ model: Editor) throws -> [[Int]]? {
     guard case .table(_, _, _, let cells) = try model.selection() else { return nil }
     return cells

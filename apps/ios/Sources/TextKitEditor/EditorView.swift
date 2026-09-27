@@ -437,6 +437,8 @@ public final class EditorView: UIScrollView, UITextInput {
     Self.log.notice("Setting a writing direction isn't supported yet (#149)")
   }
 
+  private static let newline = "\n".utf16.first!
+
   /// The offset one user-perceived character on, so a joined emoji or flag
   /// is passed over whole.
   private func character(after offset: Int) -> Int {
@@ -521,8 +523,16 @@ public final class EditorView: UIScrollView, UITextInput {
 
   public func characterRange(at point: CGPoint) -> UITextRange? {
     guard let position = closestPosition(to: point) as? TextPosition else { return nil }
-    let end = character(after: position.offset)
-    return TextRange(NSRange(location: position.offset, length: end - position.offset))
+    let offset = position.offset
+    // The newline ending a block or a cell isn't where a tap lands: UIKit
+    // would put the caret past it, in what comes next.
+    if offset < storage.length, (storage.string as NSString).character(at: offset) == Self.newline {
+      let start = character(before: offset)
+      let isLineStart = start == offset || (storage.string as NSString).character(at: start) == Self.newline
+      return TextRange(NSRange(location: isLineStart ? offset : start, length: isLineStart ? 0 : offset - start))
+    }
+    let end = character(after: offset)
+    return TextRange(NSRange(location: offset, length: end - offset))
   }
 
   private func scrollToCaret() {
