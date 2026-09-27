@@ -15,50 +15,181 @@ export type Section = {
   index: number;
 };
 
+const TABLE_LINE = /^\s*\|.*\|\s*$/;
+const TABLE_SEPARATOR_LINE =
+  /^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$/;
+const HEADING_LINE = /^\s{0,3}(#{1,6})\s+(.*?)\s*#*\s*$/;
+const LIST_MARKER = /^\s*(?:[-*+]|\d{1,3}[.)])\s+(?:\[[ xX]\]\s+)?/;
+const QUOTE_MARKER = /^\s*(?:>\s?)+/;
+const HORIZONTAL_RULE = /^\s{0,3}(?:[-*_]\s*){3,}$/;
+const SENTENCE_END = /[.!?:;,。！？、：；…]["'”’)\]」』）]*$/;
+// With CJK's own punctuation and full-width forms, as in "。" and "！".
+const CJK =
+  /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}\u3000-\u303f\uff01-\uff60]/u;
+
+/** Marks a line off as a sentence, so a list item or table row gets a pause. */
+function asSentence(text: string): string {
+  if (!text || SENTENCE_END.test(text)) return text;
+  return CJK.test(text.at(-1) ?? "") ? `${text}。` : `${text}.`;
+}
+
+/** A line of markdown as it is heard: links as their text, no emphasis. */
+function spokenInline(line: string): string {
+  return (
+    line
+      .replace(/!\[([^\]]*)\]\([^)]*\)/g, "")
+      .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
+      .replace(/<\/?[a-zA-Z][^>]*>/g, "")
+      .replace(/\$[^$\n]+\$/g, "")
+      // A code span inside a sentence is a word of it, so its text stays.
+      .replace(/`([^`]*)`/g, "$1")
+      .replace(/~~([^~]+)~~/g, "$1")
+      .replace(/\*\*([^*]+)\*\*/g, "$1")
+      .replace(/__([^_]+)__/g, "$1")
+      .replace(/(^|[^\w*])\*([^*\s][^*]*?)\*(?=[^\w*]|$)/g, "$1$2")
+      // Underscores only at word edges, so snake_case survives.
+      .replace(/(^|[^\w])_([^_\s][^_]*?)_(?=[^\w]|$)/g, "$1$2")
+      .replace(/\\([\\`*_{}[\]()#+\-.!>~|])/g, "$1")
+      .replace(/[ \t]+/g, " ")
+      .trim()
+  );
+}
+
 /**
- * Removes code blocks, inline code, equations, images, and other non-textual
- * markdown elements that shouldn't be read aloud.
+ * A table as lines of cells: the header once, then each row as a sentence.
+ * Naming each cell's column again on every row reads as a form being filled
+ * in; heard once, the header carries the columns.
+ */
+function spokenTable(rows: string[][]): string[] {
+  return rows
+    .map((cells) => asSentence(cells.filter(Boolean).join(", ")))
+    .filter(Boolean);
+}
+
+function markdownTableRows(lines: string[]): string[][] {
+  return lines
+    .filter((line) => !TABLE_SEPARATOR_LINE.test(line))
+    .map((line) =>
+      line
+        .trim()
+        .replace(/^\|/, "")
+        .replace(/\|$/, "")
+        .split("|")
+        .map(spokenInline),
+    )
+    .filter((cells) => cells.some(Boolean));
+}
+
+/**
+ * Markdown as it should be heard. Code, equations and images go; links,
+ * emphasis, bullets and quote marks leave their text; a table is read row by
+ * row; a list item or table row ends as a sentence. Headings stay markdown,
+ * since the parts are cut by them.
  */
 export function sanitizeMarkdownForTts(md: string): string {
-  let result = md;
+  const text = md
+    .replace(/```[\s\S]*?```/g, "")
+    .replace(/~~~[\s\S]*?~~~/g, "")
+    .replace(/\$\$[\s\S]*?\$\$/g, "")
+    .replace(/<tweet[^>]*\/>/g, "");
 
-  // Remove code fences (``` or ~~~ blocks)
-  result = result.replace(/```[\s\S]*?```/g, "");
-  result = result.replace(/~~~[\s\S]*?~~~/g, "");
+  const out: string[] = [];
+  let table: string[] = [];
+  const closeTable = () => {
+    if (table.length === 0) return;
+    out.push("", ...spokenTable(markdownTableRows(table)), "");
+    table = [];
+  };
+  for (const line of text.split("\n")) {
+    if (TABLE_LINE.test(line)) {
+      table.push(line);
+      continue;
+    }
+    closeTable();
+    if (HORIZONTAL_RULE.test(line)) {
+      out.push("");
+      continue;
+    }
+    const heading = line.match(HEADING_LINE);
+    const title = heading?.[2] && spokenInline(heading[2]);
+    if (heading?.[1] && title) {
+      out.push(`${heading[1]} ${title}`);
+      continue;
+    }
+    const unquoted = line.replace(QUOTE_MARKER, "");
+    const isItem = LIST_MARKER.test(unquoted);
+    const spoken = spokenInline(unquoted.replace(LIST_MARKER, ""));
+    out.push(isItem ? asSentence(spoken) : spoken);
+  }
+  closeTable();
 
-  // Remove inline code
-  result = result.replace(/`[^`]+`/g, "");
+  return out
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
 
-  // Remove equations ($...$ and $$...$$)
-  result = result.replace(/\$\$[\s\S]*?\$\$/g, "");
-  result = result.replace(/\$[^$\n]+\$/g, "");
+const ENTITIES: Record<string, string> = {
+  amp: "&",
+  lt: "<",
+  gt: ">",
+  quot: '"',
+  apos: "'",
+  nbsp: " ",
+};
 
-  // Remove images ![alt](url)
-  result = result.replace(/!\[([^\]]*)\]\([^)]+\)/g, "");
+function decodeEntities(text: string): string {
+  return text.replace(
+    /&(#x[0-9a-f]+|#\d+|[a-z]+);/gi,
+    (whole, name: string) => {
+      if (name[0] === "#") {
+        const code =
+          name[1] === "x" || name[1] === "X"
+            ? Number.parseInt(name.slice(2), 16)
+            : Number.parseInt(name.slice(1), 10);
+        return Number.isFinite(code) ? String.fromCodePoint(code) : whole;
+      }
+      return ENTITIES[name.toLowerCase()] ?? whole;
+    },
+  );
+}
 
-  // Remove links but keep the text content: [text](url) -> text
-  result = result.replace(/\[([^\]]+)\]\([^)]+\)/g, "$1");
+const stripTags = (html: string) =>
+  decodeEntities(html.replace(/<[^>]+>/g, " "))
+    .replace(/\s+/g, " ")
+    .trim();
 
-  // Remove horizontal rules
-  result = result.replace(/^[-*]{3,}$/gm, "");
-
-  // Remove tables (simple markdown table syntax)
-  result = result.replace(/^\|.*\|$/gm, "");
-  result = result.replace(/^\|[\s\-:|]+\|$/gm, "");
-
-  // Remove tweet embeds
-  result = result.replace(/<tweet[^>]*\/>/g, "");
-
-  // Remove article embeds (they're already expanded in markdown)
-  // Keep the content but remove the article wrapper
-
-  // Remove any remaining HTML-like tags
-  result = result.replace(/<[^>]+>/g, "");
-
-  // Clean up excessive blank lines
-  result = result.replace(/\n{3,}/g, "\n\n");
-
-  return result.trim();
+/**
+ * A saved article's HTML as it should be heard, with paragraphs apart: each
+ * block becomes one, a list item or table row ends as a sentence, and a table
+ * is read row by row.
+ */
+export function htmlToSpeechText(html: string): string {
+  return decodeEntities(
+    html
+      .replace(/<(script|style|pre|figure|svg)[\s\S]*?<\/\1>/gi, "")
+      .replace(/<table[\s\S]*?<\/table>/gi, (table) => {
+        const rows = [...table.matchAll(/<tr[\s\S]*?<\/tr>/gi)]
+          .map(([row]) =>
+            [...row.matchAll(/<t[hd][^>]*>([\s\S]*?)<\/t[hd]>/gi)].map(
+              ([, cell]) => stripTags(cell ?? ""),
+            ),
+          )
+          .filter((cells) => cells.some(Boolean));
+        return `\n\n${spokenTable(rows).join("\n")}\n\n`;
+      })
+      .replace(
+        /<li[^>]*>([\s\S]*?)<\/li>/gi,
+        (_, item: string) => `\n${asSentence(stripTags(item))}`,
+      )
+      .replace(/<br\s*\/?>/gi, "\n")
+      .replace(/<\/(p|div|h[1-6]|blockquote|ul|ol|section|article)>/gi, "\n\n")
+      .replace(/<[^>]+>/g, ""),
+  )
+    .replace(/[ \t\u00a0]+/g, " ")
+    .replace(/ *\n */g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 }
 
 /**
@@ -75,10 +206,18 @@ export function splitMarkdownIntoSections(md: string): Section[] {
   for (const line of lines) {
     const headingMatch = line.match(/^(#{1,6})\s+(.+)$/);
     if (headingMatch) {
-      // Save previous section if exists
+      // Save previous section if exists; text before the first heading is
+      // a section with no title.
       if (currentSection !== null) {
         currentSection.body = currentBody.join("\n").trim();
         sections.push(currentSection);
+      } else if (currentBody.join("\n").trim()) {
+        sections.push({
+          title: undefined,
+          depth: 0,
+          body: currentBody.join("\n").trim(),
+          index: sectionCounter++,
+        });
       }
 
       // Start new section
@@ -104,148 +243,205 @@ export function splitMarkdownIntoSections(md: string): Section[] {
   return sections;
 }
 
+/** Speech a voice keeps up in a second: Latin script, then CJK. */
+const CHARS_PER_SECOND = 15;
+const CJK_CHARS_PER_SECOND = 5;
+const CJK_ALL = new RegExp(CJK.source, "gu");
+
+/** About how long a voice takes to read the text aloud, in seconds. */
+export function speakingSeconds(text: string): number {
+  const flat = text.replace(/\s+/g, " ").trim();
+  const cjk = flat.match(CJK_ALL)?.length ?? 0;
+  return cjk / CJK_CHARS_PER_SECOND + (flat.length - cjk) / CHARS_PER_SECOND;
+}
+
 /**
- * Chunks sections into smaller pieces for TTS synthesis.
- * Within each section, batches adjacent paragraphs to target size.
+ * Sentences at `.!?` followed by a space, and at `。！？` with or without
+ * one, each keeping a closing quote or bracket. "3.14" and "e.g.x" stay whole.
+ */
+export function splitSentences(text: string): string[] {
+  return (
+    text.match(
+      /[\s\S]+?(?:[.!?]+["'”’)\]]*(?=\s|$)|[。！？]+["'”’)\]」』）]*|$)/g,
+    ) ?? []
+  )
+    .map((sentence) => sentence.trim())
+    .filter(Boolean);
+}
+
+/** A part's length, in speech. */
+const PART_SECONDS = 60;
+/**
+ * A paragraph this long starts a part of its own. Where parts begin then
+ * depends on each paragraph alone, not on everything before it, so an edit
+ * remakes the part that holds it and the parts after keep their audio.
+ */
+const ANCHOR_SECONDS = 15;
+/** The opening part is its first sentence, and the next if that one is shorter than this. */
+const OPENING_SECONDS = 3;
+
+type Piece = { text: string; anchor: boolean };
+
+/** Sentences as one text: CJK ones run on, as they were written. */
+function joinUnits(units: string[]): string {
+  return units.reduce(
+    (text, unit) =>
+      !text
+        ? unit
+        : CJK.test(text.at(-1) ?? "") && CJK.test(unit[0] ?? "")
+          ? text + unit
+          : `${text} ${unit}`,
+    "",
+  );
+}
+
+/**
+ * Cuts text too long for one part at its sentences, or failing those, its
+ * commas and spaces, into pieces of even length, so none is a stub.
+ */
+function pieces(text: string, seconds: number, hardCap: number): string[] {
+  const fits = (t: string) =>
+    speakingSeconds(t) <= seconds && t.length <= hardCap;
+  if (fits(text)) return [text];
+  const sentences = splitSentences(text);
+  const units =
+    sentences.length > 1
+      ? sentences
+      : text
+          .split(/(?<=[\s、，,])/)
+          .map((unit) => unit.trim())
+          .filter(Boolean);
+  if (units.length <= 1) {
+    const at = Math.max(
+      1,
+      Math.min(hardCap, Math.floor(seconds * CJK_CHARS_PER_SECOND)),
+    );
+    return [text.slice(0, at), ...pieces(text.slice(at), seconds, hardCap)];
+  }
+  const total = speakingSeconds(text);
+  const count = Math.max(
+    Math.ceil(total / seconds),
+    Math.ceil(text.length / hardCap),
+  );
+  const even = total / count;
+  const out: string[] = [];
+  let buffer: string[] = [];
+  let spoken = 0;
+  for (const unit of units) {
+    const next = speakingSeconds(unit);
+    // Cut where the running time is nearer the next even mark than past it.
+    if (buffer.length > 0 && spoken + next / 2 > even * (out.length + 1)) {
+      out.push(joinUnits(buffer));
+      buffer = [];
+    }
+    buffer.push(unit);
+    spoken += next;
+  }
+  if (buffer.length > 0) out.push(joinUnits(buffer));
+  return out.flatMap((piece) =>
+    fits(piece) ? [piece] : pieces(piece, seconds, hardCap),
+  );
+}
+
+/**
+ * Cuts sections into parts of about a minute of speech, in any language.
+ *
+ * - A heading is read with the text after it, never as a part of its own
+ *   unless nothing follows it.
+ * - A paragraph of 15 seconds or more starts a part; shorter ones join the
+ *   part before them while it has room.
+ * - A paragraph too long for a part is cut at its sentences.
+ * - The file's first part is one or two sentences, so listening starts soon.
  */
 export function chunkSections(
   sections: Section[],
-  opts?: { targetSize?: number; hardCap?: number },
+  opts?: { targetSeconds?: number; hardCap?: number },
 ): DocChunk[] {
-  const targetSize = Math.max(200, Math.min(2000, opts?.targetSize ?? 1400));
-  const hardCap = Math.max(targetSize, opts?.hardCap ?? 4000);
+  const target = opts?.targetSeconds ?? PART_SECONDS;
+  const hardCap = opts?.hardCap ?? 4000;
   const chunks: DocChunk[] = [];
-  let globalIndex = 0;
+  let headings: string[] = [];
 
   for (const section of sections) {
-    // If section has no body but has a title, create a chunk with just the heading
-    if (!section.body.trim()) {
-      if (section.title) {
-        const headingText = `${"#".repeat(section.depth)} ${section.title}`;
-        chunks.push({
-          index: globalIndex++,
-          sectionTitle: section.title,
-          sectionIndex: section.index,
-          headingDepth: section.depth,
-          text: headingText,
-        });
-      }
-      continue;
+    if (section.title) {
+      headings.push(
+        `${"#".repeat(Math.max(1, section.depth))} ${section.title}`,
+      );
     }
-
-    // Split section body into paragraphs
     const paragraphs = section.body
       .split(/\n{2,}/g)
       .map((p) => p.trim())
       .filter(Boolean);
-
     if (paragraphs.length === 0) continue;
 
-    let buffer: string[] = [];
-    let size = 0;
-    let isFirstChunk = true;
+    const all: Piece[] = paragraphs.flatMap((paragraph) => {
+      const cut = pieces(paragraph, target, hardCap);
+      return cut.map((text) => ({
+        text,
+        anchor: cut.length > 1 || speakingSeconds(text) >= ANCHOR_SECONDS,
+      }));
+    });
+    if (chunks.length === 0 && all[0]) {
+      const [first = "", second, ...rest] = splitSentences(all[0].text);
+      const opening =
+        second !== undefined && speakingSeconds(first) < OPENING_SECONDS
+          ? [first, second]
+          : [first];
+      const after =
+        second === undefined
+          ? []
+          : opening.length === 2
+            ? rest
+            : [second, ...rest];
+      all.splice(0, 1, { text: joinUnits(opening), anchor: true });
+      if (after.length > 0)
+        all.splice(1, 0, { text: joinUnits(after), anchor: true });
+    }
 
+    let part: string[] = [];
+    let seconds = 0;
     const flush = () => {
-      if (buffer.length === 0) return;
-      let chunkText = buffer.join("\n\n");
-
-      // Prepend heading to first chunk of section if section has a title
-      if (isFirstChunk && section.title) {
-        const headingPrefix = `${"#".repeat(section.depth)} ${section.title}\n\n`;
-        chunkText = headingPrefix + chunkText;
-        isFirstChunk = false;
-      }
-
+      if (part.length === 0) return;
       chunks.push({
-        index: globalIndex++,
+        index: chunks.length,
         sectionTitle: section.title,
         sectionIndex: section.index,
         headingDepth: section.depth,
-        text: chunkText,
+        text: [...headings, ...part].join("\n\n"),
       });
-      buffer = [];
-      size = 0;
+      headings = [];
+      part = [];
+      seconds = 0;
     };
-
-    for (const paragraph of paragraphs) {
-      const nextSize = size + (size > 0 ? 2 : 0) + paragraph.length;
-
-      if (nextSize > targetSize) {
-        if (size === 0 && paragraph.length > hardCap) {
-          // Break huge paragraph at sentence boundaries
-          const sentences = paragraph.split(/(?<=[.!?])\s+/);
-          let sentenceBuf: string[] = [];
-          let sentenceSize = 0;
-          let isFirstSentenceChunk = isFirstChunk;
-
-          for (const sentence of sentences) {
-            const nextSentenceSize =
-              sentenceSize + (sentenceSize > 0 ? 1 : 0) + sentence.length;
-            if (nextSentenceSize > hardCap) {
-              if (sentenceBuf.length) {
-                let chunkText = sentenceBuf.join(" ");
-                if (isFirstSentenceChunk && section.title) {
-                  const headingPrefix = `${"#".repeat(section.depth)} ${section.title}\n\n`;
-                  chunkText = headingPrefix + chunkText;
-                  isFirstSentenceChunk = false;
-                }
-                chunks.push({
-                  index: globalIndex++,
-                  sectionTitle: section.title,
-                  sectionIndex: section.index,
-                  headingDepth: section.depth,
-                  text: chunkText,
-                });
-                sentenceBuf = [];
-                sentenceSize = 0;
-              }
-              let chunkText = sentence;
-              if (isFirstSentenceChunk && section.title) {
-                const headingPrefix = `${"#".repeat(section.depth)} ${section.title}\n\n`;
-                chunkText = headingPrefix + chunkText;
-                isFirstSentenceChunk = false;
-              }
-              chunks.push({
-                index: globalIndex++,
-                sectionTitle: section.title,
-                sectionIndex: section.index,
-                headingDepth: section.depth,
-                text: chunkText,
-              });
-            } else {
-              sentenceBuf.push(sentence);
-              sentenceSize = nextSentenceSize;
-            }
-          }
-
-          if (sentenceBuf.length) {
-            let chunkText = sentenceBuf.join(" ");
-            if (isFirstSentenceChunk && section.title) {
-              const headingPrefix = `${"#".repeat(section.depth)} ${section.title}\n\n`;
-              chunkText = headingPrefix + chunkText;
-              isFirstSentenceChunk = false;
-            }
-            chunks.push({
-              index: globalIndex++,
-              sectionTitle: section.title,
-              sectionIndex: section.index,
-              headingDepth: section.depth,
-              text: chunkText,
-            });
-          }
-          isFirstChunk = false;
-        } else {
-          flush();
-          buffer.push(paragraph);
-          size = paragraph.length;
-        }
-      } else {
-        buffer.push(paragraph);
-        size = nextSize;
+    all.forEach((piece, i) => {
+      const next = speakingSeconds(piece.text);
+      const length = part.join("\n\n").length + piece.text.length + 2;
+      // The opening part holds nothing more.
+      const opening = chunks.length === 0 && i === 1;
+      if (
+        piece.anchor ||
+        opening ||
+        seconds + next > target ||
+        length > hardCap
+      ) {
+        flush();
       }
-    }
-
+      part.push(piece.text);
+      seconds += next;
+    });
     flush();
+  }
+
+  // Headings with no text after them are still read.
+  if (headings.length > 0) {
+    const last = sections.at(-1);
+    chunks.push({
+      index: chunks.length,
+      sectionTitle: last?.title,
+      sectionIndex: last?.index,
+      headingDepth: last?.depth,
+      text: headings.join("\n\n"),
+    });
   }
 
   return chunks;

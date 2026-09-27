@@ -38,7 +38,7 @@ export async function planChunksStep(
 
   const sanitized = sanitizeMarkdownForTts(markdown);
   const sections = splitMarkdownIntoSections(sanitized);
-  const chunks = chunkSections(sections, { targetSize: 1400, hardCap });
+  const chunks = chunkSections(sections, { hardCap });
 
   const planned = chunks.map((c) => {
     const normalizedText = normalizeForTts(c.text);
