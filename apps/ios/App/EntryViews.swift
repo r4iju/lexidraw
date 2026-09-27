@@ -55,24 +55,16 @@ struct OpenLink<Label: View>: View {
   var body: some View {
     if file.kind == .folder {
       NavigationLink(value: Place.Folder(id: file.id, title: file.title)) { label }
-    } else if file.kind == .drawing, let session {
-      NavigationLink {
-        DrawingScreen(session: session, id: file.id, title: file.title)
-      } label: {
-        label
-      }
-    } else if file.kind == .document, let session {
-      NavigationLink {
-        DocumentScreen(session: session, id: file.id, title: file.title)
-      } label: {
-        label
-      }
     } else {
-      NavigationLink {
-        NotYet(title: file.title, systemImage: file.kind.systemImage, feature: "Files open")
-      } label: {
-        label
-      }
+      NavigationLink { screen } label: { label }
+    }
+  }
+
+  @ViewBuilder private var screen: some View {
+    switch (file.kind, session) {
+    case (.drawing, let session?): DrawingScreen(session: session, id: file.id, title: file.title)
+    case (.document, let session?): DocumentScreen(session: session, id: file.id, title: file.title)
+    default: NotYet(title: file.title, systemImage: file.kind.systemImage, feature: "Files open")
     }
   }
 }

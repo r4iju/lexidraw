@@ -25,7 +25,7 @@ extension Session {
       entity.elements.isEmpty ? [] : try JSONValue(parsing: entity.elements).arrayValue ?? []
     let appState = try entity.appState.map { try JSONValue(parsing: $0).objectValue }
     return StoredDrawing(
-      id: entity.id, title: entity.title, access: entity.accessLevel == .edit ? .edit : .read,
+      id: entity.id, title: entity.title, access: entity.access,
       elements: elements, appState: (appState ?? nil) ?? [:], updatedAt: entity.updatedAt)
   }
 }

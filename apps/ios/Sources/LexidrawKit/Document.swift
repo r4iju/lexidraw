@@ -13,7 +13,7 @@ extension Session {
   public func document(_ id: String) async throws -> StoredDocument {
     let entity = try await ask { try await $0.entitiesLoad(path: .init(id: id)) }.ok.body.json
     return StoredDocument(
-      title: entity.title, access: entity.accessLevel == .edit ? .edit : .read,
+      title: entity.title, access: entity.access,
       state: try JSONValue(parsing: entity.elements))
   }
 }
