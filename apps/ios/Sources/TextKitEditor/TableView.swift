@@ -697,10 +697,6 @@ import UIKit
   }
 }
 
-extension Array {
-  subscript(safe index: Int) -> Element? { indices.contains(index) ? self[index] : nil }
-}
-
 extension UIColor {
   convenience init(css color: CSSColor) {
     self.init(red: color.red, green: color.green, blue: color.blue, alpha: color.alpha)

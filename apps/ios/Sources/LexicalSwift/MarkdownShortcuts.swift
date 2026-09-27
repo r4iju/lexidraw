@@ -614,11 +614,6 @@ extension Update {
 }
 
 extension Array where Element == UTF16.CodeUnit {
-  /// A JavaScript string's `text[index]`, which is undefined out of range.
-  subscript(safe index: Int) -> UTF16.CodeUnit? {
-    indices.contains(index) ? self[index] : nil
-  }
-
   /// `isEqualSubString`.
   fileprivate func has(_ tag: [UTF16.CodeUnit], at start: Int) -> Bool {
     tag.indices.allSatisfy { self[safe: start + $0] == tag[$0] }

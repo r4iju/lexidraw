@@ -496,13 +496,6 @@ extension MarkdownImport {
   }
 }
 
-extension Array {
-  /// A JavaScript array's `array[index]`, which is undefined out of range.
-  fileprivate subscript(safe index: Int) -> Element? {
-    indices.contains(index) ? self[index] : nil
-  }
-}
-
 // MARK: - Making the nodes
 
 extension Update {

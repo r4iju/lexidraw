@@ -133,9 +133,3 @@ extension Update {
   private static let colon = ":".utf16.first!
   private static let letterN = "n".utf16.first!
 }
-
-extension Array {
-  fileprivate subscript(safe index: Int) -> Element? {
-    indices.contains(index) ? self[index] : nil
-  }
-}
