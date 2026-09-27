@@ -48,9 +48,13 @@ public final class Editor: EditorModel {
       var previous = state
       guard try commit(&update) else { return ChangeSet(changed: []) }
       var changed = update.changedKeys
+      var compositionEnd = if case .commitComposition = command { true } else { false }
       // `registerMarkdownShortcuts`: an update that finishes a shortcut sets
       // off one of its own, which can finish another.
-      while let caret = state.markdownShortcutCaret(after: previous, dirtyLeaves: update.dirtyLeaves) {
+      while let caret = state.markdownShortcutCaret(
+        after: previous, dirtyLeaves: update.dirtyLeaves, compositionEnd: compositionEnd)
+      {
+        compositionEnd = false
         previous = state
         update = Update(state, nextKey: nextKey, revision: nextRevision())
         let isShortcut = try update.runMarkdownShortcut(at: caret)
@@ -151,7 +155,7 @@ extension Update {
     }
     guard let selection else { throw EditorError.noSelection }
     switch command {
-    case .insertText(let text): try insertText(selection, text)
+    case .insertText(let text), .commitComposition(let text): try insertText(selection, text)
     case .deleteCharacter(let backward): try deleteCharacter(selection, backward: backward)
     case .deleteWord(let backward): try deleteWord(selection, backward: backward)
     case .deleteLine(let backward, let lineBoundary):

@@ -38,6 +38,11 @@ struct MarkdownTransformer: Sendable {
     .link: 118,
   ]
 
+  /// `compositionEndTriggerChars`: the characters that can finish a
+  /// shortcut, a space or a trigger.
+  static let compositionEndTriggers = Set(
+    " ".utf16 + textFormat.compactMap(\.tag.utf16.last) + textMatch.compactMap { $0.trigger?.utf16.last })
+
   static let element = web.filter { $0.kind == .element }
   static let multilineElement = web.filter { $0.kind == .multilineElement }
   static let textMatch = web.filter { $0.kind == .textMatch }
@@ -81,14 +86,22 @@ struct JSRegExp: Sendable {
 extension EditorState {
   /// Where `registerMarkdownShortcuts`' update listener looks for a
   /// shortcut after an update from `previous` to this state: a caret that
-  /// typing one character, or deleting, has just put in text.
-  func markdownShortcutCaret(after previous: EditorState, dirtyLeaves: OrderedSet<NodeKey>) -> KeyPoint? {
+  /// typing one character, or deleting, has just put in text, or that
+  /// `compositionEnd` put after a character that can finish a shortcut.
+  func markdownShortcutCaret(after previous: EditorState, dirtyLeaves: OrderedSet<NodeKey>, compositionEnd: Bool)
+    -> KeyPoint?
+  {
     guard let before = previous.selection, let after = selection, after.anchor == after.focus,
-      !RangeSelection(after).is(before)
+      compositionEnd || !RangeSelection(after).is(before)
     else { return nil }
     let anchor = after.anchor
     guard nodes[anchor.key]?.isText == true, dirtyLeaves.contains(anchor.key) else { return nil }
-    if anchor.offset != 1, offsetInParent(anchor) > previous.offsetInParent(before.anchor) + 1 { return nil }
+    if compositionEnd {
+      let closeChar = Array(self[anchor.key].text.utf16)[safe: anchor.offset - 1]
+      guard let closeChar, MarkdownTransformer.compositionEndTriggers.contains(closeChar) else { return nil }
+    } else if anchor.offset != 1, offsetInParent(anchor) > previous.offsetInParent(before.anchor) + 1 {
+      return nil
+    }
     return anchor
   }
 

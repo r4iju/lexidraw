@@ -86,6 +86,9 @@ public enum EditorCommand: Equatable, Sendable {
   /// follow what it lands in.
   case setSelection(anchor: Point, focus: Point)
   case insertText(String)
+  /// Ends a composition: its text, typed as one update Lexical tags as a
+  /// composition's end.
+  case commitComposition(String)
   /// Backspace (`backward`) or forward delete, by one character, word or line.
   case deleteCharacter(backward: Bool)
   case deleteWord(backward: Bool)
@@ -172,7 +175,7 @@ extension EditorCommand: Codable {
 
   /// The command's `type` in JSON.
   private enum Kind: String, Codable {
-    case setSelection, insertText, deleteCharacter, deleteWord, deleteLine, insertParagraph, insertLineBreak,
+    case setSelection, insertText, commitComposition, deleteCharacter, deleteWord, deleteLine, insertParagraph, insertLineBreak,
       formatText, setBlockType, selectAll, undo, redo, wait
   }
 
@@ -180,6 +183,7 @@ extension EditorCommand: Codable {
     switch self {
     case .setSelection: .setSelection
     case .insertText: .insertText
+    case .commitComposition: .commitComposition
     case .deleteCharacter: .deleteCharacter
     case .deleteWord: .deleteWord
     case .deleteLine: .deleteLine
@@ -205,6 +209,7 @@ extension EditorCommand: Codable {
         anchor: try container.decode(Point.self, forKey: .anchor),
         focus: try container.decode(Point.self, forKey: .focus))
     case .insertText: self = .insertText(try container.decode(String.self, forKey: .text))
+    case .commitComposition: self = .commitComposition(try container.decode(String.self, forKey: .text))
     case .deleteCharacter: self = .deleteCharacter(backward: try backward())
     case .deleteWord: self = .deleteWord(backward: try backward())
     case .deleteLine:
@@ -228,7 +233,7 @@ extension EditorCommand: Codable {
     case .setSelection(let anchor, let focus):
       try container.encode(anchor, forKey: .anchor)
       try container.encode(focus, forKey: .focus)
-    case .insertText(let text):
+    case .insertText(let text), .commitComposition(let text):
       try container.encode(text, forKey: .text)
     case .deleteCharacter(let backward), .deleteWord(let backward):
       try container.encode(backward, forKey: .backward)

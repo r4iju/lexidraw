@@ -116,6 +116,19 @@ import UIKit
     #expect(block?["children"]?.arrayValue?.first?["text"] == "one")
   }
 
+  /// A composition reaches the model as one commit, which can finish a
+  /// markdown shortcut as the end of a composition does on the web.
+  @Test func aCompositionThatEndsInASpaceFinishesAShortcut() throws {
+    let model = Editor()
+    try model.load(LexicalJSON.document([LexicalJSON.paragraph([])]))
+    let view = try hostEditing(model, caretAt: 0)
+
+    view.setMarkedText("# ", selectedRange: NSRange(location: 2, length: 0))
+    view.unmarkText()
+
+    #expect(try model.snapshot().state["root"]?["children"]?.arrayValue?.first?["type"] == "heading")
+  }
+
   /// The paragraph's text after the key command for `input` and `modifiers`
   /// runs with the caret `caretAt` UTF-16 offsets into `text`.
   private func text(

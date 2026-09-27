@@ -25,6 +25,7 @@ import {
   $isTextNode,
   $selectAll,
   $setSelection,
+  COMPOSITION_END_TAG,
   HISTORIC_TAG,
   IS_ALL_FORMATTING,
   KEY_ENTER_COMMAND,
@@ -50,7 +51,7 @@ type PathPoint = { path: number[]; offset: number; type: "text" | "element" };
 
 type Command =
   | { type: "setSelection"; anchor: PathPoint; focus: PathPoint }
-  | { type: "insertText"; text: string }
+  | { type: "insertText" | "commitComposition"; text: string }
   | { type: "deleteCharacter" | "deleteWord"; backward: boolean }
   | { type: "deleteLine"; backward: boolean; lineBoundary: PathPoint }
   | { type: "insertParagraph" }
@@ -123,6 +124,12 @@ function apply(commandJSON: string): string {
       break;
     case "wait":
       now += command.milliseconds;
+      break;
+    case "commitComposition":
+      current().update(() => run(command), {
+        discrete: true,
+        tag: COMPOSITION_END_TAG,
+      });
       break;
     default:
       current().update(() => run(command), { discrete: true });
@@ -243,6 +250,7 @@ function run(command: Exclude<Command, { type: "undo" | "redo" | "wait" }>) {
   }
   switch (command.type) {
     case "insertText":
+    case "commitComposition":
       selection.insertText(command.text);
       return;
     case "deleteCharacter":

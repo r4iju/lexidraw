@@ -128,9 +128,11 @@ hand:
 - A document's audio, once made, plays even after the document changes, as
   on the web. Making it again is done on the web.
 - Text an input method is composing stays in the view until it is committed,
-  and reaches the model as one `insertText`. The web editor saves the same
-  document for a composition as for typing its result, and Lexical keeps it
-  as one history step either way.
+  and reaches the model as one `commitComposition`, which inserts it as
+  `insertText` does in an update tagged as Lexical tags a composition's end,
+  so a markdown shortcut it finishes goes off as on the web. The web editor
+  saves the same document for a composition as for typing its result, and
+  Lexical keeps it as one history step either way.
 - The editor-model interface is its own module, `EditorModelInterface`, so
   the editor can't reach into LexicalSwift. Views tell which blocks an
   update added, removed or kept by `childKeys`, as Lexical's reconciler does

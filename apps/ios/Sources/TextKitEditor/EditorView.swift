@@ -9,8 +9,8 @@ import UIKit
 /// a block at a time (`BlockLayout`).
 ///
 /// Text an input method is still composing lives only here, over the
-/// selection it replaces, and reaches the model as one `insertText` when it
-/// is committed.
+/// selection it replaces, and reaches the model as one `commitComposition`
+/// when it is committed.
 public final class EditorView: UIScrollView, UITextInput {
   private static let log = Logger(subsystem: "TextKitEditor", category: "EditorView")
 
@@ -166,12 +166,15 @@ public final class EditorView: UIScrollView, UITextInput {
     else { return sendSelection() }
   }
 
-  /// Text typed or pasted, each newline a new paragraph as Return makes.
-  private func insert(_ text: String, fromInput: Bool) {
+  /// Text typed, pasted or `composed`, each newline a new paragraph as
+  /// Return makes.
+  private func insert(_ text: String, fromInput: Bool, composed: Bool = false) {
     let lines = text.split(omittingEmptySubsequences: false, whereSeparator: \.isNewline)
     for (index, line) in lines.enumerated() {
       if index > 0 { perform(.insertParagraph, fromInput: fromInput) }
-      if !line.isEmpty || lines.count == 1 { perform(.insertText(String(line)), fromInput: fromInput) }
+      guard !line.isEmpty || lines.count == 1 else { continue }
+      let isCommit = composed && index == lines.count - 1
+      perform(isCommit ? .commitComposition(String(line)) : .insertText(String(line)), fromInput: fromInput)
     }
   }
 
@@ -258,7 +261,7 @@ public final class EditorView: UIScrollView, UITextInput {
     focus = NSMaxRange(composition.replaced)
     if text.isEmpty, composition.replaced.length == 0 { return }
     syncSelection()
-    insert(text, fromInput: true)
+    insert(text, fromInput: true, composed: true)
   }
 
   // MARK: Selection

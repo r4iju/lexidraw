@@ -59,6 +59,15 @@ import Testing
       commands: [caretInEmptyParagraph, .insertText("#"), .insertParagraph],
       expected: document(paragraph(text("#")), paragraph())),
     Script(
+      name: "a composition that ends in a space finishes # as a heading", start: emptyParagraph,
+      commands: [caretInEmptyParagraph, .commitComposition("# ")], expected: document(heading("h1"))),
+    Script(
+      name: "a composition ends a shortcut typed before it", start: emptyParagraph,
+      commands: [caretInEmptyParagraph, .insertText(">"), .commitComposition(" ")], expected: document(quote())),
+    Script(
+      name: "a composition that ends in no trigger finishes nothing", start: emptyParagraph,
+      commands: [caretInEmptyParagraph, .commitComposition("# 日本")], expected: document(paragraph(text("# 日本")))),
+    Script(
       name: "undo after a shortcut gives back what was typed", start: emptyParagraph,
       commands: [caretInEmptyParagraph] + typing("# ") + [.undo], expected: document(paragraph(text("# ")))),
     Script(
@@ -113,6 +122,10 @@ import Testing
         name: "\(tag)ab\(tag) makes ab \(name)", start: emptyParagraph,
         commands: [caretInEmptyParagraph] + typing("\(tag)ab\(tag)"), expected: document(paragraph(text("ab", format: format))))
     } + [
+      Script(
+        name: "a composition that ends in a closing tag formats", start: emptyParagraph,
+        commands: [caretInEmptyParagraph, .commitComposition("**日本**")],
+        expected: document(paragraph(text("日本", format: .bold)))),
       Script(
         name: "a format goes on with what is typed next", start: emptyParagraph,
         commands: [caretInEmptyParagraph] + typing("x **ab**c"),
