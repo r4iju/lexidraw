@@ -86,6 +86,35 @@ class EditorUITests: XCTestCase {
       ]))
   }
 
+  func testMarkdownShortcutsWhileTyping() throws {
+    open(LexicalJSON.document([LexicalJSON.paragraph([])]))
+
+    editor.typeText("# Title\n> Quoted\nPlain **bold** after")
+
+    XCTAssertEqual(
+      try saved(),
+      LexicalJSON.document([
+        LexicalJSON.heading("h1", [LexicalJSON.text("Title")]),
+        LexicalJSON.quote([LexicalJSON.text("Quoted")]),
+        LexicalJSON.paragraph([
+          LexicalJSON.text("Plain "), LexicalJSON.text("bold", format: .bold), LexicalJSON.text(" after"),
+        ]),
+      ]))
+  }
+
+  func testBlockTypesFromTheHardwareKeyboard() throws {
+    open(LexicalJSON.document([LexicalJSON.paragraph([LexicalJSON.text("Title")])]))
+
+    keyboard.press("2", [.command, .option])
+    XCTAssertEqual(try saved(), LexicalJSON.document([LexicalJSON.heading("h2", [LexicalJSON.text("Title")])]))
+
+    keyboard.press("q", [.command, .option])
+    XCTAssertEqual(try saved(), LexicalJSON.document([LexicalJSON.quote([LexicalJSON.text("Title")])]))
+
+    keyboard.press("0", [.command, .option])
+    XCTAssertEqual(try saved(), LexicalJSON.document([LexicalJSON.paragraph([LexicalJSON.text("Title")])]))
+  }
+
   func testSelectAllThenTypingReplacesEverything() throws {
     open(
       LexicalJSON.document([
