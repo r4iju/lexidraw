@@ -597,11 +597,7 @@ public final class EditorView: UIScrollView, UITextInput {
 
   public override func layoutSubviews() {
     super.layoutSubviews()
-    let narrow = bounds.width <= typesetting.typography.narrowWidth
-    if narrow != typesetting.isNarrow, composition == nil {
-      typesetting.isNarrow = narrow
-      render(nil)
-    }
+    if composition == nil, typesetting.setWidth(bounds.width) { render(nil) }
     layout.layoutViewport(of: self)
   }
 }

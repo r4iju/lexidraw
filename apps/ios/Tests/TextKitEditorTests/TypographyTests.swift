@@ -19,7 +19,7 @@ import UIKit
   }
 
   static func fontSize(_ type: BlockType, narrow: Bool = true) -> CGFloat {
-    (narrow ? web.narrowHeadingSizes[type] : nil).map { $0 * em } ?? (web.headings[type]?.fontSize ?? 1) * em
+    (narrow ? web.narrow.first?.headingSizes[type] : nil).map { $0 * em } ?? (web.headings[type]?.fontSize ?? 1) * em
   }
 
   static func caret(_ view: EditorView, before text: String) throws -> CGRect {

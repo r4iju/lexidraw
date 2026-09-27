@@ -16,8 +16,7 @@ extension DocumentTypography {
       .h6: Heading(fontSize: 0.875, lineHeight: 1.5, letterSpacing: 0, before: 1.25, after: 0.25, color: .mutedForeground),
     ],
     adjacentHeadingBefore: 0.5,
-    narrowWidth: 639,
-    narrowHeadingSizes: [.h1: 1.625],
+    narrow: [Narrow(width: 639, headingSizes: [.h1: 1.625])],
     quote: Quote(borderWidth: 3, borderColor: .border, paddingStart: 1),
     rule: Rule(width: 1, color: .border, margin: 2))
 }

@@ -35,6 +35,13 @@ struct DocumentTypography: Sendable {
     var color: ThemeColor
   }
 
+  /// Heading sizes, in ems of the body text, in a view no wider than
+  /// `width`.
+  struct Narrow: Sendable {
+    var width: Double
+    var headingSizes: [BlockType: Double]
+  }
+
   struct Quote: Sendable {
     var borderWidth: Double
     var borderColor: ThemeColor
@@ -57,10 +64,9 @@ struct DocumentTypography: Sendable {
   var headings: [BlockType: Heading]
   /// A heading right after a heading has this much of its space before.
   var adjacentHeadingBefore: Double
-  /// The widest a view is narrow at, which sets the headings in
-  /// `narrowHeadingSizes` smaller.
-  var narrowWidth: Double
-  var narrowHeadingSizes: [BlockType: Double]
+  /// In the stylesheet's order, a later one over an earlier where both
+  /// apply.
+  var narrow: [Narrow]
   var quote: Quote
   var rule: Rule
 
@@ -69,18 +75,20 @@ struct DocumentTypography: Sendable {
     return headings[type]
   }
 
-  /// The size of the text in `block`, in ems of the body text.
-  func fontSize(_ block: StyledBlock, narrow: Bool) -> Double {
+  /// The size of the text in `block` in a view `width` wide, in ems of the
+  /// body text.
+  func fontSize(_ block: StyledBlock, width: Double) -> Double {
     guard case .text(let type) = block else { return 1 }
-    return (narrow ? narrowHeadingSizes[type] : nil) ?? headings[type]?.fontSize ?? 1
+    return narrow.last { width <= $0.width && $0.headingSizes[type] != nil }?.headingSizes[type]
+      ?? headings[type]?.fontSize ?? 1
   }
 
   /// A block's space before and after it, in ems of the body text. The
   /// space between two blocks is the larger of the first's after and the
   /// second's before, as CSS collapses margins, and the first block has
   /// none before it.
-  func space(_ block: StyledBlock, after previous: StyledBlock?, narrow: Bool) -> (before: Double, after: Double) {
-    let size = fontSize(block, narrow: narrow)
+  func space(_ block: StyledBlock, after previous: StyledBlock?, width: Double) -> (before: Double, after: Double) {
+    let size = fontSize(block, width: width)
     if let heading = heading(block) {
       let adjacent = previous.map { self.heading($0) != nil } == true
       return (heading.before * size * (adjacent ? adjacentHeadingBefore : 1), heading.after * size)

@@ -1,5 +1,5 @@
 import { fileURLToPath } from "node:url";
-import postcss, { type AtRule, type Container } from "postcss";
+import postcss, { type Container } from "postcss";
 import { theme } from "../../lexidraw/src/app/documents/[documentId]/themes/theme";
 
 export const DOCUMENT_TYPOGRAPHY_PATH = fileURLToPath(
@@ -33,6 +33,7 @@ export async function readWebStyles(): Promise<WebStyles> {
 const HEADING_TAGS = ["h1", "h2", "h3", "h4", "h5", "h6"] as const;
 const HEADINGS = `:is(${HEADING_TAGS.join(", ")})`;
 const NOT_IN_DECORATOR = ":not([data-lexical-decorator] *)";
+const SHARED_HEADING = `.document-content ${HEADINGS}${NOT_IN_DECORATOR}`;
 
 /**
  * How the web shows a document's blocks, read from its stylesheets, in
@@ -67,10 +68,7 @@ export function swiftForTypography(styles: WebStyles): string {
     );
   }
 
-  const heading = declarations(
-    css,
-    `.document-content ${HEADINGS}${NOT_IN_DECORATOR}`,
-  );
+  const heading = declarations(css, SHARED_HEADING);
   const [headingBefore, headingAfter] = pair(value(heading, "margin-block"));
   const headings = HEADING_TAGS.map((tag) => {
     const own = declarations(
@@ -102,29 +100,6 @@ export function swiftForTypography(styles: WebStyles): string {
     );
   }
 
-  const narrow = css.nodes.find(
-    (node): node is AtRule =>
-      node.type === "atrule" &&
-      node.name === "container" &&
-      /^\(max-width: \d+px\)$/.test(node.params) &&
-      HEADING_TAGS.some((tag) =>
-        has(node, `.document-content ${tag}${NOT_IN_DECORATOR}`),
-      ),
-  );
-  if (!narrow) {
-    throw new Error("The stylesheet has no narrow container's headings");
-  }
-  const narrowWidth = number(/(\d+)px/.exec(narrow.params)?.[1] ?? "");
-  const narrowSizes = HEADING_TAGS.filter((tag) =>
-    has(narrow, `.document-content ${tag}${NOT_IN_DECORATOR}`),
-  ).map((tag) => {
-    const own = declarations(
-      narrow,
-      `.document-content ${tag}${NOT_IN_DECORATOR}`,
-    );
-    return `.${tag}: ${ems(value(own, "font-size"))}`;
-  });
-
   const quote = declarations(css, `.${styles.quoteClass}`);
   const [quoteBorderWidth, quoteBorderColor] = border(
     value(quote, "border-inline-start"),
@@ -152,8 +127,7 @@ export function swiftForTypography(styles: WebStyles): string {
     ...headings,
     "    ],",
     `    adjacentHeadingBefore: ${1 / number(halved[1])},`,
-    `    narrowWidth: ${narrowWidth},`,
-    `    narrowHeadingSizes: [${narrowSizes.join(", ")}],`,
+    `    narrow: [${swiftForNarrow(css).join(", ")}],`,
     `    quote: Quote(borderWidth: ${points(quoteBorderWidth)}, borderColor: ${colors.name(quoteBorderColor)}, paddingStart: ${ems(quotePaddingStart)}),`,
     `    rule: Rule(width: ${points(ruleWidth)}, color: ${colors.name(ruleColor)}, margin: ${ems(ruleBefore)}))`,
     "}",
@@ -174,6 +148,49 @@ export function swiftForTypography(styles: WebStyles): string {
       (_, name: string) => where.values.get(name) ?? value(content, name),
     );
   }
+}
+
+/**
+ * Each narrow container's heading sizes, as `Narrow`s in the stylesheet's
+ * order.
+ */
+function swiftForNarrow(css: postcss.Root): string[] {
+  const narrow: string[] = [];
+  css.walkAtRules("container", (container) => {
+    const width = /^\(max-width: (\d+)px\)$/.exec(container.params)?.[1];
+    const sizes = new Map<string, number>();
+    container.each((node) => {
+      if (node.type !== "rule") return;
+      for (const selector of node.selectors.map(normalize)) {
+        const tag = HEADING_TAGS.find(
+          (tag) => selector === `.document-content ${tag}${NOT_IN_DECORATOR}`,
+        );
+        if (!tag && selector !== SHARED_HEADING) continue;
+        const properties = (node.nodes ?? []).flatMap((child) =>
+          child.type === "decl" ? [child.prop] : [],
+        );
+        if (
+          !tag ||
+          !width ||
+          container.parent?.type !== "root" ||
+          properties.some((property) => property !== "font-size")
+        ) {
+          throw new Error(
+            `${selector} in @container ${container.params} sets ${properties.join(", ")} as isn't read yet`,
+          );
+        }
+        const own = declarations(container, selector);
+        sizes.set(tag, ems(value(own, "font-size")));
+      }
+    });
+    if (width && sizes.size > 0) {
+      const entries = [...sizes].map(([tag, size]) => `.${tag}: ${size}`);
+      narrow.push(
+        `Narrow(width: ${number(width)}, headingSizes: [${entries.join(", ")}])`,
+      );
+    }
+  });
+  return narrow;
 }
 
 /** What a selector's rules in a container set, later rules over earlier. */

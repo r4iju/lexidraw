@@ -7,8 +7,8 @@ import UIKit
 /// body text's size, so text follows the reader's text size.
 final class Typesetting {
   let typography: DocumentTypography
-  /// Whether the view is no wider than `typography.narrowWidth`.
-  var isNarrow = true
+  /// The view's, which sets some headings smaller.
+  private(set) var width: Double = 0
 
   init(_ typography: DocumentTypography) {
     self.typography = typography
@@ -16,14 +16,22 @@ final class Typesetting {
 
   private var em: CGFloat { UIFont.preferredFont(forTextStyle: .body).pointSize }
 
-  func fontSize(_ block: StyledBlock) -> CGFloat { typography.fontSize(block, narrow: isNarrow) * em }
+  /// Sets text for a view `width` wide, returning whether that sets any
+  /// heading otherwise.
+  func setWidth(_ width: Double) -> Bool {
+    let before = BlockType.allCases.map { fontSize(.text($0)) }
+    self.width = width
+    return BlockType.allCases.map { fontSize(.text($0)) } != before
+  }
+
+  func fontSize(_ block: StyledBlock) -> CGFloat { typography.fontSize(block, width: width) * em }
 
   func lineHeight(_ block: StyledBlock) -> CGFloat {
     (typography.heading(block)?.lineHeight ?? typography.lineHeight) * fontSize(block)
   }
 
   func space(_ block: StyledBlock, after previous: StyledBlock?) -> (before: CGFloat, after: CGFloat) {
-    let space = typography.space(block, after: previous, narrow: isNarrow)
+    let space = typography.space(block, after: previous, width: width)
     return (space.before * em, space.after * em)
   }
 
