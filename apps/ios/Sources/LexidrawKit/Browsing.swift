@@ -8,6 +8,11 @@ public enum Access: Int, Sendable, Hashable, Comparable {
   public static func < (lhs: Access, rhs: Access) -> Bool { lhs.rawValue < rhs.rawValue }
 }
 
+extension Operations.EntitiesLoad.Output.Ok.Body.JsonPayload {
+  /// What the user may do with the file loaded.
+  var access: Access { accessLevel == .edit ? .edit : .read }
+}
+
 /// A file or folder as a listing shows it.
 public struct Entry: Sendable, Hashable, Identifiable {
   public enum Kind: Sendable, Hashable {

@@ -5,6 +5,10 @@ public protocol EditorModel: AnyObject {
   /// (`{"root": …}`) and clears the selection.
   func load(_ state: JSONValue) throws
 
+  /// Whether the model can edit the document loaded. One that can't refuses
+  /// every command that would change it as `EditorError.unsupported`.
+  var isEditable: Bool { get }
+
   /// Applies one command as a single update. A command that throws leaves the
   /// document and selection as they were.
   @discardableResult
