@@ -192,8 +192,7 @@ import UIKit
   }
 
   /// Each item shows the marker the web's theme gives it, numbered from its
-  /// list's start and styled by how deep it is, or in a checklist a box, its
-  /// text struck through and in the theme's colour once checked.
+  /// list's start and styled by how deep it is, or in a checklist a box.
   @Test
   func itemsShowTheirMarkersAndBoxes() throws {
     let model = Editor()
@@ -216,19 +215,36 @@ import UIKit
     #expect(styled.string == "a\nb\nc\nd\ne\n")
     #expect(layout.items.map(\.marker) == ["3. ", "a. ", "\u{25AA} ", nil, nil])
     #expect(layout.items.map(\.isChecklistItem) == [false, false, false, true, true])
-    func isStruckThrough(_ offset: Int) -> Bool {
-      styled.attribute(.strikethroughStyle, at: offset, effectiveRange: nil) != nil
+  }
+
+  /// A checked item's text is struck through, across the space between its
+  /// words too, and drawn in the theme's colour for done items, light and
+  /// dark; an unchecked item's isn't.
+  @Test(arguments: [UIUserInterfaceStyle.light, .dark])
+  func aCheckedItemIsStruckThroughInTheThemesColour(_ style: UIUserInterfaceStyle) throws {
+    let view = try Self.host(
+      LexicalJSON.document([
+        LexicalJSON.list(
+          .check, [.item([LexicalJSON.text("ll ll")], checked: true), .item([LexicalJSON.text("ll ll")])])
+      ]))
+    view.overrideUserInterfaceStyle = style
+    view.layoutIfNeeded()
+    func caret(_ offset: Int) throws -> CGRect {
+      view.caretRect(for: try #require(view.position(from: view.beginningOfDocument, offset: offset)))
     }
-    #expect([6, 8].map(isStruckThrough) == [true, false])
-    let done = try #require(styled.attribute(.foregroundColor, at: 6, effectiveRange: nil) as? UIColor)
+    func space(after start: Int) throws -> ClosedRange<CGFloat> {
+      (try caret(start + 2).minX + 1)...(try caret(start + 3).minX - 1)
+    }
+    func line(_ start: Int) throws -> ClosedRange<CGFloat> { (try caret(start).minY)...(try caret(start).maxY) }
+
+    #expect(TypographyTests.ink(of: view.textInputView, across: try space(after: 0), rows: try line(0)) != nil)
+    #expect(TypographyTests.ink(of: view.textInputView, across: try space(after: 6), rows: try line(6)) == nil)
+    let drawn = try #require(
+      TypographyTests.inkColor(
+        of: view.textInputView, across: (try caret(0).minX)...(try caret(2).minX), rows: try line(0)))
     let theme = DocumentTypography.web.list.doneColor
-    for (style, expected) in [(UIUserInterfaceStyle.light, theme.light), (.dark, theme.dark)] {
-      var (red, green, blue, alpha): (CGFloat, CGFloat, CGFloat, CGFloat) = (0, 0, 0, 0)
-      done.resolvedColor(with: UITraitCollection(userInterfaceStyle: style)).getRed(&red, green: &green, blue: &blue, alpha: &alpha)
-      #expect(
-        abs(red - expected.red) < 0.001 && abs(green - expected.green) < 0.001 && abs(blue - expected.blue) < 0.001,
-        "a done item's text in \(style == .dark ? "dark" : "light")")
-    }
+    let expected = style == .dark ? theme.dark : theme.light
+    #expect(zip(drawn, [expected.red, expected.green, expected.blue]).allSatisfy { abs($0 - $1) < 0.01 }, "\(drawn)")
   }
 
   /// Scrolling up from the middle of a long document, through blocks laid
