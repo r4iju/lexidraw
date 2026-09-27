@@ -46,7 +46,7 @@ public final class EditorView: UIScrollView, UITextInput {
     let typesetting = Typesetting(.web)
     self.typesetting = typesetting
     document = DocumentText(
-      model: model, style: style ?? { typesetting.attributes($0, $1) }, standIn: BlockLayout.standIn)
+      model: model, style: style ?? { typesetting.attributes(StyledBlock($0), $1) }, standIn: BlockLayout.standIn)
     layout = BlockLayout(storage: storage, document: document, typesetting: typesetting)
     super.init(frame: .zero)
     backgroundColor = .systemBackground

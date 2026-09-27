@@ -87,7 +87,7 @@ export function swiftForTypography(styles: WebStyles): string {
       `after: ${ems(resolve(headingAfter, own))}`,
       `color: ${colors.name(or("color", () => value(heading, "color")))}`,
     ];
-    return `      "${tag}": Heading(${fields.join(", ")}),`;
+    return `      .${tag}: Heading(${fields.join(", ")}),`;
   });
   const adjacent = declarations(
     css,
@@ -122,7 +122,7 @@ export function swiftForTypography(styles: WebStyles): string {
       narrow,
       `.document-content ${tag}${NOT_IN_DECORATOR}`,
     );
-    return `"${tag}": ${ems(value(own, "font-size"))}`;
+    return `.${tag}: ${ems(value(own, "font-size"))}`;
   });
 
   const quote = declarations(css, `.${styles.quoteClass}`);

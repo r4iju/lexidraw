@@ -137,27 +137,29 @@ import UIKit
   private func estimate(_ index: Int) -> CGFloat { estimatedContent(index) + spaceAfter(index) }
 
   private func estimatedContent(_ index: Int) -> CGFloat {
-    let type = document.type(ofBlock: index)
+    let block = styled(index)
     switch document.kind(ofBlock: index) {
-    case .embedded(DocumentTypography.ruleType): return typesetting.typography.rule.width
+    case .embedded where block == .rule: return typesetting.typography.rule.width
     case .embedded: return PlaceholderView.height
-    case .table(let cells): return CGFloat(cells.count) * (typesetting.lineHeight(type) + 2 * TableView.padding) + 1
+    case .table(let cells): return CGFloat(cells.count) * (typesetting.lineHeight(block) + 2 * TableView.padding) + 1
     case .text:
-      let characterWidth = typesetting.fontSize(type) * 0.5
+      let characterWidth = typesetting.fontSize(block) * 0.5
       let perLine = max(width / characterWidth, 1)
       let lines = max(ceil(CGFloat(document.range(ofBlock: index).length) / perLine), 1)
-      return lines * typesetting.lineHeight(type)
+      return lines * typesetting.lineHeight(block)
     }
   }
 
   /// The larger of the block's space after it and the next block's before
   /// it.
   private func spaceAfter(_ index: Int) -> CGFloat {
-    let type = document.type(ofBlock: index)
-    let after = typesetting.space(type, after: index > 0 ? document.type(ofBlock: index - 1) : nil).after
+    let block = styled(index)
+    let after = typesetting.space(block, after: index > 0 ? styled(index - 1) : nil).after
     guard index + 1 < document.blockCount else { return after }
-    return max(after, typesetting.space(document.type(ofBlock: index + 1), after: type).before)
+    return max(after, typesetting.space(styled(index + 1), after: block).before)
   }
+
+  private func styled(_ index: Int) -> StyledBlock { StyledBlock(document.type(ofBlock: index)) }
 
   /// The block at `y`, clamped to the document.
   private func blockIndex(atY y: CGFloat) -> Int {
@@ -179,7 +181,7 @@ import UIKit
       switch kind {
       case .text: TextBlock(text: text, width: width)
       case .table: TableBlock(text: text, kind: kind, width: width) { [weak self] in self?.onScrollSideways?() }
-      case .embedded(DocumentTypography.ruleType):
+      case .embedded where styled(index) == .rule:
         RuleBlock(
           rule: typesetting.typography.rule, caretHeight: UIFont.preferredFont(forTextStyle: .body).lineHeight, width: width)
       case .embedded(let type): EmbedBlock(type: type, width: width)
@@ -550,7 +552,7 @@ private final class RuleBlock: LaidOutBlock {
   }
 
   var view: UIView { container }
-  var kind: DocumentText.BlockKind { .embedded(type: DocumentTypography.ruleType) }
+  var kind: DocumentText.BlockKind { .embedded(type: StyledBlock.ruleType) }
   var height: CGFloat { line.frame.height }
   func canShow(_ kind: DocumentText.BlockKind) -> Bool { kind == self.kind }
 

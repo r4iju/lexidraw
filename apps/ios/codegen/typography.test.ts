@@ -15,12 +15,12 @@ test("reads a heading as its rules give it", async () => {
   const swift = swiftForTypography(await readWebStyles());
 
   expect(swift).toContain(
-    '"h2": Heading(fontSize: 1.5, lineHeight: 1.3, letterSpacing: -0.01, before: 1.6, after: 0.4, color: .heading),',
+    '.h2: Heading(fontSize: 1.5, lineHeight: 1.3, letterSpacing: -0.01, before: 1.6, after: 0.4, color: .heading),',
   );
   expect(swift).toContain(
-    '"h6": Heading(fontSize: 0.875, lineHeight: 1.5, letterSpacing: 0, before: 1.25, after: 0.25, color: .mutedForeground),',
+    '.h6: Heading(fontSize: 0.875, lineHeight: 1.5, letterSpacing: 0, before: 1.25, after: 0.25, color: .mutedForeground),',
   );
-  expect(swift).toContain('narrowHeadingSizes: ["h1": 1.625]');
+  expect(swift).toContain('narrowHeadingSizes: [.h1: 1.625]');
 });
 
 test("a quote's border falls back as var() does", async () => {
@@ -70,7 +70,7 @@ test("a heading's letter-spacing falls back to the shared heading rule", async (
   );
 
   expect(swiftForTypography({ ...styles, documentCSS })).toContain(
-    '"h3": Heading(fontSize: 1.25, lineHeight: 1.4, letterSpacing: 0.01,',
+    '.h3: Heading(fontSize: 1.25, lineHeight: 1.4, letterSpacing: 0.01,',
   );
 });
 

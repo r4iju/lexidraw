@@ -8,16 +8,16 @@ extension DocumentTypography {
     blockAfter: 0.75,
     headingWeight: 600,
     headings: [
-      "h1": Heading(fontSize: 1.875, lineHeight: 1.25, letterSpacing: -0.015, before: 1.6, after: 0.4, color: .heading),
-      "h2": Heading(fontSize: 1.5, lineHeight: 1.3, letterSpacing: -0.01, before: 1.6, after: 0.4, color: .heading),
-      "h3": Heading(fontSize: 1.25, lineHeight: 1.4, letterSpacing: 0, before: 1.5, after: 0.35, color: .heading),
-      "h4": Heading(fontSize: 1.0625, lineHeight: 1.5, letterSpacing: 0, before: 1.5, after: 0.25, color: .heading),
-      "h5": Heading(fontSize: 1, lineHeight: 1.5, letterSpacing: 0, before: 1.25, after: 0.25, color: .heading),
-      "h6": Heading(fontSize: 0.875, lineHeight: 1.5, letterSpacing: 0, before: 1.25, after: 0.25, color: .mutedForeground),
+      .h1: Heading(fontSize: 1.875, lineHeight: 1.25, letterSpacing: -0.015, before: 1.6, after: 0.4, color: .heading),
+      .h2: Heading(fontSize: 1.5, lineHeight: 1.3, letterSpacing: -0.01, before: 1.6, after: 0.4, color: .heading),
+      .h3: Heading(fontSize: 1.25, lineHeight: 1.4, letterSpacing: 0, before: 1.5, after: 0.35, color: .heading),
+      .h4: Heading(fontSize: 1.0625, lineHeight: 1.5, letterSpacing: 0, before: 1.5, after: 0.25, color: .heading),
+      .h5: Heading(fontSize: 1, lineHeight: 1.5, letterSpacing: 0, before: 1.25, after: 0.25, color: .heading),
+      .h6: Heading(fontSize: 0.875, lineHeight: 1.5, letterSpacing: 0, before: 1.25, after: 0.25, color: .mutedForeground),
     ],
     adjacentHeadingBefore: 0.5,
     narrowWidth: 639,
-    narrowHeadingSizes: ["h1": 1.625],
+    narrowHeadingSizes: [.h1: 1.625],
     quote: Quote(borderWidth: 3, borderColor: .border, paddingStart: 1),
     rule: Rule(width: 1, color: .border, margin: 2))
 }

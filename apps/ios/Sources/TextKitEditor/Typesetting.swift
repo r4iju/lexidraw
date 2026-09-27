@@ -16,23 +16,22 @@ final class Typesetting {
 
   private var em: CGFloat { UIFont.preferredFont(forTextStyle: .body).pointSize }
 
-  func fontSize(_ blockType: String) -> CGFloat { typography.fontSize(blockType, narrow: isNarrow) * em }
+  func fontSize(_ block: StyledBlock) -> CGFloat { typography.fontSize(block, narrow: isNarrow) * em }
 
-  func lineHeight(_ blockType: String) -> CGFloat {
-    (typography.headings[blockType]?.lineHeight ?? typography.lineHeight) * fontSize(blockType)
+  func lineHeight(_ block: StyledBlock) -> CGFloat {
+    (typography.heading(block)?.lineHeight ?? typography.lineHeight) * fontSize(block)
   }
 
-  func space(_ blockType: String, after previous: String?) -> (before: CGFloat, after: CGFloat) {
-    let space = typography.space(blockType, after: previous, narrow: isNarrow)
+  func space(_ block: StyledBlock, after previous: StyledBlock?) -> (before: CGFloat, after: CGFloat) {
+    let space = typography.space(block, after: previous, narrow: isNarrow)
     return (space.before * em, space.after * em)
   }
 
-  /// Text of `format` in a block of `blockType`, which for a heading is its
-  /// tag. A block's space after it is its paragraphs' spacing, which sets
-  /// apart the blocks nested in it.
-  func attributes(_ blockType: String, _ format: TextFormat) -> [NSAttributedString.Key: Any] {
-    let size = fontSize(blockType)
-    let heading = typography.headings[blockType]
+  /// Text of `format` in `block`. A block's space after it is its
+  /// paragraphs' spacing, which sets apart the blocks nested in it.
+  func attributes(_ block: StyledBlock, _ format: TextFormat) -> [NSAttributedString.Key: Any] {
+    let size = fontSize(block)
+    let heading = typography.heading(block)
     let weight: UIFont.Weight = format.contains(.bold) ? .bold : heading.map { _ in Self.weight(typography.headingWeight) } ?? .regular
     var font =
       format.contains(.code)
@@ -42,14 +41,14 @@ final class Typesetting {
       font = UIFont(descriptor: italic, size: 0)
     }
     let paragraph = NSMutableParagraphStyle()
-    paragraph.minimumLineHeight = lineHeight(blockType)
+    paragraph.minimumLineHeight = lineHeight(block)
     paragraph.maximumLineHeight = paragraph.minimumLineHeight
-    paragraph.paragraphSpacing = space(blockType, after: nil).after
+    paragraph.paragraphSpacing = space(block, after: nil).after
     var attributes: [NSAttributedString.Key: Any] = [
       .foregroundColor: (heading?.color ?? typography.color).color, .paragraphStyle: paragraph,
     ]
     if let heading, heading.letterSpacing != 0 { attributes[.kern] = heading.letterSpacing * size }
-    if blockType == "quote" {
+    if block == .text(.quote) {
       let quote = typography.quote
       paragraph.firstLineHeadIndent = quote.borderWidth + quote.paddingStart * size
       paragraph.headIndent = paragraph.firstLineHeadIndent

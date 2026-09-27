@@ -1,4 +1,25 @@
+import EditorModelInterface
 import Foundation
+
+/// A block as the web sets it: one of `BlockType`'s, a rule, or any other,
+/// which the web sets in the body text and spaces as every block.
+enum StyledBlock: Hashable, Sendable {
+  case text(BlockType)
+  case rule
+  case other
+
+  /// The block `DocumentText` gives `type`.
+  init(_ type: String) {
+    if let blockType = BlockType(rawValue: type) {
+      self = .text(blockType)
+    } else {
+      self = type == Self.ruleType ? .rule : .other
+    }
+  }
+
+  /// `HorizontalRuleNode`'s type.
+  static let ruleType = "horizontalrule"
+}
 
 /// How the web sets a document's blocks (`web`, generated from its
 /// stylesheets). Lengths are in ems of the text they apply to, whose size a
@@ -33,38 +54,40 @@ struct DocumentTypography: Sendable {
   var blockAfter: Double
   /// As CSS numbers it, 400 being regular.
   var headingWeight: Int
-  /// By tag.
-  var headings: [String: Heading]
+  var headings: [BlockType: Heading]
   /// A heading right after a heading has this much of its space before.
   var adjacentHeadingBefore: Double
   /// The widest a view is narrow at, which sets the headings in
   /// `narrowHeadingSizes` smaller.
   var narrowWidth: Double
-  var narrowHeadingSizes: [String: Double]
+  var narrowHeadingSizes: [BlockType: Double]
   var quote: Quote
   var rule: Rule
 
-  /// The size of the text in a block of `type`, in ems of the body text.
-  func fontSize(_ type: String, narrow: Bool) -> Double {
-    (narrow ? narrowHeadingSizes[type] : nil) ?? headings[type]?.fontSize ?? 1
+  func heading(_ block: StyledBlock) -> Heading? {
+    guard case .text(let type) = block else { return nil }
+    return headings[type]
+  }
+
+  /// The size of the text in `block`, in ems of the body text.
+  func fontSize(_ block: StyledBlock, narrow: Bool) -> Double {
+    guard case .text(let type) = block else { return 1 }
+    return (narrow ? narrowHeadingSizes[type] : nil) ?? headings[type]?.fontSize ?? 1
   }
 
   /// A block's space before and after it, in ems of the body text. The
   /// space between two blocks is the larger of the first's after and the
   /// second's before, as CSS collapses margins, and the first block has
   /// none before it.
-  func space(_ type: String, after previous: String?, narrow: Bool) -> (before: Double, after: Double) {
-    let size = fontSize(type, narrow: narrow)
-    if let heading = headings[type] {
-      let adjacent = previous.map { headings[$0] != nil } == true
+  func space(_ block: StyledBlock, after previous: StyledBlock?, narrow: Bool) -> (before: Double, after: Double) {
+    let size = fontSize(block, narrow: narrow)
+    if let heading = heading(block) {
+      let adjacent = previous.map { self.heading($0) != nil } == true
       return (heading.before * size * (adjacent ? adjacentHeadingBefore : 1), heading.after * size)
     }
-    if type == Self.ruleType { return (rule.margin, rule.margin) }
+    if block == .rule { return (rule.margin, rule.margin) }
     return (0, blockAfter)
   }
-
-  /// `HorizontalRuleNode`'s type.
-  static let ruleType = "horizontalrule"
 }
 
 /// A colour of the web's theme, light and dark.
