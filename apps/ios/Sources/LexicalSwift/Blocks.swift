@@ -70,10 +70,10 @@ extension Update {
     let indent = json["indent"]?.intValue ?? 0
     let destinationJSON = state[destination].payload.json
     if format.rawValue != destinationJSON["format"]?.stringValue ?? "" {
-      modifyBlock(destination) { $0.format = format }
+      modifyElement(destination) { $0.format = format }
     }
     if indent != destinationJSON["indent"]?.intValue ?? 0 {
-      modifyBlock(destination) { $0.indent = indent }
+      modifyElement(destination) { $0.indent = indent }
     }
   }
 
@@ -108,9 +108,9 @@ extension Update {
       newElement = create(SerializedParagraphNode.type)
     } else {
       newElement = createHeading(old.tag ?? .h1)
-      modifyBlock(newElement) { $0.format = old.format }
+      modifyElement(newElement) { $0.format = old.format }
     }
-    modifyBlock(newElement) { $0.direction = old.direction }
+    modifyElement(newElement) { $0.direction = old.direction }
     try insert(newElement, after: heading, restoringSelection: restoringSelection)
     if anchorOffset == 0, !isEmpty(heading) {
       let paragraph = create(SerializedParagraphNode.type)
@@ -137,34 +137,51 @@ extension Update {
     try replace(quote, with: paragraph)
   }
 
-  /// A paragraph's, heading's or quote's own properties.
-  mutating func modifyBlock(_ key: NodeKey, _ change: (inout BlockFields) -> Void) {
+  /// Changes the properties an element keeps, where `key` is an element that
+  /// keeps them.
+  mutating func modifyElement(_ key: NodeKey, _ change: (inout any ElementFields) -> Void) {
     modify(key) { node in
-      switch node.payload {
-      case .paragraph(var block):
-        var fields = BlockFields(direction: block.direction, format: block.format, indent: block.indent)
-        change(&fields)
-        (block.direction, block.format, block.indent) = (fields.direction, fields.format, fields.indent)
-        node.payload = .paragraph(block)
-      case .heading(var block):
-        var fields = BlockFields(direction: block.direction, format: block.format, indent: block.indent)
-        change(&fields)
-        (block.direction, block.format, block.indent) = (fields.direction, fields.format, fields.indent)
-        node.payload = .heading(block)
-      case .quote(var block):
-        var fields = BlockFields(direction: block.direction, format: block.format, indent: block.indent)
-        change(&fields)
-        (block.direction, block.format, block.indent) = (fields.direction, fields.format, fields.indent)
-        node.payload = .quote(block)
-      default: break
-      }
+      guard var fields = node.payload.elementFields else { return }
+      change(&fields)
+      node.payload.elementFields = fields
     }
   }
 }
 
-/// The properties every block of text has, as ElementNode keeps them.
-struct BlockFields {
-  var direction: Nullable<Direction>
-  var format: ElementFormat?
-  var indent: Int?
+/// The properties ElementNode keeps, which a paragraph, a heading, a quote
+/// and the root save.
+protocol ElementFields {
+  var direction: Nullable<Direction> { get set }
+  var format: ElementFormat? { get set }
+  var indent: Int? { get set }
+  var textFormat: Double? { get set }
+  var textStyle: String? { get set }
+}
+
+extension SerializedParagraphNode: ElementFields {}
+extension SerializedHeadingNode: ElementFields {}
+extension SerializedQuoteNode: ElementFields {}
+extension SerializedRootNode: ElementFields {}
+
+extension SerializedNode {
+  var elementFields: (any ElementFields)? {
+    get {
+      switch self {
+      case .paragraph(let node): node
+      case .heading(let node): node
+      case .quote(let node): node
+      case .root(let node): node
+      default: nil
+      }
+    }
+    set {
+      switch newValue {
+      case let node as SerializedParagraphNode: self = .paragraph(node)
+      case let node as SerializedHeadingNode: self = .heading(node)
+      case let node as SerializedQuoteNode: self = .quote(node)
+      case let node as SerializedRootNode: self = .root(node)
+      default: break
+      }
+    }
+  }
 }

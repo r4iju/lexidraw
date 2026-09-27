@@ -59,42 +59,18 @@ extension Update {
   }
 
   func textFormat(of element: NodeKey) -> TextFormat {
-    switch state[element].payload {
-    case .paragraph(let node): TextFormat(rawValue: Int(node.textFormat ?? 0))
-    case .heading(let node): TextFormat(rawValue: Int(node.textFormat ?? 0))
-    case .quote(let node): TextFormat(rawValue: Int(node.textFormat ?? 0))
-    case .root(let node): TextFormat(rawValue: Int(node.textFormat ?? 0))
-    default: []
-    }
+    TextFormat(rawValue: Int(state[element].payload.elementFields?.textFormat ?? 0))
   }
 
   func textStyle(of element: NodeKey) -> String {
-    switch state[element].payload {
-    case .paragraph(let node): node.textStyle ?? ""
-    case .heading(let node): node.textStyle ?? ""
-    case .quote(let node): node.textStyle ?? ""
-    case .root(let node): node.textStyle ?? ""
-    default: ""
-    }
+    state[element].payload.elementFields?.textStyle ?? ""
   }
 
   mutating func setTextFormat(_ element: NodeKey, _ format: TextFormat) throws {
-    switch state[element].payload {
-    case .paragraph(var node):
-      node.textFormat = Double(format.rawValue)
-      modify(element) { $0.payload = .paragraph(node) }
-    case .heading(var node):
-      node.textFormat = Double(format.rawValue)
-      modify(element) { $0.payload = .heading(node) }
-    case .quote(var node):
-      node.textFormat = Double(format.rawValue)
-      modify(element) { $0.payload = .quote(node) }
-    case .root(var node):
-      node.textFormat = Double(format.rawValue)
-      modify(element) { $0.payload = .root(node) }
-    default:
+    guard state[element].payload.elementFields != nil else {
       throw EditorError.unsupported("The text format of a \(state[element].type) node")
     }
+    modifyElement(element) { $0.textFormat = Double(format.rawValue) }
   }
 
   /// A block's `insertNewAfter`: what Enter puts after it. After a
@@ -102,20 +78,19 @@ extension Update {
   mutating func insertNewAfter(_ block: NodeKey, _ selection: RangeSelection, restoringSelection: Bool) throws
     -> NodeKey
   {
-    let old: BlockFields
-    switch state[block].payload {
-    case .paragraph(let node): old = BlockFields(direction: node.direction, format: node.format, indent: node.indent)
-    case .quote(let node): old = BlockFields(direction: node.direction, format: node.format, indent: node.indent)
-    case .heading: return try insertAfterHeading(block, selection, restoringSelection: restoringSelection)
-    default: throw EditorError.unsupported("Splitting a \(state[block].type) node")
+    let type = state[block].type
+    if type == SerializedHeadingNode.type {
+      return try insertAfterHeading(block, selection, restoringSelection: restoringSelection)
     }
+    guard type == SerializedParagraphNode.type || type == SerializedQuoteNode.type,
+      let old = state[block].payload.elementFields
+    else { throw EditorError.unsupported("Splitting a \(type) node") }
     let paragraph = create(SerializedParagraphNode.type)
-    if case .paragraph(var node) = state[paragraph].payload {
-      node.textFormat = Double(selection.format.rawValue)
-      node.textStyle = selection.style
-      node.direction = old.direction
-      node.format = old.format
-      state.nodes[paragraph]!.payload = .paragraph(node)
+    modifyElement(paragraph) {
+      $0.textFormat = Double(selection.format.rawValue)
+      $0.textStyle = selection.style
+      $0.direction = old.direction
+      $0.format = old.format
     }
     try insert(paragraph, after: block, restoringSelection: restoringSelection)
     return paragraph
