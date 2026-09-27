@@ -8,15 +8,58 @@ mock.module("next/navigation", () => ({
   usePathname: () => "/documents/1",
   useRouter: () => ({ push() {}, replace() {}, refresh() {} }),
 }));
-// No audio yet: the player opens on "No audio segments found".
+type Part = { index: number; audioUrl: string; text: string };
+/**
+ * The document's audio as the server answers it; none until a test sets it,
+ * so the player opens on "No audio segments found".
+ */
+const server = {
+  status: undefined as string | undefined,
+  segments: undefined as Part[] | undefined,
+  listeners: new Set<() => void>(),
+  set(next: { status?: string; segments?: Part[] }): void {
+    Object.assign(server, next);
+    for (const listener of server.listeners) listener();
+  },
+};
+const subscribe = (listener: () => void) => {
+  server.listeners.add(listener);
+  return () => server.listeners.delete(listener);
+};
+const { useSyncExternalStore } = await import("react");
+// The player's own settings, and the session behind them, are not under test.
+mock.module("next-auth/react", () => ({
+  useSession: () => ({ data: null, status: "unauthenticated" }),
+}));
 mock.module("~/trpc/react", () => ({
   api: {
+    useUtils: () => ({ config: { getAudioConfig: { invalidate() {} } } }),
+    config: {
+      getAudioConfig: { useQuery: () => ({ data: undefined }) },
+      updateAudioConfig: { useMutation: () => ({ mutate() {} }) },
+    },
     tts: {
       startDocumentTts: {
         useMutation: () => ({ mutateAsync: async () => ({}) }),
       },
-      getDocumentTtsStatus: { useQuery: () => ({ data: undefined }) },
-      getDocumentTtsManifest: { useQuery: () => ({ data: undefined }) },
+      getDocumentTtsStatus: {
+        useQuery: () => {
+          const status = useSyncExternalStore(subscribe, () => server.status);
+          return { data: status ? { status } : undefined };
+        },
+      },
+      getDocumentTtsManifest: {
+        useQuery: () => {
+          const segments = useSyncExternalStore(
+            subscribe,
+            () => server.segments,
+          );
+          return {
+            data: segments ? { segments } : undefined,
+            refetch: async () => {},
+          };
+        },
+      },
     },
   },
 }));
@@ -35,60 +78,64 @@ const {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } = await import("~/components/ui/dropdown-menu");
+const { TooltipProvider } = await import("~/components/ui/tooltip");
 const { ListenPlayer } = await import("./ListenPlayer");
 
 let unmount: (() => Promise<void>) | undefined;
 afterEach(async () => {
   await unmount?.();
   unmount = undefined;
+  server.set({ status: undefined, segments: undefined });
 });
 
 /** The player, opened by a button beside it or an item in a menu. */
 function Page() {
   const [open, setOpen] = useState(false);
   return (
-    <LexicalComposer
-      initialConfig={{
-        namespace: "listen",
-        onError: (error) => {
-          throw error;
-        },
-      }}
-    >
-      <button type="button" onClick={() => setOpen(!open)}>
-        Play from cursor
-      </button>
-      <DropdownMenu>
-        <DropdownMenuTrigger>More</DropdownMenuTrigger>
-        <DropdownMenuContent>
-          <DropdownMenuItem onSelect={() => setOpen(true)}>
-            Play from cursor
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
-      <DropdownMenu>
-        <DropdownMenuTrigger>Tools</DropdownMenuTrigger>
-        <DropdownMenuContent>
-          <DropdownMenuSub>
-            <DropdownMenuSubTrigger>Listen</DropdownMenuSubTrigger>
-            <DropdownMenuSubContent>
-              <DropdownMenuItem onSelect={() => setOpen(true)}>
-                Play from cursor
-              </DropdownMenuItem>
-            </DropdownMenuSubContent>
-          </DropdownMenuSub>
-        </DropdownMenuContent>
-      </DropdownMenu>
-      <div contentEditable suppressContentEditableWarning>
-        Some text
-      </div>
-      <ListenPlayer
-        documentId="1"
-        open={open}
-        onOpenChange={setOpen}
-        anchor={null}
-      />
-    </LexicalComposer>
+    <TooltipProvider>
+      <LexicalComposer
+        initialConfig={{
+          namespace: "listen",
+          onError: (error) => {
+            throw error;
+          },
+        }}
+      >
+        <button type="button" onClick={() => setOpen(!open)}>
+          Play from cursor
+        </button>
+        <DropdownMenu>
+          <DropdownMenuTrigger>More</DropdownMenuTrigger>
+          <DropdownMenuContent>
+            <DropdownMenuItem onSelect={() => setOpen(true)}>
+              Play from cursor
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+        <DropdownMenu>
+          <DropdownMenuTrigger>Tools</DropdownMenuTrigger>
+          <DropdownMenuContent>
+            <DropdownMenuSub>
+              <DropdownMenuSubTrigger>Listen</DropdownMenuSubTrigger>
+              <DropdownMenuSubContent>
+                <DropdownMenuItem onSelect={() => setOpen(true)}>
+                  Play from cursor
+                </DropdownMenuItem>
+              </DropdownMenuSubContent>
+            </DropdownMenuSub>
+          </DropdownMenuContent>
+        </DropdownMenu>
+        <div contentEditable suppressContentEditableWarning>
+          Some text
+        </div>
+        <ListenPlayer
+          documentId="1"
+          open={open}
+          onOpenChange={setOpen}
+          anchor={null}
+        />
+      </LexicalComposer>
+    </TooltipProvider>
   );
 }
 
@@ -196,5 +243,40 @@ describe("the Listen player", () => {
     await pressEscape(text);
 
     expect(player()).toBeDefined();
+  });
+
+  const part = (index: number) => ({
+    index,
+    text: `Part ${index}.`,
+    audioUrl: `https://blob.test/tts/chunks/${index}.mp3`,
+  });
+  const playing = () => document.querySelector("audio")?.getAttribute("src");
+  async function end() {
+    await act(async () => {
+      document.querySelector("audio")?.dispatchEvent(new Event("ended"));
+    });
+    await settle();
+  }
+
+  test("while the audio is made, plays the first part and follows on to each as it comes", async () => {
+    server.set({ status: "processing", segments: [part(0)] });
+    ({ unmount } = await render(<Page />));
+    await openFromButton();
+    expect(playing()).toBe(part(0).audioUrl);
+
+    await act(async () => server.set({ segments: [part(0), part(1)] }));
+    await settle();
+    expect(playing()).toBe(part(0).audioUrl);
+    await end();
+    expect(playing()).toBe(part(1).audioUrl);
+
+    await end();
+    expect(document.body.textContent).toContain("Making the next part…");
+    await act(async () =>
+      server.set({ status: "ready", segments: [part(0), part(1), part(2)] }),
+    );
+    await settle();
+    expect(playing()).toBe(part(2).audioUrl);
+    expect(document.body.textContent).not.toContain("Making the next part…");
   });
 });

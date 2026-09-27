@@ -27,6 +27,14 @@ const UNREAD = "lsn_unread";
 const OGG_LISTENER = "lsn_ogg";
 const OGG_DOC = "lsn_ogg_doc";
 const MANIFEST = "https://blob.test/tts/doc/lsn/manifest.json";
+/** Three parts a running job will make, as its run publishes them. */
+const PLAN = {
+  segments: ["One.", "Two.", "Three."].map((text, index) => ({
+    index,
+    text,
+    audioUrl: `https://blob.test/tts/chunks/${index}.mp3`,
+  })),
+};
 const callerOf = (userId: string) =>
   ttsRouter.createCaller({
     drizzle: db,
@@ -55,23 +63,26 @@ const paragraph = (text: string) => ({
 const realFetch = globalThis.fetch;
 beforeAll(async () => {
   globalThis.fetch = (async (input: RequestInfo | URL) =>
-    String(input) === MANIFEST
-      ? Response.json({
-          segments: [
-            {
-              index: 0,
-              text: "Quarterly numbers.",
-              audioUrl: "https://blob.test/tts/chunks/a.mp3",
-              sectionTitle: "Summary",
-            },
-            {
-              index: 1,
-              text: "They went up.",
-              audioUrl: "https://blob.test/tts/chunks/b.mp3",
-            },
-          ],
-        })
-      : realFetch(input)) as typeof fetch;
+    String(input).includes("/tts/plans/") &&
+    String(input).endsWith("/run-live.json")
+      ? Response.json(PLAN)
+      : String(input) === MANIFEST
+        ? Response.json({
+            segments: [
+              {
+                index: 0,
+                text: "Quarterly numbers.",
+                audioUrl: "https://blob.test/tts/chunks/a.mp3",
+                sectionTitle: "Summary",
+              },
+              {
+                index: 1,
+                text: "They went up.",
+                audioUrl: "https://blob.test/tts/chunks/b.mp3",
+              },
+            ],
+          })
+        : realFetch(input)) as typeof fetch;
   await db.insert(schema.users).values([
     { id: OWNER, name: "Owner", email: "lsn-owner@example.test" },
     { id: STRANGER, name: "Stranger", email: "lsn-stranger@example.test" },
@@ -171,6 +182,43 @@ describe("listening to a file", () => {
         },
       ],
     });
+  });
+
+  test("while its audio is made, answers the parts made so far, from the start", async () => {
+    await db
+      .update(schema.ttsJobs)
+      .set({
+        status: "processing",
+        runId: "run-live",
+        manifestUrl: null,
+        plannedCount: 3,
+        segmentCount: 2,
+        updatedAt: new Date(),
+      })
+      .where(eq(schema.ttsJobs.entityId, DOC));
+
+    const listening = await callerOf(OWNER).listening({ id: DOC });
+    const manifest = await callerOf(OWNER).getDocumentTtsManifest({
+      documentId: DOC,
+    });
+    const status = await callerOf(OWNER).getDocumentTtsStatus({
+      documentId: DOC,
+    });
+
+    expect(listening).toMatchObject({
+      status: "processing",
+      plannedCount: 3,
+      segmentCount: 2,
+      segments: PLAN.segments.slice(0, 2),
+    });
+    expect(manifest.segments).toEqual(PLAN.segments.slice(0, 2));
+    expect(status).toMatchObject({ status: "processing", segmentCount: 2 });
+    expect(status?.manifestUrl).toBeUndefined();
+
+    await db
+      .update(schema.ttsJobs)
+      .set({ status: "ready", manifestUrl: MANIFEST, segmentCount: 2 })
+      .where(eq(schema.ttsJobs.entityId, DOC));
   });
 
   /** The web's Listen asks in these too, so both play one copy. */

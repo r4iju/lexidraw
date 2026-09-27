@@ -107,10 +107,21 @@ export function ListenPlayer({
       },
     },
   );
+  const status = statusQuery.data?.status;
+  // Parts still being made come after the ones listed so far.
+  const making = status === "queued" || status === "processing";
   const manifestQuery = api.tts.getDocumentTtsManifest.useQuery(
     { documentId },
-    { enabled: open && statusQuery.data?.status === "ready" },
+    {
+      enabled: open && (making || status === "ready"),
+      refetchInterval: making ? 1500 : false,
+    },
   );
+  const refetchManifest = manifestQuery.refetch;
+  // The last parts are listed once the job is ready.
+  useEffect(() => {
+    if (open && status === "ready") void refetchManifest();
+  }, [open, status, refetchManifest]);
 
   const slugifySection = useCallback(
     (title: string | undefined, index: number): string => {
@@ -217,25 +228,25 @@ export function ListenPlayer({
     setPosition({ x: 0, y: 0 });
   }, [open]);
 
-  // When job is ready, populate segments and seek to nearest heading
+  // Plays the parts as they are listed, from the first made; once all are,
+  // from the heading nearest the caret.
   useEffect(() => {
     if (!open) return;
-    if (statusQuery.data?.status !== "ready") return;
     if (!manifestQuery.data) return;
-    if (segments.length > 0) return;
     const segs = (manifestQuery.data.segments ?? []) as TtsSegment[];
-    if (segs.length === 0) return;
-    const { sectionId } = findNearestHeadingSlug(editor);
-    setSegments(segs);
-    if (sectionId) {
-      const idx = segs.findIndex((s) => s.sectionId === sectionId);
+    if (segs.length <= segments.length) return;
+    if (segments.length === 0) {
+      const { sectionId } =
+        status === "ready" ? findNearestHeadingSlug(editor) : {};
+      const idx = sectionId
+        ? segs.findIndex((s) => s.sectionId === sectionId)
+        : -1;
       setInitialIndex(idx >= 0 ? idx : 0);
-    } else {
-      setInitialIndex(0);
     }
+    setSegments(segs);
   }, [
     open,
-    statusQuery.data?.status,
+    status,
     manifestQuery.data,
     segments.length,
     editor,
@@ -255,6 +266,7 @@ export function ListenPlayer({
           loading={loading}
           segments={segments}
           initialIndex={initialIndex}
+          making={making}
         />
       </DndContext>
     </Popover>
@@ -296,11 +308,14 @@ function DraggablePopoverContent({
   loading,
   segments,
   initialIndex,
+  making,
 }: {
   position: { x: number; y: number };
   loading: boolean;
   segments: TtsSegment[];
   initialIndex: number;
+  /** Whether more parts are being made, to follow the ones listed. */
+  making: boolean;
 }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } =
     useDraggable({
@@ -309,17 +324,15 @@ function DraggablePopoverContent({
   // What opened the player, which has the focus back when it closes.
   const opener = useRef<HTMLElement | null>(null);
 
-  // Local playback index, initialized from initialIndex
+  // Starts at initialIndex each time parts are first listed; parts listed
+  // later only follow on. Past the last part listed, it waits for the next.
   const [currentIndex, setCurrentIndex] = useState(0);
+  const listed = segments.length > 0;
   useEffect(() => {
-    if (typeof initialIndex === "number" && initialIndex >= 0) {
-      setCurrentIndex(Math.min(initialIndex, Math.max(0, segments.length - 1)));
-    }
-  }, [initialIndex, segments.length]);
-  const current = useMemo(
-    () => segments[currentIndex],
-    [segments, currentIndex],
-  );
+    if (listed) setCurrentIndex(Math.max(0, initialIndex));
+  }, [listed, initialIndex]);
+  const current = segments[currentIndex];
+  const waiting = listed && !current;
 
   const finalTransform = transform
     ? {
@@ -394,15 +407,22 @@ function DraggablePopoverContent({
                 </div>
               )}
               <AudioPlayer
-                src={current?.audioUrl ?? ""}
+                // Waiting, it keeps the part that ended, and plays the next
+                // as it arrives.
+                src={(current ?? segments.at(-1))?.audioUrl ?? ""}
                 autoPlay
                 onEnded={() => {
-                  if (currentIndex < segments.length - 1) {
+                  if (currentIndex < segments.length - 1 || making) {
                     setCurrentIndex(currentIndex + 1);
                   }
                 }}
                 className="min-w-xs"
               />
+              {waiting && making && (
+                <div className="text-sm text-muted-foreground">
+                  Making the next part…
+                </div>
+              )}
             </div>
           )}
         </div>

@@ -99,6 +99,18 @@ describe("parts", () => {
     expect(short?.text).toBe(`Hi. 0 ${EN}`);
   });
 
+  test("after the opening, the second is at most 20 seconds", () => {
+    for (const md of [
+      `${paragraph(EN, 40)}`,
+      `# Title\n\nOne sentence only.\n\n${paragraph(EN, 40)}\n\nShort.`,
+      `${JA}\n\n${paragraph(JA, 40)}`,
+    ]) {
+      const [, second, third] = partsOf(md);
+      expect(speakingSeconds(second?.text ?? "")).toBeLessThanOrEqual(20);
+      expect(speakingSeconds(third?.text ?? "")).toBeGreaterThan(20);
+    }
+  });
+
   test("of a long Japanese paragraph split at 。 under the cap", () => {
     const parts = partsOf(`${JA}\n\n${paragraph(JA, 60)}`);
     expect(parts.length).toBeGreaterThan(2);
@@ -111,7 +123,7 @@ describe("parts", () => {
   test("of English and Japanese run to similar spoken lengths", () => {
     const seconds = (sentence: string) =>
       partsOf(`${sentence}\n\n${paragraph(sentence, 80)}`)
-        .slice(1, -1)
+        .slice(2, -1)
         .map((part) => speakingSeconds(part.text));
     const en = seconds(EN);
     const ja = seconds(JA);
@@ -151,10 +163,11 @@ describe("parts", () => {
 
   test("join short paragraphs to the one before", () => {
     const parts = partsOf(
-      `Opening.\n\n${paragraph(EN, 4)}\n\nShort one.\n\nShort two.\n\n${paragraph(EN, 4, "b")}`,
+      `Opening.\n\n${paragraph(EN, 2, "a")}\n\n${paragraph(EN, 4)}\n\nShort one.\n\nShort two.\n\n${paragraph(EN, 4, "b")}`,
     );
     expect(parts.map((part) => part.text)).toEqual([
       "Opening.",
+      paragraph(EN, 2, "a"),
       `${paragraph(EN, 4)}\n\nShort one.\n\nShort two.`,
       paragraph(EN, 4, "b"),
     ]);

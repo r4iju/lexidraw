@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "~/components/ui/button";
 import { AudioPlayer } from "~/components/ui/audio-player";
 import {
@@ -26,6 +26,8 @@ type Props = {
   preferredPlaybackRate?: number;
   initialIndex?: number;
   className?: string;
+  /** Whether more parts are being made, to follow the ones listed. */
+  making?: boolean;
 };
 
 export default function ArticleAudioPlayer({
@@ -33,17 +35,16 @@ export default function ArticleAudioPlayer({
   preferredPlaybackRate,
   initialIndex,
   className,
+  making = false,
 }: Props) {
+  // Starts at initialIndex each time parts are first listed; parts listed
+  // later only follow on. Past the last part listed, it waits for the next.
   const [currentIndex, setCurrentIndex] = useState(0);
+  const listed = segments.length > 0;
   useEffect(() => {
-    if (typeof initialIndex === "number" && initialIndex >= 0) {
-      setCurrentIndex(Math.min(initialIndex, Math.max(0, segments.length - 1)));
-    }
-  }, [initialIndex, segments.length]);
-  const current = useMemo(
-    () => segments[currentIndex],
-    [segments, currentIndex],
-  );
+    if (listed) setCurrentIndex(Math.max(0, initialIndex ?? 0));
+  }, [listed, initialIndex]);
+  const current = segments[currentIndex];
 
   if (!segments.length) return null;
 
@@ -86,14 +87,21 @@ export default function ArticleAudioPlayer({
           </div>
         )}
         <AudioPlayer
-          src={current?.audioUrl ?? ""}
+          // Waiting, it keeps the part that ended, and plays the next as it
+          // arrives.
+          src={(current ?? segments.at(-1))?.audioUrl ?? ""}
           autoPlay
           initialPlaybackRate={preferredPlaybackRate}
           onEnded={() => {
-            if (currentIndex < segments.length - 1)
+            if (currentIndex < segments.length - 1 || making)
               setCurrentIndex(currentIndex + 1);
           }}
         />
+        {!current && making && (
+          <div className="text-sm text-muted-foreground">
+            Making the next part…
+          </div>
+        )}
       </div>
       <Accordion
         type="single"

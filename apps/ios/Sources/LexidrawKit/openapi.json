@@ -2743,7 +2743,7 @@
       },
       "get": {
         "operationId": "tts-listening",
-        "summary": "How far the caller's audio of a document or link is, with its parts once all are made",
+        "summary": "How far the caller's audio of a document or link is, with the parts made so far",
         "tags": ["entities"],
         "security": [
           {

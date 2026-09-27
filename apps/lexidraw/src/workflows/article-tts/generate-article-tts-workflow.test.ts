@@ -70,7 +70,7 @@ test("a run of an article whose job was cancelled makes no more parts", async ()
 
   await generateArticleTtsWorkflow(ARTICLE, "", HTML, VOICE, "run-1");
 
-  expect(store.chunksAsked).toHaveLength(4);
+  expect(store.chunksAsked).toHaveLength(1);
   const [job] = await db
     .select()
     .from(schema.ttsJobs)

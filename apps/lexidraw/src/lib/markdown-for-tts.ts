@@ -279,8 +279,14 @@ const PART_SECONDS = 60;
 const ANCHOR_SECONDS = 15;
 /** The opening part is its first sentence, and the next if that one is shorter than this. */
 const OPENING_SECONDS = 3;
+/**
+ * The part after the opening is no longer than this, so it is made while the
+ * opening plays, and each part after is made while the one before plays.
+ */
+const SECOND_SECONDS = 20;
 
-type Piece = { text: string; anchor: boolean };
+/** A part's text, and whether it starts a part, or ends one. */
+type Piece = { text: string; anchor: boolean; closed?: boolean };
 
 /** Sentences as one text: CJK ones run on, as they were written. */
 function joinUnits(units: string[]): string {
@@ -351,7 +357,9 @@ function pieces(text: string, seconds: number, hardCap: number): string[] {
  * - A paragraph of 15 seconds or more starts a part; shorter ones join the
  *   part before them while it has room.
  * - A paragraph too long for a part is cut at its sentences.
- * - The file's first part is one or two sentences, so listening starts soon.
+ * - The file's first part is one or two sentences, and its second at most 20
+ *   seconds, so listening starts soon and each part is made while the one
+ *   before it plays.
  */
 export function chunkSections(
   sections: Section[],
@@ -387,15 +395,33 @@ export function chunkSections(
         second !== undefined && speakingSeconds(first) < OPENING_SECONDS
           ? [first, second]
           : [first];
-      const after =
-        second === undefined
-          ? []
-          : opening.length === 2
-            ? rest
-            : [second, ...rest];
-      all.splice(0, 1, { text: joinUnits(opening), anchor: true });
-      if (after.length > 0)
+      const after = [second, ...rest]
+        .slice(opening.length - 1)
+        .filter((unit) => unit !== undefined);
+      all.splice(0, 1, {
+        text: joinUnits(opening),
+        anchor: true,
+        closed: true,
+      });
+      if (after.length > 0) {
         all.splice(1, 0, { text: joinUnits(after), anchor: true });
+      }
+    }
+    const secondAt = chunks.length === 0 ? 1 : chunks.length === 1 ? 0 : -1;
+    const second = all[secondAt];
+    if (second) {
+      const [lead = "", ...tail] = pieces(second.text, SECOND_SECONDS, hardCap);
+      all.splice(
+        secondAt,
+        1,
+        { text: lead, anchor: true, closed: true },
+        ...(tail.length > 0
+          ? pieces(joinUnits(tail), target, hardCap).map((text) => ({
+              text,
+              anchor: true,
+            }))
+          : []),
+      );
     }
 
     let part: string[] = [];
@@ -413,14 +439,13 @@ export function chunkSections(
       part = [];
       seconds = 0;
     };
-    all.forEach((piece, i) => {
+    let closed = false;
+    for (const piece of all) {
       const next = speakingSeconds(piece.text);
       const length = part.join("\n\n").length + piece.text.length + 2;
-      // The opening part holds nothing more.
-      const opening = chunks.length === 0 && i === 1;
       if (
         piece.anchor ||
-        opening ||
+        closed ||
         seconds + next > target ||
         length > hardCap
       ) {
@@ -428,7 +453,8 @@ export function chunkSections(
       }
       part.push(piece.text);
       seconds += next;
-    });
+      closed = piece.closed ?? false;
+    }
     flush();
   }
 
