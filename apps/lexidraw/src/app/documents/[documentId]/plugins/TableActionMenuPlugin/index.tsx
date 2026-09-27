@@ -9,7 +9,6 @@ import {
   $getTableColumnIndexFromTableCellNode,
   $getTableNodeFromLexicalNodeOrThrow,
   $getTableRowIndexFromTableCellNode,
-  $insertTableColumnAtSelection,
   $insertTableRowAtSelection,
   $isTableCellNode,
   $isTableRowNode,
@@ -41,6 +40,7 @@ import {
   useState,
 } from "react";
 import { createPortal } from "react-dom";
+import { $insertDocumentTableColumns } from "@packages/lexical-nodes";
 
 import useModal from "~/hooks/useModal";
 import { cn } from "~/lib/utils";
@@ -330,13 +330,11 @@ function TableActionMenu({
   const insertTableColumnAtSelection = useCallback(
     (shouldInsertAfter: boolean) => {
       editor.update(() => {
-        for (let i = 0; i < selectionCounts.columns; i++) {
-          $insertTableColumnAtSelection(shouldInsertAfter);
-        }
+        $insertDocumentTableColumns(shouldInsertAfter);
         onClose();
       });
     },
-    [editor, onClose, selectionCounts.columns],
+    [editor, onClose],
   );
 
   const deleteTableRowAtSelection = useCallback(() => {

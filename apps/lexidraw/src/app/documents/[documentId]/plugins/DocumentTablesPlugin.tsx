@@ -1,14 +1,10 @@
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { TablePlugin } from "@lexical/react/LexicalTablePlugin";
-import { $isTableNode, INSERT_TABLE_COMMAND } from "@lexical/table";
-import { $findMatchingParent, $insertNodeToNearestRoot } from "@lexical/utils";
-import { $createDocumentTable } from "@packages/lexical-nodes";
 import {
-  $getSelection,
-  $isRangeSelection,
-  COMMAND_PRIORITY_HIGH,
-  setDOMUnmanaged,
-} from "lexical";
+  DOCUMENT_TABLE_PLUGIN,
+  registerDocumentTableInsertion,
+} from "@packages/lexical-nodes";
+import { setDOMUnmanaged } from "lexical";
 import { useEffect } from "react";
 
 const number =
@@ -60,26 +56,7 @@ export function DocumentTablesPlugin() {
   const [editor] = useLexicalComposerContext();
 
   // Lexical owns insertion; every authoring surface shares the same defaults.
-  useEffect(
-    () =>
-      editor.registerCommand(
-        INSERT_TABLE_COMMAND,
-        ({ rows, columns }) => {
-          const selection = $getSelection();
-          if (
-            $isRangeSelection(selection) &&
-            $findMatchingParent(selection.anchor.getNode(), $isTableNode)
-          )
-            return true;
-          const table = $createDocumentTable(Number(rows), Number(columns));
-          $insertNodeToNearestRoot(table);
-          table.selectStart();
-          return true;
-        },
-        COMMAND_PRIORITY_HIGH,
-      ),
-    [editor],
-  );
+  useEffect(() => registerDocumentTableInsertion(editor), [editor]);
 
   // DOM measurements and scroll hints are presentation, never editor-state writes.
   useEffect(() => {
@@ -221,7 +198,5 @@ export function DocumentTablesPlugin() {
       afterPrint();
     };
   }, [editor]);
-  return (
-    <TablePlugin hasCellMerge hasCellBackgroundColor hasHorizontalScroll />
-  );
+  return <TablePlugin {...DOCUMENT_TABLE_PLUGIN} />;
 }
