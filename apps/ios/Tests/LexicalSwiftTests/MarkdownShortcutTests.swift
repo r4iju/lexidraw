@@ -74,6 +74,21 @@ import Testing
       name: "___ and a space make a rule", start: emptyParagraph,
       commands: [caretInEmptyParagraph] + typing("___ "), expected: document(LexicalJSON.horizontalRule, paragraph())),
     Script(
+      name: "a list shortcut in a quote stays text", start: document(quote(text("ab"))),
+      commands: [.caret(.text([0, 0], 0))] + typing("- "), expected: document(quote(text("- ab")))),
+    Script(
+      name: "a code shortcut in a quote stays text", start: document(quote(text("ab"))),
+      commands: [.caret(.text([0, 0], 0))] + typing("``` "), expected: document(quote(text("``` ab")))),
+    Script(
+      name: "an admonition typed stays text", start: emptyParagraph,
+      commands: [caretInEmptyParagraph] + typing("::: note "), expected: document(paragraph(text("::: note ")))),
+    Script(
+      name: "details typed stay text", start: emptyParagraph,
+      commands: [caretInEmptyParagraph] + typing("<details> "), expected: document(paragraph(text("<details> ")))),
+    Script(
+      name: "a block equation typed stays text", start: emptyParagraph,
+      commands: [caretInEmptyParagraph] + typing("$$x$$ "), expected: document(paragraph(text("$$x$$ ")))),
+    Script(
       name: "Backspace after a rule deletes it", start: document(LexicalJSON.horizontalRule, paragraph(text("ab"))),
       commands: [.caret(.text([1, 0], 0)), .deleteCharacter(backward: true)], expected: document(paragraph(text("ab")))),
     Script(
@@ -138,15 +153,27 @@ import Testing
     #expect(try fixture.replay(on: Editor()) == fixture.recorded)
   }
 
-  /// Lists come with #116 and code blocks with #132.
-  @Test(arguments: [("- ", "list"), ("7. ", "list"), ("``` ", "code")])
-  func aShortcutNotPortedYetIsRefused(_ keys: String, _ type: String) throws {
-    let commands = [Self.caretInEmptyParagraph] + Self.typing(keys)
-    let fixture = try Fixture.record(start: Self.emptyParagraph, commands: commands, on: try Support.referenceEditor())
+  /// Typing that a transformer LexicalSwift doesn't port yet turns into
+  /// something else in Lexical, and what LexicalSwift leaves instead.
+  static let notPortedYet: [Script] = [
+    "- ", "7. ", "[ ] ", "``` ", ":smile:", "$x$", "|a| ", "[a](b)", "![a](b)",
+  ].map { keys in
+    Script(
+      name: keys, start: emptyParagraph, commands: [caretInEmptyParagraph] + typing(keys),
+      expected: document(paragraph(text(keys))))
+  } + [
+    Script(
+      name: "``` and Enter", start: emptyParagraph, commands: [caretInEmptyParagraph, .insertText("```"), .insertParagraph],
+      expected: document(paragraph(text("```")), paragraph()))
+  ]
+
+  @Test(arguments: notPortedYet)
+  func typingAShortcutNotPortedYetKeepsWhatWasTyped(_ script: Script) throws {
+    let fixture = try Fixture.record(start: script.start, commands: script.commands, on: try Support.referenceEditor())
     let outcome = try fixture.replay(on: Editor())
 
-    #expect(fixture.expected.state["root"]?["children"]?.arrayValue?.first?["type"] == .string(type))
-    #expect(outcome.changes.dropLast() == fixture.changes.dropLast())
-    #expect(outcome.changes.last == .refused(.unsupported))
+    #expect(fixture.expected.state != script.expected)
+    #expect(outcome.changes.allSatisfy { if case .applied = $0 { true } else { false } })
+    #expect(outcome.snapshot.state == script.expected)
   }
 }

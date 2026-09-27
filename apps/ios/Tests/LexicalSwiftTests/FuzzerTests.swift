@@ -103,11 +103,17 @@ import Testing
     #expect(try first.run(steps: 500)?.fixture == second.run(steps: 500)?.fixture)
   }
 
-  @Test func theTypesNotPortedYetAreListsAndCodeBlocks() {
-    #expect(Fuzzer.notPortedYet == ["list", "listitem", "code"])
+  @Test func theTypesNotPortedYetAreWhatTheShortcutsNotPortedYetMake() {
+    #expect(Fuzzer.notPortedYet == Editor.typesMarkdownShortcutsNotPortedYetMake)
+    #expect(Fuzzer.notPortedYet.isSuperset(of: ["list", "listitem", "code"]))
   }
 
-  /// Typing "- " makes a list in Lexical, which LexicalSwift refuses to.
+  @Test func noTypeLexicalSwiftEditsIsNotPortedYet() {
+    #expect(
+      Fuzzer.notPortedYet.isDisjoint(with: ["root", "paragraph", "heading", "quote", "text", "linebreak", "horizontalrule"]))
+  }
+
+  /// Typing "- " makes a list in Lexical, where LexicalSwift keeps the text.
   private func typingAListShortcut() throws -> (fixture: Fixture, candidate: Fixture.Outcome, before: Snapshot) {
     let reference = try Support.referenceEditor()
     let start = document(paragraph())
@@ -125,18 +131,19 @@ import Testing
       Fuzzer.isNotPortedYet(candidate: candidate.changes.last!, referenceBefore: before, referenceAfter: fixture.expected))
   }
 
-  @Test func doingOtherwiseWhereLexicalMakesWhatLexicalSwiftDoesNotEditYetDisagrees() throws {
+  @Test func refusingWhereLexicalMakesWhatLexicalSwiftDoesNotEditYetDisagrees() throws {
     let (fixture, _, before) = try typingAListShortcut()
 
     #expect(
       !Fuzzer.isNotPortedYet(
-        candidate: .applied(ChangeSet(changed: [[0]])), referenceBefore: before, referenceAfter: fixture.expected))
+        candidate: .refused(.unsupported), referenceBefore: before, referenceAfter: fixture.expected))
   }
 
-  @Test func refusingAsUnsupportedWhereLexicalMakesNothingNewDisagrees() throws {
+  @Test func doingOtherwiseWhereLexicalMakesNothingNewDisagrees() throws {
     let (_, _, before) = try typingAListShortcut()
 
-    #expect(!Fuzzer.isNotPortedYet(candidate: .refused(.unsupported), referenceBefore: before, referenceAfter: before))
+    #expect(
+      !Fuzzer.isNotPortedYet(candidate: .applied(ChangeSet(changed: [[0]])), referenceBefore: before, referenceAfter: before))
   }
 
   /// The differential check proper. Budget and seed come from FUZZ_STEPS and

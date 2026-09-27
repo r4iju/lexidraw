@@ -1,6 +1,9 @@
 import { fileURLToPath } from "node:url";
 import * as lexicalMarkdown from "@lexical/markdown";
 import type { Transformer } from "@lexical/markdown";
+import * as blockTransformers from "@packages/lexical-nodes/block-transformers";
+import * as decoratorTransformers from "@packages/lexical-nodes/decorator-transformers";
+import * as footnoteTransformers from "@packages/lexical-nodes/footnote-transformers";
 import * as webTransformers from "@packages/lexical-nodes/transformers";
 
 export const MARKDOWN_TRANSFORMERS_PATH = fileURLToPath(
@@ -10,10 +13,27 @@ export const MARKDOWN_TRANSFORMERS_PATH = fileURLToPath(
   ),
 );
 
-/** The transformers @lexical/markdown and the web editor export, by name. */
+const MODULES = [
+  lexicalMarkdown,
+  webTransformers,
+  blockTransformers,
+  decoratorTransformers,
+  footnoteTransformers,
+];
+
+/**
+ * The transformers @lexical/markdown and the web editor export, by name, and
+ * those the web editor's `createXTransformer` functions make, as `X`.
+ */
 const EXPORTED = [
-  ...Object.entries(lexicalMarkdown),
-  ...Object.entries(webTransformers),
+  ...MODULES.flatMap((module) => Object.entries(module)),
+  ...MODULES.flatMap((module) =>
+    Object.entries(module).flatMap(([name, create]) => {
+      const made = name.match(/^create(\w+)Transformer$/)?.[1];
+      if (!made || typeof create !== "function") return [];
+      return [[snakeCase(made), create(() => [])]];
+    }),
+  ),
 ].filter((entry): entry is [string, Transformer] => isTransformer(entry[1]));
 
 /**
@@ -28,7 +48,7 @@ export function swiftForMarkdownTransformers(
   const names = new Set<string>();
   const entries = transformers.map((transformer) => {
     const name = exportedName(transformer);
-    if (name) names.add(name);
+    names.add(name);
     return `    ${swiftForTransformer(transformer, name)},`;
   });
   const lines = [
@@ -50,15 +70,13 @@ export function swiftForMarkdownTransformers(
   return `${lines.join("\n")}\n`;
 }
 
-function swiftForTransformer(
-  transformer: Transformer,
-  name: string | undefined,
-): string {
-  const fields = [`name: ${name ? `.${camelCase(name)}` : "nil"}`];
+function swiftForTransformer(transformer: Transformer, name: string): string {
+  const fields = [`name: .${camelCase(name)}`];
   switch (transformer.type) {
     case "element":
       fields.push(`regExp: ${swiftForRegExp(transformer.regExp)}`);
       if (transformer.triggerOnEnter) fields.push("triggerOnEnter: true");
+      fields.push(swiftForMakes(transformer));
       return `MarkdownTransformer(kind: .element, ${fields.join(", ")})`;
     case "multiline-element": {
       fields.push(`regExp: ${swiftForRegExp(transformer.regExpStart)}`);
@@ -66,6 +84,7 @@ function swiftForTransformer(
       if (end && (!("optional" in end) || !end.optional)) {
         fields.push("isEndRequired: true");
       }
+      fields.push(swiftForMakes(transformer));
       return `MarkdownTransformer(kind: .multilineElement, ${fields.join(", ")})`;
     }
     case "text-match":
@@ -75,6 +94,7 @@ function swiftForTransformer(
       if (transformer.trigger !== undefined) {
         fields.push(`trigger: ${swiftString(transformer.trigger)}`);
       }
+      fields.push(swiftForMakes(transformer));
       return `MarkdownTransformer(kind: .textMatch, ${fields.join(", ")})`;
     case "text-format":
       fields.push(
@@ -87,19 +107,41 @@ function swiftForTransformer(
 }
 
 /**
- * A transformer's name, by its identity or, for one that copies another and
- * changes only what it imports and exports, by its `replace`.
+ * A transformer's name, by its identity or, for one that copies another or
+ * that a `createXTransformer` made, by its type and pattern.
  */
-function exportedName(transformer: Transformer): string | undefined {
+function exportedName(transformer: Transformer): string {
   const exact = EXPORTED.find(([, exported]) => exported === transformer);
   if (exact) return exact[0];
-  const replace = "replace" in transformer ? transformer.replace : undefined;
-  return EXPORTED.find(
+  const source = matchSource(transformer);
+  const alike = EXPORTED.find(
     ([, exported]) =>
-      replace !== undefined &&
-      "replace" in exported &&
-      exported.replace === replace,
-  )?.[0];
+      source !== undefined &&
+      exported.type === transformer.type &&
+      matchSource(exported) === source,
+  );
+  if (alike) return alike[0];
+  throw new Error(
+    `No package exports the transformer ${source ?? transformer.type}`,
+  );
+}
+
+function matchSource(transformer: Transformer): string | undefined {
+  const regExp =
+    transformer.type === "multiline-element"
+      ? transformer.regExpStart
+      : transformer.type === "text-format"
+        ? undefined
+        : transformer.regExp;
+  return regExp && `/${regExp.source}/`;
+}
+
+/** The node types a transformer's `replace` can make, its `dependencies`. */
+function swiftForMakes(
+  transformer: Exclude<Transformer, { type: "text-format" }>,
+): string {
+  const types = transformer.dependencies.map((node) => node.getType());
+  return `makes: [${types.map(swiftString).join(", ")}]`;
 }
 
 function isTransformer(value: unknown): value is Transformer {
@@ -125,6 +167,11 @@ function swiftString(text: string): string {
     throw new Error(`No Swift literal for ${JSON.stringify(text)}`);
   }
   return `"${text.replace(/[\\"]/g, (character) => `\\${character}`)}"`;
+}
+
+/** `Callout` as `CALLOUT`, `FootnoteReference` as `FOOTNOTE_REFERENCE`. */
+function snakeCase(name: string): string {
+  return name.replace(/(?<=[a-z])(?=[A-Z])/g, "_").toUpperCase();
 }
 
 /** `UNORDERED_LIST` as `unorderedList`. */

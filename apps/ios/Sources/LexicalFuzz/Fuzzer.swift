@@ -16,20 +16,17 @@ public struct Fuzzer {
   /// Sessions ended where Lexical made a node LexicalSwift doesn't edit yet.
   public private(set) var sessionsEndedNotPortedYet = 0
 
-  /// The node types Lexical's markdown shortcuts make that LexicalSwift
-  /// doesn't edit yet, until the tickets that port them land.
-  public static let notPortedYet: Set<String> = [
-    "list", "listitem",  // #116
-    "code",  // #132
-  ]
+  /// The node types Lexical's markdown shortcuts make that LexicalSwift's
+  /// don't yet.
+  public static let notPortedYet = Editor.typesMarkdownShortcutsNotPortedYetMake
 
   /// Whether a step ends its session rather than disagreeing: LexicalSwift
-  /// refused as unsupported to make what Lexical made, a node of a type not
+  /// took what was typed as text where Lexical made a node of a type not
   /// ported yet. Nothing after it could agree.
   public static func isNotPortedYet(candidate: Fixture.Change, referenceBefore: Snapshot, referenceAfter: Snapshot)
     -> Bool
   {
-    guard candidate == .refused(.unsupported) else { return false }
+    guard case .applied = candidate else { return false }
     let made = referenceAfter.state.nodeTypes.subtracting(referenceBefore.state.nodeTypes)
     return !made.isDisjoint(with: notPortedYet)
   }

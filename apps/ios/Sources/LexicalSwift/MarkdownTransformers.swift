@@ -4,30 +4,30 @@ extension MarkdownTransformer {
   /// `createTransformers()` in @packages/lexical-nodes: the web editor's
   /// markdown transformers, in the order it runs them.
   static let web: [MarkdownTransformer] = [
-    MarkdownTransformer(kind: .multilineElement, name: nil, regExp: JSRegExp("^>\\s?\\[!([A-Za-z][\\w-]*)\\]([+-]?)(?:\\s+(.*?))?\\s*$", flags: "")),
-    MarkdownTransformer(kind: .multilineElement, name: nil, regExp: JSRegExp("^(:{3,})\\s*([A-Za-z][\\w-]*)(?:\\[(.*)\\])?(?:\\s+(.*?))?\\s*$", flags: "")),
-    MarkdownTransformer(kind: .multilineElement, name: nil, regExp: JSRegExp("^\\s*<details(?:\\s[^>]*)?>", flags: "i")),
-    MarkdownTransformer(kind: .multilineElement, name: nil, regExp: JSRegExp("^\\s*<columns(?:\\s[^>]*)?>\\s*$", flags: "i")),
-    MarkdownTransformer(kind: .multilineElement, name: nil, regExp: JSRegExp("^\\s*\\$\\$\\s*$", flags: ""), isEndRequired: true),
-    MarkdownTransformer(kind: .element, name: nil, regExp: JSRegExp("<tweet id=\"([^\"]+?)\"\\s?\\/>\\s?$", flags: "")),
-    MarkdownTransformer(kind: .element, name: nil, regExp: JSRegExp("^<article\\s+.*?>$", flags: "")),
-    MarkdownTransformer(kind: .element, name: nil, regExp: JSRegExp("^<!-- lexidraw:([a-z-]+)#(\\d+)(?: (.*?))? -->$", flags: "")),
-    MarkdownTransformer(kind: .element, name: nil, regExp: JSRegExp("^\\$\\$(?!\\$)(.*?[^$])\\$\\$\\s*$", flags: "")),
-    MarkdownTransformer(kind: .textMatch, name: nil, regExp: JSRegExp("!\\[([^[\\]]*)\\]\\(\\s*(<[^>]*>|[^\\s()]+)(?:\\s+(?:\"((?:[^\"\\\\]|\\\\.)*)\"|'([^']*)'))?\\s*\\)(?:\\{([^{}\\n]*)\\})?$", flags: ""), trigger: ")"),
-    MarkdownTransformer(kind: .textMatch, name: nil, regExp: JSRegExp("(?<![\\\\$])\\$(?![\\s$])([^$\\n]*?[^\\s\\\\$])\\$(?![\\d$])$", flags: ""), trigger: "$"),
-    MarkdownTransformer(kind: .textMatch, name: nil),
-    MarkdownTransformer(kind: .textMatch, name: nil, regExp: JSRegExp("<!-- lexidraw:([a-z-]+)#(\\d+)(?: (.*?))? -->$", flags: "")),
-    MarkdownTransformer(kind: .element, name: nil, regExp: JSRegExp("^\\[\\^([^\\]\\s]+)\\]:\\s+", flags: "")),
-    MarkdownTransformer(kind: .textMatch, name: nil, regExp: JSRegExp("\\[\\^([^\\]\\s]+)\\]$", flags: "")),
-    MarkdownTransformer(kind: .element, name: nil, regExp: JSRegExp("^(?:\\|)(.+)(?:\\|)\\s?$", flags: "")),
-    MarkdownTransformer(kind: .element, name: .hr, regExp: JSRegExp("^(---|\\*\\*\\*|___)\\s?$", flags: "")),
-    MarkdownTransformer(kind: .textMatch, name: .emoji, regExp: JSRegExp(":([a-z0-9_]+):$", flags: ""), trigger: ":"),
-    MarkdownTransformer(kind: .element, name: .checkList, regExp: JSRegExp("^(\\s*)(?:[-*+]\\s)?\\s?(\\[(\\s|x)?\\])\\s", flags: "i"), triggerOnEnter: true),
-    MarkdownTransformer(kind: .element, name: .heading, regExp: JSRegExp("^(#{1,6})\\s", flags: ""), triggerOnEnter: true),
-    MarkdownTransformer(kind: .element, name: .quote, regExp: JSRegExp("^>\\s", flags: ""), triggerOnEnter: true),
-    MarkdownTransformer(kind: .element, name: .unorderedList, regExp: JSRegExp("^(\\s*)[-*+]\\s", flags: ""), triggerOnEnter: true),
-    MarkdownTransformer(kind: .element, name: .orderedList, regExp: JSRegExp("^(\\s*)(\\d{1,})\\.\\s", flags: ""), triggerOnEnter: true),
-    MarkdownTransformer(kind: .multilineElement, name: .code, regExp: JSRegExp("^([ \\t]*`{3,})([\\w-]+)?[ \\t]?", flags: "")),
+    MarkdownTransformer(kind: .multilineElement, name: .callout, regExp: JSRegExp("^>\\s?\\[!([A-Za-z][\\w-]*)\\]([+-]?)(?:\\s+(.*?))?\\s*$", flags: ""), makes: ["callout"]),
+    MarkdownTransformer(kind: .multilineElement, name: .admonition, regExp: JSRegExp("^(:{3,})\\s*([A-Za-z][\\w-]*)(?:\\[(.*)\\])?(?:\\s+(.*?))?\\s*$", flags: ""), makes: ["callout"]),
+    MarkdownTransformer(kind: .multilineElement, name: .details, regExp: JSRegExp("^\\s*<details(?:\\s[^>]*)?>", flags: "i"), makes: ["collapsible-container", "collapsible-title", "collapsible-content"]),
+    MarkdownTransformer(kind: .multilineElement, name: .columns, regExp: JSRegExp("^\\s*<columns(?:\\s[^>]*)?>\\s*$", flags: "i"), makes: ["layout-container", "layout-item"]),
+    MarkdownTransformer(kind: .multilineElement, name: .blockEquationFence, regExp: JSRegExp("^\\s*\\$\\$\\s*$", flags: ""), isEndRequired: true, makes: ["equation"]),
+    MarkdownTransformer(kind: .element, name: .tweet, regExp: JSRegExp("<tweet id=\"([^\"]+?)\"\\s?\\/>\\s?$", flags: ""), makes: ["tweet"]),
+    MarkdownTransformer(kind: .element, name: .article, regExp: JSRegExp("^<article\\s+.*?>$", flags: ""), makes: ["article"]),
+    MarkdownTransformer(kind: .element, name: .placeholderBlock, regExp: JSRegExp("^<!-- lexidraw:([a-z-]+)#(\\d+)(?: (.*?))? -->$", flags: ""), makes: ["inline-image", "video", "youtube", "figma", "page-break", "sticky", "poll", "chart", "slide-deck", "excalidraw", "mermaid", "comment", "thread"]),
+    MarkdownTransformer(kind: .element, name: .blockEquation, regExp: JSRegExp("^\\$\\$(?!\\$)(.*?[^$])\\$\\$\\s*$", flags: ""), makes: ["equation"]),
+    MarkdownTransformer(kind: .textMatch, name: .image, regExp: JSRegExp("!\\[([^[\\]]*)\\]\\(\\s*(<[^>]*>|[^\\s()]+)(?:\\s+(?:\"((?:[^\"\\\\]|\\\\.)*)\"|'([^']*)'))?\\s*\\)(?:\\{([^{}\\n]*)\\})?$", flags: ""), trigger: ")", makes: ["image"]),
+    MarkdownTransformer(kind: .textMatch, name: .equation, regExp: JSRegExp("(?<![\\\\$])\\$(?![\\s$])([^$\\n]*?[^\\s\\\\$])\\$(?![\\d$])$", flags: ""), trigger: "$", makes: ["equation"]),
+    MarkdownTransformer(kind: .textMatch, name: .literalDollar, makes: []),
+    MarkdownTransformer(kind: .textMatch, name: .placeholderInline, regExp: JSRegExp("<!-- lexidraw:([a-z-]+)#(\\d+)(?: (.*?))? -->$", flags: ""), makes: ["inline-image", "video", "youtube", "figma", "page-break", "sticky", "poll", "chart", "slide-deck", "excalidraw", "mermaid", "comment", "thread"]),
+    MarkdownTransformer(kind: .element, name: .footnoteDefinition, regExp: JSRegExp("^\\[\\^([^\\]\\s]+)\\]:\\s+", flags: ""), makes: ["footnote-definition"]),
+    MarkdownTransformer(kind: .textMatch, name: .footnoteReference, regExp: JSRegExp("\\[\\^([^\\]\\s]+)\\]$", flags: ""), makes: ["footnote-reference"]),
+    MarkdownTransformer(kind: .element, name: .table, regExp: JSRegExp("^(?:\\|)(.+)(?:\\|)\\s?$", flags: ""), makes: ["table", "tablerow", "tablecell"]),
+    MarkdownTransformer(kind: .element, name: .hr, regExp: JSRegExp("^(---|\\*\\*\\*|___)\\s?$", flags: ""), makes: ["horizontalrule"]),
+    MarkdownTransformer(kind: .textMatch, name: .emoji, regExp: JSRegExp(":([a-z0-9_]+):$", flags: ""), trigger: ":", makes: []),
+    MarkdownTransformer(kind: .element, name: .checkList, regExp: JSRegExp("^(\\s*)(?:[-*+]\\s)?\\s?(\\[(\\s|x)?\\])\\s", flags: "i"), triggerOnEnter: true, makes: ["list", "listitem"]),
+    MarkdownTransformer(kind: .element, name: .heading, regExp: JSRegExp("^(#{1,6})\\s", flags: ""), triggerOnEnter: true, makes: ["heading"]),
+    MarkdownTransformer(kind: .element, name: .quote, regExp: JSRegExp("^>\\s", flags: ""), triggerOnEnter: true, makes: ["quote"]),
+    MarkdownTransformer(kind: .element, name: .unorderedList, regExp: JSRegExp("^(\\s*)[-*+]\\s", flags: ""), triggerOnEnter: true, makes: ["list", "listitem"]),
+    MarkdownTransformer(kind: .element, name: .orderedList, regExp: JSRegExp("^(\\s*)(\\d{1,})\\.\\s", flags: ""), triggerOnEnter: true, makes: ["list", "listitem"]),
+    MarkdownTransformer(kind: .multilineElement, name: .code, regExp: JSRegExp("^([ \\t]*`{3,})([\\w-]+)?[ \\t]?", flags: ""), makes: ["code"]),
     MarkdownTransformer(kind: .textFormat, name: .inlineCode, tag: "`", formats: [.code]),
     MarkdownTransformer(kind: .textFormat, name: .boldItalicStar, tag: "***", formats: [.bold, .italic]),
     MarkdownTransformer(kind: .textFormat, name: .boldItalicUnderscore, tag: "___", formats: [.bold, .italic], isIntraword: false),
@@ -37,11 +37,27 @@ extension MarkdownTransformer {
     MarkdownTransformer(kind: .textFormat, name: .italicStar, tag: "*", formats: [.italic]),
     MarkdownTransformer(kind: .textFormat, name: .italicUnderscore, tag: "_", formats: [.italic], isIntraword: false),
     MarkdownTransformer(kind: .textFormat, name: .strikethrough, tag: "~~", formats: [.strikethrough]),
-    MarkdownTransformer(kind: .textMatch, name: .link, regExp: JSRegExp("(?:\\[([^[\\]]*(?:\\[[^[\\]]*\\][^[\\]]*)*)\\])(?:\\(\\s*(?:(?:<((?:\\\\.|[^<>\\n\\\\])*)>|((?!<)(?:\\\\[^\\s]|\\\\(?=\\s)|\\((?:\\\\[^\\s]|[^\\s()\\\\]|\\((?:\\\\[^\\s]|[^\\s()\\\\]|\\((?:\\\\[^\\s]|[^\\s()\\\\])*\\))*\\))*\\)|[^\\s()\\\\])+))(?:\\s+(?:\"((?:[^\"]*\\\\\")*[^\"]*)\"|'((?:[^']*\\\\')*[^']*)'|\\(((?:\\\\.|[^()\\\\])*)\\)))?\\s*)?\\))$", flags: ""), trigger: ")"),
+    MarkdownTransformer(kind: .textMatch, name: .link, regExp: JSRegExp("(?:\\[([^[\\]]*(?:\\[[^[\\]]*\\][^[\\]]*)*)\\])(?:\\(\\s*(?:(?:<((?:\\\\.|[^<>\\n\\\\])*)>|((?!<)(?:\\\\[^\\s]|\\\\(?=\\s)|\\((?:\\\\[^\\s]|[^\\s()\\\\]|\\((?:\\\\[^\\s]|[^\\s()\\\\]|\\((?:\\\\[^\\s]|[^\\s()\\\\])*\\))*\\))*\\)|[^\\s()\\\\])+))(?:\\s+(?:\"((?:[^\"]*\\\\\")*[^\"]*)\"|'((?:[^']*\\\\')*[^']*)'|\\(((?:\\\\.|[^()\\\\])*)\\)))?\\s*)?\\))$", flags: ""), trigger: ")", makes: ["link"]),
   ]
 
   /// The name @lexical/markdown or the web editor exports a transformer by.
   enum Name: String, Sendable {
+    case callout = "CALLOUT"
+    case admonition = "ADMONITION"
+    case details = "DETAILS"
+    case columns = "COLUMNS"
+    case blockEquationFence = "BLOCK_EQUATION_FENCE"
+    case tweet = "TWEET"
+    case article = "ARTICLE"
+    case placeholderBlock = "PLACEHOLDER_BLOCK"
+    case blockEquation = "BLOCK_EQUATION"
+    case image = "IMAGE"
+    case equation = "EQUATION"
+    case literalDollar = "LITERAL_DOLLAR"
+    case placeholderInline = "PLACEHOLDER_INLINE"
+    case footnoteDefinition = "FOOTNOTE_DEFINITION"
+    case footnoteReference = "FOOTNOTE_REFERENCE"
+    case table = "TABLE"
     case hr = "HR"
     case emoji = "EMOJI"
     case checkList = "CHECK_LIST"

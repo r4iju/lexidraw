@@ -8,8 +8,7 @@ public final class Editor: EditorModel {
   private var now = 0
   /// Whether the document holds only what the editing commands are ported
   /// for: paragraphs, headings, quotes, horizontal rules, line breaks and
-  /// text in any format, with no field the payload types don't model. The
-  /// other nodes come with #116 to #118 and #131 to #134.
+  /// text in any format, with no field the payload types don't model.
   public private(set) var isEditable = false
 
   public init() {}

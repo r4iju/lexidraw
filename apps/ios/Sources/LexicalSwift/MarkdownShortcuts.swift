@@ -10,7 +10,7 @@ struct MarkdownTransformer: Sendable {
   }
 
   let kind: Kind
-  let name: Name?
+  let name: Name
   /// `regExp`, or a multiline element transformer's `regExpStart`.
   var regExp: JSRegExp?
   var triggerOnEnter = false
@@ -22,6 +22,21 @@ struct MarkdownTransformer: Sendable {
   var formats: [TextFormatType] = []
   /// Whether a text format's tags may stand inside a word.
   var isIntraword = true
+  /// The node types its `replace` can make, its `dependencies`.
+  var makes: [String] = []
+
+  /// The web's transformers LexicalSwift doesn't run yet, by the issue that
+  /// ports each. Where one would turn what was typed into something else,
+  /// the text stays as typed and no transformer after it runs, as none would
+  /// after it on the web.
+  static let notPortedYet: [Name: Int] = [
+    .tweet: 131, .image: 131,
+    .equation: 132, .code: 132,
+    .table: 117,
+    .emoji: 134,
+    .checkList: 116, .unorderedList: 116, .orderedList: 116,
+    .link: 118,
+  ]
 
   static let element = web.filter { $0.kind == .element }
   static let multilineElement = web.filter { $0.kind == .multilineElement }
@@ -95,6 +110,16 @@ extension EditorState {
   }
 }
 
+extension Editor {
+  /// The node types that only transformers not ported yet make, where
+  /// LexicalSwift keeps as typed what Lexical makes one of these of.
+  public static let typesMarkdownShortcutsNotPortedYetMake = Set(
+    MarkdownTransformer.web.filter { MarkdownTransformer.notPortedYet[$0.name] != nil }.flatMap(\.makes))
+}
+
+/// Where a transformer not ported yet matches, which ends the shortcut.
+private struct NotPortedYet: Error {}
+
 /// `registerMarkdownShortcuts` from @lexical/markdown, with the web editor's
 /// transformers.
 extension Update {
@@ -107,10 +132,14 @@ extension Update {
       state[parent].type != SerializedDocumentCodeNode.type
     else { return false }
     let offset = caret.offset
-    return try runElementTransformers(parent, anchor, offset, MarkdownTransformer.element)
-      || runMultilineElementTransformers(parent, anchor, offset)
-      || runTextMatchTransformers(anchor, offset)
-      || runTextFormatTransformers(anchor, offset)
+    do {
+      return try runElementTransformers(parent, anchor, offset, MarkdownTransformer.element)
+        || runMultilineElementTransformers(parent, anchor, offset)
+        || runTextMatchTransformers(anchor, offset)
+        || runTextFormatTransformers(anchor, offset)
+    } catch is NotPortedYet {
+      return false
+    }
   }
 
   /// The listener's Enter handler: a block shortcut finished by Enter at the
@@ -122,9 +151,13 @@ extension Update {
     guard state[anchor].isText, canContainTransformableMarkdown(anchor), let parent = state[anchor].parent,
       state[parent].type != SerializedDocumentCodeNode.type, offset == state.textSize(of: anchor)
     else { return false }
-    return try runMultilineElementTransformers(parent, anchor, offset, onEnter: true)
-      || runElementTransformers(
-        parent, anchor, offset, MarkdownTransformer.element.filter(\.triggerOnEnter), onEnter: true)
+    do {
+      return try runMultilineElementTransformers(parent, anchor, offset, onEnter: true)
+        || runElementTransformers(
+          parent, anchor, offset, MarkdownTransformer.element.filter(\.triggerOnEnter), onEnter: true)
+    } catch is NotPortedYet {
+      return false
+    }
   }
 
   /// `canContainTransformableMarkdown`.
@@ -139,19 +172,7 @@ extension Update {
   private mutating func runElementTransformers(
     _ parent: NodeKey, _ anchor: NodeKey, _ offset: Int, _ transformers: [MarkdownTransformer], onEnter: Bool = false
   ) throws -> Bool {
-    guard startsTopLevelBlock(parent, anchor, offset, onEnter: onEnter) else { return false }
-    let text = state[anchor].text
-    for transformer in transformers {
-      guard let match = transformer.regExp?.firstMatch(in: text), let whole = match.groups[0],
-        whole.utf16.count == (onEnter || whole.hasSuffix(" ") ? offset : offset - 1)
-      else { continue }
-      let (leading, children) = try splitBlockStart(anchor, offset)
-      if try replaceBlock(transformer, parent, children, match.groups) {
-        try remove(leading)
-        return true
-      }
-    }
-    return false
+    try runBlockTransformers(parent, anchor, offset, transformers, onEnter: onEnter)
   }
 
   /// `runMultilineElementTransformers`: as `runElementTransformers`, for the
@@ -159,17 +180,29 @@ extension Update {
   private mutating func runMultilineElementTransformers(
     _ parent: NodeKey, _ anchor: NodeKey, _ offset: Int, onEnter: Bool = false
   ) throws -> Bool {
+    try runBlockTransformers(
+      parent, anchor, offset, MarkdownTransformer.multilineElement.filter { !$0.isEndRequired }, onEnter: onEnter)
+  }
+
+  private mutating func runBlockTransformers(
+    _ parent: NodeKey, _ anchor: NodeKey, _ offset: Int, _ transformers: [MarkdownTransformer], onEnter: Bool
+  ) throws -> Bool {
     guard startsTopLevelBlock(parent, anchor, offset, onEnter: onEnter) else { return false }
     let text = state[anchor].text
-    for transformer in MarkdownTransformer.multilineElement where !transformer.isEndRequired {
+    for transformer in transformers {
       guard let match = transformer.regExp?.firstMatch(in: text), let whole = match.groups[0],
         whole.utf16.count == (onEnter || whole.hasSuffix(" ") ? offset : offset - 1)
       else { continue }
-      let (leading, children) = try splitBlockStart(anchor, offset)
-      if try replaceBlock(transformer, parent, children, match.groups) {
-        try remove(leading)
-        return true
+      if declines(transformer, parent) {
+        // The web splits the text before its `replace` declines.
+        _ = try splitBlockStart(anchor, offset)
+        continue
       }
+      try requirePorted(transformer)
+      let (leading, children) = try splitBlockStart(anchor, offset)
+      try replaceBlock(transformer, parent, children, match.groups)
+      try remove(leading)
+      return true
     }
     return false
   }
@@ -191,16 +224,37 @@ extension Update {
     return (parts.first ?? anchor, Array(parts.dropFirst().prefix(1)) + following)
   }
 
-  /// A transformer's `replace`: false where it leaves the block as it is.
+  /// Ends the shortcut, leaving the text as typed, where the web would run
+  /// a transformer LexicalSwift doesn't yet.
+  private func requirePorted(_ transformer: MarkdownTransformer) throws {
+    if MarkdownTransformer.notPortedYet[transformer.name] != nil { throw NotPortedYet() }
+  }
+
+  /// Whether a block transformer's `replace` leaves the block as it is.
+  private func declines(_ transformer: MarkdownTransformer, _ parent: NodeKey) -> Bool {
+    let type = state[parent].type
+    switch transformer.name {
+    // `$isUnreplaceableBlock`: typing a shortcut in a quote would drop the
+    // quote (facebook/lexical#7407).
+    case .heading, .code: return type == SerializedQuoteNode.type
+    case .unorderedList, .orderedList, .checkList:
+      return type == SerializedQuoteNode.type || type == SerializedHeadingNode.type
+    // They make something only of imported markdown.
+    case .callout, .admonition, .details, .columns, .blockEquation, .blockEquationFence, .article,
+      .placeholderBlock, .footnoteDefinition:
+      return true
+    default: return false
+    }
+  }
+
+  /// A block transformer's `replace`.
   private mutating func replaceBlock(
     _ transformer: MarkdownTransformer, _ parent: NodeKey, _ children: [NodeKey], _ groups: [String?]
-  ) throws -> Bool {
-    let isQuote = state[parent].type == SerializedQuoteNode.type
+  ) throws {
     switch transformer.name {
     case .heading:
-      // A quote holds only text, so there is nowhere to keep it.
-      guard !isQuote, let hashes = groups[1], let tag = HeadingTag(rawValue: "h\(hashes.utf16.count)") else {
-        return false
+      guard let hashes = groups[1], let tag = HeadingTag(rawValue: "h\(hashes.utf16.count)") else {
+        throw EditorError.invalidState("HEADING matched no heading")
       }
       try replaceBlock(parent, with: createHeading(tag), children)
     case .quote:
@@ -213,16 +267,9 @@ extension Update {
         try insert(line, before: parent)
       }
       selectNext(line)
-    case .unorderedList, .orderedList, .checkList:
-      if isQuote || state[parent].type == SerializedHeadingNode.type { return false }
-      throw EditorError.unsupported("Making a list")
-    case .code:
-      if isQuote { return false }
-      throw EditorError.unsupported("Making a code block")
     default:
-      throw EditorError.unsupported("The markdown shortcut /\(transformer.regExp?.source ?? "")/")
+      throw EditorError.unsupported("The markdown shortcut \(transformer.name.rawValue)")
     }
-    return true
   }
 
   /// `createBlockNode`: `block` takes `children` and the place of `parent`,
@@ -236,14 +283,16 @@ extension Update {
   // MARK: Text
 
   /// `runTextMatchTransformers`: the text before the caret, ending in a
-  /// transformer's trigger, makes a node. None is ported yet.
+  /// transformer's trigger, makes a node. A transformer with no trigger
+  /// never runs.
   private mutating func runTextMatchTransformers(_ anchor: NodeKey, _ offset: Int) throws -> Bool {
     let units = Array(state[anchor].text.utf16)
-    let trigger = units[safe: offset - 1].map { String(decoding: [$0], as: UTF16.self) }
-    let text = String(decoding: units.prefix(max(offset, 0)), as: UTF16.self)
+    guard let trigger = units[safe: offset - 1].map({ String(decoding: [$0], as: UTF16.self) }) else { return false }
+    let text = String(decoding: units.prefix(offset), as: UTF16.self)
     for transformer in MarkdownTransformer.textMatch where transformer.trigger == trigger {
       guard let regExp = transformer.regExp, regExp.firstMatch(in: text) != nil else { continue }
-      throw EditorError.unsupported("The markdown shortcut /\(regExp.source)/")
+      try requirePorted(transformer)
+      throw EditorError.unsupported("The markdown shortcut \(transformer.name.rawValue)")
     }
     return false
   }

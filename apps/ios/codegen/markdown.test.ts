@@ -15,15 +15,42 @@ test("names a transformer by the name its package exports it by", () => {
   const swift = swiftForMarkdownTransformers([HEADING]);
 
   expect(swift).toContain(
-    'MarkdownTransformer(kind: .element, name: .heading, regExp: JSRegExp("^(#{1,6})\\\\s", flags: ""), triggerOnEnter: true)',
+    'MarkdownTransformer(kind: .element, name: .heading, regExp: JSRegExp("^(#{1,6})\\\\s", flags: ""), triggerOnEnter: true, makes: ["heading"])',
   );
   expect(swift).toContain('case heading = "HEADING"');
 });
 
 test("refuses a regular expression that keeps where it last matched", () => {
-  const sticky: Transformer = { ...HEADING, regExp: /^#\s/g };
+  const sticky: Transformer = { ...HEADING, regExp: /^(#{1,6})\s/g };
 
   expect(() => swiftForMarkdownTransformers([sticky])).toThrow(
     "keeps where it last matched",
+  );
+});
+
+test("names every transformer the web editor runs", () => {
+  const swift = swiftForMarkdownTransformers(createTransformers());
+
+  expect(swift).not.toContain("name: nil");
+  expect(swift).toContain('case callout = "CALLOUT"');
+  expect(swift).toContain('case table = "TABLE"');
+  expect(swift).toContain('case footnoteReference = "FOOTNOTE_REFERENCE"');
+});
+
+test("refuses a transformer no package exports", () => {
+  const unexported: Transformer = {
+    ...HEADING,
+    regExp: /^%\s/,
+    replace: () => {},
+  };
+
+  expect(() => swiftForMarkdownTransformers([unexported])).toThrow(
+    "No package exports the transformer /^%\\s/",
+  );
+});
+
+test("lists the node types a transformer can make", () => {
+  expect(swiftForMarkdownTransformers([HEADING])).toContain(
+    'makes: ["heading"]',
   );
 });
