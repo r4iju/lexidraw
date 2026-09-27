@@ -74,6 +74,8 @@ targets:
         product: LexicalSwift
       - package: LexidrawIOS
         product: LexicalReference
+      - package: LexidrawIOS
+        product: LexicalFuzz
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: $(APP_BUNDLE_IDENTIFIER).editor-harness

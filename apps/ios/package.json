@@ -9,8 +9,9 @@
     "test": "bun test ./codegen && bun run build:reference && swift test",
     "test:ui": "scripts/test-ui.sh",
     "test:drawing-ui": "scripts/test-drawing-ui.sh",
+    "measure:scroll": "scripts/measure-scroll.sh",
     "test:corpus": "bun run build:reference && LEXIDRAW_TOKEN=\"${LEXIDRAW_TOKEN:-$(security find-generic-password -s cli/lexidraw -a prod -w)}\" swift test --filter CorpusTests",
-    "test:ts": "tsgo --noEmit && tsgo --noEmit --project codegen && tsgo --noEmit --project recording",
+    "test:ts": "tsgo --noEmit && tsgo --noEmit --project codegen && tsgo --noEmit --project recording && tsgo --noEmit --project measure",
     "lint": "bun x @biomejs/biome check .",
     "record:composition": "TEST_RUNNER_RECORD_COMPOSITION=1 scripts/test-ui.sh -only-testing:EditorUITests/EditorUITests/testJapaneseCompositionSavesWhatTheWebEditorSaves && bun recording/composition.ts",
     "record:drawings": "bun run reference/drawings/record.ts"

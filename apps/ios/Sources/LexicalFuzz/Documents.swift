@@ -25,6 +25,34 @@ public enum LexicalJSON {
     ]
   }
 
+  public static func element(_ type: String, _ children: [JSONValue], _ fields: JSONObject = [:]) -> JSONValue {
+    var node: JSONObject = [
+      "children": .array(children), "direction": nil, "format": "", "indent": 0, "type": .string(type), "version": 1,
+    ]
+    for (key, value) in fields { node[key] = value }
+    return .object(node)
+  }
+
+  /// A table of one text in a paragraph per cell, by row; the first row is
+  /// a header row where `headerRow`.
+  public static func table(_ rows: [[String]], headerRow: Bool = false) -> JSONValue {
+    element(
+      "table",
+      rows.enumerated().map { index, row in
+        element(
+          "tablerow",
+          row.map { cell in
+            element(
+              "tablecell", [paragraph([text(cell)])],
+              ["backgroundColor": nil, "colSpan": 1, "headerState": headerRow && index == 0 ? 1 : 0, "rowSpan": 1])
+          })
+      })
+  }
+
+  public static func youtube(_ videoID: String) -> JSONValue {
+    ["format": "", "type": "youtube", "version": 1, "videoID": .string(videoID), "width": 0, "height": 0]
+  }
+
   public static func document(_ children: [JSONValue]) -> JSONValue {
     [
       "root": [

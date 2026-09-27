@@ -7,37 +7,91 @@ import Foundation
 ///
 /// A line break is U+2028, which breaks the line without ending the block,
 /// and a node with no text of its own is one U+FFFC. Blocks nested in a
-/// block, such as list items, are set apart by a newline inside it.
+/// block, such as list items, table rows and cells, are set apart by a
+/// newline inside it.
+///
+/// Each edit reports the blocks it replaced as splices, in order, for views
+/// that keep something per block. The blocks a splice's `new` names are as
+/// they are after the whole edit, which only the first splice renumbers.
 public final class DocumentText {
-  /// The attributes for text of `format` in a block of `blockType`.
+  /// The attributes for text of `format` in a block of `blockType`, which
+  /// for a heading is its tag.
   public typealias Style = (_ blockType: String, _ format: TextFormat) -> [NSAttributedString.Key: Any]
+  /// The attributes of the one character that stands in for `node` in place
+  /// of its text, or nil to show its text. `isBlock` says whether the node is
+  /// a block at the root.
+  public typealias StandIn = (_ node: JSONValue, _ isBlock: Bool) -> [NSAttributedString.Key: Any]?
+
+  public struct Splice: Equatable, Sendable {
+    public var old: Range<Int>
+    public var new: Range<Int>
+
+    public init(old: Range<Int>, new: Range<Int>) {
+      self.old = old
+      self.new = new
+    }
+  }
+
+  /// How a block at the root is laid out.
+  public enum BlockKind: Equatable, Sendable {
+    case text
+    /// Each row's cells, as ranges in the block.
+    case table(cells: [[NSRange]])
+    case embedded(type: String)
+  }
 
   private let model: any EditorModel
   private let style: Style
+  private let standIn: StandIn?
   private var blocks: [Block] = []
   /// Where each block starts, and the text's length last.
   private var starts: [Int] = [0]
+  /// Set while an edit of the text's own has merged blocks, which only a
+  /// fresh render can tell apart again.
+  private var merged = false
 
-  public init(model: any EditorModel, style: @escaping Style) {
+  public init(model: any EditorModel, style: @escaping Style, standIn: StandIn? = nil) {
     self.model = model
     self.style = style
+    self.standIn = standIn
   }
 
   /// The text's length, the newline ending the last block included.
   public var length: Int { starts.last ?? 0 }
 
+  public var blockCount: Int { blocks.count }
+
+  /// The block's text, without the newline that ends it.
+  public func range(ofBlock index: Int) -> NSRange {
+    NSRange(location: starts[index], length: blocks[index].length)
+  }
+
+  public func kind(ofBlock index: Int) -> BlockKind { blocks[index].kind }
+
+  /// The index of the block `offset` is in, the newline ending it included.
+  public func blockIndex(at offset: Int) -> Int {
+    blocks.indices.lastIndex(bisecting: { starts[$0] <= offset })
+  }
+
   /// Renders the whole document into `storage`, replacing what it held.
-  public func reload(_ storage: NSMutableAttributedString) throws {
+  @discardableResult public func reload(_ storage: NSMutableAttributedString) throws -> [Splice] {
+    let old = blocks.count
     let keys = try model.childKeys(at: [])
     let (text, rendered) = try render(keys.indices) { keys[$0] }
     blocks = rendered
+    merged = false
     storage.setAttributedString(text)
     measure()
+    return [Splice(old: 0..<old, new: 0..<blocks.count)]
   }
 
   /// Brings `storage`, which holds what this last rendered, up to date with
   /// an update the model reported as `change`.
-  public func update(_ storage: NSMutableAttributedString, after change: ChangeSet) throws {
+  @discardableResult public func update(_ storage: NSMutableAttributedString, after change: ChangeSet) throws
+    -> [Splice]
+  {
+    if merged { return try reload(storage) }
+    var splices: [Splice] = []
     var stale = Set(change.changed.compactMap(\.first))
     if change.changed.contains([]) {
       let keys = try model.childKeys(at: [])
@@ -55,6 +109,7 @@ public final class DocumentText {
       blocks.replaceSubrange(prefix..<(old.count - suffix), with: rendered)
       measure()
       stale.subtract(replaced)
+      splices.append(Splice(old: prefix..<(old.count - suffix), new: replaced))
     }
     for index in stale.sorted() {
       let key = blocks[index].key
@@ -62,7 +117,38 @@ public final class DocumentText {
       storage.replaceCharacters(in: NSRange(location: starts[index], length: starts[index + 1] - starts[index]), with: text)
       blocks[index] = rendered[0]
       measure()
+      splices.append(Splice(old: index..<(index + 1), new: index..<(index + 1)))
     }
+    return splices
+  }
+
+  /// Replaces `range` of `storage` with `text`, as a composition does before
+  /// the model hears of it. An edit within a table cell keeps the table;
+  /// any other edit of a block that isn't text, or across blocks, lays the
+  /// blocks out as one text until the next update renders afresh.
+  public func replace(_ storage: NSMutableAttributedString, in range: NSRange, with text: NSAttributedString)
+    -> [Splice]
+  {
+    let first = blockIndex(at: range.location)
+    let last = blockIndex(at: NSMaxRange(range))
+    storage.replaceCharacters(in: range, with: text)
+    var block = blocks[first]
+    block.length = starts[last] + blocks[last].length - starts[first] + text.length - range.length
+    var edited: [[NSRange]]?
+    if case .table(let cells) = block.kind, last == first {
+      let local = NSRange(location: range.location - starts[first], length: range.length)
+      edited = Self.cells(cells, replacing: local, withLength: text.length)
+    }
+    if let edited {
+      block.kind = .table(cells: edited)
+    } else if last > first || block.kind != .text {
+      block.kind = .text
+      block.spans = [:]
+      merged = true
+    }
+    blocks.replaceSubrange(first...last, with: [block])
+    measure()
+    return [Splice(old: first..<(last + 1), new: first..<(first + 1))]
   }
 
   /// Where `point` is in the text, or nil where the document has no such
@@ -94,7 +180,7 @@ public final class DocumentText {
   public func point(at offset: Int) -> Point {
     let offset = min(max(offset, 0), max(length - 1, 0))
     guard !blocks.isEmpty else { return Point(path: [], offset: 0, type: .element) }
-    let blockIndex = block(at: offset)
+    let blockIndex = blockIndex(at: offset)
     let local = offset - starts[blockIndex]
     let spans = blocks[blockIndex].spans
     let texts = spans.filter { if case .text = $0.value.kind { true } else { false } }
@@ -117,18 +203,7 @@ public final class DocumentText {
   /// The attributes text of `format` typed at `offset` takes, which depend
   /// on the block it goes into.
   public func attributes(at offset: Int, format: TextFormat) -> [NSAttributedString.Key: Any] {
-    style(blocks.isEmpty ? "paragraph" : blocks[block(at: offset)].type, format)
-  }
-
-  /// The index of the block `offset` is in, the newline ending it included.
-  private func block(at offset: Int) -> Int {
-    var low = 0
-    var high = blocks.count - 1
-    while low < high {
-      let middle = (low + high + 1) / 2
-      if starts[middle] <= offset { low = middle } else { high = middle - 1 }
-    }
-    return low
+    style(blocks.isEmpty ? "paragraph" : blocks[blockIndex(at: offset)].type, format)
   }
 
   private func measure() {
@@ -143,15 +218,47 @@ public final class DocumentText {
     var rendered: [Block] = []
     for index in indexes {
       let node = try model.node(at: [index])
-      let blockType = node["type"]?.stringValue ?? ""
-      var renderer = Renderer(style: style, blockType: blockType)
+      let blockType = (node["type"] == "heading" ? node["tag"] : node["type"])?.stringValue ?? ""
+      var renderer = Renderer(style: style, standIn: standIn, blockType: blockType)
       renderer.add(node, at: [])
       let block = renderer.text
-      rendered.append(Block(key: key(index), type: blockType, length: block.length, spans: renderer.spans))
+      rendered.append(
+        Block(
+          key: key(index), type: blockType, length: block.length, spans: renderer.spans,
+          kind: Self.kind(of: node, spans: renderer.spans)))
       block.append(NSAttributedString(string: "\n", attributes: style(blockType, [])))
       text.append(block)
     }
     return (text, rendered)
+  }
+
+  /// A table's cells after `range` of it is replaced with text `length`
+  /// long, or nil where the edit takes in more than one cell.
+  private static func cells(_ cells: [[NSRange]], replacing range: NSRange, withLength length: Int) -> [[NSRange]]? {
+    var inOneCell = false
+    let edited = cells.map { row in
+      row.map { cell -> NSRange in
+        if NSMaxRange(cell) < range.location { return cell }
+        if cell.location > NSMaxRange(range) { return NSRange(location: cell.location + length - range.length, length: cell.length) }
+        guard cell.location <= range.location, NSMaxRange(range) <= NSMaxRange(cell) else { return cell }
+        inOneCell = true
+        return NSRange(location: cell.location, length: cell.length + length - range.length)
+      }
+    }
+    return inOneCell ? edited : nil
+  }
+
+  private static func kind(of node: JSONValue, spans: [[Int]: Span]) -> BlockKind {
+    switch spans[[]]?.kind {
+    case .character: return .embedded(type: node["type"]?.stringValue ?? "")
+    case .element(let rowCount) where node["type"] == "table":
+      return .table(
+        cells: (0..<rowCount).map { row in
+          guard case .element(let cellCount) = spans[[row]]?.kind else { return [] }
+          return (0..<cellCount).compactMap { spans[[row, $0]].map { NSRange(location: $0.start, length: $0.end - $0.start) } }
+        })
+    default: return .text
+    }
   }
 
   private struct Block {
@@ -161,6 +268,7 @@ public final class DocumentText {
     var length: Int
     /// Where each node in the block is, by its path from the block.
     var spans: [[Int]: Span]
+    var kind: BlockKind
   }
 
   private struct Span {
@@ -178,6 +286,7 @@ public final class DocumentText {
 
   private struct Renderer {
     let style: Style
+    let standIn: StandIn?
     let blockType: String
     var text = NSMutableAttributedString()
     var spans: [[Int]: Span] = [:]
@@ -187,6 +296,11 @@ public final class DocumentText {
 
     mutating func add(_ node: JSONValue, at path: [Int]) {
       let start = text.length
+      if let standIn, let attributes = standIn(node, path.isEmpty) {
+        text.append(NSAttributedString(string: "\u{FFFC}", attributes: style(blockType, []).merging(attributes) { $1 }))
+        spans[path] = Span(start: start, end: text.length, kind: .character)
+        return
+      }
       if let children = node["children"]?.arrayValue {
         for (index, child) in children.enumerated() {
           if index > 0, Self.isBlock(child) || Self.isBlock(children[index - 1]) {
@@ -218,5 +332,19 @@ public final class DocumentText {
     private mutating func append(_ string: String, format: TextFormat) {
       text.append(NSAttributedString(string: string, attributes: style(blockType, format)))
     }
+  }
+}
+
+extension Range<Int> {
+  /// The last index where `holds` does, for a test that holds up to some
+  /// index and not after it; the first index where it holds for none.
+  func lastIndex(bisecting holds: (Int) -> Bool) -> Int {
+    var low = lowerBound
+    var high = upperBound - 1
+    while low < high {
+      let middle = (low + high + 1) / 2
+      if holds(middle) { low = middle } else { high = middle - 1 }
+    }
+    return low
   }
 }

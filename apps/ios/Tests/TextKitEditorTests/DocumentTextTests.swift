@@ -41,14 +41,15 @@ import TextKitEditor
       try model.load(start)
       let text = DocumentText(model: model, style: Self.style)
       let storage = NSMutableAttributedString()
-      try text.reload(storage)
+      var blocks = Self.blockTexts(storage, text, after: try text.reload(storage), in: [])
       for (index, command) in commands.enumerated() {
         guard let change = try? model.apply(command) else { continue }
-        try text.update(storage, after: change)
+        blocks = Self.blockTexts(storage, text, after: try text.update(storage, after: change), in: blocks)
 
         let fresh = NSMutableAttributedString()
         try DocumentText(model: model, style: Self.style).reload(fresh)
         #expect(storage.isEqual(to: fresh), "\(name), after command \(index): \(command)")
+        #expect(blocks == (0..<text.blockCount).map { storage.attributedSubstring(from: text.range(ofBlock: $0)) })
         for offset in 0..<storage.length {
           #expect(text.offset(of: text.point(at: offset)) == offset, "\(name), offset \(offset)")
         }
@@ -92,6 +93,81 @@ import TextKitEditor
     #expect(text.point(at: 4) == Point(path: [], offset: 1, type: .element))
   }
 
+  @Test func describesEachBlockByHowItIsLaidOut() throws {
+    let model = Editor()
+    try model.load(TestDocuments.titledTable([["c1", "c2"], ["c3", "c4"]]))
+    let text = DocumentText(model: model) { blockType, format in
+      [.lexicalFormat: format.rawValue, .blockType: blockType]
+    }
+    let storage = NSMutableAttributedString()
+
+    try text.reload(storage)
+
+    func shown(_ range: NSRange) -> String { (storage.string as NSString).substring(with: range) }
+    #expect((0..<text.blockCount).map { shown(text.range(ofBlock: $0)) } == ["Title", "before", "c1\nc2\nc3\nc4", "\u{FFFC}", "after"])
+    #expect(storage.attribute(.blockType, at: 0, effectiveRange: nil) as? String == "h2")
+    #expect(text.kind(ofBlock: 1) == .text)
+    guard case .table(let cells) = text.kind(ofBlock: 2) else {
+      Issue.record("The table isn't laid out as one")
+      return
+    }
+    let table = text.range(ofBlock: 2).location
+    #expect(cells.map { $0.map { shown(NSRange(location: table + $0.location, length: $0.length)) } } == [["c1", "c2"], ["c3", "c4"]])
+    #expect(text.blockIndex(at: NSMaxRange(text.range(ofBlock: 2))) == 2)
+    #expect(text.kind(ofBlock: 3) == .embedded(type: "youtube"))
+  }
+
+  @Test func standsInForANodeWithOneCharacter() throws {
+    let model = Editor()
+    try model.load(TestDocuments.titledTable([["c1", "c2"], ["c3", "c4"]]))
+    let text = DocumentText(model: model, style: Self.style) { node, _ in
+      node["type"] == "table" ? [.standIn: "table"] : nil
+    }
+    let storage = NSMutableAttributedString()
+
+    try text.reload(storage)
+
+    #expect(storage.string == "Title\nbefore\n\u{FFFC}\n\u{FFFC}\nafter\n")
+    #expect(storage.attribute(.standIn, at: 13, effectiveRange: nil) as? String == "table")
+    #expect(text.kind(ofBlock: 2) == .embedded(type: "table"))
+    #expect(text.point(at: 13) == Point(path: [], offset: 2, type: .element))
+    #expect(text.offset(of: .text([2, 0, 0, 0, 0], 1)) == nil)
+  }
+
+  /// A composition edits the text without the model, even across blocks.
+  @Test func followsAnEditOfItsOwnWithinABlockAndAcrossBlocks() throws {
+    let model = Editor()
+    try model.load(
+      LexicalJSON.document(["ab", "cd", "ef"].map { LexicalJSON.paragraph([LexicalJSON.text($0)]) }))
+    let text = DocumentText(model: model, style: Self.style)
+    let storage = NSMutableAttributedString()
+    var blocks = Self.blockTexts(storage, text, after: try text.reload(storage), in: [])
+
+    blocks = Self.blockTexts(
+      storage, text, after: text.replace(storage, in: NSRange(location: 1, length: 0), with: Self.plain("XY")),
+      in: blocks)
+    #expect(storage.string == "aXYb\ncd\nef\n")
+    #expect(text.range(ofBlock: 1) == NSRange(location: 5, length: 2))
+
+    blocks = Self.blockTexts(
+      storage, text, after: text.replace(storage, in: NSRange(location: 3, length: 3), with: Self.plain("Z")),
+      in: blocks)
+    #expect(storage.string == "aXYZd\nef\n")
+    #expect(text.blockCount == 2)
+    #expect(text.range(ofBlock: 1) == NSRange(location: 6, length: 2))
+    #expect(blocks == (0..<text.blockCount).map { storage.attributedSubstring(from: text.range(ofBlock: $0)) })
+
+    _ = text.replace(storage, in: NSRange(location: 3, length: 1), with: Self.plain("b\nc"))
+    _ = text.replace(storage, in: NSRange(location: 1, length: 2), with: Self.plain(""))
+    try model.apply(.caret(.text([1, 0], 1)))
+    blocks = Self.blockTexts(storage, text, after: try text.update(storage, after: try model.apply(.insertText("Q"))), in: blocks)
+
+    let fresh = NSMutableAttributedString()
+    try DocumentText(model: model, style: Self.style).reload(fresh)
+    #expect(storage.isEqual(to: fresh))
+    #expect(blocks == (0..<text.blockCount).map { storage.attributedSubstring(from: text.range(ofBlock: $0)) })
+  }
+
   @Test(arguments: EditorModelChoice.allCases)
   func reachesEveryPlaceInEveryStoredNode(_ choice: EditorModelChoice) throws {
     let model = try choice.make(referenceScript: Support.referenceScript)
@@ -107,6 +183,24 @@ import TextKitEditor
 
     #expect(stored.count > 4000)
     #expect(unreachable == [])
+  }
+
+  static func plain(_ string: String) -> NSAttributedString {
+    NSAttributedString(string: string, attributes: style("paragraph", []))
+  }
+
+  /// `blocks`, the text of each block before an edit, brought up to date by
+  /// the splices the edit reported: what a view keeping something per block
+  /// would hold after it.
+  static func blockTexts(
+    _ storage: NSAttributedString, _ text: DocumentText, after splices: [DocumentText.Splice],
+    in blocks: [NSAttributedString]
+  ) -> [NSAttributedString] {
+    var blocks = blocks
+    for splice in splices {
+      blocks.replaceSubrange(splice.old, with: splice.new.map { storage.attributedSubstring(from: text.range(ofBlock: $0)) })
+    }
+    return blocks
   }
 
   /// Every node the web has stored and could read, in a document of its own.
@@ -156,4 +250,6 @@ enum Support {
 
 extension NSAttributedString.Key {
   static let lexicalFormat = NSAttributedString.Key("lexicalFormat")
+  static let blockType = NSAttributedString.Key("blockType")
+  static let standIn = NSAttributedString.Key("standIn")
 }

@@ -5,7 +5,8 @@ import UIKit
 
 /// A document edited through an `EditorModel`. What UIKit's text input asks
 /// for becomes the model's commands, and each command's changes are all the
-/// view re-renders. TextKit 2 lays the text out and draws what is on screen.
+/// view re-renders. TextKit 2 lays the text out and draws what is on screen,
+/// a block at a time (`BlockLayout`).
 ///
 /// Text an input method is still composing lives only here, over the
 /// selection it replaces, and reaches the model as one `insertText` when it
@@ -16,12 +17,7 @@ public final class EditorView: UIScrollView, UITextInput {
   private let model: any EditorModel
   private let document: DocumentText
   private let storage = NSTextStorage()
-  private let contentStorage = NSTextContentStorage()
-  private let layoutManager = NSTextLayoutManager()
-  private let textContainer = NSTextContainer(size: .zero)
-  private let surface = UIView()
-  private var fragmentLayers: [ObjectIdentifier: FragmentLayer] = [:]
-  private let margin: CGFloat = 16
+  private let layout: BlockLayout
 
   /// The selection as UTF-16 offsets into the text; `focus` is the end that
   /// moves.
@@ -41,26 +37,30 @@ public final class EditorView: UIScrollView, UITextInput {
 
   public init(model: any EditorModel, style: @escaping DocumentText.Style = EditorView.defaultStyle) {
     self.model = model
-    document = DocumentText(model: model, style: style)
+    document = DocumentText(model: model, style: style, standIn: BlockLayout.standIn)
+    layout = BlockLayout(storage: storage, document: document)
     super.init(frame: .zero)
     backgroundColor = .systemBackground
     alwaysBounceVertical = true
     keyboardDismissMode = .interactive
-
-    contentStorage.textStorage = storage
-    contentStorage.addTextLayoutManager(layoutManager)
-    textContainer.lineFragmentPadding = 0
-    layoutManager.textContainer = textContainer
-    layoutManager.textViewportLayoutController.delegate = self
     addSubview(surface)
 
     let interaction = UITextInteraction(for: .editable)
     interaction.textInput = self
     surface.addInteraction(interaction)
     isAccessibilityElement = true
-    registerForTraitChanges([UITraitUserInterfaceStyle.self]) { (view: EditorView, _) in view.redraw() }
+    registerForTraitChanges([UITraitUserInterfaceStyle.self]) { (view: EditorView, _) in view.layout.redraw() }
+    // UIKit redraws the caret and selection only when told the selection
+    // changed, though here only where it is drawn did.
+    layout.onScrollSideways = { [weak self] in
+      guard let self else { return }
+      inputDelegate?.selectionWillChange(self)
+      inputDelegate?.selectionDidChange(self)
+    }
     render(nil)
   }
+
+  private var surface: UIView { layout.surface }
 
   required init?(coder: NSCoder) { fatalError("EditorView is made in code") }
 
@@ -102,26 +102,24 @@ public final class EditorView: UIScrollView, UITextInput {
 
   /// Brings the text up to date with `change`, or renders it afresh.
   private func render(_ change: ChangeSet?) {
-    contentStorage.performEditingTransaction {
+    layout.edit {
       do {
-        if let change {
-          try document.update(storage, after: change)
-        } else {
-          try document.reload(storage)
-        }
+        if let change { return try document.update(storage, after: change) }
+        return try document.reload(storage)
       } catch {
         failed("The model's update couldn't be shown", error)
         if change != nil {
           do { try document.reload(storage) } catch { failed("The document couldn't be shown", error) }
         }
+        return nil
       }
     }
     setNeedsLayout()
   }
 
   /// A change to the text that is only the view's, as composition is.
-  private func editStorage(_ body: () -> Void) {
-    contentStorage.performEditingTransaction(body)
+  private func editText(in range: NSRange, with text: NSAttributedString) {
+    layout.edit { document.replace(storage, in: range, with: text) }
     setNeedsLayout()
   }
 
@@ -220,8 +218,7 @@ public final class EditorView: UIScrollView, UITextInput {
       ?? Composition(replaced: replaced, original: storage.attributedSubstring(from: replaced), marked: replaced)
     var attributes = document.attributes(at: composition.replaced.location, format: modelSelection()?.format ?? [])
     attributes.merge(markedTextStyle ?? [.underlineStyle: NSUnderlineStyle.single.rawValue]) { $1 }
-    let marked = composition.marked
-    editStorage { storage.replaceCharacters(in: marked, with: NSAttributedString(string: text, attributes: attributes)) }
+    editText(in: composition.marked, with: NSAttributedString(string: text, attributes: attributes))
     composition.marked.length = text.utf16.count
     self.composition = composition
     let start = composition.marked.location + min(selectedRange.location, composition.marked.length)
@@ -246,7 +243,7 @@ public final class EditorView: UIScrollView, UITextInput {
   private func commit(_ text: String) {
     guard let composition else { return }
     self.composition = nil
-    editStorage { storage.replaceCharacters(in: composition.marked, with: composition.original) }
+    editText(in: composition.marked, with: composition.original)
     anchor = composition.replaced.location
     focus = NSMaxRange(composition.replaced)
     if text.isEmpty, composition.replaced.length == 0 { return }
@@ -397,42 +394,14 @@ public final class EditorView: UIScrollView, UITextInput {
   }
 
   private func line(from offset: Int, _ direction: NSTextSelectionNavigation.Direction) -> Int? {
-    guard let location = location(offset),
-      let moved = layoutManager.textSelectionNavigation.destinationSelection(
-        for: NSTextSelection(location, affinity: .downstream), direction: direction, destination: .character,
-        extending: false, confined: false),
-      let destination = moved.textRanges.first?.location
-    else { return nil }
-    return clamp(self.offset(destination))
+    layout.offset(movingVerticallyFrom: offset, direction).map(clamp)
   }
 
   // MARK: Geometry
 
   public var textInputView: UIView { surface }
 
-  private func location(_ offset: Int) -> (any NSTextLocation)? {
-    contentStorage.location(contentStorage.documentRange.location, offsetBy: offset)
-  }
-
-  private func offset(_ location: any NSTextLocation) -> Int {
-    contentStorage.offset(from: contentStorage.documentRange.location, to: location)
-  }
-
-  private func textRange(_ range: NSRange) -> NSTextRange? {
-    guard let start = location(range.location), let end = location(NSMaxRange(range)) else { return nil }
-    return NSTextRange(location: start, end: end)
-  }
-
-  private func segments(_ range: NSRange) -> [CGRect] {
-    guard let textRange = textRange(range) else { return [] }
-    var frames: [CGRect] = []
-    layoutManager.enumerateTextSegments(in: textRange, type: .selection, options: .rangeNotRequired) {
-      _, frame, _, _ in
-      frames.append(frame)
-      return true
-    }
-    return frames
-  }
+  private func segments(_ range: NSRange) -> [CGRect] { layout.segments(range) }
 
   public func firstRect(for range: UITextRange) -> CGRect {
     guard let range = range as? TextRange else { return .null }
@@ -455,14 +424,7 @@ public final class EditorView: UIScrollView, UITextInput {
   }
 
   public func closestPosition(to point: CGPoint) -> UITextPosition? {
-    guard
-      let selection = layoutManager.textSelectionNavigation.textSelections(
-        interactingAt: point, inContainerAt: layoutManager.documentRange.location, anchors: [], modifiers: [],
-        selecting: false, bounds: .zero
-      ).first,
-      let location = selection.textRanges.first?.location
-    else { return TextPosition(lastOffset) }
-    return TextPosition(clamp(offset(location)))
+    TextPosition(clamp(layout.offset(closestTo: point) ?? lastOffset))
   }
 
   public func closestPosition(to point: CGPoint, within range: UITextRange) -> UITextPosition? {
@@ -479,9 +441,10 @@ public final class EditorView: UIScrollView, UITextInput {
   }
 
   private func scrollToCaret() {
+    layout.scrollToShow(focus)
     let caret = caretRect(for: TextPosition(focus))
     guard caret != .zero else { return }
-    scrollRectToVisible(surface.convert(caret, to: self).insetBy(dx: 0, dy: -margin), animated: false)
+    scrollRectToVisible(surface.convert(caret, to: self).insetBy(dx: 0, dy: -BlockLayout.margin), animated: false)
   }
 
   // MARK: Hardware keyboard
@@ -545,18 +508,7 @@ public final class EditorView: UIScrollView, UITextInput {
   /// Where the caret's line starts as laid out, or where it ends going
   /// forward, before the newline or line break that ends it.
   private func lineBoundary(backward: Bool) -> Int? {
-    guard let location = location(focus), let fragment = layoutManager.textLayoutFragment(for: location) else {
-      return nil
-    }
-    let start = offset(fragment.rangeInElement.location)
-    let lines = fragment.textLineFragments
-    guard
-      let line = lines.first(where: { NSLocationInRange(focus - start, $0.characterRange) }) ?? lines.last
-    else { return nil }
-    if backward { return start + line.characterRange.location }
-    let end = start + NSMaxRange(line.characterRange)
-    let last = end > 0 ? (storage.string as NSString).character(at: end - 1) : 0
-    return last == 0x0A || last == 0x2028 ? end - 1 : end
+    layout.lineBoundary(at: focus, backward: backward).map(clamp)
   }
 
   // MARK: Edit menu and formatting
@@ -589,40 +541,13 @@ public final class EditorView: UIScrollView, UITextInput {
 
   public override func layoutSubviews() {
     super.layoutSubviews()
-    let width = max(bounds.width - 2 * margin, 0)
-    if textContainer.size.width != width {
-      textContainer.size = CGSize(width: width, height: 0)
-    }
-    layoutManager.textViewportLayoutController.layoutViewport()
-  }
-
-  /// Draws every fragment again, for colors that follow the appearance.
-  private func redraw() {
-    fragmentLayers = [:]
-    layoutManager.textViewportLayoutController.layoutViewport()
-  }
-
-  /// The text's height as laid out so far, which TextKit estimates past the
-  /// viewport.
-  private func updateContentSize() {
-    var height: CGFloat = 0
-    layoutManager.enumerateTextLayoutFragments(
-      from: layoutManager.documentRange.endLocation, options: [.reverse, .ensuresLayout]
-    ) { fragment in
-      height = fragment.layoutFragmentFrame.maxY
-      return false
-    }
-    let visible = bounds.height - adjustedContentInset.top - adjustedContentInset.bottom
-    // A tap anywhere below the text lands on the surface and puts the caret
-    // at the end.
-    let surfaceHeight = max(height, visible - 2 * margin)
-    let frame = CGRect(x: margin, y: margin, width: textContainer.size.width, height: surfaceHeight)
-    if surface.frame != frame { surface.frame = frame }
-    let size = CGSize(width: bounds.width, height: surfaceHeight + 2 * margin)
-    if contentSize != size { contentSize = size }
+    layout.layoutViewport(of: self)
   }
 
   // MARK: Style
+
+  /// Below each block at the root.
+  nonisolated static var blockSpacing: CGFloat { UIFont.preferredFont(forTextStyle: .body).pointSize * 0.5 }
 
   /// Body text in the system font, formats as the web editor shows them.
   nonisolated public static func defaultStyle(_ blockType: String, _ format: TextFormat) -> [NSAttributedString.Key: Any] {
@@ -635,7 +560,7 @@ public final class EditorView: UIScrollView, UITextInput {
       ? UIFont.monospacedSystemFont(ofSize: body.pointSize * 0.9, weight: traits.contains(.traitBold) ? .bold : .regular)
       : UIFont(descriptor: body.fontDescriptor.withSymbolicTraits(traits) ?? body.fontDescriptor, size: 0)
     let paragraph = NSMutableParagraphStyle()
-    paragraph.paragraphSpacing = body.pointSize * 0.5
+    paragraph.paragraphSpacing = blockSpacing
     var attributes: [NSAttributedString.Key: Any] = [.foregroundColor: UIColor.label, .paragraphStyle: paragraph]
     if format.contains(.subscript) || format.contains(.superscript) {
       font = font.withSize(font.pointSize * 0.75)
@@ -647,81 +572,6 @@ public final class EditorView: UIScrollView, UITextInput {
     if format.contains(.code) { attributes[.backgroundColor] = UIColor.secondarySystemFill }
     if format.contains(.highlight) { attributes[.backgroundColor] = UIColor.systemYellow.withAlphaComponent(0.4) }
     return attributes
-  }
-}
-
-extension EditorView: @preconcurrency NSTextViewportLayoutControllerDelegate {
-  public func viewportBounds(for textViewportLayoutController: NSTextViewportLayoutController) -> CGRect {
-    let visible = CGRect(origin: contentOffset, size: bounds.size).offsetBy(dx: -margin, dy: -margin)
-    return visible.insetBy(dx: 0, dy: -bounds.height / 2)
-  }
-
-  public func textViewportLayoutControllerWillLayout(_ textViewportLayoutController: NSTextViewportLayoutController) {
-    CATransaction.begin()
-    CATransaction.setDisableActions(true)
-    surface.layer.sublayers?.filter { $0 is FragmentLayer }.forEach { $0.removeFromSuperlayer() }
-  }
-
-  public func textViewportLayoutController(
-    _ textViewportLayoutController: NSTextViewportLayoutController,
-    configureRenderingSurfaceFor textLayoutFragment: NSTextLayoutFragment
-  ) {
-    let id = ObjectIdentifier(textLayoutFragment)
-    let layer = fragmentLayers[id] ?? FragmentLayer(textLayoutFragment, traits: traitCollection)
-    layer.contentsScale = traitCollection.displayScale
-    layer.place()
-    fragmentLayers[id] = layer
-    surface.layer.insertSublayer(layer, at: 0)
-  }
-
-  public func textViewportLayoutControllerDidLayout(_ textViewportLayoutController: NSTextViewportLayoutController) {
-    let shown = Set((surface.layer.sublayers ?? []).compactMap { $0 as? FragmentLayer }.map(\.id))
-    fragmentLayers = fragmentLayers.filter { shown.contains($0.key) }
-    CATransaction.commit()
-    updateContentSize()
-  }
-}
-
-/// One laid-out paragraph, drawn by TextKit.
-private final class FragmentLayer: CALayer {
-  let fragment: NSTextLayoutFragment
-  let traits: UITraitCollection
-
-  var id: ObjectIdentifier { ObjectIdentifier(fragment) }
-
-  init(_ fragment: NSTextLayoutFragment, traits: UITraitCollection) {
-    self.fragment = fragment
-    self.traits = traits
-    super.init()
-    setNeedsDisplay()
-  }
-
-  override init(layer: Any) {
-    guard let layer = layer as? FragmentLayer else { fatalError("A FragmentLayer copies only its own kind") }
-    fragment = layer.fragment
-    traits = layer.traits
-    super.init(layer: layer)
-  }
-
-  required init?(coder: NSCoder) { fatalError("FragmentLayer is made in code") }
-
-  /// Sized to what the fragment draws, which can reach outside its frame,
-  /// with the fragment's origin at the layer's.
-  func place() {
-    let surface = fragment.renderingSurfaceBounds
-    bounds = surface
-    anchorPoint = CGPoint(
-      x: surface.width > 0 ? -surface.minX / surface.width : 0,
-      y: surface.height > 0 ? -surface.minY / surface.height : 0)
-    position = fragment.layoutFragmentFrame.origin
-  }
-
-  override func draw(in context: CGContext) {
-    traits.performAsCurrent {
-      UIGraphicsPushContext(context)
-      fragment.draw(at: .zero, in: context)
-      UIGraphicsPopContext()
-    }
   }
 }
 
