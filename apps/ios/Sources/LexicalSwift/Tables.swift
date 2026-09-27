@@ -279,7 +279,7 @@ extension Update {
 
   /// `$tableCellTransform`: a cell is in a row, and holds something.
   mutating func transformCell(_ cell: NodeKey) throws {
-    if !state.parent(of: cell).map(isRow)! {
+    if !(state.parent(of: cell).map(isRow) ?? false) {
       try remove(cell)
     } else if isEmpty(cell) {
       try append(cell, [create(SerializedParagraphNode.type)])
@@ -288,7 +288,7 @@ extension Update {
 
   /// `$tableRowTransform`: a row is in a table, and holds cells alone.
   mutating func transformRow(_ row: NodeKey) throws {
-    if !state.parent(of: row).map(isTable)! {
+    if !(state.parent(of: row).map(isTable) ?? false) {
       try remove(row)
     } else {
       try unwrapAndFilterDescendants(row, keeping: isCell)
