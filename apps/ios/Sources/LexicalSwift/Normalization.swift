@@ -83,6 +83,8 @@ extension Update {
     case SerializedListItemNode.type:
       try wrapInList(key)
       if state.isAttached(key) { try syncListItemTextStyle(key) }
+    case SerializedLinkNode.type:
+      try transformLink(key)
     default: break
     }
   }

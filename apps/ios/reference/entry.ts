@@ -2,9 +2,18 @@
  * The editor-model interface over headless Lexical, for ReferenceEditor.swift
  * to call with JSON strings.
  */
-import { createHeadlessEditor } from "@lexical/headless";
+import { namedSignals } from "@lexical/extension";
 import { createEmptyHistoryState, registerHistory } from "@lexical/history";
+import { createHeadlessEditor } from "@lexical/headless";
+import {
+  $createLinkNode,
+  $isAutoLinkNode,
+  registerAutoLink,
+  registerLink,
+  TOGGLE_LINK_COMMAND,
+} from "@lexical/link";
 import { registerMarkdownShortcuts } from "@lexical/markdown";
+import { $isAtNodeEnd } from "@lexical/selection";
 import {
   $setBlockType,
   type BlockType,
@@ -19,12 +28,18 @@ import {
 } from "@lexical/list";
 import { registerRichText } from "@lexical/rich-text";
 import { registerDocumentEditing } from "@packages/lexical-nodes/document-editing";
+import {
+  AUTOLINK_MATCHERS,
+  EDITOR_NAMESPACE,
+  validateUrl,
+} from "@packages/lexical-nodes/links";
 import { SCHEMA_NODES } from "@packages/lexical-nodes/nodes";
 import { createTransformers } from "@packages/lexical-nodes/transformers";
 import {
   $createRangeSelection,
   $exportNodeJSON,
   $formatText,
+  $getEditor,
   $getNodeByKey,
   $getRoot,
   $getSelection,
@@ -79,6 +94,8 @@ type Command =
   | { type: "removeList" | "indent" | "outdent" }
   | { type: "tab"; backward: boolean }
   | { type: "toggleChecked"; path: number[] }
+  | { type: "toggleLink"; url: string | null }
+  | { type: "editLink"; url: string }
   | { type: "selectAll" }
   | { type: "undo" }
   | { type: "redo" }
@@ -101,6 +118,7 @@ function current(): LexicalEditor {
 
 function load(stateJSON: string): void {
   const next = createHeadlessEditor({
+    namespace: EDITOR_NAMESPACE,
     nodes: SCHEMA_NODES,
     onError: (error) => {
       lastError = error;
@@ -131,6 +149,13 @@ function load(stateJSON: string): void {
     },
     COMMAND_PRIORITY_LOW,
   );
+  // The document editor's link plugins, in the order it mounts them.
+  registerAutoLink(next, {
+    changeHandlers: [],
+    excludeParents: [],
+    matchers: AUTOLINK_MATCHERS,
+  });
+  registerLink(next, namedSignals({ attributes: undefined, validateUrl }));
   next.setEditorState(parsed);
   next.registerUpdateListener(
     ({ dirtyElements, dirtyLeaves, editorState, prevEditorState, tags }) => {
@@ -368,7 +393,49 @@ function run(command: Exclude<Command, { type: "undo" | "redo" | "wait" }>) {
     case "tab":
       editor.dispatchCommand(KEY_TAB_COMMAND, key(command.backward));
       return;
+    case "toggleLink":
+      $getEditor().dispatchCommand(TOGGLE_LINK_COMMAND, command.url);
+      return;
+    case "editLink":
+      editLink(command.url);
+      return;
   }
+}
+
+/**
+ * The link editor's save on the web: the link takes the URL, and an autolink
+ * becomes a link, which typing no longer relinks.
+ */
+function editLink(url: string): void {
+  $getEditor().dispatchCommand(TOGGLE_LINK_COMMAND, url);
+  const selection = $getSelection();
+  if (!$isRangeSelection(selection)) return;
+  const parent = selectedNode(selection).getParent();
+  if ($isAutoLinkNode(parent)) {
+    parent.replace(
+      $createLinkNode(parent.getURL(), {
+        rel: parent.__rel,
+        target: parent.__target,
+        title: parent.__title,
+      }),
+      true,
+    );
+  }
+}
+
+/** `getSelectedNode` in the web editor's utils. */
+function selectedNode(selection: RangeSelection): LexicalNode {
+  const { anchor, focus } = selection;
+  const anchorNode = anchor.getNode();
+  const focusNode = focus.getNode();
+  if (anchorNode === focusNode) return anchorNode;
+  return selection.isBackward()
+    ? $isAtNodeEnd(focus)
+      ? anchorNode
+      : focusNode
+    : $isAtNodeEnd(anchor)
+      ? anchorNode
+      : focusNode;
 }
 
 /**

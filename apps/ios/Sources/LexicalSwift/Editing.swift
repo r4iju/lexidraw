@@ -89,8 +89,8 @@ extension Update {
 
   /// A block's `insertNewAfter`: what Enter puts after it. After a
   /// paragraph or a quote, it is `ParagraphNode.insertNewAfter`'s paragraph,
-  /// and after a list item a copy of it. A list doesn't split, as an element
-  /// that doesn't say how doesn't.
+  /// after a list item a copy of it, and after a link, `LinkNode`'s, a copy of
+  /// it too. A list doesn't split, as an element that doesn't say how doesn't.
   mutating func insertNewAfter(_ block: NodeKey, _ selection: RangeSelection, restoringSelection: Bool) throws
     -> NodeKey?
   {
@@ -99,6 +99,11 @@ extension Update {
       let item = copyNode(block)
       try insert(item, after: block, restoringSelection: restoringSelection)
       return item
+    }
+    if state[block].isLink {
+      let link = copyNode(block)
+      try insert(link, after: block, restoringSelection: restoringSelection)
+      return link
     }
     let type = state[block].type
     if type == SerializedHeadingNode.type {
@@ -270,10 +275,16 @@ extension Update {
       {
         point.set(parentPrevious, state.textSize(of: parentPrevious), .text)
       }
-    } else if point.offset == state.textSize(of: node), isBackward, let next = state.nextSibling(of: node),
-      state[next].isElement, state[next].isInline
-    {
-      point.set(next, 0, .element)
+    } else if point.offset == state.textSize(of: node) {
+      let next = state.nextSibling(of: node)
+      if isBackward, let next, state[next].isElement, state[next].isInline {
+        point.set(next, 0, .element)
+      } else if isCollapsed || isBackward, next == nil, parentIsInline, let parent, !state[parent].canInsertTextAfter,
+        state.textContent(of: parent).utf16.count > 1, let parentNext = state.nextSibling(of: parent),
+        state[parentNext].isText
+      {
+        point.set(parentNext, 0, .text)
+      }
     }
   }
 
@@ -465,13 +476,19 @@ extension Update {
     guard state[anchor].isText else { throw EditorError.invalidState("insertText: anchor is not a text node") }
     let offset = selection.anchor.offset
     let size = state.textSize(of: anchor)
-    if (offset == 0 || offset == size), !canInsertTextBeside(anchor) {
-      if text.isEmpty { return }
-      try redirectInsertion(selection, from: anchor, atStart: offset == 0, format: format, style: style)
-      return try insertText(selection, text)
-    }
     if text.isEmpty { return }
     let parent = state[anchor].parent!
+    let needsRedirect =
+      (offset == 0
+        && (!state[anchor].canInsertTextBefore
+          || (!state[parent].canInsertTextBefore && state.previousSibling(of: anchor) == nil)))
+      || (offset == size
+        && (!state[anchor].canInsertTextAfter
+          || (!state[parent].canInsertTextAfter && state.nextSibling(of: anchor) == nil)))
+    if needsRedirect {
+      try redirectText(selection, text, from: anchor, atStart: offset == 0, format: format, style: style)
+      return
+    }
     let parentIsInline = state[parent].isInline
     let atStartOfInline = parentIsInline && offset == 0 && state.previousSibling(of: anchor) == nil
     let atEndOfInline = parentIsInline && offset == state.textSize(of: anchor) && state.nextSibling(of: anchor) == nil
@@ -489,31 +506,32 @@ extension Update {
     spliceText(anchor, at: offset, deleting: 0, inserting: text, movingSelection: true)
   }
 
-  /// TextNode's `canInsertTextBefore` and `canInsertTextAfter`, which a
-  /// TabNode turns down.
-  private func canInsertTextBeside(_ key: NodeKey) -> Bool { state[key].type != SerializedTabNode.type }
-
-  /// Where `insertText` can't type beside `anchor`, it types into the text
-  /// beside it, or into new text it puts there.
-  private mutating func redirectInsertion(
-    _ selection: RangeSelection, from anchor: NodeKey, atStart: Bool, format: TextFormat, style: String
+  /// `insertText` where the anchor's text or its parent refuses what's typed
+  /// at its edge: it goes into the text beside it, or new text beside it.
+  private mutating func redirectText(
+    _ selection: RangeSelection, _ text: String, from anchor: NodeKey, atStart: Bool, format: TextFormat, style: String
   ) throws {
-    let beside = atStart ? state.previousSibling(of: anchor) : state.nextSibling(of: anchor)
-    if let beside, state[beside].isText, canInsertTextBeside(beside), !isTokenOrSegmented(beside) {
-      if atStart { selectText(beside) } else { selectText(beside, 0, 0) }
-      return
-    }
-    let text = createText("", format: format, style: style)
-    if atStart {
-      try insert(text, before: anchor)
+    let parent = state[anchor].parent!
+    let sibling = atStart ? state.previousSibling(of: anchor) : state.nextSibling(of: anchor)
+    if let sibling, state[sibling].isText, atStart ? state[sibling].canInsertTextAfter : state[sibling].canInsertTextBefore,
+      !isTokenOrSegmented(sibling)
+    {
+      atStart ? selectText(sibling) : selectText(sibling, 0, 0)
     } else {
-      try insert(text, after: anchor)
+      let node = createText("", format: format, style: style)
+      if atStart {
+        try insert(node, before: state[parent].canInsertTextBefore ? anchor : parent)
+        selectText(node)
+      } else {
+        try insert(node, after: state[parent].canInsertTextAfter ? anchor : parent)
+        selectText(node, 0, 0)
+      }
     }
-    selectText(text)
+    try insertText(selection, text)
   }
 
-  private func isTokenOrSegmented(_ key: NodeKey) -> Bool {
-    if case .text(let node) = state[key].payload { node.mode == .token || node.mode == .segmented } else { false }
+  func isTokenOrSegmented(_ key: NodeKey) -> Bool {
+    state[key].textNode.map { $0.mode == .token || $0.mode == .segmented } ?? false
   }
 
   /// Lexical's `$transferStartingElementPointToTextPoint`: puts empty text

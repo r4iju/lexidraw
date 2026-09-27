@@ -6,6 +6,7 @@ import {
   OPENAPI_PATH,
   swiftForDrawingFiles,
 } from "./drawing-files";
+import { LINKS_PATH, swiftForLinks } from "./links";
 import {
   MARKDOWN_TRANSFORMERS_PATH,
   swiftForMarkdownTransformers,
@@ -36,3 +37,4 @@ await Bun.write(
   DOCUMENT_TYPOGRAPHY_PATH,
   swiftForTypography(await readWebStyles()),
 );
+await Bun.write(LINKS_PATH, swiftForLinks());

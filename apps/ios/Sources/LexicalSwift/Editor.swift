@@ -150,6 +150,8 @@ extension Node {
     case .listItem(let node): node.unknownFields.isEmpty
     case .lineBreak(let node): node.unknownFields.isEmpty
     case .horizontalRule(let node): node.unknownFields.isEmpty
+    case .link(let node): node.unknownFields.isEmpty
+    case .autoLink(let node): node.unknownFields.isEmpty
     case .text(let node): node.unknownFields.isEmpty && node.mode == .normal && (node.detail ?? 0) == 0
     case .tab(let node): node.unknownFields.isEmpty && node.detail == Double(TextDetail.unmergeable.rawValue)
     default: false
@@ -189,6 +191,8 @@ extension Update {
     case .indent: try indentContent()
     case .outdent: try outdentContent()
     case .tab(let backward): try tab(selection, backward: backward)
+    case .toggleLink(let url): try toggleLinkCommand(selection, url: url)
+    case .editLink(let url): try editLink(selection, url: url)
     default: throw EditorError.unsupported(command.name)
     }
   }

@@ -116,6 +116,11 @@ public enum EditorCommand: Equatable, Sendable {
   /// A tap on a checklist item's box, at `path`.
   case toggleChecked(path: [Int])
   case selectAll
+  /// Lexical's `TOGGLE_LINK_COMMAND`, as the web editor's link plugins take
+  /// it: links the selection to `url`, or unlinks it where `url` is nil.
+  case toggleLink(url: String?)
+  /// The web's link editor saving `url` for the link the selection is in.
+  case editLink(url: String)
   case undo
   case redo
   /// Lets time pass, which decides whether history merges the next edit into
@@ -186,13 +191,14 @@ public struct TextFormat: OptionSet, Codable, Hashable, Sendable {
 
 extension EditorCommand: Codable {
   private enum CodingKeys: String, CodingKey {
-    case type, anchor, focus, text, backward, lineBoundary, format, blockType, listType, path, milliseconds
+    case type, anchor, focus, text, backward, lineBoundary, format, blockType, listType, path, milliseconds, url
   }
 
   /// The command's `type` in JSON.
   private enum Kind: String, Codable {
     case setSelection, insertText, commitComposition, deleteCharacter, deleteWord, deleteLine, insertParagraph, insertLineBreak,
-      formatText, setBlockType, insertList, removeList, indent, outdent, tab, toggleChecked, selectAll, undo, redo, wait
+      formatText, setBlockType, insertList, removeList, indent, outdent, tab, toggleChecked, selectAll, toggleLink, editLink,
+      undo, redo, wait
   }
 
   private var kind: Kind {
@@ -214,6 +220,8 @@ extension EditorCommand: Codable {
     case .tab: .tab
     case .toggleChecked: .toggleChecked
     case .selectAll: .selectAll
+    case .toggleLink: .toggleLink
+    case .editLink: .editLink
     case .undo: .undo
     case .redo: .redo
     case .wait: .wait
@@ -248,6 +256,8 @@ extension EditorCommand: Codable {
     case .tab: self = .tab(backward: try backward())
     case .toggleChecked: self = .toggleChecked(path: try container.decode([Int].self, forKey: .path))
     case .selectAll: self = .selectAll
+    case .toggleLink: self = .toggleLink(url: try container.decodeIfPresent(String.self, forKey: .url))
+    case .editLink: self = .editLink(url: try container.decode(String.self, forKey: .url))
     case .undo: self = .undo
     case .redo: self = .redo
     case .wait: self = .wait(milliseconds: try container.decode(Int.self, forKey: .milliseconds))
@@ -278,6 +288,10 @@ extension EditorCommand: Codable {
       try container.encode(path, forKey: .path)
     case .wait(let milliseconds):
       try container.encode(milliseconds, forKey: .milliseconds)
+    case .toggleLink(let url):
+      try container.encode(url, forKey: .url)
+    case .editLink(let url):
+      try container.encode(url, forKey: .url)
     case .insertParagraph, .insertLineBreak, .removeList, .indent, .outdent, .selectAll, .undo, .redo:
       break
     }

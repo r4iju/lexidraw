@@ -19,6 +19,20 @@ public enum LexicalJSON {
     ]
   }
 
+  public static func link(_ url: String, _ children: [JSONValue], rel: String? = "noreferrer") -> JSONValue {
+    [
+      "children": .array(children), "rel": rel.map(JSONValue.string) ?? nil, "target": nil, "title": nil,
+      "url": .string(url), "direction": nil, "format": "", "indent": 0, "type": "link", "version": 1,
+    ]
+  }
+
+  public static func autoLink(_ url: String, _ children: [JSONValue], isUnlinked: Bool = false) -> JSONValue {
+    [
+      "children": .array(children), "isUnlinked": .bool(isUnlinked), "rel": nil, "target": nil, "title": nil,
+      "url": .string(url), "direction": nil, "format": "", "indent": 0, "type": "autolink", "version": 1,
+    ]
+  }
+
   /// Lexical writes a paragraph's text format and style from its first text,
   /// a tab included, and from what it holds for new text only where it has
   /// none.

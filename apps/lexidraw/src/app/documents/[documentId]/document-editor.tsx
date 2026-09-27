@@ -12,6 +12,7 @@ import {
   useState,
 } from "react";
 import { debounce } from "@packages/lib";
+import { EDITOR_NAMESPACE } from "@packages/lexical-nodes/links";
 import { type MessageStructure, PublicAccess } from "@packages/types";
 import CommentPluginProvider, {
   CommentUI,
@@ -1001,7 +1002,7 @@ function EditorScaffold({
     <SettingsProvider>
       <LexicalComposer
         initialConfig={{
-          namespace: "Lexidraw",
+          namespace: EDITOR_NAMESPACE,
           editorState: entity.elements,
           onError: (error: unknown) => {
             console.error("Error in LexicalComposer: ", error);
