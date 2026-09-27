@@ -34,7 +34,6 @@ struct MarkdownTransformer: Sendable {
     .equation: 132, .code: 132,
     .table: 117,
     .emoji: 134,
-    .link: 118,
   ]
 
   /// `compositionEndTriggerChars`: the characters that can finish a
@@ -379,12 +378,74 @@ extension Update {
     guard let trigger = units[safe: offset - 1].map({ String(decoding: [$0], as: UTF16.self) }) else { return false }
     let text = String(decoding: units.prefix(offset), as: UTF16.self)
     for transformer in MarkdownTransformer.textMatch where transformer.trigger == trigger {
-      guard let regExp = transformer.regExp, regExp.firstMatch(in: text) != nil else { continue }
+      guard let match = transformer.regExp?.firstMatch(in: text), let whole = match.groups[0] else { continue }
       try requirePorted(transformer)
-      throw EditorError.unsupported("The markdown shortcut \(transformer.name.rawValue)")
+      let end = match.index + whole.utf16.count
+      let matched =
+        match.index == 0 ? try splitText(anchor, at: [end])[0] : try splitText(anchor, at: [match.index, end])[1]
+      selectNext(matched, 0, 0)
+      try replaceText(transformer, matched, match.groups)
+      return true
     }
     return false
   }
+
+  /// A text match transformer's `replace`.
+  private mutating func replaceText(_ transformer: MarkdownTransformer, _ matched: NodeKey, _ groups: [String?]) throws {
+    switch transformer.name {
+    case .link:
+      guard findParent(from: matched, where: { state[$0].isLink }) == nil else { return }
+      let url = try Self.unescapeText(groups[2] ?? groups[3] ?? "")
+      let title = try (groups[4] ?? groups[5] ?? groups[6]).map { try Self.unescapeText($0) }
+      let link = createLink(url, rel: .null, target: .null, title: title.map(Nullable.value) ?? .null)
+      let linkText = groups[1] ?? ""
+      let opening = linkText.count { $0 == "[" }
+      let closing = linkText.count { $0 == "]" }
+      if opening < closing { return }
+      var parsedLinkText = linkText
+      var outsideLinkText = ""
+      if opening > closing {
+        let parts = linkText.components(separatedBy: "[")
+        outsideLinkText = "[" + parts[0]
+        parsedLinkText = parts.dropFirst().joined(separator: "[")
+      }
+      let format = format(of: matched)
+      try append(link, [createText(parsedLinkText, format: format)])
+      try replace(matched, with: link)
+      if !outsideLinkText.isEmpty {
+        try insert(createText(outsideLinkText, format: format), before: link)
+      }
+    default:
+      throw EditorError.unsupported("The markdown shortcut \(transformer.name.rawValue)")
+    }
+  }
+
+  /// `unescapeText` from @lexical/markdown, run in JavaScriptCore so that
+  /// character references decode, and fail to, as they do on the web.
+  private static func unescapeText(_ value: String) throws -> String {
+    try unescapeTextScript.withLock { context in
+      let result = context.objectForKeyedSubscript("unescapeText").call(withArguments: [value])
+      if let exception = context.exception {
+        context.exception = nil
+        throw EditorError.invalidState("unescapeText: \(exception)")
+      }
+      return result?.toString() ?? value
+    }
+  }
+
+  private static let unescapeTextScript: Mutex<JSContext> = {
+    let context = JSContext()!
+    context.evaluateScript(
+      """
+      function unescapeText(value) {
+        return value
+          .replace(/\\\\([!-/:-@[-`{-~])/g, '$1')
+          .replace(/&#(\\d+);/g, (_, codePoint) => String.fromCodePoint(Number(codePoint)));
+      }
+      """
+    )
+    return Mutex(context)
+  }()
 
   /// `$runTextFormatTransformers`: a closing tag typed after an opening one
   /// formats the text between them and removes both.

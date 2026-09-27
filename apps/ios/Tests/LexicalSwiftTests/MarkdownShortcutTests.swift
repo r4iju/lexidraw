@@ -269,7 +269,64 @@ import Testing
         expected: document(paragraph(text("ab", format: .italic)))),
     ]
 
-  @Test(arguments: blocks + lists + formats)
+  /// A link as the LINK shortcut makes one, with no `rel`.
+  static func shortcutLink(_ url: String, _ children: JSONValue..., title: String? = nil) -> JSONValue {
+    LexicalJSON.link(url, children, rel: nil, title: title)
+  }
+
+  static let links: [Script] = [
+    Script(
+      name: "[a](b) makes a link", start: emptyParagraph, commands: [caretInEmptyParagraph] + typing("[a](b)"),
+      expected: document(paragraph(shortcutLink("b", text("a"))))),
+    Script(
+      name: "text typed after a link goes after it", start: emptyParagraph,
+      commands: [caretInEmptyParagraph] + typing("x [a](b)c"),
+      expected: document(paragraph(text("x "), shortcutLink("b", text("a")), text("c")))),
+    Script(
+      name: "a link typed before text leaves the caret before that text", start: document(paragraph(text("yz"))),
+      commands: [.caret(.text([0, 0], 0))] + typing("[a](b)c"),
+      expected: document(paragraph(shortcutLink("b", text("a")), text("cyz")))),
+    Script(
+      name: "a link takes a title", start: emptyParagraph, commands: [caretInEmptyParagraph] + typing("[a](b \"t\")"),
+      expected: document(paragraph(shortcutLink("b", text("a"), title: "t")))),
+    Script(
+      name: "a link's URL between angle brackets can hold a space", start: emptyParagraph,
+      commands: [caretInEmptyParagraph] + typing("[a](<b c>)"), expected: document(paragraph(shortcutLink("b c", text("a"))))),
+    Script(
+      name: "a link's URL loses its escapes", start: emptyParagraph,
+      commands: [caretInEmptyParagraph] + typing("[a](b\\)&#33;)"),
+      expected: document(paragraph(shortcutLink("b)!", text("a"))))),
+    Script(
+      name: "a link to a character past Unicode fails and leaves what was typed", start: emptyParagraph,
+      commands: [caretInEmptyParagraph] + typing("[a](&#1114112;)"), expected: document(paragraph(text("[a](&#1114112;)")))),
+    Script(
+      name: "[a]() makes a link to nothing", start: emptyParagraph, commands: [caretInEmptyParagraph] + typing("[a]()"),
+      expected: document(paragraph(shortcutLink("", text("a"))))),
+    Script(
+      name: "a link's text takes the format of what was typed", start: document(paragraph(text("[a](b", format: .bold))),
+      commands: [.caret(.text([0, 0], 5)), .insertText(")")],
+      expected: document(LexicalJSON.paragraph([shortcutLink("b", text("a", format: .bold))], textFormat: .bold))),
+    Script(
+      name: "a bracket before a link stays text", start: emptyParagraph, commands: [caretInEmptyParagraph] + typing("[[a](b)"),
+      expected: document(paragraph(text("["), shortcutLink("b", text("a"))))),
+    Script(
+      name: "a link typed in a link's text stays text", start: document(paragraph(link("https://a.io", text("xy")))),
+      commands: [.caret(.text([0, 0, 0], 1))] + typing("[a](b)c"),
+      expected: document(paragraph(link("https://a.io", text("x[a](b)cy"))))),
+    Script(
+      name: "a URL typed in a link's parentheses", start: emptyParagraph,
+      commands: [caretInEmptyParagraph] + typing("[a](https://a.io)"),
+      expected: document(paragraph(shortcutLink("https://a.io", text("a"))))),
+    Script(
+      name: "a composition that ends in ) finishes a link", start: emptyParagraph,
+      commands: [caretInEmptyParagraph, .commitComposition("[日本](b)")],
+      expected: document(paragraph(shortcutLink("b", text("日本"))))),
+    Script(
+      name: "undo after a link gives back what was typed", start: emptyParagraph,
+      commands: [caretInEmptyParagraph] + typing("[a](b)") + [.undo], expected: document(paragraph(text("[a](b)")))),
+  ]
+
+  @Test(arguments: blocks + lists + formats + links)
   func lexicalSwiftDoesWhatLexicalDoes(_ script: Script) throws {
     let fixture = try Fixture.record(
       start: script.start, commands: script.commands, on: try Support.referenceEditor())
@@ -281,7 +338,7 @@ import Testing
   /// Typing that a transformer LexicalSwift doesn't port yet turns into
   /// something else in Lexical, and what LexicalSwift leaves instead.
   static let notPortedYet: [Script] = [
-    "``` ", ":smile:", "$x$", "|a| ", "[a](b)", "![a](b)",
+    "``` ", ":smile:", "$x$", "|a| ", "![a](b)",
   ].map { keys in
     Script(
       name: keys, start: emptyParagraph, commands: [caretInEmptyParagraph] + typing(keys),

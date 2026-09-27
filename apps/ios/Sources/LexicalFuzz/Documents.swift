@@ -19,9 +19,12 @@ public enum LexicalJSON {
     ]
   }
 
-  public static func link(_ url: String, _ children: [JSONValue], rel: String? = "noreferrer") -> JSONValue {
+  public static func link(_ url: String, _ children: [JSONValue], rel: String? = "noreferrer", title: String? = nil)
+    -> JSONValue
+  {
     [
-      "children": .array(children), "rel": rel.map(JSONValue.string) ?? nil, "target": nil, "title": nil,
+      "children": .array(children), "rel": rel.map(JSONValue.string) ?? nil, "target": nil,
+      "title": title.map(JSONValue.string) ?? nil,
       "url": .string(url), "direction": nil, "format": "", "indent": 0, "type": "link", "version": 1,
     ]
   }

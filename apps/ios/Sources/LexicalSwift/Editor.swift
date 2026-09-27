@@ -62,10 +62,19 @@ public final class Editor: EditorModel {
       }
       changes.clipboard = copied.clipboard
       return changes
+    } catch let failure as ShortcutFailure {
+      throw failure.error
     } catch {
       (state, nextKey, history, knowsListMarker) = saved
       throw error
     }
+  }
+
+  /// An error in a markdown shortcut's update. Lexical reports it and drops
+  /// that update alone, so the updates before it, the one that set the
+  /// shortcut off among them, stay.
+  private struct ShortcutFailure: Error {
+    let error: any Error
   }
 
   /// Runs and commits an update, then the markdown shortcuts it sets off:
@@ -89,7 +98,8 @@ public final class Editor: EditorModel {
       compositionEnd = false
       previous = state
       update = Update(state, nextKey: nextKey, revision: nextRevision(), knowsListMarker: knowsListMarker)
-      let isShortcut = try update.runMarkdownShortcut(at: caret)
+      let isShortcut: Bool
+      do { isShortcut = try update.runMarkdownShortcut(at: caret) } catch { throw ShortcutFailure(error: error) }
       shortcutsDeclinedAsNotPorted += update.shortcutsDeclinedAsNotPorted
       guard try commit(&update, pushingHistory: isShortcut) else { break }
       changed += update.changedKeys
