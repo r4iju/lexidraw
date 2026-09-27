@@ -327,19 +327,19 @@ import UIKit
       ])
   }
 
-  @Test func editingALinkChangesItsURL() throws {
+  @Test func editingALinkChangesItsURLAsTheWebWritesIt() throws {
     let (view, model) = try editing(Self.linked)
     var offered: String?
     view.askForURL = { current, answer in
       offered = current
-      answer("https://b.io")
+      answer("HTTPS://B.io")
     }
     select(view, 6, 6)
 
     view.editLink()
 
     #expect(offered == "https://a.io")
-    #expect(try paragraphs(model).first?["children"]?.arrayValue?[1]["url"] == "https://b.io")
+    #expect(try paragraphs(model).first?["children"]?.arrayValue?[1]["url"] == "https://b.io/")
   }
 
   /// As on the web, saving no URL changes nothing; removing is its own
