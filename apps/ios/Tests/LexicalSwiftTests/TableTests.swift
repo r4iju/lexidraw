@@ -147,6 +147,11 @@ import Testing
     #expect(fixture.expected.selection == nil)
     #expect(fixture.changes.last == .refused(.noSelection))
     #expect(cellTexts(fixture.expected, table: 1) == [["a", "b"], ["c", "d"]])
+
+    let composed = try agreed(
+      grid, [.setSelection(anchor: cell(0, 0, 0), focus: cell(0, 1, 0)), .commitComposition("か")])
+    #expect(composed.expected.selection == nil)
+    #expect(cellTexts(composed.expected, table: 1) == [["a", "b"], ["c", "d"]])
   }
 
   @Test func formattingATableSelectionFormatsEveryCell() throws {

@@ -273,7 +273,7 @@ extension Update {
   /// A table selection, where each table's handlers answer first.
   private mutating func run(_ command: EditorCommand, onCells selection: TableSelection) throws {
     switch command {
-    case .insertText: clearSelection()
+    case .insertText, .commitComposition: clearSelection()
     case .deleteCharacter: _ = try deleteCellHandler()
     case .deleteWord, .deleteLine: try clearText(selection)
     case .formatText(let format): try formatCells(selection, format)
