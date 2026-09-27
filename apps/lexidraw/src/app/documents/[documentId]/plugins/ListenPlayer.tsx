@@ -110,11 +110,18 @@ export function ListenPlayer({
   const status = statusQuery.data?.status;
   // Parts still being made come after the ones listed so far.
   const making = status === "queued" || status === "processing";
+  // Asked again while parts are made, and once made, until all are listed:
+  // a read just after the store writes can miss.
+  const made = statusQuery.data?.segmentCount ?? 0;
   const manifestQuery = api.tts.getDocumentTtsManifest.useQuery(
     { documentId },
     {
       enabled: open && (making || status === "ready"),
-      refetchInterval: making ? 1500 : false,
+      refetchInterval: (query) =>
+        making ||
+        (status === "ready" && (query.state.data?.segments.length ?? 0) < made)
+          ? 1500
+          : false,
     },
   );
   const refetchManifest = manifestQuery.refetch;

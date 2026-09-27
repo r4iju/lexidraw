@@ -411,11 +411,11 @@ export default function ArticlePreview({
           const manifest = await utils.tts.getArticleTtsManifest.fetch({
             articleId: entity.id,
           });
-          setSegments(
-            Array.isArray(manifest.segments)
-              ? (manifest.segments as TtsSegment[])
-              : [],
-          );
+          // A read just after the store writes can miss; the parts already
+          // playing are kept then.
+          if (manifest.segments.length >= listed) {
+            setSegments(manifest.segments as TtsSegment[]);
+          }
           // One already playing its parts plays on, not the whole file.
           setStitchedUrl(
             listed === 0 && typeof manifest.stitchedUrl === "string"
