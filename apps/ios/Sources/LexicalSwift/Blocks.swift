@@ -6,19 +6,40 @@ import OrderedCollections
 extension Update {
   /// `$setBlockType` in @packages/lexical-nodes.
   mutating func setBlockType(_ selection: RangeSelection, _ type: BlockType) throws {
-    try setBlocksType(selection) { update in
-      switch type {
-      case .paragraph: update.create(SerializedParagraphNode.type)
-      case .quote: update.create(SerializedQuoteNode.type)
-      case .h1, .h2, .h3, .h4, .h5, .h6: update.createHeading(HeadingTag(rawValue: type.rawValue)!)
-      }
+    try replace(try blocks(in: selection), with: type)
+  }
+
+  /// `$setBlockType` over cells. A table selection's points are on cells,
+  /// which aren't blocks, so `$setBlocksType` takes the blocks among the
+  /// selected cells' nodes alone.
+  mutating func setBlockType(_ selection: TableSelection, _ type: BlockType) throws {
+    var blocks: [NodeKey] = []
+    func visit(_ node: NodeKey) {
+      if state[node].isElement, isBlock(node) { blocks.append(node) }
+      state.children(of: node).forEach(visit)
+    }
+    try cells(of: selection).forEach(visit)
+    try replace(blocks, with: type)
+  }
+
+  /// Each of `blocks` replaced by a new block of `type` that takes its
+  /// children, format and indent.
+  private mutating func replace(_ blocks: some Sequence<NodeKey>, with type: BlockType) throws {
+    for block in blocks {
+      let element =
+        switch type {
+        case .paragraph: create(SerializedParagraphNode.type)
+        case .quote: create(SerializedQuoteNode.type)
+        case .h1, .h2, .h3, .h4, .h5, .h6: createHeading(HeadingTag(rawValue: type.rawValue)!)
+        }
+      copyBlockFormatIndent(from: block, to: element)
+      try replace(block, with: element, includingChildren: true)
     }
   }
 
-  /// `$setBlocksType`: every block the selection touches is replaced by a new
-  /// one that takes its children, leaving out a block the selection's focus
-  /// only reaches the near edge of.
-  private mutating func setBlocksType(_ selection: RangeSelection, _ create: (inout Update) -> NodeKey) throws {
+  /// `$setBlocksType`'s blocks: every block the selection touches, leaving
+  /// out a block the selection's focus only reaches the near edge of.
+  private func blocks(in selection: RangeSelection) throws -> OrderedSet<NodeKey> {
     let (anchor, focus) = (selection.anchor, selection.focus)
     let anchorBlock = findParent(from: anchor.key, where: isBlock)
     let focusBlock = findParent(from: focus.key, where: isBlock)
@@ -34,11 +55,7 @@ extension Update {
       if skipFocus, node == focusBlock { continue }
       blocks.append(node)
     }
-    for block in blocks {
-      let element = create(&self)
-      copyBlockFormatIndent(from: block, to: element)
-      try replace(block, with: element, includingChildren: true)
-    }
+    return blocks
   }
 
   /// `$isPointAtBlockEdge`: an empty block counts as wholly selected rather

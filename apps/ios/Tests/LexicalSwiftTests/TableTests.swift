@@ -157,6 +157,15 @@ import Testing
     #expect(node(once.expected, [1, 1, 1, 0, 0])?["format"] == 0)
   }
 
+  @Test func aBlockTypeOverATableSelectionSetsEveryBlockInItsCells() throws {
+    let fixture = try agreed(
+      grid, [.setSelection(anchor: cell(0, 0, 0), focus: cell(1, 0, 0)), .setBlockType(.h1), .setBlockType(.quote)])
+
+    #expect(node(fixture.expected, [1, 0, 0, 0])?["type"] == "quote")
+    #expect(node(fixture.expected, [1, 1, 0, 0])?["type"] == "quote")
+    #expect(node(fixture.expected, [1, 1, 1, 0])?["type"] == "paragraph")
+  }
+
   @Test func enterOverATableSelectionDoesNothing() throws {
     let fixture = try agreed(
       grid, [.setSelection(anchor: cell(0, 0, 0), focus: cell(0, 1, 0)), .insertParagraph, .insertLineBreak])

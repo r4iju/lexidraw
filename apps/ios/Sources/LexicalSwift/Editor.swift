@@ -277,6 +277,7 @@ extension Update {
     case .deleteCharacter: _ = try deleteCellHandler()
     case .deleteWord, .deleteLine: try clearText(selection)
     case .formatText(let format): try formatCells(selection, format)
+    case .setBlockType(let type): try setBlockType(selection, type)
     // Rich text's Enter answers a range selection alone.
     case .insertParagraph, .insertLineBreak: break
     // Neither the table's Tab nor Tab indentation's answers cells.
