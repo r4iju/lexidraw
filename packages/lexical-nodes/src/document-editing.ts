@@ -19,13 +19,13 @@ import {
 } from "lexical";
 
 /** How deep lists nest before indenting stops. */
-export const MAX_LIST_DEPTH = 6;
+const MAX_LIST_DEPTH = 6;
 
 /**
- * The document editor's editing that doesn't need the DOM: lists,
- * checklists, how deep lists nest, and Tab and the indent commands. The web
- * editor registers it, and so does the iOS reference, so LexicalSwift is held
- * to what the web does.
+ * The document editor's lists, checklists, how deep lists nest, and Tab and
+ * the indent commands. The web editor registers it, and so does the iOS
+ * reference, so LexicalSwift is held to what the web does. The checklist
+ * registers a root listener for its pointer handling.
  */
 export function registerDocumentEditing(editor: LexicalEditor): () => void {
   return mergeRegister(
@@ -38,7 +38,7 @@ export function registerDocumentEditing(editor: LexicalEditor): () => void {
 }
 
 /** Refuses to indent a list item past `maxDepth` levels of list. */
-export function registerListMaxIndentLevel(
+function registerListMaxIndentLevel(
   editor: LexicalEditor,
   maxDepth: number,
 ): () => void {
