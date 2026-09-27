@@ -57,12 +57,12 @@ public struct Fixture: Codable, Equatable, Sendable {
   }
 
   /// `model`'s snapshot, or, where its selection is a table selection over
-  /// a hole in its table, its tree and no selection. Any other failure is
-  /// thrown on.
+  /// a hole in its table or of a node that's gone, its tree and no
+  /// selection. Any other failure is thrown on.
   static func readBack(_ model: some EditorModel) throws -> (snapshot: Snapshot, isSelectionUnreadable: Bool) {
     do {
       return (try model.snapshot(), false)
-    } catch let error as EditorError where error == .tableSelectionOverAHole {
+    } catch let error as EditorError where [.tableSelectionOverAHole, .tableSelectionOfAGoneNode].contains(error) {
       return (Snapshot(state: try model.serializedState(), selection: nil), true)
     }
   }

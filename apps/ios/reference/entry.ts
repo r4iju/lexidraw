@@ -482,11 +482,18 @@ function pathSelection() {
   const selection = $getSelection();
   if ($isTableSelection(selection)) {
     const table = $getNodeByKey(selection.tableKey);
-    if (!table) throw new EditorError("invalidState", "A lost table");
+    const anchor = $getNodeByKey(selection.anchor.key);
+    const focus = $getNodeByKey(selection.focus.key);
+    if (!table || !anchor || !focus) {
+      throw new EditorError(
+        "invalidState",
+        "A table selection's table, anchor cell or focus cell is gone",
+      );
+    }
     return {
       table: pathOf(table),
-      anchor: pathOf(selection.anchor.getNode()),
-      focus: pathOf(selection.focus.getNode()),
+      anchor: pathOf(anchor),
+      focus: pathOf(focus),
       cells: selectedNodes(selection).filter($isTableCellNode).map(pathOf),
     };
   }

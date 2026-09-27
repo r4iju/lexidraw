@@ -16,7 +16,8 @@ public struct Fuzzer {
   /// Sessions ended as `isNotPortedYet` says.
   public private(set) var sessionsEndedNotPortedYet = 0
   /// Sessions ended where neither model could read its selection back, as
-  /// `EditorError.tableSelectionOverAHole` says, with the same tree.
+  /// `EditorError.tableSelectionOverAHole` and `.tableSelectionOfAGoneNode`
+  /// say, with the same tree.
   public private(set) var sessionsEndedUnreadable = 0
 
   /// The node types Lexical's markdown shortcuts make that LexicalSwift's

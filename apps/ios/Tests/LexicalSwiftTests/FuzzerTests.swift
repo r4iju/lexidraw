@@ -273,6 +273,28 @@ import Testing
     #expect(try fixture.replay(on: Editor()) == fixture.recorded)
   }
 
+  /// Nor can either read back a table selection once its anchor or focus
+  /// cell is gone, as where listing a rule in a cell lists its table.
+  @Test func bothModelsFailToReadBackATableSelectionWhoseCellIsGone() throws {
+    func cell(_ children: JSONValue...) -> JSONValue {
+      LexicalJSON.element("tablecell", children, ["backgroundColor": nil, "colSpan": 1, "headerState": 0, "rowSpan": 1])
+    }
+    let start = document(
+      LexicalJSON.element(
+        "table", [
+          LexicalJSON.element("tablerow", [cell(paragraph(text("a"))), cell(paragraph(text("b")))]),
+          LexicalJSON.element("tablerow", [cell(paragraph(text("c")), LexicalJSON.horizontalRule), cell(paragraph(text("d")))]),
+        ]))
+
+    let fixture = try Fixture.record(
+      start: start,
+      commands: [.setSelection(anchor: .text([0, 0, 1, 0, 0], 0), focus: .text([0, 1, 0, 0, 0], 1)), .insertList(.bullet)],
+      on: try Support.referenceEditor())
+
+    #expect(fixture.isSelectionUnreadable == true)
+    #expect(try fixture.replay(on: Editor()) == fixture.recorded)
+  }
+
   /// LexicalSwift that refuses what Lexical refuses, but for another reason.
   final class RefusesAsUnsupported: LexicalSwiftWith {
     override func apply(_ command: EditorCommand) throws -> ChangeSet {

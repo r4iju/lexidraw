@@ -543,4 +543,10 @@ public enum EditorError: Error, Equatable {
   /// neither model can read that selection back.
   public static let tableSelectionOverAHole = EditorError.invalidState(
     "TableSelection.getNodes read a cell the table hasn't got")
+
+  /// A table selection whose table, anchor cell or focus cell a command
+  /// removed, which Lexical leaves in place, so neither model can read that
+  /// selection back.
+  public static let tableSelectionOfAGoneNode = EditorError.invalidState(
+    "A table selection's table, anchor cell or focus cell is gone")
 }

@@ -135,7 +135,7 @@ extension EditorState {
       return .range(anchor: anchor, focus: focus, format: range.format, style: range.style)
     case .table(let table):
       guard let tablePath = path(of: table.table), let anchor = path(of: table.anchor), let focus = path(of: table.focus)
-      else { return nil }
+      else { throw EditorError.tableSelectionOfAGoneNode }
       // The reference lists the cells among `getNodes`, which takes in what
       // the selected cells hold, a table's cells included, as
       // `$visitRecursively` does: last child first.
