@@ -21,9 +21,21 @@ enum MarkdownImport {
     }
 
     let block: Block
-    /// The line's text past its block's markdown, formatted.
-    let text: [(text: Text, format: TextFormat)]
+    /// The line's text past its block's markdown, formatted, and the link
+    /// each part is the text of, if any.
+    let text: [(text: Text, format: TextFormat, link: Link?)]
     let isEmpty: Bool
+  }
+
+  /// A link the LINK transformer makes, which the parts of its text share.
+  final class Link {
+    let url: String
+    let title: String?
+
+    init(url: String, title: String?) {
+      self.url = url
+      self.title = title
+    }
   }
 
   static func lines(_ markdown: String) throws -> [Line] {
@@ -146,7 +158,7 @@ enum MarkdownImport {
     }
     var pieces = [text]
     try importTextTransformers(text, in: &pieces)
-    return Line(block: block, text: pieces.map { ($0.text, $0.format) }, isEmpty: line.isEmpty)
+    return Line(block: block, text: pieces.map { ($0.text, $0.format, $0.link) }, isEmpty: line.isEmpty)
   }
 
   /// Ends the import where the web would run a transformer LexicalSwift
@@ -161,10 +173,12 @@ enum MarkdownImport {
   fileprivate final class Piece {
     var text: Text
     var format: TextFormat
+    let link: Link?
 
-    init(_ text: Text, format: TextFormat = []) {
+    init(_ text: Text, format: TextFormat = [], link: Link? = nil) {
       self.text = text
       self.format = format
+      self.link = link
     }
 
     /// `canContainTransformableMarkdown`.
@@ -186,7 +200,7 @@ enum MarkdownImport {
     if !part.isEmpty { parts.append(part) }
     guard let first = parts.first, parts.count > 1 else { return [piece] }
     piece.text = first
-    let rest = parts.dropFirst().map { Piece($0, format: piece.format) }
+    let rest = parts.dropFirst().map { Piece($0, format: piece.format, link: piece.link) }
     let index = pieces.firstIndex { $0 === piece }!
     pieces.insert(contentsOf: rest, at: index + 1)
     return [piece] + rest
@@ -226,21 +240,49 @@ enum MarkdownImport {
       let (before, after) = format.start == 0 ? (nil, parts[safe: 1]) : (parts.first, parts[safe: 2])
       next = [after, before, transformed]
     } else if let match {
-      // Of the text matches, only this one's `replace` is ported: it leaves
-      // the placeholder as text, split off from what's around it.
-      guard match.transformer.name == .placeholderInline else {
+      switch match.transformer.name {
+      case .placeholderInline, .link: break
+      default:
         try requirePorted(match.transformer.name)
         throw EditorError.unsupported("Importing the markdown \(match.transformer.name.rawValue)")
       }
       let parts =
         match.start == 0
         ? split(piece, at: [match.end], in: &pieces) : split(piece, at: [match.start, match.end], in: &pieces)
-      next = match.start == 0 ? [parts[safe: 1], nil] : [parts[safe: 2], parts.first]
+      let transformed = match.start == 0 ? parts[0] : parts[1]
+      // The placeholder's `replace` leaves it as text.
+      let replaced = match.transformer.name == .link ? try replaceLink(transformed, match.groups, in: &pieces) : nil
+      next = match.start == 0 ? [parts[safe: 1], nil, replaced] : [parts[safe: 2], parts.first, replaced]
     }
     for case let piece? in next where piece.canContainTransformableMarkdown {
       try importTextTransformers(piece, in: &pieces)
     }
     piece.text = try unescape(piece.text)
+  }
+
+  /// LINK's `replace`: `piece` becomes a link holding a text of its own,
+  /// which it returns, after the text of an opening bracket that has no
+  /// closing one, unless `piece` is already a link's text.
+  private static func replaceLink(_ piece: Piece, _ groups: [String?], in pieces: inout [Piece]) throws -> Piece? {
+    guard piece.link == nil else { return nil }
+    let url = try unescape(Text((groups[2] ?? groups[3] ?? "").utf16))
+    let title = try (groups[4] ?? groups[5] ?? groups[6]).map { try unescape(Text($0.utf16)) }
+    let linkText = Text((groups[1] ?? "").utf16)
+    let (opening, closing) = (linkText.count { $0 == openingBracket }, linkText.count { $0 == closingBracket })
+    if opening < closing { return nil }
+    var parsed = linkText
+    var outside: Text = []
+    if opening > closing {
+      let parts = linkText.split(separator: openingBracket, omittingEmptySubsequences: false)
+      outside = [openingBracket] + parts[0]
+      parsed = Text(parts.dropFirst().joined(separator: [openingBracket]))
+    }
+    let link = Piece(
+      parsed, format: piece.format, link: Link(url: string(url), title: title.map { string($0) }))
+    let index = pieces.firstIndex { $0 === piece }!
+    pieces[index] = link
+    if !outside.isEmpty { pieces.insert(Piece(outside, format: piece.format), at: index) }
+    return link
   }
 
   /// `unescapeText`: a backslash before ASCII punctuation goes, and a
@@ -321,6 +363,8 @@ enum MarkdownImport {
   static let space = " ".utf16.first!
   static let backslash = "\\".utf16.first!
   private static let ampersand = "&".utf16.first!
+  private static let openingBracket = "[".utf16.first!
+  private static let closingBracket = "]".utf16.first!
   private static let hash = "#".utf16.first!
   private static let semicolon = ";".utf16.first!
   private static let zero = "0".utf16.first!
@@ -540,6 +584,7 @@ extension MarkdownImport {
     let start: Int
     let end: Int
     let transformer: MarkdownTransformer
+    let groups: [String?]
 
     static func outermost(in text: String) -> TextMatch? {
       var found: TextMatch?
@@ -548,7 +593,7 @@ extension MarkdownImport {
         let start = match.index
         let end = start + whole.utf16.count
         if let previous = found, !(start < previous.start && (end > previous.end || end <= previous.start)) { continue }
-        found = TextMatch(start: start, end: end, transformer: transformer)
+        found = TextMatch(start: start, end: end, transformer: transformer, groups: match.groups)
       }
       return found
     }
@@ -565,7 +610,7 @@ extension Update {
     var mode = ListReplaceMode.import(columns: [])
     for line in lines {
       let paragraph = create(SerializedParagraphNode.type)
-      let text = line.text.map { createText(MarkdownImport.string($0.text), format: $0.format) }
+      let text = try inlineNodes(line.text)
       try append(paragraph, text)
       try append(container, [paragraph])
       switch line.block {
@@ -601,6 +646,30 @@ extension Update {
       guard state[child].isElement else { continue }
       for text in textNodes(in: child) { try splitTabs(text) }
     }
+  }
+
+  /// The texts of a line, those of one link in it.
+  private mutating func inlineNodes(_ text: [(text: MarkdownImport.Text, format: TextFormat, link: MarkdownImport.Link?)])
+    throws -> [NodeKey]
+  {
+    var nodes: [NodeKey] = []
+    var last: (link: MarkdownImport.Link, key: NodeKey)?
+    for part in text {
+      let node = createText(MarkdownImport.string(part.text), format: part.format)
+      guard let link = part.link else {
+        nodes.append(node)
+        continue
+      }
+      if let last, last.link === link {
+        try append(last.key, [node])
+        continue
+      }
+      let key = createLink(link.url, rel: .null, target: .null, title: link.title.map(Nullable.value) ?? .null)
+      try append(key, [node])
+      nodes.append(key)
+      last = (link, key)
+    }
+    return nodes
   }
 
   /// What a line that makes no block joins: a paragraph or quote before it,

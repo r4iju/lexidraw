@@ -40,7 +40,6 @@ struct MarkdownTransformer: Sendable {
     .equation: 132, .code: 132, .blockEquation: 132, .blockEquationFence: 132,
     .callout: 133, .admonition: 133, .details: 133, .columns: 133,
     .emoji: 134, .footnoteDefinition: 134, .footnoteReference: 134,
-    .link: 118,
   ]
 
   /// `compositionEndTriggerChars`: the characters that can finish a

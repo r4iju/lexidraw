@@ -97,6 +97,9 @@ import Testing
     Script(
       name: "a character reference past Unicode's end fails the update, as JavaScript throws",
       start: emptyParagraph, commands: row("|&#99999999;|"), expected: "p(|&#99999999;| )"),
+    Script(
+      name: "a link to a character past Unicode's end fails the update too",
+      start: emptyParagraph, commands: row("|[a](&#99999999;)|"), expected: "p(|[a](&#99999999;)| )"),
   ]
 
   /// What a cell imports, typed as a row of its own.
@@ -129,6 +132,12 @@ import Testing
     ("details that aren't closed are text", "<details>", "table[p(<details>)]"),
     ("columns that aren't closed are text", "<columns>", "table[p(<columns>)]"),
     ("columns with nothing in them are text", #"<columns>\n</columns>"#, "table[p(<columns>⏎</columns>)]"),
+    ("a link is a link", "x [a](b) y", "table[p(x [a](b) y)]"),
+    ("a link's text imports its formats", "[**a** c](b)", "table[p([a{1} c](b))]"),
+    ("a link takes a title, and its URL loses its escapes", #"[a](<b\>c> "t")"#, #"table[p([a](b>c "t"))]"#),
+    ("a bracket before a link stays outside it", "[[a](b)", "table[p([[a](b))]"),
+    ("a link in a link's text stays text", "[[a](b) c](d)", "table[p([[a](b) c](d))]"),
+    ("a link in code stays code", "`[a](b)`", "table[p([a](b){16})]"),
   ].map { name, markdown, expected in
     Script(name: name, start: emptyParagraph, commands: row("|\(markdown)|"), expected: expected)
   }
@@ -209,7 +218,7 @@ import Testing
   /// Markdown in a cell that a transformer LexicalSwift doesn't port yet
   /// imports as something else, and the row stays as typed instead.
   static let notPortedYet: [Script] = [
-    "```", "``` a", "$x$", "$$x$$", "[a](b)", "![a](b)", ":smile:", "[^a]", "[^a]: b",
+    "```", "``` a", "$x$", "$$x$$", "![a](b)", ":smile:", "[^a]", "[^a]: b",
     #"<tweet id="1" />"#, "> [!note]", #"$$\nx\n$$"#, #":::note\na\n:::"#, "<details></details>",
     #"<details>\na\n</details>"#, #"<columns>\na\n</columns>"#,
   ].map { markdown in
@@ -273,6 +282,9 @@ import Testing
       return (node["text"]?.stringValue ?? "") + (format == 0 ? "" : "{\(format)}")
     case "linebreak": return "⏎" + (node["$"]?["mdHardLineBreak"]?.stringValue ?? "")
     case "tab": return "⇥"
+    case "link":
+      let title = node["title"]?.stringValue.map { #" "\#($0)""# } ?? ""
+      return "[\((node["children"]?.arrayValue ?? []).map(inline).joined())](\(node["url"]?.stringValue ?? "")\(title))"
     case let type: return "<\(type ?? "?")>"
     }
   }
