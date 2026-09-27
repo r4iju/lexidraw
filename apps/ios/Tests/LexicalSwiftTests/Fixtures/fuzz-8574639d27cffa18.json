@@ -1,0 +1,323 @@
+{
+  "changes" : [
+    {
+      "changed" : [
+
+      ]
+    },
+    {
+      "changed" : [
+        [
+
+        ],
+        [
+          0,
+          1
+        ]
+      ]
+    },
+    {
+      "changed" : [
+        [
+
+        ],
+        [
+          0
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          1
+        ]
+      ]
+    },
+    {
+      "changed" : [
+        [
+
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          1
+        ]
+      ]
+    },
+    {
+      "changed" : [
+        [
+
+        ],
+        [
+          0,
+          1
+        ],
+        [
+          0,
+          2
+        ],
+        [
+          0,
+          2,
+          0
+        ],
+        [
+          0,
+          2,
+          0,
+          0
+        ]
+      ]
+    }
+  ],
+  "commands" : [
+    {
+      "anchor" : {
+        "offset" : 1,
+        "path" : [
+          0,
+          1
+        ],
+        "type" : "element"
+      },
+      "focus" : {
+        "offset" : 1,
+        "path" : [
+          0,
+          1
+        ],
+        "type" : "element"
+      },
+      "type" : "setSelection"
+    },
+    {
+      "backward" : true,
+      "lineBoundary" : {
+        "offset" : 0,
+        "path" : [
+          0,
+          1
+        ],
+        "type" : "element"
+      },
+      "type" : "deleteLine"
+    },
+    {
+      "backward" : true,
+      "type" : "deleteCharacter"
+    },
+    {
+      "listType" : "number",
+      "type" : "insertList"
+    },
+    {
+      "clipboard" : {
+        "application/x-lexical-editor" : {
+          "namespace" : "Lexidraw",
+          "nodes" : [
+            {
+              "children" : [
+                {
+                  "detail" : 0,
+                  "format" : 1,
+                  "mode" : "normal",
+                  "style" : "",
+                  "text" : "https://c.io/d",
+                  "type" : "text",
+                  "version" : 1
+                }
+              ],
+              "direction" : null,
+              "format" : "",
+              "indent" : 0,
+              "isUnlinked" : false,
+              "rel" : null,
+              "target" : null,
+              "title" : null,
+              "type" : "autolink",
+              "url" : "https://c.io/d?e=f",
+              "version" : 1
+            }
+          ]
+        },
+        "text/plain" : "https://c.io/d"
+      },
+      "type" : "paste"
+    }
+  ],
+  "expected" : {
+    "selection" : {
+      "anchor" : {
+        "offset" : 14,
+        "path" : [
+          0,
+          2,
+          0,
+          0
+        ],
+        "type" : "text"
+      },
+      "focus" : {
+        "offset" : 14,
+        "path" : [
+          0,
+          2,
+          0,
+          0
+        ],
+        "type" : "text"
+      },
+      "format" : 0,
+      "style" : ""
+    },
+    "state" : {
+      "root" : {
+        "children" : [
+          {
+            "children" : [
+              {
+                "children" : [
+
+                ],
+                "direction" : null,
+                "format" : "",
+                "indent" : 0,
+                "type" : "listitem",
+                "value" : 1,
+                "version" : 1
+              },
+              {
+                "children" : [
+
+                ],
+                "direction" : null,
+                "format" : "",
+                "indent" : 0,
+                "type" : "listitem",
+                "value" : 2,
+                "version" : 1
+              },
+              {
+                "children" : [
+                  {
+                    "children" : [
+                      {
+                        "detail" : 0,
+                        "format" : 0,
+                        "mode" : "normal",
+                        "style" : "",
+                        "text" : "https://c.io/d",
+                        "type" : "text",
+                        "version" : 1
+                      }
+                    ],
+                    "direction" : null,
+                    "format" : "",
+                    "indent" : 0,
+                    "isUnlinked" : false,
+                    "rel" : null,
+                    "target" : null,
+                    "title" : null,
+                    "type" : "autolink",
+                    "url" : "https://c.io/d",
+                    "version" : 1
+                  }
+                ],
+                "direction" : null,
+                "format" : "",
+                "indent" : 0,
+                "type" : "listitem",
+                "value" : 3,
+                "version" : 1
+              }
+            ],
+            "direction" : null,
+            "format" : "",
+            "indent" : 0,
+            "listType" : "number",
+            "start" : 1,
+            "tag" : "ol",
+            "type" : "list",
+            "version" : 1
+          }
+        ],
+        "direction" : null,
+        "format" : "",
+        "indent" : 0,
+        "type" : "root",
+        "version" : 1
+      }
+    }
+  },
+  "start" : {
+    "root" : {
+      "children" : [
+        {
+          "children" : [
+            {
+              "children" : [
+
+              ],
+              "direction" : null,
+              "format" : "",
+              "indent" : 0,
+              "type" : "listitem",
+              "value" : 1,
+              "version" : 1
+            },
+            {
+              "children" : [
+                {
+                  "children" : [
+                    {
+                      "detail" : 0,
+                      "format" : 64,
+                      "mode" : "normal",
+                      "style" : "",
+                      "text" : "`",
+                      "type" : "text",
+                      "version" : 1
+                    }
+                  ],
+                  "direction" : null,
+                  "format" : "",
+                  "indent" : 0,
+                  "rel" : "noreferrer",
+                  "target" : null,
+                  "title" : null,
+                  "type" : "link",
+                  "url" : "https://",
+                  "version" : 1
+                }
+              ],
+              "direction" : null,
+              "format" : "",
+              "indent" : 0,
+              "type" : "listitem",
+              "value" : 2,
+              "version" : 1
+            }
+          ],
+          "direction" : null,
+          "format" : "",
+          "indent" : 0,
+          "listType" : "number",
+          "start" : 1,
+          "tag" : "ol",
+          "type" : "list",
+          "version" : 1
+        }
+      ],
+      "direction" : null,
+      "format" : "",
+      "indent" : 0,
+      "type" : "root",
+      "version" : 1
+    }
+  }
+}

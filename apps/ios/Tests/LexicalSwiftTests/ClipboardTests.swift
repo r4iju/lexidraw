@@ -114,6 +114,9 @@ func plain(_ text: String) -> EditorCommand { .paste(Clipboard(plainText: text))
     Scenario("pasting paragraphs into a list around a list", nested, [.caret(Point(path: [0, 0], offset: 0, type: .element)), .paste(paragraphs)]),
     Scenario("pasting paragraphs after a nested list", nested, [.caret(Point(path: [0, 0, 0], offset: 1, type: .element)), .paste(paragraphs)]),
     Scenario(
+      "pasting text after a list, which Lexical can't, pastes it as plain text", items,
+      [.caret(Point(path: [0], offset: 2, type: .element)), .paste(copied("x", text("x", format: .bold)))]),
+    Scenario(
       "pasting a list after a list", items,
       [.caret(Point(path: [0], offset: 2, type: .element)), .paste(copied("z", LexicalJSON.list(.bullet, [.item([text("z")])])))]),
     Scenario("pasting paragraphs after text in a list", threeItems, textInAList + [.paste(paragraphs)]),

@@ -162,16 +162,21 @@ extension Update {
     }
     tags.insert(.paste)
     if let nodes = pastedNodes(clipboard.lexical) {
-      let parsed = try nodes.map { try parse($0) }
-      if let refused = parsed.lazy.compactMap(firstUneditable).first {
-        let type = state[refused].type
-        throw EditorError.unsupported(
-          state[refused].portingIssue.map { "Pasting \(type) nodes isn't supported yet (#\($0))" }
-            ?? "Pasting \(type) nodes LexicalSwift doesn't edit isn't supported")
-      }
-      try insertNodes(selection, parsed)
-      try updateSelectionOnInsert(selection)
-      return
+      // `$defaultLexicalEditorImporter` catches what reading and inserting
+      // the nodes throws, keeps what it did so far, and hands the paste on to
+      // the plain text.
+      do {
+        let parsed = try nodes.map { try parse($0) }
+        if let refused = parsed.lazy.compactMap(firstUneditable).first {
+          let type = state[refused].type
+          throw EditorError.unsupported(
+            state[refused].portingIssue.map { "Pasting \(type) nodes isn't supported yet (#\($0))" }
+              ?? "Pasting \(type) nodes LexicalSwift doesn't edit isn't supported")
+        }
+        try insertNodes(selection, parsed)
+        try updateSelectionOnInsert(selection)
+        return
+      } catch EditorError.invalidState {}
     }
     try insertRawText(clipboard.plainText)
   }

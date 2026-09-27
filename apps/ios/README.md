@@ -262,7 +262,9 @@ hand:
   `TOGGLE_LINK_COMMAND`, `editLink` is the floating link editor's save,
   and `copy`, `cut` and `paste` are rich text's.
 - Copy puts plain text and Lexical's JSON (`application/x-lexical-editor`)
-  on the pasteboard, and no HTML. Other apps get the plain text.
+  on the pasteboard, and no HTML. Other apps get the plain text. Lexical's
+  JSON that Lexical can't insert where the caret is goes in as the plain
+  text, as on the web.
 - HTML pasted from another app goes in as the plain text beside it. Pasting
   it as rich text, images and charts included, is #168.
 - The edit menu offers Add Link for a selection, and Open, Edit and Remove
