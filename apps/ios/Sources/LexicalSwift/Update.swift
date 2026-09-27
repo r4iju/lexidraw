@@ -20,9 +20,6 @@ struct Update {
   var dirtyElements: OrderedDictionary<NodeKey, Bool> = [:]
   /// Every node marked in this update, which the transforms' rounds forget.
   private(set) var touched: Set<NodeKey> = []
-  /// Whether the transforms the editor registers run, as they don't while
-  /// Lexical parses a document: the reference registers them after.
-  var runsRegisteredTransforms = true
 
   init(_ state: EditorState, nextKey: NodeKey, revision: Int) {
     self.state = state
@@ -376,7 +373,7 @@ struct Update {
           if let node = state.nodes[key], node.isSimpleText, !node.isUnmergeable, state.isAttached(key) {
             try normalizeText(key)
           }
-          if runsRegisteredTransforms, state.nodes[key]?.type == SerializedTextNode.type, state.isAttached(key) {
+          if state.nodes[key]?.type == SerializedTextNode.type, state.isAttached(key) {
             try syncListItem(withFirstText: key)
           }
           allLeaves.append(key)

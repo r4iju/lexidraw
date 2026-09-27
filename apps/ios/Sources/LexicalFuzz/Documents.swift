@@ -12,12 +12,20 @@ public enum LexicalJSON {
 
   public static let lineBreak: JSONValue = ["type": "linebreak", "version": 1]
 
+  public static func tab(format: TextFormat = [], style: String = "") -> JSONValue {
+    [
+      "detail": 2, "format": .number(Double(format.rawValue)), "mode": "normal", "style": .string(style),
+      "text": "\t", "type": "tab", "version": 1,
+    ]
+  }
+
   /// Lexical writes a paragraph's text format and style from its first text,
-  /// and from what it holds for new text only where it has none.
+  /// a tab included, and from what it holds for new text only where it has
+  /// none.
   public static func paragraph(
     _ children: [JSONValue], textFormat: TextFormat = [], textStyle: String = "", indent: Int = 0
   ) -> JSONValue {
-    let firstText = children.first { $0["type"] == "text" }
+    let firstText = children.first { $0["type"] == "text" || $0["type"] == "tab" }
     return [
       "children": .array(children), "direction": nil, "format": "", "indent": .number(Double(indent)),
       "textFormat": firstText?["format"] ?? .number(Double(textFormat.rawValue)),
@@ -51,7 +59,8 @@ public enum LexicalJSON {
   }
 
   /// A list of `entries`, each item numbered, indented to its depth and, in
-  /// a checklist, checked or not, as Lexical writes it.
+  /// a checklist, checked or not, as Lexical writes it: an item holding a
+  /// nested list is unchecked.
   public static func list(_ listType: ListType, _ entries: [ListEntry], start: Int = 1) -> JSONValue {
     list(listType, entries, start: start, depth: 0)
   }
@@ -68,6 +77,7 @@ public enum LexicalJSON {
         value += 1
       case .nested(let type, let entries):
         children = [list(type, entries, start: 1, depth: depth + 1)]
+        if listType == .check { fields["checked"] = false }
       }
       return element("listitem", children, fields)
     }

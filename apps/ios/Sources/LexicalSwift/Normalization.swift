@@ -82,7 +82,7 @@ extension Update {
       numberListItems(key)
     case SerializedListItemNode.type:
       try wrapInList(key)
-      if runsRegisteredTransforms, state.isAttached(key) { try syncListItemTextStyle(key) }
+      if state.isAttached(key) { try syncListItemTextStyle(key) }
     default: break
     }
   }

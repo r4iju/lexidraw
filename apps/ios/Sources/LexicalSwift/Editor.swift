@@ -17,7 +17,6 @@ public final class Editor: EditorModel {
   public func load(_ json: JSONValue) throws {
     guard let root = json["root"], root["type"] == "root" else { throw EditorError.invalidState("No root") }
     var update = Update(EditorState(nodes: [:], selection: nil), nextKey: 0, revision: nextRevision())
-    update.runsRegisteredTransforms = false
     _ = try update.parse(root)
     try update.applyTransforms()
     update.collectGarbage()

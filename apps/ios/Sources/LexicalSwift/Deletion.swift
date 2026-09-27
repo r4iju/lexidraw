@@ -243,6 +243,15 @@ extension Update {
       guard let measured = measure(selection.focus, backward: isBackward, byWord: granularity == .word) else { return }
       landed = measured
     }
+    if wasCollapsed, granularity == .character, anchor.type == .text, state[anchorNode].isUnmergeable,
+      anchorOffset == (isBackward ? 0 : state.textSize(of: anchorNode)),
+      let sibling = isBackward ? state.previousSibling(of: anchorNode) : state.nextSibling(of: anchorNode),
+      state[sibling].isText
+    {
+      selection.focus.set(sibling, isBackward ? state.textSize(of: sibling) - 1 : 1, .text)
+      selection.dirty = true
+      return
+    }
     if wasCollapsed, granularity == .character, anchor.type == .text {
       let edgeOffset = isBackward ? 0 : state.textSize(of: anchorNode)
       let clampedOffset =
