@@ -431,6 +431,14 @@ import UIKit
     #expect(linkActions(view, 6, 6) == [])
   }
 
+  @Test func theEditMenuOffersTheLinkActionsAndTheTableMenu() throws {
+    let (view, _) = try editing(LexicalJSON.paragraph([LexicalJSON.text("hello world")]))
+
+    let menu = view.editMenu(for: try #require(range(view, 6, 11)), suggestedActions: [])
+
+    #expect(menu?.children.map(\.title) == ["Add Link…", "Table"])
+  }
+
   @Test func theEditMenuInALinkOffersToOpenEditOrRemoveIt() throws {
     let (view, _) = try editing(Self.linked)
 
@@ -569,7 +577,7 @@ import UIKit
   /// The titles the edit menu adds for links over UIKit's own.
   private func linkActions(_ view: EditorView, _ start: Int, _ end: Int) -> [String] {
     guard let range = range(view, start, end) else { return [] }
-    return view.editMenu(for: range, suggestedActions: [])?.children.map(\.title) ?? []
+    return view.editMenu(for: range, suggestedActions: [])?.children.map(\.title).filter { $0 != "Table" } ?? []
   }
 
   private func paragraphs(_ model: Editor) throws -> [JSONValue] {
@@ -584,7 +592,7 @@ import UIKit
     let (model, view) = try host(LexicalJSON.document([LexicalJSON.paragraph([LexicalJSON.text(text)])]), caretAt: offset)
     try press(input, modifiers, in: view)
     let paragraph = try model.snapshot().state["root"]?["children"]?.arrayValue?.first
-    return paragraph?["children"]?.arrayValue?.first?["text"]?.stringValue ?? ""
+    return (paragraph?["children"]?.arrayValue ?? []).compactMap { $0["text"]?.stringValue }.joined()
   }
 
   /// A view of `document`, first responder with the caret `caretAt` UTF-16

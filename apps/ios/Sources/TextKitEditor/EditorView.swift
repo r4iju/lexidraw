@@ -677,11 +677,12 @@ public final class EditorView: UIScrollView, UITextInput {
   @objc private func makeHeading3() { setBlockType(.h3) }
   @objc private func makeQuote() { setBlockType(.quote) }
 
-  /// The edit menu with a Table menu where the document can be edited: the
-  /// web's insert-table dialog, or its table menu's row and column actions
-  /// in a table.
+  /// The edit menu with the link actions for the range, and a Table menu
+  /// where the document can be edited: the web's insert-table dialog, or its
+  /// table menu's row and column actions in a table.
   public func editMenu(for textRange: UITextRange, suggestedActions: [UIMenuElement]) -> UIMenu? {
-    UIMenu(children: suggestedActions + (isEditable ? [tableMenu()] : []))
+    guard let range = textRange as? TextRange else { return nil }
+    return UIMenu(children: suggestedActions + linkActions(in: range.range) + (isEditable ? [tableMenu()] : []))
   }
 
   private func tableMenu() -> UIMenu {
@@ -927,11 +928,6 @@ public final class EditorView: UIScrollView, UITextInput {
     }
     guard isEditable, range.length > 0 else { return [] }
     return [action("Add Link…", "link") { $0.addLink() }]
-  }
-
-  public func editMenu(for textRange: UITextRange, suggestedActions: [UIMenuElement]) -> UIMenu? {
-    guard let range = textRange as? TextRange else { return nil }
-    return UIMenu(children: suggestedActions + linkActions(in: range.range))
   }
 
   /// The character of a link's text a tap is on, which the caret goes after.
