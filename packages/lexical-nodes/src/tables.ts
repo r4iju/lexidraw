@@ -66,15 +66,18 @@ export function registerDocumentTableInsertion(editor: LexicalEditor) {
 }
 
 /**
- * The table menu's column insertion: as many columns as a table selection
- * spans, or one.
+ * The columns and rows the table menu acts on: those a table selection
+ * spans, or one of each.
  */
-export function $insertDocumentTableColumns(insertAfter: boolean): void {
+export function $tableMenuCounts(): { columns: number; rows: number } {
   const selection = $getSelection();
-  let count = 1;
-  if ($isTableSelection(selection)) {
-    const { fromX, toX } = selection.getShape();
-    count = toX - fromX + 1;
-  }
-  for (let i = 0; i < count; i++) $insertTableColumnAtSelection(insertAfter);
+  if (!$isTableSelection(selection)) return { columns: 1, rows: 1 };
+  const { fromX, toX, fromY, toY } = selection.getShape();
+  return { columns: toX - fromX + 1, rows: toY - fromY + 1 };
+}
+
+/** The table menu's column insertion, of as many as it counts. */
+export function $insertDocumentTableColumns(insertAfter: boolean): void {
+  const { columns } = $tableMenuCounts();
+  for (let i = 0; i < columns; i++) $insertTableColumnAtSelection(insertAfter);
 }

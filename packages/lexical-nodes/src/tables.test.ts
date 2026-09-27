@@ -26,6 +26,7 @@ import {
 import {
   $createDocumentTable,
   $insertDocumentTableColumns,
+  $tableMenuCounts,
   CORE_NODES,
   CORE_TRANSFORMERS,
   registerDocumentTableInsertion,
@@ -235,4 +236,24 @@ test("the menu inserts as many columns as the selected cells span, or one", () =
     { discrete: true },
   );
   expect(e.getEditorState().read(() => $table().getColumnCount())).toBe(5);
+});
+
+test("the menu counts the columns and rows of the selected cells, or one of each", () => {
+  const e = tableEditor();
+  const counts = (select: () => void) => {
+    e.update(select, { discrete: true });
+    return e.getEditorState().read($tableMenuCounts);
+  };
+
+  expect(
+    counts(() =>
+      $setSelection(
+        $createTableSelectionFrom($table(), $cell(0, 0), $cell(1, 1)),
+      ),
+    ),
+  ).toEqual({ columns: 2, rows: 2 });
+  expect(counts(() => $cell(0, 0).selectStart())).toEqual({
+    columns: 1,
+    rows: 1,
+  });
 });
