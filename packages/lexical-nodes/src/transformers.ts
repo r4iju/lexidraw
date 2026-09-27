@@ -156,7 +156,17 @@ export function createTableTransformer(
       return output.join("\n");
     },
     regExp: TABLE_ROW_REG_EXP,
-    replace: (parentNode, _1, match) => {
+    replace: (parentNode, children, match, isImport) => {
+      // No table goes inside a table, as the insert handler has it. The
+      // importer strips the match from the line before asking and does not
+      // put it back on a cancel.
+      if ($isTableCellNode(parentNode.getParent())) {
+        const [textNode] = children;
+        if (isImport && $isTextNode(textNode)) {
+          textNode.setTextContent(match[0] ?? "");
+        }
+        return false;
+      }
       // Header row
       if (TABLE_ROW_DIVIDER_REG_EXP.test(match[0] as string)) {
         const table = parentNode.getPreviousSibling();

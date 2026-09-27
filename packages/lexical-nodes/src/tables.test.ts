@@ -3,6 +3,7 @@ import { createHeadlessEditor } from "@lexical/headless";
 import {
   $convertFromMarkdownString,
   $convertToMarkdownString,
+  registerMarkdownShortcuts,
 } from "@lexical/markdown";
 import {
   $createTableSelectionFrom,
@@ -17,8 +18,10 @@ import {
 import { $findMatchingParent } from "@lexical/utils";
 import {
   $createParagraphNode,
+  $createTextNode,
   $getRoot,
   $getSelection,
+  $isParagraphNode,
   $isRangeSelection,
   $setSelection,
   type ParagraphNode,
@@ -256,4 +259,61 @@ test("the menu counts the columns and rows of the selected cells, or one of each
     columns: 1,
     rows: 1,
   });
+});
+
+/** The text of each cell's blocks, or the types inside it that aren't text. */
+function cellContents(e: ReturnType<typeof editor>) {
+  return e.getEditorState().read(() =>
+    $table()
+      .getChildren<TableRowNode>()
+      .map((row) =>
+        row
+          .getChildren<TableCellNode>()
+          .map((cell) =>
+            cell
+              .getChildren()
+              .map((block) =>
+                $isParagraphNode(block)
+                  ? block.getTextContent()
+                  : block.getType(),
+              ),
+          ),
+      ),
+  );
+}
+
+test("a row imported inside a cell stays its text, as no table goes inside a table", () => {
+  const e = editor();
+  e.update(
+    () => $convertFromMarkdownString("| a | \\|b\\| |", CORE_TRANSFORMERS),
+    { discrete: true },
+  );
+  expect(cellContents(e)).toEqual([[["a"], ["|b|"]]]);
+});
+
+test("a row typed inside a cell stays as typed, as no table goes inside a table", async () => {
+  const e = tableEditor();
+  registerMarkdownShortcuts(e, CORE_TRANSFORMERS);
+  e.update(
+    () => {
+      const paragraph = $cell(0, 0).getFirstChildOrThrow<ParagraphNode>();
+      paragraph.append($createTextNode("|b|"));
+      paragraph.selectEnd();
+    },
+    { discrete: true },
+  );
+  e.update(
+    () => {
+      const selection = $getSelection();
+      if (!$isRangeSelection(selection)) throw new Error("Expected a caret");
+      selection.insertText(" ");
+    },
+    { discrete: true },
+  );
+  // The shortcut runs in an update the update listener queues.
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  expect(cellContents(e)).toEqual([
+    [["|b| "], [""]],
+    [[""], [""]],
+  ]);
 });
