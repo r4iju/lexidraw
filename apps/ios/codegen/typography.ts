@@ -25,7 +25,7 @@ export type WebStyles = {
   globalsCSS: string;
   quoteClass: string;
   tableCellSelectedClass: string;
-  tableLayout: typeof DOCUMENT_TABLE_LAYOUT;
+  tableLayout: Record<keyof typeof DOCUMENT_TABLE_LAYOUT, number>;
 };
 
 export async function readWebStyles(): Promise<WebStyles> {

@@ -292,7 +292,7 @@ test("gives a table the column counts the web lays it out by", async () => {
     unpinnedColumns: 4,
     shortColumns: 12,
     scrollingColumns: 6,
-  } as const;
+  };
 
   expect(swiftForTypography({ ...styles, tableLayout })).toContain(
     "unpinnedColumns: 4, shortColumns: 12, scrollingColumns: 6",
