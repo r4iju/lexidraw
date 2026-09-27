@@ -26,6 +26,11 @@ runs LexicalSwift and Lexical side by side on random commands. Steps count
 only commands both accepted. Last run, on macOS 27 with words from
 `Intl.Segmenter`: seeds 101 to 110, 100,000 steps each, 1,000,000 in all,
 with no divergence; 632 commands were refused by both, for the same reason.
+With Markdown shortcuts (#115), whole shortcuts typed at once, then Enter or
+committed as a composition: seeds 1, 7, 42, 2026 and 987654321, 20,000 steps
+each, 100,000 in all, with no divergence; 1,964 commands were refused by
+both, and 287 sessions ended where Lexical made a node LexicalSwift doesn't
+make yet.
 
 ## Editor harness and UI scripts
 
@@ -226,6 +231,9 @@ hand:
   size, so the reader's text size scales them; the web's line heights and
   space between blocks apply to paragraphs too, text is centred in its line
   as CSS centres it, and a view no wider than the web's narrow container,
-  639 points, sets top-level headings smaller as a phone's browser does.
+  639 points, sets top-level headings smaller as a phone's browser does. A
+  document in Japanese or Chinese (`Typesetting.language`) has the web's
+  taller lines and wider letters.
 - ⌘⌥0 to ⌘⌥3 and ⌘⌥Q set the block type from a hardware keyboard, the web's
-  shortcuts. The app has no block menu yet.
+  shortcuts. The app has no block menu yet. Headings 4 to 6 come only from
+  typing `####` to `######`, as on the web, where #135 owns the block menu.

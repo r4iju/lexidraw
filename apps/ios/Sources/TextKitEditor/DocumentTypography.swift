@@ -77,8 +77,7 @@ struct DocumentTypography: Sendable {
   /// In the stylesheet's order, a later one over an earlier where both
   /// apply.
   var narrow: [Narrow]
-  /// In the stylesheet's order, a later one over an earlier where both
-  /// apply.
+  /// Ordered as `narrow` is.
   var languages: [Language]
   var quote: Quote
   var rule: Rule
