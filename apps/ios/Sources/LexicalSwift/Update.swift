@@ -15,11 +15,7 @@ struct Update {
   let base: EditorState
   /// Lexical's `$getSelection()` in an update: a copy of the committed
   /// selection until the update sets another.
-  var selection: RangeSelection?
-  /// The selection where it's a table selection, which `selection` is nil
-  /// beside. `tableSelectionIsDirty` says the update set it.
-  var tableSelection: TableSelection?
-  var tableSelectionIsDirty = false
+  var current: Current?
   private(set) var nextKey: NodeKey
   /// What sets this update apart from every other on the same editor.
   let revision: Int
@@ -44,13 +40,29 @@ struct Update {
   init(_ state: EditorState, nextKey: NodeKey, revision: Int, knowsListMarker: Bool = false) {
     self.state = state
     base = state
-    if let saved = state.selection {
-      tableSelection = TableSelection(saved)
-      selection = tableSelection == nil ? RangeSelection(saved) : nil
+    switch state.selection {
+    case .range(let saved): current = .range(RangeSelection(saved))
+    case .table(let saved): current = .table(saved, isDirty: false)
+    case nil: current = nil
     }
     self.nextKey = nextKey
     self.revision = revision
     self.knowsListMarker = knowsListMarker
+  }
+
+  /// A range, whose points record that the update moved them, or a table
+  /// selection and whether the update set it.
+  enum Current {
+    case range(RangeSelection)
+    case table(TableSelection, isDirty: Bool)
+  }
+
+  /// The selection where it's a range.
+  var selection: RangeSelection? { if case .range(let selection) = current { selection } else { nil } }
+
+  /// The selection where it's a table selection.
+  var tableSelection: TableSelection? {
+    if case .table(let selection, _) = current { selection } else { nil }
   }
 
   /// Whether the update marked any node, which is what makes Lexical commit

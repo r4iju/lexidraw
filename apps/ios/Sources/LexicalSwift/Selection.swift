@@ -1,12 +1,15 @@
-/// A selection as a committed state keeps it, its points by node key.
-struct KeySelection: Equatable, Sendable {
+/// A selection as a committed state keeps it, by node key.
+enum KeySelection: Equatable, Sendable {
+  case range(KeyRange)
+  case table(TableSelection)
+}
+
+/// A range selection's points, format and style.
+struct KeyRange: Equatable, Sendable {
   var anchor: KeyPoint
   var focus: KeyPoint
   var format: TextFormat
   var style: String
-  /// The table a table selection is of, whose points are then the start of
-  /// its anchor and focus cells; nil for a range.
-  var table: NodeKey? = nil
 }
 
 struct KeyPoint: Equatable, Sendable {
@@ -71,13 +74,13 @@ final class RangeSelection {
     focus.selection = self
   }
 
-  convenience init(_ saved: KeySelection) {
+  convenience init(_ saved: KeyRange) {
     self.init(
       anchor: SelectionPoint(saved.anchor), focus: SelectionPoint(saved.focus), format: saved.format,
       style: saved.style)
   }
 
-  var saved: KeySelection { KeySelection(anchor: anchor.value, focus: focus.value, format: format, style: style) }
+  var saved: KeyRange { KeyRange(anchor: anchor.value, focus: focus.value, format: format, style: style) }
 
   var isCollapsed: Bool { anchor.is(focus) }
 
@@ -87,7 +90,7 @@ final class RangeSelection {
   }
 
   func `is`(_ other: KeySelection?) -> Bool {
-    guard let other, other.table == nil else { return false }
+    guard case .range(let other) = other else { return false }
     return anchor.value == other.anchor && focus.value == other.focus && format == other.format
       && style.isIdentical(to: other.style)
   }
@@ -113,27 +116,10 @@ final class RangeSelection {
 
 /// @lexical/table's `TableSelection`: the cells of a table's rectangle from
 /// the anchor cell to the focus cell.
-struct TableSelection: Equatable {
+struct TableSelection: Equatable, Sendable {
   var table: NodeKey
   var anchor: NodeKey
   var focus: NodeKey
-
-  init(table: NodeKey, anchor: NodeKey, focus: NodeKey) {
-    self.table = table
-    self.anchor = anchor
-    self.focus = focus
-  }
-
-  init?(_ saved: KeySelection) {
-    guard let table = saved.table else { return nil }
-    self.init(table: table, anchor: saved.anchor.key, focus: saved.focus.key)
-  }
-
-  var saved: KeySelection {
-    KeySelection(
-      anchor: KeyPoint(key: anchor, offset: 0, type: .element), focus: KeyPoint(key: focus, offset: 0, type: .element),
-      format: [], style: "", table: table)
-  }
 }
 
 extension EditorState {
@@ -141,10 +127,17 @@ extension EditorState {
     path(of: point.key).map { Point(path: $0, offset: point.offset, type: point.type) }
   }
 
-  var pathSelection: Selection? {
-    guard let selection, let anchor = point(selection.anchor), let focus = point(selection.focus) else { return nil }
-    return Selection(
-      anchor: anchor, focus: focus, format: selection.format, style: selection.style,
-      table: selection.table.flatMap(path(of:)))
+  func pathSelection() throws -> Selection? {
+    switch selection {
+    case nil: return nil
+    case .range(let range):
+      guard let anchor = point(range.anchor), let focus = point(range.focus) else { return nil }
+      return .range(anchor: anchor, focus: focus, format: range.format, style: range.style)
+    case .table(let table):
+      guard let tablePath = path(of: table.table), let anchor = path(of: table.anchor), let focus = path(of: table.focus)
+      else { return nil }
+      let cells = try Update(self, nextKey: 0, revision: 0).cells(of: table)
+      return .table(table: tablePath, anchor: anchor, focus: focus, cells: cells.compactMap(path(of:)))
+    }
   }
 }

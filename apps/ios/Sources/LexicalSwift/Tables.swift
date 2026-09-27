@@ -271,7 +271,12 @@ extension Update {
   /// The anchor and focus of the selection, a range or a table selection.
   private func selectionPoints() throws -> (anchor: SelectionPoint, focus: SelectionPoint) {
     if let selection { return (selection.anchor, selection.focus) }
-    if let saved = tableSelection?.saved { return (SelectionPoint(saved.anchor), SelectionPoint(saved.focus)) }
+    if let tableSelection {
+      return (
+        SelectionPoint(KeyPoint(key: tableSelection.anchor, offset: 0, type: .element)),
+        SelectionPoint(KeyPoint(key: tableSelection.focus, offset: 0, type: .element))
+      )
+    }
     throw EditorError.invalidState("Expected a RangeSelection or TableSelection")
   }
 

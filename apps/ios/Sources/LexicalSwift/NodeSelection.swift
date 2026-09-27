@@ -4,21 +4,17 @@ extension Update {
   /// Lexical's `$setSelection`.
   mutating func setSelection(_ selection: RangeSelection) {
     selection.dirty = true
-    self.selection = selection
-    tableSelection = nil
+    current = .range(selection)
   }
 
   /// Lexical's `$setSelection` with a table selection.
   mutating func setSelection(_ selection: TableSelection) {
-    self.selection = nil
-    tableSelection = selection
-    tableSelectionIsDirty = true
+    current = .table(selection, isDirty: true)
   }
 
   /// Lexical's `$setSelection(null)`.
   mutating func clearSelection() {
-    selection = nil
-    tableSelection = nil
+    current = nil
   }
 
   /// Lexical's `$internalMakeRangeSelection`.

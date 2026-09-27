@@ -184,16 +184,10 @@ public final class EditorView: UIScrollView, UITextInput {
 
   /// The table block a table selection is in, and the cells it has.
   private func selectedCells(_ selection: Selection) -> (block: Int, cells: Set<TableView.CellIndex>)? {
-    guard let path = selection.table, path.count == 1, selection.anchor.path.count == 3,
-      selection.focus.path.count == 3, path[0] < document.blockCount,
-      case .table(let table) = document.kind(ofBlock: path[0])
+    guard case .table(let path, _, _, let cells) = selection, path.count == 1, path[0] < document.blockCount,
+      case .table = document.kind(ofBlock: path[0])
     else { return nil }
-    let (anchor, focus) = (selection.anchor.path, selection.focus.path)
-    return (
-      path[0],
-      table.cells(
-        from: TableView.CellIndex(row: anchor[1], index: anchor[2]), to: TableView.CellIndex(row: focus[1], index: focus[2]))
-    )
+    return (path[0], Set(cells.filter { $0.count == 3 }.map { TableView.CellIndex(row: $0[1], index: $0[2]) }))
   }
 
   /// Tells the model where the view's selection is, which it needs before

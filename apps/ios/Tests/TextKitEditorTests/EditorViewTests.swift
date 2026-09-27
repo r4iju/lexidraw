@@ -172,7 +172,10 @@ import UIKit
     let two = try #require(view.position(from: view.beginningOfDocument, offset: 5))
     view.selectedTextRange = view.textRange(from: view.beginningOfDocument, to: two)
     let selected = try model.selection()
-    #expect(selected?.table == [0])
+    guard case .table(table: [0], _, _, _) = selected else {
+      Issue.record("Expected cells selected, not \(String(describing: selected))")
+      return
+    }
 
     try press("\t", [], in: view)
 

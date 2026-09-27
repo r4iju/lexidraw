@@ -40,31 +40,79 @@ public struct Snapshot: Codable, Equatable, Sendable {
   }
 }
 
-/// A range selection, or a table selection: Lexical's `TableSelection`,
-/// the rectangle of cells between the anchor's cell and the focus's. Points
-/// are addressed by path (child indexes from the root) rather than node key,
-/// so two implementations can be compared.
-public struct Selection: Codable, Equatable, Sendable {
-  public var anchor: Point
-  public var focus: Point
-  /// The format new text takes, as Lexical's `RangeSelection.format`.
-  public var format: TextFormat
-  public var style: String
-  /// The table whose cells a table selection selects; nil for a range. Its
-  /// anchor and focus are then the start of a cell each, and it has no
-  /// format or style.
-  public var table: [Int]?
+/// Lexical's selection: a range, or the cells of a table. Nodes are addressed
+/// by path (child indexes from the root) rather than node key, so two
+/// implementations can be compared.
+public enum Selection: Equatable, Sendable {
+  /// Lexical's `RangeSelection`, with the format new text takes (its
+  /// `format`) and style.
+  case range(anchor: Point, focus: Point, format: TextFormat, style: String)
+  /// Lexical's `TableSelection`: the rectangle of `table`'s cells from the
+  /// `anchor` cell to the `focus` cell, grown until no merged cell crosses
+  /// its edge. `cells` are the paths of the cells it has, row by row.
+  case table(table: [Int], anchor: [Int], focus: [Int], cells: [[Int]])
 
-  public init(anchor: Point, focus: Point, format: TextFormat, style: String, table: [Int]? = nil) {
-    self.anchor = anchor
-    self.focus = focus
-    self.format = format
-    self.style = style
-    self.table = table
+  /// The anchor, which for a table selection is the start of its cell.
+  public var anchor: Point {
+    switch self {
+    case .range(let anchor, _, _, _): anchor
+    case .table(_, let anchor, _, _): Point(path: anchor, offset: 0, type: .element)
+    }
+  }
+
+  /// The focus, which for a table selection is the start of its cell.
+  public var focus: Point {
+    switch self {
+    case .range(_, let focus, _, _): focus
+    case .table(_, _, let focus, _): Point(path: focus, offset: 0, type: .element)
+    }
+  }
+
+  /// A range's format; a table selection has none.
+  public var format: TextFormat {
+    if case .range(_, _, let format, _) = self { format } else { [] }
   }
 
   /// Whether it's a caret. A table selection never is, even of one cell.
-  public var isCollapsed: Bool { table == nil && anchor == focus }
+  public var isCollapsed: Bool {
+    if case .range(let anchor, let focus, _, _) = self { anchor == focus } else { false }
+  }
+}
+
+extension Selection: Codable {
+  private enum CodingKeys: String, CodingKey {
+    case anchor, focus, format, style, table, cells
+  }
+
+  public init(from decoder: any Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    if let table = try container.decodeIfPresent([Int].self, forKey: .table) {
+      self = .table(
+        table: table, anchor: try container.decode([Int].self, forKey: .anchor),
+        focus: try container.decode([Int].self, forKey: .focus), cells: try container.decode([[Int]].self, forKey: .cells))
+    } else {
+      self = .range(
+        anchor: try container.decode(Point.self, forKey: .anchor), focus: try container.decode(Point.self, forKey: .focus),
+        format: try container.decode(TextFormat.self, forKey: .format),
+        style: try container.decode(String.self, forKey: .style))
+    }
+  }
+
+  public func encode(to encoder: any Encoder) throws {
+    var container = encoder.container(keyedBy: CodingKeys.self)
+    switch self {
+    case .range(let anchor, let focus, let format, let style):
+      try container.encode(anchor, forKey: .anchor)
+      try container.encode(focus, forKey: .focus)
+      try container.encode(format, forKey: .format)
+      try container.encode(style, forKey: .style)
+    case .table(let table, let anchor, let focus, let cells):
+      try container.encode(table, forKey: .table)
+      try container.encode(anchor, forKey: .anchor)
+      try container.encode(focus, forKey: .focus)
+      try container.encode(cells, forKey: .cells)
+    }
+  }
 }
 
 public struct Point: Codable, Equatable, Hashable, Sendable {

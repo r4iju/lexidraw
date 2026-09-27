@@ -13,7 +13,7 @@ import Testing
       try editor.snapshot()
         == Snapshot(
           state: document(paragraph(text("hé日本👍🏽x"), text("bold", format: .bold))),
-          selection: Selection(
+          selection: .range(
             anchor: .text([0, 0], 4), focus: .text([0, 0], 4), format: [], style: "")))
   }
 

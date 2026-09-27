@@ -111,15 +111,24 @@ public final class Editor: EditorModel {
   private func commit(_ update: inout Update, pushingHistory: Bool = false) throws -> Bool {
     try update.applyTransforms()
     update.collectGarbage()
-    let selection = update.selection
-    if let selection, update.state.nodes[selection.anchor.key] == nil || update.state.nodes[selection.focus.key] == nil {
+    if let selection = update.selection,
+      update.state.nodes[selection.anchor.key] == nil || update.state.nodes[selection.focus.key] == nil
+    {
       throw EditorError.invalidState("Selection has been lost")
     }
-    let saved = selection?.saved ?? update.tableSelection?.saved
-    let movesSelection =
-      selection.map { $0.dirty || !$0.is(state.selection) } ?? update.tableSelection.map {
-        update.tableSelectionIsDirty || $0.saved != state.selection
-      } ?? (state.selection != nil)
+    let saved: KeySelection?
+    let movesSelection: Bool
+    switch update.current {
+    case .range(let selection):
+      saved = .range(selection.saved)
+      movesSelection = selection.dirty || !selection.is(state.selection)
+    case .table(let selection, let isDirty):
+      saved = .table(selection)
+      movesSelection = isDirty || saved != state.selection
+    case nil:
+      saved = nil
+      movesSelection = state.selection != nil
+    }
     guard update.hasDirtyNodes || movesSelection else { return false }
     var next = update.state
     next.selection = saved
@@ -137,7 +146,7 @@ public final class Editor: EditorModel {
 
   public func snapshot() throws -> Snapshot {
     guard !state.nodes.isEmpty else { throw EditorError.invalidState("No document loaded") }
-    return Snapshot(state: state.json, selection: state.pathSelection)
+    return Snapshot(state: state.json, selection: try state.pathSelection())
   }
 
   /// `state` as an editor that registers `types` saves it once it has read
@@ -155,7 +164,7 @@ public final class Editor: EditorModel {
 
   public func selection() throws -> Selection? {
     guard !state.nodes.isEmpty else { throw EditorError.invalidState("No document loaded") }
-    return state.pathSelection
+    return try state.pathSelection()
   }
 
   public func node(at path: [Int]) throws -> JSONValue {

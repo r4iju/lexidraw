@@ -75,10 +75,27 @@ import Testing
 
     #expect(
       fixture.expected.selection
-        == Selection(
-          anchor: Point(path: [1, 0, 0], offset: 0, type: .element),
-          focus: Point(path: [1, 1, 1], offset: 0, type: .element), format: [], style: "", table: [1]))
+        == .table(table: [1], anchor: [1, 0, 0], focus: [1, 1, 1], cells: [[1, 0, 0], [1, 0, 1], [1, 1, 0], [1, 1, 1]]))
     #expect(fixture.expected.selection?.isCollapsed == false)
+  }
+
+  /// A merged cell across the rectangle's edge takes in what it spans.
+  @Test func aTableSelectionHasTheCellsItsRectangleGrowsTo() throws {
+    func cell(_ text: String, colSpan: Int = 1) -> JSONValue {
+      LexicalJSON.element(
+        "tablecell", [LexicalJSON.paragraph([LexicalJSON.text(text)])],
+        ["backgroundColor": nil, "colSpan": .number(Double(colSpan)), "headerState": 0, "rowSpan": 1])
+    }
+    let merged = document(
+      LexicalJSON.element(
+        "table",
+        [LexicalJSON.element("tablerow", [cell("wide", colSpan: 2)]), LexicalJSON.element("tablerow", [cell("a"), cell("b")])]))
+
+    let fixture = try agreed(merged, [.setSelection(anchor: .text([0, 1, 0, 0, 0], 0), focus: .text([0, 0, 0, 0, 0], 1))])
+
+    #expect(
+      fixture.expected.selection
+        == .table(table: [0], anchor: [0, 1, 0], focus: [0, 0, 0], cells: [[0, 0, 0], [0, 1, 0], [0, 1, 1]]))
   }
 
   @Test func aRangeReachingIntoATableTakesInTheWholeTable() throws {
@@ -133,7 +150,7 @@ import Testing
   @Test func formattingATableSelectionFormatsEveryCell() throws {
     let fixture = try agreed(
       grid, [.setSelection(anchor: cell(0, 0, 0), focus: cell(1, 0, 0)), .formatText(.bold), .formatText(.bold)])
-    #expect(fixture.expected.selection?.table == [1])
+    #expect(tablePath(fixture.expected.selection) == [1])
 
     let once = try agreed(grid, [.setSelection(anchor: cell(0, 0, 0), focus: cell(1, 0, 0)), .formatText(.italic)])
     #expect(node(once.expected, [1, 1, 0, 0, 0])?["format"] == 2)
@@ -187,10 +204,10 @@ import Testing
 
   @Test func selectAllInADocumentOfOnlyATableSelectsItsCells() throws {
     let alone = try agreed(document(LexicalJSON.table([["a", "b"], ["c", "d"]])), [.caret(.text([0, 0, 0, 0, 0], 0)), .selectAll])
-    #expect(alone.expected.selection?.table == [0])
+    #expect(tablePath(alone.expected.selection) == [0])
 
     let among = try agreed(grid, [.caret(cell(0, 0, 0)), .selectAll])
-    #expect(among.expected.selection?.table == nil)
+    #expect(tablePath(among.expected.selection) == nil)
   }
 
   @Test func loadingMendsATable() throws {
@@ -212,7 +229,11 @@ import Testing
     let fixture = try agreed(
       grid, [.setSelection(anchor: cell(0, 0, 0), focus: cell(0, 1, 0)), .deleteCharacter(backward: true), .undo])
 
-    #expect(fixture.expected.selection?.table == [1])
+    #expect(tablePath(fixture.expected.selection) == [1])
     #expect(cellTexts(fixture.expected, table: 1) == [["a", "b"], ["c", "d"]])
+  }
+
+  private func tablePath(_ selection: Selection?) -> [Int]? {
+    if case .table(let table, _, _, _) = selection { table } else { nil }
   }
 }

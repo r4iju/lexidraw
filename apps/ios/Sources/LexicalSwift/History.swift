@@ -73,8 +73,8 @@ struct History {
   /// beside a caret, which consecutive updates merge on.
   private static func changeType(_ update: Update, from previous: EditorState, to next: EditorState) -> ChangeType {
     guard !update.dirtyLeaves.isEmpty || !update.dirtyElements.isEmpty,
-      let nextSelection = next.selection, let previousSelection = previous.selection,
-      nextSelection.table == nil, previousSelection.table == nil, nextSelection.anchor == nextSelection.focus, previousSelection.anchor == previousSelection.focus
+      case .range(let nextSelection) = next.selection, case .range(let previousSelection) = previous.selection,
+      nextSelection.anchor == nextSelection.focus, previousSelection.anchor == previousSelection.focus
     else { return .other }
     let dirtyNodes =
       update.dirtyLeaves.filter { next.nodes[$0] != nil }
@@ -105,7 +105,7 @@ struct History {
 
   /// `isTextNodeUnchanged`: the one leaf an update marked saves as it did.
   private static func isTextUnchanged(_ key: NodeKey, from previous: EditorState, to next: EditorState) -> Bool {
-    if let before = previous.selection, let after = next.selection, before.table == nil, after.table == nil,
+    if case .range(let before) = previous.selection, case .range(let after) = next.selection,
       before.anchor.type == .element,
       before.focus.type == .element, after.anchor.type == .text, after.focus.type == .text
     {

@@ -36,6 +36,7 @@ import {
   $deleteTableColumnAtSelection,
   $deleteTableRowAtSelection,
   $insertTableRowAtSelection,
+  $isTableCellNode,
   $isTableSelection,
   INSERT_TABLE_COMMAND,
   registerTableCellUnmergeTransform,
@@ -423,11 +424,10 @@ function pathSelection() {
     const table = $getNodeByKey(selection.tableKey);
     if (!table) throw new EditorError("invalidState", "A lost table");
     return {
-      anchor: pathPoint(selection.anchor),
-      focus: pathPoint(selection.focus),
-      format: 0,
-      style: "",
       table: pathOf(table),
+      anchor: pathOf(selection.anchor.getNode()),
+      focus: pathOf(selection.focus.getNode()),
+      cells: selection.getNodes().filter($isTableCellNode).map(pathOf),
     };
   }
   return $isRangeSelection(selection)

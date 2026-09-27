@@ -322,10 +322,7 @@ import UIKit
     private let spans: [[(colSpan: Int, rowSpan: Int)]]
 
     init(_ cells: [[Cell]]) {
-      self.init(spans: cells.map { $0.map { ($0.colSpan, $0.rowSpan) } })
-    }
-
-    init(spans: [[(colSpan: Int, rowSpan: Int)]]) {
+      let spans = cells.map { $0.map { (colSpan: $0.colSpan, rowSpan: $0.rowSpan) } }
       self.spans = spans
       map = spans.map { _ in [] }
       for (row, rowCells) in spans.enumerated() {
@@ -489,45 +486,6 @@ import UIKit
       frame.lineWidth = Measure.border
       frame.stroke()
     }
-  }
-}
-
-extension DocumentText.Table {
-  /// The cells a table selection from the cell at `anchor` to the one at
-  /// `focus` has: Lexical's rectangle around both, grown until no merged
-  /// cell crosses its edge.
-  func cells(from anchor: TableView.CellIndex, to focus: TableView.CellIndex) -> Set<TableView.CellIndex> {
-    let placed = TableView.Placement(spans: rows.map { $0.map { ($0.colSpan, $0.rowSpan) } })
-    func box(_ cell: TableView.CellIndex) -> (minColumn: Int, minRow: Int, maxColumn: Int, maxRow: Int)? {
-      guard let column = placed.columns[safe: cell.row]?[safe: cell.index] else { return nil }
-      return (
-        column, cell.row, column + placed.colSpan(row: cell.row, index: cell.index) - 1,
-        cell.row + placed.rowSpan(row: cell.row, index: cell.index) - 1
-      )
-    }
-    guard let a = box(anchor), let b = box(focus) else { return [] }
-    var bounds = (min(a.0, b.0), min(a.1, b.1), max(a.2, b.2), max(a.3, b.3))
-    var grown = true
-    while grown {
-      grown = false
-      for row in placed.map.indices {
-        for cell in placed.map[row].compactMap({ $0 }) {
-          guard let c = box(cell), c.0 <= bounds.2, c.2 >= bounds.0, c.1 <= bounds.3, c.3 >= bounds.1 else { continue }
-          let next = (min(bounds.0, c.0), min(bounds.1, c.1), max(bounds.2, c.2), max(bounds.3, c.3))
-          if next != bounds {
-            bounds = next
-            grown = true
-          }
-        }
-      }
-    }
-    var cells: Set<TableView.CellIndex> = []
-    for row in bounds.1...bounds.3 {
-      for column in bounds.0...bounds.2 {
-        if let cell = placed.map[safe: row]?[safe: column] ?? nil { cells.insert(cell) }
-      }
-    }
-    return cells
   }
 }
 
