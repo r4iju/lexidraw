@@ -251,6 +251,33 @@ import Testing
     #expect(verdict == .agreed)
   }
 
+  /// LexicalSwift that says it declined a shortcut at its first command, and
+  /// drops a non-ASCII character typed later.
+  final class DeclinesOnceThenDropsTypedNonASCII: LexicalSwiftWith {
+    private var declined = 0
+    override var shortcutsDeclinedAsNotPorted: Int { declined }
+    override func apply(_ command: EditorCommand) throws -> ChangeSet {
+      declined = 1
+      if case .insertText(let text) = command, let last = text.last, !last.isASCII {
+        return try editor.apply(.insertText(String(text.dropLast())))
+      }
+      return try editor.apply(command)
+    }
+  }
+
+  /// A shortcut declined on an earlier step doesn't excuse a later step that
+  /// disagrees.
+  @Test func aDisagreementAfterAnEarlierDeclinedShortcutDiverges() throws {
+    let fuzzer = Fuzzer(
+      seed: 0, reference: try Support.referenceEditor(), candidate: DeclinesOnceThenDropsTypedNonASCII())
+
+    let verdict = try fuzzer.verdict(
+      start: document(paragraph()),
+      commands: [EditorCommand.caret(Point(path: [0], offset: 0, type: .element)), .insertText("a"), .insertText("é")])
+
+    #expect(verdict == .diverged)
+  }
+
   /// The differential check proper. Budget and seed come from FUZZ_STEPS and
   /// FUZZ_SEED; every divergence is written as a fixture to commit.
   @Test func lexicalSwiftMatchesTheReference() throws {
