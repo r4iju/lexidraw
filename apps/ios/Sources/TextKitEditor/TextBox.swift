@@ -36,6 +36,14 @@ import UIKit
 
   var width: CGFloat { container.size.width }
 
+  /// The space after the last paragraph, which `height` counts and a table
+  /// cell leaves out, as the web leaves out its last paragraph's margin.
+  var trailingSpacing: CGFloat {
+    guard storage.length > 0 else { return 0 }
+    let style = storage.attribute(.paragraphStyle, at: storage.length - 1, effectiveRange: nil) as? NSParagraphStyle
+    return style?.paragraphSpacing ?? 0
+  }
+
   /// The text's length, without the final newline.
   var length: Int { max(storage.length - 1, 0) }
 

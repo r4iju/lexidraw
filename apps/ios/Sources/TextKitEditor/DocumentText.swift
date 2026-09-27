@@ -55,9 +55,26 @@ public final class DocumentText {
   /// How a block at the root is laid out.
   public enum BlockKind: Equatable, Sendable {
     case text
-    /// Each row's cells, as ranges in the block.
-    case table(cells: [[NSRange]])
+    case table(Table)
     case embedded(type: String)
+  }
+
+  /// What a table's layout takes from its nodes.
+  public struct Table: Equatable, Sendable {
+    public struct Cell: Equatable, Sendable {
+      /// The cell's text in the block.
+      public var range: NSRange
+      public var colSpan = 1
+      public var rowSpan = 1
+      /// A header cell, which Lexical writes as `th`.
+      public var isHeader = false
+    }
+
+    /// Each row's cells, in the row's order.
+    public var rows: [[Cell]]
+    /// The widths the columns are set to, in CSS pixels, or nil where they
+    /// fit their text.
+    public var columnWidths: [Double]?
   }
 
   private let model: any EditorModel
@@ -157,13 +174,13 @@ public final class DocumentText {
     storage.replaceCharacters(in: range, with: text)
     var block = blocks[first]
     block.length = starts[last] + blocks[last].length - starts[first] + text.length - range.length
-    var edited: [[NSRange]]?
-    if case .table(let cells) = block.kind, last == first {
+    var edited: Table?
+    if case .table(let table) = block.kind, last == first {
       let local = NSRange(location: range.location - starts[first], length: range.length)
-      edited = Self.cells(cells, replacing: local, withLength: text.length)
+      edited = Self.table(table, replacing: local, withLength: text.length)
     }
     if let edited {
-      block.kind = .table(cells: edited)
+      block.kind = .table(edited)
     } else if last > first || block.kind != .text {
       block.kind = .text
       block.spans = [:]
@@ -262,17 +279,24 @@ public final class DocumentText {
     return (text, rendered)
   }
 
-  /// A table's cells after `range` of it is replaced with text `length`
-  /// long, or nil where the edit takes in more than one cell.
-  private static func cells(_ cells: [[NSRange]], replacing range: NSRange, withLength length: Int) -> [[NSRange]]? {
+  /// A table after `range` of it is replaced with text `length` long, or
+  /// nil where the edit takes in more than one cell.
+  private static func table(_ table: Table, replacing range: NSRange, withLength length: Int) -> Table? {
     var inOneCell = false
-    let edited = cells.map { row in
-      row.map { cell -> NSRange in
-        if NSMaxRange(cell) < range.location { return cell }
-        if cell.location > NSMaxRange(range) { return NSRange(location: cell.location + length - range.length, length: cell.length) }
-        guard cell.location <= range.location, NSMaxRange(range) <= NSMaxRange(cell) else { return cell }
+    var edited = table
+    edited.rows = table.rows.map { row in
+      row.map { cell in
+        var cell = cell
+        let text = cell.range
+        if NSMaxRange(text) < range.location { return cell }
+        if text.location > NSMaxRange(range) {
+          cell.range.location += length - range.length
+          return cell
+        }
+        guard text.location <= range.location, NSMaxRange(range) <= NSMaxRange(text) else { return cell }
         inOneCell = true
-        return NSRange(location: cell.location, length: cell.length + length - range.length)
+        cell.range.length += length - range.length
+        return cell
       }
     }
     return inOneCell ? edited : nil
@@ -282,11 +306,23 @@ public final class DocumentText {
     switch spans[[]]?.kind {
     case .character: return .embedded(type: node["type"]?.stringValue ?? "")
     case .element(let rowCount) where node["type"] == "table":
+      let rows = node["children"]?.arrayValue ?? []
       return .table(
-        cells: (0..<rowCount).map { row in
-          guard case .element(let cellCount) = spans[[row]]?.kind else { return [] }
-          return (0..<cellCount).compactMap { spans[[row, $0]].map { NSRange(location: $0.start, length: $0.end - $0.start) } }
-        })
+        Table(
+          rows: (0..<rowCount).map { row in
+            guard case .element(let cellCount) = spans[[row]]?.kind else { return [] }
+            let cells = rows[row]["children"]?.arrayValue ?? []
+            return (0..<cellCount).compactMap { index in
+              spans[[row, index]].map { span in
+                let cell = cells[index]
+                return Table.Cell(
+                  range: NSRange(location: span.start, length: span.end - span.start),
+                  colSpan: max(cell["colSpan"]?.intValue ?? 1, 1), rowSpan: max(cell["rowSpan"]?.intValue ?? 1, 1),
+                  isHeader: (cell["headerState"]?.intValue ?? 0) != 0)
+              }
+            }
+          },
+          columnWidths: node["colWidths"]?.arrayValue?.compactMap(\.numberValue)))
     default: return .text
     }
   }

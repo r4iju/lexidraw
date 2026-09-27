@@ -92,10 +92,14 @@ public final class EditorView: UIScrollView, UITextInput {
   /// model refuses leaves the document as it was, so there is nothing to show,
   /// though where `tellsRefusal` the user is told why.
   /// UIKit's own input calls expect the text and selection they asked for
-  /// without being told; anything else tells the input delegate.
+  /// without being told; anything else tells the input delegate. Returns
+  /// what the command changed, where the model took it.
   @discardableResult
   private func perform(_ command: EditorCommand, fromInput: Bool, tellsRefusal: Bool = false) -> ChangeSet? {
     guard isEditable || !command.edits else { return nil }
+    // A model left with no selection, as after typing over table cells,
+    // takes the view's before an edit.
+    if command.editsAtSelection, modelSelection() == nil { sendSelection() }
     let now = ProcessInfo.processInfo.systemUptime
     let elapsed = Int((now - lastCommand) * 1000)
     lastCommand = now
@@ -158,7 +162,17 @@ public final class EditorView: UIScrollView, UITextInput {
   }
 
   private func showModelSelection(fromInput: Bool) {
-    guard let selection = modelSelection(), let anchor = document.offset(of: selection.anchor),
+    let selection = modelSelection()
+    let cells = selection.flatMap(selectedCells)
+    if selection == nil, layout.tableSelection != nil {
+      // Typing or deleting over cells leaves nothing selected; what comes
+      // next goes where the selection ended.
+      if !fromInput { inputDelegate?.selectionWillChange(self) }
+      anchor = focus
+      if !fromInput { inputDelegate?.selectionDidChange(self) }
+    }
+    layout.tableSelection = cells
+    guard let selection, let anchor = document.offset(of: selection.anchor),
       let focus = document.offset(of: selection.focus)
     else { return }
     if !fromInput { inputDelegate?.selectionWillChange(self) }
@@ -166,6 +180,20 @@ public final class EditorView: UIScrollView, UITextInput {
     self.focus = focus
     if !fromInput { inputDelegate?.selectionDidChange(self) }
     scrollToCaret()
+  }
+
+  /// The table block a table selection is in, and the cells it has.
+  private func selectedCells(_ selection: Selection) -> (block: Int, cells: Set<TableView.CellIndex>)? {
+    guard let path = selection.table, path.count == 1, selection.anchor.path.count == 3,
+      selection.focus.path.count == 3, path[0] < document.blockCount,
+      case .table(let table) = document.kind(ofBlock: path[0])
+    else { return nil }
+    let (anchor, focus) = (selection.anchor.path, selection.focus.path)
+    return (
+      path[0],
+      table.cells(
+        from: TableView.CellIndex(row: anchor[1], index: anchor[2]), to: TableView.CellIndex(row: focus[1], index: focus[2]))
+    )
   }
 
   /// Tells the model where the view's selection is, which it needs before
@@ -445,8 +473,9 @@ public final class EditorView: UIScrollView, UITextInput {
     return CGRect(x: frame.minX, y: frame.minY, width: 2, height: frame.height)
   }
 
+  /// Selected table cells are tinted instead, as on the web.
   public func selectionRects(for range: UITextRange) -> [UITextSelectionRect] {
-    guard let range = range as? TextRange else { return [] }
+    guard let range = range as? TextRange, layout.tableSelection == nil else { return [] }
     let frames = segments(range.range).filter { $0.width > 0 }
     return frames.enumerated().map { index, frame in
       SelectionRect(frame, containsStart: index == 0, containsEnd: index == frames.count - 1)
@@ -596,6 +625,71 @@ public final class EditorView: UIScrollView, UITextInput {
   @objc private func makeHeading2() { setBlockType(.h2) }
   @objc private func makeHeading3() { setBlockType(.h3) }
   @objc private func makeQuote() { setBlockType(.quote) }
+  /// The edit menu with a Table menu: the web's insert-table dialog, or
+  /// its table menu's row and column actions in a table.
+  public func editMenu(for textRange: UITextRange, suggestedActions: [UIMenuElement]) -> UIMenu? {
+    UIMenu(children: suggestedActions + [tableMenu()])
+  }
+
+  private func tableMenu() -> UIMenu {
+    func action(_ title: String, _ command: EditorCommand, destructive: Bool = false) -> UIAction {
+      UIAction(title: title, attributes: destructive ? .destructive : []) { [weak self] _ in
+        self?.perform(command, fromInput: false)
+      }
+    }
+    let actions: [UIMenuElement] =
+      isInTable
+      ? [
+        action("Insert Row Above", .insertTableRow(after: false)),
+        action("Insert Row Below", .insertTableRow(after: true)),
+        action("Insert Column Left", .insertTableColumn(after: false)),
+        action("Insert Column Right", .insertTableColumn(after: true)),
+        action("Delete Column", .deleteTableColumn, destructive: true),
+        action("Delete Row", .deleteTableRow, destructive: true),
+      ]
+      : [UIAction(title: "Insert Table…") { [weak self] _ in self?.askForTable() }]
+    return UIMenu(title: "Table", image: UIImage(systemName: "tablecells"), children: actions)
+  }
+
+  private var isInTable: Bool {
+    guard let selection = modelSelection(), let block = selection.anchor.path.first, block < document.blockCount,
+      case .table = document.kind(ofBlock: block)
+    else { return false }
+    return true
+  }
+
+  /// The web's insert-table dialog: rows and columns, five of each to begin
+  /// with, up to 500 rows and 50 columns.
+  private func askForTable() {
+    let alert = UIAlertController(title: "Insert Table", message: nil, preferredStyle: .alert)
+    var insert: UIAlertAction?
+    func count(_ index: Int) -> Int? { alert.textFields?[index].text.flatMap { Int($0) } }
+    func isValid() -> Bool {
+      guard let rows = count(0), let columns = count(1) else { return false }
+      return (1...500).contains(rows) && (1...50).contains(columns)
+    }
+    for (name, limit) in [("Rows", 500), ("Columns", 50)] {
+      alert.addTextField { field in
+        field.text = "5"
+        field.placeholder = "# of \(name.lowercased()) (1-\(limit))"
+        field.accessibilityLabel = name
+        field.keyboardType = .numberPad
+        field.addAction(UIAction { _ in insert?.isEnabled = isValid() }, for: .editingChanged)
+      }
+    }
+    alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+    insert = UIAlertAction(title: "Insert Table", style: .default) { [weak self] _ in
+      guard let rows = count(0), let columns = count(1) else { return }
+      self?.perform(.insertTable(rows: rows, columns: columns), fromInput: false)
+    }
+    alert.addAction(insert!)
+    alert.preferredAction = insert
+    var responder: UIResponder? = self
+    while let current = responder, !(current is UIViewController) { responder = current.next }
+    var presenter = responder as? UIViewController
+    while let presented = presenter?.presentedViewController { presenter = presented }
+    presenter?.present(alert, animated: true)
+  }
 
   public override func toggleBoldface(_ sender: Any?) { perform(.formatText(.bold), fromInput: false) }
   public override func toggleItalics(_ sender: Any?) { perform(.formatText(.italic), fromInput: false) }
@@ -809,6 +903,16 @@ public final class EditorView: UIScrollView, UITextInput {
     super.layoutSubviews()
     if composition == nil, typesetting.setWidth(bounds.width) { render(nil) }
     layout.layoutViewport(of: self)
+  }
+}
+
+extension EditorCommand {
+  /// Whether the command acts at the selection, so the model needs one.
+  fileprivate var editsAtSelection: Bool {
+    switch self {
+    case .setSelection, .wait, .undo, .redo, .selectAll: false
+    default: true
+    }
   }
 }
 

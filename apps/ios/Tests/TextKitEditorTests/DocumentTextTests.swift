@@ -107,14 +107,50 @@ import TextKitEditor
     #expect((0..<text.blockCount).map { shown(text.range(ofBlock: $0)) } == ["Title", "before", "c1\nc2\nc3\nc4", "\u{FFFC}", "after"])
     #expect(storage.attribute(.blockType, at: 0, effectiveRange: nil) as? String == "h2")
     #expect(text.kind(ofBlock: 1) == .text)
-    guard case .table(let cells) = text.kind(ofBlock: 2) else {
+    guard case .table(let table) = text.kind(ofBlock: 2) else {
       Issue.record("The table isn't laid out as one")
       return
     }
-    let table = text.range(ofBlock: 2).location
-    #expect(cells.map { $0.map { shown(NSRange(location: table + $0.location, length: $0.length)) } } == [["c1", "c2"], ["c3", "c4"]])
+    let start = text.range(ofBlock: 2).location
+    #expect(
+      table.rows.map { $0.map { shown(NSRange(location: start + $0.range.location, length: $0.range.length)) } }
+        == [["c1", "c2"], ["c3", "c4"]])
     #expect(text.blockIndex(at: NSMaxRange(text.range(ofBlock: 2))) == 2)
     #expect(text.kind(ofBlock: 3) == .embedded(type: "youtube"))
+  }
+
+  /// What a table's layout takes from its nodes besides the text: merged
+  /// cells, header cells and the widths its columns are set to.
+  @Test func describesATablesMergedCellsHeadersAndWidths() throws {
+    func cell(_ text: String, colSpan: Int = 1, rowSpan: Int = 1, headerState: Int = 0) -> JSONValue {
+      LexicalJSON.element(
+        "tablecell", [LexicalJSON.paragraph([LexicalJSON.text(text)])],
+        [
+          "backgroundColor": nil, "colSpan": .number(Double(colSpan)), "headerState": .number(Double(headerState)),
+          "rowSpan": .number(Double(rowSpan)),
+        ])
+    }
+    let model = Editor()
+    try model.load(
+      LexicalJSON.document([
+        LexicalJSON.element(
+          "table",
+          [
+            LexicalJSON.element("tablerow", [cell("wide", colSpan: 2, headerState: 1), cell("tall", rowSpan: 2)]),
+            LexicalJSON.element("tablerow", [cell("a", headerState: 2), cell("b")]),
+          ], ["colWidths": [100, 50, 75]])
+      ]))
+    let text = DocumentText(model: model, style: Self.style)
+    try text.reload(NSMutableAttributedString())
+
+    guard case .table(let table) = text.kind(ofBlock: 0) else {
+      Issue.record("The table isn't laid out as one")
+      return
+    }
+    #expect(table.rows.map { $0.map(\.colSpan) } == [[2, 1], [1, 1]])
+    #expect(table.rows.map { $0.map(\.rowSpan) } == [[1, 2], [1, 1]])
+    #expect(table.rows.map { $0.map(\.isHeader) } == [[true, false], [true, false]])
+    #expect(table.columnWidths == [100, 50, 75])
   }
 
   @Test func standsInForANodeWithOneCharacter() throws {

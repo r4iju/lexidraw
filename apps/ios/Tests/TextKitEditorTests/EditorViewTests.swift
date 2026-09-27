@@ -138,6 +138,50 @@ import UIKit
     view.unmarkText()
 
     #expect(try model.snapshot().state["root"]?["children"]?.arrayValue?.first?["type"] == "heading")
+  /// Tab moves to the end of the next table cell, and Shift-Tab to the
+  /// end of the one before, as @lexical/table's Tab does.
+  @Test func tabMovesBetweenTableCells() throws {
+    let (view, model) = try tableView(caretAfter: "one")
+    try press("\t", [], in: view)
+    view.insertText("!")
+    try press("\t", .shift, in: view)
+    view.insertText("?")
+
+    let rows = try model.snapshot().state["root"]?["children"]?.arrayValue?.first?["children"]?.arrayValue ?? []
+    let texts: [[String]] = rows.map { row in
+      (row["children"]?.arrayValue ?? []).map { cell in
+        let paragraph = cell["children"]?.arrayValue?.first
+        return paragraph?["children"]?.arrayValue?.first?["text"]?.stringValue ?? ""
+      }
+    }
+    #expect(texts == [["one?", "two!"]])
+  }
+
+  /// Outside a table, Tab types a tab, as the key did before tables took it.
+  @Test func tabOutsideATableTypesATab() throws {
+    #expect(try text(afterPressing: "\t", [], in: "one", caretAt: 3) == "one\t")
+  }
+
+  private func tableView(caretAfter word: String) throws -> (EditorView, Editor) {
+    let model = Editor()
+    try model.load(LexicalJSON.document([LexicalJSON.table([["one", "two"]])]))
+    let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 600))
+    let view = EditorView(model: model)
+    view.frame = window.bounds
+    window.addSubview(view)
+    window.makeKeyAndVisible()
+    #expect(view.becomeFirstResponder())
+    view.layoutIfNeeded()
+    let whole = try #require(view.textRange(from: view.beginningOfDocument, to: view.endOfDocument))
+    let text = try #require(view.text(in: whole)) as NSString
+    let caret = try #require(view.position(from: view.beginningOfDocument, offset: NSMaxRange(text.range(of: word))))
+    view.selectedTextRange = view.textRange(from: caret, to: caret)
+    return (view, model)
+  }
+
+  private func press(_ input: String, _ modifiers: UIKeyModifierFlags, in view: EditorView) throws {
+    let command = try #require(view.keyCommands?.first { $0.input == input && $0.modifierFlags == modifiers })
+    view.perform(try #require(command.action), with: command)
   }
 
   @Test func tabIndentsAnItemAndShiftTabOutdentsIt() throws {

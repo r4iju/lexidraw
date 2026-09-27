@@ -62,7 +62,7 @@ import UIKit
     let one = try caret("one")
     let two = try caret("two words")
     let three = try caret("three")
-    #expect(abs(two.minY - one.minY) < 1 && abs(two.minX - one.minX - TableView.columnWidth) < 1, "two words beside one")
+    #expect(abs(two.minY - one.minY) < 1 && two.minX > one.maxX, "two words beside one")
     #expect(three.minY > one.maxY && abs(three.minX - one.minX) < 1, "three below one")
     #expect(try caret("after").minY - (try caret("four")).maxY >= PlaceholderView.height, "the embed's room")
   }
@@ -71,14 +71,16 @@ import UIKit
   /// no caret or selection in it is drawn past its edges.
   @Test
   func aWideTableShowsTheCaretAndNothingPastItsEdges() throws {
-    let view = try Self.host(TestDocuments.titledTable([["a", "b", "c", "hidden"]]))
+    let view = try Self.host(TestDocuments.titledTable([Array(repeating: "Wednesday 1 July", count: 5) + ["hidden"]]))
     #expect(view.becomeFirstResponder())
     let text = try Self.text(of: view) as NSString
-    let table = NSRange(location: text.range(of: "a\n").location, length: NSMaxRange(text.range(of: "hidden")) - text.range(of: "a\n").location)
+    let first = text.range(of: "Wednesday").location
+    let table = NSRange(location: first, length: NSMaxRange(text.range(of: "hidden")) - first)
     let width = view.textInputView.bounds.width
     func shows(_ rect: CGRect) -> Bool { rect == .zero || (rect.minX >= 0 && rect.minX <= width) }
 
     let end = try #require(view.position(from: view.beginningOfDocument, offset: NSMaxRange(table)))
+    #expect(view.caretRect(for: end) == .zero, "the last cell starts out of sight")
     view.selectedTextRange = view.textRange(from: end, to: end)
     view.layoutIfNeeded()
 
@@ -247,6 +249,160 @@ import UIKit
     #expect(zip(drawn, [expected.red, expected.green, expected.blue]).allSatisfy { abs($0 - $1) < 0.01 }, "\(drawn)")
   }
 
+  /// A column is as wide as its text on one line, with the web's padding
+  /// and border, while the table fits: a short column's text never wraps,
+  /// and another column is at least 7.5rem wide.
+  @Test
+  func columnsAreAsWideAsTheirText() throws {
+    let view = try Self.host(TestDocuments.titledTable([["a", "i i i i i i i i i", "end"]]))
+    let a = try caret(view, "a\n")
+    let narrow = try caret(view, "i i")
+    let end = try caret(view, "end")
+    let font = try #require(EditorView.defaultStyle("table", [])[.font] as? UIFont)
+    let aWide = ceil(NSAttributedString(string: "a", attributes: [.font: font]).size().width)
+    #expect(abs(narrow.minX - a.minX - (aWide + 2 * 12 + 1)) < 1, "\(narrow.minX - a.minX)")
+    #expect(abs(end.minX - narrow.minX - 120) < 1, "\(end.minX - narrow.minX)")
+  }
+
+  /// A column of sentences wraps within the text's width rather than
+  /// making the table scroll, and a short column beside it stays whole.
+  @Test
+  func aLongColumnWrapsWithinTheTextsWidth() throws {
+    let sentence = Array(repeating: "words that wrap", count: 12).joined(separator: " ")
+    let view = try Self.host(TestDocuments.titledTable([["Wednesday 1 July", sentence]]))
+    let width = view.textInputView.bounds.width
+    let text = try Self.text(of: view) as NSString
+    let cell = text.range(of: sentence)
+    let start = try position(view, cell.location)
+    let finish = try position(view, NSMaxRange(cell))
+    #expect(view.caretRect(for: finish).minY > view.caretRect(for: start).maxY, "the sentence wraps")
+    for offset in cell.location...NSMaxRange(cell) {
+      let caret = view.caretRect(for: try position(view, offset))
+      #expect(caret.minX >= 0 && caret.maxX <= width, "caret at \(offset): \(caret)")
+    }
+    let short = text.range(of: "Wednesday 1 July")
+    #expect(
+      abs(view.caretRect(for: try position(view, NSMaxRange(short))).minY - view.caretRect(for: try position(view, short.location)).minY) < 1,
+      "the short column stays on one line")
+  }
+
+  /// A table set to column widths takes them.
+  @Test
+  func aTableSetToWidthsTakesThem() throws {
+    var table = LexicalJSON.table([["a", "b", "c"]])
+    if case .object(var fields) = table {
+      fields["colWidths"] = [200, 80, 90]
+      table = .object(fields)
+    }
+    let view = try Self.host(LexicalJSON.document([table]))
+    #expect(abs(try caret(view, "b").minX - (try caret(view, "a")).minX - 200) < 1)
+    #expect(abs(try caret(view, "c").minX - (try caret(view, "b")).minX - 80) < 1)
+  }
+
+  /// A merged cell spans the columns and rows it takes in, and the cells
+  /// after it go past them.
+  @Test
+  func aMergedCellSpansItsColumnsAndRows() throws {
+    func cell(_ text: String, colSpan: Int = 1, rowSpan: Int = 1) -> JSONValue {
+      LexicalJSON.element(
+        "tablecell", [LexicalJSON.paragraph([LexicalJSON.text(text)])],
+        [
+          "backgroundColor": nil, "colSpan": .number(Double(colSpan)), "headerState": 0,
+          "rowSpan": .number(Double(rowSpan)),
+        ])
+    }
+    let view = try Self.host(
+      LexicalJSON.document([
+        LexicalJSON.element(
+          "table",
+          [
+            LexicalJSON.element("tablerow", [cell("tall", rowSpan: 2), cell("wide", colSpan: 2)]),
+            LexicalJSON.element("tablerow", [cell("b"), cell("c")]),
+          ])
+      ]))
+    let tall = try caret(view, "tall")
+    let wide = try caret(view, "wide")
+    let b = try caret(view, "b")
+    let c = try caret(view, "c")
+    #expect(abs(b.minX - wide.minX) < 1 && b.minY > wide.maxY, "b under the start of wide")
+    #expect(c.minX > b.maxX && abs(c.minY - b.minY) < 1, "c beside b")
+    #expect(b.minX > tall.maxX, "b past tall, which takes its row too")
+    try Self.expectEveryCaretToLandOnItself(view)
+  }
+
+  /// Cells selected as a table selection are tinted as the web tints them,
+  /// with the theme's primary colour at 10%, and no text is highlighted.
+  @Test
+  func aTableSelectionTintsItsCells() throws {
+    let view = try Self.host(Self.editableTable)
+    view.window?.overrideUserInterfaceStyle = .light
+    #expect(view.becomeFirstResponder())
+    let text = try Self.text(of: view) as NSString
+    let one = text.range(of: "one")
+    let two = text.range(of: "two words")
+    let range = try #require(
+      view.textRange(from: try position(view, one.location), to: try position(view, NSMaxRange(two))))
+    view.selectedTextRange = range
+    view.layoutIfNeeded()
+
+    #expect(view.selectionRects(for: range).isEmpty)
+    let image = UIGraphicsImageRenderer(bounds: view.bounds).image { view.layer.render(in: $0.cgContext) }
+    /// A point in the cell's padding before `word`, where the image has it.
+    func padding(_ word: String) throws -> CGPoint {
+      let caret = try caret(view, word)
+      let point = view.convert(CGPoint(x: caret.minX - 6, y: caret.minY - 3), from: view.textInputView)
+      return CGPoint(x: point.x - view.bounds.minX, y: point.y - view.bounds.minY)
+    }
+    let tinted = try pixel(image, at: padding("two words"))
+    let plain = try pixel(image, at: padding("three"))
+    let primary = (red: 115.0, green: 72.0, blue: 226.0)
+    let expected = (red: 255 * 0.9 + primary.red * 0.1, green: 255 * 0.9 + primary.green * 0.1, blue: 255 * 0.9 + primary.blue * 0.1)
+    #expect(abs(tinted.red - expected.red) < 3 && abs(tinted.green - expected.green) < 3 && abs(tinted.blue - expected.blue) < 3, "\(tinted)")
+    #expect(plain.red > 250 && plain.green > 250 && plain.blue > 250, "\(plain)")
+  }
+
+  /// Typing over table cells types nothing and ends the selection, as on
+  /// the web; the next key types where the selection ended.
+  @Test
+  func typingAfterTypingOverCellsTypesWhereTheSelectionEnded() throws {
+    let model = Editor()
+    let view = try Self.host(Self.editableTable, model: model)
+    #expect(view.becomeFirstResponder())
+    let text = try Self.text(of: view) as NSString
+    view.selectedTextRange = view.textRange(
+      from: try position(view, text.range(of: "one").location), to: try position(view, text.range(of: "four").location))
+
+    view.insertText("x")
+    view.insertText("y")
+
+    #expect(try Self.text(of: view).contains("one\ntwo words\nthree\nyfour"))
+  }
+
+  private func position(_ view: EditorView, _ offset: Int) throws -> UITextPosition {
+    try #require(view.position(from: view.beginningOfDocument, offset: offset))
+  }
+
+  private func caret(_ view: EditorView, _ word: String) throws -> CGRect {
+    let text = try Self.text(of: view) as NSString
+    return view.caretRect(for: try position(view, text.range(of: word).location))
+  }
+
+  private func pixel(_ image: UIImage, at point: CGPoint) throws -> (red: Double, green: Double, blue: Double) {
+    let cgImage = try #require(image.cgImage)
+    let scale = image.scale
+    var data = [UInt8](repeating: 0, count: 4)
+    let context = try #require(
+      CGContext(
+        data: &data, width: 1, height: 1, bitsPerComponent: 8, bytesPerRow: 4, space: CGColorSpace(name: CGColorSpace.sRGB)!,
+        bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))
+    context.draw(
+      cgImage,
+      in: CGRect(
+        x: -point.x * scale, y: -(CGFloat(cgImage.height) - point.y * scale - 1), width: CGFloat(cgImage.width),
+        height: CGFloat(cgImage.height)))
+    return (Double(data[0]), Double(data[1]), Double(data[2]))
+  }
+
   /// Scrolling up from the middle of a long document, through blocks laid
   /// out for the first time, moves the text exactly as far as the scroll.
   @Test
@@ -267,8 +423,7 @@ import UIKit
     #expect(jumps == [])
   }
 
-  static func host(_ document: JSONValue, width: CGFloat = 390) throws -> EditorView {
-    let model = Editor()
+  static func host(_ document: JSONValue, model: Editor = Editor(), width: CGFloat = 390) throws -> EditorView {
     try model.load(document)
     let window = UIWindow(frame: CGRect(x: 0, y: 0, width: width, height: 600))
     let view = EditorView(model: model)
@@ -280,5 +435,10 @@ import UIKit
   }
 
   static let titledTable = TestDocuments.titledTable([["one", "two words"], ["three", "four"]])
+  /// A table among only what LexicalSwift edits so far.
+  static let editableTable = LexicalJSON.document([
+    LexicalJSON.paragraph([LexicalJSON.text("before")]), LexicalJSON.table([["one", "two words"], ["three", "four"]]),
+    LexicalJSON.paragraph([LexicalJSON.text("after")]),
+  ])
 }
 #endif
