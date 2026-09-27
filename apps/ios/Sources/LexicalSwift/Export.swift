@@ -45,7 +45,7 @@ extension EditorState {
   }
 
   /// A list item's indent is how deep its list nests in other list items.
-  private func listItemDepth(_ key: NodeKey) -> Int {
+  func listItemDepth(_ key: NodeKey) -> Int {
     var depth = 0
     var ancestor = parent(of: key).flatMap(parent(of:))
     while let item = ancestor, self[item].type == SerializedListItemNode.type {

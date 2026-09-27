@@ -158,8 +158,8 @@ extension Update {
   }
 
   /// `collapseAtStart` of the root, which keeps the caret where it is, of a
-  /// heading or quote, and of a paragraph, which goes when it holds only
-  /// blank text.
+  /// heading or quote, of a list item, and of a paragraph, which goes when
+  /// it holds only blank text.
   private mutating func collapseElementAtStart(_ key: NodeKey) throws -> Bool {
     switch state[key].type {
     case SerializedRootNode.type: return true
@@ -169,6 +169,7 @@ extension Update {
     case SerializedQuoteNode.type:
       try collapseQuoteAtStart(key)
       return true
+    case SerializedListItemNode.type: return try collapseListItemAtStart(key)
     case SerializedParagraphNode.type: break
     default: return false
     }

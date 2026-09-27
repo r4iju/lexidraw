@@ -258,3 +258,33 @@ struct NodeFields {
   /// The fields, with the keys `order` lists first.
   func json(in order: [String]) -> JSONValue { .object(rest.ordered(by: order)) }
 }
+
+/// What every TextNode holds, a TabNode's included.
+protocol TextPayload: NodePayload {
+  var detail: Double? { get set }
+  var format: Double? { get set }
+  var style: String? { get set }
+}
+
+extension SerializedTextNode: TextPayload {}
+extension SerializedTabNode: TextPayload {}
+
+extension SerializedNode {
+  /// The text's properties, for the text editing is ported for.
+  var textFields: (any TextPayload)? {
+    get {
+      switch self {
+      case .text(let node): node
+      case .tab(let node): node
+      default: nil
+      }
+    }
+    set {
+      switch newValue {
+      case let node as SerializedTextNode: self = .text(node)
+      case let node as SerializedTabNode: self = .tab(node)
+      default: break
+      }
+    }
+  }
+}

@@ -6,9 +6,12 @@ extension Node {
   /// Plain text Lexical merges with its neighbours: a `text` node in normal mode.
   var isSimpleText: Bool { textNode?.mode == .normal }
 
-  var isUnmergeable: Bool { textNode.map { TextDetail(rawValue: Int($0.detail ?? 0)).contains(.unmergeable) } ?? false }
+  var isUnmergeable: Bool {
+    payload.textFields.map { TextDetail(rawValue: Int($0.detail ?? 0)).contains(.unmergeable) } ?? false
+  }
 
-  var text: String { textNode?.text ?? "" }
+  /// A TabNode's text is a tab, whatever it was stored with.
+  var text: String { type == SerializedTabNode.type ? "\t" : textNode?.text ?? "" }
 }
 
 /// The bits Lexical keeps in a text node's `detail`.
@@ -79,6 +82,7 @@ extension Update {
       numberListItems(key)
     case SerializedListItemNode.type:
       try wrapInList(key)
+      if runsRegisteredTransforms, state.isAttached(key) { try syncListItemTextStyle(key) }
     default: break
     }
   }
@@ -113,18 +117,18 @@ extension Update {
 
   // MARK: Lists
 
-  private func listType(_ key: NodeKey) -> ListType? {
+  func listType(_ key: NodeKey) -> ListType? {
     if case .list(let list) = self[key].payload { list.listType } else { nil }
   }
 
   /// A list item whose first child is a list, holding a nested list.
-  private func isNestedListItem(_ key: NodeKey) -> Bool {
+  func isNestedListItem(_ key: NodeKey) -> Bool {
     self[key].type == SerializedListItemNode.type
       && self[key].children!.first.map { self[$0].type == SerializedListNode.type } == true
   }
 
   /// `mergeLists` from @lexical/list.
-  private mutating func mergeLists(_ first: NodeKey, _ second: NodeKey) throws {
+  mutating func mergeLists(_ first: NodeKey, _ second: NodeKey) throws {
     if let last = self[first].children!.last, let next = self[second].children!.first,
       isNestedListItem(last), isNestedListItem(next),
       listType(self[last].children![0]) == listType(self[next].children![0])
@@ -162,11 +166,7 @@ extension Update {
     guard self[parent].isRootOrShadowRoot else {
       throw EditorError.unsupported("A list item in a \(self[parent].type) node rather than a list")
     }
-    let list = create(SerializedListNode.type)
-    if case .list(var payload) = self[list].payload {
-      payload.listType = .bullet
-      state.nodes[list]!.payload = .list(payload)
-    }
+    let list = createList(.bullet)
     let siblings = self[parent].children!
     let index = siblings.firstIndex(of: key)!
     let items = siblings.map { self[$0].type == SerializedListItemNode.type }

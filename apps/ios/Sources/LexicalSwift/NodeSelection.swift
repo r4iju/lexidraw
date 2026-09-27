@@ -256,9 +256,11 @@ extension Update {
     return key
   }
 
-  func format(of key: NodeKey) -> TextFormat { TextFormat(rawValue: Int(state[key].textNode?.format ?? 0)) }
+  func format(of key: NodeKey) -> TextFormat {
+    TextFormat(rawValue: Int(state[key].payload.textFields?.format ?? 0))
+  }
 
-  func style(of key: NodeKey) -> String { state[key].textNode?.style ?? "" }
+  func style(of key: NodeKey) -> String { state[key].payload.textFields?.style ?? "" }
 
   mutating func setFormat(_ key: NodeKey, _ format: TextFormat) {
     modifyText(key) { $0.format = Double(format.rawValue) }
@@ -268,10 +270,10 @@ extension Update {
     modifyText(key) { $0.style = style }
   }
 
-  private mutating func modifyText(_ key: NodeKey, _ change: (inout SerializedTextNode) -> Void) {
-    guard case .text(var node) = state[key].payload else { return }
-    change(&node)
-    modify(key) { $0.payload = .text(node) }
+  private mutating func modifyText(_ key: NodeKey, _ change: (inout any TextPayload) -> Void) {
+    guard var fields = state[key].payload.textFields else { return }
+    change(&fields)
+    modify(key) { $0.payload.textFields = fields }
   }
 
   /// Lexical's `TextNode.spliceText`.

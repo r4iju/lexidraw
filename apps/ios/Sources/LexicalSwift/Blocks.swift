@@ -148,8 +148,8 @@ extension Update {
   }
 }
 
-/// The properties ElementNode keeps, which a paragraph, a heading, a quote
-/// and the root save.
+/// The properties ElementNode keeps, which a paragraph, a heading, a quote,
+/// a list, a list item and the root save.
 protocol ElementFields {
   var direction: Nullable<Direction> { get set }
   var format: ElementFormat? { get set }
@@ -161,6 +161,8 @@ protocol ElementFields {
 extension SerializedParagraphNode: ElementFields {}
 extension SerializedHeadingNode: ElementFields {}
 extension SerializedQuoteNode: ElementFields {}
+extension SerializedListNode: ElementFields {}
+extension SerializedListItemNode: ElementFields {}
 extension SerializedRootNode: ElementFields {}
 
 extension SerializedNode {
@@ -170,6 +172,8 @@ extension SerializedNode {
       case .paragraph(let node): node
       case .heading(let node): node
       case .quote(let node): node
+      case .list(let node): node
+      case .listItem(let node): node
       case .root(let node): node
       default: nil
       }
@@ -179,6 +183,8 @@ extension SerializedNode {
       case let node as SerializedParagraphNode: self = .paragraph(node)
       case let node as SerializedHeadingNode: self = .heading(node)
       case let node as SerializedQuoteNode: self = .quote(node)
+      case let node as SerializedListNode: self = .list(node)
+      case let node as SerializedListItemNode: self = .listItem(node)
       case let node as SerializedRootNode: self = .root(node)
       default: break
       }
