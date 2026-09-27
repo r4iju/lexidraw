@@ -21,8 +21,9 @@ extension Update {
   mutating func toggleLinkCommand(_ selection: RangeSelection, url: String?) throws {
     if url == nil {
       for node in try extract(selection) {
-        guard let parent = state.parent(of: node), state[parent].isAutoLink else { continue }
-        modifyLink(parent) { $0.isUnlinked = !($0.isUnlinked ?? false) }
+        guard let parent = state.parent(of: node), case .autoLink(var link) = state[parent].payload else { continue }
+        link.isUnlinked = !(link.isUnlinked ?? false)
+        modify(parent) { $0.payload = .autoLink(link) }
       }
     }
     guard url.map(WebLinks.validateUrl) ?? true else { return }
@@ -176,10 +177,7 @@ extension Update {
   mutating func extract(_ selection: RangeSelection) throws -> [NodeKey] {
     var nodes = try self.nodes(in: selection)
     guard var first = nodes.first, var last = nodes.last else { return [] }
-    let (anchorOffset, focusOffset) = characterOffsets(selection)
-    let isBackward = try state.isBackward(selection)
-    let (start, end) = isBackward ? (selection.focus, selection.anchor) : (selection.anchor, selection.focus)
-    let (startOffset, endOffset) = isBackward ? (focusOffset, anchorOffset) : (anchorOffset, focusOffset)
+    let ((start, startOffset), (end, endOffset)) = try ends(of: selection)
     if nodes.count == 1 {
       guard state[first].isText, !selection.isCollapsed else { return [first] }
       let split = try splitText(first, at: [startOffset, endOffset])
@@ -224,6 +222,17 @@ extension Update {
     return (offset(anchor), offset(focus))
   }
 
+  /// Where the selection starts and where it ends, in document order, each
+  /// point with its offset as `characterOffsets` counts it.
+  func ends(of selection: RangeSelection) throws
+    -> (start: (point: SelectionPoint, offset: Int), end: (point: SelectionPoint, offset: Int))
+  {
+    let (anchor, focus) = (selection.anchor, selection.focus)
+    let (anchorOffset, focusOffset) = characterOffsets(selection)
+    return try state.isBackward(selection)
+      ? ((focus, focusOffset), (anchor, anchorOffset)) : ((anchor, anchorOffset), (focus, focusOffset))
+  }
+
   // MARK: Nodes
 
   /// `$createLinkNode`.
@@ -231,39 +240,21 @@ extension Update {
     -> NodeKey
   {
     let key = create(SerializedLinkNode.type)
-    guard case .link(var link) = state[key].payload else { return key }
-    link.url = url
-    link.rel = rel
-    link.target = target
-    link.title = title
-    state.nodes[key]!.payload = .link(link)
+    modifyLink(key) { ($0.url, $0.rel, $0.target, $0.title) = (url, rel, target, title) }
     return key
   }
 
-  /// The properties a link and an autolink share, and an autolink's own.
-  struct LinkFields {
-    var url: String?
-    var rel: Nullable<String>
-    var isUnlinked: Bool?
+  /// The properties of `key`, which is a link or an autolink.
+  func linkFields(of key: NodeKey) -> any LinkFields {
+    guard let fields = state[key].payload.linkFields else { preconditionFailure("\(state[key].type) isn't a link") }
+    return fields
   }
 
-  mutating func modifyLink(_ key: NodeKey, _ change: (inout LinkFields) -> Void) {
-    modify(key) { node in
-      switch node.payload {
-      case .link(var link):
-        var fields = LinkFields(url: link.url, rel: link.rel)
-        change(&fields)
-        (link.url, link.rel) = (fields.url, fields.rel)
-        node.payload = .link(link)
-      case .autoLink(var link):
-        var fields = LinkFields(url: link.url, rel: link.rel, isUnlinked: link.isUnlinked)
-        change(&fields)
-        (link.url, link.rel, link.isUnlinked) = (fields.url, fields.rel, fields.isUnlinked)
-        node.payload = .autoLink(link)
-      default:
-        break
-      }
-    }
+  /// Changes the properties of `key`, which is a link or an autolink.
+  mutating func modifyLink(_ key: NodeKey, _ change: (inout any LinkFields) -> Void) {
+    var fields = linkFields(of: key)
+    change(&fields)
+    modify(key) { $0.payload.linkFields = fields }
   }
 
   // MARK: Transform
@@ -299,7 +290,8 @@ extension Update {
 
   /// `LinkNode.shouldMergeAdjacentLink`, which an autolink never does.
   private func shouldMergeLinks(_ link: NodeKey, _ other: NodeKey) -> Bool {
-    guard case .link(let a) = state[link].payload, case .link(let b) = state[other].payload else { return false }
+    guard isNonAutoLink(link), isNonAutoLink(other) else { return false }
+    let (a, b) = (linkFields(of: link), linkFields(of: other))
     return a.url == b.url && a.target == b.target && a.rel == b.rel && a.title == b.title
   }
 
@@ -332,6 +324,36 @@ extension Update {
     for caret in [pair.next, pair.previous] where state.isCaretAttached(caret) {
       setPoint(point, from: state.normalize(caret))
       return
+    }
+  }
+}
+
+/// The properties LinkNode keeps, which an AutoLinkNode keeps too.
+protocol LinkFields {
+  var url: String? { get set }
+  var rel: Nullable<String> { get set }
+  var target: Nullable<String> { get set }
+  var title: Nullable<String> { get set }
+}
+
+extension SerializedLinkNode: LinkFields {}
+extension SerializedAutoLinkNode: LinkFields {}
+
+extension SerializedNode {
+  var linkFields: (any LinkFields)? {
+    get {
+      switch self {
+      case .link(let node): node
+      case .autoLink(let node): node
+      default: nil
+      }
+    }
+    set {
+      switch newValue {
+      case let node as SerializedLinkNode: self = .link(node)
+      case let node as SerializedAutoLinkNode: self = .autoLink(node)
+      default: break
+      }
     }
   }
 }

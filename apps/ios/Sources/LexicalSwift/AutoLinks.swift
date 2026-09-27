@@ -119,7 +119,9 @@ extension Update {
       try replace(linkText, with: link)
       return remaining
     }
-    guard let firstText = nodes.first else { return nil }
+    guard let firstText = nodes.first else {
+      throw EditorError.invalidState("No text matched, so Lexical has none to link")
+    }
     var offset = state.textSize(of: firstText)
     let firstLinkText = startIndex == 0 ? firstText : try splitText(firstText, at: [startIndex])[1]
     var linkNodes: [NodeKey] = []
@@ -226,13 +228,7 @@ extension Update {
     return state[next].isLineBreak || (state[next].isText && state.textContent(of: next).startsWithSeparator)
   }
 
-  func url(of link: NodeKey) -> String {
-    switch state[link].payload {
-    case .link(let link): link.url ?? ""
-    case .autoLink(let link): link.url ?? ""
-    default: ""
-    }
-  }
+  func url(of link: NodeKey) -> String { linkFields(of: link).url ?? "" }
 }
 
 extension String {
