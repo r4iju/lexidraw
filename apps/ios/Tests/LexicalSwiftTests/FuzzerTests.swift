@@ -128,6 +128,52 @@ import Testing
     #expect(candidate.indentsAtTheCap > 0)
   }
 
+  /// LexicalSwift that notes the marker of each list it loads, and whether
+  /// the list is nested, and each shortcut typed after a tab.
+  final class NotesMarkersAndTabbedShortcuts: LexicalSwiftWith {
+    struct Marked: Hashable {
+      var marker: String
+      var nested: Bool
+    }
+    var marked: Set<Marked> = []
+    var tabbedShortcuts = 0
+    private var typed = ""
+
+    override func load(_ state: JSONValue) throws {
+      func note(_ node: JSONValue, lists: Int) {
+        if let marker = node["$"]?["mdListMarker"]?.stringValue {
+          marked.insert(Marked(marker: marker, nested: lists > 0))
+        }
+        let lists = node["type"] == "list" ? lists + 1 : lists
+        for child in node["children"]?.arrayValue ?? [] { note(child, lists: lists) }
+      }
+      note(state["root"] ?? .null, lists: 0)
+      try super.load(state)
+    }
+
+    override func apply(_ command: EditorCommand) throws -> ChangeSet {
+      if case .insertText(let text) = command {
+        typed = String((typed + text).suffix(3))
+        if typed == "\t- " { tabbedShortcuts += 1 }
+      } else {
+        typed = ""
+      }
+      return try super.apply(command)
+    }
+  }
+
+  @Test func loadsListsMarkedWithEachMarkNestedOrNotAndTypesATabbedShortcut() throws {
+    let candidate = NotesMarkersAndTabbedShortcuts()
+    var fuzzer = Fuzzer(seed: 7, reference: try Support.referenceEditor(), candidate: candidate)
+
+    #expect(try fuzzer.run(steps: 3_000)?.fixture == nil)
+    #expect(
+      candidate.marked
+        == [.init(marker: "*", nested: false), .init(marker: "+", nested: false), .init(marker: "*", nested: true),
+          .init(marker: "+", nested: true)])
+    #expect(candidate.tabbedShortcuts > 0)
+  }
+
   /// LexicalSwift that refuses what Lexical refuses, but for another reason.
   final class RefusesAsUnsupported: LexicalSwiftWith {
     override func apply(_ command: EditorCommand) throws -> ChangeSet {

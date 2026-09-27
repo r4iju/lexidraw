@@ -284,7 +284,7 @@ struct Generator {
   private static let shortcuts = [
     "# ", "### ", "###### ", "####### ", "> ", "--- ", "*** ", "___ ", "*a*", "**a**", "***a***", "_a_", "__a__",
     "~~a~~", "==a==", "`a`", "`**a**", "*a *", "a_b_", "- ", "* ", "+ ", "1. ", "7. ", "    - ", "        1. ", "[ ] ",
-    "[x] ", "- [ ] ", "``` ",
+    "[x] ", "- [ ] ", "\t- ", "``` ",
   ]
   /// The rest of a shortcut being typed.
   private var typing: [EditorCommand] = []
@@ -324,15 +324,19 @@ struct Generator {
   /// nested in an item of its own, down to three lists deep; or now and then
   /// a chain of an item and a nested list, five to eight lists deep, around
   /// the depth past which the web's editor won't indent. Now and then a
-  /// list is marked with the `*` or `+` it was typed with.
+  /// list, nested or not, is marked with the `*` or `+` it was typed with.
   private mutating func list(unlike excluded: ListType? = nil) -> JSONValue {
     let listType = ListType.allCases.filter { $0 != excluded }.randomElement(using: &random)!
     let start = listType == .number && Int.random(in: 0..<4, using: &random) == 0 ? 3 : 1
     let chain = Int.random(in: 0..<4, using: &random) == 0
     let deepest = chain ? Int.random(in: 5...8, using: &random) : 3
-    let marker = listType != .number && Int.random(in: 0..<4, using: &random) == 0 ? ListMarker.asterisk : nil
     return LexicalJSON.list(
-      listType, listEntries(depth: 1, deepest: deepest, chain: chain), start: start, marker: marker)
+      listType, listEntries(depth: 1, deepest: deepest, chain: chain), start: start, marker: marker(for: listType))
+  }
+
+  private mutating func marker(for listType: ListType) -> ListMarker? {
+    guard listType != .number, Int.random(in: 0..<4, using: &random) == 0 else { return nil }
+    return ListMarker.allCases.filter { $0 != .default }.randomElement(using: &random)
   }
 
   private mutating func listEntries(depth: Int, deepest: Int, chain: Bool) -> [LexicalJSON.ListEntry] {
@@ -340,7 +344,8 @@ struct Generator {
     for _ in 0..<(chain && depth < deepest ? 2 : Int.random(in: 1...3, using: &random)) {
       if depth < deepest, case .item? = entries.last, chain || Int.random(in: 0..<3, using: &random) == 0 {
         let listType = ListType.allCases.randomElement(using: &random)!
-        entries.append(.nested(listType, listEntries(depth: depth + 1, deepest: deepest, chain: chain)))
+        let nested = listEntries(depth: depth + 1, deepest: deepest, chain: chain)
+        entries.append(.nested(listType, nested, marker: marker(for: listType)))
       } else {
         entries.append(.item(inlineNodes(), checked: Bool.random(using: &random)))
       }
