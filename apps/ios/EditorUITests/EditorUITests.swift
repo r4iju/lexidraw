@@ -411,10 +411,12 @@ class EditorUITests: XCTestCase {
   }
 
   /// A point in the first cell of `row` of a table below one line of text,
-  /// its rows a line of table text tall.
+  /// past the table's margin, its rows a line of table text tall.
   private static func firstCell(row: Int) -> CGPoint {
-    let top = 16 + 22 + 8.5
-    let rowHeight = 8 + 15 * 1.5 + 8 + 1
+    let em: CGFloat = 17
+    let (web, table) = (DocumentTypography.web, DocumentTypography.web.table)
+    let top = 16 + (web.lineHeight + table.margin) * em
+    let rowHeight = 2 * table.paddingY + table.fontSize * table.lineHeight * em + table.border
     return CGPoint(x: 16 + 16, y: top + rowHeight * (CGFloat(row) + 0.5))
   }
 
