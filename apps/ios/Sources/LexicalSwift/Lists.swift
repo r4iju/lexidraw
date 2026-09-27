@@ -134,8 +134,10 @@ extension Update {
 
   /// `ListItemNode.replace` with anything but a list item, which takes the
   /// item's place out of the list, splitting it where the item was in the
-  /// middle.
-  mutating func replace(listItem item: NodeKey, with replacement: NodeKey) throws -> NodeKey {
+  /// middle, and with `includingChildren` its children after its own.
+  mutating func replace(listItem item: NodeKey, with replacement: NodeKey, includingChildren: Bool) throws
+    -> NodeKey
+  {
     try setIndent(item, 0)
     guard let list = state.parent(of: item), isList(list) else { return replacement }
     if state.firstChild(of: list) == item {
@@ -147,6 +149,15 @@ extension Update {
       for sibling in nextSiblings(of: item) { try append(newList, [sibling]) }
       try insert(replacement, after: list)
       try insert(newList, after: replacement)
+    }
+    if includingChildren {
+      let sizeBefore = state.childCount(of: replacement)
+      try splice(replacement, sizeBefore, deleting: 0, inserting: Array(state.children(of: item)))
+      if let selection {
+        for point in [selection.anchor, selection.focus] where point.key == item && point.type == .element {
+          point.set(replacement, sizeBefore + point.offset, .element)
+        }
+      }
     }
     try remove(item)
     if isEmpty(list) { try remove(list) }

@@ -1,0 +1,202 @@
+{
+  "changes" : [
+    {
+      "changed" : [
+
+      ]
+    },
+    {
+      "changed" : [
+        [
+
+        ],
+        [
+          0
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          1,
+          0
+        ]
+      ]
+    }
+  ],
+  "commands" : [
+    {
+      "anchor" : {
+        "offset" : 0,
+        "path" : [
+          0,
+          0,
+          0
+        ],
+        "type" : "text"
+      },
+      "focus" : {
+        "offset" : 0,
+        "path" : [
+          0,
+          0,
+          0
+        ],
+        "type" : "text"
+      },
+      "type" : "setSelection"
+    },
+    {
+      "blockType" : "paragraph",
+      "type" : "setBlockType"
+    }
+  ],
+  "expected" : {
+    "selection" : {
+      "anchor" : {
+        "offset" : 0,
+        "path" : [
+          0,
+          0
+        ],
+        "type" : "text"
+      },
+      "focus" : {
+        "offset" : 0,
+        "path" : [
+          0,
+          0
+        ],
+        "type" : "text"
+      },
+      "format" : 2,
+      "style" : ""
+    },
+    "state" : {
+      "root" : {
+        "children" : [
+          {
+            "children" : [
+              {
+                "detail" : 0,
+                "format" : 2,
+                "mode" : "normal",
+                "style" : "",
+                "text" : "a",
+                "type" : "text",
+                "version" : 1
+              }
+            ],
+            "direction" : null,
+            "format" : "",
+            "indent" : 0,
+            "textFormat" : 2,
+            "textStyle" : "",
+            "type" : "paragraph",
+            "version" : 1
+          },
+          {
+            "children" : [
+              {
+                "checked" : false,
+                "children" : [
+                  {
+                    "detail" : 0,
+                    "format" : 0,
+                    "mode" : "normal",
+                    "style" : "",
+                    "text" : "b",
+                    "type" : "text",
+                    "version" : 1
+                  }
+                ],
+                "direction" : null,
+                "format" : "",
+                "indent" : 0,
+                "type" : "listitem",
+                "value" : 1,
+                "version" : 1
+              }
+            ],
+            "direction" : null,
+            "format" : "",
+            "indent" : 0,
+            "listType" : "check",
+            "start" : 1,
+            "tag" : "ul",
+            "type" : "list",
+            "version" : 1
+          }
+        ],
+        "direction" : null,
+        "format" : "",
+        "indent" : 0,
+        "type" : "root",
+        "version" : 1
+      }
+    }
+  },
+  "start" : {
+    "root" : {
+      "children" : [
+        {
+          "children" : [
+            {
+              "checked" : true,
+              "children" : [
+                {
+                  "detail" : 0,
+                  "format" : 2,
+                  "mode" : "normal",
+                  "style" : "",
+                  "text" : "a",
+                  "type" : "text",
+                  "version" : 1
+                }
+              ],
+              "direction" : null,
+              "format" : "",
+              "indent" : 0,
+              "type" : "listitem",
+              "value" : 1,
+              "version" : 1
+            },
+            {
+              "checked" : false,
+              "children" : [
+                {
+                  "detail" : 0,
+                  "format" : 0,
+                  "mode" : "normal",
+                  "style" : "",
+                  "text" : "b",
+                  "type" : "text",
+                  "version" : 1
+                }
+              ],
+              "direction" : null,
+              "format" : "",
+              "indent" : 0,
+              "type" : "listitem",
+              "value" : 2,
+              "version" : 1
+            }
+          ],
+          "direction" : null,
+          "format" : "",
+          "indent" : 0,
+          "listType" : "check",
+          "start" : 1,
+          "tag" : "ul",
+          "type" : "list",
+          "version" : 1
+        }
+      ],
+      "direction" : null,
+      "format" : "",
+      "indent" : 0,
+      "type" : "root",
+      "version" : 1
+    }
+  }
+}

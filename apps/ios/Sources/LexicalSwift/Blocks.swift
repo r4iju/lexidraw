@@ -67,12 +67,12 @@ extension Update {
   private mutating func copyBlockFormatIndent(from source: NodeKey, to destination: NodeKey) {
     let json = state[source].payload.json
     let format = json["format"]?.stringValue.flatMap(ElementFormat.init(rawValue:)) ?? .empty
-    let indent = json["indent"]?.intValue ?? 0
+    let indent = self.indent(of: source)
     let destinationJSON = state[destination].payload.json
     if format.rawValue != destinationJSON["format"]?.stringValue ?? "" {
       modifyElement(destination) { $0.format = format }
     }
-    if indent != destinationJSON["indent"]?.intValue ?? 0 {
+    if indent != self.indent(of: destination) {
       modifyElement(destination) { $0.indent = indent }
     }
   }

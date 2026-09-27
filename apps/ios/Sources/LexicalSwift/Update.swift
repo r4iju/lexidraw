@@ -269,7 +269,9 @@ struct Update {
   mutating func replace(_ node: NodeKey, with replacement: NodeKey, includingChildren: Bool = false) throws
     -> NodeKey
   {
-    if isListItem(node), !isListItem(replacement) { return try replace(listItem: node, with: replacement) }
+    if isListItem(node), !isListItem(replacement) {
+      return try replace(listItem: node, with: replacement, includingChildren: includingChildren)
+    }
     let selection = selection?.clone()
     try checkInsertion(replacement, besides: node)
     markDirty(replacement)

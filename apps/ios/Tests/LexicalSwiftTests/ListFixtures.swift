@@ -155,6 +155,26 @@ import Testing
       [.caret(.text([0, 0, 0], 1)), .insertParagraph, .formatText(.bold), .insertText("b")]
     ),
     (
+      "a-checklist-item-made-a-paragraph-keeps-its-text",
+      document(list(.check, [.item([text("a", format: .italic)], checked: true), .item([text("b")])])),
+      [.caret(.text([0, 0, 0], 0)), .setBlockType(.paragraph)]
+    ),
+    (
+      "an-item-in-the-middle-made-a-quote-splits-its-list",
+      document(list(.number, [.item([text("a")]), .item([text("b")]), .item([text("c")])])),
+      [.caret(.text([0, 1, 0], 1)), .setBlockType(.quote)]
+    ),
+    (
+      "a-nested-item-made-a-heading-keeps-how-deep-it-was",
+      document(list(.bullet, [.item([text("a")]), .nested(.bullet, [.item([text("b")])]), .item([text("c")])])),
+      [.caret(.text([0, 1, 0, 0, 0], 1)), .setBlockType(.h2)]
+    ),
+    (
+      "a-selection-across-items-makes-each-a-heading",
+      document(list(.bullet, [.item([text("a")]), .item([text("b")])]), paragraph(text("c"))),
+      [.setSelection(anchor: .text([0, 0, 0], 0), focus: .text([1, 0], 1)), .setBlockType(.h1)]
+    ),
+    (
       "a-list-item-outside-a-list-loads-into-one",
       document(paragraph(text("a")), LexicalJSON.element("listitem", [text("b")], ["value": 1])),
       []
