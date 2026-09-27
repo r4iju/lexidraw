@@ -2,13 +2,26 @@ import { expect, test } from "bun:test";
 import { HEADING, LINK, type Transformer } from "@lexical/markdown";
 import { createTransformers } from "@packages/lexical-nodes/transformers";
 import {
+  MARKDOWN_PATTERNS,
   MARKDOWN_TRANSFORMERS_PATH,
   swiftForMarkdownTransformers,
 } from "./markdown";
 
 test("the committed markdown transformers are a fresh codegen of the web editor's", async () => {
   const committed = await Bun.file(MARKDOWN_TRANSFORMERS_PATH).text();
-  expect(committed).toBe(swiftForMarkdownTransformers(createTransformers()));
+  expect(committed).toBe(
+    swiftForMarkdownTransformers(createTransformers(), MARKDOWN_PATTERNS),
+  );
+});
+
+test("gives a pattern the web exports by its name", () => {
+  const swift = swiftForMarkdownTransformers([], {
+    TABLE_ROW_DIVIDER_REG_EXP: /^\|-{3,}$/,
+  });
+
+  expect(swift).toContain(
+    'static let tableRowDividerRegExp = JSRegExp("^\\\\|-{3,}$", flags: "")',
+  );
 });
 
 test("names a transformer by the name its package exports it by", () => {

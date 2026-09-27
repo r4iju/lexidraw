@@ -125,10 +125,8 @@ extension Update {
     return result
   }
 
-  private static let tableRow = JSRegExp("^(?:\\|)(.+)(?:\\|)\\s?$", flags: "")
-  /// `TABLE_ROW_DIVIDER_REG_EXP`, which @packages/lexical-nodes keeps to
-  /// itself.
-  private static let tableRowDivider = JSRegExp("^(\\|\\s*:?-{3,}:?\\s*)+\\|\\s*$", flags: "")
+  private static let tableRow = MarkdownTransformer.regExp(of: .table)
+  private static let tableRowDivider = MarkdownTransformer.tableRowDividerRegExp
   private static let pipe = "|".utf16.first!
   private static let colon = ":".utf16.first!
   private static let letterN = "n".utf16.first!

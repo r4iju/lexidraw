@@ -257,7 +257,8 @@ enum MarkdownImport {
     Text(text.drop(while: isWhitespace).reversed().drop(while: isWhitespace).reversed())
   }
 
-  private static let codeStart = JSRegExp("^([ \\t]*`{3,})([\\w-]+)?[ \\t]?", flags: "")
+  /// `CODE_START_REGEX`.
+  private static let codeStart = MarkdownTransformer.regExp(of: .code)
   static let newline = "\n".utf16.first!
   static let tab = "\t".utf16.first!
   static let space = " ".utf16.first!

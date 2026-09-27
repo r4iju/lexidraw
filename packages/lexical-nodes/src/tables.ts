@@ -27,6 +27,27 @@ export const DOCUMENT_TABLE_PLUGIN = {
   hasNestedTables: false,
 } as const;
 
+/**
+ * How the web lays out a document's table past what its stylesheet says,
+ * which `DocumentTablesPlugin` sets on the table as it renders.
+ */
+export const DOCUMENT_TABLE_LAYOUT = {
+  /** A table more columns wide than this pins its first column on a narrow screen. */
+  unpinnedColumns: 3,
+  /**
+   * About as many Latin letters as a label fits in: a column whose every
+   * cell is this short (numbers, dates, names such as "claude-dev") stays on
+   * one line while the table fits, so the columns holding sentences give
+   * way first.
+   */
+  shortColumns: 16,
+  /**
+   * A table this wide scrolls on a phone whatever its cells do, and there a
+   * label that stays whole reads better than one broken to fit.
+   */
+  scrollingColumns: 5,
+} as const;
+
 export function $createDocumentTable(rows: number, columns: number) {
   return $createTableNodeWithDimensions(rows, columns, {
     rows: true,

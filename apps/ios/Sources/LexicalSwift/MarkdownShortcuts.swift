@@ -46,6 +46,15 @@ struct MarkdownTransformer: Sendable {
   static let compositionEndTriggers = Set(
     " ".utf16 + textFormat.compactMap(\.tag.utf16.last) + textMatch.compactMap { $0.trigger?.utf16.last })
 
+  /// The pattern of the web's transformer `name`: its `regExp`, or a
+  /// multiline element transformer's `regExpStart`.
+  static func regExp(of name: Name) -> JSRegExp {
+    guard let regExp = web.first(where: { $0.name == name })?.regExp else {
+      preconditionFailure("The web has no \(name.rawValue) matching a pattern")
+    }
+    return regExp
+  }
+
   static let element = web.filter { $0.kind == .element }
   static let multilineElement = web.filter { $0.kind == .multilineElement }
   static let textMatch = web.filter { $0.kind == .textMatch }
@@ -392,7 +401,7 @@ extension Update {
   private static func contentColumn(_ groups: [String?], _ listType: ListType) -> Int {
     let whitespace = groups[1] ?? ""
     var prefix = groups[0] ?? ""
-    if listType == .check, let bullet = checklistBullet.firstMatch(in: MarkdownImport.string(prefix.utf16.dropFirst(whitespace.utf16.count))),
+    if listType == .check, let bullet = bullet.firstMatch(in: MarkdownImport.string(prefix.utf16.dropFirst(whitespace.utf16.count))),
       let marker = bullet.groups[0]
     {
       prefix = whitespace + marker
@@ -400,7 +409,9 @@ extension Update {
     return min(column(prefix), column(whitespace) + 4)
   }
 
-  private static let checklistBullet = JSRegExp("^[-*+]\\s", flags: "")
+  /// `getContentColumn`'s `/^[-*+]\s/`, which UNORDERED_LIST's pattern
+  /// matches alike in text that starts past the whitespace.
+  private static let bullet = MarkdownTransformer.regExp(of: .unorderedList)
 
   /// `getIndent`: a level for each tab, and for each four spaces.
   private static func markdownIndent(_ whitespace: String) -> Int {

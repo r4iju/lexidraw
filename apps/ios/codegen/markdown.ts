@@ -36,14 +36,20 @@ const EXPORTED = [
   ),
 ].filter((entry): entry is [string, Transformer] => isTransformer(entry[1]));
 
+/** Patterns the web's transformers match with besides their own. */
+export const MARKDOWN_PATTERNS = {
+  TABLE_ROW_DIVIDER_REG_EXP: webTransformers.TABLE_ROW_DIVIDER_REG_EXP,
+};
+
 /**
  * The web editor's markdown transformers in Swift, in the order they run, for
- * LexicalSwift's shortcuts to run as `registerMarkdownShortcuts` does.
- * JavaScriptCore evaluates their regular expressions, so they match as the
- * web's do.
+ * LexicalSwift's shortcuts to run as `registerMarkdownShortcuts` does, and
+ * `patterns` by the names they're exported by. JavaScriptCore evaluates their
+ * regular expressions, so they match as the web's do.
  */
 export function swiftForMarkdownTransformers(
   transformers: Transformer[],
+  patterns: Record<string, RegExp> = {},
 ): string {
   const names = new Set<string>();
   const entries = transformers.map((transformer) => {
@@ -65,6 +71,11 @@ export function swiftForMarkdownTransformers(
     "  enum Name: String, Sendable {",
     ...[...names].map((name) => `    case ${camelCase(name)} = "${name}"`),
     "  }",
+    ...Object.entries(patterns).flatMap(([name, regExp]) => [
+      "",
+      `  /// \`${name}\` in @packages/lexical-nodes.`,
+      `  static let ${camelCase(name)} = ${swiftForRegExp(regExp)}`,
+    ]),
     "}",
   ];
   return `${lines.join("\n")}\n`;

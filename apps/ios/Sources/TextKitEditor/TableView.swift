@@ -26,16 +26,6 @@ import UIKit
     var width: CGFloat?
   }
 
-  /// `DocumentTablesPlugin`'s `data-pin-first`: a table more columns wide
-  /// than this pins its first column on a narrow screen.
-  static let unpinnedColumns = 3
-  /// Its `SHORT_COLUMNS`: a column no wider than this
-  /// in Latin letters keeps each cell on one line.
-  static let shortColumns = 16
-  /// Its `SCROLLING_COLUMNS`: a table this many columns wide keeps its short
-  /// columns whole even where that makes it scroll.
-  static let scrollingColumns = 5
-
   private var boxes: [[TextBox]] = []
   /// Each cell's box, borders included, by row and by its index in the row,
   /// in the content.
@@ -103,7 +93,7 @@ import UIKit
     var columns = self.columns(placed, metrics, short: short, whole: whole, fixed: columnWidths, width: width)
     // Short columns stay whole while the table fits, the widest giving way
     // first (`fitShortColumns`).
-    if columnWidths == nil, (cells.first?.count ?? 0) < Self.scrollingColumns {
+    if columnWidths == nil, (cells.first?.count ?? 0) < style.scrollingColumns {
       while !whole.isEmpty, columns.reduce(0, +) + 2 * border > width {
         let firstRow = cells.first?.indices.map { placed.width(row: 0, index: $0, columns) } ?? []
         let widest = whole.max { (firstRow[safe: $0] ?? 0) < (firstRow[safe: $1] ?? 0) }!
@@ -145,7 +135,7 @@ import UIKit
     }
     tableSize = CGSize(width: (lefts.last ?? 0) + border, height: (rowTops.last ?? 0) + border)
     pinsFirstCells =
-      viewportWidth(width) <= style.pinned.width && (cells.first?.count ?? 0) > Self.unpinnedColumns
+      viewportWidth(width) <= style.pinned.width && (cells.first?.count ?? 0) > style.unpinnedColumns
     grid.frame = CGRect(origin: .zero, size: tableSize)
     contentSize = tableSize
     frame.size = CGSize(width: width, height: tableSize.height)
@@ -277,7 +267,7 @@ import UIKit
       (0..<count).filter { index in
         cells.allSatisfy { row in
           guard let cell = row[safe: index] else { return true }
-          return Self.columnsWide(Self.plainText(cell)) <= Self.shortColumns
+          return Self.columnsWide(Self.plainText(cell)) <= style.shortColumns
         }
       })
   }

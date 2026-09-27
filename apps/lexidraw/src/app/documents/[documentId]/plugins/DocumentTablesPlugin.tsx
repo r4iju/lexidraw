@@ -1,6 +1,7 @@
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { TablePlugin } from "@lexical/react/LexicalTablePlugin";
 import {
+  DOCUMENT_TABLE_LAYOUT,
   DOCUMENT_TABLE_PLUGIN,
   registerDocumentTableInsertion,
 } from "@packages/lexical-nodes";
@@ -12,19 +13,6 @@ const number =
 
 const WIDE =
   /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}\u3000-\u303f\uff00-\uffef]/u;
-
-/**
- * About as many Latin letters as a label fits in: a column whose every cell
- * is this short (numbers, dates, names such as "claude-dev") stays on one line
- * while the table fits, so the columns holding sentences give way first.
- */
-const SHORT_COLUMNS = 16;
-
-/**
- * A table this wide scrolls on a phone whatever its cells do, and there a
- * label that stays whole reads better than one broken to fit.
- */
-const SCROLLING_COLUMNS = 5;
 
 const columnsWide = (text: string) =>
   [...text].reduce((width, char) => width + (WIDE.test(char) ? 2 : 1), 0);
@@ -42,7 +30,7 @@ function fitShortColumns(
   short: readonly number[],
 ) {
   for (const column of short) setWhole(table, column, true);
-  if ((table.rows[0]?.cells.length ?? 0) >= SCROLLING_COLUMNS) return;
+  if ((table.rows[0]?.cells.length ?? 0) >= DOCUMENT_TABLE_LAYOUT.scrollingColumns) return;
   const whole = [...short];
   while (whole.length > 0 && table.offsetWidth > region.clientWidth) {
     const width = (column: number) =>
@@ -80,7 +68,7 @@ export function DocumentTablesPlugin() {
         region.tabIndex = 0;
         const rows = [...table.rows];
         const columns = rows[0]?.cells.length ?? 0;
-        table.dataset.pinFirst = String(columns > 3);
+        table.dataset.pinFirst = String(columns > DOCUMENT_TABLE_LAYOUT.unpinnedColumns);
         table.dataset.sized = String(
           Boolean(table.querySelector('col[style*="width"]')),
         );
@@ -99,7 +87,7 @@ export function DocumentTablesPlugin() {
               0.8;
           const isShort = cells.every(
             (cell) =>
-              columnsWide(cell.textContent?.trim() ?? "") <= SHORT_COLUMNS,
+              columnsWide(cell.textContent?.trim() ?? "") <= DOCUMENT_TABLE_LAYOUT.shortColumns,
           );
           for (const cell of cells) {
             cell.toggleAttribute("data-numeric", numeric);

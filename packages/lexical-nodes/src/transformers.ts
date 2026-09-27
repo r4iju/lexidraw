@@ -88,7 +88,8 @@ export const EMOJI: TextMatchTransformer = {
 };
 
 const TABLE_ROW_REG_EXP = /^(?:\|)(.+)(?:\|)\s?$/;
-const TABLE_ROW_DIVIDER_REG_EXP = /^(\|\s*:?-{3,}:?\s*)+\|\s*$/;
+/** A GFM table's divider row, which makes the row above it the header. */
+export const TABLE_ROW_DIVIDER_REG_EXP = /^(\|\s*:?-{3,}:?\s*)+\|\s*$/;
 
 export function createTableTransformer(
   transformers: TransformerSource,

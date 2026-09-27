@@ -152,6 +152,15 @@ struct DocumentTypography: Sendable {
     var shadowWidth: Double
     var shadowColor: ThemeColor
     var pinned: Pinned
+    /// A table more columns wide than this pins its first column on a
+    /// narrow screen.
+    var unpinnedColumns: Int
+    /// A column no wider than this in Latin letters keeps each cell on one
+    /// line.
+    var shortColumns: Int
+    /// A table this many columns wide keeps its short columns whole even
+    /// where that makes it scroll.
+    var scrollingColumns: Int
   }
 
   /// The first column a table pins on a screen no wider than `width`, `inset`

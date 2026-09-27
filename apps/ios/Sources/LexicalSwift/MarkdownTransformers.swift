@@ -77,4 +77,7 @@ extension MarkdownTransformer {
     case strikethrough = "STRIKETHROUGH"
     case link = "LINK"
   }
+
+  /// `TABLE_ROW_DIVIDER_REG_EXP` in @packages/lexical-nodes.
+  static let tableRowDividerRegExp = JSRegExp("^(\\|\\s*:?-{3,}:?\\s*)+\\|\\s*$", flags: "")
 }

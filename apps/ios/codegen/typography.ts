@@ -1,4 +1,5 @@
 import { fileURLToPath } from "node:url";
+import { DOCUMENT_TABLE_LAYOUT } from "@packages/lexical-nodes/tables";
 import postcss, { type Container } from "postcss";
 import { theme } from "../../lexidraw/src/app/documents/[documentId]/themes/theme";
 
@@ -16,14 +17,15 @@ const GLOBALS_CSS_URL = new URL(
 );
 
 /**
- * The web editor's stylesheets and the classes its theme gives a quote and
- * a selected table cell.
+ * The web editor's stylesheets, the classes its theme gives a quote and a
+ * selected table cell, and what it lays a table out by besides them.
  */
 export type WebStyles = {
   documentCSS: string;
   globalsCSS: string;
   quoteClass: string;
   tableCellSelectedClass: string;
+  tableLayout: typeof DOCUMENT_TABLE_LAYOUT;
 };
 
 export async function readWebStyles(): Promise<WebStyles> {
@@ -32,6 +34,7 @@ export async function readWebStyles(): Promise<WebStyles> {
     globalsCSS: await Bun.file(GLOBALS_CSS_URL).text(),
     quoteClass: theme.quote,
     tableCellSelectedClass: theme.tableCellSelected,
+    tableLayout: DOCUMENT_TABLE_LAYOUT,
   };
 }
 
@@ -231,7 +234,7 @@ export function swiftForTypography(styles: WebStyles): string {
     `    quote: Quote(borderWidth: ${points(quoteBorderWidth)}, borderColor: ${colors.name(quoteBorderColor)}, paddingStart: ${ems(quotePaddingStart)}),`,
     `    rule: Rule(width: ${points(ruleWidth)}, color: ${colors.name(ruleColor)}, margin: ${ems(ruleBefore)}),`,
     `    link: Link(color: ${colors.name(value(link, "color"))}, underlineThickness: ${points(decoration[1])}, underlineOffset: ${number(underlineOffset[1])}, underlineOpacity: ${Number(underline[1]) / 100}),`,
-    `    table: ${swiftForTable(css, colors, content, styles.tableCellSelectedClass)})`,
+    `    table: ${swiftForTable(css, colors, content, styles)})`,
     "}",
     "",
     "extension ThemeColor {",
@@ -260,7 +263,7 @@ function swiftForTable(
   css: postcss.Root,
   colors: ThemeColors,
   content: Declarations,
-  selectedClass: string,
+  { tableCellSelectedClass, tableLayout }: WebStyles,
 ): string {
   const table = declarations(css, ".document-table");
   const region = declarations(css, ".document-table-region");
@@ -323,10 +326,13 @@ function swiftForTable(
     `emptyWidth: ${rems(value(empty, "min-width"))}`,
     `headerBackground: ${colors.name(value(header, "background"))}`,
     `headerWeight: ${number(value(header, "font-weight"))}`,
-    `selection: ${swiftForBackgroundClass(selectedClass, colors)}`,
+    `selection: ${swiftForBackgroundClass(tableCellSelectedClass, colors)}`,
     `shadowWidth: ${points(shadowWidth)}`,
     `shadowColor: ${colors.name(value(shadow, "--table-shadow-left"))}`,
     `pinned: ${swiftForPinnedColumn(css, colors)}`,
+    `unpinnedColumns: ${tableLayout.unpinnedColumns}`,
+    `shortColumns: ${tableLayout.shortColumns}`,
+    `scrollingColumns: ${tableLayout.scrollingColumns}`,
   ];
   return `Table(${fields.join(", ")})`;
 }
