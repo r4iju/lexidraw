@@ -154,6 +154,31 @@ import Testing
     #expect(cellTexts(composed.expected, table: 1) == [["a", "b"], ["c", "d"]])
   }
 
+  /// A table selection's nodes take in what its cells hold, a table in one
+  /// of them included, so its cells are among the cells selected.
+  @Test func aTableSelectionTakesInTheCellsOfATableInACell() throws {
+    func cell(_ children: [JSONValue]) -> JSONValue {
+      [
+        "type": "tablecell", "version": 1, "backgroundColor": nil, "colSpan": 1, "headerState": 0, "rowSpan": 1,
+        "direction": nil, "format": "", "indent": 0, "children": .array(children),
+      ]
+    }
+    let row: JSONValue = [
+      "type": "tablerow", "version": 1, "direction": nil, "format": "", "indent": 0,
+      "children": [cell([LexicalJSON.table([["x"]]), paragraph(text("a"))]), cell([paragraph(text("b"))])],
+    ]
+    let table: JSONValue = [
+      "type": "table", "version": 1, "direction": nil, "format": "", "indent": 0, "children": [row],
+    ]
+    let fixture = try agreed(
+      document(paragraph(text("before")), table),
+      [.setSelection(anchor: .text([1, 0, 0, 1, 0], 0), focus: .text([1, 0, 1, 0, 0], 1))])
+
+    #expect(
+      fixture.expected.selection
+        == .table(table: [1], anchor: [1, 0, 0], focus: [1, 0, 1], cells: [[1, 0, 0], [1, 0, 0, 0, 0, 0], [1, 0, 1]]))
+  }
+
   @Test func formattingATableSelectionFormatsEveryCell() throws {
     let fixture = try agreed(
       grid, [.setSelection(anchor: cell(0, 0, 0), focus: cell(1, 0, 0)), .formatText(.bold), .formatText(.bold)])
