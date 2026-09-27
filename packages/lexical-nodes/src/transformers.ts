@@ -201,8 +201,8 @@ export function createTableTransformer(
           );
         }
 
-        // Remove line
         parentNode.remove();
+        table.selectEnd();
         return;
       }
 

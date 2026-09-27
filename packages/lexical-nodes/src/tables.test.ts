@@ -414,8 +414,7 @@ test("a divider typed under a table makes its last row the header, with the care
     expect($getRoot().getChildrenSize()).toBe(2);
     const selection = $getSelection();
     if (!$isRangeSelection(selection)) throw new Error("Expected a caret");
-    // Removing the line moves the caret to the end of the block before it.
-    expect(selection.anchor.getNode().is($table())).toBe(true);
-    expect(selection.anchor.offset).toBe(2);
+    expect(selection.anchor.getNode().getTextContent()).toBe("d");
+    expect(selection.anchor.offset).toBe(1);
   });
 });

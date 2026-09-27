@@ -57,8 +57,8 @@ extension Update {
   }
 
   /// The divider's branch: the last row's cells become row headers,
-  /// aligned as their column's dashes say, and the divider goes. Under no
-  /// table the divider just goes.
+  /// aligned as their column's dashes say, the divider goes and the caret
+  /// ends the table. Under no table the divider just goes.
   private mutating func makeLastRowAHeader(_ parent: NodeKey, divider: String) throws {
     guard let table = state.previousSibling(of: parent), isTable(table) else { return }
     guard let lastRow = state.lastChild(of: table), isRow(lastRow) else { return }
@@ -72,6 +72,7 @@ extension Update {
       modifyCell(cell) { $0.headerState = Double(Int($0.headerState ?? 0) | HeaderState.row) }
     }
     try remove(parent)
+    selectEnd(table)
   }
 
   /// `getTableColumnsSize`: how many cells the first row has.

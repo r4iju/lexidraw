@@ -309,7 +309,10 @@ hand:
   now selects the end of the table joined (#117).
 - A row typed as GFM, such as `|a|b|` and a space, makes a table as the web's
   table transformer does, taking in the rows typed above it; a divider row
-  under a table makes its last row a header row, aligned as the colons say.
+  under a table makes its last row a header row, aligned as the colons say,
+  with the caret at the table's end. The web's transformer left the caret
+  where removing the divider put it, beside the table, and now selects the
+  table's end as its other branches do (#117).
   Each cell's text is imported as `@lexical/markdown`'s importer imports it
   (`MarkdownImport.swift`, apart from the transformer, since the web runs the
   same importer): the `\n` and `\|` escapes, lines, headings, quotes, rules,

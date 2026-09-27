@@ -12,6 +12,8 @@ import Testing
     let commands: [EditorCommand]
     /// The document Lexical leaves, in `shape`'s short form.
     let expected: String
+    /// Where Lexical leaves the caret, where the script says.
+    var caret: Point?
 
     var testDescription: String { name }
   }
@@ -68,7 +70,7 @@ import Testing
     Script(
       name: "a divider under a table makes its last row a header, aligned as it says",
       start: document(twoColumns, paragraph()), commands: [caretUnderTable] + typing("|:---:|--- | "),
-      expected: "table[p(a)|p(b)/p(c)*^|p(d)*]"),
+      expected: "table[p(a)|p(b)/p(c)*^|p(d)*]", caret: .text([0, 1, 1, 0, 0], 1)),
     Script(
       name: "a divider with no table above takes away what was typed", start: emptyParagraph,
       commands: [caretInEmptyParagraph] + typing("|---| "), expected: "p()"),
@@ -152,6 +154,7 @@ import Testing
     let fixture = try Fixture.record(start: script.start, commands: script.commands, on: try Support.referenceEditor())
 
     #expect(Self.shape(fixture.expected.state) == script.expected)
+    if let caret = script.caret { #expect(fixture.expected.selection?.anchor == caret) }
     #expect(try fixture.replay(on: Editor()) == fixture.recorded)
   }
 
