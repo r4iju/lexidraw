@@ -36,9 +36,8 @@ edits with LexicalSwift, or with the JS reference when launched with
 Save writes the document to `EDITOR_SAVE_PATH`, or `saved.json` in its
 Documents, and each call the keyboard made on the editor to
 `EDITOR_INPUT_LOG`.
-With `EDITOR_PREVIEW_ACCESS` (`EDIT` or `READ`) it opens the app's document
-screen instead, on `EDITOR_DOCUMENT` (a serialized editor state) or else
-`tracer.json`, served with that access, for `DocumentPreviewUITests`.
+With `EDITOR_PREVIEW_ACCESS` it opens the app's document screen instead, for
+`DocumentPreviewUITests`, as `EditorHarness/DocumentPreview.swift` says.
 
 `bun run test:ui` runs the scheme's tests on a simulator it makes and
 deletes after (`scripts/test-ui.sh`): the UI scripts, `EditorUITests`, and
@@ -109,12 +108,11 @@ hand:
   The web opens the new file instead, which the app cannot do yet.
 - Documents aren't saved yet, so the save messages that name the file and say
   what to do next belong to #130, which brings document editing.
-- Until #130 saves them, documents open in the editor as a preview: edits
-  work, a notice above the document says they aren't saved, and nothing is
-  written to the server. A document the user may only read says so instead,
-  and takes no keyboard; selecting its text waits for copy (#118). So does
-  one with a node LexicalSwift doesn't edit yet, since it would refuse every
-  edit, and the notice says why.
+- Until saving comes, documents open in the editor as a preview: edits work,
+  and a notice above the document says they aren't saved. A document the
+  user may only read says so instead, and takes no keyboard; selecting its
+  text waits for copy (#118). So does one with a node LexicalSwift doesn't
+  edit yet, and the notice says why.
 - The share extension signs in with the app's token through a Keychain
   access group named for the app's own App ID, the group the token was
   already kept in. So it needs no app group and no capability in the portal,

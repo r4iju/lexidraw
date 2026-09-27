@@ -27,8 +27,6 @@ import Testing
     #expect(try editor.snapshot().state == state)
   }
 
-  /// A view asks before it offers the keyboard, since every edit is refused
-  /// on a document with a node LexicalSwift doesn't edit yet.
   @Test func saysWhetherItCanEditTheDocumentLoaded() throws {
     let model: any EditorModel = Editor()
 

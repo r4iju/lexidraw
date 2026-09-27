@@ -57,7 +57,6 @@ final class DocumentPreviewUITests: XCTestCase {
     XCTAssertFalse(offersKeyboard(app))
   }
 
-  /// Fetching it again gives the same document, so there is nothing to retry.
   func testADocumentTheAppCantReadSaysSoWithoutARetry() {
     let app = open(access: "EDIT", document: ["root": ["type": "paragraph", "version": 1, "children": []]])
 

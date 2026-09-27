@@ -7,8 +7,9 @@ public final class Editor: EditorModel {
   private var history = History(EditorState(nodes: [:], selection: nil))
   private var now = 0
   /// Whether the document holds only what the editing commands are ported
-  /// for: paragraphs of plain text and line breaks. The other nodes come
-  /// with #115 to #118 and #131 to #134.
+  /// for: paragraphs, line breaks and text in any format, with no field the
+  /// payload types don't model. The other nodes come with #115 to #118 and
+  /// #131 to #134.
   public private(set) var isEditable = false
 
   public init() {}
@@ -39,7 +40,7 @@ public final class Editor: EditorModel {
       defer { state = restored }
       return ChangeSet(changed: restored.changedPaths(since: state))
     default:
-      guard isEditable else { throw EditorError.unsupported("Editing a document with more than plain paragraphs") }
+      guard isEditable else { throw EditorError.unsupported("Editing a document with a node LexicalSwift doesn't edit yet") }
     }
     var update = Update(state, nextKey: nextKey, revision: nextRevision())
     try update.run(command)
@@ -107,16 +108,12 @@ public final class Editor: EditorModel {
 extension Node {
   fileprivate var isEditable: Bool {
     switch payload {
-    case .root(let node): Self.isPlain(node.unknownFields)
-    case .paragraph(let node): Self.isPlain(node.unknownFields)
-    case .lineBreak(let node): Self.isPlain(node.unknownFields)
-    case .text(let node): Self.isPlain(node.unknownFields) && node.mode == .normal && (node.detail ?? 0) == 0
+    case .root(let node): node.unknownFields.isEmpty
+    case .paragraph(let node): node.unknownFields.isEmpty
+    case .lineBreak(let node): node.unknownFields.isEmpty
+    case .text(let node): node.unknownFields.isEmpty && node.mode == .normal && (node.detail ?? 0) == 0
     default: false
     }
-  }
-
-  private static func isPlain(_ unknownFields: JSONObject) -> Bool {
-    unknownFields.isEmpty
   }
 }
 
