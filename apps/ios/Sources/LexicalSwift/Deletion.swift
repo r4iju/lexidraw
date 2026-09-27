@@ -211,7 +211,7 @@ extension Update {
     let range = state.inDirection(try state.caretRange(from: selection), .next)
     let start = state.normalize(.child(block, .next))
     let end = state.inDirection(state.normalize(.child(block, .previous)), .next)
-    return state.compareNext(range.anchor, start) <= 0 && state.compareNext(range.focus, end) >= 0
+    return try state.compareNext(range.anchor, start) <= 0 && state.compareNext(range.focus, end) >= 0
   }
 
   /// `$needsBlockCursorBeside`: a block no caret goes in.
