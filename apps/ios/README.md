@@ -333,8 +333,8 @@ hand:
   whether the move leaves the block (from an empty block, or beside it,
   Up and Down select the rule, as the web does), and past inline grids;
   right-to-left and vertical writing;
-  pointer and triple-click selection; Escape; copy and paste, which #118
-  owns; and the observer's DOM bookkeeping. Arrow keys at a table's edge put
+  pointer and triple-click selection; Escape; and the observer's DOM
+  bookkeeping. Arrow keys at a table's edge put
   a caret beside it, as the web's keyboard does.
 - A caret beside a table lies flat, under the table before it or else over
   the table after it, as the block cursor of Lexical's playground does,
@@ -343,9 +343,22 @@ hand:
   range selection only. Tab in a cell moves between cells as `@lexical/table`
   moves it, ahead of Tab indentation; over a table selection neither answers,
   so it does nothing.
-- Making, removing, indenting or outdenting lists over a table selection is
-  refused as unsupported in both models: `@lexical/list` works through a
-  table selection's nodes, which isn't ported.
+- A list over a table selection makes a list of each block in its cells, a
+  table's in a cell too, as `$insertList` works through the selection's
+  nodes. Removing a list, indenting and outdenting answer a range selection
+  only, so over a table selection they do nothing, as does a link, which
+  `$toggleLink` leaves be.
+- Copying a table selection copies the rows and cells selected as a table,
+  with their text a tab between cells and a line after each row. In a
+  document with a table, a cut goes to each table's cut handler first, which
+  copies and then clears the cells selected, or deletes a range, in one
+  update; rich text's cut takes the rest in two. The handler is bound to
+  each table's DOM on the web, so `tables.ts` copies it. Pasting into a cell
+  or over cells goes through the table plugin's handler: a table fills the
+  grid from where it's pasted, growing it and merging or splitting cells as
+  the table pasted has them merged; text over cells fills a cell for each
+  tab and line; a table with anything beside it is turned away, as no table
+  goes inside a table.
 - Loading gives a table's `colWidths` one width per column, as
   `$tableTransform` does, so a column insert always has a width beside it to
   copy; one without is an invariant failure.
