@@ -55,7 +55,6 @@ function fitShortColumns(
 export function DocumentTablesPlugin() {
   const [editor] = useLexicalComposerContext();
 
-  // Lexical owns insertion; every authoring surface shares the same defaults.
   useEffect(() => registerDocumentTableInsertion(editor), [editor]);
 
   // DOM measurements and scroll hints are presentation, never editor-state writes.

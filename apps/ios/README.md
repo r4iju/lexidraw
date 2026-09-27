@@ -299,9 +299,9 @@ hand:
 - Making, removing, indenting or outdenting lists over a table selection is
   refused as unsupported in both models: `@lexical/list` works through a
   table selection's nodes, which isn't ported.
-- Inserting a column into a table whose `colWidths` has no entry for the
-  column next to it is refused as unsupported: Lexical inserts `undefined`
-  into the widths there.
+- Loading gives a table's `colWidths` one width per column, as
+  `$tableTransform` does, so a column insert always has a width beside it to
+  copy; one without is an invariant failure.
 - A table selection is drawn as the web draws it: the theme's primary colour
   at 10% over the selected cells, and no text highlighted. The focus-cell
   and table-outline classes the theme names are never applied by

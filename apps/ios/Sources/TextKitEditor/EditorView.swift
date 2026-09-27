@@ -97,8 +97,7 @@ public final class EditorView: UIScrollView, UITextInput {
   @discardableResult
   private func perform(_ command: EditorCommand, fromInput: Bool, tellsRefusal: Bool = false) -> ChangeSet? {
     guard isEditable || !command.edits else { return nil }
-    // A model left with no selection, as after typing over table cells,
-    // takes the view's before an edit.
+    // A model left with no selection takes the view's before an edit.
     if command.editsAtSelection, modelSelection() == nil { sendSelection() }
     let now = ProcessInfo.processInfo.systemUptime
     let elapsed = Int((now - lastCommand) * 1000)
@@ -165,8 +164,6 @@ public final class EditorView: UIScrollView, UITextInput {
     let selection = modelSelection()
     let cells = selection.flatMap(selectedCells)
     if selection == nil, layout.tableSelection != nil {
-      // Typing or deleting over cells leaves nothing selected; what comes
-      // next goes where the selection ended.
       if !fromInput { inputDelegate?.selectionWillChange(self) }
       anchor = focus
       if !fromInput { inputDelegate?.selectionDidChange(self) }

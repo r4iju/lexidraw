@@ -361,8 +361,6 @@ import UIKit
     #expect(plain.red > 250 && plain.green > 250 && plain.blue > 250, "\(plain)")
   }
 
-  /// Typing over table cells types nothing and ends the selection, as on
-  /// the web; the next key types where the selection ended.
   @Test
   func typingAfterTypingOverCellsTypesWhereTheSelectionEnded() throws {
     let model = Editor()
