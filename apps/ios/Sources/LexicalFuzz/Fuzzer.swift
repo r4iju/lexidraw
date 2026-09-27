@@ -167,8 +167,11 @@ public struct Fuzzer {
       for candidate in smaller(than: best) {
         // Removing a node can leave its parent in a shape Lexical would rewrite
         // on load; take Lexical's own version so the document stays canonical.
+        // That version can be the document the node came from, and taking it
+        // would take the same script over and over.
         guard (try? reference.load(candidate.start)) != nil,
           let start = try? reference.snapshot().state,
+          start != best.start || candidate.commands != best.commands,
           try diverges((start, candidate.commands))
         else { continue }
         best = (start, candidate.commands)
