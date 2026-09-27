@@ -1,6 +1,13 @@
 import EditorModelInterface
 import Foundation
 
+// For `.link`.
+#if canImport(UIKit)
+import UIKit
+#else
+import AppKit
+#endif
+
 /// A document as one text for TextKit: each block at the root on its own
 /// line, kept in step with a model by what each update says it changed.
 /// Offsets are UTF-16 code units, as the model's and `NSTextStorage`'s are.
@@ -326,6 +333,9 @@ public final class DocumentText {
     var lines: [Line] = []
     /// The lists around the node being added.
     private var lists: [EditorCommand.ListType] = []
+    /// Where the text being added links to, as a link element's does unless
+    /// it's an autolink undone.
+    private var link: URL?
 
     init(style: @escaping Style, standIn: StandIn?, blockType: String) {
       self.style = style
@@ -347,6 +357,13 @@ public final class DocumentText {
         let listType = node["type"] == "list" ? node["listType"]?.stringValue.flatMap(EditorCommand.ListType.init) : nil
         if let listType { lists.append(listType) }
         let lineCount = lines.count
+        let outerLink = link
+        defer { link = outerLink }
+        if Self.inlineElements.contains(node["type"]?.stringValue ?? ""), node["isUnlinked"] != true,
+          let url = node["url"]?.stringValue
+        {
+          link = URL(string: url)
+        }
         for (index, child) in children.enumerated() {
           if index > 0, Self.isBlock(child) || Self.isBlock(children[index - 1]) {
             append("\n", format: [])
@@ -393,7 +410,9 @@ public final class DocumentText {
     }
 
     private mutating func append(_ string: String, format: TextFormat) {
-      text.append(NSAttributedString(string: string, attributes: style(blockType, format)))
+      var attributes = style(blockType, format)
+      if let link { attributes[.link] = link }
+      text.append(NSAttributedString(string: string, attributes: attributes))
     }
   }
 }

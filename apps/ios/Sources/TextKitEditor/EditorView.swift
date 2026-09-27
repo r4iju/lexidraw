@@ -3,6 +3,7 @@ import EditorModelInterface
 import OSLog
 import UIKit
 import UIKit.UIGestureRecognizerSubclass
+import UniformTypeIdentifiers
 
 /// A document edited through an `EditorModel`. What UIKit's text input asks
 /// for becomes the model's commands, and each command's changes are all the
@@ -63,6 +64,10 @@ public final class EditorView: UIScrollView, UITextInput {
     checkboxTap.isOnCheckbox = { [unowned self] in layout.checklistItem(at: $0) != nil }
     surface.addGestureRecognizer(checkboxTap)
     for gesture in interaction.gesturesForFailureRequirements { gesture.require(toFail: checkboxTap) }
+    surface.addInteraction(linkMenu)
+    let tap = UITapGestureRecognizer(target: self, action: #selector(tapped(_:)))
+    tap.delegate = self
+    surface.addGestureRecognizer(tap)
     isAccessibilityElement = true
     registerForTraitChanges([UITraitUserInterfaceStyle.self]) { (view: EditorView, _) in view.layout.redraw() }
     // UIKit redraws the caret and selection only when told the selection
@@ -85,8 +90,9 @@ public final class EditorView: UIScrollView, UITextInput {
   /// model refuses leaves the document as it was, so there is nothing to show.
   /// UIKit's own input calls expect the text and selection they asked for
   /// without being told; anything else tells the input delegate.
-  private func perform(_ command: EditorCommand, fromInput: Bool) {
-    guard isEditable || !command.edits else { return }
+  @discardableResult
+  private func perform(_ command: EditorCommand, fromInput: Bool) -> ChangeSet? {
+    guard isEditable || !command.edits else { return nil }
     let now = ProcessInfo.processInfo.systemUptime
     let elapsed = Int((now - lastCommand) * 1000)
     lastCommand = now
@@ -98,15 +104,16 @@ public final class EditorView: UIScrollView, UITextInput {
       change = try model.apply(command)
     } catch EditorError.unsupported(let what) {
       Self.log.notice("The model can't \(command.name, privacy: .public) here yet: \(what, privacy: .public)")
-      return
+      return nil
     } catch {
       failed("The model refused \(command.name)", error)
-      return
+      return nil
     }
     if !fromInput { inputDelegate?.textWillChange(self) }
     render(change)
     if !fromInput { inputDelegate?.textDidChange(self) }
     showModelSelection(fromInput: fromInput)
+    return change
   }
 
   /// Something the view relies on the model for went wrong: a bug in one or
@@ -493,6 +500,7 @@ public final class EditorView: UIScrollView, UITextInput {
       command(UIKeyCommand.inputDelete, .command, #selector(deleteLineBackward)),
       command(Self.forwardDelete, [], #selector(deleteForward)),
       command(Self.forwardDelete, .alternate, #selector(deleteWordForward)),
+      command("k", .command, #selector(linkFromKeyboard)),
       // The web's block shortcuts.
       command("0", [.command, .alternate], #selector(makeParagraph)),
       command("1", [.command, .alternate], #selector(makeHeading1)),
@@ -559,6 +567,8 @@ public final class EditorView: UIScrollView, UITextInput {
       isEditable
     case #selector(selectAll(_:)):
       true
+    case #selector(copy(_:)), #selector(cut(_:)): selected.length > 0
+    case #selector(paste(_:)): pasteboard.hasStrings || pasteboard.contains(pasteboardTypes: [Self.lexicalType])
     case #selector(makeTextWritingDirectionLeftToRight(_:)), #selector(makeTextWritingDirectionRightToLeft(_:)):
       false
     default: super.canPerformAction(action, withSender: sender)
@@ -617,6 +627,162 @@ public final class EditorView: UIScrollView, UITextInput {
     perform(.toggleChecked(path: path), fromInput: false)
   }
 
+  // MARK: Clipboard
+
+  /// Where copy and cut put the selection and paste takes from.
+  public var pasteboard = UIPasteboard.general
+
+  /// The type Lexical's own copy of a selection goes on the clipboard as,
+  /// which a paste in a Lexidraw document reads nodes from.
+  private static let lexicalType = "application/x-lexical-editor"
+
+  public override func copy(_ sender: Any?) { copySelection(.copy) }
+  public override func cut(_ sender: Any?) { copySelection(.cut) }
+
+  private func copySelection(_ command: EditorCommand) {
+    commitMarkedText()
+    syncSelection()
+    guard let clipboard = perform(command, fromInput: false)?.clipboard else { return }
+    var item: [String: Any] = [UTType.utf8PlainText.identifier: clipboard.plainText]
+    if let lexical = clipboard.lexical, let data = try? JSONEncoder().encode(lexical) {
+      item[Self.lexicalType] = data
+    }
+    pasteboard.setItems([item])
+  }
+
+  public override func paste(_ sender: Any?) {
+    commitMarkedText()
+    syncSelection()
+    let lexical = pasteboard.data(forPasteboardType: Self.lexicalType).flatMap {
+      try? JSONDecoder().decode(JSONValue.self, from: $0)
+    }
+    let html = pasteboard.data(forPasteboardType: UTType.html.identifier).map { String(decoding: $0, as: UTF8.self) }
+    perform(.paste(Clipboard(plainText: pasteboard.string ?? "", html: html, lexical: lexical)), fromInput: false)
+  }
+
+  // MARK: Links
+
+  /// Asks for a link's URL, starting from `current`, and answers with what
+  /// was entered, or nil where the question was cancelled. Unless set, an
+  /// alert asks.
+  public var askForURL: ((_ current: String, _ answer: @escaping (String?) -> Void) -> Void)?
+
+  /// Opens a link's URL, in the browser unless set.
+  public var open: (URL) -> Void = { UIApplication.shared.open($0) }
+
+  private lazy var linkMenu = UIEditMenuInteraction(delegate: self)
+
+  /// Where the link a caret at `offset` is in goes. The caret is in the
+  /// text before it where there is some, as a browser resolves it.
+  public func link(at offset: Int) -> URL? {
+    let text = storage.string as NSString
+    let isAfterText = offset > 0 && offset <= text.length && text.character(at: offset - 1) != 0x0A
+    let character = isAfterText ? offset - 1 : offset
+    guard character < storage.length else { return nil }
+    return storage.attribute(.link, at: character, effectiveRange: nil) as? URL
+  }
+
+  /// The link the selection starts in.
+  private var selectedLink: URL? { link(at: selected.location) }
+
+  /// Links the selection to a URL asked for, as the web's link button does.
+  public func addLink() {
+    ask(for: "https://") { [self] url in perform(.toggleLink(url: url), fromInput: false) }
+  }
+
+  /// Changes the URL of the link the selection is in to one asked for, or
+  /// removes the link where none is given.
+  public func editLink() {
+    guard let url = selectedLink else { return }
+    ask(for: url.absoluteString) { [self] url in
+      perform(url.isEmpty ? .toggleLink(url: nil) : .editLink(url: url), fromInput: false)
+    }
+  }
+
+  /// Leaves the text of the link the selection is in, unlinked.
+  public func removeLink() {
+    syncSelection()
+    perform(.toggleLink(url: nil), fromInput: false)
+  }
+
+  public func openLink() {
+    if let url = selectedLink { open(url) }
+  }
+
+  @objc private func linkFromKeyboard() {
+    if selectedLink != nil { editLink() } else if selected.length > 0 { addLink() }
+  }
+
+  private func ask(for current: String, then act: @escaping (String) -> Void) {
+    commitMarkedText()
+    syncSelection()
+    let answer: (String?) -> Void = { url in if let url { act(url) } }
+    if let askForURL { return askForURL(current, answer) }
+    let alert = UIAlertController(title: "Link", message: nil, preferredStyle: .alert)
+    alert.addTextField { field in
+      field.text = current
+      field.keyboardType = .URL
+      field.autocapitalizationType = .none
+      field.autocorrectionType = .no
+    }
+    alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+    alert.addAction(UIAlertAction(title: "Save", style: .default) { _ in answer(alert.textFields?.first?.text ?? "") })
+    presenter?.present(alert, animated: true)
+  }
+
+  /// The view controller the view is shown by, to ask from.
+  private var presenter: UIViewController? {
+    var responder: UIResponder? = self
+    while let current = responder {
+      if let controller = current as? UIViewController { return controller }
+      responder = current.next
+    }
+    return nil
+  }
+
+  /// What the edit menu offers for links: to link a selection, or for a
+  /// selection in a link, to open, edit or unlink it. `caret`, where given,
+  /// is where the caret goes first.
+  private func linkActions(in range: NSRange, caret: Int? = nil) -> [UIMenuElement] {
+    func action(_ title: String, _ symbol: String, _ act: @escaping (EditorView) -> Void) -> UIAction {
+      UIAction(title: title, image: UIImage(systemName: symbol)) { [weak self] _ in
+        guard let self else { return }
+        if let caret { selectedTextRange = TextRange(NSRange(location: caret, length: 0)) }
+        act(self)
+      }
+    }
+    if link(at: caret ?? range.location) != nil {
+      return [
+        action("Open Link", "safari") { $0.openLink() },
+        action("Edit Link…", "pencil") { $0.editLink() },
+        action("Remove Link", "link.badge.minus") { $0.removeLink() },
+      ]
+    }
+    guard range.length > 0 else { return [] }
+    return [action("Add Link…", "link") { $0.addLink() }]
+  }
+
+  public func editMenu(for textRange: UITextRange, suggestedActions: [UIMenuElement]) -> UIMenu? {
+    guard let range = textRange as? TextRange else { return nil }
+    return UIMenu(children: suggestedActions + linkActions(in: range.range))
+  }
+
+  /// The character of a link's text a tap is on, which the caret goes after.
+  private func linkCharacter(at point: CGPoint) -> NSRange? {
+    guard let character = characterRange(at: point) as? TextRange, character.range.length > 0,
+      storage.attribute(.link, at: character.range.location, effectiveRange: nil) != nil
+    else { return nil }
+    return character.range
+  }
+
+  /// A tap on a link's text puts the caret there, as any tap does, and
+  /// offers to open or edit the link.
+  @objc private func tapped(_ tap: UITapGestureRecognizer) {
+    let point = tap.location(in: surface)
+    guard linkCharacter(at: point) != nil else { return }
+    linkMenu.presentEditMenu(with: UIEditMenuConfiguration(identifier: nil, sourcePoint: point))
+  }
+
   // MARK: Layout
 
   public override func layoutSubviews() {
@@ -648,6 +814,22 @@ private final class CheckboxTap: UITapGestureRecognizer {
       return
     }
     super.touchesBegan(touches, with: event)
+  }
+}
+
+extension EditorView: UIGestureRecognizerDelegate, @MainActor UIEditMenuInteractionDelegate {
+  /// The tap that offers a link's actions leaves the text interaction's own
+  /// taps to place the caret.
+  public func gestureRecognizer(
+    _ gestureRecognizer: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer
+  ) -> Bool { true }
+
+  public func editMenuInteraction(
+    _ interaction: UIEditMenuInteraction, menuFor configuration: UIEditMenuConfiguration,
+    suggestedActions: [UIMenuElement]
+  ) -> UIMenu? {
+    guard let character = linkCharacter(at: configuration.sourcePoint) else { return nil }
+    return UIMenu(children: linkActions(in: character, caret: NSMaxRange(character)))
   }
 }
 

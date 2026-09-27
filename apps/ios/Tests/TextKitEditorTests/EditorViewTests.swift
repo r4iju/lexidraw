@@ -173,6 +173,184 @@ import UIKit
       try model.snapshot().state == LexicalJSON.document([LexicalJSON.paragraph([LexicalJSON.text("a")], indent: 1)]))
   }
 
+  // MARK: Clipboard
+
+  @Test func copyPutsTheSelectionOnThePasteboardAsTextAndAsLexicalNodes() throws {
+    let (view, _) = try editing(LexicalJSON.paragraph([LexicalJSON.text("hello world")]))
+    select(view, 6, 11)
+
+    view.copy(nil)
+
+    #expect(view.pasteboard.string == "world")
+    let data = try #require(view.pasteboard.data(forPasteboardType: "application/x-lexical-editor"))
+    let copied = try JSONDecoder().decode(JSONValue.self, from: data)
+    #expect(copied == ["namespace": "Lexidraw", "nodes": [LexicalJSON.text("world")]])
+  }
+
+  @Test func cutPutsTheSelectionOnThePasteboardAndDeletesIt() throws {
+    let (view, model) = try editing(LexicalJSON.paragraph([LexicalJSON.text("hello world")]))
+    select(view, 5, 11)
+
+    view.cut(nil)
+
+    #expect(view.pasteboard.string == " world")
+    #expect(try paragraphs(model) == [LexicalJSON.paragraph([LexicalJSON.text("hello")])])
+  }
+
+  @Test func pastingWhatWasCopiedKeepsItsFormat() throws {
+    let (source, _) = try editing(
+      LexicalJSON.paragraph([LexicalJSON.text("one")]), LexicalJSON.paragraph([LexicalJSON.text("two", format: .bold)]))
+    select(source, 1, 7)
+    source.copy(nil)
+    let (view, model) = try editing(LexicalJSON.paragraph([LexicalJSON.text("hello world")]))
+    view.pasteboard = source.pasteboard
+    select(view, 5, 5)
+
+    view.paste(nil)
+
+    #expect(
+      try paragraphs(model) == [
+        LexicalJSON.paragraph([LexicalJSON.text("hellone")]),
+        LexicalJSON.paragraph([LexicalJSON.text("two", format: .bold), LexicalJSON.text(" world")]),
+      ])
+  }
+
+  @Test func pastingFromAnotherAppInsertsItsPlainText() throws {
+    let (view, model) = try editing(LexicalJSON.paragraph([]))
+    view.pasteboard.setItems([["public.utf8-plain-text": "a\nb", "public.html": Data("<b>a</b><br>b".utf8)]])
+
+    #expect(view.canPerformAction(#selector(UIResponderStandardEditActions.paste(_:)), withSender: nil))
+    view.paste(nil)
+
+    #expect(
+      try paragraphs(model) == [
+        LexicalJSON.paragraph([LexicalJSON.text("a")]), LexicalJSON.paragraph([LexicalJSON.text("b")]),
+      ])
+  }
+
+  @Test func offersToCopyOnlyASelectionAndToPasteOnlyWhatThereIs() throws {
+    let (view, _) = try editing(LexicalJSON.paragraph([LexicalJSON.text("hello")]))
+    select(view, 2, 2)
+
+    #expect(!view.canPerformAction(#selector(UIResponderStandardEditActions.copy(_:)), withSender: nil))
+    #expect(!view.canPerformAction(#selector(UIResponderStandardEditActions.cut(_:)), withSender: nil))
+    #expect(!view.canPerformAction(#selector(UIResponderStandardEditActions.paste(_:)), withSender: nil))
+    select(view, 0, 2)
+    #expect(view.canPerformAction(#selector(UIResponderStandardEditActions.copy(_:)), withSender: nil))
+  }
+
+  // MARK: Links
+
+  static let linked = LexicalJSON.paragraph([
+    LexicalJSON.text("see "), LexicalJSON.link("https://a.io", [LexicalJSON.text("the site")]), LexicalJSON.text(" now"),
+  ])
+
+  @Test func theEditMenuOffersToLinkASelection() throws {
+    let (view, _) = try editing(LexicalJSON.paragraph([LexicalJSON.text("hello world")]))
+
+    #expect(linkActions(view, 6, 11) == ["Add Link…"])
+    #expect(linkActions(view, 6, 6) == [])
+  }
+
+  @Test func theEditMenuInALinkOffersToOpenEditOrRemoveIt() throws {
+    let (view, _) = try editing(Self.linked)
+
+    #expect(linkActions(view, 6, 6) == ["Open Link", "Edit Link…", "Remove Link"])
+    #expect(view.link(at: 6) == URL(string: "https://a.io"))
+    #expect(view.link(at: 2) == nil)
+  }
+
+  @Test func addingALinkLinksTheSelectionToTheURLGiven() throws {
+    let (view, model) = try editing(LexicalJSON.paragraph([LexicalJSON.text("hello world")]))
+    var offered: String?
+    view.askForURL = { current, answer in
+      offered = current
+      answer("https://x.io")
+    }
+    select(view, 6, 11)
+
+    view.addLink()
+
+    #expect(offered == "https://")
+    #expect(
+      try paragraphs(model) == [
+        LexicalJSON.paragraph([
+          LexicalJSON.text("hello "), LexicalJSON.link("https://x.io", [LexicalJSON.text("world")]),
+        ])
+      ])
+  }
+
+  @Test func editingALinkChangesItsURL() throws {
+    let (view, model) = try editing(Self.linked)
+    var offered: String?
+    view.askForURL = { current, answer in
+      offered = current
+      answer("https://b.io")
+    }
+    select(view, 6, 6)
+
+    view.editLink()
+
+    #expect(offered == "https://a.io")
+    #expect(try paragraphs(model).first?["children"]?.arrayValue?[1]["url"] == "https://b.io")
+  }
+
+  @Test func removingALinkLeavesItsText() throws {
+    let (view, model) = try editing(Self.linked)
+    select(view, 6, 6)
+
+    view.removeLink()
+
+    #expect(try paragraphs(model) == [LexicalJSON.paragraph([LexicalJSON.text("see the site now")])])
+  }
+
+  @Test func openingALinkOpensItsURL() throws {
+    let (view, _) = try editing(Self.linked)
+    var opened: URL?
+    view.open = { opened = $0 }
+    select(view, 6, 6)
+
+    view.openLink()
+
+    #expect(opened == URL(string: "https://a.io"))
+  }
+
+  /// A view editing a document of `blocks` in a window, first responder.
+  private func editing(_ blocks: JSONValue...) throws -> (EditorView, Editor) {
+    let model = Editor()
+    try model.load(LexicalJSON.document(blocks))
+    let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 600))
+    let view = EditorView(model: model)
+    view.pasteboard = UIPasteboard.withUniqueName()
+    view.frame = window.bounds
+    window.addSubview(view)
+    window.makeKeyAndVisible()
+    #expect(view.becomeFirstResponder())
+    view.layoutIfNeeded()
+    return (view, model)
+  }
+
+  private func select(_ view: EditorView, _ start: Int, _ end: Int) {
+    view.selectedTextRange = range(view, start, end)
+  }
+
+  private func range(_ view: EditorView, _ start: Int, _ end: Int) -> UITextRange? {
+    guard let from = view.position(from: view.beginningOfDocument, offset: start),
+      let to = view.position(from: view.beginningOfDocument, offset: end)
+    else { return nil }
+    return view.textRange(from: from, to: to)
+  }
+
+  /// The titles the edit menu adds for links over UIKit's own.
+  private func linkActions(_ view: EditorView, _ start: Int, _ end: Int) -> [String] {
+    guard let range = range(view, start, end) else { return [] }
+    return view.editMenu(for: range, suggestedActions: [])?.children.map(\.title) ?? []
+  }
+
+  private func paragraphs(_ model: Editor) throws -> [JSONValue] {
+    try model.snapshot().state["root"]?["children"]?.arrayValue ?? []
+  }
+
   /// The paragraph's text after the key command for `input` and `modifiers`
   /// runs with the caret `caretAt` UTF-16 offsets into `text`.
   private func text(
