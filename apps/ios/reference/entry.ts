@@ -598,7 +598,10 @@ function run(
       editor.dispatchCommand(OUTDENT_CONTENT_COMMAND, undefined);
       return;
     case "tab":
-      if (DOCUMENT_TABLE_PLUGIN.hasTabHandler && $tabHandler(command.backward)) {
+      if (
+        DOCUMENT_TABLE_PLUGIN.hasTabHandler &&
+        $tabHandler(command.backward)
+      ) {
         return;
       }
       editor.dispatchCommand(KEY_TAB_COMMAND, key(command.backward));
