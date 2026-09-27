@@ -87,6 +87,20 @@ import UIKit
     #expect(keys.contains { $0.input == UIKeyCommand.inputLeftArrow && $0.modifierFlags.isEmpty })
   }
 
+  /// VoiceOver names a block the editor can't show yet by its type, where
+  /// the text holds one character for it.
+  @Test func readsABlockItCantShowYetByItsType() throws {
+    let model = Editor()
+    try model.load(
+      LexicalJSON.document([
+        LexicalJSON.paragraph([LexicalJSON.text("Watch this")]), LexicalJSON.youtube("dQw4w9WgXcQ"),
+        LexicalJSON.paragraph([LexicalJSON.text("after")]),
+      ]))
+    let view = EditorView(model: model)
+
+    #expect(view.accessibilityValue == "Watch this\nyoutube\nafter\n")
+  }
+
   /// The paragraph's text after the key command for `input` and `modifiers`
   /// runs with the caret `caretAt` UTF-16 offsets into `text`.
   private func text(

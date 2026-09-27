@@ -548,6 +548,23 @@ public final class EditorView: UIScrollView, UITextInput {
   public override func toggleUnderline(_ sender: Any?) { perform(.formatText(.underline), fromInput: false) }
   public override func selectAll(_ sender: Any?) { perform(.selectAll, fromInput: false) }
 
+  // MARK: Accessibility
+
+  /// The text, with each block the editor can't show yet named by its type
+  /// in place of the one character that stands for it.
+  public override var accessibilityValue: String? {
+    get {
+      let text = NSMutableString(string: storage.string)
+      for index in (0..<document.blockCount).reversed() {
+        guard case .embedded(let type) = document.kind(ofBlock: index) else { continue }
+        let block = document.range(ofBlock: index)
+        text.replaceOccurrences(of: "\u{FFFC}", with: type, range: block)
+      }
+      return text as String
+    }
+    set {}
+  }
+
   // MARK: Layout
 
   public override func layoutSubviews() {
