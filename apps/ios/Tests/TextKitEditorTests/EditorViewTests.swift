@@ -40,6 +40,34 @@ import UIKit
     #expect(try text(afterPressing: "\u{7F}", .alternate, in: "one two", caretAt: 0) == " two")
   }
 
+  /// A document the user may only read takes no keyboard, and no edit
+  /// reaches it however it is asked for.
+  @Test func aReadOnlyViewTakesNoEdits() throws {
+    let model = Editor()
+    let document = LexicalJSON.document([LexicalJSON.paragraph([LexicalJSON.text("one two")])])
+    try model.load(document)
+    let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 600))
+    let view = EditorView(model: model, isEditable: false)
+    view.frame = window.bounds
+    window.addSubview(view)
+    window.makeKeyAndVisible()
+    view.layoutIfNeeded()
+
+    #expect(!view.becomeFirstResponder())
+    let three = try #require(view.position(from: view.beginningOfDocument, offset: 3))
+    let one = try #require(view.textRange(from: view.beginningOfDocument, to: three))
+    view.selectedTextRange = one
+    view.toggleBoldface(nil)
+    view.insertText("!")
+    view.deleteBackward()
+    view.replace(one, withText: "1")
+    view.setMarkedText("か", selectedRange: NSRange(location: 1, length: 0))
+    view.unmarkText()
+    view.undoManager?.undo()
+
+    #expect(try model.snapshot().state == document)
+  }
+
   /// The paragraph's text after the key command for `input` and `modifiers`
   /// runs with the caret `caretAt` UTF-16 offsets into `text`.
   private func text(

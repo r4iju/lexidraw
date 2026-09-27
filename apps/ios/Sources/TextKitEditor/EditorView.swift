@@ -15,6 +15,9 @@ public final class EditorView: UIScrollView, UITextInput {
   private static let log = Logger(subsystem: "TextKitEditor", category: "EditorView")
 
   private let model: any EditorModel
+  /// Whether the user may change the document. A view that isn't takes no
+  /// keyboard, and sends the model nothing that edits.
+  public let isEditable: Bool
   private let document: DocumentText
   private let storage = NSTextStorage()
   private let layout: BlockLayout
@@ -35,8 +38,11 @@ public final class EditorView: UIScrollView, UITextInput {
   public var markedTextStyle: [NSAttributedString.Key: Any]?
   public private(set) lazy var tokenizer: any UITextInputTokenizer = UITextInputStringTokenizer(textInput: self)
 
-  public init(model: any EditorModel, style: @escaping DocumentText.Style = EditorView.defaultStyle) {
+  public init(
+    model: any EditorModel, style: @escaping DocumentText.Style = EditorView.defaultStyle, isEditable: Bool = true
+  ) {
     self.model = model
+    self.isEditable = isEditable
     document = DocumentText(model: model, style: style, standIn: BlockLayout.standIn)
     layout = BlockLayout(storage: storage, document: document)
     super.init(frame: .zero)
@@ -45,7 +51,7 @@ public final class EditorView: UIScrollView, UITextInput {
     keyboardDismissMode = .interactive
     addSubview(surface)
 
-    let interaction = UITextInteraction(for: .editable)
+    let interaction = UITextInteraction(for: isEditable ? .editable : .nonEditable)
     interaction.textInput = self
     surface.addInteraction(interaction)
     isAccessibilityElement = true
@@ -71,6 +77,7 @@ public final class EditorView: UIScrollView, UITextInput {
   /// UIKit's own input calls expect the text and selection they asked for
   /// without being told; anything else tells the input delegate.
   private func perform(_ command: EditorCommand, fromInput: Bool) {
+    guard isEditable || !command.edits else { return }
     let now = ProcessInfo.processInfo.systemUptime
     let elapsed = Int((now - lastCommand) * 1000)
     lastCommand = now
@@ -188,7 +195,7 @@ public final class EditorView: UIScrollView, UITextInput {
     onInput?(TextInputRecord(call: call, text: storage.string, marked: composition?.marked))
   }
 
-  public override var canBecomeFirstResponder: Bool { true }
+  public override var canBecomeFirstResponder: Bool { isEditable }
 
   /// A model with no selection yet takes the view's, so typing has
   /// somewhere to go.
@@ -572,6 +579,17 @@ public final class EditorView: UIScrollView, UITextInput {
     if format.contains(.code) { attributes[.backgroundColor] = UIColor.secondarySystemFill }
     if format.contains(.highlight) { attributes[.backgroundColor] = UIColor.systemYellow.withAlphaComponent(0.4) }
     return attributes
+  }
+}
+
+extension EditorCommand {
+  /// Whether the command can change the document, not only where the
+  /// selection is.
+  fileprivate var edits: Bool {
+    switch self {
+    case .setSelection, .selectAll, .wait: false
+    default: true
+    }
   }
 }
 
