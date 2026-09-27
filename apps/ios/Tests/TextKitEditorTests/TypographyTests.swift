@@ -175,8 +175,10 @@ import UIKit
     )
     let selected = try #require(view.textRange(from: from, to: to))
     let selection = try #require(view.selectionRects(for: selected).first?.rect)
-    let ink = try #require(
-      ink(of: view.textInputView, across: (start.maxX + 1)...(end.minX - 1), rows: (middle.minY - 8)...(middle.maxY + 8)))
+    let columns: ClosedRange<CGFloat> = (start.maxX + 1)...(end.minX - 1)
+    let rows: ClosedRange<CGFloat> = (middle.minY - 8)...(middle.maxY + 8)
+    let drawn: ClosedRange<CGFloat>? = ink(of: view.textInputView, across: columns, rows: rows)
+    let ink = try #require(drawn)
     let font = UIFont.systemFont(ofSize: em)
 
     expectNear(ink.lowerBound, ink.upperBound - font.capHeight, "an H's top \(line)", within: 0.5)
