@@ -229,8 +229,10 @@ extension Update {
   {
     let (anchor, focus) = (selection.anchor, selection.focus)
     let (anchorOffset, focusOffset) = characterOffsets(selection)
-    return try state.isBackward(selection)
-      ? ((focus, focusOffset), (anchor, anchorOffset)) : ((anchor, anchorOffset), (focus, focusOffset))
+    let anchorEnd: (point: SelectionPoint, offset: Int) = (anchor, anchorOffset)
+    let focusEnd: (point: SelectionPoint, offset: Int) = (focus, focusOffset)
+    if try state.isBackward(selection) { return (focusEnd, anchorEnd) }
+    return (anchorEnd, focusEnd)
   }
 
   // MARK: Nodes
