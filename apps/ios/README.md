@@ -32,7 +32,7 @@ each, 100,000 in all, with no divergence; 1,964 commands were refused by
 both, and 287 sessions ended where Lexical made a node LexicalSwift doesn't
 make yet. With lists, checklists and their shortcuts (#116): seeds 11621 to
 11625, 20,000 steps each, and seed 11610, 200,000 steps, 300,000 in all,
-with no divergence; 6,055 commands were refused by both, and 126 sessions
+with no divergence; 5,693 commands were refused by both, and 122 sessions
 ended on a shortcut or node not ported yet.
 
 ## Editor harness and UI scripts
