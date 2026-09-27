@@ -182,9 +182,77 @@ import UIKit
     #expect(try model.selection() == selected)
   }
 
-  private func tableView(caretAfter word: String) throws -> (EditorView, Editor) {
+  /// Shift and an arrow over selected cells move the focus a whole cell, as
+  /// @lexical/table's arrow keys do, so the cells selected grow and shrink.
+  @Test func shiftArrowsMoveSelectedCellsFocusACellAtATime() throws {
+    let (view, model) = try tableView([["one", "two", "six"], ["three", "four", "ten"]], caretAfter: "one")
+    try press(UIKeyCommand.inputRightArrow, .shift, in: view)
+    #expect(try selectedCells(model) == [[0, 0, 0], [0, 0, 1]])
+    try press(UIKeyCommand.inputRightArrow, .shift, in: view)
+    #expect(try selectedCells(model) == [[0, 0, 0], [0, 0, 1], [0, 0, 2]])
+    try press(UIKeyCommand.inputDownArrow, .shift, in: view)
+    #expect(try selectedCells(model) == [[0, 0, 0], [0, 0, 1], [0, 0, 2], [0, 1, 0], [0, 1, 1], [0, 1, 2]])
+    try press(UIKeyCommand.inputLeftArrow, .shift, in: view)
+    #expect(try selectedCells(model) == [[0, 0, 0], [0, 0, 1], [0, 1, 0], [0, 1, 1]])
+  }
+
+  /// Selected cells keep a handle in the anchor cell and one in the focus
+  /// cell, and a handle moved to another cell selects what the model makes
+  /// of the range it gives.
+  @Test func selectedCellsKeepHandlesThatChangeWhichAreSelected() throws {
+    let (view, model) = try tableView([["one", "two"], ["three", "four"]], caretAfter: "one")
+    let whole = try #require(view.textRange(from: view.beginningOfDocument, to: view.endOfDocument))
+    let text = try #require(view.text(in: whole)) as NSString
+    func offset(_ word: String, _ within: Int) -> Int { text.range(of: word).location + within }
+    func position(_ offset: Int) throws -> UITextPosition {
+      try #require(view.position(from: view.beginningOfDocument, offset: offset))
+    }
+    func select(_ from: Int, _ to: Int) throws {
+      view.selectedTextRange = view.textRange(from: try position(from), to: try position(to))
+    }
+    try select(offset("one", 0), offset("two", 1))
+    #expect(try selectedCells(model) == [[0, 0, 0], [0, 0, 1]])
+
+    let selected = try #require(view.selectedTextRange)
+    let rects = view.selectionRects(for: selected)
+    let start = try #require(rects.first { $0.containsStart }).rect
+    let end = try #require(rects.first { $0.containsEnd }).rect
+    let startCaret = view.caretRect(for: try position(offset("one", 0)))
+    let endCaret = view.caretRect(for: try position(offset("two", 3)))
+    #expect(start.origin == startCaret.origin && start.height == startCaret.height)
+    #expect(end.origin == endCaret.origin && end.height == endCaret.height)
+
+    try select(offset("one", 0), offset("four", 2))
+    #expect(try selectedCells(model) == [[0, 0, 0], [0, 0, 1], [0, 1, 0], [0, 1, 1]])
+    try select(offset("one", 0), offset("three", 2))
+    #expect(try selectedCells(model) == [[0, 0, 0], [0, 1, 0]])
+  }
+
+  /// Down from a table's last row, at the end of the document, leaves the
+  /// table: the caret is beside it at the root, and drawn under it.
+  @Test func downLeavesATableAtTheEndOfTheDocument() throws {
+    let (view, model) = try tableView([["one"], ["two"]], caretAfter: "two")
+    let inCell = view.caretRect(for: try #require(view.selectedTextRange).start)
+    try press(UIKeyCommand.inputDownArrow, [], in: view)
+
+    let selection = try #require(try model.selection())
+    #expect(selection.isCollapsed && selection.focus == Point(path: [], offset: 1, type: .element))
+    let caret = view.caretRect(for: try #require(view.selectedTextRange).start)
+    #expect(caret.minY > inCell.maxY)
+    #expect(caret.width > caret.height)
+
+    try press(UIKeyCommand.inputUpArrow, [], in: view)
+    #expect(view.caretRect(for: try #require(view.selectedTextRange).start) == inCell)
+  }
+
+  private func selectedCells(_ model: Editor) throws -> [[Int]]? {
+    guard case .table(_, _, _, let cells) = try model.selection() else { return nil }
+    return cells
+  }
+
+  private func tableView(_ rows: [[String]] = [["one", "two"]], caretAfter word: String) throws -> (EditorView, Editor) {
     let model = Editor()
-    try model.load(LexicalJSON.document([LexicalJSON.table([["one", "two"]])]))
+    try model.load(LexicalJSON.document([LexicalJSON.table(rows)]))
     let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 600))
     let view = EditorView(model: model)
     view.frame = window.bounds

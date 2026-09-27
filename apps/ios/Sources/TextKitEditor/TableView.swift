@@ -41,12 +41,12 @@ import UIKit
   /// columns whole even where that makes it scroll.
   static let scrollingColumns = 5
 
-  private(set) var boxes: [[TextBox]] = []
+  private var boxes: [[TextBox]] = []
   /// Each cell's box, borders included, by row and by its index in the row,
   /// in the content.
-  private(set) var cellFrames: [[CGRect]] = []
+  private var cellFrames: [[CGRect]] = []
   /// Where each row starts, and the table's inner bottom last.
-  private(set) var rowTops: [CGFloat] = [0]
+  private var rowTops: [CGFloat] = [0]
   private var cells: [[Cell]] = []
   private var tableSize: CGSize = .zero
   private let grid = GridView()
@@ -265,14 +265,56 @@ import UIKit
     return text
   }
 
-  /// Where the text of the cell at `row` and `index` starts, in the frame.
-  func textOrigin(row: Int, index: Int) -> CGPoint {
-    let frame = cellFrames[row][index]
+  /// Where the text of `cell` starts, in the frame.
+  private func textOrigin(_ cell: CellIndex) -> CGPoint {
+    let frame = cellFrames[cell.row][cell.index]
     return CGPoint(x: frame.minX + Measure.paddingX - contentOffset.x, y: frame.minY + Measure.paddingY)
   }
 
+  private func box(_ cell: CellIndex) -> TextBox { boxes[cell.row][cell.index] }
+
+  /// Where `range` of the text of `cell` is drawn, a line at a time, in the
+  /// frame.
+  func segments(_ range: NSRange, in cell: CellIndex) -> [CGRect] {
+    let origin = textOrigin(cell)
+    return box(cell).segments(range).map { $0.offsetBy(dx: origin.x, dy: origin.y) }
+  }
+
+  /// The cell a point in the frame is in, or the nearest, and the offset in
+  /// its text closest to the point.
+  func offset(closestTo point: CGPoint) -> (cell: CellIndex, offset: Int)? {
+    guard let cell = cell(at: point) else { return nil }
+    let origin = textOrigin(cell)
+    return (cell, box(cell).offset(closestTo: CGPoint(x: point.x - origin.x, y: point.y - origin.y)))
+  }
+
+  /// The offset a line up or down from `offset` in the text of `cell`, at
+  /// `x` in the frame: in the cell, else in the cell above or below, else
+  /// nil.
+  func offset(
+    movingVerticallyFrom offset: Int, in cell: CellIndex, _ direction: NSTextSelectionNavigation.Direction, x: CGFloat
+  ) -> (cell: CellIndex, offset: Int)? {
+    if let moved = box(cell).offset(movingVerticallyFrom: offset, direction, x: x - textOrigin(cell).x) {
+      return (cell, moved)
+    }
+    let frame = cellFrames[cell.row][cell.index]
+    let y = direction == .up ? frame.minY - Measure.paddingY : frame.maxY + Measure.paddingY
+    guard y > rowTops[0], y < rowTops[rowTops.count - 1] else { return nil }
+    return self.offset(closestTo: CGPoint(x: x, y: y))
+  }
+
+  /// Whether `offset` in the text of `cell` is on its first line, going up,
+  /// or its last, going down.
+  func isOnEdgeLine(_ offset: Int, of cell: CellIndex, _ direction: NSTextSelectionNavigation.Direction) -> Bool {
+    box(cell).offset(movingVerticallyFrom: offset, direction, x: 0) == nil
+  }
+
+  func lineBoundary(at offset: Int, in cell: CellIndex, backward: Bool) -> Int {
+    box(cell).lineBoundary(at: offset, backward: backward)
+  }
+
   /// The cell a point in the frame is in, or the nearest.
-  func cell(at point: CGPoint) -> CellIndex? {
+  private func cell(at point: CGPoint) -> CellIndex? {
     let content = CGPoint(x: point.x + contentOffset.x, y: point.y)
     var nearest: (cell: CellIndex, distance: CGFloat)?
     for (row, frames) in cellFrames.enumerated() {
@@ -291,9 +333,9 @@ import UIKit
     shadows.setNeedsDisplay()
   }
 
-  /// Scrolls sideways as little as shows the cell at `row` and `index`.
-  func scrollToShow(row: Int, index: Int) {
-    scrollRectToVisible(cellFrames[row][index], animated: false)
+  /// Scrolls sideways as little as shows `cell`.
+  func scrollToShow(_ cell: CellIndex) {
+    scrollRectToVisible(cellFrames[cell.row][cell.index], animated: false)
   }
 
   override func gestureRecognizerShouldBegin(_ recognizer: UIGestureRecognizer) -> Bool {

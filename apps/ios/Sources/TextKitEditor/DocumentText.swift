@@ -214,6 +214,15 @@ public final class DocumentText {
     }
   }
 
+  /// The text of the node at `path`, or nil where the document has no such
+  /// node or it is the root.
+  public func range(of path: [Int]) -> NSRange? {
+    guard let blockIndex = path.first, blocks.indices.contains(blockIndex),
+      let span = blocks[blockIndex].spans[Array(path.dropFirst())]
+    else { return nil }
+    return NSRange(location: starts[blockIndex] + span.start, length: span.end - span.start)
+  }
+
   /// The point a browser resolves a caret at `offset` to: in the text before
   /// it where there is one, else in the text after it, else between the
   /// children of the innermost element around it.

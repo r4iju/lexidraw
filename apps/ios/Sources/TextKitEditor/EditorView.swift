@@ -31,6 +31,9 @@ public final class EditorView: UIScrollView, UITextInput {
   /// moves.
   private var anchor = 0
   private var focus = 0
+  /// Where the model's caret sits at the root, between blocks, as the child
+  /// it is before; a caret beside a table is drawn there, not in the text.
+  private var caretBeforeBlock: Int?
   private var composition: Composition?
   /// When the model last heard from the view, for the time its history
   /// merges edits by.
@@ -169,14 +172,28 @@ public final class EditorView: UIScrollView, UITextInput {
       if !fromInput { inputDelegate?.selectionDidChange(self) }
     }
     layout.tableSelection = cells
-    guard let selection, let anchor = document.offset(of: selection.anchor),
-      let focus = document.offset(of: selection.focus)
-    else { return }
+    guard let selection, let (anchor, focus) = offsets(of: selection) else { return }
     if !fromInput { inputDelegate?.selectionWillChange(self) }
     self.anchor = anchor
     self.focus = focus
+    caretBeforeBlock = selection.isCollapsed && selection.focus.path.isEmpty ? selection.focus.offset : nil
     if !fromInput { inputDelegate?.selectionDidChange(self) }
     scrollToCaret()
+  }
+
+  /// Where the view has `selection`. Selected cells run from the start of
+  /// the first of the anchor and focus cells to the end of the other, where
+  /// their handles are.
+  private func offsets(of selection: Selection) -> (anchor: Int, focus: Int)? {
+    guard case .table(_, let anchorCell, let focusCell, _) = selection else {
+      guard let anchor = document.offset(of: selection.anchor), let focus = document.offset(of: selection.focus) else {
+        return nil
+      }
+      return (anchor, focus)
+    }
+    guard let anchor = document.range(of: anchorCell), let focus = document.range(of: focusCell) else { return nil }
+    return anchor.location <= focus.location
+      ? (anchor.location, NSMaxRange(focus)) : (NSMaxRange(anchor), focus.location)
   }
 
   /// The table block a table selection is in, and the cells it has.
@@ -197,9 +214,9 @@ public final class EditorView: UIScrollView, UITextInput {
   /// a selection anew would reset the format a caret types in, which a
   /// shortcut such as ⌘B may just have set.
   private func syncSelection() {
-    guard let selection = modelSelection(), document.offset(of: selection.anchor) == anchor,
-      document.offset(of: selection.focus) == focus
-    else { return sendSelection() }
+    guard let selection = modelSelection(), let offsets = offsets(of: selection), offsets == (anchor, focus) else {
+      return sendSelection()
+    }
   }
 
   /// Text typed, pasted or `composed`, each newline a new paragraph as
@@ -311,7 +328,8 @@ public final class EditorView: UIScrollView, UITextInput {
     set {
       guard let range = newValue as? TextRange else { return }
       let snapped = wholeCharacters(range.range)
-      guard composition != nil || snapped != selected else { return }
+      guard composition != nil || snapped != selected || caretBeforeBlock != nil else { return }
+      caretBeforeBlock = nil
       anchor = snapped.location
       focus = NSMaxRange(snapped)
       if composition == nil { sendSelection() }
@@ -321,6 +339,7 @@ public final class EditorView: UIScrollView, UITextInput {
 
   /// Moves the caret by keyboard, or extends the selection's moving end.
   private func move(to offset: Int, extending: Bool) {
+    caretBeforeBlock = nil
     inputDelegate?.selectionWillChange(self)
     focus = clamp(offset)
     if !extending { anchor = focus }
@@ -350,6 +369,7 @@ public final class EditorView: UIScrollView, UITextInput {
     guard let range = range as? TextRange else { return }
     commitMarkedText()
     let replaced = wholeCharacters(range.range)
+    caretBeforeBlock = nil
     anchor = replaced.location
     focus = NSMaxRange(replaced)
     sendSelection()
@@ -458,15 +478,30 @@ public final class EditorView: UIScrollView, UITextInput {
   }
 
   public func caretRect(for position: UITextPosition) -> CGRect {
-    guard let position = position as? TextPosition,
-      let frame = segments(NSRange(location: clamp(position.offset), length: 0)).first
-    else { return .zero }
+    guard let position = position as? TextPosition else { return .zero }
+    if let caretBeforeBlock, anchor == focus, position.offset == focus,
+      let caret = layout.caret(beforeBlock: caretBeforeBlock)
+    {
+      return caret
+    }
+    guard let frame = segments(NSRange(location: clamp(position.offset), length: 0)).first else { return .zero }
     return CGRect(x: frame.minX, y: frame.minY, width: 2, height: frame.height)
   }
 
-  /// Selected table cells are tinted instead, as on the web.
+  /// Selected table cells are tinted instead, as on the web, with a handle
+  /// at each end.
   public func selectionRects(for range: UITextRange) -> [UITextSelectionRect] {
-    guard let range = range as? TextRange, layout.tableSelection == nil else { return [] }
+    guard let range = range as? TextRange else { return [] }
+    if layout.tableSelection != nil {
+      let ends = [range.range.location, NSMaxRange(range.range)].compactMap {
+        segments(NSRange(location: $0, length: 0)).first
+      }
+      guard ends.count == 2 else { return [] }
+      return [
+        SelectionRect(ends[0], containsStart: true, containsEnd: false),
+        SelectionRect(ends[1], containsStart: false, containsEnd: true),
+      ]
+    }
     let frames = segments(range.range).filter { $0.width > 0 }
     return frames.enumerated().map { index, frame in
       SelectionRect(frame, containsStart: index == 0, containsEnd: index == frames.count - 1)
@@ -543,19 +578,34 @@ public final class EditorView: UIScrollView, UITextInput {
   @objc private func insertLineBreak() { perform(.insertLineBreak, fromInput: false) }
 
   @objc private func moveLeft() {
-    move(to: anchor == focus ? character(before: focus) : selected.location, extending: false)
+    arrow(.left, extend: false, to: anchor == focus ? character(before: focus) : selected.location)
   }
 
   @objc private func moveRight() {
-    move(to: anchor == focus ? character(after: focus) : NSMaxRange(selected), extending: false)
+    arrow(.right, extend: false, to: anchor == focus ? character(after: focus) : NSMaxRange(selected))
   }
 
-  @objc private func moveUp() { move(to: line(from: focus, .up) ?? 0, extending: false) }
-  @objc private func moveDown() { move(to: line(from: focus, .down) ?? lastOffset, extending: false) }
-  @objc private func extendLeft() { move(to: character(before: focus), extending: true) }
-  @objc private func extendRight() { move(to: character(after: focus), extending: true) }
-  @objc private func extendUp() { move(to: line(from: focus, .up) ?? 0, extending: true) }
-  @objc private func extendDown() { move(to: line(from: focus, .down) ?? lastOffset, extending: true) }
+  @objc private func moveUp() { arrow(.up, extend: false, to: line(from: focus, .up) ?? 0) }
+  @objc private func moveDown() { arrow(.down, extend: false, to: line(from: focus, .down) ?? lastOffset) }
+  @objc private func extendLeft() { arrow(.left, extend: true, to: character(before: focus)) }
+  @objc private func extendRight() { arrow(.right, extend: true, to: character(after: focus)) }
+  @objc private func extendUp() { arrow(.up, extend: true, to: line(from: focus, .up) ?? 0) }
+  @objc private func extendDown() { arrow(.down, extend: true, to: line(from: focus, .down) ?? lastOffset) }
+
+  /// An arrow key, which the model answers as Lexical does, given `offset`,
+  /// where the platform would move the focus. A model that can't edit the
+  /// document can't move its selection either, so the view moves its own.
+  private func arrow(_ key: ArrowKey, extend: Bool, to offset: Int) {
+    guard model.isEditable else { return move(to: offset, extending: extend) }
+    let atCellEdge =
+      switch key {
+      case .up: layout.isAtCellEdge(focus, .up)
+      case .down: layout.isAtCellEdge(focus, .down)
+      case .left, .right: false
+      }
+    let native = document.point(at: clamp(offset))
+    perform(.arrow(key, extend: extend, native: native, atCellEdge: atCellEdge), fromInput: false)
+  }
   @objc private func moveToLineStart() { move(to: lineBoundary(backward: true) ?? focus, extending: false) }
   @objc private func moveToLineEnd() { move(to: lineBoundary(backward: false) ?? focus, extending: false) }
   @objc private func deleteWordBackward() { perform(.deleteWord(backward: true), fromInput: false) }
@@ -914,7 +964,7 @@ extension EditorCommand {
   /// selection is.
   fileprivate var edits: Bool {
     switch self {
-    case .setSelection, .selectAll, .wait, .copy: false
+    case .setSelection, .selectAll, .arrow, .wait, .copy: false
     default: true
     }
   }

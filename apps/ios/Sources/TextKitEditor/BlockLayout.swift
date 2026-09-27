@@ -342,6 +342,41 @@ import UIKit
     let index = blockIndex(atY: point.y)
     return block(index).checklistItem(at: CGPoint(x: point.x, y: point.y - top(index))).map { [index] + $0.path }
   }
+
+  /// Whether `offset` is on the first line of its table cell, going up, or
+  /// on the last, going down. Outside a table it isn't.
+  func isAtCellEdge(_ offset: Int, _ direction: NSTextSelectionNavigation.Direction) -> Bool {
+    guard document.blockCount > 0 else { return false }
+    let (_, block, _, local) = locate(offset)
+    return (block as? TableBlock)?.isAtCellEdge(local, direction) ?? false
+  }
+
+  /// A caret at the root before the block at `index`, where a table is
+  /// beside it: under the table before it, else over the one after it. It
+  /// lies flat, as the block cursor of Lexical's playground does, since the
+  /// document's theme gives it none (`blockCursor`); nil beside no table.
+  func caret(beforeBlock index: Int) -> CGRect? {
+    let isTable = { (index: Int) in
+      guard (0..<self.document.blockCount).contains(index), case .table = self.document.kind(ofBlock: index) else {
+        return false
+      }
+      return true
+    }
+    let gap = EditorView.blockSpacing
+    let y: CGFloat
+    if isTable(index - 1) {
+      y = top(index - 1) + block(index - 1).height - gap / 2 - Self.flatCaretHeight / 2
+    } else if isTable(index) {
+      y = top(index) - gap / 2 - Self.flatCaretHeight / 2
+    } else {
+      return nil
+    }
+    return CGRect(x: 0, y: y, width: Self.flatCaretWidth, height: Self.flatCaretHeight)
+  }
+
+  /// The playground's block cursor is 20px wide; it is as thick as a caret.
+  private static let flatCaretWidth: CGFloat = 20
+  private static let flatCaretHeight: CGFloat = 2
 }
 
 /// A block laid out, with its view. Offsets are into the block; geometry is
@@ -473,26 +508,31 @@ private final class TableBlock: LaidOutBlock {
     set { table.selectedCells = newValue }
   }
 
-  /// The cell `offset` is in, the end of each cell included in it.
-  private func cell(at offset: Int) -> (row: Int, index: Int, range: NSRange)? {
+  /// The cell `offset` is in, the end of each cell included in it, and the
+  /// offset in its text.
+  private func cell(at offset: Int) -> (cell: TableView.CellIndex, local: Int)? {
     for (row, cells) in rows.enumerated() {
-      for (index, cell) in cells.enumerated() where offset <= NSMaxRange(cell.range) { return (row, index, cell.range) }
+      for (index, cell) in cells.enumerated() where offset <= NSMaxRange(cell.range) {
+        return (TableView.CellIndex(row: row, index: index), offset - cell.range.location)
+      }
     }
     guard let row = rows.lastIndex(where: { !$0.isEmpty }), let last = rows[row].last else { return nil }
-    return (row, rows[row].count - 1, last.range)
+    return (TableView.CellIndex(row: row, index: rows[row].count - 1), offset - last.range.location)
   }
+
+  private func range(of cell: TableView.CellIndex) -> NSRange { rows[cell.row][cell.index].range }
 
   func segments(_ range: NSRange) -> [CGRect] {
     var frames: [CGRect] = []
-    let caretCell = range.length == 0 ? cell(at: range.location) : nil
+    let caretCell = range.length == 0 ? cell(at: range.location)?.cell : nil
     for (row, cells) in rows.enumerated() {
       for (index, cell) in cells.enumerated() {
         let start = max(range.location, cell.range.location)
         let end = min(NSMaxRange(range), NSMaxRange(cell.range))
-        guard start < end || (caretCell?.row == row && caretCell?.index == index) else { continue }
-        let origin = table.textOrigin(row: row, index: index)
+        let at = TableView.CellIndex(row: row, index: index)
+        guard start < end || caretCell == at else { continue }
         let local = NSRange(location: start - cell.range.location, length: max(end - start, 0))
-        frames += table.boxes[row][index].segments(local).map { $0.offsetBy(dx: origin.x, dy: origin.y) }
+        frames += table.segments(local, in: at)
       }
     }
     // A caret or selection shows only where the table does.
@@ -504,34 +544,32 @@ private final class TableBlock: LaidOutBlock {
   }
 
   func reveal(_ offset: Int) {
-    guard let (row, index, _) = cell(at: offset) else { return }
-    table.scrollToShow(row: row, index: index)
+    guard let (cell, _) = cell(at: offset) else { return }
+    table.scrollToShow(cell)
   }
 
   func offset(closestTo point: CGPoint) -> Int {
-    guard let cell = table.cell(at: point) else { return 0 }
-    let origin = table.textOrigin(row: cell.row, index: cell.index)
-    let local = table.boxes[cell.row][cell.index].offset(closestTo: CGPoint(x: point.x - origin.x, y: point.y - origin.y))
-    return rows[cell.row][cell.index].range.location + local
+    guard let (cell, local) = table.offset(closestTo: point) else { return 0 }
+    return range(of: cell).location + local
   }
 
   /// Up and down move through a cell's lines, then to the cell above or
   /// below, then out of the table.
   func offset(movingVerticallyFrom offset: Int, _ direction: NSTextSelectionNavigation.Direction, x: CGFloat) -> Int? {
-    guard let (row, index, range) = cell(at: offset) else { return nil }
-    let origin = table.textOrigin(row: row, index: index)
-    if let moved = table.boxes[row][index].offset(movingVerticallyFrom: offset - range.location, direction, x: x - origin.x) {
-      return range.location + moved
-    }
-    let frame = table.cellFrames[row][index]
-    let y = direction == .up ? frame.minY - TableView.Measure.paddingY : frame.maxY + TableView.Measure.paddingY
-    guard y > table.rowTops[0], y < table.rowTops[table.rowTops.count - 1] else { return nil }
-    return self.offset(closestTo: CGPoint(x: x, y: y))
+    guard let (cell, local) = cell(at: offset),
+      let (moved, movedLocal) = table.offset(movingVerticallyFrom: local, in: cell, direction, x: x)
+    else { return nil }
+    return range(of: moved).location + movedLocal
+  }
+
+  func isAtCellEdge(_ offset: Int, _ direction: NSTextSelectionNavigation.Direction) -> Bool {
+    guard let (cell, local) = cell(at: offset) else { return false }
+    return table.isOnEdgeLine(local, of: cell, direction)
   }
 
   func lineBoundary(at offset: Int, backward: Bool) -> Int {
-    guard let (row, index, range) = cell(at: offset) else { return offset }
-    return range.location + table.boxes[row][index].lineBoundary(at: offset - range.location, backward: backward)
+    guard let (cell, local) = cell(at: offset) else { return offset }
+    return range(of: cell).location + table.lineBoundary(at: local, in: cell, backward: backward)
   }
 }
 
