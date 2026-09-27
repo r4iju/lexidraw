@@ -24,6 +24,7 @@ import UIKit
     /// The width the cell is set to, borders included, as the web's
     /// `border-box` sizes it.
     var width: CGFloat?
+    var verticalAlign = DocumentText.Table.VerticalAlign.top
   }
 
   private var boxes: [[TextBox]] = []
@@ -330,7 +331,19 @@ import UIKit
   /// Where the text of `cell` starts, in the frame.
   private func textOrigin(_ cell: CellIndex) -> CGPoint {
     let frame = shownFrame(cell)
-    return CGPoint(x: frame.minX + paddingX - contentOffset.x, y: frame.minY + paddingY)
+    return CGPoint(x: frame.minX + paddingX - contentOffset.x, y: frame.minY + textTop(cell))
+  }
+
+  /// How far down its cell the text of `cell` starts: past the padding,
+  /// and down the height its rows have past its own as far as its vertical
+  /// alignment says.
+  private func textTop(_ cell: CellIndex) -> CGFloat {
+    let slack = cellFrames[cell.row][cell.index].height - cellHeight(cell.row, cell.index)
+    return switch cells[cell.row][cell.index].verticalAlign {
+    case .top: paddingY
+    case .middle: paddingY + slack / 2
+    case .bottom: paddingY + slack
+    }
   }
 
   private func box(_ cell: CellIndex) -> TextBox { boxes[cell.row][cell.index] }
@@ -543,7 +556,7 @@ import UIKit
     if index.row < cells.count - 1 {
       UIRectFill(CGRect(x: frame.minX, y: frame.maxY - border, width: frame.width, height: border))
     }
-    box(index).draw(at: CGPoint(x: frame.minX + paddingX, y: frame.minY + paddingY), in: context)
+    box(index).draw(at: CGPoint(x: frame.minX + paddingX, y: frame.minY + textTop(index)), in: context)
   }
 
   /// The table's rounded frame, drawn inside `bounds`.

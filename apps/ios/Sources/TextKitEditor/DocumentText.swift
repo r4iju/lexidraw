@@ -72,6 +72,14 @@ public final class DocumentText {
       public var backgroundColor: String?
       /// The width the cell is set to, in CSS pixels.
       public var width: Double?
+      public var verticalAlign = VerticalAlign.top
+    }
+
+    /// Where a cell's text sits in the height of its rows: at the top, as
+    /// `document.css` has it, unless the cell sets the middle or the
+    /// bottom, which `TableCellNode` writes as its `vertical-align`.
+    public enum VerticalAlign: String, Equatable, Sendable {
+      case top, middle, bottom
     }
 
     /// Each row's cells, in the row's order.
@@ -332,7 +340,8 @@ public final class DocumentText {
                   range: NSRange(location: span.start, length: span.end - span.start),
                   colSpan: max(cell["colSpan"]?.intValue ?? 1, 1), rowSpan: max(cell["rowSpan"]?.intValue ?? 1, 1),
                   isHeader: (cell["headerState"]?.intValue ?? 0) != 0,
-                  backgroundColor: cell["backgroundColor"]?.stringValue, width: cell["width"]?.numberValue)
+                  backgroundColor: cell["backgroundColor"]?.stringValue, width: cell["width"]?.numberValue,
+                  verticalAlign: cell["verticalAlign"]?.stringValue.flatMap(Table.VerticalAlign.init) ?? .top)
               }
             }
           },

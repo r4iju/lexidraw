@@ -365,6 +365,42 @@ import UIKit
     #expect(Self.isNear(try pixel(image, at: padding(view, "three")), Self.white))
   }
 
+  /// A cell set to the middle or bottom of its row draws its text there, as
+  /// the web's inline `vertical-align` sets it, and one set to neither at
+  /// the top, as `document.css` does.
+  @Test
+  func aCellsTextSitsWhereItsVerticalAlignmentSays() throws {
+    let tall = LexicalJSON.element(
+      "tablecell", ["o1", "o2", "o3"].map { LexicalJSON.paragraph([LexicalJSON.text($0)]) },
+      ["backgroundColor": nil, "colSpan": 1, "headerState": 0, "rowSpan": 1])
+    let view = try Self.host(
+      LexicalJSON.document([
+        Self.table([
+          [tall, Self.cell("ot"), Self.cell("om", ["verticalAlign": "middle"]), Self.cell("ob", ["verticalAlign": "bottom"])]
+        ])
+      ]), width: 800)
+    view.window?.overrideUserInterfaceStyle = .light
+    let text = try Self.text(of: view) as NSString
+    func caret(_ offset: Int) throws -> CGRect { view.caretRect(for: try position(view, offset)) }
+    let (first, last) = (try caret(text.range(of: "o1").location), try caret(text.range(of: "o3").location))
+    /// Where the `o` starting `word` is inked, within `rows` or the row's
+    /// padding.
+    func ink(_ word: String, rows: ClosedRange<CGFloat>? = nil) throws -> ClosedRange<CGFloat> {
+      let start = text.range(of: word).location
+      let columns = (try caret(start).minX + 1)...(try caret(start + 1).minX - 1)
+      return try #require(
+        TypographyTests.ink(of: view.textInputView, across: columns, rows: rows ?? first.minY...last.maxY))
+    }
+    let tallHeight = last.maxY - first.minY
+    let line = try caret(text.range(of: "ot").location)
+    let slack = tallHeight - line.height
+
+    let (top, middle, bottom, tallTop) = (try ink("ot"), try ink("om"), try ink("ob"), try ink("o1", rows: first.minY...first.maxY))
+    #expect(abs(middle.lowerBound - top.lowerBound - slack / 2) < 0.5, "\(middle) \(top) \(slack)")
+    #expect(abs(bottom.lowerBound - top.lowerBound - slack) < 0.5, "\(bottom) \(top) \(slack)")
+    #expect(abs(top.lowerBound - tallTop.lowerBound) < 0.5, "\(top) \(tallTop)")
+  }
+
   /// A selected header cell keeps the header's background, as on the web,
   /// where `.document-table th` wins over the tint.
   @Test

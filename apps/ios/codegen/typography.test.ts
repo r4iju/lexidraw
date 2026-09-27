@@ -298,3 +298,16 @@ test("gives a table the column counts the web lays it out by", async () => {
     "unpinnedColumns: 4, shortColumns: 12, scrollingColumns: 6",
   );
 });
+
+test("refuses a table cell set other than at the top", async () => {
+  const styles = await readWebStyles();
+  const documentCSS = styles.documentCSS.replace(
+    /(\.document-table :is\(td, th\) \{[^}]*vertical-align:)\s*top;/,
+    "$1 middle;",
+  );
+
+  expect(documentCSS).not.toBe(styles.documentCSS);
+  expect(() => swiftForTypography({ ...styles, documentCSS })).toThrow(
+    "vertical-align",
+  );
+});

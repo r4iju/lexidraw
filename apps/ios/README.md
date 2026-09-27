@@ -364,9 +364,9 @@ hand:
 - Tables lay out as `document.css` lays out `.document-table`, with its
   padding, borders, header fill, numeric columns aligned right and short
   columns kept whole, but no wider than the text, without the web's 44rem
-  measure. Cell fills, stored column widths and the pinned first column on
-  a narrow screen are drawn; vertical alignment and the web's floating cell
-  menu are left out.
+  measure. Cell fills, stored column widths, a cell's vertical alignment
+  and the pinned first column on a narrow screen are drawn; the web's
+  floating cell menu is left out.
 - The web's table menu is the Table menu in the edit menu: Insert Table…
   with the web's dialog, five rows and columns to begin with, or in a table
   inserting rows and columns and deleting them. Deleting the table, headers

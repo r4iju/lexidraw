@@ -496,7 +496,7 @@ private final class TableBlock: LaidOutBlock {
         return TableView.Cell(
           text: text.attributedSubstring(from: range), colSpan: cell.colSpan, rowSpan: cell.rowSpan,
           isHeader: cell.isHeader, background: cell.backgroundColor.flatMap(CSSColor.init).map { UIColor(css: $0) },
-          width: cell.width.map { CGFloat($0) })
+          width: cell.width.map { CGFloat($0) }, verticalAlign: cell.verticalAlign)
       }
     }
   }

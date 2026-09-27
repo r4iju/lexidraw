@@ -304,6 +304,11 @@ function swiftForTable(
     css,
     ".document-table :is(td, th):not(:has([data-lexical-text], [data-lexical-decorator]))",
   );
+  if (value(cell, "vertical-align") !== "top") {
+    throw new Error(
+      "A cell's text isn't set at the top, where a cell without its own vertical-align draws it",
+    );
+  }
   if (value(table, "font-variant-numeric") !== "tabular-nums") {
     throw new Error("A table's figures aren't tabular, which isn't read yet");
   }
