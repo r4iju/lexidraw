@@ -104,6 +104,29 @@ import Testing
     #expect(fixture.commands.last == .insertParagraph)
   }
 
+  /// LexicalSwift that notes each indent asked for in an item as deep as
+  /// the web's editor indents.
+  final class NotesIndentsAtTheCap: LexicalSwiftWith {
+    var indentsAtTheCap = 0
+
+    override func apply(_ command: EditorCommand) throws -> ChangeSet {
+      if command == .indent || command == .tab(backward: false), let anchor = try editor.selection()?.anchor {
+        let state = try editor.snapshot().state
+        let lists = anchor.path.indices.filter { state.node(at: Array(anchor.path[...$0]))?["type"] == "list" }
+        if lists.count >= 6 { indentsAtTheCap += 1 }
+      }
+      return try editor.apply(command)
+    }
+  }
+
+  @Test func indentsItemsAsDeepAsTheWebIndents() throws {
+    let candidate = NotesIndentsAtTheCap()
+    var fuzzer = Fuzzer(seed: 7, reference: try Support.referenceEditor(), candidate: candidate)
+
+    #expect(try fuzzer.run(steps: 3_000)?.fixture == nil)
+    #expect(candidate.indentsAtTheCap > 0)
+  }
+
   /// LexicalSwift that refuses what Lexical refuses, but for another reason.
   final class RefusesAsUnsupported: LexicalSwiftWith {
     override func apply(_ command: EditorCommand) throws -> ChangeSet {

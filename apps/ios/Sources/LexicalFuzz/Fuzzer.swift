@@ -290,7 +290,7 @@ struct Generator {
     case 0: LexicalJSON.heading(Self.headingTags.randomElement(using: &random)!, inlineNodes())
     case 1: LexicalJSON.quote(inlineNodes())
     case 2: LexicalJSON.horizontalRule
-    case 3...5: list(depth: 0, unlike: previousType)
+    case 3...5: list(unlike: previousType)
     default: paragraph()
     }
   }
@@ -303,18 +303,23 @@ struct Generator {
   }
 
   /// A list of up to three entries, where an item may be followed by a list
-  /// nested in an item of its own, down to three lists deep.
-  private mutating func list(depth: Int, unlike excluded: ListType? = nil) -> JSONValue {
+  /// nested in an item of its own, down to three lists deep; or now and then
+  /// a chain of an item and a nested list, five to eight lists deep, around
+  /// the depth past which the web's editor won't indent.
+  private mutating func list(unlike excluded: ListType? = nil) -> JSONValue {
     let listType = ListType.allCases.filter { $0 != excluded }.randomElement(using: &random)!
     let start = listType == .number && Int.random(in: 0..<4, using: &random) == 0 ? 3 : 1
-    return LexicalJSON.list(listType, listEntries(depth: depth), start: start)
+    let chain = Int.random(in: 0..<4, using: &random) == 0
+    let deepest = chain ? Int.random(in: 5...8, using: &random) : 3
+    return LexicalJSON.list(listType, listEntries(depth: 1, deepest: deepest, chain: chain), start: start)
   }
 
-  private mutating func listEntries(depth: Int) -> [LexicalJSON.ListEntry] {
+  private mutating func listEntries(depth: Int, deepest: Int, chain: Bool) -> [LexicalJSON.ListEntry] {
     var entries: [LexicalJSON.ListEntry] = []
-    for _ in 0..<Int.random(in: 1...3, using: &random) {
-      if depth < 2, case .item? = entries.last, Int.random(in: 0..<3, using: &random) == 0 {
-        entries.append(.nested(ListType.allCases.randomElement(using: &random)!, listEntries(depth: depth + 1)))
+    for _ in 0..<(chain && depth < deepest ? 2 : Int.random(in: 1...3, using: &random)) {
+      if depth < deepest, case .item? = entries.last, chain || Int.random(in: 0..<3, using: &random) == 0 {
+        let listType = ListType.allCases.randomElement(using: &random)!
+        entries.append(.nested(listType, listEntries(depth: depth + 1, deepest: deepest, chain: chain)))
       } else {
         entries.append(.item(inlineNodes(), checked: Bool.random(using: &random)))
       }
@@ -459,10 +464,10 @@ struct Generator {
     case ..<57: return .wait(milliseconds: [500, 1000, 2000].randomElement(using: &random)!)
     case ..<76: return .insertList(EditorCommand.ListType.allCases.randomElement(using: &random)!)
     case ..<78: return .removeList
-    case ..<79: return .indent
-    case ..<80: return .outdent
-    case ..<84: return .tab(backward: Int.random(in: 0..<3, using: &random) == 0)
-    case ..<86:
+    case ..<80: return .indent
+    case ..<82: return .outdent
+    case ..<86: return .tab(backward: Int.random(in: 0..<3, using: &random) == 0)
+    case ..<88:
       guard let box = Self.checkboxes(in: snapshot.state).randomElement(using: &random) else { return .undo }
       return .toggleChecked(path: box)
     case ..<96: return .undo
