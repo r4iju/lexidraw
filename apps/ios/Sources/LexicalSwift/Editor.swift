@@ -7,9 +7,9 @@ public final class Editor: EditorModel {
   private var history = History(EditorState(nodes: [:], selection: nil))
   private var now = 0
   /// Whether the document holds only what the editing commands are ported
-  /// for: paragraphs, line breaks and text in any format, with no field the
-  /// payload types don't model. The other nodes come with #115 to #118 and
-  /// #131 to #134.
+  /// for: paragraphs, headings, quotes, line breaks and text in any format,
+  /// with no field the payload types don't model. The other nodes come with
+  /// #116 to #118 and #131 to #134.
   public private(set) var isEditable = false
 
   public init() {}
@@ -110,6 +110,8 @@ extension Node {
     switch payload {
     case .root(let node): node.unknownFields.isEmpty
     case .paragraph(let node): node.unknownFields.isEmpty
+    case .heading(let node): node.unknownFields.isEmpty
+    case .quote(let node): node.unknownFields.isEmpty && node.shadowRoot != true
     case .lineBreak(let node): node.unknownFields.isEmpty
     case .text(let node): node.unknownFields.isEmpty && node.mode == .normal && (node.detail ?? 0) == 0
     default: false
@@ -138,6 +140,7 @@ extension Update {
     case .insertParagraph: try insertParagraph(selection)
     case .insertLineBreak: try insertLineBreak(selection)
     case .formatText(let format): try formatText(selection, format)
+    case .setBlockType(let type): try setBlockType(selection, type)
     default: throw EditorError.unsupported(command.name)
     }
   }

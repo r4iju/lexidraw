@@ -61,6 +61,8 @@ extension Update {
   func textFormat(of element: NodeKey) -> TextFormat {
     switch state[element].payload {
     case .paragraph(let node): TextFormat(rawValue: Int(node.textFormat ?? 0))
+    case .heading(let node): TextFormat(rawValue: Int(node.textFormat ?? 0))
+    case .quote(let node): TextFormat(rawValue: Int(node.textFormat ?? 0))
     case .root(let node): TextFormat(rawValue: Int(node.textFormat ?? 0))
     default: []
     }
@@ -69,6 +71,8 @@ extension Update {
   func textStyle(of element: NodeKey) -> String {
     switch state[element].payload {
     case .paragraph(let node): node.textStyle ?? ""
+    case .heading(let node): node.textStyle ?? ""
+    case .quote(let node): node.textStyle ?? ""
     case .root(let node): node.textStyle ?? ""
     default: ""
     }
@@ -79,6 +83,12 @@ extension Update {
     case .paragraph(var node):
       node.textFormat = Double(format.rawValue)
       modify(element) { $0.payload = .paragraph(node) }
+    case .heading(var node):
+      node.textFormat = Double(format.rawValue)
+      modify(element) { $0.payload = .heading(node) }
+    case .quote(var node):
+      node.textFormat = Double(format.rawValue)
+      modify(element) { $0.payload = .quote(node) }
     case .root(var node):
       node.textFormat = Double(format.rawValue)
       modify(element) { $0.payload = .root(node) }
@@ -87,12 +97,17 @@ extension Update {
     }
   }
 
-  /// `ParagraphNode.insertNewAfter`, the only block LexicalSwift splits.
+  /// A block's `insertNewAfter`: what Enter puts after it. After a
+  /// paragraph or a quote, it is `ParagraphNode.insertNewAfter`'s paragraph.
   mutating func insertNewAfter(_ block: NodeKey, _ selection: RangeSelection, restoringSelection: Bool) throws
     -> NodeKey
   {
-    guard case .paragraph(let old) = state[block].payload else {
-      throw EditorError.unsupported("Splitting a \(state[block].type) node")
+    let old: BlockFields
+    switch state[block].payload {
+    case .paragraph(let node): old = BlockFields(direction: node.direction, format: node.format, indent: node.indent)
+    case .quote(let node): old = BlockFields(direction: node.direction, format: node.format, indent: node.indent)
+    case .heading: return try insertAfterHeading(block, selection, restoringSelection: restoringSelection)
+    default: throw EditorError.unsupported("Splitting a \(state[block].type) node")
     }
     let paragraph = create(SerializedParagraphNode.type)
     if case .paragraph(var node) = state[paragraph].payload {

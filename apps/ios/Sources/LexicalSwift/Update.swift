@@ -258,10 +258,13 @@ struct Update {
     }
   }
 
-  /// Lexical's `replace`, which leaves the replaced node's children with it.
+  /// Lexical's `replace`, which leaves the replaced node's children with it
+  /// unless `includingChildren`, when they follow the replacement's own.
   /// The selection it restores is a copy, which then becomes the selection.
   @discardableResult
-  mutating func replace(_ node: NodeKey, with replacement: NodeKey) throws -> NodeKey {
+  mutating func replace(_ node: NodeKey, with replacement: NodeKey, includingChildren: Bool = false) throws
+    -> NodeKey
+  {
     let selection = selection?.clone()
     try checkInsertion(replacement, besides: node)
     markDirty(replacement)
@@ -283,10 +286,18 @@ struct Update {
     if let next { markDirty(next) }
     state.nodes[parent]!.children!.insert(replacement, at: index)
     state.nodes[replacement]!.parent = parent
+    let sizeBefore = state.childCount(of: replacement)
+    if includingChildren {
+      try splice(replacement, sizeBefore, deleting: 0, inserting: Array(state.children(of: node)))
+    }
     if let selection {
       setSelection(selection)
       for point in [selection.anchor, selection.focus] where point.key == node {
-        movePoint(point, toEndOf: replacement)
+        if includingChildren, point.type == .element {
+          point.set(replacement, sizeBefore + point.offset, .element)
+        } else {
+          movePoint(point, toEndOf: replacement)
+        }
       }
     }
     return replacement

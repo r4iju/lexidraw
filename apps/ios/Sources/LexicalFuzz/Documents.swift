@@ -25,6 +25,16 @@ public enum LexicalJSON {
     ]
   }
 
+  public static func heading(_ tag: String, _ children: [JSONValue]) -> JSONValue {
+    element("heading", children, ["tag": .string(tag)])
+  }
+
+  public static func quote(_ children: [JSONValue]) -> JSONValue {
+    element("quote", children)
+  }
+
+  public static let horizontalRule: JSONValue = ["type": "horizontalrule", "version": 1]
+
   public static func element(_ type: String, _ children: [JSONValue], _ fields: JSONObject = [:]) -> JSONValue {
     var node: JSONObject = [
       "children": .array(children), "direction": nil, "format": "", "indent": 0, "type": .string(type), "version": 1,

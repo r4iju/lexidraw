@@ -4,6 +4,10 @@
  */
 import { createHeadlessEditor } from "@lexical/headless";
 import { createEmptyHistoryState, registerHistory } from "@lexical/history";
+import {
+  $setBlockType,
+  type BlockType,
+} from "@packages/lexical-nodes/block-type";
 import { SCHEMA_NODES } from "@packages/lexical-nodes/nodes";
 import {
   $createRangeSelection,
@@ -48,6 +52,7 @@ type Command =
   | { type: "insertParagraph" }
   | { type: "insertLineBreak" }
   | { type: "formatText"; format: TextFormatType }
+  | { type: "setBlockType"; blockType: BlockType }
   | { type: "selectAll" }
   | { type: "undo" }
   | { type: "redo" }
@@ -242,6 +247,9 @@ function run(command: Exclude<Command, { type: "undo" | "redo" | "wait" }>) {
       return;
     case "formatText":
       $formatText(selection, command.format);
+      return;
+    case "setBlockType":
+      $setBlockType(selection, command.blockType);
       return;
   }
 }

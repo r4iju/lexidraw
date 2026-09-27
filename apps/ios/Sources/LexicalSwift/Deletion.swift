@@ -142,11 +142,21 @@ extension Update {
     return false
   }
 
-  /// `collapseAtStart` of the root, which keeps the caret where it is, and
-  /// of a paragraph, which goes when it holds only blank text.
+  /// `collapseAtStart` of the root, which keeps the caret where it is, of a
+  /// heading or quote, and of a paragraph, which goes when it holds only
+  /// blank text.
   private mutating func collapseElementAtStart(_ key: NodeKey) throws -> Bool {
-    if state[key].isRoot { return true }
-    guard state[key].type == SerializedParagraphNode.type else { return false }
+    switch state[key].type {
+    case SerializedRootNode.type: return true
+    case SerializedHeadingNode.type:
+      try collapseHeadingAtStart(key)
+      return true
+    case SerializedQuoteNode.type:
+      try collapseQuoteAtStart(key)
+      return true
+    case SerializedParagraphNode.type: break
+    default: return false
+    }
     let isBlank = state.children(of: key).allSatisfy { child in
       state[child].isText && state[child].text.unicodeScalars.allSatisfy(\.isJavaScriptWhitespace)
     }
