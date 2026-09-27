@@ -123,6 +123,10 @@ import Testing
       name: "+ makes a bulleted list that keeps its marker", start: emptyParagraph,
       commands: [caretInEmptyParagraph] + typing("+ "), expected: document(list(.bullet, [.item([])], marker: "+"))),
     Script(
+      name: "* after a zero-width no-break space keeps its marker, as JavaScript's trim strips the space",
+      start: emptyParagraph, commands: [caretInEmptyParagraph] + typing("\u{FEFF}* "),
+      expected: document(list(.bullet, [.item([])], marker: "*"))),
+    Script(
       name: "1. makes a numbered list", start: emptyParagraph,
       commands: [caretInEmptyParagraph] + typing("1. "), expected: document(list(.number, [.item([])]))),
     Script(

@@ -303,7 +303,10 @@ extension Update {
       state.nodes[item]!.payload = .listItem(payload)
     }
     let start = listType == .number ? groups[2].flatMap(Double.init) ?? 1 : 1
-    let firstMatchChar = groups[0].map { String($0.trimmingCharacters(in: .whitespacesAndNewlines).prefix(1)) }
+    // `match[0].trim()[0]`: the leading whitespace is group 1, which takes
+    // all of it as JavaScript's `\s` and `trim` count it.
+    let firstMatchChar = groups[0].flatMap { $0.unicodeScalars.dropFirst(groups[1]?.unicodeScalars.count ?? 0).first }
+      .map { String($0) }
     let marker = listType != .number ? firstMatchChar.flatMap { ["-", "*", "+"].contains($0) ? $0 : nil } : nil
     let indent = Self.markdownIndent(groups[1] ?? "")
     if let next, self.listType(next) == listType {
