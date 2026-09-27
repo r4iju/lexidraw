@@ -21,10 +21,7 @@ import { LayoutPlugin } from "./plugins/LayoutPlugin/LayoutPlugin";
 import CollapsiblePlugin from "./plugins/CollapsiblePlugin";
 import CalloutPlugin from "./plugins/CalloutPlugin";
 import ShortcutsPlugin from "./plugins/ShortcutsPlugin";
-import { ListPlugin } from "@lexical/react/LexicalListPlugin";
-import { CheckListPlugin } from "@lexical/react/LexicalCheckListPlugin";
 import MarkdownShortcutPlugin from "./plugins/MarkdownShortcutPlugin";
-import { TabIndentationPlugin } from "@lexical/react/LexicalTabIndentationPlugin";
 import { HorizontalRulePlugin } from "@lexical/react/LexicalHorizontalRulePlugin";
 import { DocumentTablesPlugin } from "./plugins/DocumentTablesPlugin";
 import { ClickableLinkPlugin } from "@lexical/react/LexicalClickableLinkPlugin";
@@ -75,7 +72,7 @@ import TableOfContentsPlugin from "./plugins/TableOfContentsPlugin";
 import { DocumentHeader, useRename, useRetag } from "./header/document-header";
 import { LLMWidget } from "./plugins/AutocompletePlugin/LLMWidget";
 import { ToolbarContext } from "./context/toolbar-context";
-import ListMaxIndentLevelPlugin from "./plugins/ListMaxIndentLevelPlugin";
+import DocumentEditingPlugin from "./plugins/DocumentEditingPlugin";
 import PageBreakPlugin from "./plugins/PageBreakPlugin";
 import PollPlugin from "./plugins/PollPlugin";
 import EmojiPickerPlugin from "./plugins/EmojiPickerPlugin";
@@ -648,9 +645,7 @@ function EditorHandler({
                               <EmojiPickerPlugin />
                               <LayoutPlugin />
                               {onScreen && <LLMWidget />}
-                              <ListPlugin />
-                              <ListMaxIndentLevelPlugin />
-                              <CheckListPlugin />
+                              <DocumentEditingPlugin />
                               <MobileCheckListPlugin />
                               <MarkdownShortcutPlugin />
                               <PageBreakPlugin />
@@ -658,7 +653,6 @@ function EditorHandler({
                               <CalloutPlugin />
                               <PollPlugin />
                               <CodeHighlightPlugin />
-                              <TabIndentationPlugin />
                               {isEditable && autocomplete && signedIn && (
                                 <AutocompletePlugin title={entity.title} />
                               )}

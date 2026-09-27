@@ -104,6 +104,17 @@ public enum EditorCommand: Equatable, Sendable {
   /// Makes every block the selection touches a paragraph, heading or quote,
   /// as the web toolbar's block menu does.
   case setBlockType(BlockType)
+  /// Turns the selected blocks into a list, or a list of another type.
+  case insertList(ListType)
+  /// Turns the selected lists back into paragraphs.
+  case removeList
+  /// The formatting bar's indent and outdent.
+  case indent
+  case outdent
+  /// Tab, or Shift-Tab where `backward`.
+  case tab(backward: Bool)
+  /// A tap on a checklist item's box, at `path`.
+  case toggleChecked(path: [Int])
   case selectAll
   case undo
   case redo
@@ -113,6 +124,11 @@ public enum EditorCommand: Equatable, Sendable {
 
   public static func caret(_ point: Point) -> EditorCommand {
     .setSelection(anchor: point, focus: point)
+  }
+
+  /// Lexical's `ListType`.
+  public enum ListType: String, Codable, CaseIterable, Sendable {
+    case bullet, number, check
   }
 }
 
@@ -170,13 +186,13 @@ public struct TextFormat: OptionSet, Codable, Hashable, Sendable {
 
 extension EditorCommand: Codable {
   private enum CodingKeys: String, CodingKey {
-    case type, anchor, focus, text, backward, lineBoundary, format, blockType, milliseconds
+    case type, anchor, focus, text, backward, lineBoundary, format, blockType, listType, path, milliseconds
   }
 
   /// The command's `type` in JSON.
   private enum Kind: String, Codable {
     case setSelection, insertText, commitComposition, deleteCharacter, deleteWord, deleteLine, insertParagraph, insertLineBreak,
-      formatText, setBlockType, selectAll, undo, redo, wait
+      formatText, setBlockType, insertList, removeList, indent, outdent, tab, toggleChecked, selectAll, undo, redo, wait
   }
 
   private var kind: Kind {
@@ -191,6 +207,12 @@ extension EditorCommand: Codable {
     case .insertLineBreak: .insertLineBreak
     case .formatText: .formatText
     case .setBlockType: .setBlockType
+    case .insertList: .insertList
+    case .removeList: .removeList
+    case .indent: .indent
+    case .outdent: .outdent
+    case .tab: .tab
+    case .toggleChecked: .toggleChecked
     case .selectAll: .selectAll
     case .undo: .undo
     case .redo: .redo
@@ -219,6 +241,12 @@ extension EditorCommand: Codable {
     case .insertLineBreak: self = .insertLineBreak
     case .formatText: self = .formatText(try container.decode(TextFormatType.self, forKey: .format))
     case .setBlockType: self = .setBlockType(try container.decode(BlockType.self, forKey: .blockType))
+    case .insertList: self = .insertList(try container.decode(ListType.self, forKey: .listType))
+    case .removeList: self = .removeList
+    case .indent: self = .indent
+    case .outdent: self = .outdent
+    case .tab: self = .tab(backward: try backward())
+    case .toggleChecked: self = .toggleChecked(path: try container.decode([Int].self, forKey: .path))
     case .selectAll: self = .selectAll
     case .undo: self = .undo
     case .redo: self = .redo
@@ -235,7 +263,7 @@ extension EditorCommand: Codable {
       try container.encode(focus, forKey: .focus)
     case .insertText(let text), .commitComposition(let text):
       try container.encode(text, forKey: .text)
-    case .deleteCharacter(let backward), .deleteWord(let backward):
+    case .deleteCharacter(let backward), .deleteWord(let backward), .tab(let backward):
       try container.encode(backward, forKey: .backward)
     case .deleteLine(let backward, let lineBoundary):
       try container.encode(backward, forKey: .backward)
@@ -244,9 +272,13 @@ extension EditorCommand: Codable {
       try container.encode(format, forKey: .format)
     case .setBlockType(let blockType):
       try container.encode(blockType, forKey: .blockType)
+    case .insertList(let listType):
+      try container.encode(listType, forKey: .listType)
+    case .toggleChecked(let path):
+      try container.encode(path, forKey: .path)
     case .wait(let milliseconds):
       try container.encode(milliseconds, forKey: .milliseconds)
-    case .insertParagraph, .insertLineBreak, .selectAll, .undo, .redo:
+    case .insertParagraph, .insertLineBreak, .removeList, .indent, .outdent, .selectAll, .undo, .redo:
       break
     }
   }

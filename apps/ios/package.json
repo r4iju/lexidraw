@@ -19,7 +19,9 @@
   "dependencies": {
     "@lexical/headless": "^0.51.0",
     "@lexical/history": "^0.51.0",
+    "@lexical/list": "^0.51.0",
     "@lexical/markdown": "^0.51.0",
+    "@lexical/rich-text": "^0.51.0",
     "@packages/lexical-nodes": "workspace:*",
     "@packages/types": "workspace:*",
     "lexical": "^0.51.0"

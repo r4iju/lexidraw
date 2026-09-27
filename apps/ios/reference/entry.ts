@@ -9,6 +9,16 @@ import {
   $setBlockType,
   type BlockType,
 } from "@packages/lexical-nodes/block-type";
+import {
+  $isListItemNode,
+  INSERT_CHECK_LIST_COMMAND,
+  INSERT_ORDERED_LIST_COMMAND,
+  INSERT_UNORDERED_LIST_COMMAND,
+  type ListType,
+  REMOVE_LIST_COMMAND,
+} from "@lexical/list";
+import { registerRichText } from "@lexical/rich-text";
+import { registerDocumentEditing } from "@packages/lexical-nodes/document-editing";
 import { SCHEMA_NODES } from "@packages/lexical-nodes/nodes";
 import { createTransformers } from "@packages/lexical-nodes/transformers";
 import {
@@ -26,13 +36,20 @@ import {
   $selectAll,
   $setSelection,
   COMPOSITION_END_TAG,
+  COMMAND_PRIORITY_LOW,
+  DELETE_CHARACTER_COMMAND,
   HISTORIC_TAG,
+  INDENT_CONTENT_COMMAND,
   IS_ALL_FORMATTING,
   KEY_ENTER_COMMAND,
   type EditorState,
+  KEY_BACKSPACE_COMMAND,
+  KEY_DELETE_COMMAND,
+  KEY_TAB_COMMAND,
   type LexicalEditor,
   type LexicalNode,
   type NodeKey,
+  OUTDENT_CONTENT_COMMAND,
   type PointType,
   REDO_COMMAND,
   type RangeSelection,
@@ -58,6 +75,10 @@ type Command =
   | { type: "insertLineBreak" }
   | { type: "formatText"; format: TextFormatType }
   | { type: "setBlockType"; blockType: BlockType }
+  | { type: "insertList"; listType: ListType }
+  | { type: "removeList" | "indent" | "outdent" }
+  | { type: "tab"; backward: boolean }
+  | { type: "toggleChecked"; path: number[] }
   | { type: "selectAll" }
   | { type: "undo" }
   | { type: "redo" }
@@ -92,6 +113,24 @@ function load(stateJSON: string): void {
   now = 0;
   // Registered first, so the loaded document is where undoing stops.
   registerHistory(next, createEmptyHistoryState(), 1000, () => now);
+  registerRichText(next);
+  // A headless editor refuses root listeners, where an editor without a root
+  // element calls them only with none; the checklist's pointer handling
+  // registers one, which does nothing without a root.
+  next.registerRootListener = () => () => {};
+  registerDocumentEditing(next);
+  // Rich text deletes through the DOM's selection, which a headless editor
+  // hasn't got.
+  next.registerCommand(
+    DELETE_CHARACTER_COMMAND,
+    (isBackward) => {
+      const selection = $getSelection();
+      if (!$isRangeSelection(selection)) return false;
+      $deleteCharacter(selection, isBackward);
+      return true;
+    },
+    COMMAND_PRIORITY_LOW,
+  );
   next.setEditorState(parsed);
   next.registerUpdateListener(
     ({ dirtyElements, dirtyLeaves, editorState, prevEditorState, tags }) => {
@@ -235,9 +274,38 @@ function exportNode(node: LexicalNode): ExportedNode {
   return json;
 }
 
+/** The command the web's formatting bar makes each type of list with. */
+const LIST_COMMANDS = {
+  bullet: INSERT_UNORDERED_LIST_COMMAND,
+  number: INSERT_ORDERED_LIST_COMMAND,
+  check: INSERT_CHECK_LIST_COMMAND,
+};
+
+/**
+ * The keyboard event a key press dispatches, as much of it as Lexical's
+ * handlers read.
+ */
+function key(shiftKey = false): KeyboardEvent {
+  return {
+    preventDefault() {},
+    shiftKey,
+    target: null,
+  } as unknown as KeyboardEvent;
+}
+
 function run(command: Exclude<Command, { type: "undo" | "redo" | "wait" }>) {
+  const editor = current();
   if (command.type === "setSelection") {
     setSelection(command.anchor, command.focus);
+    return;
+  }
+  if (command.type === "toggleChecked") {
+    // What a tap on a checklist item's box does (MobileCheckListPlugin).
+    const item = nodeAt(command.path);
+    if (!$isListItemNode(item)) {
+      throw new EditorError("invalidState", "Not a list item");
+    }
+    item.toggleChecked();
     return;
   }
   if (command.type === "selectAll") {
@@ -254,7 +322,10 @@ function run(command: Exclude<Command, { type: "undo" | "redo" | "wait" }>) {
       selection.insertText(command.text);
       return;
     case "deleteCharacter":
-      $deleteCharacter(selection, command.backward);
+      editor.dispatchCommand(
+        command.backward ? KEY_BACKSPACE_COMMAND : KEY_DELETE_COMMAND,
+        key(),
+      );
       return;
     case "deleteWord":
       $deleteWord(selection, command.backward);
@@ -269,10 +340,9 @@ function run(command: Exclude<Command, { type: "undo" | "redo" | "wait" }>) {
       return;
     }
     case "insertParagraph":
-      // Enter, which a markdown shortcut can take before it splits the block.
-      if (!current().dispatchCommand(KEY_ENTER_COMMAND, null)) {
-        selection.insertParagraph();
-      }
+      // Enter, which a markdown shortcut can take before rich text inserts a
+      // paragraph.
+      editor.dispatchCommand(KEY_ENTER_COMMAND, null);
       return;
     case "insertLineBreak":
       selection.insertLineBreak(false);
@@ -282,6 +352,21 @@ function run(command: Exclude<Command, { type: "undo" | "redo" | "wait" }>) {
       return;
     case "setBlockType":
       $setBlockType(selection, command.blockType);
+      return;
+    case "insertList":
+      editor.dispatchCommand(LIST_COMMANDS[command.listType], undefined);
+      return;
+    case "removeList":
+      editor.dispatchCommand(REMOVE_LIST_COMMAND, undefined);
+      return;
+    case "indent":
+      editor.dispatchCommand(INDENT_CONTENT_COMMAND, undefined);
+      return;
+    case "outdent":
+      editor.dispatchCommand(OUTDENT_CONTENT_COMMAND, undefined);
+      return;
+    case "tab":
+      editor.dispatchCommand(KEY_TAB_COMMAND, key(command.backward));
       return;
   }
 }

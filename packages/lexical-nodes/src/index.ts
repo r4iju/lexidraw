@@ -39,3 +39,4 @@ export * from "./html-to-text.js";
 export * from "./keyed-editor-state.js";
 export { default as emojiList } from "./emoji-list.js";
 export * from "./tables.js";
+export * from "./document-editing.js";
