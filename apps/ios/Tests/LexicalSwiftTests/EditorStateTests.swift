@@ -43,6 +43,24 @@ import Testing
     #expect(!model.isEditable)
   }
 
+  /// The web's empty document, and what the API and CLI write, give nodes the
+  /// `key` they had in an editor. Lexical reads past it and never saves it,
+  /// so it isn't an unknown field to keep.
+  @Test(arguments: [
+    #"{"root":{"children":[{"key":"1","type":"paragraph","version":1,"direction":"ltr","format":"","indent":0,"textFormat":0,"textStyle":"","children":[{"detail":0,"format":0,"mode":"normal","style":"","text":"","type":"text","version":1,"key":"initial-text-content-node"}]}],"direction":"ltr","format":"","indent":0,"type":"root","version":1,"key":"root"}}"#,
+    #"{"root":{"children":[{"children":[{"detail":0,"format":0,"mode":"normal","style":"","text":"one","type":"text","version":1,"key":"3"},{"type":"linebreak","version":1,"key":"4"},{"detail":0,"format":1,"mode":"normal","style":"","text":"two","type":"text","version":1,"key":"5"}],"direction":null,"format":"","indent":0,"type":"paragraph","version":1,"textFormat":0,"textStyle":"","key":"2"}],"direction":null,"format":"","indent":0,"type":"root","version":1,"key":"root"}}"#,
+  ])
+  func aStoredNodesKeyIsDroppedAsLexicalDropsIt(_ stored: String) throws {
+    let state = try JSONValue(parsing: stored)
+    let typing: [EditorCommand] = [.caret(Point(path: [0], offset: 0, type: .element)), .insertText("typed")]
+    let fixture = try Fixture.record(start: state, commands: typing, on: try Support.referenceEditor())
+    let editor = Editor()
+
+    #expect(try fixture.replay(on: editor) == fixture.recorded)
+    try editor.load(state)
+    #expect(editor.isEditable)
+  }
+
   /// Typing keeps every earlier state, as undo does, so a copy of the whole
   /// document per update would show here as time growing with its size.
   @Test func anUpdateCostsTheSameInABigDocumentAsInASmallOne() throws {
