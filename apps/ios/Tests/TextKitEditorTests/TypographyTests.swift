@@ -56,8 +56,7 @@ import UIKit
     try LayoutTests.expectEveryCaretToLandOnItself(view)
   }
 
-  /// A caret is as tall as the text it is in, in the middle of its line,
-  /// as a browser draws one.
+  /// A caret is as tall as its block's text, in the middle of its line.
   @Test func aCaretIsAsTallAsItsText() throws {
     let view = try LayoutTests.host(
       LexicalJSON.document([
@@ -145,6 +144,72 @@ import UIKit
     Self.expectNear((h3[.paragraphStyle] as? NSParagraphStyle)?.minimumLineHeight ?? 0, 1.4 * 1.25 * Self.em, "an h3's line")
     Self.expectNear(h3[.kern] as? CGFloat ?? 0, letterSpacing * Self.em, "an h3's letters", within: 0.001)
     Self.expectNear(h1[.kern] as? CGFloat ?? 0, -0.015 * Self.h1Size * Self.em, "a narrow h1's letters", within: 0.001)
+  }
+
+  /// Text is drawn where its caret and its selection are, on each line of
+  /// a paragraph that starts with smaller text too: a caret spans the
+  /// block's text, its ascender to its descender, and a selection the same.
+  @Test(arguments: [TextFormat(), .code, .superscript, .subscript])
+  func textIsDrawnWhereItsCaretAndSelectionAre(_ format: TextFormat) throws {
+    let words = String(repeating: " word", count: 20)
+    let view = try LayoutTests.host(
+      LexicalJSON.document([
+        LexicalJSON.paragraph([LexicalJSON.text("x", format: format), LexicalJSON.text(" HHHH\(words) HHHH")])
+      ]))
+    let first = NSRange(location: "x ".utf16.count, length: 4)
+    let last = NSRange(location: "x HHHH\(words) ".utf16.count, length: 4)
+
+    try Self.expectDrawnWhereItsCaretAndSelectionAre(view, first, "on the first line")
+    try Self.expectDrawnWhereItsCaretAndSelectionAre(view, last, "on a later line")
+  }
+
+  /// `range` is Hs on one line.
+  static func expectDrawnWhereItsCaretAndSelectionAre(_ view: EditorView, _ range: NSRange, _ line: String) throws {
+    func caret(_ offset: Int) throws -> CGRect {
+      view.caretRect(for: try #require(view.position(from: view.beginningOfDocument, offset: offset)))
+    }
+    let (start, middle, end) = (try caret(range.location), try caret(range.location + 2), try caret(NSMaxRange(range)))
+    let (from, to) = (
+      try #require(view.position(from: view.beginningOfDocument, offset: range.location)),
+      try #require(view.position(from: view.beginningOfDocument, offset: NSMaxRange(range)))
+    )
+    let selected = try #require(view.textRange(from: from, to: to))
+    let selection = try #require(view.selectionRects(for: selected).first?.rect)
+    let ink = try #require(
+      ink(of: view.textInputView, across: (start.maxX + 1)...(end.minX - 1), rows: (middle.minY - 8)...(middle.maxY + 8)))
+    let font = UIFont.systemFont(ofSize: em)
+
+    expectNear(ink.lowerBound, ink.upperBound - font.capHeight, "an H's top \(line)", within: 0.5)
+    expectNear(middle.minY, ink.upperBound - font.ascender, "the caret's top \(line)", within: 0.5)
+    expectNear(middle.maxY, ink.upperBound - font.descender, "the caret's foot \(line)", within: 0.5)
+    expectNear(selection.minY, middle.minY, "the selection's top \(line)", within: 0.5)
+    expectNear(selection.maxY, middle.maxY, "the selection's foot \(line)", within: 0.5)
+  }
+
+  /// From the top of what `view` draws opaquely between `columns`, within
+  /// `rows`, to its foot.
+  static func ink(of view: UIView, across columns: ClosedRange<CGFloat>, rows: ClosedRange<CGFloat>)
+    -> ClosedRange<CGFloat>?
+  {
+    let scale: CGFloat = 3
+    let (width, height) = (Int(view.bounds.width * scale), Int(view.bounds.height * scale))
+    guard
+      let context = CGContext(
+        data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: width * 4,
+        space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+    else { return nil }
+    context.translateBy(x: 0, y: CGFloat(height))
+    context.scaleBy(x: scale, y: -scale)
+    for subview in view.subviews { subview.layer.displayIfNeeded() }
+    view.layer.render(in: context)
+    guard let bytes = context.data?.assumingMemoryBound(to: UInt8.self) else { return nil }
+    let rows = (max(Int(rows.lowerBound * scale), 0)..<min(Int(rows.upperBound * scale), height)).filter { row in
+      (Int(columns.lowerBound * scale)...Int(columns.upperBound * scale)).contains { column in
+        bytes[row * width * 4 + column * 4 + 3] > 160
+      }
+    }
+    guard let top = rows.first, let foot = rows.last else { return nil }
+    return CGFloat(top) / scale...CGFloat(foot + 1) / scale
   }
 }
 #endif

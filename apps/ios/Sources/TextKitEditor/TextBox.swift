@@ -18,6 +18,7 @@ import UIKit
   private struct Line {
     var frame: CGRect
     var range: NSRange
+    var inset: CGFloat
   }
 
   init(_ text: NSAttributedString, width: CGFloat) {
@@ -54,7 +55,10 @@ import UIKit
       for line in fragment.textLineFragments {
         let range = NSRange(location: start + line.characterRange.location, length: line.characterRange.length)
         guard range.length > 0 || self.lines.isEmpty else { continue }
-        self.lines.append(Line(frame: line.typographicBounds.offsetBy(dx: origin.x, dy: origin.y), range: range))
+        self.lines.append(
+          Line(
+            frame: line.typographicBounds.offsetBy(dx: origin.x, dy: origin.y), range: range,
+            inset: self.placement(of: line, at: start).inset))
       }
       return true
     }
@@ -70,27 +74,36 @@ import UIKit
     height = ceil(bottom)
   }
 
-  /// TextKit sets text at the foot of a line taller than it, where CSS sets
-  /// it in the middle, so each paragraph is drawn raised by half the room
-  /// its lines have over its text.
   func draw(at origin: CGPoint, in context: CGContext) {
     layoutManager.enumerateTextLayoutFragments(from: layoutManager.documentRange.location, options: []) { fragment in
       let frame = fragment.layoutFragmentFrame
-      let raise = self.halfLeading(at: self.offset(fragment.rangeInElement.location))
-      fragment.draw(at: CGPoint(x: origin.x + frame.minX, y: origin.y + frame.minY - raise), in: context)
+      let start = self.offset(fragment.rangeInElement.location)
+      for line in fragment.textLineFragments {
+        let at = line.typographicBounds.origin
+        let raise = self.placement(of: line, at: start).raise
+        line.draw(at: CGPoint(x: origin.x + frame.minX + at.x, y: origin.y + frame.minY + at.y - raise), in: context)
+      }
       return true
     }
   }
 
-  /// Half what a line of the paragraph at `offset` has over the height of
-  /// its text.
-  private func halfLeading(at offset: Int) -> CGFloat {
-    guard storage.length > 0 else { return 0 }
-    let at = min(offset, storage.length - 1)
-    guard let paragraph = storage.attribute(.paragraphStyle, at: at, effectiveRange: nil) as? NSParagraphStyle,
-      let font = storage.attribute(.font, at: at, effectiveRange: nil) as? UIFont, paragraph.maximumLineHeight > 0
-    else { return 0 }
-    return max(paragraph.maximumLineHeight - font.lineHeight, 0) / 2
+  /// Where a line of the paragraph at `offset` has its text, as CSS sets
+  /// it: the block's own text centred in the line, and other text on its
+  /// baseline. TextKit sets text at the foot of a line taller than it, and
+  /// higher where smaller text reaches lower, so each line is drawn raised
+  /// by `raise`. The block's own text is the paragraph's end's, the newline
+  /// DocumentText gives the block's style; `inset` is between it and the
+  /// line's top and foot.
+  private func placement(of line: NSTextLineFragment, at offset: Int) -> (inset: CGFloat, raise: CGFloat) {
+    guard storage.length > 0 else { return (0, 0) }
+    let paragraph = (storage.string as NSString).paragraphRange(
+      for: NSRange(location: min(offset, storage.length - 1), length: 0))
+    let end = max(NSMaxRange(paragraph) - 1, paragraph.location)
+    guard let style = storage.attribute(.paragraphStyle, at: end, effectiveRange: nil) as? NSParagraphStyle,
+      let font = storage.attribute(.font, at: end, effectiveRange: nil) as? UIFont, style.maximumLineHeight > 0
+    else { return (0, 0) }
+    let inset = max(line.typographicBounds.height - font.lineHeight, 0) / 2
+    return (inset, line.glyphOrigin.y - inset - font.ascender)
   }
 
   /// The space after the last paragraph, which ends the text.
@@ -100,12 +113,12 @@ import UIKit
       .paragraphSpacing ?? 0
   }
 
-  /// A caret is as tall as the text it is in, in the middle of its line.
+  /// A caret or a selection spans the block's own text in each line.
   func segments(_ range: NSRange) -> [CGRect] {
-    let frames = lineSegments(range)
-    guard range.length == 0 else { return frames }
-    let leading = halfLeading(at: range.location)
-    return frames.map { $0.insetBy(dx: 0, dy: min(leading, $0.height / 2)) }
+    lineSegments(range).map { frame in
+      let inset = lines.last { $0.frame.minY <= frame.midY }?.inset ?? 0
+      return frame.insetBy(dx: 0, dy: min(inset, frame.height / 2))
+    }
   }
 
   private func lineSegments(_ range: NSRange) -> [CGRect] {
