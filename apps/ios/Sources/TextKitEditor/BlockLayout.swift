@@ -378,7 +378,8 @@ import UIKit
     return CGRect(x: 0, y: y, width: Self.flatCaretWidth, height: Self.flatCaretHeight)
   }
 
-  /// The playground's block cursor is 20px wide; it is as thick as a caret.
+  /// The web draws no caret beside a table or rule, so this is the
+  /// playground's block cursor, 20px wide and a caret thick.
   private static let flatCaretWidth: CGFloat = 20
   private static let flatCaretHeight: CGFloat = 2
 }
