@@ -55,6 +55,18 @@ func plain(_ text: String) -> EditorCommand { .paste(Clipboard(plainText: text))
     Scenario("formatting a pasted tab", helloWorld, [caret([0, 0], 5), plain("\t"), .selectAll, .formatText(.bold)]),
     Scenario("pasting into formatted text", document(paragraph(text("bold", format: .bold))), [caret([0, 0], 2), plain("x\ny")]),
     Scenario("pasting into an empty document", empty, [.caret(Point(path: [0], offset: 0, type: .element)), plain("a\nb")]),
+    Scenario(
+      "pasting a block before a line break that ends its paragraph",
+      document(paragraph(text("a"), text("x", format: .bold), LexicalJSON.lineBreak)),
+      [caret([0, 0], 1), .paste(copied("b", paragraph(text("b"))))]),
+    Scenario(
+      "pasting a block over text before a line break that ends its paragraph",
+      document(paragraph(text("ab"), text("x", format: .bold), LexicalJSON.lineBreak)),
+      [select([0, 0], 1, [0, 0], 2), .paste(copied("c", paragraph(text("c"))))]),
+    Scenario(
+      "pasting a block over nodes before a line break that ends its paragraph",
+      document(paragraph(text("ab"), text("x", format: .bold), text("y"), LexicalJSON.lineBreak)),
+      [select([0, 0], 1, [0, 2], 1), .paste(copied("c", paragraph(text("c"))))]),
     Scenario("pasting a URL", helloWorld, [caret([0, 0], 6), plain("https://a.io ")]),
     Scenario("pasting a URL over selected text", helloWorld, [select([0, 0], 6, [0, 0], 11), plain("https://a.io")]),
     Scenario("pasting a URL over a link", linked, [select([0, 1, 0], 0, [0, 1, 0], 3), plain("https://b.io")]),

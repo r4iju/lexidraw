@@ -708,10 +708,17 @@ extension Update {
     guard let nodeToSelect = lastDescendant(of: blocksParent) else { return }
     let blocks = Array(state.children(of: blocksParent))
     let isAfterEmptyLine = isPointAfterEmptyLine(firstPoint)
+    // Lexical holds the block it starts in as the node object of that
+    // moment, and tells it from the block it ends in by identity. Writing to
+    // a node not yet written to in the update makes another object of it, so
+    // to Lexical that block is then another, which loses a line break ending
+    // it.
+    var firstBlockWasWritten = state[block].revision == revision
     let insertedParagraph = !state[block].isElement || !isEmpty(block) ? try insertParagraph(selection) : nil
     var targetBlock: NodeKey? = block
     if insertedParagraph != nil, !state.isAttached(block) {
       targetBlock = findParent(from: selection.anchor.key, where: isBlock)
+      firstBlockWasWritten = targetBlock.map { state[$0].revision == revision } ?? false
     }
     guard let firstBlock = targetBlock else { throw EditorError.invalidState("Expected a block ancestor") }
     let lastToInsert = blocks.last
@@ -744,7 +751,7 @@ extension Update {
     if state[firstBlock].isElement, isEmpty(firstBlock) {
       try remove(firstBlock)
     } else if let lastChild = state.lastChild(of: firstBlock), state[lastChild].isLineBreak,
-      lastInsertedBlock != firstBlock
+      lastInsertedBlock != firstBlock || (!firstBlockWasWritten && state[firstBlock].revision == revision)
     {
       try remove(lastChild)
     }
