@@ -15,11 +15,15 @@ const GLOBALS_CSS_URL = new URL(
   import.meta.url,
 );
 
-/** The web editor's stylesheets and the class its theme gives a quote. */
+/**
+ * The web editor's stylesheets and the classes its theme gives a quote and
+ * a selected table cell.
+ */
 export type WebStyles = {
   documentCSS: string;
   globalsCSS: string;
   quoteClass: string;
+  tableCellSelectedClass: string;
 };
 
 export async function readWebStyles(): Promise<WebStyles> {
@@ -27,6 +31,7 @@ export async function readWebStyles(): Promise<WebStyles> {
     documentCSS: await Bun.file(DOCUMENT_CSS_URL).text(),
     globalsCSS: await Bun.file(GLOBALS_CSS_URL).text(),
     quoteClass: theme.quote,
+    tableCellSelectedClass: theme.tableCellSelected,
   };
 }
 
@@ -225,7 +230,8 @@ export function swiftForTypography(styles: WebStyles): string {
     `    list: List(${listFields.join(", ")}),`,
     `    quote: Quote(borderWidth: ${points(quoteBorderWidth)}, borderColor: ${colors.name(quoteBorderColor)}, paddingStart: ${ems(quotePaddingStart)}),`,
     `    rule: Rule(width: ${points(ruleWidth)}, color: ${colors.name(ruleColor)}, margin: ${ems(ruleBefore)}),`,
-    `    link: Link(color: ${colors.name(value(link, "color"))}, underlineThickness: ${points(decoration[1])}, underlineOffset: ${number(underlineOffset[1])}, underlineOpacity: ${Number(underline[1]) / 100}))`,
+    `    link: Link(color: ${colors.name(value(link, "color"))}, underlineThickness: ${points(decoration[1])}, underlineOffset: ${number(underlineOffset[1])}, underlineOpacity: ${Number(underline[1]) / 100}),`,
+    `    table: ${swiftForTable(css, colors, content, styles.tableCellSelectedClass)})`,
     "}",
     "",
     "extension ThemeColor {",
@@ -244,6 +250,181 @@ export function swiftForTypography(styles: WebStyles): string {
       (_, name: string) => where.values.get(name) ?? value(content, name),
     );
   }
+}
+
+/**
+ * A table as `.document-table` and its region set it, with the tint of a
+ * selected cell and the first column a narrow screen pins.
+ */
+function swiftForTable(
+  css: postcss.Root,
+  colors: ThemeColors,
+  content: Declarations,
+  selectedClass: string,
+): string {
+  const table = declarations(css, ".document-table");
+  const region = declarations(css, ".document-table-region");
+  const inContent = declarations(
+    css,
+    ".document-content > .document-table-region",
+  );
+  const cell = declarations(css, ".document-table :is(td, th)");
+  const header = declarations(css, ".document-table th");
+  const [tableBorder, tableBorderColor] = border(value(table, "border"));
+  const [cellBorder, cellBorderColor] = border(
+    value(cell, "border-inline-end"),
+  );
+  if (
+    cellBorder !== tableBorder ||
+    cellBorderColor !== tableBorderColor ||
+    value(cell, "border-block-end") !== value(cell, "border-inline-end")
+  ) {
+    throw new Error(
+      "A cell's borders aren't the table's, which isn't read yet",
+    );
+  }
+  const [paddingY, paddingX] = pair(value(cell, "padding"));
+  const [regionBefore, regionAfter] = pair(value(inContent, "margin-block"));
+  if (regionBefore !== regionAfter) {
+    throw new Error("A table has other space before it than after it");
+  }
+  const leastWidth = /^min\(([\d.]+)rem, ([\d.]+)vw\)$/.exec(
+    value(
+      declarations(css, ".document-table :is(td, th):not([data-short])"),
+      "min-width",
+    ),
+  );
+  if (!leastWidth?.[1] || !leastWidth[2]) {
+    throw new Error("A cell's least width isn't min(rem, vw)");
+  }
+  const empty = declarations(
+    css,
+    ".document-table :is(td, th):not(:has([data-lexical-text], [data-lexical-decorator]))",
+  );
+  if (value(table, "font-variant-numeric") !== "tabular-nums") {
+    throw new Error("A table's figures aren't tabular, which isn't read yet");
+  }
+  const letterSpacing = value(table, "letter-spacing");
+  const [shadowWidth] = pair(value(region, "background-size"));
+  const shadow = declarations(css, ".document-table-region[data-scroll-left]");
+  const fields = [
+    `fontSize: ${points(value(table, "font-size")) / points(value(content, "font-size"))}`,
+    `lineHeight: ${number(value(table, "line-height"))}`,
+    `letterSpacing: ${letterSpacing === "normal" ? 0 : ems(letterSpacing)}`,
+    "tabularFigures: true",
+    `margin: ${ems(regionBefore)}`,
+    `paddingX: ${points(paddingX)}`,
+    `paddingY: ${points(paddingY)}`,
+    `border: ${points(tableBorder)}`,
+    `borderColor: ${colors.name(tableBorderColor)}`,
+    `cornerRadius: ${points(value(table, "border-radius"))}`,
+    `minimumWidth: ${rems(`${leastWidth[1]}rem`)}`,
+    `minimumViewportShare: ${number(leastWidth[2]) / 100}`,
+    `emptyWidth: ${rems(value(empty, "min-width"))}`,
+    `headerBackground: ${colors.name(value(header, "background"))}`,
+    `headerWeight: ${number(value(header, "font-weight"))}`,
+    `selection: ${swiftForBackgroundClass(selectedClass, colors)}`,
+    `shadowWidth: ${points(shadowWidth)}`,
+    `shadowColor: ${colors.name(value(shadow, "--table-shadow-left"))}`,
+    `pinned: ${swiftForPinnedColumn(css, colors)}`,
+  ];
+  return `Table(${fields.join(", ")})`;
+}
+
+/**
+ * Tailwind's `bg-{colour}/{opacity}` for a colour of the theme: the
+ * theme's `--{colour}` at that opacity.
+ */
+function swiftForBackgroundClass(text: string, colors: ThemeColors): string {
+  const match = /^bg-([\w-]+)(?:\/(\d+))?$/.exec(text);
+  if (!match?.[1] || !colors.has(`--${match[1]}`)) {
+    throw new Error(`${text} isn't a background of the theme's colours`);
+  }
+  const color = colors.name(`var(--${match[1]})`);
+  return match[2] ? `${color}.opacity(${number(match[2]) / 100})` : color;
+}
+
+/**
+ * The first column a screen no wider than a width pins while the table
+ * scrolls past it, where `DocumentTablesPlugin` sets `data-pin-first`.
+ */
+function swiftForPinnedColumn(css: postcss.Root, colors: ThemeColors): string {
+  const pinned = '.document-table[data-pin-first="true"] tr';
+  const media: postcss.AtRule[] = [];
+  css.each((node) => {
+    if (
+      node.type === "atrule" &&
+      node.name === "media" &&
+      node.some(
+        (child) =>
+          child.type === "rule" &&
+          child.selectors.some((selector) =>
+            normalize(selector).includes(pinned),
+          ),
+      )
+    ) {
+      media.push(node);
+    }
+  });
+  const widths = new Set(
+    media.map(
+      (rule) => /^screen and \(max-width: (\d+)px\)$/.exec(rule.params)?.[1],
+    ),
+  );
+  const [width] = widths;
+  if (widths.size !== 1 || !width) {
+    throw new Error(
+      "The pinned first column isn't under one @media screen and (max-width)",
+    );
+  }
+  const within = (selector: string): Declarations => {
+    const found = media.filter((rule) => has(rule, selector));
+    const [first] = found;
+    if (!first) throw new Error(`The stylesheet has no rule for ${selector}`);
+    const values = new Map<string, string>();
+    for (const rule of found) {
+      for (const [property, text] of declarations(rule, selector).values) {
+        values.set(property, text);
+      }
+    }
+    return { selector, values };
+  };
+  const column = within(`${pinned} > :first-child`);
+  const header = within(`${pinned} > th:first-child`);
+  const shadow = /^(-?\d+px) 0 (\d+px) (-?\d+px) (.+)$/.exec(
+    value(
+      within(
+        `.document-table-region[data-scroll-left] ${pinned} > :first-child`,
+      ),
+      "box-shadow",
+    ),
+  );
+  if (!shadow?.[1] || !shadow[2] || !shadow[3] || !shadow[4]) {
+    throw new Error("The pinned column's shadow isn't x 0 blur spread colour");
+  }
+  if (
+    colors.name(shadow[4]) !==
+    colors.name(
+      value(
+        declarations(css, ".document-table-region[data-scroll-left]"),
+        "--table-shadow-left",
+      ),
+    )
+  ) {
+    throw new Error(
+      "The pinned column's shadow isn't the scroll shadows' colour",
+    );
+  }
+  const fields = [
+    `width: ${number(width)}`,
+    `inset: ${points(value(column, "left"))}`,
+    `background: ${colors.name(value(column, "background-color"))}`,
+    `headerBackground: ${colors.name(value(header, "background-color"))}`,
+    `shadowX: ${points(shadow[1])}`,
+    `shadowBlur: ${points(shadow[2])}`,
+    `shadowSpread: ${points(shadow[3])}`,
+  ];
+  return `Pinned(${fields.join(", ")})`;
 }
 
 /**
@@ -426,8 +607,17 @@ function ems(text: string): number {
   return number(match[1]);
 }
 
+/** A browser's root font size, which the stylesheets leave as it is. */
+const REM_POINTS = 16;
+
+function rems(text: string): number {
+  const match = /^([\d.]+)rem$/.exec(text);
+  if (!match?.[1]) throw new Error(`Not in rems: ${text}`);
+  return number(match[1]) * REM_POINTS;
+}
+
 function points(text: string): number {
-  const match = /^([\d.]+)px$/.exec(text);
+  const match = /^(-?[\d.]+)px$/.exec(text);
   if (!match?.[1]) throw new Error(`Not in pixels: ${text}`);
   return number(match[1]);
 }
@@ -471,6 +661,10 @@ class ThemeColors {
     for (const [property, value] of from.values) {
       if (property.startsWith("--")) into.set(property, value);
     }
+  }
+
+  has(property: string): boolean {
+    return this.light.has(property);
   }
 
   /** The Swift name of the custom property `text` resolves to. */

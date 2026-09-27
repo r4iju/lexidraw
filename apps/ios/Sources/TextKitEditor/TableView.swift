@@ -1,13 +1,15 @@
 #if canImport(UIKit)
+import CSSValues
 import UIKit
 
 /// A table laid out as the web lays out a document's table
 /// (`.document-table` in `document.css`, and the columns
 /// `DocumentTablesPlugin` keeps whole): columns as wide as their text asks,
 /// within the text's width where that fits, or at the widths the table is
-/// set to; wider than its frame, it scrolls sideways. Cell geometry is in
-/// the table's own frame, where it is seen, rather than in its scrolled
-/// content.
+/// set to; wider than its frame, it scrolls sideways, and on a narrow
+/// screen a table of many columns pins its first as it does. Cell geometry
+/// is in the table's own frame, where it is seen, rather than in its
+/// scrolled content.
 ///
 /// Its pan begins only on a sideways drag that starts over it, wherever
 /// the pan is (`TableHolder`).
@@ -17,24 +19,17 @@ import UIKit
     var colSpan = 1
     var rowSpan = 1
     var isHeader = false
+    /// The colour the cell is filled with.
+    var background: UIColor?
+    /// The width the cell is set to, borders included, as the web's
+    /// `border-box` sizes it.
+    var width: CGFloat?
   }
 
-  /// `document.css`'s measures, a CSS pixel to a point.
-  enum Measure {
-    static let paddingX: CGFloat = 12
-    static let paddingY: CGFloat = 8
-    static let border: CGFloat = 1
-    static let cornerRadius: CGFloat = 6
-    /// A cell's least width, 7.5rem, unless its column is short; at most
-    /// 40vw.
-    static let minimumWidth: CGFloat = 120
-    /// An empty cell's, 6rem.
-    static let emptyWidth: CGFloat = 96
-    /// The scroll shadows' width.
-    static let shadowWidth: CGFloat = 10
-  }
-
-  /// `DocumentTablesPlugin`'s `SHORT_COLUMNS`: a column no wider than this
+  /// `DocumentTablesPlugin`'s `data-pin-first`: a table more columns wide
+  /// than this pins its first column on a narrow screen.
+  static let unpinnedColumns = 3
+  /// Its `SHORT_COLUMNS`: a column no wider than this
   /// in Latin letters keeps each cell on one line.
   static let shortColumns = 16
   /// Its `SCROLLING_COLUMNS`: a table this many columns wide keeps its short
@@ -50,7 +45,12 @@ import UIKit
   private var cells: [[Cell]] = []
   private var tableSize: CGSize = .zero
   private let grid = GridView()
-  private let shadows = ShadowView()
+  private let pinned = PinnedView()
+  private let shadows = ScrollEdgeView(.shadows)
+  private let scrollingFrame = ScrollEdgeView(.frame)
+  /// Whether the cell first in each row stays at the table's start as the
+  /// table scrolls.
+  private var pinsFirstCells = false
   /// The cells a table selection has, by row and index in the row.
   var selectedCells: Set<CellIndex> = [] {
     didSet { if selectedCells != oldValue { grid.setNeedsDisplay() } }
@@ -63,21 +63,34 @@ import UIKit
     var index: Int
   }
 
-  init(cells: [[Cell]], columnWidths: [Double]?, width: CGFloat) {
+  /// `.document-table`'s measures and colours, a CSS pixel to a point.
+  let style: DocumentTypography.Table
+  private var paddingX: CGFloat { style.paddingX }
+  private var paddingY: CGFloat { style.paddingY }
+  private var border: CGFloat { style.border }
+
+  init(cells: [[Cell]], columnWidths: [Double]?, width: CGFloat, style: DocumentTypography.Table) {
+    self.style = style
     super.init(frame: .zero)
     showsVerticalScrollIndicator = false
     alwaysBounceHorizontal = false
     addSubview(grid)
+    addSubview(pinned)
     grid.table = self
+    pinned.table = self
     shadows.table = self
+    scrollingFrame.table = self
     set(cells: cells, columnWidths: columnWidths, width: width)
   }
 
   required init?(coder: NSCoder) { fatalError("TableView is made in code") }
 
-  /// What goes behind the table where it is drawn: the scroll shadows and
-  /// the frame of a table that scrolls, which stay put as it does.
-  var overlay: UIView { shadows }
+  /// What goes behind the table where it is drawn, as the web's region's
+  /// background: the scroll shadows, which stay put as it scrolls.
+  var underlay: UIView { shadows }
+  /// What goes over it, as the region's outline: the frame of a table that
+  /// scrolls.
+  var overlay: UIView { scrollingFrame }
 
   var height: CGFloat { tableSize.height }
 
@@ -87,22 +100,22 @@ import UIKit
     let metrics = cells.map { $0.map(TextMetrics.init) }
     let short = shortColumns(cells)
     var whole = short
-    var columns = self.columns(placed, metrics, whole: whole, fixed: columnWidths, width: width)
+    var columns = self.columns(placed, metrics, short: short, whole: whole, fixed: columnWidths, width: width)
     // Short columns stay whole while the table fits, the widest giving way
     // first (`fitShortColumns`).
     if columnWidths == nil, (cells.first?.count ?? 0) < Self.scrollingColumns {
-      while !whole.isEmpty, columns.reduce(0, +) + 2 * Measure.border > width {
+      while !whole.isEmpty, columns.reduce(0, +) + 2 * border > width {
         let firstRow = cells.first?.indices.map { placed.width(row: 0, index: $0, columns) } ?? []
         let widest = whole.max { (firstRow[safe: $0] ?? 0) < (firstRow[safe: $1] ?? 0) }!
         whole.remove(widest)
-        columns = self.columns(placed, metrics, whole: whole, fixed: nil, width: width)
+        columns = self.columns(placed, metrics, short: short, whole: whole, fixed: nil, width: width)
       }
     }
     let alignment = numericColumns(cells)
     boxes = cells.enumerated().map { row, rowCells in
       rowCells.enumerated().map { index, cell in
-        let content = placed.width(row: row, index: index, columns) - 2 * Measure.paddingX - endBorder(row, index)
-        return TextBox(Self.styled(cell, alignedRight: alignment.contains(index)), width: max(content, 1))
+        let content = placed.width(row: row, index: index, columns) - 2 * paddingX - endBorder(row, index)
+        return TextBox(styled(cell, alignedRight: alignment.contains(index)), width: max(content, 1))
       }
     }
     var rowHeights = [CGFloat](repeating: 0, count: cells.count)
@@ -118,9 +131,9 @@ import UIKit
         if short > 0 { rowHeights[rows.upperBound - 1] += short }
       }
     }
-    rowTops = [Measure.border]
+    rowTops = [border]
     for height in rowHeights { rowTops.append(rowTops[rowTops.count - 1] + height) }
-    let lefts = columns.reduce(into: [Measure.border]) { $0.append($0[$0.count - 1] + $1) }
+    let lefts = columns.reduce(into: [border]) { $0.append($0[$0.count - 1] + $1) }
     cellFrames = cells.enumerated().map { row, rowCells in
       rowCells.indices.map { index in
         let column = placed.columns[row][index]
@@ -130,51 +143,104 @@ import UIKit
           height: rowTops[row + rowSpan] - rowTops[row])
       }
     }
-    tableSize = CGSize(width: (lefts.last ?? 0) + Measure.border, height: (rowTops.last ?? 0) + Measure.border)
+    tableSize = CGSize(width: (lefts.last ?? 0) + border, height: (rowTops.last ?? 0) + border)
+    pinsFirstCells =
+      viewportWidth(width) <= style.pinned.width && (cells.first?.count ?? 0) > Self.unpinnedColumns
     grid.frame = CGRect(origin: .zero, size: tableSize)
     contentSize = tableSize
     frame.size = CGSize(width: width, height: tableSize.height)
     shadows.frame = CGRect(x: 0, y: 0, width: min(width, tableSize.width), height: tableSize.height)
-    grid.setNeedsDisplay()
-    shadows.setNeedsDisplay()
+    scrollingFrame.frame = shadows.frame
+    placePinnedCells()
+    redraw()
+  }
+
+  /// The width of the screen the table is on, as CSS's `vw` and `@media`
+  /// measure it.
+  private func viewportWidth(_ width: CGFloat) -> CGFloat { window?.bounds.width ?? width + 2 * BlockLayout.margin }
+
+  private var pinnedCells: [CellIndex] {
+    pinsFirstCells ? cells.indices.filter { !cells[$0].isEmpty }.map { CellIndex(row: $0, index: 0) } : []
+  }
+
+  private func isPinned(_ cell: CellIndex) -> Bool { pinsFirstCells && cell.index == 0 }
+
+  /// Where `cell` is drawn in the content: where it is laid out, unless
+  /// it's pinned, as `position: sticky` keeps it `inset` past the start of
+  /// what is shown.
+  private func shownFrame(_ cell: CellIndex) -> CGRect {
+    var frame = cellFrames[cell.row][cell.index]
+    if isPinned(cell) {
+      frame.origin.x = min(max(frame.minX, contentOffset.x + style.pinned.inset), tableSize.width - border - frame.width)
+    }
+    return frame
+  }
+
+  /// Where in the content a cell that isn't pinned starts to be seen,
+  /// past the pinned cells beside it.
+  private func shownStart(_ cell: CellIndex) -> CGFloat {
+    let frame = cellFrames[cell.row][cell.index]
+    return pinnedCells.map(shownFrame).filter { $0.minY < frame.maxY && $0.maxY > frame.minY }.map(\.maxX)
+      .reduce(frame.minX, max)
+  }
+
+  /// Whether the table is scrolled past its start, the web's
+  /// `data-scroll-left`.
+  fileprivate var scrollsLeft: Bool { contentOffset.x > 1 }
+
+  /// Puts the view that draws the pinned cells where they are, over what
+  /// scrolls under them.
+  private func placePinnedCells() {
+    pinned.isHidden = !pinsFirstCells
+    guard pinsFirstCells else { return }
+    let x = max(contentOffset.x, 0)
+    let reach = pinnedCells.map { shownFrame($0).maxX }.max() ?? x
+    let shadow = style.pinned.shadowX + style.pinned.shadowBlur
+    pinned.frame = CGRect(x: x, y: 0, width: max(reach - x + shadow, 0), height: tableSize.height)
   }
 
   private func cellHeight(_ row: Int, _ index: Int) -> CGFloat {
     let box = boxes[row][index]
-    return box.height - box.trailingSpacing + 2 * Measure.paddingY + (row == cells.count - 1 ? 0 : Measure.border)
+    return box.height - box.trailingSpacing + 2 * paddingY + (row == cells.count - 1 ? 0 : border)
   }
 
   /// A row's last cell has no border at its end.
   private func endBorder(_ row: Int, _ index: Int) -> CGFloat {
-    index == cells[row].count - 1 ? 0 : Measure.border
+    index == cells[row].count - 1 ? 0 : border
   }
 
   /// The columns' widths, borders included: CSS's automatic table layout,
   /// or the widths the table is set to.
   private func columns(
-    _ placed: Placement, _ metrics: [[TextMetrics]], whole: Set<Int>, fixed: [Double]?, width: CGFloat
+    _ placed: Placement, _ metrics: [[TextMetrics]], short: Set<Int>, whole: Set<Int>, fixed: [Double]?,
+    width: CGFloat
   ) -> [CGFloat] {
     let count = placed.columnCount
     if let fixed, let last = fixed.last {
       return (0..<count).map { CGFloat(fixed[safe: $0] ?? last) }
     }
-    let viewport = (window?.bounds.width ?? width + 2 * BlockLayout.margin)
+    let viewport = viewportWidth(width)
     var least = [CGFloat](repeating: 0, count: count)
     var most = [CGFloat](repeating: 0, count: count)
+    /// The columns a cell of their own sets to a width.
+    var isSet = [Bool](repeating: false, count: count)
     var spanning: [(columns: Range<Int>, least: CGFloat, most: CGFloat)] = []
-    let short = shortColumns(cells)
     for (row, rowCells) in metrics.enumerated() {
       for (index, text) in rowCells.enumerated() {
         let floor =
-          text.isEmpty ? Measure.emptyWidth : short.contains(index) ? 0 : min(Measure.minimumWidth, 0.4 * viewport)
-        let around = 2 * Measure.paddingX + endBorder(row, index)
-        let cellMost = max(text.maxContent + around, floor)
-        let cellLeast = whole.contains(index) ? cellMost : max(text.minContent + around, floor)
+          text.isEmpty
+          ? style.emptyWidth
+          : short.contains(index) ? 0 : min(style.minimumWidth, style.minimumViewportShare * viewport)
+        let around = 2 * paddingX + endBorder(row, index)
+        let cellLeast = max((whole.contains(index) ? text.maxContent : text.minContent) + around, floor)
+        let setWidth = cells[row][index].width
+        let cellMost = setWidth.map { max($0, cellLeast) } ?? max(text.maxContent + around, floor)
         let start = placed.columns[row][index]
         let span = start..<min(start + placed.colSpan(row: row, index: index), count)
         if span.count == 1 {
           least[start] = max(least[start], cellLeast)
           most[start] = max(most[start], cellMost)
+          if setWidth != nil { isSet[start] = true }
         } else {
           spanning.append((span, cellLeast, cellMost))
         }
@@ -187,12 +253,19 @@ import UIKit
       if lackingMost > 0 { for column in span { most[column] += lackingMost / CGFloat(span.count) } }
     }
     for column in 0..<count { most[column] = max(most[column], least[column]) }
-    let available = width - 2 * Measure.border
+    let available = width - 2 * border
     let (leastTotal, mostTotal) = (least.reduce(0, +), most.reduce(0, +))
     if mostTotal <= available { return most }
     guard leastTotal < available else { return least }
-    let share = (available - leastTotal) / (mostTotal - leastTotal)
-    return (0..<count).map { least[$0] + (most[$0] - least[$0]) * share }
+    // A browser gives the columns set to a width theirs first, and the
+    // others what's left; only once the others are at their least do the
+    // set ones give way.
+    let room = available - leastTotal
+    let setRoom = (0..<count).filter { isSet[$0] }.map { most[$0] - least[$0] }.reduce(0, +)
+    let setShare = setRoom > room ? room / setRoom : 1
+    let otherRoom = mostTotal - leastTotal - setRoom
+    let otherShare = otherRoom > 0 ? max(room - setRoom, 0) / otherRoom : 0
+    return (0..<count).map { least[$0] + (most[$0] - least[$0]) * (isSet[$0] ? setShare : otherShare) }
   }
 
   /// The cells' indexes in their rows whose every cell is short, as
@@ -239,9 +312,9 @@ import UIKit
     text.unicodeScalars.reduce(0) { $0 + (TextMetrics.isWide($1) ? 2 : 1) }
   }
 
-  /// A cell's text as the web shows it: a header's semibold, and a number
-  /// column's aligned right.
-  private static func styled(_ cell: Cell, alignedRight: Bool) -> NSAttributedString {
+  /// A cell's text as the web shows it: a header's in the header weight,
+  /// and a number column's aligned right.
+  private func styled(_ cell: Cell, alignedRight: Bool) -> NSAttributedString {
     guard cell.isHeader || alignedRight else { return cell.text }
     let text = NSMutableAttributedString(attributedString: cell.text)
     let whole = NSRange(location: 0, length: text.length)
@@ -249,10 +322,9 @@ import UIKit
       text.enumerateAttribute(.font, in: whole) { value, range, _ in
         guard let font = value as? UIFont, !font.fontDescriptor.symbolicTraits.contains(.traitBold) else { return }
         let traits = (font.fontDescriptor.object(forKey: .traits) as? [UIFontDescriptor.TraitKey: Any]) ?? [:]
-        let semibold = font.fontDescriptor.addingAttributes([
-          .traits: traits.merging([.weight: UIFont.Weight.semibold]) { $1 }
-        ])
-        text.addAttribute(.font, value: UIFont(descriptor: semibold, size: font.pointSize), range: range)
+        let weight = Typesetting.weight(style.headerWeight)
+        let header = font.fontDescriptor.addingAttributes([.traits: traits.merging([.weight: weight]) { $1 }])
+        text.addAttribute(.font, value: UIFont(descriptor: header, size: font.pointSize), range: range)
       }
     }
     if alignedRight {
@@ -267,8 +339,8 @@ import UIKit
 
   /// Where the text of `cell` starts, in the frame.
   private func textOrigin(_ cell: CellIndex) -> CGPoint {
-    let frame = cellFrames[cell.row][cell.index]
-    return CGPoint(x: frame.minX + Measure.paddingX - contentOffset.x, y: frame.minY + Measure.paddingY)
+    let frame = shownFrame(cell)
+    return CGPoint(x: frame.minX + paddingX - contentOffset.x, y: frame.minY + paddingY)
   }
 
   private func box(_ cell: CellIndex) -> TextBox { boxes[cell.row][cell.index] }
@@ -277,7 +349,13 @@ import UIKit
   /// frame.
   func segments(_ range: NSRange, in cell: CellIndex) -> [CGRect] {
     let origin = textOrigin(cell)
-    return box(cell).segments(range).map { $0.offsetBy(dx: origin.x, dy: origin.y) }
+    let segments = box(cell).segments(range).map { $0.offsetBy(dx: origin.x, dy: origin.y) }
+    guard pinsFirstCells, !isPinned(cell) else { return segments }
+    let start = shownStart(cell) - contentOffset.x
+    return segments.compactMap { segment in
+      guard segment.minX >= start else { return nil }
+      return segment
+    }
   }
 
   /// The cell a point in the frame is in, or the nearest, and the offset in
@@ -298,7 +376,7 @@ import UIKit
       return (cell, moved)
     }
     let frame = cellFrames[cell.row][cell.index]
-    let y = direction == .up ? frame.minY - Measure.paddingY : frame.maxY + Measure.paddingY
+    let y = direction == .up ? frame.minY - paddingY : frame.maxY + paddingY
     guard y > rowTops[0], y < rowTops[rowTops.count - 1] else { return nil }
     return self.offset(closestTo: CGPoint(x: x, y: y))
   }
@@ -316,6 +394,7 @@ import UIKit
   /// The cell a point in the frame is in, or the nearest.
   private func cell(at point: CGPoint) -> CellIndex? {
     let content = CGPoint(x: point.x + contentOffset.x, y: point.y)
+    if let pinned = pinnedCells.first(where: { shownFrame($0).contains(content) }) { return pinned }
     var nearest: (cell: CellIndex, distance: CGFloat)?
     for (row, frames) in cellFrames.enumerated() {
       for (index, frame) in frames.enumerated() {
@@ -330,12 +409,20 @@ import UIKit
 
   func redraw() {
     grid.setNeedsDisplay()
+    pinned.setNeedsDisplay()
     shadows.setNeedsDisplay()
+    scrollingFrame.setNeedsDisplay()
   }
 
-  /// Scrolls sideways as little as shows `cell`.
+  /// Scrolls sideways as little as shows `cell`, clear of the pinned cells.
   func scrollToShow(_ cell: CellIndex) {
-    scrollRectToVisible(cellFrames[cell.row][cell.index], animated: false)
+    var frame = cellFrames[cell.row][cell.index]
+    if pinsFirstCells, !isPinned(cell) {
+      let cover = pinnedCells.map { cellFrames[$0.row][$0.index] }
+        .filter { $0.minY < frame.maxY && $0.maxY > frame.minY }.map { $0.width + style.pinned.inset }.max() ?? 0
+      frame = CGRect(x: frame.minX - cover, y: frame.minY, width: frame.width + cover, height: frame.height)
+    }
+    scrollRectToVisible(frame, animated: false)
   }
 
   override func gestureRecognizerShouldBegin(_ recognizer: UIGestureRecognizer) -> Bool {
@@ -348,8 +435,14 @@ import UIKit
   override func layoutSubviews() {
     super.layoutSubviews()
     if contentOffset.x != shownX {
+      let scrolledLeft = shownX > 1
       shownX = contentOffset.x
       shadows.setNeedsDisplay()
+    scrollingFrame.setNeedsDisplay()
+      placePinnedCells()
+      if scrollsLeft != scrolledLeft || pinnedCells.contains(where: { cellFrames[$0.row][$0.index].minX > border }) {
+        pinned.setNeedsDisplay()
+      }
       onScroll?()
     }
   }
@@ -371,7 +464,7 @@ import UIKit
         var column = 0
         columns.append(
           rowCells.enumerated().map { index, span in
-            while map[row][safe: column] != nil { column += 1 }
+            while let taken = map[row][safe: column], taken != nil { column += 1 }
             let start = column
             for spanned in row..<min(row + span.rowSpan, spans.count) {
               while map[spanned].count < start + span.colSpan { map[spanned].append(nil) }
@@ -439,6 +532,39 @@ import UIKit
     }
   }
 
+  /// Draws `cell` in `frame`: its fill, the borders at its end and bottom,
+  /// and its text. A fill set on the cell, a header's, and a pinned
+  /// cell's each win over a selected cell's tint, as on the web.
+  fileprivate func draw(_ index: CellIndex, in frame: CGRect, _ context: CGContext) {
+    let cell = cells[index.row][index.index]
+    let pinned = isPinned(index)
+    let header = pinned ? style.pinned.headerBackground : style.headerBackground
+    let fill =
+      cell.background ?? (cell.isHeader ? header.color : nil) ?? (pinned ? style.pinned.background.color : nil)
+      ?? (selectedCells.contains(index) ? style.selection.color : nil)
+    if let fill {
+      fill.setFill()
+      UIRectFill(frame)
+    }
+    style.borderColor.color.setFill()
+    if endBorder(index.row, index.index) > 0 {
+      UIRectFill(CGRect(x: frame.maxX - border, y: frame.minY, width: border, height: frame.height))
+    }
+    if index.row < cells.count - 1 {
+      UIRectFill(CGRect(x: frame.minX, y: frame.maxY - border, width: frame.width, height: border))
+    }
+    box(index).draw(at: CGPoint(x: frame.minX + paddingX, y: frame.minY + paddingY), in: context)
+  }
+
+  /// The table's rounded frame, drawn inside `bounds`.
+  fileprivate func strokeFrame(in bounds: CGRect) {
+    style.borderColor.color.setStroke()
+    let frame = UIBezierPath(
+      roundedRect: bounds.insetBy(dx: border / 2, dy: border / 2), cornerRadius: style.cornerRadius - border / 2)
+    frame.lineWidth = border
+    frame.stroke()
+  }
+
   private final class GridView: UIView {
     weak var table: TableView?
 
@@ -452,46 +578,22 @@ import UIKit
 
     override func draw(_ rect: CGRect) {
       guard let table, let context = UIGraphicsGetCurrentContext() else { return }
-      let outline = UIBezierPath(
-        roundedRect: bounds.insetBy(dx: Measure.border / 2, dy: Measure.border / 2),
-        cornerRadius: Measure.cornerRadius - Measure.border / 2)
       context.saveGState()
-      UIBezierPath(roundedRect: bounds, cornerRadius: Measure.cornerRadius).addClip()
+      UIBezierPath(roundedRect: bounds, cornerRadius: table.style.cornerRadius).addClip()
       for (row, frames) in table.cellFrames.enumerated() {
         for (index, frame) in frames.enumerated() where frame.intersects(rect) {
-          if table.cells[row][index].isHeader {
-            TableColors.muted.setFill()
-            UIRectFill(frame)
-          }
-          if table.selectedCells.contains(CellIndex(row: row, index: index)) {
-            TableColors.selected.setFill()
-            UIRectFill(frame)
-          }
-        }
-      }
-      TableColors.border.setFill()
-      for (row, frames) in table.cellFrames.enumerated() {
-        for (index, frame) in frames.enumerated() where frame.intersects(rect) {
-          if table.endBorder(row, index) > 0 {
-            UIRectFill(CGRect(x: frame.maxX - Measure.border, y: frame.minY, width: Measure.border, height: frame.height))
-          }
-          if row + table.cells[row][index].rowSpan < table.cells.count {
-            UIRectFill(CGRect(x: frame.minX, y: frame.maxY - Measure.border, width: frame.width, height: Measure.border))
-          }
-          let box = table.boxes[row][index]
-          box.draw(at: CGPoint(x: frame.minX + Measure.paddingX, y: frame.minY + Measure.paddingY), in: context)
+          let cell = CellIndex(row: row, index: index)
+          if !table.isPinned(cell) { table.draw(cell, in: frame, context) }
         }
       }
       context.restoreGState()
-      TableColors.border.setStroke()
-      outline.lineWidth = Measure.border
-      outline.stroke()
+      table.strokeFrame(in: bounds)
     }
   }
 
-  /// The web's `data-scroll-left` and `data-scroll-right`: a shadow at an
-  /// edge the table scrolls past, and a frame while it scrolls either way.
-  private final class ShadowView: UIView {
+  /// The cells pinned at the table's start, drawn over what scrolls under
+  /// them, with the web's shadow beside them once it does.
+  private final class PinnedView: UIView {
     weak var table: TableView?
 
     override init(frame: CGRect) {
@@ -502,7 +604,49 @@ import UIKit
       contentMode = .redraw
     }
 
-    required init?(coder: NSCoder) { fatalError("ShadowView is made in code") }
+    required init?(coder: NSCoder) { fatalError("PinnedView is made in code") }
+
+    override func draw(_ rect: CGRect) {
+      guard let table, let context = UIGraphicsGetCurrentContext() else { return }
+      let style = table.style
+      let inner = style.cornerRadius - table.border
+      context.translateBy(x: -frame.minX, y: 0)
+      let frames = table.pinnedCells.map { ($0, table.shownFrame($0)) }
+      if table.scrollsLeft {
+        context.saveGState()
+        context.setShadow(
+          offset: CGSize(width: style.pinned.shadowX, height: 0), blur: style.pinned.shadowBlur,
+          color: style.shadowColor.color.cgColor)
+        UIColor.black.setFill()
+        for (_, frame) in frames { UIRectFill(frame.insetBy(dx: -style.pinned.shadowSpread, dy: -style.pinned.shadowSpread)) }
+        context.restoreGState()
+      }
+      let inside = CGRect(
+        x: frame.minX, y: table.border, width: frame.width, height: table.tableSize.height - 2 * table.border)
+      UIBezierPath(roundedRect: inside, byRoundingCorners: [.topLeft, .bottomLeft], cornerRadii: CGSize(width: inner, height: inner))
+        .addClip()
+      for (cell, frame) in frames { table.draw(cell, in: frame, context) }
+    }
+  }
+
+  /// The web's `data-scroll-left` and `data-scroll-right`: a shadow at an
+  /// edge the table scrolls past, or a frame while it scrolls either way.
+  private final class ScrollEdgeView: UIView {
+    enum Part { case shadows, frame }
+
+    weak var table: TableView?
+    let part: Part
+
+    init(_ part: Part) {
+      self.part = part
+      super.init(frame: .zero)
+      backgroundColor = .clear
+      isOpaque = false
+      isUserInteractionEnabled = false
+      contentMode = .redraw
+    }
+
+    required init?(coder: NSCoder) { fatalError("ScrollEdgeView is made in code") }
 
     override func draw(_ rect: CGRect) {
       guard let table, let context = UIGraphicsGetCurrentContext() else { return }
@@ -510,44 +654,21 @@ import UIKit
       let scrollsLeft = x > 1
       let scrollsRight = x + table.bounds.width < table.contentSize.width - 1
       guard scrollsLeft || scrollsRight else { return }
-      let colors = [TableColors.shadow.cgColor, TableColors.shadow.withAlphaComponent(0).cgColor] as CFArray
+      guard part == .shadows else { return table.strokeFrame(in: bounds) }
+      let shadow = table.style.shadowColor.color
+      let colors = [shadow.cgColor, shadow.withAlphaComponent(0).cgColor] as CFArray
       guard let gradient = CGGradient(colorsSpace: nil, colors: colors, locations: [0, 1]) else { return }
       if scrollsLeft {
         context.drawLinearGradient(
-          gradient, start: .zero, end: CGPoint(x: Measure.shadowWidth, y: 0), options: [])
+          gradient, start: .zero, end: CGPoint(x: table.style.shadowWidth, y: 0), options: [])
       }
       if scrollsRight {
         context.drawLinearGradient(
-          gradient, start: CGPoint(x: bounds.maxX, y: 0), end: CGPoint(x: bounds.maxX - Measure.shadowWidth, y: 0),
+          gradient, start: CGPoint(x: bounds.maxX, y: 0), end: CGPoint(x: bounds.maxX - table.style.shadowWidth, y: 0),
           options: [])
       }
-      TableColors.border.setStroke()
-      let frame = UIBezierPath(
-        roundedRect: bounds.insetBy(dx: Measure.border / 2, dy: Measure.border / 2),
-        cornerRadius: Measure.cornerRadius - Measure.border / 2)
-      frame.lineWidth = Measure.border
-      frame.stroke()
     }
   }
-}
-
-/// The web theme's colours a table uses (`globals.css`), light and dark.
-enum TableColors {
-  private static func color(light: (Int, Int, Int), dark: (Int, Int, Int), alpha: CGFloat = 1) -> UIColor {
-    UIColor { traits in
-      let (red, green, blue) = traits.userInterfaceStyle == .dark ? dark : light
-      return UIColor(red: CGFloat(red) / 255, green: CGFloat(green) / 255, blue: CGFloat(blue) / 255, alpha: alpha)
-    }
-  }
-
-  /// `--border`.
-  static let border = color(light: (225, 225, 228), dark: (48, 48, 52))
-  /// `--muted`, a header cell's background.
-  static let muted = color(light: (238, 238, 241), dark: (42, 43, 49))
-  /// `bg-primary/10`, `tableCellSelected`.
-  static let selected = color(light: (115, 72, 226), dark: (158, 140, 244), alpha: 0.1)
-  /// `--muted-foreground`, the scroll shadows'.
-  static let shadow = color(light: (95, 96, 103), dark: (164, 164, 171))
 }
 
 /// A table with the room below it, which gives the table's pan to the view
@@ -559,9 +680,9 @@ enum TableColors {
   init(_ table: TableView) {
     self.table = table
     super.init(frame: .zero)
-    // Behind the table, as the web's are the region's background.
-    addSubview(table.overlay)
+    addSubview(table.underlay)
     addSubview(table)
+    addSubview(table.overlay)
   }
 
   required init?(coder: NSCoder) { fatalError("TableHolder is made in code") }
@@ -578,5 +699,11 @@ enum TableColors {
 
 extension Array {
   subscript(safe index: Int) -> Element? { indices.contains(index) ? self[index] : nil }
+}
+
+extension UIColor {
+  convenience init(css color: CSSColor) {
+    self.init(red: color.red, green: color.green, blue: color.blue, alpha: color.alpha)
+  }
 }
 #endif

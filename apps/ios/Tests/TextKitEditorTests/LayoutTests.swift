@@ -258,7 +258,7 @@ import UIKit
     let a = try caret(view, "a\n")
     let narrow = try caret(view, "i i")
     let end = try caret(view, "end")
-    let font = try #require(EditorView.defaultStyle("table", [])[.font] as? UIFont)
+    let font = try #require(Typesetting(.web).attributes(.table, [])[.font] as? UIFont)
     let aWide = ceil(NSAttributedString(string: "a", attributes: [.font: font]).size().width)
     #expect(abs(narrow.minX - a.minX - (aWide + 2 * 12 + 1)) < 1, "\(narrow.minX - a.minX)")
     #expect(abs(end.minX - narrow.minX - 120) < 1, "\(end.minX - narrow.minX)")
@@ -303,22 +303,11 @@ import UIKit
   /// after it go past them.
   @Test
   func aMergedCellSpansItsColumnsAndRows() throws {
-    func cell(_ text: String, colSpan: Int = 1, rowSpan: Int = 1) -> JSONValue {
-      LexicalJSON.element(
-        "tablecell", [LexicalJSON.paragraph([LexicalJSON.text(text)])],
-        [
-          "backgroundColor": nil, "colSpan": .number(Double(colSpan)), "headerState": 0,
-          "rowSpan": .number(Double(rowSpan)),
-        ])
-    }
     let view = try Self.host(
       LexicalJSON.document([
-        LexicalJSON.element(
-          "table",
-          [
-            LexicalJSON.element("tablerow", [cell("tall", rowSpan: 2), cell("wide", colSpan: 2)]),
-            LexicalJSON.element("tablerow", [cell("b"), cell("c")]),
-          ])
+        Self.table([
+          [Self.cell("tall", ["rowSpan": 2]), Self.cell("wide", ["colSpan": 2])], [Self.cell("b"), Self.cell("c")],
+        ])
       ]))
     let tall = try caret(view, "tall")
     let wide = try caret(view, "wide")
@@ -331,7 +320,8 @@ import UIKit
   }
 
   /// Cells selected as a table selection are tinted as the web tints them,
-  /// with the theme's primary colour at 10%, and no text is highlighted.
+  /// with the theme's primary colour at 10%, and no text is highlighted:
+  /// the selection shows only its handles.
   @Test
   func aTableSelectionTintsItsCells() throws {
     let view = try Self.host(Self.editableTable)
@@ -345,22 +335,145 @@ import UIKit
     view.selectedTextRange = range
     view.layoutIfNeeded()
 
-    #expect(view.selectionRects(for: range).isEmpty)
-    let image = UIGraphicsImageRenderer(bounds: view.bounds).image { view.layer.render(in: $0.cgContext) }
-    /// A point in the cell's padding before `word`, where the image has it.
-    func padding(_ word: String) throws -> CGPoint {
-      let caret = try caret(view, word)
-      let point = view.convert(CGPoint(x: caret.minX - 6, y: caret.minY - 3), from: view.textInputView)
-      return CGPoint(x: point.x - view.bounds.minX, y: point.y - view.bounds.minY)
-    }
-    let tinted = try pixel(image, at: padding("two words"))
-    let plain = try pixel(image, at: padding("three"))
-    let primary = (red: 115.0, green: 72.0, blue: 226.0)
-    let expected = (red: 255 * 0.9 + primary.red * 0.1, green: 255 * 0.9 + primary.green * 0.1, blue: 255 * 0.9 + primary.blue * 0.1)
-    #expect(abs(tinted.red - expected.red) < 3 && abs(tinted.green - expected.green) < 3 && abs(tinted.blue - expected.blue) < 3, "\(tinted)")
-    #expect(plain.red > 250 && plain.green > 250 && plain.blue > 250, "\(plain)")
+    #expect(view.selectionRects(for: range).allSatisfy { $0.containsStart || $0.containsEnd })
+    let image = snapshot(view)
+    let tinted = try pixel(image, at: padding(view, "two words"))
+    let plain = try pixel(image, at: padding(view, "three"))
+    #expect(Self.isNear(tinted, Self.tinted), "\(tinted)")
+    #expect(Self.isNear(plain, Self.white), "\(plain)")
   }
 
+  /// A cell's background colour fills it, and is all a selected cell shows,
+  /// as the web's inline `background-color` wins over the tint.
+  @Test
+  func aCellShowsItsBackgroundColour() throws {
+    let view = try Self.host(
+      LexicalJSON.document([
+        Self.table([[Self.cell("one", ["backgroundColor": "#ff0000"]), Self.cell("two")], [Self.cell("three")]])
+      ]))
+    view.window?.overrideUserInterfaceStyle = .light
+    #expect(view.becomeFirstResponder())
+    let text = try Self.text(of: view) as NSString
+    view.selectedTextRange = view.textRange(
+      from: try position(view, text.range(of: "one").location), to: try position(view, NSMaxRange(text.range(of: "two"))))
+    view.layoutIfNeeded()
+
+    let image = snapshot(view)
+    #expect(Self.isNear(try pixel(image, at: padding(view, "one")), (255, 0, 0)))
+    #expect(Self.isNear(try pixel(image, at: padding(view, "two")), Self.tinted))
+    #expect(Self.isNear(try pixel(image, at: padding(view, "three")), Self.white))
+  }
+
+  /// A selected header cell keeps the header's background, as on the web,
+  /// where `.document-table th` wins over the tint.
+  @Test
+  func aSelectedHeaderStaysMuted() throws {
+    let view = try Self.host(LexicalJSON.document([LexicalJSON.table([["one", "two"], ["three", "four"]], headerRow: true)]))
+    view.window?.overrideUserInterfaceStyle = .light
+    #expect(view.becomeFirstResponder())
+    let text = try Self.text(of: view) as NSString
+    view.selectedTextRange = view.textRange(
+      from: try position(view, text.range(of: "one").location), to: try position(view, NSMaxRange(text.range(of: "three"))))
+    view.layoutIfNeeded()
+
+    let image = snapshot(view)
+    #expect(Self.isNear(try pixel(image, at: padding(view, "one")), Self.muted))
+    #expect(Self.isNear(try pixel(image, at: padding(view, "three")), Self.tinted))
+  }
+
+  /// A cell whose rows reach the last keeps its bottom border, as the web
+  /// drops it only for the last row's own cells.
+  @Test
+  func aCellReachingTheLastRowKeepsItsBottomBorder() throws {
+    let view = try Self.host(
+      LexicalJSON.document([
+        Self.table([[Self.cell("tall", ["rowSpan": 2]), Self.cell("a")], [Self.cell("b")]])
+      ]))
+    view.window?.overrideUserInterfaceStyle = .light
+    let image = snapshot(view)
+    /// How thick the lines are under `word`, down to the white below the
+    /// table, in points.
+    func linesUnder(_ word: String) throws -> CGFloat {
+      let start = try padding(view, word)
+      let step = 1 / image.scale
+      var y = start.y
+      while Self.isNear(try pixel(image, at: CGPoint(x: start.x, y: y)), Self.white), y < image.size.height { y += step }
+      var thickness: CGFloat = 0
+      while !Self.isNear(try pixel(image, at: CGPoint(x: start.x, y: y)), Self.white), y < image.size.height {
+        thickness += step
+        y += step
+      }
+      return thickness
+    }
+
+    #expect(abs(try linesUnder("tall") - 2) < 0.5, "the cell's border and the table's")
+    #expect(abs(try linesUnder("b") - 1) < 0.5, "the table's")
+  }
+
+  /// Cells in a row under a merged cell further along go under the cells
+  /// before it, and past it.
+  @Test
+  func cellsGoUnderTheColumnsBeforeAMergedCell() throws {
+    let view = try Self.host(
+      LexicalJSON.document([
+        Self.table([[Self.cell("a"), Self.cell("tall", ["rowSpan": 2]), Self.cell("c")], [Self.cell("b"), Self.cell("d")]])
+      ]))
+    let (a, b, c, d) = (try caret(view, "a"), try caret(view, "b"), try caret(view, "c"), try caret(view, "d"))
+    #expect(abs(b.minX - a.minX) < 1 && b.minY > a.maxY, "b under a")
+    #expect(abs(d.minX - c.minX) < 1 && d.minY > c.maxY, "d under c")
+  }
+
+  /// A cell set to a width makes its column that wide while the table fits.
+  @Test
+  func aCellsWidthSetsItsColumns() throws {
+    let view = try Self.host(
+      LexicalJSON.document([Self.table([[Self.cell("a", ["width": 200]), Self.cell("b"), Self.cell("c")]])]))
+    #expect(abs(try caret(view, "b").minX - (try caret(view, "a")).minX - 200) < 1)
+  }
+
+  /// On a screen no wider than 639pt, a table of more than 3 columns keeps
+  /// its first column where it is as it scrolls, over the columns scrolled
+  /// under it and with a shadow beside it, as the web pins it; a table of
+  /// 3, or on a wider screen, doesn't.
+  @Test
+  func aNarrowScreenPinsTheFirstColumnOfAWideTable() throws {
+    let word = "Supercalifragilisticexpialidocious"
+    /// Whether the first column stayed put as the table scrolled to its
+    /// end, and where the column ended before.
+    func scrolled(columns: Int, width: CGFloat) throws -> (pinned: Bool, view: EditorView, columnEnd: CGFloat) {
+      let rows = [["first"] + (1..<columns).map { "\(word)\($0)" }, ["second"] + Array(repeating: "", count: columns - 1)]
+      let view = try Self.host(LexicalJSON.document([LexicalJSON.table(rows)]), width: width)
+      view.window?.overrideUserInterfaceStyle = .light
+      #expect(view.becomeFirstResponder())
+      let first = try caret(view, "first")
+      let columnEnd = try caret(view, "\(word)1").minX - CGFloat(DocumentTypography.web.table.paddingX)
+      let text = try Self.text(of: view) as NSString
+      let end = try position(view, NSMaxRange(text.range(of: "\(word)\(columns - 1)")))
+      view.selectedTextRange = view.textRange(from: end, to: end)
+      view.layoutIfNeeded()
+      #expect(view.caretRect(for: end) != .zero, "the table scrolled to the end")
+      return (try caret(view, "first") == first, view, columnEnd)
+    }
+
+    let (pinned, view, columnEnd) = try scrolled(columns: 4, width: 390)
+    #expect(pinned)
+    let text = try Self.text(of: view) as NSString
+    let first = try caret(view, "first")
+    let landed = try #require(view.closestPosition(to: CGPoint(x: first.minX + 1, y: first.midY)))
+    #expect(view.offset(from: view.beginningOfDocument, to: landed) == text.range(of: "first").location)
+    let under = view.caretRect(for: try position(view, text.range(of: "\(word)1").location))
+    #expect(under == .zero || under.minX > first.maxX, "a caret under the pinned column is hidden: \(under)")
+    let second = try caret(view, "second")
+    let beside = view.convert(CGPoint(x: columnEnd + 2, y: second.midY), from: view.textInputView)
+    #expect(!Self.isNear(try pixel(snapshot(view), at: beside), Self.white, within: 8), "a shadow beside it")
+
+    #expect(try !scrolled(columns: 3, width: 390).pinned)
+    #expect(try !scrolled(columns: 4, width: 640).pinned)
+  }
+
+
+  /// Selected cells end at the end of the last of them, where their handle
+  /// is, so what's typed after typing over them goes there.
   @Test
   func typingAfterTypingOverCellsTypesWhereTheSelectionEnded() throws {
     let model = Editor()
@@ -373,7 +486,43 @@ import UIKit
     view.insertText("x")
     view.insertText("y")
 
-    #expect(try Self.text(of: view).contains("one\ntwo words\nthree\nyfour"))
+    #expect(try Self.text(of: view).contains("one\ntwo words\nthree\nfoury"))
+  }
+
+  private func snapshot(_ view: EditorView) -> UIImage {
+    UIGraphicsImageRenderer(bounds: view.bounds).image { view.layer.render(in: $0.cgContext) }
+  }
+
+  /// A point in the padding of the cell before `word`, in the view's
+  /// bounds, where `snapshot` has it.
+  private func padding(_ view: EditorView, _ word: String) throws -> CGPoint {
+    let caret = try caret(view, word)
+    let point = view.convert(CGPoint(x: caret.minX - 6, y: caret.minY - 3), from: view.textInputView)
+    return CGPoint(x: point.x - view.bounds.minX, y: point.y - view.bounds.minY)
+  }
+
+  typealias RGB = (red: Double, green: Double, blue: Double)
+  static let white: RGB = (255, 255, 255)
+  /// The theme's `--muted`, light.
+  static let muted: RGB = (238, 238, 241)
+  /// The theme's primary colour at 10% over white, light.
+  static let tinted: RGB = (255 * 0.9 + 115 * 0.1, 255 * 0.9 + 72 * 0.1, 255 * 0.9 + 226 * 0.1)
+
+  static func isNear(_ color: RGB, _ expected: RGB, within tolerance: Double = 3) -> Bool {
+    abs(color.red - expected.red) < tolerance && abs(color.green - expected.green) < tolerance
+      && abs(color.blue - expected.blue) < tolerance
+  }
+
+  /// A table cell of one paragraph of `text`, with `fields` over the
+  /// defaults.
+  static func cell(_ text: String, _ fields: JSONObject = [:]) -> JSONValue {
+    var all: JSONObject = ["backgroundColor": nil, "colSpan": 1, "headerState": 0, "rowSpan": 1]
+    for (key, value) in fields { all[key] = value }
+    return LexicalJSON.element("tablecell", [LexicalJSON.paragraph([LexicalJSON.text(text)])], all)
+  }
+
+  static func table(_ rows: [[JSONValue]]) -> JSONValue {
+    LexicalJSON.element("table", rows.map { LexicalJSON.element("tablerow", $0) })
   }
 
   private func position(_ view: EditorView, _ offset: Int) throws -> UITextPosition {

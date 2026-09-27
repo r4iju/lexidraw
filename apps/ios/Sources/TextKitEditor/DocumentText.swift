@@ -68,6 +68,10 @@ public final class DocumentText {
       public var rowSpan = 1
       /// A header cell, which Lexical writes as `th`.
       public var isHeader = false
+      /// The colour the cell is filled with, as CSS gives it.
+      public var backgroundColor: String?
+      /// The width the cell is set to, in CSS pixels.
+      public var width: Double?
     }
 
     /// Each row's cells, in the row's order.
@@ -327,7 +331,8 @@ public final class DocumentText {
                 return Table.Cell(
                   range: NSRange(location: span.start, length: span.end - span.start),
                   colSpan: max(cell["colSpan"]?.intValue ?? 1, 1), rowSpan: max(cell["rowSpan"]?.intValue ?? 1, 1),
-                  isHeader: (cell["headerState"]?.intValue ?? 0) != 0)
+                  isHeader: (cell["headerState"]?.intValue ?? 0) != 0,
+                  backgroundColor: cell["backgroundColor"]?.stringValue, width: cell["width"]?.numberValue)
               }
             }
           },

@@ -234,7 +234,7 @@ test("reads a link's colour and underline", async () => {
   const swift = swiftForTypography(await readWebStyles());
 
   expect(swift).toContain(
-    "link: Link(color: .primary, underlineThickness: 1, underlineOffset: 0.2, underlineOpacity: 0.4))",
+    "link: Link(color: .primary, underlineThickness: 1, underlineOffset: 0.2, underlineOpacity: 0.4),",
   );
 });
 
@@ -257,4 +257,31 @@ test.each([
   expect(() => swiftForTypography({ ...styles, documentCSS })).toThrow(
     ".document-link",
   );
+});
+test("reads a table as .document-table and the theme's selected cell set it", async () => {
+  const swift = swiftForTypography(await readWebStyles());
+
+  expect(swift).toContain(
+    "table: Table(fontSize: 0.9375, lineHeight: 1.5, letterSpacing: 0, tabularFigures: true, margin: 1.75, paddingX: 12, paddingY: 8, border: 1, borderColor: .border, cornerRadius: 6, minimumWidth: 120, minimumViewportShare: 0.4, emptyWidth: 96, headerBackground: .muted, headerWeight: 600, selection: .primary.opacity(0.1), shadowWidth: 10, shadowColor: .mutedForeground, pinned: Pinned(width: 639, inset: 1, background: .card, headerBackground: .muted, shadowX: 6, shadowBlur: 8, shadowSpread: -6)))",
+  );
+});
+
+test("refuses a table cell padded as isn't read", async () => {
+  const styles = await readWebStyles();
+  const documentCSS = styles.documentCSS.replace(
+    /(\.document-table :is\(td, th\) \{\s*padding:)[^;]*;/,
+    "$1 8px 12px 4px;",
+  );
+
+  expect(() => swiftForTypography({ ...styles, documentCSS })).toThrow(
+    "8px 12px 4px",
+  );
+});
+
+test("refuses a selected cell's class that isn't a theme colour", async () => {
+  const styles = await readWebStyles();
+
+  expect(() =>
+    swiftForTypography({ ...styles, tableCellSelectedClass: "bg-sky-100" }),
+  ).toThrow("bg-sky-100");
 });

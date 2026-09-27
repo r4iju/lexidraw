@@ -1,4 +1,5 @@
 #if canImport(UIKit)
+import CSSValues
 import EditorModelInterface
 import UIKit
 
@@ -142,8 +143,8 @@ import UIKit
     case .embedded where block == .rule: return typesetting.typography.rule.width
     case .embedded: return PlaceholderView.height
     case .table(let table):
-      return CGFloat(table.rows.count) * (typesetting.lineHeight(block) + 2 * TableView.Measure.paddingY + TableView.Measure.border)
-        + TableView.Measure.border
+      let style = typesetting.typography.table
+      return CGFloat(table.rows.count) * (typesetting.lineHeight(block) + 2 * style.paddingY + style.border) + style.border
     case .text:
       let characterWidth = typesetting.fontSize(block) * 0.5
       let perLine = max(width / characterWidth, 1)
@@ -182,7 +183,10 @@ import UIKit
     let block: any LaidOutBlock =
       switch kind {
       case .text: TextBlock(text: text, width: width)
-      case .table: TableBlock(text: text, kind: kind, width: width) { [weak self] in self?.onScrollSideways?() }
+      case .table:
+        TableBlock(text: text, kind: kind, width: width, style: typesetting.typography.table) { [weak self] in
+          self?.onScrollSideways?()
+        }
       case .embedded where styled(index) == .rule:
         RuleBlock(
           rule: typesetting.typography.rule, caretHeight: UIFont.preferredFont(forTextStyle: .body).lineHeight, width: width)
@@ -362,10 +366,10 @@ import UIKit
       }
       return true
     }
-    let gap = EditorView.blockSpacing
+    let gap = index > 0 ? spaceAfter(index - 1) : 0
     let y: CGFloat
     if isTable(index - 1) {
-      y = top(index - 1) + block(index - 1).height - gap / 2 - Self.flatCaretHeight / 2
+      y = top(index - 1) + block(index - 1).height + gap / 2 - Self.flatCaretHeight / 2
     } else if isTable(index) {
       y = top(index) - gap / 2 - Self.flatCaretHeight / 2
     } else {
@@ -468,9 +472,13 @@ private final class TableBlock: LaidOutBlock {
   private let table: TableView
   private let holder: TableHolder
 
-  init(text: NSAttributedString, kind: DocumentText.BlockKind, width: CGFloat, onScroll: @escaping () -> Void) {
+  init(
+    text: NSAttributedString, kind: DocumentText.BlockKind, width: CGFloat, style: DocumentTypography.Table,
+    onScroll: @escaping () -> Void
+  ) {
     self.kind = kind
-    table = TableView(cells: Self.cells(text, kind), columnWidths: Self.table(kind)?.columnWidths, width: width)
+    table = TableView(
+      cells: Self.cells(text, kind), columnWidths: Self.table(kind)?.columnWidths, width: width, style: style)
     table.onScroll = onScroll
     holder = TableHolder(table)
   }
@@ -487,7 +495,8 @@ private final class TableBlock: LaidOutBlock {
         let range = NSRange(location: cell.range.location, length: min(cell.range.length + 1, text.length - cell.range.location))
         return TableView.Cell(
           text: text.attributedSubstring(from: range), colSpan: cell.colSpan, rowSpan: cell.rowSpan,
-          isHeader: cell.isHeader)
+          isHeader: cell.isHeader, background: cell.backgroundColor.flatMap(CSSColor.init).map { UIColor(css: $0) },
+          width: cell.width.map { CGFloat($0) })
       }
     }
   }

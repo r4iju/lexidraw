@@ -1,11 +1,13 @@
 import EditorModelInterface
 import Foundation
 
-/// A block as the web sets it: one of `BlockType`'s, a rule, or any other,
-/// which the web sets in the body text and spaces as every block.
+/// A block as the web sets it: one of `BlockType`'s, a rule, a table, or
+/// any other, which the web sets in the body text and spaces as every
+/// block.
 enum StyledBlock: Hashable, Sendable {
   case text(BlockType)
   case rule
+  case table
   case other
 
   /// The block `DocumentText` gives `type`.
@@ -13,7 +15,12 @@ enum StyledBlock: Hashable, Sendable {
     if let blockType = BlockType(rawValue: type) {
       self = .text(blockType)
     } else {
-      self = type == Self.ruleType ? .rule : .other
+      self =
+        switch type {
+        case Self.ruleType: .rule
+        case "table": .table
+        default: .other
+        }
     }
   }
 
@@ -114,6 +121,52 @@ struct DocumentTypography: Sendable {
     var underlineOpacity: Double
   }
 
+  /// Lengths other than `fontSize` and `margin` are in points.
+  struct Table: Sendable {
+    /// In ems of the body text.
+    var fontSize: Double
+    var lineHeight: Double
+    /// In ems of the table's text.
+    var letterSpacing: Double
+    var tabularFigures: Bool
+    /// Before it and after it, in ems of the body text.
+    var margin: Double
+    var paddingX: Double
+    var paddingY: Double
+    /// The table's frame and the lines between its cells.
+    var border: Double
+    var borderColor: ThemeColor
+    var cornerRadius: Double
+    /// A cell's least width unless its column is short, and at most this
+    /// share of the screen's width.
+    var minimumWidth: Double
+    var minimumViewportShare: Double
+    /// An empty cell's least width.
+    var emptyWidth: Double
+    var headerBackground: ThemeColor
+    /// As CSS numbers it.
+    var headerWeight: Int
+    /// Over a selected cell.
+    var selection: ThemeColor
+    /// The shadows at an edge the table scrolls past.
+    var shadowWidth: Double
+    var shadowColor: ThemeColor
+    var pinned: Pinned
+  }
+
+  /// The first column a table pins on a screen no wider than `width`, `inset`
+  /// inside the table's frame, over the columns scrolled under it, with a
+  /// shadow of the table's `shadowColor` once they are.
+  struct Pinned: Sendable {
+    var width: Double
+    var inset: Double
+    var background: ThemeColor
+    var headerBackground: ThemeColor
+    var shadowX: Double
+    var shadowBlur: Double
+    var shadowSpread: Double
+  }
+
   var color: ThemeColor
   var lineHeight: Double
   var letterSpacing: Double
@@ -133,6 +186,7 @@ struct DocumentTypography: Sendable {
   var quote: Quote
   var rule: Rule
   var link: Link
+  var table: Table
 
   /// As the web sets a document in `language`, a BCP 47 tag.
   func forLanguage(_ language: String?) -> DocumentTypography {
@@ -153,6 +207,7 @@ struct DocumentTypography: Sendable {
   /// The size of the text in `block` in a view `width` wide, in ems of the
   /// body text.
   func fontSize(_ block: StyledBlock, width: Double) -> Double {
+    if block == .table { return table.fontSize }
     guard case .text(let type) = block else { return 1 }
     return narrow.last { width <= $0.width && $0.headingSizes[type] != nil }?.headingSizes[type]
       ?? headings[type]?.fontSize ?? 1
@@ -167,6 +222,8 @@ struct DocumentTypography: Sendable {
         (heading.before * size * (previous.flatMap(self.heading) != nil ? adjacentHeadingBefore : 1), heading.after * size)
       } else if block == .rule {
         (rule.margin, rule.margin)
+      } else if block == .table {
+        (table.margin, table.margin)
       } else {
         (0, blockAfter)
       }
@@ -178,6 +235,14 @@ struct DocumentTypography: Sendable {
 struct ThemeColor: Sendable {
   var light: RGBA
   var dark: RGBA
+
+  /// The colour at `opacity` of its own, as CSS's `/` sets it.
+  func opacity(_ opacity: Double) -> ThemeColor {
+    var color = self
+    color.light.alpha *= opacity
+    color.dark.alpha *= opacity
+    return color
+  }
 }
 
 /// sRGB channels from 0 to 1.

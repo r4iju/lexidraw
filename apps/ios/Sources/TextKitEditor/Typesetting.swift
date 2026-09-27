@@ -33,7 +33,9 @@ final class Typesetting {
   func fontSize(_ block: StyledBlock) -> CGFloat { typography.fontSize(block, width: width) * em }
 
   func lineHeight(_ block: StyledBlock) -> CGFloat {
-    (typography.heading(block)?.lineHeight ?? typography.lineHeight) * fontSize(block)
+    let lineHeight =
+      block == .table ? typography.table.lineHeight : typography.heading(block)?.lineHeight ?? typography.lineHeight
+    return lineHeight * fontSize(block)
   }
 
   func space(_ block: StyledBlock, after previous: StyledBlock?) -> (before: CGFloat, after: CGFloat) {
@@ -42,7 +44,8 @@ final class Typesetting {
   }
 
   /// Text of `format` in `block`. A block's space after it is its
-  /// paragraphs' spacing, which sets apart the blocks nested in it.
+  /// paragraphs' spacing, which sets apart the blocks nested in it; a
+  /// table's paragraphs are spaced as the body's are, in the table's text.
   func attributes(_ block: StyledBlock, _ format: TextFormat) -> [NSAttributedString.Key: Any] {
     let size = fontSize(block)
     let heading = typography.heading(block)
@@ -54,17 +57,27 @@ final class Typesetting {
     if format.contains(.italic), let italic = font.fontDescriptor.withSymbolicTraits(.traitItalic) {
       font = UIFont(descriptor: italic, size: 0)
     }
+    if block == .table, typography.table.tabularFigures {
+      let tabular = font.fontDescriptor.addingAttributes([
+        .featureSettings: [[UIFontDescriptor.FeatureKey.type: kNumberSpacingType, .selector: kMonospacedNumbersSelector]]
+      ])
+      font = UIFont(descriptor: tabular, size: 0)
+    }
     let paragraph = NSMutableParagraphStyle()
     paragraph.minimumLineHeight = lineHeight(block)
     paragraph.maximumLineHeight = paragraph.minimumLineHeight
-    paragraph.paragraphSpacing = space(block, after: nil).after
+    paragraph.paragraphSpacing =
+      block == .table ? typography.blockAfter * size : space(block, after: nil).after
     // A browser's tab stops, every eight spaces.
     paragraph.tabStops = []
     paragraph.defaultTabInterval = 8 * (" " as NSString).size(withAttributes: [.font: UIFont.systemFont(ofSize: size)]).width
     var attributes: [NSAttributedString.Key: Any] = [
       .foregroundColor: (heading?.color ?? typography.color).color, .paragraphStyle: paragraph,
     ]
-    let kern = CGFloat(heading?.letterSpacing.map { $0 * size } ?? typography.letterSpacing * em)
+    let kern =
+      block == .table
+      ? CGFloat(typography.table.letterSpacing) * size
+      : CGFloat(heading?.letterSpacing.map { $0 * size } ?? typography.letterSpacing * em)
     if kern != 0 { attributes[.kern] = kern }
     if block == .text(.quote) {
       let quote = typography.quote
@@ -85,7 +98,7 @@ final class Typesetting {
   }
 
   /// A CSS font weight.
-  private static func weight(_ weight: Int) -> UIFont.Weight {
+  static func weight(_ weight: Int) -> UIFont.Weight {
     let weights: [UIFont.Weight] = [.ultraLight, .thin, .light, .regular, .medium, .semibold, .bold, .heavy, .black]
     return weights[min(max(weight / 100 - 1, 0), weights.count - 1)]
   }

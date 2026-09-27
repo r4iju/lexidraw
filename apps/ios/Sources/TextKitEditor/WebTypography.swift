@@ -22,7 +22,8 @@ extension DocumentTypography {
     list: List(padding: 1.625, itemSpacing: 0.25, markerColor: .mutedForeground, checklistPadding: 1.75, box: Box(top: 0.3, size: 1, borderWidth: 1.5, borderColor: .mutedForeground, cornerRadius: 4, checkedColor: .primary, tick: Tick(left: 0.34, top: 0.45, width: 0.3, height: 0.5, lineWidth: 1.5, color: .primaryForeground)), doneColor: .mutedForeground),
     quote: Quote(borderWidth: 3, borderColor: .border, paddingStart: 1),
     rule: Rule(width: 1, color: .border, margin: 2),
-    link: Link(color: .primary, underlineThickness: 1, underlineOffset: 0.2, underlineOpacity: 0.4))
+    link: Link(color: .primary, underlineThickness: 1, underlineOffset: 0.2, underlineOpacity: 0.4),
+    table: Table(fontSize: 0.9375, lineHeight: 1.5, letterSpacing: 0, tabularFigures: true, margin: 1.75, paddingX: 12, paddingY: 8, border: 1, borderColor: .border, cornerRadius: 6, minimumWidth: 120, minimumViewportShare: 0.4, emptyWidth: 96, headerBackground: .muted, headerWeight: 600, selection: .primary.opacity(0.1), shadowWidth: 10, shadowColor: .mutedForeground, pinned: Pinned(width: 639, inset: 1, background: .card, headerBackground: .muted, shadowX: 6, shadowBlur: 8, shadowSpread: -6)))
 }
 
 extension ThemeColor {
@@ -32,4 +33,6 @@ extension ThemeColor {
   static let primaryForeground = ThemeColor(light: RGBA(1, 1, 1, 1), dark: RGBA(0.0854, 0.0769, 0.1362, 1))
   static let foreground = ThemeColor(light: RGBA(0.1108, 0.111, 0.1315, 1), dark: RGBA(0.8939, 0.8943, 0.9089, 1))
   static let border = ThemeColor(light: RGBA(0.881, 0.8814, 0.8959, 1), dark: RGBA(0.187, 0.1874, 0.2051, 1))
+  static let muted = ThemeColor(light: RGBA(0.9331, 0.9335, 0.9452, 1), dark: RGBA(0.1666, 0.167, 0.193, 1))
+  static let card = ThemeColor(light: RGBA(1, 1, 1, 1), dark: RGBA(0.0888, 0.089, 0.1049, 1))
 }
