@@ -147,7 +147,6 @@ hand:
   by node key; keys stay out of `ChangeSet`, which the fuzzer compares.
 - A line break is U+2028 in the editor's text, which breaks the line without
   ending the paragraph as TextKit sees it.
-- Copy, cut and paste come with #118, which owns the clipboard.
 - Drawings are drawn by `DrawingKit`, a port of Excalidraw's renderer with
   its Rough.js and perfect-freehand, and checked against what web Excalidraw
   draws: `bun run record:drawings` exports the scenes in
@@ -266,3 +265,8 @@ hand:
   for a caret in a link; a tap on a link's text offers the same. A caret
   just after a link's last character is in the link, as a browser puts it
   in the text before it.
+- Typing `[text](url)` makes a link by Lexical's own LINK transformer. Its
+  `unescapeText` runs in JavaScriptCore, so a character reference in the URL
+  decodes as on the web; one past Unicode fails there, and the model then
+  keeps what was typed and reports the error, as Lexical reports it to
+  `onError`.
