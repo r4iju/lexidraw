@@ -19,6 +19,11 @@ func plain(_ text: String) -> EditorCommand { .paste(Clipboard(plainText: text))
   static let items = document(LexicalJSON.list(.bullet, [.item([]), .item([text("xy")])]))
   static let nested = document(
     LexicalJSON.list(.bullet, [.nested(.number, [.item([text("ab", format: .code)])])]))
+  static let threeItems = document(LexicalJSON.list(.number, [.item([text("ab")]), .item([]), .item([text("c")])]))
+  /// Typing where an empty item was deleted forward puts text in the list itself, as in Lexical.
+  static let textInAList: [EditorCommand] = [
+    .caret(Point(path: [0, 1], offset: 0, type: .element)), .deleteCharacter(backward: false), .insertText("xy"),
+  ]
   static let paragraphs = copied(
     "one\n\ntwo", paragraph(text("one")), paragraph(text("two", format: .italic)))
 
@@ -109,6 +114,9 @@ func plain(_ text: String) -> EditorCommand { .paste(Clipboard(plainText: text))
     Scenario(
       "pasting a list after a list", items,
       [.caret(Point(path: [0], offset: 2, type: .element)), .paste(copied("z", LexicalJSON.list(.bullet, [.item([text("z")])])))]),
+    Scenario("pasting paragraphs after text in a list", threeItems, textInAList + [.paste(paragraphs)]),
+    Scenario("pasting paragraphs inside text in a list", threeItems, textInAList + [caret([0, 1], 1), .paste(paragraphs)]),
+    Scenario("pasting paragraphs before text in a list", threeItems, textInAList + [caret([0, 1], 0), .paste(paragraphs)]),
     Scenario("pasting a paragraph", helloWorld, [caret([0, 0], 5), .paste(copied("x", paragraph(text("x", format: .bold))))]),
     Scenario("pasting an empty paragraph", helloWorld, [caret([0, 0], 5), .paste(copied("", paragraph(), paragraph()))]),
     Scenario("pasting a URL in a paragraph", helloWorld, [caret([0, 0], 5), .paste(copied("www.a.io", paragraph(text(" www.a.io "))))]),

@@ -806,12 +806,10 @@ extension Update {
     state[key].type == SerializedListItemNode.type
   }
 
-  /// Where no block holds the caret, as on a list, `insertNodes` puts the
-  /// blocks beside the top-level node it's in, splitting what's between.
+  /// Where no block holds the caret, as on a list or text in one,
+  /// `insertNodes` puts the blocks beside the top-level node it's in,
+  /// splitting what's between.
   private mutating func insertBlocksAtNearestRoot(_ selection: RangeSelection, _ nodes: [NodeKey]) throws {
-    guard selection.anchor.type == .element else {
-      throw EditorError.unsupported("Inserting blocks at text no block holds")
-    }
     let blocksParent = try wrapInlineNodes(nodes)
     let nodeToSelect = lastDescendant(of: blocksParent)
     var caret = try state.caret(from: selection.anchor, .next)
@@ -821,19 +819,30 @@ extension Update {
     if let nodeToSelect { selectEnd(nodeToSelect) }
   }
 
-  /// `$insertNodeToNearestRootAtCaret` for a block not yet in the document,
-  /// at a caret beside or in an element. Gives the caret after the block.
+  /// `$insertNodeToNearestRootAtCaret` for a block not yet in the
+  /// document, at a caret facing forward. Gives the caret after the block.
   private mutating func insertAtNearestRoot(_ block: NodeKey, _ caret: Caret) throws -> Caret {
     var insertCaret = caret
+    if case .text(let origin, _, let offset) = caret {
+      if offset == 0 {
+        insertCaret = state.flipped(.sibling(origin, .previous))
+      } else if offset == state.textSize(of: origin) {
+        insertCaret = .sibling(origin, .next)
+      }
+    }
     while let next = try splitAtPointCaretNext(insertCaret) { insertCaret = next }
     try insert(block, at: insertCaret)
     return .sibling(block, .next)
   }
 
-  /// `$splitAtPointCaretNext` with its defaults: the caret beside the
-  /// parent, after moving what's past `caret` into a copy of the parent,
-  /// or nil at a root or shadow root.
+  /// `$splitAtPointCaretNext` with its defaults, facing forward: the caret
+  /// after text split at a text caret, or beside the parent, after moving
+  /// what's past `caret` into a copy of the parent, or nil at a root or
+  /// shadow root.
   private mutating func splitAtPointCaretNext(_ caret: Caret) throws -> Caret? {
+    if case .text(let origin, _, let offset) = caret {
+      return .sibling(try splitText(origin, at: [offset])[0], .next)
+    }
     guard let parentCaret = state.parentCaret(caret, .shadowRoot) else { return nil }
     let origin = parentCaret.origin
     if caret.isChild, !state[origin].canBeEmpty { return state.rewind(parentCaret) }
