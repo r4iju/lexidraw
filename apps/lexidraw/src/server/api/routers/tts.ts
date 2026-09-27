@@ -5,6 +5,7 @@ import { createTRPCRouter, protectedProcedure } from "~/server/api/trpc";
 import { listenSettings, servedFormat } from "~/app/settings/schema";
 import { computeDocKey, computeArticleKey } from "~/server/tts/id";
 import { planPathOf } from "~/server/tts/parts";
+import { blobJson } from "~/server/tts/blob-read";
 import { generateDocumentTtsWorkflow } from "~/workflows/document-tts/generate-document-tts-workflow";
 import { generateArticleTtsWorkflow } from "~/workflows/article-tts/generate-article-tts-workflow";
 import { start } from "workflow/api";
@@ -169,44 +170,15 @@ const Manifest = z.object({
 
 /**
  * The manifest or plan at `url`. For some seconds after the store writes a
- * blob, its CDN can fail to serve that one or others, so a read that fails is
- * tried again a few times before it counts as missing.
+ * blob a read can still miss it, so a missing one is tried again a few times.
  */
 async function manifestAt(url: string) {
   for (const wait of [0, 250, 500, 1000]) {
     if (wait) await new Promise((resolve) => setTimeout(resolve, wait));
-    const started = Date.now();
-    const r = await fetch(url, { cache: "no-store" }).catch(
-      (error: unknown) => {
-        console.warn("[tts] manifest read failed", {
-          url,
-          wait,
-          error: String(error),
-        });
-        return undefined;
-      },
-    );
-    if (!r) continue;
-    if (!r.ok) {
-      console.warn("[tts] manifest read refused", {
-        url,
-        wait,
-        status: r.status,
-        cache: r.headers.get("x-vercel-cache"),
-        ms: Date.now() - started,
-      });
-      continue;
-    }
-    const body = await r.json().catch((error: unknown) => {
-      console.warn("[tts] manifest read unparsable", {
-        url,
-        wait,
-        error: String(error),
-      });
-      return undefined;
-    });
+    const body = await blobJson(url);
     if (body !== undefined) return Manifest.catch({ segments: [] }).parse(body);
   }
+  console.warn("[tts] manifest unreadable", { url });
   return undefined;
 }
 
@@ -540,11 +512,9 @@ async function deleteAudioOf(entityId: string, from: string) {
   if (row.manifestUrl) {
     urlsToDelete.push(row.manifestUrl);
     try {
-      const manifestResponse = await fetch(row.manifestUrl, {
-        cache: "no-store",
-      });
-      if (manifestResponse.ok) {
-        const manifest = Manifest.parse(await manifestResponse.json());
+      const body = await blobJson(row.manifestUrl);
+      if (body !== undefined) {
+        const manifest = Manifest.parse(body);
         if (manifest.stitchedUrl) urlsToDelete.push(manifest.stitchedUrl);
         for (const segment of manifest.segments) {
           const audioUrl = z.object({ audioUrl: z.string() }).safeParse(segment)

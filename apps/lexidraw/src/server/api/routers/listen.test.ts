@@ -15,6 +15,13 @@ mock.module("workflow/api", () => ({
     return {};
   },
 }));
+// The store is read over `fetch`, which the tests answer below.
+mock.module("~/server/tts/blob-read", () => ({
+  blobJson: async (url: string) => {
+    const r = await fetch(url);
+    return r.ok ? r.json() : undefined;
+  },
+}));
 const { ttsRouter } = await import("~/server/api/routers/tts");
 
 const OWNER = "lsn_owner";
