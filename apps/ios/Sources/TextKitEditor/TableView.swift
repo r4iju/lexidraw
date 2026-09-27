@@ -46,6 +46,14 @@ import UIKit
   var selectedCells: Set<CellIndex> = [] {
     didSet { if selectedCells != oldValue { grid.setNeedsDisplay() } }
   }
+  /// The offsets in each cell's text of the attachments to outline.
+  var selectedCharacters: [CellIndex: [Int]] = [:] {
+    didSet {
+      guard selectedCharacters != oldValue else { return }
+      grid.setNeedsDisplay()
+      pinned.setNeedsDisplay()
+    }
+  }
   var onScroll: (() -> Void)?
   private var shownX: CGFloat = 0
 
@@ -56,12 +64,18 @@ import UIKit
 
   /// `.document-table`'s measures and colours, a CSS pixel to a point.
   let style: DocumentTypography.Table
+  /// Around a node selected whole.
+  private let selectedOutline: DocumentTypography.Outline
   private var paddingX: CGFloat { style.paddingX }
   private var paddingY: CGFloat { style.paddingY }
   private var border: CGFloat { style.border }
 
-  init(cells: [[Cell]], columnWidths: [Double]?, width: CGFloat, style: DocumentTypography.Table) {
+  init(
+    cells: [[Cell]], columnWidths: [Double]?, width: CGFloat, style: DocumentTypography.Table,
+    selectedOutline: DocumentTypography.Outline
+  ) {
     self.style = style
+    self.selectedOutline = selectedOutline
     super.init(frame: .zero)
     showsVerticalScrollIndicator = false
     alwaysBounceHorizontal = false
@@ -537,7 +551,16 @@ import UIKit
     if index.row < cells.count - 1 {
       UIRectFill(CGRect(x: frame.minX, y: frame.maxY - border, width: frame.width, height: border))
     }
-    box(index).draw(at: CGPoint(x: frame.minX + paddingX, y: frame.minY + textTop(index)), in: context)
+    let origin = CGPoint(x: frame.minX + paddingX, y: frame.minY + textTop(index))
+    box(index).draw(at: origin, in: context)
+    for offset in selectedCharacters[index] ?? [] {
+      guard let attachment = box(index).attachmentFrame(at: offset) else { continue }
+      let reach = selectedOutline.offset + selectedOutline.width / 2
+      let outline = UIBezierPath(rect: attachment.offsetBy(dx: origin.x, dy: origin.y).insetBy(dx: -reach, dy: -reach))
+      outline.lineWidth = selectedOutline.width
+      selectedOutline.color.color.setStroke()
+      outline.stroke()
+    }
   }
 
   /// The table's rounded frame, drawn inside `bounds`.

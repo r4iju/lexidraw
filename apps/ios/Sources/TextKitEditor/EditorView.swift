@@ -177,6 +177,7 @@ public final class EditorView: UIScrollView, UITextInput {
     layout.tableSelection = cells
     isNodeSelection = if case .node = selection { true } else { false }
     layout.selectedRules = selection.map(selectedRules) ?? []
+    layout.selectedCharacters = selection.map(selectedCharacters) ?? []
     guard let selection, let (anchor, focus) = offsets(of: selection) else { return }
     if !fromInput { inputDelegate?.selectionWillChange(self) }
     self.anchor = anchor
@@ -223,6 +224,20 @@ public final class EditorView: UIScrollView, UITextInput {
           document.kind(ofBlock: path[0]) == .embedded(type: StyledBlock.ruleType)
         else { return nil }
         return path[0]
+      })
+  }
+
+  /// Where the nodes a node selection has stand in a line of text, as the
+  /// one character each is there.
+  private func selectedCharacters(_ selection: Selection) -> Set<Int> {
+    guard case .node(let nodes) = selection else { return [] }
+    let text = storage.string as NSString
+    return Set(
+      nodes.compactMap { path in
+        guard path.count > 1, let range = document.range(of: path), range.length == 1,
+          text.character(at: range.location) == 0xFFFC
+        else { return nil }
+        return range.location
       })
   }
 

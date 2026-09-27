@@ -272,6 +272,19 @@ import UIKit
     }
   }
 
+  /// Where the attachment at `offset` is drawn, if there's one there.
+  func attachmentFrame(at offset: Int) -> CGRect? {
+    guard let location = location(offset), let fragment = layoutManager.textLayoutFragment(for: location) else {
+      return nil
+    }
+    let frame = fragment.frameForTextAttachment(at: location)
+    guard !frame.isEmpty else { return nil }
+    let start = self.offset(fragment.rangeInElement.location)
+    let line = fragment.textLineFragments.first { $0.characterRange.contains(offset - start) }
+    let raise = line.map { placement(of: $0, at: start).raise } ?? 0
+    return frame.offsetBy(dx: fragment.layoutFragmentFrame.minX, dy: fragment.layoutFragmentFrame.minY - raise)
+  }
+
   private func lineSegments(_ range: NSRange) -> [CGRect] {
     let start = min(max(range.location, 0), length)
     let end = min(max(NSMaxRange(range), start), storage.length)

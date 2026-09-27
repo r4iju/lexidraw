@@ -404,6 +404,44 @@ import UIKit
     #expect(Self.isNear(between, Self.white), "\(between)")
   }
 
+  /// A rule in a link, drawn in its line as a placeholder, is outlined
+  /// around the placeholder where it's selected, as the web outlines a
+  /// selected rule, in a table cell too.
+  @Test(arguments: [false, true])
+  func aSelectedRuleInALinkIsOutlinedAsOnTheWeb(inACell: Bool) throws {
+    let blocks = [LexicalJSON.paragraph([LexicalJSON.text("a")]), LexicalJSON.horizontalRule, LexicalJSON.paragraph([])]
+    let cell = LexicalJSON.element(
+      "tablecell", blocks, ["backgroundColor": nil, "colSpan": 1, "headerState": 0, "rowSpan": 1])
+    let view = try Self.host(LexicalJSON.document(inACell ? [Self.table([[cell]])] : blocks))
+    view.window?.overrideUserInterfaceStyle = .light
+    #expect(view.becomeFirstResponder())
+    view.selectedTextRange = view.textRange(from: try position(view, 4), to: try position(view, 4))
+    view.deleteBackward()
+    view.askForURL = { _, answer in answer("https://x.io") }
+    view.addLink()
+    view.layoutIfNeeded()
+    #expect(try Self.text(of: view) == "a\n\u{FFFC}")
+    /// A point of the view's snapshot, from one of its text input view.
+    func point(_ x: CGFloat, _ y: CGFloat) -> CGPoint {
+      let point = view.convert(CGPoint(x: x, y: y), from: view.textInputView)
+      return CGPoint(x: point.x - view.bounds.minX, y: point.y - view.bounds.minY)
+    }
+    let (before, after) = (view.caretRect(for: try position(view, 2)), view.caretRect(for: try position(view, 3)))
+    let left = point(before.minX - 4, before.midY)
+    let right = point(after.minX + 4, after.midY)
+    let inside = point(before.minX - 1.5, before.midY)
+
+    let image = snapshot(view)
+    let (leftEdge, rightEdge, between) = (try pixel(image, at: left), try pixel(image, at: right), try pixel(image, at: inside))
+    #expect(Self.isNear(leftEdge, Self.primary), "\(leftEdge)")
+    #expect(Self.isNear(rightEdge, Self.primary), "\(rightEdge)")
+    #expect(Self.isNear(between, Self.white), "\(between)")
+
+    view.selectedTextRange = view.textRange(from: try position(view, 0), to: try position(view, 0))
+    view.layoutIfNeeded()
+    #expect(Self.isNear(try pixel(snapshot(view), at: left), Self.white))
+  }
+
   /// A cell's background colour fills it, and is all a selected cell shows,
   /// as the web's inline `background-color` wins over the tint.
   @Test

@@ -182,9 +182,12 @@ import UIKit
     let text = text(ofBlock: index)
     let block: any LaidOutBlock =
       switch kind {
-      case .text: TextBlock(text: text, width: width)
+      case .text: TextBlock(text: text, width: width, selectedOutline: typesetting.typography.rule.selected)
       case .table:
-        TableBlock(text: text, kind: kind, width: width, style: typesetting.typography.table) { [weak self] in
+        TableBlock(
+          text: text, kind: kind, width: width, style: typesetting.typography.table,
+          selectedOutline: typesetting.typography.rule.selected
+        ) { [weak self] in
           self?.onScrollSideways?()
         }
       case .embedded where styled(index) == .rule:
@@ -195,6 +198,7 @@ import UIKit
     laidOut[index] = block
     showTableSelection(in: block, at: index)
     showRuleSelection(in: block, at: index)
+    showSelectedCharacters(in: block, at: index)
     measure(index, block)
     return block
   }
@@ -284,6 +288,22 @@ import UIKit
 
   private func showRuleSelection(in block: any LaidOutBlock, at index: Int) {
     (block as? RuleBlock)?.isSelected = selectedRules.contains(index)
+  }
+
+  /// Where nodes selected whole stand in a line of text, outlined as the web
+  /// outlines a selected rule.
+  var selectedCharacters: Set<Int> = [] {
+    didSet {
+      guard selectedCharacters != oldValue else { return }
+      for (index, block) in laidOut { showSelectedCharacters(in: block, at: index) }
+    }
+  }
+
+  private func showSelectedCharacters(in block: any LaidOutBlock, at index: Int) {
+    let range = document.range(ofBlock: index)
+    let offsets = selectedCharacters.filter { NSLocationInRange($0, range) }.map { $0 - range.location }
+    (block as? TextBlock)?.selectedCharacters = offsets
+    (block as? TableBlock)?.selectedCharacters = offsets
   }
 
   // MARK: Geometry
@@ -425,11 +445,30 @@ extension LaidOutBlock {
 private final class TextBlock: LaidOutBlock {
   private let box: TextBox
   private let drawing = BoxView()
+  private let selectedOutline: DocumentTypography.Outline
+  private var outlines: [OutlineView] = []
 
-  init(text: NSAttributedString, width: CGFloat) {
+  init(text: NSAttributedString, width: CGFloat, selectedOutline: DocumentTypography.Outline) {
     box = TextBox(text, width: width)
+    self.selectedOutline = selectedOutline
     drawing.box = box
     drawing.border = Self.border(text)
+  }
+
+  /// The offsets of the attachments to outline.
+  var selectedCharacters: [Int] = [] {
+    didSet { placeOutlines() }
+  }
+
+  private func placeOutlines() {
+    let frames = selectedCharacters.sorted().compactMap(box.attachmentFrame)
+    while outlines.count < frames.count {
+      let outline = OutlineView(selectedOutline)
+      drawing.addSubview(outline)
+      outlines.append(outline)
+    }
+    while outlines.count > frames.count { outlines.removeLast().removeFromSuperview() }
+    for (outline, frame) in zip(outlines, frames) { outline.surround(frame) }
   }
 
   var view: UIView { drawing }
@@ -442,13 +481,18 @@ private final class TextBlock: LaidOutBlock {
     box.set(text)
     drawing.border = Self.border(text)
     drawing.setNeedsDisplay()
+    placeOutlines()
   }
 
   private static func border(_ text: NSAttributedString) -> LeadingBorder? {
     text.length > 0 ? text.attribute(.leadingBorder, at: 0, effectiveRange: nil) as? LeadingBorder : nil
   }
 
-  func redraw() { drawing.setNeedsDisplay() }
+  func redraw() {
+    drawing.setNeedsDisplay()
+    for outline in outlines { outline.redraw() }
+  }
+
   func segments(_ range: NSRange) -> [CGRect] { box.segments(range) }
   func offset(closestTo point: CGPoint) -> Int { box.offset(closestTo: point) }
   func offset(movingVerticallyFrom offset: Int, _ direction: NSTextSelectionNavigation.Direction, x: CGFloat) -> Int? {
@@ -488,11 +532,12 @@ private final class TableBlock: LaidOutBlock {
 
   init(
     text: NSAttributedString, kind: DocumentText.BlockKind, width: CGFloat, style: DocumentTypography.Table,
-    onScroll: @escaping () -> Void
+    selectedOutline: DocumentTypography.Outline, onScroll: @escaping () -> Void
   ) {
     self.kind = kind
     table = TableView(
-      cells: Self.cells(text, kind), columnWidths: Self.table(kind)?.columnWidths, width: width, style: style)
+      cells: Self.cells(text, kind), columnWidths: Self.table(kind)?.columnWidths, width: width, style: style,
+      selectedOutline: selectedOutline)
     table.onScroll = onScroll
     holder = TableHolder(table)
   }
@@ -522,6 +567,7 @@ private final class TableBlock: LaidOutBlock {
   func set(text: NSAttributedString, kind: DocumentText.BlockKind, width: CGFloat) {
     self.kind = kind
     table.set(cells: Self.cells(text, kind), columnWidths: Self.table(kind)?.columnWidths, width: width)
+    showSelectedCharacters()
   }
 
   func redraw() { table.redraw() }
@@ -529,6 +575,20 @@ private final class TableBlock: LaidOutBlock {
   var selectedCells: Set<TableView.CellIndex> {
     get { table.selectedCells }
     set { table.selectedCells = newValue }
+  }
+
+  /// The offsets of the attachments to outline.
+  var selectedCharacters: [Int] = [] {
+    didSet { showSelectedCharacters() }
+  }
+
+  private func showSelectedCharacters() {
+    var inCells: [TableView.CellIndex: [Int]] = [:]
+    for offset in selectedCharacters {
+      guard let (cell, local) = cell(at: offset) else { continue }
+      inCells[cell, default: []].append(local)
+    }
+    table.selectedCharacters = inCells
   }
 
   /// The cell `offset` is in, the end of each cell included in it, and the
@@ -639,20 +699,18 @@ private final class EmbedBlock: LaidOutBlock {
 private final class RuleBlock: LaidOutBlock {
   private let container = UIView()
   private let line = UIView()
-  private let outline = UIView()
-  private let selectedOutline: DocumentTypography.Outline
+  private let outline: OutlineView
   private let caretHeight: CGFloat
 
   init(rule: DocumentTypography.Rule, caretHeight: CGFloat, width: CGFloat) {
     self.caretHeight = caretHeight
-    selectedOutline = rule.selected
+    outline = OutlineView(rule.selected)
     line.backgroundColor = rule.color.color
     line.frame = CGRect(x: 0, y: 0, width: width, height: rule.width)
     container.addSubview(line)
     outline.isHidden = true
-    outline.layer.borderWidth = rule.selected.width
     container.addSubview(outline)
-    placeOutline()
+    outline.surround(line.frame)
   }
 
   var isSelected = false {
@@ -662,11 +720,6 @@ private final class RuleBlock: LaidOutBlock {
     }
   }
 
-  private func placeOutline() {
-    let reach = selectedOutline.offset + selectedOutline.width
-    outline.frame = line.frame.insetBy(dx: -reach, dy: -reach)
-  }
-
   var view: UIView { container }
   var kind: DocumentText.BlockKind { .embedded(type: StyledBlock.ruleType) }
   var height: CGFloat { line.frame.height }
@@ -674,13 +727,10 @@ private final class RuleBlock: LaidOutBlock {
 
   func set(text: NSAttributedString, kind: DocumentText.BlockKind, width: CGFloat) {
     line.frame.size.width = width
-    placeOutline()
+    outline.surround(line.frame)
   }
 
-  /// A layer's border takes a colour for one appearance.
-  func redraw() {
-    outline.layer.borderColor = selectedOutline.color.color.resolvedColor(with: container.traitCollection).cgColor
-  }
+  func redraw() { outline.redraw() }
 
   func segments(_ range: NSRange) -> [CGRect] {
     let frame = line.frame.insetBy(dx: 0, dy: (line.frame.height - caretHeight) / 2)
@@ -693,5 +743,30 @@ private final class RuleBlock: LaidOutBlock {
     nil
   }
   func lineBoundary(at offset: Int, backward: Bool) -> Int { backward ? 0 : 1 }
+}
+/// The web's outline around a node selected whole.
+private final class OutlineView: UIView {
+  private let outline: DocumentTypography.Outline
+
+  init(_ outline: DocumentTypography.Outline) {
+    self.outline = outline
+    super.init(frame: .zero)
+    isUserInteractionEnabled = false
+    layer.borderWidth = outline.width
+    redraw()
+  }
+
+  required init?(coder: NSCoder) { fatalError("OutlineView is made in code") }
+
+  /// Outlines `frame`, as far out from it as the web's `outline-offset`.
+  func surround(_ frame: CGRect) {
+    let reach = outline.offset + outline.width
+    self.frame = frame.insetBy(dx: -reach, dy: -reach)
+  }
+
+  /// A layer's border takes a colour for one appearance.
+  func redraw() {
+    layer.borderColor = outline.color.color.resolvedColor(with: traitCollection).cgColor
+  }
 }
 #endif
