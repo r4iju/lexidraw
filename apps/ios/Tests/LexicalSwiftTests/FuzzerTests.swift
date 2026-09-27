@@ -174,6 +174,41 @@ import Testing
     #expect(candidate.tabbedShortcuts > 0)
   }
 
+  /// A model that can't read back any state a command changed, as Lexical
+  /// can't read back a table selection over a table a range deleted across
+  /// two tables left ragged.
+  final class ReadsBackOnlyWhatItLoaded: EditorModel {
+    let model: any EditorModel
+    var changed = false
+    init(_ model: any EditorModel) { self.model = model }
+    func load(_ state: JSONValue) throws {
+      try model.load(state)
+      changed = false
+    }
+    var isEditable: Bool { model.isEditable }
+    func snapshot() throws -> Snapshot {
+      if changed { throw EditorError.invalidState("TypeError: Cannot destructure property 'cell'") }
+      return try model.snapshot()
+    }
+    func selection() throws -> Selection? { try model.selection() }
+    func node(at path: [Int]) throws -> JSONValue { try model.node(at: path) }
+    func childKeys(at path: [Int]) throws -> [String] { try model.childKeys(at: path) }
+    func apply(_ command: EditorCommand) throws -> ChangeSet {
+      let changes = try model.apply(command)
+      changed = true
+      return changes
+    }
+  }
+
+  @Test func aSessionEndsWhereNeitherModelCanReadItsStateBack() throws {
+    var fuzzer = Fuzzer(
+      seed: 7, reference: ReadsBackOnlyWhatItLoaded(try Support.referenceEditor()),
+      candidate: ReadsBackOnlyWhatItLoaded(Editor()))
+
+    #expect(try fuzzer.run(steps: 20) == nil)
+    #expect(fuzzer.sessionsEndedUnreadable > 0)
+  }
+
   /// LexicalSwift that refuses what Lexical refuses, but for another reason.
   final class RefusesAsUnsupported: LexicalSwiftWith {
     override func apply(_ command: EditorCommand) throws -> ChangeSet {
@@ -343,8 +378,9 @@ import Testing
       Issue.record("Seed \(seed) diverged after \(finding.stepsRun) steps; shrunk fixture written to \(url.path)")
     } else {
       print(
-        "Seed \(seed): \(steps) steps agreed, \(fuzzer.refusals) commands both refused, and "
-          + "\(fuzzer.sessionsEndedNotPortedYet) sessions ended on a shortcut or node not ported yet")
+        "Seed \(seed): \(steps) steps agreed, \(fuzzer.refusals) commands both refused, "
+          + "\(fuzzer.sessionsEndedNotPortedYet) sessions ended on a shortcut or node not ported yet, and "
+          + "\(fuzzer.sessionsEndedUnreadable) where neither model could read its state back")
     }
   }
 }

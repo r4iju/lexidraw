@@ -15,6 +15,8 @@ public struct Fuzzer {
   public private(set) var refusals = 0
   /// Sessions ended as `isNotPortedYet` says.
   public private(set) var sessionsEndedNotPortedYet = 0
+  /// Sessions ended where neither model could read its state back.
+  public private(set) var sessionsEndedUnreadable = 0
 
   /// The node types Lexical's markdown shortcuts make that LexicalSwift's
   /// don't yet.
@@ -57,7 +59,15 @@ public struct Fuzzer {
       }
       try candidate.load(start)
       for _ in 0..<sessionLength where stepsRun < steps {
-        guard let command = generator.command(for: try reference.snapshot()) else { break }
+        // The step before agreed, so neither model can read back what it
+        // came to, and there's nothing to go on from. Lexical can't read
+        // back a table selection over a table a range deleted across two
+        // tables left ragged, for one.
+        guard let snapshot = try? reference.snapshot() else {
+          sessionsEndedUnreadable += 1
+          break
+        }
+        guard let command = generator.command(for: snapshot) else { break }
         commands.append(command)
         let verdict = try verdict(command)
         if verdict == .notPortedYet {
