@@ -603,12 +603,5 @@ import UIKit
     view.selectedTextRange = view.textRange(from: caret, to: caret)
     return (model, view)
   }
-
-  /// Runs the key command for `input` and `modifiers` as UIKit would.
-  private func press(_ input: String, _ modifiers: UIKeyModifierFlags, in view: EditorView) throws {
-    let command = try #require(view.keyCommands?.first { $0.input == input && $0.modifierFlags == modifiers })
-    let action = try #require(command.action)
-    view.perform(action, with: command)
-  }
 }
 #endif
