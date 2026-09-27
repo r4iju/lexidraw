@@ -65,8 +65,10 @@ public final class ReferenceEditor: EditorModel {
     try decoder.decode(Selection?.self, from: Data(try call("selection").utf8))
   }
 
+  /// Parsed as `snapshot` parses, so text holding half a surrogate pair,
+  /// which Lexical can leave, crosses whole.
   public func node(at path: [Int]) throws -> JSONValue {
-    try decoder.decode(JSONValue.self, from: Data(try call("node", try pathJSON(path)).utf8))
+    try JSONValue(parsing: call("node", try pathJSON(path)))
   }
 
   public func childKeys(at path: [Int]) throws -> [String] {

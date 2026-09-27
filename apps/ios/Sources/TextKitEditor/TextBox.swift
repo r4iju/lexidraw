@@ -4,7 +4,8 @@ import UIKit
 /// Text laid out whole by TextKit 2 at a width, for a block or a table cell.
 /// Offsets are into the text; geometry is from the box's top left. The text
 /// keeps the newline that follows it in the document, so an empty block
-/// still has a line to put the caret on.
+/// still has a line to put the caret on. List items and indented blocks
+/// are laid out and drawn as their lines say (`ListAndIndentLayout`).
 @MainActor final class TextBox {
   private let storage = NSTextStorage()
   private let contentStorage = NSTextContentStorage()
@@ -14,11 +15,14 @@ import UIKit
   /// The lines as laid out, the extra one TextKit adds after a final newline
   /// left out.
   private var lines: [Line] = []
+  private var listLayout = ListAndIndentLayout()
 
   private struct Line {
     var frame: CGRect
     var range: NSRange
     var inset: CGFloat
+    /// Where the line's text sits as drawn, raised as `placement` says.
+    var baseline: CGFloat
   }
 
   init(_ text: NSAttributedString, width: CGFloat) {
@@ -36,7 +40,9 @@ import UIKit
   var length: Int { max(storage.length - 1, 0) }
 
   func set(_ text: NSAttributedString) {
-    contentStorage.performEditingTransaction { storage.setAttributedString(text) }
+    let (styled, listLayout) = ListAndIndentLayout.styled(text)
+    self.listLayout = listLayout
+    contentStorage.performEditingTransaction { storage.setAttributedString(styled) }
     measure()
   }
 
@@ -55,10 +61,12 @@ import UIKit
       for line in fragment.textLineFragments {
         let range = NSRange(location: start + line.characterRange.location, length: line.characterRange.length)
         guard range.length > 0 || self.lines.isEmpty else { continue }
+        let placement = self.placement(of: line, at: start)
         self.lines.append(
           Line(
             frame: line.typographicBounds.offsetBy(dx: origin.x, dy: origin.y), range: range,
-            inset: self.placement(of: line, at: start).inset))
+            inset: placement.inset,
+            baseline: origin.y + line.typographicBounds.minY + line.glyphOrigin.y - placement.raise))
       }
       return true
     }
@@ -85,6 +93,63 @@ import UIKit
       }
       return true
     }
+    for item in listLayout.items {
+      guard let line = lines.first(where: { $0.range.location >= item.range.location }) else { continue }
+      if item.isChecklistItem {
+        drawBox(item, at: CGPoint(x: origin.x, y: origin.y + line.frame.minY), in: context)
+      } else if let marker = item.marker {
+        let text = NSAttributedString(
+          string: marker, attributes: [.font: item.font, .foregroundColor: ListAndIndentLayout.list.markerColor.color])
+        let size = text.size()
+        text.draw(at: CGPoint(x: origin.x + item.textStart - size.width, y: origin.y + line.baseline - item.font.ascender))
+      }
+    }
+  }
+
+  /// A checklist item's box as the web's theme draws it: outlined, or when
+  /// checked filled and ticked.
+  private func drawBox(_ item: ListAndIndentLayout.Item, at origin: CGPoint, in context: CGContext) {
+    let theme = ListAndIndentLayout.list.box
+    let box = item.box.offsetBy(dx: origin.x, dy: origin.y)
+    let border = theme.borderWidth
+    let outline = UIBezierPath(roundedRect: box.insetBy(dx: border / 2, dy: border / 2), cornerRadius: theme.cornerRadius)
+    outline.lineWidth = border
+    if item.item.checked {
+      theme.checkedColor.color.setFill()
+      theme.checkedColor.color.setStroke()
+      outline.fill()
+      outline.stroke()
+      let tick = theme.tick
+      let bounds = CGRect(
+        x: box.minX + tick.left * item.em, y: box.minY + (tick.top - theme.top) * item.em, width: tick.width * item.em,
+        height: tick.height * item.em)
+      let line = tick.lineWidth
+      context.saveGState()
+      context.translateBy(x: bounds.midX, y: bounds.midY)
+      context.rotate(by: .pi / 4)
+      let mark = UIBezierPath()
+      mark.move(to: CGPoint(x: bounds.width / 2 - line / 2, y: -bounds.height / 2))
+      mark.addLine(to: CGPoint(x: bounds.width / 2 - line / 2, y: bounds.height / 2 - line / 2))
+      mark.addLine(to: CGPoint(x: -bounds.width / 2, y: bounds.height / 2 - line / 2))
+      mark.lineWidth = line
+      tick.color.color.setStroke()
+      mark.stroke()
+      context.restoreGState()
+    } else {
+      theme.borderColor.color.setStroke()
+      outline.stroke()
+    }
+  }
+
+  /// The checklist item whose box a tap at `point` toggles.
+  func checklistItem(at point: CGPoint) -> DocumentText.ListItem? {
+    for item in listLayout.items where item.isChecklistItem {
+      let itemLines = lines.filter { NSLocationInRange($0.range.location, item.range) || $0.range.location == item.range.location }
+      guard let first = itemLines.first, let last = itemLines.last else { continue }
+      let area = item.toggleArea(height: last.frame.maxY - first.frame.minY).offsetBy(dx: 0, dy: first.frame.minY)
+      if area.contains(point) { return item.item }
+    }
+    return nil
   }
 
   /// Where a line of the paragraph at `offset` has its text, as CSS sets

@@ -4,8 +4,9 @@ import Testing
 
 @Suite struct FuzzerTests {
   /// LexicalSwift with a change to what `apply` does, for a bug to find.
-  class LexicalSwiftWith: EditorModel {
+  class LexicalSwiftWith: DeclinesShortcutsNotPortedYet {
     let editor = Editor()
+    var shortcutsDeclinedAsNotPorted: Int { editor.shortcutsDeclinedAsNotPorted }
     func load(_ state: JSONValue) throws { try editor.load(state) }
     var isEditable: Bool { editor.isEditable }
     func snapshot() throws -> Snapshot { try editor.snapshot() }
@@ -104,6 +105,75 @@ import Testing
     #expect(fixture.commands.last == .insertParagraph)
   }
 
+  /// LexicalSwift that notes each indent asked for in an item as deep as
+  /// the web's editor indents.
+  final class NotesIndentsAtTheCap: LexicalSwiftWith {
+    var indentsAtTheCap = 0
+
+    override func apply(_ command: EditorCommand) throws -> ChangeSet {
+      if command == .indent || command == .tab(backward: false), let anchor = try editor.selection()?.anchor {
+        let state = try editor.snapshot().state
+        let lists = anchor.path.indices.filter { state.node(at: Array(anchor.path[...$0]))?["type"] == "list" }
+        if lists.count >= 6 { indentsAtTheCap += 1 }
+      }
+      return try editor.apply(command)
+    }
+  }
+
+  @Test func indentsItemsAsDeepAsTheWebIndents() throws {
+    let candidate = NotesIndentsAtTheCap()
+    var fuzzer = Fuzzer(seed: 7, reference: try Support.referenceEditor(), candidate: candidate)
+
+    #expect(try fuzzer.run(steps: 3_000)?.fixture == nil)
+    #expect(candidate.indentsAtTheCap > 0)
+  }
+
+  /// LexicalSwift that notes the marker of each list it loads, and whether
+  /// the list is nested, and each shortcut typed after a tab.
+  final class NotesMarkersAndTabbedShortcuts: LexicalSwiftWith {
+    struct Marked: Hashable {
+      var marker: String
+      var nested: Bool
+    }
+    var marked: Set<Marked> = []
+    var tabbedShortcuts = 0
+    private var typed = ""
+
+    override func load(_ state: JSONValue) throws {
+      func note(_ node: JSONValue, lists: Int) {
+        if let marker = node["$"]?["mdListMarker"]?.stringValue {
+          marked.insert(Marked(marker: marker, nested: lists > 0))
+        }
+        let lists = node["type"] == "list" ? lists + 1 : lists
+        for child in node["children"]?.arrayValue ?? [] { note(child, lists: lists) }
+      }
+      note(state["root"] ?? .null, lists: 0)
+      try super.load(state)
+    }
+
+    override func apply(_ command: EditorCommand) throws -> ChangeSet {
+      if case .insertText(let text) = command {
+        typed = String((typed + text).suffix(3))
+        if typed == "\t- " { tabbedShortcuts += 1 }
+      } else {
+        typed = ""
+      }
+      return try super.apply(command)
+    }
+  }
+
+  @Test func loadsListsMarkedWithEachMarkNestedOrNotAndTypesATabbedShortcut() throws {
+    let candidate = NotesMarkersAndTabbedShortcuts()
+    var fuzzer = Fuzzer(seed: 7, reference: try Support.referenceEditor(), candidate: candidate)
+
+    #expect(try fuzzer.run(steps: 3_000)?.fixture == nil)
+    #expect(
+      candidate.marked
+        == [.init(marker: "*", nested: false), .init(marker: "+", nested: false), .init(marker: "*", nested: true),
+          .init(marker: "+", nested: true)])
+    #expect(candidate.tabbedShortcuts > 0)
+  }
+
   /// LexicalSwift that refuses what Lexical refuses, but for another reason.
   final class RefusesAsUnsupported: LexicalSwiftWith {
     override func apply(_ command: EditorCommand) throws -> ChangeSet {
@@ -146,34 +216,36 @@ import Testing
 
   @Test func theTypesNotPortedYetAreWhatTheShortcutsNotPortedYetMake() {
     #expect(Fuzzer.notPortedYet == Editor.typesMarkdownShortcutsNotPortedYetMake)
-    #expect(Fuzzer.notPortedYet.isSuperset(of: ["list", "listitem", "code"]))
+    #expect(Fuzzer.notPortedYet.contains("code"))
   }
 
   @Test func noTypeLexicalSwiftEditsIsNotPortedYet() {
     #expect(
-      Fuzzer.notPortedYet.isDisjoint(with: ["root", "paragraph", "heading", "quote", "text", "linebreak", "horizontalrule"]))
+      Fuzzer.notPortedYet.isDisjoint(
+        with: ["root", "paragraph", "heading", "quote", "list", "listitem", "text", "linebreak", "horizontalrule"]))
   }
 
-  /// Typing "- " makes a list in Lexical, where LexicalSwift keeps the text.
-  private func typingAListShortcut() throws -> (fixture: Fixture, candidate: Fixture.Outcome, before: Snapshot) {
+  /// Typing "``` " makes a code block in Lexical, where LexicalSwift keeps
+  /// the text.
+  private func typingACodeShortcut() throws -> (fixture: Fixture, candidate: Fixture.Outcome, before: Snapshot) {
     let reference = try Support.referenceEditor()
     let start = document(paragraph())
     let caret = EditorCommand.caret(Point(path: [0], offset: 0, type: .element))
-    let before = try Fixture.record(start: start, commands: [caret, .insertText("-")], on: reference).expected
+    let before = try Fixture.record(start: start, commands: [caret, .insertText("```")], on: reference).expected
     let fixture = try Fixture.record(
-      start: start, commands: [caret, .insertText("-"), .insertText(" ")], on: reference)
+      start: start, commands: [caret, .insertText("```"), .insertText(" ")], on: reference)
     return (fixture, try fixture.replay(on: Editor()), before)
   }
 
   @Test func aSessionEndsWhereLexicalMakesWhatLexicalSwiftDoesNotEditYet() throws {
-    let (fixture, candidate, before) = try typingAListShortcut()
+    let (fixture, candidate, before) = try typingACodeShortcut()
 
     #expect(
       Fuzzer.isNotPortedYet(candidate: candidate.changes.last!, referenceBefore: before, referenceAfter: fixture.expected))
   }
 
   @Test func refusingWhereLexicalMakesWhatLexicalSwiftDoesNotEditYetDisagrees() throws {
-    let (fixture, _, before) = try typingAListShortcut()
+    let (fixture, _, before) = try typingACodeShortcut()
 
     #expect(
       !Fuzzer.isNotPortedYet(
@@ -181,10 +253,75 @@ import Testing
   }
 
   @Test func doingOtherwiseWhereLexicalMakesNothingNewDisagrees() throws {
-    let (_, _, before) = try typingAListShortcut()
+    let (_, _, before) = try typingACodeShortcut()
 
     #expect(
       !Fuzzer.isNotPortedYet(candidate: .applied(ChangeSet(changed: [[0]])), referenceBefore: before, referenceAfter: before))
+  }
+
+  /// Typing into a list straight after the list takes the caret, Lexical's
+  /// CODE transformer takes the list for the block: its items go into a code
+  /// block and lift back out of it into a list, and the emptied code block
+  /// goes. No code node is left, but LexicalSwift declined the shortcut, so
+  /// the session ends rather than disagreeing (seed 11610).
+  @Test func aSessionEndsWhereLexicalSwiftDeclinesAShortcutNotPortedYet() throws {
+    let fuzzer = Fuzzer(seed: 0, reference: try Support.referenceEditor(), candidate: Editor())
+
+    let verdict = try fuzzer.verdict(
+      start: document(heading("h3"), list(.number, [.item([])])),
+      commands: [EditorCommand.caret(Point(path: [0], offset: 0, type: .element)), .insertList(.number)]
+        + "``` ".map { EditorCommand.insertText(String($0)) })
+
+    #expect(verdict == .endedNotPortedYet)
+  }
+
+  /// LexicalSwift that says it declined a shortcut at every command.
+  final class SaysItDeclinesEveryShortcut: LexicalSwiftWith {
+    private var commands = 0
+    override var shortcutsDeclinedAsNotPorted: Int { commands }
+    override func apply(_ command: EditorCommand) throws -> ChangeSet {
+      commands += 1
+      return try editor.apply(command)
+    }
+  }
+
+  /// A declined shortcut ends a session only on a step that disagrees.
+  @Test func aDeclinedShortcutWhereBothAgreeCarriesOn() throws {
+    let fuzzer = Fuzzer(seed: 0, reference: try Support.referenceEditor(), candidate: SaysItDeclinesEveryShortcut())
+
+    let verdict = try fuzzer.verdict(
+      start: document(paragraph()),
+      commands: [EditorCommand.caret(Point(path: [0], offset: 0, type: .element))]
+        + "ab ".map { EditorCommand.insertText(String($0)) })
+
+    #expect(verdict == .agreed)
+  }
+
+  /// LexicalSwift that says it declined a shortcut at its first command, and
+  /// drops a non-ASCII character typed later.
+  final class DeclinesOnceThenDropsTypedNonASCII: LexicalSwiftWith {
+    private var declined = 0
+    override var shortcutsDeclinedAsNotPorted: Int { declined }
+    override func apply(_ command: EditorCommand) throws -> ChangeSet {
+      declined = 1
+      if case .insertText(let text) = command, let last = text.last, !last.isASCII {
+        return try editor.apply(.insertText(String(text.dropLast())))
+      }
+      return try editor.apply(command)
+    }
+  }
+
+  /// A shortcut declined on an earlier step doesn't excuse a later step that
+  /// disagrees.
+  @Test func aDisagreementAfterAnEarlierDeclinedShortcutDiverges() throws {
+    let fuzzer = Fuzzer(
+      seed: 0, reference: try Support.referenceEditor(), candidate: DeclinesOnceThenDropsTypedNonASCII())
+
+    let verdict = try fuzzer.verdict(
+      start: document(paragraph()),
+      commands: [EditorCommand.caret(Point(path: [0], offset: 0, type: .element)), .insertText("a"), .insertText("é")])
+
+    #expect(verdict == .diverged)
   }
 
   /// The differential check proper. Budget and seed come from FUZZ_STEPS and
@@ -207,7 +344,7 @@ import Testing
     } else {
       print(
         "Seed \(seed): \(steps) steps agreed, \(fuzzer.refusals) commands both refused, and "
-          + "\(fuzzer.sessionsEndedNotPortedYet) sessions ended where Lexical made a node not ported yet")
+          + "\(fuzzer.sessionsEndedNotPortedYet) sessions ended on a shortcut or node not ported yet")
     }
   }
 }

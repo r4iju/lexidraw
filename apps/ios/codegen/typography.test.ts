@@ -164,3 +164,68 @@ test("refuses a language's text set as isn't read", async () => {
     ".document-content:lang(ko) p",
   );
 });
+
+test("reads a list and a checklist as their rules give them", async () => {
+  const swift = swiftForTypography(await readWebStyles());
+
+  expect(swift).toContain(
+    "list: List(padding: 1.625, itemSpacing: 0.25, markerColor: .mutedForeground, checklistPadding: 1.75, " +
+      "box: Box(top: 0.3, size: 1, borderWidth: 1.5, borderColor: .mutedForeground, cornerRadius: 4, " +
+      "checkedColor: .primary, tick: Tick(left: 0.34, top: 0.45, width: 0.3, height: 0.5, lineWidth: 1.5, " +
+      "color: .primaryForeground)), doneColor: .mutedForeground),",
+  );
+});
+
+test("refuses a nested list spaced other than an item", async () => {
+  const styles = await readWebStyles();
+  const documentCSS = styles.documentCSS.replace(
+    /(\.document-content li :is\(ul, ol\):not\(\[data-lexical-decorator\] \*\) \{\s*margin-block:)[^;]*;/,
+    "$1 0.5em 0;",
+  );
+
+  expect(() => swiftForTypography({ ...styles, documentCSS })).toThrow(
+    ".document-content li :is(ul, ol)",
+  );
+});
+
+test.each([
+  [
+    ".document-content li:not([data-lexical-decorator] *)",
+    "margin-block: 0;",
+    "margin-block: 0.5em 0;",
+  ],
+  [
+    ".document-content li.document-task",
+    "padding-inline: 1.75em 0;",
+    "padding-inline: 1.75em 1em;",
+  ],
+  [
+    ".document-task::before",
+    "inset-inline-start: 0;",
+    "inset-inline-start: 0.25em;",
+  ],
+  [
+    ".document-task-done",
+    "text-decoration: line-through;",
+    "text-decoration: underline;",
+  ],
+  [
+    ".document-task-done::after",
+    "transform: rotate(45deg);",
+    "transform: rotate(30deg);",
+  ],
+])("refuses a list whose %p sets other than %p", async (selector, from, to) => {
+  const styles = await readWebStyles();
+  const rule = styles.documentCSS.indexOf(`\n${selector} {`);
+  const at = styles.documentCSS.indexOf(from, rule);
+  expect(rule).toBeGreaterThan(-1);
+  expect(at).toBeGreaterThan(rule);
+  const documentCSS =
+    styles.documentCSS.slice(0, at) +
+    to +
+    styles.documentCSS.slice(at + from.length);
+
+  expect(() => swiftForTypography({ ...styles, documentCSS })).toThrow(
+    selector,
+  );
+});

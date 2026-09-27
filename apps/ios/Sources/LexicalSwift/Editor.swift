@@ -7,9 +7,14 @@ public final class Editor: EditorModel {
   private var history = History(EditorState(nodes: [:], selection: nil))
   private var now = 0
   /// Whether the document holds only what the editing commands are ported
-  /// for: paragraphs, headings, quotes, horizontal rules, line breaks and
-  /// text in any format, with no field the payload types don't model.
+  /// for: paragraphs, headings, quotes, lists, horizontal rules, line
+  /// breaks, tabs and text in any format, with no field the payload types
+  /// don't model.
   public private(set) var isEditable = false
+  private var knowsListMarker = false
+  /// How many markdown shortcuts this editor has left as typed where Lexical
+  /// runs a transformer LexicalSwift doesn't port yet.
+  public private(set) var shortcutsDeclinedAsNotPorted = 0
 
   public init() {}
 
@@ -23,6 +28,7 @@ public final class Editor: EditorModel {
     nextKey = update.nextKey
     now = 0
     history = History(state)
+    knowsListMarker = false
     isEditable = state.nodes.values.allSatisfy(\.isEditable)
   }
 
@@ -41,10 +47,11 @@ public final class Editor: EditorModel {
     default:
       guard isEditable else { throw EditorError.unsupported("Editing a document with a node LexicalSwift doesn't edit yet") }
     }
-    let saved = (state, nextKey, history)
+    let saved = (state, nextKey, history, knowsListMarker)
     do {
-      var update = Update(state, nextKey: nextKey, revision: nextRevision())
+      var update = Update(state, nextKey: nextKey, revision: nextRevision(), knowsListMarker: knowsListMarker)
       try update.run(command)
+      shortcutsDeclinedAsNotPorted += update.shortcutsDeclinedAsNotPorted
       var previous = state
       guard try commit(&update) else { return ChangeSet(changed: []) }
       var changed = update.changedKeys
@@ -56,14 +63,15 @@ public final class Editor: EditorModel {
       {
         compositionEnd = false
         previous = state
-        update = Update(state, nextKey: nextKey, revision: nextRevision())
+        update = Update(state, nextKey: nextKey, revision: nextRevision(), knowsListMarker: knowsListMarker)
         let isShortcut = try update.runMarkdownShortcut(at: caret)
+        shortcutsDeclinedAsNotPorted += update.shortcutsDeclinedAsNotPorted
         guard try commit(&update, pushingHistory: isShortcut) else { break }
         changed += update.changedKeys
       }
       return ChangeSet(changed: Set(changed.compactMap(state.path(of:))))
     } catch {
-      (state, nextKey, history) = saved
+      (state, nextKey, history, knowsListMarker) = saved
       throw error
     }
   }
@@ -84,6 +92,7 @@ public final class Editor: EditorModel {
     history.record(update, from: state, to: next, at: now, pushing: pushingHistory)
     state = next
     nextKey = update.nextKey
+    knowsListMarker = update.knowsListMarker
     return true
   }
 
@@ -137,9 +146,12 @@ extension Node {
     case .paragraph(let node): node.unknownFields.isEmpty
     case .heading(let node): node.unknownFields.isEmpty
     case .quote(let node): node.unknownFields.isEmpty && node.shadowRoot != true
+    case .list(let node): node.unknownFields.isEmpty || node.holdsOnlyAMarkdownMarker
+    case .listItem(let node): node.unknownFields.isEmpty
     case .lineBreak(let node): node.unknownFields.isEmpty
     case .horizontalRule(let node): node.unknownFields.isEmpty
     case .text(let node): node.unknownFields.isEmpty && node.mode == .normal && (node.detail ?? 0) == 0
+    case .tab(let node): node.unknownFields.isEmpty && node.detail == Double(TextDetail.unmergeable.rawValue)
     default: false
     }
   }
@@ -153,10 +165,14 @@ extension Update {
     if command == .selectAll {
       return selectAll()
     }
+    if case .toggleChecked(let path) = command {
+      return try toggleChecked(at: path)
+    }
     guard let selection else { throw EditorError.noSelection }
     switch command {
     case .insertText(let text), .commitComposition(let text): try insertText(selection, text)
-    case .deleteCharacter(let backward): try deleteCharacter(selection, backward: backward)
+    case .deleteCharacter(true): try backspace(selection)
+    case .deleteCharacter(false): try deleteCharacter(selection, backward: false)
     case .deleteWord(let backward): try deleteWord(selection, backward: backward)
     case .deleteLine(let backward, let lineBoundary):
       let boundary = try pointNode(lineBoundary)
@@ -164,10 +180,15 @@ extension Update {
         selection, backward: backward,
         lineBoundary: KeyPoint(key: boundary, offset: lineBoundary.offset, type: lineBoundary.type))
     case .insertParagraph:
-      if try !runMarkdownShortcutOnEnter(selection) { try insertParagraph(selection) }
+      if try !runMarkdownShortcutOnEnter(selection) { try enter(selection) }
     case .insertLineBreak: try insertLineBreak(selection)
     case .formatText(let format): try formatText(selection, format)
     case .setBlockType(let type): try setBlockType(selection, type)
+    case .insertList(let listType): try insertList(ListType(listType))
+    case .removeList: try removeList()
+    case .indent: try indentContent()
+    case .outdent: try outdentContent()
+    case .tab(let backward): try tab(selection, backward: backward)
     default: throw EditorError.unsupported(command.name)
     }
   }

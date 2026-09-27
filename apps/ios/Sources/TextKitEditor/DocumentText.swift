@@ -8,7 +8,10 @@ import Foundation
 /// A line break is U+2028, which breaks the line without ending the block,
 /// and a node with no text of its own is one U+FFFC. Blocks nested in a
 /// block, such as list items, table rows and cells, are set apart by a
-/// newline inside it.
+/// newline inside it. Each list item's line says which item it is
+/// (`.listItem`) and each indented block's lines how far in it is
+/// (`.elementIndent`), the newline ending them included, for the layout to
+/// show.
 ///
 /// Each edit reports the blocks it replaced as splices, in order, for views
 /// that keep something per block. The blocks a splice's `new` names are as
@@ -30,6 +33,16 @@ public final class DocumentText {
       self.old = old
       self.new = new
     }
+  }
+
+  /// A list item, for the layout to put its marker or checkbox beside it.
+  struct ListItem: Hashable, Sendable {
+    /// The item's path from the block at the root it is in.
+    var path: [Int]
+    /// The lists around the item, outermost first.
+    var lists: [EditorCommand.ListType]
+    var value: Int
+    var checked: Bool
   }
 
   /// How a block at the root is laid out.
@@ -206,7 +219,13 @@ public final class DocumentText {
   /// The attributes text of `format` typed at `offset` takes, which depend
   /// on the block it goes into.
   public func attributes(at offset: Int, format: TextFormat) -> [NSAttributedString.Key: Any] {
-    style(blocks.isEmpty ? "paragraph" : blocks[blockIndex(at: offset)].type, format)
+    guard !blocks.isEmpty else { return style("paragraph", format) }
+    let index = blockIndex(at: offset)
+    var attributes = style(blocks[index].type, format)
+    for line in blocks[index].lines where line.range.contains(offset - starts[index]) {
+      attributes[line.key] = line.value.base
+    }
+    return attributes
   }
 
   private func measure() {
@@ -228,8 +247,9 @@ public final class DocumentText {
       rendered.append(
         Block(
           key: key(index), type: blockType, length: block.length, spans: renderer.spans,
-          kind: Self.kind(of: node, spans: renderer.spans)))
+          kind: Self.kind(of: node, spans: renderer.spans), lines: renderer.lines))
       block.append(NSAttributedString(string: "\n", attributes: style(blockType, [])))
+      for line in renderer.lines { block.addAttribute(line.key, value: line.value.base, range: NSRange(line.range)) }
       text.append(block)
     }
     return (text, rendered)
@@ -272,6 +292,16 @@ public final class DocumentText {
     /// Where each node in the block is, by its path from the block.
     var spans: [[Int]: Span]
     var kind: BlockKind
+    /// What the lines of its items and indented blocks say, outermost first.
+    var lines: [Line] = []
+  }
+
+  /// An attribute of whole lines: from a node's start to the newline after
+  /// it, which an empty node's line is only.
+  private struct Line {
+    var range: Range<Int>
+    var key: NSAttributedString.Key
+    var value: AnyHashable
   }
 
   private struct Span {
@@ -293,6 +323,15 @@ public final class DocumentText {
     let blockType: String
     var text = NSMutableAttributedString()
     var spans: [[Int]: Span] = [:]
+    var lines: [Line] = []
+    /// The lists around the node being added.
+    private var lists: [EditorCommand.ListType] = []
+
+    init(style: @escaping Style, standIn: StandIn?, blockType: String) {
+      self.style = style
+      self.standIn = standIn
+      self.blockType = blockType
+    }
 
     /// Inline elements, which sit in a line of text rather than on their own.
     private static let inlineElements: Set<String> = ["link", "autolink", "mark"]
@@ -305,13 +344,20 @@ public final class DocumentText {
         return
       }
       if let children = node["children"]?.arrayValue {
+        let listType = node["type"] == "list" ? node["listType"]?.stringValue.flatMap(EditorCommand.ListType.init) : nil
+        if let listType { lists.append(listType) }
+        let lineCount = lines.count
         for (index, child) in children.enumerated() {
           if index > 0, Self.isBlock(child) || Self.isBlock(children[index - 1]) {
             append("\n", format: [])
           }
           add(child, at: path + [index])
         }
+        if listType != nil { lists.removeLast() }
         spans[path] = Span(start: start, end: text.length, kind: .element(childCount: children.count))
+        if let line = line(for: node, at: path) {
+          lines.insert(Line(range: start..<(text.length + 1), key: line.key, value: line.value), at: lineCount)
+        }
         return
       }
       let kind: Span.Kind
@@ -326,6 +372,20 @@ public final class DocumentText {
         kind = .character
       }
       spans[path] = Span(start: start, end: text.length, kind: kind)
+    }
+
+    /// What the lines of `node` say: which item it is, where it is an item
+    /// of its own text rather than of a nested list, or how far in it is.
+    private func line(for node: JSONValue, at path: [Int]) -> (key: NSAttributedString.Key, value: AnyHashable)? {
+      if node["type"] == "listitem" {
+        let children = node["children"]?.arrayValue ?? []
+        guard !children.contains(where: { $0["type"] == "list" }) else { return nil }
+        let item = ListItem(
+          path: path, lists: lists, value: node["value"]?.intValue ?? 1, checked: node["checked"]?.boolValue ?? false)
+        return (.listItem, item)
+      }
+      guard let indent = node["indent"]?.intValue, indent > 0 else { return nil }
+      return (.elementIndent, indent)
     }
 
     private static func isBlock(_ node: JSONValue) -> Bool {
@@ -350,4 +410,11 @@ extension Range<Int> {
     }
     return low
   }
+}
+
+extension NSAttributedString.Key {
+  /// A `DocumentText.ListItem`, on the line of the item it describes.
+  static let listItem = NSAttributedString.Key("TextKitEditor.listItem")
+  /// How many levels in a block is indented, on its lines.
+  static let elementIndent = NSAttributedString.Key("TextKitEditor.elementIndent")
 }

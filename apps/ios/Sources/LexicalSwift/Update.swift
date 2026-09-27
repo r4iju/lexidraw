@@ -20,13 +20,21 @@ struct Update {
   var dirtyElements: OrderedDictionary<NodeKey, Bool> = [:]
   /// Every node marked in this update, which the transforms' rounds forget.
   private(set) var touched: Set<NodeKey> = []
+  /// Whether the editor has learnt the markdown marker's NodeState, as
+  /// Lexical does the first time a shortcut marks a list with it. Until
+  /// then it keeps the marker of a list it loaded as state it doesn't know,
+  /// which a copy of the list keeps too.
+  var knowsListMarker: Bool
+  /// This update's share of `Editor.shortcutsDeclinedAsNotPorted`.
+  var shortcutsDeclinedAsNotPorted = 0
 
-  init(_ state: EditorState, nextKey: NodeKey, revision: Int) {
+  init(_ state: EditorState, nextKey: NodeKey, revision: Int, knowsListMarker: Bool = false) {
     self.state = state
     base = state
     selection = state.selection.map(RangeSelection.init)
     self.nextKey = nextKey
     self.revision = revision
+    self.knowsListMarker = knowsListMarker
   }
 
   /// Whether the update marked any node, which is what makes Lexical commit
@@ -221,8 +229,11 @@ struct Update {
     }
   }
 
-  /// Lexical's `insertAfter`.
+  /// Lexical's `insertAfter`, with the list item override of it.
   mutating func insert(_ node: NodeKey, after sibling: NodeKey, restoringSelection: Bool = true) throws {
+    if isListItem(sibling), !isListItem(node) {
+      return try insert(node, afterListItem: sibling, restoringSelection: restoringSelection)
+    }
     try checkInsertion(node, besides: sibling)
     markDirty(sibling)
     markDirty(node)
@@ -259,12 +270,16 @@ struct Update {
   }
 
   /// Lexical's `replace`, which leaves the replaced node's children with it
-  /// unless `includingChildren`, when they follow the replacement's own.
-  /// The selection it restores is a copy, which then becomes the selection.
+  /// unless `includingChildren`, when they follow the replacement's own,
+  /// with the list item override of it. The selection it restores is a
+  /// copy, which then becomes the selection.
   @discardableResult
   mutating func replace(_ node: NodeKey, with replacement: NodeKey, includingChildren: Bool = false) throws
     -> NodeKey
   {
+    if isListItem(node), !isListItem(replacement) {
+      return try replace(listItem: node, with: replacement, includingChildren: includingChildren)
+    }
     let selection = selection?.clone()
     try checkInsertion(replacement, besides: node)
     markDirty(replacement)
@@ -304,8 +319,9 @@ struct Update {
   }
 
   /// Lexical's `remove`: a parent left empty that can't be goes too, and the
-  /// selection moves off what goes.
+  /// selection moves off what goes. A list item has an override of it.
   mutating func remove(_ node: NodeKey, preservingEmptyParent: Bool = false) throws {
+    if isListItem(node) { return try remove(listItem: node, preservingEmptyParent: preservingEmptyParent) }
     try removeNode(node, restoringSelection: true, preservingEmptyParent: preservingEmptyParent)
   }
 
@@ -366,6 +382,9 @@ struct Update {
         for key in untransformedLeaves {
           if let node = state.nodes[key], node.isSimpleText, !node.isUnmergeable, state.isAttached(key) {
             try normalizeText(key)
+          }
+          if state.nodes[key]?.type == SerializedTextNode.type, state.isAttached(key) {
+            try syncListItem(withFirstText: key)
           }
           allLeaves.append(key)
         }

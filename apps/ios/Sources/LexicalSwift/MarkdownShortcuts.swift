@@ -34,7 +34,6 @@ struct MarkdownTransformer: Sendable {
     .equation: 132, .code: 132,
     .table: 117,
     .emoji: 134,
-    .checkList: 116, .unorderedList: 116, .orderedList: 116,
     .link: 118,
   ]
 
@@ -151,6 +150,7 @@ extension Update {
         || runTextMatchTransformers(anchor, offset)
         || runTextFormatTransformers(anchor, offset)
     } catch is NotPortedYet {
+      shortcutsDeclinedAsNotPorted += 1
       return false
     }
   }
@@ -169,6 +169,7 @@ extension Update {
         || runElementTransformers(
           parent, anchor, offset, MarkdownTransformer.element.filter(\.triggerOnEnter), onEnter: true)
     } catch is NotPortedYet {
+      shortcutsDeclinedAsNotPorted += 1
       return false
     }
   }
@@ -280,9 +281,84 @@ extension Update {
         try insert(line, before: parent)
       }
       selectNext(line)
+    case .unorderedList: try replaceBlock(parent, withListItemOf: .bullet, children, groups)
+    case .orderedList: try replaceBlock(parent, withListItemOf: .number, children, groups)
+    case .checkList: try replaceBlock(parent, withListItemOf: .check, children, groups)
     default:
       throw EditorError.unsupported("The markdown shortcut \(transformer.name.rawValue)")
     }
+  }
+
+  /// `listReplace`: the block becomes an item of the list of `listType`
+  /// beside it, or of a new one, nested as deep as the spaces and tabs
+  /// before the marker say.
+  private mutating func replaceBlock(
+    _ parent: NodeKey, withListItemOf listType: ListType, _ children: [NodeKey], _ groups: [String?]
+  ) throws {
+    let previous = state.previousSibling(of: parent)
+    let next = state.nextSibling(of: parent)
+    let item = create(SerializedListItemNode.type)
+    if listType == .check, case .listItem(var payload) = state[item].payload {
+      payload.checked = groups[3]?.lowercased() == "x"
+      state.nodes[item]!.payload = .listItem(payload)
+    }
+    let start = listType == .number ? groups[2].flatMap(Double.init) ?? 1 : 1
+    // `match[0].trim()[0]`: the leading whitespace is group 1, which takes
+    // all of it as JavaScript's `\s` and `trim` count it.
+    let firstMatchChar = groups[0].flatMap { $0.unicodeScalars.dropFirst(groups[1]?.unicodeScalars.count ?? 0).first }
+    let marker = listType != .number ? firstMatchChar.flatMap { ListMarker(rawValue: String($0)) } : nil
+    let indent = Self.markdownIndent(groups[1] ?? "")
+    if let next, self.listType(next) == listType {
+      if let first = state.firstChild(of: next) {
+        try insert(item, before: first)
+      } else {
+        try append(next, [item])
+      }
+      if listType == .number, indent == 0 { modifyList(next) { $0.start = start } }
+      try remove(parent)
+    } else if let previous, let previousType = self.listType(previous), previousType == listType || indent > 0 {
+      try append(previous, [item])
+      try remove(parent)
+    } else {
+      let list = createList(listType, start: start)
+      try append(list, [item])
+      try replace(parent, with: list)
+    }
+    try append(item, children)
+    selectElement(item, 0, 0)
+    if indent > 0 {
+      try setIndent(item, indent)
+      try retypeNestedList(item, listType, start: start)
+    }
+    if let marker, let list = state.parent(of: item), isList(list) {
+      modifyList(list) { $0.setMarkdownMarker(marker) }
+      knowsListMarker = true
+    }
+  }
+
+  /// `getIndent`: a level for each tab, and for each four spaces.
+  private static func markdownIndent(_ whitespace: String) -> Int {
+    whitespace.count { $0 == "\t" } + whitespace.count { $0 == " " } / 4
+  }
+
+  /// `$retypeNestedList`: `setIndent` nests an item in a copy of the list it
+  /// was in, so an item of another type moves out to a list of its own
+  /// type, nested on the side of that copy the item was on.
+  private mutating func retypeNestedList(_ item: NodeKey, _ listType: ListType, start: Double) throws {
+    guard let nested = state.parent(of: item), let nestedType = self.listType(nested), nestedType != listType,
+      let wrapper = state.parent(of: nested), isListItem(wrapper)
+    else { return }
+    let retyped = createList(listType, start: start)
+    let isFirst = state.previousSibling(of: item) == nil
+    try append(retyped, [item])
+    let retypedWrapper = create(SerializedListItemNode.type)
+    try append(retypedWrapper, [retyped])
+    if isFirst {
+      try insert(retypedWrapper, before: wrapper)
+    } else {
+      try insert(retypedWrapper, after: wrapper)
+    }
+    if state.childCount(of: nested) == 0 { try remove(wrapper) }
   }
 
   /// `createBlockNode`: `block` takes `children` and the place of `parent`,

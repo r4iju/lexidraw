@@ -15,7 +15,7 @@ extension EditorState {
           fields["checked"] = nil
         }
       case .list(let list):
-        fields["tag"] = .string(list.listType == .number ? ListTag.ol.rawValue : ListTag.ul.rawValue)
+        fields["tag"] = .string((list.listType?.tag ?? .ul).rawValue)
       default: break
       }
     }
@@ -45,7 +45,7 @@ extension EditorState {
   }
 
   /// A list item's indent is how deep its list nests in other list items.
-  private func listItemDepth(_ key: NodeKey) -> Int {
+  func listItemDepth(_ key: NodeKey) -> Int {
     var depth = 0
     var ancestor = parent(of: key).flatMap(parent(of:))
     while let item = ancestor, self[item].type == SerializedListItemNode.type {

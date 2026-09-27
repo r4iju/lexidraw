@@ -193,25 +193,63 @@ import UIKit
   static func ink(of view: UIView, across columns: ClosedRange<CGFloat>, rows: ClosedRange<CGFloat>)
     -> ClosedRange<CGFloat>?
   {
-    let scale: CGFloat = 3
-    let (width, height) = (Int(view.bounds.width * scale), Int(view.bounds.height * scale))
-    guard
-      let context = CGContext(
-        data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: width * 4,
-        space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
-    else { return nil }
-    context.translateBy(x: 0, y: CGFloat(height))
-    context.scaleBy(x: scale, y: -scale)
-    for subview in view.subviews { subview.layer.displayIfNeeded() }
-    view.layer.render(in: context)
-    guard let bytes = context.data?.assumingMemoryBound(to: UInt8.self) else { return nil }
-    let rows = (max(Int(rows.lowerBound * scale), 0)..<min(Int(rows.upperBound * scale), height)).filter { row in
-      (Int(columns.lowerBound * scale)...Int(columns.upperBound * scale)).contains { column in
-        bytes[row * width * 4 + column * 4 + 3] > 160
-      }
+    guard let drawing = Drawing(view) else { return nil }
+    let rows = drawing.rows(rows).filter { row in
+      drawing.columns(columns).contains { column in drawing.pixel(row, column)[3] > 160 }
     }
     guard let top = rows.first, let foot = rows.last else { return nil }
-    return CGFloat(top) / scale...CGFloat(foot + 1) / scale
+    return CGFloat(top) / Drawing.scale...CGFloat(foot + 1) / Drawing.scale
+  }
+
+  /// The red, green and blue of what `view` draws wholly opaquely between
+  /// `columns`, within `rows`.
+  static func inkColor(of view: UIView, across columns: ClosedRange<CGFloat>, rows: ClosedRange<CGFloat>)
+    -> [CGFloat]?
+  {
+    guard let drawing = Drawing(view) else { return nil }
+    for row in drawing.rows(rows) {
+      for column in drawing.columns(columns) where drawing.pixel(row, column)[3] == 255 {
+        return drawing.pixel(row, column)[0..<3].map { CGFloat($0) / 255 }
+      }
+    }
+    return nil
+  }
+
+  /// What a view draws over nothing, at three pixels a point.
+  struct Drawing {
+    static let scale: CGFloat = 3
+    private let bytes: [UInt8]
+    private let width: Int
+    private let height: Int
+
+    init?(_ view: UIView) {
+      (width, height) = (Int(view.bounds.width * Self.scale), Int(view.bounds.height * Self.scale))
+      guard
+        let context = CGContext(
+          data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: width * 4,
+          space: CGColorSpace(name: CGColorSpace.sRGB)!, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+      else { return nil }
+      context.translateBy(x: 0, y: CGFloat(height))
+      context.scaleBy(x: Self.scale, y: -Self.scale)
+      for subview in view.subviews { subview.layer.displayIfNeeded() }
+      view.layer.render(in: context)
+      guard let data = context.data?.assumingMemoryBound(to: UInt8.self) else { return nil }
+      bytes = Array(UnsafeBufferPointer(start: data, count: width * height * 4))
+    }
+
+    func rows(_ points: ClosedRange<CGFloat>) -> Range<Int> {
+      max(Int(points.lowerBound * Self.scale), 0)..<min(Int(points.upperBound * Self.scale), height)
+    }
+
+    func columns(_ points: ClosedRange<CGFloat>) -> ClosedRange<Int> {
+      Int(points.lowerBound * Self.scale)...Int(points.upperBound * Self.scale)
+    }
+
+    /// Red, green, blue and alpha, premultiplied.
+    func pixel(_ row: Int, _ column: Int) -> [UInt8] {
+      let start = (row * width + column) * 4
+      return Array(bytes[start..<start + 4])
+    }
   }
 }
 #endif

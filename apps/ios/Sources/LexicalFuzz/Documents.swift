@@ -12,14 +12,22 @@ public enum LexicalJSON {
 
   public static let lineBreak: JSONValue = ["type": "linebreak", "version": 1]
 
+  public static func tab(format: TextFormat = [], style: String = "") -> JSONValue {
+    [
+      "detail": 2, "format": .number(Double(format.rawValue)), "mode": "normal", "style": .string(style),
+      "text": "\t", "type": "tab", "version": 1,
+    ]
+  }
+
   /// Lexical writes a paragraph's text format and style from its first text,
-  /// and from what it holds for new text only where it has none.
-  public static func paragraph(_ children: [JSONValue], textFormat: TextFormat = [], textStyle: String = "")
-    -> JSONValue
-  {
-    let firstText = children.first { $0["type"] == "text" }
+  /// a tab included, and from what it holds for new text only where it has
+  /// none.
+  public static func paragraph(
+    _ children: [JSONValue], textFormat: TextFormat = [], textStyle: String = "", indent: Int = 0
+  ) -> JSONValue {
+    let firstText = children.first { $0["type"] == "text" || $0["type"] == "tab" }
     return [
-      "children": .array(children), "direction": nil, "format": "", "indent": 0,
+      "children": .array(children), "direction": nil, "format": "", "indent": .number(Double(indent)),
       "textFormat": firstText?["format"] ?? .number(Double(textFormat.rawValue)),
       "textStyle": firstText?["style"] ?? .string(textStyle), "type": "paragraph", "version": 1,
     ]
@@ -41,6 +49,48 @@ public enum LexicalJSON {
     ]
     for (key, value) in fields { node[key] = value }
     return .object(node)
+  }
+
+  /// What a list holds: an item of inline content, or a list nested in an
+  /// item of its own.
+  public enum ListEntry {
+    case item([JSONValue], checked: Bool = false)
+    case nested(ListType, [ListEntry], start: Int = 1, marker: ListMarker? = nil)
+  }
+
+  /// A list of `entries`, each item numbered, indented to its depth and, in
+  /// a checklist, checked or not, as Lexical writes it: an item holding a
+  /// nested list is unchecked.
+  public static func list(_ listType: ListType, _ entries: [ListEntry], start: Int = 1, marker: ListMarker? = nil)
+    -> JSONValue
+  {
+    list(listType, entries, start: start, marker: marker, depth: 0)
+  }
+
+  private static func list(_ listType: ListType, _ entries: [ListEntry], start: Int, marker: ListMarker?, depth: Int)
+    -> JSONValue
+  {
+    var value = start
+    let items = entries.map { entry -> JSONValue in
+      var fields: JSONObject = ["indent": .number(Double(depth)), "value": .number(Double(value))]
+      let children: [JSONValue]
+      switch entry {
+      case .item(let content, let checked):
+        children = content
+        if listType == .check { fields["checked"] = .bool(checked) }
+        value += 1
+      case .nested(let type, let entries, let start, let marker):
+        children = [list(type, entries, start: start, marker: marker, depth: depth + 1)]
+        if listType == .check { fields["checked"] = false }
+      }
+      return element("listitem", children, fields)
+    }
+    let tag = listType == .number ? "ol" : "ul"
+    var fields: JSONObject = [
+      "listType": .string(listType.rawValue), "start": .number(Double(start)), "tag": .string(tag),
+    ]
+    if let marker, marker != .default { fields["$"] = ["mdListMarker": .string(marker.rawValue)] }
+    return element("list", items, fields)
   }
 
   /// A table of one text in a paragraph per cell, by row; the first row is

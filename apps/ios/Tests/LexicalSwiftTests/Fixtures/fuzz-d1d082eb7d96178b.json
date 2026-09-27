@@ -1,0 +1,265 @@
+{
+  "changes" : [
+    {
+      "changed" : [
+
+      ]
+    },
+    {
+      "changed" : [
+
+      ]
+    },
+    {
+      "changed" : [
+        [
+
+        ],
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    }
+  ],
+  "commands" : [
+    {
+      "anchor" : {
+        "offset" : 0,
+        "path" : [
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "type" : "text"
+      },
+      "focus" : {
+        "offset" : 0,
+        "path" : [
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "type" : "text"
+      },
+      "type" : "setSelection"
+    },
+    {
+      "format" : "lowercase",
+      "type" : "formatText"
+    },
+    {
+      "backward" : false,
+      "type" : "tab"
+    }
+  ],
+  "expected" : {
+    "selection" : {
+      "anchor" : {
+        "offset" : 0,
+        "path" : [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "type" : "text"
+      },
+      "focus" : {
+        "offset" : 0,
+        "path" : [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "type" : "text"
+      },
+      "format" : 1,
+      "style" : ""
+    },
+    "state" : {
+      "root" : {
+        "children" : [
+          {
+            "children" : [
+              {
+                "children" : [
+                  {
+                    "children" : [
+                      {
+                        "children" : [
+                          {
+                            "children" : [
+                              {
+                                "children" : [
+                                  {
+                                    "detail" : 0,
+                                    "format" : 1,
+                                    "mode" : "normal",
+                                    "style" : "",
+                                    "text" : "z",
+                                    "type" : "text",
+                                    "version" : 1
+                                  }
+                                ],
+                                "direction" : null,
+                                "format" : "",
+                                "indent" : 2,
+                                "type" : "listitem",
+                                "value" : 1,
+                                "version" : 1
+                              }
+                            ],
+                            "direction" : null,
+                            "format" : "",
+                            "indent" : 0,
+                            "listType" : "bullet",
+                            "start" : 1,
+                            "tag" : "ul",
+                            "type" : "list",
+                            "version" : 1
+                          }
+                        ],
+                        "direction" : null,
+                        "format" : "",
+                        "indent" : 1,
+                        "textFormat" : 1,
+                        "type" : "listitem",
+                        "value" : 1,
+                        "version" : 1
+                      }
+                    ],
+                    "direction" : null,
+                    "format" : "",
+                    "indent" : 0,
+                    "listType" : "bullet",
+                    "start" : 1,
+                    "tag" : "ul",
+                    "type" : "list",
+                    "version" : 1
+                  }
+                ],
+                "direction" : null,
+                "format" : "",
+                "indent" : 0,
+                "type" : "listitem",
+                "value" : 1,
+                "version" : 1
+              }
+            ],
+            "direction" : null,
+            "format" : "",
+            "indent" : 0,
+            "listType" : "bullet",
+            "start" : 1,
+            "tag" : "ul",
+            "type" : "list",
+            "version" : 1
+          }
+        ],
+        "direction" : null,
+        "format" : "",
+        "indent" : 0,
+        "type" : "root",
+        "version" : 1
+      }
+    }
+  },
+  "start" : {
+    "root" : {
+      "children" : [
+        {
+          "children" : [
+            {
+              "children" : [
+                {
+                  "children" : [
+                    {
+                      "children" : [
+                        {
+                          "detail" : 0,
+                          "format" : 1,
+                          "mode" : "normal",
+                          "style" : "",
+                          "text" : "z",
+                          "type" : "text",
+                          "version" : 1
+                        }
+                      ],
+                      "direction" : null,
+                      "format" : "",
+                      "indent" : 1,
+                      "type" : "listitem",
+                      "value" : 1,
+                      "version" : 1
+                    }
+                  ],
+                  "direction" : null,
+                  "format" : "",
+                  "indent" : 0,
+                  "listType" : "bullet",
+                  "start" : 1,
+                  "tag" : "ul",
+                  "type" : "list",
+                  "version" : 1
+                }
+              ],
+              "direction" : null,
+              "format" : "",
+              "indent" : 0,
+              "type" : "listitem",
+              "value" : 1,
+              "version" : 1
+            }
+          ],
+          "direction" : null,
+          "format" : "",
+          "indent" : 0,
+          "listType" : "bullet",
+          "start" : 1,
+          "tag" : "ul",
+          "type" : "list",
+          "version" : 1
+        }
+      ],
+      "direction" : null,
+      "format" : "",
+      "indent" : 0,
+      "type" : "root",
+      "version" : 1
+    }
+  }
+}

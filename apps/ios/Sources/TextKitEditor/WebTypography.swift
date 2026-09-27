@@ -19,6 +19,7 @@ extension DocumentTypography {
     adjacentHeadingBefore: 0.5,
     narrow: [Narrow(width: 639, headingSizes: [.h1: 1.625])],
     languages: [Language(tags: ["ja", "zh"], lineHeight: 1.8, letterSpacing: 0.02)],
+    list: List(padding: 1.625, itemSpacing: 0.25, markerColor: .mutedForeground, checklistPadding: 1.75, box: Box(top: 0.3, size: 1, borderWidth: 1.5, borderColor: .mutedForeground, cornerRadius: 4, checkedColor: .primary, tick: Tick(left: 0.34, top: 0.45, width: 0.3, height: 0.5, lineWidth: 1.5, color: .primaryForeground)), doneColor: .mutedForeground),
     quote: Quote(borderWidth: 3, borderColor: .border, paddingStart: 1),
     rule: Rule(width: 1, color: .border, margin: 2))
 }
@@ -26,6 +27,8 @@ extension DocumentTypography {
 extension ThemeColor {
   static let heading = ThemeColor(light: RGBA(0.0581, 0.0582, 0.0772, 1), dark: RGBA(0.9596, 0.9598, 0.9687, 1))
   static let mutedForeground = ThemeColor(light: RGBA(0.3741, 0.3748, 0.4045, 1), dark: RGBA(0.6416, 0.6423, 0.6696, 1))
+  static let primary = ThemeColor(light: RGBA(0.4526, 0.2814, 0.8863, 1), dark: RGBA(0.6203, 0.5486, 0.9581, 1))
+  static let primaryForeground = ThemeColor(light: RGBA(1, 1, 1, 1), dark: RGBA(0.0854, 0.0769, 0.1362, 1))
   static let foreground = ThemeColor(light: RGBA(0.1108, 0.111, 0.1315, 1), dark: RGBA(0.8939, 0.8943, 0.9089, 1))
   static let border = ThemeColor(light: RGBA(0.881, 0.8814, 0.8959, 1), dark: RGBA(0.187, 0.1874, 0.2051, 1))
 }

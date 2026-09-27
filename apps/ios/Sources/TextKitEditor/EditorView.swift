@@ -2,6 +2,7 @@
 import EditorModelInterface
 import OSLog
 import UIKit
+import UIKit.UIGestureRecognizerSubclass
 
 /// A document edited through an `EditorModel`. What UIKit's text input asks
 /// for becomes the model's commands, and each command's changes are all the
@@ -57,6 +58,11 @@ public final class EditorView: UIScrollView, UITextInput {
     let interaction = UITextInteraction(for: isEditable ? .editable : .nonEditable)
     interaction.textInput = self
     surface.addInteraction(interaction)
+    // A tap on a checklist item's box toggles it and leaves the caret be.
+    let checkboxTap = CheckboxTap(target: self, action: #selector(toggleChecked(_:)))
+    checkboxTap.isOnCheckbox = { [unowned self] in layout.checklistItem(at: $0) != nil }
+    surface.addGestureRecognizer(checkboxTap)
+    for gesture in interaction.gesturesForFailureRequirements { gesture.require(toFail: checkboxTap) }
     isAccessibilityElement = true
     registerForTraitChanges([UITraitUserInterfaceStyle.self]) { (view: EditorView, _) in view.layout.redraw() }
     // UIKit redraws the caret and selection only when told the selection
@@ -493,6 +499,8 @@ public final class EditorView: UIScrollView, UITextInput {
       command("2", [.command, .alternate], #selector(makeHeading2)),
       command("3", [.command, .alternate], #selector(makeHeading3)),
       command("q", [.command, .alternate], #selector(makeQuote)),
+      command("\t", [], #selector(tab)),
+      command("\t", .shift, #selector(tabBackward)),
     ]
   }
 
@@ -521,6 +529,8 @@ public final class EditorView: UIScrollView, UITextInput {
   @objc private func deleteWordBackward() { perform(.deleteWord(backward: true), fromInput: false) }
   @objc private func deleteWordForward() { perform(.deleteWord(backward: false), fromInput: false) }
   @objc private func deleteForward() { perform(.deleteCharacter(backward: false), fromInput: false) }
+  @objc private func tab() { perform(.tab(backward: false), fromInput: false) }
+  @objc private func tabBackward() { perform(.tab(backward: true), fromInput: false) }
 
   @objc private func deleteLineBackward() {
     guard let boundary = lineBoundary(backward: true) else { return }
@@ -593,6 +603,20 @@ public final class EditorView: UIScrollView, UITextInput {
     set {}
   }
 
+  // MARK: Lists and indents
+
+  /// Makes the selected blocks a list of `listType`, or the list they are
+  /// in one.
+  public func insertList(_ listType: EditorCommand.ListType) { perform(.insertList(listType), fromInput: false) }
+  public func removeList() { perform(.removeList, fromInput: false) }
+  public func indent() { perform(.indent, fromInput: false) }
+  public func outdent() { perform(.outdent, fromInput: false) }
+
+  @objc private func toggleChecked(_ tap: UITapGestureRecognizer) {
+    guard let path = layout.checklistItem(at: tap.location(in: surface)) else { return }
+    perform(.toggleChecked(path: path), fromInput: false)
+  }
+
   // MARK: Layout
 
   public override func layoutSubviews() {
@@ -610,6 +634,20 @@ extension EditorCommand {
     case .setSelection, .selectAll, .wait: false
     default: true
     }
+  }
+}
+
+/// A tap on a checklist item's box, which fails as soon as a touch lands
+/// anywhere else, so the text interaction waiting on it needn't wait long.
+private final class CheckboxTap: UITapGestureRecognizer {
+  var isOnCheckbox: (CGPoint) -> Bool = { _ in false }
+
+  override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent) {
+    guard let view, touches.allSatisfy({ isOnCheckbox($0.location(in: view)) }) else {
+      state = .failed
+      return
+    }
+    super.touchesBegan(touches, with: event)
   }
 }
 

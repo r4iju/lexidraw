@@ -1,0 +1,122 @@
+{
+  "changes" : [
+
+  ],
+  "commands" : [
+
+  ],
+  "expected" : {
+    "state" : {
+      "root" : {
+        "children" : [
+          {
+            "children" : [
+              {
+                "detail" : 0,
+                "format" : 0,
+                "mode" : "normal",
+                "style" : "",
+                "text" : "a",
+                "type" : "text",
+                "version" : 1
+              }
+            ],
+            "direction" : null,
+            "format" : "",
+            "indent" : 0,
+            "textFormat" : 0,
+            "textStyle" : "",
+            "type" : "paragraph",
+            "version" : 1
+          },
+          {
+            "children" : [
+              {
+                "children" : [
+                  {
+                    "detail" : 0,
+                    "format" : 0,
+                    "mode" : "normal",
+                    "style" : "",
+                    "text" : "b",
+                    "type" : "text",
+                    "version" : 1
+                  }
+                ],
+                "direction" : null,
+                "format" : "",
+                "indent" : 0,
+                "type" : "listitem",
+                "value" : 1,
+                "version" : 1
+              }
+            ],
+            "direction" : null,
+            "format" : "",
+            "indent" : 0,
+            "listType" : "bullet",
+            "start" : 1,
+            "tag" : "ul",
+            "type" : "list",
+            "version" : 1
+          }
+        ],
+        "direction" : null,
+        "format" : "",
+        "indent" : 0,
+        "type" : "root",
+        "version" : 1
+      }
+    }
+  },
+  "start" : {
+    "root" : {
+      "children" : [
+        {
+          "children" : [
+            {
+              "detail" : 0,
+              "format" : 0,
+              "mode" : "normal",
+              "style" : "",
+              "text" : "a",
+              "type" : "text",
+              "version" : 1
+            }
+          ],
+          "direction" : null,
+          "format" : "",
+          "indent" : 0,
+          "textFormat" : 0,
+          "textStyle" : "",
+          "type" : "paragraph",
+          "version" : 1
+        },
+        {
+          "children" : [
+            {
+              "detail" : 0,
+              "format" : 0,
+              "mode" : "normal",
+              "style" : "",
+              "text" : "b",
+              "type" : "text",
+              "version" : 1
+            }
+          ],
+          "direction" : null,
+          "format" : "",
+          "indent" : 0,
+          "type" : "listitem",
+          "value" : 1,
+          "version" : 1
+        }
+      ],
+      "direction" : null,
+      "format" : "",
+      "indent" : 0,
+      "type" : "root",
+      "version" : 1
+    }
+  }
+}

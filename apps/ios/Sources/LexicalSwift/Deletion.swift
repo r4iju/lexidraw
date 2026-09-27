@@ -17,6 +17,16 @@ extension Update {
       let initialRange = state.extendToRange(initialCaret)
       let (before, after) = state.textSlices(initialRange)
       if [before, after].allSatisfy({ ($0?.distance ?? 0) == 0 }) {
+        if anchor.type == .element, let adjacent = state.nodeAtCaret(initialCaret), state[adjacent].isElement,
+          needsBlockCursorBeside(adjacent)
+        {
+          let container = state.parent(of: adjacent)
+          try remove(adjacent)
+          if let restored = try restoreEmptyContainerParagraph(container, removed: adjacent) {
+            _ = selectStart(restored)
+          }
+          return
+        }
         enum Merge {
           case initial
           case nextBlock(NodeKey)
@@ -158,8 +168,8 @@ extension Update {
   }
 
   /// `collapseAtStart` of the root, which keeps the caret where it is, of a
-  /// heading or quote, and of a paragraph, which goes when it holds only
-  /// blank text.
+  /// heading or quote, of a list item, and of a paragraph, which goes when
+  /// it holds only blank text.
   private mutating func collapseElementAtStart(_ key: NodeKey) throws -> Bool {
     switch state[key].type {
     case SerializedRootNode.type: return true
@@ -169,13 +179,11 @@ extension Update {
     case SerializedQuoteNode.type:
       try collapseQuoteAtStart(key)
       return true
+    case SerializedListItemNode.type: return try collapseListItemAtStart(key)
     case SerializedParagraphNode.type: break
     default: return false
     }
-    let isBlank = state.children(of: key).allSatisfy { child in
-      state[child].isText && state[child].text.unicodeScalars.allSatisfy(\.isJavaScriptWhitespace)
-    }
-    guard isBlank else { return false }
+    guard isBlank(key) else { return false }
     if state.nextSibling(of: key) != nil {
       selectNext(key)
     } else if state.previousSibling(of: key) != nil {
@@ -200,7 +208,17 @@ extension Update {
     let range = state.inDirection(try state.caretRange(from: selection), .next)
     let start = state.normalize(.child(block, .next))
     let end = state.inDirection(state.normalize(.child(block, .previous)), .next)
-    return state.compareNext(range.anchor, start) <= 0 && state.compareNext(range.focus, end) >= 0
+    return try state.compareNext(range.anchor, start) <= 0 && state.compareNext(range.focus, end) >= 0
+  }
+
+  /// `$needsBlockCursorBeside`: a block no caret goes in.
+  private func needsBlockCursorBeside(_ key: NodeKey) -> Bool {
+    let node = state[key]
+    if node.isInline { return false }
+    if node.isDecorator { return true }
+    guard node.isElement else { return false }
+    if node.isShadowRoot { return !(state.parent(of: key).map { state[$0].isRootOrShadowRoot } ?? false) }
+    return !node.canBeEmpty
   }
 
   /// `$updateCaretSelectionForUnicodeCharacter`: a deletion of more than one
@@ -241,6 +259,15 @@ extension Update {
     } else {
       guard let measured = measure(selection.focus, backward: isBackward, byWord: granularity == .word) else { return }
       landed = measured
+    }
+    if wasCollapsed, granularity == .character, anchor.type == .text, state[anchorNode].isUnmergeable,
+      anchorOffset == (isBackward ? 0 : state.textSize(of: anchorNode)),
+      let sibling = isBackward ? state.previousSibling(of: anchorNode) : state.nextSibling(of: anchorNode),
+      state[sibling].isText
+    {
+      selection.focus.set(sibling, isBackward ? state.textSize(of: sibling) - 1 : 1, .text)
+      selection.dirty = true
+      return
     }
     if wasCollapsed, granularity == .character, anchor.type == .text {
       let edgeOffset = isBackward ? 0 : state.textSize(of: anchorNode)

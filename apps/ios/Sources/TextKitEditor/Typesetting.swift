@@ -58,6 +58,9 @@ final class Typesetting {
     paragraph.minimumLineHeight = lineHeight(block)
     paragraph.maximumLineHeight = paragraph.minimumLineHeight
     paragraph.paragraphSpacing = space(block, after: nil).after
+    // A browser's tab stops, every eight spaces.
+    paragraph.tabStops = []
+    paragraph.defaultTabInterval = 8 * (" " as NSString).size(withAttributes: [.font: UIFont.systemFont(ofSize: size)]).width
     var attributes: [NSAttributedString.Key: Any] = [
       .foregroundColor: (heading?.color ?? typography.color).color, .paragraphStyle: paragraph,
     ]

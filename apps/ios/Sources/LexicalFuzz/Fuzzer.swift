@@ -13,22 +13,23 @@ public struct Fuzzer {
 
   /// Commands both refused, which don't count as steps.
   public private(set) var refusals = 0
-  /// Sessions ended where Lexical made a node LexicalSwift doesn't edit yet.
+  /// Sessions ended as `isNotPortedYet` says.
   public private(set) var sessionsEndedNotPortedYet = 0
 
   /// The node types Lexical's markdown shortcuts make that LexicalSwift's
   /// don't yet.
   public static let notPortedYet = Editor.typesMarkdownShortcutsNotPortedYetMake
 
-  /// Whether a step ends its session rather than disagreeing: LexicalSwift
-  /// took what was typed as text where Lexical made a node of a type not
-  /// ported yet. Nothing after it could agree.
-  public static func isNotPortedYet(candidate: Fixture.Change, referenceBefore: Snapshot, referenceAfter: Snapshot)
-    -> Bool
-  {
+  /// Whether a step that disagrees ends its session rather than diverging:
+  /// LexicalSwift declined a shortcut not ported yet on that step
+  /// (`declinedAShortcut`), or Lexical made a node of a type not ported yet.
+  /// Nothing after it could agree.
+  public static func isNotPortedYet(
+    candidate: Fixture.Change, referenceBefore: Snapshot, referenceAfter: Snapshot, declinedAShortcut: Bool = false
+  ) -> Bool {
     guard case .applied = candidate else { return false }
     let made = referenceAfter.state.nodeTypes.subtracting(referenceBefore.state.nodeTypes)
-    return !made.isDisjoint(with: notPortedYet)
+    return declinedAShortcut || !made.isDisjoint(with: notPortedYet)
   }
 
   private let reference: any EditorModel
@@ -98,37 +99,53 @@ public struct Fuzzer {
   /// Applies `command` to both models, and says whether they agreed.
   private func verdict(_ command: EditorCommand) throws -> Verdict {
     let before = try? reference.snapshot()
+    let declinedBefore = shortcutsDeclined
     let candidateStep = try step(candidate, command)
+    let declinedAShortcut = shortcutsDeclined > declinedBefore
     let referenceStep = try step(reference, command)
     if candidateStep == referenceStep { return .agreed(referenceStep) }
     if let before, let after = referenceStep.snapshot,
-      Self.isNotPortedYet(candidate: candidateStep.change, referenceBefore: before, referenceAfter: after)
+      Self.isNotPortedYet(
+        candidate: candidateStep.change, referenceBefore: before, referenceAfter: after,
+        declinedAShortcut: declinedAShortcut)
     {
       return .notPortedYet
     }
     return .diverged
   }
 
-  /// Whether the script makes the candidate diverge. Only scripts the
-  /// generator could have produced count (a document the reference loads
-  /// unchanged, and commands valid in it that the reference accepts), so a
-  /// shrunk fixture stays inside what the fuzzer tests.
-  private func diverges(_ script: Script) throws -> Bool {
-    guard (try? reference.load(script.start)) != nil, (try? reference.snapshot())?.state == script.start else {
-      return false
-    }
-    guard (try? candidate.load(script.start)) != nil else { return true }
-    for command in script.commands {
-      guard let before = try? reference.snapshot(), Generator.isValid(command, in: before) else {
-        return false
-      }
+  private var shortcutsDeclined: Int {
+    (candidate as? any DeclinesShortcutsNotPortedYet)?.shortcutsDeclinedAsNotPorted ?? 0
+  }
+
+  /// What a script comes to.
+  public enum ScriptVerdict: Equatable, Sendable {
+    case agreed
+    /// Its session ends where LexicalSwift doesn't port something yet.
+    case endedNotPortedYet
+    case diverged
+  }
+
+  /// What the fuzzer makes of a script, step by step as `run` does, or nil
+  /// where the generator couldn't have produced it: only a document the
+  /// reference loads unchanged, and commands valid in it that the reference
+  /// accepts, count, so a shrunk fixture stays inside what the fuzzer tests.
+  public func verdict(start: JSONValue, commands: [EditorCommand]) throws -> ScriptVerdict? {
+    guard (try? reference.load(start)) != nil, (try? reference.snapshot())?.state == start else { return nil }
+    guard (try? candidate.load(start)) != nil else { return .diverged }
+    for command in commands {
+      guard let before = try? reference.snapshot(), Generator.isValid(command, in: before) else { return nil }
       switch try verdict(command) {
       case .agreed: continue
-      case .notPortedYet: return false
-      case .diverged: return true
+      case .notPortedYet: return .endedNotPortedYet
+      case .diverged: return .diverged
       }
     }
-    return false
+    return .agreed
+  }
+
+  private func diverges(_ script: Script) throws -> Bool {
+    try verdict(start: script.start, commands: script.commands) == .diverged
   }
 
   private func shrink(_ script: Script) throws -> Script {
@@ -225,6 +242,7 @@ extension EditorCommand {
     switch self {
     case .setSelection(let anchor, let focus): return .setSelection(anchor: adjust(anchor), focus: adjust(focus))
     case .deleteLine(let backward, let lineBoundary): return .deleteLine(backward: backward, lineBoundary: adjust(lineBoundary))
+    case .toggleChecked(let path): return .toggleChecked(path: adjust(Point(path: path, offset: 0, type: .text)).path)
     default: return self
     }
   }
@@ -240,9 +258,9 @@ extension String {
   }
 }
 
-/// Random documents of paragraphs, headings, quotes and horizontal rules,
-/// with text and line breaks, and random editing commands a user could issue
-/// against them.
+/// Random documents of paragraphs, headings, quotes, lists and horizontal
+/// rules, with text, tabs and line breaks, and random editing commands a
+/// user could issue against them.
 struct Generator {
   private var random: SplitMix64
 
@@ -252,8 +270,8 @@ struct Generator {
   /// which ICU segments with a dictionary as no space marks where they end;
   /// and what markdown shortcuts are typed with.
   private static let alphabet: [String] = [
-    "a", "b", "z", " ", " ", ".", "_", "7", "é", "e\u{301}", "ß", "日", "本", "語", "한", "👍", "👍🏽",
-    "👨‍👩‍👧", "🇯🇵", "日本語", "東京", "話す", "を", "は", "ひらがな", "カタカナ", "#", ">", "*", "~", "=", "`", "-",
+    "a", "b", "z", " ", " ", ".", "_", "7", "1", "é", "e\u{301}", "ß", "日", "本", "語", "한", "👍", "👍🏽",
+    "👨‍👩‍👧", "🇯🇵", "日本語", "東京", "話す", "を", "は", "ひらがな", "カタカナ", "#", ">", "*", "~", "=", "`", "-", "[", "]",
   ]
   private static let formats: [TextFormat] = [
     [], .bold, .italic, [.bold, .italic], .underline, .code, .subscript, .superscript,
@@ -265,7 +283,8 @@ struct Generator {
   /// composition finishes and Enter finishes a block's.
   private static let shortcuts = [
     "# ", "### ", "###### ", "####### ", "> ", "--- ", "*** ", "___ ", "*a*", "**a**", "***a***", "_a_", "__a__",
-    "~~a~~", "==a==", "`a`", "`**a**", "*a *", "a_b_", "- ", "7. ", "``` ",
+    "~~a~~", "==a==", "`a`", "`**a**", "*a *", "a_b_", "- ", "* ", "+ ", "1. ", "7. ", "    - ", "        1. ", "[ ] ",
+    "[x] ", "- [ ] ", "\t- ", "``` ",
   ]
   /// The rest of a shortcut being typed.
   private var typing: [EditorCommand] = []
@@ -275,14 +294,21 @@ struct Generator {
   }
 
   mutating func document() -> JSONValue {
-    LexicalJSON.document((0..<Int.random(in: 1...3, using: &random)).map { _ in block() })
+    var blocks: [JSONValue] = []
+    for _ in 0..<Int.random(in: 1...3, using: &random) {
+      // Lexical joins a list to the list of its type after it.
+      let previousType = blocks.last?["listType"]?.stringValue.flatMap(ListType.init(rawValue:))
+      blocks.append(block(unlike: previousType))
+    }
+    return LexicalJSON.document(blocks)
   }
 
-  private mutating func block() -> JSONValue {
-    switch Int.random(in: 0..<8, using: &random) {
+  private mutating func block(unlike previousType: ListType?) -> JSONValue {
+    switch Int.random(in: 0..<9, using: &random) {
     case 0: LexicalJSON.heading(Self.headingTags.randomElement(using: &random)!, inlineNodes())
     case 1: LexicalJSON.quote(inlineNodes())
     case 2: LexicalJSON.horizontalRule
+    case 3...5: list(unlike: previousType)
     default: paragraph()
     }
   }
@@ -290,17 +316,59 @@ struct Generator {
   private mutating func paragraph() -> JSONValue {
     LexicalJSON.paragraph(
       inlineNodes(), textFormat: Self.formats.randomElement(using: &random)!,
-      textStyle: Self.styles.randomElement(using: &random)!)
+      textStyle: Self.styles.randomElement(using: &random)!,
+      indent: [0, 0, 0, 1, 2].randomElement(using: &random)!)
+  }
+
+  /// A list of up to three entries, where an item may be followed by a list
+  /// nested in an item of its own, down to three lists deep; or now and then
+  /// a chain of an item and a nested list, five to eight lists deep, around
+  /// the depth past which the web's editor won't indent. Now and then a
+  /// list, nested or not, is marked with the `*` or `+` it was typed with.
+  private mutating func list(unlike excluded: ListType? = nil) -> JSONValue {
+    let listType = ListType.allCases.filter { $0 != excluded }.randomElement(using: &random)!
+    let start = listType == .number && Int.random(in: 0..<4, using: &random) == 0 ? 3 : 1
+    let chain = Int.random(in: 0..<4, using: &random) == 0
+    let deepest = chain ? Int.random(in: 5...8, using: &random) : 3
+    return LexicalJSON.list(
+      listType, listEntries(depth: 1, deepest: deepest, chain: chain), start: start, marker: marker(for: listType))
+  }
+
+  private mutating func marker(for listType: ListType) -> ListMarker? {
+    guard listType != .number, Int.random(in: 0..<4, using: &random) == 0 else { return nil }
+    return ListMarker.allCases.filter { $0 != .default }.randomElement(using: &random)
+  }
+
+  private mutating func listEntries(depth: Int, deepest: Int, chain: Bool) -> [LexicalJSON.ListEntry] {
+    var entries: [LexicalJSON.ListEntry] = []
+    for _ in 0..<(chain && depth < deepest ? 2 : Int.random(in: 1...3, using: &random)) {
+      if depth < deepest, case .item? = entries.last, chain || Int.random(in: 0..<3, using: &random) == 0 {
+        let listType = ListType.allCases.randomElement(using: &random)!
+        let nested = listEntries(depth: depth + 1, deepest: deepest, chain: chain)
+        entries.append(.nested(listType, nested, marker: marker(for: listType)))
+      } else {
+        entries.append(.item(inlineNodes(), checked: Bool.random(using: &random)))
+      }
+    }
+    return entries
   }
 
   private mutating func inlineNodes() -> [JSONValue] {
     var children: [JSONValue] = []
     var previous: (format: TextFormat, style: String)?
     for _ in 0..<Int.random(in: 0...4, using: &random) {
-      if Int.random(in: 0..<4, using: &random) == 0 {
+      switch Int.random(in: 0..<8, using: &random) {
+      case 0, 1:
         children.append(LexicalJSON.lineBreak)
         previous = nil
         continue
+      case 2:
+        children.append(
+          LexicalJSON.tab(
+            format: Self.formats.randomElement(using: &random)!, style: Self.styles.randomElement(using: &random)!))
+        previous = nil
+        continue
+      default: break
       }
       // Adjacent text alike would be merged by Lexical.
       var format: TextFormat
@@ -324,21 +392,20 @@ struct Generator {
       [anchor, focus].allSatisfy { points(in: snapshot.state).contains($0) }
     case .deleteLine(let backward, let lineBoundary):
       snapshot.selection == nil || lineBoundary == Self.lineBoundary(in: snapshot, backward: backward)
+    case .toggleChecked(let path):
+      checkboxes(in: snapshot.state).contains(path)
     default:
       true
     }
   }
-
-  /// The blocks of text a caret can be in.
-  private static let textBlocks: Set<String> = ["paragraph", "heading", "quote"]
 
   /// Where the focus's line starts or ends, taken to be where its block
   /// does, as in a view too wide to wrap it.
   static func lineBoundary(in snapshot: Snapshot, backward: Bool) -> Point {
     guard let focus = snapshot.selection?.focus else { return Point(path: [], offset: 0, type: .element) }
     let path = focus.type == .element ? focus.path : focus.path.dropLast()
-    guard let block = snapshot.state.node(at: Array(path)), let type = block["type"]?.stringValue,
-      textBlocks.contains(type), let children = block["children"]?.arrayValue
+    guard let block = snapshot.state.node(at: Array(path)), isLine(block),
+      let children = block["children"]?.arrayValue
     else { return focus }
     let index = backward ? 0 : children.count - 1
     guard children.indices.contains(index), let text = children[index]["text"]?.stringValue else {
@@ -347,21 +414,38 @@ struct Generator {
     return .text(path + [index], backward ? 0 : text.utf16.count)
   }
 
+  /// A block a caret can be in: a paragraph, heading or quote, or a list
+  /// item holding content rather than a nested list.
+  private static func isLine(_ node: JSONValue) -> Bool {
+    ["paragraph", "heading", "quote"].contains(node["type"]?.stringValue)
+      || (node["type"] == "listitem" && node["children"]?.arrayValue?.first?["type"] != "list")
+  }
+
   /// Every point a user could put a selection's end at.
   private static func points(in state: JSONValue) -> [Point] {
     state.nodePaths().flatMap { path -> [Point] in
       guard let node = state.node(at: path) else { return [] }
       switch node["type"]?.stringValue {
-      case "text":
+      case "text", "tab":
         return graphemeBoundaries(of: node["text"]?.stringValue ?? "").map { .text(path, $0) }
-      case let type? where textBlocks.contains(type):
-        let isText = (node["children"]?.arrayValue ?? []).map { $0["type"] == "text" }
+      case _ where isLine(node):
+        let isText = (node["children"]?.arrayValue ?? []).map { $0["type"] == "text" || $0["type"] == "tab" }
         return (0...isText.count).filter { offset in
           (offset == 0 || !isText[offset - 1]) && (offset == isText.count || !isText[offset])
         }.map { Point(path: path, offset: $0, type: .element) }
       default:
         return []
       }
+    }
+  }
+
+  /// The items of checklists that show a box to tap: those holding content.
+  private static func checkboxes(in state: JSONValue) -> [[Int]] {
+    state.nodePaths().filter { path in
+      guard let node = state.node(at: path), node["type"] == "listitem", isLine(node),
+        let list = state.node(at: path.dropLast())
+      else { return false }
+      return list["listType"] == "check"
     }
   }
 
@@ -376,13 +460,13 @@ struct Generator {
     switch roll {
     // With nothing selected, as after undoing back to the loaded document, a
     // user puts the selection somewhere before doing anything else.
-    case _ where snapshot.selection == nil, 70..<85:
+    case _ where snapshot.selection == nil, 57..<72:
       let points = Self.points(in: snapshot.state)
       guard let anchor = points.randomElement(using: &random) else { return .selectAll }
       let isRange = Int.random(in: 0..<3, using: &random) == 0
       return .setSelection(anchor: anchor, focus: isRange ? points.randomElement(using: &random)! : anchor)
-    case ..<12: return .insertText(text(1...3))
-    case ..<22:
+    case ..<10: return .insertText(text(1...3))
+    case ..<18:
       let shortcut = Self.shortcuts.randomElement(using: &random)!
       typing =
         switch Int.random(in: 0..<4, using: &random) {
@@ -395,16 +479,24 @@ struct Generator {
         return .setSelection(anchor: start, focus: start)
       }
       return typing.removeFirst()
-    case ..<34: return .deleteCharacter(backward: backward)
-    case ..<39: return .deleteWord(backward: backward)
-    case ..<42: return .deleteLine(backward: backward, lineBoundary: Self.lineBoundary(in: snapshot, backward: backward))
-    case ..<49: return .insertParagraph
-    case ..<54: return .insertLineBreak
-    case ..<60: return .formatText(TextFormatType.allCases.randomElement(using: &random)!)
-    case ..<62: return .setBlockType(BlockType.allCases.randomElement(using: &random)!)
-    case ..<64: return .selectAll
-    case ..<70: return .wait(milliseconds: [500, 1000, 2000].randomElement(using: &random)!)
-    case ..<94: return .undo
+    case ..<28: return .deleteCharacter(backward: backward)
+    case ..<32: return .deleteWord(backward: backward)
+    case ..<35: return .deleteLine(backward: backward, lineBoundary: Self.lineBoundary(in: snapshot, backward: backward))
+    case ..<41: return .insertParagraph
+    case ..<45: return .insertLineBreak
+    case ..<50: return .formatText(TextFormatType.allCases.randomElement(using: &random)!)
+    case ..<52: return .setBlockType(BlockType.allCases.randomElement(using: &random)!)
+    case ..<54: return .selectAll
+    case ..<57: return .wait(milliseconds: [500, 1000, 2000].randomElement(using: &random)!)
+    case ..<76: return .insertList(EditorCommand.ListType.allCases.randomElement(using: &random)!)
+    case ..<78: return .removeList
+    case ..<80: return .indent
+    case ..<82: return .outdent
+    case ..<86: return .tab(backward: Int.random(in: 0..<3, using: &random) == 0)
+    case ..<88:
+      guard let box = Self.checkboxes(in: snapshot.state).randomElement(using: &random) else { return .undo }
+      return .toggleChecked(path: box)
+    case ..<96: return .undo
     default: return .redo
     }
   }
@@ -436,3 +528,11 @@ public struct FuzzerError: Error, CustomStringConvertible {
   public let description: String
   init(_ description: String) { self.description = description }
 }
+
+/// A candidate that counts its declined shortcuts, as
+/// `Editor.shortcutsDeclinedAsNotPorted` does.
+public protocol DeclinesShortcutsNotPortedYet: EditorModel {
+  var shortcutsDeclinedAsNotPorted: Int { get }
+}
+
+extension Editor: DeclinesShortcutsNotPortedYet {}

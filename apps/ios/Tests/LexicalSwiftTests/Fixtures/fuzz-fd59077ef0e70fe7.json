@@ -1,0 +1,400 @@
+{
+  "changes" : [
+    {
+      "changed" : [
+
+      ]
+    },
+    {
+      "changed" : [
+        [
+
+        ],
+        [
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "changed" : [
+        [
+
+        ],
+        [
+          0
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          1
+        ]
+      ]
+    },
+    {
+      "changed" : [
+        [
+
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          1
+        ],
+        [
+          0,
+          1
+        ]
+      ]
+    },
+    {
+      "changed" : [
+        [
+
+        ],
+        [
+          0
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          1
+        ]
+      ]
+    },
+    {
+      "changed" : [
+        [
+          0
+        ],
+        [
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "changed" : [
+        [
+
+        ],
+        [
+          0
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          1
+        ],
+        [
+          1,
+          0
+        ]
+      ]
+    },
+    {
+      "changed" : [
+        [
+
+        ],
+        [
+          0
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          1
+        ],
+        [
+          0,
+          1
+        ]
+      ]
+    },
+    {
+      "changed" : [
+        [
+
+        ],
+        [
+          0
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          1
+        ]
+      ]
+    },
+    {
+      "changed" : [
+        [
+
+        ],
+        [
+          0
+        ],
+        [
+          1
+        ],
+        [
+          2
+        ]
+      ]
+    }
+  ],
+  "commands" : [
+    {
+      "anchor" : {
+        "offset" : 5,
+        "path" : [
+          0,
+          0
+        ],
+        "type" : "text"
+      },
+      "focus" : {
+        "offset" : 5,
+        "path" : [
+          0,
+          0
+        ],
+        "type" : "text"
+      },
+      "type" : "setSelection"
+    },
+    {
+      "backward" : false,
+      "type" : "deleteCharacter"
+    },
+    {
+      "type" : "insertLineBreak"
+    },
+    {
+      "listType" : "number",
+      "type" : "insertList"
+    },
+    {
+      "text" : "z",
+      "type" : "insertText"
+    },
+    {
+      "type" : "undo"
+    },
+    {
+      "backward" : true,
+      "lineBoundary" : {
+        "offset" : 0,
+        "path" : [
+          0
+        ],
+        "type" : "element"
+      },
+      "type" : "deleteLine"
+    },
+    {
+      "type" : "undo"
+    },
+    {
+      "text" : "1",
+      "type" : "insertText"
+    },
+    {
+      "type" : "insertParagraph"
+    }
+  ],
+  "expected" : {
+    "selection" : {
+      "anchor" : {
+        "offset" : 0,
+        "path" : [
+          2
+        ],
+        "type" : "element"
+      },
+      "focus" : {
+        "offset" : 0,
+        "path" : [
+          2
+        ],
+        "type" : "element"
+      },
+      "format" : 1,
+      "style" : ""
+    },
+    "state" : {
+      "root" : {
+        "children" : [
+          {
+            "children" : [
+              {
+                "detail" : 0,
+                "format" : 1,
+                "mode" : "normal",
+                "style" : "",
+                "text" : "1",
+                "type" : "text",
+                "version" : 1
+              },
+              {
+                "children" : [
+                  {
+                    "detail" : 0,
+                    "format" : 1,
+                    "mode" : "normal",
+                    "style" : "",
+                    "text" : ".]z東京",
+                    "type" : "text",
+                    "version" : 1
+                  },
+                  {
+                    "type" : "linebreak",
+                    "version" : 1
+                  }
+                ],
+                "direction" : null,
+                "format" : "",
+                "indent" : 0,
+                "type" : "listitem",
+                "value" : 1,
+                "version" : 1
+              },
+              {
+                "children" : [
+
+                ],
+                "direction" : null,
+                "format" : "",
+                "indent" : 0,
+                "type" : "listitem",
+                "value" : 2,
+                "version" : 1
+              }
+            ],
+            "direction" : null,
+            "format" : "",
+            "indent" : 0,
+            "listType" : "number",
+            "start" : 1,
+            "tag" : "ol",
+            "type" : "list",
+            "version" : 1
+          },
+          {
+            "children" : [
+
+            ],
+            "direction" : null,
+            "format" : "",
+            "indent" : 0,
+            "textFormat" : 0,
+            "textStyle" : "",
+            "type" : "paragraph",
+            "version" : 1
+          },
+          {
+            "children" : [
+
+            ],
+            "direction" : null,
+            "format" : "",
+            "indent" : 0,
+            "textFormat" : 1,
+            "textStyle" : "",
+            "type" : "paragraph",
+            "version" : 1
+          }
+        ],
+        "direction" : null,
+        "format" : "",
+        "indent" : 0,
+        "type" : "root",
+        "version" : 1
+      }
+    }
+  },
+  "start" : {
+    "root" : {
+      "children" : [
+        {
+          "children" : [
+            {
+              "detail" : 0,
+              "format" : 1,
+              "mode" : "normal",
+              "style" : "",
+              "text" : ".]z東京は",
+              "type" : "text",
+              "version" : 1
+            }
+          ],
+          "direction" : null,
+          "format" : "",
+          "indent" : 0,
+          "textFormat" : 1,
+          "textStyle" : "",
+          "type" : "paragraph",
+          "version" : 1
+        },
+        {
+          "children" : [
+            {
+              "children" : [
+
+              ],
+              "direction" : null,
+              "format" : "",
+              "indent" : 0,
+              "type" : "listitem",
+              "value" : 1,
+              "version" : 1
+            }
+          ],
+          "direction" : null,
+          "format" : "",
+          "indent" : 0,
+          "listType" : "number",
+          "start" : 1,
+          "tag" : "ol",
+          "type" : "list",
+          "version" : 1
+        }
+      ],
+      "direction" : null,
+      "format" : "",
+      "indent" : 0,
+      "type" : "root",
+      "version" : 1
+    }
+  }
+}

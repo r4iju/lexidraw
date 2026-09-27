@@ -245,7 +245,7 @@ extension EditorState {
 
   // MARK: Order
 
-  func compareNext(_ a: Caret, _ b: Caret) -> Int {
+  func compareNext(_ a: Caret, _ b: Caret) throws -> Int {
     switch commonAncestor(a.origin, b.origin) {
     case .same:
       if case .text(_, _, let aOffset) = a, case .text(_, _, let bOffset) = b {
@@ -258,7 +258,7 @@ extension EditorState {
     case .ancestor: return a.isChild ? -1 : 1
     case .descendant: return b.isChild ? 1 : -1
     case .branch(let aChild, let bChild): return branchOrder(aChild, bChild)
-    case nil: preconditionFailure("Carets in different trees")
+    case nil: throw EditorError.invalidState("Carets in different trees")
     }
   }
 
@@ -310,7 +310,7 @@ extension EditorState {
 
   func isBefore(_ a: SelectionPoint, _ b: SelectionPoint) throws -> Bool {
     if a.key == b.key { return a.offset < b.offset }
-    return compareNext(normalize(try caret(from: a, .next)), normalize(try caret(from: b, .next))) < 0
+    return try compareNext(normalize(try caret(from: a, .next)), normalize(try caret(from: b, .next))) < 0
   }
 
   func isBackward(_ selection: RangeSelection) throws -> Bool { try isBefore(selection.focus, selection.anchor) }
@@ -323,7 +323,7 @@ extension EditorState {
   func caretRange(from selection: RangeSelection) throws -> CaretRange {
     let anchor = try caret(from: selection.anchor, .next)
     let focus = try caret(from: selection.focus, .next)
-    let direction: CaretDirection = compareNext(anchor, focus) <= 0 ? .next : .previous
+    let direction: CaretDirection = try compareNext(anchor, focus) <= 0 ? .next : .previous
     return CaretRange(anchor: inDirection(anchor, direction), focus: inDirection(focus, direction))
   }
 }

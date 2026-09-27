@@ -110,6 +110,143 @@ import UIKit
     }
   }
 
+  /// A list item's text starts past the marker of each list around it and
+  /// the box of each checklist, and an indented paragraph a level of indent
+  /// in for each level.
+  @Test
+  func itemsAndIndentedBlocksStartAsFarInAsOnTheWeb() throws {
+    let view = try Self.host(
+      LexicalJSON.document([
+        LexicalJSON.list(
+          .bullet, [.item([LexicalJSON.text("a")]), .nested(.check, [.item([LexicalJSON.text("b")])])]),
+        LexicalJSON.paragraph([LexicalJSON.text("c")], indent: 2),
+      ]))
+    let em = UIFont.preferredFont(forTextStyle: .body).pointSize
+    func caret(_ offset: Int) throws -> CGRect {
+      view.caretRect(for: try #require(view.position(from: view.beginningOfDocument, offset: offset)))
+    }
+
+    #expect(try Self.text(of: view) == "a\nb\nc")
+    let layout = ListAndIndentLayout.self
+    #expect(abs(try caret(0).minX - layout.list.padding * em) < 0.5)
+    #expect(abs(try caret(2).minX - (2 * layout.list.padding + layout.list.checklistPadding) * em) < 0.5)
+    #expect(abs(try caret(2).midY - (try caret(0)).midY - TypographyTests.paragraphLine * em - layout.list.itemSpacing * em) < 1)
+    #expect(abs(try caret(4).minX - 2 * layout.indentWidth) < 0.5)
+    try Self.expectEveryCaretToLandOnItself(view)
+  }
+
+  /// An indented quote's indent takes the place of its padding, as the
+  /// `padding-inline-start` Lexical indents with does, and leaves its border.
+  @Test
+  func anIndentedQuoteKeepsItsBorder() throws {
+    let view = try Self.host(
+      LexicalJSON.document([LexicalJSON.element("quote", [LexicalJSON.text("q")], ["indent": 2])]))
+
+    let caret = view.caretRect(for: view.beginningOfDocument)
+    let start = DocumentTypography.web.quote.borderWidth + 2 * ListAndIndentLayout.indentWidth
+    #expect(abs(caret.minX - start) < 0.5, "\(caret.minX), not \(start)")
+  }
+
+  /// A marker is set as high on its line as the item's text: an item whose
+  /// text is its own marker shows the two alike.
+  @Test
+  func aMarkerSitsAsHighAsItsItemsText() throws {
+    let view = try Self.host(LexicalJSON.document([LexicalJSON.list(.number, [.item([LexicalJSON.text("1.")])])]))
+    let textStart = view.caretRect(for: view.beginningOfDocument).minX
+    let canvas = view.textInputView
+    let image = UIGraphicsImageRenderer(bounds: canvas.bounds).image { context in
+      UIColor.white.setFill()
+      context.fill(canvas.bounds)
+      canvas.layer.render(in: context.cgContext)
+    }
+
+    let marker = try #require(Self.inkedRows(image, from: 0, to: textStart))
+    let text = try #require(Self.inkedRows(image, from: textStart, to: canvas.bounds.width))
+    #expect(abs(marker.lowerBound - text.lowerBound) < 0.5 && abs(marker.upperBound - text.upperBound) < 0.5, "\(marker), \(text)")
+  }
+
+  /// The top and bottom, in points, of what is drawn darker than a white
+  /// background between `minX` and `maxX`.
+  static func inkedRows(_ image: UIImage, from minX: CGFloat, to maxX: CGFloat) -> ClosedRange<CGFloat>? {
+    guard let cgImage = image.cgImage else { return nil }
+    let (width, height) = (cgImage.width, cgImage.height)
+    var pixels = [UInt8](repeating: 0, count: width * height * 4)
+    let drawn = pixels.withUnsafeMutableBytes { buffer in
+      let context = CGContext(
+        data: buffer.baseAddress, width: width, height: height, bitsPerComponent: 8, bytesPerRow: width * 4,
+        space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+      context?.draw(cgImage, in: CGRect(x: 0, y: 0, width: width, height: height))
+      return context != nil
+    }
+    guard drawn else { return nil }
+    let scale = image.scale
+    let columns = max(Int(minX * scale), 0)..<min(Int(maxX * scale), width)
+    let rows = (0..<height).filter { row in
+      columns.contains { column in
+        let pixel = (row * width + column) * 4
+        return pixels[pixel..<pixel + 3].contains { $0 < 200 }
+      }
+    }
+    guard let top = rows.first, let bottom = rows.last else { return nil }
+    return CGFloat(top) / scale...CGFloat(bottom + 1) / scale
+  }
+
+  /// Each item shows the marker the web's theme gives it, numbered from its
+  /// list's start and styled by how deep it is, or in a checklist a box.
+  @Test
+  func itemsShowTheirMarkersAndBoxes() throws {
+    let model = Editor()
+    try model.load(
+      LexicalJSON.document([
+        LexicalJSON.list(
+          .number,
+          [
+            .item([LexicalJSON.text("a")]),
+            .nested(.number, [.item([LexicalJSON.text("b")]), .nested(.bullet, [.item([LexicalJSON.text("c")])])]),
+          ], start: 3),
+        LexicalJSON.list(.check, [.item([LexicalJSON.text("d")], checked: true), .item([LexicalJSON.text("e")])]),
+      ]))
+    let body = UIFont.preferredFont(forTextStyle: .body)
+    let storage = NSMutableAttributedString()
+    try DocumentText(model: model, style: { _, _ in [.font: body] }).reload(storage)
+
+    let (styled, layout) = ListAndIndentLayout.styled(storage)
+
+    #expect(styled.string == "a\nb\nc\nd\ne\n")
+    #expect(layout.items.map(\.marker) == ["3. ", "a. ", "\u{25AA} ", nil, nil])
+    #expect(layout.items.map(\.isChecklistItem) == [false, false, false, true, true])
+  }
+
+  /// A checked item's text is struck through, across the space between its
+  /// words too, and drawn in the theme's colour for done items, light and
+  /// dark; an unchecked item's isn't.
+  @Test(arguments: [UIUserInterfaceStyle.light, .dark])
+  func aCheckedItemIsStruckThroughInTheThemesColour(_ style: UIUserInterfaceStyle) throws {
+    let view = try Self.host(
+      LexicalJSON.document([
+        LexicalJSON.list(
+          .check, [.item([LexicalJSON.text("ll ll")], checked: true), .item([LexicalJSON.text("ll ll")])])
+      ]))
+    view.overrideUserInterfaceStyle = style
+    view.layoutIfNeeded()
+    func caret(_ offset: Int) throws -> CGRect {
+      view.caretRect(for: try #require(view.position(from: view.beginningOfDocument, offset: offset)))
+    }
+    func space(after start: Int) throws -> ClosedRange<CGFloat> {
+      (try caret(start + 2).minX + 1)...(try caret(start + 3).minX - 1)
+    }
+    func line(_ start: Int) throws -> ClosedRange<CGFloat> { (try caret(start).minY)...(try caret(start).maxY) }
+
+    #expect(TypographyTests.ink(of: view.textInputView, across: try space(after: 0), rows: try line(0)) != nil)
+    #expect(TypographyTests.ink(of: view.textInputView, across: try space(after: 6), rows: try line(6)) == nil)
+    let drawn = try #require(
+      TypographyTests.inkColor(
+        of: view.textInputView, across: (try caret(0).minX)...(try caret(2).minX), rows: try line(0)))
+    let theme = DocumentTypography.web.list.doneColor
+    let expected = style == .dark ? theme.dark : theme.light
+    #expect(zip(drawn, [expected.red, expected.green, expected.blue]).allSatisfy { abs($0 - $1) < 0.01 }, "\(drawn)")
+  }
+
   /// Scrolling up from the middle of a long document, through blocks laid
   /// out for the first time, moves the text exactly as far as the scroll.
   @Test
