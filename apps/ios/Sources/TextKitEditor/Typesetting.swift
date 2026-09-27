@@ -6,11 +6,17 @@ import UIKit
 /// block's text, and the space around each block, in points. An em is the
 /// body text's size, so text follows the reader's text size.
 final class Typesetting {
-  let typography: DocumentTypography
+  private let web: DocumentTypography
+  private(set) var typography: DocumentTypography
   /// The view's, which sets some headings smaller.
   private(set) var width: Double = 0
+  /// The document's, a BCP 47 tag.
+  var language: String? {
+    didSet { typography = web.forLanguage(language) }
+  }
 
   init(_ typography: DocumentTypography) {
+    web = typography
     self.typography = typography
   }
 
@@ -55,7 +61,8 @@ final class Typesetting {
     var attributes: [NSAttributedString.Key: Any] = [
       .foregroundColor: (heading?.color ?? typography.color).color, .paragraphStyle: paragraph,
     ]
-    if let heading, heading.letterSpacing != 0 { attributes[.kern] = heading.letterSpacing * size }
+    let kern = CGFloat(heading?.letterSpacing.map { $0 * size } ?? typography.letterSpacing * em)
+    if kern != 0 { attributes[.kern] = kern }
     if block == .text(.quote) {
       let quote = typography.quote
       paragraph.firstLineHeadIndent = quote.borderWidth + quote.paddingStart * size

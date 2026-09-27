@@ -29,7 +29,8 @@ struct DocumentTypography: Sendable {
   struct Heading: Sendable {
     var fontSize: Double
     var lineHeight: Double
-    var letterSpacing: Double
+    /// Or none, for the body text's.
+    var letterSpacing: Double?
     var before: Double
     var after: Double
     var color: ThemeColor
@@ -40,6 +41,14 @@ struct DocumentTypography: Sendable {
   struct Narrow: Sendable {
     var width: Double
     var headingSizes: [BlockType: Double]
+  }
+
+  /// The body text of a document in a language `tags` match as CSS's
+  /// `:lang()` does, where it sets any.
+  struct Language: Sendable {
+    var tags: [String]
+    var lineHeight: Double?
+    var letterSpacing: Double?
   }
 
   struct Quote: Sendable {
@@ -57,6 +66,7 @@ struct DocumentTypography: Sendable {
 
   var color: ThemeColor
   var lineHeight: Double
+  var letterSpacing: Double
   /// After any block that doesn't set its own.
   var blockAfter: Double
   /// As CSS numbers it, 400 being regular.
@@ -67,8 +77,22 @@ struct DocumentTypography: Sendable {
   /// In the stylesheet's order, a later one over an earlier where both
   /// apply.
   var narrow: [Narrow]
+  /// In the stylesheet's order, a later one over an earlier where both
+  /// apply.
+  var languages: [Language]
   var quote: Quote
   var rule: Rule
+
+  /// As the web sets a document in `language`, a BCP 47 tag.
+  func forLanguage(_ language: String?) -> DocumentTypography {
+    guard let language = language?.lowercased() else { return self }
+    var typography = self
+    for rule in languages where rule.tags.contains(where: { language == $0 || language.hasPrefix("\($0)-") }) {
+      typography.lineHeight = rule.lineHeight ?? typography.lineHeight
+      typography.letterSpacing = rule.letterSpacing ?? typography.letterSpacing
+    }
+    return typography
+  }
 
   func heading(_ block: StyledBlock) -> Heading? {
     guard case .text(let type) = block else { return nil }

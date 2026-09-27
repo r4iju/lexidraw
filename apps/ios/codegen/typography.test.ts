@@ -18,7 +18,7 @@ test("reads a heading as its rules give it", async () => {
     ".h2: Heading(fontSize: 1.5, lineHeight: 1.3, letterSpacing: -0.01, before: 1.6, after: 0.4, color: .heading),",
   );
   expect(swift).toContain(
-    ".h6: Heading(fontSize: 0.875, lineHeight: 1.5, letterSpacing: 0, before: 1.25, after: 0.25, color: .mutedForeground),",
+    ".h6: Heading(fontSize: 0.875, lineHeight: 1.5, letterSpacing: nil, before: 1.25, after: 0.25, color: .mutedForeground),",
   );
   expect(swift).toContain(
     "narrow: [Narrow(width: 639, headingSizes: [.h1: 1.625])],",
@@ -135,5 +135,32 @@ test("refuses a narrow container's heading inside another at-rule", async () => 
 
   expect(() => swiftForTypography({ ...styles, documentCSS })).toThrow(
     "@container (max-width: 390px)",
+  );
+});
+
+test("reads the body text of a document in a language the web sets apart", async () => {
+  const styles = await readWebStyles();
+  const documentCSS = `${styles.documentCSS}
+.document-typography:lang(ko),
+.document-content:lang(ko) {
+  line-height: 1.7;
+}`;
+  const swift = swiftForTypography({ ...styles, documentCSS });
+
+  expect(swift).toContain("    letterSpacing: 0,\n");
+  expect(swift).toContain(
+    'languages: [Language(tags: ["ja", "zh"], lineHeight: 1.8, letterSpacing: 0.02), Language(tags: ["ko"], lineHeight: 1.7, letterSpacing: nil)],',
+  );
+});
+
+test("refuses a language's text set as isn't read", async () => {
+  const styles = await readWebStyles();
+  const documentCSS = `${styles.documentCSS}
+.document-content:lang(ko) p {
+  letter-spacing: 0.01em;
+}`;
+
+  expect(() => swiftForTypography({ ...styles, documentCSS })).toThrow(
+    ".document-content:lang(ko) p",
   );
 });

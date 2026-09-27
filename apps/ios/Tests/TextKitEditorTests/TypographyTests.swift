@@ -27,8 +27,8 @@ import UIKit
     return view.caretRect(for: try #require(view.position(from: view.beginningOfDocument, offset: offset)))
   }
 
-  static func expectNear(_ actual: CGFloat, _ expected: CGFloat, _ what: String) {
-    #expect(abs(actual - expected) < 1, "\(what): \(actual), not \(expected)")
+  static func expectNear(_ actual: CGFloat, _ expected: CGFloat, _ what: String, within: CGFloat = 1) {
+    #expect(abs(actual - expected) < within, "\(what): \(actual), not \(expected)")
   }
 
   /// Space between blocks is the larger of the space after one and before
@@ -147,6 +147,25 @@ import UIKit
         + Self.lineHeight(.h2) / 2,
       "a paragraph to the heading after it")
     try LayoutTests.expectEveryCaretToLandOnItself(view)
+  }
+
+  /// The web sets a document in Japanese or Chinese in taller lines and
+  /// wider letters; a heading keeps its own line height, and its own
+  /// letter spacing where it sets one.
+  @Test(arguments: [("ja-JP", 1.8, 0.02), ("zh", 1.8, 0.02), ("en", 1.6, 0), (nil, 1.6, 0)])
+  func aDocumentsLanguageSetsItsText(_ language: String?, _ lineHeight: Double, _ letterSpacing: Double) {
+    let typesetting = Typesetting(.web)
+    typesetting.language = language
+    let (paragraph, h1, h3) = (
+      typesetting.attributes(.text(.paragraph), []), typesetting.attributes(.text(.h1), []),
+      typesetting.attributes(.text(.h3), [])
+    )
+
+    Self.expectNear((paragraph[.paragraphStyle] as? NSParagraphStyle)?.minimumLineHeight ?? 0, lineHeight * Self.em, "a line")
+    Self.expectNear(paragraph[.kern] as? CGFloat ?? 0, letterSpacing * Self.em, "a paragraph's letters", within: 0.001)
+    Self.expectNear((h3[.paragraphStyle] as? NSParagraphStyle)?.minimumLineHeight ?? 0, 1.4 * 1.25 * Self.em, "an h3's line")
+    Self.expectNear(h3[.kern] as? CGFloat ?? 0, letterSpacing * Self.em, "an h3's letters", within: 0.001)
+    Self.expectNear(h1[.kern] as? CGFloat ?? 0, -0.015 * 1.625 * Self.em, "a narrow h1's letters", within: 0.001)
   }
 }
 #endif

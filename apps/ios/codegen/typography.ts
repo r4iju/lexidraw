@@ -80,7 +80,11 @@ export function swiftForTypography(styles: WebStyles): string {
     const fields = [
       `fontSize: ${ems(value(own, "font-size"))}`,
       `lineHeight: ${number(value(own, "line-height"))}`,
-      `letterSpacing: ${ems(or("letter-spacing", () => heading.values.get("letter-spacing") ?? "0"))}`,
+      `letterSpacing: ${optional(
+        ems,
+        own.values.get("letter-spacing") ??
+          heading.values.get("letter-spacing"),
+      )}`,
       `before: ${ems(resolve(headingBefore, own))}`,
       `after: ${ems(resolve(headingAfter, own))}`,
       `color: ${colors.name(or("color", () => value(heading, "color")))}`,
@@ -121,6 +125,7 @@ export function swiftForTypography(styles: WebStyles): string {
     "  static let web = DocumentTypography(",
     `    color: ${colors.name(value(content, "color"))},`,
     `    lineHeight: ${number(value(content, "line-height"))},`,
+    `    letterSpacing: ${ems(content.values.get("letter-spacing") ?? "0")},`,
     `    blockAfter: ${ems(resolve(blockAfter, block))},`,
     `    headingWeight: ${number(value(heading, "font-weight"))},`,
     "    headings: [",
@@ -128,6 +133,7 @@ export function swiftForTypography(styles: WebStyles): string {
     "    ],",
     `    adjacentHeadingBefore: ${1 / number(halved[1])},`,
     `    narrow: [${swiftForNarrow(css).join(", ")}],`,
+    `    languages: [${swiftForLanguages(css).join(", ")}],`,
     `    quote: Quote(borderWidth: ${points(quoteBorderWidth)}, borderColor: ${colors.name(quoteBorderColor)}, paddingStart: ${ems(quotePaddingStart)}),`,
     `    rule: Rule(width: ${points(ruleWidth)}, color: ${colors.name(ruleColor)}, margin: ${ems(ruleBefore)}))`,
     "}",
@@ -193,6 +199,49 @@ function swiftForNarrow(css: postcss.Root): string[] {
   return narrow;
 }
 
+/**
+ * The body text the rules for a document in a language set, as `Language`s
+ * in the stylesheet's order.
+ */
+function swiftForLanguages(css: postcss.Root): string[] {
+  const languages: string[] = [];
+  css.walkRules((rule) => {
+    for (const selector of rule.selectors.map(normalize)) {
+      if (
+        !selector.startsWith(".document-content") ||
+        !selector.includes(":lang(")
+      ) {
+        continue;
+      }
+      const own = new Map(
+        (rule.nodes ?? []).flatMap((child) =>
+          child.type === "decl" ? [[child.prop, child.value] as const] : [],
+        ),
+      );
+      const lineHeight = own.get("line-height");
+      const letterSpacing = own.get("letter-spacing");
+      if (lineHeight === undefined && letterSpacing === undefined) continue;
+      if (
+        rule.parent?.type !== "root" ||
+        !/^\.document-content(?::lang\([\w-]+\)|:is\((?::lang\([\w-]+\)(?:, )?)+\))$/.test(
+          selector,
+        )
+      ) {
+        throw new Error(
+          `${selector} sets a language's line height or letter spacing as isn't read yet`,
+        );
+      }
+      const tags = [...selector.matchAll(/:lang\(([\w-]+)\)/g)].map(
+        ([, tag]) => `"${tag}"`,
+      );
+      languages.push(
+        `Language(tags: [${tags.join(", ")}], lineHeight: ${optional(number, lineHeight)}, letterSpacing: ${optional(ems, letterSpacing)})`,
+      );
+    }
+  });
+  return languages;
+}
+
 /** What a selector's rules in a container set, later rules over earlier. */
 type Declarations = { selector: string; values: Map<string, string> };
 
@@ -256,6 +305,14 @@ function border(text: string): [string, string] {
   const match = /^(\S+) solid (.+)$/.exec(text);
   if (!match?.[1] || !match[2]) throw new Error(`Not a solid border: ${text}`);
   return [match[1], match[2]];
+}
+
+/** `text` read by `read`, or Swift's nil for none. */
+function optional(
+  read: (text: string) => number,
+  text: string | undefined,
+): string {
+  return text === undefined ? "nil" : `${read(text)}`;
 }
 
 function ems(text: string): number {
