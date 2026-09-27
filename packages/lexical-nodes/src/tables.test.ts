@@ -5,16 +5,30 @@ import {
   $convertToMarkdownString,
 } from "@lexical/markdown";
 import {
+  $createTableSelectionFrom,
+  $isTableCellNode,
   $isTableNode,
+  INSERT_TABLE_COMMAND,
   type TableCellNode,
+  type TableNode,
   type TableRowNode,
   TableCellHeaderStates,
 } from "@lexical/table";
-import { $getRoot } from "lexical";
+import { $findMatchingParent } from "@lexical/utils";
+import {
+  $createParagraphNode,
+  $getRoot,
+  $getSelection,
+  $isRangeSelection,
+  $setSelection,
+  type ParagraphNode,
+} from "lexical";
 import {
   $createDocumentTable,
+  $insertDocumentTableColumns,
   CORE_NODES,
   CORE_TRANSFORMERS,
+  registerDocumentTableInsertion,
 } from "./index.js";
 
 function editor() {
@@ -105,4 +119,120 @@ test("the shared table factory creates only a header row and no stored sizes", (
       [0, 0],
     ]);
   });
+});
+
+function $table(): TableNode {
+  const table = $getRoot().getChildren().find($isTableNode);
+  if (!table) throw new Error("Expected table");
+  return table;
+}
+
+function $cell(row: number, column: number): TableCellNode {
+  const cell = $table()
+    .getChildAtIndex<TableRowNode>(row)
+    ?.getChildAtIndex(column);
+  if (!$isTableCellNode(cell)) throw new Error("Expected cell");
+  return cell;
+}
+
+/** A paragraph, then a 2 by 2 table, with the table insertion registered. */
+function tableEditor() {
+  const e = editor();
+  registerDocumentTableInsertion(e);
+  e.update(
+    () => {
+      $getRoot().append($createParagraphNode(), $createDocumentTable(2, 2));
+    },
+    { discrete: true },
+  );
+  return e;
+}
+
+function tableShapes(e: ReturnType<typeof editor>) {
+  return e.getEditorState().read(() =>
+    $getRoot()
+      .getChildren()
+      .map((block) =>
+        $isTableNode(block)
+          ? block
+              .getChildren<TableRowNode>()
+              .map((row) =>
+                row
+                  .getChildren<TableCellNode>()
+                  .map((cell) =>
+                    cell.getChildren().map((child) => child.getType()),
+                  ),
+              )
+          : block.getType(),
+      ),
+  );
+}
+
+function insertTable(e: ReturnType<typeof editor>) {
+  e.update(
+    () => {
+      e.dispatchCommand(INSERT_TABLE_COMMAND, { rows: "1", columns: "1" });
+    },
+    { discrete: true },
+  );
+}
+
+test("a table goes after the caret's block, with the caret in its first cell", () => {
+  const e = tableEditor();
+  e.update(() => $getRoot().getFirstChildOrThrow<ParagraphNode>().select(), {
+    discrete: true,
+  });
+  insertTable(e);
+  e.getEditorState().read(() => {
+    expect(
+      $getRoot()
+        .getChildren()
+        .map((block) => block.getType()),
+    ).toEqual(["paragraph", "table", "table"]);
+    const selection = $getSelection();
+    if (!$isRangeSelection(selection)) throw new Error("Expected a caret");
+    const table = $findMatchingParent(selection.anchor.getNode(), $isTableNode);
+    expect(table?.getIndexWithinParent()).toBe(1);
+  });
+});
+
+test("no table is inserted inside a table, whether the caret is in a cell or cells are selected", () => {
+  const e = tableEditor();
+  const before = tableShapes(e);
+  e.update(() => $cell(0, 0).selectStart(), { discrete: true });
+  insertTable(e);
+  expect(tableShapes(e)).toEqual(before);
+
+  e.update(
+    () =>
+      $setSelection(
+        $createTableSelectionFrom($table(), $cell(0, 0), $cell(1, 1)),
+      ),
+    { discrete: true },
+  );
+  insertTable(e);
+  expect(tableShapes(e)).toEqual(before);
+});
+
+test("the menu inserts as many columns as the selected cells span, or one", () => {
+  const e = tableEditor();
+  e.update(
+    () => {
+      $setSelection(
+        $createTableSelectionFrom($table(), $cell(0, 0), $cell(1, 1)),
+      );
+      $insertDocumentTableColumns(true);
+    },
+    { discrete: true },
+  );
+  expect(e.getEditorState().read(() => $table().getColumnCount())).toBe(4);
+
+  e.update(
+    () => {
+      $cell(0, 0).selectStart();
+      $insertDocumentTableColumns(false);
+    },
+    { discrete: true },
+  );
+  expect(e.getEditorState().read(() => $table().getColumnCount())).toBe(5);
 });
