@@ -5,10 +5,8 @@ extension Update {
   /// The key event the handlers read, and what they leave in it.
   struct ArrowEvent {
     let shiftKey: Bool
-    /// Whether the caret's line is the first of its cell going up, or the
-    /// last going down, which @lexical/table measures in the DOM.
+    /// The command's.
     let atCellEdge: Bool
-    /// Where the platform moves the focus, which `modify` measures in the DOM.
     let native: Point
     var defaultPrevented = false
     /// `TableObservers`' flag for scrolling tables: Down from before a

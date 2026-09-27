@@ -8,8 +8,7 @@
  *
  * The package's private helpers they call are copied with them. Their
  * DOM-only parts are left out, and what they measure in the DOM comes in
- * with the command: whether an arrow key's caret is on its cell's first or
- * last line. Pointer drags aren't modelled; a shift-click makes a table
+ * with the command. Pointer drags aren't modelled; a shift-click makes a table
  * selection as a range from one cell to another, turned into cells when the
  * selection changes.
  */
@@ -297,11 +296,7 @@ function $selectAdjacentCell(
   else parentTable.selectPrevious();
 }
 
-/**
- * The key event the copied arrow handlers read. `atCellEdge` stands in for
- * the rectangles `$handleArrowKey` measures: whether the caret's line is the
- * first of its cell going up, or the last going down.
- */
+/** The key event the copied arrow handlers read, with the command's `atCellEdge`. */
 export interface ArrowKeyEvent {
   shiftKey: boolean;
   atCellEdge: boolean;

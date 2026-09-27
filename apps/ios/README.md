@@ -301,8 +301,8 @@ hand:
   every cell selected, as Lexical's `TableSelection` does.
 - No table goes inside a table, whether the caret is in a cell or cells are
   selected. `@lexical/table` refused only the first, so the web's insert
-  handler now refuses both (#117). For the same reason the web's GFM table
-  transformer now leaves a row typed or imported inside a cell as text.
+  handler now refuses both (#117), and the web's GFM table transformer now
+  leaves a row typed or imported inside a cell as text.
 - A row typed under a table with as many columns joins it, with the caret at
   its end. The web's table transformer meant to do this but selected the
   table it had just emptied, so the shortcut failed and left the text; it

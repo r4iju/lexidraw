@@ -127,8 +127,7 @@ enum MarkdownImport {
         break transformers
       }
       switch transformer.name {
-      // Each gives the line back and declines. A table does in a cell, as
-      // no table goes inside a table.
+      // Each gives the line back and declines, a table in a cell.
       case .article, .placeholderBlock, .table:
         text.text = matched
         continue transformers

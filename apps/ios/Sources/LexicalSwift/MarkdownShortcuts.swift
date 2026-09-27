@@ -282,7 +282,6 @@ extension Update {
     case .heading, .code: return type == SerializedQuoteNode.type
     case .unorderedList, .orderedList, .checkList:
       return type == SerializedQuoteNode.type || type == SerializedHeadingNode.type
-    // No table goes inside a table.
     case .table: return state.parent(of: parent).map(isCell) ?? false
     // They make something only of imported markdown.
     case .callout, .admonition, .details, .columns, .blockEquation, .blockEquationFence, .article,
