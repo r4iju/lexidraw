@@ -167,12 +167,20 @@ const Manifest = z.object({
   stitchedUrl: z.string().optional().catch(undefined),
 });
 
+/**
+ * The manifest or plan at `url`. For some seconds after the store writes a
+ * blob, its CDN can fail to serve that one or others, so a read that fails is
+ * tried again a few times before it counts as missing.
+ */
 async function manifestAt(url: string) {
-  const r = await fetch(url, { cache: "no-store" }).catch(() => undefined);
-  if (!r?.ok) return undefined;
-  return Manifest.catch({ segments: [] }).parse(
-    await r.json().catch(() => ({})),
-  );
+  for (const wait of [0, 250, 500, 1000]) {
+    if (wait) await new Promise((resolve) => setTimeout(resolve, wait));
+    const r = await fetch(url, { cache: "no-store" }).catch(() => undefined);
+    if (!r?.ok) continue;
+    const body = await r.json().catch(() => undefined);
+    if (body !== undefined) return Manifest.catch({ segments: [] }).parse(body);
+  }
+  return undefined;
 }
 
 const planOf = (row: TtsJob) =>
