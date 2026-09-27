@@ -119,8 +119,11 @@ struct ListAndIndentLayout {
             [.foregroundColor: UIColor.secondaryLabel, .strikethroughStyle: NSUnderlineStyle.single.rawValue], range: range)
         }
       } else if let indent {
-        paragraph.firstLineHeadIndent = CGFloat(indent) * Self.indentWidth
-        paragraph.headIndent = CGFloat(indent) * Self.indentWidth
+        // Lexical indents with `padding-inline-start`, which takes the place
+        // of a quote's padding and leaves its border.
+        let border = (text.attribute(.leadingBorder, at: last, effectiveRange: nil) as? LeadingBorder)?.width ?? 0
+        paragraph.firstLineHeadIndent = border + CGFloat(indent) * Self.indentWidth
+        paragraph.headIndent = paragraph.firstLineHeadIndent
       }
       styled.addAttribute(.paragraphStyle, value: paragraph, range: enclosing)
     }

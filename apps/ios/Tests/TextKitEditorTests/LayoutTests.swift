@@ -135,6 +135,18 @@ import UIKit
     try Self.expectEveryCaretToLandOnItself(view)
   }
 
+  /// An indented quote's indent takes the place of its padding, as the
+  /// `padding-inline-start` Lexical indents with does, and leaves its border.
+  @Test
+  func anIndentedQuoteKeepsItsBorder() throws {
+    let view = try Self.host(
+      LexicalJSON.document([LexicalJSON.element("quote", [LexicalJSON.text("q")], ["indent": 2])]))
+
+    let caret = view.caretRect(for: view.beginningOfDocument)
+    let start = DocumentTypography.web.quote.borderWidth + 2 * ListAndIndentLayout.indentWidth
+    #expect(abs(caret.minX - start) < 0.5, "\(caret.minX), not \(start)")
+  }
+
   /// A marker is set as high on its line as the item's text: an item whose
   /// text is its own marker shows the two alike.
   @Test
