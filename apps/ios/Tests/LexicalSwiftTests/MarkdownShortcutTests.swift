@@ -112,6 +112,114 @@ import Testing
       expected: document(paragraph(text("ab")), paragraph(text("cd")))),
   ]
 
+  static let lists: [Script] = [
+    Script(
+      name: "- and a space make a bulleted list", start: emptyParagraph,
+      commands: [caretInEmptyParagraph] + typing("- "), expected: document(list(.bullet, [.item([])]))),
+    Script(
+      name: "* makes a bulleted list that keeps its marker", start: emptyParagraph,
+      commands: [caretInEmptyParagraph] + typing("* "), expected: document(list(.bullet, [.item([])], marker: "*"))),
+    Script(
+      name: "+ makes a bulleted list that keeps its marker", start: emptyParagraph,
+      commands: [caretInEmptyParagraph] + typing("+ "), expected: document(list(.bullet, [.item([])], marker: "+"))),
+    Script(
+      name: "1. makes a numbered list", start: emptyParagraph,
+      commands: [caretInEmptyParagraph] + typing("1. "), expected: document(list(.number, [.item([])]))),
+    Script(
+      name: "7. makes a list numbered from 7", start: emptyParagraph,
+      commands: [caretInEmptyParagraph] + typing("7. "), expected: document(list(.number, [.item([])], start: 7))),
+    Script(
+      name: "[ ] makes a checklist", start: emptyParagraph,
+      commands: [caretInEmptyParagraph] + typing("[ ] "), expected: document(list(.check, [.item([])]))),
+    Script(
+      name: "[X] makes a checked item", start: emptyParagraph,
+      commands: [caretInEmptyParagraph] + typing("[X] "), expected: document(list(.check, [.item([], checked: true)]))),
+    Script(
+      name: "a composition of * [x] makes a checked item with the bullet's marker", start: emptyParagraph,
+      commands: [caretInEmptyParagraph, .commitComposition("* [x] ")],
+      expected: document(list(.check, [.item([], checked: true)], marker: "*"))),
+    Script(
+      name: "- typed before text makes the text an item", start: document(paragraph(text("ab"))),
+      commands: [.caret(.text([0, 0], 0))] + typing("- "), expected: document(list(.bullet, [.item([text("ab")])]))),
+    Script(
+      name: "Enter after 1. and a space makes a numbered list", start: emptyParagraph,
+      commands: [caretInEmptyParagraph, .insertText("1. "), .insertParagraph],
+      expected: document(list(.number, [.item([])]))),
+    Script(
+      name: "a list shortcut in a heading stays text", start: document(heading("h2", text("ab"))),
+      commands: [.caret(.text([0, 0], 0))] + typing("- "), expected: document(heading("h2", text("- ab")))),
+    Script(
+      name: "a list shortcut in a list item stays text", start: document(list(.bullet, [.item([text("ab")])])),
+      commands: [.caret(.text([0, 0, 0], 0))] + typing("1. "),
+      expected: document(list(.bullet, [.item([text("1. ab")])]))),
+    Script(
+      name: "a bullet after a bulleted list joins it", start: document(list(.bullet, [.item([text("a")])]), paragraph()),
+      commands: [.caret(Point(path: [1], offset: 0, type: .element))] + typing("- ") + [.insertText("b")],
+      expected: document(list(.bullet, [.item([text("a")]), .item([text("b")])]))),
+    Script(
+      name: "a number after a numbered list continues its numbering",
+      start: document(list(.number, [.item([text("a")])], start: 4), paragraph()),
+      commands: [.caret(Point(path: [1], offset: 0, type: .element))] + typing("9. "),
+      expected: document(list(.number, [.item([text("a")]), .item([])], start: 4))),
+    Script(
+      name: "a number before a numbered list joins it and numbers it from there",
+      start: document(paragraph(), list(.number, [.item([text("a")])])),
+      commands: [caretInEmptyParagraph] + typing("3. "),
+      expected: document(list(.number, [.item([]), .item([text("a")])], start: 3))),
+    Script(
+      name: "a checklist item before a bulleted list makes a list of its own",
+      start: document(paragraph(), list(.bullet, [.item([text("a")])])),
+      commands: [caretInEmptyParagraph] + typing("[ ] "),
+      expected: document(list(.check, [.item([])]), list(.bullet, [.item([text("a")])]))),
+    Script(
+      name: "four spaces before - nest the item in the list above",
+      start: document(list(.bullet, [.item([text("a")])]), paragraph()),
+      commands: [.caret(Point(path: [1], offset: 0, type: .element))] + typing("    - "),
+      expected: document(list(.bullet, [.item([text("a")]), .nested(.bullet, [.item([])])]))),
+    Script(
+      name: "an indented number after a bulleted list nests a numbered list",
+      start: document(list(.bullet, [.item([text("a")])]), paragraph()),
+      commands: [.caret(Point(path: [1], offset: 0, type: .element))] + typing("    5. "),
+      expected: document(
+        list(.bullet, [.item([text("a")]), .nested(.number, [.item([])], start: 5)]))),
+    Script(
+      name: "an indented * nests a list that keeps its marker",
+      start: document(list(.bullet, [.item([text("a")])]), paragraph()),
+      commands: [.caret(Point(path: [1], offset: 0, type: .element))] + typing("    * "),
+      expected: document(list(.bullet, [.item([text("a")]), .nested(.bullet, [.item([])], marker: "*")]))),
+    Script(
+      name: "eight spaces before - nest an item two deep in a list of its own", start: emptyParagraph,
+      commands: [caretInEmptyParagraph] + typing("        - ") + [.insertText("a")],
+      expected: document(list(.bullet, [.nested(.bullet, [.nested(.bullet, [.item([text("a")])])])]))),
+    Script(
+      name: "a list nested by indenting doesn't keep the marker of the list it copies", start: emptyParagraph,
+      commands: [caretInEmptyParagraph] + typing("* ") + [.insertText("a"), .insertParagraph, .insertText("b"), .indent],
+      expected: document(list(.bullet, [.item([text("a")]), .nested(.bullet, [.item([text("b")])])], marker: "*"))),
+    Script(
+      name: "- after a list kept as * joins it and marks it -",
+      start: document(list(.bullet, [.item([text("a")])], marker: "*"), paragraph()),
+      commands: [.caret(Point(path: [1], offset: 0, type: .element))] + typing("- "),
+      expected: document(list(.bullet, [.item([text("a")]), .item([])]))),
+    Script(
+      name: "a list nested in a list loaded as * is one too, as no shortcut has told Lexical what the marker is",
+      start: document(list(.bullet, [.item([text("a")]), .item([text("b")])], marker: "*")),
+      commands: [.caret(.text([0, 1, 0], 0)), .indent],
+      expected: document(
+        list(.bullet, [.item([text("a")]), .nested(.bullet, [.item([text("b")])], marker: "*")], marker: "*"))),
+    Script(
+      name: "a list nested in a list loaded as * after a shortcut has marked a list is back to -",
+      start: document(list(.bullet, [.item([text("a")]), .item([text("b")])], marker: "*"), paragraph(), paragraph()),
+      commands: [.caret(Point(path: [2], offset: 0, type: .element))] + typing("- ") + [
+        .caret(.text([0, 1, 0], 0)), .indent,
+      ],
+      expected: document(
+        list(.bullet, [.item([text("a")]), .nested(.bullet, [.item([text("b")])])], marker: "*"), paragraph(),
+        list(.bullet, [.item([])]))),
+    Script(
+      name: "undo after a list shortcut gives back what was typed", start: emptyParagraph,
+      commands: [caretInEmptyParagraph] + typing("- ") + [.undo], expected: document(paragraph(text("- ")))),
+  ]
+
   static let formats: [Script] =
     [
       ("**", TextFormat.bold, "bold"), ("__", .bold, "bold"), ("*", .italic, "italic"), ("_", .italic, "italic"),
@@ -157,7 +265,7 @@ import Testing
         expected: document(paragraph(text("ab", format: .italic)))),
     ]
 
-  @Test(arguments: blocks + formats)
+  @Test(arguments: blocks + lists + formats)
   func lexicalSwiftDoesWhatLexicalDoes(_ script: Script) throws {
     let fixture = try Fixture.record(
       start: script.start, commands: script.commands, on: try Support.referenceEditor())
@@ -169,7 +277,7 @@ import Testing
   /// Typing that a transformer LexicalSwift doesn't port yet turns into
   /// something else in Lexical, and what LexicalSwift leaves instead.
   static let notPortedYet: [Script] = [
-    "- ", "7. ", "[ ] ", "``` ", ":smile:", "$x$", "|a| ", "[a](b)", "![a](b)",
+    "``` ", ":smile:", "$x$", "|a| ", "[a](b)", "![a](b)",
   ].map { keys in
     Script(
       name: keys, start: emptyParagraph, commands: [caretInEmptyParagraph] + typing(keys),

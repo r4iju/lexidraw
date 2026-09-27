@@ -20,13 +20,19 @@ struct Update {
   var dirtyElements: OrderedDictionary<NodeKey, Bool> = [:]
   /// Every node marked in this update, which the transforms' rounds forget.
   private(set) var touched: Set<NodeKey> = []
+  /// Whether the editor has learnt the markdown marker's NodeState, as
+  /// Lexical does the first time a shortcut marks a list with it. Until
+  /// then it keeps the marker of a list it loaded as state it doesn't know,
+  /// which a copy of the list keeps too.
+  var knowsListMarker: Bool
 
-  init(_ state: EditorState, nextKey: NodeKey, revision: Int) {
+  init(_ state: EditorState, nextKey: NodeKey, revision: Int, knowsListMarker: Bool = false) {
     self.state = state
     base = state
     selection = state.selection.map(RangeSelection.init)
     self.nextKey = nextKey
     self.revision = revision
+    self.knowsListMarker = knowsListMarker
   }
 
   /// Whether the update marked any node, which is what makes Lexical commit

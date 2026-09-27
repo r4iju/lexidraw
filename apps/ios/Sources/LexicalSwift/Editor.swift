@@ -11,6 +11,7 @@ public final class Editor: EditorModel {
   /// breaks, tabs and text in any format, with no field the payload types
   /// don't model.
   public private(set) var isEditable = false
+  private var knowsListMarker = false
 
   public init() {}
 
@@ -24,6 +25,7 @@ public final class Editor: EditorModel {
     nextKey = update.nextKey
     now = 0
     history = History(state)
+    knowsListMarker = false
     isEditable = state.nodes.values.allSatisfy(\.isEditable)
   }
 
@@ -42,9 +44,9 @@ public final class Editor: EditorModel {
     default:
       guard isEditable else { throw EditorError.unsupported("Editing a document with a node LexicalSwift doesn't edit yet") }
     }
-    let saved = (state, nextKey, history)
+    let saved = (state, nextKey, history, knowsListMarker)
     do {
-      var update = Update(state, nextKey: nextKey, revision: nextRevision())
+      var update = Update(state, nextKey: nextKey, revision: nextRevision(), knowsListMarker: knowsListMarker)
       try update.run(command)
       var previous = state
       guard try commit(&update) else { return ChangeSet(changed: []) }
@@ -57,14 +59,14 @@ public final class Editor: EditorModel {
       {
         compositionEnd = false
         previous = state
-        update = Update(state, nextKey: nextKey, revision: nextRevision())
+        update = Update(state, nextKey: nextKey, revision: nextRevision(), knowsListMarker: knowsListMarker)
         let isShortcut = try update.runMarkdownShortcut(at: caret)
         guard try commit(&update, pushingHistory: isShortcut) else { break }
         changed += update.changedKeys
       }
       return ChangeSet(changed: Set(changed.compactMap(state.path(of:))))
     } catch {
-      (state, nextKey, history) = saved
+      (state, nextKey, history, knowsListMarker) = saved
       throw error
     }
   }
@@ -85,6 +87,7 @@ public final class Editor: EditorModel {
     history.record(update, from: state, to: next, at: now, pushing: pushingHistory)
     state = next
     nextKey = update.nextKey
+    knowsListMarker = update.knowsListMarker
     return true
   }
 
@@ -138,7 +141,7 @@ extension Node {
     case .paragraph(let node): node.unknownFields.isEmpty
     case .heading(let node): node.unknownFields.isEmpty
     case .quote(let node): node.unknownFields.isEmpty && node.shadowRoot != true
-    case .list(let node): node.unknownFields.isEmpty
+    case .list(let node): node.unknownFields.isEmpty || node.holdsOnlyAMarkdownMarker
     case .listItem(let node): node.unknownFields.isEmpty
     case .lineBreak(let node): node.unknownFields.isEmpty
     case .horizontalRule(let node): node.unknownFields.isEmpty

@@ -55,17 +55,22 @@ public enum LexicalJSON {
   /// item of its own.
   public enum ListEntry {
     case item([JSONValue], checked: Bool = false)
-    case nested(ListType, [ListEntry])
+    case nested(ListType, [ListEntry], start: Int = 1, marker: String? = nil)
   }
 
   /// A list of `entries`, each item numbered, indented to its depth and, in
   /// a checklist, checked or not, as Lexical writes it: an item holding a
-  /// nested list is unchecked.
-  public static func list(_ listType: ListType, _ entries: [ListEntry], start: Int = 1) -> JSONValue {
-    list(listType, entries, start: start, depth: 0)
+  /// nested list is unchecked. `marker` is the `*` or `+` a markdown
+  /// shortcut keeps in the list's NodeState.
+  public static func list(_ listType: ListType, _ entries: [ListEntry], start: Int = 1, marker: String? = nil)
+    -> JSONValue
+  {
+    list(listType, entries, start: start, marker: marker, depth: 0)
   }
 
-  private static func list(_ listType: ListType, _ entries: [ListEntry], start: Int, depth: Int) -> JSONValue {
+  private static func list(_ listType: ListType, _ entries: [ListEntry], start: Int, marker: String?, depth: Int)
+    -> JSONValue
+  {
     var value = start
     let items = entries.map { entry -> JSONValue in
       var fields: JSONObject = ["indent": .number(Double(depth)), "value": .number(Double(value))]
@@ -75,16 +80,18 @@ public enum LexicalJSON {
         children = content
         if listType == .check { fields["checked"] = .bool(checked) }
         value += 1
-      case .nested(let type, let entries):
-        children = [list(type, entries, start: 1, depth: depth + 1)]
+      case .nested(let type, let entries, let start, let marker):
+        children = [list(type, entries, start: start, marker: marker, depth: depth + 1)]
         if listType == .check { fields["checked"] = false }
       }
       return element("listitem", children, fields)
     }
     let tag = listType == .number ? "ol" : "ul"
-    return element(
-      "list", items,
-      ["listType": .string(listType.rawValue), "start": .number(Double(start)), "tag": .string(tag)])
+    var fields: JSONObject = [
+      "listType": .string(listType.rawValue), "start": .number(Double(start)), "tag": .string(tag),
+    ]
+    if let marker { fields["$"] = ["mdListMarker": .string(marker)] }
+    return element("list", items, fields)
   }
 
   /// A table of one text in a paragraph per cell, by row; the first row is

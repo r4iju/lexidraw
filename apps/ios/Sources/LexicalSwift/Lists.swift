@@ -10,24 +10,31 @@ extension Update {
   func isListItem(_ key: NodeKey) -> Bool { state[key].type == SerializedListItemNode.type }
 
   /// `$createListNode`.
-  mutating func createList(_ listType: ListType) -> NodeKey {
+  mutating func createList(_ listType: ListType, start: Double = 1) -> NodeKey {
     let list = create(SerializedListNode.type)
     if case .list(var payload) = state[list].payload {
       payload.listType = listType
       payload.tag = listType.tag
+      payload.start = start
       state.nodes[list]!.payload = .list(payload)
     }
     return list
   }
 
   /// Lexical's `$copyNode`: a node like `key` under a new key, in no parent
-  /// and without children. A copy of a checked item starts unchecked.
+  /// and without children. A copy of a checked item starts unchecked, and a
+  /// copy of a list is back to the default markdown marker once the editor
+  /// knows it.
   mutating func copyNode(_ key: NodeKey) -> NodeKey {
     let node = state[key]
     var payload = node.payload
     if case .listItem(var item) = payload, isChecked(key) == true {
       item.checked = false
       payload = .listItem(item)
+    }
+    if case .list(var list) = payload, knowsListMarker {
+      list.setMarkdownMarker("-")
+      payload = .list(list)
     }
     return create(payload, type: node.type, children: node.isElement ? [] : nil)
   }
@@ -40,7 +47,7 @@ extension Update {
     return payload.checked ?? false
   }
 
-  private mutating func modifyList(_ key: NodeKey, _ change: (inout SerializedListNode) -> Void) {
+  mutating func modifyList(_ key: NodeKey, _ change: (inout SerializedListNode) -> Void) {
     guard case .list(var list) = state[key].payload else { return }
     change(&list)
     modify(key) { $0.payload = .list(list) }
@@ -654,4 +661,21 @@ extension ListType {
 
   /// The tag Lexical gives a list of this type.
   var tag: ListTag { self == .number ? .ol : .ul }
+}
+
+extension SerializedListNode {
+  /// Whether all the list holds that LexicalSwift doesn't read is the `*`
+  /// or `+` a shortcut marked it with.
+  var holdsOnlyAMarkdownMarker: Bool {
+    unknownFields == ["$": ["mdListMarker": "*"]] || unknownFields == ["$": ["mdListMarker": "+"]]
+  }
+
+  /// `$setState(list, listMarkerState, marker)` from @lexical/markdown: the
+  /// `-`, `*` or `+` a list was typed with, kept for exporting it. `-` is the
+  /// default, which NodeState doesn't write.
+  mutating func setMarkdownMarker(_ marker: String) {
+    var nodeState: JSONObject = if case .object(let object)? = unknownFields["$"] { object } else { [:] }
+    nodeState["mdListMarker"] = marker == "-" ? nil : .string(marker)
+    unknownFields["$"] = nodeState.isEmpty ? nil : .object(nodeState)
+  }
 }

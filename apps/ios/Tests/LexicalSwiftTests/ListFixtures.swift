@@ -199,8 +199,8 @@ import Testing
   }
 }
 
-func list(_ listType: ListType, _ entries: [LexicalJSON.ListEntry], start: Int = 1) -> JSONValue {
-  LexicalJSON.list(listType, entries, start: start)
+func list(_ listType: ListType, _ entries: [LexicalJSON.ListEntry], start: Int = 1, marker: String? = nil) -> JSONValue {
+  LexicalJSON.list(listType, entries, start: start, marker: marker)
 }
 
 func paragraph(_ children: [JSONValue], indent: Int) -> JSONValue {
