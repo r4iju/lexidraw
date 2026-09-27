@@ -216,7 +216,7 @@ extension Update {
   private func isSelectionBeforeTable(_ table: NodeKey) throws -> Bool {
     guard let selection else { return false }
     let focusCaret = try state.caret(from: selection.focus, .next)
-    return state.compareNext(focusCaret, .child(table, .next)) < 0
+    return try state.compareNext(focusCaret, .child(table, .next)) < 0
   }
 
   /// The check in `$handleTableSelectionChangeCommand`: a caret Down put in

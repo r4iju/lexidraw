@@ -254,16 +254,6 @@ extension Update {
     return try state.compareNext(range.anchor, start) <= 0 && state.compareNext(range.focus, end) >= 0
   }
 
-  /// `$needsBlockCursorBeside`: a block no caret goes in.
-  private func needsBlockCursorBeside(_ key: NodeKey) -> Bool {
-    let node = state[key]
-    if node.isInline { return false }
-    if node.isDecorator { return true }
-    guard node.isElement else { return false }
-    if node.isShadowRoot { return !(state.parent(of: key).map { state[$0].isRootOrShadowRoot } ?? false) }
-    return !node.canBeEmpty
-  }
-
   /// `$updateCaretSelectionForUnicodeCharacter`: a deletion of more than one
   /// code unit shrinks to one unless it's a surrogate pair or an emoji.
   private func updateSelectionForUnicodeCharacter(_ selection: RangeSelection, backward isBackward: Bool) {

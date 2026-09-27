@@ -73,12 +73,6 @@ extension Update {
     current == HeaderState.both || current == possible ? possible : HeaderState.none
   }
 
-  /// `$copyNode`: a node like `key`, in no parent and with no children.
-  mutating func copyNode(_ key: NodeKey) -> NodeKey {
-    let node = state[key]
-    return create(node.payload, type: node.type, children: node.isElement ? [] : nil)
-  }
-
   /// `$insertFirst`.
   private mutating func insertFirst(_ parent: NodeKey, _ node: NodeKey) throws {
     if let first = state.firstChild(of: parent) {
