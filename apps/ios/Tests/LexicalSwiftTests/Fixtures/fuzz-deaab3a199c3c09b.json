@@ -1,0 +1,461 @@
+{
+  "changes" : [
+    {
+      "changed" : [
+
+      ]
+    },
+    {
+      "changed" : [
+        [
+
+        ],
+        [
+          1,
+          1,
+          0
+        ],
+        [
+          1,
+          1,
+          0,
+          0
+        ],
+        [
+          1,
+          1,
+          0,
+          0,
+          0
+        ],
+        [
+          1,
+          1,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          1,
+          1,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          1,
+          1,
+          0,
+          1
+        ]
+      ]
+    },
+    {
+      "changed" : [
+        [
+
+        ],
+        [
+          1,
+          1,
+          0,
+          0,
+          0
+        ],
+        [
+          1,
+          1,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "changed" : [
+        [
+
+        ],
+        [
+          1
+        ],
+        [
+          2
+        ],
+        [
+          3
+        ]
+      ]
+    }
+  ],
+  "commands" : [
+    {
+      "anchor" : {
+        "offset" : 2,
+        "path" : [
+          1,
+          0,
+          0,
+          0,
+          0
+        ],
+        "type" : "text"
+      },
+      "focus" : {
+        "offset" : 0,
+        "path" : [
+          0,
+          0
+        ],
+        "type" : "text"
+      },
+      "type" : "setSelection"
+    },
+    {
+      "listType" : "bullet",
+      "type" : "insertList"
+    },
+    {
+      "clipboard" : {
+        "application/x-lexical-editor" : {
+          "namespace" : "Lexidraw",
+          "nodes" : [
+            {
+              "type" : "horizontalrule",
+              "version" : 1
+            }
+          ]
+        },
+        "text/plain" : "\n"
+      },
+      "type" : "paste"
+    },
+    {
+      "type" : "insertParagraph"
+    }
+  ],
+  "expected" : {
+    "selection" : {
+      "anchor" : {
+        "offset" : 0,
+        "path" : [
+          3
+        ],
+        "type" : "element"
+      },
+      "focus" : {
+        "offset" : 0,
+        "path" : [
+          3
+        ],
+        "type" : "element"
+      },
+      "format" : 0,
+      "style" : ""
+    },
+    "state" : {
+      "root" : {
+        "children" : [
+          {
+            "children" : [
+              {
+                "detail" : 0,
+                "format" : 64,
+                "mode" : "normal",
+                "style" : "",
+                "text" : "\\",
+                "type" : "text",
+                "version" : 1
+              }
+            ],
+            "direction" : null,
+            "format" : "",
+            "indent" : 2,
+            "textFormat" : 64,
+            "textStyle" : "",
+            "type" : "paragraph",
+            "version" : 1
+          },
+          {
+            "children" : [
+              {
+                "children" : [
+                  {
+                    "backgroundColor" : "#eee",
+                    "children" : [
+                      {
+                        "children" : [
+                          {
+                            "detail" : 0,
+                            "format" : 1,
+                            "mode" : "normal",
+                            "style" : "",
+                            "text" : "7a",
+                            "type" : "text",
+                            "version" : 1
+                          }
+                        ],
+                        "direction" : null,
+                        "format" : "",
+                        "indent" : 0,
+                        "textFormat" : 1,
+                        "textStyle" : "",
+                        "type" : "paragraph",
+                        "version" : 1
+                      }
+                    ],
+                    "colSpan" : 1,
+                    "direction" : null,
+                    "format" : "",
+                    "headerState" : 0,
+                    "indent" : 0,
+                    "rowSpan" : 1,
+                    "type" : "tablecell",
+                    "version" : 1
+                  }
+                ],
+                "direction" : null,
+                "format" : "",
+                "indent" : 0,
+                "type" : "tablerow",
+                "version" : 1
+              },
+              {
+                "children" : [
+                  {
+                    "backgroundColor" : "#eee",
+                    "children" : [
+                      {
+                        "children" : [
+                          {
+                            "children" : [
+                              {
+                                "type" : "horizontalrule",
+                                "version" : 1
+                              }
+                            ],
+                            "direction" : null,
+                            "format" : "",
+                            "indent" : 0,
+                            "type" : "listitem",
+                            "value" : 1,
+                            "version" : 1
+                          }
+                        ],
+                        "direction" : null,
+                        "format" : "",
+                        "indent" : 0,
+                        "listType" : "bullet",
+                        "start" : 1,
+                        "tag" : "ul",
+                        "type" : "list",
+                        "version" : 1
+                      },
+                      {
+                        "children" : [
+
+                        ],
+                        "direction" : null,
+                        "format" : "",
+                        "indent" : 0,
+                        "textFormat" : 2,
+                        "textStyle" : "",
+                        "type" : "paragraph",
+                        "version" : 1
+                      }
+                    ],
+                    "colSpan" : 1,
+                    "direction" : null,
+                    "format" : "",
+                    "headerState" : 2,
+                    "indent" : 0,
+                    "rowSpan" : 1,
+                    "type" : "tablecell",
+                    "version" : 1
+                  }
+                ],
+                "direction" : null,
+                "format" : "",
+                "indent" : 0,
+                "type" : "tablerow",
+                "version" : 1
+              }
+            ],
+            "colWidths" : [
+              80
+            ],
+            "direction" : null,
+            "format" : "",
+            "indent" : 0,
+            "type" : "table",
+            "version" : 1
+          },
+          {
+            "children" : [
+
+            ],
+            "direction" : null,
+            "format" : "",
+            "indent" : 0,
+            "textFormat" : 0,
+            "textStyle" : "",
+            "type" : "paragraph",
+            "version" : 1
+          },
+          {
+            "children" : [
+
+            ],
+            "direction" : null,
+            "format" : "",
+            "indent" : 0,
+            "textFormat" : 0,
+            "textStyle" : "",
+            "type" : "paragraph",
+            "version" : 1
+          }
+        ],
+        "direction" : null,
+        "format" : "",
+        "indent" : 0,
+        "type" : "root",
+        "version" : 1
+      }
+    }
+  },
+  "start" : {
+    "root" : {
+      "children" : [
+        {
+          "children" : [
+            {
+              "detail" : 0,
+              "format" : 64,
+              "mode" : "normal",
+              "style" : "",
+              "text" : "\\",
+              "type" : "text",
+              "version" : 1
+            }
+          ],
+          "direction" : null,
+          "format" : "",
+          "indent" : 2,
+          "textFormat" : 64,
+          "textStyle" : "",
+          "type" : "paragraph",
+          "version" : 1
+        },
+        {
+          "children" : [
+            {
+              "children" : [
+                {
+                  "backgroundColor" : "#eee",
+                  "children" : [
+                    {
+                      "children" : [
+                        {
+                          "detail" : 0,
+                          "format" : 1,
+                          "mode" : "normal",
+                          "style" : "",
+                          "text" : "7a",
+                          "type" : "text",
+                          "version" : 1
+                        }
+                      ],
+                      "direction" : null,
+                      "format" : "",
+                      "indent" : 0,
+                      "textFormat" : 1,
+                      "textStyle" : "",
+                      "type" : "paragraph",
+                      "version" : 1
+                    }
+                  ],
+                  "colSpan" : 1,
+                  "direction" : null,
+                  "format" : "",
+                  "headerState" : 0,
+                  "indent" : 0,
+                  "rowSpan" : 1,
+                  "type" : "tablecell",
+                  "version" : 1
+                }
+              ],
+              "direction" : null,
+              "format" : "",
+              "indent" : 0,
+              "type" : "tablerow",
+              "version" : 1
+            },
+            {
+              "children" : [
+                {
+                  "backgroundColor" : "#eee",
+                  "children" : [
+                    {
+                      "children" : [
+
+                      ],
+                      "direction" : null,
+                      "format" : "",
+                      "indent" : 1,
+                      "textFormat" : 2,
+                      "textStyle" : "",
+                      "type" : "paragraph",
+                      "version" : 1
+                    },
+                    {
+                      "children" : [
+
+                      ],
+                      "direction" : null,
+                      "format" : "",
+                      "indent" : 0,
+                      "textFormat" : 2,
+                      "textStyle" : "",
+                      "type" : "paragraph",
+                      "version" : 1
+                    }
+                  ],
+                  "colSpan" : 1,
+                  "direction" : null,
+                  "format" : "",
+                  "headerState" : 2,
+                  "indent" : 0,
+                  "rowSpan" : 1,
+                  "type" : "tablecell",
+                  "version" : 1
+                }
+              ],
+              "direction" : null,
+              "format" : "",
+              "indent" : 0,
+              "type" : "tablerow",
+              "version" : 1
+            }
+          ],
+          "colWidths" : [
+            80
+          ],
+          "direction" : null,
+          "format" : "",
+          "indent" : 0,
+          "type" : "table",
+          "version" : 1
+        }
+      ],
+      "direction" : null,
+      "format" : "",
+      "indent" : 0,
+      "type" : "root",
+      "version" : 1
+    }
+  }
+}

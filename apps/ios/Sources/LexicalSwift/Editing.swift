@@ -90,11 +90,13 @@ extension Update {
   /// A block's `insertNewAfter`: what Enter puts after it. After a
   /// paragraph or a quote, it is `ParagraphNode.insertNewAfter`'s paragraph,
   /// after a list item a copy of it, and after a link, `LinkNode`'s, a copy of
-  /// it too. A list doesn't split, as an element that doesn't say how doesn't.
+  /// it too. A list doesn't split, nor does a table, a row or a cell, as an
+  /// element that doesn't say how doesn't.
   mutating func insertNewAfter(_ block: NodeKey, _ selection: RangeSelection, restoringSelection: Bool) throws
     -> NodeKey?
   {
-    if isList(block) { return nil }
+    let unsplit = [SerializedListNode.type, SerializedTableNode.type, SerializedTableRowNode.type, SerializedTableCellNode.type]
+    if unsplit.contains(state[block].type) { return nil }
     if isListItem(block) {
       let item = copyNode(block)
       try insert(item, after: block, restoringSelection: restoringSelection)
