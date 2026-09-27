@@ -265,11 +265,6 @@ extension Update {
     }
   }
 
-  /// `$copyNode`: a node like `key`, with none of its children.
-  mutating func copyNode(_ key: NodeKey) -> NodeKey {
-    create(state[key].payload, type: state[key].type, children: state[key].isElement ? [] : nil)
-  }
-
   // MARK: Transform
 
   /// `$linkNodeTransform`: a link merges with a like link beside it.

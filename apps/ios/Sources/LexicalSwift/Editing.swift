@@ -600,9 +600,10 @@ extension Update {
 
   // MARK: Splitting blocks
 
-  /// `RangeSelection.insertParagraph`, which gives the block it starts.
+  /// `RangeSelection.insertParagraph`, which gives the block it starts, if
+  /// any.
   @discardableResult
-  mutating func insertParagraph(_ selection: RangeSelection) throws -> NodeKey {
+  mutating func insertParagraph(_ selection: RangeSelection) throws -> NodeKey? {
     if !selection.isCollapsed { try removeText(selection) }
     let anchor = selection.anchor
     if anchor.type == .element, state[anchor.key].isRootOrShadowRoot {
@@ -616,7 +617,7 @@ extension Update {
       throw EditorError.invalidState("Expected ancestor to be a block ElementNode")
     }
     let moving = state.child(of: block, at: index).map { [$0] + nextSiblings(of: $0) } ?? []
-    guard let newBlock = try insertNewAfter(block, selection, restoringSelection: false) else { return }
+    guard let newBlock = try insertNewAfter(block, selection, restoringSelection: false) else { return nil }
     try append(newBlock, moving)
     selectStart(newBlock)
     return newBlock
