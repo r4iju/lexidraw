@@ -5,32 +5,22 @@ import SwiftUI
 import TextKitEditor
 
 /// A document in the TextKit editor, edited where the user may edit it and
-/// shown read-only elsewhere. A preview until #130 brings saving: nothing
-/// edited here reaches the server.
+/// shown read-only elsewhere. A preview until saving comes: nothing edited
+/// here reaches the server.
 struct DocumentScreen: View {
   let session: Session
   let id: String
   let title: String
-  @State private var document: Loaded<OpenDocument> = .loading
 
   var body: some View {
-    Group {
-      if let open = document.value {
-        DocumentEditor(model: open.model, isEditable: open.mode == .editing)
-          .ignoresSafeArea(.container, edges: .bottom)
-          .safeAreaInset(edge: .top, spacing: 0) { PreviewNotice(mode: open.mode) }
-      } else {
-        Color.clear
-      }
+    FileScreen(what: "the document", title: title, titled: \.title) {
+      try OpenDocument(try await session.document(id))
+    } content: { open, _ in
+      DocumentEditor(model: open.model, isEditable: open.mode == .editing)
+        .id(ObjectIdentifier(open.model))
+        .ignoresSafeArea(.container, edges: .bottom)
+        .safeAreaInset(edge: .top, spacing: 0) { PreviewNotice(mode: open.mode) }
     }
-    .overlay(for: document, what: "the document", retry: load)
-    .navigationTitle(document.value?.title ?? title)
-    .navigationBarTitleDisplayMode(.inline)
-    .task { await load() }
-  }
-
-  private func load() async {
-    if let loaded = await Loaded.from({ try OpenDocument(try await session.document(id)) }) { document = loaded }
   }
 }
 
@@ -40,17 +30,18 @@ private struct OpenDocument {
     case editing
     /// The user may only read it.
     case readOnly
-    /// LexicalSwift would refuse every edit.
+    /// The model loaded it but isn't `isEditable`.
     case notYetEditable
   }
 
   let title: String
+  /// Made for this load, so it tells one load from another.
   let model: any EditorModel
   let mode: Mode
 
   init(_ stored: StoredDocument) throws {
     let model = Editor()
-    try model.load(stored.state)
+    do { try model.load(stored.state) } catch { throw Unreadable() }
     title = stored.title
     self.model = model
     mode = stored.access != .edit ? .readOnly : model.isEditable ? .editing : .notYetEditable

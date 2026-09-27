@@ -5,6 +5,8 @@ enum Loaded<Value> {
   case loading
   case loaded(Value)
   case failed(String)
+  /// What came can't be shown, and fetching it again would bring the same.
+  case unreadable
 
   var value: Value? {
     if case .loaded(let value) = self { value } else { nil }
@@ -17,11 +19,16 @@ enum Loaded<Value> {
       return .loaded(try await fetch())
     } catch is CancellationError {
       return nil
+    } catch is Unreadable {
+      return .unreadable
     } catch {
       return .failed(error.localizedDescription)
     }
   }
 }
+
+/// Thrown by a fetch that got what it asked for but can't show it.
+struct Unreadable: Error {}
 
 extension View {
   /// Stands over a list while it loads, when it couldn't, and when it has
@@ -45,11 +52,42 @@ extension View {
         } actions: {
           Button("Try Again") { Task { await retry() } }
         }
+      case .unreadable:
+        ContentUnavailableView(
+          "Can’t open \(what)", systemImage: "exclamationmark.triangle",
+          description: Text("The app can’t read what it holds."))
       case .loaded(let value) where isEmpty(value):
         empty()
       case .loaded:
         EmptyView()
       }
     }
+  }
+}
+
+/// A file's screen: `content` once `fetch` has loaded the file, under its
+/// title, and what the overlay says until then. `content` is given a reload.
+struct FileScreen<Value, Content: View>: View {
+  /// Finishes "Couldn’t load".
+  let what: String
+  /// The title until the file's own comes.
+  let title: String
+  let titled: (Value) -> String
+  let fetch: () async throws -> Value
+  @ViewBuilder let content: (Value, _ reload: @escaping () async -> Void) -> Content
+  @State private var loaded: Loaded<Value> = .loading
+
+  var body: some View {
+    Group {
+      if let value = loaded.value { content(value, load) } else { Color.clear }
+    }
+    .overlay(for: loaded, what: what, retry: load)
+    .navigationTitle(loaded.value.map(titled) ?? title)
+    .navigationBarTitleDisplayMode(.inline)
+    .task { await load() }
+  }
+
+  private func load() async {
+    if let result = await Loaded.from(fetch) { loaded = result }
   }
 }
