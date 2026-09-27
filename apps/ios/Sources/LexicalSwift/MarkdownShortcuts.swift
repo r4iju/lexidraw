@@ -31,11 +31,14 @@ struct MarkdownTransformer: Sendable {
   /// ports each. Where one would turn what was typed into something else,
   /// the text stays as typed and no transformer after it runs, as none would
   /// after it on the web.
+  /// Those that make something only of imported markdown, as a table
+  /// cell's text is, are here for that.
   static let notPortedYet: [Name: Int] = [
     .tweet: 131, .image: 131,
-    .equation: 132, .code: 132,
-    .table: 117,
-    .emoji: 134,
+    .equation: 132, .code: 132, .blockEquation: 132, .blockEquationFence: 132,
+    .callout: 133, .admonition: 133, .details: 133, .columns: 133,
+    .emoji: 134, .footnoteDefinition: 134, .footnoteReference: 134,
+    .link: 118,
   ]
 
   /// `compositionEndTriggerChars`: the characters that can finish a
@@ -131,7 +134,7 @@ extension Editor {
 }
 
 /// Where a transformer not ported yet matches, which ends the shortcut.
-private struct NotPortedYet: Error {}
+struct NotPortedYet: Error {}
 
 /// `registerMarkdownShortcuts` from @lexical/markdown, with the web editor's
 /// transformers.
@@ -254,6 +257,8 @@ extension Update {
     case .heading, .code: return type == SerializedQuoteNode.type
     case .unorderedList, .orderedList, .checkList:
       return type == SerializedQuoteNode.type || type == SerializedHeadingNode.type
+    // No table goes inside a table.
+    case .table: return state.parent(of: parent).map(isCell) ?? false
     // They make something only of imported markdown.
     case .callout, .admonition, .details, .columns, .blockEquation, .blockEquationFence, .article,
       .placeholderBlock, .footnoteDefinition:
@@ -282,9 +287,16 @@ extension Update {
         try insert(line, before: parent)
       }
       selectNext(line)
-    case .unorderedList: try replaceBlock(parent, withListItemOf: .bullet, children, groups)
-    case .orderedList: try replaceBlock(parent, withListItemOf: .number, children, groups)
-    case .checkList: try replaceBlock(parent, withListItemOf: .check, children, groups)
+    case .unorderedList, .orderedList, .checkList:
+      let listType: ListType =
+        switch transformer.name {
+        case .unorderedList: .bullet
+        case .orderedList: .number
+        default: .check
+        }
+      var notImporting: [Int]?
+      try listReplace(parent, listType, children, groups, importColumns: &notImporting)
+    case .table: try replaceWithTable(parent, groups)
     default:
       throw EditorError.unsupported("The markdown shortcut \(transformer.name.rawValue)")
     }
@@ -292,12 +304,19 @@ extension Update {
 
   /// `listReplace`: the block becomes an item of the list of `listType`
   /// beside it, or of a new one, nested as deep as the spaces and tabs
-  /// before the marker say.
-  private mutating func replaceBlock(
-    _ parent: NodeKey, withListItemOf listType: ListType, _ children: [NodeKey], _ groups: [String?]
+  /// before the marker say. An import passes the columns its list levels
+  /// open at, which a line's indent is measured against, and blank lines
+  /// between its list lines leave the list open.
+  mutating func listReplace(
+    _ parent: NodeKey, _ listType: ListType, _ children: [NodeKey], _ groups: [String?],
+    importColumns columns: inout [Int]?
   ) throws {
-    let previous = state.previousSibling(of: parent)
+    var previous = state.previousSibling(of: parent)
     let next = state.nextSibling(of: parent)
+    if columns != nil {
+      while let block = previous, isEmptyMarkdownParagraph(block) { previous = state.previousSibling(of: block) }
+      if !(previous.map(isList) ?? false) { columns = [] }
+    }
     let item = create(SerializedListItemNode.type)
     if listType == .check, case .listItem(var payload) = state[item].payload {
       payload.checked = groups[3]?.lowercased() == "x"
@@ -308,7 +327,10 @@ extension Update {
     // all of it as JavaScript's `\s` and `trim` count it.
     let firstMatchChar = groups[0].flatMap { $0.unicodeScalars.dropFirst(groups[1]?.unicodeScalars.count ?? 0).first }
     let marker = listType != .number ? firstMatchChar.flatMap { ListMarker(rawValue: String($0)) } : nil
-    let indent = Self.markdownIndent(groups[1] ?? "")
+    let indent =
+      if let open = columns, !open.isEmpty { Self.columnIndent(open, groups[1] ?? "") } else {
+        Self.markdownIndent(groups[1] ?? "")
+      }
     if let next, self.listType(next) == listType {
       if let first = state.firstChild(of: next) {
         try insert(item, before: first)
@@ -326,7 +348,7 @@ extension Update {
       try replace(parent, with: list)
     }
     try append(item, children)
-    selectElement(item, 0, 0)
+    if columns == nil { selectElement(item, 0, 0) }
     if indent > 0 {
       try setIndent(item, indent)
       try retypeNestedList(item, listType, start: start)
@@ -335,7 +357,44 @@ extension Update {
       modifyList(list) { $0.setMarkdownMarker(marker) }
       knowsListMarker = true
     }
+    if columns != nil { Self.setOpenColumn(&columns!, indent, groups, listType) }
   }
+
+  /// `getColumn`: the column the text after `whitespace` starts at, a tab
+  /// going on to the next multiple of four.
+  private static func column(_ whitespace: some StringProtocol) -> Int {
+    whitespace.unicodeScalars.reduce(0) { column, scalar in column + (scalar == "\t" ? 4 - column % 4 : 1) }
+  }
+
+  /// `getColumnIndent`: the innermost open level whose content column
+  /// `whitespace` reaches.
+  private static func columnIndent(_ columns: [Int], _ whitespace: String) -> Int {
+    let column = column(whitespace)
+    return (columns.lastIndex { column >= $0 }).map { $0 + 1 } ?? 0
+  }
+
+  /// `setOpenColumn`: the content column the line leaves open for the lines
+  /// under it, closing the levels it stepped back out of.
+  private static func setOpenColumn(_ columns: inout [Int], _ indent: Int, _ groups: [String?], _ listType: ListType) {
+    for level in columns.count..<max(indent, columns.count) { columns.append((level + 1) * 4) }
+    columns.removeLast(columns.count - indent)
+    columns.append(contentColumn(groups, listType))
+  }
+
+  /// `getContentColumn`: where the marker ends, a checklist's box being
+  /// content, and no more than four columns past where it starts.
+  private static func contentColumn(_ groups: [String?], _ listType: ListType) -> Int {
+    let whitespace = groups[1] ?? ""
+    var prefix = groups[0] ?? ""
+    if listType == .check, let bullet = checklistBullet.firstMatch(in: MarkdownImport.string(prefix.utf16.dropFirst(whitespace.utf16.count))),
+      let marker = bullet.groups[0]
+    {
+      prefix = whitespace + marker
+    }
+    return min(column(prefix), column(whitespace) + 4)
+  }
+
+  private static let checklistBullet = JSRegExp("^[-*+]\\s", flags: "")
 
   /// `getIndent`: a level for each tab, and for each four spaces.
   private static func markdownIndent(_ whitespace: String) -> Int {

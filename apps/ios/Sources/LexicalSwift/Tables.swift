@@ -25,7 +25,7 @@ extension Update {
   func rowSpan(of cell: NodeKey) -> Int { cellNode(cell)?.rowSpan ?? 1 }
   func headerState(of cell: NodeKey) -> Int { Int(cellNode(cell)?.headerState ?? 0) }
 
-  private mutating func modifyCell(_ cell: NodeKey, _ change: (inout SerializedTableCellNode) -> Void) {
+  mutating func modifyCell(_ cell: NodeKey, _ change: (inout SerializedTableCellNode) -> Void) {
     guard var node = cellNode(cell) else { return }
     change(&node)
     modify(cell) { $0.payload = .tableCell(node) }
@@ -51,7 +51,7 @@ extension Update {
   }
 
   /// `$createTableCellNode(headerState)`.
-  private mutating func createCell(headerState: Int) -> NodeKey {
+  mutating func createCell(headerState: Int) -> NodeKey {
     let cell = create(SerializedTableCellNode.type)
     if var node = cellNode(cell) {
       node.headerState = Double(headerState)

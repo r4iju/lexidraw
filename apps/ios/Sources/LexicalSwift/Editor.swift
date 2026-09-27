@@ -191,7 +191,7 @@ extension Node {
     case .quote(let node): node.unknownFields.isEmpty && node.shadowRoot != true
     case .list(let node): node.unknownFields.isEmpty || node.holdsOnlyAMarkdownMarker
     case .listItem(let node): node.unknownFields.isEmpty
-    case .lineBreak(let node): node.unknownFields.isEmpty
+    case .lineBreak(let node): node.unknownFields.isEmpty || node.holdsOnlyAMarkdownHardLineBreak
     case .horizontalRule(let node): node.unknownFields.isEmpty
     case .link(let node): node.unknownFields.isEmpty
     case .autoLink(let node): node.unknownFields.isEmpty
