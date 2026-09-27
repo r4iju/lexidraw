@@ -175,9 +175,36 @@ const Manifest = z.object({
 async function manifestAt(url: string) {
   for (const wait of [0, 250, 500, 1000]) {
     if (wait) await new Promise((resolve) => setTimeout(resolve, wait));
-    const r = await fetch(url, { cache: "no-store" }).catch(() => undefined);
-    if (!r?.ok) continue;
-    const body = await r.json().catch(() => undefined);
+    const started = Date.now();
+    const r = await fetch(url, { cache: "no-store" }).catch(
+      (error: unknown) => {
+        console.warn("[tts] manifest read failed", {
+          url,
+          wait,
+          error: String(error),
+        });
+        return undefined;
+      },
+    );
+    if (!r) continue;
+    if (!r.ok) {
+      console.warn("[tts] manifest read refused", {
+        url,
+        wait,
+        status: r.status,
+        cache: r.headers.get("x-vercel-cache"),
+        ms: Date.now() - started,
+      });
+      continue;
+    }
+    const body = await r.json().catch((error: unknown) => {
+      console.warn("[tts] manifest read unparsable", {
+        url,
+        wait,
+        error: String(error),
+      });
+      return undefined;
+    });
     if (body !== undefined) return Manifest.catch({ segments: [] }).parse(body);
   }
   return undefined;
