@@ -123,6 +123,12 @@ import Testing
     ("a line under an item joins it", #"- a\nb"#, "table[ul[li(a⏎b)]]"),
     ("an empty line between items keeps them in one list", #"- a\n\n- b"#, "table[ul[li(a),li(b)]]"),
     ("an item's text imports its formats", #"- **a**"#, "table[ul[li(a{1})]]"),
+    ("an equation fence that isn't closed is text", "$$", "table[p($$)]"),
+    ("an admonition that isn't closed is text", ":::note", "table[p(:::note)]"),
+    ("an admonition closed inside a fence isn't closed", #":::note\n~~~\n:::"#, "table[p(:::note⏎~~~⏎:::)]"),
+    ("details that aren't closed are text", "<details>", "table[p(<details>)]"),
+    ("columns that aren't closed are text", "<columns>", "table[p(<columns>)]"),
+    ("columns with nothing in them are text", #"<columns>\n</columns>"#, "table[p(<columns>⏎</columns>)]"),
   ].map { name, markdown, expected in
     Script(name: name, start: emptyParagraph, commands: row("|\(markdown)|"), expected: expected)
   }
@@ -204,7 +210,8 @@ import Testing
   /// imports as something else, and the row stays as typed instead.
   static let notPortedYet: [Script] = [
     "```", "``` a", "$x$", "$$x$$", "[a](b)", "![a](b)", ":smile:", "[^a]", "[^a]: b",
-    #"<tweet id="1" />"#, "> [!note]", ":::note", "<details>", "<columns>",
+    #"<tweet id="1" />"#, "> [!note]", #"$$\nx\n$$"#, #":::note\na\n:::"#, "<details></details>",
+    #"<details>\na\n</details>"#, #"<columns>\na\n</columns>"#,
   ].map { markdown in
     Script(name: markdown, start: emptyParagraph, commands: row("|\(markdown)|"), expected: "p(|\(markdown)| )")
   }

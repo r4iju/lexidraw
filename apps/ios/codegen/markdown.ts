@@ -39,6 +39,11 @@ const EXPORTED = [
 /** Patterns the web's transformers match with besides their own. */
 export const MARKDOWN_PATTERNS = {
   TABLE_ROW_DIVIDER_REG_EXP: webTransformers.TABLE_ROW_DIVIDER_REG_EXP,
+  FENCE: blockTransformers.FENCE,
+  ADMONITION_END: blockTransformers.ADMONITION_END,
+  DETAILS_OPEN: blockTransformers.DETAILS_OPEN,
+  DETAILS_CLOSE: blockTransformers.DETAILS_CLOSE,
+  COLUMNS_CLOSE: blockTransformers.COLUMNS_CLOSE,
 };
 
 /**
@@ -74,7 +79,7 @@ export function swiftForMarkdownTransformers(
     ...Object.entries(patterns).flatMap(([name, regExp]) => [
       "",
       `  /// \`${name}\` in @packages/lexical-nodes.`,
-      `  static let ${camelCase(name)} = ${swiftForRegExp(regExp)}`,
+      `  static let ${camelCase(name)} = ${swiftForPattern(regExp)}`,
     ]),
     "}",
   ];
@@ -92,6 +97,11 @@ function swiftForTransformer(transformer: Transformer, name: string): string {
     case "multiline-element": {
       fields.push(`regExp: ${swiftForRegExp(transformer.regExpStart)}`);
       const end = transformer.regExpEnd;
+      if (end) {
+        fields.push(
+          `regExpEnd: ${swiftForRegExp("regExp" in end ? end.regExp : end)}`,
+        );
+      }
       if (end && (!("optional" in end) || !end.optional)) {
         fields.push("isEndRequired: true");
       }
@@ -178,6 +188,16 @@ function swiftForRegExp(regExp: RegExp): string {
   if (regExp.global || regExp.sticky) {
     throw new Error(
       `/${regExp.source}/${regExp.flags} keeps where it last matched, which a shortcut's match can't depend on`,
+    );
+  }
+  return swiftForPattern(regExp);
+}
+
+/** A pattern, which one that's global counts matches with. */
+function swiftForPattern(regExp: RegExp): string {
+  if (regExp.sticky) {
+    throw new Error(
+      `/${regExp.source}/${regExp.flags} matches only where it last matched`,
     );
   }
   return `JSRegExp(${swiftString(regExp.source)}, flags: ${swiftString(regExp.flags)})`;

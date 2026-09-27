@@ -27,29 +27,89 @@ enum MarkdownImport {
   }
 
   static func lines(_ markdown: String) throws -> [Line] {
-    try normalized(Text(markdown.utf16)).map { line in
-      try importMultiline(line)
-      return try importLine(line)
+    let lines = normalized(Text(markdown.utf16)).map(string)
+    return try lines.indices.map { index in
+      try importMultiline(lines, index)
+      return try importLine(Text(lines[index].utf16))
     }
   }
 
   /// `normalizeMarkdown` without merging lines: a line of only whitespace is
-  /// empty. A line opening a code block throws, as importing it would.
-  private static func normalized(_ markdown: Text) throws -> [Text] {
-    try markdown.split(separator: newline, omittingEmptySubsequences: false).map { raw in
-      let line = Text(raw.reversed().drop(while: isWhitespace).reversed())
-      if codeStart.firstMatch(in: string(line)) != nil { try requirePorted(.code) }
-      return line.isEmpty ? [] : Text(raw)
+  /// empty. It leaves a code block's lines as they are too, but the import
+  /// ends at a code block's first line.
+  private static func normalized(_ markdown: Text) -> [Text] {
+    markdown.split(separator: newline, omittingEmptySubsequences: false).map { raw in
+      raw.reversed().drop(while: isWhitespace).isEmpty ? [] : Text(raw)
     }
   }
 
   /// `$importMultiline`: no multiline element transformer is ported, so one
-  /// whose start matches throws.
-  private static func importMultiline(_ line: Text) throws {
-    for transformer in MarkdownTransformer.multilineElement
-    where transformer.regExp?.firstMatch(in: string(line)) != nil {
+  /// that takes the line at `index` throws.
+  private static func importMultiline(_ lines: [String], _ index: Int) throws {
+    for transformer in MarkdownTransformer.multilineElement {
+      guard let start = transformer.regExp?.firstMatch(in: lines[index]),
+        takes(transformer, lines, index, startIndex: start.index)
+      else { continue }
       try requirePorted(transformer.name)
+      throw EditorError.unsupported("Importing the markdown \(transformer.name.rawValue)")
     }
+  }
+
+  /// Whether `transformer`, its start matching at `startIndex` in the line
+  /// at `index`, takes the lines from there instead of leaving them to the
+  /// other transformers: as its `handleImportAfterStartMatch` in
+  /// @packages/lexical-nodes decides, or else where `$importMultiline` finds
+  /// its end.
+  private static func takes(_ transformer: MarkdownTransformer, _ lines: [String], _ index: Int, startIndex: Int)
+    -> Bool
+  {
+    let isLine = { (pattern: JSRegExp) in { (line: String) in pattern.firstMatch(in: line) == nil ? 0 : 1 } }
+    switch transformer.name {
+    case .callout, .code: return true
+    case .admonition:
+      return closingLine(lines, from: index, opens: isLine(MarkdownTransformer.regExp(of: .admonition)),
+        closes: isLine(MarkdownTransformer.admonitionEnd)) != nil
+    case .details:
+      return closingLine(lines, from: index, opens: MarkdownTransformer.detailsOpen.matchCount,
+        closes: MarkdownTransformer.detailsClose.matchCount) != nil
+    case .columns:
+      // `splitColumns` finds a column in any line that isn't blank.
+      guard let end = closingLine(lines, from: index, opens: isLine(MarkdownTransformer.regExp(of: .columns)),
+        closes: isLine(MarkdownTransformer.columnsClose))
+      else { return false }
+      return lines[(index + 1)..<end].contains { !trimmed($0.utf16).isEmpty }
+    default:
+      guard let end = transformer.regExpEnd else { return true }
+      return lines.indices[index...].contains { endIndex in
+        guard let match = end.firstMatch(in: lines[endIndex]) else { return false }
+        return endIndex != index || match.index != startIndex
+      }
+    }
+  }
+
+  /// `findClose`: the line where the block opened on `from` closes, skipping
+  /// fenced code, where `opens` and `closes` count how many blocks a line
+  /// opens and closes.
+  private static func closingLine(
+    _ lines: [String], from: Int, opens: (String) -> Int, closes: (String) -> Int
+  ) -> Int? {
+    var depth = 0
+    var fence: String?
+    for index in lines.indices[from...] {
+      let line = lines[index]
+      let marker = MarkdownTransformer.fence.firstMatch(in: line)?.groups[1]
+      if let open = fence {
+        if let marker, marker.utf16.starts(with: open.utf16), trimmed(line.utf16) == Text(marker.utf16) { fence = nil }
+        continue
+      }
+      if let marker, index != from {
+        fence = marker
+        continue
+      }
+      depth += opens(line) - closes(line)
+      if depth <= 0 { return index }
+    }
+    return nil
   }
 
   /// `$importBlocks` up to where it makes nodes: the element transformer
@@ -257,8 +317,6 @@ enum MarkdownImport {
     Text(text.drop(while: isWhitespace).reversed().drop(while: isWhitespace).reversed())
   }
 
-  /// `CODE_START_REGEX`.
-  private static let codeStart = MarkdownTransformer.regExp(of: .code)
   static let newline = "\n".utf16.first!
   static let tab = "\t".utf16.first!
   static let space = " ".utf16.first!

@@ -8,7 +8,7 @@ extension MarkdownTransformer {
     MarkdownTransformer(kind: .multilineElement, name: .admonition, regExp: JSRegExp("^(:{3,})\\s*([A-Za-z][\\w-]*)(?:\\[(.*)\\])?(?:\\s+(.*?))?\\s*$", flags: ""), makes: ["callout"]),
     MarkdownTransformer(kind: .multilineElement, name: .details, regExp: JSRegExp("^\\s*<details(?:\\s[^>]*)?>", flags: "i"), makes: ["collapsible-container", "collapsible-title", "collapsible-content"]),
     MarkdownTransformer(kind: .multilineElement, name: .columns, regExp: JSRegExp("^\\s*<columns(?:\\s[^>]*)?>\\s*$", flags: "i"), makes: ["layout-container", "layout-item"]),
-    MarkdownTransformer(kind: .multilineElement, name: .blockEquationFence, regExp: JSRegExp("^\\s*\\$\\$\\s*$", flags: ""), isEndRequired: true, makes: ["equation"]),
+    MarkdownTransformer(kind: .multilineElement, name: .blockEquationFence, regExp: JSRegExp("^\\s*\\$\\$\\s*$", flags: ""), regExpEnd: JSRegExp("^\\s*\\$\\$\\s*$", flags: ""), isEndRequired: true, makes: ["equation"]),
     MarkdownTransformer(kind: .element, name: .tweet, regExp: JSRegExp("<tweet id=\"([^\"]+?)\"\\s?\\/>\\s?$", flags: ""), makes: ["tweet"]),
     MarkdownTransformer(kind: .element, name: .article, regExp: JSRegExp("^<article\\s+.*?>$", flags: ""), makes: ["article"]),
     MarkdownTransformer(kind: .element, name: .placeholderBlock, regExp: JSRegExp("^<!-- lexidraw:([a-z-]+)#(\\d+)(?: (.*?))? -->$", flags: ""), makes: ["inline-image", "video", "youtube", "figma", "page-break", "sticky", "poll", "chart", "slide-deck", "excalidraw", "mermaid", "comment", "thread"]),
@@ -27,7 +27,7 @@ extension MarkdownTransformer {
     MarkdownTransformer(kind: .element, name: .quote, regExp: JSRegExp("^>\\s", flags: ""), triggerOnEnter: true, makes: ["quote"]),
     MarkdownTransformer(kind: .element, name: .unorderedList, regExp: JSRegExp("^(\\s*)[-*+]\\s", flags: ""), triggerOnEnter: true, makes: ["list", "listitem"]),
     MarkdownTransformer(kind: .element, name: .orderedList, regExp: JSRegExp("^(\\s*)(\\d{1,})\\.\\s", flags: ""), triggerOnEnter: true, makes: ["list", "listitem"]),
-    MarkdownTransformer(kind: .multilineElement, name: .code, regExp: JSRegExp("^([ \\t]*`{3,})([\\w-]+)?[ \\t]?", flags: ""), makes: ["code"]),
+    MarkdownTransformer(kind: .multilineElement, name: .code, regExp: JSRegExp("^([ \\t]*`{3,})([\\w-]+)?[ \\t]?", flags: ""), regExpEnd: JSRegExp("^[ \\t]*`{3,}$", flags: ""), makes: ["code"]),
     MarkdownTransformer(kind: .textFormat, name: .inlineCode, tag: "`", formats: [.code]),
     MarkdownTransformer(kind: .textFormat, name: .boldItalicStar, tag: "***", formats: [.bold, .italic]),
     MarkdownTransformer(kind: .textFormat, name: .boldItalicUnderscore, tag: "___", formats: [.bold, .italic], isIntraword: false),
@@ -80,4 +80,19 @@ extension MarkdownTransformer {
 
   /// `TABLE_ROW_DIVIDER_REG_EXP` in @packages/lexical-nodes.
   static let tableRowDividerRegExp = JSRegExp("^(\\|\\s*:?-{3,}:?\\s*)+\\|\\s*$", flags: "")
+
+  /// `FENCE` in @packages/lexical-nodes.
+  static let fence = JSRegExp("^\\s*(`{3,}|~{3,})", flags: "")
+
+  /// `ADMONITION_END` in @packages/lexical-nodes.
+  static let admonitionEnd = JSRegExp("^:{3,}\\s*$", flags: "")
+
+  /// `DETAILS_OPEN` in @packages/lexical-nodes.
+  static let detailsOpen = JSRegExp("<details(?:\\s[^>]*)?>", flags: "gi")
+
+  /// `DETAILS_CLOSE` in @packages/lexical-nodes.
+  static let detailsClose = JSRegExp("<\\/details\\s*>", flags: "gi")
+
+  /// `COLUMNS_CLOSE` in @packages/lexical-nodes.
+  static let columnsClose = JSRegExp("^\\s*<\\/columns\\s*>\\s*$", flags: "i")
 }

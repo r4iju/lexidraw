@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
 import { HEADING, LINK, type Transformer } from "@lexical/markdown";
+import { BLOCK_EQUATION_FENCE } from "@packages/lexical-nodes/decorator-transformers";
 import { createTransformers } from "@packages/lexical-nodes/transformers";
 import {
   MARKDOWN_PATTERNS,
@@ -82,4 +83,18 @@ test("refuses a text match that ends its match in code", () => {
   expect(() => swiftForMarkdownTransformers([ending])).toThrow(
     "ends its match in code",
   );
+});
+
+test("gives a multiline element the pattern that ends it", () => {
+  const swift = swiftForMarkdownTransformers([BLOCK_EQUATION_FENCE]);
+
+  expect(swift).toContain(
+    'regExp: JSRegExp("^\\\\s*\\\\$\\\\$\\\\s*$", flags: ""), regExpEnd: JSRegExp("^\\\\s*\\\\$\\\\$\\\\s*$", flags: ""), isEndRequired: true',
+  );
+});
+
+test("gives a pattern that counts its matches its global flag", () => {
+  const swift = swiftForMarkdownTransformers([], { OPEN: /<a>/gi });
+
+  expect(swift).toContain('static let open = JSRegExp("<a>", flags: "gi")');
 });
