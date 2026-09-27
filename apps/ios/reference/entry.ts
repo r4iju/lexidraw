@@ -2,10 +2,7 @@
  * The editor-model interface over headless Lexical, for ReferenceEditor.swift
  * to call with JSON strings.
  */
-import {
-  $exportMimeTypeFromSelection,
-  $insertDataTransferForRichText,
-} from "@lexical/clipboard";
+import { $exportMimeTypeFromSelection } from "@lexical/clipboard";
 import { namedSignals } from "@lexical/extension";
 import { createEmptyHistoryState, registerHistory } from "@lexical/history";
 import { createHeadlessEditor } from "@lexical/headless";
@@ -40,7 +37,6 @@ import {
 import { SCHEMA_NODES } from "@packages/lexical-nodes/nodes";
 import { createTransformers } from "@packages/lexical-nodes/transformers";
 import {
-  $addUpdateTag,
   $createRangeSelection,
   $exportNodeJSON,
   $formatText,
@@ -73,7 +69,6 @@ import {
   type NodeKey,
   OUTDENT_CONTENT_COMMAND,
   PASTE_COMMAND,
-  PASTE_TAG,
   type PasteCommandType,
   type PointType,
   REDO_COMMAND,
@@ -291,23 +286,28 @@ function copy(selection: RangeSelection): Clipboard | undefined {
  * A paste as the web editor takes it: its link plugin's handler first, which
  * links selected text to a pasted URL, then rich text's.
  */
-function paste(selection: RangeSelection, pasted: Clipboard): void {
+function paste(pasted: Clipboard): void {
   const event = new ClipboardEvent(dataTransfer(pasted));
-  const payload = event as unknown as PasteCommandType;
-  if ($getEditor().dispatchCommand(PASTE_COMMAND, payload)) return;
-  $addUpdateTag(PASTE_TAG);
-  $insertDataTransferForRichText(event.clipboardData, selection);
+  current().dispatchCommand(
+    PASTE_COMMAND,
+    event as unknown as PasteCommandType,
+  );
 }
 
 /**
- * The DOM's `ClipboardEvent`, as far as Lexical's paste handlers read one.
- * They tell it by its class's name, from the global of that name.
+ * The DOM's events, as far as Lexical's paste handlers read one. They tell
+ * them apart by their classes' names, from the globals of those names.
  */
 const ClipboardEvent = class ClipboardEvent {
   constructor(readonly clipboardData: DataTransfer) {}
   preventDefault(): void {}
 };
-Object.assign(globalThis, { ClipboardEvent });
+Object.assign(globalThis, {
+  ClipboardEvent,
+  DragEvent: class DragEvent {},
+  InputEvent: class InputEvent {},
+  KeyboardEvent: class KeyboardEvent {},
+});
 
 /** A `DataTransfer` holding `pasted`, as far as Lexical reads one. */
 function dataTransfer(pasted: Clipboard): DataTransfer {
@@ -319,10 +319,12 @@ function dataTransfer(pasted: Clipboard): DataTransfer {
       lexical === undefined ? undefined : JSON.stringify(lexical),
   };
   return {
+    types: Object.keys(data).filter((type) => data[type] !== undefined),
+    files: [],
     // "text" is the DOM's old name for plain text, which the link plugin uses.
     getData: (type: string) =>
       data[type === "text" ? "text/plain" : type] ?? "",
-  } as DataTransfer;
+  } as unknown as DataTransfer;
 }
 
 function rangeSelection(): RangeSelection {
@@ -513,7 +515,7 @@ function run(
       clipboard = copy(selection);
       return;
     case "paste":
-      paste(selection, command.clipboard);
+      paste(command.clipboard);
       return;
   }
 }
