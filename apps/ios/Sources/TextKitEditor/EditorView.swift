@@ -462,8 +462,7 @@ public final class EditorView: UIScrollView, UITextInput {
       command.wantsPriorityOverSystemBehavior = true
       return command
     }
-    return [
-      command("\r", .shift, #selector(insertLineBreak)),
+    let moves = [
       command(UIKeyCommand.inputLeftArrow, [], #selector(moveLeft)),
       command(UIKeyCommand.inputRightArrow, [], #selector(moveRight)),
       command(UIKeyCommand.inputUpArrow, [], #selector(moveUp)),
@@ -474,6 +473,10 @@ public final class EditorView: UIScrollView, UITextInput {
       command(UIKeyCommand.inputDownArrow, .shift, #selector(extendDown)),
       command(UIKeyCommand.inputLeftArrow, .command, #selector(moveToLineStart)),
       command(UIKeyCommand.inputRightArrow, .command, #selector(moveToLineEnd)),
+    ]
+    guard isEditable else { return moves }
+    return moves + [
+      command("\r", .shift, #selector(insertLineBreak)),
       command(UIKeyCommand.inputDelete, .alternate, #selector(deleteWordBackward)),
       command(UIKeyCommand.inputDelete, .command, #selector(deleteLineBackward)),
       command(Self.forwardDelete, [], #selector(deleteForward)),
@@ -530,8 +533,9 @@ public final class EditorView: UIScrollView, UITextInput {
 
   public override func canPerformAction(_ action: Selector, withSender sender: Any?) -> Bool {
     switch action {
-    case #selector(toggleBoldface(_:)), #selector(toggleItalics(_:)), #selector(toggleUnderline(_:)),
-      #selector(selectAll(_:)):
+    case #selector(toggleBoldface(_:)), #selector(toggleItalics(_:)), #selector(toggleUnderline(_:)):
+      isEditable
+    case #selector(selectAll(_:)):
       true
     case #selector(makeTextWritingDirectionLeftToRight(_:)), #selector(makeTextWritingDirectionRightToLeft(_:)):
       false

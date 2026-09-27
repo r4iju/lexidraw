@@ -68,6 +68,25 @@ import UIKit
     #expect(try model.snapshot().state == document)
   }
 
+  /// What would edit isn't offered on a read-only view, in the edit menu or
+  /// on a hardware keyboard.
+  @Test func aReadOnlyViewOffersNothingThatEdits() throws {
+    let model = Editor()
+    try model.load(LexicalJSON.document([LexicalJSON.paragraph([LexicalJSON.text("one two")])]))
+    let view = EditorView(model: model, isEditable: false)
+
+    for action in [
+      #selector(UIResponder.toggleBoldface(_:)), #selector(UIResponder.toggleItalics(_:)),
+      #selector(UIResponder.toggleUnderline(_:)),
+    ] {
+      #expect(!view.canPerformAction(action, withSender: nil), "\(action)")
+    }
+    #expect(view.canPerformAction(#selector(UIResponder.selectAll(_:)), withSender: nil))
+    let keys = view.keyCommands ?? []
+    #expect(!keys.contains { [UIKeyCommand.inputDelete, "\u{7F}", "\r"].contains($0.input) })
+    #expect(keys.contains { $0.input == UIKeyCommand.inputLeftArrow && $0.modifierFlags.isEmpty })
+  }
+
   /// The paragraph's text after the key command for `input` and `modifiers`
   /// runs with the caret `caretAt` UTF-16 offsets into `text`.
   private func text(
