@@ -169,34 +169,36 @@ import Testing
 
   @Test func theTypesNotPortedYetAreWhatTheShortcutsNotPortedYetMake() {
     #expect(Fuzzer.notPortedYet == Editor.typesMarkdownShortcutsNotPortedYetMake)
-    #expect(Fuzzer.notPortedYet.isSuperset(of: ["list", "listitem", "code"]))
+    #expect(Fuzzer.notPortedYet.contains("code"))
   }
 
   @Test func noTypeLexicalSwiftEditsIsNotPortedYet() {
     #expect(
-      Fuzzer.notPortedYet.isDisjoint(with: ["root", "paragraph", "heading", "quote", "text", "linebreak", "horizontalrule"]))
+      Fuzzer.notPortedYet.isDisjoint(
+        with: ["root", "paragraph", "heading", "quote", "list", "listitem", "text", "linebreak", "horizontalrule"]))
   }
 
-  /// Typing "- " makes a list in Lexical, where LexicalSwift keeps the text.
-  private func typingAListShortcut() throws -> (fixture: Fixture, candidate: Fixture.Outcome, before: Snapshot) {
+  /// Typing "``` " makes a code block in Lexical, where LexicalSwift keeps
+  /// the text.
+  private func typingACodeShortcut() throws -> (fixture: Fixture, candidate: Fixture.Outcome, before: Snapshot) {
     let reference = try Support.referenceEditor()
     let start = document(paragraph())
     let caret = EditorCommand.caret(Point(path: [0], offset: 0, type: .element))
-    let before = try Fixture.record(start: start, commands: [caret, .insertText("-")], on: reference).expected
+    let before = try Fixture.record(start: start, commands: [caret, .insertText("```")], on: reference).expected
     let fixture = try Fixture.record(
-      start: start, commands: [caret, .insertText("-"), .insertText(" ")], on: reference)
+      start: start, commands: [caret, .insertText("```"), .insertText(" ")], on: reference)
     return (fixture, try fixture.replay(on: Editor()), before)
   }
 
   @Test func aSessionEndsWhereLexicalMakesWhatLexicalSwiftDoesNotEditYet() throws {
-    let (fixture, candidate, before) = try typingAListShortcut()
+    let (fixture, candidate, before) = try typingACodeShortcut()
 
     #expect(
       Fuzzer.isNotPortedYet(candidate: candidate.changes.last!, referenceBefore: before, referenceAfter: fixture.expected))
   }
 
   @Test func refusingWhereLexicalMakesWhatLexicalSwiftDoesNotEditYetDisagrees() throws {
-    let (fixture, _, before) = try typingAListShortcut()
+    let (fixture, _, before) = try typingACodeShortcut()
 
     #expect(
       !Fuzzer.isNotPortedYet(
@@ -204,7 +206,7 @@ import Testing
   }
 
   @Test func doingOtherwiseWhereLexicalMakesNothingNewDisagrees() throws {
-    let (_, _, before) = try typingAListShortcut()
+    let (_, _, before) = try typingACodeShortcut()
 
     #expect(
       !Fuzzer.isNotPortedYet(candidate: .applied(ChangeSet(changed: [[0]])), referenceBefore: before, referenceAfter: before))

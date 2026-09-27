@@ -266,7 +266,8 @@ struct Generator {
   /// composition finishes and Enter finishes a block's.
   private static let shortcuts = [
     "# ", "### ", "###### ", "####### ", "> ", "--- ", "*** ", "___ ", "*a*", "**a**", "***a***", "_a_", "__a__",
-    "~~a~~", "==a==", "`a`", "`**a**", "*a *", "a_b_", "- ", "7. ", "``` ",
+    "~~a~~", "==a==", "`a`", "`**a**", "*a *", "a_b_", "- ", "* ", "+ ", "1. ", "7. ", "    - ", "        1. ", "[ ] ",
+    "[x] ", "- [ ] ", "``` ",
   ]
   /// The rest of a shortcut being typed.
   private var typing: [EditorCommand] = []
@@ -305,13 +306,16 @@ struct Generator {
   /// A list of up to three entries, where an item may be followed by a list
   /// nested in an item of its own, down to three lists deep; or now and then
   /// a chain of an item and a nested list, five to eight lists deep, around
-  /// the depth past which the web's editor won't indent.
+  /// the depth past which the web's editor won't indent. Now and then a
+  /// list is marked with the `*` or `+` it was typed with.
   private mutating func list(unlike excluded: ListType? = nil) -> JSONValue {
     let listType = ListType.allCases.filter { $0 != excluded }.randomElement(using: &random)!
     let start = listType == .number && Int.random(in: 0..<4, using: &random) == 0 ? 3 : 1
     let chain = Int.random(in: 0..<4, using: &random) == 0
     let deepest = chain ? Int.random(in: 5...8, using: &random) : 3
-    return LexicalJSON.list(listType, listEntries(depth: 1, deepest: deepest, chain: chain), start: start)
+    let marker = listType != .number && Int.random(in: 0..<4, using: &random) == 0 ? "*" : nil
+    return LexicalJSON.list(
+      listType, listEntries(depth: 1, deepest: deepest, chain: chain), start: start, marker: marker)
   }
 
   private mutating func listEntries(depth: Int, deepest: Int, chain: Bool) -> [LexicalJSON.ListEntry] {
