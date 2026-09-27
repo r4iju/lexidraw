@@ -27,6 +27,22 @@ import Testing
     #expect(try editor.snapshot().state == state)
   }
 
+  /// A view asks before it offers the keyboard, since every edit is refused
+  /// on a document with a node LexicalSwift doesn't edit yet.
+  @Test func saysWhetherItCanEditTheDocumentLoaded() throws {
+    let model: any EditorModel = Editor()
+
+    try model.load(
+      LexicalJSON.document([
+        LexicalJSON.paragraph([LexicalJSON.text("plain"), LexicalJSON.lineBreak, LexicalJSON.text("bold", format: .bold)])
+      ]))
+    #expect(model.isEditable)
+
+    try model.load(
+      LexicalJSON.document([LexicalJSON.paragraph([LexicalJSON.text("plain")]), LexicalJSON.youtube("dQw4w9WgXcQ")]))
+    #expect(!model.isEditable)
+  }
+
   /// Typing keeps every earlier state, as undo does, so a copy of the whole
   /// document per update would show here as time growing with its size.
   @Test func anUpdateCostsTheSameInABigDocumentAsInASmallOne() throws {

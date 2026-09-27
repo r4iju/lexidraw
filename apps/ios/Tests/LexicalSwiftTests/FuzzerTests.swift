@@ -7,6 +7,7 @@ import Testing
   class LexicalSwiftWith: EditorModel {
     let editor = Editor()
     func load(_ state: JSONValue) throws { try editor.load(state) }
+    var isEditable: Bool { editor.isEditable }
     func snapshot() throws -> Snapshot { try editor.snapshot() }
     func selection() throws -> Selection? { try editor.selection() }
     func node(at path: [Int]) throws -> JSONValue { try editor.node(at: path) }

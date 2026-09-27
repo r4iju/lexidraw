@@ -37,6 +37,9 @@ public final class ReferenceEditor: EditorModel {
     _ = try call("load", state.stringified)
   }
 
+  /// Lexical edits every node it has registered.
+  public var isEditable: Bool { true }
+
   @discardableResult
   public func apply(_ command: EditorCommand) throws -> ChangeSet {
     let result = try call("apply", String(decoding: try encoder.encode(command), as: UTF8.self))

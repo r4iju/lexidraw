@@ -9,7 +9,7 @@ public final class Editor: EditorModel {
   /// Whether the document holds only what the editing commands are ported
   /// for: paragraphs of plain text and line breaks. The other nodes come
   /// with #115 to #118 and #131 to #134.
-  private var isEditable = false
+  public private(set) var isEditable = false
 
   public init() {}
 
