@@ -61,6 +61,12 @@ func autoLink(_ url: String, _ children: JSONValue...) -> JSONValue { LexicalJSO
     Scenario("unlinking the start of a link", linked, [select([0, 1, 0], 0, [0, 1, 0], 3), .toggleLink(url: nil)]),
     Scenario("unlinking the end of a link", linked, [select([0, 1, 0], 4, [0, 1, 0], 8), .toggleLink(url: nil)]),
     Scenario("unlinking across a link", linked, [select([0, 0], 1, [0, 2], 2), .toggleLink(url: nil)]),
+    Scenario(
+      "unlinking up to a link's start", linked,
+      [.setSelection(anchor: .text([0, 0], 1), focus: Point(path: [0, 1], offset: 0, type: .element)), .toggleLink(url: nil)]),
+    Scenario(
+      "unlinking from a link's end", linked,
+      [.setSelection(anchor: Point(path: [0, 1], offset: 1, type: .element), focus: .text([0, 2], 2)), .toggleLink(url: nil)]),
     Scenario("changing a link's URL", linked, [caret([0, 1, 0], 3), .toggleLink(url: "https://b.io")]),
     Scenario("linking over part of a link", linked, [select([0, 0], 1, [0, 1, 0], 3), .toggleLink(url: "https://b.io")]),
     Scenario("linking across two links", twoLinks, [select([0, 0, 0], 1, [0, 2, 0], 2), .toggleLink(url: "https://c.io")]),

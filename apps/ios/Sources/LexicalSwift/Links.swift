@@ -156,8 +156,9 @@ extension Update {
       try remove(link)
       return
     }
-    let first = children.firstIndex(where: isExtracted)!
-    let last = children.lastIndex(where: isExtracted)!
+    guard let first = children.firstIndex(where: isExtracted), let last = children.lastIndex(where: isExtracted) else {
+      throw EditorError.invalidState("No child of the link is extracted, so Lexical has none to put the rest after")
+    }
     if first == 0 {
       for child in extractedChildren { try insert(child, before: link) }
       return
