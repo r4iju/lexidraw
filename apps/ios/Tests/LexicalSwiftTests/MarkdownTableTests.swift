@@ -142,6 +142,7 @@ import Testing
     ("emphasis around code formats the code too", "**`a`**", "table[p(a{17})]"),
     ("a space before the closer stays", "*a *", "table[p(*a *)]"),
     ("rule of three", "*a**b*", "table[p(a**b{2})]"),
+    ("a backslash after a delimiter isn't punctuation, so the * opens", #"**a*\**"#, "table[p(**a*{2})]"),
   ].map { name, markdown, expected in
     Script(name: name, start: emptyParagraph, commands: row("|\(markdown)|"), expected: expected)
   }

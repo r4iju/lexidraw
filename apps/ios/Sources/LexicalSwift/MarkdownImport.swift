@@ -238,12 +238,17 @@ enum MarkdownImport {
     }
   }
 
-  /// `PUNCTUATION` in @lexical/markdown, and what `unescapeText` unescapes.
+  /// What `unescapeText` unescapes.
   static func isASCIIPunctuation(_ unit: UTF16.CodeUnit) -> Bool {
     switch unit {
     case 0x21...0x2F, 0x3A...0x40, 0x5B...0x60, 0x7B...0x7E: true
     default: false
     }
+  }
+
+  /// `PUNCTUATION` in @lexical/markdown, which leaves out the backslash.
+  static func isPunctuation(_ unit: UTF16.CodeUnit) -> Bool {
+    unit != backslash && isASCIIPunctuation(unit)
   }
 
   /// JavaScript's `trim`.
@@ -446,7 +451,7 @@ extension MarkdownImport {
       guard character == underscore else { return true }
       if !isFlanking(text, index, length, isLeft: !isOpen) { return true }
       let adjacent = isOpen ? text[safe: index - 1] : text[safe: index + length]
-      return adjacent.map(isASCIIPunctuation) ?? false
+      return adjacent.map(isPunctuation) ?? false
     }
 
     /// `isFlanking`: a left-flanking run has something other than
@@ -457,8 +462,8 @@ extension MarkdownImport {
       let after = text[safe: index + length]
       let (primary, secondary) = isLeft ? (after, before) : (before, after)
       guard let primary, !isWhitespace(primary) else { return false }
-      guard isASCIIPunctuation(primary) else { return true }
-      return secondary.map { isWhitespace($0) || isASCIIPunctuation($0) } ?? true
+      guard isPunctuation(primary) else { return true }
+      return secondary.map { isWhitespace($0) || isPunctuation($0) } ?? true
     }
 
     /// Whether an odd run of backslashes is before `index`.
