@@ -36,8 +36,7 @@ export function chooseProvider(
     kokoroSpeaks(lang)
   )
     return "kokoro";
-  if (languageCode && !lang.startsWith("en")) return "google";
-  return "openai";
+  return "google";
 }
 
 export function defaultKokoroVoice(languageCode?: string): string {

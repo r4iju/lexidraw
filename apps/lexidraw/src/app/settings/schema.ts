@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { schema } from "@packages/drizzle";
+import { DEFAULT_GEMINI_VOICE, geminiVoice } from "~/lib/gemini-voices";
 
 /**
  * What Settings saves. Every override is nullable: null means "follow the
@@ -20,7 +21,7 @@ const AutocompleteOverride = LlmOverride.extend({
   verbosity: z.enum(["low", "medium", "high"]).nullable(),
 }).partial();
 
-export const TTS_PROVIDERS = ["openai", "google", "kokoro"] as const;
+export const TTS_PROVIDERS = ["google", "openai", "kokoro"] as const;
 
 const TtsOverride = z
   .object({
@@ -67,8 +68,8 @@ export function confirmsDeletion(
 
 /** The read-aloud settings a new account starts with. */
 export const TTS_DEFAULTS = {
-  provider: "openai",
-  voiceId: "alloy",
+  provider: "google",
+  voiceId: DEFAULT_GEMINI_VOICE,
   speed: 1,
   format: "mp3",
   languageCode: "en-US",
@@ -90,7 +91,8 @@ const isProvider = (value: unknown): value is TtsProvider =>
 /**
  * What an account's saved read-aloud settings still say. A service the app
  * no longer has (macOS `say`, XTTS) counts as unsaved, and so does the voice
- * saved with it, which only that service had.
+ * saved with it, which only that service had. A Google voice reads in the
+ * Gemini voice of its name, and counts as unsaved when Gemini has none.
  */
 export function savedTts(stored: unknown): Partial<TtsSettings> {
   const saved = (stored ?? {}) as Record<string, unknown>;
@@ -102,9 +104,20 @@ export function savedTts(stored: unknown): Partial<TtsSettings> {
   const format = ["mp3", "ogg", "wav"].includes(saved.format as string)
     ? (saved.format as TtsSettings["format"])
     : undefined;
+  const voiceId = gone ? undefined : text(saved.voiceId);
+  // A voice saved without a service was one of OpenAI's, the default service
+  // before Gemini.
+  const provider = isProvider(saved.provider)
+    ? saved.provider
+    : voiceId && !geminiVoice(voiceId)
+      ? "openai"
+      : undefined;
   const settings: Partial<TtsSettings> = {
-    provider: isProvider(saved.provider) ? saved.provider : undefined,
-    voiceId: gone ? undefined : text(saved.voiceId),
+    provider,
+    voiceId:
+      (provider ?? TTS_DEFAULTS.provider) === "google"
+        ? geminiVoice(voiceId)
+        : voiceId,
     speed: number(saved.speed),
     format,
     languageCode: text(saved.languageCode),
@@ -117,12 +130,28 @@ export function savedTts(stored: unknown): Partial<TtsSettings> {
 
 /** The voice a service reads in when none is chosen. */
 export function defaultVoice(provider: string, languageCode?: string): string {
-  if (provider === "google") return "en-US-Standard-C";
+  if (provider === "google") return DEFAULT_GEMINI_VOICE;
   if (provider === "kokoro")
     return (languageCode ?? "").toLowerCase().startsWith("ja")
       ? "jf_alpha"
       : "af_heart";
-  return TTS_DEFAULTS.voiceId;
+  return "alloy";
+}
+
+/** The audio formats each service makes. */
+export const TTS_FORMATS: Record<TtsProvider, TtsSettings["format"][]> = {
+  google: ["mp3", "wav"],
+  openai: ["mp3", "ogg", "wav"],
+  kokoro: ["mp3", "ogg", "wav"],
+};
+
+/** The format a service reads in when asked for one: MP3 if it has no other. */
+export function servedFormat(
+  provider: string,
+  format: TtsSettings["format"],
+): TtsSettings["format"] {
+  const made = isProvider(provider) ? TTS_FORMATS[provider] : [format];
+  return made.includes(format) ? format : "mp3";
 }
 
 /**
@@ -137,5 +166,6 @@ export function listenSettings(stored: unknown): TtsSettings {
     ...settings,
     voiceId:
       saved.voiceId ?? defaultVoice(settings.provider, settings.languageCode),
+    format: servedFormat(settings.provider, settings.format),
   };
 }

@@ -7,7 +7,8 @@ import {
 } from "~/lib/markdown-for-tts";
 import { htmlToPlainText } from "@packages/lexical-nodes";
 import type { TtsConfig } from "../document-tts/generate-document-tts-workflow";
-import { chooseProvider, isChirp3HdVoice } from "../document-tts/common";
+import { chooseProvider } from "../document-tts/common";
+import { defaultVoice } from "~/app/settings/schema";
 
 export type ArticleChunk = {
   index: number;
@@ -41,8 +42,7 @@ export async function planChunksStep(
   );
 
   const providerName = chooseProvider(tts.provider, tts.languageCode);
-  const voiceId =
-    tts.voiceId ?? (providerName === "google" ? "en-US-Standard-C" : "alloy");
+  const voiceId = tts.voiceId ?? defaultVoice(providerName, tts.languageCode);
   // IMPORTANT: articleKey must match API precomputeArticleTtsKey which hashes the REQUESTED provider string
   // (unset means auto), not the providerName that chooseProvider resolves.
   const articleKey = computeArticleKey(articleId, {
@@ -54,11 +54,7 @@ export async function planChunksStep(
     sampleRate: tts.sampleRate,
   });
 
-  // Chirp 3: HD has a 4000-byte limit; SSML wrapping adds ~300-800 bytes of overhead
-  const hardCap =
-    providerName === "google" && isChirp3HdVoice(tts.voiceId ?? "")
-      ? 2500
-      : 4000;
+  const hardCap = 4000;
 
   let chunks: Array<{
     index: number;

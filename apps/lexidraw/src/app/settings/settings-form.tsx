@@ -19,6 +19,7 @@ import {
   SelectValue,
 } from "~/components/ui/select";
 import { Switch } from "~/components/ui/switch";
+import { GEMINI_VOICES, geminiVoice } from "~/lib/gemini-voices";
 import { modelLabel } from "~/lib/model-label";
 import { api } from "~/trpc/react";
 import type { RouterOutputs } from "~/trpc/shared";
@@ -64,7 +65,7 @@ const MODES: { mode: Mode; label: string; hint: string }[] = [
 
 const TTS_PROVIDER_LABEL: Record<(typeof TTS_PROVIDERS)[number], string> = {
   openai: "OpenAI",
-  google: "Google",
+  google: "Google Gemini",
   kokoro: "Kokoro (runs locally)",
 };
 
@@ -179,6 +180,9 @@ function toSettings(values: FormValues, policies: Policy[]): SettingsInput {
     };
   };
   const { autocomplete, tts } = values;
+  const voiceId = tts.voiceId.trim();
+  const reader =
+    tts.provider === DEFAULT ? TTS_DEFAULTS.provider : tts.provider;
   return {
     name: values.name,
     email: values.email,
@@ -202,7 +206,8 @@ function toSettings(values: FormValues, policies: Policy[]): SettingsInput {
         tts.provider === DEFAULT
           ? null
           : (tts.provider as (typeof TTS_PROVIDERS)[number]),
-      voiceId: tts.voiceId.trim() || null,
+      // A voice typed for another service stays behind when Gemini is picked.
+      voiceId: (reader === "google" ? geminiVoice(voiceId) : voiceId) || null,
       speed: tts.speed === TTS_DEFAULTS.speed ? null : tts.speed,
       languageCode: tts.languageCode.trim() || null,
     },
@@ -474,22 +479,64 @@ function ThemeSelect() {
   );
 }
 
-/** The voice, whose default follows the service and language chosen. */
+/**
+ * The voice, whose default follows the service and language chosen. Gemini's
+ * voices are picked from its list; the others' are typed.
+ */
 function VoiceField() {
-  const [provider, languageCode] = useWatch<
+  const { control } = useFormContext<FormValues>();
+  const id = useId();
+  const [chosen, languageCode] = useWatch<
     FormValues,
     ["tts.provider", "tts.languageCode"]
   >({ name: ["tts.provider", "tts.languageCode"] });
+  const provider = chosen === DEFAULT ? TTS_DEFAULTS.provider : chosen;
   const voice = defaultVoice(
-    provider === DEFAULT ? TTS_DEFAULTS.provider : provider,
+    provider,
     languageCode.trim() || TTS_DEFAULTS.languageCode,
   );
+  if (provider !== "google") {
+    return (
+      <RHFTextField
+        name="tts.voiceId"
+        label="Voice"
+        placeholder={`Default (${voice})`}
+      />
+    );
+  }
   return (
-    <RHFTextField
-      name="tts.voiceId"
-      label="Voice"
-      placeholder={`Default (${voice})`}
-    />
+    <div className="grid gap-1.5">
+      <Label htmlFor={id}>Voice</Label>
+      <Controller
+        name="tts.voiceId"
+        control={control}
+        render={({ field }) => (
+          <Select
+            // A voice typed for another service is not one of Gemini's.
+            value={
+              GEMINI_VOICES.some((v) => v.name === field.value)
+                ? field.value
+                : DEFAULT
+            }
+            onValueChange={(value) =>
+              field.onChange(value === DEFAULT ? "" : value)
+            }
+          >
+            <SelectTrigger id={id} aria-label="Voice">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={DEFAULT}>Default ({voice})</SelectItem>
+              {GEMINI_VOICES.map((v) => (
+                <SelectItem key={v.name} value={v.name}>
+                  {v.name} — {v.character}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+      />
+    </div>
   );
 }
 
@@ -597,7 +644,7 @@ export function SettingsForm(props: Props) {
             name="tts.languageCode"
             label="Language"
             placeholder={`Default (${TTS_DEFAULTS.languageCode})`}
-            helperText="A language code, such as en-US or sv-SE."
+            helperText="A language code, such as en-US or sv-SE. Gemini also recognizes the language on its own."
           />
         </Section>
       </div>

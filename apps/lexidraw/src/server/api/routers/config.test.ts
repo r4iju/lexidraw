@@ -58,7 +58,7 @@ const STORED = {
   audio: { preferredPlaybackRate: 1.5 },
   tts: {
     provider: "google" as const,
-    voiceId: "stored-voice",
+    voiceId: "Puck",
     speed: 2,
     format: "wav" as const,
     languageCode: "sv-SE",
@@ -138,8 +138,8 @@ describe("a visitor with no account", () => {
 
   test("reads the default TTS settings", async () => {
     expect(await visitor.getTtsConfig()).toEqual({
-      provider: "openai",
-      voiceId: "alloy",
+      provider: "google",
+      voiceId: "Kore",
       speed: 1,
       format: "mp3",
       languageCode: "en-US",

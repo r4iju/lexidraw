@@ -123,12 +123,13 @@ describe("Settings", () => {
       />,
     );
     const service = document.querySelector("[aria-label='Voice service']");
-    const voice = document.querySelector<HTMLInputElement>(
-      "input[name='tts.voiceId']",
-    );
-    expect({ service: service?.textContent, voice: voice?.value }).toEqual({
-      service: "Default (OpenAI)",
-      voice: "",
+    const voice = document.querySelector("[aria-label='Voice']");
+    expect({
+      service: service?.textContent,
+      voice: voice?.textContent,
+    }).toEqual({
+      service: "Default (Google Gemini)",
+      voice: "Default (Kore)",
     });
     await view.unmount();
   });
@@ -139,7 +140,7 @@ describe("Settings", () => {
         {...props({
           user: {
             ...props().user,
-            config: { tts: { provider: "google" } },
+            config: { tts: { provider: "openai" } },
           } as Props["user"],
         })}
       />,
@@ -147,7 +148,23 @@ describe("Settings", () => {
     const voice = document.querySelector<HTMLInputElement>(
       "input[name='tts.voiceId']",
     );
-    expect(voice?.placeholder).toBe("Default (en-US-Standard-C)");
+    expect(voice?.placeholder).toBe("Default (alloy)");
+    await view.unmount();
+  });
+
+  test("a Gemini voice shows by its name and character", async () => {
+    const view = await render(
+      <SettingsForm
+        {...props({
+          user: {
+            ...props().user,
+            config: { tts: { voiceId: "en-US-Chirp3-HD-Puck" } },
+          } as Props["user"],
+        })}
+      />,
+    );
+    const voice = document.querySelector("[aria-label='Voice']");
+    expect(voice?.textContent).toBe("Puck — Upbeat");
     await view.unmount();
   });
 });

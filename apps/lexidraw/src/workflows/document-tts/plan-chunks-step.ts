@@ -6,7 +6,8 @@ import {
   splitMarkdownIntoSections,
 } from "~/lib/markdown-for-tts";
 import type { TtsConfig } from "./generate-document-tts-workflow";
-import { chooseProvider, isChirp3HdVoice } from "./common";
+import { chooseProvider } from "./common";
+import { defaultVoice } from "~/app/settings/schema";
 
 export async function planChunksStep(
   documentId: string,
@@ -21,8 +22,7 @@ export async function planChunksStep(
   const { computeDocKey, computeChunkHash } = await import("~/server/tts/id");
 
   const providerName = chooseProvider(tts.provider, tts.languageCode);
-  const voiceId =
-    tts.voiceId ?? (providerName === "google" ? "en-US-Standard-C" : "alloy");
+  const voiceId = tts.voiceId ?? defaultVoice(providerName, tts.languageCode);
   // IMPORTANT: docKey must match API precomputeDocTtsKey which hashes the REQUESTED provider string
   // (unset means auto), not the providerName that chooseProvider resolves.
   const docKey = computeDocKey(documentId, {
@@ -34,10 +34,7 @@ export async function planChunksStep(
     sampleRate: tts.sampleRate,
   });
 
-  const hardCap =
-    providerName === "google" && isChirp3HdVoice(tts.voiceId ?? "")
-      ? 2500
-      : 4000;
+  const hardCap = 4000;
 
   const sanitized = sanitizeMarkdownForTts(markdown);
   const sections = splitMarkdownIntoSections(sanitized);

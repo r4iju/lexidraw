@@ -41,6 +41,7 @@ import { labelForLanguage, titleize } from "~/lib/i18n";
 import { useEntityId } from "~/hooks/use-entity-id";
 import { DropdownMenuItem } from "~/components/ui/dropdown-menu";
 import { ToolbarMenu, ToolbarTooltip } from "./ToolbarPlugin/toolbar";
+import { servedFormat, TTS_DEFAULTS, TTS_FORMATS } from "~/app/settings/schema";
 
 type Listen = {
   documentId: string;
@@ -109,8 +110,8 @@ export function ListenProvider({ children }: { children: ReactNode }) {
   );
 
   const [ttsCfg, setTtsCfg] = useState({
-    provider: "openai" as "openai" | "google" | "kokoro",
-    voiceId: "alloy",
+    provider: TTS_DEFAULTS.provider as "openai" | "google" | "kokoro",
+    voiceId: TTS_DEFAULTS.voiceId as string,
     speed: 1,
     format: "mp3" as "mp3" | "ogg" | "wav",
     languageCode: "en-US",
@@ -589,7 +590,7 @@ export function ListenProvider({ children }: { children: ReactNode }) {
               </label>
               <Select
                 name={`${uid}-tts-format`}
-                value={ttsCfg.format}
+                value={servedFormat(ttsCfg.provider, ttsCfg.format)}
                 onValueChange={(v) =>
                   setTtsCfg((s) => ({
                     ...s,
@@ -601,9 +602,11 @@ export function ListenProvider({ children }: { children: ReactNode }) {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="mp3">MP3</SelectItem>
-                  <SelectItem value="ogg">OGG</SelectItem>
-                  <SelectItem value="wav">WAV</SelectItem>
+                  {TTS_FORMATS[ttsCfg.provider].map((f) => (
+                    <SelectItem key={f} value={f}>
+                      {f.toUpperCase()}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>

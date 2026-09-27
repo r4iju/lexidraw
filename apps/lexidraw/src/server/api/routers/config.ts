@@ -1,6 +1,10 @@
 import { z } from "zod";
 import { autoSaveEnabled } from "~/lib/auto-save";
-import { listenSettings, TTS_PROVIDERS } from "~/app/settings/schema";
+import {
+  listenSettings,
+  TTS_FORMATS,
+  TTS_PROVIDERS,
+} from "~/app/settings/schema";
 import {
   type createTRPCContext,
   createTRPCRouter,
@@ -10,6 +14,7 @@ import {
 import { schema } from "@packages/drizzle";
 import { eq } from "@packages/drizzle";
 import env from "@packages/env";
+import { GEMINI_LANGUAGES, GEMINI_VOICES } from "~/lib/gemini-voices";
 import {
   DEFAULT_GOOGLE_AGENT_MODEL_ID,
   DEFAULT_GOOGLE_AUTOCOMPLETE_MODEL_ID,
@@ -70,6 +75,13 @@ export type TtsConfigResult = {
   voices: TtsConfigVoice[];
   diagnostics?: TtsOptionsDiagnostics;
 };
+
+// Gemini reads every language in each of its voices.
+const GEMINI_VOICE_OPTIONS: TtsVoice[] = GEMINI_VOICES.map((v) => ({
+  id: v.name,
+  label: `${v.name} (${v.character})`,
+  languageCodes: GEMINI_LANGUAGES,
+}));
 
 // --- Kokoro helpers ---
 const KOKORO_FALLBACK: TtsOptionsResult = {
@@ -472,7 +484,6 @@ export const configRouter = createTRPCRouter({
       }),
     )
     .query(async ({ ctx, input }) => {
-      type Voice = TtsVoice;
       type Result = TtsOptionsResult;
 
       // In-memory cache per user+provider for 10 minutes
@@ -534,90 +545,31 @@ export const configRouter = createTRPCRouter({
         }
       }
 
-      // Google
-      const apiKey = env.GOOGLE_API_KEY;
-      if (!apiKey) {
+      // Google Gemini
+      if (!env.GOOGLE_API_KEY) {
         const empty: Result = {
           voices: [],
           languages: [],
           diagnostics: {
             code: "missing_api_key",
             message:
-              "Google TTS requires an API key configured at the app level.",
+              "Google Gemini TTS requires an API key configured at the app level.",
           },
         };
         bag.set(cacheKey, { expires: now + 60_000, data: empty });
         return empty;
       }
-      try {
-        const resp = await fetch(
-          `https://texttospeech.googleapis.com/v1/voices?key=${encodeURIComponent(apiKey)}`,
-          { method: "GET" },
-        );
-        if (!resp.ok) {
-          let text = "";
-          try {
-            text = await resp.text();
-          } catch {}
-          const isAuthError =
-            resp.status === 400 || resp.status === 401 || resp.status === 403;
-          const empty: Result = {
-            voices: [],
-            languages: [],
-            diagnostics: isAuthError
-              ? {
-                  code: "invalid_api_key",
-                  message: text || "Google API key invalid or unauthorized.",
-                }
-              : { code: "http_error", status: resp.status, message: text },
-          };
-          bag.set(cacheKey, { expires: now + 60_000, data: empty });
-          return empty;
-        }
-        const json = (await resp.json()) as {
-          voices?: {
-            name?: string;
-            languageCodes?: string[];
-            ssmlGender?: string;
-          }[];
-        };
-        const voices: Voice[] = (json.voices || [])
-          .filter((v) => typeof v.name === "string" && v.name)
-          .map((v) => ({
-            id: v.name as string,
-            label: v.ssmlGender
-              ? `${v.name} (${v.ssmlGender})`
-              : (v.name as string),
-            languageCodes: Array.isArray(v.languageCodes)
-              ? v.languageCodes
-              : [],
-          }));
-        const langSet = new Set<string>();
-        for (const v of voices)
-          for (const lc of v.languageCodes) langSet.add(lc);
-        const data: Result = {
-          voices,
-          languages: Array.from(langSet).sort(),
-        };
-        bag.set(cacheKey, { expires: now + 10 * 60_000, data });
-        return data;
-      } catch (e) {
-        const empty: Result = {
-          voices: [],
-          languages: [],
-          diagnostics: {
-            code: "http_error",
-            message: (e as Error)?.message,
-          },
-        };
-        bag.set(cacheKey, { expires: now + 60_000, data: empty });
-        return empty;
-      }
+      const data: Result = {
+        voices: GEMINI_VOICE_OPTIONS,
+        languages: GEMINI_LANGUAGES,
+      };
+      bag.set(cacheKey, { expires: now + 10 * 60_000, data });
+      return data;
     }),
 
   // --- Rich TTS catalog merged with OpenAI/Google ---
-  // Not a settings read, so a visitor is refused: building it calls Google with
-  // the app's credentials.
+  // Not a settings read, so a visitor is refused: building it asks Kokoro's
+  // server for its voices.
   getTtsCatalog: protectedProcedure.query(async () => {
     const providers: TtsConfigProvider[] = [];
     const languages = new Set<string>();
@@ -626,18 +578,22 @@ export const configRouter = createTRPCRouter({
 
     // Always-available cloud providers (minimal metadata)
     providers.push({
+      id: "google",
+      label: "Google Gemini",
+      formats: TTS_FORMATS.google,
+      languages: GEMINI_LANGUAGES,
+      capabilities: { ssml: false },
+    });
+    voices.push(
+      ...GEMINI_VOICE_OPTIONS.map((v) => ({ ...v, provider: "google" })),
+    );
+    for (const lc of GEMINI_LANGUAGES) languages.add(lc);
+    providers.push({
       id: "openai",
       label: "OpenAI",
       formats: ["mp3"],
       languages: ["en-US"],
       capabilities: { ssml: false },
-    });
-    providers.push({
-      id: "google",
-      label: "Google Cloud TTS",
-      formats: ["mp3", "ogg", "wav"],
-      languages: [],
-      capabilities: { ssml: true },
     });
 
     // Common OpenAI voices
@@ -676,49 +632,6 @@ export const configRouter = createTRPCRouter({
     voices.push(...oaVoices);
     for (const v of oaVoices) {
       for (const lc of v.languageCodes) languages.add(lc);
-    }
-
-    // Google voices
-    try {
-      const apiKey = env.GOOGLE_API_KEY;
-      if (apiKey) {
-        const resp = await fetch(
-          `https://texttospeech.googleapis.com/v1/voices?key=${encodeURIComponent(apiKey)}`,
-          { method: "GET", cache: "no-store" },
-        );
-        if (resp.ok) {
-          const json = (await resp.json()) as {
-            voices?: {
-              name?: string;
-              languageCodes?: string[];
-              ssmlGender?: string;
-            }[];
-          };
-          const gvoices: TtsConfigVoice[] = (json.voices || [])
-            .filter((v) => typeof v.name === "string" && v.name)
-            .map((v) => ({
-              id: v.name as string,
-              label: v.ssmlGender
-                ? `${v.name} (${v.ssmlGender})`
-                : (v.name as string),
-              languageCodes: Array.isArray(v.languageCodes)
-                ? v.languageCodes
-                : [],
-              provider: "google",
-            }));
-          voices.push(...gvoices);
-          const gLangs = new Set<string>();
-          for (const gv of gvoices)
-            for (const lc of gv.languageCodes) {
-              languages.add(lc);
-              gLangs.add(lc);
-            }
-          const gprov = providers.find((p) => p.id === "google");
-          if (gprov) gprov.languages = Array.from(gLangs).sort();
-        }
-      }
-    } catch {
-      // ignore google errors
     }
 
     const kokoroUrl = env.KOKORO_URL?.replace(/\/$/, "");
