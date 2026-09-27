@@ -43,12 +43,11 @@ import Testing
     #expect(!model.isEditable)
   }
 
-  /// The web's empty document, and what the API and CLI write, give nodes the
-  /// `key` they had in an editor. Lexical reads past it and never saves it,
-  /// so it isn't an unknown field to keep.
+  /// The web's empty document, keyed on every node, and what the API and CLI
+  /// write, keyed on the root.
   @Test(arguments: [
     #"{"root":{"children":[{"key":"1","type":"paragraph","version":1,"direction":"ltr","format":"","indent":0,"textFormat":0,"textStyle":"","children":[{"detail":0,"format":0,"mode":"normal","style":"","text":"","type":"text","version":1,"key":"initial-text-content-node"}]}],"direction":"ltr","format":"","indent":0,"type":"root","version":1,"key":"root"}}"#,
-    #"{"root":{"children":[{"children":[{"detail":0,"format":0,"mode":"normal","style":"","text":"one","type":"text","version":1,"key":"3"},{"type":"linebreak","version":1,"key":"4"},{"detail":0,"format":1,"mode":"normal","style":"","text":"two","type":"text","version":1,"key":"5"}],"direction":null,"format":"","indent":0,"type":"paragraph","version":1,"textFormat":0,"textStyle":"","key":"2"}],"direction":null,"format":"","indent":0,"type":"root","version":1,"key":"root"}}"#,
+    #"{"root":{"children":[{"children":[{"detail":0,"format":0,"mode":"normal","style":"","text":"one","type":"text","version":1},{"type":"linebreak","version":1},{"detail":0,"format":1,"mode":"normal","style":"","text":"two","type":"text","version":1}],"direction":null,"format":"","indent":0,"type":"paragraph","version":1,"textFormat":0,"textStyle":""}],"direction":null,"format":"","indent":0,"type":"root","version":1,"key":"root"}}"#,
   ])
   func aStoredNodesKeyIsDroppedAsLexicalDropsIt(_ stored: String) throws {
     let state = try JSONValue(parsing: stored)
@@ -59,6 +58,50 @@ import Testing
     #expect(try fixture.replay(on: editor) == fixture.recorded)
     try editor.load(state)
     #expect(editor.isEditable)
+  }
+
+  /// Every node the web stores, and every one in the editors nested in them,
+  /// with the key an editor gave it.
+  @Test func aKeyIsDroppedWhereverLexicalDropsIt() throws {
+    func keyed(_ json: JSONValue) -> JSONValue {
+      switch json {
+      case .object(var fields):
+        fields = fields.mapValues(keyed)
+        if fields["type"]?.stringValue != nil { fields["key"] = "7" }
+        return .object(fields)
+      case .array(let items): return .array(items.map(keyed))
+      default: return json
+      }
+    }
+    let state = keyed(SerializedNodeTests.everyNode)
+    let reference = try Support.referenceEditor()
+    try reference.load(state)
+    let editor = Editor()
+    try editor.load(state)
+
+    #expect(try editor.snapshot().state == reference.snapshot().state)
+  }
+
+  /// A node nobody knows keeps what it holds but the keys of it and its
+  /// children, which no editor saves.
+  @Test func anUnknownNodeLosesItsKeyAndItsChildrensKeys() throws {
+    let data: JSONValue = ["key": "data, not a node's"]
+    func future(key: Bool) -> JSONValue {
+      var child = paragraph(text("inside"))
+      var node: JSONObject = ["type": "future-block", "version": 1, "data": data]
+      if key, case .object(var fields) = child {
+        fields["key"] = "2"
+        child = .object(fields)
+        node["key"] = "1"
+      }
+      node["children"] = [child]
+      return .object(node)
+    }
+    let editor = Editor()
+
+    try editor.load(document(future(key: true)))
+
+    #expect(try editor.snapshot().state == document(future(key: false)))
   }
 
   /// Typing keeps every earlier state, as undo does, so a copy of the whole

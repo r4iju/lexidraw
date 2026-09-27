@@ -6,11 +6,9 @@ extension Update {
       throw EditorError.invalidState("A node without a type")
     }
     guard let traits = NodeTraits.byType[type] else {
-      return create(.opaque(json), type: type, children: nil)
+      return create(.opaque(json.withoutKeys), type: type, children: nil)
     }
-    // A stored node's editor key, as the web's empty document writes it:
-    // `importJSON` never reads it and `exportJSON` never writes it.
-    fields["key"] = nil
+    fields["key"] = nil  // As `withoutKeys` drops it.
     guard traits.kind == .element else {
       return create(SerializedNode(json: .object(fields)).asLoaded(), type: type, children: nil)
     }
@@ -20,5 +18,17 @@ extension Update {
       try append(key, [parse(child)])
     }
     return key
+  }
+}
+
+extension JSONValue {
+  /// The node and its children without the editor key the web's empty
+  /// document stores on each node: `importJSON` never reads it and
+  /// `exportJSON` never writes it.
+  fileprivate var withoutKeys: JSONValue {
+    guard case .object(var fields) = self else { return self }
+    fields["key"] = nil
+    if let children = fields["children"]?.arrayValue { fields["children"] = .array(children.map(\.withoutKeys)) }
+    return .object(fields)
   }
 }
