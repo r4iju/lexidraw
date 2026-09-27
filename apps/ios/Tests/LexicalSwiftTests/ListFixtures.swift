@@ -154,6 +154,11 @@ import Testing
       document(list(.bullet, [.item([text("a")])])),
       [.caret(.text([0, 0, 0], 1)), .insertParagraph, .formatText(.bold), .insertText("b")]
     ),
+    (
+      "a-list-item-outside-a-list-loads-into-one",
+      document(paragraph(text("a")), LexicalJSON.element("listitem", [text("b")], ["value": 1])),
+      []
+    ),
   ]
 
   @Test(.enabled(if: Support.environment("RECORD_FIXTURES") != nil))

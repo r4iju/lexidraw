@@ -276,9 +276,7 @@ extension Update {
         nodes = try self.nodes(in: selectElement(paragraph))
       }
     } else if isSelectingEmptyListItem(anchor, nodes) {
-      // Lexical also handles an item outside a list here, which the list
-      // item transform never leaves in a committed state.
-      guard let list = state.parent(of: anchor), isList(list) else { throw notInList }
+      guard let list = state.parent(of: anchor), isList(list) else { preconditionFailure("A list item outside a list") }
       try replaceList(list, listType)
       return
     }
