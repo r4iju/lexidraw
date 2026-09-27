@@ -25,7 +25,7 @@ struct Update {
   /// then it keeps the marker of a list it loaded as state it doesn't know,
   /// which a copy of the list keeps too.
   var knowsListMarker: Bool
-  /// Shortcuts this update left as typed, their transformers not ported yet.
+  /// This update's share of `Editor.shortcutsDeclinedAsNotPorted`.
   var shortcutsDeclinedAsNotPorted = 0
 
   init(_ state: EditorState, nextKey: NodeKey, revision: Int, knowsListMarker: Bool = false) {

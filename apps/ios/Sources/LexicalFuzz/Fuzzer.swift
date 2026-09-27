@@ -13,18 +13,17 @@ public struct Fuzzer {
 
   /// Commands both refused, which don't count as steps.
   public private(set) var refusals = 0
-  /// Sessions ended where LexicalSwift declined a shortcut it doesn't port
-  /// yet and disagreed, or where Lexical made a node it doesn't edit yet.
+  /// Sessions ended as `isNotPortedYet` says.
   public private(set) var sessionsEndedNotPortedYet = 0
 
   /// The node types Lexical's markdown shortcuts make that LexicalSwift's
   /// don't yet.
   public static let notPortedYet = Editor.typesMarkdownShortcutsNotPortedYetMake
 
-  /// Whether a step ends its session rather than disagreeing: LexicalSwift
-  /// took what was typed as text where it declined a shortcut not ported
-  /// yet (`declinedAShortcut`), or where Lexical made a node of a type not
-  /// ported yet. Nothing after it could agree.
+  /// Whether a step that disagrees ends its session rather than diverging:
+  /// LexicalSwift declined a shortcut not ported yet on that step
+  /// (`declinedAShortcut`), or Lexical made a node of a type not ported yet.
+  /// Nothing after it could agree.
   public static func isNotPortedYet(
     candidate: Fixture.Change, referenceBefore: Snapshot, referenceAfter: Snapshot, declinedAShortcut: Bool = false
   ) -> Bool {
@@ -525,8 +524,8 @@ public struct FuzzerError: Error, CustomStringConvertible {
   init(_ description: String) { self.description = description }
 }
 
-/// A candidate that counts the markdown shortcuts it declined because it
-/// doesn't port their transformers yet.
+/// A candidate that counts its declined shortcuts, as
+/// `Editor.shortcutsDeclinedAsNotPorted` does.
 public protocol DeclinesShortcutsNotPortedYet: EditorModel {
   var shortcutsDeclinedAsNotPorted: Int { get }
 }

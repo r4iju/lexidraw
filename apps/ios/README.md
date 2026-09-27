@@ -226,9 +226,8 @@ hand:
   expressions run in JavaScriptCore, so they match as the web's do. Typing
   that a transformer LexicalSwift doesn't run yet would turn into something
   else stays as typed; `MarkdownTransformer.notPortedYet` lists those
-  transformers by the issue that ports each. The fuzzer ends a session where
-  LexicalSwift declines one of them and disagrees, or where Lexical makes a
-  node one of them makes.
+  transformers by the issue that ports each, and the fuzzer ends a session
+  on one of them as `Fuzzer.isNotPortedYet` says.
 - Headings, quotes and rules are set as `document.css` sets them, generated
   by `bun run codegen` into `Sources/TextKitEditor/WebTypography.swift` with
   the theme's colours converted from OKLCH to sRGB. An em is the body text's
