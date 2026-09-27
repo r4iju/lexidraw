@@ -287,6 +287,30 @@ import UIKit
       "the short column stays on one line")
   }
 
+  /// A column of numbers, in yen and in 円 among them, is set right, as the
+  /// web's pattern for a number has it; a column of words isn't.
+  @Test
+  func aColumnOfNumbersIsSetRight() throws {
+    let view = try Self.host(TestDocuments.titledTable([["¥1,200", "word"], ["3円", "longer words"]]))
+    let (yen, three) = (try caret(view, "¥1,200"), try caret(view, "3円"))
+    let (word, longer) = (try caret(view, "word"), try caret(view, "longer words"))
+    #expect(three.minX > yen.minX + 1, "\(three.minX) \(yen.minX)")
+    #expect(abs(longer.minX - word.minX) < 1, "\(longer.minX) \(word.minX)")
+  }
+
+  /// A Han character counts as two Latin letters, so nine of them are too
+  /// many for a short column, which gives way to a long one beside it.
+  @Test
+  func hanCharactersCountTwiceTowardAShortColumn() throws {
+    let han = "漢字漢字漢字漢字漢"
+    let sentence = Array(repeating: "words that wrap", count: 12).joined(separator: " ")
+    let view = try Self.host(TestDocuments.titledTable([[han, sentence]]))
+    let text = try Self.text(of: view) as NSString
+    let cell = text.range(of: han)
+    let (start, end) = (try position(view, cell.location), try position(view, NSMaxRange(cell)))
+    #expect(view.caretRect(for: end).minY > view.caretRect(for: start).maxY, "the Han column wraps")
+  }
+
   /// A table set to column widths takes them.
   @Test
   func aTableSetToWidthsTakesThem() throws {

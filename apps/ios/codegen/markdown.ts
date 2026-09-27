@@ -5,6 +5,7 @@ import * as blockTransformers from "@packages/lexical-nodes/block-transformers";
 import * as decoratorTransformers from "@packages/lexical-nodes/decorator-transformers";
 import * as footnoteTransformers from "@packages/lexical-nodes/footnote-transformers";
 import * as webTransformers from "@packages/lexical-nodes/transformers";
+import { swiftString } from "./swift";
 
 export const MARKDOWN_TRANSFORMERS_PATH = fileURLToPath(
   new URL(
@@ -184,10 +185,11 @@ function isTransformer(value: unknown): value is Transformer {
   );
 }
 
-function swiftForRegExp(regExp: RegExp): string {
+/** A pattern matched once, which can't depend on where it last matched. */
+export function swiftForRegExp(regExp: RegExp): string {
   if (regExp.global || regExp.sticky) {
     throw new Error(
-      `/${regExp.source}/${regExp.flags} keeps where it last matched, which a shortcut's match can't depend on`,
+      `/${regExp.source}/${regExp.flags} keeps where it last matched, which a single match can't depend on`,
     );
   }
   return swiftForPattern(regExp);
@@ -201,13 +203,6 @@ function swiftForPattern(regExp: RegExp): string {
     );
   }
   return `JSRegExp(${swiftString(regExp.source)}, flags: ${swiftString(regExp.flags)})`;
-}
-
-function swiftString(text: string): string {
-  if (/[^\x20-\x7e]/.test(text)) {
-    throw new Error(`No Swift literal for ${JSON.stringify(text)}`);
-  }
-  return `"${text.replace(/[\\"]/g, (character) => `\\${character}`)}"`;
 }
 
 /** `Callout` as `CALLOUT`, `FootnoteReference` as `FOOTNOTE_REFERENCE`. */

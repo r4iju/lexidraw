@@ -1128,7 +1128,11 @@ function swiftJSON(value: unknown): string {
     : `[${entries.map(([key, member]) => `${swiftString(key)}: ${swiftJSON(member)}`).join(", ")}]`;
 }
 
-function swiftString(value: string): string {
+/**
+ * `value` as a Swift string literal, a character past printable ASCII
+ * escaped as its code point.
+ */
+export function swiftString(value: string): string {
   let escaped = "";
   for (const char of value) {
     const code = char.codePointAt(0) ?? 0;
@@ -1141,7 +1145,7 @@ function swiftString(value: string): string {
             ? "\\r"
             : char === "\t"
               ? "\\t"
-              : code < 0x20
+              : code < 0x20 || code > 0x7e
                 ? `\\u{${code.toString(16)}}`
                 : char;
   }

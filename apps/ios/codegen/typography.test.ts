@@ -294,7 +294,7 @@ test("reads a table as .document-table and the theme's selected cell set it", as
   const swift = swiftForTypography(await readWebStyles());
 
   expect(swift).toContain(
-    "table: Table(fontSize: 0.9375, lineHeight: 1.5, letterSpacing: 0, tabularFigures: true, margin: 1.75, paddingX: 12, paddingY: 8, border: 1, borderColor: .border, cornerRadius: 6, minimumWidth: 120, minimumViewportShare: 0.4, emptyWidth: 96, headerBackground: .muted, headerWeight: 600, selection: .primary.opacity(0.1), shadowWidth: 10, shadowColor: .mutedForeground, pinned: Pinned(width: 639, inset: 1, background: .card, headerBackground: .muted, shadowX: 6, shadowBlur: 8, shadowSpread: -6), unpinnedColumns: 3, shortColumns: 16, scrollingColumns: 5))",
+    "table: Table(fontSize: 0.9375, lineHeight: 1.5, letterSpacing: 0, tabularFigures: true, margin: 1.75, paddingX: 12, paddingY: 8, border: 1, borderColor: .border, cornerRadius: 6, minimumWidth: 120, minimumViewportShare: 0.4, emptyWidth: 96, headerBackground: .muted, headerWeight: 600, selection: .primary.opacity(0.1), shadowWidth: 10, shadowColor: .mutedForeground, pinned: Pinned(width: 639, inset: 1, background: .card, headerBackground: .muted, shadowX: 6, shadowBlur: 8, shadowSpread: -6), unpinnedColumns: 3, shortColumns: 16, scrollingColumns: 5, number: ",
   );
 });
 
@@ -328,6 +328,26 @@ test("gives a table the column counts the web lays it out by", async () => {
 
   expect(swiftForTypography({ ...styles, tableLayout })).toContain(
     "unpinnedColumns: 4, shortColumns: 12, scrollingColumns: 6",
+  );
+});
+
+test("gives a table the web's number and wide patterns, past ASCII as escapes", async () => {
+  const styles = await readWebStyles();
+  // biome-ignore lint/complexity/useRegexLiterals: Bun escapes a literal's characters past ASCII; a string keeps them.
+  const number = new RegExp("^[¥]\\d+円?$", "u");
+  const tablePatterns = { number, wide: /[\p{Script=Han}]/u };
+
+  expect(swiftForTypography({ ...styles, tablePatterns })).toContain(
+    'number: JSRegExp("^[\\u{a5}]\\\\d+\\u{5186}?$", flags: "u"), wide: JSRegExp("[\\\\p{Script=Han}]", flags: "u")',
+  );
+});
+
+test("refuses a table pattern that keeps where it last matched", async () => {
+  const styles = await readWebStyles();
+  const tablePatterns = { number: /^\d+$/g, wide: /[\p{Script=Han}]/u };
+
+  expect(() => swiftForTypography({ ...styles, tablePatterns })).toThrow(
+    "/^\\d+$/g",
   );
 });
 

@@ -48,6 +48,17 @@ export const DOCUMENT_TABLE_LAYOUT = {
   scrollingColumns: 5,
 } as const;
 
+/**
+ * What `DocumentTablesPlugin` reads a cell's text by: whether it's a
+ * number, which sets its column right, and which characters are wide, a
+ * wide one counting as two Latin letters toward a short column.
+ */
+export const DOCUMENT_TABLE_PATTERNS = {
+  number:
+    /^(?:[+-]?\s*(?:[$€£¥￥]|[A-Z]{3}\s)?\s*\d[\d,]*(?:\.\d+)?\s*(?:%|円)?|\(\s*[$€£¥￥]?\d[\d,]*(?:\.\d+)?\s*\))$/u,
+  wide: /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}\u3000-\u303f\uff00-\uffef]/u,
+} as const;
+
 export function $createDocumentTable(rows: number, columns: number) {
   return $createTableNodeWithDimensions(rows, columns, {
     rows: true,

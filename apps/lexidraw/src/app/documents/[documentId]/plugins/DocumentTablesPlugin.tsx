@@ -2,20 +2,17 @@ import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext
 import { TablePlugin } from "@lexical/react/LexicalTablePlugin";
 import {
   DOCUMENT_TABLE_LAYOUT,
+  DOCUMENT_TABLE_PATTERNS,
   DOCUMENT_TABLE_PLUGIN,
   registerDocumentTableInsertion,
 } from "@packages/lexical-nodes";
 import { setDOMUnmanaged } from "lexical";
 import { useEffect } from "react";
 
-const number =
-  /^(?:[+-]?\s*(?:[$€£¥￥]|[A-Z]{3}\s)?\s*\d[\d,]*(?:\.\d+)?\s*(?:%|円)?|\(\s*[$€£¥￥]?\d[\d,]*(?:\.\d+)?\s*\))$/u;
-
-const WIDE =
-  /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}\u3000-\u303f\uff00-\uffef]/u;
+const { number, wide } = DOCUMENT_TABLE_PATTERNS;
 
 const columnsWide = (text: string) =>
-  [...text].reduce((width, char) => width + (WIDE.test(char) ? 2 : 1), 0);
+  [...text].reduce((width, char) => width + (wide.test(char) ? 2 : 1), 0);
 
 const setWhole = (table: HTMLTableElement, column: number, whole: boolean) => {
   for (const row of table.rows)

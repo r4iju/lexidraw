@@ -170,6 +170,11 @@ struct DocumentTypography: Sendable {
     /// A table this many columns wide keeps its short columns whole even
     /// where that makes it scroll.
     var scrollingColumns: Int
+    /// A cell's text that's a number, a column mostly of which is set right.
+    var number: JSRegExp
+    /// A character that counts as two Latin letters toward `shortColumns`,
+    /// and that a line may break either side of.
+    var wide: JSRegExp
   }
 
   /// The first column a table pins on a screen no wider than `width`, `inset`
@@ -273,4 +278,8 @@ struct RGBA: Sendable {
   init(_ red: Double, _ green: Double, _ blue: Double, _ alpha: Double) {
     (self.red, self.green, self.blue, self.alpha) = (red, green, blue, alpha)
   }
+}
+
+extension DocumentTypography.Table {
+  func isWide(_ scalar: Unicode.Scalar) -> Bool { wide.firstMatch(in: String(scalar)) != nil }
 }

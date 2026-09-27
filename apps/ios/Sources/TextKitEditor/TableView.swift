@@ -88,7 +88,7 @@ import UIKit
   func set(cells: [[Cell]], columnWidths: [Double]?, width: CGFloat) {
     self.cells = cells
     let placed = Placement(cells)
-    let metrics = cells.map { $0.map(TextMetrics.init) }
+    let metrics = cells.map { $0.map { TextMetrics($0, style) } }
     let short = shortColumns(cells)
     var whole = short
     var columns = self.columns(placed, metrics, short: short, whole: whole, fixed: columnWidths, width: width)
@@ -268,7 +268,7 @@ import UIKit
       (0..<count).filter { index in
         cells.allSatisfy { row in
           guard let cell = row[safe: index] else { return true }
-          return Self.columnsWide(Self.plainText(cell)) <= style.shortColumns
+          return columnsWide(Self.plainText(cell)) <= style.shortColumns
         }
       })
   }
@@ -280,7 +280,7 @@ import UIKit
     return Set(
       (0..<count).filter { index in
         let body = cells.compactMap { $0[safe: index] }.filter { !$0.isHeader }
-        let numbers = body.filter { Self.isNumber(Self.plainText($0)) }
+        let numbers = body.filter { style.number.firstMatch(in: Self.plainText($0)) != nil }
         return !body.isEmpty && Double(numbers.count) / Double(body.count) >= 0.8
       })
   }
@@ -289,18 +289,9 @@ import UIKit
     cell.text.string.trimmingCharacters(in: .whitespacesAndNewlines)
   }
 
-  /// `DocumentTablesPlugin`'s `number`.
-  private static let number = try! NSRegularExpression(
-    pattern:
-      #"^(?:[+-]?\s*(?:[$€£¥￥]|[A-Z]{3}\s)?\s*\d[\d,]*(?:\.\d+)?\s*(?:%|円)?|\(\s*[$€£¥￥]?\d[\d,]*(?:\.\d+)?\s*\))$"#)
-
-  private static func isNumber(_ text: String) -> Bool {
-    number.firstMatch(in: text, range: NSRange(location: 0, length: (text as NSString).length)) != nil
-  }
-
-  /// `columnsWide`: a CJK character counts as two.
-  private static func columnsWide(_ text: String) -> Int {
-    text.unicodeScalars.reduce(0) { $0 + (TextMetrics.isWide($1) ? 2 : 1) }
+  /// `columnsWide`: a wide character counts as two.
+  private func columnsWide(_ text: String) -> Int {
+    text.unicodeScalars.reduce(0) { $0 + (style.isWide($1) ? 2 : 1) }
   }
 
   /// A cell's text as the web shows it: a header's in the header weight,
@@ -495,7 +486,7 @@ import UIKit
     var maxContent: CGFloat = 0
     var isEmpty: Bool
 
-    init(_ cell: Cell) {
+    init(_ cell: Cell, _ style: DocumentTypography.Table) {
       let text = cell.text
       let string = text.string as NSString
       isEmpty = string.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -515,7 +506,7 @@ import UIKit
         } else if character == 0x20 || character == 0x09 {
           minContent = max(minContent, width(pieceStart, offset))
           pieceStart = offset + 1
-        } else if let scalar, Self.isWide(scalar) {
+        } else if let scalar, style.isWide(scalar) {
           // A line may break either side of a CJK character.
           minContent = max(minContent, width(pieceStart, offset), width(offset, offset + 1))
           pieceStart = offset + 1
@@ -523,20 +514,10 @@ import UIKit
       }
     }
 
-    static func isWide(_ scalar: Unicode.Scalar) -> Bool {
-      switch scalar.value {
-      case 0x3000...0x303F, 0xFF00...0xFFEF: return true
-      default:
-        return scalar.properties.isIdeographic
-          || ["Hiragana", "Katakana", "Hangul"].contains { name in
-            scalar.properties.name?.hasPrefix(name.uppercased()) == true
-          }
-      }
-    }
   }
 
   /// Draws `cell` in `frame`: its fill, the borders at its end and bottom,
-  /// and its text. A fill set on the cell, a header's, and a pinned
+  /// its text, and the outlines of its selected attachments. A fill set on the cell, a header's, and a pinned
   /// cell's each win over a selected cell's tint, as on the web.
   fileprivate func draw(_ index: CellIndex, in frame: CGRect, _ context: CGContext) {
     let cell = cells[index.row][index.index]
