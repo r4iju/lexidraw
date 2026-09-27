@@ -29,6 +29,7 @@ import { toast } from "sonner";
 import { api } from "~/trpc/react";
 import { htmlToPlainText } from "@packages/lexical-nodes";
 import { labelForLanguage, titleize } from "~/lib/i18n";
+import { servedFormat, TTS_DEFAULTS, TTS_FORMATS } from "~/app/settings/schema";
 
 type Props = {
   entity: RouterOutputs["entities"]["load"];
@@ -81,8 +82,8 @@ export default function ArticlePreview({
 
   // Local config state
   const [ttsCfg, setTtsCfg] = useState({
-    provider: "openai" as "openai" | "google" | "kokoro",
-    voiceId: "alloy",
+    provider: TTS_DEFAULTS.provider as "openai" | "google" | "kokoro",
+    voiceId: TTS_DEFAULTS.voiceId as string,
     speed: 1,
     format: "mp3" as "mp3" | "ogg" | "wav",
     languageCode: "en-US",
@@ -717,7 +718,7 @@ export default function ArticlePreview({
                         </label>
                         <Select
                           name={`${uid}-tts-format`}
-                          value={ttsCfg.format}
+                          value={servedFormat(ttsCfg.provider, ttsCfg.format)}
                           onValueChange={(v) =>
                             setTtsCfg((s) => ({
                               ...s,
@@ -729,9 +730,11 @@ export default function ArticlePreview({
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="mp3">MP3</SelectItem>
-                            <SelectItem value="ogg">OGG</SelectItem>
-                            <SelectItem value="wav">WAV</SelectItem>
+                            {TTS_FORMATS[ttsCfg.provider].map((f) => (
+                              <SelectItem key={f} value={f}>
+                                {f.toUpperCase()}
+                              </SelectItem>
+                            ))}
                           </SelectContent>
                         </Select>
                       </div>

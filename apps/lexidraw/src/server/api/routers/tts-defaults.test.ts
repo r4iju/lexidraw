@@ -2,7 +2,6 @@
 import { beforeAll, describe, expect, mock, test } from "bun:test";
 import * as schema from "@packages/drizzle/drizzle-schema";
 import { PublicAccess } from "@packages/types";
-import { TTS_DEFAULTS } from "~/app/settings/schema";
 import { installServerRuntime } from "~/test/server-runtime";
 
 const db = await installServerRuntime();
@@ -21,6 +20,14 @@ const NEW = "ttsdef_user";
 const STALE = "ttsdef_stale";
 // Picked Google and left the voice to its default.
 const PICKED = "ttsdef_picked";
+// Picked a Chirp3-HD voice of Google Cloud TTS, whose voices Gemini has.
+const CHIRP = "ttsdef_chirp";
+// Picked a voice only Google Cloud TTS had.
+const CLOUD = "ttsdef_cloud";
+// Picked a voice of OpenAI, the default service before Gemini.
+const OPENAI_VOICE = "ttsdef_openai_voice";
+// Asked for Ogg, which Gemini does not make.
+const GEMINI_OGG = "ttsdef_gemini_ogg";
 const contextOf = (userId: string) =>
   ({
     drizzle: db,
@@ -58,14 +65,40 @@ beforeAll(async () => {
       email: "ttsdef-picked@example.test",
       config: { tts: { provider: "google" } },
     },
+    {
+      id: CHIRP,
+      name: "Chirp",
+      email: "ttsdef-chirp@example.test",
+      config: { tts: { provider: "google", voiceId: "en-US-Chirp3-HD-Puck" } },
+    },
+    {
+      id: CLOUD,
+      name: "Cloud",
+      email: "ttsdef-cloud@example.test",
+      config: { tts: { provider: "google", voiceId: "en-US-Standard-C" } },
+    },
+    {
+      id: OPENAI_VOICE,
+      name: "OpenAI voice",
+      email: "ttsdef-openai-voice@example.test",
+      config: { tts: { voiceId: "nova" } },
+    },
+    {
+      id: GEMINI_OGG,
+      name: "Gemini Ogg",
+      email: "ttsdef-gemini-ogg@example.test",
+      config: { tts: { format: "ogg" } },
+    },
   ]);
   await db
     .insert(schema.entities)
     .values(
-      [NEW, STALE, PICKED].flatMap((userId) => [
-        entity(`${userId}_doc`, "document", userId),
-        entity(`${userId}_article`, "url", userId),
-      ]),
+      [NEW, STALE, PICKED, CHIRP, CLOUD, OPENAI_VOICE, GEMINI_OGG]
+        .flatMap((userId) => [
+          entity(`${userId}_doc`, "document", userId),
+          entity(`${userId}_article`, "url", userId),
+        ])
+        .concat(entity(`${NEW}_ogg_doc`, "document", NEW)),
     );
 });
 
@@ -81,17 +114,21 @@ const listens = {
     }),
 };
 
-const OPENAI = {
-  provider: TTS_DEFAULTS.provider,
-  voiceId: TTS_DEFAULTS.voiceId,
-};
+const GEMINI = { provider: "google", voiceId: "Kore" };
 describe.each([
-  ["that never saved its settings", NEW, OPENAI],
-  ["whose saved voice service is gone", STALE, OPENAI],
+  ["that never saved its settings", NEW, GEMINI],
+  ["whose saved voice service is gone", STALE, GEMINI],
+  ["that picked a service but no voice", PICKED, GEMINI],
   [
-    "that picked a service but no voice",
-    PICKED,
-    { provider: "google", voiceId: "en-US-Standard-C" },
+    "that picked a Google voice Gemini also has",
+    CHIRP,
+    { provider: "google", voiceId: "Puck" },
+  ],
+  ["that picked a voice Gemini does not have", CLOUD, GEMINI],
+  [
+    "that picked a voice when OpenAI was the default",
+    OPENAI_VOICE,
+    { provider: "openai", voiceId: "nova" },
   ],
 ])("read-aloud for an account %s", (_, userId, voice) => {
   test.each(Object.entries(listens))(
@@ -112,4 +149,37 @@ describe.each([
       expect(shown).toMatchObject(voice);
     },
   );
+});
+
+describe("read-aloud in Gemini for an account that asked for Ogg", () => {
+  test.each(Object.entries(listens))(
+    "reads %s in MP3, as its settings show",
+    async (_, listen) => {
+      const shown = await configRouter
+        .createCaller(contextOf(GEMINI_OGG))
+        .getTtsConfig();
+      started.length = 0;
+
+      await listen(GEMINI_OGG);
+
+      const cfg = started[0]?.at(-2) as { format: string };
+      expect({ shown: shown.format, read: cfg?.format }).toEqual({
+        shown: "mp3",
+        read: "mp3",
+      });
+    },
+  );
+
+  test("reads in MP3 when a player asks for Ogg", async () => {
+    started.length = 0;
+
+    await ttsRouter.createCaller(contextOf(NEW)).startDocumentTts({
+      documentId: `${NEW}_ogg_doc`,
+      markdown: "Hello again.",
+      format: "ogg",
+    });
+
+    const cfg = started[0]?.at(-2) as { format: string };
+    expect(cfg?.format).toBe("mp3");
+  });
 });

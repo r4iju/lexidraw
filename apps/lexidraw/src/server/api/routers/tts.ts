@@ -2,7 +2,7 @@ import { z } from "zod";
 import { drizzle, schema } from "@packages/drizzle";
 import { and, eq, or, isNull, ne, desc } from "drizzle-orm";
 import { createTRPCRouter, protectedProcedure } from "~/server/api/trpc";
-import { listenSettings } from "~/app/settings/schema";
+import { listenSettings, servedFormat } from "~/app/settings/schema";
 import { computeDocKey, computeArticleKey } from "~/server/tts/id";
 import { generateDocumentTtsWorkflow } from "~/workflows/document-tts/generate-document-tts-workflow";
 import { generateArticleTtsWorkflow } from "~/workflows/article-tts/generate-article-tts-workflow";
@@ -127,7 +127,8 @@ function ttsConfigFor(input: TtsRequest, stored?: Record<string, unknown>) {
   const asked = Object.fromEntries(
     Object.entries(input).filter(([, value]) => value !== undefined),
   ) as TtsRequest;
-  return { ...listenSettings(stored), ...asked };
+  const cfg = { ...listenSettings(stored), ...asked };
+  return { ...cfg, format: servedFormat(cfg.provider, cfg.format) };
 }
 
 type VoiceConfig = ReturnType<typeof ttsConfigFor>;

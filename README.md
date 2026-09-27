@@ -9,7 +9,7 @@ Setup a database, configure connect string with the .env.example, and run `pnpm 
 
 ### Read aloud on dev
 
-- A new account reads in OpenAI's `alloy`, which needs a valid `OPENAI_API_KEY`. Google voices need a `GOOGLE_API_KEY` with the Text-to-Speech API enabled.
+- A new account reads in Gemini's `Kore` (Gemini 3.8 Flash-Lite TTS), which needs a valid `GOOGLE_API_KEY` for the Gemini API. OpenAI voices need a valid `OPENAI_API_KEY`.
 - Kokoro voices come from the shared Kokoro-FastAPI server: set `KOKORO_URL=http://127.0.0.1:8880` in the root `.env.development`, which the scripts load. Production has no `KOKORO_URL`, and so no Kokoro voices.
 
 ## How do I deploy this?

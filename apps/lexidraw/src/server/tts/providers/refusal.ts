@@ -17,14 +17,17 @@ export async function refusal(provider: string, res: Response) {
   return `${provider} TTS error: ${status}${reasonIn(text)}`;
 }
 
-/** The reason code in an OpenAI, Google or Kokoro-FastAPI error. */
+/** The reason code in an OpenAI, Gemini or Kokoro-FastAPI error. */
 function reasonIn(text: string) {
   try {
     const body = JSON.parse(text) as {
       error?: { code?: unknown; status?: unknown; type?: unknown };
+      code?: unknown;
       detail?: unknown;
     };
     const reason = [
+      // Gemini's Interactions API: { code, message }.
+      body.code,
       body.error?.code,
       body.error?.status,
       body.error?.type,

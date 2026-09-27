@@ -1,5 +1,5 @@
 import { put } from "@vercel/blob";
-import { createGoogleTtsProvider } from "~/server/tts/providers/google";
+import { createGeminiTtsProvider } from "~/server/tts/providers/gemini";
 import { chooseProvider } from "./common";
 import { createKokoroTtsProvider } from "~/server/tts/providers/kokoro";
 import { createOpenAiTtsProvider } from "~/server/tts/providers/openai";
@@ -63,7 +63,7 @@ export async function ensureChunkSynthesizedStep(args: {
   const providerName = chooseProvider(args.provider, args.languageCode);
   const provider =
     providerName === "google"
-      ? createGoogleTtsProvider(env.GOOGLE_API_KEY)
+      ? createGeminiTtsProvider(env.GOOGLE_API_KEY)
       : providerName === "kokoro"
         ? createKokoroTtsProvider(env.KOKORO_URL ?? "")
         : createOpenAiTtsProvider(env.OPENAI_API_KEY);
