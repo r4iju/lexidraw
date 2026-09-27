@@ -17,6 +17,8 @@ import { installServerRuntime } from "~/test/server-runtime";
 const db = await installServerRuntime();
 const { default: env } = await import("@packages/env");
 const HOST = new URL(env.VERCEL_BLOB_STORAGE_HOST).origin;
+// A part not made before is asked of OpenAI, which the fake store answers.
+Object.assign(env, { OPENAI_API_KEY: env.OPENAI_API_KEY || "sk-test" });
 
 // `.env.test` carries a real store token, so nothing here may reach the store.
 const realBlob = await import("@vercel/blob");
@@ -67,6 +69,9 @@ beforeAll(async () => {
 beforeEach(async () => {
   store.chunksAsked.length = 0;
   store.beforeChunk = async () => {};
+  store.madeBefore = () => true;
+  store.speech = () => new Response(new Uint8Array([1, 2, 3]));
+  store.paidFor.length = 0;
   await db.delete(schema.ttsJobs);
   await db.insert(schema.ttsJobs).values({
     id: KEY,
@@ -124,5 +129,35 @@ describe("a read-aloud run", () => {
 
     expect(store.chunksAsked).toEqual([]);
     expect(await jobOf()).toBeUndefined();
+  });
+
+  test("with a part that can't be made ends in error, and the next run makes only that part", async () => {
+    // The sixth part asked after is the one never made.
+    let missing: string | undefined;
+    store.madeBefore = (pathname) => {
+      if (store.chunksAsked.length === 6) missing ??= pathname;
+      return pathname !== missing;
+    };
+    store.speech = () => new Response(null, { status: 400 });
+
+    await expect(
+      generateDocumentTtsWorkflow(DOC, MARKDOWN, VOICE, "run-1"),
+    ).rejects.toThrow("OpenAI TTS error: 400");
+
+    const failed = await jobOf();
+    expect(failed).toMatchObject({ status: "error" });
+    expect(failed?.error).toContain("OpenAI TTS error: 400");
+
+    store.paidFor.length = 0;
+    store.speech = () => new Response(new Uint8Array([1, 2, 3]));
+    await db
+      .update(schema.ttsJobs)
+      .set({ status: "queued", runId: "run-2", error: null })
+      .where(eq(schema.ttsJobs.id, KEY));
+
+    await generateDocumentTtsWorkflow(DOC, MARKDOWN, VOICE, "run-2");
+
+    expect(store.paidFor).toHaveLength(1);
+    expect(await jobOf()).toMatchObject({ status: "ready" });
   });
 });

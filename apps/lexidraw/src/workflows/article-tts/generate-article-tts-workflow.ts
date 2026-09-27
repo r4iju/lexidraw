@@ -96,22 +96,22 @@ export async function generateArticleTtsWorkflow(
           }),
         ),
       );
-      const successes = batch
-        .filter(
-          (r): r is PromiseFulfilledResult<(typeof results)[number]> =>
-            r.status === "fulfilled",
-        )
-        .map((r) => r.value);
-      if (successes.length === 0) {
-        const reasons = batch
-          .filter((r): r is PromiseRejectedResult => r.status === "rejected")
-          .map((r) =>
-            r.reason instanceof Error ? r.reason.message : String(r.reason),
-          );
+      // A part left out would be silence in the middle of the reading, so
+      // one that can't be made fails the job; parts made are kept for the
+      // next run.
+      const reasons = batch
+        .filter((r): r is PromiseRejectedResult => r.status === "rejected")
+        .map((r) =>
+          r.reason instanceof Error ? r.reason.message : String(r.reason),
+        );
+      if (reasons.length > 0) {
         throw new Error(
-          `All chunks in batch ${i}-${Math.min(i + BATCH - 1, planned.length - 1)} failed: ${reasons.join("; ")}`,
+          `Could not make ${reasons.length} of chunks ${i}-${Math.min(i + BATCH - 1, planned.length - 1)}: ${[...new Set(reasons)].join("; ")}`,
         );
       }
+      const successes = batch.map(
+        (r) => (r as PromiseFulfilledResult<(typeof results)[number]>).value,
+      );
       results.push(...successes);
       await updateProgressStep(articleKey, runId, results.length);
     }
