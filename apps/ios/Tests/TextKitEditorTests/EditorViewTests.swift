@@ -347,6 +347,25 @@ import UIKit
     #expect(opened == URL(string: "https://a.io"))
   }
 
+  @Test func openingAnAutolinkOpensItsURLAndAnUndoneOneIsNoLink() throws {
+    let (view, _) = try editing(
+      LexicalJSON.paragraph([
+        LexicalJSON.text("or "), LexicalJSON.autoLink("https://www.b.io", [LexicalJSON.text("www.b.io")]),
+        LexicalJSON.text(" or "),
+        LexicalJSON.autoLink("https://www.c.io", [LexicalJSON.text("www.c.io")], isUnlinked: true),
+      ]))
+    var opened: [URL] = []
+    view.open = { opened.append($0) }
+
+    select(view, 5, 5)
+    view.openLink()
+    select(view, 17, 17)
+    view.openLink()
+
+    #expect(opened == [URL(string: "https://www.b.io")])
+    #expect(linkActions(view, 17, 17) == [])
+  }
+
   /// A view editing a document of `blocks` in a window, first responder.
   private func editing(_ blocks: JSONValue..., isEditable: Bool = true) throws -> (EditorView, Editor) {
     let model = Editor()

@@ -73,30 +73,6 @@ import TextKitEditor
     }
   }
 
-  @Test func marksTheTextOfALinkWithItsURL() throws {
-    let model = Editor()
-    try model.load(
-      LexicalJSON.document([
-        LexicalJSON.paragraph([
-          LexicalJSON.text("see "), LexicalJSON.link("https://a.io", [LexicalJSON.text("the site")]),
-          LexicalJSON.text(" or "), LexicalJSON.autoLink("https://www.b.io", [LexicalJSON.text("www.b.io")]),
-          LexicalJSON.text(" or "),
-          LexicalJSON.autoLink("https://www.c.io", [LexicalJSON.text("www.c.io")], isUnlinked: true),
-        ])
-      ]))
-    let text = DocumentText(model: model, style: Self.style)
-    let storage = NSMutableAttributedString()
-
-    try text.reload(storage)
-
-    var range = NSRange()
-    #expect(storage.attribute(.link, at: 4, effectiveRange: &range) as? URL == URL(string: "https://a.io"))
-    #expect(range == NSRange(location: 4, length: 8))
-    #expect(storage.attribute(.link, at: 16, effectiveRange: nil) as? URL == URL(string: "https://www.b.io"))
-    #expect(storage.attribute(.link, at: 3, effectiveRange: nil) == nil)
-    #expect(storage.attribute(.link, at: 28, effectiveRange: nil) == nil)
-  }
-
   @Test func showsANodeWithNoTextAsOneCharacter() throws {
     let model = Editor()
     try model.load(

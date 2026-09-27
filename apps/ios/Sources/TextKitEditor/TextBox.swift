@@ -9,7 +9,7 @@ import UIKit
 @MainActor final class TextBox {
   private let storage = NSTextStorage()
   private let contentStorage = NSTextContentStorage()
-  private let layoutManager = NSTextLayoutManager()
+  private let layoutManager = WebLinkLayoutManager()
   private let container = NSTextContainer(size: .zero)
   private(set) var height: CGFloat = 0
   /// The lines as laid out, the extra one TextKit adds after a final newline
@@ -238,6 +238,18 @@ import UIKit
 
   private func offset(_ location: any NSTextLocation) -> Int {
     contentStorage.offset(from: contentStorage.documentRange.location, to: location)
+  }
+}
+/// Draws a link as the web does, rather than in the tint colour.
+private final class WebLinkLayoutManager: NSTextLayoutManager {
+  static let link = DocumentTypography.web.link
+
+  override func renderingAttributes(forLink link: Any, at location: any NSTextLocation) -> [NSAttributedString.Key: Any] {
+    let color = Self.link.color.color
+    return [
+      .foregroundColor: color, .underlineStyle: NSUnderlineStyle.single.rawValue,
+      .underlineColor: color.withAlphaComponent(Self.link.underlineOpacity),
+    ]
   }
 }
 #endif

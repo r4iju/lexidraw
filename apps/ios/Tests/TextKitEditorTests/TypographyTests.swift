@@ -188,14 +188,52 @@ import UIKit
     expectNear(selection.maxY, middle.maxY, "the selection's foot \(line)", within: 0.5)
   }
 
+  /// A link is drawn as the web draws it, in the theme's primary colour and
+  /// underlined, and an undone autolink as the text around it.
+  @Test(arguments: [UIUserInterfaceStyle.light, .dark])
+  func aLinkIsDrawnInThePrimaryColourUnderlined(_ style: UIUserInterfaceStyle) throws {
+    let view = try LayoutTests.host(
+      LexicalJSON.document([
+        LexicalJSON.paragraph([
+          LexicalJSON.text("mmmm "), LexicalJSON.link("https://a.io", [LexicalJSON.text("mmmm")]), LexicalJSON.text(" "),
+          LexicalJSON.autoLink("https://www.c.io", [LexicalJSON.text("mmmm")], isUnlinked: true),
+        ])
+      ]))
+    view.overrideUserInterfaceStyle = style
+    view.layoutIfNeeded()
+    func caret(_ offset: Int) throws -> CGRect {
+      view.caretRect(for: try #require(view.position(from: view.beginningOfDocument, offset: offset)))
+    }
+    func word(at start: Int) throws -> ClosedRange<CGFloat> { (try caret(start).minX + 1)...(try caret(start + 4).minX - 1) }
+    let line: ClosedRange<CGFloat> = (try caret(0).minY)...(try caret(0).maxY + 8)
+    func color(_ theme: ThemeColor) -> [Double] {
+      let color = style == .dark ? theme.dark : theme.light
+      return [color.red, color.green, color.blue]
+    }
+    func expectColor(at start: Int, _ theme: ThemeColor, _ what: String) throws {
+      let drawn = try #require(Self.inkColor(of: view.textInputView, across: try word(at: start), rows: line))
+      #expect(zip(drawn, color(theme)).allSatisfy { abs($0 - $1) < 0.01 }, "\(what): \(drawn)")
+    }
+    /// Where anything is drawn, as faint as the web's underline.
+    func foot(at start: Int) throws -> CGFloat {
+      try #require(Self.ink(of: view.textInputView, across: try word(at: start), rows: line, moreOpaqueThan: 40))
+        .upperBound
+    }
+
+    try expectColor(at: 5, .primary, "a link")
+    try expectColor(at: 10, .foreground, "an undone autolink")
+    #expect(try foot(at: 5) > foot(at: 0) + 1, "a link's underline")
+    Self.expectNear(try foot(at: 10), try foot(at: 0), "an undone autolink's foot")
+  }
+
   /// From the top of what `view` draws opaquely between `columns`, within
-  /// `rows`, to its foot.
-  static func ink(of view: UIView, across columns: ClosedRange<CGFloat>, rows: ClosedRange<CGFloat>)
-    -> ClosedRange<CGFloat>?
-  {
+  /// `rows`, to its foot, where more opaque than `alpha`, of 255.
+  static func ink(
+    of view: UIView, across columns: ClosedRange<CGFloat>, rows: ClosedRange<CGFloat>, moreOpaqueThan alpha: UInt8 = 160
+  ) -> ClosedRange<CGFloat>? {
     guard let drawing = Drawing(view) else { return nil }
     let rows = drawing.rows(rows).filter { row in
-      drawing.columns(columns).contains { column in drawing.pixel(row, column)[3] > 160 }
+      drawing.columns(columns).contains { column in drawing.pixel(row, column)[3] > alpha }
     }
     guard let top = rows.first, let foot = rows.last else { return nil }
     return CGFloat(top) / Drawing.scale...CGFloat(foot + 1) / Drawing.scale
