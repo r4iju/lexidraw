@@ -477,11 +477,16 @@ class EditorUITests: XCTestCase {
           format: "label == %@ AND elementType IN %@", title,
           [XCUIElement.ElementType.menuItem.rawValue, XCUIElement.ElementType.button.rawValue])
       ).firstMatch
-      let nextPage = app.buttons["Next Page"]
+      // A narrow screen pages the menu: its row on iOS 26, into a list on
+      // iOS 27.
+      let forward = app.buttons.matching(NSPredicate(format: "label IN %@", ["Forward", "Next Page"])).firstMatch
       let shown = XCTNSPredicateExpectation(
-        predicate: NSPredicate { _, _ in item.exists || nextPage.exists }, object: nil)
+        predicate: NSPredicate { _, _ in item.exists || forward.exists }, object: nil)
       _ = XCTWaiter.wait(for: [shown], timeout: 5)
-      if !item.exists, nextPage.exists { nextPage.tap() }
+      for _ in 0..<4 where !item.exists && forward.exists {
+        forward.tap()
+        _ = item.waitForExistence(timeout: 1)
+      }
       XCTAssertTrue(item.waitForExistence(timeout: 5), "No \(title) in the edit menu: \(app.debugDescription)")
       // The list's last items can be under the keyboard until it scrolls.
       for _ in 0..<3 where !item.isHittable {

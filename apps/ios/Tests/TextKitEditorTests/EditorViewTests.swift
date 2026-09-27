@@ -470,6 +470,21 @@ import UIKit
     #expect(menu?.children.map(\.title) == ["Add Link…", "Table"])
   }
 
+  /// The link actions and the Table menu come straight after UIKit's cut,
+  /// copy and paste, as the web's context menu has Link straight after its
+  /// clipboard actions, and ahead of UIKit's Look Up and Share.
+  @Test func theEditMenusOwnActionsFollowTheClipboardOnes() throws {
+    let (view, _) = try editing(LexicalJSON.paragraph([LexicalJSON.text("hello world")]))
+    let suggested = [
+      UIMenu(title: "Clipboard", identifier: .standardEdit, children: [UIAction(title: "Copy") { _ in }]),
+      UIMenu(title: "Share", identifier: .share, children: [UIAction(title: "Share…") { _ in }]),
+    ]
+
+    let menu = view.editMenu(for: try #require(range(view, 6, 11)), suggestedActions: suggested)
+
+    #expect(menu?.children.map(\.title) == ["Clipboard", "Add Link…", "Table", "Share"])
+  }
+
   @Test func theEditMenuInALinkOffersToOpenEditOrRemoveIt() throws {
     let (view, _) = try editing(Self.linked)
 

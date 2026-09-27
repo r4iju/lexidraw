@@ -719,10 +719,17 @@ public final class EditorView: UIScrollView, UITextInput {
 
   /// The edit menu with the link actions for the range, and a Table menu
   /// where the document can be edited: the web's insert-table dialog, or its
-  /// table menu's row and column actions in a table.
+  /// table menu's row and column actions in a table. They follow UIKit's
+  /// cut, copy and paste, as Link follows the web context menu's clipboard
+  /// actions; at the end, a narrow screen's menu pages them out of sight, or
+  /// its list runs them under the keyboard.
   public func editMenu(for textRange: UITextRange, suggestedActions: [UIMenuElement]) -> UIMenu? {
     guard let range = textRange as? TextRange else { return nil }
-    return UIMenu(children: suggestedActions + linkActions(in: range.range) + (isEditable ? [tableMenu()] : []))
+    let own = linkActions(in: range.range) + (isEditable ? [tableMenu()] : [])
+    let clipboard = suggestedActions.firstIndex { ($0 as? UIMenu)?.identifier == .standardEdit }
+    var children = suggestedActions
+    children.insert(contentsOf: own, at: clipboard.map { $0 + 1 } ?? children.endIndex)
+    return UIMenu(children: children)
   }
 
   private func tableMenu() -> UIMenu {
