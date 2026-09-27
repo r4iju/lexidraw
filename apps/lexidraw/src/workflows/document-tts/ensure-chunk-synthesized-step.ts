@@ -6,6 +6,7 @@ import { createOpenAiTtsProvider } from "~/server/tts/providers/openai";
 import env from "@packages/env";
 import { buildSsmlFromParagraphs } from "~/lib/ssml";
 import { chunkPathOf } from "~/server/tts/parts";
+import { blobExists } from "~/server/tts/blob-exists";
 
 export async function ensureChunkSynthesizedStep(args: {
   index: number;
@@ -38,10 +39,7 @@ export async function ensureChunkSynthesizedStep(args: {
 
   // Checked before a provider is paid, since any run in the same voice may
   // have made this chunk already.
-  const head = await fetch(existingUrl, { method: "HEAD" }).catch(
-    () => undefined,
-  );
-  if (head?.ok) {
+  if (await blobExists(existingUrl)) {
     console.log("[tts][wf][chunk] reuse", {
       index: args.index,
       hash: args.chunkHash,

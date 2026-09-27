@@ -1,8 +1,10 @@
+import { mock } from "bun:test";
+
 /**
- * The blob store and the voice services as a read-aloud run reaches them,
- * through `fetch`: a HEAD of a chunk finds it made before when `madeBefore`
- * says so, and a request for speech is recorded as paid for. Anything else
- * goes out as it would.
+ * The blob store and the voice services as a read-aloud run reaches them:
+ * asking whether a chunk exists finds it made before when `madeBefore` says
+ * so, and a request for speech, through `fetch`, is recorded as paid for.
+ * Anything else goes out as it would. Call it before importing what it runs.
  */
 export function fakeAudioStore({
   madeBefore,
@@ -25,18 +27,17 @@ export function fakeAudioStore({
       globalThis.fetch = realFetch;
     },
   };
+  const asked = async (pathname: string) => {
+    if (!pathname.startsWith("tts/chunks/")) return false;
+    await store.beforeChunk();
+    store.chunksAsked.push(pathname);
+    return store.madeBefore(pathname);
+  };
+  mock.module("~/server/tts/blob-exists", () => ({
+    blobExists: (url: string) => asked(new URL(url).pathname.slice(1)),
+  }));
   globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = new URL(String(input), "http://relative.test");
-    if (init?.method === "HEAD") {
-      const pathname = url.pathname.slice(1);
-      if (!pathname.startsWith("tts/chunks/"))
-        return new Response(null, { status: 404 });
-      await store.beforeChunk();
-      store.chunksAsked.push(pathname);
-      return new Response(null, {
-        status: store.madeBefore(pathname) ? 200 : 404,
-      });
-    }
     if (url.pathname.endsWith("/audio/speech")) {
       store.paidFor.push(String(init?.body ?? ""));
       return store.speech();

@@ -2,6 +2,7 @@ import type { TtsResult } from "~/server/tts/types";
 import { chooseProvider } from "../document-tts/common";
 import type { TtsConfig } from "../document-tts/generate-document-tts-workflow";
 import { put } from "@vercel/blob";
+import { blobExists } from "~/server/tts/blob-exists";
 import env from "@packages/env";
 
 export async function finalizeManifestStep(
@@ -22,10 +23,7 @@ export async function finalizeManifestStep(
   const ordered = [...results].sort((a, b) => a.index - b.index);
   let stitchedUrl: string | undefined;
   const fullUrl = `${env.VERCEL_BLOB_STORAGE_HOST}/tts/article/${articleKey}/full.${tts.format}`;
-  const headFull = await fetch(fullUrl, { method: "HEAD" }).catch(
-    () => undefined,
-  );
-  if (headFull?.ok) {
+  if (await blobExists(fullUrl)) {
     stitchedUrl = fullUrl;
     console.log("[tts][wf][article] stitched exists", { fullUrl });
   }
@@ -51,17 +49,14 @@ export async function finalizeManifestStep(
 
   const manifestPath = `tts/article/${articleKey}/manifest.json`;
   const manifestUrl = `${env.VERCEL_BLOB_STORAGE_HOST}/${manifestPath}`;
-  const headManifest = await fetch(manifestUrl, { method: "HEAD" }).catch(
-    () => undefined,
-  );
-  if (!headManifest?.ok) {
-    await put(manifestPath, Buffer.from(JSON.stringify(manifest), "utf-8"), {
-      access: "public",
-      contentType: "application/json",
-      allowOverwrite: true,
-    });
-    console.log("[tts][wf][article] manifest written", { manifestUrl });
-  }
+  // Written without asking first: asking the CDN for it before it exists
+  // would have it answer 404 for a while after.
+  await put(manifestPath, Buffer.from(JSON.stringify(manifest), "utf-8"), {
+    access: "public",
+    contentType: "application/json",
+    allowOverwrite: true,
+  });
+  console.log("[tts][wf][article] manifest written", { manifestUrl });
 
   return { manifestUrl, stitchedUrl };
 }

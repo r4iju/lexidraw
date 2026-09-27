@@ -175,23 +175,30 @@ async function manifestAt(url: string) {
   );
 }
 
+const planOf = (row: TtsJob) =>
+  row.runId
+    ? manifestAt(
+        `${env.VERCEL_BLOB_STORAGE_HOST}/${planPathOf(row.id, row.runId)}`,
+      )
+    : Promise.resolve(undefined);
+
 /**
  * The parts of a job's audio a listener can play: all of a finished job's,
  * and while one runs, those made so far, from the start of its run's plan.
+ * A finished job whose manifest can't be read answers from its plan, which
+ * lists the same parts.
  */
 async function manifestOf(row: TtsJob | undefined) {
   if (row?.status === "ready" && row.manifestUrl) {
-    const manifest = await manifestAt(row.manifestUrl);
+    const manifest = (await manifestAt(row.manifestUrl)) ?? (await planOf(row));
     return {
       segments: manifest?.segments ?? [],
       stitchedUrl: manifest?.stitchedUrl ?? row.stitchedUrl ?? undefined,
     };
   }
   const made = row?.segmentCount ?? 0;
-  if (row && running(row) && row.runId && made > 0) {
-    const plan = await manifestAt(
-      `${env.VERCEL_BLOB_STORAGE_HOST}/${planPathOf(row.id, row.runId)}`,
-    );
+  if (row && running(row) && made > 0) {
+    const plan = await planOf(row);
     return {
       segments: plan?.segments.slice(0, made) ?? [],
       stitchedUrl: undefined,
