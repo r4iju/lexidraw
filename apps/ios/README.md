@@ -280,3 +280,40 @@ hand:
   reference in the URL decodes as on the web, and the fuzzer types both. One
   past Unicode fails as on the web, and the model then keeps what was typed
   and reports the error, as Lexical reports it to `onError`.
+- Tables edit as `@lexical/table` 0.51 edits them with the web's
+  `TablePlugin` settings. The reference registers those settings and the
+  web's insert handler from `packages/lexical-nodes` (`tables.ts`), which the
+  web uses too, rather than a copy. Cells selected together are a
+  `Selection` with `table` set to the table's path, as Lexical's
+  `TableSelection` is.
+- No table goes inside a table, whether the caret is in a cell or cells are
+  selected. `@lexical/table` refused only the first, so the web's insert
+  handler now refuses both (#117).
+- What `@lexical/table` does only in the DOM, such as dragging across cells,
+  isn't modelled: the view turns a range from one cell to another into a
+  table selection by sending it, as the DOM's selection change does.
+- Enter over a table selection does nothing, as rich text's Enter answers a
+  range selection only. Tab in a cell moves between cells as `@lexical/table`
+  moves it, ahead of Tab indentation; over a table selection neither answers,
+  so it does nothing.
+- Making, removing, indenting or outdenting lists over a table selection is
+  refused as unsupported in both models: `@lexical/list` works through a
+  table selection's nodes, which isn't ported.
+- Inserting a column into a table whose `colWidths` has no entry for the
+  column next to it is refused as unsupported: Lexical inserts `undefined`
+  into the widths there.
+- A table selection is drawn as the web draws it: the theme's primary colour
+  at 10% over the selected cells, and no text highlighted. The focus-cell
+  and table-outline classes the theme names are never applied by
+  `@lexical/table` 0.51, so they aren't drawn.
+- Typing over a table selection types nothing and leaves nothing selected,
+  as on the web; the next key types where the selection ended.
+- Tables lay out as `document.css` lays out `.document-table`, with its
+  padding, borders, header fill, numeric columns aligned right and short
+  columns kept whole, but no wider than the text, without the web's 44rem
+  measure. The pinned first column, cell background colours, vertical
+  alignment, cell widths and the web's floating cell menu are left out.
+- The web's table menu is the Table menu in the edit menu: Insert Table…
+  with the web's dialog, five rows and columns to begin with, or in a table
+  inserting rows and columns and deleting them. Deleting the table, headers
+  and merging cells are left out.
