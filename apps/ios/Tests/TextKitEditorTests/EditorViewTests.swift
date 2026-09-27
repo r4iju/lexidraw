@@ -100,6 +100,9 @@ import UIKit
     let keys = view.keyCommands ?? []
     #expect(!keys.contains { [UIKeyCommand.inputDelete, "\u{7F}", "\r", "k"].contains($0.input) })
     #expect(keys.contains { $0.input == UIKeyCommand.inputLeftArrow && $0.modifierFlags.isEmpty })
+    let whole = try #require(view.textRange(from: view.beginningOfDocument, to: view.endOfDocument))
+    let menu = view.editMenu(for: whole, suggestedActions: [])
+    #expect(menu?.children.contains { $0.title == "Table" } != true)
   }
 
   /// VoiceOver names a block the editor can't show yet by its type, where
