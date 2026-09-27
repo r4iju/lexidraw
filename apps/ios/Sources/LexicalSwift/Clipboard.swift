@@ -149,11 +149,12 @@ extension Update {
     return text
   }
 
-  /// JavaScript's `slice`, over UTF-16 code units.
+  /// JavaScript's `slice`, over UTF-16 code units: bounds past the end stop
+  /// at it, as an element point's offset, counted over all its text, can be.
   private static func slice(_ text: String, _ range: Range<Int>) -> String {
     let units = text.utf16
-    let start = units.index(units.startIndex, offsetBy: range.lowerBound)
-    let end = units.index(units.startIndex, offsetBy: range.upperBound)
+    let start = units.index(units.startIndex, offsetBy: min(range.lowerBound, units.count))
+    let end = units.index(units.startIndex, offsetBy: min(range.upperBound, units.count))
     return String(units[start..<end])!
   }
 

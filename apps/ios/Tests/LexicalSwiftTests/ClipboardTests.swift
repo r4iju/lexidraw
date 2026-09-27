@@ -27,6 +27,9 @@ func plain(_ text: String) -> EditorCommand { .paste(Clipboard(plainText: text))
     Scenario("copying whole paragraphs", twoParagraphs, [select([0, 0], 0, [1, 0], 3), .copy]),
     Scenario("copying everything", twoParagraphs, [caret([0, 0], 1), .selectAll, .copy]),
     Scenario("copying across a line break", lineBreaks, [select([0, 0], 1, [0, 2], 2), .copy]),
+    Scenario(
+      "copying from a paragraph's end into its last text", lineBreaks,
+      [.setSelection(anchor: Point(path: [0], offset: 3, type: .element), focus: .text([0, 2], 1)), .copy]),
     Scenario("copying inside a link", linked, [select([0, 1, 0], 1, [0, 1, 0], 5), .copy]),
     Scenario("copying across a link", linked, [select([0, 0], 1, [0, 1, 0], 3), .copy]),
     Scenario("copying over a whole link", linked, [select([0, 0], 1, [0, 2], 2), .copy]),
