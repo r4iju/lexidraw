@@ -86,11 +86,14 @@ import { EditorError } from "./editor-error.js";
 
 type PathPoint = { path: number[]; offset: number; type: "text" | "element" };
 
+/** `LexicalClipboardPayload.mimeType` in EditorModel.swift. */
+const LEXICAL_MIME_TYPE = "application/x-lexical-editor";
+
 /** `Clipboard` in EditorModel.swift. */
 type Clipboard = {
   "text/plain": string;
   "text/html"?: string;
-  "application/x-lexical-editor"?: unknown;
+  [LEXICAL_MIME_TYPE]?: unknown;
 };
 
 type Command =
@@ -242,10 +245,7 @@ function commitQueuedUpdates(): void {
   }
 }
 
-/**
- * Rich text's cut, as two updates: one widens a selection of the whole
- * document to its blocks and copies it, and the next deletes it.
- */
+/** Rich text's cut. */
 function cut(): void {
   current().update(
     () => {
@@ -266,19 +266,16 @@ function cut(): void {
 
 /**
  * What a copy puts on the clipboard, which is nothing for a collapsed
- * selection. The HTML Lexical would add needs a DOM.
+ * selection.
  */
 function copy(selection: RangeSelection): Clipboard | undefined {
   if (selection.isCollapsed()) return undefined;
-  const lexical = $exportMimeTypeFromSelection(
-    "application/x-lexical-editor",
-    selection,
-  );
+  const lexical = $exportMimeTypeFromSelection(LEXICAL_MIME_TYPE, selection);
   return {
     "text/plain": $exportMimeTypeFromSelection("text/plain", selection) ?? "",
     ...(lexical === null
       ? {}
-      : { "application/x-lexical-editor": JSON.parse(lexical) as unknown }),
+      : { [LEXICAL_MIME_TYPE]: JSON.parse(lexical) as unknown }),
   };
 }
 
@@ -311,11 +308,11 @@ Object.assign(globalThis, {
 
 /** A `DataTransfer` holding `pasted`, as far as Lexical reads one. */
 function dataTransfer(pasted: Clipboard): DataTransfer {
-  const lexical = pasted["application/x-lexical-editor"];
+  const lexical = pasted[LEXICAL_MIME_TYPE];
   const data: Record<string, string | undefined> = {
     "text/plain": pasted["text/plain"],
     "text/html": pasted["text/html"],
-    "application/x-lexical-editor":
+    [LEXICAL_MIME_TYPE]:
       lexical === undefined ? undefined : JSON.stringify(lexical),
   };
   return {

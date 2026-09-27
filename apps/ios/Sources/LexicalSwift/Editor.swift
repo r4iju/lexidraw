@@ -53,8 +53,7 @@ public final class Editor: EditorModel {
         let compositionEnd = if case .commitComposition = command { true } else { false }
         return try commit(compositionEnd: compositionEnd) { try $0.run(command) }
       }
-      // Rich text's cut is two updates: one widens a selection of the whole
-      // document to its blocks and copies it, and the next deletes it.
+      // Rich text's cut is two updates: a copy, then a delete.
       let copied = try commit(tags: [.cut]) { try $0.copyForCut() }
       var changes = try commit(tags: [.cut]) { update in
         guard let selection = update.selection else { throw EditorError.noSelection }

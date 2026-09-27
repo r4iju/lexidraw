@@ -636,10 +636,6 @@ public final class EditorView: UIScrollView, UITextInput {
   /// Where copy and cut put the selection and paste takes from.
   public var pasteboard = UIPasteboard.general
 
-  /// The type Lexical's own copy of a selection goes on the clipboard as,
-  /// which a paste in a Lexidraw document reads nodes from.
-  private static let lexicalType = "application/x-lexical-editor"
-
   public override func copy(_ sender: Any?) { copySelection(.copy) }
   public override func cut(_ sender: Any?) { copySelection(.cut) }
 
@@ -649,7 +645,7 @@ public final class EditorView: UIScrollView, UITextInput {
     guard let clipboard = perform(command, fromInput: false)?.clipboard else { return }
     var item: [String: Any] = [UTType.utf8PlainText.identifier: clipboard.plainText]
     if let lexical = clipboard.lexical, let data = try? JSONEncoder().encode(lexical) {
-      item[Self.lexicalType] = data
+      item[LexicalClipboardPayload.mimeType] = data
     }
     pasteboard.setItems([item])
   }
@@ -657,8 +653,8 @@ public final class EditorView: UIScrollView, UITextInput {
   public override func paste(_ sender: Any?) {
     commitMarkedText()
     syncSelection()
-    let lexical = pasteboard.data(forPasteboardType: Self.lexicalType).flatMap {
-      try? JSONDecoder().decode(JSONValue.self, from: $0)
+    let lexical = pasteboard.data(forPasteboardType: LexicalClipboardPayload.mimeType).flatMap {
+      try? JSONDecoder().decode(LexicalClipboardPayload.self, from: $0)
     }
     let html = pasteboard.data(forPasteboardType: UTType.html.identifier).map { String(decoding: $0, as: UTF8.self) }
     perform(.paste(Clipboard(plainText: pasteboard.string ?? "", html: html, lexical: lexical)), fromInput: false)

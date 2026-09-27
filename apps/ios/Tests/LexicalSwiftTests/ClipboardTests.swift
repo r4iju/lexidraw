@@ -4,7 +4,7 @@ import Testing
 
 /// Lexical nodes on the clipboard, as a copy from a Lexidraw document puts them.
 func copied(_ plainText: String, _ nodes: JSONValue..., namespace: String = editorNamespace) -> Clipboard {
-  Clipboard(plainText: plainText, lexical: ["namespace": .string(namespace), "nodes": .array(nodes)])
+  Clipboard(plainText: plainText, lexical: LexicalClipboardPayload(namespace: namespace, nodes: nodes))
 }
 
 func plain(_ text: String) -> EditorCommand { .paste(Clipboard(plainText: text)) }

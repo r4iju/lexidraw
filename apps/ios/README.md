@@ -260,13 +260,11 @@ hand:
   `LinkConfiguration.swift` for LexicalSwift to run in JavaScriptCore.
 - The model's link and clipboard commands are the web's: `toggleLink` is
   `TOGGLE_LINK_COMMAND`, `editLink` is the floating link editor's save,
-  and `copy`, `cut` and `paste` are rich text's, cut as its two updates.
+  and `copy`, `cut` and `paste` are rich text's.
 - Copy puts plain text and Lexical's JSON (`application/x-lexical-editor`)
-  on the pasteboard, and no HTML: Lexical writes HTML from a DOM, which
-  neither model has. Other apps get the plain text.
-- HTML pasted from another app goes in as the plain text beside it, which
-  is what Lexical does where it has no DOM to read HTML with. Pasting it as
-  rich text, images and charts included, is left to its own issue.
+  on the pasteboard, and no HTML. Other apps get the plain text.
+- HTML pasted from another app goes in as the plain text beside it. Pasting
+  it as rich text, images and charts included, is #168.
 - The edit menu offers Add Link for a selection, and Open, Edit and Remove
   for a caret in a link; a tap on a link's text offers the same. A caret
   just after a link's last character is in the link, as a browser puts it

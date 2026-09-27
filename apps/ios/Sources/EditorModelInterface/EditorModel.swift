@@ -317,23 +317,56 @@ extension EditorCommand: Codable {
 /// types Lexical writes and reads.
 public struct Clipboard: Codable, Equatable, Sendable {
   public var plainText: String
-  /// Pastes as the plain text beside it, as Lexical does where it has no DOM
-  /// to read HTML with.
+  /// Never copied, and pasted as the plain text beside it: Lexical writes
+  /// and reads HTML through a DOM (#168).
   public var html: String?
-  /// The copied nodes, `{"namespace": …, "nodes": […]}`. They paste as nodes
-  /// only into an editor of the same namespace.
-  public var lexical: JSONValue?
+  public var lexical: LexicalClipboardPayload?
 
-  public init(plainText: String, html: String? = nil, lexical: JSONValue? = nil) {
+  public init(plainText: String, html: String? = nil, lexical: LexicalClipboardPayload? = nil) {
     self.plainText = plainText
     self.html = html
     self.lexical = lexical
   }
 
-  private enum CodingKeys: String, CodingKey {
-    case plainText = "text/plain"
-    case html = "text/html"
-    case lexical = "application/x-lexical-editor"
+  public init(from decoder: any Decoder) throws {
+    let container = try decoder.container(keyedBy: MIMEType.self)
+    plainText = try container.decode(String.self, forKey: .plainText)
+    html = try container.decodeIfPresent(String.self, forKey: .html)
+    lexical = try container.decodeIfPresent(LexicalClipboardPayload.self, forKey: .lexical)
+  }
+
+  public func encode(to encoder: any Encoder) throws {
+    var container = encoder.container(keyedBy: MIMEType.self)
+    try container.encode(plainText, forKey: .plainText)
+    try container.encodeIfPresent(html, forKey: .html)
+    try container.encodeIfPresent(lexical, forKey: .lexical)
+  }
+
+  private struct MIMEType: CodingKey {
+    static let plainText = MIMEType(stringValue: "text/plain")
+    static let html = MIMEType(stringValue: "text/html")
+    static let lexical = MIMEType(stringValue: LexicalClipboardPayload.mimeType)
+
+    var stringValue: String
+    var intValue: Int? { nil }
+
+    init(stringValue: String) { self.stringValue = stringValue }
+    init?(intValue: Int) { nil }
+  }
+}
+
+/// Lexical's own copy of a selection: the nodes, which paste as nodes only
+/// into an editor of the same namespace.
+public struct LexicalClipboardPayload: Codable, Equatable, Sendable {
+  /// The MIME type Lexical puts the payload on the clipboard as, in JSON.
+  public static let mimeType = "application/x-lexical-editor"
+
+  public var namespace: String
+  public var nodes: [JSONValue]
+
+  public init(namespace: String, nodes: [JSONValue]) {
+    self.namespace = namespace
+    self.nodes = nodes
   }
 }
 

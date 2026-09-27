@@ -1,6 +1,5 @@
 /// `@lexical/clipboard`'s copy and rich text's paste, ported from
-/// lexical@0.51.0 as the web editor registers them, with no text/html: that
-/// needs a DOM to write, and to read.
+/// lexical@0.51.0 as the web editor registers them.
 extension Update {
   // MARK: Copying
 
@@ -18,11 +17,11 @@ extension Update {
     }
     return Clipboard(
       plainText: try textContent(selection, selected),
-      lexical: selected.isEmpty ? nil : ["namespace": .string(editorNamespace), "nodes": .array(nodes)])
+      lexical: selected.isEmpty ? nil : LexicalClipboardPayload(namespace: editorNamespace, nodes: nodes))
   }
 
-  /// The first of rich text's two cut updates: a selection of the whole
-  /// document widens to its blocks, and is copied.
+  /// A cut's copy: a selection of the whole document widens to its blocks
+  /// first.
   mutating func copyForCut() throws {
     guard let selection else { throw EditorError.noSelection }
     if !selection.isCollapsed { try expandToWholeDocument(selection) }
@@ -37,7 +36,9 @@ extension Update {
     _ key: NodeKey, _ selection: RangeSelection, _ selected: Set<NodeKey>, into target: inout [JSONValue]
   ) throws -> Bool {
     var shouldInclude = isSelected(key, selection, selected)
-    guard case .object(var json) = state.json(of: key, includingChildren: false) else { return false }
+    guard case .object(var json) = state.json(of: key, includingChildren: false) else {
+      preconditionFailure("A node's JSON is an object")
+    }
     if state[key].isText {
       let text = try slicedText(key, selection, isSelected: shouldInclude)
       json["text"] = .string(text)
@@ -75,21 +76,12 @@ extension Update {
   /// `$sliceSelectedTextNodeContent`: the part of a text the selection
   /// starts or ends in that it covers.
   private func slicedText(_ key: NodeKey, _ selection: RangeSelection, isSelected: Bool) throws -> String {
-    let text = state[key].text
-    let (anchor, focus) = (selection.anchor.key, selection.focus.key)
-    guard isSelected, !isTokenOrSegmented(key), key == anchor || key == focus else { return text }
-    let (anchorOffset, focusOffset) = characterOffsets(selection)
-    let isBackward = try state.isBackward(selection)
-    let size = state.textSize(of: key)
-    let range: Range<Int> =
-      if anchor == focus {
-        min(anchorOffset, focusOffset)..<max(anchorOffset, focusOffset)
-      } else if key == (isBackward ? focus : anchor) {
-        min(isBackward ? focusOffset : anchorOffset, size)..<size
-      } else {
-        0..<min(isBackward ? anchorOffset : focusOffset, size)
-      }
-    return Self.slice(text, range)
+    let (start, end) = try ends(of: selection)
+    guard isSelected, !isTokenOrSegmented(key), key == start.point.key || key == end.point.key else {
+      return state[key].text
+    }
+    return slice(
+      key, from: key == start.point.key ? start.offset : nil, to: key == end.point.key ? end.offset : nil)
   }
 
   /// `extractWithChild`: a heading goes with any of its text, a list with
@@ -124,8 +116,7 @@ extension Update {
     let nodes = try selected ?? self.nodes(in: selection)
     guard let first = nodes.first, let last = nodes.last else { return "" }
     let (anchor, focus) = (selection.anchor, selection.focus)
-    let isBefore = try state.isBefore(anchor, focus)
-    let (anchorOffset, focusOffset) = characterOffsets(selection)
+    let (start, end) = try ends(of: selection)
     var text = ""
     var previousWasElement = true
     for key in nodes {
@@ -137,19 +128,10 @@ extension Update {
       }
       previousWasElement = false
       if node.isText {
-        let content = node.text
-        let size = state.textSize(of: key)
-        var range = 0..<size
-        if key == first, key == last {
-          if anchor.type != .element || focus.type != .element || focus.offset == anchor.offset {
-            range = min(anchorOffset, focusOffset)..<max(anchorOffset, focusOffset)
-          }
-        } else if key == first {
-          range = min(isBefore ? anchorOffset : focusOffset, size)..<size
-        } else if key == last {
-          range = 0..<min(isBefore ? focusOffset : anchorOffset, size)
-        }
-        text += Self.slice(content, range)
+        let isWhole = key == first && key == last && anchor.type == .element && focus.type == .element
+          && focus.offset != anchor.offset
+        text +=
+          isWhole ? node.text : slice(key, from: key == first ? start.offset : nil, to: key == last ? end.offset : nil)
       } else if node.isDecorator || node.isLineBreak, key != last || !selection.isCollapsed {
         text += state.textContent(of: key)
       }
@@ -157,13 +139,15 @@ extension Update {
     return text
   }
 
-  /// JavaScript's `slice`, over UTF-16 code units: bounds past the end stop
-  /// at it, as an element point's offset, counted over all its text, can be.
-  private static func slice(_ text: String, _ range: Range<Int>) -> String {
-    let units = text.utf16
-    let start = units.index(units.startIndex, offsetBy: min(range.lowerBound, units.count))
-    let end = units.index(units.startIndex, offsetBy: min(range.upperBound, units.count))
-    return String(units[start..<end])!
+  /// The text of `key` from the selection's start offset where it starts
+  /// in `key`, to its end offset where it ends there, as JavaScript's `slice`
+  /// takes it over UTF-16 code units: offsets past the end stop at it, as an
+  /// element point's, counted over all its text, can be.
+  private func slice(_ key: NodeKey, from start: Int?, to end: Int?) -> String {
+    let units = state[key].text.utf16
+    let (lower, upper) = (min(start ?? 0, units.count), min(end ?? units.count, units.count))
+    let (from, to) = (min(lower, upper), max(lower, upper))
+    return String(units[units.index(units.startIndex, offsetBy: from)..<units.index(units.startIndex, offsetBy: to)])!
   }
 
   // MARK: Pasting
@@ -197,11 +181,11 @@ extension Update {
 
   /// The nodes of a Lexical payload that `$generateNodesFromSerializedNodes`
   /// reads: of this editor's namespace, and of types it registers.
-  private func pastedNodes(_ payload: JSONValue?) -> [JSONValue]? {
-    guard let payload, payload["namespace"]?.stringValue == editorNamespace,
-      let nodes = payload["nodes"]?.arrayValue, nodes.allSatisfy(Self.isRegistered)
-    else { return nil }
-    return nodes
+  private func pastedNodes(_ payload: LexicalClipboardPayload?) -> [JSONValue]? {
+    guard let payload, payload.namespace == editorNamespace, payload.nodes.allSatisfy(Self.isRegistered) else {
+      return nil
+    }
+    return payload.nodes
   }
 
   private static func isRegistered(_ json: JSONValue) -> Bool {
