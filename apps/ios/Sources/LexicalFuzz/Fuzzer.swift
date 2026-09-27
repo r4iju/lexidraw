@@ -188,10 +188,17 @@ public struct Fuzzer {
       }
     }
     for (index, command) in script.commands.enumerated() {
-      guard case .insertText(let text) = command, text.count > 1 else { continue }
+      let text: String
+      let typing: (String) -> EditorCommand
+      switch command {
+      case .insertText(let inserted): (text, typing) = (inserted, EditorCommand.insertText)
+      case .commitComposition(let committed): (text, typing) = (committed, EditorCommand.commitComposition)
+      default: continue
+      }
+      guard text.count > 1 else { continue }
       for shorter in text.removingEachCharacter() {
         var commands = script.commands
-        commands[index] = .insertText(shorter)
+        commands[index] = typing(shorter)
         result.append((script.start, commands))
       }
     }
@@ -254,7 +261,8 @@ struct Generator {
   private static let styles = ["", "", "", "color: red;"]
   private static let headingTags = ["h1", "h2", "h3", "h4", "h5", "h6"]
   /// Markdown shortcuts, and some that aren't quite, to type a key at a
-  /// time, as they have to be to go off.
+  /// time, as they have to be to go off while typing; at once, which a
+  /// composition finishes and Enter finishes a block's.
   private static let shortcuts = [
     "# ", "### ", "###### ", "####### ", "> ", "--- ", "*** ", "___ ", "*a*", "**a**", "***a***", "_a_", "__a__",
     "~~a~~", "==a==", "`a`", "`**a**", "*a *", "a_b_", "- ", "7. ", "``` ",
@@ -375,7 +383,13 @@ struct Generator {
       return .setSelection(anchor: anchor, focus: isRange ? points.randomElement(using: &random)! : anchor)
     case ..<12: return .insertText(text(1...3))
     case ..<22:
-      typing = Self.shortcuts.randomElement(using: &random)!.map { .insertText(String($0)) }
+      let shortcut = Self.shortcuts.randomElement(using: &random)!
+      typing =
+        switch Int.random(in: 0..<4, using: &random) {
+        case 0: [.insertText(shortcut), .insertParagraph]
+        case 1: [.commitComposition(shortcut)]
+        default: shortcut.map { .insertText(String($0)) }
+        }
       let blockStarts = Self.points(in: snapshot.state).filter { $0.offset == 0 }
       if Bool.random(using: &random), let start = blockStarts.randomElement(using: &random) {
         return .setSelection(anchor: start, focus: start)

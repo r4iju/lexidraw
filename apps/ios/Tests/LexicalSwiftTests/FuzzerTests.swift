@@ -63,6 +63,47 @@ import Testing
     #expect(try fixture.replay(on: Editor()) == fixture.recorded)
   }
 
+  /// LexicalSwift that takes a composition as typing, so it misses a
+  /// shortcut a composition finishes.
+  final class TakesACompositionAsTyping: LexicalSwiftWith {
+    override func apply(_ command: EditorCommand) throws -> ChangeSet {
+      if case .commitComposition(let text) = command { return try editor.apply(.insertText(text)) }
+      return try editor.apply(command)
+    }
+  }
+
+  @Test func findsAShortcutACompositionFinishes() throws {
+    var fuzzer = Fuzzer(seed: 7, reference: try Support.referenceEditor(), candidate: TakesACompositionAsTyping())
+
+    let fixture = try #require(try fuzzer.run(steps: 2000)).fixture
+
+    guard case .commitComposition = fixture.commands.last else {
+      Issue.record("The shrunk script should end by committing a composition")
+      return
+    }
+  }
+
+  /// LexicalSwift that takes Enter after a block's shortcut as a new line.
+  final class TakesEnterAfterAShortcutAsANewLine: LexicalSwiftWith {
+    override func apply(_ command: EditorCommand) throws -> ChangeSet {
+      if command == .insertParagraph, let anchor = try editor.selection()?.anchor, anchor.type == .text,
+        let text = try editor.node(at: anchor.path)["text"]?.stringValue, try Regex("(#{1,6}|>) ").wholeMatch(in: text) != nil
+      {
+        return try editor.apply(.insertLineBreak)
+      }
+      return try editor.apply(command)
+    }
+  }
+
+  @Test func findsAShortcutEnterFinishes() throws {
+    var fuzzer = Fuzzer(
+      seed: 7, reference: try Support.referenceEditor(), candidate: TakesEnterAfterAShortcutAsANewLine())
+
+    let fixture = try #require(try fuzzer.run(steps: 2000)).fixture
+
+    #expect(fixture.commands.last == .insertParagraph)
+  }
+
   /// LexicalSwift that refuses what Lexical refuses, but for another reason.
   final class RefusesAsUnsupported: LexicalSwiftWith {
     override func apply(_ command: EditorCommand) throws -> ChangeSet {
