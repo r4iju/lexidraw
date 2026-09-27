@@ -141,6 +141,8 @@ import UIKit
     view.unmarkText()
 
     #expect(try model.snapshot().state["root"]?["children"]?.arrayValue?.first?["type"] == "heading")
+  }
+
   /// Tab moves to the end of the next table cell, and Shift-Tab to the
   /// end of the one before, as @lexical/table's Tab does.
   @Test func tabMovesBetweenTableCells() throws {

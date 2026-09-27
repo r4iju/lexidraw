@@ -76,7 +76,7 @@ extension Update {
               try remove(anchorOrigin)
               // Lexical selects the decorator with a NodeSelection, which
               // LexicalSwift holds as no selection.
-              self.selection = nil
+              current = nil
             } else {
               let container = state.parent(of: origin)
               try remove(origin)
@@ -467,7 +467,7 @@ extension Update {
     if move, !isLineBoundary, state[focus.origin].isDecorator {
       // Lexical selects it with a NodeSelection, which LexicalSwift holds as
       // no selection.
-      self.selection = nil
+      current = nil
       return true
     }
     let normalized = state.normalize(focus)

@@ -89,8 +89,8 @@ extension EditorState {
   func markdownShortcutCaret(after previous: EditorState, dirtyLeaves: OrderedSet<NodeKey>, compositionEnd: Bool)
     -> KeyPoint?
   {
-    guard let before = previous.selection, let after = selection, after.anchor == after.focus,
-      compositionEnd || !RangeSelection(after).is(before)
+    guard case .range(let before) = previous.selection, case .range(let after) = selection,
+      after.anchor == after.focus, compositionEnd || !RangeSelection(after).is(.range(before))
     else { return nil }
     let anchor = after.anchor
     guard nodes[anchor.key]?.isText == true, dirtyLeaves.contains(anchor.key) else { return nil }
