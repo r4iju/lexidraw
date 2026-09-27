@@ -52,7 +52,9 @@ import {
 } from "@packages/lexical-nodes/tables";
 import {
   $createRangeSelection,
+  $createNodeSelection,
   $exportNodeJSON,
+  $findMatchingParent,
   $formatText,
   $getEditor,
   $getNearestRootOrShadowRoot,
@@ -60,15 +62,20 @@ import {
   $getRoot,
   $getSelection,
   $getSlot,
+  $getSiblingCaret,
   $getSlotNames,
+  $hasAncestor,
+  $isDecoratorNode,
   $isElementNode,
   $isRangeSelection,
   $isRootNode,
+  $isRootOrShadowRoot,
   $isTextNode,
   $setSelection,
   COMPOSITION_END_TAG,
   type BaseSelection,
   createEditor,
+  COMMAND_PRIORITY_EDITOR,
   COMMAND_PRIORITY_LOW,
   CUT_TAG,
   DELETE_CHARACTER_COMMAND,
@@ -207,6 +214,7 @@ function load(stateJSON: string): void {
   // Registered first, so the loaded document is where undoing stops.
   registerHistory(next, createEmptyHistoryState(), 1000, () => now);
   registerRichText(next);
+  registerLineMoveOntoBlockDecorators(next);
   // A headless editor refuses root listeners, where an editor without a root
   // element calls them only with none; the checklist's pointer handling
   // registers one, which does nothing without a root.
@@ -683,8 +691,9 @@ const ARROW_COMMANDS = {
  */
 function arrow(command: Extract<Command, { type: "arrow" }>): void {
   const before = $getSelection()?.clone() ?? null;
-  const event: ArrowKeyEvent = {
+  const event: LineMoveEvent = {
     atCellEdge: command.atCellEdge,
+    native: command.native,
     defaultPrevented: false,
     preventDefault() {
       this.defaultPrevented = true;
@@ -718,6 +727,78 @@ function arrow(command: Extract<Command, { type: "arrow" }>): void {
   }
   if (tableToCheck && $checkSelectionForTable(tableToCheck, before)) {
     $reselect(before);
+  }
+}
+
+/** An arrow key's event, with where the platform's move takes the focus. */
+type LineMoveEvent = ArrowKeyEvent & { native: PathPoint };
+
+/**
+ * The rest of rich text's `$tryDecoratorLineNavigation` for Up and Down,
+ * which asks the DOM's selection whether a line move from a block with text
+ * leaves it toward a block decorator beside it, and selects the decorator
+ * where the move leaves the block or doesn't move. Registered after rich
+ * text, so it runs where rich text, with no DOM, gave the key up; the
+ * platform's line move is `native`. `$tryInlineGridLineNavigation`, which
+ * runs next, finds no inline element the web displays as a grid.
+ */
+function registerLineMoveOntoBlockDecorators(next: LexicalEditor): void {
+  for (const [command, isBackward] of [
+    [KEY_ARROW_UP_COMMAND, true],
+    [KEY_ARROW_DOWN_COMMAND, false],
+  ] as const) {
+    next.registerCommand(
+      command,
+      (keyEvent) => {
+        const event = keyEvent as unknown as LineMoveEvent;
+        const selection = $getSelection();
+        if (event.shiftKey || !$isRangeSelection(selection)) return false;
+        if (!selection.isCollapsed()) return false;
+        const focus = selection.focus;
+        const focusNode = focus.getNode();
+        if (focus.type === "element" && $isRootOrShadowRoot(focusNode)) {
+          return false;
+        }
+        const topBlock = $findMatchingParent(
+          $isElementNode(focusNode) ? focusNode : focusNode.getParentOrThrow(),
+          (node) =>
+            $isElementNode(node) &&
+            !node.isInline() &&
+            $isRootOrShadowRoot(node.getParent()),
+        );
+        if (topBlock === null) return false;
+        const sibling = $getSiblingCaret(
+          topBlock,
+          isBackward ? "previous" : "next",
+        ).getNodeAtCaret();
+        if (
+          !$isDecoratorNode(sibling) ||
+          sibling.isInline() ||
+          sibling.isIsolated() ||
+          !sibling.isKeyboardSelectable()
+        ) {
+          return false;
+        }
+        const moved = pointNode(event.native);
+        const at = pathPoint(focus);
+        const didNotMove =
+          event.native.offset === at.offset &&
+          event.native.type === at.type &&
+          event.native.path.join() === at.path.join();
+        if (
+          !didNotMove &&
+          (moved.is(topBlock) || $hasAncestor(moved, topBlock))
+        ) {
+          return false;
+        }
+        const nodeSelection = $createNodeSelection();
+        nodeSelection.add(sibling.getKey());
+        $setSelection(nodeSelection);
+        event.preventDefault();
+        return true;
+      },
+      COMMAND_PRIORITY_EDITOR,
+    );
   }
 }
 

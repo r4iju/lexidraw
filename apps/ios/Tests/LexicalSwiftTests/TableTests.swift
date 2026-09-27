@@ -439,7 +439,8 @@ import Testing
 
   /// Up or Down from an empty block, or from beside it in the root, selects
   /// a rule it moves toward, which leaves no range selected. From a block
-  /// with text, and with Shift, the caret moves as the platform moves it.
+  /// with text where the platform's line move stays in it, and with Shift,
+  /// the caret moves as the platform moves it.
   @Test func anArrowTowardARuleSelectsItFromAnEmptyBlock() throws {
     let rule = LexicalJSON.horizontalRule
     let first = Point(path: [0], offset: 0, type: .element)
@@ -462,6 +463,27 @@ import Testing
     let shifted = try agreed(
       document(paragraph(), rule), [.caret(first), arrow(.down, extend: true, native: first)])
     #expect(shifted.expected.selection?.anchor == first)
+  }
+
+  /// From a block with text, Up or Down selects a rule it moves toward
+  /// where the platform's line move leaves the block, or doesn't move, as
+  /// rich text asks the DOM's.
+  @Test func anArrowTowardARuleSelectsItWhereTheLineMoveLeavesABlockWithText() throws {
+    let rule = LexicalJSON.horizontalRule
+    let below = document(paragraph(text("ab")), rule, paragraph(text("c")))
+    let leaving = try agreed(below, [.caret(.text([0, 0], 1)), arrow(.down, native: .text([2, 0], 1))])
+    #expect(leaving.expected.selection == nil)
+
+    let staying = try agreed(below, [.caret(.text([0, 0], 2)), arrow(.down, native: .text([0, 0], 2))])
+    #expect(staying.expected.selection == nil)
+
+    let above = document(rule, paragraph(text("ab")))
+    let start = Point(path: [], offset: 0, type: .element)
+    let up = try agreed(above, [.caret(.text([1, 0], 1)), arrow(.up, native: start)])
+    #expect(up.expected.selection == nil)
+
+    let inBlock = try agreed(above, [.caret(.text([1, 0], 1)), arrow(.up, native: .text([1, 0], 0))])
+    #expect(inBlock.expected.selection?.anchor == .text([1, 0], 0))
   }
 
   // MARK: The clipboard

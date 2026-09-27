@@ -77,7 +77,7 @@ extension Update {
       let handled =
         try atRootEdge
         || !event.shiftKey && tryBlockCursorShadowRootNavigation(selection, key == .up ? .previous : .next)
-        || !event.shiftKey && tryDecoratorLineNavigation(selection, key == .up ? .previous : .next)
+        || !event.shiftKey && tryDecoratorLineNavigation(selection, key == .up ? .previous : .next, event.native)
       if handled { event.defaultPrevented = true }
       return handled
     case .left, .right:
@@ -174,13 +174,13 @@ extension Update {
   /// `$tryDecoratorLineNavigation`: from an empty block, or from beside
   /// it in a root, onto the block decorator a line up or down reaches.
   /// Lexical selects it with a NodeSelection, which LexicalSwift holds as no
-  /// selection. From a block with text Lexical asks the DOM whether the line
-  /// move leaves the block, and the reference, with no DOM, leaves the key
-  /// to the platform. `$tryInlineGridLineNavigation`, which runs next, finds
-  /// no DOM either.
-  private mutating func tryDecoratorLineNavigation(_ selection: RangeSelection, _ direction: CaretDirection) throws
-    -> Bool
-  {
+  /// selection. From a block with text it asks the DOM's selection whether
+  /// the line move leaves the block, which `native` answers, as in
+  /// `reference/entry.ts`. `$tryInlineGridLineNavigation`, which runs next,
+  /// finds no inline element the web displays as a grid.
+  private mutating func tryDecoratorLineNavigation(
+    _ selection: RangeSelection, _ direction: CaretDirection, _ native: Point
+  ) throws -> Bool {
     guard selection.isCollapsed else { return false }
     let (focus, state) = (selection.focus, self.state)
     let isSelectableBlockDecorator = { (key: NodeKey) in state[key].isDecorator && !state[key].isInline }
@@ -196,8 +196,11 @@ extension Update {
     }
     guard let start, let block = findParent(from: start, where: isTopBlock),
       let sibling = direction == .next ? state.nextSibling(of: block) : state.previousSibling(of: block),
-      isSelectableBlockDecorator(sibling), state.textContent(of: block).isEmpty
+      isSelectableBlockDecorator(sibling)
     else { return false }
+    if !state.textContent(of: block).isEmpty, native != state.point(focus.value) {
+      if findParent(from: try pointNode(native), where: { $0 == block }) != nil { return false }
+    }
     current = nil
     return true
   }

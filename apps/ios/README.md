@@ -328,14 +328,16 @@ hand:
 - What `@lexical/table` does only in the DOM isn't modelled: dragging across
   cells, which the view turns into a table selection by sending the range,
   as the DOM's selection change does; the paragraph
-  `$getTableEdgeCursorPosition` adds at a table's edge; typeahead; moving by
-  line onto a rule from a block with text, where Lexical asks the DOM
-  whether the move leaves the block (from an empty block, or beside it,
-  Up and Down select the rule, as the web does), and past inline grids;
-  right-to-left and vertical writing;
-  pointer and triple-click selection; Escape; and the observer's DOM
-  bookkeeping. Arrow keys at a table's edge put
-  a caret beside it, as the web's keyboard does.
+  `$getTableEdgeCursorPosition` adds at a table's edge; typeahead;
+  right-to-left and vertical writing; pointer and triple-click selection;
+  Escape; and the observer's DOM bookkeeping. Arrow keys at a table's edge
+  put a caret beside it, as the web's keyboard does.
+- Up and Down select a rule they move toward from an empty block, from
+  beside it, or from a block with text where the platform's line move
+  leaves the block or doesn't move: rich text asks the DOM's selection, and
+  the command's `native` point is where the platform's move goes. No inline
+  element in the web's editor displays as a grid, so rich text's line move
+  past inline grids never runs.
 - A caret beside a table lies flat, under the table before it or else over
   the table after it, as the block cursor of Lexical's playground does,
   since the web's theme gives the block cursor no style.
