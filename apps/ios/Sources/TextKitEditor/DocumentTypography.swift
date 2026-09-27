@@ -104,9 +104,13 @@ struct DocumentTypography: Sendable {
     var margin: Double
   }
 
-  /// A link's text, underlined in its colour at this opacity.
+  /// A link's text, underlined in its colour at `underlineOpacity`, the
+  /// underline's top `underlineOffset` below the baseline, in ems of the
+  /// block's text, and `underlineThickness` points thick.
   struct Link: Sendable {
     var color: ThemeColor
+    var underlineThickness: Double
+    var underlineOffset: Double
     var underlineOpacity: Double
   }
 

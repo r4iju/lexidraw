@@ -22,7 +22,7 @@ extension DocumentTypography {
     list: List(padding: 1.625, itemSpacing: 0.25, markerColor: .mutedForeground, checklistPadding: 1.75, box: Box(top: 0.3, size: 1, borderWidth: 1.5, borderColor: .mutedForeground, cornerRadius: 4, checkedColor: .primary, tick: Tick(left: 0.34, top: 0.45, width: 0.3, height: 0.5, lineWidth: 1.5, color: .primaryForeground)), doneColor: .mutedForeground),
     quote: Quote(borderWidth: 3, borderColor: .border, paddingStart: 1),
     rule: Rule(width: 1, color: .border, margin: 2),
-    link: Link(color: .primary, underlineOpacity: 0.4))
+    link: Link(color: .primary, underlineThickness: 1, underlineOffset: 0.2, underlineOpacity: 0.4))
 }
 
 extension ThemeColor {

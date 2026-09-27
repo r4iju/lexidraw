@@ -184,8 +184,16 @@ export function swiftForTypography(styles: WebStyles): string {
   }
 
   const link = declarations(css, ".document-link");
-  if (value(link, "text-decoration") !== "underline 1px") {
+  const decoration = /^underline (\S+)$/.exec(value(link, "text-decoration"));
+  const skipsInk = link.values.get("text-decoration-skip-ink") ?? "auto";
+  if (!decoration?.[1] || skipsInk !== "auto") {
     throw new Error(`${link.selector} is underlined as isn't read yet`);
+  }
+  const underlineOffset = /^([\d.]+)em$/.exec(
+    value(link, "text-underline-offset"),
+  );
+  if (!underlineOffset?.[1]) {
+    throw new Error(`${link.selector}'s underline is offset as isn't read yet`);
   }
   const underline =
     /^color-mix\(in oklab, currentColor (\d+)%, transparent\)$/.exec(
@@ -217,7 +225,7 @@ export function swiftForTypography(styles: WebStyles): string {
     `    list: List(${listFields.join(", ")}),`,
     `    quote: Quote(borderWidth: ${points(quoteBorderWidth)}, borderColor: ${colors.name(quoteBorderColor)}, paddingStart: ${ems(quotePaddingStart)}),`,
     `    rule: Rule(width: ${points(ruleWidth)}, color: ${colors.name(ruleColor)}, margin: ${ems(ruleBefore)}),`,
-    `    link: Link(color: ${colors.name(value(link, "color"))}, underlineOpacity: ${Number(underline[1]) / 100}))`,
+    `    link: Link(color: ${colors.name(value(link, "color"))}, underlineThickness: ${points(decoration[1])}, underlineOffset: ${number(underlineOffset[1])}, underlineOpacity: ${Number(underline[1]) / 100}))`,
     "}",
     "",
     "extension ThemeColor {",

@@ -226,6 +226,49 @@ import UIKit
     Self.expectNear(try foot(at: 10), try foot(at: 0), "an undone autolink's foot")
   }
 
+  /// A link's underline is drawn as document.css draws it: 1px thick, 0.2em
+  /// below the baseline, in the link's colour at 40%, and broken where a
+  /// glyph crosses it, as a browser skips ink. The system font's descenders
+  /// end above it; a cedilla reaches through it.
+  @Test func aLinkIsUnderlinedAsTheWebUnderlinesIt() throws {
+    let view = try LayoutTests.host(
+      LexicalJSON.document([
+        LexicalJSON.paragraph([
+          LexicalJSON.text("mmmm "), LexicalJSON.link("https://a.io", [LexicalJSON.text("mmmm")]), LexicalJSON.text(" "),
+          LexicalJSON.link("https://b.io", [LexicalJSON.text("façade")]),
+        ])
+      ]))
+    view.overrideUserInterfaceStyle = .light
+    view.layoutIfNeeded()
+    func caret(_ offset: Int) throws -> CGRect {
+      view.caretRect(for: try #require(view.position(from: view.beginningOfDocument, offset: offset)))
+    }
+    func letters(_ range: Range<Int>) throws -> ClosedRange<CGFloat> {
+      (try caret(range.lowerBound).minX + 1)...(try caret(range.upperBound).minX - 1)
+    }
+    let line: ClosedRange<CGFloat> = (try caret(0).minY)...(try caret(0).maxY + 8)
+    let (plain, linked) = (try letters(0..<4), try letters(5..<9))
+    let baseline = try #require(Self.ink(of: view.textInputView, across: plain, rows: line)).upperBound
+    let below: ClosedRange<CGFloat> = (baseline + 1)...line.upperBound
+    let underline = try #require(Self.ink(of: view.textInputView, across: linked, rows: below, moreOpaqueThan: 40))
+
+    Self.expectNear(underline.lowerBound, baseline + 0.2 * Self.em, "the underline's top", within: 0.5)
+    Self.expectNear(underline.upperBound - underline.lowerBound, 1, "the underline's thickness", within: 0.5)
+    let drawing = try #require(Drawing(view.textInputView))
+    let row = Int((underline.lowerBound + underline.upperBound) / 2 * Drawing.scale)
+    func alphas(_ columns: ClosedRange<CGFloat>) -> [Int] {
+      drawing.columns(columns).map { Int(drawing.pixel(row, $0)[3]) }
+    }
+    let straight = alphas(linked)
+    #expect(straight.allSatisfy { abs($0 - 102) < 25 }, "at 40% under x-height letters: \(straight)")
+    let cedilla = try alphas(letters(12..<13))
+    #expect(cedilla.contains { $0 < 10 }, "broken under a cedilla")
+    let a = try letters(13..<14)
+    let third = (a.upperBound - a.lowerBound) / 3
+    let middle: ClosedRange<CGFloat> = (a.lowerBound + third)...(a.upperBound - third)
+    #expect(alphas(middle).allSatisfy { $0 > 40 }, "whole under the a after it")
+  }
+
   /// From the top of what `view` draws opaquely between `columns`, within
   /// `rows`, to its foot, where more opaque than `alpha`, of 255.
   static func ink(

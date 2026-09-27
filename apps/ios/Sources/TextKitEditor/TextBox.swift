@@ -89,7 +89,11 @@ import UIKit
       for line in fragment.textLineFragments {
         let at = line.typographicBounds.origin
         let raise = self.placement(of: line, at: start).raise
-        line.draw(at: CGPoint(x: origin.x + frame.minX + at.x, y: origin.y + frame.minY + at.y - raise), in: context)
+        let lineOrigin = CGPoint(x: origin.x + frame.minX + at.x, y: origin.y + frame.minY + at.y - raise)
+        line.draw(at: lineOrigin, in: context)
+        if let em = self.blockFont(at: start)?.pointSize {
+          self.drawLinkUnderlines(line, at: lineOrigin, em: em, in: context)
+        }
       }
       return true
     }
@@ -104,6 +108,71 @@ import UIKit
         text.draw(at: CGPoint(x: origin.x + item.textStart - size.width, y: origin.y + line.baseline - item.font.ascender))
       }
     }
+  }
+
+  /// Each link's underline in `line`, drawn from `origin`, as a browser
+  /// draws document.css's: it skips ink, broken a thickness either side of
+  /// where the link's own glyphs cross it.
+  private func drawLinkUnderlines(_ line: NSTextLineFragment, at origin: CGPoint, em: CGFloat, in context: CGContext) {
+    let theme = WebLinkLayoutManager.link
+    let scale = UITraitCollection.current.displayScale
+    let baseline = origin.y + line.glyphOrigin.y
+    let top = ((baseline + theme.underlineOffset * em) * scale).rounded() / scale
+    let thickness = theme.underlineThickness
+    let text = line.attributedString
+    var typeset: CTLine?
+    text.enumerateAttribute(.link, in: line.characterRange) { link, range, _ in
+      guard link != nil else { return }
+      let from = origin.x + line.locationForCharacter(at: range.location).x
+      let to = origin.x + line.locationForCharacter(at: NSMaxRange(range)).x
+      let band = CGRect(x: from, y: top, width: to - from, height: thickness)
+      let laidOut = typeset ?? CTLineCreateWithAttributedString(text.attributedSubstring(from: line.characterRange))
+      typeset = laidOut
+      let linkRange = NSRange(location: range.location - line.characterRange.location, length: range.length)
+      let dx = from - CTLineGetOffsetForStringIndex(laidOut, linkRange.location, nil)
+      let gaps = Self.inkCrossings(laidOut, in: linkRange, at: CGPoint(x: dx, y: baseline), band: band)
+        .map { ($0.lowerBound - thickness)...($0.upperBound + thickness) }
+        .sorted { $0.lowerBound < $1.lowerBound }
+      var segments: [CGRect] = []
+      var start = from
+      for gap in gaps {
+        if gap.lowerBound > start {
+          segments.append(CGRect(x: start, y: top, width: gap.lowerBound - start, height: thickness))
+        }
+        start = max(start, gap.upperBound)
+      }
+      if to > start { segments.append(CGRect(x: start, y: top, width: to - start, height: thickness)) }
+      context.setFillColor(theme.color.color.withAlphaComponent(theme.underlineOpacity).cgColor)
+      context.fill(segments)
+    }
+  }
+
+  /// The spans across which the outlines of `line`'s glyphs for `range`
+  /// cross `band`, `line` set with its origin at `origin`.
+  private static func inkCrossings(_ line: CTLine, in range: NSRange, at origin: CGPoint, band: CGRect)
+    -> [ClosedRange<CGFloat>]
+  {
+    let bandPath = CGPath(rect: band, transform: nil)
+    var crossings: [ClosedRange<CGFloat>] = []
+    for run in CTLineGetGlyphRuns(line) as! [CTRun] {
+      let count = CTRunGetGlyphCount(run)
+      let attributes = CTRunGetAttributes(run) as NSDictionary
+      guard count > 0, let font = attributes[kCTFontAttributeName] else { continue }
+      var glyphs = [CGGlyph](repeating: 0, count: count)
+      var positions = [CGPoint](repeating: .zero, count: count)
+      var indices = [CFIndex](repeating: 0, count: count)
+      CTRunGetGlyphs(run, CFRange(), &glyphs)
+      CTRunGetPositions(run, CFRange(), &positions)
+      CTRunGetStringIndices(run, CFRange(), &indices)
+      for index in 0..<count where NSLocationInRange(indices[index], range) {
+        let position = positions[index]
+        var placed = CGAffineTransform(a: 1, b: 0, c: 0, d: -1, tx: origin.x + position.x, ty: origin.y - position.y)
+        guard let outline = CTFontCreatePathForGlyph(font as! CTFont, glyphs[index], &placed) else { continue }
+        let crossing = outline.intersection(bandPath).boundingBoxOfPath
+        if !crossing.isNull, crossing.width > 0 { crossings.append(crossing.minX...crossing.maxX) }
+      }
+    }
+    return crossings
   }
 
   /// A checklist item's box as the web's theme draws it: outlined, or when
@@ -160,15 +229,24 @@ import UIKit
   /// DocumentText gives the block's style; `inset` is between it and the
   /// line's top and foot.
   private func placement(of line: NSTextLineFragment, at offset: Int) -> (inset: CGFloat, raise: CGFloat) {
-    guard storage.length > 0 else { return (0, 0) }
-    let paragraph = (storage.string as NSString).paragraphRange(
-      for: NSRange(location: min(offset, storage.length - 1), length: 0))
-    let end = max(NSMaxRange(paragraph) - 1, paragraph.location)
-    guard let style = storage.attribute(.paragraphStyle, at: end, effectiveRange: nil) as? NSParagraphStyle,
-      let font = storage.attribute(.font, at: end, effectiveRange: nil) as? UIFont, style.maximumLineHeight > 0
+    guard let end = blockEnd(at: offset),
+      let style = storage.attribute(.paragraphStyle, at: end, effectiveRange: nil) as? NSParagraphStyle,
+      let font = blockFont(at: offset), style.maximumLineHeight > 0
     else { return (0, 0) }
     let inset = max(line.typographicBounds.height - font.lineHeight, 0) / 2
     return (inset, line.glyphOrigin.y - inset - font.ascender)
+  }
+
+  /// Where the paragraph at `offset` ends, which has the block's own style.
+  private func blockEnd(at offset: Int) -> Int? {
+    guard storage.length > 0 else { return nil }
+    let paragraph = (storage.string as NSString).paragraphRange(
+      for: NSRange(location: min(offset, storage.length - 1), length: 0))
+    return max(NSMaxRange(paragraph) - 1, paragraph.location)
+  }
+
+  private func blockFont(at offset: Int) -> UIFont? {
+    blockEnd(at: offset).flatMap { storage.attribute(.font, at: $0, effectiveRange: nil) as? UIFont }
   }
 
   /// The space after the last paragraph, which ends the text.
@@ -240,16 +318,13 @@ import UIKit
     contentStorage.offset(from: contentStorage.documentRange.location, to: location)
   }
 }
-/// Draws a link as the web does, rather than in the tint colour.
+/// Colours a link as the web does, rather than in the tint colour, and
+/// underlines it not at all: `TextBox` draws its underline.
 private final class WebLinkLayoutManager: NSTextLayoutManager {
   static let link = DocumentTypography.web.link
 
   override func renderingAttributes(forLink link: Any, at location: any NSTextLocation) -> [NSAttributedString.Key: Any] {
-    let color = Self.link.color.color
-    return [
-      .foregroundColor: color, .underlineStyle: NSUnderlineStyle.single.rawValue,
-      .underlineColor: color.withAlphaComponent(Self.link.underlineOpacity),
-    ]
+    [.foregroundColor: Self.link.color.color]
   }
 }
 #endif
