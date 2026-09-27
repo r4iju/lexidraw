@@ -486,7 +486,7 @@ extension Update {
   /// `$isBlockElementNode`.
   private func isBlockElement(_ key: NodeKey) -> Bool { state[key].isElement && !state[key].isInline }
 
-  /// INDENT_CONTENT_COMMAND: nothing past six levels of list
+  /// INDENT_CONTENT_COMMAND: nothing past `maxListDepth` levels of list
   /// (`registerListMaxIndentLevel`), and otherwise every selected block one
   /// deeper.
   mutating func indentContent() throws {
