@@ -13,6 +13,26 @@ public struct Fuzzer {
 
   /// Commands both refused, which don't count as steps.
   public private(set) var refusals = 0
+  /// Sessions ended where Lexical made a node LexicalSwift doesn't edit yet.
+  public private(set) var sessionsEndedNotPortedYet = 0
+
+  /// The node types Lexical's markdown shortcuts make that LexicalSwift
+  /// doesn't edit yet, until the tickets that port them land.
+  public static let notPortedYet: Set<String> = [
+    "list", "listitem",  // #116
+    "code",  // #132
+  ]
+
+  /// Whether a step ends its session rather than disagreeing: LexicalSwift
+  /// refused as unsupported to make what Lexical made, a node of a type not
+  /// ported yet. Nothing after it could agree.
+  public static func isNotPortedYet(candidate: Fixture.Change, referenceBefore: Snapshot, referenceAfter: Snapshot)
+    -> Bool
+  {
+    guard candidate == .refused(.unsupported) else { return false }
+    let made = referenceAfter.state.nodeTypes.subtracting(referenceBefore.state.nodeTypes)
+    return !made.isDisjoint(with: notPortedYet)
+  }
 
   private let reference: any EditorModel
   private let candidate: any EditorModel
@@ -41,7 +61,12 @@ public struct Fuzzer {
       for _ in 0..<sessionLength where stepsRun < steps {
         guard let command = generator.command(for: try reference.snapshot()) else { break }
         commands.append(command)
-        guard let step = try agreedStep(command) else {
+        let verdict = try verdict(command)
+        if verdict == .notPortedYet {
+          sessionsEndedNotPortedYet += 1
+          break
+        }
+        guard case .agreed(let step) = verdict else {
           let script = try shrink((start, commands))
           let fixture = try Fixture.record(start: script.start, commands: script.commands, on: reference)
           return Finding(fixture: fixture, stepsRun: stepsRun)
@@ -67,12 +92,24 @@ public struct Fuzzer {
     Step(change: try Fixture.Change(applying: command, to: model), snapshot: try? model.snapshot())
   }
 
-  /// Applies `command` to both models: what both did, or nil where the
-  /// candidate did otherwise.
-  private func agreedStep(_ command: EditorCommand) throws -> Step? {
+  private enum Verdict: Equatable {
+    case agreed(Step)
+    case notPortedYet
+    case diverged
+  }
+
+  /// Applies `command` to both models, and says whether they agreed.
+  private func verdict(_ command: EditorCommand) throws -> Verdict {
+    let before = try? reference.snapshot()
     let candidateStep = try step(candidate, command)
     let referenceStep = try step(reference, command)
-    return candidateStep == referenceStep ? referenceStep : nil
+    if candidateStep == referenceStep { return .agreed(referenceStep) }
+    if let before, let after = referenceStep.snapshot,
+      Self.isNotPortedYet(candidate: candidateStep.change, referenceBefore: before, referenceAfter: after)
+    {
+      return .notPortedYet
+    }
+    return .diverged
   }
 
   /// Whether the script makes the candidate diverge. Only scripts the
@@ -88,7 +125,11 @@ public struct Fuzzer {
       guard let before = try? reference.snapshot(), Generator.isValid(command, in: before) else {
         return false
       }
-      if try agreedStep(command) == nil { return true }
+      switch try verdict(command) {
+      case .agreed: continue
+      case .notPortedYet: return false
+      case .diverged: return true
+      }
     }
     return false
   }
@@ -195,33 +236,59 @@ extension String {
   }
 }
 
-/// Random documents of paragraphs, text and line breaks, and random editing
-/// commands a user could issue against them.
+/// Random documents of paragraphs, headings, quotes and horizontal rules,
+/// with text and line breaks, and random editing commands a user could issue
+/// against them.
 struct Generator {
   private var random: SplitMix64
 
   /// Characters chosen to stress UTF-16 offsets and word boundaries: accents,
   /// combining marks, CJK, emoji that are several code units and several
-  /// scalars, and punctuation and spaces between words; and Japanese words,
-  /// which ICU segments with a dictionary as no space marks where they end.
+  /// scalars, and punctuation and spaces between words; Japanese words,
+  /// which ICU segments with a dictionary as no space marks where they end;
+  /// and what markdown shortcuts are typed with.
   private static let alphabet: [String] = [
     "a", "b", "z", " ", " ", ".", "_", "7", "é", "e\u{301}", "ß", "日", "本", "語", "한", "👍", "👍🏽",
-    "👨‍👩‍👧", "🇯🇵", "日本語", "東京", "話す", "を", "は", "ひらがな", "カタカナ",
+    "👨‍👩‍👧", "🇯🇵", "日本語", "東京", "話す", "を", "は", "ひらがな", "カタカナ", "#", ">", "*", "~", "=", "`", "-",
   ]
   private static let formats: [TextFormat] = [
     [], .bold, .italic, [.bold, .italic], .underline, .code, .subscript, .superscript,
   ]
   private static let styles = ["", "", "", "color: red;"]
+  private static let headingTags = ["h1", "h2", "h3", "h4", "h5", "h6"]
+  /// Markdown shortcuts, and some that aren't quite, to type a key at a
+  /// time, as they have to be to go off.
+  private static let shortcuts = [
+    "# ", "### ", "###### ", "####### ", "> ", "--- ", "*** ", "___ ", "*a*", "**a**", "***a***", "_a_", "__a__",
+    "~~a~~", "==a==", "`a`", "`**a**", "*a *", "a_b_", "- ", "7. ", "``` ",
+  ]
+  /// The rest of a shortcut being typed.
+  private var typing: [EditorCommand] = []
 
   init(seed: UInt64) {
     random = SplitMix64(seed: seed)
   }
 
   mutating func document() -> JSONValue {
-    LexicalJSON.document((0..<Int.random(in: 1...3, using: &random)).map { _ in paragraph() })
+    LexicalJSON.document((0..<Int.random(in: 1...3, using: &random)).map { _ in block() })
+  }
+
+  private mutating func block() -> JSONValue {
+    switch Int.random(in: 0..<8, using: &random) {
+    case 0: LexicalJSON.heading(Self.headingTags.randomElement(using: &random)!, inlineNodes())
+    case 1: LexicalJSON.quote(inlineNodes())
+    case 2: LexicalJSON.horizontalRule
+    default: paragraph()
+    }
   }
 
   private mutating func paragraph() -> JSONValue {
+    LexicalJSON.paragraph(
+      inlineNodes(), textFormat: Self.formats.randomElement(using: &random)!,
+      textStyle: Self.styles.randomElement(using: &random)!)
+  }
+
+  private mutating func inlineNodes() -> [JSONValue] {
     var children: [JSONValue] = []
     var previous: (format: TextFormat, style: String)?
     for _ in 0..<Int.random(in: 0...4, using: &random) {
@@ -240,9 +307,7 @@ struct Generator {
       previous = (format, style)
       children.append(LexicalJSON.text(text(1...5), format: format, style: style))
     }
-    return LexicalJSON.paragraph(
-      children, textFormat: Self.formats.randomElement(using: &random)!,
-      textStyle: Self.styles.randomElement(using: &random)!)
+    return children
   }
 
   /// Whether a user could issue `command` against `state`: a point in text
@@ -259,13 +324,16 @@ struct Generator {
     }
   }
 
-  /// Where the focus's line starts or ends, taken to be where its paragraph
+  /// The blocks of text a caret can be in.
+  private static let textBlocks: Set<String> = ["paragraph", "heading", "quote"]
+
+  /// Where the focus's line starts or ends, taken to be where its block
   /// does, as in a view too wide to wrap it.
   static func lineBoundary(in snapshot: Snapshot, backward: Bool) -> Point {
     guard let focus = snapshot.selection?.focus else { return Point(path: [], offset: 0, type: .element) }
     let path = focus.type == .element ? focus.path : focus.path.dropLast()
-    guard let paragraph = snapshot.state.node(at: Array(path)), paragraph["type"] == "paragraph",
-      let children = paragraph["children"]?.arrayValue
+    guard let block = snapshot.state.node(at: Array(path)), let type = block["type"]?.stringValue,
+      textBlocks.contains(type), let children = block["children"]?.arrayValue
     else { return focus }
     let index = backward ? 0 : children.count - 1
     guard children.indices.contains(index), let text = children[index]["text"]?.stringValue else {
@@ -281,7 +349,7 @@ struct Generator {
       switch node["type"]?.stringValue {
       case "text":
         return graphemeBoundaries(of: node["text"]?.stringValue ?? "").map { .text(path, $0) }
-      case "paragraph":
+      case let type? where textBlocks.contains(type):
         let isText = (node["children"]?.arrayValue ?? []).map { $0["type"] == "text" }
         return (0...isText.count).filter { offset in
           (offset == 0 || !isText[offset - 1]) && (offset == isText.count || !isText[offset])
@@ -297,6 +365,7 @@ struct Generator {
   }
 
   mutating func command(for snapshot: Snapshot) -> EditorCommand? {
+    if !typing.isEmpty { return typing.removeFirst() }
     let roll = Int.random(in: 0..<100, using: &random)
     let backward = Int.random(in: 0..<3, using: &random) > 0
     switch roll {
@@ -307,13 +376,21 @@ struct Generator {
       guard let anchor = points.randomElement(using: &random) else { return .selectAll }
       let isRange = Int.random(in: 0..<3, using: &random) == 0
       return .setSelection(anchor: anchor, focus: isRange ? points.randomElement(using: &random)! : anchor)
-    case ..<22: return .insertText(text(1...3))
+    case ..<12: return .insertText(text(1...3))
+    case ..<22:
+      typing = Self.shortcuts.randomElement(using: &random)!.map { .insertText(String($0)) }
+      let blockStarts = Self.points(in: snapshot.state).filter { $0.offset == 0 }
+      if Bool.random(using: &random), let start = blockStarts.randomElement(using: &random) {
+        return .setSelection(anchor: start, focus: start)
+      }
+      return typing.removeFirst()
     case ..<34: return .deleteCharacter(backward: backward)
     case ..<39: return .deleteWord(backward: backward)
     case ..<42: return .deleteLine(backward: backward, lineBoundary: Self.lineBoundary(in: snapshot, backward: backward))
     case ..<49: return .insertParagraph
     case ..<54: return .insertLineBreak
-    case ..<62: return .formatText(TextFormatType.allCases.randomElement(using: &random)!)
+    case ..<60: return .formatText(TextFormatType.allCases.randomElement(using: &random)!)
+    case ..<62: return .setBlockType(BlockType.allCases.randomElement(using: &random)!)
     case ..<64: return .selectAll
     case ..<70: return .wait(milliseconds: [500, 1000, 2000].randomElement(using: &random)!)
     case ..<94: return .undo

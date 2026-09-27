@@ -108,6 +108,11 @@ extension JSONValue {
     return self["root"].map { walk($0, []) } ?? []
   }
 
+  /// The types of every node in a serialized editor state.
+  var nodeTypes: Set<String> {
+    Set(nodePaths().compactMap { node(at: $0)?["type"]?.stringValue })
+  }
+
   func node(at path: [Int]) -> JSONValue? {
     path.reduce(self["root"]) { node, index in
       node?["children"]?.arrayValue.flatMap { $0.indices.contains(index) ? $0[index] : nil }

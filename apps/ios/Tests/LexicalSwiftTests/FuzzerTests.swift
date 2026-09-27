@@ -103,6 +103,42 @@ import Testing
     #expect(try first.run(steps: 500)?.fixture == second.run(steps: 500)?.fixture)
   }
 
+  @Test func theTypesNotPortedYetAreListsAndCodeBlocks() {
+    #expect(Fuzzer.notPortedYet == ["list", "listitem", "code"])
+  }
+
+  /// Typing "- " makes a list in Lexical, which LexicalSwift refuses to.
+  private func typingAListShortcut() throws -> (fixture: Fixture, candidate: Fixture.Outcome, before: Snapshot) {
+    let reference = try Support.referenceEditor()
+    let start = document(paragraph())
+    let caret = EditorCommand.caret(Point(path: [0], offset: 0, type: .element))
+    let before = try Fixture.record(start: start, commands: [caret, .insertText("-")], on: reference).expected
+    let fixture = try Fixture.record(
+      start: start, commands: [caret, .insertText("-"), .insertText(" ")], on: reference)
+    return (fixture, try fixture.replay(on: Editor()), before)
+  }
+
+  @Test func aSessionEndsWhereLexicalMakesWhatLexicalSwiftDoesNotEditYet() throws {
+    let (fixture, candidate, before) = try typingAListShortcut()
+
+    #expect(
+      Fuzzer.isNotPortedYet(candidate: candidate.changes.last!, referenceBefore: before, referenceAfter: fixture.expected))
+  }
+
+  @Test func doingOtherwiseWhereLexicalMakesWhatLexicalSwiftDoesNotEditYetDisagrees() throws {
+    let (fixture, _, before) = try typingAListShortcut()
+
+    #expect(
+      !Fuzzer.isNotPortedYet(
+        candidate: .applied(ChangeSet(changed: [[0]])), referenceBefore: before, referenceAfter: fixture.expected))
+  }
+
+  @Test func refusingAsUnsupportedWhereLexicalMakesNothingNewDisagrees() throws {
+    let (_, _, before) = try typingAListShortcut()
+
+    #expect(!Fuzzer.isNotPortedYet(candidate: .refused(.unsupported), referenceBefore: before, referenceAfter: before))
+  }
+
   /// The differential check proper. Budget and seed come from FUZZ_STEPS and
   /// FUZZ_SEED; every divergence is written as a fixture to commit.
   @Test func lexicalSwiftMatchesTheReference() throws {
@@ -121,7 +157,9 @@ import Testing
       let url = try finding.fixture.write(into: Support.fixturesSource)
       Issue.record("Seed \(seed) diverged after \(finding.stepsRun) steps; shrunk fixture written to \(url.path)")
     } else {
-      print("Seed \(seed): \(steps) steps agreed, and \(fuzzer.refusals) commands both refused")
+      print(
+        "Seed \(seed): \(steps) steps agreed, \(fuzzer.refusals) commands both refused, and "
+          + "\(fuzzer.sessionsEndedNotPortedYet) sessions ended where Lexical made a node not ported yet")
     }
   }
 }
