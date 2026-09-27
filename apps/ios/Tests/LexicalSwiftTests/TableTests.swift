@@ -5,6 +5,8 @@ import Testing
 /// Tables as the web edits them: each script runs on the reference, which
 /// says what Lexical does, and LexicalSwift has to agree with it.
 @Suite struct TableTests {
+  init() {}
+
   /// The script's fixture as the reference records it, once LexicalSwift
   /// has been checked against it.
   private func agreed(_ start: JSONValue, _ commands: [EditorCommand]) throws -> Fixture {
@@ -64,10 +66,10 @@ import Testing
     #expect(back.expected.selection?.anchor.path.first == 0)
   }
 
-  @Test func tabOutsideACellIsRefused() throws {
+  @Test func tabOutsideACellIsTabIndentations() throws {
     let fixture = try agreed(grid, [.caret(.text([0, 0], 1)), .tab(backward: false)])
 
-    #expect(fixture.changes == [.applied(ChangeSet()), .refused(.unsupported)])
+    #expect(node(fixture.expected, [0, 1])?["type"] == "tab")
   }
 
   @Test func aRangeFromCellToCellBecomesATableSelection() throws {
