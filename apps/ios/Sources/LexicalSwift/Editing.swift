@@ -530,8 +530,10 @@ extension Update {
     try insertText(selection, text)
   }
 
+  /// `$isTokenOrSegmented`, which a tab is too.
   func isTokenOrSegmented(_ key: NodeKey) -> Bool {
-    state[key].textNode.map { $0.mode == .token || $0.mode == .segmented } ?? false
+    if state[key].type == SerializedTabNode.type { return true }
+    return state[key].textNode.map { $0.mode == .token || $0.mode == .segmented } ?? false
   }
 
   /// Lexical's `$transferStartingElementPointToTextPoint`: puts empty text

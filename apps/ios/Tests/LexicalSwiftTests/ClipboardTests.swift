@@ -35,6 +35,8 @@ func plain(_ text: String) -> EditorCommand { .paste(Clipboard(plainText: text))
       [.setSelection(anchor: Point(path: [0], offset: 3, type: .element), focus: .text([0, 2], 1)), .copy]),
     Scenario("copying part of a heading", document(heading("h2", text("hello"))), [select([0, 0], 1, [0, 0], 4), .copy]),
     Scenario("copying part of a quote", document(quote(text("hello"))), [select([0, 0], 1, [0, 0], 4), .copy]),
+    Scenario("copying up to a tab", document(paragraph(text("ab"), LexicalJSON.tab())), [select([0, 0], 0, [0, 1], 0), .copy]),
+    Scenario("copying from after a tab", document(paragraph(LexicalJSON.tab(), text("ab"))), [select([0, 0], 1, [0, 1], 2), .copy]),
     Scenario(
       "pasting part of a heading", twoParagraphs, [caret([0, 0], 1), .paste(copied("ell", heading("h2", text("ell"))))]),
     Scenario("copying inside a link", linked, [select([0, 1, 0], 1, [0, 1, 0], 5), .copy]),
