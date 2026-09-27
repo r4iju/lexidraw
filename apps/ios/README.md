@@ -118,9 +118,9 @@ hand:
   what to do next belong to #130, which brings document editing.
 - Until saving comes, documents open in the editor as a preview: edits work,
   and a notice above the document says they aren't saved. A document the
-  user may only read says so instead, and takes no keyboard; selecting its
-  text waits for copy (#118). So does one with a node LexicalSwift doesn't
-  edit yet, and the notice says why.
+  user may only read says so instead, and brings up no keyboard, but its
+  text can be selected and copied. So does one with a node LexicalSwift
+  doesn't edit yet, and the notice says why.
 - The share extension signs in with the app's token through a Keychain
   access group named for the app's own App ID, the group the token was
   already kept in. So it needs no app group and no capability in the portal,

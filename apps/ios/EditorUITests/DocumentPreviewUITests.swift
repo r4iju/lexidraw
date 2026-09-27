@@ -15,9 +15,8 @@ final class DocumentPreviewUITests: XCTestCase {
     let notice = app.staticTexts["Preview: changes aren’t saved"]
     XCTAssertTrue(notice.waitForExistence(timeout: 10))
 
-    let editor = app.textViews.firstMatch
-    editor.tap()
-    editor.typeText("Typed in the preview")
+    XCTAssertTrue(offersKeyboard(app))
+    app.textViews.firstMatch.typeText("Typed in the preview")
 
     XCTAssertTrue(notice.isHittable)
     XCTAssertEqual(requests(in: app), "entities-load")
@@ -29,6 +28,20 @@ final class DocumentPreviewUITests: XCTestCase {
     XCTAssertTrue(app.staticTexts["Read only"].waitForExistence(timeout: 10))
     XCTAssertFalse(app.staticTexts["Preview: changes aren’t saved"].exists)
     XCTAssertFalse(offersKeyboard(app))
+  }
+
+  /// Reading is what a read-only document is for, so a word pressed on is
+  /// selected and offered to copy, and nothing that would edit is offered.
+  func testAReadOnlyDocumentOffersToCopyWhatIsSelected() {
+    let app = open(access: "READ")
+    XCTAssertTrue(app.staticTexts["Read only"].waitForExistence(timeout: 10))
+
+    app.textViews.firstMatch.press(forDuration: 1)
+
+    XCTAssertTrue(app.menuItems["Copy"].waitForExistence(timeout: 5))
+    XCTAssertFalse(app.menuItems["Cut"].exists)
+    XCTAssertFalse(app.menuItems["Paste"].exists)
+    XCTAssertEqual(app.keyboards.count, 0)
   }
 
   func testADocumentTheAppCantEditYetOpensReadOnlyAndShowsWhatItCantShowYet() {
@@ -74,12 +87,11 @@ final class DocumentPreviewUITests: XCTestCase {
     return app
   }
 
-  /// Whether a tap gives the editor the keyboard, the hardware one included.
+  /// Whether a tap on the editor brings up the keyboard. A read-only editor
+  /// still takes focus, for its text to be selected and copied.
   private func offersKeyboard(_ app: XCUIApplication) -> Bool {
-    let editor = app.textViews.firstMatch
-    editor.tap()
-    let focused = XCTNSPredicateExpectation(predicate: NSPredicate(format: "hasKeyboardFocus == true"), object: editor)
-    return XCTWaiter().wait(for: [focused], timeout: 3) == .completed
+    app.textViews.firstMatch.tap()
+    return app.keyboards.firstMatch.waitForExistence(timeout: 3)
   }
 
   /// The operations the harness's server was asked for, in order.

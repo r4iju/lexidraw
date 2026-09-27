@@ -40,50 +40,65 @@ import UIKit
     #expect(try text(afterPressing: "\u{7F}", .alternate, in: "one two", caretAt: 0) == " two")
   }
 
-  /// A document the user may only read takes no keyboard, and no edit
+  /// A document the user may only read shows no keyboard, and no edit
   /// reaches it however it is asked for.
   @Test func aReadOnlyViewTakesNoEdits() throws {
-    let model = Editor()
-    let document = LexicalJSON.document([LexicalJSON.paragraph([LexicalJSON.text("one two")])])
-    try model.load(document)
-    let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 600))
-    let view = EditorView(model: model, isEditable: false)
-    view.frame = window.bounds
-    window.addSubview(view)
-    window.makeKeyAndVisible()
-    view.layoutIfNeeded()
+    let (view, model) = try editing(Self.linked, isEditable: false)
+    let document = try model.snapshot().state
+    view.pasteboard.string = "pasted"
+    view.askForURL = { _, answer in answer("https://x.io") }
 
-    #expect(!view.becomeFirstResponder())
-    let three = try #require(view.position(from: view.beginningOfDocument, offset: 3))
-    let one = try #require(view.textRange(from: view.beginningOfDocument, to: three))
-    view.selectedTextRange = one
+    #expect((view as any UITextInput).isEditable == false)
+    select(view, 0, 3)
     view.toggleBoldface(nil)
     view.insertText("!")
     view.deleteBackward()
-    view.replace(one, withText: "1")
+    view.replace(try #require(range(view, 0, 3)), withText: "1")
     view.setMarkedText("か", selectedRange: NSRange(location: 1, length: 0))
     view.unmarkText()
+    view.cut(nil)
+    view.paste(nil)
+    view.addLink()
+    select(view, 6, 6)
+    view.editLink()
+    view.removeLink()
     view.undoManager?.undo()
 
     #expect(try model.snapshot().state == document)
+    #expect(view.pasteboard.string == "pasted")
+  }
+
+  /// Reading is what a read-only document is for, so its text can be
+  /// selected and copied.
+  @Test func aReadOnlyViewCopiesTheSelection() throws {
+    let (view, _) = try editing(LexicalJSON.paragraph([LexicalJSON.text("hello world")]), isEditable: false)
+    select(view, 6, 11)
+
+    #expect(view.canPerformAction(#selector(UIResponderStandardEditActions.copy(_:)), withSender: nil))
+    view.copy(nil)
+
+    #expect(view.pasteboard.string == "world")
   }
 
   /// What would edit isn't offered on a read-only view, in the edit menu or
   /// on a hardware keyboard.
   @Test func aReadOnlyViewOffersNothingThatEdits() throws {
-    let model = Editor()
-    try model.load(LexicalJSON.document([LexicalJSON.paragraph([LexicalJSON.text("one two")])]))
-    let view = EditorView(model: model, isEditable: false)
+    let (view, _) = try editing(Self.linked, isEditable: false)
+    view.pasteboard.string = "pasted"
+    select(view, 0, 3)
 
     for action in [
       #selector(UIResponder.toggleBoldface(_:)), #selector(UIResponder.toggleItalics(_:)),
-      #selector(UIResponder.toggleUnderline(_:)),
+      #selector(UIResponder.toggleUnderline(_:)), #selector(UIResponderStandardEditActions.cut(_:)),
+      #selector(UIResponderStandardEditActions.paste(_:)),
     ] {
       #expect(!view.canPerformAction(action, withSender: nil), "\(action)")
     }
     #expect(view.canPerformAction(#selector(UIResponder.selectAll(_:)), withSender: nil))
+    #expect(linkActions(view, 0, 3) == [])
+    #expect(linkActions(view, 6, 6) == ["Open Link"])
     let keys = view.keyCommands ?? []
-    #expect(!keys.contains { [UIKeyCommand.inputDelete, "\u{7F}", "\r"].contains($0.input) })
+    #expect(!keys.contains { [UIKeyCommand.inputDelete, "\u{7F}", "\r", "k"].contains($0.input) })
     #expect(keys.contains { $0.input == UIKeyCommand.inputLeftArrow && $0.modifierFlags.isEmpty })
   }
 
@@ -316,11 +331,11 @@ import UIKit
   }
 
   /// A view editing a document of `blocks` in a window, first responder.
-  private func editing(_ blocks: JSONValue...) throws -> (EditorView, Editor) {
+  private func editing(_ blocks: JSONValue..., isEditable: Bool = true) throws -> (EditorView, Editor) {
     let model = Editor()
     try model.load(LexicalJSON.document(blocks))
     let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 600))
-    let view = EditorView(model: model)
+    let view = EditorView(model: model, isEditable: isEditable)
     view.pasteboard = UIPasteboard.withUniqueName()
     view.frame = window.bounds
     window.addSubview(view)

@@ -17,8 +17,10 @@ public final class EditorView: UIScrollView, UITextInput {
   private static let log = Logger(subsystem: "TextKitEditor", category: "EditorView")
 
   private let model: any EditorModel
-  /// Whether the user may change the document. A view that isn't takes no
-  /// keyboard, and sends the model nothing that edits.
+  /// Whether the user may change the document. A view that isn't still
+  /// becomes first responder, for its text to be selected and copied, but
+  /// UIKit shows no keyboard for it, as `UITextInput.isEditable` asks, and
+  /// it sends the model nothing that edits.
   public let isEditable: Bool
   private let document: DocumentText
   private let storage = NSTextStorage()
@@ -214,7 +216,7 @@ public final class EditorView: UIScrollView, UITextInput {
     onInput?(TextInputRecord(call: call, text: storage.string, marked: composition?.marked))
   }
 
-  public override var canBecomeFirstResponder: Bool { isEditable }
+  public override var canBecomeFirstResponder: Bool { true }
 
   /// A model with no selection yet takes the view's, so typing has
   /// somewhere to go.
@@ -567,8 +569,10 @@ public final class EditorView: UIScrollView, UITextInput {
       isEditable
     case #selector(selectAll(_:)):
       true
-    case #selector(copy(_:)), #selector(cut(_:)): selected.length > 0
-    case #selector(paste(_:)): pasteboard.hasStrings || pasteboard.contains(pasteboardTypes: [Self.lexicalType])
+    case #selector(copy(_:)): selected.length > 0
+    case #selector(cut(_:)): isEditable && selected.length > 0
+    case #selector(paste(_:)):
+      isEditable && (pasteboard.hasStrings || pasteboard.contains(pasteboardTypes: [Self.lexicalType]))
     case #selector(makeTextWritingDirectionLeftToRight(_:)), #selector(makeTextWritingDirectionRightToLeft(_:)):
       false
     default: super.canPerformAction(action, withSender: sender)
@@ -752,13 +756,15 @@ public final class EditorView: UIScrollView, UITextInput {
       }
     }
     if link(at: caret ?? range.location) != nil {
+      let open = action("Open Link", "safari") { $0.openLink() }
+      guard isEditable else { return [open] }
       return [
-        action("Open Link", "safari") { $0.openLink() },
+        open,
         action("Edit Link…", "pencil") { $0.editLink() },
         action("Remove Link", "link.badge.minus") { $0.removeLink() },
       ]
     }
-    guard range.length > 0 else { return [] }
+    guard isEditable, range.length > 0 else { return [] }
     return [action("Add Link…", "link") { $0.addLink() }]
   }
 
@@ -797,7 +803,7 @@ extension EditorCommand {
   /// selection is.
   fileprivate var edits: Bool {
     switch self {
-    case .setSelection, .selectAll, .wait: false
+    case .setSelection, .selectAll, .wait, .copy: false
     default: true
     }
   }
