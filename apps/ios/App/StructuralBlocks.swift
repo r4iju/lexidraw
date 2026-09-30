@@ -65,6 +65,7 @@ import UIKit
   }
   private let stack = UIStackView()
   private var columns: UIStackView?
+  private var columnSpacer: UIView?
   private var columnWeights: [CGFloat] = []
   private var columnWidths: [NSLayoutConstraint] = []
   private var bodies: [EditorView] = []
@@ -142,6 +143,7 @@ import UIKit
     }
     bodies = []
     columns = nil
+    columnSpacer = nil
     columnWidths.forEach { $0.isActive = false }
     columnWidths = []
     insets = .zero
@@ -280,7 +282,8 @@ import UIKit
       return CGFloat(number)
     }
     let children = node["children"]?.arrayValue ?? []
-    guard columnWeights.count == children.count, columnWeights.allSatisfy({ $0 > 0 && $0.isFinite }) else {
+    guard columnWeights.count == children.count, columnWeights.allSatisfy({ $0 > 0 && $0.isFinite }),
+      columnWeights.reduce(0, +).isFinite else {
       label("This CSS column template is not supported by native layout (#133): \(template)")
       return
     }
@@ -753,14 +756,29 @@ import UIKit
       // The web stacks columns in compact document containers.
       columnWidths.forEach { $0.isActive = false }
       columnWidths = []
+      if let columnSpacer {
+        columns.removeArrangedSubview(columnSpacer)
+        columnSpacer.removeFromSuperview()
+        self.columnSpacer = nil
+      }
       columns.axis = width <= StructuralBlockConfiguration.stackedColumnsWidth ? .vertical : .horizontal
       if columns.axis == .horizontal {
         let total = columnWeights.reduce(0, +)
         let available = max(1, inner - CGFloat(max(columnWeights.count - 1, 0)) * columns.spacing)
         for (index, view) in columns.arrangedSubviews.enumerated() where columnWeights.indices.contains(index) {
-          let constraint = view.widthAnchor.constraint(equalToConstant: available * columnWeights[index] / total)
+          let constraint = view.widthAnchor.constraint(equalToConstant: available * columnWeights[index] / max(1, total))
           constraint.isActive = true
           columnWidths.append(constraint)
+        }
+        // Fraction factors below one request only that share of the free space.
+        if total < 1 {
+          let spacer = UIView()
+          if let last = columns.arrangedSubviews.last { columns.setCustomSpacing(0, after: last) }
+          columns.addArrangedSubview(spacer)
+          let constraint = spacer.widthAnchor.constraint(equalToConstant: available * (1 - total))
+          constraint.isActive = true
+          columnWidths.append(constraint)
+          columnSpacer = spacer
         }
       }
     }

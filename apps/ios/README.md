@@ -717,3 +717,10 @@ autosave rebuild lost resize selection (the second drag moved without increasing
 width), then green after retaining the selected element ID. These checks cover
 actual app document-screen controls; broader VoiceOver narration and every nested
 panel combination remain device verification work.
+
+
+Fractional tracks whose factors total less than one leave the remaining free
+space unused, following [CSS Grid’s fractional-track rule](https://www.w3.org/TR/css-grid-2/#fr-unit).
+The landscape UI fixture `0.25fr 0.25fr` was observed red when each column occupied
+half the row, then green with the unused half retained. Compact layout still
+stacks those columns; the spacer participates only in wide layout.

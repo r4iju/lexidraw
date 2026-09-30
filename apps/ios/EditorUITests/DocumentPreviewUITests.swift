@@ -152,6 +152,21 @@ final class DocumentPreviewUITests: XCTestCase {
     add(after)
   }
 
+  func testFractionalColumnsBelowOneLeaveTheRemainingSpaceEmpty() {
+    XCUIDevice.shared.orientation = .landscapeLeft
+    defer { XCUIDevice.shared.orientation = .portrait }
+    let paragraph: JSONValue = ["type": "paragraph", "version": 1, "children": []]
+    let item: JSONValue = ["type": "layout-item", "version": 1, "children": [paragraph]]
+    let document = LexicalJSON.document([["type": "layout-container", "version": 1,
+      "templateColumns": "0.25fr 0.25fr", "children": [item, item]]])
+    let app = open(access: "EDIT", document: document)
+    let column = app.buttons["Edit column 1"]
+    XCTAssertTrue(column.waitForExistence(timeout: 10))
+    XCTAssertGreaterThan(app.frame.width, 600)
+    XCTAssertGreaterThan(column.frame.width, app.frame.width * 0.15)
+    XCTAssertLessThan(column.frame.width, app.frame.width * 0.35)
+  }
+
   private func open(access: String, document: JSONValue? = nil) -> XCUIApplication {
     let app = XCUIApplication()
     app.launchEnvironment["EDITOR_PREVIEW_ACCESS"] = access
