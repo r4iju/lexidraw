@@ -573,3 +573,26 @@ code formatting, highlighted-text edits, copy/cut/paste around code, source
 replacement/undo, rejected children, tabs and selected rules. Rendered source
 editing on a physical device remains a release integration check. This work
 does not close #119's performance or dictation gates.
+
+## Social and reference nodes (#134)
+
+Emoji shortcodes use the web's `EMOJI` markdown transformer and generated alias
+table, producing ordinary Unicode text. Unknown aliases retain their text;
+the shared markdown pipeline still splits it and moves selection like Lexical.
+Imported table cells apply the same shortcode replacement, including its reset
+of text formatting. The fuzzer generates known and unknown shortcodes and stored
+normal-mode hashtag nodes.
+
+The main `document-editor.tsx` mounts `EmojiPickerPlugin` and markdown shortcuts,
+but does not mount `MentionsPlugin`, `KeywordsPlugin`, `EmojisPlugin`, or
+`HashtagPlugin`. Native main-editor typing follows that effective behavior:
+it does not automatically turn mentions, hashtags, congratulations, or emoticons
+into nodes. Hashtag transforms belong to the caption and slide editors that
+actually mount that plugin. Stored normal-mode hashtags support native text
+editing boundaries and splitting. They have no extra effective web color:
+upstream `HashtagNode.createDOM` reads `theme.hashtag`, while the current theme
+puts its unused hashtag class under `theme.text.hashtag`.
+
+This checkpoint does not complete #134. Polls, comments, threads, mentions,
+stored emoji and keyword nodes, footnotes, and articles retain their explicit
+unported editing gate until their native behavior is implemented.

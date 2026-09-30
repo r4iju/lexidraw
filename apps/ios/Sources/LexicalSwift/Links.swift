@@ -6,7 +6,7 @@ extension Node {
 
   /// Lexical's `canInsertTextBefore`: whether typing at the start of the
   /// node goes into it.
-  var canInsertTextBefore: Bool { !isLink && type != SerializedTabNode.type }
+  var canInsertTextBefore: Bool { !isLink && type != SerializedTabNode.type && type != SerializedHashtagNode.type }
 
   var canInsertTextAfter: Bool { !isLink && type != SerializedTabNode.type }
 }

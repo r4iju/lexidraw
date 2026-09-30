@@ -346,12 +346,9 @@ extension Update {
     let units = Array(state[key].text.utf16)
     let end = min(offset + count, units.count)
     let spliced = Array(units[..<offset]) + Array(text.utf16) + Array(units[end...])
-    let value = String(decoding: spliced, as: UTF16.self)
-    switch state[key].payload {
-    case .text(var node): node.text = value; state.nodes[key]!.payload = .text(node)
-    case .codeHighlight(var node): node.text = value; state.nodes[key]!.payload = .codeHighlight(node)
-    default: return
-    }
+    guard var node = state[key].payload.textFields else { return }
+    node.text = String(decoding: spliced, as: UTF16.self)
+    state.nodes[key]!.payload.textFields = node
   }
 
   /// Lexical's `TextNode.splitText`: the node keeps the first part and new

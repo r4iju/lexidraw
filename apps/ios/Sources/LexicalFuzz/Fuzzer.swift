@@ -317,6 +317,7 @@ struct Generator {
     "[x] ", "- [ ] ", "\t- ", "``` ", "[a](b)", "[a]()", "[[a](b)", "[a](<b c> \"t\")", "[a](https://x.io)",
     "![a](b)", "[a](b\\))", "[a](\\a)", "[a](&#33;)", "[a](\\&#33;)", "[a](&#128077)", "[a](b \"\\\"t\")",
     "|a| ", "|a|b| ", "|---| ", "|:---:|---:| ",
+    ":smile:", ":heart:", ":unknown_native_sample:", "a:smile:b", "|:smile:| ",
   ]
   /// The rest of a shortcut being typed.
   private var typing: [EditorCommand] = []
@@ -463,7 +464,7 @@ struct Generator {
         previous = nil
         continue
       // An autolink stays linked only where a separator or nothing is beside it.
-      case 4 where !isAfterLink:
+      case 4 where !isAfterLink && children.last?["type"] != "hashtag":
         if case .object(var last)? = children.last, let text = last["text"]?.stringValue, last["type"] == "text" {
           last["text"] = .string(text + " ")
           children[children.count - 1] = .object(last)
@@ -473,6 +474,13 @@ struct Generator {
           LexicalJSON.autoLink(
             link.url, [LexicalJSON.text(link.text, format: Self.formats.randomElement(using: &random)!)],
             isUnlinked: Int.random(in: 0..<4, using: &random) == 0))
+        previous = nil
+        continue
+      case 5 where !isAfterLink:
+        if case .object(var node) = LexicalJSON.text("#" + text(1...5), format: Self.formats.randomElement(using: &random)!) {
+          node["type"] = "hashtag"
+          children.append(.object(node))
+        }
         previous = nil
         continue
       default: break

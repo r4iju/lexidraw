@@ -241,7 +241,7 @@ enum MarkdownImport {
       next = [after, before, transformed]
     } else if let match {
       switch match.transformer.name {
-      case .placeholderInline, .link: break
+      case .placeholderInline, .link, .emoji: break
       default:
         try requirePorted(match.transformer.name)
         throw EditorError.unsupported("Importing the markdown \(match.transformer.name.rawValue)")
@@ -251,7 +251,15 @@ enum MarkdownImport {
         ? split(piece, at: [match.end], in: &pieces) : split(piece, at: [match.start, match.end], in: &pieces)
       let transformed = match.start == 0 ? parts[0] : parts[1]
       // The placeholder's `replace` leaves it as text.
-      let replaced = match.transformer.name == .link ? try replaceLink(transformed, match.groups, in: &pieces) : nil
+      let replaced: Piece?
+      if match.transformer.name == .link {
+        replaced = try replaceLink(transformed, match.groups, in: &pieces)
+      } else if match.transformer.name == .emoji, let name = match.groups[1], let emoji = WebEmojiAliases.values[name] {
+        let replacement = Piece(Text(emoji.utf16), link: transformed.link)
+        let index = pieces.firstIndex { $0 === transformed }!
+        pieces[index] = replacement
+        replaced = replacement
+      } else { replaced = nil }
       next = match.start == 0 ? [parts[safe: 1], nil, replaced] : [parts[safe: 2], parts.first, replaced]
     }
     for case let piece? in next where piece.canContainTransformableMarkdown {

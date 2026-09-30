@@ -273,6 +273,7 @@ struct NodeFields {
 
 /// What every TextNode holds, a TabNode's included.
 protocol TextPayload: NodePayload {
+  var text: String? { get set }
   var detail: Double? { get set }
   var format: Double? { get set }
   var style: String? { get set }
@@ -281,6 +282,7 @@ protocol TextPayload: NodePayload {
 extension SerializedTextNode: TextPayload {}
 extension SerializedCodeHighlightNode: TextPayload {}
 extension SerializedTabNode: TextPayload {}
+extension SerializedHashtagNode: TextPayload {}
 
 extension SerializedNode {
   /// The text's properties, for the text editing is ported for.
@@ -290,6 +292,7 @@ extension SerializedNode {
       case .text(let node): node
       case .codeHighlight(let node): node
       case .tab(let node): node
+      case .hashtag(let node): node
       default: nil
       }
     }
@@ -298,6 +301,7 @@ extension SerializedNode {
       case let node as SerializedTextNode: self = .text(node)
       case let node as SerializedCodeHighlightNode: self = .codeHighlight(node)
       case let node as SerializedTabNode: self = .tab(node)
+      case let node as SerializedHashtagNode: self = .hashtag(node)
       default: break
       }
     }

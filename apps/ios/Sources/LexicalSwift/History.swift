@@ -90,11 +90,11 @@ struct History {
       else { return .other }
       return .insertCharacterAfterSelection
     }
-    guard let before = previous.nodes[dirtyNode]?.textNode, let after = next.nodes[dirtyNode]?.textNode,
-      before.mode == after.mode, !(before.text ?? "").isIdentical(to: after.text ?? ""), nextAnchor.key == previousAnchor.key,
+    guard let before = previous.nodes[dirtyNode], let after = next.nodes[dirtyNode], before.isText, after.isText,
+      before.textMode == after.textMode, !before.text.isIdentical(to: after.text), nextAnchor.key == previousAnchor.key,
       nextAnchor.type == .text
     else { return .other }
-    let textDiff = (after.text ?? "").utf16.count - (before.text ?? "").utf16.count
+    let textDiff = after.text.utf16.count - before.text.utf16.count
     switch (textDiff, previousAnchor.offset - nextAnchor.offset) {
     case (1, -1): return .insertCharacterAfterSelection
     case (-1, 1): return .deleteCharacterBeforeSelection
