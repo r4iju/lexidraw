@@ -346,9 +346,15 @@ extension Update {
   private mutating func runOnTable(_ command: EditorCommand) throws {
     switch command {
     case .insertTable(let rows, let columns): try insertDocumentTable(rows: rows, columns: columns)
-    case .insertTableRow(let after): try insertTableRowAtSelection(after: after)
+    case .insertTableRow(let after): try insertDocumentTableRows(after: after)
     case .insertTableColumn(let after): try insertDocumentTableColumns(after: after)
     case .deleteTableRow: try deleteTableRowAtSelection()
+    case .deleteTable: try deleteTableFromMenu()
+    case .toggleTableRowHeader: try toggleTableRowHeaderFromMenu()
+    case .toggleTableColumnHeader: try toggleTableColumnHeaderFromMenu()
+    case .setTableCellBackground(let color): try setTableCellBackgroundFromMenu(color)
+    case .mergeTableCells: try mergeTableCellsFromMenu()
+    case .unmergeTableCell: try unmergeTableCellFromMenu()
     case .deleteTableColumn: try deleteTableColumnAtSelection()
     default: throw EditorError.unsupported(command.name)
     }

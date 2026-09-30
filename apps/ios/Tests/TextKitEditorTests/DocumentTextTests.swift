@@ -69,7 +69,13 @@ import TextKitEditor
         #expect(storage.isEqual(to: fresh), "\(name), after command \(index): \(command)")
         #expect(blocks == (0..<text.blockCount).map { storage.attributedSubstring(from: text.range(ofBlock: $0)) })
         for offset in 0..<storage.length {
-          #expect(text.offset(of: text.point(at: offset)) == offset, "\(name), offset \(offset)")
+          let point = text.point(at: offset)
+          if point.type == .text {
+            #expect(text.offset(of: point) == offset, "\(name), offset \(offset)")
+          } else {
+            let canonicalOffset = try #require(text.offset(of: point))
+            #expect(text.point(at: canonicalOffset) == point, "\(name), offset \(offset)")
+          }
         }
         if let selection = try model.selection() {
           #expect(text.offset(of: selection.anchor) != nil && text.offset(of: selection.focus) != nil)

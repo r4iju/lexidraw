@@ -1,4 +1,5 @@
 #if canImport(UIKit)
+import CSSValues
 import EditorModelInterface
 import OSLog
 import UIKit
@@ -72,6 +73,8 @@ public final class EditorView: UIScrollView, UITextInput {
     checkboxTap.isOnCheckbox = { [unowned self] in layout.checklistItem(at: $0) != nil }
     surface.addGestureRecognizer(checkboxTap)
     for gesture in interaction.gesturesForFailureRequirements { gesture.require(toFail: checkboxTap) }
+    surface.addGestureRecognizer(tableSelectionPress)
+    for gesture in interaction.gesturesForFailureRequirements { gesture.require(toFail: tableSelectionPress) }
     surface.addInteraction(linkMenu)
     let tap = UITapGestureRecognizer(target: self, action: #selector(tapped(_:)))
     tap.delegate = self
@@ -807,18 +810,146 @@ public final class EditorView: UIScrollView, UITextInput {
         self?.perform(command, fromInput: false)
       }
     }
-    let actions: [UIMenuElement] =
+    let counts = tableMenuCounts
+    let rowLabel = counts.rows == 1 ? "Row" : "\(counts.rows) Rows"
+    let columnLabel = counts.columns == 1 ? "Column" : "\(counts.columns) Columns"
+    var actions: [UIMenuElement] =
       isInTable
       ? [
-        action("Insert Row Above", .insertTableRow(after: false)),
-        action("Insert Row Below", .insertTableRow(after: true)),
-        action("Insert Column Left", .insertTableColumn(after: false)),
-        action("Insert Column Right", .insertTableColumn(after: true)),
+        action("Insert \(rowLabel) Above", .insertTableRow(after: false)),
+        action("Insert \(rowLabel) Below", .insertTableRow(after: true)),
+        action("Insert \(columnLabel) Left", .insertTableColumn(after: false)),
+        action("Insert \(columnLabel) Right", .insertTableColumn(after: true)),
+        UIAction(title: "Cell Background Colour…") { [weak self] _ in self?.askForCellBackground() },
+        action("Header Row", .toggleTableRowHeader),
+        action("Header Column", .toggleTableColumnHeader),
+        action("Delete Table", .deleteTable, destructive: true),
         action("Delete Column", .deleteTableColumn, destructive: true),
         action("Delete Row", .deleteTableRow, destructive: true),
       ]
       : [UIAction(title: "Insert Table…") { [weak self] _ in self?.askForTable() }]
+    if canMergeTableCells(counts: counts) {
+      actions.insert(action("Merge Cells", .mergeTableCells), at: 0)
+    } else if canUnmergeTableCell {
+      actions.insert(action("Unmerge Cells", .unmergeTableCell), at: 0)
+    }
     return UIMenu(title: "Table", image: UIImage(systemName: "tablecells"), children: actions)
+  }
+
+  private var tableMenuCounts: (rows: Int, columns: Int) {
+    guard case .table(let table, let anchor, let focus, _) = modelSelection() else { return (1, 1) }
+    do {
+      let rows = try model.node(at: table)["children"]?.arrayValue ?? []
+      var occupied: [Int: Set<Int>] = [:]
+      var rectangles: [[Int]: (row: Int, column: Int, rows: Int, columns: Int)] = [:]
+      for (row, node) in rows.enumerated() {
+        var column = 0
+        for (index, cell) in (node["children"]?.arrayValue ?? []).enumerated() {
+          while occupied[row, default: []].contains(column) { column += 1 }
+          let rowSpan = cell["rowSpan"]?.intValue ?? 1
+          let colSpan = cell["colSpan"]?.intValue ?? 1
+          guard rowSpan > 0, colSpan > 0 else { throw EditorError.invalidState("Expected positive table cell spans") }
+          rectangles[table + [row, index]] = (row, column, rowSpan, colSpan)
+          for r in row..<(row + rowSpan) {
+            for c in column..<(column + colSpan) { occupied[r, default: []].insert(c) }
+          }
+          column += colSpan
+        }
+      }
+      guard let a = rectangles[anchor], let b = rectangles[focus] else {
+        throw EditorError.invalidState("getCellRect: expected to find selection cell")
+      }
+      let rowEnd = max(a.row + a.rows - 1, b.row + b.rows - 1)
+      let columnEnd = max(a.column + a.columns - 1, b.column + b.columns - 1)
+      return (rowEnd - min(a.row, b.row) + 1, columnEnd - min(a.column, b.column) + 1)
+    } catch {
+      failed("The table menu couldn't count its selection", error)
+      return (1, 1)
+    }
+  }
+
+  private var tableMenuCell: JSONValue? {
+    guard let selection = modelSelection() else { return nil }
+    var path = selection.anchor.path
+    do {
+      while !path.isEmpty {
+        let node = try model.node(at: path)
+        if node["type"] == "tablecell" { return node }
+        path.removeLast()
+      }
+      return nil
+    } catch {
+      failed("The table menu couldn't read its cell", error)
+      return nil
+    }
+  }
+
+  private var canUnmergeTableCell: Bool {
+    guard let selection = modelSelection() else { return false }
+    switch selection {
+    case .range where !selection.isCollapsed: return false
+    case .table(_, let anchor, let focus, _) where anchor != focus: return false
+    case .node: return false
+    default: break
+    }
+    guard let cell = tableMenuCell else { return false }
+    return (cell["colSpan"]?.intValue ?? 1) > 1 || (cell["rowSpan"]?.intValue ?? 1) > 1
+  }
+
+  private func canMergeTableCells(counts: (rows: Int, columns: Int)) -> Bool {
+    guard case .table(_, _, _, let paths) = modelSelection(), counts.rows > 1 || counts.columns > 1 else { return false }
+    do {
+      var heights: [Int] = []
+      var currentRow: [Int]?
+      var expectedColumns: Int?
+      var columns = 0
+      for path in paths {
+        let node = try model.node(at: path)
+        let colSpan = node["colSpan"]?.intValue ?? 1
+        let rowSpan = node["rowSpan"]?.intValue ?? 1
+        let row = Array(path.dropLast())
+        if row != currentRow {
+          if let expectedColumns, columns != expectedColumns { return false }
+          if currentRow != nil { expectedColumns = columns }
+          currentRow = row
+          columns = 0
+        }
+        for index in columns..<(columns + colSpan) {
+          while heights.count <= index { heights.append(0) }
+          heights[index] += rowSpan
+        }
+        columns += colSpan
+      }
+      return (expectedColumns == nil || columns == expectedColumns) && Set(heights).count == 1
+    } catch {
+      failed("The table menu couldn't read its selection", error)
+      return false
+    }
+  }
+
+  private func askForCellBackground() {
+    let alert = UIAlertController(title: "Cell Background Colour", message: nil, preferredStyle: .alert)
+    var apply: UIAlertAction?
+    let current = tableMenuCell?["backgroundColor"]?.stringValue ?? ""
+    alert.addTextField { field in
+      field.text = current
+      field.accessibilityLabel = "Colour"
+      field.placeholder = "Hex, RGB, or colour name"
+      field.keyboardType = .asciiCapable
+      field.autocorrectionType = .no
+      field.autocapitalizationType = .none
+      field.addAction(UIAction { [weak field] _ in
+        let value = field?.text ?? ""
+        apply?.isEnabled = value.isEmpty || CSSColor(value) != nil
+      }, for: .editingChanged)
+    }
+    alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+    apply = UIAlertAction(title: "Apply", style: .default) { [weak self, weak alert] _ in
+      self?.perform(.setTableCellBackground(color: alert?.textFields?.first?.text ?? ""), fromInput: false)
+    }
+    alert.addAction(apply!)
+    alert.preferredAction = apply
+    presenter?.present(alert, animated: true)
   }
 
   private var isInTable: Bool {
@@ -948,6 +1079,19 @@ public final class EditorView: UIScrollView, UITextInput {
 
   /// Opens a link's URL, in the browser unless set.
   public var open: (URL) -> Void = { UIApplication.shared.open($0) }
+
+  /// UIKit's word selection replaces the selection needed by table actions,
+  /// so this press preserves selected cells and a merged cell's collapsed caret.
+  private lazy var tableSelectionPress: UILongPressGestureRecognizer = {
+    let press = UILongPressGestureRecognizer(target: self, action: #selector(showSelectedTableMenu(_:)))
+    press.delegate = self
+    return press
+  }()
+
+  @objc private func showSelectedTableMenu(_ press: UILongPressGestureRecognizer) {
+    guard press.state == .began else { return }
+    linkMenu.presentEditMenu(with: UIEditMenuConfiguration(identifier: "table" as NSString, sourcePoint: press.location(in: surface)))
+  }
 
   private lazy var linkMenu = UIEditMenuInteraction(delegate: self)
 
@@ -1107,16 +1251,39 @@ private final class CheckboxTap: UITapGestureRecognizer {
 }
 
 extension EditorView: UIGestureRecognizerDelegate, @MainActor UIEditMenuInteractionDelegate {
+  public func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
+    if gestureRecognizer === tableSelectionPress {
+      if case .table = modelSelection() { return isEditable }
+      if isEditable, canUnmergeTableCell, let selection = modelSelection(),
+        let offset = layout.offset(closestTo: touch.location(in: surface))
+      {
+        let touched = document.point(at: offset).path
+        var path = selection.anchor.path
+        while !path.isEmpty {
+          if (try? model.node(at: path))?["type"] == "tablecell" {
+            return touched.starts(with: path)
+          }
+          path.removeLast()
+        }
+      }
+      return false
+    }
+    return true
+  }
+
   /// The tap that offers a link's actions leaves the text interaction's own
   /// taps to place the caret.
   public func gestureRecognizer(
     _ gestureRecognizer: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer
-  ) -> Bool { true }
+  ) -> Bool { gestureRecognizer !== tableSelectionPress && other !== tableSelectionPress }
 
   public func editMenuInteraction(
     _ interaction: UIEditMenuInteraction, menuFor configuration: UIEditMenuConfiguration,
     suggestedActions: [UIMenuElement]
   ) -> UIMenu? {
+    if configuration.identifier as? String == "table" {
+      return UIMenu(children: suggestedActions + [tableMenu()])
+    }
     guard let character = linkCharacter(at: configuration.sourcePoint) else { return nil }
     return UIMenu(children: linkActions(in: character, caret: NSMaxRange(character)))
   }

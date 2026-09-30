@@ -53,6 +53,12 @@ steps: seeds 1, 2, 3, 42 and 2026 at 20,000 steps, and 7 and 99 at
 200,000, 50,000 rows in all, with no divergence; 812 held markdown not
 ported yet, which LexicalSwift declines, leaving the row as typed.
 
+With the table menu (#173), including merge/unmerge, cell backgrounds,
+headers, deleting the table and counted row/column insertion: seeds 17301,
+17302 and 17303, 20,000 steps each, 60,000 in all, with no divergence;
+10,682 commands were refused by both, 43 sessions ended on a shortcut or
+node not ported yet, and one on the same unreadable table selection.
+
 ## Editor harness and UI scripts
 
 The **EditorHarness** scheme is an app with one document in the TextKit

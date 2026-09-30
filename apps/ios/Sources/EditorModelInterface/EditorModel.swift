@@ -225,6 +225,12 @@ public enum EditorCommand: Equatable, Sendable {
   case insertTableColumn(after: Bool)
   case deleteTableRow
   case deleteTableColumn
+  case mergeTableCells
+  case unmergeTableCell
+  case deleteTable
+  case toggleTableRowHeader
+  case toggleTableColumnHeader
+  case setTableCellBackground(color: String)
   /// An arrow key, with Shift (`extend`) or without. What Lexical doesn't
   /// take it leaves to the platform, which moves the focus to `native`, and
   /// the anchor with it without Shift. `atCellEdge` says the caret's line is
@@ -309,14 +315,14 @@ public struct TextFormat: OptionSet, Codable, Hashable, Sendable {
 extension EditorCommand: Codable {
   private enum CodingKeys: String, CodingKey {
     case type, anchor, focus, text, backward, lineBoundary, format, blockType, listType, path, milliseconds, url, clipboard,
-      rows, columns, after, key, extend, native, atCellEdge, direction, parentRTL, anchorRTL
+      rows, columns, color, after, key, extend, native, atCellEdge, direction, parentRTL, anchorRTL
   }
 
   /// The command's `type` in JSON.
   private enum Kind: String, Codable {
     case setSelection, insertText, commitComposition, deleteCharacter, deleteWord, deleteLine, insertParagraph, insertLineBreak,
       formatText, setBlockType, setWritingDirection, insertList, removeList, indent, outdent, tab, toggleChecked, selectAll, toggleLink, editLink,
-      copy, cut, paste, insertTable, insertTableRow, insertTableColumn, deleteTableRow, deleteTableColumn, arrow, undo, redo,
+      copy, cut, paste, insertTable, insertTableRow, insertTableColumn, deleteTableRow, deleteTableColumn, mergeTableCells, unmergeTableCell, deleteTable, toggleTableRowHeader, toggleTableColumnHeader, setTableCellBackground, arrow, undo, redo,
       wait
   }
 
@@ -350,6 +356,12 @@ extension EditorCommand: Codable {
     case .insertTableColumn: .insertTableColumn
     case .deleteTableRow: .deleteTableRow
     case .deleteTableColumn: .deleteTableColumn
+    case .mergeTableCells: .mergeTableCells
+    case .unmergeTableCell: .unmergeTableCell
+    case .deleteTable: .deleteTable
+    case .toggleTableRowHeader: .toggleTableRowHeader
+    case .toggleTableColumnHeader: .toggleTableColumnHeader
+    case .setTableCellBackground: .setTableCellBackground
     case .arrow: .arrow
     case .undo: .undo
     case .redo: .redo
@@ -399,6 +411,12 @@ extension EditorCommand: Codable {
     case .insertTableColumn: self = .insertTableColumn(after: try after())
     case .deleteTableRow: self = .deleteTableRow
     case .deleteTableColumn: self = .deleteTableColumn
+    case .mergeTableCells: self = .mergeTableCells
+    case .unmergeTableCell: self = .unmergeTableCell
+    case .deleteTable: self = .deleteTable
+    case .toggleTableRowHeader: self = .toggleTableRowHeader
+    case .toggleTableColumnHeader: self = .toggleTableColumnHeader
+    case .setTableCellBackground: self = .setTableCellBackground(color: try container.decode(String.self, forKey: .color))
     case .arrow:
       self = .arrow(
         try container.decode(ArrowKey.self, forKey: .key), extend: try container.decode(Bool.self, forKey: .extend),
@@ -449,6 +467,8 @@ extension EditorCommand: Codable {
       try container.encode(columns, forKey: .columns)
     case .insertTableRow(let after), .insertTableColumn(let after):
       try container.encode(after, forKey: .after)
+    case .setTableCellBackground(let color):
+      try container.encode(color, forKey: .color)
     case .arrow(let key, let extend, let native, let atCellEdge, let parentRTL, let anchorRTL):
       try container.encode(key, forKey: .key)
       try container.encode(extend, forKey: .extend)
@@ -457,7 +477,7 @@ extension EditorCommand: Codable {
       try container.encode(parentRTL, forKey: .parentRTL)
       try container.encodeIfPresent(anchorRTL, forKey: .anchorRTL)
     case .insertParagraph, .insertLineBreak, .removeList, .indent, .outdent, .selectAll, .copy, .cut, .deleteTableRow,
-      .deleteTableColumn, .undo, .redo:
+      .deleteTableColumn, .mergeTableCells, .unmergeTableCell, .deleteTable, .toggleTableRowHeader, .toggleTableColumnHeader, .undo, .redo:
       break
     }
   }

@@ -1,5 +1,16 @@
 import {
   $createTableNodeWithDimensions,
+  $getNodeTriplet,
+  $getTableNodeFromLexicalNodeOrThrow,
+  $isTableCellNode,
+  $getTableRowIndexFromTableCellNode,
+  $getTableColumnIndexFromTableCellNode,
+  $isTableRowNode,
+  $unmergeCell,
+  $insertTableRowAtSelection,
+  TableCellHeaderStates,
+  type TableCellNode,
+  type TableRowNode,
   $insertTableColumnAtSelection,
   $isTableNode,
   $isTableSelection,
@@ -9,6 +20,13 @@ import {
 import { $findMatchingParent, $insertNodeToNearestRoot } from "@lexical/utils";
 import {
   $getSelection,
+  $getRoot,
+  $createParagraphNode,
+  $isParagraphNode,
+  $isTextNode,
+  $isElementNode,
+  type ElementNode,
+  type LexicalNode,
   $isRangeSelection,
   COMMAND_PRIORITY_HIGH,
   type LexicalEditor,
@@ -112,4 +130,175 @@ export function $tableMenuCounts(): { columns: number; rows: number } {
 export function $insertDocumentTableColumns(insertAfter: boolean): void {
   const { columns } = $tableMenuCounts();
   for (let i = 0; i < columns; i++) $insertTableColumnAtSelection(insertAfter);
+}
+
+const $cellContainsEmptyParagraph = (cell: TableCellNode): boolean => {
+  if (cell.getChildrenSize() !== 1) {
+    return false;
+  }
+  const firstChild = cell.getFirstChildOrThrow();
+  if (!$isParagraphNode(firstChild) || !firstChild.isEmpty()) {
+    return false;
+  }
+  return true;
+};
+
+const $selectLastDescendant = (node: ElementNode): void => {
+  const lastDescendant = node.getLastDescendant();
+  if ($isTextNode(lastDescendant)) {
+    lastDescendant.select();
+  } else if ($isElementNode(lastDescendant)) {
+    lastDescendant.selectEnd();
+  } else if (lastDescendant !== null) {
+    lastDescendant.selectNext();
+  }
+};
+
+export function $mergeDocumentTableCells(): void {
+  const selection = $getSelection();
+  if ($isTableSelection(selection)) {
+    const { columns, rows } = $tableMenuCounts();
+    const nodes = selection.getNodes();
+    let firstCell: null | TableCellNode = null;
+    for (let i = 0; i < nodes.length; i++) {
+      const node = nodes[i];
+      if ($isTableCellNode(node)) {
+        if (firstCell === null) {
+          node.setColSpan(columns).setRowSpan(rows);
+          firstCell = node;
+          const isEmpty = $cellContainsEmptyParagraph(node);
+          let firstChild: LexicalNode | null = null;
+          if (isEmpty) {
+            firstChild = node.getFirstChild();
+          }
+          if (isEmpty && $isParagraphNode(firstChild)) {
+            firstChild.remove();
+          }
+        } else if ($isTableCellNode(firstCell)) {
+          const isEmpty = $cellContainsEmptyParagraph(node);
+          if (!isEmpty) {
+            firstCell.append(...node.getChildren());
+          }
+          node.remove();
+        }
+      }
+    }
+    if (firstCell !== null) {
+      if (firstCell.getChildrenSize() === 0) {
+        firstCell.append($createParagraphNode());
+      }
+      $selectLastDescendant(firstCell);
+    }
+  }
+}
+
+export function $toggleDocumentTableRowHeader(): void {
+  const selection = $getSelection();
+  if (!$isRangeSelection(selection) && !$isTableSelection(selection)) return;
+  const [tableCellNode] = $getNodeTriplet(selection.anchor);
+  const tableNode = $getTableNodeFromLexicalNodeOrThrow(tableCellNode);
+
+  const tableRowIndex = $getTableRowIndexFromTableCellNode(tableCellNode);
+
+  const tableRows = tableNode.getChildren();
+
+  if (tableRowIndex >= tableRows.length || tableRowIndex < 0) {
+    throw new Error("Expected table cell to be inside of table row.");
+  }
+
+  const tableRow = tableRows[tableRowIndex];
+
+  if (!$isTableRowNode(tableRow)) {
+    throw new Error("Expected table row");
+  }
+
+  for (const tableCell of tableRow.getChildren()) {
+    if (!$isTableCellNode(tableCell)) {
+      throw new Error("Expected table cell");
+    }
+
+    tableCell.toggleHeaderStyle(TableCellHeaderStates.ROW);
+  }
+
+  $getRoot().selectStart();
+}
+
+export function $toggleDocumentTableColumnHeader(): void {
+  const selection = $getSelection();
+  if (!$isRangeSelection(selection) && !$isTableSelection(selection)) return;
+  const [tableCellNode] = $getNodeTriplet(selection.anchor);
+  const tableNode = $getTableNodeFromLexicalNodeOrThrow(tableCellNode);
+
+  const tableColumnIndex = $getTableColumnIndexFromTableCellNode(tableCellNode);
+
+  const tableRows = tableNode.getChildren<TableRowNode>();
+  const maxRowsLength = Math.max(
+    ...tableRows.map((row) => row.getChildren().length),
+  );
+
+  if (tableColumnIndex >= maxRowsLength || tableColumnIndex < 0) {
+    throw new Error("Expected table cell to be inside of table row.");
+  }
+
+  for (let r = 0; r < tableRows.length; r++) {
+    const tableRow = tableRows[r];
+
+    if (!$isTableRowNode(tableRow)) {
+      throw new Error("Expected table row");
+    }
+
+    const tableCells = tableRow.getChildren();
+    if (tableColumnIndex >= tableCells.length) {
+      // if cell is outside of bounds for the current row (for example various merge cell cases) we shouldn't highlight it
+      continue;
+    }
+
+    const tableCell = tableCells[tableColumnIndex];
+
+    if (!$isTableCellNode(tableCell)) {
+      throw new Error("Expected table cell");
+    }
+
+    tableCell.toggleHeaderStyle(TableCellHeaderStates.COLUMN);
+  }
+
+  $getRoot().selectStart();
+}
+
+export function $setDocumentTableCellBackground(value: string): void {
+  const selection = $getSelection();
+  if ($isRangeSelection(selection) || $isTableSelection(selection)) {
+    const [cell] = $getNodeTriplet(selection.anchor);
+    if ($isTableCellNode(cell)) {
+      cell.setBackgroundColor(value);
+    }
+
+    if ($isTableSelection(selection)) {
+      const nodes = selection.getNodes();
+
+      for (let i = 0; i < nodes.length; i++) {
+        const node = nodes[i];
+        if ($isTableCellNode(node)) {
+          node.setBackgroundColor(value);
+        }
+      }
+    }
+  }
+}
+
+export function $unmergeDocumentTableCell(): void {
+  $unmergeCell();
+}
+
+export function $deleteDocumentTable(): void {
+  const selection = $getSelection();
+  if (!$isRangeSelection(selection) && !$isTableSelection(selection)) return;
+  const [cell] = $getNodeTriplet(selection.anchor);
+  $getTableNodeFromLexicalNodeOrThrow(cell).remove();
+  $getRoot().selectStart();
+}
+
+export function $insertDocumentTableRows(after: boolean): void {
+  const { rows } = $tableMenuCounts();
+  for (let i = 0; i < rows; i++) $insertTableRowAtSelection(after);
 }

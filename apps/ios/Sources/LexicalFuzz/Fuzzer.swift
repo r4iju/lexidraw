@@ -589,7 +589,7 @@ struct Generator {
 
   mutating func command(for snapshot: Snapshot) -> EditorCommand? {
     if !typing.isEmpty { return typing.removeFirst() }
-    let roll = Int.random(in: 0..<(writingDirections ? 122 : 119), using: &random)
+    let roll = Int.random(in: 0..<(writingDirections ? 128 : 125), using: &random)
     let backward = Int.random(in: 0..<3, using: &random) > 0
     switch roll {
     // With nothing selected, as after undoing back to the loaded document, a
@@ -656,12 +656,18 @@ struct Generator {
       }
       typing = [key]
       return .setSelection(anchor: caret, focus: caret)
-    case ..<114 where writingDirections: return .setWritingDirection(EditorCommand.WritingDirection.allCases.randomElement(using: &random)!)
-    default:
+    case ..<119:
       let native = Self.points(in: snapshot.state).randomElement(using: &random) ?? Point(path: [], offset: 0, type: .element)
       return .arrow(
         ArrowKey.allCases.randomElement(using: &random)!, extend: Int.random(in: 0..<3, using: &random) == 0,
         native: native, atCellEdge: Bool.random(using: &random), parentRTL: writingDirections && Bool.random(using: &random))
+    case ..<120: return .mergeTableCells
+    case ..<121: return .unmergeTableCell
+    case ..<122: return .deleteTable
+    case ..<123: return .toggleTableRowHeader
+    case ..<124: return .toggleTableColumnHeader
+    case ..<125: return .setTableCellBackground(color: ["#123456", "rgb(10, 20, 30)", ""].randomElement(using: &random)!)
+    default: return .setWritingDirection(EditorCommand.WritingDirection.allCases.randomElement(using: &random)!)
     }
   }
 

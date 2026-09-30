@@ -285,6 +285,64 @@ class EditorUITests: XCTestCase {
     XCTAssertEqual(try cellTexts(), [["", "b!"], ["", ""]])
   }
 
+  func testTableHeadersColourAndDeletionFromTheEditMenu() throws {
+    open(LexicalJSON.document([LexicalJSON.table([["a", "b"], ["c", "d"]]), LexicalJSON.paragraph([])]))
+    chooseFromEditMenu(at: Self.inLetter(column: 0), "Table", "Header Row")
+    XCTAssertEqual(try savedNode([0, 0, 1])?["headerState"], 1)
+    chooseFromEditMenu(at: Self.inLetter(column: 0), "Table", "Header Column")
+    XCTAssertEqual(try savedNode([0, 1, 0])?["headerState"], 2)
+    chooseFromEditMenu(at: Self.inLetter(column: 0), "Table", "Cell Background Colour…")
+    app.alerts.textFields["Colour"].tap()
+    app.alerts.textFields["Colour"].typeText("#123456")
+    app.alerts.buttons["Apply"].tap()
+    XCTAssertEqual(try savedNode([0, 0, 0])?["backgroundColor"], "#123456")
+    chooseFromEditMenu(at: Self.inLetter(column: 0), "Table", "Delete Table")
+    XCTAssertEqual(try saved()["root"]?["children"]?.arrayValue?.compactMap { $0["type"]?.stringValue }, ["paragraph"])
+  }
+
+  func testMergesCellsFromTheEditMenu() throws {
+    open(LexicalJSON.document([LexicalJSON.table([["a", "b"], ["c", "d"]]), LexicalJSON.paragraph([])]))
+    tap(Self.inLetter(column: 0))
+    keyboard.press(.downArrow, .shift)
+    keyboard.press(.rightArrow, .shift)
+    editor.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: Self.inLetter(column: 0).x, dy: Self.inLetter(column: 0).y)).press(forDuration: 1)
+    chooseShownEditMenu(["Table", "Merge Cells"])
+    XCTAssertEqual(try savedNode([0, 0, 0])?["colSpan"], 2)
+  }
+
+  func testUnmergesACellFromTheEditMenu() throws {
+    let cell = LexicalJSON.element("tablecell", [LexicalJSON.paragraph([LexicalJSON.text("a")])], ["colSpan": 2, "rowSpan": 1, "headerState": 0, "backgroundColor": nil])
+    let table = LexicalJSON.element("table", [LexicalJSON.element("tablerow", [cell])])
+    open(LexicalJSON.document([table, LexicalJSON.paragraph([])]))
+    tap(Self.inLetter(column: 0))
+    editor.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: Self.inLetter(column: 0).x, dy: Self.inLetter(column: 0).y)).press(forDuration: 1)
+    chooseShownEditMenu(["Table", "Unmerge Cells"])
+    XCTAssertEqual(try savedNode([0, 0])?["children"]?.arrayValue?.count, 2)
+    XCTAssertEqual(try savedNode([0, 0, 0])?["colSpan"], 1)
+  }
+
+  func testInsertsSelectedRowsFromTheEditMenu() throws {
+    open(LexicalJSON.document([LexicalJSON.table([["a", "b"], ["c", "d"]]), LexicalJSON.paragraph([])]))
+    tap(Self.inLetter(column: 0))
+    keyboard.press(.downArrow, .shift)
+    keyboard.press(.downArrow, .shift)
+    editor.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: Self.inLetter(column: 0).x, dy: Self.inLetter(column: 0).y)).press(forDuration: 1)
+    chooseShownEditMenu(["Table", "Insert 2 Rows Below"])
+    XCTAssertEqual(try savedNode([0])?["children"]?.arrayValue?.count, 4)
+  }
+
+  func testInsertsSelectedColumnsFromTheEditMenu() throws {
+    for direction in ["Left", "Right"] {
+      open(LexicalJSON.document([LexicalJSON.table([["a", "b"], ["c", "d"]]), LexicalJSON.paragraph([])]))
+      tap(Self.inLetter(column: 0))
+      keyboard.press(.downArrow, .shift)
+      keyboard.press(.rightArrow, .shift)
+      editor.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: Self.inLetter(column: 0).x, dy: Self.inLetter(column: 0).y)).press(forDuration: 1)
+      chooseShownEditMenu(["Table", "Insert 2 Columns \(direction)"])
+      XCTAssertEqual(try savedNode([0, 0])?["children"]?.arrayValue?.count, 4)
+    }
+  }
+
   /// Shift and Down at a cell's last line select the cell, as
   /// @lexical/table's handler does, and then Shift and an arrow move the
   /// selection's focus a cell at a time. What Command-B makes bold shows
@@ -470,6 +528,10 @@ class EditorUITests: XCTestCase {
   /// the edit menu, then chooses `path` from it.
   private func chooseFromEditMenu(at point: CGPoint, _ path: String...) {
     editor.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: point.x, dy: point.y)).doubleTap()
+    chooseShownEditMenu(path)
+  }
+
+  private func chooseShownEditMenu(_ path: [String]) {
     for title in path {
       // An item of the menu's row, or of the list the row opens into.
       let item = app.descendants(matching: .any).matching(
@@ -508,6 +570,13 @@ class EditorUITests: XCTestCase {
           (block["children"]?.arrayValue ?? []).compactMap { $0["text"]?.stringValue }
         }.joined()
       }
+    }
+  }
+
+  private func savedNode(_ path: [Int]) throws -> JSONValue? {
+    path.reduce(try saved()["root"]) { node, index in
+      guard let children = node?["children"]?.arrayValue, children.indices.contains(index) else { return nil }
+      return children[index]
     }
   }
 
