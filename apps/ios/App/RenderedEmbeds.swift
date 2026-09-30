@@ -261,14 +261,14 @@ private struct RenderedSourceEditor: View {
         fields["chartType"] = .string(language)
       case "code":
         fields["language"] = language.isEmpty ? nil : .string(language)
-        fields["children"] = .array(source.components(separatedBy: "\n").enumerated().flatMap { index, line -> [JSONValue] in
+        if source != originalSource { fields["children"] = .array(source.components(separatedBy: "\n").enumerated().flatMap { index, line -> [JSONValue] in
           var nodes: [JSONValue] = index > 0 ? [["type": "linebreak", "version": 1]] : []
           for (tabIndex, part) in line.components(separatedBy: "\t").enumerated() {
             if tabIndex > 0 { nodes.append(["type": .string(SerializedTabNode.type), "version": .number(Double(SerializedTabNode.version)), "text": "\t", "format": 0, "detail": 0, "mode": "normal", "style": ""]) }
             if !part.isEmpty { nodes.append(["type": .string(SerializedTextNode.type), "version": .number(Double(SerializedTextNode.version)), "text": .string(part), "format": 0, "detail": 0, "mode": "normal", "style": ""]) }
           }
           return nodes
-        })
+        }) }
       default: throw EditorError.unsupported("Unknown rendered node")
       }
       if .object(fields) != node { try save(.object(fields)) }

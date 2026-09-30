@@ -896,7 +896,7 @@ public final class EditorView: UIScrollView, UITextInput {
     while !path.isEmpty {
       if let node = try? model.node(at: path) {
         if node["type"] == "list" { selectedType = node["listType"]?.stringValue; break }
-        if let type = node["type"]?.stringValue, BlockType(rawValue: type) != nil {
+        if let type = node["type"]?.stringValue, type == "code" || BlockType(rawValue: type) != nil {
           selectedType = type
         } else if node["type"] == "heading" { selectedType = node["tag"]?.stringValue }
       }
