@@ -34,6 +34,7 @@ export const TOGGLE_COLLAPSIBLE_COMMAND = createCommand<NodeKey>();
 export default function CollapsiblePlugin(): null {
   const [editor] = useLexicalComposerContext();
 
+  // Lexical owns these command and node-transform registrations.
   useEffect(() => {
     if (
       !editor.hasNodes([
@@ -178,14 +179,11 @@ export default function CollapsiblePlugin(): null {
           }
 
           const container = topLevelElement.getPreviousSibling<LexicalNode>();
-          if (
-            container &&
-            !CollapsibleContainerNode.$isCollapsibleContainerNode(container)
-          ) {
+          if (!CollapsibleContainerNode.$isCollapsibleContainerNode(container)) {
             return false;
           }
 
-          container?.setOpen(true);
+          container.setOpen(true);
           return true;
         },
         COMMAND_PRIORITY_LOW,

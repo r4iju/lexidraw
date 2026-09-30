@@ -16,11 +16,14 @@ public final class Editor: EditorModel {
   /// runs a transformer LexicalSwift doesn't port yet.
   public private(set) var shortcutsDeclinedAsNotPorted = 0
 
-  public init() {}
+  public var supportsRichText: Bool { !plainText }
+  private let plainText: Bool
+  public init(plainText: Bool = false) { self.plainText = plainText }
 
   public func load(_ json: JSONValue) throws {
     guard let root = json["root"], root["type"] == "root" else { throw EditorError.invalidState("No root") }
     var update = Update(EditorState(nodes: [:], selection: nil), nextKey: 0, revision: nextRevision())
+    update.plainText = plainText
     _ = try update.parse(root)
     try update.applyTransforms()
     update.collectGarbage()
@@ -45,13 +48,15 @@ public final class Editor: EditorModel {
       defer { state = restored }
       return ChangeSet(changed: restored.changedPaths(since: state))
     default:
-      guard isEditable else { throw EditorError.unsupported("Editing a document with a node LexicalSwift doesn't edit yet") }
+      guard isEditable else {
+        throw EditorError.unsupported("Editing a document with a node LexicalSwift doesn't edit yet")
+      }
     }
     let saved = (state, nextKey, history, knowsListMarker)
     do {
       guard command == .cut else {
         let compositionEnd = if case .commitComposition = command { true } else { false }
-        return try commit(compositionEnd: compositionEnd) { try $0.run(command) }
+        return try commit(compositionEnd: compositionEnd) { try $0.run(command, plainText: plainText) }
       }
       var isCutByATable = false
       let byATable = try commit { isCutByATable = try $0.cutHandler() }
@@ -66,7 +71,7 @@ public final class Editor: EditorModel {
         guard let selection = update.selection else { throw EditorError.noSelection }
         try update.removeText(selection)
       }
-      changes.clipboard = copied.clipboard
+      changes.clipboard = plainText ? copied.clipboard.map { Clipboard(plainText: $0.plainText) } : copied.clipboard
       return changes
     } catch let failure as ShortcutFailure {
       throw failure.error
@@ -156,6 +161,7 @@ public final class Editor: EditorModel {
     tags: Set<UpdateTag> = [], compositionEnd: Bool = false, _ run: (inout Update) throws -> Void
   ) throws -> ChangeSet {
     var update = Update(state, nextKey: nextKey, revision: nextRevision(), knowsListMarker: knowsListMarker)
+    update.plainText = plainText
     update.tags = tags
     try run(&update)
     shortcutsDeclinedAsNotPorted += update.shortcutsDeclinedAsNotPorted
@@ -164,8 +170,9 @@ public final class Editor: EditorModel {
     guard try commit(&update) else { return ChangeSet(changed: [], clipboard: clipboard) }
     var changed = update.changedKeys
     var compositionEnd = compositionEnd
-    while let caret = state.markdownShortcutCaret(
-      after: previous, dirtyLeaves: update.dirtyLeaves, compositionEnd: compositionEnd)
+    while !plainText,
+      let caret = state.markdownShortcutCaret(
+        after: previous, dirtyLeaves: update.dirtyLeaves, compositionEnd: compositionEnd)
     {
       compositionEnd = false
       previous = state
@@ -266,6 +273,13 @@ public final class Editor: EditorModel {
     state.children(of: try key(at: path)).map(String.init)
   }
 
+  public func nodePath(for key: String) throws -> [Int] {
+    guard let key = NodeKey(key), let path = state.path(of: key) else {
+      throw EditorError.invalidState("The structural block no longer exists")
+    }
+    return path
+  }
+
   private func key(at path: [Int]) throws -> NodeKey {
     guard !state.nodes.isEmpty else { throw EditorError.invalidState("No document loaded") }
     guard let key = state.key(at: path) else { throw EditorError.noNode(path: path) }
@@ -301,6 +315,17 @@ extension Node {
     case .mermaid(let node): node.unknownFields.isEmpty && (node.schema == nil || node.schema?.stringValue != nil)
     case .equation(let node): node.unknownFields.isEmpty && (node.equation == nil || node.equation?.stringValue != nil) && (node.inline == nil || node.inline?.boolValue != nil)
     case .chart(let node): node.unknownFields.isEmpty && (node.chartType == nil || RenderedEmbedStyle.chartTypes.contains(node.chartType?.stringValue ?? "")) && (node.chartData == nil || node.chartData?.stringValue != nil) && (node.chartConfig == nil || node.chartConfig?.stringValue != nil)
+
+    case .callout(let node): node.unknownFields.isEmpty
+    case .layoutContainer(let node): node.unknownFields.isEmpty
+    case .layoutItem(let node): node.unknownFields.isEmpty
+    case .collapsibleContainer(let node): node.unknownFields.isEmpty
+    case .collapsibleContent(let node): node.unknownFields.isEmpty
+    case .collapsibleTitle(let node): node.unknownFields.isEmpty
+    case .pageBreak(let node): node.unknownFields.isEmpty
+    case .sticky(let node):
+      node.unknownFields.isEmpty && node.caption?.unknownFields.isEmpty != false && node.color.hasTypedShape()
+    case .slide(let node): node.unknownFields.isEmpty && node.data.hasTypedShape()
     case .excalidraw(let node): node.unknownFields.isEmpty && (node.data == nil || node.data?.stringValue != nil)
     case .text(let node): node.unknownFields.isEmpty && node.mode == .normal && [0, 1].contains(node.detail ?? 0)
     case .hashtag(let node): node.unknownFields.isEmpty && node.mode == .normal && (node.detail ?? 0) == 0
@@ -341,13 +366,22 @@ extension Node {
   ]
 }
 
+extension Optional {
+  fileprivate func hasTypedShape<Value>() -> Bool where Wrapped == Shaped<Value> {
+    if case .some(.stored) = self { return false }
+    return true
+  }
+}
+
 extension Update {
-  mutating func run(_ command: EditorCommand) throws {
+  mutating func run(_ command: EditorCommand, plainText: Bool = false) throws {
     if case .setSelection(let anchor, let focus) = command {
       return try placeSelection(anchor, focus)
     }
     if case .arrow(let key, let extend, let native, let atCellEdge, let parentRTL, let anchorRTL) = command {
-      return try arrow(key, extend: extend, native: native, atCellEdge: atCellEdge, parentRTL: parentRTL, anchorRTL: anchorRTL ?? parentRTL)
+      return try arrow(
+        key, extend: extend, native: native, atCellEdge: atCellEdge, parentRTL: parentRTL,
+        anchorRTL: anchorRTL ?? parentRTL)
     }
     if command == .selectAll {
       // Rich text answers what the table's handler leaves.
@@ -364,10 +398,29 @@ extension Update {
       return try run(command, onNodes: nodeSelection)
     }
     guard let selection else { throw EditorError.noSelection }
+    if plainText {
+      switch command {
+      case .insertText(let text), .commitComposition(let text): try insertText(selection, text)
+      case .insertParagraph, .insertLineBreak: try insertLineBreak(selection)
+      case .deleteCharacter(let backward): try deleteCharacter(selection, backward: backward)
+      case .deleteWord(let backward): try deleteWord(selection, backward: backward)
+      case .deleteLine(let backward, let boundary):
+        try deleteLine(
+          selection, backward: backward,
+          lineBoundary: KeyPoint(key: try pointNode(boundary), offset: boundary.offset, type: boundary.type))
+      case .paste(let copied):
+        tags.insert(.paste)
+        try insertRawText(copied.plainText, lineBreaks: true)
+      case .copy: if let copied = try copy(selection) { clipboard = Clipboard(plainText: copied.plainText) }
+      default: break
+      }
+      return
+    }
     switch command {
     case .insertText(let text), .commitComposition(let text): try insertText(selection, text)
     case .deleteCharacter(let backward):
       if try deleteCellHandler() { return }
+      if structuralDelete(selection) { return }
       guard let grown = self.selection else { return }
       if backward { try backspace(grown) } else { try deleteCharacter(grown, backward: false) }
     case .deleteWord(let backward): try deleteWord(selection, backward: backward)
@@ -377,7 +430,9 @@ extension Update {
         selection, backward: backward,
         lineBoundary: KeyPoint(key: boundary, offset: lineBoundary.offset, type: lineBoundary.type))
     case .insertParagraph:
-      if try !runMarkdownShortcutOnEnter(selection) { try enter(selection) }
+      if try !structuralEnter(selection) {
+        if try !runMarkdownShortcutOnEnter(selection) { try enter(selection) }
+      }
     case .insertLineBreak: try insertLineBreak(selection)
     case .formatText(let format): try formatText(selection, format)
     case .formatCode: try formatCode(selection)

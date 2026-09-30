@@ -69,8 +69,7 @@ extension Update {
               break walk
             }
           } else if node.isDecorator {
-            // A horizontal rule, the one decorator LexicalSwift edits, isn't
-            // isolated, can be selected from the keyboard and isn't inline.
+            if node.isIsolated { return }
             let anchorOrigin = initialRange.anchor.origin
             if case .nextBlock = merge, state[anchorOrigin].isElement, isEmpty(anchorOrigin) {
               try remove(anchorOrigin)
@@ -266,6 +265,10 @@ extension Update {
       try collapseQuoteAtStart(key)
       return true
     case SerializedListItemNode.type: return try collapseListItemAtStart(key)
+    case SerializedCollapsibleTitleNode.type:
+      guard let parent = state.parent(of: key) else { return false }
+      try insert(key, before: parent)
+      return true
     case SerializedParagraphNode.type: break
     default: return false
     }
@@ -479,6 +482,7 @@ extension Update {
       while let caret = sibling {
         checkForBlock = false
         guard state[caret.origin].isDecorator else { break }
+        if state[caret.origin].isIsolated { return true }
         focus = caret
         guard isLineBoundary, state[caret.origin].isInline else { break }
         sibling = state.adjacentCaret(caret)

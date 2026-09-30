@@ -127,3 +127,8 @@ await Bun.write(RENDERED_EMBED_STYLE_PATH, await swiftForRenderedEmbedStyle());
 await Bun.write(SOCIAL_STYLE_PATH, await swiftForSocialStyle());
 
 await Bun.write(FOOTNOTE_STYLE_PATH, await swiftForFootnoteStyle());
+
+const { STRUCTURAL_BLOCKS_PATH, swiftForStructuralBlocks } = await import(
+  "./structural-blocks"
+);
+await Bun.write(STRUCTURAL_BLOCKS_PATH, await swiftForStructuralBlocks());

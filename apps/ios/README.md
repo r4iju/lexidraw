@@ -629,3 +629,44 @@ payloads and articles retain their explicit unported editing gate.
 Caption/slide hashtag transforms and mention transient CSS still need work.
 Stored social text generation opts in via `socialTextSubclasses`, preserving
 fault-injection seeds; the full differential run enables it.
+
+## Native structural blocks (#133)
+
+Callouts, sections and columns use native panels for their previews and a native
+TextKit editor sharing the parent model for body editing. Enter, arrows, deletion
+and malformed-container repair therefore retain their actual parent context.
+Page breaks remain selectable decorators. Sticky notes retain their inline model
+identity, float at the stored offsets in editable wide documents, and sit in the
+flow for compact/read-only documents, matching document.css. Their caption editor
+uses PlainTextPlugin behavior: literal Markdown, line-break Enter, plain-text
+paste/copy and no automatic links. Color, drag and deletion commit to the parent
+history with the opened node as the conflict guard.
+
+Slide decks render native text, images and presentation-only chart nodes through
+the composed embed provider. Slide creation, deletion/reordering, element content,
+geometry, background and stacking changes preserve the remaining deck metadata.
+Slide text crosses the web's keyed-state boundary by stripping only live `key`
+fields on load and restoring the native editor's live keys on save. Unknown node
+fields and unported body nodes retain the existing explicit read-only/refusal path.
+
+`codegen/structural-blocks.ts` records registered node factories, web insertion
+presets, CSS theme colors and canvas geometry. The reference builder reuses the
+actual CalloutPlugin, CollapsiblePlugin and LayoutPlugin implementations; its
+bounded hook adapter supplies the active headless editor and runs registration
+once. New hook/import shapes fail the bundle build rather than being omitted.
+The web collapsible deletion handler now consumes deletion only when the previous
+sibling is a section; it previously swallowed unrelated deletion at offset zero.
+
+Opt in to structural documents in the existing differential fuzzer with
+`FUZZ_STRUCTURAL=1 FUZZ_SEED=133 FUZZ_STEPS=20000 swift test --filter
+FuzzerTests.lexicalSwiftMatchesTheReference`. Seeds 133 and 134 each agreed for
+20,000 steps; six discovered regressions are retained as frozen reference fixtures.
+The local UIKit suite passed 96 tests, including accepted structural-arrow autosave
+and refusal to mutate a read-only document. CI was not invoked.
+
+The native column panel currently accepts the five registered fractional presets;
+other CSS grid templates show an explicit #133 limitation. Slide images currently
+use HTTPS URLs and chart previews require the #132 composed provider. Geometry against the web's CSS and chart configuration/source UI still require
+device-level verification. Slide geometry is edited in a native dialog; direct
+slide drag/resize gestures are not implemented. These are not claimed as
+completed visual/performance gates.

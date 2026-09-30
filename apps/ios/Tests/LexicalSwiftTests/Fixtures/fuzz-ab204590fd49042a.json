@@ -1,0 +1,187 @@
+{
+  "changes" : [
+    {
+      "changed" : [
+
+      ]
+    },
+    {
+      "changed" : [
+        [
+
+        ],
+        [
+          0
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "changed" : [
+
+      ]
+    }
+  ],
+  "commands" : [
+    {
+      "anchor" : {
+        "offset" : 0,
+        "path" : [
+          0
+        ],
+        "type" : "element"
+      },
+      "focus" : {
+        "offset" : 0,
+        "path" : [
+          0
+        ],
+        "type" : "element"
+      },
+      "type" : "setSelection"
+    },
+    {
+      "listType" : "number",
+      "type" : "insertList"
+    },
+    {
+      "backward" : false,
+      "lineBoundary" : {
+        "offset" : 1,
+        "path" : [
+          0,
+          0
+        ],
+        "type" : "element"
+      },
+      "type" : "deleteLine"
+    }
+  ],
+  "expected" : {
+    "selection" : {
+      "anchor" : {
+        "offset" : 0,
+        "path" : [
+          0,
+          0
+        ],
+        "type" : "element"
+      },
+      "focus" : {
+        "offset" : 0,
+        "path" : [
+          0,
+          0
+        ],
+        "type" : "element"
+      },
+      "format" : 0,
+      "style" : ""
+    },
+    "state" : {
+      "root" : {
+        "children" : [
+          {
+            "children" : [
+              {
+                "children" : [
+                  {
+                    "caption" : {
+                      "editorState" : {
+                        "root" : {
+                          "children" : [
+
+                          ],
+                          "direction" : null,
+                          "format" : "",
+                          "indent" : 0,
+                          "type" : "root",
+                          "version" : 1
+                        }
+                      }
+                    },
+                    "color" : "yellow",
+                    "type" : "sticky",
+                    "version" : 1,
+                    "xOffset" : 0,
+                    "yOffset" : 0
+                  }
+                ],
+                "direction" : null,
+                "format" : "",
+                "indent" : 0,
+                "type" : "listitem",
+                "value" : 1,
+                "version" : 1
+              }
+            ],
+            "direction" : null,
+            "format" : "",
+            "indent" : 0,
+            "listType" : "number",
+            "start" : 1,
+            "tag" : "ol",
+            "type" : "list",
+            "version" : 1
+          }
+        ],
+        "direction" : null,
+        "format" : "",
+        "indent" : 0,
+        "type" : "root",
+        "version" : 1
+      }
+    }
+  },
+  "start" : {
+    "root" : {
+      "children" : [
+        {
+          "children" : [
+            {
+              "caption" : {
+                "editorState" : {
+                  "root" : {
+                    "children" : [
+
+                    ],
+                    "direction" : null,
+                    "format" : "",
+                    "indent" : 0,
+                    "type" : "root",
+                    "version" : 1
+                  }
+                }
+              },
+              "color" : "yellow",
+              "type" : "sticky",
+              "version" : 1,
+              "xOffset" : 0,
+              "yOffset" : 0
+            }
+          ],
+          "direction" : null,
+          "format" : "",
+          "indent" : 0,
+          "textFormat" : 0,
+          "textStyle" : "",
+          "type" : "paragraph",
+          "version" : 1
+        }
+      ],
+      "direction" : null,
+      "format" : "",
+      "indent" : 0,
+      "type" : "root",
+      "version" : 1
+    }
+  }
+}

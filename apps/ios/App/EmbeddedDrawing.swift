@@ -58,6 +58,10 @@ private struct EmbeddedScene {
 }
 
 @MainActor func configureEmbeddedDrawings(_ view: EditorView) {
+  configureStructuralBlocks(view)
+  let previousContent = view.embeddedContent
+  let previousInline = view.inlineEmbeddedContent
+  let previousTap = view.onEmbeddedTap
   weak let editor = view
   let thumbnails = NSCache<NSString, EmbeddedDrawingImage>()
   thumbnails.countLimit = 120
@@ -94,9 +98,9 @@ private struct EmbeddedScene {
     content.show(node)
     return content
   }
-  view.embeddedContent = { key, node in thumbnail(key, node) }
+  view.embeddedContent = { key, node in thumbnail(key, node) ?? previousContent?(key, node) }
   view.inlineEmbeddedContent = { key, node, width in
-    guard let content = thumbnail(key, node) else { return nil }
+    guard let content = thumbnail(key, node) else { return previousInline?(key, node, width) }
     let size = content.contentSize(fitting: width)
     content.frame = CGRect(origin: .zero, size: size)
     content.layer.displayIfNeeded()
@@ -105,7 +109,7 @@ private struct EmbeddedScene {
     attachment.bounds = CGRect(origin: .zero, size: size)
     return attachment
   }
-  view.onEmbeddedTap = { key, node in open(key, node) }
+  view.onEmbeddedTap = { key, node in open(key, node) || previousTap?(key, node) == true }
 }
 
 @MainActor private final class EmbeddedDrawingImage: EmbeddedContentView {
@@ -135,11 +139,15 @@ private struct EmbeddedScene {
   }
   required init?(coder: NSCoder) { fatalError("Made in code") }
   @objc private func tapped() { open() }
-  override func accessibilityActivate() -> Bool { open(); return true }
+  override func accessibilityActivate() -> Bool {
+    open()
+    return true
+  }
   override func show(_ node: JSONValue) {
     self.node = node
     caption.text = node["$"]?["figure"]?["caption"]?.stringValue
-    caption.font = UIFont.systemFont(ofSize: UIFont.preferredFont(forTextStyle: .body).pointSize * EmbeddedDrawingStyle.captionFontScale)
+    caption.font = UIFont.systemFont(
+      ofSize: UIFont.preferredFont(forTextStyle: .body).pointSize * EmbeddedDrawingStyle.captionFontScale)
     prepare()
     guard loadedNode != node else { return }
     loadedNode = node
@@ -233,15 +241,23 @@ private struct EmbeddedScene {
     redraw()
   }
   func edited() { changing() }
-  func perform(_ action: EditorAction) { editor.perform(action); edited() }
-  func select(_ tool: DrawingTool) { editor.tool = tool; changing() }
+  func perform(_ action: EditorAction) {
+    editor.perform(action)
+    edited()
+  }
+  func select(_ tool: DrawingTool) {
+    editor.tool = tool
+    changing()
+  }
   func place(_ data: Data) async {
     do {
       let file = try await Task.detached { try ImageFile(data: data) }.value
       images[file.id] = await DrawingImages.decode(file.data, mimeType: file.mimeType)
-      files[file.id] = ["id": .string(file.id), "mimeType": .string(file.mimeType.rawValue),
+      files[file.id] = [
+        "id": .string(file.id), "mimeType": .string(file.mimeType.rawValue),
         "dataURL": .string("data:\(file.mimeType.rawValue);base64,\(file.data.base64EncodedString())"),
-        "created": .number(Date().timeIntervalSince1970 * 1000)]
+        "created": .number(Date().timeIntervalSince1970 * 1000),
+      ]
       let viewport = viewport()
       editor.tool = .selection
       perform(.placeImage(file, at: viewport.center, viewportHeight: viewport.height))
@@ -324,10 +340,16 @@ private struct EmbeddedDrawingScreen: View {
                 }.pickerStyle(.segmented).fixedSize()
               }
             }
-            .task { await scene.images { editing.images[$0] = $1; editing.redraw() } }
+            .task {
+              await scene.images {
+                editing.images[$0] = $1
+                editing.redraw()
+              }
+            }
             .photosPicker(isPresented: $photosShown, selection: $photo, matching: .images)
             .onChange(of: photo) {
-              guard let photo else { return }; self.photo = nil
+              guard let photo else { return }
+              self.photo = nil
               Task { if let data = try? await photo.loadTransferable(type: Data.self) { await editing.place(data) } }
             }
             .fileImporter(isPresented: $filesShown, allowedContentTypes: [.image]) { result in
@@ -351,26 +373,40 @@ private struct EmbeddedDrawingScreen: View {
         Button("Discard Changes", role: .destructive) { dismiss() }
         Button("Keep Editing", role: .cancel) {}
       }
-      .alert("Drawing couldn’t be saved", isPresented: Binding(get: { problem != nil }, set: { if !$0 { problem = nil } })) {
+      .alert(
+        "Drawing couldn’t be saved", isPresented: Binding(get: { problem != nil }, set: { if !$0 { problem = nil } })
+      ) {
         Button("OK") {}
-      } message: { Text(problem ?? "") }
+      } message: {
+        Text(problem ?? "")
+      }
     }
   }
   private func cancel() {
-    guard let editing, let scene else { dismiss(); return }
-    if editing.editor.elements.filter({ $0["isDeleted"]?.boolValue != true }).isEmpty && editing.files.isEmpty {
-      do { try commit(nil); dismiss() } catch { problem = error.localizedDescription }
+    guard let editing, let scene else {
+      dismiss()
       return
     }
-    if editing.editor.elements != editing.initialElements || editing.files != scene.files { discardShown = true }
-    else { dismiss() }
+    if editing.editor.elements.filter({ $0["isDeleted"]?.boolValue != true }).isEmpty && editing.files.isEmpty {
+      do {
+        try commit(nil)
+        dismiss()
+      } catch { problem = error.localizedDescription }
+      return
+    }
+    if editing.editor.elements != editing.initialElements || editing.files != scene.files {
+      discardShown = true
+    } else {
+      dismiss()
+    }
   }
   private func save() {
     guard let editing, var scene else { return }
     do {
       let elements = editing.editor.elements.filter { $0["isDeleted"]?.boolValue != true }
-      if elements.isEmpty && editing.files.isEmpty { try commit(nil) }
-      else {
+      if elements.isEmpty && editing.files.isEmpty {
+        try commit(nil)
+      } else {
         scene.replace(elements: elements, files: editing.files, theme: theme, zoom: editing.editor.zoom)
         try commit(scene.value.stringified)
       }

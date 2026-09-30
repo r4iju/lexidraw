@@ -159,21 +159,25 @@ private struct DocumentEditor: UIViewRepresentable {
       model: editing.model, isEditable: editing.mode == .editing,
       language: editing.settings.language, font: editing.font)
     view.onChange = { [weak editing] in editing?.changed() }
-    configureEmbeddedDrawings(view)
-    configureHTMLBlocks(view, session: editing.session, documentID: editing.id)
-    configureRenderedEmbeds(view, session: editing.session, fontFamily: editing.settings.fontFamily)
-    view.configureSocialNodes(userID: nil, author: "Guest")
-    Task { [weak view, session = editing.session] in
-      guard let identity = try? await session.identity() else { return }
-      view?.configureSocialNodes(userID: identity.id, author: identity.name)
-    }
-    if editing.mode == .editing {
-      view.uploadImage = { [weak editing] data in
-        guard let editing else { throw CancellationError() }
-        return try await editing.session.uploadImage(data, in: editing.id)
+    view.configureNestedEmbeds = { [weak editing] nested in
+      guard let editing else { return }
+      nested.configureSocialNodes(userID: nil, author: "Guest")
+      Task { [weak nested, session = editing.session] in
+        guard let identity = try? await session.identity() else { return }
+        nested?.configureSocialNodes(userID: identity.id, author: identity.name)
       }
-      view.insertionActions = view.imageInsertionActions + view.socialInsertionActions + [drawingInsertionAction(for: view)] + renderedInsertionActions(for: view)
+      configureEmbeddedDrawings(nested)
+      configureHTMLBlocks(nested, session: editing.session, documentID: editing.id)
+      configureRenderedEmbeds(nested, session: editing.session, fontFamily: editing.settings.fontFamily)
+      if nested.isEditable && nested.supportsRichText {
+        nested.uploadImage = { [weak editing] data in
+          guard let editing else { throw CancellationError() }
+          return try await editing.session.uploadImage(data, in: editing.id)
+        }
+        nested.insertionActions += nested.imageInsertionActions + nested.socialInsertionActions + [drawingInsertionAction(for: nested)] + renderedInsertionActions(for: nested)
+      }
     }
+    view.configureNestedEmbeds?(view)
     return view
   }
 

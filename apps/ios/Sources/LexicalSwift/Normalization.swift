@@ -128,8 +128,38 @@ extension Update {
       try transformRow(key)
     case SerializedTableNode.type:
       try transformTable(key)
+    case SerializedCalloutNode.type:
+      if isEmpty(key) { try append(key, [create(SerializedParagraphNode.type)]) }
+    case SerializedLayoutItemNode.type:
+      if let parent = state.parent(of: key), state[parent].type != SerializedLayoutContainerNode.type {
+        try unwrapStructuralElement(key)
+      }
+    case SerializedLayoutContainerNode.type:
+      if state.children(of: key).contains(where: { state[$0].type != SerializedLayoutItemNode.type }) {
+        try unwrapStructuralElement(key)
+      }
+    case SerializedCollapsibleContentNode.type:
+      if let parent = state.parent(of: key), state[parent].type != SerializedCollapsibleContainerNode.type {
+        try unwrapStructuralElement(key)
+      }
+    case SerializedCollapsibleTitleNode.type:
+      if let parent = state.parent(of: key), state[parent].type != SerializedCollapsibleContainerNode.type {
+        try replace(key, with: create(SerializedParagraphNode.type), includingChildren: true)
+      }
+    case SerializedCollapsibleContainerNode.type:
+      let children = Array(state.children(of: key))
+      if children.count != 2 || state[children[0]].type != SerializedCollapsibleTitleNode.type
+        || state[children[1]].type != SerializedCollapsibleContentNode.type
+      {
+        try unwrapStructuralElement(key)
+      }
     default: break
     }
+  }
+
+  private mutating func unwrapStructuralElement(_ key: NodeKey) throws {
+    for child in Array(state.children(of: key)) { try insert(child, before: key) }
+    try remove(key)
   }
 
   /// ElementNode's transform: a root or shadow root holds blocks, so runs of

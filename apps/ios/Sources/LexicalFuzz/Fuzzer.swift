@@ -42,11 +42,14 @@ public struct Fuzzer {
   /// Commands per generated document before starting a fresh one.
   private let sessionLength = 24
 
-  /// Direction and social-subclass cases opt in so established fault-injection seeds keep their scripts.
-  public init(seed: UInt64, reference: some EditorModel, candidate: some EditorModel, writingDirections: Bool = false, socialTextSubclasses: Bool = false) {
+  /// Direction cases opt in so established fault-injection seeds keep their scripts.
+  public init(
+    seed: UInt64, reference: some EditorModel, candidate: some EditorModel, writingDirections: Bool = false,
+    structuralBlocks: Bool = false, socialTextSubclasses: Bool = false
+  ) {
     self.reference = reference
     self.candidate = candidate
-    self.generator = Generator(seed: seed, writingDirections: writingDirections, socialTextSubclasses: socialTextSubclasses)
+    self.generator = Generator(seed: seed, writingDirections: writingDirections, structuralBlocks: structuralBlocks, socialTextSubclasses: socialTextSubclasses)
   }
 
   /// Runs until both models have accepted `steps` commands. Returns the
@@ -289,6 +292,7 @@ extension String {
 struct Generator {
   private var random: SplitMix64
   private let writingDirections: Bool
+  private let structuralBlocks: Bool
   private let socialTextSubclasses: Bool
   /// What the last copy or cut put on the clipboard, for a paste in the same
   /// document or a later one.
@@ -334,7 +338,8 @@ struct Generator {
   /// What plain text from another app breaks into lines, tabs and links at.
   private static let pastedParts = ["\n", "\r\n", "\r", "\t", " ", "https://x.io"] + autoLinks.map(\.text)
 
-  init(seed: UInt64, writingDirections: Bool, socialTextSubclasses: Bool = false) {
+  init(seed: UInt64, writingDirections: Bool, structuralBlocks: Bool = false, socialTextSubclasses: Bool = false) {
+    self.structuralBlocks = structuralBlocks
     self.socialTextSubclasses = socialTextSubclasses
     self.writingDirections = writingDirections
     random = SplitMix64(seed: seed)
@@ -343,6 +348,10 @@ struct Generator {
   mutating func document() -> JSONValue {
     var blocks: [JSONValue] = []
     for _ in 0..<Int.random(in: 1...3, using: &random) {
+      if structuralBlocks && Int.random(in: 0..<2, using: &random) == 0 {
+        blocks.append(structuralBlock())
+        continue
+      }
       if Int.random(in: 0..<3, using: &random) == 0 {
         blocks.append(table())
         continue
@@ -352,6 +361,42 @@ struct Generator {
       blocks.append(block(unlike: previousType))
     }
     return LexicalJSON.document(blocks)
+  }
+
+  private mutating func structuralBlock() -> JSONValue {
+    let types = ["callout", "layout-container", "collapsible-container", "page-break", "sticky", "slide-deck"]
+    let type = types.randomElement(using: &random)!
+    guard let source = StructuralBlockConfiguration.insertionNodes[type],
+      var fields = (try? JSONValue(parsing: source))?.objectValue
+    else {
+      preconditionFailure("The generated structural insertion node is missing")
+    }
+    switch type {
+    case "callout":
+      fields["children"] = .array((0..<Int.random(in: 1...3, using: &random)).map { _ in paragraph() })
+      fields["kind"] = .string(StructuralBlockConfiguration.calloutLabels.keys.sorted().randomElement(using: &random)!)
+    case "layout-container":
+      var items = fields["children"]!.arrayValue!
+      for index in items.indices {
+        var item = items[index].objectValue!
+        item["children"] = .array([paragraph()])
+        items[index] = .object(item)
+      }
+      fields["children"] = .array(items)
+    case "collapsible-container":
+      var children = fields["children"]!.arrayValue!
+      var title = children[0].objectValue!
+      title["children"] = .array([LexicalJSON.text(text(1...6))])
+      children[0] = .object(title)
+      var content = children[1].objectValue!
+      content["children"] = .array([paragraph(), paragraph()])
+      children[1] = .object(content)
+      fields["children"] = .array(children)
+      fields["open"] = .bool(Bool.random(using: &random))
+    default: break
+    }
+    let node = JSONValue.object(fields)
+    return type == "sticky" ? LexicalJSON.paragraph([node]) : node
   }
 
   private mutating func block(unlike previousType: ListType?) -> JSONValue {

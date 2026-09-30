@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build:reference": "bun build reference/entry.ts --target=browser --format=iife --minify --define 'process.env.NODE_ENV=\"development\"' --outfile reference/dist/lexical-reference.js",
+    "build:reference": "bun reference/build.ts",
     "codegen": "bun codegen/write.ts",
     "test": "bun test ./codegen ./reference && bun run build:reference && swift test",
     "test:ui": "scripts/test-ui.sh",

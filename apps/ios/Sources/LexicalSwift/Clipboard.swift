@@ -314,7 +314,7 @@ extension Update {
 
   /// The plain-text importer: `tokenizeRawText`, each part inserted at the
   /// selection the last left.
-  private mutating func insertRawText(_ text: String) throws {
+  mutating func insertRawText(_ text: String, lineBreaks: Bool = false) throws {
     var part: [UInt16] = []
     func insertPart() throws {
       guard !part.isEmpty, let selection else { return }
@@ -328,7 +328,9 @@ extension Update {
       let isCRLF = unit == 13 && index + 1 < units.count && units[index + 1] == 10
       if unit == 10 || isCRLF {
         try insertPart()
-        if let selection { try insertParagraph(selection) }
+        if let selection {
+          if lineBreaks { try insertLineBreak(selection) } else { try insertParagraph(selection) }
+        }
         index += isCRLF ? 2 : 1
       } else if unit == 9 {
         try insertPart()

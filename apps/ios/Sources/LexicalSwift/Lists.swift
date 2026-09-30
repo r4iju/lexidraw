@@ -55,12 +55,12 @@ extension Update {
   /// `getIndent`: a list item's is how deep its list nests.
   func indent(of block: NodeKey) -> Int {
     if isListItem(block), state.isAttached(block) { return state.listItemDepth(block) }
-    return state[block].payload.elementFields?.indent ?? 0
+    return state[block].payload.elementFields?.editorIndent ?? 0
   }
 
   /// `setIndent`: a list item nests or unnests until it's as deep as asked.
   mutating func setIndent(_ block: NodeKey, _ indent: Int) throws {
-    guard isListItem(block) else { return modifyElement(block) { $0.indent = indent } }
+    guard isListItem(block) else { return modifyElement(block) { $0.editorIndent = indent } }
     var current = self.indent(of: block)
     while current != indent {
       if current < indent {
@@ -413,7 +413,7 @@ extension Update {
         modifyElement(paragraph) {
           $0.takeTextFormatAndStyle(of: selection)
           $0.format = itemFields?.format
-          $0.indent = indent
+          $0.editorIndent = indent
           $0.direction = itemFields?.direction ?? .null
         }
         try splice(paragraph, 0, deleting: 0, inserting: Array(state.children(of: item)))
