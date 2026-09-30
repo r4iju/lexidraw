@@ -15,7 +15,8 @@
     "lint": "bun x @biomejs/biome check .",
     "record:composition": "TEST_RUNNER_RECORD_COMPOSITION=1 scripts/test-ui.sh -only-testing:EditorUITests/EditorUITests/testJapaneseCompositionSavesWhatTheWebEditorSaves && bun recording/composition.ts",
     "record:drawings": "bun run reference/drawings/record.ts",
-    "record:html": "bun reference/record-html.ts"
+    "record:html": "bun reference/record-html.ts",
+    "verify:html-upstream": "bun reference/verify-upstream-html.ts"
   },
   "dependencies": {
     "@lexical/clipboard": "^0.51.0",

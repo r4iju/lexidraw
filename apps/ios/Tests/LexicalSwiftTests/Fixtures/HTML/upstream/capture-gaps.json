@@ -14,5 +14,10 @@
   "channelLimitations": [
     "Native Pages/Notes samples contained no original HTML. RTF is normalized by the OS reader/HTML writer before shared converters.",
     "No Pages-to-Safari HTML capture claimed; native Pages RTF formatting/paragraphs verified directly."
-  ]
+  ],
+  "upstreamOnlySources": [
+    "Google Docs: three authentic upstream native clipboard inputs from pinned CKEditor corpus; no fresh user Google Docs copy claimed.",
+    "Word: upstream documented Lexical payload retained under MIT; two other authentic CKEditor style inputs downloaded only for opt-in verification."
+  ],
+  "executableRegressionReplay": "Run bun run verify:html-upstream in apps/ios explicitly. It fetches five pinned public source payloads, checks bytes/SHA and frozen actual Chromium canonical node digests, replays the existing native paste oracle, then removes temporary inputs. Default tests/CI do not fetch."
 }

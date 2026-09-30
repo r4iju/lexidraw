@@ -451,6 +451,13 @@ payload from Lexical v0.51.0, with its MIT license, pinned source and SHA-256 in
 tag names were preserved. Disposable verification also replayed three captured
 Google Docs inputs and Word/Word-through-Safari style inputs from CKEditor's
 documented clipboard corpus, plus Lexical's verbatim VS Code-to-Safari payload.
+Run `bun run verify:html-upstream` explicitly for repeatable verification of
+those three Google Docs and two CKEditor Word payloads. It checks pinned input
+bytes and SHA-256, requires the complete Bun-converted nodes to match the
+frozen actual-Chromium canonical digest, and feeds temporary fixtures into the
+existing public native paste replay. It removes all downloaded source payloads
+afterward; default tests and CI never perform this network fetch. CKEditor
+inputs are not vendored, and no fresh user Google Docs copy is claimed.
 All agree with the browser DOM oracle; VS Code code nodes explicitly refuse
 under #132. These are upstream captures, not newly captured on this device.
 The seven upstream payloads, nine raw-text variants, SVG title and malformed
@@ -461,7 +468,10 @@ Captured Word's recorded expected nodes now come from that browser reference.
 The retained malformed textarea regression was red against Chromium even though
 libxml2 and Bun's DOM parser agreed; it prevents treating their shared recovery
 error as browser parity. These bounded cases do not establish general HTML5
-malformed-input recovery parity.
+malformed-input recovery parity. Ordered-list start reflection also agrees
+with sixteen actual Chromium cases: zero and negative values survive, invalid
+values and values outside signed Int32 default to one, and only HTML ASCII
+whitespace precedes the decimal prefix.
 Actual disposable Safari, Pages and Notes clipboards were then copied by the
 user and captured through a bounded, read-only native NSPasteboard helper.
 Safari's original `public.html` is retained verbatim with its digest and frozen

@@ -21,7 +21,7 @@ import Testing
 
   @Test func generatedHTMLAgreesWithDOMOracle() throws {
     if Support.environment("HTML_RECORD_NODE_SAMPLES") == "1" {
-      var generator = Generator(seed: 168)
+      var generator = Generator(seed: 168, writingDirections: false)
       let samples = (0..<200).map { _ in generator.document() }
       let destination = Support.fixturesSource.appending(path: "HTML/documents.json")
       try JSONValue.array(samples).stringified.write(to: destination, atomically: true, encoding: .utf8)
@@ -32,10 +32,14 @@ import Testing
 
   @Test func recordedDOMOracleAgreesWithNativePaste() throws {
     try replayHTMLFixtures("HTML/paste.json")
+    if let upstream = Support.environment("HTML_UPSTREAM_FIXTURE_PATH") {
+      try replayHTMLFixtures(upstream)
+    }
   }
 
   private func replayHTMLFixtures(_ file: String) throws {
-    let json = try JSONValue(parsing: String(contentsOf: Support.fixturesSource.appending(path: file), encoding: .utf8))
+    let url = file.hasPrefix("/") ? URL(fileURLWithPath: file) : Support.fixturesSource.appending(path: file)
+    let json = try JSONValue(parsing: String(contentsOf: url, encoding: .utf8))
     for fixture in try #require(json.arrayValue) {
       let html = try #require(fixture["html"]?.stringValue)
       let nodes = try #require(fixture["nodes"]?.arrayValue)
@@ -77,6 +81,10 @@ import Testing
   @Test func malformedRawTextHTMLAgreesWithChromium() throws {
     try replayHTMLFixtures("HTML/upstream/malformed-raw-text.chromium.json")
     try replayHTMLFixtures("HTML/upstream/foreign-rcdata.chromium.json")
+  }
+
+  @Test func orderedListStartHTMLAgreesWithChromium() throws {
+    try replayHTMLFixtures("HTML/upstream/ordered-start.chromium.json")
   }
 
   @Test func commandReferenceRequiresTheIndependentDOMOracleForHTML() throws {

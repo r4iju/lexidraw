@@ -134,7 +134,12 @@ export class NativeDOMNode {
     return Math.max(0, Number.parseInt(this.attributes.height ?? "0", 10) || 0);
   }
   get start() {
-    return Number.parseInt(this.attributes.start ?? "1", 10) || 1;
+    // HTML's signed-integer parser accepts ASCII whitespace and a decimal
+    // prefix. The reflected long defaults to 1 when absent, invalid or outside
+    // Int32, while zero and negative values are valid list starts.
+    const digits = /^[\t\n\f\r ]*[+-]?\d+/.exec(this.attributes.start ?? "");
+    const value = digits ? Number.parseInt(digits[0], 10) : NaN;
+    return value >= -2147483648 && value <= 2147483647 ? value : 1;
   }
   getAttribute(name: string) {
     return this.attributes[name] ?? null;
