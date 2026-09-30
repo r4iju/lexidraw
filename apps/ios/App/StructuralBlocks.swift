@@ -442,6 +442,7 @@ import UIKit
       makeEditor: { [weak owner] model in
         owner?.makeNestedEditor(model: model, isEditable: false) ?? EditorView(model: model, isEditable: false)
       },
+      imageLoader: owner?.mediaImageLoader,
       provider: { [weak owner] node in
         owner?.embeddedContent?("\(self.key)-slide-\(index)-\(node["id"]?.stringValue ?? "")", node)
       })
@@ -771,7 +772,7 @@ import UIKit
   private var elements: [(UIView, JSONValue)] = []
   private var downloads: [Task<Void, Never>] = []
 
-  init(slide: JSONValue, makeEditor: (any EditorModel) -> EditorView, provider: (JSONValue) -> EmbeddedContentView?) {
+  init(slide: JSONValue, makeEditor: (any EditorModel) -> EditorView, imageLoader: MediaImageLoader?, provider: (JSONValue) -> EmbeddedContentView?) {
     self.slide = slide
     super.init(frame: .zero)
     clipsToBounds = true
@@ -812,9 +813,9 @@ import UIKit
           downloads.append(
             Task { [weak image] in
               do {
-                let (data, response) = try await URLSession.shared.data(from: url)
-                guard (response as? HTTPURLResponse)?.statusCode == 200, data.count <= 20 * 1024 * 1024 else { return }
-                image?.image = UIImage(data: data)
+                let decoded = try await (imageLoader ?? NativeMediaImages.load)(url)
+                try Task.checkCancellation()
+                image?.image = decoded
               } catch { image?.accessibilityLabel = "Slide image could not load" }
             })
         }
