@@ -18,6 +18,7 @@ public protocol EditorModel: AnyObject {
   /// the scene the editor opened. Nil deletes an empty saved drawing.
   @discardableResult
   func replaceDrawing(key: String, expectedData: String, data: String?) throws -> ChangeSet
+  func replaceRenderedNode(key: String, expected: JSONValue, replacement: JSONValue) throws -> ChangeSet
 
   /// The serialized editor state and the selection.
   func snapshot() throws -> Snapshot
@@ -44,6 +45,10 @@ public protocol EditorModel: AnyObject {
 }
 
 extension EditorModel {
+  public func replaceRenderedNode(key: String, expected: JSONValue, replacement: JSONValue) throws -> ChangeSet {
+    throw EditorError.unsupported("Rendered node editing belongs to #132")
+  }
+
   public func replaceDrawing(key: String, expectedData: String, data: String?) throws -> ChangeSet {
     throw EditorError.unsupported("Embedded drawing editing requires #139")
   }
@@ -207,6 +212,7 @@ public enum EditorCommand: Equatable, Sendable {
   public enum ElementAlignment: String, Codable, CaseIterable, Sendable {
     case left, start, center, right, end, justify
   }
+  case formatCode
   /// Sets each selected text block; automatic removes the stored override.
   case setWritingDirection(WritingDirection)
 
@@ -342,6 +348,7 @@ extension EditorCommand: Codable {
   private enum Kind: String, Codable {
     case setSelection, insertText, commitComposition, deleteCharacter, deleteWord, deleteLine, insertParagraph, insertLineBreak,
       formatText, setBlockType, formatElement, changeFontSize, clearFormatting, setWritingDirection, insertList, removeList, indent, outdent, tab, toggleChecked, selectAll, toggleLink, editLink,
+      formatText, setBlockType, formatCode, setWritingDirection, insertList, removeList, indent, outdent, tab, toggleChecked, selectAll, toggleLink, editLink,
       copy, cut, paste, insertTable, insertTableRow, insertTableColumn, deleteTableRow, deleteTableColumn, mergeTableCells, unmergeTableCell, deleteTable, toggleTableRowHeader, toggleTableColumnHeader, setTableCellBackground, arrow, undo, redo,
       wait
   }
@@ -360,6 +367,7 @@ extension EditorCommand: Codable {
     case .clearFormatting: .clearFormatting
     case .changeFontSize: .changeFontSize
     case .formatElement: .formatElement
+    case .formatCode: .formatCode
     case .setBlockType: .setBlockType
     case .setWritingDirection: .setWritingDirection
     case .insertList: .insertList
@@ -416,6 +424,7 @@ extension EditorCommand: Codable {
     case .clearFormatting: self = .clearFormatting
     case .changeFontSize: self = .changeFontSize(increase: try container.decode(Bool.self, forKey: .increase))
     case .formatElement: self = .formatElement(try container.decode(ElementAlignment.self, forKey: .format))
+    case .formatCode: self = .formatCode
     case .setBlockType: self = .setBlockType(try container.decode(BlockType.self, forKey: .blockType))
     case .setWritingDirection: self = .setWritingDirection(try container.decode(WritingDirection.self, forKey: .direction))
     case .insertList: self = .insertList(try container.decode(ListType.self, forKey: .listType))
@@ -507,6 +516,7 @@ extension EditorCommand: Codable {
       try container.encode(parentRTL, forKey: .parentRTL)
       try container.encodeIfPresent(anchorRTL, forKey: .anchorRTL)
     case .clearFormatting, .insertParagraph, .insertLineBreak, .removeList, .indent, .outdent, .selectAll, .copy, .cut, .deleteTableRow,
+    case .formatCode, .insertParagraph, .insertLineBreak, .removeList, .indent, .outdent, .selectAll, .copy, .cut, .deleteTableRow,
       .deleteTableColumn, .mergeTableCells, .unmergeTableCell, .deleteTable, .toggleTableRowHeader, .toggleTableColumnHeader, .undo, .redo:
       break
     }

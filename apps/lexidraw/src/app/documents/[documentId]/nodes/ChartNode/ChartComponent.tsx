@@ -1,4 +1,5 @@
 "use client";
+import { chartFrame } from "~/lib/chart-frame";
 
 import { useLexicalEditable } from "@lexical/react/useLexicalEditable";
 import { useLexicalNodeSelection } from "@lexical/react/useLexicalNodeSelection";
@@ -191,15 +192,7 @@ export default function ChartComponent({
         data-empty={parsedChartData.length === 0}
         ref={containerRef}
         draggable={isFocused && !isResizing && $isNodeSelection(selection)}
-        style={{
-          width: typeof width === "number" ? width : "100%",
-          aspectRatio:
-            parsedChartData.length === 0
-              ? undefined
-              : typeof width === "number" && typeof height === "number"
-                ? `${width} / ${height}`
-                : "2 / 1",
-        }}
+        style={chartFrame(width, height, parsedChartData.length === 0)}
       >
         <DynamicChartRenderer
           chartType={chartType}

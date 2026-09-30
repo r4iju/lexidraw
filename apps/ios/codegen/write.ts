@@ -108,3 +108,5 @@ await Bun.write(MEDIA_STYLE_PATH, await swiftForMediaStyle());
 
 const { MEDIA_IMAGES_PATH, swiftForMediaImages } = await import("./media");
 await Bun.write(MEDIA_IMAGES_PATH, swiftForMediaImages());
+const { RENDERED_EMBED_STYLE_PATH, swiftForRenderedEmbedStyle } = await import("./rendered-embeds");
+await Bun.write(RENDERED_EMBED_STYLE_PATH, await swiftForRenderedEmbedStyle());

@@ -118,6 +118,33 @@ public final class EditorView: UIScrollView, UITextInput {
     }
   }
 
+  @discardableResult private func openSelectedCodeSource() -> Bool {
+    guard let selection = modelSelection(), !selection.anchor.path.isEmpty else { return false }
+    var path = selection.anchor.path
+    while !path.isEmpty {
+      if let node = try? model.nodeForPresentation(at: path), node["type"] == "code", selection.focus.path.starts(with: path), let key = nodeKey(at: path) {
+        return onEmbeddedTap?(key, node) == true
+      }
+      path.removeLast()
+    }
+    return false
+  }
+
+  public func formatCode() {
+    if openSelectedCodeSource() { return }
+    unmarkText()
+    perform(.formatCode, fromInput: false, tellsRefusal: true)
+  }
+
+  public func replaceRenderedNode(key: String, expected: JSONValue, replacement: JSONValue) throws {
+    guard isEditable else { throw EditorError.unsupported("This document is read only") }
+    let change = try model.replaceRenderedNode(key: key, expected: expected, replacement: replacement)
+    inputDelegate?.textWillChange(self)
+    render(change)
+    inputDelegate?.textDidChange(self)
+    showModelSelection(fromInput: false)
+  }
+
   /// Commits a drawing edit through the document's history and rendering.
   public func replaceDrawing(key: String, expectedData: String, data: String?) throws {
     guard isEditable else { throw EditorError.unsupported("This document is read only") }
@@ -199,6 +226,11 @@ public final class EditorView: UIScrollView, UITextInput {
   @discardableResult
   private func perform(_ command: EditorCommand, fromInput: Bool, tellsRefusal: Bool = false) -> ChangeSet? {
     guard isEditable || !command.edits else { return nil }
+    switch command {
+    case .insertText, .commitComposition, .deleteCharacter, .deleteWord, .deleteLine, .insertParagraph, .insertLineBreak, .formatText, .tab:
+      if openSelectedCodeSource() { return nil }
+    default: break
+    }
     // A model left with no selection takes the view's before an edit.
     if command.editsAtSelection, modelSelection() == nil { sendSelection() }
     let now = ProcessInfo.processInfo.systemUptime

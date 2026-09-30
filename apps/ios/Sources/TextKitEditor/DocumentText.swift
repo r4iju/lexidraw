@@ -400,6 +400,7 @@ public final class DocumentText {
 
   private static func kind(of node: JSONValue, spans: [[Int]: Span]) -> BlockKind {
     if let embedded = decoratorInParagraph(node), let type = embedded["type"]?.stringValue { return .embedded(type: type) }
+    if node["type"] == "code" { return .embedded(type: "code") }
     switch spans[[]]?.kind {
     case .character: return .embedded(type: node["type"]?.stringValue ?? "")
     case .element(let rowCount) where node["type"] == "table":

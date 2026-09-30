@@ -38,6 +38,27 @@ extension Update {
     }
   }
 
+  mutating func formatCode(_ selection: RangeSelection) throws {
+    if state.isCollapsed(try state.caretRange(from: selection)) {
+      for block in try blocks(in: selection) {
+        let code = create(SerializedDocumentCodeNode.type)
+        copyBlockFormatIndent(from: block, to: code)
+        try replace(block, with: code, includingChildren: true)
+      }
+    } else {
+      let text = try textContent(selection)
+      try insertNodes(selection, [create(SerializedDocumentCodeNode.type)])
+      if let next = self.selection {
+        var nodes: [NodeKey] = []
+        for (index, line) in text.components(separatedBy: "\n").enumerated() {
+          if index > 0 { nodes.append(create(SerializedLineBreakNode.type)) }
+          if !line.isEmpty { nodes.append(createText(line)) }
+        }
+        try insertNodes(next, nodes)
+      }
+    }
+  }
+
   /// `$setBlockType` in @packages/lexical-nodes.
   mutating func setBlockType(_ selection: RangeSelection, _ type: BlockType) throws {
     try replace(try blocks(in: selection), with: type)
@@ -210,6 +231,7 @@ protocol ElementFields {
 }
 
 extension SerializedParagraphNode: ElementFields {}
+extension SerializedDocumentCodeNode: ElementFields {}
 extension SerializedHeadingNode: ElementFields {}
 extension SerializedQuoteNode: ElementFields {}
 extension SerializedListNode: ElementFields {}
@@ -226,6 +248,7 @@ extension SerializedNode {
     get {
       switch self {
       case .paragraph(let node): node
+      case .documentCode(let node): node
       case .heading(let node): node
       case .quote(let node): node
       case .list(let node): node
@@ -241,6 +264,7 @@ extension SerializedNode {
     }
     set {
       switch newValue {
+      case let node as SerializedDocumentCodeNode: self = .documentCode(node)
       case let node as SerializedParagraphNode: self = .paragraph(node)
       case let node as SerializedHeadingNode: self = .heading(node)
       case let node as SerializedQuoteNode: self = .quote(node)

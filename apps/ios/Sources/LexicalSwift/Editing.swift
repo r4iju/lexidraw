@@ -693,7 +693,14 @@ extension Update {
     let firstPoint = try state.startEnd(selection).start
     let startBlock = findParent(from: firstPoint.key, where: isBlock)
     if let startBlock, state[startBlock].type == SerializedDocumentCodeNode.type {
-      throw EditorError.unsupported("Inserting into a code block isn't supported yet (#132)")
+      if state[nodes[0]].type == SerializedDocumentCodeNode.type {
+        try insertText(selection, state.textContent(of: nodes[0]))
+      } else {
+        let (_, index) = try removeTextAndSplitBlock(selection)
+        try splice(startBlock, index, deleting: 0, inserting: nodes)
+        selectEnd(last)
+      }
+      return
     }
     if !nodes.contains(where: { (state[$0].isElement || state[$0].isDecorator) && !state[$0].isInline }) {
       guard let startBlock, state[startBlock].isElement else {

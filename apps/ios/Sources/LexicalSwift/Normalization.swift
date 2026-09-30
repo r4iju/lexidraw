@@ -11,7 +11,11 @@ extension Node {
   }
 
   /// A TabNode's text is a tab, whatever it was stored with.
-  var text: String { type == SerializedTabNode.type ? "\t" : textNode?.text ?? "" }
+  var text: String {
+    if type == SerializedTabNode.type { return "\t" }
+    if case .codeHighlight(let node) = payload { return node.text ?? "" }
+    return textNode?.text ?? ""
+  }
 }
 
 /// The bits Lexical keeps in a text node's `detail`.
@@ -67,6 +71,10 @@ extension Update {
       guard !(node.text ?? "").isIdentical(to: text) else { return }
       node.text = text
       modify(key) { $0.payload = .text(node) }
+    case .codeHighlight(var node):
+      guard !(node.text ?? "").isIdentical(to: text) else { return }
+      node.text = text
+      modify(key) { $0.payload = .codeHighlight(node) }
     case .tab(var node):
       guard node.text != "\t" else { return }
       node.text = "\t"
