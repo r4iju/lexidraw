@@ -4,6 +4,13 @@ import LexicalSwift
 import Testing
 
 @Suite struct RenderedEmbedTests {
+  @Test func selectedCodeFormattingCreatesRawTextTabs() throws {
+    let fixture = try Fixture.record(start: document(paragraph(text("hello\tworld"))), commands: [
+      .setSelection(anchor: .text([0, 0], 0), focus: .text([0, 0], 11)), .formatCode,
+    ], on: Support.referenceEditor())
+    #expect(try fixture.replay(on: Editor()) == fixture.recorded)
+  }
+
   @Test func highlightedCodeTextUsesItsOwnPayloadWhenEdited() throws {
     let code: JSONValue = ["type": "code", "version": 1, "children": [["type": "code-highlight", "version": 1, "text": "let answer = 42", "highlightType": "keyword"]]]
     let fixture = try Fixture.record(start: document(code), commands: [

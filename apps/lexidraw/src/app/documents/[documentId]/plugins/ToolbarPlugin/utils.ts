@@ -10,7 +10,7 @@ import {
   $isQuoteNode,
   type HeadingTagType,
 } from "@lexical/rich-text";
-import { $patchStyleText, $setBlocksType } from "@lexical/selection";
+import { $patchStyleText } from "@lexical/selection";
 import { $isTableSelection } from "@lexical/table";
 import { $getNearestBlockElementAncestorOrThrow } from "@lexical/utils";
 import { $setBlockType } from "@packages/lexical-nodes/block-type";

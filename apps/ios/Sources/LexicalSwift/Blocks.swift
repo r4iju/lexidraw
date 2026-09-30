@@ -52,7 +52,10 @@ extension Update {
         var nodes: [NodeKey] = []
         for (index, line) in text.components(separatedBy: "\n").enumerated() {
           if index > 0 { nodes.append(create(SerializedLineBreakNode.type)) }
-          if !line.isEmpty { nodes.append(createText(line)) }
+          for (tabIndex, part) in line.components(separatedBy: "\t").enumerated() {
+            if tabIndex > 0 { nodes.append(create(SerializedTabNode.type)) }
+            if !part.isEmpty { nodes.append(createText(part)) }
+          }
         }
         try insertNodes(next, nodes)
       }

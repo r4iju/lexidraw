@@ -26,7 +26,8 @@ import UIKit
     parent.present(host, animated: true)
     return true
   }
-  func image(_ key: String, _ node: JSONValue) -> RenderedEmbedView? {
+  let image: (String, JSONValue) -> RenderedEmbedView? = { [weak view] key, node in
+    guard let view else { return nil }
     guard let type = node["type"]?.stringValue, supported.contains(type) else { return nil }
     let result: RenderedEmbedView
     if let cached = images.object(forKey: key as NSString) { result = cached }
@@ -42,11 +43,8 @@ import UIKit
   }
   view.embeddedContent = { key, node in image(key, node) ?? previousContent?(key, node) }
   view.inlineEmbeddedContent = { key, node, width in
-    guard let rendered = image(key, node) else { return previousInline?(key, node, width) }
-    let size = rendered.contentSize(fitting: width)
-    let attachment = NSTextAttachment()
-    attachment.image = rendered.image
-    attachment.bounds = CGRect(x: 0, y: -3, width: size.width, height: size.height)
+    guard node["type"] == "equation", node["inline"] == true else { return previousInline?(key, node, width) }
+    let attachment = RenderedEquationAttachment(cached: images.object(forKey: key as NSString), width: width) { image(key, node) }
     return attachment
   }
   view.onEmbeddedTap = { key, node in open(key, node) || previousTap?(key, node) == true }
@@ -89,11 +87,27 @@ import UIKit
     accessibilityLabel = "\(node["type"]?.stringValue ?? "Rendered node"). Edit source"
     setNeedsLayout()
   }
+  func cachedSize(fitting width: CGFloat) -> CGSize {
+    CGSize(width: min(width, natural.width), height: max(min(width, natural.width) * natural.height / max(natural.width, 1), 20))
+  }
   override func contentSize(fitting width: CGFloat) -> CGSize {
     let inline = node["type"] == "equation" && node["inline"] == true
-    let target = inline ? min(width, natural.width) : min(width, CGFloat(node["width"]?.numberValue ?? Double(width)))
+    let em = UIFont.preferredFont(forTextStyle: .body).pointSize
+    var column = min(width, FigureStyle.columnRem * em)
+    if let figureWidth = node["$"]?["figure"]?["width"]?.stringValue {
+      switch figureWidth {
+      case "wide": column = min(width, FigureStyle.wideRem * em)
+      case "full": column = width
+      default:
+        if figureWidth.hasSuffix("%"), let share = Double(figureWidth.dropLast()) {
+          let least = width <= FigureStyle.phoneWidth ? width : min(width, FigureStyle.minimumShareRem * em)
+          column = min(width, max(column * share / 100, least))
+        }
+      }
+    }
+    let target = inline ? min(width, natural.width) : min(column, CGFloat(node["width"]?.numberValue ?? Double(column)))
     render(width: max(target, 100))
-    let height = min(target * natural.height / max(natural.width, 1), CGFloat(node["height"]?.numberValue ?? .greatestFiniteMagnitude))
+    let height = target * natural.height / max(natural.width, 1)
     return CGSize(width: target, height: max(height, 20))
   }
   override func layoutSubviews() {
@@ -128,7 +142,30 @@ import UIKit
       }
     }
   }
+  deinit { task?.cancel() }
   @objc private func tap() { open?() }
+}
+
+@MainActor private final class RenderedEquationAttachment: NSTextAttachment, LazyTextAttachment {
+  private let makeRendered: () -> RenderedEmbedView?
+  let width: CGFloat
+  private var started = false
+  init(cached: RenderedEmbedView?, width: CGFloat, makeRendered: @escaping () -> RenderedEmbedView?) {
+    self.makeRendered = makeRendered
+    self.width = width
+    super.init(data: nil, ofType: nil)
+    image = cached?.image ?? UIImage(systemName: "function")
+    let size = cached?.cachedSize(fitting: width) ?? CGSize(width: 20, height: 20)
+    bounds = CGRect(x: 0, y: -3, width: size.width, height: size.height)
+  }
+  required init?(coder: NSCoder) { fatalError("Equation attachment is made in code") }
+  func load(onChange: @escaping @MainActor () -> Void) {
+    guard !started else { return }
+    started = true
+    _ = makeRendered()?.contentSize(fitting: width)
+    // Provider completion refreshes EditorView so the attachment is rebuilt
+    // with the measured image. No document-wide network work starts here.
+  }
 }
 
 private struct RenderedSourceEditor: View {
@@ -176,6 +213,8 @@ private struct RenderedSourceEditor: View {
   }
   private func commit() {
     do {
+      let originalSource = node["type"] == "code" ? (node["children"]?.arrayValue ?? []).map { $0["type"] == "linebreak" ? "\n" : $0["type"] == "tab" ? "\t" : $0["text"]?.stringValue ?? "" }.joined() : nil
+      if node["type"] == "code", source == originalSource, language == (node["language"]?.stringValue ?? "") { dismiss(); return }
       guard var fields = node.objectValue else { throw EditorError.invalidState("Invalid node") }
       switch node["type"]?.stringValue {
       case "mermaid":
@@ -194,7 +233,10 @@ private struct RenderedSourceEditor: View {
         fields["language"] = language.isEmpty ? nil : .string(language)
         fields["children"] = .array(source.components(separatedBy: "\n").enumerated().flatMap { index, line -> [JSONValue] in
           var nodes: [JSONValue] = index > 0 ? [["type": "linebreak", "version": 1]] : []
-          if !line.isEmpty { nodes.append(["type": "text", "version": 1, "text": .string(line), "format": 0, "detail": 0, "mode": "normal", "style": ""]) }
+          for (tabIndex, part) in line.components(separatedBy: "\t").enumerated() {
+            if tabIndex > 0 { nodes.append(["type": .string(SerializedTabNode.type), "version": .number(Double(SerializedTabNode.version)), "text": "\t", "format": 0, "detail": 0, "mode": "normal", "style": ""]) }
+            if !part.isEmpty { nodes.append(["type": .string(SerializedTextNode.type), "version": .number(Double(SerializedTextNode.version)), "text": .string(part), "format": 0, "detail": 0, "mode": "normal", "style": ""]) }
+          }
           return nodes
         })
       default: throw EditorError.unsupported("Unknown rendered node")
