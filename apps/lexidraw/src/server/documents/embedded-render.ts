@@ -48,7 +48,7 @@ export function createEmbedRenderer(
       sizes.set(hash, size);
       bytes += size;
       while (bytes > 32_000_000 || cache.size > 128) {
-        const oldest = cache.keys().next().value;
+        const oldest = Array.from(cache.keys()).find((key) => sizes.has(key));
         if (!oldest) break;
         bytes -= sizes.get(oldest) ?? 0;
         sizes.delete(oldest);

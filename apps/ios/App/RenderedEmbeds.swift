@@ -1,3 +1,4 @@
+import LexicalSwift
 import EditorModelInterface
 import LexidrawKit
 import SwiftUI
@@ -201,5 +202,14 @@ private struct RenderedSourceEditor: View {
       if .object(fields) != node { try save(.object(fields)) }
       dismiss()
     } catch { self.error = error.localizedDescription }
+  }
+}
+
+@MainActor func renderedInsertionActions(for view: EditorView) -> [UIAction] {
+  [("mermaid", "Mermaid"), ("chart", "Chart"), ("equation", "Equation")].map { type, title in
+    UIAction(title: title) { [weak view] _ in
+      guard let json = RenderedEmbedStyle.insertionNodeJSON[type], let node = try? JSONValue(parsing: json) else { return }
+      view?.insertEmbeddedNode(node, namespace: editorNamespace)
+    }
   }
 }

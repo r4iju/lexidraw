@@ -143,6 +143,7 @@ public final class EditorView: UIScrollView, UITextInput {
     render(change)
     inputDelegate?.textDidChange(self)
     showModelSelection(fromInput: false)
+    if !change.changed.isEmpty { onChange?() }
   }
 
   /// Commits a drawing edit through the document's history and rendering.
@@ -902,14 +903,15 @@ public final class EditorView: UIScrollView, UITextInput {
       path.removeLast()
     }
     let choices = webBlockChoices.map { choice in
-      let supported = BlockType(rawValue: choice.type) != nil || EditorCommand.ListType(rawValue: choice.type) != nil
+      let supported = choice.type == "code" || BlockType(rawValue: choice.type) != nil || EditorCommand.ListType(rawValue: choice.type) != nil
       return UIAction(title: choice.label, attributes: supported ? [] : .disabled,
         state: choice.type == selectedType ? .on : .off) { [weak self] _ in
         guard let self else { return }
         unmarkText()
         if let list = EditorCommand.ListType(rawValue: choice.type) {
           if selectedType == choice.type { removeList() } else { insertList(list) }
-        } else if let block = BlockType(rawValue: choice.type) { setBlockType(block) }
+        } else if choice.type == "code" { formatCode() }
+        else if let block = BlockType(rawValue: choice.type) { setBlockType(block) }
       }
     }
     return (
@@ -963,7 +965,7 @@ public final class EditorView: UIScrollView, UITextInput {
     case .outdent: outdent()
     case .subscript: formatText(.subscript)
     case .superscript: formatText(.superscript)
-    case .insertCodeBlock: formatText(.code)
+    case .insertCodeBlock: formatCode()
     case .insertLink: linkFromKeyboard()
     case .centerAlign: _ = perform(.formatElement(.center), fromInput: false, tellsRefusal: true)
     case .leftAlign: _ = perform(.formatElement(.left), fromInput: false, tellsRefusal: true)

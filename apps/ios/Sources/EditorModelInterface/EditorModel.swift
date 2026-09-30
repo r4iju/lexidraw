@@ -347,8 +347,7 @@ extension EditorCommand: Codable {
   /// The command's `type` in JSON.
   private enum Kind: String, Codable {
     case setSelection, insertText, commitComposition, deleteCharacter, deleteWord, deleteLine, insertParagraph, insertLineBreak,
-      formatText, setBlockType, formatElement, changeFontSize, clearFormatting, setWritingDirection, insertList, removeList, indent, outdent, tab, toggleChecked, selectAll, toggleLink, editLink,
-      formatText, setBlockType, formatCode, setWritingDirection, insertList, removeList, indent, outdent, tab, toggleChecked, selectAll, toggleLink, editLink,
+      formatText, setBlockType, formatCode, formatElement, changeFontSize, clearFormatting, setWritingDirection, insertList, removeList, indent, outdent, tab, toggleChecked, selectAll, toggleLink, editLink,
       copy, cut, paste, insertTable, insertTableRow, insertTableColumn, deleteTableRow, deleteTableColumn, mergeTableCells, unmergeTableCell, deleteTable, toggleTableRowHeader, toggleTableColumnHeader, setTableCellBackground, arrow, undo, redo,
       wait
   }
@@ -515,8 +514,7 @@ extension EditorCommand: Codable {
       try container.encode(atCellEdge, forKey: .atCellEdge)
       try container.encode(parentRTL, forKey: .parentRTL)
       try container.encodeIfPresent(anchorRTL, forKey: .anchorRTL)
-    case .clearFormatting, .insertParagraph, .insertLineBreak, .removeList, .indent, .outdent, .selectAll, .copy, .cut, .deleteTableRow,
-    case .formatCode, .insertParagraph, .insertLineBreak, .removeList, .indent, .outdent, .selectAll, .copy, .cut, .deleteTableRow,
+    case .formatCode, .clearFormatting, .insertParagraph, .insertLineBreak, .removeList, .indent, .outdent, .selectAll, .copy, .cut, .deleteTableRow,
       .deleteTableColumn, .mergeTableCells, .unmergeTableCell, .deleteTable, .toggleTableRowHeader, .toggleTableColumnHeader, .undo, .redo:
       break
     }
