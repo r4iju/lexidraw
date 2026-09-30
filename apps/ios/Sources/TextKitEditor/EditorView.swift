@@ -873,7 +873,20 @@ public final class EditorView: UIScrollView, UITextInput {
           unmarkText()
           _ = perform(.formatElement(alignment), fromInput: false, tellsRefusal: true)
         }
-      })]),
+      }), UIMenu(title: "Text formatting", children: [
+        UIAction(title: "Increase font size") { [weak self] _ in
+          guard let self else { return }; unmarkText()
+          _ = perform(.changeFontSize(increase: true), fromInput: false, tellsRefusal: true)
+        },
+        UIAction(title: "Decrease font size") { [weak self] _ in
+          guard let self else { return }; unmarkText()
+          _ = perform(.changeFontSize(increase: false), fromInput: false, tellsRefusal: true)
+        },
+        UIAction(title: "Clear formatting") { [weak self] _ in
+          guard let self else { return }; unmarkText()
+          _ = perform(.clearFormatting, fromInput: false, tellsRefusal: true)
+        },
+      ])]),
       UIMenu(title: "Lists", children: choices.filter { action in
         webBlockChoices.contains { $0.label == action.title && EditorCommand.ListType(rawValue: $0.type) != nil }
       }),
@@ -908,7 +921,10 @@ public final class EditorView: UIScrollView, UITextInput {
     case .leftAlign: _ = perform(.formatElement(.left), fromInput: false, tellsRefusal: true)
     case .rightAlign: _ = perform(.formatElement(.right), fromInput: false, tellsRefusal: true)
     case .justifyAlign: _ = perform(.formatElement(.justify), fromInput: false, tellsRefusal: true)
-    case .formatCode, .increaseFontSize, .decreaseFontSize, .clearFormatting:
+    case .increaseFontSize: _ = perform(.changeFontSize(increase: true), fromInput: false, tellsRefusal: true)
+    case .decreaseFontSize: _ = perform(.changeFontSize(increase: false), fromInput: false, tellsRefusal: true)
+    case .clearFormatting: _ = perform(.clearFormatting, fromInput: false, tellsRefusal: true)
+    case .formatCode:
       preconditionFailure("A shortcut offered before its #135/#132 command is ported")
     }
   }
@@ -1420,7 +1436,8 @@ extension EditorCommand {
 extension WebShortcutAction {
   fileprivate var isImplemented: Bool {
     switch self {
-    case .formatCode, .increaseFontSize, .decreaseFontSize, .clearFormatting: false
+    case .formatCode: false
+    case .increaseFontSize, .decreaseFontSize, .clearFormatting: true
     case .centerAlign, .leftAlign, .rightAlign, .justifyAlign: true
     case .formatParagraph, .formatHeading, .formatBulletList, .formatNumberedList, .formatCheckList, .formatQuote,
       .lowercase, .uppercase, .capitalize, .strikeThrough, .indent, .outdent, .subscript, .superscript,

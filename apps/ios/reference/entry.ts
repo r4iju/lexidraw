@@ -133,6 +133,9 @@ import {
 } from "./deletion.js";
 import { EditorError } from "./editor-error.js";
 import "./url.js";
+import { clearFormatting } from "./clear-formatting.js";
+import { nextFontSize, DEFAULT_FONT_SIZE } from "./font-sizing.js";
+import { $patchStyleText } from "@lexical/selection";
 import {
   $checkSelectionForTable,
   $clearHighlight,
@@ -169,6 +172,8 @@ type Command =
   | { type: "insertLineBreak" }
   | { type: "formatText"; format: TextFormatType }
   | { type: "setBlockType"; blockType: BlockType }
+  | { type: "changeFontSize"; increase: boolean }
+  | { type: "clearFormatting" }
   | { type: "formatElement"; format: Exclude<ElementFormatType, ""> }
   | { type: "setWritingDirection"; direction: WritingDirection }
   | { type: "insertList"; listType: ListType }
@@ -737,6 +742,15 @@ function run(
     case "setWritingDirection":
       $setWritingDirection(command.direction);
       return;
+    case "clearFormatting":
+      clearFormatting(current());
+      return;
+    case "changeFontSize":
+      $patchStyleText(selection, {
+        "font-size": (previous) =>
+          `${nextFontSize(Number((previous || `${DEFAULT_FONT_SIZE}px`).slice(0, -2)), command.increase)}px`,
+      });
+      return;
     case "formatElement":
       current().dispatchCommand(FORMAT_ELEMENT_COMMAND, command.format);
       return;
@@ -1058,6 +1072,15 @@ function runOnCells(
     case "setWritingDirection":
       $setWritingDirection(command.direction);
       return;
+    case "clearFormatting":
+      clearFormatting(current());
+      return;
+    case "changeFontSize":
+      $patchStyleText(selection, {
+        "font-size": (previous) =>
+          `${nextFontSize(Number((previous || `${DEFAULT_FONT_SIZE}px`).slice(0, -2)), command.increase)}px`,
+      });
+      return;
     case "formatElement":
       $formatCellElements(selection, command.format);
       return;
@@ -1142,6 +1165,15 @@ function runOnNodes(
       return;
     case "setWritingDirection":
       $setWritingDirection(command.direction);
+      return;
+    case "clearFormatting":
+      clearFormatting(current());
+      return;
+    case "changeFontSize":
+      $patchStyleText(selection, {
+        "font-size": (previous) =>
+          `${nextFontSize(Number((previous || `${DEFAULT_FONT_SIZE}px`).slice(0, -2)), command.increase)}px`,
+      });
       return;
     case "formatElement":
       current().dispatchCommand(FORMAT_ELEMENT_COMMAND, command.format);

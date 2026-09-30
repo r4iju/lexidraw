@@ -67,3 +67,37 @@ const { DOCUMENT_SETTINGS_PATH, swiftForDocumentSettings } = await import(
   "./document-fonts"
 );
 await Bun.write(DOCUMENT_SETTINGS_PATH, await swiftForDocumentSettings());
+
+const { fontSizing } = await import("./font-sizing");
+const sizing = fontSizing();
+await Bun.write(
+  new URL("../Sources/LexidrawJSON/WebFontSizing.swift", import.meta.url),
+  sizing.swift,
+);
+await Bun.write(
+  new URL("../reference/font-sizing.ts", import.meta.url),
+  sizing.reference,
+);
+
+const { referenceClearFormatting } = await import("./clear-formatting");
+await Bun.write(
+  new URL("../reference/clear-formatting.ts", import.meta.url),
+  referenceClearFormatting(),
+);
+
+const { fileURLToPath } = await import("node:url");
+const formatting = Bun.spawn({
+  cmd: [
+    process.execPath,
+    "x",
+    "@biomejs/biome",
+    "format",
+    "--write",
+    fileURLToPath(new URL("../reference/font-sizing.ts", import.meta.url)),
+    fileURLToPath(new URL("../reference/clear-formatting.ts", import.meta.url)),
+  ],
+  stdout: "ignore",
+  stderr: "inherit",
+});
+if ((await formatting.exited) !== 0)
+  throw new Error("Reference helper formatting failed");
