@@ -10,10 +10,10 @@ public enum MediaCaptionSupport {
         return "This caption contains \(type) nodes the native app can't show yet (#134)."
       }
       if let style = node["style"]?.stringValue, !style.isEmpty {
-        return "This caption uses a text style the native app can't show yet (#131)."
+        return "This caption uses a text style the native app can't show yet (#135)."
       }
       if let style = node["textStyle"]?.stringValue, !style.isEmpty {
-        return "This caption uses a text style the native app can't show yet (#131)."
+        return "This caption uses a text style the native app can't show yet (#135)."
       }
       pending.append(contentsOf: node["children"]?.arrayValue ?? [])
     }

@@ -55,9 +55,11 @@ import UIKit
     Task {
       do {
         let source = try await upload(data)
-        let caption: JSONValue = ["root": ["type": "root", "version": 1, "children": [["type": "paragraph", "version": 1, "children": [], "format": "", "indent": 0, "direction": nil, "textFormat": 0, "textStyle": ""]], "format": "", "indent": 0, "direction": nil]]
-        let size = image.size
-        let node: JSONValue = ["type": "image", "version": 1, "src": .string(source.absoluteString), "altText": "", "width": .number(Double(size.width)), "height": .number(Double(size.height)), "maxWidth": 500, "showCaption": false, "caption": ["editorState": caption]]
+        var fields = try JSONValue(parsing: MediaImages.insertionNodeJSON).objectValue!
+        fields["src"] = .string(source.absoluteString)
+        fields["width"] = .number(Double(image.size.width))
+        fields["height"] = .number(Double(image.size.height))
+        let node = JSONValue.object(fields)
         waiting.dismiss(animated: true) { [self] in inserted(node) }
       } catch { waiting.dismiss(animated: true) { [self] in refused(error.localizedDescription) } }
     }

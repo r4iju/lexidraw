@@ -1,3 +1,6 @@
+import { createHeadlessEditor } from "@lexical/headless";
+import { ImageNode } from "@packages/lexical-nodes";
+import { IMAGE } from "../../lexidraw/src/lib/media-kinds";
 import { fileURLToPath } from "node:url";
 import { EDITOR_NAMESPACE } from "@packages/lexical-nodes/links";
 import { MEDIA_LINK_BASES } from "@packages/lexical-nodes/media-links";
@@ -29,4 +32,27 @@ export async function swiftForMediaStyle(): Promise<string> {
   if (!viewport || !unplaced || !captionCh)
     throw new Error("Web image/caption geometry changed shape");
   return `// Generated from web document.css by apps/ios/codegen/media.ts.\nimport Foundation\n\nenum MediaStyle {\n  static let imageViewportShare = ${Number(viewport) / 100}\n  static let unplacedViewportShare = ${Number(unplaced[1]) / 100}\n  static let unplacedMaximumRem = ${unplaced[2]}.0\n  static let captionMaximumCh = ${captionCh}.0\n}\n`;
+}
+
+export const MEDIA_IMAGES_PATH = new URL(
+  "../Sources/LexidrawJSON/MediaImages.swift",
+  import.meta.url,
+);
+export function swiftForMediaImages(): string {
+  let insertionNodeJSON = "";
+  const editor = createHeadlessEditor({
+    nodes: [ImageNode],
+    onError(error) {
+      throw error;
+    },
+  });
+  editor.update(
+    () => {
+      insertionNodeJSON = JSON.stringify(
+        ImageNode.$createImageNode({ src: "", altText: "" }).exportJSON(),
+      );
+    },
+    { discrete: true },
+  );
+  return `// Generated from web ImageNode constructor and IMAGE upload policy.\npublic enum MediaImages {\n  public static let insertionNodeJSON = #"${insertionNodeJSON}"#\n  public static let maximumBytes = ${IMAGE.maxBytes}\n  public static let maximumLabel = ${JSON.stringify(IMAGE.max)}\n}\n`;
 }

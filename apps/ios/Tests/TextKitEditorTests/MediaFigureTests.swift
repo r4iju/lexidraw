@@ -26,6 +26,17 @@ import Testing
 import UIKit
 
 @MainActor @Suite struct InlineImageGeometryTests {
+  @Test(arguments: [20.0, 1000.0]) func inheritedInlineDimensionsUseTheSourceImage(_ width: Double) async throws {
+    let photo = UIGraphicsImageRenderer(size: CGSize(width: width, height: width / 2)).image { _ in
+      UIColor.blue.setFill(); UIRectFill(CGRect(x: 0, y: 0, width: width, height: width / 2))
+    }
+    let source = "data:image/png;base64," + photo.pngData()!.base64EncodedString()
+    let payload = try #require(MediaPayload(["type": "inline-image", "src": .string(source), "width": "inherit", "height": "inherit"]))
+    let attachment = MediaAttachment(payload)
+    await withCheckedContinuation { continuation in attachment.load { continuation.resume() } }
+    #expect(attachment.bounds.width == CGFloat(photo.cgImage!.width))
+    #expect(attachment.bounds.height == CGFloat(photo.cgImage!.height))
+  }
   @Test func storedBoxContainsImageWithoutStretching() async throws {
     let photo = UIGraphicsImageRenderer(size: CGSize(width: 20, height: 10)).image { _ in
       UIColor.blue.setFill(); UIRectFill(CGRect(x: 0, y: 0, width: 20, height: 10))

@@ -105,3 +105,6 @@ const { MEDIA_LINKS_PATH, swiftForMediaLinks } = await import("./media");
 await Bun.write(MEDIA_LINKS_PATH, swiftForMediaLinks());
 const { MEDIA_STYLE_PATH, swiftForMediaStyle } = await import("./media");
 await Bun.write(MEDIA_STYLE_PATH, await swiftForMediaStyle());
+
+const { MEDIA_IMAGES_PATH, swiftForMediaImages } = await import("./media");
+await Bun.write(MEDIA_IMAGES_PATH, swiftForMediaImages());

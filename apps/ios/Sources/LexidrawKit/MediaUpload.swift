@@ -1,11 +1,12 @@
 import Foundation
+import LexidrawJSON
 
 public enum ImageUploadError: Error, LocalizedError, Sendable {
   case readOnly, invalidImage, failed(Int), invalidDestination
   public var errorDescription: String? {
     switch self {
     case .readOnly: "This document is read only."
-    case .invalidImage: "Choose a picture no larger than 10 MB."
+    case .invalidImage: "Choose a picture no larger than \(MediaImages.maximumLabel)."
     case .failed(let status): "The picture upload failed (\(status)). Try again."
     case .invalidDestination: "The server returned an invalid picture upload address."
     }
@@ -26,7 +27,7 @@ extension Session {
   func uploadImage(_ jpeg: Data, in document: String,
     send: @Sendable (URLRequest, Data) async throws -> Int
   ) async throws -> URL {
-    guard !jpeg.isEmpty, jpeg.count <= 10 * 1024 * 1024 else { throw ImageUploadError.invalidImage }
+    guard !jpeg.isEmpty, jpeg.count <= MediaImages.maximumBytes else { throw ImageUploadError.invalidImage }
     guard try await self.document(document).access == .edit else { throw ImageUploadError.readOnly }
     let signed = try await ask {
       try await $0.entitiesSignImageUpload(body: .json(.init(contentType: .imageJpeg, size: jpeg.count)))

@@ -10,6 +10,7 @@ struct MediaPayload: Sendable {
   let captionState: JSONValue?
   let captionRefusal: String?
   let figurePlacement: String?
+  let naturalWidth: Double?
   let aspectRatio: Double
   let width: Double?
   let height: Double?
@@ -43,6 +44,7 @@ struct MediaPayload: Sendable {
       return nil
     }
     let natural = node["$"]?["natural"]
+    naturalWidth = Self.dimension(natural?["width"])
     let w = Self.dimension(natural?["width"]) ?? width
     let h = Self.dimension(natural?["height"]) ?? height
     aspectRatio = w.flatMap { w in h.map { w / $0 } } ?? 16.0 / 9.0

@@ -12,6 +12,7 @@ import UIKit
   private let caption: MediaCaptionView
   var onGeometryChange: (() -> Void)?
   private var loadedAspectRatio: Double?
+  private var loadedNaturalWidth: Double?
   private var player: AVPlayer?
   private var videoLayer: AVPlayerLayer?
   private var preview: LPLinkView?
@@ -46,15 +47,16 @@ import UIKit
   required init?(coder: NSCoder) { fatalError("MediaView is made in code") }
 
   static func height(_ payload: MediaPayload, width: CGFloat) -> CGFloat {
-    let size = geometry(payload, width: width, ratio: payload.aspectRatio, viewport: UIScreen.main.bounds.height)
+    let size = geometry(payload, width: width, ratio: payload.aspectRatio, naturalWidth: payload.naturalWidth, viewport: UIScreen.main.bounds.height)
     let caption = MediaCaptionView(payload)
     let captionHeight = caption.fittingHeight(size.width)
     return size.height + (captionHeight > 0 ? captionHeight + FigureStyle.captionGap : 0)
   }
-  private static func geometry(_ payload: MediaPayload, width: CGFloat, ratio: Double, viewport: CGFloat) -> CGSize {
+  private static func geometry(_ payload: MediaPayload, width: CGFloat, ratio: Double, naturalWidth: Double?, viewport: CGFloat) -> CGSize {
     let em = UIFont.preferredFont(forTextStyle: .body).pointSize
     let figure = payload.figureWidth(fitting: width, em: em)
     var mediaWidth = payload.figurePlacement == nil ? min(figure, payload.width ?? figure) : figure
+    if payload.type == "image", payload.figurePlacement == nil { mediaWidth = min(mediaWidth, naturalWidth ?? mediaWidth) }
     var height = mediaWidth / ratio
     if payload.type == "image" {
       let limit = payload.figurePlacement == nil
@@ -65,7 +67,7 @@ import UIKit
     return CGSize(width: mediaWidth, height: height)
   }
   private func mediaSize(_ width: CGFloat) -> CGSize {
-    Self.geometry(payload, width: width, ratio: loadedAspectRatio ?? payload.aspectRatio, viewport: window?.bounds.height ?? UIScreen.main.bounds.height)
+    Self.geometry(payload, width: width, ratio: loadedAspectRatio ?? payload.aspectRatio, naturalWidth: loadedNaturalWidth ?? payload.naturalWidth, viewport: window?.bounds.height ?? UIScreen.main.bounds.height)
   }
   func fittingHeight(_ width: CGFloat) -> CGFloat {
     let size = mediaSize(width)
@@ -97,7 +99,10 @@ import UIKit
         case "image", "inline-image":
           picture.image = try await Self.image(source)
           try Task.checkCancellation()
-          if let image = picture.image, image.size.height > 0 { loadedAspectRatio = image.size.width / image.size.height }
+          if let image = picture.image, image.size.height > 0 {
+            loadedAspectRatio = image.size.width / image.size.height
+            loadedNaturalWidth = image.size.width
+          }
           setNeedsLayout()
           onGeometryChange?()
           picture.accessibilityLabel = payload.label
@@ -157,14 +162,14 @@ import UIKit
     let data: Data
     if url.scheme == "data" {
       let value = url.absoluteString
-      guard let comma = value.firstIndex(of: ","), value.utf8.count <= 14 * 1024 * 1024,
-        let decoded = Data(base64Encoded: String(value[value.index(after: comma)...])), decoded.count <= 10 * 1024 * 1024 else { throw URLError(.cannotDecodeContentData) }
+      guard let comma = value.firstIndex(of: ","), value.utf8.count <= ((MediaImages.maximumBytes + 2) / 3 * 4 + 128),
+        let decoded = Data(base64Encoded: String(value[value.index(after: comma)...])), decoded.count <= MediaImages.maximumBytes else { throw URLError(.cannotDecodeContentData) }
       data = decoded
     } else {
       let (file, response) = try await URLSession.shared.download(from: url)
       defer { try? FileManager.default.removeItem(at: file) }
       guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode),
-        let size = try file.resourceValues(forKeys: [.fileSizeKey]).fileSize, size <= 10 * 1024 * 1024 else { throw URLError(.cannotDecodeContentData) }
+        let size = try file.resourceValues(forKeys: [.fileSizeKey]).fileSize, size <= MediaImages.maximumBytes else { throw URLError(.cannotDecodeContentData) }
       data = try Data(contentsOf: file)
     }
     let image = try await Task.detached(priority: .utility) {
@@ -174,7 +179,14 @@ import UIKit
           kCGImageSourceThumbnailMaxPixelSize: 2048,
           kCGImageSourceCreateThumbnailWithTransform: true,
         ] as CFDictionary) else { throw URLError(.cannotDecodeContentData) }
-      return UIImage(cgImage: cg)
+      // Keep CSS's intrinsic source dimensions after downsampling. EXIF
+      // orientation may swap axes, so compare the longest sides.
+      let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any]
+      let originalWidth = (properties?[kCGImagePropertyPixelWidth] as? NSNumber)?.doubleValue ?? Double(cg.width)
+      let originalHeight = (properties?[kCGImagePropertyPixelHeight] as? NSNumber)?.doubleValue ?? Double(cg.height)
+      let originalSide = max(originalWidth, originalHeight)
+      let scale = originalSide.isFinite && originalSide > 0 ? Double(max(cg.width, cg.height)) / originalSide : 1
+      return UIImage(cgImage: cg, scale: scale, orientation: .up)
     }.value
     try Task.checkCancellation()
     images.setObject(image, forKey: url as NSURL, cost: image.cgImage.map { $0.bytesPerRow * $0.height } ?? 0)
@@ -206,8 +218,8 @@ final class MediaAttachment: NSTextAttachment {
       if let source = payload.source, let loaded = try? await MediaView.image(source) { photo = loaded }
       else { photo = UIImage(systemName: "exclamationmark.triangle") ?? UIImage() }
       let caption = MediaCaptionView(payload, style: captionStyle)
-      let width = bounds.width
-      let bodyHeight = bounds.height
+      let width: CGFloat = payload.width.map { CGFloat($0) } ?? photo.size.width
+      let bodyHeight: CGFloat = payload.height.map { CGFloat($0) } ?? (photo.size.width > 0 ? width * photo.size.height / photo.size.width : bounds.height)
       let captionHeight = caption.fittingHeight(width)
       let gap = captionHeight > 0 ? FigureStyle.captionGap : 0
       let size = CGSize(width: width, height: bodyHeight + gap + captionHeight)
