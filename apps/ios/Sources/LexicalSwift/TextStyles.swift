@@ -106,7 +106,11 @@ extension Update {
       else if trimmed.hasPrefix("0x") || trimmed.hasPrefix("0X"), let hex = UInt64(trimmed.dropFirst(2), radix: 16) { current = Double(hex) }
       else if trimmed.hasPrefix("0b") || trimmed.hasPrefix("0B"), let binary = UInt64(trimmed.dropFirst(2), radix: 2) { current = Double(binary) }
       else if trimmed.hasPrefix("0o") || trimmed.hasPrefix("0O"), let octal = UInt64(trimmed.dropFirst(2), radix: 8) { current = Double(octal) }
-      else { current = Double(trimmed) ?? .nan }
+      else if trimmed == "Infinity" || trimmed == "+Infinity" { current = .infinity }
+      else if trimmed == "-Infinity" { current = -.infinity }
+      else if let number = Double(trimmed), number.isFinite || trimmed.contains("e") || trimmed.contains("E") {
+        current = number
+      } else { current = .nan }
     } else { current = WebFontSizing.defaultSize }
     let next = increase ? WebFontSizing.increment(current) : WebFontSizing.decrement(current)
     css["font-size"] = JSONValue.number(next).stringified + "px"

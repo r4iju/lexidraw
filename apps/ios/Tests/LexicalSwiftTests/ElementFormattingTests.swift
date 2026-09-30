@@ -4,6 +4,14 @@ import LexicalSwift
 import Testing
 
 @Suite struct ElementFormattingTests {
+  @Test func invalidNumericFontSizeUsesJavaScriptNaNBranches() throws {
+    let fixture = try Fixture.record(
+      start: LexicalJSON.document([LexicalJSON.paragraph([LexicalJSON.text("abc", style: "font-size: infpx;")])]),
+      commands: [.setSelection(anchor: .text([0, 0], 0), focus: .text([0, 0], 3)), .changeFontSize(increase: false)],
+      on: try Support.referenceEditor())
+    #expect(try fixture.replay(on: Editor()) == fixture.recorded)
+  }
+
   @Test func clearingASelectionPreservesUnselectedFormats() throws {
     let command = try JSONDecoder().decode(EditorCommand.self,
       from: Data(#"{"type":"clearFormatting"}"#.utf8))
