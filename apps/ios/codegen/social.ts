@@ -100,3 +100,35 @@ export async function swiftForSocialStyle(): Promise<string> {
     throw new Error("Unknown mention DOM style shape");
   return `// Generated from web MentionNode.createDOM by apps/ios/codegen/social.ts.\n\nenum WebSocialStyle {\n  static let mentionCSS = ${swiftString(styles[0][1])}\n}\n`;
 }
+
+export const FOOTNOTE_STYLE_PATH = new URL("../Sources/TextKitEditor/WebFootnoteStyle.swift", import.meta.url);
+export async function swiftForFootnoteStyle(): Promise<string> {
+  const css = await Bun.file(new URL("../../lexidraw/src/styles/document.css", import.meta.url)).text();
+  const block = /\.document-content > \.footnote \{([^}]+)\}/.exec(css)?.[1] ?? "";
+  const section = /\.document-content > :not\(\.footnote\) \+ \.footnote \{([^}]+)\}/.exec(css)?.[1] ?? "";
+  const header = /\.document-content > :not\(\.footnote\) \+ \.footnote::before \{([^}]+)\}/.exec(css)?.[1] ?? "";
+  const reference = /\.document-content sup\.footnote-ref \{([^}]+)\}/.exec(css)?.[1] ?? "";
+  const values = {
+    sectionMargin: /margin-block-start:\s*([\d.]+)em/.exec(section)?.[1],
+    sectionPadding: /padding-block-start:\s*([\d.]+)em/.exec(section)?.[1],
+    sectionBorder: /border-block-start:\s*([\d.]+)px/.exec(section)?.[1],
+    headerWeight: /font-weight:\s*(\d+)/.exec(header)?.[1],
+    headerTop: /inset-block-start:\s*([\d.]+)em/.exec(header)?.[1],
+    headerFontScale: /font-size:\s*([\d.]+)rem/.exec(header)?.[1],
+    definitionAfter: /margin-block:\s*0\s+([\d.]+)em/.exec(block)?.[1],
+    followingMargin: /\.document-content > \.footnote \+ :not\(\.footnote\) \{[^}]*margin-block-start:\s*([\d.]+)em/.exec(css)?.[1],
+    definitionFontScale: /font-size:\s*([\d.]+)em/.exec(block)?.[1],
+    definitionLineHeight: /line-height:\s*([\d.]+)/.exec(block)?.[1],
+    definitionIndent: /padding-inline-start:\s*([\d.]+)em/.exec(block)?.[1],
+    referenceFontScale: /font-size:\s*([\d.]+)em/.exec(reference)?.[1],
+    referenceWeight: /\.footnote-ref-link \{[^}]*font-weight:\s*(\d+)/.exec(css)?.[1],
+    backrefMargin: /\.footnote-backref \{[^}]*margin-inline-start:\s*([\d.]+)em/.exec(css)?.[1],
+  };
+  const heading = /content:\s*"([^"]+)"/.exec(header)?.[1];
+  const titles = new Map<string, string>([["", heading ?? ""]]);
+  for (const match of css.matchAll(/\.document-content:lang\(([^)]+)\) > :not\(\.footnote\) \+ \.footnote::before \{\s*content:\s*"([^"]+)";/g)) {
+    if (match[1] && match[2]) titles.set(match[1], match[2]);
+  }
+  if (!heading || Object.values(values).some(value => value === undefined)) throw new Error("Unknown footnote CSS shape");
+  return `// Generated from document.css by apps/ios/codegen/social.ts.\n\nenum WebFootnoteStyle {\n${Object.entries(values).map(([key,value])=>`  static let ${key}: Double = ${value}`).join("\n")}\n  static let titles: [String: String] = [${[...titles].map(([key, value]) => `${swiftString(key)}: ${swiftString(value)}`).join(", ")}]\n}\n`;
+}

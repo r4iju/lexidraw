@@ -614,8 +614,18 @@ native splitting and trimming use JavaScript whitespace and UTF-16 offsets.
 Inherited transient DOM CSS updates are still a presentation gap: the native
 renderer currently follows the node's persisted initial style.
 
+Stored footnote references render as numbered superscript attachments. The first
+root definition of each label supplies its number and plain preview; missing
+labels show `label?`. Definition markers count every root definition, matching
+the CSS counter, and have a native backlink to the first reference. The Notes
+heading, localized titles, font sizes, indentation and spacing come from the
+actual document CSS through codegen. Definitions use inherited ElementNode
+Enter behavior, and imported table-cell markdown supports definitions/references;
+typing a reference or definition does not invent a new shortcut. Definitions and
+references preserve their stored labels and payloads through editing and undo.
+
 This checkpoint does not complete #134. Comments, threads, non-normal keyword
-payloads, footnotes, and articles retain their explicit unported editing gate.
+payloads and articles retain their explicit unported editing gate.
 Caption/slide hashtag transforms and mention transient CSS still need work.
 Stored social text generation opts in via `socialTextSubclasses`, preserving
 fault-injection seeds; the full differential run enables it.

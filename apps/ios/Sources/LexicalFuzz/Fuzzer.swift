@@ -355,7 +355,10 @@ struct Generator {
   }
 
   private mutating func block(unlike previousType: ListType?) -> JSONValue {
-    switch Int.random(in: 0..<9, using: &random) {
+    if socialTextSubclasses && Int.random(in: 0..<8, using: &random) == 0 {
+      return LexicalJSON.element("footnote-definition", inlineNodes(), ["label": .string(["note", "second", "日本語"].randomElement(using: &random)!)])
+    }
+    return switch Int.random(in: 0..<9, using: &random) {
     case 0: LexicalJSON.heading(Self.headingTags.randomElement(using: &random)!, inlineNodes())
     case 1: LexicalJSON.quote(inlineNodes())
     case 2: LexicalJSON.horizontalRule
@@ -466,7 +469,7 @@ struct Generator {
         previous = nil
         continue
       // An autolink stays linked only where a separator or nothing is beside it.
-      case 4 where !isAfterLink && children.last?["type"] != "hashtag" && children.last?["type"] != "keyword" && children.last?["type"] != "emoji" && children.last?["type"] != "mention":
+      case 4 where !isAfterLink && children.last?["type"] != "hashtag" && children.last?["type"] != "keyword" && children.last?["type"] != "emoji" && children.last?["type"] != "mention" && children.last?["type"] != "footnote-reference":
         if case .object(var last)? = children.last, let text = last["text"]?.stringValue, last["type"] == "text" {
           last["text"] = .string(text + " ")
           children[children.count - 1] = .object(last)
@@ -479,6 +482,11 @@ struct Generator {
         previous = nil
         continue
       case 5 where socialTextSubclasses && !isAfterLink:
+        if Int.random(in: 0..<5, using: &random) == 0 {
+          children.append(["type": "footnote-reference", "version": 1, "label": .string(["note", "second", "日本語"].randomElement(using: &random)!)])
+          previous = nil
+          continue
+        }
         if case .object(var node) = LexicalJSON.text("#" + text(1...5), format: Self.formats.randomElement(using: &random)!) {
           switch Int.random(in: 0..<4, using: &random) {
           case 0: node["type"] = "hashtag"

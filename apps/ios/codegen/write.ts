@@ -20,6 +20,7 @@ import {
 import { SERIALIZED_NODES_PATH, swiftForNodeSchema } from "./swift";
 import { SHORTCUTS_PATH, swiftForShortcuts } from "./shortcuts";
 import {
+  FOOTNOTE_STYLE_PATH, swiftForFootnoteStyle,
   EMOJI_ALIASES_PATH,
   SOCIAL_STYLE_PATH,
   swiftForSocialStyle,
@@ -124,3 +125,5 @@ const { RENDERED_EMBED_STYLE_PATH, swiftForRenderedEmbedStyle } = await import(
 await Bun.write(RENDERED_EMBED_STYLE_PATH, await swiftForRenderedEmbedStyle());
 
 await Bun.write(SOCIAL_STYLE_PATH, await swiftForSocialStyle());
+
+await Bun.write(FOOTNOTE_STYLE_PATH, await swiftForFootnoteStyle());

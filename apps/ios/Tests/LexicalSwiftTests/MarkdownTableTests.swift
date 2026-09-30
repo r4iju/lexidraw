@@ -218,7 +218,7 @@ import Testing
   /// Markdown in a cell that a transformer LexicalSwift doesn't port yet
   /// imports as something else, and the row stays as typed instead.
   static let notPortedYet: [Script] = [
-    "```", "``` a", "$x$", "$$x$$", "![a](b)", "[^a]", "[^a]: b",
+    "```", "``` a", "$x$", "$$x$$", "![a](b)",
     #"<tweet id="1" />"#, "> [!note]", #"$$\nx\n$$"#, #":::note\na\n:::"#, "<details></details>",
     #"<details>\na\n</details>"#, #"<columns>\na\n</columns>"#,
   ].map { markdown in

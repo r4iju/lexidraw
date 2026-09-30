@@ -8,9 +8,27 @@ import LexicalFuzz
 import LexicalReference
 import LexicalSwift
 import Testing
-import TextKitEditor
+@testable import TextKitEditor
 
 @Suite struct DocumentTextTests {
+  @Test func footnoteReferencesUseFirstDefinitionNumbersAndMissingLabels() throws {
+    let model = Editor()
+    let references: [JSONValue] = ["second", "first", "missing"].map { ["type": "footnote-reference", "version": 1, "label": .string($0)] }
+    func note(_ label: String, _ body: String) -> JSONValue {
+      ["type": "footnote-definition", "version": 1, "label": .string(label), "children": .array([LexicalJSON.text(body)]), "direction": .null, "format": "", "indent": 0]
+    }
+    try model.load(LexicalJSON.document([LexicalJSON.paragraph(references), note("first", "One"), note("first", "Duplicate"), note("second", "Two")]))
+    let storage = NSMutableAttributedString()
+    let document = DocumentText(model: model, style: Self.style)
+    try document.reload(storage)
+    #expect(storage.string == "\u{FFFC}\u{FFFC}\u{FFFC}\nOne\nDuplicate\nTwo\n")
+    #expect((storage.attribute(.attachment, at: 0, effectiveRange: nil) as? FootnoteReferenceAttachment)?.marker == "2")
+    #expect((storage.attribute(.attachment, at: 1, effectiveRange: nil) as? FootnoteReferenceAttachment)?.marker == "1")
+    #expect((storage.attribute(.attachment, at: 2, effectiveRange: nil) as? FootnoteReferenceAttachment)?.marker == "missing?")
+    #expect(document.point(at: 1) == Point(path: [0], offset: 1, type: .element))
+    #expect(document.point(at: 5) == .text([1, 0], 1))
+  }
+
   /// Format bits as the only attribute, so a wrong run shows as a difference.
   static func style(_ blockType: String, _ format: TextFormat) -> [NSAttributedString.Key: Any] {
     [.lexicalFormat: format.rawValue]

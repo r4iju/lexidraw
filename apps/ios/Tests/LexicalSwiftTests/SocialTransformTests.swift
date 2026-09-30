@@ -3,6 +3,35 @@ import LexicalSwift
 import Testing
 
 @Suite struct SocialTransformTests {
+  @Test func footnotePreviewKeepsBlockBreaksAndOmitsOtherReferences() throws {
+    let model = Editor()
+    let reference: JSONValue = ["type": "footnote-reference", "version": 1, "label": "other"]
+    let note: JSONValue = ["type": "footnote-definition", "version": 1, "label": "note", "children": .array([paragraph(text("One"), reference), paragraph(text("Two"))])]
+    try model.load(document(note))
+    #expect(try model.nodeTextContent(at: [0]) == "One\n\nTwo")
+  }
+
+  @Test func footnotesImportInTableCellsWithoutTypingTransforms() throws {
+    let commands = MarkdownTableTests.row("|Reader[^note]|[^note]: **A note**|")
+    let fixture = try Fixture.record(start: document(paragraph()), commands: commands, on: Support.referenceEditor())
+    let result = try fixture.replay(on: Editor())
+    let matches = result == fixture.recorded
+    #expect(matches)
+  }
+
+  @Test func storedFootnotesMatchWebEditingAndReferenceDeletion() throws {
+    let reference: JSONValue = ["type": "footnote-reference", "version": 1, "label": "note"]
+    var fields = try #require(paragraph(text("Native footnote")).objectValue)
+    fields["type"] = "footnote-definition"; fields["label"] = "note"
+    let start = document(paragraph(text("Reader"), reference, text(" after")), .object(fields))
+    let native = Editor(); try native.load(start)
+    #expect(native.isEditable)
+    let commands: [EditorCommand] = [.caret(.text([1, 0], 6)), .insertText("x"), .insertParagraph,
+      .undo, .caret(.text([0, 2], 0)), .deleteCharacter(backward: true)]
+    let fixture = try Fixture.record(start: start, commands: commands, on: Support.referenceEditor())
+    #expect(try fixture.replay(on: native) == fixture.recorded)
+  }
+
   @Test func typingAnEmojiShortcodeMatchesTheWeb() throws {
     let commands = [EditorCommand.caret(Point(path: [0], offset: 0, type: .element))]
       + MarkdownShortcutTests.typing(":smile:")

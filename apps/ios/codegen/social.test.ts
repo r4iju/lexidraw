@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
 import {
+  FOOTNOTE_STYLE_PATH, swiftForFootnoteStyle,
   EMOJI_ALIASES_PATH,
   POLL_STYLE_PATH,
   swiftForEmojiAliases,
@@ -27,4 +28,8 @@ test("native mention styling follows the effective node DOM style", async () => 
   expect(await Bun.file(SOCIAL_STYLE_PATH).text()).toBe(
     await swiftForSocialStyle(),
   );
+});
+
+test("native footnote dimensions follow actual document CSS", async () => {
+  expect(await Bun.file(FOOTNOTE_STYLE_PATH).text()).toBe(await swiftForFootnoteStyle());
 });

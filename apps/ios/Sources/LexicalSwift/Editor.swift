@@ -258,6 +258,10 @@ public final class Editor: EditorModel {
     state.json(of: try key(at: path), canonicalKeyOrder: false)
   }
 
+  public func nodeTextContent(at path: [Int]) throws -> String {
+    state.textContent(of: try key(at: path))
+  }
+
   public func childKeys(at path: [Int]) throws -> [String] {
     state.children(of: try key(at: path)).map(String.init)
   }
@@ -308,6 +312,8 @@ extension Node {
     case .mention(let node): node.unknownFields.isEmpty && (node.mode == .normal || node.mode == .segmented)
       && [0, 1].contains(node.detail?.numberValue) && node.text?.stringValue != nil && node.style?.stringValue != nil
       && node.format?.numberValue != nil && node.mentionName?.stringValue != nil
+    case .footnoteDefinition(let node): node.unknownFields.isEmpty
+    case .footnoteReference(let node): node.unknownFields.isEmpty && node.label?.stringValue != nil
     case .poll(let node): Self.supportsPoll(node)
     case .tab(let node): node.unknownFields.isEmpty && node.detail == Double(TextDetail.unmergeable.rawValue)
     default: false

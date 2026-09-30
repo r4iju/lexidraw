@@ -103,6 +103,13 @@ public final class EditorView: UIScrollView, UITextInput {
     if !hasSocialProvider {
       hasSocialProvider = true
       let previous = embeddedContent
+      let previousTap = onEmbeddedTap
+      onEmbeddedTap = { [weak self] key, node in
+        if node["type"] == "footnote-reference", let label = node["label"]?.stringValue {
+          self?.showFootnote(label); return true
+        }
+        return previousTap?(key, node) == true
+      }
       embeddedContent = { [weak self] key, node in
         if let supplied = previous?(key, node) { return supplied }
         guard let self, node["type"] == "poll" else { return nil }
@@ -112,6 +119,52 @@ public final class EditorView: UIScrollView, UITextInput {
           failed: { [weak self] error in self?.showSocialError(error) })
       }
     } else { refreshEmbeddedContent() }
+  }
+
+  private func footnoteDefinition(_ label: String) -> (index: Int, node: JSONValue, number: Int)? {
+    guard let keys = try? model.childKeys(at: []) else { return nil }
+    var labels = Set<String>()
+    for index in keys.indices {
+      guard let node = try? model.nodeForPresentation(at: [index]), node["type"] == "footnote-definition", let storedLabel = node["label"]?.stringValue else { continue }
+      labels.insert(storedLabel)
+      if storedLabel == label { return (index, node, labels.count) }
+    }
+    return nil
+  }
+
+  private func showFootnote(_ label: String) {
+    let definition = footnoteDefinition(label)
+    let message: String
+    if let definition, let text = try? model.nodeTextContent(at: [definition.index]) {
+      message = JSRegExp(#"^\s+|\s+$"#, flags: "g").replacingMatches(in: text, with: "")
+    } else { message = "This footnote has no definition." }
+    let alert = UIAlertController(title: definition.map { "Footnote \($0.number)" } ?? "Footnote", message: message, preferredStyle: .alert)
+    alert.addAction(UIAlertAction(title: "Done", style: .cancel))
+    if definition != nil {
+      alert.addAction(UIAlertAction(title: "Go to note", style: .default) { [weak self] _ in
+        guard let self, let current = footnoteDefinition(label) else { return }
+        goToFootnotePoint(Point(path: [current.index], offset: 0, type: .element))
+      })
+    }
+    presenter?.present(alert, animated: true)
+  }
+
+  private func goToFootnotePoint(_ point: Point) {
+    _ = perform(.caret(point), fromInput: false)
+    scrollToCaret()
+  }
+
+  private func followFootnoteBacklink(_ label: String) {
+    func reference(_ node: JSONValue, at path: [Int]) -> Point? {
+      if node["type"] == "footnote-reference", node["label"] == .string(label), let index = path.last {
+        return Point(path: Array(path.dropLast()), offset: index, type: .element)
+      }
+      for (index, child) in (node["children"]?.arrayValue ?? []).enumerated() {
+        if let result = reference(child, at: path + [index]) { return result }
+      }
+      return nil
+    }
+    if let state = try? model.serializedState(), let root = state["root"], let point = reference(root, at: []) { goToFootnotePoint(point) }
   }
 
   @discardableResult public func insertPoll(question: String) -> Bool {
@@ -263,6 +316,7 @@ public final class EditorView: UIScrollView, UITextInput {
     self.typesetting = typesetting
     document = DocumentText(
       model: model, style: style ?? { typesetting.attributes(StyledBlock($0), $1) }, standIn: BlockLayout.standIn)
+    document.footnoteSectionTitle = WebFootnoteStyle.titles[language?.lowercased().split(separator: "-").first.map(String.init) ?? ""] ?? WebFootnoteStyle.titles[""]!
     layout = BlockLayout(storage: storage, document: document, typesetting: typesetting)
     super.init(frame: .zero)
     backgroundColor = .systemBackground
@@ -1566,6 +1620,7 @@ public final class EditorView: UIScrollView, UITextInput {
   /// offers to open or edit the link.
   @objc private func tapped(_ tap: UITapGestureRecognizer) {
     let point = tap.location(in: surface)
+    if let label = layout.footnoteBacklink(at: point) { followFootnoteBacklink(label); return }
     if let offset = layout.offset(closestTo: point), let path = document.embeddedPath(at: offset),
       let key = nodeKey(at: path), let node = try? model.nodeForPresentation(at: path) {
       if onEmbeddedTap?(key, node) == true { return }

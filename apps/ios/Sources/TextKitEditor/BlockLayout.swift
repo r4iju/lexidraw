@@ -225,6 +225,11 @@ import UIKit
   /// it, as CSS collapses margins.
   private func spaceAfter(_ index: Int) -> CGFloat {
     let block = styled(index)
+    let isNote = document.type(ofBlock: index) == "footnote-definition"
+    let nextIsNote = index + 1 < document.blockCount && document.type(ofBlock: index + 1) == "footnote-definition"
+    let em = typesetting.fontSize(.other)
+    if nextIsNote && !isNote { return em * WebFootnoteStyle.definitionFontScale * WebFootnoteStyle.sectionMargin }
+    if isNote { return nextIsNote || index + 1 == document.blockCount ? em * WebFootnoteStyle.definitionFontScale * WebFootnoteStyle.definitionAfter : em * WebFootnoteStyle.followingMargin }
     let after = typesetting.space(block, after: index > 0 ? styled(index - 1) : nil).after
     guard index + 1 < document.blockCount else { return after }
     return max(after, typesetting.space(styled(index + 1), after: block).before)
@@ -471,6 +476,12 @@ import UIKit
     return start + block.lineBoundary(at: local, backward: backward)
   }
 
+  func footnoteBacklink(at point: CGPoint) -> String? {
+    guard document.blockCount > 0 else { return nil }
+    let index = blockIndex(atY: point.y)
+    return block(index).footnoteBacklink(at: CGPoint(x: point.x, y: point.y - top(index)))
+  }
+
   /// The path of the checklist item whose box a tap at `point` toggles.
   func checklistItem(at point: CGPoint) -> [Int]? {
     guard document.blockCount > 0 else { return nil }
@@ -533,12 +544,14 @@ import UIKit
   func writingDirection(at offset: Int) -> NSWritingDirection
   /// Scrolls within the block, where it can, to show `offset`.
   func reveal(_ offset: Int)
+  func footnoteBacklink(at point: CGPoint) -> String?
   func checklistItem(at point: CGPoint) -> DocumentText.ListItem?
 }
 
 extension LaidOutBlock {
   func writingDirection(at offset: Int) -> NSWritingDirection { .leftToRight }
   func reveal(_ offset: Int) {}
+  func footnoteBacklink(at point: CGPoint) -> String? { nil }
   func checklistItem(at point: CGPoint) -> DocumentText.ListItem? { nil }
 }
 
@@ -602,6 +615,7 @@ private final class TextBlock: LaidOutBlock {
   }
   func writingDirection(at offset: Int) -> NSWritingDirection { box.writingDirection(at: offset) }
   func lineBoundary(at offset: Int, backward: Bool) -> Int { box.lineBoundary(at: offset, backward: backward) }
+  func footnoteBacklink(at point: CGPoint) -> String? { box.footnoteBacklink(at: point) }
   func checklistItem(at point: CGPoint) -> DocumentText.ListItem? { box.checklistItem(at: point) }
 
   final class BoxView: UIView {
