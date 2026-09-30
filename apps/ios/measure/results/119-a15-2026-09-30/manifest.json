@@ -34,7 +34,18 @@
     "traceLocalPath": "/tmp/lexidraw-119-phone-optimized/large-complete.trace"
   },
   "inputCoverage": "88 TextKit tests and eight table UI cases passed on integrated source. Hardware Command-Shift line selection regression fixed after failing tests. Positive software autocorrect and Option-Shift selection passed. Physical dictation and system text replacement remain unverified.",
-  "fuzzer": "Initial seed 1192026 million-command run failed at recursive EditorState export stack guard. A 24-wrapper deep-list regression reproduced SIGBUS before iterative export fixed it (commit ddd1023a). All local Swift tests then passed. Full million-command rerun at ddd1023a remains active; no completed million-command result is claimed.",
+  "fuzzer": {
+    "gate": "pass for the recorded model-command domain",
+    "measuredSourceCommit": "ddd1023a",
+    "seed": 1192026,
+    "stepsAgreed": 1000000,
+    "commandsBothRefused": 176050,
+    "sessionsEndedOnUnportedShortcutOrNode": 626,
+    "sessionsWithUnreadableSelectionInBothModels": 42,
+    "elapsedSeconds": 3910.348,
+    "sourceNote": "Measured candidate precedes HTML-paste PR187 integration; its executed native command/export paths are included in merged performance PR188. HTML import is independently verified in PR187. This is not a new million-command run on a later integration commit.",
+    "regression": "Initial million-command attempt hit the deep-list export stack guard; a 24-wrapper regression failed before iterative export fixed it."
+  },
   "corpus": "3 current combined live corpus checks passed locally.",
   "warmWindowOpening": {
     "scope": "Document decode, load and first attached-view display callback after establishing an empty window for one second; does not measure cold app opening or verified pixel presentation",

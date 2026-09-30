@@ -1,0 +1,14 @@
+Building for debugging...
+[Computing dependencies]
+[Using on-disk description]
+[1 / 1]
+Build complete! (0.89 sec)
+◇ Test run started.
+↳ Testing Library Version: 2084
+↳ Target Platform: arm64e-apple-macos14.0
+◇ Suite FuzzerTests started.
+◇ Test lexicalSwiftMatchesTheReference() started.
+Seed 1192026: 1000000 steps agreed, 176050 commands both refused, 626 sessions ended on a shortcut or node not ported yet, and 42 where neither model could read its selection back, over the same tree
+✔ Test lexicalSwiftMatchesTheReference() passed after 3910.348 seconds.
+✔ Suite FuzzerTests passed after 3910.348 seconds.
+✔ Test run with 1 test in 1 suite passed after 3910.348 seconds.
