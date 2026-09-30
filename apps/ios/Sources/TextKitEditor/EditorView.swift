@@ -628,7 +628,9 @@ public final class EditorView: UIScrollView, UITextInput {
       command(UIKeyCommand.inputUpArrow, .shift, #selector(extendUp)),
       command(UIKeyCommand.inputDownArrow, .shift, #selector(extendDown)),
       command(UIKeyCommand.inputLeftArrow, .command, #selector(moveToLineStart)),
+      command(UIKeyCommand.inputLeftArrow, [.command, .shift], #selector(extendToLineStart)),
       command(UIKeyCommand.inputRightArrow, .command, #selector(moveToLineEnd)),
+      command(UIKeyCommand.inputRightArrow, [.command, .shift], #selector(extendToLineEnd)),
     ]
     guard isEditable else { return moves }
     return moves + [
@@ -704,7 +706,9 @@ public final class EditorView: UIScrollView, UITextInput {
     }
     perform(.arrow(key, extend: extend, native: native, atCellEdge: atCellEdge, parentRTL: parentRTL, anchorRTL: anchorRTL), fromInput: false)
   }
+  @objc private func extendToLineStart() { move(to: lineBoundary(backward: true) ?? focus, extending: true) }
   @objc private func moveToLineStart() { move(to: lineBoundary(backward: true) ?? focus, extending: false) }
+  @objc private func extendToLineEnd() { move(to: lineBoundary(backward: false) ?? focus, extending: true) }
   @objc private func moveToLineEnd() { move(to: lineBoundary(backward: false) ?? focus, extending: false) }
   @objc private func deleteWordBackward() { perform(.deleteWord(backward: true), fromInput: false) }
   @objc private func deleteWordForward() { perform(.deleteWord(backward: false), fromInput: false) }
