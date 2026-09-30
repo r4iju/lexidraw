@@ -138,13 +138,25 @@ hand:
 - The TestFlight group is set up by hand, as above.
 - A new file asks for its name straight away, as a new folder in Files does.
   The web opens the new file instead, which the app cannot do yet.
-- Documents aren't saved yet, so the save messages that name the file and say
-  what to do next belong to #130, which brings document editing.
-- Until saving comes, documents open in the editor as a preview: edits work,
-  and a notice above the document says they aren't saved. A document the
-  user may only read says so instead, and brings up no keyboard, but its
-  text can be selected and copied. So does one with a node LexicalSwift
-  doesn't edit yet, and the notice says why.
+- Documents autosave after edits pause, exporting state at save time rather
+  than on every keystroke. Each REST save sends the revision last read or
+  saved. A conflict offers Reload Theirs or Keep Mine as a Copy; the copy is
+  a new file at Home, with the same settings, and never replaces their edits.
+  Copy creation reuses its id on retries. Settings are saved in a second
+  guarded request; if that fails, the screen names the file and offers retry.
+- A document shared to read opens without a keyboard but can be selected
+  and copied. Until its remaining node families are ported, a document with
+  opaque nodes also opens read-only and explains why. Its original JSON is
+  preserved; the app does not approximate unsupported editing.
+- Document language and font settings use a generated bundle of the existing
+  pure web settings helpers, evaluated once on load. Generated stylesheet
+  variables select the reading stack; native CoreText shapes and TextKit lays
+  out the selected font. This adds no JavaScript editing or layout. Custom
+  families come from the existing public `/api/fonts` provider, with WOFF2
+  family verification, token-free third-party requests, four concurrent
+  downloads and limits of 4 MiB per face and 64 MiB per family. All unicode
+  subsets load for later edits. An unavailable font refuses the load with an
+  explicit error instead of substituting a different family.
 - The share extension signs in with the app's token through a Keychain
   access group named for the app's own App ID, the group the token was
   already kept in. So it needs no app group and no capability in the portal,

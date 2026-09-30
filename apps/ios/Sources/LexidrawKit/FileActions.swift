@@ -73,7 +73,8 @@ extension Session {
   /// empty. A document's content may be `markdown`, which the server reads
   /// as it reads a document's markdown written later.
   func create(
-    _ kind: Entry.Kind, title: String?, elements: String? = nil, markdown: String? = nil, in folder: String?
+    _ kind: Entry.Kind, title: String?, elements: String? = nil, markdown: String? = nil, in folder: String?,
+    id: String = UUID().uuidString.lowercased()
   ) async throws -> Entry {
     let type: Operations.EntitiesCreate.Input.Body.JsonPayload.EntityTypePayload =
       switch kind {
@@ -83,7 +84,7 @@ extension Session {
       case .url: .url
       }
     let body = Operations.EntitiesCreate.Input.Body.JsonPayload(
-      id: UUID().uuidString.lowercased(), entityType: type, title: title, elements: elements, parentId: folder,
+      id: id, entityType: type, title: title, elements: elements, parentId: folder,
       markdown: markdown)
     let made = try await ask { try await $0.entitiesCreate(body: .json(body)) }.ok.body.json
     return Entry(
