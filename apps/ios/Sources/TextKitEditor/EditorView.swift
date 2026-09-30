@@ -66,13 +66,25 @@ public final class EditorView: UIScrollView, UITextInput {
   }
 
   public var inlineEmbeddedContent: ((String, JSONValue, CGFloat) -> NSTextAttachment?)? {
-    didSet {
+    didSet { configureInlineAttachments() }
+  }
+
+  /// Optional platform decoder/rasterizer; the built-in raster loader is the default.
+  public var mediaImageLoader: MediaImageLoader? {
+    didSet { layout.mediaImageLoader = mediaImageLoader; configureInlineAttachments() }
+  }
+
+  private func configureInlineAttachments() {
+    if inlineEmbeddedContent == nil && mediaImageLoader == nil { document.nativeAttachment = nil }
+    else {
       document.nativeAttachment = { [weak self] node, path in
         guard let self, let key = nodeKey(at: path) else { return nil }
-        return inlineEmbeddedContent?(key, node, max(bounds.width - BlockLayout.margin * 2, 1))
+        if let view = inlineEmbeddedContent?(key, node, max(bounds.width - BlockLayout.margin * 2, 1)) { return view }
+        guard let loader = mediaImageLoader, let payload = MediaPayload(node), ["image", "inline-image"].contains(payload.type) else { return nil }
+        return MediaAttachment(payload, imageLoader: loader)
       }
-      render(nil)
     }
+    render(nil)
   }
   public var onEmbeddedTap: ((String, JSONValue) -> Bool)?
   private var inlineWidth: CGFloat = 0
@@ -116,6 +128,10 @@ public final class EditorView: UIScrollView, UITextInput {
     showModelSelection(fromInput: false)
     if !change.changed.isEmpty { onChange?() }
   }
+
+  /// Provided by the account-backed document screen; absent in disposable harnesses.
+  public var uploadImage: (@MainActor (Data) async throws -> URL)?
+  private var imagePicker: NativeImagePicker?
 
   public weak var inputDelegate: (any UITextInputDelegate)?
   public var markedTextStyle: [NSAttributedString.Key: Any]?
@@ -949,7 +965,7 @@ public final class EditorView: UIScrollView, UITextInput {
   /// its list runs them under the keyboard.
   public func editMenu(for textRange: UITextRange, suggestedActions: [UIMenuElement]) -> UIMenu? {
     guard let range = textRange as? TextRange else { return nil }
-    let own = linkActions(in: range.range) + (isEditable ? [writingDirectionMenu(for: textRange), tableMenu()] : [])
+    let own = linkActions(in: range.range) + (isEditable ? [writingDirectionMenu(for: textRange), tableMenu()] + (uploadImage == nil ? [] : [imageMenu()]) : [])
     func withoutSystemDirection(_ elements: [UIMenuElement]) -> [UIMenuElement] {
       elements.compactMap { element in
         guard let menu = element as? UIMenu else { return element }
@@ -971,6 +987,36 @@ public final class EditorView: UIScrollView, UITextInput {
   public override func makeTextWritingDirectionRightToLeft(_ sender: Any?) {
     guard let range = selectedTextRange else { return }
     setWritingDirection(.rightToLeft, for: range)
+  }
+
+  /// Actions the native formatting bar can include in its insertion menu.
+  public var imageInsertionActions: [UIMenuElement] {
+    isEditable && uploadImage != nil ? imageMenu().children : []
+  }
+
+  private func imageMenu() -> UIMenu {
+    let enabled = uploadImage != nil
+    return UIMenu(title: "Image", children: [
+      UIAction(title: "Choose from Photos…", image: UIImage(systemName: "photo"), attributes: enabled ? [] : .disabled) { [weak self] _ in self?.chooseImage(camera: false) },
+      UIAction(title: "Take Photo…", image: UIImage(systemName: "camera"), attributes: enabled && UIImagePickerController.isSourceTypeAvailable(.camera) ? [] : .disabled) { [weak self] _ in self?.chooseImage(camera: true) },
+    ])
+  }
+
+  /// Inserts a media payload through the same model transaction as rich paste.
+  @discardableResult public func insertMedia(_ node: JSONValue) -> Bool {
+    guard MediaPayload(node) != nil else { return false }
+    return perform(.paste(Clipboard(plainText: "", lexical: LexicalClipboardPayload(namespace: MediaLinks.namespace, nodes: [node]))), fromInput: false, tellsRefusal: true) != nil
+  }
+
+  private func chooseImage(camera: Bool) {
+    guard isEditable, let uploadImage, let presenter else { return }
+    let picker = NativeImagePicker(presenter: presenter, upload: uploadImage) { [weak self] node in
+      guard let self else { return }
+      insertMedia(node)
+      imagePicker = nil
+    }
+    imagePicker = picker
+    picker.present(camera: camera)
   }
 
   private func writingDirectionMenu(for range: UITextRange) -> UIMenu {
@@ -1401,7 +1447,13 @@ public final class EditorView: UIScrollView, UITextInput {
   @objc private func tapped(_ tap: UITapGestureRecognizer) {
     let point = tap.location(in: surface)
     if let offset = layout.offset(closestTo: point), let path = document.embeddedPath(at: offset),
-      let key = nodeKey(at: path), let node = try? model.nodeForPresentation(at: path), onEmbeddedTap?(key, node) == true { return }
+      let key = nodeKey(at: path), let node = try? model.nodeForPresentation(at: path) {
+      if onEmbeddedTap?(key, node) == true { return }
+      if let media = MediaPayload(node), let source = media.source, ["http", "https"].contains(source.scheme ?? "") {
+        UIApplication.shared.open(source)
+        return
+      }
+    }
     guard linkCharacter(at: point) != nil else { return }
     linkMenu.presentEditMenu(with: UIEditMenuConfiguration(identifier: nil, sourcePoint: point))
   }

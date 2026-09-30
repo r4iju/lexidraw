@@ -1,3 +1,4 @@
+import { MEDIA_LINK_BASES } from "../media-links.js";
 import {
   DecoratorBlockNode,
   type SerializedDecoratorBlockNode,
@@ -156,7 +157,7 @@ export class YouTubeNode extends DecoratorBlockNode {
     _includeInert?: boolean | undefined,
     _includeDirectionless?: false | undefined,
   ): string {
-    return `https://www.youtube.com/watch?v=${this.__id}`;
+    return `${MEDIA_LINK_BASES.youtube}${this.__id}`;
   }
 
   static $createYouTubeNode<T extends YouTubeNode>(

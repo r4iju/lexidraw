@@ -565,8 +565,8 @@ import UIKit
 
   @Test func aPasteTheModelRefusesSaysWhy() throws {
     let (view, model) = try editing(LexicalJSON.paragraph([LexicalJSON.text("hello")]))
-    let image: JSONValue = ["type": "image", "version": 1, "src": "https://a.io/b.png"]
-    let payload = LexicalClipboardPayload(namespace: editorNamespace, nodes: [image])
+    let unported: JSONValue = ["type": "code", "version": 1, "children": []]
+    let payload = LexicalClipboardPayload(namespace: editorNamespace, nodes: [unported])
     view.pasteboard.setItems([
       ["public.utf8-plain-text": "", "application/x-lexical-editor": try JSONEncoder().encode(payload)]
     ])
@@ -576,7 +576,7 @@ import UIKit
 
     view.paste(nil)
 
-    #expect(told == "Pasting image nodes isn't supported yet (#131)")
+    #expect(told == "Pasting code nodes isn't supported yet (#132)")
     #expect(try paragraphs(model) == [LexicalJSON.paragraph([LexicalJSON.text("hello")])])
   }
 

@@ -98,6 +98,7 @@ import UIKit
   /// text in it.
   var embeddedContent: ((String, JSONValue) -> EmbeddedContentView?)?
 
+  var mediaImageLoader: MediaImageLoader?
   var onScrollSideways: (() -> Void)?
 
   /// Blocks laid out beyond those on screen, kept for geometry and scrolling
@@ -115,6 +116,7 @@ import UIKit
   /// in the text, as a placeholder the size of a word.
   nonisolated static func standIn(_ node: JSONValue, isBlock: Bool) -> [NSAttributedString.Key: Any]? {
     guard !isBlock, InlinePlaceholder.isEmbedded(node) else { return nil }
+    if let media = MediaPayload(node) { return [.attachment: MediaAttachment(media)] }
     let type = node["type"]?.stringValue ?? ""
     return [.attachment: InlinePlaceholder.attachment(type: type)]
   }
@@ -205,7 +207,9 @@ import UIKit
     let block = styled(index)
     switch document.kind(ofBlock: index) {
     case .embedded where block == .rule: return typesetting.typography.rule.width
-    case .embedded: return PlaceholderView.height
+    case .embedded:
+      if let node = document.payload(ofBlock: index), let media = MediaPayload(node) { return MediaView.height(media, width: width) }
+      return PlaceholderView.height
     case .table(let table):
       let style = typesetting.typography.table
       return CGFloat(table.rows.count) * (typesetting.lineHeight(block) + 2 * style.paddingY + style.border) + style.border
@@ -264,9 +268,24 @@ import UIKit
       case .embedded(let type):
         if let embedded = document.embeddedNode(at: index), let view = embeddedContent?(embedded.key, embedded.node) {
           ContentBlock(view: view, node: embedded.node, type: type, width: width)
-        } else { EmbedBlock(type: type, width: width) }
+        } else { EmbedBlock(type: type, payload: document.payload(ofBlock: index), width: width, style: { [typesetting] in typesetting.attributes(StyledBlock($0), $1) }, imageLoader: mediaImageLoader) }
       }
     laidOut[index] = block
+    (block as? TextBlock)?.onGeometryChange = { [weak self, weak blockView = block.view] in
+      guard let self, let blockView, let current = self.laidOut[index], current.view === blockView else { return }
+      self.measure(index, current)
+      if let scrollView = self.scrollView { self.layoutViewport(of: scrollView) }
+    }
+    (block as? TableBlock)?.onGeometryChange = { [weak self, weak blockView = block.view] in
+      guard let self, let blockView, let current = self.laidOut[index], current.view === blockView else { return }
+      self.measure(index, current)
+      if let scrollView = self.scrollView { self.layoutViewport(of: scrollView) }
+    }
+    (block as? EmbedBlock)?.onGeometryChange = { [weak self, weak blockView = block.view] in
+      guard let self, let blockView, let current = self.laidOut[index], current.view === blockView else { return }
+      self.measure(index, current)
+      if let scrollView = self.scrollView { self.layoutViewport(of: scrollView) }
+    }
     showTableSelection(in: block, at: index)
     showRuleSelection(in: block, at: index)
     showSelectedCharacters(in: block, at: index)
@@ -312,7 +331,7 @@ import UIKit
       if block.view.frame != frame { block.view.frame = frame }
       if block.view.superview !== surface {
         // Touches go to the surface, whose text interaction places the caret.
-        block.view.isUserInteractionEnabled = block is ContentBlock
+        block.view.isUserInteractionEnabled = block is ContentBlock || block is EmbedBlock
         surface.insertSubview(block.view, at: 0)
       }
     }
@@ -526,6 +545,7 @@ extension LaidOutBlock {
 private final class TextBlock: LaidOutBlock {
   private let box: TextBox
   private let drawing = BoxView()
+  var onGeometryChange: (() -> Void)?
   private let selectedOutline: DocumentTypography.Outline
   private var outlines: [OutlineView] = []
 
@@ -533,6 +553,7 @@ private final class TextBlock: LaidOutBlock {
     box = TextBox(text, width: width)
     self.selectedOutline = selectedOutline
     drawing.box = box
+    box.onRedraw = { [weak self] in self?.drawing.setNeedsDisplay(); self?.onGeometryChange?() }
     drawing.border = Self.border(text)
   }
 
@@ -611,6 +632,7 @@ private final class TableBlock: LaidOutBlock {
   private(set) var kind: DocumentText.BlockKind
   private let table: TableView
   private let holder: TableHolder
+  var onGeometryChange: (() -> Void)? { didSet { table.onGeometryChange = onGeometryChange } }
 
   init(
     text: NSAttributedString, kind: DocumentText.BlockKind, width: CGFloat, style: DocumentTypography.Table,
@@ -781,23 +803,31 @@ private final class ContentBlock: LaidOutBlock {
 private final class EmbedBlock: LaidOutBlock {
 
   private let container = UIView()
-  private let placeholder: PlaceholderView
+  private let placeholder: UIView
+  private let media: MediaPayload?
   private let type: String
+  var onGeometryChange: (() -> Void)?
 
-  init(type: String, width: CGFloat) {
+  init(type: String, payload: JSONValue?, width: CGFloat, style: @escaping DocumentText.Style, imageLoader: MediaImageLoader?) {
     self.type = type
-    placeholder = PlaceholderView(type: type)
+    media = payload.flatMap(MediaPayload.init)
+    placeholder = media.map { MediaView($0, style: style, imageLoader: imageLoader) } ?? PlaceholderView(type: type)
     container.addSubview(placeholder)
-    placeholder.frame = CGRect(x: 0, y: 0, width: width, height: PlaceholderView.height)
+    (placeholder as? MediaView)?.onGeometryChange = { [weak self] in
+      guard let self, let mediaView = self.placeholder as? MediaView else { return }
+      self.placeholder.frame.size.height = mediaView.fittingHeight(self.placeholder.frame.width)
+      self.onGeometryChange?()
+    }
+    placeholder.frame = CGRect(x: 0, y: 0, width: width, height: (placeholder as? MediaView)?.fittingHeight(width) ?? PlaceholderView.height)
   }
 
   var view: UIView { container }
   var kind: DocumentText.BlockKind { .embedded(type: type) }
-  var height: CGFloat { PlaceholderView.height }
-  func canShow(_ kind: DocumentText.BlockKind) -> Bool { kind == self.kind }
+  var height: CGFloat { placeholder.frame.height }
+  func canShow(_ kind: DocumentText.BlockKind) -> Bool { media == nil && kind == self.kind }
 
   func set(text: NSAttributedString, kind: DocumentText.BlockKind, width: CGFloat) {
-    placeholder.frame = CGRect(x: 0, y: 0, width: width, height: PlaceholderView.height)
+    placeholder.frame = CGRect(x: 0, y: 0, width: width, height: (placeholder as? MediaView)?.fittingHeight(width) ?? PlaceholderView.height)
   }
 
   func redraw() {}

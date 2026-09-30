@@ -14,5 +14,7 @@
 	<string>$(APP_BUNDLE_IDENTIFIER)</string>
 	<key>LexidrawKeychainGroup</key>
 	<string>$(AppIdentifierPrefix)$(APP_BUNDLE_IDENTIFIER)</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Take a picture to insert into your Lexidraw document.</string>
 </dict>
 </plist>

@@ -160,7 +160,13 @@ private struct DocumentEditor: UIViewRepresentable {
       language: editing.settings.language, font: editing.font)
     view.onChange = { [weak editing] in editing?.changed() }
     configureEmbeddedDrawings(view)
-    if editing.mode == .editing { view.insertionActions = [drawingInsertionAction(for: view)] }
+    if editing.mode == .editing {
+      view.uploadImage = { [weak editing] data in
+        guard let editing else { throw CancellationError() }
+        return try await editing.session.uploadImage(data, in: editing.id)
+      }
+      view.insertionActions = view.imageInsertionActions + [drawingInsertionAction(for: view)]
+    }
     return view
   }
 

@@ -101,6 +101,7 @@ import UIKit
   var overlay: UIView { scrollingFrame }
 
   var height: CGFloat { tableSize.height }
+  var onGeometryChange: (() -> Void)?
 
   private final class Preparation {
     let placed: Placement
@@ -182,7 +183,16 @@ import UIKit
     if preparation.cursor < preparation.indices.count {
       let at = preparation.indices[preparation.cursor]
       let content = preparation.placed.width(row: at.row, index: at.index, preparation.columns!) - 2 * paddingX - endBorder(at.row, at.index)
-      boxes[at.row].append(TextBox(styled(cells[at.row][at.index], alignedRight: preparation.alignment.contains(at.index)), width: max(content, 1)))
+      let box = TextBox(styled(cells[at.row][at.index], alignedRight: preparation.alignment.contains(at.index)), width: max(content, 1))
+      box.onRedraw = { [weak self] in
+        guard let self else { return }
+        // Cells prepared on later frames do not have TextBoxes yet. Their
+        // final geometry pass will include the freshly measured attachment.
+        guard self.preparation == nil else { self.redraw(); return }
+        self.finishGeometry(preparation)
+        self.onGeometryChange?()
+      }
+      boxes[at.row].append(box)
       preparation.cursor += 1
       return false
     }

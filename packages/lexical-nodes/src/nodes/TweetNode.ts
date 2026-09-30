@@ -1,3 +1,4 @@
+import { MEDIA_LINK_BASES } from "../media-links.js";
 import {
   DecoratorBlockNode,
   type SerializedDecoratorBlockNode,
@@ -110,7 +111,7 @@ export class TweetNode extends DecoratorBlockNode {
     _includeInert?: boolean | undefined,
     _includeDirectionless?: false | undefined,
   ): string {
-    return `https://x.com/i/web/status/${this.__id}`;
+    return `${MEDIA_LINK_BASES.tweet}${this.__id}`;
   }
 
   static $createTweetNode<T extends TweetNode>(
