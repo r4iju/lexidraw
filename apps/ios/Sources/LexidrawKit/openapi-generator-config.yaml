@@ -21,6 +21,7 @@ filter:
     - entities-delete
     - entities-restore
     - auth-deletionConfirmation
+    - auth-me
     - auth-deleteAccount
     - nativeSignIn-exchange
     - tokens-revokeCurrent

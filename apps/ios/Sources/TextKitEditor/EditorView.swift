@@ -61,6 +61,13 @@ public final class EditorView: UIScrollView, UITextInput {
   /// The owner can schedule autosave without exporting on every keystroke.
   public var onChange: (() -> Void)?
 
+  public func replaceEmbeddedNode(key: String, expected: JSONValue, replacement: JSONValue?) throws {
+    guard isEditable else { throw EditorError.unsupported("This document cannot be edited") }
+    let change = try model.replaceEmbeddedNode(key: key, expected: expected, replacement: replacement)
+    render(change)
+    if !change.changed.isEmpty { onChange?() }
+  }
+
   public var embeddedContent: ((String, JSONValue) -> EmbeddedContentView?)? {
     didSet { layout.embeddedContent = embeddedContent; render(nil) }
   }
@@ -87,6 +94,79 @@ public final class EditorView: UIScrollView, UITextInput {
     render(nil)
   }
   public var onEmbeddedTap: ((String, JSONValue) -> Bool)?
+  private var socialUserID: String?
+  private var socialAuthor = "Guest"
+  private var hasSocialProvider = false
+
+  public func configureSocialNodes(userID: String?, author: String) {
+    socialUserID = userID; socialAuthor = author
+    if !hasSocialProvider {
+      hasSocialProvider = true
+      let previous = embeddedContent
+      embeddedContent = { [weak self] key, node in
+        if let supplied = previous?(key, node) { return supplied }
+        guard let self, node["type"] == "poll" else { return nil }
+        return NativePollView(node, userID: socialUserID, editable: isEditable,
+          changed: { [weak self] replacement in try self?.replaceEmbeddedNode(key: key, expected: node, replacement: replacement) },
+          editOption: { [weak self] uid, text in self?.editPollOption(key: key, node: node, uid: uid, text: text) },
+          failed: { [weak self] error in self?.showSocialError(error) })
+      }
+    } else { refreshEmbeddedContent() }
+  }
+
+  @discardableResult public func insertPoll(question: String) -> Bool {
+    guard isEditable, JSRegExp(#"^\s*$"#, flags: "").firstMatch(in: question) == nil,
+      var node = try? JSONValue(parsing: WebPollStyle.insertionNodeJSON).objectValue,
+      let defaults = node["options"]?.arrayValue else { return false }
+    node["question"] = .string(question)
+    node["options"] = .array(defaults.map { option in
+      var fields = option.objectValue!; fields["uid"] = .string(UUID().uuidString)
+      return .object(fields)
+    })
+    let clipboard = Clipboard(plainText: "", lexical: LexicalClipboardPayload(namespace: MediaLinks.namespace, nodes: [.object(node)]))
+    return perform(.paste(clipboard), fromInput: false, tellsRefusal: true) != nil
+  }
+
+  public var socialInsertionActions: [UIMenuElement] {
+    [UIAction(title: "Poll", image: UIImage(systemName: "chart.bar")) { [weak self] _ in
+      guard let self, isEditable else { return }
+      let alert = UIAlertController(title: "Insert poll", message: "Question", preferredStyle: .alert)
+      alert.addTextField()
+      alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+      alert.addAction(UIAlertAction(title: "Insert", style: .default) { [weak self, weak alert] _ in
+        guard let question = alert?.textFields?.first?.text else { return }
+        self?.insertPoll(question: question)
+      })
+      presenter?.present(alert, animated: true)
+    }]
+  }
+
+  private func showSocialError(_ error: any Error) {
+    let message: String
+    switch error {
+    case EditorError.unsupported(let reason), EditorError.invalidState(let reason): message = reason
+    default: message = error.localizedDescription
+    }
+    let alert = UIAlertController(title: "Couldn’t update poll", message: message, preferredStyle: .alert)
+    alert.addAction(UIAlertAction(title: "OK", style: .default))
+    presenter?.present(alert, animated: true)
+  }
+
+  private func editPollOption(key: String, node: JSONValue, uid: String, text: String) {
+    guard isEditable else { return }
+    let alert = UIAlertController(title: "Edit option", message: nil, preferredStyle: .alert)
+    alert.addTextField { $0.text = text }
+    alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+    alert.addAction(UIAlertAction(title: "Save", style: .default) { [weak self, weak alert] _ in
+      guard let self, let text = alert?.textFields?.first?.text, var fields = node.objectValue,
+        var options = node["options"]?.arrayValue, let index = options.firstIndex(where: { $0["uid"] == .string(uid) }),
+        var option = options[index].objectValue else { return }
+      option["text"] = .string(text); options[index] = .object(option); fields["options"] = .array(options)
+      do { try replaceEmbeddedNode(key: key, expected: node, replacement: .object(fields)) }
+      catch { showSocialError(error) }
+    })
+    presenter?.present(alert, animated: true)
+  }
   private var inlineWidth: CGFloat = 0
   public func refreshEmbeddedContent() { render(nil); setNeedsLayout() }
 

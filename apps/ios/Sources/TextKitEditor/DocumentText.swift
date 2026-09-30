@@ -171,7 +171,7 @@ public final class DocumentText {
   private static func decoratorInParagraph(_ node: JSONValue) -> JSONValue? {
     guard node["type"] == "paragraph", let children = node["children"]?.arrayValue, children.count == 1,
       let type = children[0]["type"]?.stringValue,
-      type == "excalidraw" || type == "mermaid" || type == "chart" || (type == "equation" && children[0]["inline"] != true) || (type != "inline-image" && MediaPayload(children[0]) != nil) else { return nil }
+      type == "excalidraw" || type == "poll" || type == "mermaid" || type == "chart" || (type == "equation" && children[0]["inline"] != true) || (type != "inline-image" && MediaPayload(children[0]) != nil) else { return nil }
     return children[0]
   }
 

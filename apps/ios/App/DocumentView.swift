@@ -162,12 +162,17 @@ private struct DocumentEditor: UIViewRepresentable {
     configureEmbeddedDrawings(view)
     configureHTMLBlocks(view, session: editing.session, documentID: editing.id)
     configureRenderedEmbeds(view, session: editing.session, fontFamily: editing.settings.fontFamily)
+    view.configureSocialNodes(userID: nil, author: "Guest")
+    Task { [weak view, session = editing.session] in
+      guard let identity = try? await session.identity() else { return }
+      view?.configureSocialNodes(userID: identity.id, author: identity.name)
+    }
     if editing.mode == .editing {
       view.uploadImage = { [weak editing] data in
         guard let editing else { throw CancellationError() }
         return try await editing.session.uploadImage(data, in: editing.id)
       }
-      view.insertionActions = view.imageInsertionActions + [drawingInsertionAction(for: view)] + renderedInsertionActions(for: view)
+      view.insertionActions = view.imageInsertionActions + view.socialInsertionActions + [drawingInsertionAction(for: view)] + renderedInsertionActions(for: view)
     }
     return view
   }

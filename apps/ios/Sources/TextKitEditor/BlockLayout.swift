@@ -811,23 +811,31 @@ private final class EmbedBlock: LaidOutBlock {
   init(type: String, payload: JSONValue?, width: CGFloat, style: @escaping DocumentText.Style, imageLoader: MediaImageLoader?) {
     self.type = type
     media = payload.flatMap(MediaPayload.init)
-    placeholder = media.map { MediaView($0, style: style, imageLoader: imageLoader) } ?? PlaceholderView(type: type)
+    if let media { placeholder = MediaView(media, style: style, imageLoader: imageLoader) }
+    else if type == "poll", let payload { placeholder = NativePollView(payload) }
+    else { placeholder = PlaceholderView(type: type) }
     container.addSubview(placeholder)
     (placeholder as? MediaView)?.onGeometryChange = { [weak self] in
       guard let self, let mediaView = self.placeholder as? MediaView else { return }
       self.placeholder.frame.size.height = mediaView.fittingHeight(self.placeholder.frame.width)
       self.onGeometryChange?()
     }
-    placeholder.frame = CGRect(x: 0, y: 0, width: width, height: (placeholder as? MediaView)?.fittingHeight(width) ?? PlaceholderView.height)
+    placeholder.frame = CGRect(x: 0, y: 0, width: width, height: fittingHeight(width))
   }
 
   var view: UIView { container }
   var kind: DocumentText.BlockKind { .embedded(type: type) }
   var height: CGFloat { placeholder.frame.height }
-  func canShow(_ kind: DocumentText.BlockKind) -> Bool { media == nil && kind == self.kind }
+  func canShow(_ kind: DocumentText.BlockKind) -> Bool { media == nil && type != "poll" && kind == self.kind }
+
+  private func fittingHeight(_ width: CGFloat) -> CGFloat {
+    if let media = placeholder as? MediaView { return media.fittingHeight(width) }
+    if let embedded = placeholder as? EmbeddedContentView { return embedded.contentSize(fitting: width).height }
+    return PlaceholderView.height
+  }
 
   func set(text: NSAttributedString, kind: DocumentText.BlockKind, width: CGFloat) {
-    placeholder.frame = CGRect(x: 0, y: 0, width: width, height: (placeholder as? MediaView)?.fittingHeight(width) ?? PlaceholderView.height)
+    placeholder.frame = CGRect(x: 0, y: 0, width: width, height: fittingHeight(width))
   }
 
   func redraw() {}

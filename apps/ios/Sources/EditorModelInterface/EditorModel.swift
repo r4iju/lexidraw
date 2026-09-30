@@ -20,6 +20,9 @@ public protocol EditorModel: AnyObject {
   func replaceDrawing(key: String, expectedData: String, data: String?) throws -> ChangeSet
   func replaceRenderedNode(key: String, expected: JSONValue, replacement: JSONValue) throws -> ChangeSet
 
+  @discardableResult
+  func replaceEmbeddedNode(key: String, expected: JSONValue, replacement: JSONValue?) throws -> ChangeSet
+
   /// The serialized editor state and the selection.
   func snapshot() throws -> Snapshot
 
@@ -47,6 +50,10 @@ public protocol EditorModel: AnyObject {
 extension EditorModel {
   public func replaceRenderedNode(key: String, expected: JSONValue, replacement: JSONValue) throws -> ChangeSet {
     throw EditorError.unsupported("Rendered node editing belongs to #132")
+  }
+
+  public func replaceEmbeddedNode(key: String, expected: JSONValue, replacement: JSONValue?) throws -> ChangeSet {
+    throw EditorError.unsupported("Structural block editing requires #133")
   }
 
   public func replaceDrawing(key: String, expectedData: String, data: String?) throws -> ChangeSet {

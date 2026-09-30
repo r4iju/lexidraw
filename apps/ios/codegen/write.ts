@@ -19,7 +19,12 @@ import {
 } from "./markdown";
 import { SERIALIZED_NODES_PATH, swiftForNodeSchema } from "./swift";
 import { SHORTCUTS_PATH, swiftForShortcuts } from "./shortcuts";
-import { EMOJI_ALIASES_PATH, swiftForEmojiAliases } from "./social";
+import {
+  EMOJI_ALIASES_PATH,
+  POLL_STYLE_PATH,
+  swiftForEmojiAliases,
+  swiftForPollStyle,
+} from "./social";
 import {
   DOCUMENT_TYPOGRAPHY_PATH,
   readWebStyles,
@@ -49,6 +54,7 @@ await Bun.write(LINKS_PATH, await swiftForLinks());
 await Bun.write(LINK_PROTOCOLS_PATH, swiftForLinkProtocols());
 await Bun.write(SHORTCUTS_PATH, swiftForShortcuts());
 await Bun.write(EMOJI_ALIASES_PATH, swiftForEmojiAliases());
+await Bun.write(POLL_STYLE_PATH, await swiftForPollStyle());
 
 const { HTML_IMPORT_PATH, swiftForHTMLImport } = await import("./html");
 await Bun.write(HTML_IMPORT_PATH, await swiftForHTMLImport());

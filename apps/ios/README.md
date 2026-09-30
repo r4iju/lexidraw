@@ -593,6 +593,14 @@ editing boundaries and splitting. They have no extra effective web color:
 upstream `HashtagNode.createDOM` reads `theme.hashtag`, while the current theme
 puts its unused hashtag class under `theme.text.hashtag`.
 
-This checkpoint does not complete #134. Polls, comments, threads, mentions,
-stored emoji and keyword nodes, footnotes, and articles retain their explicit
-unported editing gate until their native behavior is implemented.
+Polls render question, options, vote counts and rounded percentages in native
+cards. Insert creates the web plugin's two empty options from generated constructor
+JSON. Edit/remove/add and authenticated voting preserve option IDs and existing
+votes, validate the captured node before replacement, and notify autosave once.
+Undo restores the prior poll. The account identity comes from `auth.me`; its new
+nullable name field remains compatible with older clients. Voting stays disabled
+when identity is unavailable. Native option editing commits on the alert's Save.
+
+This checkpoint does not complete #134. Comments, threads, mentions, stored
+emoji and keyword nodes, footnotes, and articles retain their explicit unported
+editing gate until their native behavior is implemented.
