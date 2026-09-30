@@ -1,0 +1,39 @@
+{
+  "device": {
+    "model": "iPhone 14 Plus",
+    "chip": "A15",
+    "displayHz": 60,
+    "os": "iOS 27.0"
+  },
+  "configuration": "Release, physical device, synthetic disposable documents",
+  "measuredSourceCommit": "b5f505af",
+  "integratedCommit": "57871a04cc3dc19a2fe8f1dea6609529c9769b2f",
+  "integrationNote": "Device measurements precede integration of writing direction and table menus; final integrated device measurements remain required.",
+  "typing": {
+    "scope": "200 genuine insertText(\"x\") edits per workload, synchronous input processing and layout; excludes keyboard delivery, drawing and compositing",
+    "variant": "Videos replaced with empty paragraphs while preserving node and word counts; media editing belongs to #131",
+    "smallP95Ms": 1.143125002272427,
+    "largeP95Ms": 2.118208329193294,
+    "processingGate": "pass",
+    "actualKeystrokeToScreenLatency": "unmeasured; CADisplayLink timestamps are cadence evidence only"
+  },
+  "scroll": {
+    "workload": "Original mixed 115000-word, 9002-node workload with opaque videos",
+    "complete": true,
+    "openingProxyMs": 164.21,
+    "openingGateMs": 150,
+    "openingGate": "fail",
+    "openingScope": "First display-link timestamp with attached view, not verified pixel presentation",
+    "frames": 10190,
+    "callbackDelays": 2,
+    "instrumentsRenderingHitches": 66,
+    "renderingHitchTimeMs": 1116.6,
+    "zeroDroppedFramesGate": "fail",
+    "hangs": 0,
+    "layoutJumps": 0,
+    "traceLocalPath": "/tmp/lexidraw-119-phone-optimized/large-complete.trace"
+  },
+  "inputCoverage": "Existing native UI 20 and TextKit 85 passed before integration; positive autocorrect, text replacement and dictation coverage pending.",
+  "fuzzer": "Current combined million-step run pending; do not count earlier stale-reference diagnostic run.",
+  "corpus": "3 current combined live corpus checks passed locally."
+}
