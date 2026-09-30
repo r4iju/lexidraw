@@ -55,6 +55,7 @@ enum HTMLDOM {
     var protectedNames: [String: String] = [:]
     var replacements: [(Range<Int>, [UInt8])] = []
     var rawText: String?
+    var foreign: [(name: String, namespace: String, htmlChildren: Bool)] = []
     var index = 0
     func letter(_ byte: UInt8) -> Bool { (65...90).contains(byte) || (97...122).contains(byte) }
     func nameByte(_ byte: UInt8) -> Bool {
@@ -93,14 +94,55 @@ enum HTMLDOM {
         continue
       }
       var tagEnd = end
-      var quote: UInt8?
+      // Quotes start quoted values only after an equals sign; quotes within
+      // unquoted values remain literal HTML parse errors.
+      enum AttributeState { case before, name, afterName, beforeValue, unquoted, quoted(UInt8), afterValue }
+      var attributeState = AttributeState.before
       while tagEnd < bytes.count {
         let byte = bytes[tagEnd]
-        if let current = quote {
-          if byte == current { quote = nil }
-        } else if byte == 34 || byte == 39 { quote = byte }
-        else if byte == 62 { break }
+        let space = [9, 10, 12, 13, 32].contains(byte)
+        if case .quoted(let quote) = attributeState {
+          if byte == quote { attributeState = .afterValue }
+        } else {
+          if byte == 62 { break }
+          switch attributeState {
+          case .beforeValue:
+            if byte == 34 || byte == 39 { attributeState = .quoted(byte) }
+            else if !space { attributeState = .unquoted }
+          case .unquoted:
+            if space { attributeState = .before }
+          case .name, .afterName:
+            if byte == 61 { attributeState = .beforeValue }
+            else if space { attributeState = .afterName }
+            else if byte == 47 { attributeState = .before }
+            else { attributeState = .name }
+          case .before, .afterValue:
+            if !space && byte != 47 { attributeState = .name }
+          case .quoted: break
+          }
+        }
         tagEnd += 1
+      }
+      let selfClosing = tagEnd > end && tagEnd < bytes.count && bytes[tagEnd - 1] == 47
+      let foreignBreakout: Set<String> = ["b", "big", "blockquote", "body", "br", "center", "code", "dd", "div", "dl", "dt", "em", "embed", "h1", "h2", "h3", "h4", "h5", "h6", "head", "hr", "i", "img", "li", "listing", "menu", "meta", "nobr", "ol", "p", "pre", "ruby", "s", "small", "span", "strong", "strike", "sub", "sup", "table", "tt", "u", "ul", "var"]
+      if !closing, foreign.last?.htmlChildren == false, foreignBreakout.contains(name) {
+        while foreign.last?.htmlChildren == false { foreign.removeLast() }
+      }
+      let inForeign = !foreign.isEmpty && foreign.last?.htmlChildren == false
+      let startsForeign = name == "svg" || name == "math"
+      if !closing, startsForeign || inForeign || !foreign.isEmpty {
+        let namespace = startsForeign ? name : (inForeign ? foreign.last!.namespace : "html")
+        let integration = namespace == "svg" && ["title", "desc", "foreignobject"].contains(name)
+          || namespace == "math" && ["mi", "mo", "mn", "ms", "mtext"].contains(name)
+        let void = namespace == "html" && ["area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "param", "source", "track", "wbr"].contains(name)
+        if !void && !(selfClosing && namespace != "html") {
+          // Foreign integration points admit HTML children without making the
+          // SVG title itself an HTML RCDATA element. Track HTML descendants too
+          // so a nested HTML title's end tag cannot close the outer SVG title.
+          foreign.append((name, namespace, namespace == "html" || integration))
+        }
+      } else if closing, let matched = foreign.lastIndex(where: { $0.name == name }) {
+        foreign.removeSubrange(matched...)
       }
       if name.contains(":") {
         let protectedName = protectedNames[name] ?? marker + String(names.count)
@@ -109,7 +151,7 @@ enum HTMLDOM {
         replacements.append((start..<end, Array(protectedName.utf8)))
       }
       if closing { rawText = nil }
-      else if completeName, ["script", "style", "textarea", "title", "xmp", "iframe", "noembed", "noframes", "plaintext"].contains(name) {
+      else if !inForeign, !startsForeign, completeName, ["script", "style", "textarea", "title", "xmp", "iframe", "noembed", "noframes", "plaintext"].contains(name) {
         rawText = name
         if ["textarea", "title"].contains(name), tagEnd > end, tagEnd < bytes.count, bytes[tagEnd - 1] == 47 {
           // HTML ignores a self-closing flag on an RCDATA start tag.

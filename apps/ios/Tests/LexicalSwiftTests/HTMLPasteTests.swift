@@ -76,6 +76,7 @@ import Testing
 
   @Test func malformedRawTextHTMLAgreesWithChromium() throws {
     try replayHTMLFixtures("HTML/upstream/malformed-raw-text.chromium.json")
+    try replayHTMLFixtures("HTML/upstream/foreign-rcdata.chromium.json")
   }
 
   @Test func commandReferenceRequiresTheIndependentDOMOracleForHTML() throws {

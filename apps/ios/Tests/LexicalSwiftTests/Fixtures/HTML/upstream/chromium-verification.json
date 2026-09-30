@@ -99,6 +99,18 @@
       "inputSHA256": "783e9760a64bf6ef74a9535ff887810696c140cc5764392bcf8bf83e54476145",
       "oracleNodesSHA256": "7337cfd6acd0df4a31de2bd3917e8f4e0edb8a7db5737de0dd17c56a0826d662",
       "result": "Public native paste agreed with serialized browser-node insertion."
+    },
+    {
+      "name": "svg-title-integration",
+      "inputSHA256": "717faaa20d793b7602d8a2c54ca69c5f9dde143b773e82949c9ac7dd7117bf97",
+      "oracleNodesSHA256": "5d2029ff353a5eb58cb3d6b42749a9a25775c6c3d8c69f21d6f8550289ea328c",
+      "result": "Public native paste agreed with serialized browser-node insertion."
+    },
+    {
+      "name": "rcdata-unquoted-quote",
+      "inputSHA256": "984bf076210bdfda8255ed64ba068bd62a0f4dba63e6a0aefcea60cb8c497560",
+      "oracleNodesSHA256": "1fff6579c4999ae2787650dffaefac1f73f4885f73795d1938d86a3e51286b38",
+      "result": "Public native paste agreed with serialized browser-node insertion."
     }
   ]
 }
