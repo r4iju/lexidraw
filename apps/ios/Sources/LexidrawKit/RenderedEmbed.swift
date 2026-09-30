@@ -40,3 +40,24 @@ extension Session {
     }
   }
 }
+
+public struct RenderedSVG: Sendable {
+  public let png: Data
+  public let width: Double
+  public let height: Double
+}
+
+extension Session {
+  public func rasterizeSVG(_ source: Data) async throws -> RenderedSVG {
+    guard source.count <= 8_000_000 else { throw Refusal(status: 413, message: "SVG source exceeds the image limit") }
+    return try await RenderedEmbedQueue.shared.perform {
+      let result = try await ask {
+        try await $0.embedsRasterizeSVG(body: .json(.init(source: source.base64EncodedString())))
+      }.ok.body.json
+      guard let png = Data(base64Encoded: result.png), png.count <= 12_000_000 else {
+        throw Refusal(status: 502, message: "The renderer returned an invalid SVG preview")
+      }
+      return RenderedSVG(png: png, width: result.width, height: result.height)
+    }
+  }
+}

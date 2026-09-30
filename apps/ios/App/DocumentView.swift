@@ -166,6 +166,7 @@ private struct DocumentEditor: UIViewRepresentable {
         guard let identity = try? await session.identity() else { return }
         nested?.configureSocialNodes(userID: identity.id, author: identity.name)
       }
+      configureNativeMedia(nested, session: editing.session)
       configureEmbeddedDrawings(nested)
       configureHTMLBlocks(nested, session: editing.session, documentID: editing.id)
       configureRenderedEmbeds(nested, session: editing.session, fontFamily: editing.settings.fontFamily)
@@ -182,4 +183,15 @@ private struct DocumentEditor: UIViewRepresentable {
   }
 
   func updateUIView(_ view: EditorView, context: Context) {}
+}
+
+@MainActor func configureNativeMedia(_ view: EditorView, session: Session) {
+  view.mediaImageLoader = { source in
+    try await NativeMediaImages.load(source, rasterizeSVG: { svg in
+      let preview = try await session.rasterizeSVG(svg)
+      guard let image = UIImage(data: preview.png), let bitmap = image.cgImage else { throw URLError(.cannotDecodeContentData) }
+      let scale = Double(max(bitmap.width, bitmap.height)) / max(preview.width, preview.height)
+      return UIImage(cgImage: bitmap, scale: scale, orientation: .up)
+    })
+  }
 }

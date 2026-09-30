@@ -28,6 +28,10 @@ import UIKit
   }
 
   private var boxes: [[TextBox]] = []
+  override func didMoveToWindow() {
+    super.didMoveToWindow()
+    for box in boxes.joined() { box.setAnimationVisible(window != nil) }
+  }
   /// Each cell's box, borders included, by row and by its index in the row,
   /// in the content.
   private var cellFrames: [[CGRect]] = []
@@ -192,6 +196,7 @@ import UIKit
         self.finishGeometry(preparation)
         self.onGeometryChange?()
       }
+      box.setAnimationVisible(window != nil)
       boxes[at.row].append(box)
       preparation.cursor += 1
       return false

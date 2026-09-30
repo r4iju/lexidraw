@@ -620,6 +620,10 @@ private final class TextBlock: LaidOutBlock {
 
   final class BoxView: UIView {
     var box: TextBox?
+    override func didMoveToWindow() {
+      super.didMoveToWindow()
+      box?.setAnimationVisible(window != nil)
+    }
     var border: LeadingBorder?
 
     override init(frame: CGRect) {
