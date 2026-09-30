@@ -102,8 +102,15 @@ import UIKit
   func set(cells: [[Cell]], columnWidths: [Double]?, width: CGFloat) {
     self.cells = cells
     let placed = Placement(cells)
-    let metrics = cells.map { $0.map { TextMetrics($0, style) } }
-    let short = shortColumns(cells)
+    var wideScalars: [Unicode.Scalar: Bool] = [:]
+    func isWide(_ scalar: Unicode.Scalar) -> Bool {
+      if let result = wideScalars[scalar] { return result }
+      let result = style.isWide(scalar)
+      wideScalars[scalar] = result
+      return result
+    }
+    let metrics = cells.map { $0.map { TextMetrics($0, isWide: isWide) } }
+    let short = shortColumns(cells, isWide: isWide)
     var whole = short
     var columns = self.columns(placed, metrics, short: short, whole: whole, fixed: columnWidths, width: width)
     // Short columns stay whole while the table fits, the widest giving way
@@ -276,13 +283,13 @@ import UIKit
   /// The cells' indexes in their rows whose every cell is short, as
   /// `DocumentTablesPlugin` counts columns: by index in the row, with the
   /// first row's length.
-  private func shortColumns(_ cells: [[Cell]]) -> Set<Int> {
+  private func shortColumns(_ cells: [[Cell]], isWide: (Unicode.Scalar) -> Bool) -> Set<Int> {
     let count = cells.first?.count ?? 0
     return Set(
       (0..<count).filter { index in
         cells.allSatisfy { row in
           guard let cell = row[safe: index] else { return true }
-          return columnsWide(Self.plainText(cell)) <= style.shortColumns
+          return Self.columnsWide(Self.plainText(cell), isWide: isWide) <= style.shortColumns
         }
       })
   }
@@ -304,8 +311,8 @@ import UIKit
   }
 
   /// `columnsWide`: a wide character counts as two.
-  private func columnsWide(_ text: String) -> Int {
-    text.unicodeScalars.reduce(0) { $0 + (style.isWide($1) ? 2 : 1) }
+  private static func columnsWide(_ text: String, isWide: (Unicode.Scalar) -> Bool) -> Int {
+    text.unicodeScalars.reduce(0) { $0 + (isWide($1) ? 2 : 1) }
   }
 
   /// A cell's text as the web shows it: a header's in the header weight,
@@ -502,7 +509,7 @@ import UIKit
     var maxContent: CGFloat = 0
     var isEmpty: Bool
 
-    init(_ cell: Cell, _ style: DocumentTypography.Table) {
+    init(_ cell: Cell, isWide: (Unicode.Scalar) -> Bool) {
       let text = cell.text
       let string = text.string as NSString
       isEmpty = string.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -522,7 +529,7 @@ import UIKit
         } else if character == 0x20 || character == 0x09 {
           minContent = max(minContent, width(pieceStart, offset))
           pieceStart = offset + 1
-        } else if let scalar, style.isWide(scalar) {
+        } else if let scalar, isWide(scalar) {
           // A line may break either side of a CJK character.
           minContent = max(minContent, width(pieceStart, offset), width(offset, offset + 1))
           pieceStart = offset + 1
