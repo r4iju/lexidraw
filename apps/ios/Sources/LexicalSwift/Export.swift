@@ -1,9 +1,10 @@
 extension EditorState {
   /// A node as Lexical's `exportJSON` writes it, children included unless
   /// left out, as a copy leaves out those not selected.
-  func json(of key: NodeKey, includingChildren: Bool = true) -> JSONValue {
+  func json(of key: NodeKey, includingChildren: Bool = true, canonicalKeyOrder: Bool = true) -> JSONValue {
     let node = self[key]
-    guard case .object(var fields) = node.payload.json else { return node.payload.json }
+    let serialized = canonicalKeyOrder ? node.payload.json : node.payload.jsonForPresentation
+    guard case .object(var fields) = serialized else { return serialized }
     if let payload = node.payload.payload {
       fields["version"] = .number(Double(type(of: payload).version))
       if node.isElement { writeTextStyles(of: node, into: &fields) }
@@ -21,9 +22,9 @@ extension EditorState {
       }
     }
     if let children = node.children {
-      fields["children"] = .array(includingChildren ? children.map { json(of: $0) } : [])
+      fields["children"] = .array(includingChildren ? children.map { json(of: $0, canonicalKeyOrder: canonicalKeyOrder) } : [])
     }
-    guard let payload = node.payload.payload else { return .object(fields) }
+    guard canonicalKeyOrder, let payload = node.payload.payload else { return .object(fields) }
     return .object(fields.ordered(by: type(of: payload).keyOrder))
   }
 
@@ -32,7 +33,7 @@ extension EditorState {
   /// them, and leaves out any the text doesn't hold; another block writes
   /// them only where it has no text to take them from.
   private func writeTextStyles(of node: Node, into fields: inout JSONObject) {
-    let firstText = node.children?.lazy.map { self[$0] }.first(where: \.isText)?.payload.json
+    let firstText = node.children?.lazy.map { self[$0] }.first(where: \.isText)?.payload.jsonForPresentation
     if node.type == "paragraph" {
       if let firstText {
         fields["textFormat"] = firstText["format"]

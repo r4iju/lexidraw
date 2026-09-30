@@ -166,6 +166,22 @@ struct Update {
       throw EditorError.invalidState("splice: start + deleteCount > oldSize")
     }
     markDirty(parent)
+    // Parsing a fresh subtree attaches distinct detached children to an empty
+    // parent. Preserve dirty ordering while building its ordered set once.
+    if children.isEmpty, start == 0, deleteCount == 0, Set(nodes).count == nodes.count,
+      nodes.allSatisfy({ $0 != parent && state[$0].parent == nil })
+    {
+      var previous: NodeKey?
+      for node in nodes {
+        markDirty(node)
+        if let previous { markDirty(previous) }
+        state.nodes[node]!.parent = parent
+        previous = node
+      }
+      state.nodes[parent]!.children = OrderedSet(nodes)
+      if let previous { markDirty(previous) }
+      return
+    }
     var after = start + deleteCount < children.count ? children[start + deleteCount] : nil
     var before = start > 0 ? children[start - 1] : nil
     var removed: [NodeKey] = []

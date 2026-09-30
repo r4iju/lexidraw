@@ -26,11 +26,13 @@ out=$(cd "$out" && pwd)
 bundle=xyz.raiju.lexidraw.editor-harness
 simulator=
 cleanup() {
-  [ -z "${build:-}" ] || rm -rf "$build"
+  [ -n "${MEASURE_BUILD:-}" ] || { [ -z "${build:-}" ] || rm -rf "$build"; }
   [ -z "$simulator" ] || { xcrun simctl shutdown "$simulator" 2>/dev/null || true; xcrun simctl delete "$simulator"; }
 }
 trap cleanup EXIT
-build=$(mktemp -d)
+build=${MEASURE_BUILD:-$(mktemp -d)}
+mkdir -p "$build"
+bun run build:reference
 
 if [ -n "${MEASURE_DEVICE:-}" ]; then
   udid=$MEASURE_DEVICE

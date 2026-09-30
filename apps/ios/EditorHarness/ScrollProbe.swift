@@ -84,10 +84,15 @@ import notify
   @objc private func tick(_ link: CADisplayLink) {
     guard view.window != nil else { return }
     if timing.firstScreen == nil {
-      // The first frame with the editor in it has been committed.
+      // A display-link callback with an attached editor is a timing proxy;
+      // it does not prove that the editor's pixels have been presented.
       timing.firstScreen = link.timestamp
       memory.firstScreen = Memory.footprint()
       previous = link.timestamp
+      if ProcessInfo.processInfo.environment["EDITOR_OPEN_ONLY"] != nil {
+        finish()
+        return
+      }
       if waiting {
         // The state lasts while the name has a registration: until the app quits.
         var token: Int32 = 0
@@ -135,7 +140,7 @@ import notify
 
     switch phase {
     case .up where view.contentOffset.y <= 0: phase = .down
-    case .down where view.contentOffset.y >= maxOffset: finish()
+    case .down where maxOffset - view.contentOffset.y <= 1 / view.traitCollection.displayScale: finish()
     default: break
     }
   }
@@ -177,6 +182,8 @@ import notify
     var document: String
     var contentHeight: Double
     /// Loading the model, from its JSON.
+    var decodingMs: Double
+    var modelLoadMs: Double
     var loadMs: Double
     /// Making the view: the text of the whole document, and its blocks' heights.
     var makingTheViewMs: Double
@@ -198,6 +205,8 @@ import notify
     init(timing: Harness.Timing, frames: [Frame], jumpWork: Double, jumps: [Jump], memory: Memory, contentHeight: Double) {
       document = timing.document
       self.contentHeight = contentHeight
+      decodingMs = (timing.decoded - timing.opened) * 1000
+      modelLoadMs = (timing.loaded - timing.decoded) * 1000
       loadMs = (timing.loaded - timing.opened) * 1000
       let first = timing.firstScreen ?? timing.viewMade
       makingTheViewMs = (timing.viewInitialized - timing.viewMade) * 1000

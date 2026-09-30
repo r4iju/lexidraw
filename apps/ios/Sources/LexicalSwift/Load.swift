@@ -14,9 +14,8 @@ extension Update {
     }
     let children = fields.removeValue(forKey: "children")?.arrayValue ?? []
     let key = create(SerializedNode(json: .object(fields)).asLoaded(), type: type, children: [])
-    for child in children {
-      try append(key, [parse(child)])
-    }
+    let parsed = try children.map { try parse($0) }
+    try append(key, parsed)
     return key
   }
 }

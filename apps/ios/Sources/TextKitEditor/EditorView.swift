@@ -141,16 +141,18 @@ public final class EditorView: UIScrollView, UITextInput {
 
   /// Brings the text up to date with `change`, or renders it afresh.
   private func render(_ change: ChangeSet?) {
-    layout.edit {
-      do {
-        if let change { return try document.update(storage, after: change) }
-        return try document.reload(storage)
-      } catch {
-        failed("The model's update couldn't be shown", error)
-        if change != nil {
-          do { try document.reload(storage) } catch { failed("The document couldn't be shown", error) }
+    typesetting.withFontMetrics {
+      layout.edit {
+        do {
+          if let change { return try document.update(storage, after: change) }
+          return try document.reload(storage)
+        } catch {
+          failed("The model's update couldn't be shown", error)
+          if change != nil {
+            do { try document.reload(storage) } catch { failed("The document couldn't be shown", error) }
+          }
+          return nil
         }
-        return nil
       }
     }
     setNeedsLayout()
@@ -1210,8 +1212,12 @@ public final class EditorView: UIScrollView, UITextInput {
 
   public override func layoutSubviews() {
     super.layoutSubviews()
-    if composition == nil, typesetting.setWidth(bounds.width) { render(nil) }
-    layout.layoutViewport(of: self)
+    if composition == nil {
+      let changed = typesetting.setWidth(bounds.width)
+      let paths = (0..<document.blockCount).filter { changed.contains(document.type(ofBlock: $0)) }.map { [$0] }
+      if !paths.isEmpty { render(ChangeSet(changed: Set(paths))) }
+    }
+    typesetting.withFontMetrics { layout.layoutViewport(of: self) }
   }
 }
 

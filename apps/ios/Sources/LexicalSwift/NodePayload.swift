@@ -2,6 +2,8 @@
 /// (`SerializedNodes.swift`). Absent properties stay absent, so what was read
 /// is what gets written.
 public protocol NodePayload: JSONCodable, Equatable, Sendable {
+  /// Identical field values without the stored representation's key ordering.
+  var jsonForPresentation: JSONValue { get }
   /// The node's `type`.
   static var type: String { get }
   /// What Lexical writes as `version`.
@@ -16,6 +18,14 @@ public protocol NodePayload: JSONCodable, Equatable, Sendable {
   /// is left out, and an editor state the node reads into an editor of its
   /// own is as that editor saves it.
   func asLoaded() -> Self
+}
+
+extension NodePayload {
+  public var jsonForPresentation: JSONValue { json }
+}
+
+extension SerializedNode {
+  var jsonForPresentation: JSONValue { payload?.jsonForPresentation ?? json }
 }
 
 /// A node whose JSON lists children: every element, and the few decorators
@@ -256,7 +266,9 @@ struct NodeFields {
   }
 
   /// The fields, with the keys `order` lists first.
-  func json(in order: [String]) -> JSONValue { .object(rest.ordered(by: order)) }
+  func json(in order: [String], canonicalKeyOrder: Bool = true) -> JSONValue {
+    .object(canonicalKeyOrder ? rest.ordered(by: order) : rest)
+  }
 }
 
 /// What every TextNode holds, a TabNode's included.

@@ -1630,11 +1630,14 @@ public struct SerializedArticleNode: NodePayload {
     unknownFields = fields.rest
   }
 
-  public var json: JSONValue {
+  public var json: JSONValue { json(canonicalKeyOrder: true) }
+  public var jsonForPresentation: JSONValue { json(canonicalKeyOrder: false) }
+
+  private func json(canonicalKeyOrder: Bool) -> JSONValue {
     var fields = NodeFields(writing: Self.type, version: Self.version, over: unknownFields)
     fields.put("data", data, Schema.data)
     fields.put("format", format, Schema.format)
-    return fields.json(in: Self.keyOrder)
+    return fields.json(in: Self.keyOrder, canonicalKeyOrder: canonicalKeyOrder)
   }
 
   public func asLoaded() -> Self {
@@ -1673,7 +1676,10 @@ public struct SerializedAutocompleteNode: NodePayload {
     unknownFields = fields.rest
   }
 
-  public var json: JSONValue {
+  public var json: JSONValue { json(canonicalKeyOrder: true) }
+  public var jsonForPresentation: JSONValue { json(canonicalKeyOrder: false) }
+
+  private func json(canonicalKeyOrder: Bool) -> JSONValue {
     var fields = NodeFields(writing: Self.type, version: Self.version, over: unknownFields)
     fields.put("detail", detail, Schema.detail)
     fields.put("format", format, Schema.format)
@@ -1681,7 +1687,7 @@ public struct SerializedAutocompleteNode: NodePayload {
     fields.put("style", style, Schema.style)
     fields.put("text", text, Schema.text)
     fields.put("uuid", uuid, Schema.uuid)
-    return fields.json(in: Self.keyOrder)
+    return fields.json(in: Self.keyOrder, canonicalKeyOrder: canonicalKeyOrder)
   }
 
   public func asLoaded() -> Self {
@@ -1739,7 +1745,10 @@ public struct SerializedAutoLinkNode: ParentNodePayload {
     unknownFields = fields.rest
   }
 
-  public var json: JSONValue {
+  public var json: JSONValue { json(canonicalKeyOrder: true) }
+  public var jsonForPresentation: JSONValue { json(canonicalKeyOrder: false) }
+
+  private func json(canonicalKeyOrder: Bool) -> JSONValue {
     var fields = NodeFields(writing: Self.type, version: Self.version, over: unknownFields)
     fields.putChildren(children)
     fields.putNullable("direction", direction, Schema.direction)
@@ -1752,7 +1761,7 @@ public struct SerializedAutoLinkNode: ParentNodePayload {
     fields.put("textStyle", textStyle, Schema.textStyle)
     fields.putNullable("title", title, Schema.title)
     fields.put("url", url, Schema.url)
-    return fields.json(in: Self.keyOrder)
+    return fields.json(in: Self.keyOrder, canonicalKeyOrder: canonicalKeyOrder)
   }
 
   public func asLoaded() -> Self {
@@ -1812,7 +1821,10 @@ public struct SerializedCalloutNode: ParentNodePayload {
     unknownFields = fields.rest
   }
 
-  public var json: JSONValue {
+  public var json: JSONValue { json(canonicalKeyOrder: true) }
+  public var jsonForPresentation: JSONValue { json(canonicalKeyOrder: false) }
+
+  private func json(canonicalKeyOrder: Bool) -> JSONValue {
     var fields = NodeFields(writing: Self.type, version: Self.version, over: unknownFields)
     fields.putChildren(children)
     fields.putNullable("direction", direction, Schema.direction)
@@ -1822,7 +1834,7 @@ public struct SerializedCalloutNode: ParentNodePayload {
     fields.put("textFormat", textFormat, Schema.textFormat)
     fields.put("textStyle", textStyle, Schema.textStyle)
     fields.put("title", title, Schema.title)
-    return fields.json(in: Self.keyOrder)
+    return fields.json(in: Self.keyOrder, canonicalKeyOrder: canonicalKeyOrder)
   }
 
   public func asLoaded() -> Self {
@@ -1876,7 +1888,10 @@ public struct SerializedChartNode: NodePayload {
     unknownFields = fields.rest
   }
 
-  public var json: JSONValue {
+  public var json: JSONValue { json(canonicalKeyOrder: true) }
+  public var jsonForPresentation: JSONValue { json(canonicalKeyOrder: false) }
+
+  private func json(canonicalKeyOrder: Bool) -> JSONValue {
     var fields = NodeFields(writing: Self.type, version: Self.version, over: unknownFields)
     var state = fields.takeState()
     fields.put("chartConfig", chartConfig, Schema.chartConfig)
@@ -1886,7 +1901,7 @@ public struct SerializedChartNode: NodePayload {
     fields.put("height", height, Schema.height)
     fields.put("width", width, Schema.width)
     fields.putState(state, after: ["figure"], in: stateOrder)
-    return fields.json(in: Self.keyOrder)
+    return fields.json(in: Self.keyOrder, canonicalKeyOrder: canonicalKeyOrder)
   }
 
   public func asLoaded() -> Self {
@@ -1940,7 +1955,10 @@ public struct SerializedDocumentCodeNode: ParentNodePayload {
     unknownFields = fields.rest
   }
 
-  public var json: JSONValue {
+  public var json: JSONValue { json(canonicalKeyOrder: true) }
+  public var jsonForPresentation: JSONValue { json(canonicalKeyOrder: false) }
+
+  private func json(canonicalKeyOrder: Bool) -> JSONValue {
     var fields = NodeFields(writing: Self.type, version: Self.version, over: unknownFields)
     fields.putChildren(children)
     fields.putNullable("direction", direction, Schema.direction)
@@ -1951,7 +1969,7 @@ public struct SerializedDocumentCodeNode: ParentNodePayload {
     fields.put("textFormat", textFormat, Schema.textFormat)
     fields.put("textStyle", textStyle, Schema.textStyle)
     fields.put("theme", theme, Schema.theme)
-    return fields.json(in: Self.keyOrder)
+    return fields.json(in: Self.keyOrder, canonicalKeyOrder: canonicalKeyOrder)
   }
 
   public func asLoaded() -> Self {
@@ -2003,7 +2021,10 @@ public struct SerializedCodeHighlightNode: NodePayload {
     unknownFields = fields.rest
   }
 
-  public var json: JSONValue {
+  public var json: JSONValue { json(canonicalKeyOrder: true) }
+  public var jsonForPresentation: JSONValue { json(canonicalKeyOrder: false) }
+
+  private func json(canonicalKeyOrder: Bool) -> JSONValue {
     var fields = NodeFields(writing: Self.type, version: Self.version, over: unknownFields)
     fields.put("detail", detail, Schema.detail)
     fields.put("format", format, Schema.format)
@@ -2011,7 +2032,7 @@ public struct SerializedCodeHighlightNode: NodePayload {
     fields.put("mode", mode, Schema.mode)
     fields.put("style", style, Schema.style)
     fields.put("text", text, Schema.text)
-    return fields.json(in: Self.keyOrder)
+    return fields.json(in: Self.keyOrder, canonicalKeyOrder: canonicalKeyOrder)
   }
 
   public func asLoaded() -> Self {
@@ -2060,7 +2081,10 @@ public struct SerializedCollapsibleContainerNode: ParentNodePayload {
     unknownFields = fields.rest
   }
 
-  public var json: JSONValue {
+  public var json: JSONValue { json(canonicalKeyOrder: true) }
+  public var jsonForPresentation: JSONValue { json(canonicalKeyOrder: false) }
+
+  private func json(canonicalKeyOrder: Bool) -> JSONValue {
     var fields = NodeFields(writing: Self.type, version: Self.version, over: unknownFields)
     fields.putChildren(children)
     fields.putNullable("direction", direction, Schema.direction)
@@ -2069,7 +2093,7 @@ public struct SerializedCollapsibleContainerNode: ParentNodePayload {
     fields.put("open", `open`, Schema.`open`)
     fields.putUnlessDefault("textFormat", textFormat, Schema.textFormat)
     fields.putUnlessDefault("textStyle", textStyle, Schema.textStyle)
-    return fields.json(in: Self.keyOrder)
+    return fields.json(in: Self.keyOrder, canonicalKeyOrder: canonicalKeyOrder)
   }
 
   public func asLoaded() -> Self {
@@ -2116,7 +2140,10 @@ public struct SerializedCollapsibleContentNode: ParentNodePayload {
     unknownFields = fields.rest
   }
 
-  public var json: JSONValue {
+  public var json: JSONValue { json(canonicalKeyOrder: true) }
+  public var jsonForPresentation: JSONValue { json(canonicalKeyOrder: false) }
+
+  private func json(canonicalKeyOrder: Bool) -> JSONValue {
     var fields = NodeFields(writing: Self.type, version: Self.version, over: unknownFields)
     fields.putChildren(children)
     fields.putNullable("direction", direction, Schema.direction)
@@ -2124,7 +2151,7 @@ public struct SerializedCollapsibleContentNode: ParentNodePayload {
     fields.put("indent", indent, Schema.indent)
     fields.putUnlessDefault("textFormat", textFormat, Schema.textFormat)
     fields.putUnlessDefault("textStyle", textStyle, Schema.textStyle)
-    return fields.json(in: Self.keyOrder)
+    return fields.json(in: Self.keyOrder, canonicalKeyOrder: canonicalKeyOrder)
   }
 
   public func asLoaded() -> Self {
@@ -2169,7 +2196,10 @@ public struct SerializedCollapsibleTitleNode: ParentNodePayload {
     unknownFields = fields.rest
   }
 
-  public var json: JSONValue {
+  public var json: JSONValue { json(canonicalKeyOrder: true) }
+  public var jsonForPresentation: JSONValue { json(canonicalKeyOrder: false) }
+
+  private func json(canonicalKeyOrder: Bool) -> JSONValue {
     var fields = NodeFields(writing: Self.type, version: Self.version, over: unknownFields)
     fields.putChildren(children)
     fields.putNullable("direction", direction, Schema.direction)
@@ -2177,7 +2207,7 @@ public struct SerializedCollapsibleTitleNode: ParentNodePayload {
     fields.put("indent", indent, Schema.indent)
     fields.putUnlessDefault("textFormat", textFormat, Schema.textFormat)
     fields.putUnlessDefault("textStyle", textStyle, Schema.textStyle)
-    return fields.json(in: Self.keyOrder)
+    return fields.json(in: Self.keyOrder, canonicalKeyOrder: canonicalKeyOrder)
   }
 
   public func asLoaded() -> Self {
@@ -2220,14 +2250,17 @@ public struct SerializedCommentNode: ParentNodePayload {
     unknownFields = fields.rest
   }
 
-  public var json: JSONValue {
+  public var json: JSONValue { json(canonicalKeyOrder: true) }
+  public var jsonForPresentation: JSONValue { json(canonicalKeyOrder: false) }
+
+  private func json(canonicalKeyOrder: Bool) -> JSONValue {
     var fields = NodeFields(writing: Self.type, version: Self.version, over: unknownFields)
     fields.putChildren(children)
     fields.put("comment", comment, Schema.comment)
     fields.putNullable("direction", direction, Schema.direction)
     fields.put("format", format, Schema.format)
     fields.put("indent", indent, Schema.indent)
-    return fields.json(in: Self.keyOrder)
+    return fields.json(in: Self.keyOrder, canonicalKeyOrder: canonicalKeyOrder)
   }
 
   public func asLoaded() -> Self {
@@ -2270,7 +2303,10 @@ public struct SerializedEmojiNode: NodePayload {
     unknownFields = fields.rest
   }
 
-  public var json: JSONValue {
+  public var json: JSONValue { json(canonicalKeyOrder: true) }
+  public var jsonForPresentation: JSONValue { json(canonicalKeyOrder: false) }
+
+  private func json(canonicalKeyOrder: Bool) -> JSONValue {
     var fields = NodeFields(writing: Self.type, version: Self.version, over: unknownFields)
     fields.put("className", className, Schema.className)
     fields.put("detail", detail, Schema.detail)
@@ -2278,7 +2314,7 @@ public struct SerializedEmojiNode: NodePayload {
     fields.put("mode", mode, Schema.mode)
     fields.put("style", style, Schema.style)
     fields.put("text", text, Schema.text)
-    return fields.json(in: Self.keyOrder)
+    return fields.json(in: Self.keyOrder, canonicalKeyOrder: canonicalKeyOrder)
   }
 
   public func asLoaded() -> Self {
@@ -2317,11 +2353,14 @@ public struct SerializedEquationNode: NodePayload {
     unknownFields = fields.rest
   }
 
-  public var json: JSONValue {
+  public var json: JSONValue { json(canonicalKeyOrder: true) }
+  public var jsonForPresentation: JSONValue { json(canonicalKeyOrder: false) }
+
+  private func json(canonicalKeyOrder: Bool) -> JSONValue {
     var fields = NodeFields(writing: Self.type, version: Self.version, over: unknownFields)
     fields.put("equation", equation, Schema.equation)
     fields.put("inline", inline, Schema.inline)
-    return fields.json(in: Self.keyOrder)
+    return fields.json(in: Self.keyOrder, canonicalKeyOrder: canonicalKeyOrder)
   }
 
   public func asLoaded() -> Self {
@@ -2363,7 +2402,10 @@ public struct SerializedExcalidrawNode: NodePayload {
     unknownFields = fields.rest
   }
 
-  public var json: JSONValue {
+  public var json: JSONValue { json(canonicalKeyOrder: true) }
+  public var jsonForPresentation: JSONValue { json(canonicalKeyOrder: false) }
+
+  private func json(canonicalKeyOrder: Bool) -> JSONValue {
     var fields = NodeFields(writing: Self.type, version: Self.version, over: unknownFields)
     var state = fields.takeState()
     fields.put("data", data, Schema.data)
@@ -2372,7 +2414,7 @@ public struct SerializedExcalidrawNode: NodePayload {
     state.putUnlessDefault("natural", natural, Schema.natural)
     fields.put("width", width, Schema.width)
     fields.putState(state, after: ["figure", "natural"], in: stateOrder)
-    return fields.json(in: Self.keyOrder)
+    return fields.json(in: Self.keyOrder, canonicalKeyOrder: canonicalKeyOrder)
   }
 
   public func asLoaded() -> Self {
@@ -2418,14 +2460,17 @@ public struct SerializedFigmaNode: NodePayload {
     unknownFields = fields.rest
   }
 
-  public var json: JSONValue {
+  public var json: JSONValue { json(canonicalKeyOrder: true) }
+  public var jsonForPresentation: JSONValue { json(canonicalKeyOrder: false) }
+
+  private func json(canonicalKeyOrder: Bool) -> JSONValue {
     var fields = NodeFields(writing: Self.type, version: Self.version, over: unknownFields)
     var state = fields.takeState()
     fields.put("documentID", documentID, Schema.documentID)
     state.putUnlessDefault("figure", figure, Schema.figure)
     fields.put("format", format, Schema.format)
     fields.putState(state, after: ["figure"], in: stateOrder)
-    return fields.json(in: Self.keyOrder)
+    return fields.json(in: Self.keyOrder, canonicalKeyOrder: canonicalKeyOrder)
   }
 
   public func asLoaded() -> Self {
@@ -2470,7 +2515,10 @@ public struct SerializedFootnoteDefinitionNode: ParentNodePayload {
     unknownFields = fields.rest
   }
 
-  public var json: JSONValue {
+  public var json: JSONValue { json(canonicalKeyOrder: true) }
+  public var jsonForPresentation: JSONValue { json(canonicalKeyOrder: false) }
+
+  private func json(canonicalKeyOrder: Bool) -> JSONValue {
     var fields = NodeFields(writing: Self.type, version: Self.version, over: unknownFields)
     fields.putChildren(children)
     fields.putNullable("direction", direction, Schema.direction)
@@ -2479,7 +2527,7 @@ public struct SerializedFootnoteDefinitionNode: ParentNodePayload {
     fields.put("label", label, Schema.label)
     fields.put("textFormat", textFormat, Schema.textFormat)
     fields.put("textStyle", textStyle, Schema.textStyle)
-    return fields.json(in: Self.keyOrder)
+    return fields.json(in: Self.keyOrder, canonicalKeyOrder: canonicalKeyOrder)
   }
 
   public func asLoaded() -> Self {
@@ -2517,10 +2565,13 @@ public struct SerializedFootnoteReferenceNode: NodePayload {
     unknownFields = fields.rest
   }
 
-  public var json: JSONValue {
+  public var json: JSONValue { json(canonicalKeyOrder: true) }
+  public var jsonForPresentation: JSONValue { json(canonicalKeyOrder: false) }
+
+  private func json(canonicalKeyOrder: Bool) -> JSONValue {
     var fields = NodeFields(writing: Self.type, version: Self.version, over: unknownFields)
     fields.put("label", label, Schema.label)
-    return fields.json(in: Self.keyOrder)
+    return fields.json(in: Self.keyOrder, canonicalKeyOrder: canonicalKeyOrder)
   }
 
   public func asLoaded() -> Self {
@@ -2556,14 +2607,17 @@ public struct SerializedHashtagNode: NodePayload {
     unknownFields = fields.rest
   }
 
-  public var json: JSONValue {
+  public var json: JSONValue { json(canonicalKeyOrder: true) }
+  public var jsonForPresentation: JSONValue { json(canonicalKeyOrder: false) }
+
+  private func json(canonicalKeyOrder: Bool) -> JSONValue {
     var fields = NodeFields(writing: Self.type, version: Self.version, over: unknownFields)
     fields.put("detail", detail, Schema.detail)
     fields.put("format", format, Schema.format)
     fields.put("mode", mode, Schema.mode)
     fields.put("style", style, Schema.style)
     fields.put("text", text, Schema.text)
-    return fields.json(in: Self.keyOrder)
+    return fields.json(in: Self.keyOrder, canonicalKeyOrder: canonicalKeyOrder)
   }
 
   public func asLoaded() -> Self {
@@ -2611,7 +2665,10 @@ public struct SerializedHeadingNode: ParentNodePayload {
     unknownFields = fields.rest
   }
 
-  public var json: JSONValue {
+  public var json: JSONValue { json(canonicalKeyOrder: true) }
+  public var jsonForPresentation: JSONValue { json(canonicalKeyOrder: false) }
+
+  private func json(canonicalKeyOrder: Bool) -> JSONValue {
     var fields = NodeFields(writing: Self.type, version: Self.version, over: unknownFields)
     fields.putChildren(children)
     fields.putNullable("direction", direction, Schema.direction)
@@ -2620,7 +2677,7 @@ public struct SerializedHeadingNode: ParentNodePayload {
     fields.put("tag", tag, Schema.tag)
     fields.put("textFormat", textFormat, Schema.textFormat)
     fields.put("textStyle", textStyle, Schema.textStyle)
-    return fields.json(in: Self.keyOrder)
+    return fields.json(in: Self.keyOrder, canonicalKeyOrder: canonicalKeyOrder)
   }
 
   public func asLoaded() -> Self {
@@ -2656,9 +2713,12 @@ public struct SerializedHorizontalRuleNode: NodePayload {
     unknownFields = fields.rest
   }
 
-  public var json: JSONValue {
+  public var json: JSONValue { json(canonicalKeyOrder: true) }
+  public var jsonForPresentation: JSONValue { json(canonicalKeyOrder: false) }
+
+  private func json(canonicalKeyOrder: Bool) -> JSONValue {
     let fields = NodeFields(writing: Self.type, version: Self.version, over: unknownFields)
-    return fields.json(in: Self.keyOrder)
+    return fields.json(in: Self.keyOrder, canonicalKeyOrder: canonicalKeyOrder)
   }
 
   public func asLoaded() -> Self {
@@ -2700,7 +2760,10 @@ public struct SerializedImageNode: NodePayload {
     unknownFields = fields.rest
   }
 
-  public var json: JSONValue {
+  public var json: JSONValue { json(canonicalKeyOrder: true) }
+  public var jsonForPresentation: JSONValue { json(canonicalKeyOrder: false) }
+
+  private func json(canonicalKeyOrder: Bool) -> JSONValue {
     var fields = NodeFields(writing: Self.type, version: Self.version, over: unknownFields)
     var state = fields.takeState()
     fields.put("altText", altText, Schema.altText)
@@ -2713,7 +2776,7 @@ public struct SerializedImageNode: NodePayload {
     fields.put("src", src, Schema.src)
     fields.put("width", width, Schema.width)
     fields.putState(state, after: ["figure", "natural"], in: stateOrder)
-    return fields.json(in: Self.keyOrder)
+    return fields.json(in: Self.keyOrder, canonicalKeyOrder: canonicalKeyOrder)
   }
 
   public func asLoaded() -> Self {
@@ -2770,7 +2833,10 @@ public struct SerializedInlineImageNode: NodePayload {
     unknownFields = fields.rest
   }
 
-  public var json: JSONValue {
+  public var json: JSONValue { json(canonicalKeyOrder: true) }
+  public var jsonForPresentation: JSONValue { json(canonicalKeyOrder: false) }
+
+  private func json(canonicalKeyOrder: Bool) -> JSONValue {
     var fields = NodeFields(writing: Self.type, version: Self.version, over: unknownFields)
     fields.put("altText", altText, Schema.altText)
     fields.put("caption", caption, Schema.caption)
@@ -2780,7 +2846,7 @@ public struct SerializedInlineImageNode: NodePayload {
     fields.put("showCaption", showCaption, Schema.showCaption)
     fields.put("src", src, Schema.src)
     fields.put("width", width, Schema.width)
-    return fields.json(in: Self.keyOrder)
+    return fields.json(in: Self.keyOrder, canonicalKeyOrder: canonicalKeyOrder)
   }
 
   public func asLoaded() -> Self {
@@ -2829,14 +2895,17 @@ public struct SerializedKeywordNode: NodePayload {
     unknownFields = fields.rest
   }
 
-  public var json: JSONValue {
+  public var json: JSONValue { json(canonicalKeyOrder: true) }
+  public var jsonForPresentation: JSONValue { json(canonicalKeyOrder: false) }
+
+  private func json(canonicalKeyOrder: Bool) -> JSONValue {
     var fields = NodeFields(writing: Self.type, version: Self.version, over: unknownFields)
     fields.put("detail", detail, Schema.detail)
     fields.put("format", format, Schema.format)
     fields.put("mode", mode, Schema.mode)
     fields.put("style", style, Schema.style)
     fields.put("text", text, Schema.text)
-    return fields.json(in: Self.keyOrder)
+    return fields.json(in: Self.keyOrder, canonicalKeyOrder: canonicalKeyOrder)
   }
 
   public func asLoaded() -> Self {
@@ -2890,7 +2959,10 @@ public struct SerializedLayoutContainerNode: ParentNodePayload {
     unknownFields = fields.rest
   }
 
-  public var json: JSONValue {
+  public var json: JSONValue { json(canonicalKeyOrder: true) }
+  public var jsonForPresentation: JSONValue { json(canonicalKeyOrder: false) }
+
+  private func json(canonicalKeyOrder: Bool) -> JSONValue {
     var fields = NodeFields(writing: Self.type, version: Self.version, over: unknownFields)
     fields.putChildren(children)
     var state = fields.takeState()
@@ -2902,7 +2974,7 @@ public struct SerializedLayoutContainerNode: ParentNodePayload {
     fields.put("textFormat", textFormat, Schema.textFormat)
     fields.put("textStyle", textStyle, Schema.textStyle)
     fields.putState(state, after: ["figure"], in: stateOrder)
-    return fields.json(in: Self.keyOrder)
+    return fields.json(in: Self.keyOrder, canonicalKeyOrder: canonicalKeyOrder)
   }
 
   public func asLoaded() -> Self {
@@ -2951,7 +3023,10 @@ public struct SerializedLayoutItemNode: ParentNodePayload {
     unknownFields = fields.rest
   }
 
-  public var json: JSONValue {
+  public var json: JSONValue { json(canonicalKeyOrder: true) }
+  public var jsonForPresentation: JSONValue { json(canonicalKeyOrder: false) }
+
+  private func json(canonicalKeyOrder: Bool) -> JSONValue {
     var fields = NodeFields(writing: Self.type, version: Self.version, over: unknownFields)
     fields.putChildren(children)
     fields.putNullable("direction", direction, Schema.direction)
@@ -2959,7 +3034,7 @@ public struct SerializedLayoutItemNode: ParentNodePayload {
     fields.put("indent", indent, Schema.indent)
     fields.putUnlessDefault("textFormat", textFormat, Schema.textFormat)
     fields.putUnlessDefault("textStyle", textStyle, Schema.textStyle)
-    return fields.json(in: Self.keyOrder)
+    return fields.json(in: Self.keyOrder, canonicalKeyOrder: canonicalKeyOrder)
   }
 
   public func asLoaded() -> Self {
@@ -2993,9 +3068,12 @@ public struct SerializedLineBreakNode: NodePayload {
     unknownFields = fields.rest
   }
 
-  public var json: JSONValue {
+  public var json: JSONValue { json(canonicalKeyOrder: true) }
+  public var jsonForPresentation: JSONValue { json(canonicalKeyOrder: false) }
+
+  private func json(canonicalKeyOrder: Bool) -> JSONValue {
     let fields = NodeFields(writing: Self.type, version: Self.version, over: unknownFields)
-    return fields.json(in: Self.keyOrder)
+    return fields.json(in: Self.keyOrder, canonicalKeyOrder: canonicalKeyOrder)
   }
 
   public func asLoaded() -> Self {
@@ -3035,7 +3113,10 @@ public struct SerializedLinkNode: ParentNodePayload {
     unknownFields = fields.rest
   }
 
-  public var json: JSONValue {
+  public var json: JSONValue { json(canonicalKeyOrder: true) }
+  public var jsonForPresentation: JSONValue { json(canonicalKeyOrder: false) }
+
+  private func json(canonicalKeyOrder: Bool) -> JSONValue {
     var fields = NodeFields(writing: Self.type, version: Self.version, over: unknownFields)
     fields.putChildren(children)
     fields.putNullable("direction", direction, Schema.direction)
@@ -3047,7 +3128,7 @@ public struct SerializedLinkNode: ParentNodePayload {
     fields.put("textStyle", textStyle, Schema.textStyle)
     fields.putNullable("title", title, Schema.title)
     fields.put("url", url, Schema.url)
-    return fields.json(in: Self.keyOrder)
+    return fields.json(in: Self.keyOrder, canonicalKeyOrder: canonicalKeyOrder)
   }
 
   public func asLoaded() -> Self {
@@ -3107,7 +3188,10 @@ public struct SerializedListNode: ParentNodePayload {
     unknownFields = fields.rest
   }
 
-  public var json: JSONValue {
+  public var json: JSONValue { json(canonicalKeyOrder: true) }
+  public var jsonForPresentation: JSONValue { json(canonicalKeyOrder: false) }
+
+  private func json(canonicalKeyOrder: Bool) -> JSONValue {
     var fields = NodeFields(writing: Self.type, version: Self.version, over: unknownFields)
     fields.putChildren(children)
     fields.putNullable("direction", direction, Schema.direction)
@@ -3118,7 +3202,7 @@ public struct SerializedListNode: ParentNodePayload {
     fields.put("tag", tag, Schema.tag)
     fields.put("textFormat", textFormat, Schema.textFormat)
     fields.put("textStyle", textStyle, Schema.textStyle)
-    return fields.json(in: Self.keyOrder)
+    return fields.json(in: Self.keyOrder, canonicalKeyOrder: canonicalKeyOrder)
   }
 
   public func asLoaded() -> Self {
@@ -3174,7 +3258,10 @@ public struct SerializedListItemNode: ParentNodePayload {
     unknownFields = fields.rest
   }
 
-  public var json: JSONValue {
+  public var json: JSONValue { json(canonicalKeyOrder: true) }
+  public var jsonForPresentation: JSONValue { json(canonicalKeyOrder: false) }
+
+  private func json(canonicalKeyOrder: Bool) -> JSONValue {
     var fields = NodeFields(writing: Self.type, version: Self.version, over: unknownFields)
     fields.putChildren(children)
     fields.put("checked", checked, Schema.checked)
@@ -3184,7 +3271,7 @@ public struct SerializedListItemNode: ParentNodePayload {
     fields.put("textFormat", textFormat, Schema.textFormat)
     fields.put("textStyle", textStyle, Schema.textStyle)
     fields.put("value", value, Schema.value)
-    return fields.json(in: Self.keyOrder)
+    return fields.json(in: Self.keyOrder, canonicalKeyOrder: canonicalKeyOrder)
   }
 
   public func asLoaded() -> Self {
@@ -3236,7 +3323,10 @@ public struct SerializedMarkNode: ParentNodePayload {
     unknownFields = fields.rest
   }
 
-  public var json: JSONValue {
+  public var json: JSONValue { json(canonicalKeyOrder: true) }
+  public var jsonForPresentation: JSONValue { json(canonicalKeyOrder: false) }
+
+  private func json(canonicalKeyOrder: Bool) -> JSONValue {
     var fields = NodeFields(writing: Self.type, version: Self.version, over: unknownFields)
     fields.putChildren(children)
     fields.putNullable("direction", direction, Schema.direction)
@@ -3245,7 +3335,7 @@ public struct SerializedMarkNode: ParentNodePayload {
     fields.put("indent", indent, Schema.indent)
     fields.put("textFormat", textFormat, Schema.textFormat)
     fields.put("textStyle", textStyle, Schema.textStyle)
-    return fields.json(in: Self.keyOrder)
+    return fields.json(in: Self.keyOrder, canonicalKeyOrder: canonicalKeyOrder)
   }
 
   public func asLoaded() -> Self {
@@ -3292,7 +3382,10 @@ public struct SerializedMentionNode: NodePayload {
     unknownFields = fields.rest
   }
 
-  public var json: JSONValue {
+  public var json: JSONValue { json(canonicalKeyOrder: true) }
+  public var jsonForPresentation: JSONValue { json(canonicalKeyOrder: false) }
+
+  private func json(canonicalKeyOrder: Bool) -> JSONValue {
     var fields = NodeFields(writing: Self.type, version: Self.version, over: unknownFields)
     fields.put("detail", detail, Schema.detail)
     fields.put("format", format, Schema.format)
@@ -3300,7 +3393,7 @@ public struct SerializedMentionNode: NodePayload {
     fields.put("mode", mode, Schema.mode)
     fields.put("style", style, Schema.style)
     fields.put("text", text, Schema.text)
-    return fields.json(in: Self.keyOrder)
+    return fields.json(in: Self.keyOrder, canonicalKeyOrder: canonicalKeyOrder)
   }
 
   public func asLoaded() -> Self {
@@ -3350,7 +3443,10 @@ public struct SerializedMermaidNode: NodePayload {
     unknownFields = fields.rest
   }
 
-  public var json: JSONValue {
+  public var json: JSONValue { json(canonicalKeyOrder: true) }
+  public var jsonForPresentation: JSONValue { json(canonicalKeyOrder: false) }
+
+  private func json(canonicalKeyOrder: Bool) -> JSONValue {
     var fields = NodeFields(writing: Self.type, version: Self.version, over: unknownFields)
     var state = fields.takeState()
     state.putUnlessDefault("figure", figure, Schema.figure)
@@ -3359,7 +3455,7 @@ public struct SerializedMermaidNode: NodePayload {
     fields.put("schema", schema, Schema.schema)
     fields.put("width", width, Schema.width)
     fields.putState(state, after: ["figure", "natural"], in: stateOrder)
-    return fields.json(in: Self.keyOrder)
+    return fields.json(in: Self.keyOrder, canonicalKeyOrder: canonicalKeyOrder)
   }
 
   public func asLoaded() -> Self {
@@ -3392,9 +3488,12 @@ public struct SerializedPageBreakNode: NodePayload {
     unknownFields = fields.rest
   }
 
-  public var json: JSONValue {
+  public var json: JSONValue { json(canonicalKeyOrder: true) }
+  public var jsonForPresentation: JSONValue { json(canonicalKeyOrder: false) }
+
+  private func json(canonicalKeyOrder: Bool) -> JSONValue {
     let fields = NodeFields(writing: Self.type, version: Self.version, over: unknownFields)
-    return fields.json(in: Self.keyOrder)
+    return fields.json(in: Self.keyOrder, canonicalKeyOrder: canonicalKeyOrder)
   }
 
   public func asLoaded() -> Self {
@@ -3426,7 +3525,10 @@ public struct SerializedParagraphNode: ParentNodePayload {
     unknownFields = fields.rest
   }
 
-  public var json: JSONValue {
+  public var json: JSONValue { json(canonicalKeyOrder: true) }
+  public var jsonForPresentation: JSONValue { json(canonicalKeyOrder: false) }
+
+  private func json(canonicalKeyOrder: Bool) -> JSONValue {
     var fields = NodeFields(writing: Self.type, version: Self.version, over: unknownFields)
     fields.putChildren(children)
     fields.putNullable("direction", direction, Schema.direction)
@@ -3434,7 +3536,7 @@ public struct SerializedParagraphNode: ParentNodePayload {
     fields.put("indent", indent, Schema.indent)
     fields.put("textFormat", textFormat, Schema.textFormat)
     fields.put("textStyle", textStyle, Schema.textStyle)
-    return fields.json(in: Self.keyOrder)
+    return fields.json(in: Self.keyOrder, canonicalKeyOrder: canonicalKeyOrder)
   }
 
   public func asLoaded() -> Self {
@@ -3471,11 +3573,14 @@ public struct SerializedPollNode: NodePayload {
     unknownFields = fields.rest
   }
 
-  public var json: JSONValue {
+  public var json: JSONValue { json(canonicalKeyOrder: true) }
+  public var jsonForPresentation: JSONValue { json(canonicalKeyOrder: false) }
+
+  private func json(canonicalKeyOrder: Bool) -> JSONValue {
     var fields = NodeFields(writing: Self.type, version: Self.version, over: unknownFields)
     fields.put("options", options, Schema.options)
     fields.put("question", question, Schema.question)
-    return fields.json(in: Self.keyOrder)
+    return fields.json(in: Self.keyOrder, canonicalKeyOrder: canonicalKeyOrder)
   }
 
   public func asLoaded() -> Self {
@@ -3517,7 +3622,10 @@ public struct SerializedQuoteNode: ParentNodePayload {
     unknownFields = fields.rest
   }
 
-  public var json: JSONValue {
+  public var json: JSONValue { json(canonicalKeyOrder: true) }
+  public var jsonForPresentation: JSONValue { json(canonicalKeyOrder: false) }
+
+  private func json(canonicalKeyOrder: Bool) -> JSONValue {
     var fields = NodeFields(writing: Self.type, version: Self.version, over: unknownFields)
     fields.putChildren(children)
     fields.putNullable("direction", direction, Schema.direction)
@@ -3526,7 +3634,7 @@ public struct SerializedQuoteNode: ParentNodePayload {
     fields.putUnlessDefault("shadowRoot", shadowRoot, Schema.shadowRoot)
     fields.put("textFormat", textFormat, Schema.textFormat)
     fields.put("textStyle", textStyle, Schema.textStyle)
-    return fields.json(in: Self.keyOrder)
+    return fields.json(in: Self.keyOrder, canonicalKeyOrder: canonicalKeyOrder)
   }
 
   public func asLoaded() -> Self {
@@ -3574,7 +3682,10 @@ public struct SerializedRootNode: ParentNodePayload {
     unknownFields = fields.rest
   }
 
-  public var json: JSONValue {
+  public var json: JSONValue { json(canonicalKeyOrder: true) }
+  public var jsonForPresentation: JSONValue { json(canonicalKeyOrder: false) }
+
+  private func json(canonicalKeyOrder: Bool) -> JSONValue {
     var fields = NodeFields(writing: Self.type, version: Self.version, over: unknownFields)
     fields.putChildren(children)
     fields.putNullable("direction", direction, Schema.direction)
@@ -3582,7 +3693,7 @@ public struct SerializedRootNode: ParentNodePayload {
     fields.put("indent", indent, Schema.indent)
     fields.put("textFormat", textFormat, Schema.textFormat)
     fields.put("textStyle", textStyle, Schema.textStyle)
-    return fields.json(in: Self.keyOrder)
+    return fields.json(in: Self.keyOrder, canonicalKeyOrder: canonicalKeyOrder)
   }
 
   public func asLoaded() -> Self {
@@ -3617,10 +3728,13 @@ public struct SerializedSlideNode: NodePayload {
     unknownFields = fields.rest
   }
 
-  public var json: JSONValue {
+  public var json: JSONValue { json(canonicalKeyOrder: true) }
+  public var jsonForPresentation: JSONValue { json(canonicalKeyOrder: false) }
+
+  private func json(canonicalKeyOrder: Bool) -> JSONValue {
     var fields = NodeFields(writing: Self.type, version: Self.version, over: unknownFields)
     fields.put("data", data, Schema.data)
-    return fields.json(in: Self.keyOrder)
+    return fields.json(in: Self.keyOrder, canonicalKeyOrder: canonicalKeyOrder)
   }
 
   public func asLoaded() -> Self {
@@ -3653,13 +3767,16 @@ public struct SerializedStickyNode: NodePayload {
     unknownFields = fields.rest
   }
 
-  public var json: JSONValue {
+  public var json: JSONValue { json(canonicalKeyOrder: true) }
+  public var jsonForPresentation: JSONValue { json(canonicalKeyOrder: false) }
+
+  private func json(canonicalKeyOrder: Bool) -> JSONValue {
     var fields = NodeFields(writing: Self.type, version: Self.version, over: unknownFields)
     fields.put("caption", caption, Schema.caption)
     fields.put("color", color, Schema.color)
     fields.put("xOffset", xOffset, Schema.xOffset)
     fields.put("yOffset", yOffset, Schema.yOffset)
-    return fields.json(in: Self.keyOrder)
+    return fields.json(in: Self.keyOrder, canonicalKeyOrder: canonicalKeyOrder)
   }
 
   public func asLoaded() -> Self {
@@ -3701,14 +3818,17 @@ public struct SerializedTabNode: NodePayload {
     unknownFields = fields.rest
   }
 
-  public var json: JSONValue {
+  public var json: JSONValue { json(canonicalKeyOrder: true) }
+  public var jsonForPresentation: JSONValue { json(canonicalKeyOrder: false) }
+
+  private func json(canonicalKeyOrder: Bool) -> JSONValue {
     var fields = NodeFields(writing: Self.type, version: Self.version, over: unknownFields)
     fields.put("detail", detail, Schema.detail)
     fields.put("format", format, Schema.format)
     fields.put("mode", mode, Schema.mode)
     fields.put("style", style, Schema.style)
     fields.put("text", text, Schema.text)
-    return fields.json(in: Self.keyOrder)
+    return fields.json(in: Self.keyOrder, canonicalKeyOrder: canonicalKeyOrder)
   }
 
   public func asLoaded() -> Self {
@@ -3762,7 +3882,10 @@ public struct SerializedTableNode: ParentNodePayload {
     unknownFields = fields.rest
   }
 
-  public var json: JSONValue {
+  public var json: JSONValue { json(canonicalKeyOrder: true) }
+  public var jsonForPresentation: JSONValue { json(canonicalKeyOrder: false) }
+
+  private func json(canonicalKeyOrder: Bool) -> JSONValue {
     var fields = NodeFields(writing: Self.type, version: Self.version, over: unknownFields)
     fields.putChildren(children)
     fields.put("colWidths", colWidths, Schema.colWidths)
@@ -3774,7 +3897,7 @@ public struct SerializedTableNode: ParentNodePayload {
     fields.put("rowStriping", rowStriping, Schema.rowStriping)
     fields.put("textFormat", textFormat, Schema.textFormat)
     fields.put("textStyle", textStyle, Schema.textStyle)
-    return fields.json(in: Self.keyOrder)
+    return fields.json(in: Self.keyOrder, canonicalKeyOrder: canonicalKeyOrder)
   }
 
   public func asLoaded() -> Self {
@@ -3840,7 +3963,10 @@ public struct SerializedTableCellNode: ParentNodePayload {
     unknownFields = fields.rest
   }
 
-  public var json: JSONValue {
+  public var json: JSONValue { json(canonicalKeyOrder: true) }
+  public var jsonForPresentation: JSONValue { json(canonicalKeyOrder: false) }
+
+  private func json(canonicalKeyOrder: Bool) -> JSONValue {
     var fields = NodeFields(writing: Self.type, version: Self.version, over: unknownFields)
     fields.putChildren(children)
     fields.putNullable("backgroundColor", backgroundColor, Schema.backgroundColor)
@@ -3854,7 +3980,7 @@ public struct SerializedTableCellNode: ParentNodePayload {
     fields.put("textStyle", textStyle, Schema.textStyle)
     fields.put("verticalAlign", verticalAlign, Schema.verticalAlign)
     fields.put("width", width, Schema.width)
-    return fields.json(in: Self.keyOrder)
+    return fields.json(in: Self.keyOrder, canonicalKeyOrder: canonicalKeyOrder)
   }
 
   public func asLoaded() -> Self {
@@ -3914,7 +4040,10 @@ public struct SerializedTableRowNode: ParentNodePayload {
     unknownFields = fields.rest
   }
 
-  public var json: JSONValue {
+  public var json: JSONValue { json(canonicalKeyOrder: true) }
+  public var jsonForPresentation: JSONValue { json(canonicalKeyOrder: false) }
+
+  private func json(canonicalKeyOrder: Bool) -> JSONValue {
     var fields = NodeFields(writing: Self.type, version: Self.version, over: unknownFields)
     fields.putChildren(children)
     fields.putNullable("direction", direction, Schema.direction)
@@ -3923,7 +4052,7 @@ public struct SerializedTableRowNode: ParentNodePayload {
     fields.put("indent", indent, Schema.indent)
     fields.put("textFormat", textFormat, Schema.textFormat)
     fields.put("textStyle", textStyle, Schema.textStyle)
-    return fields.json(in: Self.keyOrder)
+    return fields.json(in: Self.keyOrder, canonicalKeyOrder: canonicalKeyOrder)
   }
 
   public func asLoaded() -> Self {
@@ -3969,14 +4098,17 @@ public struct SerializedTextNode: NodePayload {
     unknownFields = fields.rest
   }
 
-  public var json: JSONValue {
+  public var json: JSONValue { json(canonicalKeyOrder: true) }
+  public var jsonForPresentation: JSONValue { json(canonicalKeyOrder: false) }
+
+  private func json(canonicalKeyOrder: Bool) -> JSONValue {
     var fields = NodeFields(writing: Self.type, version: Self.version, over: unknownFields)
     fields.put("detail", detail, Schema.detail)
     fields.put("format", format, Schema.format)
     fields.put("mode", mode, Schema.mode)
     fields.put("style", style, Schema.style)
     fields.put("text", text, Schema.text)
-    return fields.json(in: Self.keyOrder)
+    return fields.json(in: Self.keyOrder, canonicalKeyOrder: canonicalKeyOrder)
   }
 
   public func asLoaded() -> Self {
@@ -4019,14 +4151,17 @@ public struct SerializedThreadNode: ParentNodePayload {
     unknownFields = fields.rest
   }
 
-  public var json: JSONValue {
+  public var json: JSONValue { json(canonicalKeyOrder: true) }
+  public var jsonForPresentation: JSONValue { json(canonicalKeyOrder: false) }
+
+  private func json(canonicalKeyOrder: Bool) -> JSONValue {
     var fields = NodeFields(writing: Self.type, version: Self.version, over: unknownFields)
     fields.putChildren(children)
     fields.putNullable("direction", direction, Schema.direction)
     fields.put("format", format, Schema.format)
     fields.put("indent", indent, Schema.indent)
     fields.put("thread", thread, Schema.thread)
-    return fields.json(in: Self.keyOrder)
+    return fields.json(in: Self.keyOrder, canonicalKeyOrder: canonicalKeyOrder)
   }
 
   public func asLoaded() -> Self {
@@ -4070,14 +4205,17 @@ public struct SerializedTweetNode: NodePayload {
     unknownFields = fields.rest
   }
 
-  public var json: JSONValue {
+  public var json: JSONValue { json(canonicalKeyOrder: true) }
+  public var jsonForPresentation: JSONValue { json(canonicalKeyOrder: false) }
+
+  private func json(canonicalKeyOrder: Bool) -> JSONValue {
     var fields = NodeFields(writing: Self.type, version: Self.version, over: unknownFields)
     var state = fields.takeState()
     state.putUnlessDefault("figure", figure, Schema.figure)
     fields.put("format", format, Schema.format)
     fields.put("id", id, Schema.id)
     fields.putState(state, after: ["figure"], in: stateOrder)
-    return fields.json(in: Self.keyOrder)
+    return fields.json(in: Self.keyOrder, canonicalKeyOrder: canonicalKeyOrder)
   }
 
   public func asLoaded() -> Self {
@@ -4126,7 +4264,10 @@ public struct SerializedVideoNode: NodePayload {
     unknownFields = fields.rest
   }
 
-  public var json: JSONValue {
+  public var json: JSONValue { json(canonicalKeyOrder: true) }
+  public var jsonForPresentation: JSONValue { json(canonicalKeyOrder: false) }
+
+  private func json(canonicalKeyOrder: Bool) -> JSONValue {
     var fields = NodeFields(writing: Self.type, version: Self.version, over: unknownFields)
     var state = fields.takeState()
     fields.put("caption", caption, Schema.caption)
@@ -4137,7 +4278,7 @@ public struct SerializedVideoNode: NodePayload {
     fields.put("src", src, Schema.src)
     fields.put("width", width, Schema.width)
     fields.putState(state, after: ["figure"], in: stateOrder)
-    return fields.json(in: Self.keyOrder)
+    return fields.json(in: Self.keyOrder, canonicalKeyOrder: canonicalKeyOrder)
   }
 
   public func asLoaded() -> Self {
@@ -4191,7 +4332,10 @@ public struct SerializedYouTubeNode: NodePayload {
     unknownFields = fields.rest
   }
 
-  public var json: JSONValue {
+  public var json: JSONValue { json(canonicalKeyOrder: true) }
+  public var jsonForPresentation: JSONValue { json(canonicalKeyOrder: false) }
+
+  private func json(canonicalKeyOrder: Bool) -> JSONValue {
     var fields = NodeFields(writing: Self.type, version: Self.version, over: unknownFields)
     var state = fields.takeState()
     state.putUnlessDefault("figure", figure, Schema.figure)
@@ -4200,7 +4344,7 @@ public struct SerializedYouTubeNode: NodePayload {
     fields.put("videoID", videoID, Schema.videoID)
     fields.put("width", width, Schema.width)
     fields.putState(state, after: ["figure"], in: stateOrder)
-    return fields.json(in: Self.keyOrder)
+    return fields.json(in: Self.keyOrder, canonicalKeyOrder: canonicalKeyOrder)
   }
 
   public func asLoaded() -> Self {

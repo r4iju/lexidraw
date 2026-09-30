@@ -1,5 +1,6 @@
 import { fileURLToPath } from "node:url";
 import {
+  AUTOLINK_REQUIRED_SUBSTRINGS,
   EDITOR_NAMESPACE,
   SUPPORTED_URL_PROTOCOLS,
 } from "@packages/lexical-nodes/links";
@@ -22,6 +23,14 @@ const SCRIPT_ENTRY = fileURLToPath(
  * code where the web's link plugins call it.
  */
 export async function swiftForLinks(): Promise<string> {
+  if (
+    AUTOLINK_REQUIRED_SUBSTRINGS.some(
+      (text) =>
+        !text || [...text].some((character) => character.charCodeAt(0) > 127),
+    )
+  ) {
+    throw new Error("Autolink preflight requires nonempty ASCII substrings");
+  }
   const build = await Bun.build({
     entrypoints: [SCRIPT_ENTRY],
     format: "iife",
@@ -45,9 +54,12 @@ export async function swiftForLinks(): Promise<string> {
     "/// paste as nodes.",
     `public let editorNamespace = ${swiftRawString(EDITOR_NAMESPACE)}`,
     "",
+    "/// Necessary substrings enforced by every web autolink matcher.",
+    `let autolinkRequiredSubstrings: [String] = [${AUTOLINK_REQUIRED_SUBSTRINGS.map(swiftRawString).join(", ")}]`,
+    "",
     "/// `packages/lexical-nodes/src/links.ts`, bundled with whatwg-url for",
     "/// its `URL`: it sets `linkConfiguration` to the web editor's autolink",
-    "/// `matchers`, `validateUrl` and `sanitizeUrl`.",
+    "/// matching, `validateUrl` and `sanitizeUrl`.",
     `let linkConfigurationScript = ${swiftRawString(script)}`,
   ];
   return `${lines.join("\n")}\n`;

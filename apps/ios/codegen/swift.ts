@@ -634,8 +634,15 @@ function payload(node: NodeDescription, names: Names): string[] {
     ...lines.read,
     "  }",
     "",
-    "  public var json: JSONValue {",
-    ...lines.write,
+    "  public var json: JSONValue { json(canonicalKeyOrder: true) }",
+    "  public var jsonForPresentation: JSONValue { json(canonicalKeyOrder: false) }",
+    "",
+    "  private func json(canonicalKeyOrder: Bool) -> JSONValue {",
+    ...lines.write.map((line) =>
+      line === "    return fields.json(in: Self.keyOrder)"
+        ? "    return fields.json(in: Self.keyOrder, canonicalKeyOrder: canonicalKeyOrder)"
+        : line,
+    ),
     "  }",
     "",
     "  public func asLoaded() -> Self {",

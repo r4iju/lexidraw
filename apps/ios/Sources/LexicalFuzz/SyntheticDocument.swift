@@ -14,8 +14,17 @@ public struct SyntheticDocument: Sendable, CustomStringConvertible {
 
   public var description: String { "\(words) words, \(nodes) nodes" }
 
-  public var state: JSONValue {
+  public var state: JSONValue { makeState(checkpointInput: false) }
+
+  /// Media editing belongs to #131; input measurements use empty paragraphs
+  /// in its place, preserving the original word and node counts.
+  public var checkpointInputState: JSONValue { makeState(checkpointInput: true) }
+
+  private func makeState(checkpointInput: Bool) -> JSONValue {
     var plan = Self.plan(nodes: nodes - 1)
+    if checkpointInput {
+      plan = plan.map { if case .video = $0 { .paragraph([]) } else { $0 } }
+    }
     let fixed = plan.reduce(0) { $0 + $1.fixedWords }
     let flexible = plan.reduce(0) { $0 + $1.flexibleTexts }
     precondition(words - fixed >= flexible, "\(self) has too few words for its nodes")
