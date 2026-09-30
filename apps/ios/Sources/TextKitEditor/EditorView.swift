@@ -61,6 +61,13 @@ public final class EditorView: UIScrollView, UITextInput {
   /// The owner can schedule autosave without exporting on every keystroke.
   public var onChange: (() -> Void)?
 
+  public func replaceEmbeddedNode(key: String, expected: JSONValue, replacement: JSONValue?) throws {
+    guard isEditable else { throw EditorError.unsupported("This document cannot be edited") }
+    let change = try model.replaceEmbeddedNode(key: key, expected: expected, replacement: replacement)
+    render(change)
+    if !change.changed.isEmpty { onChange?() }
+  }
+
   public var embeddedContent: ((String, JSONValue) -> EmbeddedContentView?)? {
     didSet { layout.embeddedContent = embeddedContent; render(nil) }
   }
@@ -87,6 +94,138 @@ public final class EditorView: UIScrollView, UITextInput {
     render(nil)
   }
   public var onEmbeddedTap: ((String, JSONValue) -> Bool)?
+  private var socialUserID: String?
+  private var socialAuthor = "Guest"
+  private var hasSocialProvider = false
+
+  public func configureSocialNodes(userID: String?, author: String) {
+    socialUserID = userID; socialAuthor = author
+    if !hasSocialProvider {
+      hasSocialProvider = true
+      let previous = embeddedContent
+      let previousTap = onEmbeddedTap
+      onEmbeddedTap = { [weak self] key, node in
+        if node["type"] == "footnote-reference", let label = node["label"]?.stringValue {
+          self?.showFootnote(label); return true
+        }
+        return previousTap?(key, node) == true
+      }
+      embeddedContent = { [weak self] key, node in
+        if let supplied = previous?(key, node) { return supplied }
+        guard let self, node["type"] == "poll" else { return nil }
+        return NativePollView(node, userID: socialUserID, editable: isEditable,
+          changed: { [weak self] replacement in try self?.replaceEmbeddedNode(key: key, expected: node, replacement: replacement) },
+          editOption: { [weak self] uid, text in self?.editPollOption(key: key, node: node, uid: uid, text: text) },
+          failed: { [weak self] error in self?.showSocialError(error) })
+      }
+    } else { refreshEmbeddedContent() }
+  }
+
+  private func footnoteDefinition(_ label: String) -> (index: Int, node: JSONValue, number: Int)? {
+    guard let keys = try? model.childKeys(at: []) else { return nil }
+    var labels = Set<String>()
+    for index in keys.indices {
+      guard let node = try? model.nodeForPresentation(at: [index]), node["type"] == "footnote-definition", let storedLabel = node["label"]?.stringValue else { continue }
+      labels.insert(storedLabel)
+      if storedLabel == label { return (index, node, labels.count) }
+    }
+    return nil
+  }
+
+  private func showFootnote(_ label: String) {
+    let definition = footnoteDefinition(label)
+    let message: String
+    if let definition, let text = try? model.nodeTextContent(at: [definition.index]) {
+      message = JSRegExp(#"^\s+|\s+$"#, flags: "g").replacingMatches(in: text, with: "")
+    } else { message = "This footnote has no definition." }
+    let alert = UIAlertController(title: definition.map { "Footnote \($0.number)" } ?? "Footnote", message: message, preferredStyle: .alert)
+    alert.addAction(UIAlertAction(title: "Done", style: .cancel))
+    if definition != nil {
+      alert.addAction(UIAlertAction(title: "Go to note", style: .default) { [weak self] _ in
+        guard let self, let current = footnoteDefinition(label) else { return }
+        goToFootnotePoint(Point(path: [current.index], offset: 0, type: .element))
+      })
+    }
+    presenter?.present(alert, animated: true)
+  }
+
+  private func goToFootnotePoint(_ point: Point) {
+    _ = perform(.caret(point), fromInput: false)
+    scrollToCaret()
+  }
+
+  private func followFootnoteBacklink(_ label: String) {
+    func reference(_ node: JSONValue, at path: [Int]) -> Point? {
+      if node["type"] == "footnote-reference", node["label"] == .string(label), let index = path.last {
+        return Point(path: Array(path.dropLast()), offset: index, type: .element)
+      }
+      for (index, child) in (node["children"]?.arrayValue ?? []).enumerated() {
+        if let result = reference(child, at: path + [index]) { return result }
+      }
+      return nil
+    }
+    if let state = try? model.serializedState(), let root = state["root"], let point = reference(root, at: []) { goToFootnotePoint(point) }
+  }
+
+  @discardableResult public func insertPoll(question: String) -> Bool {
+    guard isEditable, JSRegExp(#"^\s*$"#, flags: "").firstMatch(in: question) == nil,
+      var node = try? JSONValue(parsing: WebPollStyle.insertionNodeJSON).objectValue,
+      let defaults = node["options"]?.arrayValue else { return false }
+    node["question"] = .string(question)
+    node["options"] = .array(defaults.map { option in
+      var fields = option.objectValue!; fields["uid"] = .string(UUID().uuidString)
+      return .object(fields)
+    })
+    let clipboard = Clipboard(plainText: "", lexical: LexicalClipboardPayload(namespace: MediaLinks.namespace, nodes: [.object(node)]))
+    return perform(.paste(clipboard), fromInput: false, tellsRefusal: true) != nil
+  }
+
+  public var socialInsertionActions: [UIMenuElement] {
+    [UIAction(title: "Poll", image: UIImage(systemName: "chart.bar")) { [weak self] _ in
+      guard let self, isEditable else { return }
+      let alert = UIAlertController(title: "Insert poll", message: "Question", preferredStyle: .alert)
+      alert.addTextField()
+      alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+      let insert = UIAlertAction(title: "Insert", style: .default) { [weak self, weak alert] _ in
+        guard let question = alert?.textFields?.first?.text else { return }
+        self?.insertPoll(question: question)
+      }
+      insert.isEnabled = false
+      alert.textFields?.first?.addAction(UIAction { [weak insert] action in
+        guard let field = action.sender as? UITextField else { return }
+        insert?.isEnabled = JSRegExp(#"^\s*$"#, flags: "").firstMatch(in: field.text ?? "") == nil
+      }, for: .editingChanged)
+      alert.addAction(insert)
+      presenter?.present(alert, animated: true)
+    }]
+  }
+
+  private func showSocialError(_ error: any Error) {
+    let message: String
+    switch error {
+    case EditorError.unsupported(let reason), EditorError.invalidState(let reason): message = reason
+    default: message = error.localizedDescription
+    }
+    let alert = UIAlertController(title: "Couldn’t update poll", message: message, preferredStyle: .alert)
+    alert.addAction(UIAlertAction(title: "OK", style: .default))
+    presenter?.present(alert, animated: true)
+  }
+
+  private func editPollOption(key: String, node: JSONValue, uid: String, text: String) {
+    guard isEditable else { return }
+    let alert = UIAlertController(title: "Edit option", message: nil, preferredStyle: .alert)
+    alert.addTextField { $0.text = text }
+    alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+    alert.addAction(UIAlertAction(title: "Save", style: .default) { [weak self, weak alert] _ in
+      guard let self, let text = alert?.textFields?.first?.text, var fields = node.objectValue,
+        var options = node["options"]?.arrayValue, let index = options.firstIndex(where: { $0["uid"] == .string(uid) }),
+        var option = options[index].objectValue else { return }
+      option["text"] = .string(text); options[index] = .object(option); fields["options"] = .array(options)
+      do { try replaceEmbeddedNode(key: key, expected: node, replacement: .object(fields)) }
+      catch { showSocialError(error) }
+    })
+    presenter?.present(alert, animated: true)
+  }
   private var inlineWidth: CGFloat = 0
   public func refreshEmbeddedContent() { render(nil); setNeedsLayout() }
 
@@ -177,6 +316,7 @@ public final class EditorView: UIScrollView, UITextInput {
     self.typesetting = typesetting
     document = DocumentText(
       model: model, style: style ?? { typesetting.attributes(StyledBlock($0), $1) }, standIn: BlockLayout.standIn)
+    document.footnoteSectionTitle = WebFootnoteStyle.titles[language?.lowercased().split(separator: "-").first.map(String.init) ?? ""] ?? WebFootnoteStyle.titles[""]!
     layout = BlockLayout(storage: storage, document: document, typesetting: typesetting)
     super.init(frame: .zero)
     backgroundColor = .systemBackground
@@ -1480,6 +1620,7 @@ public final class EditorView: UIScrollView, UITextInput {
   /// offers to open or edit the link.
   @objc private func tapped(_ tap: UITapGestureRecognizer) {
     let point = tap.location(in: surface)
+    if let label = layout.footnoteBacklink(at: point) { followFootnoteBacklink(label); return }
     if let offset = layout.offset(closestTo: point), let path = document.embeddedPath(at: offset),
       let key = nodeKey(at: path), let node = try? model.nodeForPresentation(at: path) {
       if onEmbeddedTap?(key, node) == true { return }

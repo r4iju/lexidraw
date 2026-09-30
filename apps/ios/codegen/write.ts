@@ -20,6 +20,15 @@ import {
 import { SERIALIZED_NODES_PATH, swiftForNodeSchema } from "./swift";
 import { SHORTCUTS_PATH, swiftForShortcuts } from "./shortcuts";
 import {
+  FOOTNOTE_STYLE_PATH, swiftForFootnoteStyle,
+  EMOJI_ALIASES_PATH,
+  SOCIAL_STYLE_PATH,
+  swiftForSocialStyle,
+  POLL_STYLE_PATH,
+  swiftForEmojiAliases,
+  swiftForPollStyle,
+} from "./social";
+import {
   DOCUMENT_TYPOGRAPHY_PATH,
   readWebStyles,
   swiftForTypography,
@@ -47,6 +56,8 @@ await Bun.write(
 await Bun.write(LINKS_PATH, await swiftForLinks());
 await Bun.write(LINK_PROTOCOLS_PATH, swiftForLinkProtocols());
 await Bun.write(SHORTCUTS_PATH, swiftForShortcuts());
+await Bun.write(EMOJI_ALIASES_PATH, swiftForEmojiAliases());
+await Bun.write(POLL_STYLE_PATH, await swiftForPollStyle());
 
 const { HTML_IMPORT_PATH, swiftForHTMLImport } = await import("./html");
 await Bun.write(HTML_IMPORT_PATH, await swiftForHTMLImport());
@@ -112,3 +123,7 @@ const { RENDERED_EMBED_STYLE_PATH, swiftForRenderedEmbedStyle } = await import(
   "./rendered-embeds"
 );
 await Bun.write(RENDERED_EMBED_STYLE_PATH, await swiftForRenderedEmbedStyle());
+
+await Bun.write(SOCIAL_STYLE_PATH, await swiftForSocialStyle());
+
+await Bun.write(FOOTNOTE_STYLE_PATH, await swiftForFootnoteStyle());

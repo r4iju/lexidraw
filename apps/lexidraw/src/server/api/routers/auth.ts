@@ -233,6 +233,7 @@ export const authRouter = createTRPCRouter({
       z.object({
         userId: z.string(),
         email: z.string().nullable(),
+        name: z.string().nullable(),
         authKind: z.enum(["session", "token"]),
         scope: z.enum(["read", "write"]).nullable(),
       }),
@@ -240,6 +241,7 @@ export const authRouter = createTRPCRouter({
     .query(({ ctx }) => ({
       userId: ctx.session.user.id,
       email: ctx.session.user.email ?? null,
+      name: ctx.session.user.name ?? null,
       authKind: ctx.auth.kind,
       scope: ctx.auth.kind === "token" ? ctx.auth.scope : null,
     })),

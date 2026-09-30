@@ -42,11 +42,11 @@ public struct Fuzzer {
   /// Commands per generated document before starting a fresh one.
   private let sessionLength = 24
 
-  /// Direction cases opt in so established fault-injection seeds keep their scripts.
-  public init(seed: UInt64, reference: some EditorModel, candidate: some EditorModel, writingDirections: Bool = false) {
+  /// Direction and social-subclass cases opt in so established fault-injection seeds keep their scripts.
+  public init(seed: UInt64, reference: some EditorModel, candidate: some EditorModel, writingDirections: Bool = false, socialTextSubclasses: Bool = false) {
     self.reference = reference
     self.candidate = candidate
-    self.generator = Generator(seed: seed, writingDirections: writingDirections)
+    self.generator = Generator(seed: seed, writingDirections: writingDirections, socialTextSubclasses: socialTextSubclasses)
   }
 
   /// Runs until both models have accepted `steps` commands. Returns the
@@ -289,6 +289,7 @@ extension String {
 struct Generator {
   private var random: SplitMix64
   private let writingDirections: Bool
+  private let socialTextSubclasses: Bool
   /// What the last copy or cut put on the clipboard, for a paste in the same
   /// document or a later one.
   var clipboard: Clipboard?
@@ -317,6 +318,7 @@ struct Generator {
     "[x] ", "- [ ] ", "\t- ", "``` ", "[a](b)", "[a]()", "[[a](b)", "[a](<b c> \"t\")", "[a](https://x.io)",
     "![a](b)", "[a](b\\))", "[a](\\a)", "[a](&#33;)", "[a](\\&#33;)", "[a](&#128077)", "[a](b \"\\\"t\")",
     "|a| ", "|a|b| ", "|---| ", "|:---:|---:| ",
+    ":smile:", ":heart:", ":unknown_native_sample:", "a:smile:b", "|:smile:| ",
   ]
   /// The rest of a shortcut being typed.
   private var typing: [EditorCommand] = []
@@ -332,7 +334,8 @@ struct Generator {
   /// What plain text from another app breaks into lines, tabs and links at.
   private static let pastedParts = ["\n", "\r\n", "\r", "\t", " ", "https://x.io"] + autoLinks.map(\.text)
 
-  init(seed: UInt64, writingDirections: Bool) {
+  init(seed: UInt64, writingDirections: Bool, socialTextSubclasses: Bool = false) {
+    self.socialTextSubclasses = socialTextSubclasses
     self.writingDirections = writingDirections
     random = SplitMix64(seed: seed)
   }
@@ -352,7 +355,10 @@ struct Generator {
   }
 
   private mutating func block(unlike previousType: ListType?) -> JSONValue {
-    switch Int.random(in: 0..<9, using: &random) {
+    if socialTextSubclasses && Int.random(in: 0..<8, using: &random) == 0 {
+      return LexicalJSON.element("footnote-definition", inlineNodes(), ["label": .string(["note", "second", "日本語"].randomElement(using: &random)!)])
+    }
+    return switch Int.random(in: 0..<9, using: &random) {
     case 0: LexicalJSON.heading(Self.headingTags.randomElement(using: &random)!, inlineNodes())
     case 1: LexicalJSON.quote(inlineNodes())
     case 2: LexicalJSON.horizontalRule
@@ -463,7 +469,7 @@ struct Generator {
         previous = nil
         continue
       // An autolink stays linked only where a separator or nothing is beside it.
-      case 4 where !isAfterLink:
+      case 4 where !isAfterLink && children.last?["type"] != "hashtag" && children.last?["type"] != "keyword" && children.last?["type"] != "emoji" && children.last?["type"] != "mention" && children.last?["type"] != "footnote-reference":
         if case .object(var last)? = children.last, let text = last["text"]?.stringValue, last["type"] == "text" {
           last["text"] = .string(text + " ")
           children[children.count - 1] = .object(last)
@@ -473,6 +479,28 @@ struct Generator {
           LexicalJSON.autoLink(
             link.url, [LexicalJSON.text(link.text, format: Self.formats.randomElement(using: &random)!)],
             isUnlinked: Int.random(in: 0..<4, using: &random) == 0))
+        previous = nil
+        continue
+      case 5 where socialTextSubclasses && !isAfterLink:
+        if Int.random(in: 0..<5, using: &random) == 0 {
+          children.append(["type": "footnote-reference", "version": 1, "label": .string(["note", "second", "日本語"].randomElement(using: &random)!)])
+          previous = nil
+          continue
+        }
+        if case .object(var node) = LexicalJSON.text("#" + text(1...5), format: Self.formats.randomElement(using: &random)!) {
+          switch Int.random(in: 0..<4, using: &random) {
+          case 0: node["type"] = "hashtag"
+          case 1: node["type"] = "keyword"
+          case 2:
+            node["type"] = "emoji"; node["mode"] = "token"; node["className"] = "emoji"
+            node["text"] = .string(["😄", "👍", "👨‍👩‍👧"].randomElement(using: &random)!)
+          default:
+            let name = ["Native Reader", "Mira", "日本語 reader", "العربية Reader"].randomElement(using: &random)!
+            node["type"] = "mention"; node["mode"] = "segmented"; node["detail"] = 1
+            node["mentionName"] = .string(name); node["text"] = .string(name)
+          }
+          children.append(.object(node))
+        }
         previous = nil
         continue
       default: break

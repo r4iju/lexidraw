@@ -237,6 +237,7 @@ protocol ElementFields {
 
 extension SerializedParagraphNode: ElementFields {}
 extension SerializedDocumentCodeNode: ElementFields {}
+extension SerializedFootnoteDefinitionNode: ElementFields {}
 extension SerializedHeadingNode: ElementFields {}
 extension SerializedQuoteNode: ElementFields {}
 extension SerializedListNode: ElementFields {}
@@ -254,6 +255,7 @@ extension SerializedNode {
       switch self {
       case .paragraph(let node): node
       case .documentCode(let node): node
+      case .footnoteDefinition(let node): node
       case .heading(let node): node
       case .quote(let node): node
       case .list(let node): node
@@ -271,6 +273,7 @@ extension SerializedNode {
       switch newValue {
       case let node as SerializedDocumentCodeNode: self = .documentCode(node)
       case let node as SerializedParagraphNode: self = .paragraph(node)
+      case let node as SerializedFootnoteDefinitionNode: self = .footnoteDefinition(node)
       case let node as SerializedHeadingNode: self = .heading(node)
       case let node as SerializedQuoteNode: self = .quote(node)
       case let node as SerializedListNode: self = .list(node)

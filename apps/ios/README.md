@@ -573,3 +573,59 @@ code formatting, highlighted-text edits, copy/cut/paste around code, source
 replacement/undo, rejected children, tabs and selected rules. Rendered source
 editing on a physical device remains a release integration check. This work
 does not close #119's performance or dictation gates.
+
+## Social and reference nodes (#134)
+
+Emoji shortcodes use the web's `EMOJI` markdown transformer and generated alias
+table, producing ordinary Unicode text. Unknown aliases retain their text;
+the shared markdown pipeline still splits it and moves selection like Lexical.
+Imported table cells apply the same shortcode replacement, including its reset
+of text formatting. The fuzzer generates known and unknown shortcodes and stored
+normal-mode hashtag and keyword nodes, stored emoji tokens, and segmented mentions.
+
+The main `document-editor.tsx` mounts `EmojiPickerPlugin` and markdown shortcuts,
+but does not mount `MentionsPlugin`, `KeywordsPlugin`, `EmojisPlugin`, or
+`HashtagPlugin`. Native main-editor typing follows that effective behavior:
+it does not automatically turn mentions, hashtags, congratulations, or emoticons
+into nodes. Hashtag transforms belong to the caption and slide editors that
+actually mount that plugin. Stored normal-mode hashtags and keywords support native text
+editing boundaries and splitting. They have no extra effective web color:
+upstream `HashtagNode.createDOM` reads `theme.hashtag`, while the current theme
+puts its unused hashtag class under `theme.text.hashtag`.
+
+Polls render question, options, vote counts and rounded percentages in native
+cards. Insert creates the web plugin's two empty options from generated constructor
+JSON. Edit/remove/add and authenticated voting preserve option IDs and existing
+votes, validate the captured node before replacement, and notify autosave once.
+Undo restores the prior poll. The account identity comes from `auth.me`; its new
+nullable name field remains compatible with older clients. Voting stays disabled
+when identity is unavailable. Native option editing commits on the alert's Save.
+
+Stored emoji tokens retain their payload and render their Unicode glyphs. Typing
+inside a token replaces it, boundary typing redirects beside it, partial deletion
+removes the whole token, and partial formatting preserves the token. The caption
+renderer accepts hashtag, keyword, and emoji text leaves with supported styles.
+
+Stored mentions support segmented typing/deletion and plain-text splitting,
+preserving their mention name until Lexical converts them to ordinary text.
+Their initial DOM background override is generated from `MentionNode.createDOM`.
+The headless reference now includes Lexical's private `$removeSegment` helper;
+native splitting and trimming use JavaScript whitespace and UTF-16 offsets.
+Inherited transient DOM CSS updates are still a presentation gap: the native
+renderer currently follows the node's persisted initial style.
+
+Stored footnote references render as numbered superscript attachments. The first
+root definition of each label supplies its number and plain preview; missing
+labels show `label?`. Definition markers count every root definition, matching
+the CSS counter, and have a native backlink to the first reference. The Notes
+heading, localized titles, font sizes, indentation and spacing come from the
+actual document CSS through codegen. Definitions use inherited ElementNode
+Enter behavior, and imported table-cell markdown supports definitions/references;
+typing a reference or definition does not invent a new shortcut. Definitions and
+references preserve their stored labels and payloads through editing and undo.
+
+This checkpoint does not complete #134. Comments, threads, non-normal keyword
+payloads and articles retain their explicit unported editing gate.
+Caption/slide hashtag transforms and mention transient CSS still need work.
+Stored social text generation opts in via `socialTextSubclasses`, preserving
+fault-injection seeds; the full differential run enables it.

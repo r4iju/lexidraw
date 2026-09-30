@@ -163,6 +163,9 @@
                     "email": {
                       "type": ["string", "null"]
                     },
+                    "name": {
+                      "type": ["string", "null"]
+                    },
                     "authKind": {
                       "type": "string",
                       "enum": ["session", "token"]
@@ -172,7 +175,7 @@
                       "enum": ["read", "write", null]
                     }
                   },
-                  "required": ["userId", "email", "authKind", "scope"],
+                  "required": ["userId", "email", "name", "authKind", "scope"],
                   "additionalProperties": false
                 }
               }

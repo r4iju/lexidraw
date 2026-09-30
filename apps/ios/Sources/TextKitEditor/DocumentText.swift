@@ -100,6 +100,11 @@ public final class DocumentText {
   /// Set while an edit of the text's own has merged blocks, which only a
   /// fresh render can tell apart again.
   private var merged = false
+  private var footnoteNumbers: [String: Int] = [:]
+  private var footnoteDefinitionNumbers: [Int: Int] = [:]
+  private var hasFootnotes = false
+  private var footnoteIndexDirty = true
+  var footnoteSectionTitle = WebFootnoteStyle.titles[""]!
 
   public init(model: any EditorModel, style: @escaping Style, standIn: StandIn? = nil) {
     self.model = model
@@ -171,7 +176,7 @@ public final class DocumentText {
   private static func decoratorInParagraph(_ node: JSONValue) -> JSONValue? {
     guard node["type"] == "paragraph", let children = node["children"]?.arrayValue, children.count == 1,
       let type = children[0]["type"]?.stringValue,
-      type == "excalidraw" || type == "mermaid" || type == "chart" || (type == "equation" && children[0]["inline"] != true) || (type != "inline-image" && MediaPayload(children[0]) != nil) else { return nil }
+      type == "excalidraw" || type == "poll" || type == "mermaid" || type == "chart" || (type == "equation" && children[0]["inline"] != true) || (type != "inline-image" && MediaPayload(children[0]) != nil) else { return nil }
     return children[0]
   }
 
@@ -186,6 +191,7 @@ public final class DocumentText {
   /// Renders the whole document into `storage`, replacing what it held.
   @discardableResult public func reload(_ storage: NSMutableAttributedString) throws -> [Splice] {
     let old = blocks.count
+    footnoteIndexDirty = true
     let keys = try model.childKeys(at: [])
     let (text, rendered) = try render(keys.indices) { keys[$0] }
     blocks = rendered
@@ -200,7 +206,13 @@ public final class DocumentText {
   @discardableResult public func update(_ storage: NSMutableAttributedString, after change: ChangeSet) throws
     -> [Splice]
   {
-    if merged { return try reload(storage) }
+    let changedBlocks = Set(change.changed.compactMap(\.first))
+    let includesFootnote = changedBlocks.contains { index in
+      guard let node = try? model.nodeForPresentation(at: [index]) else { return false }
+      return node["type"] == "footnote-definition" || Self.containsFootnote(node)
+    }
+    if merged || (hasFootnotes && change.changed.contains([])) || (!hasFootnotes && includesFootnote) { return try reload(storage) }
+    if change.changed.contains([]) { footnoteIndexDirty = true }
     var splices: [Splice] = []
     var stale = Set(change.changed.compactMap(\.first))
     if change.changed.contains([]) {
@@ -354,25 +366,88 @@ public final class DocumentText {
   private func render(_ indexes: Range<Int>, key: (Int) -> String) throws -> (NSAttributedString, [Block]) {
     let text = NSMutableAttributedString()
     var rendered: [Block] = []
+    var rootNodes: [Int: JSONValue] = [:]
+    if footnoteIndexDirty {
+      footnoteDefinitionNumbers = [:]
+      footnoteNumbers = [:]
+      hasFootnotes = false
+      for index in try model.childKeys(at: []).indices {
+        let node = try model.nodeForPresentation(at: [index])
+        rootNodes[index] = node
+        if node["type"] == "footnote-definition" {
+          footnoteDefinitionNumbers[index] = footnoteDefinitionNumbers.count + 1
+          if let label = node["label"]?.stringValue, footnoteNumbers[label] == nil { footnoteNumbers[label] = footnoteNumbers.count + 1 }
+        }
+        hasFootnotes = hasFootnotes || node["type"] == "footnote-definition" || Self.containsFootnote(node)
+      }
+      footnoteIndexDirty = false
+    }
     for index in indexes {
-      let node = try model.nodeForPresentation(at: [index])
+      let node = try rootNodes[index] ?? model.nodeForPresentation(at: [index])
       let blockType = (node["type"] == "heading" ? node["tag"] : node["type"])?.stringValue ?? ""
-      var renderer = Renderer(style: style, standIn: standIn, blockType: blockType,
+      let blockStyle = node["type"] == "footnote-definition" ? Self.footnoteStyle(style) : style
+      var renderer = Renderer(style: blockStyle, standIn: standIn, blockType: blockType,
         nativeAttachment: { [nativeAttachment] child, path in
           Self.decoratorInParagraph(node) == nil ? nativeAttachment?(child, [index] + path) : nil
         })
+      renderer.footnoteNumbers = footnoteNumbers
       renderer.add(node, at: [])
       let block = renderer.text
       rendered.append(
         Block(
           key: key(index), type: blockType, length: block.length, spans: renderer.spans,
           kind: Self.kind(of: node, spans: renderer.spans), lines: renderer.lines))
-      block.append(NSAttributedString(string: "\n", attributes: style(blockType, [])))
+      block.append(NSAttributedString(string: "\n", attributes: blockStyle(blockType, [])))
+      if let number = footnoteDefinitionNumbers[index] {
+        var attributes: [NSAttributedString.Key: Any] = [.footnoteDefinitionNumber: number, .footnoteDefinitionLabel: node["label"]?.stringValue ?? ""]
+        attributes[.footnoteBaseFont] = blockStyle(blockType, [])[.font]
+        block.addAttributes(attributes, range: NSRange(location: 0, length: block.length))
+      }
       for line in renderer.lines { block.addAttribute(line.key, value: line.value.base, range: NSRange(line.range)) }
-      Self.applyFontGeometry(renderer, to: block, base: style(blockType, []))
+      Self.applyFontGeometry(renderer, to: block, base: blockStyle(blockType, []))
+      if footnoteDefinitionNumbers[index] != nil, index > 0,
+        (rootNodes[index - 1] ?? (try? model.nodeForPresentation(at: [index - 1])))?["type"] != "footnote-definition" {
+        let range = (block.string as NSString).paragraphRange(for: NSRange(location: 0, length: 0))
+        let paragraph = (block.attribute(.paragraphStyle, at: 0, effectiveRange: nil) as? NSParagraphStyle)?.mutableCopy() as? NSMutableParagraphStyle ?? NSMutableParagraphStyle()
+        #if canImport(UIKit)
+        let size = (block.attribute(.footnoteBaseFont, at: 0, effectiveRange: nil) as? UIFont)?.pointSize ?? 17 * WebFootnoteStyle.definitionFontScale
+        #else
+        let size = (block.attribute(.footnoteBaseFont, at: 0, effectiveRange: nil) as? NSFont)?.pointSize ?? 17 * WebFootnoteStyle.definitionFontScale
+        #endif
+        paragraph.paragraphSpacingBefore = size * WebFootnoteStyle.sectionPadding
+        block.addAttribute(.paragraphStyle, value: paragraph, range: range)
+        block.addAttribute(.footnoteSectionTitle, value: footnoteSectionTitle, range: NSRange(location: 0, length: block.length))
+      }
       text.append(block)
     }
     return (text, rendered)
+  }
+
+  private static func footnoteStyle(_ style: @escaping Style) -> Style {
+    { block, format in
+      var attributes = style(block, format)
+      #if canImport(UIKit)
+      if let font = attributes[.font] as? UIFont { attributes[.font] = font.withSize(font.pointSize * WebFootnoteStyle.definitionFontScale) }
+      let font = attributes[.font] as? UIFont
+      #else
+      if let font = attributes[.font] as? NSFont { attributes[.font] = NSFont(descriptor: font.fontDescriptor, size: font.pointSize * WebFootnoteStyle.definitionFontScale) }
+      let font = attributes[.font] as? NSFont
+      #endif
+      if let font {
+        let paragraph = (attributes[.paragraphStyle] as? NSParagraphStyle)?.mutableCopy() as? NSMutableParagraphStyle ?? NSMutableParagraphStyle()
+        paragraph.paragraphSpacing = 0
+        paragraph.minimumLineHeight = font.pointSize * WebFootnoteStyle.definitionLineHeight
+        paragraph.maximumLineHeight = paragraph.minimumLineHeight
+        paragraph.headIndent = font.pointSize * WebFootnoteStyle.definitionIndent
+        paragraph.firstLineHeadIndent = paragraph.headIndent
+        attributes[.paragraphStyle] = paragraph
+      }
+      return attributes
+    }
+  }
+
+  private static func containsFootnote(_ node: JSONValue) -> Bool {
+    node["type"] == "footnote-reference" || (node["children"]?.arrayValue?.contains(where: containsFootnote) ?? false)
   }
 
   /// A table after `range` of it is replaced with text `length` long, or
@@ -469,6 +544,7 @@ public final class DocumentText {
     var spans: [[Int]: Span] = [:]
     var lines: [Line] = []
     var resizedRanges: [Range<Int>] = []
+    var footnoteNumbers: [String: Int] = [:]
     /// The lists around the node being added.
     private var lists: [EditorCommand.ListType] = []
     /// Where the text being added links to, as a link element's does unless
@@ -487,6 +563,21 @@ public final class DocumentText {
 
     mutating func add(_ node: JSONValue, at path: [Int]) {
       let start = text.length
+      if node["type"] == "footnote-reference", let label = node["label"]?.stringValue {
+        let marker = footnoteNumbers[label].map(String.init) ?? "\(label)?"
+        var attributes = style(blockType, [.superscript])
+        attributes[.footnoteReference] = label
+        #if canImport(UIKit)
+        attributes[.foregroundColor] = ThemeColor.primary.color
+        if let font = attributes[.font] as? UIFont {
+          attributes[.font] = UIFont(descriptor: font.fontDescriptor.addingAttributes([.traits: [UIFontDescriptor.TraitKey.weight: Typesetting.weight(Int(WebFootnoteStyle.referenceWeight))]]), size: font.pointSize)
+        }
+        #endif
+        attributes[.attachment] = FootnoteReferenceAttachment(marker: marker, attributes: attributes)
+        text.append(NSAttributedString(string: "\u{FFFC}", attributes: attributes))
+        spans[path] = Span(start: start, end: text.length, kind: .character)
+        return
+      }
       if !path.isEmpty, let attachment = nativeAttachment?(node, path) {
         #if canImport(UIKit)
         (attachment as? MediaAttachment)?.captionStyle = style
@@ -551,7 +642,7 @@ public final class DocumentText {
         append("\u{2028}", format: [])
         kind = .character
       } else if let string = node["text"]?.stringValue {
-        append(string, format: TextFormat(rawValue: node["format"]?.intValue ?? 0), css: node["style"]?.stringValue ?? "")
+        append(string, format: TextFormat(rawValue: node["format"]?.intValue ?? 0), css: node["type"] == "mention" ? WebSocialStyle.mentionCSS : node["style"]?.stringValue ?? "")
         kind = .text
       } else {
         append("\u{FFFC}", format: [])
@@ -622,6 +713,11 @@ extension Range<Int> {
 }
 
 extension NSAttributedString.Key {
+  static let footnoteReference = NSAttributedString.Key("TextKitEditor.footnoteReference")
+  static let footnoteDefinitionNumber = NSAttributedString.Key("TextKitEditor.footnoteDefinitionNumber")
+  static let footnoteBaseFont = NSAttributedString.Key("TextKitEditor.footnoteBaseFont")
+  static let footnoteSectionTitle = NSAttributedString.Key("TextKitEditor.footnoteSectionTitle")
+  static let footnoteDefinitionLabel = NSAttributedString.Key("TextKitEditor.footnoteDefinitionLabel")
   /// A `DocumentText.ListItem`, on the line of the item it describes.
   static let listItem = NSAttributedString.Key("TextKitEditor.listItem")
   /// How many levels in a block is indented, on its lines.

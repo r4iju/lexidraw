@@ -346,12 +346,9 @@ extension Update {
     let units = Array(state[key].text.utf16)
     let end = min(offset + count, units.count)
     let spliced = Array(units[..<offset]) + Array(text.utf16) + Array(units[end...])
-    let value = String(decoding: spliced, as: UTF16.self)
-    switch state[key].payload {
-    case .text(var node): node.text = value; state.nodes[key]!.payload = .text(node)
-    case .codeHighlight(var node): node.text = value; state.nodes[key]!.payload = .codeHighlight(node)
-    default: return
-    }
+    guard var node = state[key].payload.textFields else { return }
+    node.text = String(decoding: spliced, as: UTF16.self)
+    state.nodes[key]!.payload.textFields = node
   }
 
   /// Lexical's `TextNode.splitText`: the node keeps the first part and new
@@ -377,8 +374,16 @@ extension Update {
       if first.type == .text, first.key == key { startPoint = first }
       if last.type == .text, last.key == key { endPoint = last }
     }
-    try setText(key, String(decoding: parts[0], as: UTF16.self))
-    var nodes = [key]
+    let sourceDetail = state[key].payload.textFields?.detail
+    let first: NodeKey
+    if state[key].textMode == .segmented {
+      first = createText(String(decoding: parts[0], as: UTF16.self), format: format(of: key), style: style(of: key))
+      modifyText(first) { $0.detail = sourceDetail }
+    } else {
+      try setText(key, String(decoding: parts[0], as: UTF16.self))
+      first = key
+    }
+    var nodes = [first]
     for part in parts.dropFirst() {
       guard let fields = state[key].payload.textFields else { break }
       var payload = try SerializedTextNode(json: .object(["type": .string("text"), "version": .number(1)]))

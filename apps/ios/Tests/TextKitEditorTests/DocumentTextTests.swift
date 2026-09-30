@@ -8,12 +8,50 @@ import LexicalFuzz
 import LexicalReference
 import LexicalSwift
 import Testing
-import TextKitEditor
+@testable import TextKitEditor
 
 @Suite struct DocumentTextTests {
+  @Test func footnoteReferencesUseFirstDefinitionNumbersAndMissingLabels() throws {
+    let model = Editor()
+    let references: [JSONValue] = ["second", "first", "missing"].map { ["type": "footnote-reference", "version": 1, "label": .string($0)] }
+    func note(_ label: String, _ body: String) -> JSONValue {
+      ["type": "footnote-definition", "version": 1, "label": .string(label), "children": .array([LexicalJSON.text(body)]), "direction": .null, "format": "", "indent": 0]
+    }
+    try model.load(LexicalJSON.document([LexicalJSON.paragraph(references), note("first", "One"), note("first", "Duplicate"), note("second", "Two")]))
+    let storage = NSMutableAttributedString()
+    let document = DocumentText(model: model, style: Self.style)
+    try document.reload(storage)
+    #expect(storage.string == "\u{FFFC}\u{FFFC}\u{FFFC}\nOne\nDuplicate\nTwo\n")
+    #expect((storage.attribute(.attachment, at: 0, effectiveRange: nil) as? FootnoteReferenceAttachment)?.marker == "2")
+    #expect((storage.attribute(.attachment, at: 1, effectiveRange: nil) as? FootnoteReferenceAttachment)?.marker == "1")
+    #expect((storage.attribute(.attachment, at: 2, effectiveRange: nil) as? FootnoteReferenceAttachment)?.marker == "missing?")
+    #expect(document.point(at: 1) == Point(path: [0], offset: 1, type: .element))
+    #expect(document.point(at: 5) == .text([1, 0], 1))
+  }
+
   /// Format bits as the only attribute, so a wrong run shows as a difference.
   static func style(_ blockType: String, _ format: TextFormat) -> [NSAttributedString.Key: Any] {
     [.lexicalFormat: format.rawValue]
+  }
+
+  @Test func mentionDOMStyleOverridesStoredInlineColors() throws {
+    let model = Editor()
+    let mention: JSONValue = ["type": "mention", "version": 1, "text": "Reader", "mentionName": "Reader", "mode": "segmented", "detail": 1, "format": 0, "style": "color: red; background-color: red;"]
+    try model.load(LexicalJSON.document([LexicalJSON.paragraph([mention])]))
+    let storage = NSMutableAttributedString()
+    try DocumentText(model: model, style: Self.style).reload(storage)
+    #expect(storage.string == "Reader\n")
+    #expect(storage.attribute(.foregroundColor, at: 0, effectiveRange: nil) == nil)
+    #if canImport(UIKit)
+    let color = try #require(storage.attribute(.backgroundColor, at: 0, effectiveRange: nil) as? UIColor)
+    var red: CGFloat = 0; var green: CGFloat = 0; var blue: CGFloat = 0; var alpha: CGFloat = 0
+    color.getRed(&red, green: &green, blue: &blue, alpha: &alpha)
+    #else
+    let color = try #require(storage.attribute(.backgroundColor, at: 0, effectiveRange: nil) as? NSColor)
+    let red = color.redComponent; let green = color.greenComponent; let blue = color.blueComponent; let alpha = color.alphaComponent
+    #endif
+    #expect(abs(red - 24.0 / 255) < 0.001 && abs(green - 119.0 / 255) < 0.001)
+    #expect(abs(blue - 232.0 / 255) < 0.001 && abs(alpha - 0.2) < 0.001)
   }
 
   @Test func textAndHighlightColorsReachNativeRuns() throws {

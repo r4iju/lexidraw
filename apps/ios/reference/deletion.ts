@@ -8,8 +8,7 @@
  * a caret lands, and a line's boundary is an input, since only the view that
  * lays the line out knows it. Everything around that is Lexical's own code, so
  * LexicalSwift is held to Lexical on all but the measurement, and to this
- * model on that. Removing a segment of segmented text (mentions, #134) isn't
- * transcribed, and throws.
+ * model on that. Segmented text removal uses the upstream private helper.
  */
 import {
   $caretFromPoint,
@@ -52,7 +51,6 @@ import {
   type RangeSelection,
   type TextNode,
 } from "lexical";
-import { EditorError } from "./editor-error.js";
 
 export type Granularity = "character" | "word" | "lineboundary";
 
@@ -228,10 +226,8 @@ export function $deleteCharacter(
           (isBackward && offset !== textContentSize) ||
           (!isBackward && offset !== 0)
         ) {
-          throw new EditorError(
-            "unsupported",
-            "Removing a segment isn't transcribed",
-          );
+          $removeSegment(focusNode, isBackward, offset);
+          return;
         }
       } else if (anchorNode?.isSegmented()) {
         const offset = anchor.offset;
@@ -241,10 +237,8 @@ export function $deleteCharacter(
           (isBackward && offset !== 0) ||
           (!isBackward && offset !== textContentSize)
         ) {
-          throw new EditorError(
-            "unsupported",
-            "Removing a segment isn't transcribed",
-          );
+          $removeSegment(anchorNode, isBackward, offset);
+          return;
         }
       }
       $updateCaretSelectionForUnicodeCharacter(selection, isBackward);
@@ -868,4 +862,44 @@ function $modifySelectionAroundDecoratorsAndBlocks(
   }
   $setPointFromCaret(selection.focus, focus);
   return checkForBlock || !isLineBoundary;
+}
+
+function $removeSegment(
+  node: TextNode,
+  isBackward: boolean,
+  offset: number,
+): void {
+  const textNode = node;
+  const textContent = textNode.getTextContent();
+  const split = textContent.split(/(?=\s)/g);
+  const splitLength = split.length;
+  let segmentOffset = 0;
+  let restoreOffset: number | undefined = 0;
+
+  for (let i = 0; i < splitLength; i++) {
+    const text = split[i]!;
+    const isLast = i === splitLength - 1;
+    restoreOffset = segmentOffset;
+    segmentOffset += text.length;
+
+    if (
+      (isBackward && segmentOffset === offset) ||
+      segmentOffset > offset ||
+      isLast
+    ) {
+      split.splice(i, 1);
+      if (isLast) {
+        restoreOffset = undefined;
+      }
+      break;
+    }
+  }
+  const nextTextContent = split.join("").trim();
+
+  if (nextTextContent === "") {
+    textNode.remove();
+  } else {
+    textNode.setTextContent(nextTextContent);
+    textNode.select(restoreOffset, restoreOffset);
+  }
 }

@@ -170,6 +170,16 @@
                         }
                       ]
                     },
+                    "name": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
                     "authKind": {
                       "type": "string",
                       "enum": ["session", "token"]
@@ -186,7 +196,7 @@
                       ]
                     }
                   },
-                  "required": ["userId", "email", "authKind", "scope"],
+                  "required": ["userId", "email", "name", "authKind", "scope"],
                   "additionalProperties": false
                 }
               }

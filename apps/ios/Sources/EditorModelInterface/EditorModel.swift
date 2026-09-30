@@ -20,6 +20,9 @@ public protocol EditorModel: AnyObject {
   func replaceDrawing(key: String, expectedData: String, data: String?) throws -> ChangeSet
   func replaceRenderedNode(key: String, expected: JSONValue, replacement: JSONValue) throws -> ChangeSet
 
+  @discardableResult
+  func replaceEmbeddedNode(key: String, expected: JSONValue, replacement: JSONValue?) throws -> ChangeSet
+
   /// The serialized editor state and the selection.
   func snapshot() throws -> Snapshot
 
@@ -37,6 +40,9 @@ public protocol EditorModel: AnyObject {
   /// order need not match the stored bytes; this value must not be saved.
   func nodeForPresentation(at path: [Int]) throws -> JSONValue
 
+  /// The node’s model text, including element breaks and excluding decorator glyphs.
+  func nodeTextContent(at path: [Int]) throws -> String
+
   /// Names for the children of the element at `path`. A child keeps its name
   /// for as long as it stays in the document, wherever it moves, so a view can
   /// tell which children an update added, removed or kept. Names mean nothing
@@ -49,11 +55,18 @@ extension EditorModel {
     throw EditorError.unsupported("Rendered node editing belongs to #132")
   }
 
+  public func replaceEmbeddedNode(key: String, expected: JSONValue, replacement: JSONValue?) throws -> ChangeSet {
+    throw EditorError.unsupported("Structural block editing requires #133")
+  }
+
   public func replaceDrawing(key: String, expectedData: String, data: String?) throws -> ChangeSet {
     throw EditorError.unsupported("Embedded drawing editing requires #139")
   }
   public func serializedState() throws -> JSONValue { ["root": try node(at: [])] }
   public func nodeForPresentation(at path: [Int]) throws -> JSONValue { try node(at: path) }
+  public func nodeTextContent(at path: [Int]) throws -> String {
+    throw EditorError.unsupported("This model cannot read node text")
+  }
 }
 
 public struct Snapshot: Codable, Equatable, Sendable {

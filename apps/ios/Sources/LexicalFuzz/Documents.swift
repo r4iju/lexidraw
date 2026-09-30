@@ -42,7 +42,7 @@ public enum LexicalJSON {
   public static func paragraph(
     _ children: [JSONValue], textFormat: TextFormat = [], textStyle: String = "", indent: Int = 0
   ) -> JSONValue {
-    let firstText = children.first { $0["type"] == "text" || $0["type"] == "tab" }
+    let firstText = children.first { $0["type"] == "text" || $0["type"] == "tab" || $0["type"] == "hashtag" || $0["type"] == "keyword" || $0["type"] == "emoji" || $0["type"] == "mention" }
     return [
       "children": .array(children), "direction": nil, "format": "", "indent": .number(Double(indent)),
       "textFormat": firstText?["format"] ?? .number(Double(textFormat.rawValue)),

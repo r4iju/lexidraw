@@ -225,6 +225,11 @@ import UIKit
   /// it, as CSS collapses margins.
   private func spaceAfter(_ index: Int) -> CGFloat {
     let block = styled(index)
+    let isNote = document.type(ofBlock: index) == "footnote-definition"
+    let nextIsNote = index + 1 < document.blockCount && document.type(ofBlock: index + 1) == "footnote-definition"
+    let em = typesetting.fontSize(.other)
+    if nextIsNote && !isNote { return em * WebFootnoteStyle.definitionFontScale * WebFootnoteStyle.sectionMargin }
+    if isNote { return nextIsNote || index + 1 == document.blockCount ? em * WebFootnoteStyle.definitionFontScale * WebFootnoteStyle.definitionAfter : em * WebFootnoteStyle.followingMargin }
     let after = typesetting.space(block, after: index > 0 ? styled(index - 1) : nil).after
     guard index + 1 < document.blockCount else { return after }
     return max(after, typesetting.space(styled(index + 1), after: block).before)
@@ -471,6 +476,12 @@ import UIKit
     return start + block.lineBoundary(at: local, backward: backward)
   }
 
+  func footnoteBacklink(at point: CGPoint) -> String? {
+    guard document.blockCount > 0 else { return nil }
+    let index = blockIndex(atY: point.y)
+    return block(index).footnoteBacklink(at: CGPoint(x: point.x, y: point.y - top(index)))
+  }
+
   /// The path of the checklist item whose box a tap at `point` toggles.
   func checklistItem(at point: CGPoint) -> [Int]? {
     guard document.blockCount > 0 else { return nil }
@@ -533,12 +544,14 @@ import UIKit
   func writingDirection(at offset: Int) -> NSWritingDirection
   /// Scrolls within the block, where it can, to show `offset`.
   func reveal(_ offset: Int)
+  func footnoteBacklink(at point: CGPoint) -> String?
   func checklistItem(at point: CGPoint) -> DocumentText.ListItem?
 }
 
 extension LaidOutBlock {
   func writingDirection(at offset: Int) -> NSWritingDirection { .leftToRight }
   func reveal(_ offset: Int) {}
+  func footnoteBacklink(at point: CGPoint) -> String? { nil }
   func checklistItem(at point: CGPoint) -> DocumentText.ListItem? { nil }
 }
 
@@ -602,6 +615,7 @@ private final class TextBlock: LaidOutBlock {
   }
   func writingDirection(at offset: Int) -> NSWritingDirection { box.writingDirection(at: offset) }
   func lineBoundary(at offset: Int, backward: Bool) -> Int { box.lineBoundary(at: offset, backward: backward) }
+  func footnoteBacklink(at point: CGPoint) -> String? { box.footnoteBacklink(at: point) }
   func checklistItem(at point: CGPoint) -> DocumentText.ListItem? { box.checklistItem(at: point) }
 
   final class BoxView: UIView {
@@ -811,23 +825,31 @@ private final class EmbedBlock: LaidOutBlock {
   init(type: String, payload: JSONValue?, width: CGFloat, style: @escaping DocumentText.Style, imageLoader: MediaImageLoader?) {
     self.type = type
     media = payload.flatMap(MediaPayload.init)
-    placeholder = media.map { MediaView($0, style: style, imageLoader: imageLoader) } ?? PlaceholderView(type: type)
+    if let media { placeholder = MediaView(media, style: style, imageLoader: imageLoader) }
+    else if type == "poll", let payload { placeholder = NativePollView(payload) }
+    else { placeholder = PlaceholderView(type: type) }
     container.addSubview(placeholder)
     (placeholder as? MediaView)?.onGeometryChange = { [weak self] in
       guard let self, let mediaView = self.placeholder as? MediaView else { return }
       self.placeholder.frame.size.height = mediaView.fittingHeight(self.placeholder.frame.width)
       self.onGeometryChange?()
     }
-    placeholder.frame = CGRect(x: 0, y: 0, width: width, height: (placeholder as? MediaView)?.fittingHeight(width) ?? PlaceholderView.height)
+    placeholder.frame = CGRect(x: 0, y: 0, width: width, height: fittingHeight(width))
   }
 
   var view: UIView { container }
   var kind: DocumentText.BlockKind { .embedded(type: type) }
   var height: CGFloat { placeholder.frame.height }
-  func canShow(_ kind: DocumentText.BlockKind) -> Bool { media == nil && kind == self.kind }
+  func canShow(_ kind: DocumentText.BlockKind) -> Bool { media == nil && type != "poll" && kind == self.kind }
+
+  private func fittingHeight(_ width: CGFloat) -> CGFloat {
+    if let media = placeholder as? MediaView { return media.fittingHeight(width) }
+    if let embedded = placeholder as? EmbeddedContentView { return embedded.contentSize(fitting: width).height }
+    return PlaceholderView.height
+  }
 
   func set(text: NSAttributedString, kind: DocumentText.BlockKind, width: CGFloat) {
-    placeholder.frame = CGRect(x: 0, y: 0, width: width, height: (placeholder as? MediaView)?.fittingHeight(width) ?? PlaceholderView.height)
+    placeholder.frame = CGRect(x: 0, y: 0, width: width, height: fittingHeight(width))
   }
 
   func redraw() {}

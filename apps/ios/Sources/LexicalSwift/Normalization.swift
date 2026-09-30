@@ -6,16 +6,23 @@ extension Node {
   /// Plain text Lexical merges with its neighbours: a `text` node in normal mode.
   var isSimpleText: Bool { textNode?.mode == .normal }
 
+  var textMode: TextMode? {
+    switch payload {
+    case .text(let node): node.mode
+    case .hashtag(let node): node.mode
+    case .keyword(let node): node.mode
+    case .emoji(let node): node.mode
+    case .mention(let node): node.mode
+    default: nil
+    }
+  }
+
   var isUnmergeable: Bool {
     payload.textFields.map { TextDetail(rawValue: Int($0.detail ?? 0)).contains(.unmergeable) } ?? false
   }
 
   /// A TabNode's text is a tab, whatever it was stored with.
-  var text: String {
-    if type == SerializedTabNode.type { return "\t" }
-    if case .codeHighlight(let node) = payload { return node.text ?? "" }
-    return textNode?.text ?? ""
-  }
+  var text: String { type == SerializedTabNode.type ? "\t" : payload.textFields?.text ?? "" }
 }
 
 /// The bits Lexical keeps in a text node's `detail`.
@@ -79,6 +86,22 @@ extension Update {
       guard node.text != "\t" else { return }
       node.text = "\t"
       modify(key) { $0.payload = .tab(node) }
+    case .hashtag(var node):
+      guard !(node.text ?? "").isIdentical(to: text) else { return }
+      node.text = text
+      modify(key) { $0.payload = .hashtag(node) }
+    case .keyword(var node):
+      guard !(node.text?.stringValue ?? "").isIdentical(to: text) else { return }
+      node.text = .string(text)
+      modify(key) { $0.payload = .keyword(node) }
+    case .emoji(var node):
+      guard !(node.text?.stringValue ?? "").isIdentical(to: text) else { return }
+      node.text = .string(text)
+      modify(key) { $0.payload = .emoji(node) }
+    case .mention(var node):
+      guard !(node.text?.stringValue ?? "").isIdentical(to: text) else { return }
+      node.text = .string(text)
+      modify(key) { $0.payload = .mention(node) }
     default:
       throw EditorError.unsupported("Setting the text of a \(self[key].type) node")
     }

@@ -111,6 +111,37 @@ public final class Editor: EditorModel {
     }
   }
 
+  public func replaceEmbeddedNode(key: String, expected: JSONValue, replacement: JSONValue?) throws -> ChangeSet {
+    guard isEditable else { throw EditorError.unsupported("This document cannot be edited") }
+    guard let key = NodeKey(key), let node = state.nodes[key], (node.isDecorator || Self.structuralTypes.contains(node.type)),
+      state.json(of: key) == expected, replacement == nil || replacement?["type"] == expected["type"]
+    else { throw EditorError.invalidState("The block changed while its editor was open") }
+    guard let replacement else { return try commit { try $0.remove(key) } }
+    // Load with the registered schemas before committing; unknown fields/nodes
+    // cannot make an editable document silently become an approximated one.
+    let validation = Editor()
+    let validationChild: JSONValue = node.isInline
+      ? ["type": "paragraph", "version": 1, "children": [replacement]] : replacement
+    try validation.load(["root": ["type": "root", "version": 1, "children": [validationChild]]])
+    guard validation.isEditable else { throw EditorError.unsupported("The replacement contains unported behavior (#133)") }
+    let loaded = try validation.node(at: node.isInline ? [0, 0] : [0])
+    return try commit { update in
+      if loaded["children"] != expected["children"], let children = loaded["children"]?.arrayValue {
+        update.current = nil
+        for child in Array(update.state.children(of: key)) { try update.remove(child, preservingEmptyParent: true) }
+        try update.append(key, children.map { try update.parse($0) })
+      }
+      var fields = loaded.objectValue!
+      fields["children"] = nil
+      update.modify(key) { $0.payload = SerializedNode(json: .object(fields)).asLoaded() }
+    }
+  }
+
+  private static let structuralTypes: Set<String> = [
+    "callout", "collapsible-container", "collapsible-content", "collapsible-title",
+    "layout-container", "layout-item", "page-break", "sticky", "slide-deck",
+  ]
+
   /// An error in a markdown shortcut's update. Lexical reports it and drops
   /// that update alone, so the updates before it, the one that set the
   /// shortcut off among them, stay.
@@ -227,6 +258,10 @@ public final class Editor: EditorModel {
     state.json(of: try key(at: path), canonicalKeyOrder: false)
   }
 
+  public func nodeTextContent(at path: [Int]) throws -> String {
+    state.textContent(of: try key(at: path))
+  }
+
   public func childKeys(at path: [Int]) throws -> [String] {
     state.children(of: try key(at: path)).map(String.init)
   }
@@ -267,10 +302,28 @@ extension Node {
     case .equation(let node): node.unknownFields.isEmpty && (node.equation == nil || node.equation?.stringValue != nil) && (node.inline == nil || node.inline?.boolValue != nil)
     case .chart(let node): node.unknownFields.isEmpty && (node.chartType == nil || RenderedEmbedStyle.chartTypes.contains(node.chartType?.stringValue ?? "")) && (node.chartData == nil || node.chartData?.stringValue != nil) && (node.chartConfig == nil || node.chartConfig?.stringValue != nil)
     case .excalidraw(let node): node.unknownFields.isEmpty && (node.data == nil || node.data?.stringValue != nil)
-    case .text(let node): node.unknownFields.isEmpty && node.mode == .normal && (node.detail ?? 0) == 0
+    case .text(let node): node.unknownFields.isEmpty && node.mode == .normal && [0, 1].contains(node.detail ?? 0)
+    case .hashtag(let node): node.unknownFields.isEmpty && node.mode == .normal && (node.detail ?? 0) == 0
+    case .keyword(let node): node.unknownFields.isEmpty && node.mode == .normal && node.detail?.numberValue == 0
+      && node.text?.stringValue != nil && node.style?.stringValue != nil && node.format?.numberValue != nil
+    case .emoji(let node): node.unknownFields.isEmpty && (node.mode == .normal || node.mode == .token)
+      && node.detail?.numberValue == 0 && node.text?.stringValue != nil && node.style?.stringValue != nil
+      && node.format?.numberValue != nil && node.className?.stringValue != nil
+    case .mention(let node): node.unknownFields.isEmpty && (node.mode == .normal || node.mode == .segmented)
+      && [0, 1].contains(node.detail?.numberValue) && node.text?.stringValue != nil && node.style?.stringValue != nil
+      && node.format?.numberValue != nil && node.mentionName?.stringValue != nil
+    case .footnoteDefinition(let node): node.unknownFields.isEmpty
+    case .footnoteReference(let node): node.unknownFields.isEmpty && node.label?.stringValue != nil
+    case .poll(let node): Self.supportsPoll(node)
     case .tab(let node): node.unknownFields.isEmpty && node.detail == Double(TextDetail.unmergeable.rawValue)
     default: false
     }
+  }
+
+  private static func supportsPoll(_ node: SerializedPollNode) -> Bool {
+    guard node.unknownFields.isEmpty, node.question?.stringValue != nil,
+      case .typed(let options)? = node.options else { return false }
+    return options.allSatisfy { $0.unknownFields.isEmpty }
   }
 
   /// The issue that ports editing nodes of this type, where one does.

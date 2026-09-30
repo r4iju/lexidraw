@@ -8,7 +8,7 @@ public enum MediaCaptionSupport {
     var pending = [root]
     while let node = pending.popLast() {
       let type = node["type"]?.stringValue ?? ""
-      guard ["root", "paragraph", "text", "linebreak", "tab", "link", "autolink"].contains(type) else {
+      guard ["root", "paragraph", "text", "hashtag", "keyword", "emoji", "linebreak", "tab", "link", "autolink"].contains(type) else {
         return "This caption contains \(type) nodes the native app can't show yet (#134)."
       }
       if let style = node["style"]?.stringValue, !style.isEmpty, !supportedTextStyle(style) {

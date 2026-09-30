@@ -6,9 +6,9 @@ extension Node {
 
   /// Lexical's `canInsertTextBefore`: whether typing at the start of the
   /// node goes into it.
-  var canInsertTextBefore: Bool { !isLink && type != SerializedTabNode.type }
+  var canInsertTextBefore: Bool { !isLink && type != SerializedTabNode.type && type != SerializedHashtagNode.type && type != SerializedKeywordNode.type && type != SerializedMentionNode.type }
 
-  var canInsertTextAfter: Bool { !isLink && type != SerializedTabNode.type }
+  var canInsertTextAfter: Bool { !isLink && type != SerializedTabNode.type && type != SerializedKeywordNode.type && type != SerializedMentionNode.type }
 }
 
 /// `@lexical/link`'s `TOGGLE_LINK_COMMAND` handlers and `LinkNode`'s

@@ -25,6 +25,28 @@ afterEach(() => {
   mock.restore();
 });
 
+describe("native social identity", () => {
+  test("returns the signed-in profile name for comment authors", async () => {
+    const identity = authRouter.createCaller({
+      drizzle: db,
+      schema,
+      session: {
+        user: {
+          id: "native_social_user",
+          email: "native@example.test",
+          name: "Native Reader",
+        },
+      },
+      auth: { kind: "session" },
+      headers: new Headers(),
+    } as never);
+    expect(await identity.me({})).toMatchObject({
+      userId: "native_social_user",
+      name: "Native Reader",
+    });
+  });
+});
+
 describe("sign-up", () => {
   test("stores the password as scrypt", async () => {
     await caller.signUp(signUp);
