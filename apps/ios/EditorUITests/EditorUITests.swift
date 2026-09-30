@@ -23,6 +23,21 @@ class EditorUITests: XCTestCase {
     continueAfterFailure = false
   }
 
+  func testCommandShiftLeftSelectsToStartOfLine() throws {
+    open(LexicalJSON.document([LexicalJSON.paragraph([LexicalJSON.text("one two three")])]))
+    keyboard.press(.leftArrow, [.command, .shift])
+    editor.typeText("X")
+    XCTAssertEqual(try saved(), LexicalJSON.document([LexicalJSON.paragraph([LexicalJSON.text("X")])]))
+  }
+
+  func testCommandShiftRightSelectsToEndOfLine() throws {
+    open(LexicalJSON.document([LexicalJSON.paragraph([LexicalJSON.text("one two three")])]))
+    keyboard.press(.leftArrow, .command)
+    keyboard.press(.rightArrow, [.command, .shift])
+    editor.typeText("X")
+    XCTAssertEqual(try saved(), LexicalJSON.document([LexicalJSON.paragraph([LexicalJSON.text("X")])]))
+  }
+
   func testTypingAndNewParagraphs() throws {
     open(LexicalJSON.document([LexicalJSON.paragraph([LexicalJSON.text("Hello")])]))
 
@@ -553,7 +568,8 @@ class EditorUITests: XCTestCase {
       // The list's last items can be under the keyboard until it scrolls.
       for _ in 0..<3 where !item.isHittable {
         let screen = app.coordinate(withNormalizedOffset: .zero)
-        let list = CGVector(dx: item.frame.midX, dy: item.frame.minY - 60)
+        let visibleBottom = app.keyboards.firstMatch.exists ? app.keyboards.firstMatch.frame.minY : app.frame.maxY
+        let list = CGVector(dx: item.frame.midX, dy: min(item.frame.minY - 60, visibleBottom - 100))
         screen.withOffset(list).press(forDuration: 0.1, thenDragTo: screen.withOffset(CGVector(dx: list.dx, dy: list.dy - 150)))
       }
       item.tap()

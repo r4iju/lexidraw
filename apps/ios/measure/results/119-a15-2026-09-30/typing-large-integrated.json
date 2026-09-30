@@ -1,0 +1,1029 @@
+{
+  "decodingMs" : 14.211958332452923,
+  "document" : "115000 words, 9002 nodes; checkpoint input variant (videos replaced by empty paragraphs)",
+  "frameIntervalMs" : {
+    "max" : 70.32100000651553,
+    "p50" : 33.89237500960007,
+    "p95" : 36.32975002983585,
+    "p99" : 37.20087499823421
+  },
+  "loadMs" : 77.65024999389425,
+  "makingTheViewMs" : 36.41770832473412,
+  "measurementScope" : "Synchronous insertText and layoutIfNeeded; excludes keyboard delivery, drawing and compositing. Display-link timestamp is cadence evidence, not verified glyph presentation.",
+  "modelLoadMs" : 63.438291661441326,
+  "nextDisplayLinkTimestampMs" : {
+    "max" : 13.789041666314006,
+    "p50" : 2.050958340987563,
+    "p95" : 12.53150001866743,
+    "p99" : 13.637500000186265
+  },
+  "openToFirstScreenMs" : 172.3028749693185,
+  "processingAndLayoutMs" : {
+    "max" : 3.1821249867789447,
+    "p50" : 2.0265416824258864,
+    "p95" : 2.220875001512468,
+    "p99" : 2.405625011306256
+  },
+  "samples" : [
+    {
+      "actualInsertionPhase" : 4.0328655886654365,
+      "nextDisplayLinkTimestampMs" : 3.189583367202431,
+      "processingAndLayoutMs" : 3.1734583317302167
+    },
+    {
+      "actualInsertionPhase" : 2.257322793754841,
+      "nextDisplayLinkTimestampMs" : 2.10304168285802,
+      "processingAndLayoutMs" : 2.092666632961482
+    },
+    {
+      "actualInsertionPhase" : 1.9163792285865364,
+      "nextDisplayLinkTimestampMs" : 7.91416666470468,
+      "processingAndLayoutMs" : 2.105791645590216
+    },
+    {
+      "actualInsertionPhase" : 2.063411166601925,
+      "nextDisplayLinkTimestampMs" : 2.1052916417829692,
+      "processingAndLayoutMs" : 2.0945833530277014
+    },
+    {
+      "actualInsertionPhase" : 1.9373085098856533,
+      "nextDisplayLinkTimestampMs" : 2.0396249601617455,
+      "processingAndLayoutMs" : 2.029958297498524
+    },
+    {
+      "actualInsertionPhase" : 1.931375344723161,
+      "nextDisplayLinkTimestampMs" : 2.1179583272896707,
+      "processingAndLayoutMs" : 2.037958358414471
+    },
+    {
+      "actualInsertionPhase" : 1.9927532266409616,
+      "nextDisplayLinkTimestampMs" : 11.638416675850749,
+      "processingAndLayoutMs" : 2.0265416824258864
+    },
+    {
+      "actualInsertionPhase" : 1.832890266442904,
+      "nextDisplayLinkTimestampMs" : 2.169666637200862,
+      "processingAndLayoutMs" : 2.1589166717603803
+    },
+    {
+      "actualInsertionPhase" : 1.9438171546716916,
+      "nextDisplayLinkTimestampMs" : 2.0193749805912375,
+      "processingAndLayoutMs" : 2.0106250303797424
+    },
+    {
+      "actualInsertionPhase" : 1.8819727621698976,
+      "nextDisplayLinkTimestampMs" : 2.0585833117365837,
+      "processingAndLayoutMs" : 2.050124981906265
+    },
+    {
+      "actualInsertionPhase" : 1.9070740211318977,
+      "nextDisplayLinkTimestampMs" : 2.0752499694935977,
+      "processingAndLayoutMs" : 2.066916669718921
+    },
+    {
+      "actualInsertionPhase" : 2.065394896008389,
+      "nextDisplayLinkTimestampMs" : 1.986375020351261,
+      "processingAndLayoutMs" : 1.9772083614952862
+    },
+    {
+      "actualInsertionPhase" : 1.9358893765388006,
+      "nextDisplayLinkTimestampMs" : 13.546750007662922,
+      "processingAndLayoutMs" : 2.0076666842214763
+    },
+    {
+      "actualInsertionPhase" : 1.6809361731920658,
+      "nextDisplayLinkTimestampMs" : 1.9948749686591327,
+      "processingAndLayoutMs" : 1.9860833417624235
+    },
+    {
+      "actualInsertionPhase" : 1.909471840475255,
+      "nextDisplayLinkTimestampMs" : 2.0202916930429637,
+      "processingAndLayoutMs" : 2.005958347581327
+    },
+    {
+      "actualInsertionPhase" : 2.0536846071810237,
+      "nextDisplayLinkTimestampMs" : 2.117374970111996,
+      "processingAndLayoutMs" : 2.1027083275839686
+    },
+    {
+      "actualInsertionPhase" : 1.9246933696477802,
+      "nextDisplayLinkTimestampMs" : 2.040541614405811,
+      "processingAndLayoutMs" : 2.0267083309590816
+    },
+    {
+      "actualInsertionPhase" : 1.944302872534507,
+      "nextDisplayLinkTimestampMs" : 2.0649167126975954,
+      "processingAndLayoutMs" : 2.0513750496320426
+    },
+    {
+      "actualInsertionPhase" : 1.8846886493561974,
+      "nextDisplayLinkTimestampMs" : 2.0772083080373704,
+      "processingAndLayoutMs" : 2.063166641164571
+    },
+    {
+      "actualInsertionPhase" : 2.0434166600940986,
+      "nextDisplayLinkTimestampMs" : 2.07108334871009,
+      "processingAndLayoutMs" : 2.055375021882355
+    },
+    {
+      "actualInsertionPhase" : 1.942906419149268,
+      "nextDisplayLinkTimestampMs" : 12.514208327047527,
+      "processingAndLayoutMs" : 2.071874972898513
+    },
+    {
+      "actualInsertionPhase" : 1.6677722081997643,
+      "nextDisplayLinkTimestampMs" : 1.999541709665209,
+      "processingAndLayoutMs" : 1.990125048905611
+    },
+    {
+      "actualInsertionPhase" : 1.8940135774002542,
+      "nextDisplayLinkTimestampMs" : 2.039208367932588,
+      "processingAndLayoutMs" : 2.025625028181821
+    },
+    {
+      "actualInsertionPhase" : 2.0320221270522705,
+      "nextDisplayLinkTimestampMs" : 2.076250035315752,
+      "processingAndLayoutMs" : 2.061791659798473
+    },
+    {
+      "actualInsertionPhase" : 1.9039088259289627,
+      "nextDisplayLinkTimestampMs" : 2.0092916674911976,
+      "processingAndLayoutMs" : 1.9955416792072356
+    },
+    {
+      "actualInsertionPhase" : 1.928759697634348,
+      "nextDisplayLinkTimestampMs" : 2.0643332973122597,
+      "processingAndLayoutMs" : 2.0489583257585764
+    },
+    {
+      "actualInsertionPhase" : 1.9380511489947225,
+      "nextDisplayLinkTimestampMs" : 2.2431666729971766,
+      "processingAndLayoutMs" : 2.225958334747702
+    },
+    {
+      "actualInsertionPhase" : 2.029816746553278,
+      "nextDisplayLinkTimestampMs" : 2.0395416649989784,
+      "processingAndLayoutMs" : 2.0230833324603736
+    },
+    {
+      "actualInsertionPhase" : 1.9078541601552612,
+      "nextDisplayLinkTimestampMs" : 13.789041666314006,
+      "processingAndLayoutMs" : 2.0055000204592943
+    },
+    {
+      "actualInsertionPhase" : 1.7512715637974579,
+      "nextDisplayLinkTimestampMs" : 2.0489166490733624,
+      "processingAndLayoutMs" : 2.0394166349433362
+    },
+    {
+      "actualInsertionPhase" : 1.93771338763425,
+      "nextDisplayLinkTimestampMs" : 2.2408749791793525,
+      "processingAndLayoutMs" : 2.220958296675235
+    },
+    {
+      "actualInsertionPhase" : 2.0240996395518125,
+      "nextDisplayLinkTimestampMs" : 2.10304168285802,
+      "processingAndLayoutMs" : 2.0865833503194153
+    },
+    {
+      "actualInsertionPhase" : 1.9425167933504592,
+      "nextDisplayLinkTimestampMs" : 2.0599583513103426,
+      "processingAndLayoutMs" : 2.040166698861867
+    },
+    {
+      "actualInsertionPhase" : 1.913078082812566,
+      "nextDisplayLinkTimestampMs" : 2.0469583687372506,
+      "processingAndLayoutMs" : 2.0317499875091016
+    },
+    {
+      "actualInsertionPhase" : 1.9367996027669936,
+      "nextDisplayLinkTimestampMs" : 2.1987916552461684,
+      "processingAndLayoutMs" : 2.1809166646562517
+    },
+    {
+      "actualInsertionPhase" : 1.92305266222169,
+      "nextDisplayLinkTimestampMs" : 13.45804170705378,
+      "processingAndLayoutMs" : 2.004541689530015
+    },
+    {
+      "actualInsertionPhase" : 1.701643771677611,
+      "nextDisplayLinkTimestampMs" : 2.001041662879288,
+      "processingAndLayoutMs" : 1.9919999758712947
+    },
+    {
+      "actualInsertionPhase" : 1.9024447628447267,
+      "nextDisplayLinkTimestampMs" : 1.7911666654981673,
+      "processingAndLayoutMs" : 1.7755416338331997
+    },
+    {
+      "actualInsertionPhase" : 1.9329498657081434,
+      "nextDisplayLinkTimestampMs" : 2.24116665776819,
+      "processingAndLayoutMs" : 2.220875001512468
+    },
+    {
+      "actualInsertionPhase" : 1.9477333393216376,
+      "nextDisplayLinkTimestampMs" : 2.0158750121481717,
+      "processingAndLayoutMs" : 2.000291657168418
+    },
+    {
+      "actualInsertionPhase" : 1.9185147728661975,
+      "nextDisplayLinkTimestampMs" : 2.075416618026793,
+      "processingAndLayoutMs" : 2.0597082911990583
+    },
+    {
+      "actualInsertionPhase" : 1.916339598906026,
+      "nextDisplayLinkTimestampMs" : 2.001749991904944,
+      "processingAndLayoutMs" : 1.990749966353178
+    },
+    {
+      "actualInsertionPhase" : 1.9325395211058984,
+      "nextDisplayLinkTimestampMs" : 2.173958346247673,
+      "processingAndLayoutMs" : 2.1611250122077763
+    },
+    {
+      "actualInsertionPhase" : 1.9662209492707936,
+      "nextDisplayLinkTimestampMs" : 2.050958340987563,
+      "processingAndLayoutMs" : 2.0366666722111404
+    },
+    {
+      "actualInsertionPhase" : 1.9123947423461907,
+      "nextDisplayLinkTimestampMs" : 2.107916690874845,
+      "processingAndLayoutMs" : 2.0941250259056687
+    },
+    {
+      "actualInsertionPhase" : 1.9278414294056088,
+      "nextDisplayLinkTimestampMs" : 2.0105832954868674,
+      "processingAndLayoutMs" : 1.9898333121091127
+    },
+    {
+      "actualInsertionPhase" : 1.890723089054039,
+      "nextDisplayLinkTimestampMs" : 13.66179168689996,
+      "processingAndLayoutMs" : 2.18829169170931
+    },
+    {
+      "actualInsertionPhase" : 1.681057702967769,
+      "nextDisplayLinkTimestampMs" : 1.9967083353549242,
+      "processingAndLayoutMs" : 1.9884167122654617
+    },
+    {
+      "actualInsertionPhase" : 1.9023498917049724,
+      "nextDisplayLinkTimestampMs" : 1.7527499585412443,
+      "processingAndLayoutMs" : 1.7371666617691517
+    },
+    {
+      "actualInsertionPhase" : 1.9118718196210875,
+      "nextDisplayLinkTimestampMs" : 2.056625031400472,
+      "processingAndLayoutMs" : 2.0347500103525817
+    },
+    {
+      "actualInsertionPhase" : 1.9318261434653903,
+      "nextDisplayLinkTimestampMs" : 2.194250002503395,
+      "processingAndLayoutMs" : 2.1699166973121464
+    },
+    {
+      "actualInsertionPhase" : 1.9401914335196246,
+      "nextDisplayLinkTimestampMs" : 2.0302916527725756,
+      "processingAndLayoutMs" : 2.014708356000483
+    },
+    {
+      "actualInsertionPhase" : 1.9257436646581902,
+      "nextDisplayLinkTimestampMs" : 1.9944583182223141,
+      "processingAndLayoutMs" : 1.979124965146184
+    },
+    {
+      "actualInsertionPhase" : 1.936291480208722,
+      "nextDisplayLinkTimestampMs" : 2.032708318438381,
+      "processingAndLayoutMs" : 2.0177916740067303
+    },
+    {
+      "actualInsertionPhase" : 1.9089778156205934,
+      "nextDisplayLinkTimestampMs" : 2.2184583358466625,
+      "processingAndLayoutMs" : 2.2016249713487923
+    },
+    {
+      "actualInsertionPhase" : 1.9259236987428239,
+      "nextDisplayLinkTimestampMs" : 2.0280833123251796,
+      "processingAndLayoutMs" : 2.0130416960455477
+    },
+    {
+      "actualInsertionPhase" : 1.9324492439547414,
+      "nextDisplayLinkTimestampMs" : 2.054416690953076,
+      "processingAndLayoutMs" : 2.0388750126585364
+    },
+    {
+      "actualInsertionPhase" : 1.9082541952403855,
+      "nextDisplayLinkTimestampMs" : 2.004458336159587,
+      "processingAndLayoutMs" : 1.9843333284370601
+    },
+    {
+      "actualInsertionPhase" : 1.9385217335182718,
+      "nextDisplayLinkTimestampMs" : 2.2337500122375786,
+      "processingAndLayoutMs" : 2.216458320617676
+    },
+    {
+      "actualInsertionPhase" : 1.9258584347398422,
+      "nextDisplayLinkTimestampMs" : 12.53150001866743,
+      "processingAndLayoutMs" : 2.0532082999125123
+    },
+    {
+      "actualInsertionPhase" : 1.6950801620570517,
+      "nextDisplayLinkTimestampMs" : 2.0106249721720815,
+      "processingAndLayoutMs" : 2.0020416704937816
+    },
+    {
+      "actualInsertionPhase" : 1.8966173230936385,
+      "nextDisplayLinkTimestampMs" : 1.9854166894219816,
+      "processingAndLayoutMs" : 1.9700000411830842
+    },
+    {
+      "actualInsertionPhase" : 1.9629015908555216,
+      "nextDisplayLinkTimestampMs" : 2.2285417071543634,
+      "processingAndLayoutMs" : 2.2059583570808172
+    },
+    {
+      "actualInsertionPhase" : 1.9629365428583958,
+      "nextDisplayLinkTimestampMs" : 2.0048333681188524,
+      "processingAndLayoutMs" : 1.9886666559614241
+    },
+    {
+      "actualInsertionPhase" : 1.920228586093533,
+      "nextDisplayLinkTimestampMs" : 2.0315416622906923,
+      "processingAndLayoutMs" : 2.0076250075362623
+    },
+    {
+      "actualInsertionPhase" : 1.9360807428587161,
+      "nextDisplayLinkTimestampMs" : 2.0128749893046916,
+      "processingAndLayoutMs" : 1.9960000063292682
+    },
+    {
+      "actualInsertionPhase" : 2.072690140381031,
+      "nextDisplayLinkTimestampMs" : 2.1161666372790933,
+      "processingAndLayoutMs" : 2.0995416562072933
+    },
+    {
+      "actualInsertionPhase" : 1.9424035823804606,
+      "nextDisplayLinkTimestampMs" : 12.427416688296944,
+      "processingAndLayoutMs" : 2.0585833699442446
+    },
+    {
+      "actualInsertionPhase" : 1.7389938548081896,
+      "nextDisplayLinkTimestampMs" : 1.9978333148173988,
+      "processingAndLayoutMs" : 1.9888333627022803
+    },
+    {
+      "actualInsertionPhase" : 1.8989622115383535,
+      "nextDisplayLinkTimestampMs" : 1.9977916381321847,
+      "processingAndLayoutMs" : 1.9824166665785015
+    },
+    {
+      "actualInsertionPhase" : 2.0577365899695472,
+      "nextDisplayLinkTimestampMs" : 2.0946250297129154,
+      "processingAndLayoutMs" : 2.078291669022292
+    },
+    {
+      "actualInsertionPhase" : 1.9565161886653344,
+      "nextDisplayLinkTimestampMs" : 2.009666699450463,
+      "processingAndLayoutMs" : 1.993708312511444
+    },
+    {
+      "actualInsertionPhase" : 1.9082962883381074,
+      "nextDisplayLinkTimestampMs" : 2.082583319861442,
+      "processingAndLayoutMs" : 2.0665833144448698
+    },
+    {
+      "actualInsertionPhase" : 1.91285944266469,
+      "nextDisplayLinkTimestampMs" : 2.0101250265724957,
+      "processingAndLayoutMs" : 1.9897916936315596
+    },
+    {
+      "actualInsertionPhase" : 2.021664311965315,
+      "nextDisplayLinkTimestampMs" : 2.113749971613288,
+      "processingAndLayoutMs" : 2.0932083134539425
+    },
+    {
+      "actualInsertionPhase" : 1.9479229281892931,
+      "nextDisplayLinkTimestampMs" : 11.612083297222853,
+      "processingAndLayoutMs" : 2.0330832921899855
+    },
+    {
+      "actualInsertionPhase" : 1.6668619055907619,
+      "nextDisplayLinkTimestampMs" : 2.058791695162654,
+      "processingAndLayoutMs" : 2.049458329565823
+    },
+    {
+      "actualInsertionPhase" : 1.8825894130132594,
+      "nextDisplayLinkTimestampMs" : 1.9988749991171062,
+      "processingAndLayoutMs" : 1.9838750013150275
+    },
+    {
+      "actualInsertionPhase" : 2.053123368843165,
+      "nextDisplayLinkTimestampMs" : 2.0354166626930237,
+      "processingAndLayoutMs" : 2.019000006839633
+    },
+    {
+      "actualInsertionPhase" : 1.9198756442946563,
+      "nextDisplayLinkTimestampMs" : 2.009624964557588,
+      "processingAndLayoutMs" : 1.9938749610446393
+    },
+    {
+      "actualInsertionPhase" : 1.940150939087657,
+      "nextDisplayLinkTimestampMs" : 1.9992916495539248,
+      "processingAndLayoutMs" : 1.9885000074282289
+    },
+    {
+      "actualInsertionPhase" : 1.9061561308148884,
+      "nextDisplayLinkTimestampMs" : 2.0605416502803564,
+      "processingAndLayoutMs" : 2.049541682936251
+    },
+    {
+      "actualInsertionPhase" : 2.0262624957724285,
+      "nextDisplayLinkTimestampMs" : 2.107375010382384,
+      "processingAndLayoutMs" : 2.0924166892655194
+    },
+    {
+      "actualInsertionPhase" : 1.9759552468340282,
+      "nextDisplayLinkTimestampMs" : 12.846583325881511,
+      "processingAndLayoutMs" : 1.98787497356534
+    },
+    {
+      "actualInsertionPhase" : 1.723337630814537,
+      "nextDisplayLinkTimestampMs" : 2.047833346296102,
+      "processingAndLayoutMs" : 2.038708364125341
+    },
+    {
+      "actualInsertionPhase" : 1.9134729235290673,
+      "nextDisplayLinkTimestampMs" : 2.0207500201649964,
+      "processingAndLayoutMs" : 2.0057916990481317
+    },
+    {
+      "actualInsertionPhase" : 2.086301799469634,
+      "nextDisplayLinkTimestampMs" : 2.0445416448637843,
+      "processingAndLayoutMs" : 2.0282500190660357
+    },
+    {
+      "actualInsertionPhase" : 1.9043466246821914,
+      "nextDisplayLinkTimestampMs" : 2.0202500163577497,
+      "processingAndLayoutMs" : 2.004583366215229
+    },
+    {
+      "actualInsertionPhase" : 1.9073228131379516,
+      "nextDisplayLinkTimestampMs" : 2.043666667304933,
+      "processingAndLayoutMs" : 2.0279583404771984
+    },
+    {
+      "actualInsertionPhase" : 1.9216155031139621,
+      "nextDisplayLinkTimestampMs" : 2.220124995801598,
+      "processingAndLayoutMs" : 2.202749950811267
+    },
+    {
+      "actualInsertionPhase" : 2.044835483832819,
+      "nextDisplayLinkTimestampMs" : 2.133250003680587,
+      "processingAndLayoutMs" : 2.1164583740755916
+    },
+    {
+      "actualInsertionPhase" : 1.9533948272688313,
+      "nextDisplayLinkTimestampMs" : 11.193208338227123,
+      "processingAndLayoutMs" : 2.0057083456777036
+    },
+    {
+      "actualInsertionPhase" : 1.6789777321077202,
+      "nextDisplayLinkTimestampMs" : 2.072624978609383,
+      "processingAndLayoutMs" : 2.063083346001804
+    },
+    {
+      "actualInsertionPhase" : 1.9259631914069408,
+      "nextDisplayLinkTimestampMs" : 2.2112500155344605,
+      "processingAndLayoutMs" : 2.194291679188609
+    },
+    {
+      "actualInsertionPhase" : 1.8922216240618497,
+      "nextDisplayLinkTimestampMs" : 2.0229583606123924,
+      "processingAndLayoutMs" : 2.0070833270438015
+    },
+    {
+      "actualInsertionPhase" : 1.9639402875699032,
+      "nextDisplayLinkTimestampMs" : 2.0325833465903997,
+      "processingAndLayoutMs" : 2.0169999916106462
+    },
+    {
+      "actualInsertionPhase" : 1.916373589871215,
+      "nextDisplayLinkTimestampMs" : 2.0641250303015113,
+      "processingAndLayoutMs" : 2.0528333843685687
+    },
+    {
+      "actualInsertionPhase" : 1.9245562591021164,
+      "nextDisplayLinkTimestampMs" : 2.1792500047013164,
+      "processingAndLayoutMs" : 2.16599996201694
+    },
+    {
+      "actualInsertionPhase" : 1.9336375473936767,
+      "nextDisplayLinkTimestampMs" : 1.9833749975077808,
+      "processingAndLayoutMs" : 1.9693333306349814
+    },
+    {
+      "actualInsertionPhase" : 1.917184600225753,
+      "nextDisplayLinkTimestampMs" : 2.0354166626930237,
+      "processingAndLayoutMs" : 2.019708335865289
+    },
+    {
+      "actualInsertionPhase" : 1.9383383890248513,
+      "nextDisplayLinkTimestampMs" : 2.0129166659899056,
+      "processingAndLayoutMs" : 1.9973749876953661
+    },
+    {
+      "actualInsertionPhase" : 1.9466587206681532,
+      "nextDisplayLinkTimestampMs" : 2.196500019636005,
+      "processingAndLayoutMs" : 2.178875030949712
+    },
+    {
+      "actualInsertionPhase" : 1.9188091243628917,
+      "nextDisplayLinkTimestampMs" : 13.202833302784711,
+      "processingAndLayoutMs" : 2.0626249606721103
+    },
+    {
+      "actualInsertionPhase" : 1.6855084588942495,
+      "nextDisplayLinkTimestampMs" : 1.9786249613389373,
+      "processingAndLayoutMs" : 1.969708304386586
+    },
+    {
+      "actualInsertionPhase" : 1.889422329294331,
+      "nextDisplayLinkTimestampMs" : 2.056666708085686,
+      "processingAndLayoutMs" : 2.040708379354328
+    },
+    {
+      "actualInsertionPhase" : 1.9552492883373203,
+      "nextDisplayLinkTimestampMs" : 2.3134166840463877,
+      "processingAndLayoutMs" : 2.2929999977350235
+    },
+    {
+      "actualInsertionPhase" : 1.9231165894110882,
+      "nextDisplayLinkTimestampMs" : 2.0085416617803276,
+      "processingAndLayoutMs" : 1.9881666521541774
+    },
+    {
+      "actualInsertionPhase" : 1.941709782626883,
+      "nextDisplayLinkTimestampMs" : 2.008833282161504,
+      "processingAndLayoutMs" : 1.99291663011536
+    },
+    {
+      "actualInsertionPhase" : 1.9077000878864547,
+      "nextDisplayLinkTimestampMs" : 1.9915833254344761,
+      "processingAndLayoutMs" : 1.9763750024139881
+    },
+    {
+      "actualInsertionPhase" : 2.0530536845566933,
+      "nextDisplayLinkTimestampMs" : 2.0916666253469884,
+      "processingAndLayoutMs" : 2.0752082928083837
+    },
+    {
+      "actualInsertionPhase" : 1.930503304050888,
+      "nextDisplayLinkTimestampMs" : 2.0955000072717667,
+      "processingAndLayoutMs" : 2.0795416785404086
+    },
+    {
+      "actualInsertionPhase" : 1.94800025838652,
+      "nextDisplayLinkTimestampMs" : 12.849375023506582,
+      "processingAndLayoutMs" : 1.9967916887253523
+    },
+    {
+      "actualInsertionPhase" : 1.7254106386415273,
+      "nextDisplayLinkTimestampMs" : 2.060833328869194,
+      "processingAndLayoutMs" : 2.0517917000688612
+    },
+    {
+      "actualInsertionPhase" : 2.04028014774777,
+      "nextDisplayLinkTimestampMs" : 2.045791654381901,
+      "processingAndLayoutMs" : 2.0293749985285103
+    },
+    {
+      "actualInsertionPhase" : 1.9362557974263708,
+      "nextDisplayLinkTimestampMs" : 2.013874996919185,
+      "processingAndLayoutMs" : 1.9982499652542174
+    },
+    {
+      "actualInsertionPhase" : 1.9776747639392993,
+      "nextDisplayLinkTimestampMs" : 1.9961666548624635,
+      "processingAndLayoutMs" : 1.980625034775585
+    },
+    {
+      "actualInsertionPhase" : 1.9363934666167617,
+      "nextDisplayLinkTimestampMs" : 2.2423749906010926,
+      "processingAndLayoutMs" : 2.217958332039416
+    },
+    {
+      "actualInsertionPhase" : 2.059771613154684,
+      "nextDisplayLinkTimestampMs" : 2.042791689746082,
+      "processingAndLayoutMs" : 2.0047083380632102
+    },
+    {
+      "actualInsertionPhase" : 1.964002776099059,
+      "nextDisplayLinkTimestampMs" : 10.240875009912997,
+      "processingAndLayoutMs" : 2.405625011306256
+    },
+    {
+      "actualInsertionPhase" : 1.7189565031592866,
+      "nextDisplayLinkTimestampMs" : 1.9955000025220215,
+      "processingAndLayoutMs" : 1.9859583117067814
+    },
+    {
+      "actualInsertionPhase" : 1.933092038578804,
+      "nextDisplayLinkTimestampMs" : 2.2610416635870934,
+      "processingAndLayoutMs" : 2.2395832929760218
+    },
+    {
+      "actualInsertionPhase" : 1.9658001789501693,
+      "nextDisplayLinkTimestampMs" : 2.059541642665863,
+      "processingAndLayoutMs" : 2.0432083401829004
+    },
+    {
+      "actualInsertionPhase" : 1.9123137642028782,
+      "nextDisplayLinkTimestampMs" : 2.05145834479481,
+      "processingAndLayoutMs" : 2.035833371337503
+    },
+    {
+      "actualInsertionPhase" : 1.9213699964293869,
+      "nextDisplayLinkTimestampMs" : 2.070999995339662,
+      "processingAndLayoutMs" : 2.0554166403599083
+    },
+    {
+      "actualInsertionPhase" : 1.894682169657542,
+      "nextDisplayLinkTimestampMs" : 2.1815000218339264,
+      "processingAndLayoutMs" : 2.1640833583660424
+    },
+    {
+      "actualInsertionPhase" : 1.9091573567920022,
+      "nextDisplayLinkTimestampMs" : 1.9960833596996963,
+      "processingAndLayoutMs" : 1.9850833341479301
+    },
+    {
+      "actualInsertionPhase" : 1.9211597408233783,
+      "nextDisplayLinkTimestampMs" : 2.0909999730065465,
+      "processingAndLayoutMs" : 2.079708327073604
+    },
+    {
+      "actualInsertionPhase" : 1.9177056585135315,
+      "nextDisplayLinkTimestampMs" : 2.0669582881964743,
+      "processingAndLayoutMs" : 2.0526250009424984
+    },
+    {
+      "actualInsertionPhase" : 1.9598177711040279,
+      "nextDisplayLinkTimestampMs" : 2.2801249870099127,
+      "processingAndLayoutMs" : 2.263541682623327
+    },
+    {
+      "actualInsertionPhase" : 2.024885796862038,
+      "nextDisplayLinkTimestampMs" : 10.923333349637687,
+      "processingAndLayoutMs" : 2.022000029683113
+    },
+    {
+      "actualInsertionPhase" : 1.6992736044783154,
+      "nextDisplayLinkTimestampMs" : 2.014583325944841,
+      "processingAndLayoutMs" : 2.0056249923072755
+    },
+    {
+      "actualInsertionPhase" : 1.948075745776009,
+      "nextDisplayLinkTimestampMs" : 2.001499990001321,
+      "processingAndLayoutMs" : 1.9832083489745855
+    },
+    {
+      "actualInsertionPhase" : 2.0307680008178544,
+      "nextDisplayLinkTimestampMs" : 2.045166620519012,
+      "processingAndLayoutMs" : 2.0293749985285103
+    },
+    {
+      "actualInsertionPhase" : 1.9664861052809621,
+      "nextDisplayLinkTimestampMs" : 2.0185833564028144,
+      "processingAndLayoutMs" : 2.003125031478703
+    },
+    {
+      "actualInsertionPhase" : 1.902945138340832,
+      "nextDisplayLinkTimestampMs" : 2.069041656795889,
+      "processingAndLayoutMs" : 2.0539166289381683
+    },
+    {
+      "actualInsertionPhase" : 1.8761971036508063,
+      "nextDisplayLinkTimestampMs" : 2.0200833096168935,
+      "processingAndLayoutMs" : 2.000833337660879
+    },
+    {
+      "actualInsertionPhase" : 2.0311484712641796,
+      "nextDisplayLinkTimestampMs" : 2.0389166311360896,
+      "processingAndLayoutMs" : 2.018374972976744
+    },
+    {
+      "actualInsertionPhase" : 1.921605684591993,
+      "nextDisplayLinkTimestampMs" : 12.815708352718502,
+      "processingAndLayoutMs" : 2.0020833471789956
+    },
+    {
+      "actualInsertionPhase" : 1.6699849296553484,
+      "nextDisplayLinkTimestampMs" : 1.9852916593663394,
+      "processingAndLayoutMs" : 1.976250030566007
+    },
+    {
+      "actualInsertionPhase" : 1.9198460114003222,
+      "nextDisplayLinkTimestampMs" : 2.1907916525378823,
+      "processingAndLayoutMs" : 2.1730416920036077
+    },
+    {
+      "actualInsertionPhase" : 2.07195136174578,
+      "nextDisplayLinkTimestampMs" : 2.191916690208018,
+      "processingAndLayoutMs" : 2.1490833605639637
+    },
+    {
+      "actualInsertionPhase" : 1.9788137827311583,
+      "nextDisplayLinkTimestampMs" : 2.0105416770093143,
+      "processingAndLayoutMs" : 1.9941250211559236
+    },
+    {
+      "actualInsertionPhase" : 1.9409545786208506,
+      "nextDisplayLinkTimestampMs" : 2.030708361417055,
+      "processingAndLayoutMs" : 2.0107916789129376
+    },
+    {
+      "actualInsertionPhase" : 1.937357635232983,
+      "nextDisplayLinkTimestampMs" : 2.2359583526849747,
+      "processingAndLayoutMs" : 2.2183749824762344
+    },
+    {
+      "actualInsertionPhase" : 1.9071027726254888,
+      "nextDisplayLinkTimestampMs" : 13.554374978411943,
+      "processingAndLayoutMs" : 1.9644999993033707
+    },
+    {
+      "actualInsertionPhase" : 1.695413836249109,
+      "nextDisplayLinkTimestampMs" : 2.0171666983515024,
+      "processingAndLayoutMs" : 2.008166688028723
+    },
+    {
+      "actualInsertionPhase" : 1.916244060626105,
+      "nextDisplayLinkTimestampMs" : 2.0648333593271673,
+      "processingAndLayoutMs" : 2.048833353910595
+    },
+    {
+      "actualInsertionPhase" : 1.9586414225111823,
+      "nextDisplayLinkTimestampMs" : 2.2177916252985597,
+      "processingAndLayoutMs" : 2.199999988079071
+    },
+    {
+      "actualInsertionPhase" : 1.9055733800908523,
+      "nextDisplayLinkTimestampMs" : 1.972666650544852,
+      "processingAndLayoutMs" : 1.9575832993723452
+    },
+    {
+      "actualInsertionPhase" : 1.8960391098414044,
+      "nextDisplayLinkTimestampMs" : 1.7773750005289912,
+      "processingAndLayoutMs" : 1.7617916455492377
+    },
+    {
+      "actualInsertionPhase" : 1.9259109983093987,
+      "nextDisplayLinkTimestampMs" : 1.9935833406634629,
+      "processingAndLayoutMs" : 1.9824166665785015
+    },
+    {
+      "actualInsertionPhase" : 1.9323264253338166,
+      "nextDisplayLinkTimestampMs" : 2.257999964058399,
+      "processingAndLayoutMs" : 2.2443333291448653
+    },
+    {
+      "actualInsertionPhase" : 1.9207696538847698,
+      "nextDisplayLinkTimestampMs" : 2.0122499554418027,
+      "processingAndLayoutMs" : 1.9978749915026128
+    },
+    {
+      "actualInsertionPhase" : 1.9499406796059722,
+      "nextDisplayLinkTimestampMs" : 2.0300416508689523,
+      "processingAndLayoutMs" : 2.011750009842217
+    },
+    {
+      "actualInsertionPhase" : 1.9480633573125363,
+      "nextDisplayLinkTimestampMs" : 2.076166681945324,
+      "processingAndLayoutMs" : 2.0557083771564066
+    },
+    {
+      "actualInsertionPhase" : 1.99801254667788,
+      "nextDisplayLinkTimestampMs" : 12.089083320461214,
+      "processingAndLayoutMs" : 2.270125027280301
+    },
+    {
+      "actualInsertionPhase" : 1.6979369540266054,
+      "nextDisplayLinkTimestampMs" : 1.9747500191442668,
+      "processingAndLayoutMs" : 1.9659583340398967
+    },
+    {
+      "actualInsertionPhase" : 1.994833618643624,
+      "nextDisplayLinkTimestampMs" : 2.063083346001804,
+      "processingAndLayoutMs" : 2.0452916505746543
+    },
+    {
+      "actualInsertionPhase" : 1.9399009260319622,
+      "nextDisplayLinkTimestampMs" : 2.053666685242206,
+      "processingAndLayoutMs" : 2.0381250069476664
+    },
+    {
+      "actualInsertionPhase" : 2.040735308249773,
+      "nextDisplayLinkTimestampMs" : 3.2306250068359077,
+      "processingAndLayoutMs" : 3.1821249867789447
+    },
+    {
+      "actualInsertionPhase" : 1.9240461979786145,
+      "nextDisplayLinkTimestampMs" : 2.0128333126194775,
+      "processingAndLayoutMs" : 1.9971666624769568
+    },
+    {
+      "actualInsertionPhase" : 1.902272050409428,
+      "nextDisplayLinkTimestampMs" : 13.637500000186265,
+      "processingAndLayoutMs" : 2.0402083173394203
+    },
+    {
+      "actualInsertionPhase" : 1.6743127766113264,
+      "nextDisplayLinkTimestampMs" : 2.0202500163577497,
+      "processingAndLayoutMs" : 2.0115000079385936
+    },
+    {
+      "actualInsertionPhase" : 2.0631554959838208,
+      "nextDisplayLinkTimestampMs" : 2.093666698783636,
+      "processingAndLayoutMs" : 2.077499986626208
+    },
+    {
+      "actualInsertionPhase" : 1.8981442087685112,
+      "nextDisplayLinkTimestampMs" : 2.0388749544508755,
+      "processingAndLayoutMs" : 2.0235416595824063
+    },
+    {
+      "actualInsertionPhase" : 1.9238109067686415,
+      "nextDisplayLinkTimestampMs" : 2.0245416671968997,
+      "processingAndLayoutMs" : 2.008875017054379
+    },
+    {
+      "actualInsertionPhase" : 1.937370146924303,
+      "nextDisplayLinkTimestampMs" : 2.176083333324641,
+      "processingAndLayoutMs" : 2.1590833202935755
+    },
+    {
+      "actualInsertionPhase" : 2.0608099497077137,
+      "nextDisplayLinkTimestampMs" : 2.069791662506759,
+      "processingAndLayoutMs" : 2.0503749838098884
+    },
+    {
+      "actualInsertionPhase" : 2.014510383219703,
+      "nextDisplayLinkTimestampMs" : 11.344083293806762,
+      "processingAndLayoutMs" : 2.048624970484525
+    },
+    {
+      "actualInsertionPhase" : 1.7280991984213026,
+      "nextDisplayLinkTimestampMs" : 2.042291685938835,
+      "processingAndLayoutMs" : 2.032791671808809
+    },
+    {
+      "actualInsertionPhase" : 1.9247220307872157,
+      "nextDisplayLinkTimestampMs" : 2.23408336751163,
+      "processingAndLayoutMs" : 2.2117916960269213
+    },
+    {
+      "actualInsertionPhase" : 1.8964946701023024,
+      "nextDisplayLinkTimestampMs" : 2.0187083282507956,
+      "processingAndLayoutMs" : 1.9984166719950736
+    },
+    {
+      "actualInsertionPhase" : 1.9733095397626583,
+      "nextDisplayLinkTimestampMs" : 2.12041666964069,
+      "processingAndLayoutMs" : 2.104208280798048
+    },
+    {
+      "actualInsertionPhase" : 2.001424258668008,
+      "nextDisplayLinkTimestampMs" : 2.0584166632033885,
+      "processingAndLayoutMs" : 2.0434583420865238
+    },
+    {
+      "actualInsertionPhase" : 2.0236116033299734,
+      "nextDisplayLinkTimestampMs" : 2.2119583445601165,
+      "processingAndLayoutMs" : 2.187750011216849
+    },
+    {
+      "actualInsertionPhase" : 1.9991039003808992,
+      "nextDisplayLinkTimestampMs" : 11.503291665576398,
+      "processingAndLayoutMs" : 2.0607499754987657
+    },
+    {
+      "actualInsertionPhase" : 1.6860004947928733,
+      "nextDisplayLinkTimestampMs" : 2.0482499967329204,
+      "processingAndLayoutMs" : 2.039166691247374
+    },
+    {
+      "actualInsertionPhase" : 1.93082206590396,
+      "nextDisplayLinkTimestampMs" : 2.0411666482686996,
+      "processingAndLayoutMs" : 2.021250023972243
+    },
+    {
+      "actualInsertionPhase" : 1.910474432895577,
+      "nextDisplayLinkTimestampMs" : 2.1726666600443423,
+      "processingAndLayoutMs" : 2.154499990865588
+    },
+    {
+      "actualInsertionPhase" : 1.9410547018703923,
+      "nextDisplayLinkTimestampMs" : 0.8104583248496056,
+      "processingAndLayoutMs" : 0.7948333513922989
+    },
+    {
+      "actualInsertionPhase" : 1.934033531459153,
+      "nextDisplayLinkTimestampMs" : 0.8588750497438014,
+      "processingAndLayoutMs" : 0.8412916795350611
+    },
+    {
+      "actualInsertionPhase" : 1.9191178172435066,
+      "nextDisplayLinkTimestampMs" : 0.694208312779665,
+      "processingAndLayoutMs" : 0.6828749901615083
+    },
+    {
+      "actualInsertionPhase" : 2.0109084722718116,
+      "nextDisplayLinkTimestampMs" : 0.8738750475458801,
+      "processingAndLayoutMs" : 0.8624583715572953
+    },
+    {
+      "actualInsertionPhase" : 1.922346595939246,
+      "nextDisplayLinkTimestampMs" : 0.839041720610112,
+      "processingAndLayoutMs" : 0.8246666984632611
+    },
+    {
+      "actualInsertionPhase" : 1.8970278273677261,
+      "nextDisplayLinkTimestampMs" : 0.7969166617840528,
+      "processingAndLayoutMs" : 0.7785416673868895
+    },
+    {
+      "actualInsertionPhase" : 1.9513999795522399,
+      "nextDisplayLinkTimestampMs" : 0.799208355601877,
+      "processingAndLayoutMs" : 0.7838750025257468
+    },
+    {
+      "actualInsertionPhase" : 2.120160596129251,
+      "nextDisplayLinkTimestampMs" : 0.8222500327974558,
+      "processingAndLayoutMs" : 0.8065833244472742
+    },
+    {
+      "actualInsertionPhase" : 1.9423889928692128,
+      "nextDisplayLinkTimestampMs" : 0.8089583134278655,
+      "processingAndLayoutMs" : 0.7939583156257868
+    },
+    {
+      "actualInsertionPhase" : 1.9430397976069858,
+      "nextDisplayLinkTimestampMs" : 0.8465416613034904,
+      "processingAndLayoutMs" : 0.8305416558869183
+    },
+    {
+      "actualInsertionPhase" : 1.9117762627052932,
+      "nextDisplayLinkTimestampMs" : 0.566125032491982,
+      "processingAndLayoutMs" : 0.5512500065378845
+    },
+    {
+      "actualInsertionPhase" : 2.0761188167281954,
+      "nextDisplayLinkTimestampMs" : 0.8645833004266024,
+      "processingAndLayoutMs" : 0.849083298817277
+    },
+    {
+      "actualInsertionPhase" : 1.8983422060943447,
+      "nextDisplayLinkTimestampMs" : 0.7663333672098815,
+      "processingAndLayoutMs" : 0.751374987885356
+    },
+    {
+      "actualInsertionPhase" : 1.924063913685967,
+      "nextDisplayLinkTimestampMs" : 0.8314583101309836,
+      "processingAndLayoutMs" : 0.8157499833032489
+    },
+    {
+      "actualInsertionPhase" : 2.0012640576687213,
+      "nextDisplayLinkTimestampMs" : 1.0769583750516176,
+      "processingAndLayoutMs" : 1.0586249991320074
+    },
+    {
+      "actualInsertionPhase" : 1.9840553538041978,
+      "nextDisplayLinkTimestampMs" : 0.8113749790936708,
+      "processingAndLayoutMs" : 0.7961249793879688
+    },
+    {
+      "actualInsertionPhase" : 2.041025564007053,
+      "nextDisplayLinkTimestampMs" : 0.8912916528061032,
+      "processingAndLayoutMs" : 0.8703750208951533
+    },
+    {
+      "actualInsertionPhase" : 2.0358842289579715,
+      "nextDisplayLinkTimestampMs" : 0.8747916435822845,
+      "processingAndLayoutMs" : 0.8583749877288938
+    },
+    {
+      "actualInsertionPhase" : 2.049067976323374,
+      "nextDisplayLinkTimestampMs" : 0.9967083460651338,
+      "processingAndLayoutMs" : 0.972208334133029
+    },
+    {
+      "actualInsertionPhase" : 2.0245477585255096,
+      "nextDisplayLinkTimestampMs" : 10.280750051606447,
+      "processingAndLayoutMs" : 0.7985833799466491
+    },
+    {
+      "actualInsertionPhase" : 1.6399487395980246,
+      "nextDisplayLinkTimestampMs" : 5.99320832407102,
+      "processingAndLayoutMs" : 0.732583343051374
+    }
+  ]
+}

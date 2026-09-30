@@ -37,8 +37,10 @@ extension Update {
     for node in nodes {
       if let parent = state.parent(of: node), isLinkedAutoLink(parent) { return }
     }
+    let joined = nodes.map { state[$0].text }.joined()
+    guard WebLinks.mayMatch(in: joined) else { return }
     var currentNodes = nodes
-    let initialText = Array(nodes.map { state[$0].text }.joined().utf16)
+    let initialText = Array(joined.utf16)
     var text = initialText[...]
     var invalidMatchEnd = 0
     while let match = WebLinks.firstMatch(in: String(decoding: text, as: UTF16.self)) {
@@ -278,16 +280,30 @@ enum WebLinks {
 
   /// `findFirstMatch` over the web's matchers.
   static func firstMatch(in text: String) -> Match? {
-    configuration.withLock { configuration in
-      let matchers = configuration.forProperty("matchers")!
-      for index in 0..<Int(matchers.forProperty("length").toInt32()) {
-        guard let result = matchers.atIndex(index).call(withArguments: [text]), result.isObject else { continue }
-        return Match(
-          index: Int(result.forProperty("index").toInt32()), length: Int(result.forProperty("length").toInt32()),
-          text: result.forProperty("text").toString(), url: result.forProperty("url").toString())
-      }
-      return nil
+    guard mayMatch(in: text) else { return nil }
+    return configuration.withLock { configuration in
+      guard let result = configuration.forProperty("firstMatch").call(withArguments: [text]), result.isObject else { return nil }
+      return Match(
+        index: Int(result.forProperty("index").toInt32()), length: Int(result.forProperty("length").toInt32()),
+        text: result.forProperty("text").toString(), url: result.forProperty("url").toString())
     }
+  }
+
+  private static let requiredUTF8 = autolinkRequiredSubstrings.map { Array($0.utf8) }
+
+  /// The web's necessary substrings are ASCII. Match their exact bytes rather
+  /// than paying for canonical Unicode substring searches on every text node.
+  static func mayMatch(in text: String) -> Bool {
+    func contains(_ bytes: UnsafeBufferPointer<UInt8>) -> Bool {
+      for index in bytes.indices {
+        for pattern in requiredUTF8 where bytes[index] == pattern[0] && index + pattern.count <= bytes.count {
+          if pattern.indices.allSatisfy({ bytes[index + $0] == pattern[$0] }) { return true }
+        }
+      }
+      return false
+    }
+    return text.utf8.withContiguousStorageIfAvailable(contains)
+      ?? Array(text.utf8).withUnsafeBufferPointer(contains)
   }
 
   static func validateUrl(_ url: String) -> Bool {

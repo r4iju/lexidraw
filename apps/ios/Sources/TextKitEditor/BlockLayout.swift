@@ -26,6 +26,7 @@ import UIKit
   private let storage: NSTextStorage
   private let document: DocumentText
   private let typesetting: Typesetting
+  private let tableTextMeasurements: TableView.TextMeasurements
   private weak var scrollView: UIScrollView?
   private var width: CGFloat = 0
   private var heights: [CGFloat] = []
@@ -35,6 +36,64 @@ import UIKit
   private var tops: [CGFloat] = [0]
   private var validTops = 0
   private var laidOut: [Int: any LaidOutBlock] = [:]
+  /// One detached table, prepared ahead of the viewport without changing block heights.
+  private var preparedTable: (index: Int, block: TableBlock)?
+  private var preparationLink: CADisplayLink?
+  private var previousTop: CGFloat = 0
+  private var scrollingForward = true
+
+  @MainActor private final class PreparationTarget: NSObject {
+    weak var layout: BlockLayout?
+    init(_ layout: BlockLayout) { self.layout = layout }
+    @objc func tick(_ link: CADisplayLink) {
+      guard let layout else { link.invalidate(); return }
+      guard layout.scrollView?.window != nil else { layout.cancelPreparation(); return }
+      if layout.preparedTable?.block.prepareNextCell() != false {
+        link.invalidate()
+        layout.preparationLink = nil
+      }
+    }
+  }
+
+  private func cancelPreparation() {
+    preparationLink?.invalidate()
+    preparationLink = nil
+    preparedTable = nil
+  }
+
+  private func prepareUpcomingTable(_ shown: Range<Int>, in scrollView: UIScrollView) {
+    guard let window = scrollView.window else { cancelPreparation(); return }
+    let top = visibleTop
+    if top != previousTop { scrollingForward = top > previousTop }
+    previousTop = top
+    let first = blockIndex(atY: top - 3 * scrollView.bounds.height)
+    let last = blockIndex(atY: top + 4 * scrollView.bounds.height)
+    let candidates = scrollingForward
+      ? Array(shown.upperBound..<max(shown.upperBound, last + 1))
+      : Array(first..<max(first, shown.lowerBound)).reversed().map { $0 }
+    let next = candidates.first { index in
+      guard laidOut[index] == nil else { return false }
+      if case .table = document.kind(ofBlock: index) { return true }
+      return false
+    }
+    guard let next else { cancelPreparation(); return }
+    if preparedTable?.index == next { return }
+    cancelPreparation()
+    preparedTable = (next, makeTable(next, incrementally: true))
+    let link = CADisplayLink(target: PreparationTarget(self), selector: #selector(PreparationTarget.tick(_:)))
+    let rate = Float(window.screen.maximumFramesPerSecond)
+    link.preferredFrameRateRange = CAFrameRateRange(minimum: min(60, rate), maximum: rate, preferred: rate)
+    preparationLink = link
+    link.add(to: .main, forMode: .common)
+  }
+
+  private func makeTable(_ index: Int, incrementally: Bool) -> TableBlock {
+    TableBlock(
+      text: text(ofBlock: index), kind: document.kind(ofBlock: index), width: width,
+      style: typesetting.typography.table, selectedOutline: typesetting.typography.rule.selected,
+      textMeasurements: tableTextMeasurements, prepareIncrementally: incrementally
+    ) { [weak self] in self?.onScrollSideways?() }
+  }
   /// Called when a block has scrolled sideways within itself, moving the
   /// text in it.
   var onScrollSideways: (() -> Void)?
@@ -47,6 +106,7 @@ import UIKit
     self.storage = storage
     self.document = document
     self.typesetting = typesetting
+    tableTextMeasurements = TableView.TextMeasurements(typesetting.typography.table)
   }
 
   /// A block of its own is a view; only a node inside a line of text stands
@@ -62,6 +122,7 @@ import UIKit
   /// Shows an edit of the text. `body` makes it and says which blocks it
   /// replaced, or nil when it can't say.
   func edit(_ body: () -> [DocumentText.Splice]?) {
+    cancelPreparation()
     guard let splices = body() else {
       reset()
       return
@@ -93,6 +154,7 @@ import UIKit
   }
 
   private func reset() {
+    cancelPreparation()
     for block in laidOut.values { block.view.removeFromSuperview() }
     laidOut = [:]
     heights = (0..<document.blockCount).map(estimate)
@@ -178,18 +240,22 @@ import UIKit
 
   private func block(_ index: Int) -> any LaidOutBlock {
     if let block = laidOut[index] { return block }
+    if let preparedTable, preparedTable.index == index {
+      preparedTable.block.finishPreparation()
+      let block = preparedTable.block
+      cancelPreparation()
+      laidOut[index] = block
+      showTableSelection(in: block, at: index)
+      showSelectedCharacters(in: block, at: index)
+      measure(index, block)
+      return block
+    }
     let kind = document.kind(ofBlock: index)
     let text = text(ofBlock: index)
     let block: any LaidOutBlock =
       switch kind {
       case .text: TextBlock(text: text, width: width, selectedOutline: typesetting.typography.rule.selected)
-      case .table:
-        TableBlock(
-          text: text, kind: kind, width: width, style: typesetting.typography.table,
-          selectedOutline: typesetting.typography.rule.selected
-        ) { [weak self] in
-          self?.onScrollSideways?()
-        }
+      case .table: makeTable(index, incrementally: false)
       case .embedded where styled(index) == .rule:
         RuleBlock(
           rule: typesetting.typography.rule, caretHeight: UIFont.preferredFont(forTextStyle: .body).lineHeight, width: width)
@@ -211,6 +277,7 @@ import UIKit
     if heights.count != document.blockCount { reset() }
     let width = max(scrollView.bounds.width - 2 * Self.margin, 0)
     if width != self.width {
+      cancelPreparation()
       // What is at the top stays there, as far into its block as it was.
       let anchor = heights.isEmpty ? 0 : blockIndex(atY: visibleTop)
       let within = heights.isEmpty ? 0 : (visibleTop - top(anchor)) / max(heights[anchor], 1)
@@ -233,6 +300,7 @@ import UIKit
       if unmeasured.isEmpty { break }
       for index in unmeasured { _ = block(index) }
     }
+    prepareUpcomingTable(shown, in: scrollView)
     for index in shown {
       let block = block(index)
       let frame = CGRect(x: 0, y: top(index), width: width, height: heights[index])
@@ -541,15 +609,18 @@ private final class TableBlock: LaidOutBlock {
 
   init(
     text: NSAttributedString, kind: DocumentText.BlockKind, width: CGFloat, style: DocumentTypography.Table,
-    selectedOutline: DocumentTypography.Outline, onScroll: @escaping () -> Void
+    selectedOutline: DocumentTypography.Outline, textMeasurements: TableView.TextMeasurements, prepareIncrementally: Bool = false, onScroll: @escaping () -> Void
   ) {
     self.kind = kind
     table = TableView(
       cells: Self.cells(text, kind), columnWidths: Self.table(kind)?.columnWidths, width: width, style: style,
-      selectedOutline: selectedOutline)
+      selectedOutline: selectedOutline, textMeasurements: textMeasurements, prepareIncrementally: prepareIncrementally)
     table.onScroll = onScroll
     holder = TableHolder(table)
   }
+
+  func prepareNextCell() -> Bool { table.prepareNextCell() }
+  func finishPreparation() { table.finishPreparation() }
 
   private static func table(_ kind: DocumentText.BlockKind) -> DocumentText.Table? {
     if case .table(let table) = kind { table } else { nil }

@@ -12,7 +12,10 @@ final class Typesetting {
   private(set) var width: Double = 0
   /// The document's, a BCP 47 tag.
   var language: String? {
-    didSet { typography = web.forLanguage(language) }
+    didSet {
+      typography = web.forLanguage(language)
+      attributesByStyle.removeAll(keepingCapacity: true)
+    }
   }
 
   init(_ typography: DocumentTypography) {
@@ -20,14 +23,32 @@ final class Typesetting {
     self.typography = typography
   }
 
-  private var em: CGFloat { UIFont.preferredFont(forTextStyle: .body).pointSize }
+  private var fontMetricsEm: CGFloat?
+  private var em: CGFloat { fontMetricsEm ?? UIFont.preferredFont(forTextStyle: .body).pointSize }
 
-  /// Sets text for a view `width` wide, returning whether that sets any
-  /// heading otherwise.
-  func setWidth(_ width: Double) -> Bool {
-    let before = BlockType.allCases.map { fontSize(.text($0)) }
+  /// A render/layout pass uses one Dynamic Type size, without repeatedly
+  /// asking UIKit for the same preferred font for every run and block.
+  func withFontMetrics<T>(_ body: () throws -> T) rethrows -> T {
+    let previous = fontMetricsEm
+    fontMetricsEm = em
+    defer { fontMetricsEm = previous }
+    return try body()
+  }
+  private struct AttributeStyle: Hashable {
+    let block: StyledBlock
+    let format: TextFormat
+  }
+  private var attributesByStyle: [AttributeStyle: [NSAttributedString.Key: Any]] = [:]
+  private var attributesEm: CGFloat = 0
+
+  /// Sets text for a view `width` wide and names the block styles whose
+  /// responsive font size changed.
+  func setWidth(_ width: Double) -> Set<String> {
+    guard width != self.width else { return [] }
+    attributesByStyle.removeAll(keepingCapacity: true)
+    let before = Dictionary(uniqueKeysWithValues: BlockType.allCases.map { ($0, fontSize(.text($0))) })
     self.width = width
-    return BlockType.allCases.map { fontSize(.text($0)) } != before
+    return Set(BlockType.allCases.filter { fontSize(.text($0)) != before[$0] }.map(\.rawValue))
   }
 
   func fontSize(_ block: StyledBlock) -> CGFloat { typography.fontSize(block, width: width) * em }
@@ -68,6 +89,13 @@ final class Typesetting {
   /// paragraphs' spacing, which sets apart the blocks nested in it; a
   /// table's paragraphs are spaced as the body's are, in the table's text.
   func attributes(_ block: StyledBlock, _ format: TextFormat) -> [NSAttributedString.Key: Any] {
+    let em = self.em
+    if attributesEm != em {
+      attributesEm = em
+      attributesByStyle.removeAll(keepingCapacity: true)
+    }
+    let style = AttributeStyle(block: block, format: format)
+    if let attributes = attributesByStyle[style] { return attributes }
     let size = fontSize(block)
     let heading = typography.heading(block)
     let setting = setting(block)
@@ -111,6 +139,8 @@ final class Typesetting {
     if format.contains(.strikethrough) { attributes[.strikethroughStyle] = NSUnderlineStyle.single.rawValue }
     if format.contains(.code) { attributes[.backgroundColor] = UIColor.secondarySystemFill }
     if format.contains(.highlight) { attributes[.backgroundColor] = UIColor.systemYellow.withAlphaComponent(0.4) }
+    attributes[.paragraphStyle] = paragraph.copy() as! NSParagraphStyle
+    attributesByStyle[style] = attributes
     return attributes
   }
 

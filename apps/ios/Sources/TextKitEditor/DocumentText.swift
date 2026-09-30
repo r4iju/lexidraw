@@ -287,7 +287,7 @@ public final class DocumentText {
     let text = NSMutableAttributedString()
     var rendered: [Block] = []
     for index in indexes {
-      let node = try model.node(at: [index])
+      let node = try model.nodeForPresentation(at: [index])
       let blockType = (node["type"] == "heading" ? node["tag"] : node["type"])?.stringValue ?? ""
       var renderer = Renderer(style: style, standIn: standIn, blockType: blockType)
       renderer.add(node, at: [])

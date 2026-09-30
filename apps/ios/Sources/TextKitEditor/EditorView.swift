@@ -141,16 +141,18 @@ public final class EditorView: UIScrollView, UITextInput {
 
   /// Brings the text up to date with `change`, or renders it afresh.
   private func render(_ change: ChangeSet?) {
-    layout.edit {
-      do {
-        if let change { return try document.update(storage, after: change) }
-        return try document.reload(storage)
-      } catch {
-        failed("The model's update couldn't be shown", error)
-        if change != nil {
-          do { try document.reload(storage) } catch { failed("The document couldn't be shown", error) }
+    typesetting.withFontMetrics {
+      layout.edit {
+        do {
+          if let change { return try document.update(storage, after: change) }
+          return try document.reload(storage)
+        } catch {
+          failed("The model's update couldn't be shown", error)
+          if change != nil {
+            do { try document.reload(storage) } catch { failed("The document couldn't be shown", error) }
+          }
+          return nil
         }
-        return nil
       }
     }
     setNeedsLayout()
@@ -626,7 +628,9 @@ public final class EditorView: UIScrollView, UITextInput {
       command(UIKeyCommand.inputUpArrow, .shift, #selector(extendUp)),
       command(UIKeyCommand.inputDownArrow, .shift, #selector(extendDown)),
       command(UIKeyCommand.inputLeftArrow, .command, #selector(moveToLineStart)),
+      command(UIKeyCommand.inputLeftArrow, [.command, .shift], #selector(extendToLineStart)),
       command(UIKeyCommand.inputRightArrow, .command, #selector(moveToLineEnd)),
+      command(UIKeyCommand.inputRightArrow, [.command, .shift], #selector(extendToLineEnd)),
     ]
     guard isEditable else { return moves }
     return moves + [
@@ -702,7 +706,9 @@ public final class EditorView: UIScrollView, UITextInput {
     }
     perform(.arrow(key, extend: extend, native: native, atCellEdge: atCellEdge, parentRTL: parentRTL, anchorRTL: anchorRTL), fromInput: false)
   }
+  @objc private func extendToLineStart() { move(to: lineBoundary(backward: true) ?? focus, extending: true) }
   @objc private func moveToLineStart() { move(to: lineBoundary(backward: true) ?? focus, extending: false) }
+  @objc private func extendToLineEnd() { move(to: lineBoundary(backward: false) ?? focus, extending: true) }
   @objc private func moveToLineEnd() { move(to: lineBoundary(backward: false) ?? focus, extending: false) }
   @objc private func deleteWordBackward() { perform(.deleteWord(backward: true), fromInput: false) }
   @objc private func deleteWordForward() { perform(.deleteWord(backward: false), fromInput: false) }
@@ -1225,8 +1231,12 @@ public final class EditorView: UIScrollView, UITextInput {
 
   public override func layoutSubviews() {
     super.layoutSubviews()
-    if composition == nil, typesetting.setWidth(bounds.width) { render(nil) }
-    layout.layoutViewport(of: self)
+    if composition == nil {
+      let changed = typesetting.setWidth(bounds.width)
+      let paths = (0..<document.blockCount).filter { changed.contains(document.type(ofBlock: $0)) }.map { [$0] }
+      if !paths.isEmpty { render(ChangeSet(changed: Set(paths))) }
+    }
+    typesetting.withFontMetrics { layout.layoutViewport(of: self) }
   }
 }
 

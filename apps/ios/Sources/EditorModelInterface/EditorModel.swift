@@ -27,6 +27,10 @@ public protocol EditorModel: AnyObject {
   /// The node at `path`, with everything under it, as the state saves it.
   func node(at path: [Int]) throws -> JSONValue
 
+  /// The same field values as `node(at:)`, for presentation only. Object key
+  /// order need not match the stored bytes; this value must not be saved.
+  func nodeForPresentation(at path: [Int]) throws -> JSONValue
+
   /// Names for the children of the element at `path`. A child keeps its name
   /// for as long as it stays in the document, wherever it moves, so a view can
   /// tell which children an update added, removed or kept. Names mean nothing
@@ -36,6 +40,7 @@ public protocol EditorModel: AnyObject {
 
 extension EditorModel {
   public func serializedState() throws -> JSONValue { ["root": try node(at: [])] }
+  public func nodeForPresentation(at path: [Int]) throws -> JSONValue { try node(at: path) }
 }
 
 public struct Snapshot: Codable, Equatable, Sendable {

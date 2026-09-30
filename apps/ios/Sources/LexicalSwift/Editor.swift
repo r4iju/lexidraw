@@ -188,6 +188,10 @@ public final class Editor: EditorModel {
     state.json(of: try key(at: path))
   }
 
+  public func nodeForPresentation(at path: [Int]) throws -> JSONValue {
+    state.json(of: try key(at: path), canonicalKeyOrder: false)
+  }
+
   public func childKeys(at path: [Int]) throws -> [String] {
     state.children(of: try key(at: path)).map(String.init)
   }

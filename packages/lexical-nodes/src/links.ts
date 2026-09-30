@@ -27,12 +27,31 @@ const AUTOLINK_URL_REGEX =
 const AUTOLINK_EMAIL_REGEX =
   /(([^<>()[\]\\.,;:\s@"]+(\.[^<>()[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))/;
 
+const URL_AUTOLINK_PREFIXES = ["http://", "https://", "www."] as const;
+const EMAIL_AUTOLINK_DELIMITER = "@";
+
+/** Every autolink matcher requires one of these substrings before it can match. */
+export const AUTOLINK_REQUIRED_SUBSTRINGS = [
+  ...URL_AUTOLINK_PREFIXES,
+  EMAIL_AUTOLINK_DELIMITER,
+] as const;
+
+const matchUrl = createLinkMatcherWithRegExp(AUTOLINK_URL_REGEX, (text) =>
+  text.startsWith("http") ? text : `https://${text}`,
+);
+const matchEmail = createLinkMatcherWithRegExp(
+  AUTOLINK_EMAIL_REGEX,
+  (text) => `mailto:${text}`,
+);
+
 /** The text the editor links as it's typed, and where each link goes. */
 export const AUTOLINK_MATCHERS: LinkMatcher[] = [
-  createLinkMatcherWithRegExp(AUTOLINK_URL_REGEX, (text) =>
-    text.startsWith("http") ? text : `https://${text}`,
-  ),
-  createLinkMatcherWithRegExp(AUTOLINK_EMAIL_REGEX, (text) => `mailto:${text}`),
+  (text) =>
+    URL_AUTOLINK_PREFIXES.some((prefix) => text.includes(prefix))
+      ? matchUrl(text)
+      : null,
+  // Without @ the email regex backtracks through every candidate in long text.
+  (text) => (text.includes(EMAIL_AUTOLINK_DELIMITER) ? matchEmail(text) : null),
 ];
 
 const LINK_URL_REGEX =

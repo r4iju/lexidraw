@@ -206,6 +206,18 @@ private struct JSONParser {
   /// A string's UTF-16 code units, where a lone surrogate, which a Swift
   /// string can't hold, reads as U+FFFD as it does in Swift.
   private mutating func string() throws -> String {
+    let start = index + 1
+    var end = start
+    while end < bytes.count {
+      let byte = bytes[end]
+      if byte == UInt8(ascii: "\"") {
+        index = end + 1
+        return String(decoding: bytes[start..<end], as: UTF8.self)
+      }
+      if byte == UInt8(ascii: "\\") || byte < 0x20 { break }
+      end += 1
+    }
+    // Escapes need the UTF-16 path, including its lone-surrogate handling.
     index += 1
     var units: [UInt16] = []
     while true {

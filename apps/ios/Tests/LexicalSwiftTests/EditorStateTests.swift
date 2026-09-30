@@ -3,6 +3,19 @@ import LexicalSwift
 import Testing
 
 @Suite struct EditorStateTests {
+  @Test func deeplyNestedListsSerializeLikeLexical() throws {
+    var entries: [LexicalJSON.ListEntry] = [.item([LexicalJSON.text("deep")])]
+    for _ in 0..<24 { entries = [.nested(.bullet, entries)] }
+    let document = LexicalJSON.document([LexicalJSON.list(.bullet, entries)])
+    let reference = try Support.referenceEditor()
+    try reference.load(document)
+    let expected = try reference.serializedState()
+    let editor = Editor()
+    try editor.load(document)
+
+    #expect(try editor.serializedState() == expected)
+  }
+
   @Test func unknownNodesAndUnknownFieldsSurviveLoadThenSave() throws {
     // Lexical would drop the empty text, but a node nobody knows keeps what it holds.
     let future: JSONValue = [

@@ -1,0 +1,94 @@
+{
+  "device": {
+    "model": "iPhone 14 Plus",
+    "chip": "A15",
+    "displayHz": 60,
+    "os": "iOS 27.0"
+  },
+  "configuration": "Release, physical device, synthetic disposable documents",
+  "measuredSourceCommit": "b5f505af",
+  "integratedCommit": "57871a04cc3dc19a2fe8f1dea6609529c9769b2f",
+  "integrationNote": "Device measurements precede integration of writing direction and table menus; final integrated device measurements remain required.",
+  "typing": {
+    "scope": "200 genuine insertText(\"x\") edits per workload, synchronous input processing and layout; excludes keyboard delivery, drawing and compositing",
+    "variant": "Videos replaced with empty paragraphs while preserving node and word counts; media editing belongs to #131",
+    "smallP95Ms": 1.143125002272427,
+    "largeP95Ms": 2.118208329193294,
+    "processingGate": "pass",
+    "actualKeystrokeToScreenLatency": "unmeasured; CADisplayLink timestamps are cadence evidence only"
+  },
+  "scroll": {
+    "workload": "Original mixed 115000-word, 9002-node workload with opaque videos",
+    "complete": true,
+    "openingProxyMs": 164.21,
+    "openingGateMs": 150,
+    "openingGate": "fail",
+    "openingScope": "First display-link timestamp with attached view, not verified pixel presentation",
+    "frames": 10190,
+    "callbackDelays": 2,
+    "instrumentsRenderingHitches": 66,
+    "renderingHitchTimeMs": 1116.6,
+    "zeroDroppedFramesGate": "fail",
+    "hangs": 0,
+    "layoutJumps": 0,
+    "traceLocalPath": "/tmp/lexidraw-119-phone-optimized/large-complete.trace"
+  },
+  "inputCoverage": "88 TextKit tests and eight table UI cases passed on integrated source. Hardware Command-Shift line selection regression fixed after failing tests. Positive software autocorrect and Option-Shift selection passed. Physical dictation and system text replacement remain unverified.",
+  "fuzzer": "Initial seed 1192026 million-command run failed at recursive EditorState export stack guard. A 24-wrapper deep-list regression reproduced SIGBUS before iterative export fixed it (commit ddd1023a). All local Swift tests then passed. Full million-command rerun at ddd1023a remains active; no completed million-command result is claimed.",
+  "corpus": "3 current combined live corpus checks passed locally.",
+  "warmWindowOpening": {
+    "scope": "Document decode, load and first attached-view display callback after establishing an empty window for one second; does not measure cold app opening or verified pixel presentation",
+    "measuredSourceCommit": "dddd7724 with EDITOR_WARM_WINDOW harness mode",
+    "runs": 10,
+    "medianMs": 138.666,
+    "p95Ms": 152.776,
+    "runsOver150Ms": 3,
+    "gate": "fail"
+  },
+  "incrementalScroll": {
+    "measuredSourceCommit": "74303e74 with reviewed warm-window harness option disabled",
+    "workload": "Original mixed 115000-word, 9002-node workload, complete end-to-end scroll",
+    "openingProxyMs": 168.36,
+    "openingGate": "fail",
+    "frames": 10190,
+    "callbackDelays": 0,
+    "instrumentsRenderingHitches": 0,
+    "renderingHitchTimeMs": 0,
+    "zeroDroppedFramesGate": "pass for this recorded run; actual hitches table verified present with zero rows",
+    "hangs": 0,
+    "layoutJumps": 0,
+    "peakMemoryMB": 77.46,
+    "traceLocalPath": "/tmp/lexidraw-119-phone-incremental/large.trace",
+    "comparison": "66 baseline rendering hitches; 49 with intrinsic measurement cache; 0 with incremental upcoming-table preparation"
+  },
+  "integratedTyping": {
+    "measuredSourceCommit": "74303e74 with reviewed warm-window harness option disabled",
+    "scope": "200 genuine insertText(\"x\") edits per workload, synchronous input processing and layout; excludes keyboard delivery, drawing and compositing",
+    "variant": "Videos replaced with empty paragraphs while preserving node and word counts; media editing belongs to #131",
+    "results": {
+      "small": {
+        "p95Ms": 1.3634166680276394,
+        "samples": 200
+      },
+      "large": {
+        "p95Ms": 2.220875001512468,
+        "samples": 200
+      }
+    },
+    "processingGate": "pass",
+    "actualKeystrokeToScreenLatency": "unmeasured; display-link timestamps are cadence evidence only"
+  },
+  "presentationProbe": {
+    "gate": "unverified",
+    "scope": "Experimental app-only ScreenCaptureKit; no valid editor glyph latency samples",
+    "control": "One complete timestamped static app frame recorded",
+    "failures": [
+      "Actor callback queue assertion (fixed in prototype)",
+      "Capture startup XPC encoding crash (no longer reproduced after retaining filter/configuration)",
+      "Glyph crop out of frame",
+      "Application connection interrupted during stream startup"
+    ],
+    "productionStatus": "Failed experimental capture code removed from production branch; raw diagnostics archived locally. No further device capture approvals requested."
+  },
+  "checkpointDirection": "Maintainer directs continuing native implementation toward close parity, with CI skipped. Missing or failing release gates remain explicit; this is not a claim that #119 passed."
+}

@@ -66,16 +66,18 @@ import UIKit
   let style: DocumentTypography.Table
   /// Around a node selected whole.
   private let selectedOutline: DocumentTypography.Outline
+  private let textMeasurements: TextMeasurements
   private var paddingX: CGFloat { style.paddingX }
   private var paddingY: CGFloat { style.paddingY }
   private var border: CGFloat { style.border }
 
   init(
     cells: [[Cell]], columnWidths: [Double]?, width: CGFloat, style: DocumentTypography.Table,
-    selectedOutline: DocumentTypography.Outline
+    selectedOutline: DocumentTypography.Outline, textMeasurements: TextMeasurements? = nil, prepareIncrementally: Bool = false
   ) {
     self.style = style
     self.selectedOutline = selectedOutline
+    self.textMeasurements = textMeasurements ?? TextMeasurements(style)
     super.init(frame: .zero)
     showsVerticalScrollIndicator = false
     alwaysBounceHorizontal = false
@@ -85,7 +87,8 @@ import UIKit
     pinned.table = self
     shadows.table = self
     scrollingFrame.table = self
-    set(cells: cells, columnWidths: columnWidths, width: width)
+    beginPreparation(cells: cells, columnWidths: columnWidths, width: width)
+    if !prepareIncrementally { finishPreparation() }
   }
 
   required init?(coder: NSCoder) { fatalError("TableView is made in code") }
@@ -99,30 +102,103 @@ import UIKit
 
   var height: CGFloat { tableSize.height }
 
+  private final class Preparation {
+    let placed: Placement
+    let indices: [CellIndex]
+    let columnWidths: [Double]?
+    let width: CGFloat
+    var metrics: [[TextMetrics?]]
+    var short: Set<Int>
+    var body: [Int]
+    var numbers: [Int]
+    var columns: [CGFloat]?
+    var alignment: Set<Int> = []
+    var cursor = 0
+
+    init(_ cells: [[Cell]], columnWidths: [Double]?, width: CGFloat) {
+      placed = Placement(cells)
+      indices = cells.enumerated().flatMap { row, cells in cells.indices.map { CellIndex(row: row, index: $0) } }
+      self.columnWidths = columnWidths
+      self.width = width
+      metrics = cells.map { Array(repeating: nil, count: $0.count) }
+      short = Set(0..<(cells.first?.count ?? 0))
+      body = Array(repeating: 0, count: cells.first?.count ?? 0)
+      numbers = body
+    }
+  }
+  private var preparation: Preparation?
+
   func set(cells: [[Cell]], columnWidths: [Double]?, width: CGFloat) {
+    beginPreparation(cells: cells, columnWidths: columnWidths, width: width)
+    finishPreparation()
+  }
+
+  private func beginPreparation(cells: [[Cell]], columnWidths: [Double]?, width: CGFloat) {
     self.cells = cells
-    let placed = Placement(cells)
-    let metrics = cells.map { $0.map { TextMetrics($0, style) } }
-    let short = shortColumns(cells)
-    var whole = short
-    var columns = self.columns(placed, metrics, short: short, whole: whole, fixed: columnWidths, width: width)
-    // Short columns stay whole while the table fits, the widest giving way
-    // first (`fitShortColumns`).
-    if columnWidths == nil, (cells.first?.count ?? 0) < style.scrollingColumns {
-      while !whole.isEmpty, columns.reduce(0, +) + 2 * border > width {
-        let firstRow = cells.first?.indices.map { placed.width(row: 0, index: $0, columns) } ?? []
-        let widest = whole.max { (firstRow[safe: $0] ?? 0) < (firstRow[safe: $1] ?? 0) }!
-        whole.remove(widest)
-        columns = self.columns(placed, metrics, short: short, whole: whole, fixed: nil, width: width)
+    boxes = cells.map { _ in [] }
+    preparation = Preparation(cells, columnWidths: columnWidths, width: width)
+  }
+
+  /// Measures one cell per call. No partial geometry is exposed to the editor.
+  @discardableResult func prepareNextCell() -> Bool {
+    guard let preparation else { return true }
+    if preparation.columns == nil, preparation.cursor < preparation.indices.count {
+      let at = preparation.indices[preparation.cursor]
+      let cell = cells[at.row][at.index]
+      preparation.metrics[at.row][at.index] = textMeasurements.metrics(cell)
+      let plain = Self.plainText(cell)
+      if preparation.short.contains(at.index), Self.columnsWide(plain, isWide: textMeasurements.isWide) > style.shortColumns {
+        preparation.short.remove(at.index)
       }
-    }
-    let alignment = numericColumns(cells)
-    boxes = cells.enumerated().map { row, rowCells in
-      rowCells.enumerated().map { index, cell in
-        let content = placed.width(row: row, index: index, columns) - 2 * paddingX - endBorder(row, index)
-        return TextBox(styled(cell, alignedRight: alignment.contains(index)), width: max(content, 1))
+      if preparation.body.indices.contains(at.index), !cell.isHeader {
+        preparation.body[at.index] += 1
+        if style.number.firstMatch(in: plain) != nil { preparation.numbers[at.index] += 1 }
       }
+      preparation.cursor += 1
+      return false
     }
+    if preparation.columns == nil {
+      let placed = preparation.placed
+      let metrics = preparation.metrics.map { $0.map { $0! } }
+      let short = preparation.short
+      var whole = short
+      var columns = self.columns(placed, metrics, short: short, whole: whole, fixed: preparation.columnWidths, width: preparation.width)
+      // Short columns stay whole while the table fits, the widest giving way
+      // first (`fitShortColumns`).
+      if preparation.columnWidths == nil, (cells.first?.count ?? 0) < style.scrollingColumns {
+        while !whole.isEmpty, columns.reduce(0, +) + 2 * border > preparation.width {
+          let firstRow = cells.first?.indices.map { placed.width(row: 0, index: $0, columns) } ?? []
+          let widest = whole.max { (firstRow[safe: $0] ?? 0) < (firstRow[safe: $1] ?? 0) }!
+          whole.remove(widest)
+          columns = self.columns(placed, metrics, short: short, whole: whole, fixed: nil, width: preparation.width)
+        }
+      }
+      preparation.columns = columns
+      preparation.alignment = Set(preparation.body.indices.filter {
+        preparation.body[$0] > 0 && Double(preparation.numbers[$0]) / Double(preparation.body[$0]) >= 0.8
+      })
+      preparation.cursor = 0
+    }
+    if preparation.cursor < preparation.indices.count {
+      let at = preparation.indices[preparation.cursor]
+      let content = preparation.placed.width(row: at.row, index: at.index, preparation.columns!) - 2 * paddingX - endBorder(at.row, at.index)
+      boxes[at.row].append(TextBox(styled(cells[at.row][at.index], alignedRight: preparation.alignment.contains(at.index)), width: max(content, 1)))
+      preparation.cursor += 1
+      return false
+    }
+    finishGeometry(preparation)
+    self.preparation = nil
+    return true
+  }
+
+  func finishPreparation() {
+    while !prepareNextCell() {}
+  }
+
+  private func finishGeometry(_ preparation: Preparation) {
+    let placed = preparation.placed
+    let columns = preparation.columns!
+    let width = preparation.width
     var rowHeights = [CGFloat](repeating: 0, count: cells.count)
     for (row, rowCells) in cells.enumerated() {
       for index in rowCells.indices where placed.rowSpan(row: row, index: index) == 1 {
@@ -273,39 +349,13 @@ import UIKit
     return (0..<count).map { least[$0] + (most[$0] - least[$0]) * (isSet[$0] ? setShare : otherShare) }
   }
 
-  /// The cells' indexes in their rows whose every cell is short, as
-  /// `DocumentTablesPlugin` counts columns: by index in the row, with the
-  /// first row's length.
-  private func shortColumns(_ cells: [[Cell]]) -> Set<Int> {
-    let count = cells.first?.count ?? 0
-    return Set(
-      (0..<count).filter { index in
-        cells.allSatisfy { row in
-          guard let cell = row[safe: index] else { return true }
-          return columnsWide(Self.plainText(cell)) <= style.shortColumns
-        }
-      })
-  }
-
-  /// The columns mostly of numbers, which the web aligns right: at least
-  /// 80% of their cells other than headers.
-  private func numericColumns(_ cells: [[Cell]]) -> Set<Int> {
-    let count = cells.first?.count ?? 0
-    return Set(
-      (0..<count).filter { index in
-        let body = cells.compactMap { $0[safe: index] }.filter { !$0.isHeader }
-        let numbers = body.filter { style.number.firstMatch(in: Self.plainText($0)) != nil }
-        return !body.isEmpty && Double(numbers.count) / Double(body.count) >= 0.8
-      })
-  }
-
   private static func plainText(_ cell: Cell) -> String {
     cell.text.string.trimmingCharacters(in: .whitespacesAndNewlines)
   }
 
   /// `columnsWide`: a wide character counts as two.
-  private func columnsWide(_ text: String) -> Int {
-    text.unicodeScalars.reduce(0) { $0 + (style.isWide($1) ? 2 : 1) }
+  private static func columnsWide(_ text: String, isWide: (Unicode.Scalar) -> Bool) -> Int {
+    text.unicodeScalars.reduce(0) { $0 + (isWide($1) ? 2 : 1) }
   }
 
   /// A cell's text as the web shows it: a header's in the header weight,
@@ -497,12 +547,59 @@ import UIKit
   }
 
   /// How wide a cell's text is on one line, and its widest word.
-  private struct TextMetrics {
+  final class TextMeasurements {
+    private let style: DocumentTypography.Table
+    private var wideScalars: [Unicode.Scalar: Bool] = [:]
+    private let widths = NSCache<NSAttributedString, StoredMetrics>()
+
+    init(_ style: DocumentTypography.Table) {
+      self.style = style
+      widths.countLimit = 256
+      widths.totalCostLimit = 2_000_000
+    }
+
+    func isWide(_ scalar: Unicode.Scalar) -> Bool {
+      if let result = wideScalars[scalar] { return result }
+      let result = style.isWide(scalar)
+      if wideScalars.count == 512 { wideScalars.removeAll(keepingCapacity: true) }
+      wideScalars[scalar] = result
+      return result
+    }
+
+    fileprivate func metrics(_ cell: Cell) -> TextMetrics {
+      var cacheable = true
+      let whole = NSRange(location: 0, length: cell.text.length)
+      cell.text.enumerateAttributes(in: whole) { attributes, _, stop in
+        for value in attributes.values {
+          guard value is NSParagraphStyle || value is UIFont || value is UIColor || value is NSNumber
+            || (value is NSString && !(value is NSMutableString)) || value is NSURL
+          else { cacheable = false; stop.pointee = true; return }
+        }
+      }
+      if cacheable, let stored = widths.object(forKey: cell.text) { return stored.value }
+      let value = TextMetrics(cell, isWide: isWide)
+      if cacheable {
+        let key = NSMutableAttributedString(attributedString: cell.text)
+        key.enumerateAttribute(.paragraphStyle, in: whole) { value, range, _ in
+          if let paragraph = value as? NSParagraphStyle { key.addAttribute(.paragraphStyle, value: paragraph.copy(), range: range) }
+        }
+        widths.setObject(StoredMetrics(value), forKey: NSAttributedString(attributedString: key), cost: cell.text.length * 2)
+      }
+      return value
+    }
+
+    private final class StoredMetrics {
+      let value: TextMetrics
+      init(_ value: TextMetrics) { self.value = value }
+    }
+  }
+
+  fileprivate struct TextMetrics {
     var minContent: CGFloat = 0
     var maxContent: CGFloat = 0
     var isEmpty: Bool
 
-    init(_ cell: Cell, _ style: DocumentTypography.Table) {
+    init(_ cell: Cell, isWide: (Unicode.Scalar) -> Bool) {
       let text = cell.text
       let string = text.string as NSString
       isEmpty = string.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -522,7 +619,7 @@ import UIKit
         } else if character == 0x20 || character == 0x09 {
           minContent = max(minContent, width(pieceStart, offset))
           pieceStart = offset + 1
-        } else if let scalar, style.isWide(scalar) {
+        } else if let scalar, isWide(scalar) {
           // A line may break either side of a CJK character.
           minContent = max(minContent, width(pieceStart, offset), width(offset, offset + 1))
           pieceStart = offset + 1

@@ -4,9 +4,12 @@
 /// paste as nodes.
 public let editorNamespace = #"Lexidraw"#
 
+/// Necessary substrings enforced by every web autolink matcher.
+let autolinkRequiredSubstrings: [String] = [#"http://"#, #"https://"#, #"www."#, #"@"#]
+
 /// `packages/lexical-nodes/src/links.ts`, bundled with whatwg-url for
 /// its `URL`: it sets `linkConfiguration` to the web editor's autolink
-/// `matchers`, `validateUrl` and `sanitizeUrl`.
+/// matching, `validateUrl` and `sanitizeUrl`.
 let linkConfigurationScript = ##"""
 (() => {
   var __create = Object.create;
@@ -3497,9 +3500,17 @@ let linkConfigurationScript = ##"""
 
   var AUTOLINK_URL_REGEX = /((https?:\/\/(www\.)?)|(www\.))[-a-zA-Z0-9@:%._+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_+.~#?&//=]*)(?<![-.+():%])/;
   var AUTOLINK_EMAIL_REGEX = /(([^<>()[\]\\.,;:\s@"]+(\.[^<>()[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))/;
+  var URL_AUTOLINK_PREFIXES = ["http://", "https://", "www."];
+  var EMAIL_AUTOLINK_DELIMITER = "@";
+  var AUTOLINK_REQUIRED_SUBSTRINGS = [
+    ...URL_AUTOLINK_PREFIXES,
+    EMAIL_AUTOLINK_DELIMITER
+  ];
+  var matchUrl = createLinkMatcherWithRegExp(AUTOLINK_URL_REGEX, (text) => text.startsWith("http") ? text : `https://${text}`);
+  var matchEmail = createLinkMatcherWithRegExp(AUTOLINK_EMAIL_REGEX, (text) => `mailto:${text}`);
   var AUTOLINK_MATCHERS = [
-    createLinkMatcherWithRegExp(AUTOLINK_URL_REGEX, (text) => text.startsWith("http") ? text : `https://${text}`),
-    createLinkMatcherWithRegExp(AUTOLINK_EMAIL_REGEX, (text) => `mailto:${text}`)
+    (text) => URL_AUTOLINK_PREFIXES.some((prefix) => text.includes(prefix)) ? matchUrl(text) : null,
+    (text) => text.includes(EMAIL_AUTOLINK_DELIMITER) ? matchEmail(text) : null
   ];
   var LINK_URL_REGEX = /((([A-Za-z]{3,9}:(?:\/\/)?)(?:[-;:&=+$,\w]+@)?[A-Za-z0-9.-]+|(?:www.|[-;:&=+$,\w]+@)[A-Za-z0-9.-]+)((?:\/[+~%/.\w-_]*)?\??(?:[-+=&;%@.\w_]*)#?(?:[\w]*))?)/;
   function validateUrl(url) {
@@ -3522,7 +3533,18 @@ let linkConfigurationScript = ##"""
   }
 
   Object.assign(globalThis, {
-    linkConfiguration: { matchers: AUTOLINK_MATCHERS, validateUrl, sanitizeUrl }
+    linkConfiguration: {
+      firstMatch(text) {
+        for (const matcher of AUTOLINK_MATCHERS) {
+          const match = matcher(text);
+          if (match)
+            return match;
+        }
+        return null;
+      },
+      validateUrl,
+      sanitizeUrl
+    }
   });
 })();
 """##

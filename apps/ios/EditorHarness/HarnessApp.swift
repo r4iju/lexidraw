@@ -33,12 +33,13 @@ struct HarnessApp: App {
 }
 
 struct HarnessView: View {
-  @State private var opened = Result { try Harness.open() }
+  @State private var opened: Result<Harness, Error>? =
+    ProcessInfo.processInfo.environment["EDITOR_WARM_WINDOW"] == nil ? Result { try Harness.open() } : nil
   @State private var message: String?
 
   var body: some View {
     switch opened {
-    case .success(let harness):
+    case .success(let harness)?:
       EditorRepresentable(harness: harness)
         .navigationTitle(harness.title)
         .navigationBarTitleDisplayMode(.inline)
@@ -53,10 +54,18 @@ struct HarnessView: View {
           }
         }
         .alert("Couldn't save", message: $message)
-    case .failure(let error):
+    case .failure(let error)?:
       ContentUnavailableView(
         "Couldn't open the document", systemImage: "exclamationmark.triangle",
         description: Text(String(describing: error)))
+    case nil:
+      ContentUnavailableView("Preparing measurement window", systemImage: "clock")
+        .navigationTitle("Editor measurement")
+        .navigationBarTitleDisplayMode(.inline)
+        .task {
+          do { try await Task.sleep(for: .seconds(1)) } catch { return }
+          opened = Result { try Harness.open() }
+        }
     }
   }
 }
@@ -66,6 +75,7 @@ final class Harness {
   let model: any EditorModel
   let title: String
   let scrollReport: URL?
+  let typingReport: URL?
   var timing: Timing
   private(set) var inputs: [TextInputRecord] = []
   var hardwareKeys = 0
@@ -77,6 +87,7 @@ final class Harness {
     var document: String
     var footprintAtOpen: Double
     var opened: CFTimeInterval
+    var decoded: CFTimeInterval = 0
     var loaded: CFTimeInterval = 0
     var viewMade: CFTimeInterval = 0
     var viewInitialized: CFTimeInterval = 0
@@ -84,19 +95,23 @@ final class Harness {
   }
 
   private init(
-    model: any EditorModel, title: String, timing: Timing, scrollReport: URL?,
+    model: any EditorModel, title: String, timing: Timing, scrollReport: URL?, typingReport: URL?,
     saveURL: URL, inputLogURL: URL?
   ) {
     self.model = model
     self.title = title
     self.timing = timing
     self.scrollReport = scrollReport
+    self.typingReport = typingReport
     self.saveURL = saveURL
     self.inputLogURL = inputLogURL
   }
 
   static func open() throws -> Harness {
     let environment = ProcessInfo.processInfo.environment
+    if environment["EDITOR_SCROLL_REPORT"] != nil || environment["EDITOR_TYPING_REPORT"] != nil {
+      UIApplication.shared.isIdleTimerDisabled = true
+    }
     let name = environment["EDITOR_MODEL"] ?? EditorModelChoice.lexicalSwift.rawValue
     guard let choice = EditorModelChoice(rawValue: name) else { throw HarnessError("No model named \(name)") }
     let model: any EditorModel
@@ -124,7 +139,10 @@ final class Harness {
       opened: CACurrentMediaTime())
     let document: Data
     if let synthetic {
-      document = try JSONEncoder().encode(synthetic.state)
+      let input = environment["EDITOR_TYPING_REPORT"] != nil
+      let state = input ? synthetic.checkpointInputState : synthetic.state
+      if input { timing.document += "; checkpoint input variant (videos replaced by empty paragraphs)" }
+      document = try JSONEncoder().encode(state)
       timing.opened = CACurrentMediaTime()
     } else if let given = environment["EDITOR_DOCUMENT"] {
       document = Data(given.utf8)
@@ -133,14 +151,24 @@ final class Harness {
     } else {
       throw HarnessError("The app has no tracer.json to open")
     }
-    try model.load(try JSONDecoder().decode(JSONValue.self, from: document))
+    if environment["EDITOR_WARM_WINDOW"] != nil { timing.document += "; document open in an existing window" }
+    guard let text = String(data: document, encoding: .utf8) else {
+      throw HarnessError("The document is not UTF-8 JSON")
+    }
+    let state = try JSONValue(parsing: text)
+    timing.decoded = CACurrentMediaTime()
+    try model.load(state)
     timing.loaded = CACurrentMediaTime()
+    if environment["EDITOR_TYPING_REPORT"] != nil {
+      precondition(model.isEditable, "The input workload must be editable")
+    }
     let saveURL =
       environment["EDITOR_SAVE_PATH"].map { URL(fileURLWithPath: $0) }
       ?? URL.documentsDirectory.appending(path: "saved.json")
     return Harness(
       model: model, title: title, timing: timing,
       scrollReport: environment["EDITOR_SCROLL_REPORT"].map { URL(filePath: $0, relativeTo: .documentsDirectory) },
+      typingReport: environment["EDITOR_TYPING_REPORT"].map { URL(filePath: $0, relativeTo: .documentsDirectory) },
       saveURL: saveURL,
       inputLogURL: environment["EDITOR_INPUT_LOG"].map { URL(fileURLWithPath: $0) })
   }
@@ -168,8 +196,13 @@ struct EditorRepresentable: UIViewRepresentable {
     let editor = EditorView(model: harness.model)
     harness.timing.viewInitialized = CACurrentMediaTime()
     editor.accessibilityIdentifier = "editor"
-    editor.onInput = { [harness] in harness.record($0) }
-    if let report = harness.scrollReport {
+    if harness.scrollReport == nil && harness.typingReport == nil
+      || ProcessInfo.processInfo.environment["EDITOR_INPUT_LOG"] != nil {
+      editor.onInput = { [harness] in harness.record($0) }
+    }
+    if let report = harness.typingReport {
+      TypingProbe(view: editor, report: report, timing: harness.timing).start()
+    } else if let report = harness.scrollReport {
       // Its display link keeps it.
       ScrollProbe(view: editor, report: report, step: 60, timing: harness.timing)
         .start(waiting: ProcessInfo.processInfo.environment["EDITOR_SCROLL_WAIT"] != nil)

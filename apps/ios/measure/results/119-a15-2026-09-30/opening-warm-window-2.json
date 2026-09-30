@@ -1,0 +1,39 @@
+{
+  "contentHeight" : 420346.6749999998,
+  "decodingMs" : 13.86779168387875,
+  "document" : "115000 words, 9002 nodes; document open in an existing window",
+  "frames" : 0,
+  "hitchTimeMs" : 0,
+  "hitches" : 0,
+  "intervalMs" : {
+    "max" : 0,
+    "p50" : 0,
+    "p95" : 0,
+    "p99" : 0
+  },
+  "jumpToTheMiddleMs" : 0,
+  "jumps" : 0,
+  "largestJumps" : [
+
+  ],
+  "loadMs" : 74.11254168255255,
+  "makingTheViewMs" : 35.682958317920566,
+  "memoryMB" : {
+    "atStart" : 11.876708984375,
+    "end" : 51.861106872558594,
+    "firstScreen" : 51.861106872558594,
+    "peak" : 51.861106872558594
+  },
+  "modelLoadMs" : 60.2447499986738,
+  "openToFirstScreenMs" : 152.71554165519774,
+  "viewToFirstScreenMs" : 75.98249998409301,
+  "workByPhaseMs" : {
+
+  },
+  "workMs" : {
+    "max" : 0,
+    "p50" : 0,
+    "p95" : 0,
+    "p99" : 0
+  }
+}
