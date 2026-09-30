@@ -469,7 +469,16 @@ public final class EditorView: UIScrollView, UITextInput {
     -> NSWritingDirection
   {
     guard let position = position as? TextPosition else { return .natural }
-    return layout.writingDirection(at: position.offset)
+    var path = document.point(at: position.offset).path
+    while !path.isEmpty {
+      if let direction = (try? model.node(at: path))?["direction"]?.stringValue {
+        return direction == "rtl" ? .rightToLeft : .leftToRight
+      }
+      path.removeLast()
+    }
+    // Reporting resolved LTR/RTL here makes UIKit apply an explicit override while typing.
+    // Arrow handling reads the resolved layout separately.
+    return .natural
   }
 
   public func setBaseWritingDirection(_ writingDirection: NSWritingDirection, for range: UITextRange) {
