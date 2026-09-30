@@ -54,3 +54,33 @@ import UIKit
   }
 }
 #endif
+
+#if canImport(UIKit)
+import ImageIO
+
+@MainActor @Suite struct UnsupportedMediaFormatTests {
+  @Test func imageLoadingCanBeProvidedWithoutChangingThePayload() async throws {
+    let payload = try #require(MediaPayload(["type": "inline-image", "src": "https://example.com/test.svg", "width": 100, "height": 50]))
+    var calls = 0
+    let attachment = MediaAttachment(payload, imageLoader: { _ in
+      calls += 1
+      return UIGraphicsImageRenderer(size: CGSize(width: 20, height: 10)).image { _ in }
+    })
+    await withCheckedContinuation { continuation in attachment.load { continuation.resume() } }
+    #expect(calls == 1)
+    #expect(attachment.payload.source?.absoluteString == "https://example.com/test.svg")
+  }
+  @Test func animationDoesNotSilentlyBecomeAStillFrame() async throws {
+    let photo = UIGraphicsImageRenderer(size: CGSize(width: 20, height: 10)).image { _ in
+      UIColor.blue.setFill(); UIRectFill(CGRect(x: 0, y: 0, width: 20, height: 10))
+    }
+    let data = NSMutableData()
+    let destination = try #require(CGImageDestinationCreateWithData(data, "com.compuserve.gif" as CFString, 2, nil))
+    CGImageDestinationAddImage(destination, photo.cgImage!, nil)
+    CGImageDestinationAddImage(destination, photo.cgImage!, nil)
+    #expect(CGImageDestinationFinalize(destination))
+    let url = try #require(URL(string: "data:image/gif;base64," + (data as Data).base64EncodedString()))
+    await #expect(throws: MediaImageError.unsupportedFormat("Animated images")) { try await MediaView.image(url) }
+  }
+}
+#endif

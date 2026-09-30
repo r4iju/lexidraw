@@ -66,13 +66,25 @@ public final class EditorView: UIScrollView, UITextInput {
   }
 
   public var inlineEmbeddedContent: ((String, JSONValue, CGFloat) -> NSTextAttachment?)? {
-    didSet {
+    didSet { configureInlineAttachments() }
+  }
+
+  /// Optional platform decoder/rasterizer; the built-in raster loader is the default.
+  public var mediaImageLoader: MediaImageLoader? {
+    didSet { layout.mediaImageLoader = mediaImageLoader; configureInlineAttachments() }
+  }
+
+  private func configureInlineAttachments() {
+    if inlineEmbeddedContent == nil && mediaImageLoader == nil { document.nativeAttachment = nil }
+    else {
       document.nativeAttachment = { [weak self] node, path in
         guard let self, let key = nodeKey(at: path) else { return nil }
-        return inlineEmbeddedContent?(key, node, max(bounds.width - BlockLayout.margin * 2, 1))
+        if let view = inlineEmbeddedContent?(key, node, max(bounds.width - BlockLayout.margin * 2, 1)) { return view }
+        guard let loader = mediaImageLoader, let payload = MediaPayload(node), ["image", "inline-image"].contains(payload.type) else { return nil }
+        return MediaAttachment(payload, imageLoader: loader)
       }
-      render(nil)
     }
+    render(nil)
   }
   public var onEmbeddedTap: ((String, JSONValue) -> Bool)?
   private var inlineWidth: CGFloat = 0
@@ -1435,7 +1447,13 @@ public final class EditorView: UIScrollView, UITextInput {
   @objc private func tapped(_ tap: UITapGestureRecognizer) {
     let point = tap.location(in: surface)
     if let offset = layout.offset(closestTo: point), let path = document.embeddedPath(at: offset),
-      let key = nodeKey(at: path), let node = try? model.nodeForPresentation(at: path), onEmbeddedTap?(key, node) == true { return }
+      let key = nodeKey(at: path), let node = try? model.nodeForPresentation(at: path) {
+      if onEmbeddedTap?(key, node) == true { return }
+      if let media = MediaPayload(node), let source = media.source, ["http", "https"].contains(source.scheme ?? "") {
+        UIApplication.shared.open(source)
+        return
+      }
+    }
     guard linkCharacter(at: point) != nil else { return }
     linkMenu.presentEditMenu(with: UIEditMenuConfiguration(identifier: nil, sourcePoint: point))
   }

@@ -22,6 +22,10 @@ import AppKit
     #expect(caption.attribute(formatKey, at: 12, effectiveRange: nil) as? Int == 8)
     #expect((caption.attribute(.link, at: 12, effectiveRange: nil) as? URL)?.absoluteString == "https://example.com/")
   }
+  @Test func captionAllowsTheNativeFontSizeStyle() {
+    let state: JSONValue = ["root": ["type": "root", "children": [["type": "paragraph", "children": [["type": "text", "text": "Sized caption", "style": "font-size: 48px;"]]]]]]
+    #expect(MediaCaptionSupport.refusal(in: state) == nil)
+  }
   @Test func imageReadsTheStoredNestedEditorShape() {
     let state: JSONValue = ["root": ["type": "root", "children": [["type": "paragraph", "children": [["type": "text", "text": "Stored image caption", "format": 1]]]]]]
     let node: JSONValue = ["type": "image", "showCaption": true, "caption": ["editorState": state]]

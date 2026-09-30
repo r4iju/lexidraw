@@ -106,6 +106,28 @@ public final class DocumentText {
     self.standIn = standIn
   }
 
+  private static func applyFontGeometry(_ renderer: Renderer, to text: NSMutableAttributedString, base: [NSAttributedString.Key: Any]) {
+    guard !renderer.resizedRanges.isEmpty else { return }
+    #if canImport(UIKit)
+    let naturalHeight = (base[.font] as? UIFont)?.lineHeight ?? 0
+    #else
+    let naturalHeight = (base[.font] as? NSFont).map { NSLayoutManager().defaultLineHeight(for: $0) } ?? 0
+    #endif
+    let cssHeight = (base[.paragraphStyle] as? NSParagraphStyle)?.minimumLineHeight ?? 0
+    guard naturalHeight > 0, cssHeight > 0 else { return }
+    let string = text.string as NSString
+    var paragraphs = Set<NSRange>()
+    for range in renderer.resizedRanges { paragraphs.insert(string.paragraphRange(for: NSRange(range))) }
+    for range in paragraphs {
+      let paragraph = (text.attribute(.paragraphStyle, at: range.location, effectiveRange: nil) as? NSParagraphStyle)?.mutableCopy() as? NSMutableParagraphStyle ?? NSMutableParagraphStyle()
+      // Keep the CSS ratio while each line's largest font sets its height.
+      paragraph.minimumLineHeight = 0
+      paragraph.maximumLineHeight = 0
+      paragraph.lineHeightMultiple = cssHeight / naturalHeight
+      text.addAttribute(.paragraphStyle, value: paragraph, range: range)
+    }
+  }
+
   /// Uses the document's own rich-text mapping for a nested media caption.
   static func caption(_ state: JSONValue, style: @escaping Style) -> NSAttributedString {
     guard let root = state["root"] else { return NSAttributedString() }
@@ -118,6 +140,7 @@ public final class DocumentText {
       let upper = min(text.length, line.range.upperBound)
       if upper > lower { text.addAttribute(line.key, value: line.value.base, range: NSRange(location: lower, length: upper - lower)) }
     }
+    Self.applyFontGeometry(renderer, to: text, base: style("paragraph", []))
     if text.length > 0 { text.deleteCharacters(in: NSRange(location: text.length - 1, length: 1)) }
     return text
   }
@@ -345,30 +368,7 @@ public final class DocumentText {
           kind: Self.kind(of: node, spans: renderer.spans), lines: renderer.lines))
       block.append(NSAttributedString(string: "\n", attributes: style(blockType, [])))
       for line in renderer.lines { block.addAttribute(line.key, value: line.value.base, range: NSRange(line.range)) }
-      if !renderer.resizedRanges.isEmpty {
-        let base = style(blockType, [])
-        #if canImport(UIKit)
-        let naturalHeight = (base[.font] as? UIFont)?.lineHeight ?? 0
-        #else
-        let naturalHeight = (base[.font] as? NSFont).map { NSLayoutManager().defaultLineHeight(for: $0) } ?? 0
-        #endif
-        let cssHeight = (base[.paragraphStyle] as? NSParagraphStyle)?.minimumLineHeight ?? 0
-        if naturalHeight > 0, cssHeight > 0 {
-          let string = block.string as NSString
-          var paragraphs = Set<NSRange>()
-          for range in renderer.resizedRanges {
-            paragraphs.insert(string.paragraphRange(for: NSRange(range)))
-          }
-          for range in paragraphs {
-            let paragraph = (block.attribute(.paragraphStyle, at: range.location, effectiveRange: nil) as? NSParagraphStyle)?.mutableCopy() as? NSMutableParagraphStyle ?? NSMutableParagraphStyle()
-            // Preserve the generated CSS line-height ratio while allowing each line's largest font to set its height.
-            paragraph.minimumLineHeight = 0
-            paragraph.maximumLineHeight = 0
-            paragraph.lineHeightMultiple = cssHeight / naturalHeight
-            block.addAttribute(.paragraphStyle, value: paragraph, range: range)
-          }
-        }
-      }
+      Self.applyFontGeometry(renderer, to: block, base: style(blockType, []))
       text.append(block)
     }
     return (text, rendered)
@@ -486,6 +486,9 @@ public final class DocumentText {
     mutating func add(_ node: JSONValue, at path: [Int]) {
       let start = text.length
       if !path.isEmpty, let attachment = nativeAttachment?(node, path) {
+        #if canImport(UIKit)
+        (attachment as? MediaAttachment)?.captionStyle = style
+        #endif
         text.append(NSAttributedString(string: "\u{FFFC}", attributes: style(blockType, []).merging([.attachment: attachment]) { $1 }))
         spans[path] = Span(start: start, end: text.length, kind: .character)
         return

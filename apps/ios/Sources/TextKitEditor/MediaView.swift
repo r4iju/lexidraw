@@ -5,11 +5,26 @@ import ImageIO
 import LinkPresentation
 import UIKit
 
+/// Return an image whose logical size retains the original source dimensions.
+public typealias MediaImageLoader = @MainActor (URL) async throws -> UIImage
+
+@MainActor public enum NativeMediaImages {
+  public static func load(_ source: URL) async throws -> UIImage { try await MediaView.image(source) }
+}
+
+enum MediaImageError: Error, LocalizedError, Equatable {
+  case unsupportedFormat(String)
+  var errorDescription: String? {
+    switch self { case .unsupportedFormat(let format): "\(format) aren't supported yet (#131)." }
+  }
+}
+
 @MainActor final class MediaView: UIView {
   let payload: MediaPayload
   private let picture = UIImageView()
   private let message = UILabel()
   private let caption: MediaCaptionView
+  private let imageLoader: MediaImageLoader?
   var onGeometryChange: (() -> Void)?
   private var loadedAspectRatio: Double?
   private var loadedNaturalWidth: Double?
@@ -19,6 +34,7 @@ import UIKit
   private var metadataProvider: LPMetadataProvider?
   private var loading: Task<Void, Never>?
   private var loaded = false
+  private var unavailable = false
   private static let images: NSCache<NSURL, UIImage> = {
     let cache = NSCache<NSURL, UIImage>()
     cache.totalCostLimit = 32 * 1024 * 1024
@@ -26,10 +42,12 @@ import UIKit
     return cache
   }()
 
-  init(_ payload: MediaPayload, style: DocumentText.Style? = nil) {
+  init(_ payload: MediaPayload, style: DocumentText.Style? = nil, imageLoader: MediaImageLoader? = nil) {
     self.payload = payload
     caption = MediaCaptionView(payload, style: style)
+    self.imageLoader = imageLoader
     super.init(frame: .zero)
+    unavailable = payload.source == nil
     backgroundColor = .secondarySystemBackground
     layer.cornerRadius = 8
     clipsToBounds = true
@@ -37,7 +55,7 @@ import UIKit
     addSubview(picture)
     message.text = payload.source == nil ? "\(payload.label): source unavailable" : "Loading \(payload.label)…"
     message.textAlignment = .center
-    message.numberOfLines = 3
+    message.numberOfLines = 0
     message.font = .preferredFont(forTextStyle: .body)
     addSubview(message)
     addSubview(caption)
@@ -67,7 +85,8 @@ import UIKit
     return CGSize(width: mediaWidth, height: height)
   }
   private func mediaSize(_ width: CGFloat) -> CGSize {
-    Self.geometry(payload, width: width, ratio: loadedAspectRatio ?? payload.aspectRatio, naturalWidth: loadedNaturalWidth ?? payload.naturalWidth, viewport: window?.bounds.height ?? UIScreen.main.bounds.height)
+    let size = Self.geometry(payload, width: width, ratio: loadedAspectRatio ?? payload.aspectRatio, naturalWidth: loadedNaturalWidth ?? payload.naturalWidth, viewport: window?.bounds.height ?? UIScreen.main.bounds.height)
+    return unavailable ? CGSize(width: min(width, max(180, size.width)), height: max(96, size.height)) : size
   }
   func fittingHeight(_ width: CGFloat) -> CGFloat {
     let size = mediaSize(width)
@@ -97,7 +116,7 @@ import UIKit
       do {
         switch payload.type {
         case "image", "inline-image":
-          picture.image = try await Self.image(source)
+          picture.image = try await (imageLoader ?? NativeMediaImages.load)(source)
           try Task.checkCancellation()
           if let image = picture.image, image.size.height > 0 {
             loadedAspectRatio = image.size.width / image.size.height
@@ -132,9 +151,12 @@ import UIKit
         }
         loaded = true
       } catch is CancellationError {} catch {
-        message.text = "\(payload.label) unavailable. Tap to open."
+        message.text = (error as? MediaImageError)?.errorDescription.map { $0 + " Tap to open original." } ?? "\(payload.label) unavailable. Tap to open original."
         message.isHidden = false
         loaded = true
+        unavailable = true
+        setNeedsLayout()
+        onGeometryChange?()
       }
     }
   }
@@ -157,7 +179,7 @@ import UIKit
       }
     } else { UIApplication.shared.open(source) }
   }
-  fileprivate static func image(_ url: URL) async throws -> UIImage {
+  static func image(_ url: URL) async throws -> UIImage {
     if let cached = images.object(forKey: url as NSURL) { return cached }
     let data: Data
     if url.scheme == "data" {
@@ -173,8 +195,12 @@ import UIKit
       data = try Data(contentsOf: file)
     }
     let image = try await Task.detached(priority: .utility) {
-      guard let source = CGImageSourceCreateWithData(data as CFData, nil),
-        let cg = CGImageSourceCreateThumbnailAtIndex(source, 0, [
+      guard let source = CGImageSourceCreateWithData(data as CFData, nil) else {
+        if url.pathExtension.lowercased() == "svg" || String(decoding: data.prefix(512), as: UTF8.self).contains("<svg") { throw MediaImageError.unsupportedFormat("SVG images") }
+        throw URLError(.cannotDecodeContentData)
+      }
+      guard CGImageSourceGetCount(source) == 1 else { throw MediaImageError.unsupportedFormat("Animated images") }
+      guard let cg = CGImageSourceCreateThumbnailAtIndex(source, 0, [
           kCGImageSourceCreateThumbnailFromImageAlways: true,
           kCGImageSourceThumbnailMaxPixelSize: 2048,
           kCGImageSourceCreateThumbnailWithTransform: true,
@@ -194,11 +220,13 @@ import UIKit
   }
 }
 
-final class MediaAttachment: NSTextAttachment {
+final class MediaAttachment: NSTextAttachment, LazyTextAttachment {
+  private let imageLoader: MediaImageLoader?
   var captionStyle: DocumentText.Style?
   let payload: MediaPayload
-  init(_ payload: MediaPayload) {
+  init(_ payload: MediaPayload, imageLoader: MediaImageLoader? = nil) {
     self.payload = payload
+    self.imageLoader = imageLoader
     super.init(data: nil, ofType: nil)
     image = UIImage(systemName: "photo")
     let width = payload.width ?? 120
@@ -215,18 +243,32 @@ final class MediaAttachment: NSTextAttachment {
     loading = Task {
       defer { loading = nil }
       let photo: UIImage
-      if let source = payload.source, let loaded = try? await MediaView.image(source) { photo = loaded }
-      else { photo = UIImage(systemName: "exclamationmark.triangle") ?? UIImage() }
+      var failure: String?
+      if let source = payload.source {
+        do { photo = try await (imageLoader ?? NativeMediaImages.load)(source) }
+        catch {
+          photo = UIImage(systemName: "exclamationmark.triangle") ?? UIImage()
+          failure = (error as? MediaImageError)?.errorDescription ?? "Image unavailable."
+        }
+      } else {
+        photo = UIImage(systemName: "exclamationmark.triangle") ?? UIImage()
+        failure = "Image source unavailable."
+      }
       let caption = MediaCaptionView(payload, style: captionStyle)
-      let width: CGFloat = payload.width.map { CGFloat($0) } ?? photo.size.width
-      let bodyHeight: CGFloat = payload.height.map { CGFloat($0) } ?? (photo.size.width > 0 ? width * photo.size.height / photo.size.width : bounds.height)
+      var width: CGFloat = payload.width.map { CGFloat($0) } ?? photo.size.width
+      var bodyHeight: CGFloat = payload.height.map { CGFloat($0) } ?? (photo.size.width > 0 ? width * photo.size.height / photo.size.width : bounds.height)
+      if failure != nil { width = max(width, 180); bodyHeight = max(bodyHeight, 72) }
       let captionHeight = caption.fittingHeight(width)
       let gap = captionHeight > 0 ? FigureStyle.captionGap : 0
       let size = CGSize(width: width, height: bodyHeight + gap + captionHeight)
       let format = UIGraphicsImageRendererFormat()
       format.scale = min(format.scale, 2048 / max(size.width, size.height))
       image = UIGraphicsImageRenderer(size: size, format: format).image { context in
-        photo.draw(in: AVMakeRect(aspectRatio: photo.size, insideRect: CGRect(x: 0, y: 0, width: width, height: bodyHeight)))
+        if let failure {
+          let paragraph = NSMutableParagraphStyle(); paragraph.alignment = .center
+          let text = failure + (payload.source?.scheme == "https" || payload.source?.scheme == "http" ? "\nTap to open original." : "")
+          (text as NSString).draw(in: CGRect(x: 4, y: 4, width: width - 8, height: bodyHeight - 8), withAttributes: [.font: UIFont.systemFont(ofSize: 12), .foregroundColor: UIColor.secondaryLabel, .paragraphStyle: paragraph])
+        } else { photo.draw(in: AVMakeRect(aspectRatio: photo.size, insideRect: CGRect(x: 0, y: 0, width: width, height: bodyHeight))) }
         if captionHeight > 0 {
           context.cgContext.translateBy(x: 0, y: bodyHeight + gap)
           caption.frame = CGRect(x: 0, y: 0, width: width, height: captionHeight)

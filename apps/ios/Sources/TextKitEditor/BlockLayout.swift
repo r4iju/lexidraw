@@ -98,6 +98,7 @@ import UIKit
   /// text in it.
   var embeddedContent: ((String, JSONValue) -> EmbeddedContentView?)?
 
+  var mediaImageLoader: MediaImageLoader?
   var onScrollSideways: (() -> Void)?
 
   /// Blocks laid out beyond those on screen, kept for geometry and scrolling
@@ -267,7 +268,7 @@ import UIKit
       case .embedded(let type):
         if let embedded = document.embeddedNode(at: index), let view = embeddedContent?(embedded.key, embedded.node) {
           ContentBlock(view: view, node: embedded.node, type: type, width: width)
-        } else { EmbedBlock(type: type, payload: document.payload(ofBlock: index), width: width, style: { [typesetting] in typesetting.attributes(StyledBlock($0), $1) }) }
+        } else { EmbedBlock(type: type, payload: document.payload(ofBlock: index), width: width, style: { [typesetting] in typesetting.attributes(StyledBlock($0), $1) }, imageLoader: mediaImageLoader) }
       }
     laidOut[index] = block
     (block as? TextBlock)?.onGeometryChange = { [weak self, weak blockView = block.view] in
@@ -807,10 +808,10 @@ private final class EmbedBlock: LaidOutBlock {
   private let type: String
   var onGeometryChange: (() -> Void)?
 
-  init(type: String, payload: JSONValue?, width: CGFloat, style: @escaping DocumentText.Style) {
+  init(type: String, payload: JSONValue?, width: CGFloat, style: @escaping DocumentText.Style, imageLoader: MediaImageLoader?) {
     self.type = type
     media = payload.flatMap(MediaPayload.init)
-    placeholder = media.map { MediaView($0, style: style) } ?? PlaceholderView(type: type)
+    placeholder = media.map { MediaView($0, style: style, imageLoader: imageLoader) } ?? PlaceholderView(type: type)
     container.addSubview(placeholder)
     (placeholder as? MediaView)?.onGeometryChange = { [weak self] in
       guard let self, let mediaView = self.placeholder as? MediaView else { return }

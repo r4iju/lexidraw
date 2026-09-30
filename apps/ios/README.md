@@ -508,7 +508,10 @@ Pages-to-Safari HTML capture is claimed.
 
 ## Native media
 
-Images and inline images render their stored raster sources; videos use AVKit.
+Images and inline images render their supported stored raster sources; videos use AVKit.
+Animated images and SVG sources show an explicit unsupported-format explanation
+(#131) instead of a still-frame approximation, with opening the original offered
+for web URLs.
 YouTube, X and Figma use native LinkPresentation previews and open their official
 URLs when tapped. Those previews do not reproduce provider iframe interaction;
 a failed preview leaves an explicit unavailable card with its destination.
@@ -517,7 +520,9 @@ Rich captions reuse TextKit formatting and paragraph alignment; inline captions
 are drawn into the attachment, retaining the original nested editor JSON.
 The web currently stores inline-image `position` as a data attribute without a
 layout rule, so native inline images likewise remain inline for every position.
-Unsupported caption node families or CSS styles keep the document read only.
+Caption text font sizes share the native font/line-height implementation.
+Unsupported caption node families (#134) and other CSS styles (#135) keep the
+document read only.
 
 The editor's insertion menu offers Photos and camera when uploading is available.
 It checks current EDIT access before signing the JPEG upload and inserts its URL
