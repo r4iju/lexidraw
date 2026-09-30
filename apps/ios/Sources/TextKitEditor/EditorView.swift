@@ -1053,7 +1053,22 @@ public final class EditorView: UIScrollView, UITextInput {
     let lexical = pasteboard.data(forPasteboardType: LexicalClipboardPayload.mimeType).flatMap {
       try? JSONDecoder().decode(LexicalClipboardPayload.self, from: $0)
     }
-    let html = pasteboard.data(forPasteboardType: UTType.html.identifier).map { String(decoding: $0, as: UTF8.self) }
+    var html = pasteboard.data(forPasteboardType: UTType.html.identifier).map { String(decoding: $0, as: UTF8.self) }
+    if lexical == nil, html == nil, let rtf = pasteboard.data(forPasteboardType: UTType.rtf.identifier) {
+      do {
+        // Pages and Notes publish native RTF rather than HTML. Normalize it
+        // through the OS document reader/writer, as browser paste does, then
+        // use the same registered HTML converters as every other rich paste.
+        let attributed = try NSAttributedString(data: rtf, options: [.documentType: NSAttributedString.DocumentType.rtf], documentAttributes: nil)
+        let data = try attributed.data(
+          from: NSRange(location: 0, length: attributed.length), documentAttributes: [.documentType: NSAttributedString.DocumentType.html]
+        )
+        html = String(decoding: data, as: UTF8.self)
+      } catch {
+        tell(refusal: "Reading rich-text clipboard content isn't supported for this RTF payload (#168)")
+        return
+      }
+    }
     perform(
       .paste(Clipboard(plainText: pasteboard.string ?? "", html: html, lexical: lexical)), fromInput: false,
       tellsRefusal: true)

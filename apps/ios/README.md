@@ -426,7 +426,9 @@ Qualified tag names are protected during parsing: libxml2 otherwise turns
 Word's unknown `o:p` elements into paragraphs, unlike the browser DOM.
 RCDATA (`textarea`/`title`) preserves literal markup by escaping `<` until an
 exact closing name with an HTML delimiter; entities still decode normally and
-HTML's ignored self-closing flag is removed from those start tags.
+HTML's ignored self-closing flag is removed from those start tags. Foreign SVG
+titles retain their HTML integration-point children; the scanner distinguishes
+quoted attribute values from literal quotes inside unquoted values.
 
 `bun run record:html` records clipboard-shaped Safari, Notes, Pages, Google
 Docs and Word examples and seeded generated HTML with the independent bun
@@ -451,7 +453,8 @@ Google Docs inputs and Word/Word-through-Safari style inputs from CKEditor's
 documented clipboard corpus, plus Lexical's verbatim VS Code-to-Safari payload.
 All agree with the browser DOM oracle; VS Code code nodes explicitly refuse
 under #132. These are upstream captures, not newly captured on this device.
-The seven upstream payloads and nine raw-text variants also agree with actual
+The seven upstream payloads, nine raw-text variants, SVG title and malformed
+unquoted-attribute regressions also agree with actual
 Chromium 152 `DOMParser` plus the unmodified web converters. Browser version,
 input/output digests and verification results are in `chromium-verification.json`.
 Captured Word's recorded expected nodes now come from that browser reference.
@@ -459,5 +462,20 @@ The retained malformed textarea regression was red against Chromium even though
 libxml2 and Bun's DOM parser agreed; it prevents treating their shared recovery
 error as browser parity. These bounded cases do not establish general HTML5
 malformed-input recovery parity.
-Actual Pages and Notes clipboard fixtures remain unverified, as does a fresh
-Safari webpage capture; synthetic app-shaped examples do not close those gaps.
+Actual disposable Safari, Pages and Notes clipboards were then copied by the
+user and captured through a bounded, read-only native NSPasteboard helper.
+Safari's original `public.html` is retained verbatim with its digest and frozen
+Chromium converter output. Pages and Notes publish RTF/plain text, not HTML.
+At the UIKit boundary, when Lexical JSON and HTML are absent, the OS's
+`NSAttributedString` RTF reader and HTML writer normalize that RTF before the
+same registered HTML converters run. Reader/writer failures explicitly refuse
+with #168. Actual RTF fixtures and source-channel metadata are retained in
+`TextKitEditorTests/Fixtures`: iOS tests were red before this normalization and
+now preserve Pages' bold first paragraph and Notes' bold word, with both source
+paragraphs and no trailing empty paragraph. The Notes sample also has a user
+captured Safari `DataTransfer` HTML normalization and real Chromium oracle,
+which agree with the iOS result. Its recorder's hard-coded Pages source label
+was corrected from the actual Notes native type and text, with the original
+recorder JSON digest retained. This browser-generated HTML is not represented
+as original Pages or Notes HTML. Pages' native RTF is verified directly; no
+Pages-to-Safari HTML capture is claimed.

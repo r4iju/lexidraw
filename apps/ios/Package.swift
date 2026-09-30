@@ -47,7 +47,8 @@ let package = Package(
     .target(name: "TextKitEditor", dependencies: ["EditorModelInterface", "CSSValues"]),
     .testTarget(
       name: "TextKitEditorTests",
-      dependencies: ["TextKitEditor", "LexicalSwift", "LexicalReference", "LexicalFuzz"]
+      dependencies: ["TextKitEditor", "LexicalSwift", "LexicalReference", "LexicalFuzz"],
+      resources: [.copy("Fixtures")]
     ),
     .target(
       name: "LexidrawKit",

@@ -71,6 +71,17 @@ fixtures.push({
   html: safariOracle.html,
   nodes: safariOracle.nodes,
 });
+const notesOracle = await Bun.file(
+  new URL(
+    "../Tests/LexicalSwiftTests/Fixtures/HTML/upstream/notes-safari.chromium.json",
+    import.meta.url,
+  ),
+).json();
+fixtures.push({
+  name: notesOracle.name,
+  html: notesOracle.html,
+  nodes: notesOracle.nodes,
+});
 await Bun.write(
   new URL(
     "../Tests/LexicalSwiftTests/Fixtures/HTML/paste.json",

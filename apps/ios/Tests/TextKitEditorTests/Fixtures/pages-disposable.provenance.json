@@ -1,0 +1,23 @@
+{
+  "application": "Apple Pages",
+  "capturedAt": "2026-09-30T09:42:40Z",
+  "capture": "User explicitly copied a disposable two-paragraph sample; native NSPasteboard bounded capture. Original public.rtf and public.utf8-plain-text retained, all other types omitted.",
+  "originalRTFSHA256": "32ffa2ff36fe799ef79286d7038503b07bbb52805098f961e46b5731c39f367b",
+  "clipboardTypes": [
+    "com.apple.iWork.TSPNativeData",
+    "com.apple.iWork.TSPNativeMetadata",
+    "com.apple.iWork.TSPDescription",
+    "com.apple.iWork.pasteboardState.countOfObject-1",
+    "com.apple.iWork.pasteboardState.hasTextStoragesAttachmentsAllowed",
+    "com.apple.iWork.pasteboardState.hasTextStoragesAttachmentsNotAllowed",
+    "com.apple.iWork.pasteboardState.hasNativeText",
+    "com.apple.iWork.pasteboardState.documentId-10367810214584683736",
+    "com.apple.iWork.pasteboardState.hasNativeTypes",
+    "com.apple.iWork.pasteboardState.applicationName-Pages",
+    "com.apple.flat-rtfd",
+    "public.rtf",
+    "public.utf16-external-plain-text",
+    "public.utf8-plain-text"
+  ],
+  "originalHTMLAvailable": false
+}
