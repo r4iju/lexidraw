@@ -189,7 +189,7 @@ import Synchronization
     guard !started else { return }
     started = true
     let rendered = makeRendered()
-    rendered?.fontSizeOverride = fontSize.withLock { $0.map(CGFloat.init) }
+    rendered?.fontSizeOverride = fontSize.withLock { $0.map { CGFloat($0) } }
     _ = rendered?.contentSize(fitting: width)
     // Provider completion refreshes EditorView and the measured attachment.
   }
@@ -198,6 +198,7 @@ import Synchronization
 private struct RenderedSourceEditor: View {
   let node: JSONValue
   let editable: Bool
+  let isInsertion: Bool
   let save: (JSONValue) throws -> Void
   @Environment(\.dismiss) private var dismiss
   @State private var source: String
@@ -205,9 +206,10 @@ private struct RenderedSourceEditor: View {
   @State private var language: String
   @State private var inline: Bool
   @State private var error: String?
-  init(node: JSONValue, editable: Bool, save: @escaping (JSONValue) throws -> Void) {
+  init(node: JSONValue, editable: Bool, isInsertion: Bool = false, save: @escaping (JSONValue) throws -> Void) {
     self.node = node
     self.editable = editable
+    self.isInsertion = isInsertion
     self.save = save
     let type = node["type"]?.stringValue
     _source = State(initialValue: type == "mermaid" ? node["schema"]?.stringValue ?? "" : type == "equation" ? node["equation"]?.stringValue ?? "" : type == "chart" ? node["chartData"]?.stringValue ?? "[]" : (node["children"]?.arrayValue ?? []).map { $0["type"] == "linebreak" ? "\n" : $0["type"] == "tab" ? "\t" : $0["text"]?.stringValue ?? "" }.joined())
@@ -248,7 +250,7 @@ private struct RenderedSourceEditor: View {
   private func commit() {
     do {
       let originalSource = node["type"] == "code" ? (node["children"]?.arrayValue ?? []).map { $0["type"] == "linebreak" ? "\n" : $0["type"] == "tab" ? "\t" : $0["text"]?.stringValue ?? "" }.joined() : nil
-      if node["type"] == "code", source == originalSource, language == (node["language"]?.stringValue ?? "") { dismiss(); return }
+      if !isInsertion, node["type"] == "code", source == originalSource, language == (node["language"]?.stringValue ?? "") { dismiss(); return }
       guard var fields = node.objectValue else { throw EditorError.invalidState("Invalid node") }
       switch node["type"]?.stringValue {
       case "mermaid":
@@ -275,7 +277,7 @@ private struct RenderedSourceEditor: View {
         }) }
       default: throw EditorError.unsupported("Unknown rendered node")
       }
-      if .object(fields) != node { try save(.object(fields)) }
+      if isInsertion || .object(fields) != node { try save(.object(fields)) }
       dismiss()
     } catch { self.error = error.localizedDescription }
   }
@@ -293,7 +295,7 @@ private struct RenderedSourceEditor: View {
       while responder != nil, !(responder is UIViewController) { responder = responder?.next }
       guard let parent = responder as? UIViewController else { return }
       view.resignFirstResponder()
-      let host = UIHostingController(rootView: RenderedSourceEditor(node: node, editable: true) { [weak view] replacement in
+      let host = UIHostingController(rootView: RenderedSourceEditor(node: node, editable: true, isInsertion: true) { [weak view] replacement in
         guard let view, view.isEditable else { throw EditorError.invalidState("The document closed") }
         view.insertEmbeddedNode(replacement, namespace: editorNamespace, openAfterInsertion: false)
       })
