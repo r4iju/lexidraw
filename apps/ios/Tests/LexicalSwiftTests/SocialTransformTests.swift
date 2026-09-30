@@ -44,6 +44,19 @@ import Testing
     #expect(try fixture.replay(on: native) == fixture.recorded)
   }
 
+  @Test func storedEmojiTokensMatchTypingDeletionAndFormatting() throws {
+    var fields = try #require(text("😄").objectValue)
+    fields["type"] = "emoji"; fields["mode"] = "token"; fields["className"] = "emoji"
+    let start = document(paragraph(.object(fields)))
+    let native = Editor(); try native.load(start)
+    #expect(native.isEditable)
+    let commands: [EditorCommand] = [.caret(.text([0, 0], 1)), .insertText("x"), .undo,
+      .setSelection(anchor: .text([0, 0], 0), focus: .text([0, 0], 1)), .formatText(.bold),
+      .deleteCharacter(backward: true)]
+    let fixture = try Fixture.record(start: start, commands: commands, on: Support.referenceEditor())
+    #expect(try fixture.replay(on: native) == fixture.recorded)
+  }
+
   @Test func splittingAStoredHashtagWithEnterMatchesTheWeb() throws {
     var fields = try #require(text("#native").objectValue)
     fields["type"] = "hashtag"

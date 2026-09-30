@@ -67,7 +67,7 @@ extension Update {
       let indices = partial.first { $0.origin == node }?.indices ?? 0..<state.textSize(of: node)
       guard !indices.isEmpty else { continue }
       let target: NodeKey
-      if indices.lowerBound == 0 && indices.upperBound == state.textSize(of: node) { target = node }
+      if isTokenOrSegmented(node) || (indices.lowerBound == 0 && indices.upperBound == state.textSize(of: node)) { target = node }
       else {
         let split = try splitText(node, at: [indices.lowerBound, indices.upperBound])
         target = split[indices.lowerBound == 0 ? 0 : 1]

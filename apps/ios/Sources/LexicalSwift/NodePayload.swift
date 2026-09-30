@@ -303,6 +303,26 @@ struct KeywordTextPayload: TextPayload {
   }
 }
 
+struct EmojiTextPayload: TextPayload {
+  var node: SerializedEmojiNode
+  var text: String? {
+    get { node.text?.stringValue }
+    set { node.text = newValue.map(JSONValue.string) }
+  }
+  var detail: Double? {
+    get { node.detail?.numberValue }
+    set { node.detail = newValue.map(JSONValue.number) }
+  }
+  var format: Double? {
+    get { node.format?.numberValue }
+    set { node.format = newValue.map(JSONValue.number) }
+  }
+  var style: String? {
+    get { node.style?.stringValue }
+    set { node.style = newValue.map(JSONValue.string) }
+  }
+}
+
 extension SerializedNode {
   /// The text's properties, for the text editing is ported for.
   var textFields: (any TextPayload)? {
@@ -313,6 +333,7 @@ extension SerializedNode {
       case .tab(let node): node
       case .hashtag(let node): node
       case .keyword(let node): KeywordTextPayload(node: node)
+      case .emoji(let node): EmojiTextPayload(node: node)
       default: nil
       }
     }
@@ -323,6 +344,7 @@ extension SerializedNode {
       case let node as SerializedTabNode: self = .tab(node)
       case let node as SerializedHashtagNode: self = .hashtag(node)
       case let fields as KeywordTextPayload: self = .keyword(fields.node)
+      case let fields as EmojiTextPayload: self = .emoji(fields.node)
       default: break
       }
     }

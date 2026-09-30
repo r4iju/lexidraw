@@ -350,7 +350,7 @@ extension Update {
     for slice in [first, second].compactMap({ $0 }) {
       let origin = slice.origin
       let before = state.rewind(.sibling(origin, .next))
-      if abs(slice.distance) == state.textSize(of: origin) {
+      if abs(slice.distance) == state.textSize(of: origin) || (state[origin].textMode == .token && slice.distance != 0) {
         try removeNode(at: before)
       } else if slice.distance != 0 {
         var units = Array(state[origin].text.utf16)
@@ -481,13 +481,19 @@ extension Update {
     if text.isEmpty { return }
     let parent = state[anchor].parent!
     let needsRedirect =
-      (offset == 0
+      isTokenOrSegmented(anchor) || (offset == 0
         && (!state[anchor].canInsertTextBefore
           || (!state[parent].canInsertTextBefore && state.previousSibling(of: anchor) == nil)))
       || (offset == size
         && (!state[anchor].canInsertTextAfter
           || (!state[parent].canInsertTextAfter && state.nextSibling(of: anchor) == nil)))
     if needsRedirect {
+      if isTokenOrSegmented(anchor), offset != 0, offset != size {
+        let replacement = createText(text, format: format, style: style)
+        try replace(anchor, with: replacement)
+        selectText(replacement)
+        return
+      }
       try redirectText(selection, text, from: anchor, atStart: offset == 0, format: format, style: style)
       return
     }
@@ -535,7 +541,7 @@ extension Update {
   /// `$isTokenOrSegmented`, which a tab is too.
   func isTokenOrSegmented(_ key: NodeKey) -> Bool {
     if state[key].type == SerializedTabNode.type { return true }
-    return state[key].textNode.map { $0.mode == .token || $0.mode == .segmented } ?? false
+    return state[key].textMode == .token || state[key].textMode == .segmented
   }
 
   /// Lexical's `$transferStartingElementPointToTextPoint`: puts empty text
@@ -981,7 +987,7 @@ extension Update {
     if first == last {
       guard startOffset != endOffset else { return }
       let format = apply(self.format(of: first))
-      if startOffset == 0, endOffset == state.textSize(of: first) {
+      if isTokenOrSegmented(first) || (startOffset == 0 && endOffset == state.textSize(of: first)) {
         setFormat(first, format)
       } else {
         let split = try splitText(first, at: [startOffset, endOffset])
@@ -993,7 +999,7 @@ extension Update {
       selection.format = format
       return
     }
-    if startOffset != 0 {
+    if startOffset != 0 && !isTokenOrSegmented(first) {
       first = try splitText(first, at: [startOffset])[1]
       startOffset = 0
     }
@@ -1001,7 +1007,7 @@ extension Update {
     setFormat(first, firstFormat)
     let lastFormat = apply(self.format(of: last))
     if endOffset > 0 {
-      if endOffset != state.textSize(of: last) {
+      if endOffset != state.textSize(of: last) && !isTokenOrSegmented(last) {
         last = try splitText(last, at: [endOffset])[0]
       }
       setFormat(last, lastFormat)

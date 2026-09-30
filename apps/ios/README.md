@@ -581,7 +581,7 @@ table, producing ordinary Unicode text. Unknown aliases retain their text;
 the shared markdown pipeline still splits it and moves selection like Lexical.
 Imported table cells apply the same shortcode replacement, including its reset
 of text formatting. The fuzzer generates known and unknown shortcodes and stored
-normal-mode hashtag and keyword nodes.
+normal-mode hashtag and keyword nodes, and stored emoji tokens.
 
 The main `document-editor.tsx` mounts `EmojiPickerPlugin` and markdown shortcuts,
 but does not mount `MentionsPlugin`, `KeywordsPlugin`, `EmojisPlugin`, or
@@ -601,6 +601,11 @@ Undo restores the prior poll. The account identity comes from `auth.me`; its new
 nullable name field remains compatible with older clients. Voting stays disabled
 when identity is unavailable. Native option editing commits on the alert's Save.
 
+Stored emoji tokens retain their payload and render their Unicode glyphs. Typing
+inside a token replaces it, boundary typing redirects beside it, partial deletion
+removes the whole token, and partial formatting preserves the token. The caption
+renderer accepts hashtag, keyword, and emoji text leaves with supported styles.
+
 This checkpoint does not complete #134. Comments, threads, mentions, stored
-emoji nodes, non-normal keyword payloads, footnotes, and articles retain their explicit unported
+non-normal keyword payloads, footnotes, and articles retain their explicit unported
 editing gate until their native behavior is implemented.

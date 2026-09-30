@@ -124,7 +124,9 @@ import Testing
     let candidate = NotesIndentsAtTheCap()
     var fuzzer = Fuzzer(seed: 1, reference: try Support.referenceEditor(), candidate: candidate)
 
-    #expect(try fuzzer.run(steps: 3_000)?.fixture == nil)
+    // The generator now also visits stored social text subclasses; allow
+    // enough commands to reach a six-deep list while preserving this check.
+    #expect(try fuzzer.run(steps: 6_000)?.fixture == nil)
     #expect(candidate.indentsAtTheCap > 0)
   }
 

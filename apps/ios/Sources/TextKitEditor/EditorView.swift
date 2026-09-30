@@ -133,10 +133,16 @@ public final class EditorView: UIScrollView, UITextInput {
       let alert = UIAlertController(title: "Insert poll", message: "Question", preferredStyle: .alert)
       alert.addTextField()
       alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
-      alert.addAction(UIAlertAction(title: "Insert", style: .default) { [weak self, weak alert] _ in
+      let insert = UIAlertAction(title: "Insert", style: .default) { [weak self, weak alert] _ in
         guard let question = alert?.textFields?.first?.text else { return }
         self?.insertPoll(question: question)
-      })
+      }
+      insert.isEnabled = false
+      alert.textFields?.first?.addAction(UIAction { [weak insert] action in
+        guard let field = action.sender as? UITextField else { return }
+        insert?.isEnabled = JSRegExp(#"^\s*$"#, flags: "").firstMatch(in: field.text ?? "") == nil
+      }, for: .editingChanged)
+      alert.addAction(insert)
       presenter?.present(alert, animated: true)
     }]
   }
