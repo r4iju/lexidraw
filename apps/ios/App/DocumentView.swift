@@ -160,6 +160,7 @@ private struct DocumentEditor: UIViewRepresentable {
       language: editing.settings.language, font: editing.font)
     view.onChange = { [weak editing] in editing?.changed() }
     configureEmbeddedDrawings(view)
+    if editing.mode == .editing { view.insertionActions = [drawingInsertionAction(for: view)] }
     return view
   }
 

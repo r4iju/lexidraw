@@ -16,6 +16,33 @@ import TextKitEditor
     [.lexicalFormat: format.rawValue]
   }
 
+  @Test func tableAlignmentPreservesItsCellTextAlignment() throws {
+    let model = Editor()
+    var fields = LexicalJSON.table([["one", "two"]]).objectValue!
+    fields["format"] = "center"
+    let table = JSONValue.object(fields)
+    try model.load(LexicalJSON.document([table]))
+    let text = DocumentText(model: model, style: Self.style)
+    let storage = NSMutableAttributedString()
+    try text.reload(storage)
+    let paragraph = storage.attribute(.paragraphStyle, at: 0, effectiveRange: nil) as? NSParagraphStyle
+    #expect(paragraph?.alignment != .center)
+  }
+
+  @Test func alignmentAndDirectionReachParagraphLayoutTogether() throws {
+    let model = Editor()
+    try model.load(LexicalJSON.document([LexicalJSON.paragraph([LexicalJSON.text("abc")])]))
+    try model.apply(.caret(.text([0, 0], 0)))
+    try model.apply(.setWritingDirection(.rtl))
+    try model.apply(.formatElement(.center))
+    let text = DocumentText(model: model, style: Self.style)
+    let storage = NSMutableAttributedString()
+    try text.reload(storage)
+    let paragraph = storage.attribute(.paragraphStyle, at: 0, effectiveRange: nil) as? NSParagraphStyle
+    #expect(paragraph?.alignment == .center)
+    #expect(paragraph?.baseWritingDirection == .rightToLeft)
+  }
+
   @Test func explicitDirectionReachesParagraphLayout() throws {
     let model = Editor()
     try model.load(LexicalJSON.document([LexicalJSON.paragraph([LexicalJSON.text("abc")])]))

@@ -92,6 +92,8 @@ import {
   COMMAND_PRIORITY_LOW,
   CUT_TAG,
   DELETE_CHARACTER_COMMAND,
+  FORMAT_ELEMENT_COMMAND,
+  type ElementFormatType,
   HISTORIC_TAG,
   INDENT_CONTENT_COMMAND,
   INTERNAL_$expandSelectionToWholeDocument,
@@ -139,6 +141,7 @@ import {
   $deleteTextHandler,
   $fixRangeSelectionForSelectedTable,
   $formatCells,
+  $formatCellElements,
   $tabHandler,
   type ArrowKeyEvent,
   registerTableArrowKeys,
@@ -166,6 +169,7 @@ type Command =
   | { type: "insertLineBreak" }
   | { type: "formatText"; format: TextFormatType }
   | { type: "setBlockType"; blockType: BlockType }
+  | { type: "formatElement"; format: Exclude<ElementFormatType, ""> }
   | { type: "setWritingDirection"; direction: WritingDirection }
   | { type: "insertList"; listType: ListType }
   | { type: "removeList" | "indent" | "outdent" }
@@ -733,6 +737,9 @@ function run(
     case "setWritingDirection":
       $setWritingDirection(command.direction);
       return;
+    case "formatElement":
+      current().dispatchCommand(FORMAT_ELEMENT_COMMAND, command.format);
+      return;
     case "setBlockType":
       $setBlockType(selection, command.blockType);
       return;
@@ -1051,6 +1058,9 @@ function runOnCells(
     case "setWritingDirection":
       $setWritingDirection(command.direction);
       return;
+    case "formatElement":
+      $formatCellElements(selection, command.format);
+      return;
     case "setBlockType":
       $setBlockType(selection, command.blockType);
       return;
@@ -1132,6 +1142,9 @@ function runOnNodes(
       return;
     case "setWritingDirection":
       $setWritingDirection(command.direction);
+      return;
+    case "formatElement":
+      current().dispatchCommand(FORMAT_ELEMENT_COMMAND, command.format);
       return;
     case "setBlockType":
       $setBlockType(selection, command.blockType);

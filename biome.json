@@ -66,6 +66,12 @@
   },
   "overrides": [
     {
+      "includes": ["apps/ios/measure/results/**"],
+      "formatter": {
+        "enabled": false
+      }
+    },
+    {
       "includes": ["packages/lexical-nodes/src/nodes/**"],
       "linter": {
         "rules": {

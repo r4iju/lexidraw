@@ -470,9 +470,19 @@ public final class DocumentText {
         }
         if listType != nil { lists.removeLast() }
         spans[path] = Span(start: start, end: text.length, kind: .element(childCount: children.count))
-        if Self.isBlock(node), let direction = node["direction"]?.stringValue {
+        if Self.isBlock(node), node["direction"]?.stringValue != nil || node["format"]?.stringValue?.isEmpty == false {
           let paragraph = (style(blockType, [])[.paragraphStyle] as? NSParagraphStyle)?.mutableCopy() as? NSMutableParagraphStyle ?? NSMutableParagraphStyle()
-          paragraph.baseWritingDirection = direction == "rtl" ? .rightToLeft : .leftToRight
+          let direction = node["direction"]?.stringValue
+          if let direction { paragraph.baseWritingDirection = direction == "rtl" ? .rightToLeft : .leftToRight }
+          switch node["type"] == "table" || node["type"] == "tablerow" ? nil : node["format"]?.stringValue {
+          case "left": paragraph.alignment = .left
+          case "center": paragraph.alignment = .center
+          case "right": paragraph.alignment = .right
+          case "justify": paragraph.alignment = .justified
+          case "start": paragraph.alignment = direction == "rtl" ? .right : .left
+          case "end": paragraph.alignment = direction == "rtl" ? .left : .right
+          default: break
+          }
           lines.insert(Line(range: start..<(text.length + 1), key: .paragraphStyle, value: paragraph), at: lineCount)
         }
         if let line = line(for: node, at: path) {

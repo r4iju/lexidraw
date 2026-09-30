@@ -4,6 +4,34 @@ import OrderedCollections
 /// toolbar's block menu calls it, and what @lexical/rich-text's HeadingNode
 /// and QuoteNode do when Enter splits them and Backspace reaches their start.
 extension Update {
+  mutating func formatElement(_ selection: RangeSelection, _ format: EditorCommand.ElementAlignment) throws {
+    formatElements(try nodes(in: selection), format)
+  }
+
+  mutating func formatElements(_ nodes: [NodeKey], _ format: EditorCommand.ElementAlignment) {
+    for node in nodes {
+      if let element = findParent(from: node, where: { state[$0].isElement && !state[$0].isInline }) {
+        modifyElement(element) { $0.format = ElementFormat(rawValue: format.rawValue)! }
+      }
+    }
+  }
+
+  mutating func formatElement(_ selection: TableSelection, _ format: EditorCommand.ElementAlignment) throws {
+    let (map, anchor, focus) = try computeTableMap(selection.table, selection.anchor, selection.focus)
+    let rect = rectBoundary(map, anchor, focus)
+    let value = ElementFormat(rawValue: format.rawValue)!
+    if rect.minRow == 0 && rect.minColumn == 0 && rect.maxRow == map.count - 1 && rect.maxColumn == map[0].count - 1 {
+      modifyElement(selection.table) { $0.format = value }
+      return
+    }
+    for cell in try cells(of: selection) {
+      modifyElement(cell) { $0.format = value }
+      for child in state.children(of: cell) where state[child].isElement && !state[child].isInline {
+        modifyElement(child) { $0.format = value }
+      }
+    }
+  }
+
   mutating func setWritingDirection(_ selection: RangeSelection, _ direction: EditorCommand.WritingDirection) throws {
     for block in try blocks(in: selection) {
       modifyElement(block) { $0.direction = direction == .auto ? .null : .value(direction == .rtl ? .rtl : .ltr) }

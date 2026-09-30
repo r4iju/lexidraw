@@ -200,6 +200,11 @@ public enum EditorCommand: Equatable, Sendable {
   /// Makes every block the selection touches a paragraph, heading or quote,
   /// as the web toolbar's block menu does.
   case setBlockType(BlockType)
+  case formatElement(ElementAlignment)
+
+  public enum ElementAlignment: String, Codable, CaseIterable, Sendable {
+    case left, start, center, right, end, justify
+  }
   /// Sets each selected text block; automatic removes the stored override.
   case setWritingDirection(WritingDirection)
 
@@ -334,7 +339,7 @@ extension EditorCommand: Codable {
   /// The command's `type` in JSON.
   private enum Kind: String, Codable {
     case setSelection, insertText, commitComposition, deleteCharacter, deleteWord, deleteLine, insertParagraph, insertLineBreak,
-      formatText, setBlockType, setWritingDirection, insertList, removeList, indent, outdent, tab, toggleChecked, selectAll, toggleLink, editLink,
+      formatText, setBlockType, formatElement, setWritingDirection, insertList, removeList, indent, outdent, tab, toggleChecked, selectAll, toggleLink, editLink,
       copy, cut, paste, insertTable, insertTableRow, insertTableColumn, deleteTableRow, deleteTableColumn, mergeTableCells, unmergeTableCell, deleteTable, toggleTableRowHeader, toggleTableColumnHeader, setTableCellBackground, arrow, undo, redo,
       wait
   }
@@ -350,6 +355,7 @@ extension EditorCommand: Codable {
     case .insertParagraph: .insertParagraph
     case .insertLineBreak: .insertLineBreak
     case .formatText: .formatText
+    case .formatElement: .formatElement
     case .setBlockType: .setBlockType
     case .setWritingDirection: .setWritingDirection
     case .insertList: .insertList
@@ -403,6 +409,7 @@ extension EditorCommand: Codable {
     case .insertParagraph: self = .insertParagraph
     case .insertLineBreak: self = .insertLineBreak
     case .formatText: self = .formatText(try container.decode(TextFormatType.self, forKey: .format))
+    case .formatElement: self = .formatElement(try container.decode(ElementAlignment.self, forKey: .format))
     case .setBlockType: self = .setBlockType(try container.decode(BlockType.self, forKey: .blockType))
     case .setWritingDirection: self = .setWritingDirection(try container.decode(WritingDirection.self, forKey: .direction))
     case .insertList: self = .insertList(try container.decode(ListType.self, forKey: .listType))
@@ -458,6 +465,8 @@ extension EditorCommand: Codable {
       try container.encode(backward, forKey: .backward)
       try container.encode(lineBoundary, forKey: .lineBoundary)
     case .formatText(let format):
+      try container.encode(format, forKey: .format)
+    case .formatElement(let format):
       try container.encode(format, forKey: .format)
     case .setBlockType(let blockType):
       try container.encode(blockType, forKey: .blockType)

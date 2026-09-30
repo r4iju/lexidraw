@@ -23,6 +23,18 @@ public final class EditorView: UIScrollView, UITextInput {
   /// UIKit shows no keyboard for it, as `UITextInput.isEditable` asks, and
   /// it sends the model nothing that edits.
   public let isEditable: Bool
+  /// App-owned insert actions for nodes whose views or uploaders live outside TextKit.
+  public var insertionActions: [UIMenuElement] = [] {
+    didSet { if isEditable, model.isEditable { formattingBar.update(format: modelSelection()?.format ?? []) } }
+  }
+  private lazy var formattingBar = EditorFormattingBar(
+    format: { [weak self] in self?.formatText($0) },
+    link: { [weak self] in self?.addLink() },
+    undo: { [weak self] in self?.history.undo() },
+    redo: { [weak self] in self?.history.redo() },
+    menus: { [unowned self] in formattingMenus() })
+
+  public override var inputAccessoryView: UIView? { isEditable && model.isEditable ? formattingBar : nil }
   private let document: DocumentText
   private let storage = NSTextStorage()
   private let layout: BlockLayout
@@ -239,6 +251,7 @@ public final class EditorView: UIScrollView, UITextInput {
 
   private func showModelSelection(fromInput: Bool) {
     let selection = modelSelection()
+    if isEditable, model.isEditable { formattingBar.update(format: selection?.format ?? []) }
     let cells = selection.flatMap(selectedCells)
     if selection == nil, layout.tableSelection != nil {
       if !fromInput { inputDelegate?.selectionWillChange(self) }
@@ -705,16 +718,14 @@ public final class EditorView: UIScrollView, UITextInput {
       command(UIKeyCommand.inputDelete, .command, #selector(deleteLineBackward)),
       command(Self.forwardDelete, [], #selector(deleteForward)),
       command(Self.forwardDelete, .alternate, #selector(deleteWordForward)),
-      command("k", .command, #selector(linkFromKeyboard)),
-      // The web's block shortcuts.
-      command("0", [.command, .alternate], #selector(makeParagraph)),
-      command("1", [.command, .alternate], #selector(makeHeading1)),
-      command("2", [.command, .alternate], #selector(makeHeading2)),
-      command("3", [.command, .alternate], #selector(makeHeading3)),
-      command("q", [.command, .alternate], #selector(makeQuote)),
       command("\t", [], #selector(tab)),
       command("\t", .shift, #selector(tabBackward)),
-    ]
+    ] + webKeyboardShortcuts.compactMap { binding in
+      guard binding.action.isImplemented else { return nil }
+      let key = command(binding.input, binding.modifiers, #selector(performWebShortcut(_:)))
+      key.allowsAutomaticMirroring = false
+      return key
+    }
   }
 
   /// What the Forward Delete key gives; `UIKeyCommand.inputDelete` is
@@ -829,11 +840,90 @@ public final class EditorView: UIScrollView, UITextInput {
     perform(.setBlockType(type), fromInput: false)
   }
 
-  @objc private func makeParagraph() { setBlockType(.paragraph) }
-  @objc private func makeHeading1() { setBlockType(.h1) }
-  @objc private func makeHeading2() { setBlockType(.h2) }
-  @objc private func makeHeading3() { setBlockType(.h3) }
-  @objc private func makeQuote() { setBlockType(.quote) }
+  private func formattingMenus() -> (block: UIMenu, lists: UIMenu, insert: UIMenu) {
+    let selection = modelSelection()
+    var path = selection?.anchor.path ?? []
+    var selectedType: String?
+    while !path.isEmpty {
+      if let node = try? model.node(at: path) {
+        if node["type"] == "list" { selectedType = node["listType"]?.stringValue; break }
+        if let type = node["type"]?.stringValue, BlockType(rawValue: type) != nil {
+          selectedType = type
+        } else if node["type"] == "heading" { selectedType = node["tag"]?.stringValue }
+      }
+      path.removeLast()
+    }
+    let choices = webBlockChoices.map { choice in
+      let supported = BlockType(rawValue: choice.type) != nil || EditorCommand.ListType(rawValue: choice.type) != nil
+      return UIAction(title: choice.label, attributes: supported ? [] : .disabled,
+        state: choice.type == selectedType ? .on : .off) { [weak self] _ in
+        guard let self else { return }
+        unmarkText()
+        if let list = EditorCommand.ListType(rawValue: choice.type) {
+          if selectedType == choice.type { removeList() } else { insertList(list) }
+        } else if let block = BlockType(rawValue: choice.type) { setBlockType(block) }
+      }
+    }
+    return (
+      UIMenu(title: "Block type", children: choices.filter { action in
+        !webBlockChoices.contains { $0.label == action.title && EditorCommand.ListType(rawValue: $0.type) != nil }
+      } + [UIMenu(title: "Alignment", children: EditorCommand.ElementAlignment.allCases.map { alignment in
+        UIAction(title: alignment.rawValue.capitalized) { [weak self] _ in
+          guard let self else { return }
+          unmarkText()
+          _ = perform(.formatElement(alignment), fromInput: false, tellsRefusal: true)
+        }
+      })]),
+      UIMenu(title: "Lists", children: choices.filter { action in
+        webBlockChoices.contains { $0.label == action.title && EditorCommand.ListType(rawValue: $0.type) != nil }
+      }),
+      UIMenu(title: "Insert", children: [tableMenu()] + insertionActions))
+  }
+
+  @objc private func performWebShortcut(_ key: UIKeyCommand) {
+    guard let binding = webKeyboardShortcuts.first(where: { $0.input == key.input && $0.modifiers == key.modifierFlags }) else {
+      preconditionFailure("A web shortcut without a generated binding")
+    }
+    unmarkText()
+    switch binding.action {
+    case .formatParagraph: setBlockType(.paragraph)
+    case .formatHeading:
+      guard let type = BlockType(rawValue: "h\(binding.input)") else { preconditionFailure("Unknown generated heading shortcut") }
+      setBlockType(type)
+    case .formatQuote: setBlockType(.quote)
+    case .formatBulletList: toggleList(.bullet)
+    case .formatNumberedList: toggleList(.number)
+    case .formatCheckList: toggleList(.check)
+    case .lowercase: formatText(.lowercase)
+    case .uppercase: formatText(.uppercase)
+    case .capitalize: formatText(.capitalize)
+    case .strikeThrough: formatText(.strikethrough)
+    case .indent: indent()
+    case .outdent: outdent()
+    case .subscript: formatText(.subscript)
+    case .superscript: formatText(.superscript)
+    case .insertCodeBlock: formatText(.code)
+    case .insertLink: linkFromKeyboard()
+    case .centerAlign: _ = perform(.formatElement(.center), fromInput: false, tellsRefusal: true)
+    case .leftAlign: _ = perform(.formatElement(.left), fromInput: false, tellsRefusal: true)
+    case .rightAlign: _ = perform(.formatElement(.right), fromInput: false, tellsRefusal: true)
+    case .justifyAlign: _ = perform(.formatElement(.justify), fromInput: false, tellsRefusal: true)
+    case .formatCode, .increaseFontSize, .decreaseFontSize, .clearFormatting:
+      preconditionFailure("A shortcut offered before its #135/#132 command is ported")
+    }
+  }
+
+  private func toggleList(_ type: EditorCommand.ListType) {
+    var path = modelSelection()?.anchor.path ?? []
+    while !path.isEmpty {
+      if let node = try? model.node(at: path), node["type"] == "list" {
+        if node["listType"]?.stringValue == type.rawValue { removeList(); return }
+        break
+      }
+      path.removeLast()
+    }
+    insertList(type)
+  }
 
   /// The edit menu with the link actions for the range, and a Table menu
   /// where the document can be edited: the web's insert-table dialog, or its
@@ -1064,9 +1154,14 @@ public final class EditorView: UIScrollView, UITextInput {
     presenter?.present(alert, animated: true)
   }
 
-  public override func toggleBoldface(_ sender: Any?) { perform(.formatText(.bold), fromInput: false) }
-  public override func toggleItalics(_ sender: Any?) { perform(.formatText(.italic), fromInput: false) }
-  public override func toggleUnderline(_ sender: Any?) { perform(.formatText(.underline), fromInput: false) }
+  public func formatText(_ format: TextFormatType) {
+    unmarkText()
+    perform(.formatText(format), fromInput: false, tellsRefusal: true)
+  }
+
+  public override func toggleBoldface(_ sender: Any?) { formatText(.bold) }
+  public override func toggleItalics(_ sender: Any?) { formatText(.italic) }
+  public override func toggleUnderline(_ sender: Any?) { formatText(.underline) }
   public override func selectAll(_ sender: Any?) { perform(.selectAll, fromInput: false) }
 
   // MARK: Accessibility
@@ -1318,6 +1413,18 @@ extension EditorCommand {
     switch self {
     case .setSelection, .wait, .undo, .redo, .selectAll: false
     default: true
+    }
+  }
+}
+
+extension WebShortcutAction {
+  fileprivate var isImplemented: Bool {
+    switch self {
+    case .formatCode, .increaseFontSize, .decreaseFontSize, .clearFormatting: false
+    case .centerAlign, .leftAlign, .rightAlign, .justifyAlign: true
+    case .formatParagraph, .formatHeading, .formatBulletList, .formatNumberedList, .formatCheckList, .formatQuote,
+      .lowercase, .uppercase, .capitalize, .strikeThrough, .indent, .outdent, .subscript, .superscript,
+      .insertCodeBlock, .insertLink: true
     }
   }
 }

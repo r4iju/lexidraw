@@ -18,6 +18,7 @@ import {
   swiftForMarkdownTransformers,
 } from "./markdown";
 import { SERIALIZED_NODES_PATH, swiftForNodeSchema } from "./swift";
+import { SHORTCUTS_PATH, swiftForShortcuts } from "./shortcuts";
 import {
   DOCUMENT_TYPOGRAPHY_PATH,
   readWebStyles,
@@ -45,6 +46,7 @@ await Bun.write(
 );
 await Bun.write(LINKS_PATH, await swiftForLinks());
 await Bun.write(LINK_PROTOCOLS_PATH, swiftForLinkProtocols());
+await Bun.write(SHORTCUTS_PATH, swiftForShortcuts());
 
 const { HTML_IMPORT_PATH, swiftForHTMLImport } = await import("./html");
 await Bun.write(HTML_IMPORT_PATH, await swiftForHTMLImport());
