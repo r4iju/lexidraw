@@ -14,6 +14,11 @@ public protocol EditorModel: AnyObject {
   @discardableResult
   func apply(_ command: EditorCommand) throws -> ChangeSet
 
+  /// Replaces the inline drawing opened at `key`, only if it still holds
+  /// the scene the editor opened. Nil deletes an empty saved drawing.
+  @discardableResult
+  func replaceDrawing(key: String, expectedData: String, data: String?) throws -> ChangeSet
+
   /// The serialized editor state and the selection.
   func snapshot() throws -> Snapshot
 
@@ -39,6 +44,9 @@ public protocol EditorModel: AnyObject {
 }
 
 extension EditorModel {
+  public func replaceDrawing(key: String, expectedData: String, data: String?) throws -> ChangeSet {
+    throw EditorError.unsupported("Embedded drawing editing requires #139")
+  }
   public func serializedState() throws -> JSONValue { ["root": try node(at: [])] }
   public func nodeForPresentation(at path: [Int]) throws -> JSONValue { try node(at: path) }
 }

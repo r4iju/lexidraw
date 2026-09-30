@@ -48,3 +48,15 @@ await Bun.write(LINK_PROTOCOLS_PATH, swiftForLinkProtocols());
 
 const { HTML_IMPORT_PATH, swiftForHTMLImport } = await import("./html");
 await Bun.write(HTML_IMPORT_PATH, await swiftForHTMLImport());
+
+const { EMBEDDED_DRAWING_STYLE_PATH, swiftForEmbeddedDrawingStyle } =
+  await import("./embedded-drawing");
+await Bun.write(
+  EMBEDDED_DRAWING_STYLE_PATH,
+  await swiftForEmbeddedDrawingStyle(),
+);
+
+const { FIGURE_STYLE_PATH, swiftForFigureStyle } = await import(
+  "./embedded-drawing"
+);
+await Bun.write(FIGURE_STYLE_PATH, await swiftForFigureStyle());

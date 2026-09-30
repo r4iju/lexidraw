@@ -9,7 +9,7 @@ public final class Editor: EditorModel {
   /// Whether the document holds only what the editing commands are ported
   /// for: paragraphs, headings, quotes, lists, horizontal rules, line
   /// breaks, tabs and text in any format, with no field the payload types
-  /// don't model, and tables of them.
+  /// don't model, tables of them, and embedded drawing nodes.
   public private(set) var isEditable = false
   private var knowsListMarker = false
   /// How many markdown shortcuts this editor has left as typed where Lexical
@@ -73,6 +73,24 @@ public final class Editor: EditorModel {
     } catch {
       (state, nextKey, history, knowsListMarker) = saved
       throw error
+    }
+  }
+
+  public func replaceDrawing(key: String, expectedData: String, data: String?) throws -> ChangeSet {
+    guard isEditable else { throw EditorError.unsupported("This document cannot be edited") }
+    guard let key = NodeKey(key), let node = state.nodes[key],
+      case .excalidraw(let drawing) = node.payload, (drawing.data?.stringValue ?? "[]") == expectedData
+    else { throw EditorError.invalidState("The drawing changed while it was open") }
+    return try commit { update in
+      if let data {
+        update.modify(key) { node in
+          guard case .excalidraw(var drawing) = node.payload else { return }
+          drawing.data = .string(data)
+          node.payload = .excalidraw(drawing)
+        }
+      } else {
+        try update.remove(key)
+      }
     }
   }
 
@@ -219,6 +237,7 @@ extension Node {
     case .table(let node): node.unknownFields.isEmpty
     case .tableRow(let node): node.unknownFields.isEmpty
     case .tableCell(let node): node.unknownFields.isEmpty
+    case .excalidraw(let node): node.unknownFields.isEmpty && (node.data == nil || node.data?.stringValue != nil)
     case .text(let node): node.unknownFields.isEmpty && node.mode == .normal && (node.detail ?? 0) == 0
     case .tab(let node): node.unknownFields.isEmpty && node.detail == Double(TextDetail.unmergeable.rawValue)
     default: false

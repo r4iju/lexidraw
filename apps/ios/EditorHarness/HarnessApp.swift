@@ -194,6 +194,7 @@ struct EditorRepresentable: UIViewRepresentable {
   func makeUIView(context: Context) -> KeyCountingView {
     harness.timing.viewMade = CACurrentMediaTime()
     let editor = EditorView(model: harness.model)
+    configureEmbeddedDrawings(editor)
     harness.timing.viewInitialized = CACurrentMediaTime()
     editor.accessibilityIdentifier = "editor"
     if harness.scrollReport == nil && harness.typingReport == nil

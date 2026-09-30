@@ -3,6 +3,77 @@ import LexicalSwift
 import Testing
 
 @Suite struct EditorStateTests {
+  @Test func editingAroundAnInlineDrawingMatchesLexical() throws {
+    let drawing: JSONValue = ["type": "excalidraw", "version": 1, "data": "[]", "width": 320, "height": 180]
+    let input = document(paragraph(text("before"), drawing, text("after")))
+    let editor = Editor()
+    let reference = try Support.referenceEditor()
+    try editor.load(input)
+    try reference.load(input)
+    let before = Point(path: [0, 0], offset: 6, type: .text)
+    let after = Point(path: [0, 2], offset: 0, type: .text)
+    let commands: [EditorCommand] = [
+      .setSelection(anchor: before, focus: before), .insertText("!"),
+      .setSelection(anchor: after, focus: after), .deleteCharacter(backward: true), .undo, .redo,
+    ]
+    for command in commands {
+      try editor.apply(command)
+      try reference.apply(command)
+      #expect(try editor.snapshot() == reference.snapshot())
+    }
+    try editor.load(input)
+    try reference.load(input)
+    let start = Point(path: [0, 0], offset: 0, type: .text)
+    let end = Point(path: [0, 2], offset: 5, type: .text)
+    try editor.apply(.setSelection(anchor: start, focus: end))
+    try reference.apply(.setSelection(anchor: start, focus: end))
+    let copied = try #require(editor.apply(.copy).clipboard)
+    let referenceCopy = try #require(reference.apply(.copy).clipboard)
+    #expect(copied == referenceCopy)
+    try editor.apply(.cut)
+    try reference.apply(.cut)
+    #expect(try editor.snapshot() == reference.snapshot())
+    try editor.apply(.paste(copied))
+    try reference.apply(.paste(referenceCopy))
+    #expect(try editor.snapshot() == reference.snapshot())
+  }
+
+  @Test func embeddedDrawingReplacementUsesHistoryAndRefusesAStaleScene() throws {
+    let drawing: JSONValue = ["type": "excalidraw", "version": 1, "data": "[]", "width": 320, "height": 180]
+    let editor = Editor()
+    try editor.load(document(drawing, paragraph(text("after"))))
+    let original = try editor.serializedState()
+    let key = try #require(editor.childKeys(at: [0]).first)
+    let data = "{\"elements\":[{\"id\":\"new\"}],\"appState\":{},\"files\":{}}"
+    try editor.replaceDrawing(key: key, expectedData: "[]", data: data)
+    #expect(try editor.node(at: [0, 0])["data"] == .string(data))
+    #expect(try editor.node(at: [0, 0])["width"] == 320)
+    #expect(throws: EditorError.self) { try editor.replaceDrawing(key: key, expectedData: "[]", data: "changed") }
+    try editor.apply(.undo)
+    #expect(try editor.serializedState() == original)
+    try editor.apply(.redo)
+    #expect(try editor.node(at: [0, 0])["data"] == .string(data))
+    try editor.replaceDrawing(key: key, expectedData: data, data: nil)
+    #expect(try editor.childKeys(at: [0]).isEmpty)
+    #expect(throws: EditorError.self) { try editor.replaceDrawing(key: key, expectedData: data, data: "changed") }
+  }
+
+  @Test func embeddedDrawingCanBeEditedWithoutChangingItsStoredFields() throws {
+    let drawing: JSONValue = ["type": "excalidraw", "version": 1, "data": "{\"elements\":[],\"appState\":{},\"files\":{}}", "width": 320, "height": 180]
+    let input = document(paragraph(text("before")), drawing, paragraph(text("after")))
+    let reference = try Support.referenceEditor()
+    try reference.load(input)
+    let expected = try reference.serializedState()
+    let editor = Editor()
+    try editor.load(input)
+    #expect(editor.isEditable)
+    #expect(try editor.serializedState() == expected)
+    try editor.apply(.setSelection(anchor: Point(path: [2, 0], offset: 5, type: .text), focus: Point(path: [2, 0], offset: 5, type: .text)))
+    try editor.apply(.insertText("!"))
+    #expect(try editor.node(at: [1]) == expected["root"]?["children"]?.arrayValue?[1])
+    #expect(try editor.node(at: [2, 0])["text"] == "after!")
+  }
+
   @Test func deeplyNestedListsSerializeLikeLexical() throws {
     var entries: [LexicalJSON.ListEntry] = [.item([LexicalJSON.text("deep")])]
     for _ in 0..<24 { entries = [.nested(.bullet, entries)] }

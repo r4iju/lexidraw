@@ -46,6 +46,61 @@ public final class EditorView: UIScrollView, UITextInput {
   /// Called after each call a keyboard's input method makes.
   public var onInput: ((TextInputRecord) -> Void)?
 
+  public var embeddedContent: ((String, JSONValue) -> EmbeddedContentView?)? {
+    didSet { layout.embeddedContent = embeddedContent; render(nil) }
+  }
+
+  public var inlineEmbeddedContent: ((String, JSONValue, CGFloat) -> NSTextAttachment?)? {
+    didSet {
+      document.nativeAttachment = { [weak self] node, path in
+        guard let self, let key = nodeKey(at: path) else { return nil }
+        return inlineEmbeddedContent?(key, node, max(bounds.width - BlockLayout.margin * 2, 1))
+      }
+      render(nil)
+    }
+  }
+  public var onEmbeddedTap: ((String, JSONValue) -> Bool)?
+  private var inlineWidth: CGFloat = 0
+  public func refreshEmbeddedContent() { render(nil); setNeedsLayout() }
+
+  private func nodeKey(at path: [Int]) -> String? {
+    guard let index = path.last, let keys = try? model.childKeys(at: Array(path.dropLast())), keys.indices.contains(index) else { return nil }
+    return keys[index]
+  }
+
+  /// Inserts a decorator through the existing clipboard command and opens
+  /// only the new node, without mistaking an older drawing for it.
+  public func insertEmbeddedNode(_ node: JSONValue, namespace: String) {
+    guard isEditable else { return }
+    var before = Set<String>()
+    var pending: [[Int]] = [[]]
+    while let path = pending.popLast() {
+      guard let keys = try? model.childKeys(at: path) else { continue }
+      for (index, key) in keys.enumerated() {
+        before.insert(key)
+        pending.append(path + [index])
+      }
+    }
+    let clipboard = Clipboard(plainText: "", lexical: LexicalClipboardPayload(namespace: namespace, nodes: [node]))
+    guard let change = perform(.paste(clipboard), fromInput: false, tellsRefusal: true) else { return }
+    for path in change.changed.sorted(by: { $0.count > $1.count }) {
+      guard let key = nodeKey(at: path), !before.contains(key),
+        let inserted = try? model.nodeForPresentation(at: path), inserted["type"] == node["type"] else { continue }
+      _ = onEmbeddedTap?(key, inserted)
+      return
+    }
+  }
+
+  /// Commits a drawing edit through the document's history and rendering.
+  public func replaceDrawing(key: String, expectedData: String, data: String?) throws {
+    guard isEditable else { throw EditorError.unsupported("This document is read only") }
+    let change = try model.replaceDrawing(key: key, expectedData: expectedData, data: data)
+    inputDelegate?.textWillChange(self)
+    render(change)
+    inputDelegate?.textDidChange(self)
+    showModelSelection(fromInput: false)
+  }
+
   public weak var inputDelegate: (any UITextInputDelegate)?
   public var markedTextStyle: [NSAttributedString.Key: Any]?
   public private(set) lazy var tokenizer: any UITextInputTokenizer = UITextInputStringTokenizer(textInput: self)
@@ -80,7 +135,10 @@ public final class EditorView: UIScrollView, UITextInput {
     tap.delegate = self
     surface.addGestureRecognizer(tap)
     isAccessibilityElement = true
-    registerForTraitChanges([UITraitUserInterfaceStyle.self]) { (view: EditorView, _) in view.layout.redraw() }
+    registerForTraitChanges([UITraitUserInterfaceStyle.self]) { (view: EditorView, _) in
+      if view.inlineEmbeddedContent != nil { view.render(nil) }
+      else { view.layout.redraw() }
+    }
     // UIKit redraws the caret and selection only when told the selection
     // changed, though here only where it is drawn did.
     layout.onScrollSideways = { [weak self] in
@@ -1223,6 +1281,8 @@ public final class EditorView: UIScrollView, UITextInput {
   /// offers to open or edit the link.
   @objc private func tapped(_ tap: UITapGestureRecognizer) {
     let point = tap.location(in: surface)
+    if let offset = layout.offset(closestTo: point), let path = document.embeddedPath(at: offset),
+      let key = nodeKey(at: path), let node = try? model.nodeForPresentation(at: path), onEmbeddedTap?(key, node) == true { return }
     guard linkCharacter(at: point) != nil else { return }
     linkMenu.presentEditMenu(with: UIEditMenuConfiguration(identifier: nil, sourcePoint: point))
   }
@@ -1231,6 +1291,10 @@ public final class EditorView: UIScrollView, UITextInput {
 
   public override func layoutSubviews() {
     super.layoutSubviews()
+    if inlineEmbeddedContent != nil, inlineWidth != bounds.width {
+      inlineWidth = bounds.width
+      render(nil)
+    }
     if composition == nil {
       let changed = typesetting.setWidth(bounds.width)
       let paths = (0..<document.blockCount).filter { changed.contains(document.type(ofBlock: $0)) }.map { [$0] }

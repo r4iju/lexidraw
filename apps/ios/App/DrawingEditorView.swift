@@ -4,7 +4,7 @@ import PhotosUI
 import SwiftUI
 
 /// A drawing being edited: the editor, and the saving of what it changes.
-@MainActor @Observable final class DrawingEditing {
+@MainActor @Observable final class DrawingEditing: DrawingCanvasEditing {
   let editor: DrawingEditor
   private(set) var tool = DrawingTool.selection
   private(set) var historyButtons: [EditorButton] = []
