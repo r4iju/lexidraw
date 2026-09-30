@@ -16,6 +16,29 @@ import TextKitEditor
     [.lexicalFormat: format.rawValue]
   }
 
+  @Test func textAndHighlightColorsReachNativeRuns() throws {
+    let model = Editor()
+    try model.load(LexicalJSON.document([LexicalJSON.paragraph([
+      LexicalJSON.text("abc", style: "color: #ff0000; background-color: #0000ff;")
+    ])]))
+    let storage = NSMutableAttributedString()
+    try DocumentText(model: model, style: Self.style).reload(storage)
+    #if canImport(UIKit)
+    let foreground = try #require(storage.attribute(.foregroundColor, at: 0, effectiveRange: nil) as? UIColor)
+    let background = try #require(storage.attribute(.backgroundColor, at: 0, effectiveRange: nil) as? UIColor)
+    var red: CGFloat = 0, green: CGFloat = 0, blue: CGFloat = 0, alpha: CGFloat = 0
+    foreground.getRed(&red, green: &green, blue: &blue, alpha: &alpha)
+    #expect(red == 1 && green == 0 && blue == 0 && alpha == 1)
+    background.getRed(&red, green: &green, blue: &blue, alpha: &alpha)
+    #expect(red == 0 && green == 0 && blue == 1 && alpha == 1)
+    #else
+    let foreground = try #require((storage.attribute(.foregroundColor, at: 0, effectiveRange: nil) as? NSColor)?.usingColorSpace(.deviceRGB))
+    let background = try #require((storage.attribute(.backgroundColor, at: 0, effectiveRange: nil) as? NSColor)?.usingColorSpace(.deviceRGB))
+    #expect(foreground.redComponent == 1 && foreground.greenComponent == 0 && foreground.blueComponent == 0)
+    #expect(background.redComponent == 0 && background.greenComponent == 0 && background.blueComponent == 1)
+    #endif
+  }
+
   @Test func fontSizeStyleReachesNativeFont() throws {
     let model = Editor()
     try model.load(LexicalJSON.document([LexicalJSON.paragraph([LexicalJSON.text("abc", style: "font-size: 32px;")])]))
