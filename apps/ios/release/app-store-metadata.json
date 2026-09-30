@@ -117,11 +117,18 @@
   "reviewNotesDraft": "Lexidraw is a native document and drawing editor. Sign In opens the secure Lexidraw authentication website and returns to the app. Review credentials will be supplied privately in App Store Connect. The seeded review account will contain disposable sample documents and drawings. Account deletion is available in Settings. Listen generates spoken audio from a selected file; it does not record the microphone. Review notes will be updated with the final supported node families and any explicit limitations.",
   "submissionPending": [
     "Final integrated source SHA and local release archive",
-    "App Store Connect issuer ID",
     "Dedicated review account and disposable seeded corpus",
     "Final iPhone and iPad screenshots",
     "Publish verified privacy answers",
     "Submission and review response"
   ],
-  "serverURLSource": "apps/ios/project.yml:LEXIDRAW_SERVER_URL"
+  "serverURLSource": "apps/ios/project.yml:LEXIDRAW_SERVER_URL",
+  "appStoreRecord": {
+    "appId": "6816381053",
+    "version": "1.0",
+    "versionId": "dc2f83df-01fa-4185-acbd-ea4c0433d2d2",
+    "latestUploadedBuild": "6",
+    "apiAccessVerified": "2026-09-30"
+  },
+  "descriptionDraft": "Write, sketch and organize your ideas with Lexidraw. Work with documents, drawings and folders on iPhone and iPad, keep your files synchronized with your Lexidraw account, and share them with other people. Format text, edit tables, create drawings, and listen to your documents read aloud. A Lexidraw account and an internet connection are required for synchronization and read-aloud generation."
 }
