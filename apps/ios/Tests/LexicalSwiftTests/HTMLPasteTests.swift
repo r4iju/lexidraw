@@ -74,6 +74,10 @@ import Testing
     #expect(try editor.serializedState() == document(paragraph()))
   }
 
+  @Test func malformedRawTextHTMLAgreesWithChromium() throws {
+    try replayHTMLFixtures("HTML/upstream/malformed-raw-text.chromium.json")
+  }
+
   @Test func commandReferenceRequiresTheIndependentDOMOracleForHTML() throws {
     let reference = try Support.referenceEditor()
     try reference.load(document(paragraph()))

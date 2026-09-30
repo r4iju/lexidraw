@@ -58,10 +58,22 @@ enum HTMLDOM {
     var index = 0
     func letter(_ byte: UInt8) -> Bool { (65...90).contains(byte) || (97...122).contains(byte) }
     func nameByte(_ byte: UInt8) -> Bool {
-      letter(byte) || (48...57).contains(byte) || [45, 46, 58, 95].contains(byte)
+      ![9, 10, 12, 13, 32, 47, 62].contains(byte)
     }
     while index < bytes.count {
       guard bytes[index] == 60 else { index += 1; continue }
+      if let rawText, ["textarea", "title"].contains(rawText) {
+        let closing = Array("</\(rawText)".utf8)
+        let after = index + closing.count
+        let matches = after < bytes.count && zip(bytes[index..<after], closing).allSatisfy { source, target in
+          (65...90).contains(source) ? source + 32 == target : source == target
+        } && !nameByte(bytes[after])
+        if !matches {
+          replacements.append((index..<(index + 1), Array("&lt;".utf8)))
+          index += 1
+          continue
+        }
+      }
       if rawText == nil, bytes[index...].starts(with: Array("<!--".utf8)) {
         index += 4
         while index < bytes.count, !bytes[index...].starts(with: Array("-->".utf8)) { index += 1 }
@@ -75,7 +87,11 @@ enum HTMLDOM {
       var end = start + 1
       while end < bytes.count, nameByte(bytes[end]) { end += 1 }
       let name = String(decoding: bytes[start..<end], as: UTF8.self).lowercased()
-      if let rawText, !(closing && name == rawText) { index += 1; continue }
+      let completeName = end < bytes.count
+      if let rawText, !(closing && name == rawText && completeName) {
+        index += 1
+        continue
+      }
       var tagEnd = end
       var quote: UInt8?
       while tagEnd < bytes.count {
@@ -93,8 +109,12 @@ enum HTMLDOM {
         replacements.append((start..<end, Array(protectedName.utf8)))
       }
       if closing { rawText = nil }
-      else if ["script", "style", "textarea", "title", "xmp", "iframe", "noembed", "noframes", "plaintext"].contains(name) {
+      else if completeName, ["script", "style", "textarea", "title", "xmp", "iframe", "noembed", "noframes", "plaintext"].contains(name) {
         rawText = name
+        if ["textarea", "title"].contains(name), tagEnd > end, tagEnd < bytes.count, bytes[tagEnd - 1] == 47 {
+          // HTML ignores a self-closing flag on an RCDATA start tag.
+          replacements.append(((tagEnd - 1)..<tagEnd, []))
+        }
         if name == "plaintext" { break }
       }
       index = min(tagEnd + 1, bytes.count)

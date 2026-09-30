@@ -44,9 +44,20 @@ samples.push([
     ),
   ).text(),
 ]);
+// Keep captured Word's expected conversion tied to a real browser DOMParser.
+const wordOracle = await Bun.file(
+  new URL(
+    "../Tests/LexicalSwiftTests/Fixtures/HTML/upstream/word.chromium.json",
+    import.meta.url,
+  ),
+).json();
 const fixtures = samples.map(([name, html]) => {
   if (!name || !html) throw new Error("Missing sample");
-  return { name, html, nodes: htmlOracle(html) };
+  return {
+    name,
+    html,
+    nodes: name === "Lexical Word" ? wordOracle.nodes : htmlOracle(html),
+  };
 });
 await Bun.write(
   new URL(

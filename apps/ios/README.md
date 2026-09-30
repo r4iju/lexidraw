@@ -424,6 +424,9 @@ editing isn't ported throw naming their existing owning ticket. libxml2's
 HTML4 nested-heading recovery is normalized to HTML5's heading closure.
 Qualified tag names are protected during parsing: libxml2 otherwise turns
 Word's unknown `o:p` elements into paragraphs, unlike the browser DOM.
+RCDATA (`textarea`/`title`) preserves literal markup by escaping `<` until an
+exact closing name with an HTML delimiter; entities still decode normally and
+HTML's ignored self-closing flag is removed from those start tags.
 
 `bun run record:html` records clipboard-shaped Safari, Notes, Pages, Google
 Docs and Word examples and seeded generated HTML with the independent bun
@@ -448,5 +451,13 @@ Google Docs inputs and Word/Word-through-Safari style inputs from CKEditor's
 documented clipboard corpus, plus Lexical's verbatim VS Code-to-Safari payload.
 All agree with the browser DOM oracle; VS Code code nodes explicitly refuse
 under #132. These are upstream captures, not newly captured on this device.
+The seven upstream payloads and nine raw-text variants also agree with actual
+Chromium 152 `DOMParser` plus the unmodified web converters. Browser version,
+input/output digests and verification results are in `chromium-verification.json`.
+Captured Word's recorded expected nodes now come from that browser reference.
+The retained malformed textarea regression was red against Chromium even though
+libxml2 and Bun's DOM parser agreed; it prevents treating their shared recovery
+error as browser parity. These bounded cases do not establish general HTML5
+malformed-input recovery parity.
 Actual Pages and Notes clipboard fixtures remain unverified, as does a fresh
 Safari webpage capture; synthetic app-shaped examples do not close those gaps.
