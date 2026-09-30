@@ -109,7 +109,9 @@ public final class EditorView: UIScrollView, UITextInput {
   public var onChange: (() -> Void)?
 
   /// Native panels expose their controls when the document contains only panels.
-  public var accessibleEmbeddedTypes: Set<String> = []
+  public var accessibleEmbeddedTypes: Set<String> = [] {
+    didSet { updateEmbeddedAccessibility() }
+  }
   private var embeddedAccessibilityContainer = false
   public override var isAccessibilityElement: Bool {
     get { embeddedAccessibilityContainer ? false : super.isAccessibilityElement }
@@ -547,7 +549,15 @@ public final class EditorView: UIScrollView, UITextInput {
         }
       }
     }
+    updateEmbeddedAccessibility()
     setNeedsLayout()
+  }
+
+  private func updateEmbeddedAccessibility() {
+    embeddedAccessibilityContainer = document.blockCount > 0 && (0..<document.blockCount).allSatisfy {
+      if case .embedded(let type) = document.kind(ofBlock: $0) { return accessibleEmbeddedTypes.contains(type) }
+      return false
+    }
   }
 
   /// A change to the text that is only the view's, as composition is.
@@ -1773,10 +1783,6 @@ public final class EditorView: UIScrollView, UITextInput {
     }
     typesetting.withFontMetrics { layout.layoutViewport(of: self) }
     layoutFloatingContent()
-    embeddedAccessibilityContainer = document.blockCount > 0 && (0..<document.blockCount).allSatisfy {
-      if case .embedded(let type) = document.kind(ofBlock: $0) { return accessibleEmbeddedTypes.contains(type) }
-      return false
-    }
   }
 }
 
