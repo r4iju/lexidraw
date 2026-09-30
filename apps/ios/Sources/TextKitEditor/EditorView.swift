@@ -45,6 +45,9 @@ public final class EditorView: UIScrollView, UITextInput {
 
   /// Called after each call a keyboard's input method makes.
   public var onInput: ((TextInputRecord) -> Void)?
+  /// An accepted change to stored content, including undo and redo.
+  /// The owner can schedule autosave without exporting on every keystroke.
+  public var onChange: (() -> Void)?
 
   public var embeddedContent: ((String, JSONValue) -> EmbeddedContentView?)? {
     didSet { layout.embeddedContent = embeddedContent; render(nil) }
@@ -99,6 +102,7 @@ public final class EditorView: UIScrollView, UITextInput {
     render(change)
     inputDelegate?.textDidChange(self)
     showModelSelection(fromInput: false)
+    if !change.changed.isEmpty { onChange?() }
   }
 
   public weak var inputDelegate: (any UITextInputDelegate)?
@@ -106,10 +110,13 @@ public final class EditorView: UIScrollView, UITextInput {
   public private(set) lazy var tokenizer: any UITextInputTokenizer = UITextInputStringTokenizer(textInput: self)
 
   /// `style` sets the text's attributes in place of the web's typography.
-  public init(model: any EditorModel, style: DocumentText.Style? = nil, isEditable: Bool = true) {
+  public init(model: any EditorModel, style: DocumentText.Style? = nil, isEditable: Bool = true,
+    language: String? = nil, font: DocumentFont? = nil) {
     self.model = model
     self.isEditable = isEditable
     let typesetting = Typesetting(.web)
+    typesetting.language = language
+    typesetting.documentFont = font
     self.typesetting = typesetting
     document = DocumentText(
       model: model, style: style ?? { typesetting.attributes(StyledBlock($0), $1) }, standIn: BlockLayout.standIn)
@@ -187,6 +194,7 @@ public final class EditorView: UIScrollView, UITextInput {
     render(change)
     if !fromInput { inputDelegate?.textDidChange(self) }
     showModelSelection(fromInput: fromInput)
+    if command.edits && !change.changed.isEmpty { onChange?() }
     return change
   }
 

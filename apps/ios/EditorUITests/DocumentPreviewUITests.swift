@@ -10,16 +10,19 @@ final class DocumentPreviewUITests: XCTestCase {
     continueAfterFailure = false
   }
 
-  func testAnEditableDocumentSaysItsChangesArentSavedAndSendsNothing() {
+  func testAnEditableDocumentAutosavesItsChanges() {
     let app = open(access: "EDIT")
-    let notice = app.staticTexts["Preview: changes aren’t saved"]
+    let notice = app.staticTexts["Saved"]
     XCTAssertTrue(notice.waitForExistence(timeout: 10))
 
     XCTAssertTrue(offersKeyboard(app))
-    app.textViews.firstMatch.typeText("Typed in the preview")
+    app.textViews.firstMatch.typeText("Typed in the document")
 
-    XCTAssertTrue(notice.isHittable)
-    XCTAssertEqual(requests(in: app), "entities-load")
+    let saved = NSPredicate(format: "label CONTAINS %@", "entities-save")
+    expectation(for: saved, evaluatedWith: app.staticTexts["server requests"])
+    waitForExpectations(timeout: 10)
+    XCTAssertTrue(notice.waitForExistence(timeout: 10))
+    XCTAssertEqual(requests(in: app), "entities-load entities-save")
   }
 
   func testAReadOnlyDocumentSaysItIsReadOnly() {
@@ -50,7 +53,9 @@ final class DocumentPreviewUITests: XCTestCase {
     ])
     let app = open(access: "EDIT", document: document)
 
-    XCTAssertTrue(app.staticTexts["Read only: this document has parts the app can’t edit yet"].waitForExistence(timeout: 10))
+    XCTAssertTrue(
+      app.staticTexts["Read only: this document has parts the app can’t edit yet"].waitForExistence(
+        timeout: 10))
     XCTAssertFalse(app.staticTexts["Preview: changes aren’t saved"].exists)
     XCTAssertTrue((app.textViews.firstMatch.value as? String)?.contains("youtube") == true)
     XCTAssertFalse(offersKeyboard(app))
@@ -60,7 +65,7 @@ final class DocumentPreviewUITests: XCTestCase {
   /// second load, not the editor the first one made.
   func testASecondLoadReplacesWhatIsShown() {
     let app = open(access: "EDIT,READ")
-    XCTAssertTrue(app.staticTexts["Preview: changes aren’t saved"].waitForExistence(timeout: 10))
+    XCTAssertTrue(app.staticTexts["Saved"].waitForExistence(timeout: 10))
 
     app.buttons["Away"].tap()
     app.navigationBars.buttons.element(boundBy: 0).tap()
@@ -71,7 +76,8 @@ final class DocumentPreviewUITests: XCTestCase {
   }
 
   func testADocumentTheAppCantReadSaysSoWithoutARetry() {
-    let app = open(access: "EDIT", document: ["root": ["type": "paragraph", "version": 1, "children": []]])
+    let app = open(
+      access: "EDIT", document: ["root": ["type": "paragraph", "version": 1, "children": []]])
 
     XCTAssertTrue(app.staticTexts["Can’t open the document"].waitForExistence(timeout: 10))
     XCTAssertFalse(app.buttons["Try Again"].exists)
@@ -81,7 +87,8 @@ final class DocumentPreviewUITests: XCTestCase {
     let app = XCUIApplication()
     app.launchEnvironment["EDITOR_PREVIEW_ACCESS"] = access
     if let document {
-      app.launchEnvironment["EDITOR_DOCUMENT"] = String(decoding: try! JSONEncoder().encode(document), as: UTF8.self)
+      app.launchEnvironment["EDITOR_DOCUMENT"] = String(
+        decoding: try! JSONEncoder().encode(document), as: UTF8.self)
     }
     app.launch()
     return app

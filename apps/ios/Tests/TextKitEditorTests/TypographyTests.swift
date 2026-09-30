@@ -9,6 +9,27 @@ import UIKit
 /// Blocks set and spaced as the web's stylesheet sets them, an em being
 /// the body text's size, seen through where UIKit is told carets are.
 @MainActor @Suite struct TypographyTests {
+  @Test func documentSettingsSetTheNativeFontAndLanguageAtTheViewBoundary() throws {
+    let model = Editor()
+    try model.load(LexicalJSON.document([LexicalJSON.paragraph([LexicalJSON.text("読む")])]))
+    let font = try DocumentFont(family: "Georgia")
+    let view = EditorView(model: model, language: "ja", font: font)
+    let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 600))
+    view.frame = window.bounds
+    window.addSubview(view)
+    window.makeKeyAndVisible()
+    view.layoutIfNeeded()
+    let typesetting = Typesetting(.web)
+    typesetting.language = "ja"
+    let attributes = typesetting.attributes(.text(.paragraph), [])
+    let paragraph = try #require(attributes[.paragraphStyle] as? NSParagraphStyle)
+    Self.expectNear(
+      view.caretRect(for: view.beginningOfDocument).height,
+      font.font(size: Self.em, weight: .regular, italic: false).lineHeight,
+      "the saved font shapes the caret")
+    #expect(paragraph.minimumLineHeight == 1.8 * Self.em)
+  }
+
   static let em = UIFont.preferredFont(forTextStyle: .body).pointSize
 
   /// document.css's sizes and lines, in ems, at a phone's width.

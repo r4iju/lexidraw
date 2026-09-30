@@ -60,3 +60,8 @@ const { FIGURE_STYLE_PATH, swiftForFigureStyle } = await import(
   "./embedded-drawing"
 );
 await Bun.write(FIGURE_STYLE_PATH, await swiftForFigureStyle());
+
+const { DOCUMENT_SETTINGS_PATH, swiftForDocumentSettings } = await import(
+  "./document-fonts"
+);
+await Bun.write(DOCUMENT_SETTINGS_PATH, await swiftForDocumentSettings());

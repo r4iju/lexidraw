@@ -8,6 +8,7 @@ import UIKit
 final class Typesetting {
   private let web: DocumentTypography
   private(set) var typography: DocumentTypography
+  var documentFont: DocumentFont?
   /// The view's, which sets some headings smaller.
   private(set) var width: Double = 0
   /// The document's, a BCP 47 tag.
@@ -103,8 +104,10 @@ final class Typesetting {
     var font =
       format.contains(.code)
       ? UIFont.monospacedSystemFont(ofSize: size * 0.9, weight: weight == .regular ? .regular : .bold)
-      : UIFont.systemFont(ofSize: size, weight: weight)
-    if format.contains(.italic), let italic = font.fontDescriptor.withSymbolicTraits(.traitItalic) {
+      : documentFont?.font(size: size, weight: weight, italic: format.contains(.italic))
+        ?? UIFont.systemFont(ofSize: size, weight: weight)
+    if (format.contains(.code) || documentFont == nil), format.contains(.italic),
+      let italic = font.fontDescriptor.withSymbolicTraits(.traitItalic) {
       font = UIFont(descriptor: italic, size: 0)
     }
     if setting.tabularFigures {

@@ -9,6 +9,53 @@ import UIKit
 /// Delete or Forward Delete from XCUITest's `typeKey` to the app. These run
 /// each key's command as UIKit would on the key.
 @MainActor @Suite struct EditorViewTests {
+  @Test func embeddedDrawingChangesNotifyAutosaveAndRejectedScenesDoNot() throws {
+    let model = Editor()
+    let drawing: JSONValue = ["type": "excalidraw", "version": 1, "data": "[]", "width": 320, "height": 180]
+    try model.load(LexicalJSON.document([LexicalJSON.paragraph([drawing])]))
+    let view = EditorView(model: model)
+    let key = try #require(model.childKeys(at: [0]).first)
+    var changes = 0
+    view.onChange = { changes += 1 }
+
+    try view.replaceDrawing(key: key, expectedData: "[]", data: #"{"elements":[],"files":{}}"#)
+
+    #expect(changes == 1)
+    #expect(throws: EditorError.self) { try view.replaceDrawing(key: key, expectedData: "[]", data: "stale") }
+    #expect(changes == 1)
+  }
+
+  @Test func documentFontsUseActualDownloadedWOFF2OnIOS() throws {
+    let url = try #require(
+      Bundle.module.url(
+        forResource: "SourceSerif4-Regular", withExtension: "woff2",
+        subdirectory: "Fixtures/Fonts"))
+    let font = try DocumentFont(family: "Source Serif 4", data: [Data(contentsOf: url)])
+    let regular = font.font(size: 17, weight: .regular, italic: false)
+    let bold = font.font(size: 17, weight: .bold, italic: false)
+    #expect(regular.familyName == "Source Serif 4")
+    #expect(regular.pointSize == 17)
+    #expect(bold.familyName == "Source Serif 4")
+    #expect(bold.fontDescriptor.symbolicTraits.contains(.traitBold))
+  }
+
+  @Test func contentChangesNotifyAutosaveButSelectionsAndReadOnlyEditsDoNot() throws {
+    let (view, _) = try editing(LexicalJSON.paragraph([LexicalJSON.text("hello")]))
+    var changes = 0
+    view.onChange = { changes += 1 }
+    select(view, 5, 5)
+    #expect(changes == 0)
+    view.insertText("!")
+    #expect(changes == 1)
+    view.undoManager?.undo()
+    #expect(changes == 2)
+    let (readOnly, _) = try editing(
+      LexicalJSON.paragraph([LexicalJSON.text("hello")]), isEditable: false)
+    readOnly.onChange = { changes += 1 }
+    readOnly.insertText("!")
+    #expect(changes == 2)
+  }
+
   @Test func writingDirectionMenuOffersAutomaticAndBothOverrides() throws {
     let (_, view) = try host(
       LexicalJSON.document([LexicalJSON.paragraph([LexicalJSON.text("abc")])]), caretAt: 1)
