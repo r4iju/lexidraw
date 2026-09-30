@@ -59,6 +59,18 @@ const fixtures = samples.map(([name, html]) => {
     nodes: name === "Lexical Word" ? wordOracle.nodes : htmlOracle(html),
   };
 });
+// Actual Safari clipboard HTML uses frozen real-browser converter output.
+const safariOracle = await Bun.file(
+  new URL(
+    "../Tests/LexicalSwiftTests/Fixtures/HTML/upstream/safari-local.chromium.json",
+    import.meta.url,
+  ),
+).json();
+fixtures.push({
+  name: safariOracle.name,
+  html: safariOracle.html,
+  nodes: safariOracle.nodes,
+});
 await Bun.write(
   new URL(
     "../Tests/LexicalSwiftTests/Fixtures/HTML/paste.json",

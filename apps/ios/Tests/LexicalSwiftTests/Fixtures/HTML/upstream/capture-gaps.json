@@ -19,12 +19,7 @@
       "sourceApp": "Apple Notes",
       "candidate": "https://github.com/facebook/lexical/issues/4466",
       "reason": "Notes paste report includes plain text, not text/html capture; no authenticated Notes HTML fixture in reviewed catalogs."
-    },
-    {
-      "sourceApp": "Safari webpage copy",
-      "candidate": "https://github.com/WebKit/WebKit/blob/d8f95afbc3f57c7eba0f1f981f4a1b27f7de937f/LayoutTests/editing/pasteboard/data-transfer-get-data-on-paste-rich-text.html",
-      "reason": "Public WebKit test captures clipboard HTML but replaces style values with ellipses in expected output, so it is not a verbatim payload. Word-through-Safari and VS Code-to-Safari inputs do not establish Safari webpage copying."
     }
   ],
-  "freshLocalCaptures": "Native app CUA runtime unavailable; Google Docs tab unauthenticated. No fresh local clipboard captures claimed."
+  "freshLocalCaptures": "User-authorized Safari disposable webpage copy captured via native NSPasteboard: safari-local.chromium.json. Apple Pages disposable two-paragraph copy captured RTF/plain text, no HTML; rich RTF normalization verification remains pending. Notes capture pending."
 }
