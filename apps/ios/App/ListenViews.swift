@@ -26,6 +26,31 @@ extension View {
       }
     }
     .environment(listener)
+    .sheet(item: Binding(get: { listener.generationRequest }, set: { request in
+      if request == nil { listener.cancelGeneration() }
+    })) { file in
+      NavigationStack {
+        VStack(alignment: .leading, spacing: 20) {
+          Text("Read aloud with AI").font(.title2.bold())
+          Text("When you choose Listen, Lexidraw sends the file’s text to Google or OpenAI to generate spoken audio. The audio is saved with your Lexidraw account. Your microphone is not used.")
+          Text(file.title).font(.headline)
+          if let server = Bundle.main.object(forInfoDictionaryKey: "LexidrawServerURL") as? String,
+             let origin = URL(string: server) {
+            Link("Privacy Policy", destination: origin.appending(path: "privacy-policy"))
+          }
+          Button("Allow Read Aloud", action: listener.allowGeneration)
+            .buttonStyle(.borderedProminent)
+          Spacer(minLength: 0)
+        }
+        .padding()
+        .toolbar {
+          ToolbarItem(placement: .cancellationAction) {
+            Button("Cancel", action: listener.cancelGeneration)
+          }
+        }
+      }
+      .presentationDetents([.medium, .large])
+    }
   }
 }
 

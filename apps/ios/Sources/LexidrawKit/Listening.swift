@@ -128,6 +128,7 @@ extension Session {
   /// `pause` is waited between asking again.
   public func recording(
     of file: String,
+    authorizeGeneration: @Sendable () async throws -> Void = {},
     progress: @Sendable (Recording.Progress) -> Void = { _ in },
     pause: @Sendable () async throws -> Void = { try await Task.sleep(for: .seconds(2)) }
   ) async throws -> Recording {
@@ -142,6 +143,8 @@ extension Session {
       case .cancelled where started:
         throw ListenFailed(message: "The audio was started again elsewhere, so it stopped here.")
       case .none, .cancelled:
+        try await authorizeGeneration()
+        try Task.checkCancellation()
         listening = try await listen(file)
         started = true
         continue

@@ -110,13 +110,14 @@
   ],
   "retentionQuestions": [
     "Hosting and security request logs: retention of IP addresses, account identifiers and request paths.",
-    "Web-authentication analytics: exact data collection, linking and purposes.",
+    "Custom website Analytics table stores IP/geolocation/page/referrer/user-agent and a visitor hash; no automatic source cleanup was found. Confirm operational retention and disclose this separately from Vercel Web Analytics.",
     "Native link metadata providers: retained data and automatic preview requests.",
     "Confirm synthesized audio classification; the app does not record microphone audio for read-aloud."
   ],
   "reviewNotesDraft": "Lexidraw is a native document and drawing editor. Sign In opens the secure Lexidraw authentication website and returns to the app. Review credentials will be supplied privately in App Store Connect. The seeded review account will contain disposable sample documents and drawings. Account deletion is available in Settings. Listen generates spoken audio from a selected file; it does not record the microphone. Review notes will be updated with the final supported node families and any explicit limitations.",
   "submissionPending": [
     "Final integrated source SHA and local release archive",
+    "Verify read-aloud generation disclosure and permission before third-party AI transmission",
     "Final iPhone and iPad screenshots",
     "Publish verified privacy answers",
     "Submission and review response"
@@ -165,6 +166,23 @@
       "source": "https://developer.apple.com/app-store/app-privacy-details/",
       "verified": "2026-10-01",
       "finding": "Apple describes Audio Data as voice recordings and generic free-form text as Other User Content. Lexidraw read-aloud synthesizes audio from document text; it does not capture microphone input. Final classification must reflect the integrated features and stored generated content."
+    },
+    {
+      "source": "apps/lexidraw/src/proxy.ts; apps/lexidraw/src/lib/generate-visitor-id.ts; packages/drizzle/src/drizzle-schema.ts",
+      "verified": "2026-10-01",
+      "finding": "Separate from Vercel Web Analytics, the website proxy writes page/referrer, user agent, IP, city/region/country and a deterministic visitor hash to the Analytics table. No automatic deletion path was found in source. Authentication browser visits use this website. Final disclosures must include this custom collection; Vercel anonymous-analytics documentation does not describe it."
     }
-  ]
+  ],
+  "releaseIntegration": {
+    "embedMatrix": "8/8 authenticated production renders passed; all light/dark PNGs inspected",
+    "canonicalAppOrigin": "https://lexidraw.vercel.app",
+    "productionOriginConfiguration": "NEXTAUTH_URL configured explicitly to avoid protected deployment-hostname renderer timeouts",
+    "webDeploymentNote": "Use Linux-built app artifacts: the macOS prebuilt attempt lacked the Linux libsql driver. Current Linux-built deployment and APIs verified healthy."
+  },
+  "readAloudConsent": {
+    "status": "implemented-and-locally-verified",
+    "behavior": "Permission is requested only before new audio generation; existing audio plays without the prompt. Cancel sends no generation request. Approval applies to the current signed-in listener session. The disclosure names Google/OpenAI and links the privacy policy.",
+    "validation": "Two API regression tests observed red before implementation, then all eight RecordingTests passed. Production simulator app compiled. Fresh review cancellation race fixed with request identity guard.",
+    "reference": "https://developer.apple.com/app-store/review/guidelines/#data-use-and-sharing"
+  }
 }
