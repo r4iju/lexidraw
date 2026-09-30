@@ -418,7 +418,7 @@ import UIKit
       ])
   }
 
-  @Test func pastingFromAnotherAppInsertsItsPlainText() throws {
+  @Test func pastingFromAnotherAppKeepsItsHTMLFormatting() throws {
     let (view, model) = try editing(LexicalJSON.paragraph([]))
     view.pasteboard.setItems([["public.utf8-plain-text": "a\nb", "public.html": Data("<b>a</b><br>b".utf8)]])
 
@@ -427,7 +427,11 @@ import UIKit
 
     #expect(
       try paragraphs(model) == [
-        LexicalJSON.paragraph([LexicalJSON.text("a")]), LexicalJSON.paragraph([LexicalJSON.text("b")]),
+        LexicalJSON.paragraph([
+          LexicalJSON.text("a", format: .bold),
+          ["type": "linebreak", "version": 1],
+          LexicalJSON.text("b"),
+        ]),
       ])
   }
 
