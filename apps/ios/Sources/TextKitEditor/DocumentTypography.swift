@@ -89,7 +89,7 @@ struct DocumentTypography: Sendable {
   /// A checked box's tick: the right and bottom of a rectangle turned 45°,
   /// from the start of the item's padding and the top of the item.
   struct Tick: Sendable {
-    var left: Double
+    var start: Double
     var top: Double
     var width: Double
     var height: Double

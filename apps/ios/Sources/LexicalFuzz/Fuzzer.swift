@@ -42,10 +42,11 @@ public struct Fuzzer {
   /// Commands per generated document before starting a fresh one.
   private let sessionLength = 24
 
-  public init(seed: UInt64, reference: some EditorModel, candidate: some EditorModel) {
+  /// Direction cases opt in so established fault-injection seeds keep their scripts.
+  public init(seed: UInt64, reference: some EditorModel, candidate: some EditorModel, writingDirections: Bool = false) {
     self.reference = reference
     self.candidate = candidate
-    self.generator = Generator(seed: seed)
+    self.generator = Generator(seed: seed, writingDirections: writingDirections)
   }
 
   /// Runs until both models have accepted `steps` commands. Returns the
@@ -264,8 +265,8 @@ extension EditorCommand {
     case .setSelection(let anchor, let focus): return .setSelection(anchor: adjust(anchor), focus: adjust(focus))
     case .deleteLine(let backward, let lineBoundary): return .deleteLine(backward: backward, lineBoundary: adjust(lineBoundary))
     case .toggleChecked(let path): return .toggleChecked(path: adjust(Point(path: path, offset: 0, type: .text)).path)
-    case .arrow(let key, let extend, let native, let atCellEdge):
-      return .arrow(key, extend: extend, native: adjust(native), atCellEdge: atCellEdge)
+    case .arrow(let key, let extend, let native, let atCellEdge, let parentRTL, let anchorRTL):
+      return .arrow(key, extend: extend, native: adjust(native), atCellEdge: atCellEdge, parentRTL: parentRTL, anchorRTL: anchorRTL)
     default: return self
     }
   }
@@ -287,6 +288,7 @@ extension String {
 /// them.
 struct Generator {
   private var random: SplitMix64
+  private let writingDirections: Bool
   /// What the last copy or cut put on the clipboard, for a paste in the same
   /// document or a later one.
   var clipboard: Clipboard?
@@ -330,7 +332,8 @@ struct Generator {
   /// What plain text from another app breaks into lines, tabs and links at.
   private static let pastedParts = ["\n", "\r\n", "\r", "\t", " ", "https://x.io"] + autoLinks.map(\.text)
 
-  init(seed: UInt64) {
+  init(seed: UInt64, writingDirections: Bool) {
+    self.writingDirections = writingDirections
     random = SplitMix64(seed: seed)
   }
 
@@ -500,7 +503,7 @@ struct Generator {
       snapshot.selection == nil || lineBoundary == Self.lineBoundary(in: snapshot, backward: backward)
     case .toggleChecked(let path):
       checkboxes(in: snapshot.state).contains(path)
-    case .arrow(_, _, let native, _):
+    case .arrow(_, _, let native, _, _, _):
       points(in: snapshot.state).contains(native)
     default:
       true
@@ -586,7 +589,7 @@ struct Generator {
 
   mutating func command(for snapshot: Snapshot) -> EditorCommand? {
     if !typing.isEmpty { return typing.removeFirst() }
-    let roll = Int.random(in: 0..<119, using: &random)
+    let roll = Int.random(in: 0..<(writingDirections ? 122 : 119), using: &random)
     let backward = Int.random(in: 0..<3, using: &random) > 0
     switch roll {
     // With nothing selected, as after undoing back to the loaded document, a
@@ -653,11 +656,12 @@ struct Generator {
       }
       typing = [key]
       return .setSelection(anchor: caret, focus: caret)
+    case ..<114 where writingDirections: return .setWritingDirection(EditorCommand.WritingDirection.allCases.randomElement(using: &random)!)
     default:
       let native = Self.points(in: snapshot.state).randomElement(using: &random) ?? Point(path: [], offset: 0, type: .element)
       return .arrow(
         ArrowKey.allCases.randomElement(using: &random)!, extend: Int.random(in: 0..<3, using: &random) == 0,
-        native: native, atCellEdge: Bool.random(using: &random))
+        native: native, atCellEdge: Bool.random(using: &random), parentRTL: writingDirections && Bool.random(using: &random))
     }
   }
 

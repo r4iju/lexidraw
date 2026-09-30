@@ -5,6 +5,8 @@ extension Update {
   /// The key event the handlers read, and what they leave in it.
   struct ArrowEvent {
     let shiftKey: Bool
+    let parentRTL: Bool
+    let anchorRTL: Bool
     /// The command's.
     let atCellEdge: Bool
     let native: Point
@@ -20,10 +22,10 @@ extension Update {
   enum ArrowDirection { case backward, forward, up, down }
 
   /// `arrow` in `reference/entry.ts`.
-  mutating func arrow(_ key: ArrowKey, extend: Bool, native: Point, atCellEdge: Bool) throws {
+  mutating func arrow(_ key: ArrowKey, extend: Bool, native: Point, atCellEdge: Bool, parentRTL: Bool, anchorRTL: Bool) throws {
     let before = selection?.clone()
     let wereNodesSelected = nodeSelection != nil
-    var event = ArrowEvent(shiftKey: extend, atCellEdge: atCellEdge, native: native)
+    var event = ArrowEvent(shiftKey: extend, parentRTL: parentRTL, anchorRTL: anchorRTL, atCellEdge: atCellEdge, native: native)
     let direction: ArrowDirection =
       switch key {
       case .left: .backward
@@ -76,9 +78,8 @@ extension Update {
   private mutating func richTextArrow(_ event: inout ArrowEvent, _ key: ArrowKey) throws -> Bool {
     if let nodes = nodeSelection {
       let selected = self.nodes(in: nodes)
-      // `$isParentRTL` reads the parent's computed style, which a document
-      // without a DOM hasn't got, as the reference hasn't: left to right.
-      let direction: CaretDirection = key == .up || key == .left ? .previous : .next
+      let backward = key == .up || (key == .left && !event.parentRTL) || (key == .right && event.parentRTL)
+      let direction: CaretDirection = backward ? .previous : .next
       if let first = selected.first, try !(event.shiftKey && convertContiguousNodeSelection(selected, direction)) {
         event.defaultPrevented = true
         exitNodeSelection(toward: first, direction)
@@ -98,7 +99,7 @@ extension Update {
       if handled { event.defaultPrevented = true }
       return handled
     case .left, .right:
-      let direction: CaretDirection = key == .left ? .previous : .next
+      let direction: CaretDirection = (key == .left) != event.parentRTL ? .previous : .next
       let handled =
         try isBlockCursorAtRootEdge(selection, direction)
         || !event.shiftKey && tryBlockCursorShadowRootNavigation(selection, direction)
@@ -106,10 +107,11 @@ extension Update {
         event.defaultPrevented = true
         return true
       }
-      guard try shouldOverrideDefaultCharacterSelection(selection, backward: key == .left) else { return false }
+      let backward = (key == .left) != event.anchorRTL
+      guard try shouldOverrideDefaultCharacterSelection(selection, backward: backward) else { return false }
       event.defaultPrevented = true
-      if try !modifyAroundDecoratorsAndBlocks(selection, move: !event.shiftKey, backward: key == .left, .character) {
-        try moveNatively(selection, event, backward: key == .left)
+      if try !modifyAroundDecoratorsAndBlocks(selection, move: !event.shiftKey, backward: backward, .character) {
+        try moveNatively(selection, event, backward: backward)
       }
       return true
     }
@@ -256,7 +258,7 @@ extension Update {
     return true
   }
 
-  /// `$shouldOverrideDefaultCharacterSelection`, left to right.
+  /// `$shouldOverrideDefaultCharacterSelection`, with physical direction already resolved.
   private func shouldOverrideDefaultCharacterSelection(_ selection: RangeSelection, backward isBackward: Bool) throws
     -> Bool
   {

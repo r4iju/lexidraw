@@ -351,6 +351,8 @@ import UIKit
     }
   }
 
+  func writingDirection(at offset: Int, in cell: CellIndex) -> NSWritingDirection { box(cell).writingDirection(at: offset) }
+
   private func box(_ cell: CellIndex) -> TextBox { boxes[cell.row][cell.index] }
 
   /// Where `range` of the text of `cell` is drawn, a line at a time, in the

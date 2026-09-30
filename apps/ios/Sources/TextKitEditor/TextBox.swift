@@ -36,6 +36,11 @@ import UIKit
 
   var width: CGFloat { container.size.width }
 
+  func writingDirection(at offset: Int) -> NSWritingDirection {
+    guard let location = location(offset) else { return .leftToRight }
+    return layoutManager.baseWritingDirection(at: location) == .rightToLeft ? .rightToLeft : .leftToRight
+  }
+
   /// The space after the last paragraph, which `height` counts and a table
   /// cell leaves out, as the web leaves out its last paragraph's margin.
   var trailingSpacing: CGFloat {
@@ -113,7 +118,9 @@ import UIKit
         let text = NSAttributedString(
           string: marker, attributes: [.font: item.font, .foregroundColor: ListAndIndentLayout.list.markerColor.color])
         let size = text.size()
-        text.draw(at: CGPoint(x: origin.x + item.textStart - size.width, y: origin.y + line.baseline - item.font.ascender))
+        let markerX = writingDirection(at: item.range.location) == .rightToLeft
+          ? width - item.textStart : item.textStart - size.width
+        text.draw(at: CGPoint(x: origin.x + markerX, y: origin.y + line.baseline - item.font.ascender))
       }
     }
   }
@@ -187,7 +194,10 @@ import UIKit
   /// checked filled and ticked.
   private func drawBox(_ item: ListAndIndentLayout.Item, at origin: CGPoint, in context: CGContext) {
     let theme = ListAndIndentLayout.list.box
-    let box = item.box.offsetBy(dx: origin.x, dy: origin.y)
+    let rtl = writingDirection(at: item.range.location) == .rightToLeft
+    var box = item.box
+    if rtl { box.origin.x = width - box.maxX }
+    box = box.offsetBy(dx: origin.x, dy: origin.y)
     let border = theme.borderWidth
     let outline = UIBezierPath(roundedRect: box.insetBy(dx: border / 2, dy: border / 2), cornerRadius: theme.cornerRadius)
     outline.lineWidth = border
@@ -198,7 +208,7 @@ import UIKit
       outline.stroke()
       let tick = theme.tick
       let bounds = CGRect(
-        x: box.minX + tick.left * item.em, y: box.minY + (tick.top - theme.top) * item.em, width: tick.width * item.em,
+        x: rtl ? box.maxX - (tick.start + tick.width) * item.em : box.minX + tick.start * item.em, y: box.minY + (tick.top - theme.top) * item.em, width: tick.width * item.em,
         height: tick.height * item.em)
       let line = tick.lineWidth
       context.saveGState()
@@ -223,7 +233,8 @@ import UIKit
     for item in listLayout.items where item.isChecklistItem {
       let itemLines = lines.filter { NSLocationInRange($0.range.location, item.range) || $0.range.location == item.range.location }
       guard let first = itemLines.first, let last = itemLines.last else { continue }
-      let area = item.toggleArea(height: last.frame.maxY - first.frame.minY).offsetBy(dx: 0, dy: first.frame.minY)
+      var area = item.toggleArea(height: last.frame.maxY - first.frame.minY).offsetBy(dx: 0, dy: first.frame.minY)
+      if writingDirection(at: item.range.location) == .rightToLeft { area.origin.x = width - area.maxX }
       if area.contains(point) { return item.item }
     }
     return nil

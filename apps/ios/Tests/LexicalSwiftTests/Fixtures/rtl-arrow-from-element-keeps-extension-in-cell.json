@@ -1,0 +1,440 @@
+{
+  "changes" : [
+    {
+      "changed" : [
+
+      ]
+    },
+    {
+      "changed" : [
+        [
+
+        ],
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          2
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          3
+        ]
+      ]
+    },
+    {
+      "changed" : [
+        [
+
+        ],
+        [
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "changed" : [
+
+      ]
+    },
+    {
+      "changed" : [
+
+      ]
+    }
+  ],
+  "commands" : [
+    {
+      "anchor" : {
+        "offset" : 0,
+        "path" : [
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        "type" : "text"
+      },
+      "focus" : {
+        "offset" : 13,
+        "path" : [
+          0,
+          0,
+          0,
+          1,
+          0,
+          0
+        ],
+        "type" : "text"
+      },
+      "type" : "setSelection"
+    },
+    {
+      "text" : ";",
+      "type" : "insertText"
+    },
+    {
+      "backward" : true,
+      "lineBoundary" : {
+        "offset" : 0,
+        "path" : [
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "type" : "text"
+      },
+      "type" : "deleteLine"
+    },
+    {
+      "anchor" : {
+        "offset" : 2,
+        "path" : [
+          0,
+          0,
+          0,
+          0
+        ],
+        "type" : "element"
+      },
+      "focus" : {
+        "offset" : 2,
+        "path" : [
+          0,
+          0,
+          0,
+          0
+        ],
+        "type" : "element"
+      },
+      "type" : "setSelection"
+    },
+    {
+      "atCellEdge" : true,
+      "extend" : true,
+      "key" : "left",
+      "native" : {
+        "offset" : 0,
+        "path" : [
+          0,
+          0,
+          1,
+          0,
+          0
+        ],
+        "type" : "text"
+      },
+      "parentRTL" : true,
+      "type" : "arrow"
+    }
+  ],
+  "expected" : {
+    "selection" : {
+      "anchor" : {
+        "offset" : 2,
+        "path" : [
+          0,
+          0,
+          0,
+          0
+        ],
+        "type" : "element"
+      },
+      "focus" : {
+        "offset" : 2,
+        "path" : [
+          0,
+          0,
+          0,
+          0
+        ],
+        "type" : "element"
+      },
+      "format" : 0,
+      "style" : ""
+    },
+    "state" : {
+      "root" : {
+        "children" : [
+          {
+            "children" : [
+              {
+                "children" : [
+                  {
+                    "backgroundColor" : null,
+                    "children" : [
+                      {
+                        "children" : [
+                          {
+                            "detail" : 0,
+                            "format" : 32,
+                            "mode" : "normal",
+                            "style" : "",
+                            "text" : "f",
+                            "type" : "text",
+                            "version" : 1
+                          },
+                          {
+                            "type" : "linebreak",
+                            "version" : 1
+                          }
+                        ],
+                        "direction" : null,
+                        "format" : "",
+                        "indent" : 0,
+                        "textFormat" : 32,
+                        "textStyle" : "",
+                        "type" : "paragraph",
+                        "version" : 1
+                      }
+                    ],
+                    "colSpan" : 1,
+                    "direction" : null,
+                    "format" : "",
+                    "headerState" : 2,
+                    "indent" : 0,
+                    "rowSpan" : 1,
+                    "type" : "tablecell",
+                    "version" : 1
+                  },
+                  {
+                    "backgroundColor" : null,
+                    "children" : [
+                      {
+                        "children" : [
+                          {
+                            "detail" : 0,
+                            "format" : 16,
+                            "mode" : "normal",
+                            "style" : "color: red;",
+                            "text" : "ナ",
+                            "type" : "text",
+                            "version" : 1
+                          }
+                        ],
+                        "direction" : null,
+                        "format" : "",
+                        "indent" : 1,
+                        "textFormat" : 16,
+                        "textStyle" : "color: red;",
+                        "type" : "paragraph",
+                        "version" : 1
+                      }
+                    ],
+                    "colSpan" : 1,
+                    "direction" : null,
+                    "format" : "",
+                    "headerState" : 1,
+                    "indent" : 0,
+                    "rowSpan" : 1,
+                    "type" : "tablecell",
+                    "version" : 1
+                  }
+                ],
+                "direction" : null,
+                "format" : "",
+                "indent" : 0,
+                "type" : "tablerow",
+                "version" : 1
+              }
+            ],
+            "direction" : null,
+            "format" : "",
+            "indent" : 0,
+            "type" : "table",
+            "version" : 1
+          }
+        ],
+        "direction" : null,
+        "format" : "",
+        "indent" : 0,
+        "type" : "root",
+        "version" : 1
+      }
+    }
+  },
+  "start" : {
+    "root" : {
+      "children" : [
+        {
+          "children" : [
+            {
+              "children" : [
+                {
+                  "backgroundColor" : null,
+                  "children" : [
+                    {
+                      "children" : [
+                        {
+                          "detail" : 0,
+                          "format" : 0,
+                          "mode" : "normal",
+                          "style" : "",
+                          "text" : "b",
+                          "type" : "text",
+                          "version" : 1
+                        },
+                        {
+                          "detail" : 0,
+                          "format" : 2,
+                          "mode" : "normal",
+                          "style" : "",
+                          "text" : "|",
+                          "type" : "text",
+                          "version" : 1
+                        }
+                      ],
+                      "direction" : null,
+                      "format" : "",
+                      "indent" : 0,
+                      "textFormat" : 0,
+                      "textStyle" : "",
+                      "type" : "paragraph",
+                      "version" : 1
+                    },
+                    {
+                      "children" : [
+                        {
+                          "children" : [
+                            {
+                              "detail" : 0,
+                              "format" : 32,
+                              "mode" : "normal",
+                              "style" : "",
+                              "text" : "http://c.d?e=f",
+                              "type" : "text",
+                              "version" : 1
+                            }
+                          ],
+                          "direction" : null,
+                          "format" : "",
+                          "indent" : 0,
+                          "isUnlinked" : false,
+                          "rel" : null,
+                          "target" : null,
+                          "title" : null,
+                          "type" : "autolink",
+                          "url" : "http://c.d?e=f",
+                          "version" : 1
+                        },
+                        {
+                          "type" : "linebreak",
+                          "version" : 1
+                        }
+                      ],
+                      "direction" : null,
+                      "format" : "",
+                      "indent" : 0,
+                      "textFormat" : 3,
+                      "textStyle" : "",
+                      "type" : "paragraph",
+                      "version" : 1
+                    }
+                  ],
+                  "colSpan" : 1,
+                  "direction" : null,
+                  "format" : "",
+                  "headerState" : 2,
+                  "indent" : 0,
+                  "rowSpan" : 1,
+                  "type" : "tablecell",
+                  "version" : 1
+                },
+                {
+                  "backgroundColor" : null,
+                  "children" : [
+                    {
+                      "children" : [
+                        {
+                          "detail" : 0,
+                          "format" : 16,
+                          "mode" : "normal",
+                          "style" : "color: red;",
+                          "text" : "ナ",
+                          "type" : "text",
+                          "version" : 1
+                        }
+                      ],
+                      "direction" : null,
+                      "format" : "",
+                      "indent" : 1,
+                      "textFormat" : 16,
+                      "textStyle" : "color: red;",
+                      "type" : "paragraph",
+                      "version" : 1
+                    }
+                  ],
+                  "colSpan" : 1,
+                  "direction" : null,
+                  "format" : "",
+                  "headerState" : 1,
+                  "indent" : 0,
+                  "rowSpan" : 1,
+                  "type" : "tablecell",
+                  "version" : 1
+                }
+              ],
+              "direction" : null,
+              "format" : "",
+              "indent" : 0,
+              "type" : "tablerow",
+              "version" : 1
+            }
+          ],
+          "direction" : null,
+          "format" : "",
+          "indent" : 0,
+          "type" : "table",
+          "version" : 1
+        }
+      ],
+      "direction" : null,
+      "format" : "",
+      "indent" : 0,
+      "type" : "root",
+      "version" : 1
+    }
+  }
+}

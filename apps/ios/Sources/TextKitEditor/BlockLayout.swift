@@ -367,6 +367,12 @@ import UIKit
     return document.range(ofBlock: next).location + landed
   }
 
+  func writingDirection(at offset: Int) -> NSWritingDirection {
+    guard document.blockCount > 0 else { return .leftToRight }
+    let (_, block, _, local) = locate(offset)
+    return block.writingDirection(at: local)
+  }
+
   func lineBoundary(at offset: Int, backward: Bool) -> Int? {
     guard document.blockCount > 0 else { return nil }
     let (_, block, start, local) = locate(offset)
@@ -432,12 +438,14 @@ import UIKit
   func offset(closestTo point: CGPoint) -> Int
   func offset(movingVerticallyFrom offset: Int, _ direction: NSTextSelectionNavigation.Direction, x: CGFloat) -> Int?
   func lineBoundary(at offset: Int, backward: Bool) -> Int
+  func writingDirection(at offset: Int) -> NSWritingDirection
   /// Scrolls within the block, where it can, to show `offset`.
   func reveal(_ offset: Int)
   func checklistItem(at point: CGPoint) -> DocumentText.ListItem?
 }
 
 extension LaidOutBlock {
+  func writingDirection(at offset: Int) -> NSWritingDirection { .leftToRight }
   func reveal(_ offset: Int) {}
   func checklistItem(at point: CGPoint) -> DocumentText.ListItem? { nil }
 }
@@ -498,6 +506,7 @@ private final class TextBlock: LaidOutBlock {
   func offset(movingVerticallyFrom offset: Int, _ direction: NSTextSelectionNavigation.Direction, x: CGFloat) -> Int? {
     box.offset(movingVerticallyFrom: offset, direction, x: x)
   }
+  func writingDirection(at offset: Int) -> NSWritingDirection { box.writingDirection(at: offset) }
   func lineBoundary(at offset: Int, backward: Bool) -> Int { box.lineBoundary(at: offset, backward: backward) }
   func checklistItem(at point: CGPoint) -> DocumentText.ListItem? { box.checklistItem(at: point) }
 
@@ -643,6 +652,11 @@ private final class TableBlock: LaidOutBlock {
       let (moved, movedLocal) = table.offset(movingVerticallyFrom: local, in: cell, direction, x: x)
     else { return nil }
     return range(of: moved).location + movedLocal
+  }
+
+  func writingDirection(at offset: Int) -> NSWritingDirection {
+    guard let (cell, local) = cell(at: offset) else { return .leftToRight }
+    return table.writingDirection(at: local, in: cell)
   }
 
   func isAtCellEdge(_ offset: Int, _ direction: NSTextSelectionNavigation.Direction) -> Bool {

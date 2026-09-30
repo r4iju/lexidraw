@@ -171,7 +171,7 @@ test("reads a list and a checklist as their rules give them", async () => {
   expect(swift).toContain(
     "list: List(padding: 1.625, itemSpacing: 0.25, markerColor: .mutedForeground, checklistPadding: 1.75, " +
       "box: Box(top: 0.3, size: 1, borderWidth: 1.5, borderColor: .mutedForeground, cornerRadius: 4, " +
-      "checkedColor: .primary, tick: Tick(left: 0.34, top: 0.45, width: 0.3, height: 0.5, lineWidth: 1.5, " +
+      "checkedColor: .primary, tick: Tick(start: 0.34, top: 0.45, width: 0.3, height: 0.5, lineWidth: 1.5, " +
       "color: .primaryForeground)), doneColor: .mutedForeground),",
   );
 });

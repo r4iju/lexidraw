@@ -187,6 +187,12 @@ public enum EditorCommand: Equatable, Sendable {
   /// Makes every block the selection touches a paragraph, heading or quote,
   /// as the web toolbar's block menu does.
   case setBlockType(BlockType)
+  /// Sets each selected text block; automatic removes the stored override.
+  case setWritingDirection(WritingDirection)
+
+  public enum WritingDirection: String, Codable, CaseIterable, Sendable {
+    case auto, ltr, rtl
+  }
   /// Turns the selected blocks into a list, or a list of another type.
   case insertList(ListType)
   /// Turns the selected lists back into paragraphs.
@@ -223,8 +229,11 @@ public enum EditorCommand: Equatable, Sendable {
   /// take it leaves to the platform, which moves the focus to `native`, and
   /// the anchor with it without Shift. `atCellEdge` says the caret's line is
   /// the first of its table cell going up, or the last going down, which
-  /// @lexical/table measures in the DOM.
-  case arrow(ArrowKey, extend: Bool, native: Point, atCellEdge: Bool)
+  /// @lexical/table measures in the DOM. `parentRTL` is the resolved writing
+  /// direction of the anchor node's parent, or the first selected node's.
+  /// `anchorRTL` is the anchor element's own direction (its parent's for text),
+  /// which character navigation reads; omitted fixtures use `parentRTL`.
+  case arrow(ArrowKey, extend: Bool, native: Point, atCellEdge: Bool, parentRTL: Bool = false, anchorRTL: Bool? = nil)
   case undo
   case redo
   /// Lets time pass, which decides whether history merges the next edit into
@@ -300,13 +309,13 @@ public struct TextFormat: OptionSet, Codable, Hashable, Sendable {
 extension EditorCommand: Codable {
   private enum CodingKeys: String, CodingKey {
     case type, anchor, focus, text, backward, lineBoundary, format, blockType, listType, path, milliseconds, url, clipboard,
-      rows, columns, after, key, extend, native, atCellEdge
+      rows, columns, after, key, extend, native, atCellEdge, direction, parentRTL, anchorRTL
   }
 
   /// The command's `type` in JSON.
   private enum Kind: String, Codable {
     case setSelection, insertText, commitComposition, deleteCharacter, deleteWord, deleteLine, insertParagraph, insertLineBreak,
-      formatText, setBlockType, insertList, removeList, indent, outdent, tab, toggleChecked, selectAll, toggleLink, editLink,
+      formatText, setBlockType, setWritingDirection, insertList, removeList, indent, outdent, tab, toggleChecked, selectAll, toggleLink, editLink,
       copy, cut, paste, insertTable, insertTableRow, insertTableColumn, deleteTableRow, deleteTableColumn, arrow, undo, redo,
       wait
   }
@@ -323,6 +332,7 @@ extension EditorCommand: Codable {
     case .insertLineBreak: .insertLineBreak
     case .formatText: .formatText
     case .setBlockType: .setBlockType
+    case .setWritingDirection: .setWritingDirection
     case .insertList: .insertList
     case .removeList: .removeList
     case .indent: .indent
@@ -369,6 +379,7 @@ extension EditorCommand: Codable {
     case .insertLineBreak: self = .insertLineBreak
     case .formatText: self = .formatText(try container.decode(TextFormatType.self, forKey: .format))
     case .setBlockType: self = .setBlockType(try container.decode(BlockType.self, forKey: .blockType))
+    case .setWritingDirection: self = .setWritingDirection(try container.decode(WritingDirection.self, forKey: .direction))
     case .insertList: self = .insertList(try container.decode(ListType.self, forKey: .listType))
     case .removeList: self = .removeList
     case .indent: self = .indent
@@ -392,7 +403,9 @@ extension EditorCommand: Codable {
       self = .arrow(
         try container.decode(ArrowKey.self, forKey: .key), extend: try container.decode(Bool.self, forKey: .extend),
         native: try container.decode(Point.self, forKey: .native),
-        atCellEdge: try container.decode(Bool.self, forKey: .atCellEdge))
+        atCellEdge: try container.decode(Bool.self, forKey: .atCellEdge),
+        parentRTL: try container.decodeIfPresent(Bool.self, forKey: .parentRTL) ?? false,
+        anchorRTL: try container.decodeIfPresent(Bool.self, forKey: .anchorRTL))
     case .undo: self = .undo
     case .redo: self = .redo
     case .wait: self = .wait(milliseconds: try container.decode(Int.self, forKey: .milliseconds))
@@ -417,6 +430,8 @@ extension EditorCommand: Codable {
       try container.encode(format, forKey: .format)
     case .setBlockType(let blockType):
       try container.encode(blockType, forKey: .blockType)
+    case .setWritingDirection(let direction):
+      try container.encode(direction, forKey: .direction)
     case .insertList(let listType):
       try container.encode(listType, forKey: .listType)
     case .toggleChecked(let path):
@@ -434,11 +449,13 @@ extension EditorCommand: Codable {
       try container.encode(columns, forKey: .columns)
     case .insertTableRow(let after), .insertTableColumn(let after):
       try container.encode(after, forKey: .after)
-    case .arrow(let key, let extend, let native, let atCellEdge):
+    case .arrow(let key, let extend, let native, let atCellEdge, let parentRTL, let anchorRTL):
       try container.encode(key, forKey: .key)
       try container.encode(extend, forKey: .extend)
       try container.encode(native, forKey: .native)
       try container.encode(atCellEdge, forKey: .atCellEdge)
+      try container.encode(parentRTL, forKey: .parentRTL)
+      try container.encodeIfPresent(anchorRTL, forKey: .anchorRTL)
     case .insertParagraph, .insertLineBreak, .removeList, .indent, .outdent, .selectAll, .copy, .cut, .deleteTableRow,
       .deleteTableColumn, .undo, .redo:
       break

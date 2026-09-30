@@ -1,3 +1,4 @@
+import Foundation
 import LexicalFuzz
 import LexicalSwift
 import Testing
@@ -35,6 +36,16 @@ import Testing
   }
 
   private func element(_ path: [Int], _ offset: Int) -> Point { Point(path: path, offset: offset, type: .element) }
+
+  @Test func leftLeavesASelectedRuleTowardTheNextBlockInRTL() throws {
+    let command = try JSONDecoder().decode(
+      EditorCommand.self,
+      from: Data(
+        "{\"type\":\"arrow\",\"key\":\"left\",\"extend\":false,\"native\":{\"path\":[0],\"offset\":0,\"type\":\"element\"},\"atCellEdge\":false,\"parentRTL\":true}"
+          .utf8))
+    let fixture = try agreed(ruleBetween, ontoTheRule + [command])
+    #expect(fixture.expected.selection?.anchor == element([2], 0))
+  }
 
   @Test func anArrowOrABackspaceOntoARuleSelectsIt() throws {
     let down = try agreed(ruleBetween, ontoTheRule)
