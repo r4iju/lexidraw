@@ -1193,7 +1193,7 @@
 .document-task-done::after {
   content: "";
   position: absolute;
-  left: 0.34em;
+  inset-inline-start: 0.34em;
   top: 0.45em;
   width: 0.3em;
   height: 0.5em;

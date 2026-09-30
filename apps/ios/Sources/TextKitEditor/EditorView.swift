@@ -467,13 +467,36 @@ public final class EditorView: UIScrollView, UITextInput {
 
   public func baseWritingDirection(for position: UITextPosition, in direction: UITextStorageDirection)
     -> NSWritingDirection
-  { .natural }
+  {
+    guard let position = position as? TextPosition else { return .natural }
+    var path = document.point(at: position.offset).path
+    while !path.isEmpty {
+      if let direction = (try? model.node(at: path))?["direction"]?.stringValue {
+        return direction == "rtl" ? .rightToLeft : .leftToRight
+      }
+      path.removeLast()
+    }
+    // Reporting resolved LTR/RTL here makes UIKit apply an explicit override while typing.
+    // Arrow handling reads the resolved layout separately.
+    return .natural
+  }
 
-  /// Refused: each paragraph reads in the direction of its own text, as on
-  /// the web, and neither editor sets one yet (#149).
   public func setBaseWritingDirection(_ writingDirection: NSWritingDirection, for range: UITextRange) {
-    guard writingDirection != .natural else { return }
-    Self.log.notice("Setting a writing direction isn't supported yet (#149)")
+    // UIKit reapplies the inferred direction when typing replaces a selection.
+    // Preserve automatic mode when this does not change how the paragraph reads.
+    if writingDirection != .natural,
+      baseWritingDirection(for: range.start, in: .forward) == .natural,
+      let range = range as? TextRange,
+      layout.writingDirection(at: range.range.location) == writingDirection
+    { return }
+    setWritingDirection(writingDirection, for: range)
+  }
+
+  private func setWritingDirection(_ writingDirection: NSWritingDirection, for range: UITextRange) {
+    guard let range = range as? TextRange else { return }
+    perform(.setSelection(anchor: document.point(at: range.range.location), focus: document.point(at: NSMaxRange(range.range))), fromInput: false)
+    let direction: EditorCommand.WritingDirection = writingDirection == .natural ? .auto : writingDirection == .rightToLeft ? .rtl : .ltr
+    perform(.setWritingDirection(direction), fromInput: false)
   }
 
   private static let newline = "\n".utf16.first!
@@ -654,7 +677,27 @@ public final class EditorView: UIScrollView, UITextInput {
       case .left, .right: false
       }
     let native = document.point(at: clamp(offset))
-    perform(.arrow(key, extend: extend, native: native, atCellEdge: atCellEdge), fromInput: false)
+    let selection = try? model.selection()
+    let path: [Int]
+    if case .node(let nodes) = selection { path = nodes.first ?? [] } else { path = selection?.anchor.path ?? [] }
+    let parent = Array(path.dropLast())
+    var parentRTL = false
+    if !parent.isEmpty, let range = document.range(of: parent), range.length > 0 {
+      parentRTL = layout.writingDirection(at: range.location) == .rightToLeft
+      var ancestor = parent
+      while !ancestor.isEmpty {
+        if let direction = (try? model.node(at: ancestor))?["direction"]?.stringValue {
+          parentRTL = direction == "rtl"
+          break
+        }
+        ancestor.removeLast()
+      }
+    }
+    var anchorRTL = parentRTL
+    if case .range(let anchor, _, _, _) = selection {
+      anchorRTL = !anchor.path.isEmpty && layout.writingDirection(at: document.offset(of: anchor) ?? focus) == .rightToLeft
+    }
+    perform(.arrow(key, extend: extend, native: native, atCellEdge: atCellEdge, parentRTL: parentRTL, anchorRTL: anchorRTL), fromInput: false)
   }
   @objc private func moveToLineStart() { move(to: lineBoundary(backward: true) ?? focus, extending: false) }
   @objc private func moveToLineEnd() { move(to: lineBoundary(backward: false) ?? focus, extending: false) }
@@ -696,7 +739,7 @@ public final class EditorView: UIScrollView, UITextInput {
     case #selector(paste(_:)):
       isEditable && (pasteboard.hasStrings || pasteboard.contains(pasteboardTypes: [LexicalClipboardPayload.mimeType]))
     case #selector(makeTextWritingDirectionLeftToRight(_:)), #selector(makeTextWritingDirectionRightToLeft(_:)):
-      false
+      isEditable
     default: super.canPerformAction(action, withSender: sender)
     }
   }
@@ -725,11 +768,37 @@ public final class EditorView: UIScrollView, UITextInput {
   /// its list runs them under the keyboard.
   public func editMenu(for textRange: UITextRange, suggestedActions: [UIMenuElement]) -> UIMenu? {
     guard let range = textRange as? TextRange else { return nil }
-    let own = linkActions(in: range.range) + (isEditable ? [tableMenu()] : [])
-    let clipboard = suggestedActions.firstIndex { ($0 as? UIMenu)?.identifier == .standardEdit }
-    var children = suggestedActions
+    let own = linkActions(in: range.range) + (isEditable ? [writingDirectionMenu(for: textRange), tableMenu()] : [])
+    func withoutSystemDirection(_ elements: [UIMenuElement]) -> [UIMenuElement] {
+      elements.compactMap { element in
+        guard let menu = element as? UIMenu else { return element }
+        if menu.identifier == .writingDirection { return nil }
+        return menu.replacingChildren(withoutSystemDirection(menu.children))
+      }
+    }
+    var children = withoutSystemDirection(suggestedActions)
+    let clipboard = children.firstIndex { ($0 as? UIMenu)?.identifier == .standardEdit }
     children.insert(contentsOf: own, at: clipboard.map { $0 + 1 } ?? children.endIndex)
     return UIMenu(children: children)
+  }
+
+  public override func makeTextWritingDirectionLeftToRight(_ sender: Any?) {
+    guard let range = selectedTextRange else { return }
+    setWritingDirection(.leftToRight, for: range)
+  }
+
+  public override func makeTextWritingDirectionRightToLeft(_ sender: Any?) {
+    guard let range = selectedTextRange else { return }
+    setWritingDirection(.rightToLeft, for: range)
+  }
+
+  private func writingDirectionMenu(for range: UITextRange) -> UIMenu {
+    let choices: [(String, NSWritingDirection)] = [
+      ("Automatic", .natural), ("Left to Right", .leftToRight), ("Right to Left", .rightToLeft),
+    ]
+    return UIMenu(title: "Writing Direction", children: choices.map { title, direction in
+      UIAction(title: title) { [weak self] _ in self?.setWritingDirection(direction, for: range) }
+    })
   }
 
   private func tableMenu() -> UIMenu {

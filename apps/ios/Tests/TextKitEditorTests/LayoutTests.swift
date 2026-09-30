@@ -10,6 +10,20 @@ import UIKit
 @MainActor @Suite struct LayoutTests {
   /// A tap where the caret for an offset is drawn puts the caret there, in
   /// every block, table cells included.
+  @Test func anRTLChecklistHasItsTouchTargetOnTheRight() throws {
+    let model = Editor()
+    try model.load(
+      LexicalJSON.document([LexicalJSON.list(.check, [.item([LexicalJSON.text("abc")])])]))
+    try model.apply(.caret(.text([0, 0, 0], 0)))
+    try model.apply(.setWritingDirection(.rtl))
+    let storage = NSMutableAttributedString()
+    try DocumentText(model: model, style: { _, _ in [.font: UIFont.systemFont(ofSize: 16)] })
+      .reload(storage)
+    let box = TextBox(storage, width: 300)
+    #expect(box.checklistItem(at: CGPoint(x: 270, y: 8)) != nil)
+    #expect(box.checklistItem(at: CGPoint(x: 30, y: 8)) == nil)
+  }
+
   @Test
   func aTapOnACaretLandsOnIt() throws {
     try Self.expectEveryCaretToLandOnItself(try Self.host(Self.titledTable))

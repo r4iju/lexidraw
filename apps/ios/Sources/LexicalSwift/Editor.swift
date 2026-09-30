@@ -241,8 +241,8 @@ extension Update {
     if case .setSelection(let anchor, let focus) = command {
       return try placeSelection(anchor, focus)
     }
-    if case .arrow(let key, let extend, let native, let atCellEdge) = command {
-      return try arrow(key, extend: extend, native: native, atCellEdge: atCellEdge)
+    if case .arrow(let key, let extend, let native, let atCellEdge, let parentRTL, let anchorRTL) = command {
+      return try arrow(key, extend: extend, native: native, atCellEdge: atCellEdge, parentRTL: parentRTL, anchorRTL: anchorRTL ?? parentRTL)
     }
     if command == .selectAll {
       // Rich text answers what the table's handler leaves.
@@ -276,6 +276,7 @@ extension Update {
     case .insertLineBreak: try insertLineBreak(selection)
     case .formatText(let format): try formatText(selection, format)
     case .setBlockType(let type): try setBlockType(selection, type)
+    case .setWritingDirection(let direction): try setWritingDirection(selection, direction)
     case .insertList(let listType): try insertList(ListType(listType))
     case .removeList: try removeList()
     case .indent: try indentContent()
@@ -296,6 +297,7 @@ extension Update {
     case .insertText, .commitComposition: clearSelection()
     case .deleteCharacter: _ = try deleteCellHandler()
     case .deleteWord, .deleteLine: try clearText(selection)
+    case .setWritingDirection: break
     case .formatText(let format): try formatCells(selection, format)
     case .setBlockType(let type): try setBlockType(selection, type)
     // Rich text's Enter answers a range selection alone.
@@ -327,7 +329,7 @@ extension Update {
     case .insertLineBreak: try enter(selection, lineBreak: true)
     // `$updateTextFormat` formats inline nodes and `$setBlocksType` changes
     // elements, and a selected rule is neither.
-    case .formatText, .setBlockType: break
+    case .formatText, .setBlockType, .setWritingDirection: break
     case .insertList(let listType): try insertList(selection, ListType(listType))
     // `$removeList`, `$handleIndentAndOutdent` and Tab indentation answer a
     // range selection alone.

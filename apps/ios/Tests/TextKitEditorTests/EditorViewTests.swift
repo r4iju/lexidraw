@@ -9,6 +9,16 @@ import UIKit
 /// Delete or Forward Delete from XCUITest's `typeKey` to the app. These run
 /// each key's command as UIKit would on the key.
 @MainActor @Suite struct EditorViewTests {
+  @Test func writingDirectionMenuOffersAutomaticAndBothOverrides() throws {
+    let (_, view) = try host(
+      LexicalJSON.document([LexicalJSON.paragraph([LexicalJSON.text("abc")])]), caretAt: 1)
+    let range = try #require(view.selectedTextRange)
+    let menu = view.editMenu(for: range, suggestedActions: [])
+    let direction = try #require(
+      menu?.children.first { $0.title == "Writing Direction" } as? UIMenu)
+    #expect(direction.children.map(\.title) == ["Automatic", "Left to Right", "Right to Left"])
+  }
+
   /// Backspace alone is the keyboard's: it calls `deleteBackward`.
   @Test func backspaceHasNoCommand() throws {
     let model = Editor()
@@ -467,7 +477,7 @@ import UIKit
 
     let menu = view.editMenu(for: try #require(range(view, 6, 11)), suggestedActions: [])
 
-    #expect(menu?.children.map(\.title) == ["Add Link…", "Table"])
+    #expect(menu?.children.map(\.title) == ["Add Link…", "Writing Direction", "Table"])
   }
 
   /// The link actions and the Table menu come straight after UIKit's cut,
@@ -482,7 +492,7 @@ import UIKit
 
     let menu = view.editMenu(for: try #require(range(view, 6, 11)), suggestedActions: suggested)
 
-    #expect(menu?.children.map(\.title) == ["Clipboard", "Add Link…", "Table", "Share"])
+    #expect(menu?.children.map(\.title) == ["Clipboard", "Add Link…", "Writing Direction", "Table", "Share"])
   }
 
   @Test func theEditMenuInALinkOffersToOpenEditOrRemoveIt() throws {
@@ -623,7 +633,7 @@ import UIKit
   /// The titles the edit menu adds for links over UIKit's own.
   private func linkActions(_ view: EditorView, _ start: Int, _ end: Int) -> [String] {
     guard let range = range(view, start, end) else { return [] }
-    return view.editMenu(for: range, suggestedActions: [])?.children.map(\.title).filter { $0 != "Table" } ?? []
+    return view.editMenu(for: range, suggestedActions: [])?.children.map(\.title).filter { $0 != "Table" && $0 != "Writing Direction" } ?? []
   }
 
   private func paragraphs(_ model: Editor) throws -> [JSONValue] {

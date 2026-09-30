@@ -4,6 +4,12 @@ import OrderedCollections
 /// toolbar's block menu calls it, and what @lexical/rich-text's HeadingNode
 /// and QuoteNode do when Enter splits them and Backspace reaches their start.
 extension Update {
+  mutating func setWritingDirection(_ selection: RangeSelection, _ direction: EditorCommand.WritingDirection) throws {
+    for block in try blocks(in: selection) {
+      modifyElement(block) { $0.direction = direction == .auto ? .null : .value(direction == .rtl ? .rtl : .ltr) }
+    }
+  }
+
   /// `$setBlockType` in @packages/lexical-nodes.
   mutating func setBlockType(_ selection: RangeSelection, _ type: BlockType) throws {
     try replace(try blocks(in: selection), with: type)

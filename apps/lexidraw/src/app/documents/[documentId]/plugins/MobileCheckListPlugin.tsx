@@ -16,13 +16,14 @@ export const useIsHTMLElement = () => {
  * to keep the caret from jumping. This breaks the built-in toggle handler.
  *
  * We restore the behaviour by listening to the `pointerup` event and
- * toggling the item ourselves when the user tapped inside the left-hand
+ * toggling the item ourselves when the user tapped inside the leading
  * checkbox area (40 px for a comfortable finger target).
  */
 export default function MobileCheckListPlugin() {
   const [editor] = useLexicalComposerContext();
   const isHTMLElement = useIsHTMLElement();
 
+  // Subscribe to the Lexical root's touch events.
   useEffect(() => {
     const root = editor.getRootElement();
     if (!root) return;
@@ -39,13 +40,13 @@ export default function MobileCheckListPlugin() {
         return;
 
       const rect = li.getBoundingClientRect();
-      const pageX = event.pageX;
-      const isRtl = li.dir === "rtl";
+      const clientX = event.clientX;
+      const isRtl = getComputedStyle(li).direction === "rtl";
       const hitArea = 40; // px
 
       const inside = isRtl
-        ? pageX < rect.right && pageX > rect.right - hitArea
-        : pageX > rect.left && pageX < rect.left + hitArea;
+        ? clientX < rect.right && clientX > rect.right - hitArea
+        : clientX > rect.left && clientX < rect.left + hitArea;
 
       if (!inside) return;
 

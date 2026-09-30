@@ -1,3 +1,7 @@
+import {
+  $setWritingDirection,
+  type WritingDirection,
+} from "@packages/lexical-nodes/writing-direction";
 /**
  * The editor-model interface over headless Lexical, for ReferenceEditor.swift
  * to call with JSON strings.
@@ -154,6 +158,7 @@ type Command =
   | { type: "insertLineBreak" }
   | { type: "formatText"; format: TextFormatType }
   | { type: "setBlockType"; blockType: BlockType }
+  | { type: "setWritingDirection"; direction: WritingDirection }
   | { type: "insertList"; listType: ListType }
   | { type: "removeList" | "indent" | "outdent" }
   | { type: "tab"; backward: boolean }
@@ -173,6 +178,8 @@ type Command =
       extend: boolean;
       native: PathPoint;
       atCellEdge: boolean;
+      parentRTL?: boolean;
+      anchorRTL?: boolean;
     }
   | { type: "undo" }
   | { type: "redo" }
@@ -215,7 +222,33 @@ function load(stateJSON: string): void {
   now = 0;
   // Registered first, so the loaded document is where undoing stops.
   registerHistory(next, createEmptyHistoryState(), 1000, () => now);
+  const registerCommand = next.registerCommand.bind(next);
+  next.registerCommand = (command, listener, priority) =>
+    registerCommand(
+      command,
+      (payload, editor) => {
+        const keyCommand: unknown = command;
+        if (
+          keyCommand !== KEY_ARROW_LEFT_COMMAND &&
+          keyCommand !== KEY_ARROW_RIGHT_COMMAND
+        )
+          return listener(payload, editor);
+        // These are keyboard events; the adapter adds the measured CSS direction.
+        const event = payload as unknown as {
+          parentRTL?: boolean;
+          anchorRTL?: boolean;
+        };
+        return withParentDirection(
+          editor,
+          event.parentRTL ?? false,
+          event.anchorRTL ?? event.parentRTL ?? false,
+          () => listener(payload, editor),
+        );
+      },
+      priority,
+    );
   registerRichText(next);
+  next.registerCommand = registerCommand;
   registerLineMoveOntoBlockDecorators(next);
   // A headless editor refuses root listeners, where an editor without a root
   // element calls them only with none; the checklist's pointer handling
@@ -668,6 +701,9 @@ function run(
     case "formatText":
       $formatText(selection, command.format);
       return;
+    case "setWritingDirection":
+      $setWritingDirection(command.direction);
+      return;
     case "setBlockType":
       $setBlockType(selection, command.blockType);
       return;
@@ -710,6 +746,46 @@ const ARROW_COMMANDS = {
   up: KEY_ARROW_UP_COMMAND,
 };
 
+/** Supplies computed CSS only while rich text reads it, after table handlers. */
+function withParentDirection(
+  editor: LexicalEditor,
+  rtl: boolean,
+  anchorRTL: boolean,
+  run: () => boolean,
+): boolean {
+  if (!rtl && !anchorRTL) return run();
+  const selection = $getSelection();
+  const node = $isNodeSelection(selection)
+    ? selection.getNodes()[0]
+    : $isRangeSelection(selection)
+      ? selection.anchor.getNode()
+      : null;
+  const parent = node && ($isRootNode(node) ? node : node.getParent());
+  if (!parent) return run();
+  const anchorElement = $isElementNode(node) ? node : parent;
+  const getElementByKey = editor.getElementByKey;
+  // The headless adapter provides just the computed style rich text asks for.
+  editor.getElementByKey = (key) =>
+    key === parent.getKey() || key === anchorElement.getKey()
+      ? ({
+          ownerDocument: {
+            defaultView: {
+              getComputedStyle: () => ({
+                direction: (key === anchorElement.getKey() ? anchorRTL : rtl)
+                  ? "rtl"
+                  : "ltr",
+              }),
+            },
+          },
+        } as unknown as HTMLElement)
+      : getElementByKey.call(editor, key);
+  try {
+    return run();
+  } finally {
+    editor.getElementByKey = getElementByKey;
+  }
+}
+
 /**
  * An arrow key as a browser has it: the handlers first, and where none
  * takes the key or stops it, the browser's own move; then the selection
@@ -718,6 +794,8 @@ const ARROW_COMMANDS = {
 function arrow(command: Extract<Command, { type: "arrow" }>): void {
   const before = $getSelection()?.clone() ?? null;
   const event: LineMoveEvent = {
+    parentRTL: command.parentRTL ?? false,
+    anchorRTL: command.anchorRTL ?? command.parentRTL ?? false,
     atCellEdge: command.atCellEdge,
     native: command.native,
     defaultPrevented: false,
@@ -761,7 +839,11 @@ function arrow(command: Extract<Command, { type: "arrow" }>): void {
 }
 
 /** An arrow key's event, with where the platform's move takes the focus. */
-type LineMoveEvent = ArrowKeyEvent & { native: PathPoint };
+type LineMoveEvent = ArrowKeyEvent & {
+  native: PathPoint;
+  parentRTL: boolean;
+  anchorRTL: boolean;
+};
 
 /**
  * The rest of rich text's `$tryDecoratorLineNavigation` for Up and Down,
@@ -868,7 +950,14 @@ function $moveNatively(command: Extract<Command, { type: "arrow" }>): void {
   if (anchorIsAtStart) $applyRange(selection, anchor, native);
   else $applyRange(selection, native, anchor);
   selection.dirty = true;
-  $shrinkSelectionToRoot(selection, command.key === "left", root);
+  const rtl = command.anchorRTL ?? command.parentRTL ?? false;
+  const backward =
+    command.key === "left"
+      ? !rtl
+      : command.key === "right"
+        ? rtl
+        : command.key === "up";
+  $shrinkSelectionToRoot(selection, backward, root);
   if (!anchorIsAtStart) $swapPoints(selection);
 }
 
@@ -929,6 +1018,9 @@ function runOnCells(
       return;
     case "formatText":
       $formatCells(selection, command.format);
+      return;
+    case "setWritingDirection":
+      $setWritingDirection(command.direction);
       return;
     case "setBlockType":
       $setBlockType(selection, command.blockType);
@@ -1008,6 +1100,9 @@ function runOnNodes(
       return;
     case "formatText":
       $formatText(selection, command.format);
+      return;
+    case "setWritingDirection":
+      $setWritingDirection(command.direction);
       return;
     case "setBlockType":
       $setBlockType(selection, command.blockType);

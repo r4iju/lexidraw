@@ -1,4 +1,9 @@
 import Foundation
+#if canImport(UIKit)
+import UIKit
+#else
+import AppKit
+#endif
 import LexicalFuzz
 import LexicalReference
 import LexicalSwift
@@ -9,6 +14,19 @@ import TextKitEditor
   /// Format bits as the only attribute, so a wrong run shows as a difference.
   static func style(_ blockType: String, _ format: TextFormat) -> [NSAttributedString.Key: Any] {
     [.lexicalFormat: format.rawValue]
+  }
+
+  @Test func explicitDirectionReachesParagraphLayout() throws {
+    let model = Editor()
+    try model.load(LexicalJSON.document([LexicalJSON.paragraph([LexicalJSON.text("abc")])]))
+    try model.apply(.caret(.text([0, 0], 0)))
+    try model.apply(.setWritingDirection(.rtl))
+    let text = DocumentText(model: model, style: Self.style)
+    let storage = NSMutableAttributedString()
+    try text.reload(storage)
+    #expect(
+      (storage.attribute(.paragraphStyle, at: 0, effectiveRange: nil) as? NSParagraphStyle)?
+        .baseWritingDirection == .rightToLeft)
   }
 
   @Test func laysOutBlocksAsLinesAndPointsAsABrowserResolvesThem() throws {

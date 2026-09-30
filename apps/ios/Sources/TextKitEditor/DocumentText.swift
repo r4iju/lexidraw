@@ -431,6 +431,11 @@ public final class DocumentText {
         }
         if listType != nil { lists.removeLast() }
         spans[path] = Span(start: start, end: text.length, kind: .element(childCount: children.count))
+        if Self.isBlock(node), let direction = node["direction"]?.stringValue {
+          let paragraph = (style(blockType, [])[.paragraphStyle] as? NSParagraphStyle)?.mutableCopy() as? NSMutableParagraphStyle ?? NSMutableParagraphStyle()
+          paragraph.baseWritingDirection = direction == "rtl" ? .rightToLeft : .leftToRight
+          lines.insert(Line(range: start..<(text.length + 1), key: .paragraphStyle, value: paragraph), at: lineCount)
+        }
         if let line = line(for: node, at: path) {
           lines.insert(Line(range: start..<(text.length + 1), key: line.key, value: line.value), at: lineCount)
         }

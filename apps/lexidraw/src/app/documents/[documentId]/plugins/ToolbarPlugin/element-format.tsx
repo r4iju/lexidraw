@@ -1,4 +1,8 @@
 import {
+  $setWritingDirection,
+  type WritingDirection,
+} from "@packages/lexical-nodes/writing-direction";
+import {
   type ElementFormatType,
   FORMAT_ELEMENT_COMMAND,
   INDENT_CONTENT_COMMAND,
@@ -85,6 +89,20 @@ export function AlignItems({
           </DropdownMenuRadioItem>
         ))}
       </DropdownMenuRadioGroup>
+      <DropdownMenuSeparator />
+      {(["auto", "ltr", "rtl"] as const).map((direction: WritingDirection) => (
+        <DropdownMenuItem
+          key={direction}
+          className="pl-8"
+          onSelect={() => editor.update(() => $setWritingDirection(direction))}
+        >
+          {direction === "auto"
+            ? "Automatic direction"
+            : direction === "ltr"
+              ? "Left to right"
+              : "Right to left"}
+        </DropdownMenuItem>
+      ))}
       <DropdownMenuSeparator />
       <DropdownMenuItem
         className="gap-2 pl-8"

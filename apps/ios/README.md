@@ -346,8 +346,15 @@ hand:
   formats, block types, indenting and Tab leave it be, as they answer a range
   only. The view outlines it as the web outlines a selected embed, and
   highlights no text.
-- Left and Right leave a selected rule as in left-to-right text; right to
-  left is #149's (explicit writing direction).
+- Writing Direction in the edit menu offers Automatic, Left to Right and
+  Right to Left; UIKit's writing-direction commands use the same model
+  command. The web offers these in Align. They set the selected text blocks'
+  stored `direction`, with `null` for automatic. Node and table selections
+  leave direction unchanged. TextKit resolves automatic direction, and the
+  arrow command carries the anchor node's parent's resolved direction (the
+  first selected node's parent for a node selection), as Lexical reads it
+  from computed CSS, so Left and Right leave a selected rule toward the
+  correct side.
 - A caret beside a table lies flat, under the table before it or else over
   the table after it, as the block cursor of Lexical's playground does,
   since the web's theme gives the block cursor no style.

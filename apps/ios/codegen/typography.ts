@@ -187,7 +187,7 @@ export function swiftForTypography(styles: WebStyles): string {
       `borderWidth: ${points(boxBorderWidth)}, borderColor: ${colors.name(boxBorderColor)}, ` +
       `cornerRadius: ${points(value(box, "border-radius"))}, ` +
       `checkedColor: ${colors.name(value(checked, "background"))}, ` +
-      `tick: Tick(left: ${ems(value(tick, "left"))}, top: ${ems(value(tick, "top"))}, ` +
+      `tick: Tick(start: ${ems(value(tick, "inset-inline-start"))}, top: ${ems(value(tick, "top"))}, ` +
       `width: ${ems(value(tick, "width"))}, height: ${ems(value(tick, "height"))}, ` +
       `lineWidth: ${points(tickLineWidth)}, color: ${colors.name(tickColor)}))`,
     `doneColor: ${colors.name(value(done, "color"))}`,
