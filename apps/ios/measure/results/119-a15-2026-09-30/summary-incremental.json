@@ -1,0 +1,82 @@
+[
+  {
+    "document": "115000 words, 9002 nodes",
+    "firstScreen": {
+      "loadMs": 74.2,
+      "makingTheViewMs": 37.68,
+      "viewToFirstScreenMs": 85.48,
+      "openToFirstScreenMs": 168.36
+    },
+    "scroll": {
+      "frames": 10190,
+      "contentHeight": 408207,
+      "jumpToTheMiddleMs": 9.31,
+      "frameMs": 16.65,
+      "hitches": 0,
+      "hitchTimeMs": 0,
+      "intervalMs": {
+        "p50": 16.65,
+        "p95": 16.65,
+        "p99": 16.65,
+        "max": 16.79
+      },
+      "workMs": {
+        "p50": 1.2,
+        "p95": 5.67,
+        "p99": 6.26,
+        "max": 13.52
+      },
+      "workByPhaseMs": {
+        "down": {
+          "p50": 1.2,
+          "p95": 5.41,
+          "p99": 5.97,
+          "max": 13.52
+        },
+        "up": {
+          "p50": 1.2,
+          "p95": 5.92,
+          "p99": 6.49,
+          "max": 9.95
+        }
+      }
+    },
+    "instruments": {
+      "frameSignpostMs": {
+        "p50": 1.21,
+        "p95": 5.44,
+        "p99": 6.02,
+        "max": 13.52
+      },
+      "commits": 10195,
+      "commitMs": {
+        "p50": 0.12,
+        "p95": 5.34,
+        "p99": 6.47,
+        "max": 235.9
+      },
+      "commitsOverHalfAFrame": 47,
+      "commitGapsOverAFrameAndAHalf": 6,
+      "hangs": 0,
+      "longestHangMs": 0,
+      "renderingHitches": 0,
+      "renderingHitchTimeMs": 0,
+      "renderingHitchMs": {
+        "p50": 0,
+        "p95": 0,
+        "p99": 0,
+        "max": 0
+      }
+    },
+    "stability": {
+      "jumps": 0,
+      "largestJumps": []
+    },
+    "memoryMB": {
+      "atStart": 7.78,
+      "end": 59.61,
+      "firstScreen": 50.88,
+      "peak": 77.46
+    }
+  }
+]

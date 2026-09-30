@@ -44,5 +44,38 @@
     "p95Ms": 152.776,
     "runsOver150Ms": 3,
     "gate": "fail"
+  },
+  "incrementalScroll": {
+    "measuredSourceCommit": "74303e74 with reviewed warm-window harness option disabled",
+    "workload": "Original mixed 115000-word, 9002-node workload, complete end-to-end scroll",
+    "openingProxyMs": 168.36,
+    "openingGate": "fail",
+    "frames": 10190,
+    "callbackDelays": 0,
+    "instrumentsRenderingHitches": 0,
+    "renderingHitchTimeMs": 0,
+    "zeroDroppedFramesGate": "pass for this recorded run; actual hitches table verified present with zero rows",
+    "hangs": 0,
+    "layoutJumps": 0,
+    "peakMemoryMB": 77.46,
+    "traceLocalPath": "/tmp/lexidraw-119-phone-incremental/large.trace",
+    "comparison": "66 baseline rendering hitches; 49 with intrinsic measurement cache; 0 with incremental upcoming-table preparation"
+  },
+  "integratedTyping": {
+    "measuredSourceCommit": "74303e74 with reviewed warm-window harness option disabled",
+    "scope": "200 genuine insertText(\"x\") edits per workload, synchronous input processing and layout; excludes keyboard delivery, drawing and compositing",
+    "variant": "Videos replaced with empty paragraphs while preserving node and word counts; media editing belongs to #131",
+    "results": {
+      "small": {
+        "p95Ms": 1.3634166680276394,
+        "samples": 200
+      },
+      "large": {
+        "p95Ms": 2.220875001512468,
+        "samples": 200
+      }
+    },
+    "processingGate": "pass",
+    "actualKeystrokeToScreenLatency": "unmeasured; display-link timestamps are cadence evidence only"
   }
 }
