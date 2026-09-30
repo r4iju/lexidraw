@@ -66,16 +66,18 @@ import UIKit
   let style: DocumentTypography.Table
   /// Around a node selected whole.
   private let selectedOutline: DocumentTypography.Outline
+  private let textMeasurements: TextMeasurements
   private var paddingX: CGFloat { style.paddingX }
   private var paddingY: CGFloat { style.paddingY }
   private var border: CGFloat { style.border }
 
   init(
     cells: [[Cell]], columnWidths: [Double]?, width: CGFloat, style: DocumentTypography.Table,
-    selectedOutline: DocumentTypography.Outline
+    selectedOutline: DocumentTypography.Outline, textMeasurements: TextMeasurements? = nil
   ) {
     self.style = style
     self.selectedOutline = selectedOutline
+    self.textMeasurements = textMeasurements ?? TextMeasurements(style)
     super.init(frame: .zero)
     showsVerticalScrollIndicator = false
     alwaysBounceHorizontal = false
@@ -102,15 +104,8 @@ import UIKit
   func set(cells: [[Cell]], columnWidths: [Double]?, width: CGFloat) {
     self.cells = cells
     let placed = Placement(cells)
-    var wideScalars: [Unicode.Scalar: Bool] = [:]
-    func isWide(_ scalar: Unicode.Scalar) -> Bool {
-      if let result = wideScalars[scalar] { return result }
-      let result = style.isWide(scalar)
-      wideScalars[scalar] = result
-      return result
-    }
-    let metrics = cells.map { $0.map { TextMetrics($0, isWide: isWide) } }
-    let short = shortColumns(cells, isWide: isWide)
+    let metrics = cells.map { $0.map(textMeasurements.metrics) }
+    let short = shortColumns(cells, isWide: textMeasurements.isWide)
     var whole = short
     var columns = self.columns(placed, metrics, short: short, whole: whole, fixed: columnWidths, width: width)
     // Short columns stay whole while the table fits, the widest giving way
@@ -504,7 +499,54 @@ import UIKit
   }
 
   /// How wide a cell's text is on one line, and its widest word.
-  private struct TextMetrics {
+  final class TextMeasurements {
+    private let style: DocumentTypography.Table
+    private var wideScalars: [Unicode.Scalar: Bool] = [:]
+    private let widths = NSCache<NSAttributedString, StoredMetrics>()
+
+    init(_ style: DocumentTypography.Table) {
+      self.style = style
+      widths.countLimit = 256
+      widths.totalCostLimit = 2_000_000
+    }
+
+    func isWide(_ scalar: Unicode.Scalar) -> Bool {
+      if let result = wideScalars[scalar] { return result }
+      let result = style.isWide(scalar)
+      if wideScalars.count == 512 { wideScalars.removeAll(keepingCapacity: true) }
+      wideScalars[scalar] = result
+      return result
+    }
+
+    fileprivate func metrics(_ cell: Cell) -> TextMetrics {
+      var cacheable = true
+      let whole = NSRange(location: 0, length: cell.text.length)
+      cell.text.enumerateAttributes(in: whole) { attributes, _, stop in
+        for value in attributes.values {
+          guard value is NSParagraphStyle || value is UIFont || value is UIColor || value is NSNumber
+            || (value is NSString && !(value is NSMutableString)) || value is NSURL
+          else { cacheable = false; stop.pointee = true; return }
+        }
+      }
+      if cacheable, let stored = widths.object(forKey: cell.text) { return stored.value }
+      let value = TextMetrics(cell, isWide: isWide)
+      if cacheable {
+        let key = NSMutableAttributedString(attributedString: cell.text)
+        key.enumerateAttribute(.paragraphStyle, in: whole) { value, range, _ in
+          if let paragraph = value as? NSParagraphStyle { key.addAttribute(.paragraphStyle, value: paragraph.copy(), range: range) }
+        }
+        widths.setObject(StoredMetrics(value), forKey: NSAttributedString(attributedString: key), cost: cell.text.length * 2)
+      }
+      return value
+    }
+
+    private final class StoredMetrics {
+      let value: TextMetrics
+      init(_ value: TextMetrics) { self.value = value }
+    }
+  }
+
+  fileprivate struct TextMetrics {
     var minContent: CGFloat = 0
     var maxContent: CGFloat = 0
     var isEmpty: Bool

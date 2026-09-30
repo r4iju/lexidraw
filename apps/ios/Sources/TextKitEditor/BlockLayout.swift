@@ -26,6 +26,7 @@ import UIKit
   private let storage: NSTextStorage
   private let document: DocumentText
   private let typesetting: Typesetting
+  private let tableTextMeasurements: TableView.TextMeasurements
   private weak var scrollView: UIScrollView?
   private var width: CGFloat = 0
   private var heights: [CGFloat] = []
@@ -47,6 +48,7 @@ import UIKit
     self.storage = storage
     self.document = document
     self.typesetting = typesetting
+    tableTextMeasurements = TableView.TextMeasurements(typesetting.typography.table)
   }
 
   /// A block of its own is a view; only a node inside a line of text stands
@@ -186,7 +188,7 @@ import UIKit
       case .table:
         TableBlock(
           text: text, kind: kind, width: width, style: typesetting.typography.table,
-          selectedOutline: typesetting.typography.rule.selected
+          selectedOutline: typesetting.typography.rule.selected, textMeasurements: tableTextMeasurements
         ) { [weak self] in
           self?.onScrollSideways?()
         }
@@ -541,12 +543,12 @@ private final class TableBlock: LaidOutBlock {
 
   init(
     text: NSAttributedString, kind: DocumentText.BlockKind, width: CGFloat, style: DocumentTypography.Table,
-    selectedOutline: DocumentTypography.Outline, onScroll: @escaping () -> Void
+    selectedOutline: DocumentTypography.Outline, textMeasurements: TableView.TextMeasurements, onScroll: @escaping () -> Void
   ) {
     self.kind = kind
     table = TableView(
       cells: Self.cells(text, kind), columnWidths: Self.table(kind)?.columnWidths, width: width, style: style,
-      selectedOutline: selectedOutline)
+      selectedOutline: selectedOutline, textMeasurements: textMeasurements)
     table.onScroll = onScroll
     holder = TableHolder(table)
   }
