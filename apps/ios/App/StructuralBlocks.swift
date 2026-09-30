@@ -61,6 +61,7 @@ import UIKit
   private var bodies: [EditorView] = []
   private var insets = UIEdgeInsets.zero
   private var dragStart: CGPoint?
+  private var viewingSectionOpen: Bool?
 
   init(owner: EditorView, key: String) {
     self.owner = owner
@@ -78,6 +79,7 @@ import UIKit
   override func show(_ value: JSONValue) {
     guard value != node else { return }
     node = value
+    viewingSectionOpen = nil
     guard !saving else { return }
     rebuild()
   }
@@ -100,12 +102,12 @@ import UIKit
     fields[name] = value
     save(.object(fields), rebuild: rebuild)
   }
-  @discardableResult private func button(_ title: String, action: @escaping () -> Void) -> UIButton {
+  @discardableResult private func button(_ title: String, viewing: Bool = false, action: @escaping () -> Void) -> UIButton {
     let button = UIButton(type: .system)
     button.setTitle(title, for: .normal)
     button.contentHorizontalAlignment = .leading
     button.addAction(UIAction { _ in action() }, for: .touchUpInside)
-    button.isEnabled = owner?.isEditable == true
+    button.isEnabled = viewing || owner?.isEditable == true
     stack.addArrangedSubview(button)
     return button
   }
@@ -231,15 +233,17 @@ import UIKit
     body(document(node["children"]?.arrayValue ?? [])) { _ in }
   }
   private func collapsible() {
-    let open = node["open"]?.isTruthy ?? false
+    let open = viewingSectionOpen ?? node["open"]?.isTruthy ?? false
     let children = node["children"]?.arrayValue ?? []
     guard children.count == 2, children[0]["type"] == "collapsible-title", children[1]["type"] == "collapsible-content"
     else {
       label("Invalid collapsible structure (#133)")
       return
     }
-    button(open ? "Collapse section" : "Expand section") { [weak self] in
-      self?.field("open", .bool(!open), rebuild: true)
+    button(open ? "Collapse section" : "Expand section", viewing: true) { [weak self] in
+      guard let self else { return }
+      if self.owner?.isEditable == true { self.field("open", .bool(!open), rebuild: true) }
+      else { self.viewingSectionOpen = !open; self.rebuild(); self.owner?.refreshEmbeddedContent() }
     }
     button("Edit section title") { [weak self] in self?.editBody(path: [0]) }
     body(document([paragraph(children[0]["children"]?.arrayValue ?? [])])) { _ in }
@@ -311,7 +315,8 @@ import UIKit
     save(.object(fields), rebuild: true)
   }
   @objc private func dragSticky(_ gesture: UIPanGestureRecognizer) {
-    guard node["type"] == "sticky", owner?.isEditable == true else { return }
+    guard node["type"] == "sticky", owner?.isEditable == true,
+      (owner?.bounds.width ?? 0) > StructuralBlockConfiguration.stackedColumnsWidth else { return }
     switch gesture.state {
     case .began: dragStart = CGPoint(x: node["xOffset"]?.numberValue ?? 0, y: node["yOffset"]?.numberValue ?? 0)
     case .changed:
@@ -837,10 +842,14 @@ import UIKit
     stage.frame = CGRect(
       x: 0, y: 0, width: StructuralBlockConfiguration.slideWidth, height: StructuralBlockConfiguration.slideHeight)
     for (view, value) in elements {
-      view.frame = CGRect(
-        x: value["x"]?.numberValue ?? 0, y: value["y"]?.numberValue ?? 0,
-        width: value["width"]?.numberValue ?? 0, height: value["height"]?.numberValue ?? 0)
+      let width = value["width"] == "inherit" ? StructuralBlockConfiguration.slideWidth : value["width"]?.numberValue ?? 0
+      let box = value["kind"] == "box"
+      let minimumHeight = value["height"]?.numberValue ?? (box ? 0 : StructuralBlockConfiguration.slideHeight)
+      view.frame = CGRect(x: value["x"]?.numberValue ?? 0, y: value["y"]?.numberValue ?? 0,
+        width: width, height: minimumHeight)
       view.layoutIfNeeded()
+      // Web text boxes have auto height and the stored numeric height as a minimum.
+      if box, let editor = view as? EditorView { view.frame.size.height = max(minimumHeight, editor.contentSize.height) }
     }
     stage.transform = CGAffineTransform(scaleX: scale, y: scale)
     stage.frame.origin = .zero
@@ -849,6 +858,8 @@ import UIKit
 
 @MainActor extension StructuralPanel: UIGestureRecognizerDelegate {
   func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
-    node["type"] == "sticky" && owner?.isEditable == true && (touch.view === self || touch.view === stack)
+    node["type"] == "sticky" && owner?.isEditable == true
+      && (owner?.bounds.width ?? 0) > StructuralBlockConfiguration.stackedColumnsWidth
+      && (touch.view === self || touch.view === stack)
   }
 }

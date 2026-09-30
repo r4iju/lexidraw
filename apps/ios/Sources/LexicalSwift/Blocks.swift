@@ -92,7 +92,7 @@ extension Update {
         case .quote: create(SerializedQuoteNode.type)
         case .h1, .h2, .h3, .h4, .h5, .h6: createHeading(HeadingTag(rawValue: type.rawValue)!)
         }
-      copyBlockFormatIndent(from: block, to: element)
+      try copyBlockFormatIndent(from: block, to: element)
       try replace(block, with: element, includingChildren: true)
     }
   }
@@ -141,10 +141,10 @@ extension Update {
   }
 
   /// `$copyBlockFormatIndent`.
-  private mutating func copyBlockFormatIndent(from source: NodeKey, to destination: NodeKey) {
+  private mutating func copyBlockFormatIndent(from source: NodeKey, to destination: NodeKey) throws {
     let json = state[source].payload.json
     let format = json["format"]?.stringValue.flatMap(ElementFormat.init(rawValue:)) ?? .empty
-    let indent = self.indent(of: source)
+    let indent = try requireWholeIndent(of: source)
     let destinationJSON = state[destination].payload.json
     if format.rawValue != destinationJSON["format"]?.stringValue ?? "" {
       modifyElement(destination) { $0.format = format }
@@ -245,7 +245,7 @@ extension IntegerElementFields {
 protocol FloatingElementFields: ElementFields { var indent: Double? { get set } }
 extension FloatingElementFields {
   var editorIndent: Int? {
-    get { indent.flatMap { $0.isFinite && $0 >= Double(Int.min) && $0 < Double(Int.max) ? Int($0) : nil } }
+    get { indent.flatMap { $0.isFinite && $0.rounded(.towardZero) == $0 && $0 >= Double(Int.min) && $0 < Double(Int.max) ? Int($0) : nil } }
     set { indent = newValue.map(Double.init) }
   }
 }

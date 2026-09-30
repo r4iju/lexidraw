@@ -665,7 +665,14 @@ The rebased local UIKit suite passed 123 tests, including accepted structural-ar
 and refusal to mutate a read-only document. CI was not invoked.
 
 The native column panel currently accepts the five registered fractional presets;
-other CSS grid templates show an explicit #133 limitation. Slide images currently
+other CSS grid templates show an explicit #133 limitation. Structural indent/outdent modifies
+the effective Double value without truncating it. These registered nodes use the
+web's unread-field import rule: imported indent is retained in stored JSON while
+the effective field starts at zero; a mutation writes the effective value. A
+fractional effective value cannot be copied into integer-indented paragraph/list
+schemas and explicitly refuses under #133. Read-only sections expand
+locally without a document mutation; compact sticky notes cannot drag. Slide
+inherited dimensions follow the canvas and text boxes grow to their content. Slide images currently
 use HTTPS URLs and chart previews require the #132 composed provider. Geometry against the web's CSS and chart configuration/source UI still require
 device-level verification. Slide geometry is edited in a native dialog; direct
 slide drag/resize gestures are not implemented. These are not claimed as
