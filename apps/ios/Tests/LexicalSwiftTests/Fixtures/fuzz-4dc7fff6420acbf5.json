@@ -1,0 +1,142 @@
+{
+  "changes" : [
+    {
+      "changed" : [
+
+      ]
+    },
+    {
+      "changed" : [
+
+      ]
+    },
+    {
+      "changed" : [
+
+      ]
+    }
+  ],
+  "commands" : [
+    {
+      "anchor" : {
+        "offset" : 0,
+        "path" : [
+          1,
+          0
+        ],
+        "type" : "element"
+      },
+      "focus" : {
+        "offset" : 0,
+        "path" : [
+          1,
+          0
+        ],
+        "type" : "element"
+      },
+      "type" : "setSelection"
+    },
+    {
+      "atCellEdge" : false,
+      "extend" : false,
+      "key" : "up",
+      "native" : {
+        "offset" : 0,
+        "path" : [
+          1,
+          0
+        ],
+        "type" : "element"
+      },
+      "type" : "arrow"
+    },
+    {
+      "type" : "toggleTableColumnHeader"
+    }
+  ],
+  "expected" : {
+    "selection" : {
+      "nodes" : [
+        [
+          0
+        ]
+      ]
+    },
+    "state" : {
+      "root" : {
+        "children" : [
+          {
+            "type" : "horizontalrule",
+            "version" : 1
+          },
+          {
+            "children" : [
+              {
+                "children" : [
+
+                ],
+                "direction" : null,
+                "format" : "",
+                "indent" : 0,
+                "type" : "listitem",
+                "value" : 1,
+                "version" : 1
+              }
+            ],
+            "direction" : null,
+            "format" : "",
+            "indent" : 0,
+            "listType" : "bullet",
+            "start" : 1,
+            "tag" : "ul",
+            "type" : "list",
+            "version" : 1
+          }
+        ],
+        "direction" : null,
+        "format" : "",
+        "indent" : 0,
+        "type" : "root",
+        "version" : 1
+      }
+    }
+  },
+  "start" : {
+    "root" : {
+      "children" : [
+        {
+          "type" : "horizontalrule",
+          "version" : 1
+        },
+        {
+          "children" : [
+            {
+              "children" : [
+
+              ],
+              "direction" : null,
+              "format" : "",
+              "indent" : 0,
+              "type" : "listitem",
+              "value" : 1,
+              "version" : 1
+            }
+          ],
+          "direction" : null,
+          "format" : "",
+          "indent" : 0,
+          "listType" : "bullet",
+          "start" : 1,
+          "tag" : "ul",
+          "type" : "list",
+          "version" : 1
+        }
+      ],
+      "direction" : null,
+      "format" : "",
+      "indent" : 0,
+      "type" : "root",
+      "version" : 1
+    }
+  }
+}

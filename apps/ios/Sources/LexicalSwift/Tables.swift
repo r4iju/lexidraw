@@ -509,7 +509,89 @@ extension Update {
     return parentCaret
   }
 
+  mutating func toggleTableRowHeaderFromMenu() throws {
+    guard selection != nil || tableSelection != nil else { return }
+    let (anchor, _) = try selectionPoints()
+    let (_, row, _) = try nodeTriplet(anchor.key)
+    for cell in Array(state.children(of: row)) {
+      let value = headerState(of: cell) ^ HeaderState.row
+      modifyCell(cell) { $0.headerState = Double(value) }
+    }
+    selectStart(EditorState.rootKey)
+  }
+
+  mutating func toggleTableColumnHeaderFromMenu() throws {
+    guard selection != nil || tableSelection != nil else { return }
+    let (anchor, _) = try selectionPoints()
+    let (cell, row, table) = try nodeTriplet(anchor.key)
+    let column = Array(state.children(of: row)).firstIndex(of: cell)!
+    for row in Array(state.children(of: table)) {
+      let children = Array(state.children(of: row))
+      guard column < children.count else { continue }
+      let cell = children[column]
+      let value = headerState(of: cell) ^ HeaderState.column
+      modifyCell(cell) { $0.headerState = Double(value) }
+    }
+    selectStart(EditorState.rootKey)
+  }
+
+  mutating func setTableCellBackgroundFromMenu(_ color: String) throws {
+    guard selection != nil || tableSelection != nil else { return }
+    let (anchor, _) = try selectionPoints()
+    let cell = try nodeTriplet(anchor.key).cell
+    var selected = [cell]
+    if let tableSelection { selected += try nodes(in: tableSelection).filter(isCell) }
+    for cell in Set(selected) { modifyCell(cell) { $0.backgroundColor = .value(color) } }
+  }
+
+  /// `$mergeDocumentTableCells`: the menu removes the first empty paragraph
+  /// before gathering content, even when all selected cells are empty.
+  mutating func mergeTableCellsFromMenu() throws {
+    guard let tableSelection else { return }
+    guard let anchor = try cellRect(tableSelection.anchor), let focus = try cellRect(tableSelection.focus) else {
+      throw EditorError.invalidState("getCellRect: expected to find selection cell")
+    }
+    let columns = max(anchor.column + anchor.colSpan - 1, focus.column + focus.colSpan - 1) - min(anchor.column, focus.column) + 1
+    let rows = max(anchor.row + anchor.rowSpan - 1, focus.row + focus.rowSpan - 1) - min(anchor.row, focus.row) + 1
+    let selected = try nodes(in: tableSelection).filter(isCell)
+    guard let first = selected.first else { return }
+    setColSpan(first, columns)
+    setRowSpan(first, rows)
+    if containsEmptyParagraph(first), let child = state.firstChild(of: first) { try remove(child) }
+    for cell in selected.dropFirst() {
+      if !containsEmptyParagraph(cell) { try append(first, Array(state.children(of: cell))) }
+      try remove(cell)
+    }
+    if isEmpty(first) { try append(first, [create(SerializedParagraphNode.type)]) }
+    selectEnd(first)
+  }
+
+  mutating func unmergeTableCellFromMenu() throws {
+    let (anchor, _) = try selectionPoints()
+    try unmergeCell(read(try nodeTriplet(anchor.key).cell))
+  }
+
+  mutating func deleteTableFromMenu() throws {
+    guard selection != nil || tableSelection != nil else { return }
+    let (anchor, _) = try selectionPoints()
+    let (_, _, table) = try nodeTriplet(anchor.key)
+    try remove(table)
+    selectStart(EditorState.rootKey)
+  }
+
   // MARK: Rows and columns
+
+  /// `$insertDocumentTableRows`, counting before insertion changes the selection.
+  mutating func insertDocumentTableRows(after: Bool) throws {
+    var count = 1
+    if let tableSelection {
+      guard let anchor = try cellRect(tableSelection.anchor), let focus = try cellRect(tableSelection.focus) else {
+        throw EditorError.invalidState("getCellRect: expected to find cell")
+      }
+      count = max(anchor.row + anchor.rowSpan - 1, focus.row + focus.rowSpan - 1) - min(anchor.row, focus.row) + 1
+    }
+    for _ in 0..<count { try insertTableRowAtSelection(after: after) }
+  }
 
   /// `$insertTableRowAtSelection`.
   mutating func insertTableRowAtSelection(after: Bool) throws {

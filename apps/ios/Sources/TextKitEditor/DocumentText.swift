@@ -255,6 +255,9 @@ public final class DocumentText {
       return (path, childCount)
     }
     guard let (path, childCount) = around.max(by: { $0.path.count < $1.path.count }) else {
+      // A decorator's trailing spacer has no caret of its own. Resolve
+      // it to the next block's innermost point, as that block's start does.
+      if local != 0, blockIndex + 1 < blocks.count { return point(at: starts[blockIndex + 1]) }
       return Point(path: [], offset: local == 0 ? blockIndex : blockIndex + 1, type: .element)
     }
     let children = (0..<childCount).filter { (spans[path + [$0]]?.end ?? .max) <= local }

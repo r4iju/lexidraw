@@ -42,6 +42,62 @@ import Testing
     .text([1, row, column, 0, 0], offset)
   }
 
+  @Test func deletesTheTableFromItsMenuAndSelectsTheStartOfTheDocument() throws {
+    let fixture = try agreed(grid, [.caret(cell(0, 0, 0)), .deleteTable])
+    #expect(types(fixture.expected) == ["paragraph", "paragraph"])
+  }
+
+  @Test func togglesEachCellInTheAnchorRowAsAHeaderAndClearsSelection() throws {
+    let fixture = try agreed(grid, [.caret(cell(0, 0, 0)), .toggleTableRowHeader])
+    #expect(node(fixture.expected, [1, 0, 0])?["headerState"] == 1)
+    #expect(node(fixture.expected, [1, 0, 1])?["headerState"] == 1)
+  }
+
+  @Test func togglesTheAnchorColumnHeader() throws {
+    let fixture = try agreed(grid, [.caret(cell(0, 1, 0)), .toggleTableColumnHeader])
+    #expect(node(fixture.expected, [1, 0, 1])?["headerState"] == 2)
+  }
+
+  @Test func coloursEverySelectedCell() throws {
+    let fixture = try agreed(grid, [.setSelection(anchor: cell(0, 0, 0), focus: cell(1, 1, 0)), .setTableCellBackground(color: "#123456")])
+    #expect(node(fixture.expected, [1, 1, 1])?["backgroundColor"] == "#123456")
+  }
+
+  @Test func mergesSelectedCellsAndSelectsTheirLastContent() throws {
+    let fixture = try agreed(grid, [.setSelection(anchor: cell(0, 0, 0), focus: cell(1, 1, 0)), .mergeTableCells])
+    #expect(node(fixture.expected, [1, 0, 0])?["colSpan"] == 2)
+    #expect(node(fixture.expected, [1, 0, 0])?["rowSpan"] == 2)
+  }
+
+  @Test func unmergesTheCellAtTheCaretKeepingItsContent() throws {
+    let fixture = try agreed(grid, [.setSelection(anchor: cell(0, 0, 0), focus: cell(1, 1, 0)), .mergeTableCells, .unmergeTableCell])
+    #expect(node(fixture.expected, [1, 0, 0])?["colSpan"] == 1)
+    #expect(node(fixture.expected, [1, 1, 1])?["type"] == "tablecell")
+  }
+
+  @Test func insertsAsManyRowsAsTheSelectionSpans() throws {
+    let fixture = try agreed(grid, [.setSelection(anchor: cell(0, 0, 0), focus: cell(1, 1, 0)), .insertTableRow(after: true)])
+    #expect(cellTexts(fixture.expected, table: 1).count == 4)
+  }
+
+  @Test func mergingEmptyCellsReplacesTheirFirstEmptyParagraph() throws {
+    for model in [try Support.referenceEditor() as any EditorModel, Editor()] {
+      try model.load(document(LexicalJSON.table([["", ""]])))
+      try model.apply(.setSelection(anchor: Point(path: [0, 0, 0], offset: 0, type: .element), focus: Point(path: [0, 0, 1], offset: 0, type: .element)))
+      let before = try model.childKeys(at: [0, 0, 0])
+      try model.apply(.mergeTableCells)
+      let after = try model.childKeys(at: [0, 0, 0])
+      #expect(before != after)
+    }
+  }
+
+  @Test func colouringSelectedCellsColoursTheirNestedCellsToo() throws {
+    let holding = LexicalJSON.element("tablecell", [LexicalJSON.table([["x", "y"]]), paragraph(text("b"))], ["backgroundColor": nil, "colSpan": 1, "headerState": 0, "rowSpan": 1])
+    let start = document(paragraph(text("before")), table([[tableCell("a"), holding]]), paragraph(text("after")))
+    let fixture = try agreed(start, [.setSelection(anchor: .text([1, 0, 0, 0, 0], 0), focus: .text([1, 0, 1, 1, 0], 1)), .setTableCellBackground(color: "#123456")])
+    #expect(node(fixture.expected, [1, 0, 1, 0, 0, 0])?["backgroundColor"] == "#123456")
+  }
+
   @Test func insertsATableAfterTheCaretsBlockWithTheCaretInItsFirstCell() throws {
     let fixture = try agreed(
       document(paragraph(text("ab"))), [.caret(.text([0, 0], 2)), .insertTable(rows: 2, columns: 3), .insertText("x")])

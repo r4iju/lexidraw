@@ -2,6 +2,15 @@ import {
   $setWritingDirection,
   type WritingDirection,
 } from "@packages/lexical-nodes/writing-direction";
+import {
+  $mergeDocumentTableCells,
+  $unmergeDocumentTableCell,
+  $deleteDocumentTable,
+  $toggleDocumentTableRowHeader,
+  $toggleDocumentTableColumnHeader,
+  $setDocumentTableCellBackground,
+  $insertDocumentTableRows,
+} from "@packages/lexical-nodes";
 /**
  * The editor-model interface over headless Lexical, for ReferenceEditor.swift
  * to call with JSON strings.
@@ -38,7 +47,6 @@ import {
 import {
   $deleteTableColumnAtSelection,
   $deleteTableRowAtSelection,
-  $insertTableRowAtSelection,
   $isTableCellNode,
   $isTableSelection,
   INSERT_TABLE_COMMAND,
@@ -171,7 +179,17 @@ type Command =
   | { type: "selectAll" }
   | { type: "insertTable"; rows: number; columns: number }
   | { type: "insertTableRow" | "insertTableColumn"; after: boolean }
-  | { type: "deleteTableRow" | "deleteTableColumn" }
+  | {
+      type:
+        | "deleteTableRow"
+        | "deleteTableColumn"
+        | "mergeTableCells"
+        | "unmergeTableCell"
+        | "deleteTable"
+        | "toggleTableRowHeader"
+        | "toggleTableColumnHeader";
+    }
+  | { type: "setTableCellBackground"; color: string }
   | {
       type: "arrow";
       key: "left" | "right" | "up" | "down";
@@ -1167,11 +1185,35 @@ function runOnTable(
         | "insertTableRow"
         | "insertTableColumn"
         | "deleteTableRow"
-        | "deleteTableColumn";
+        | "deleteTableColumn"
+        | "mergeTableCells"
+        | "unmergeTableCell"
+        | "deleteTable"
+        | "toggleTableRowHeader"
+        | "toggleTableColumnHeader"
+        | "setTableCellBackground";
     }
   >,
 ) {
   switch (command.type) {
+    case "mergeTableCells":
+      $mergeDocumentTableCells();
+      return;
+    case "unmergeTableCell":
+      $unmergeDocumentTableCell();
+      return;
+    case "deleteTable":
+      $deleteDocumentTable();
+      return;
+    case "toggleTableRowHeader":
+      $toggleDocumentTableRowHeader();
+      return;
+    case "toggleTableColumnHeader":
+      $toggleDocumentTableColumnHeader();
+      return;
+    case "setTableCellBackground":
+      $setDocumentTableCellBackground(command.color);
+      return;
     case "insertTable":
       current().dispatchCommand(INSERT_TABLE_COMMAND, {
         rows: String(command.rows),
@@ -1179,7 +1221,7 @@ function runOnTable(
       });
       return;
     case "insertTableRow":
-      $insertTableRowAtSelection(command.after);
+      $insertDocumentTableRows(command.after);
       return;
     case "insertTableColumn":
       $insertDocumentTableColumns(command.after);

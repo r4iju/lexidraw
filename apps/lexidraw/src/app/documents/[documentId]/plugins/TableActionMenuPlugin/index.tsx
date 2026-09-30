@@ -1,4 +1,4 @@
-import type { ElementNode, LexicalEditor, LexicalNode } from "lexical";
+import type { LexicalEditor } from "lexical";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { useLexicalEditable } from "@lexical/react/useLexicalEditable";
 import {
@@ -6,31 +6,18 @@ import {
   $deleteTableRowAtSelection,
   $getNodeTriplet,
   $getTableCellNodeFromLexicalNode,
-  $getTableColumnIndexFromTableCellNode,
   $getTableNodeFromLexicalNodeOrThrow,
-  $getTableRowIndexFromTableCellNode,
-  $insertTableRowAtSelection,
+  getTableElement,
+  getTableObserverFromTableElement,
+  type HTMLTableElementWithWithTableSelectionState,
   $isTableCellNode,
   $isTableRowNode,
   $isTableSelection,
-  $unmergeCell,
-  getTableObserverFromTableElement,
-  getTableElement,
-  type HTMLTableElementWithWithTableSelectionState,
   TableCellHeaderStates,
   TableCellNode,
-  type TableRowNode,
   type TableSelection,
 } from "@lexical/table";
-import {
-  $createParagraphNode,
-  $getRoot,
-  $getSelection,
-  $isElementNode,
-  $isParagraphNode,
-  $isRangeSelection,
-  $isTextNode,
-} from "lexical";
+import { $getSelection, $isRangeSelection, $getRoot } from "lexical";
 import type * as React from "react";
 import {
   type ReactPortal,
@@ -42,6 +29,13 @@ import {
 import { createPortal } from "react-dom";
 import {
   $insertDocumentTableColumns,
+  $insertDocumentTableRows,
+  $mergeDocumentTableCells,
+  $unmergeDocumentTableCell,
+  $deleteDocumentTable,
+  $toggleDocumentTableRowHeader,
+  $toggleDocumentTableColumnHeader,
+  $setDocumentTableCellBackground,
   $tableMenuCounts,
 } from "@packages/lexical-nodes";
 
@@ -176,28 +170,6 @@ function TableActionMenu({
     return cell.__colSpan > 1 || cell.__rowSpan > 1;
   }, []);
 
-  const $cellContainsEmptyParagraph = (cell: TableCellNode): boolean => {
-    if (cell.getChildrenSize() !== 1) {
-      return false;
-    }
-    const firstChild = cell.getFirstChildOrThrow();
-    if (!$isParagraphNode(firstChild) || !firstChild.isEmpty()) {
-      return false;
-    }
-    return true;
-  };
-
-  const $selectLastDescendant = (node: ElementNode): void => {
-    const lastDescendant = node.getLastDescendant();
-    if ($isTextNode(lastDescendant)) {
-      lastDescendant.select();
-    } else if ($isElementNode(lastDescendant)) {
-      lastDescendant.selectEnd();
-    } else if (lastDescendant !== null) {
-      lastDescendant.selectNext();
-    }
-  };
-
   useEffect(() => {
     return editor.registerMutationListener(TableCellNode, (nodeMutations) => {
       const nodeUpdated =
@@ -259,55 +231,20 @@ function TableActionMenu({
 
   const mergeTableCellsAtSelection = () => {
     editor.update(() => {
-      const selection = $getSelection();
-      if ($isTableSelection(selection)) {
-        const { columns, rows } = $tableMenuCounts();
-        const nodes = selection.getNodes();
-        let firstCell: null | TableCellNode = null;
-        for (let i = 0; i < nodes.length; i++) {
-          const node = nodes[i];
-          if ($isTableCellNode(node)) {
-            if (firstCell === null) {
-              node.setColSpan(columns).setRowSpan(rows);
-              firstCell = node;
-              const isEmpty = $cellContainsEmptyParagraph(node);
-              let firstChild: LexicalNode | null = null;
-              if (isEmpty) {
-                firstChild = node.getFirstChild();
-              }
-              if (isEmpty && $isParagraphNode(firstChild)) {
-                firstChild.remove();
-              }
-            } else if ($isTableCellNode(firstCell)) {
-              const isEmpty = $cellContainsEmptyParagraph(node);
-              if (!isEmpty) {
-                firstCell.append(...node.getChildren());
-              }
-              node.remove();
-            }
-          }
-        }
-        if (firstCell !== null) {
-          if (firstCell.getChildrenSize() === 0) {
-            firstCell.append($createParagraphNode());
-          }
-          $selectLastDescendant(firstCell);
-        }
-        onClose();
-      }
+      $mergeDocumentTableCells();
+      onClose();
     });
   };
-
   const unmergeTableCellsAtSelection = () => {
     editor.update(() => {
-      $unmergeCell();
+      $unmergeDocumentTableCell();
     });
   };
 
   const insertTableRowAtSelection = useCallback(
     (shouldInsertAfter: boolean) => {
       editor.update(() => {
-        $insertTableRowAtSelection(shouldInsertAfter);
+        $insertDocumentTableRows(shouldInsertAfter);
         onClose();
       });
     },
@@ -333,13 +270,11 @@ function TableActionMenu({
 
   const deleteTableAtSelection = useCallback(() => {
     editor.update(() => {
-      const tableNode = $getTableNodeFromLexicalNodeOrThrow(tableCellNode);
-      tableNode.remove();
-
+      $deleteDocumentTable();
       clearTableSelection();
       onClose();
     });
-  }, [editor, tableCellNode, clearTableSelection, onClose]);
+  }, [editor, clearTableSelection, onClose]);
 
   const deleteTableColumnAtSelection = useCallback(() => {
     editor.update(() => {
@@ -350,99 +285,23 @@ function TableActionMenu({
 
   const toggleTableRowIsHeader = useCallback(() => {
     editor.update(() => {
-      const tableNode = $getTableNodeFromLexicalNodeOrThrow(tableCellNode);
-
-      const tableRowIndex = $getTableRowIndexFromTableCellNode(tableCellNode);
-
-      const tableRows = tableNode.getChildren();
-
-      if (tableRowIndex >= tableRows.length || tableRowIndex < 0) {
-        throw new Error("Expected table cell to be inside of table row.");
-      }
-
-      const tableRow = tableRows[tableRowIndex];
-
-      if (!$isTableRowNode(tableRow)) {
-        throw new Error("Expected table row");
-      }
-
-      for (const tableCell of tableRow.getChildren()) {
-        if (!$isTableCellNode(tableCell)) {
-          throw new Error("Expected table cell");
-        }
-
-        tableCell.toggleHeaderStyle(TableCellHeaderStates.ROW);
-      }
-
+      $toggleDocumentTableRowHeader();
       clearTableSelection();
       onClose();
     });
-  }, [editor, tableCellNode, clearTableSelection, onClose]);
-
+  }, [editor, clearTableSelection, onClose]);
   const toggleTableColumnIsHeader = useCallback(() => {
     editor.update(() => {
-      const tableNode = $getTableNodeFromLexicalNodeOrThrow(tableCellNode);
-
-      const tableColumnIndex =
-        $getTableColumnIndexFromTableCellNode(tableCellNode);
-
-      const tableRows = tableNode.getChildren<TableRowNode>();
-      const maxRowsLength = Math.max(
-        ...tableRows.map((row) => row.getChildren().length),
-      );
-
-      if (tableColumnIndex >= maxRowsLength || tableColumnIndex < 0) {
-        throw new Error("Expected table cell to be inside of table row.");
-      }
-
-      for (let r = 0; r < tableRows.length; r++) {
-        const tableRow = tableRows[r];
-
-        if (!$isTableRowNode(tableRow)) {
-          throw new Error("Expected table row");
-        }
-
-        const tableCells = tableRow.getChildren();
-        if (tableColumnIndex >= tableCells.length) {
-          // if cell is outside of bounds for the current row (for example various merge cell cases) we shouldn't highlight it
-          continue;
-        }
-
-        const tableCell = tableCells[tableColumnIndex];
-
-        if (!$isTableCellNode(tableCell)) {
-          throw new Error("Expected table cell");
-        }
-
-        tableCell.toggleHeaderStyle(TableCellHeaderStates.COLUMN);
-      }
-
+      $toggleDocumentTableColumnHeader();
       clearTableSelection();
       onClose();
     });
-  }, [editor, tableCellNode, clearTableSelection, onClose]);
+  }, [editor, clearTableSelection, onClose]);
 
   const handleCellBackgroundColor = useCallback(
     (value: string) => {
       editor.update(() => {
-        const selection = $getSelection();
-        if ($isRangeSelection(selection) || $isTableSelection(selection)) {
-          const [cell] = $getNodeTriplet(selection.anchor);
-          if ($isTableCellNode(cell)) {
-            cell.setBackgroundColor(value);
-          }
-
-          if ($isTableSelection(selection)) {
-            const nodes = selection.getNodes();
-
-            for (let i = 0; i < nodes.length; i++) {
-              const node = nodes[i];
-              if ($isTableCellNode(node)) {
-                node.setBackgroundColor(value);
-              }
-            }
-          }
-        }
+        $setDocumentTableCellBackground(value);
       });
     },
     [editor],
