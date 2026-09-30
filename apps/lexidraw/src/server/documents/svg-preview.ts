@@ -1,6 +1,12 @@
 import { createEmbedRenderer } from "./embedded-render";
 
-type Preview = { png: string; width: number; height: number };
+type Preview = {
+  png: string;
+  width: number;
+  height: number;
+  rasterWidth: number;
+  rasterHeight: number;
+};
 
 /** The original SVG remains the stored media; raster output is only its native preview. */
 export function createSVGPreview(

@@ -12,6 +12,8 @@ export type EmbedRenderImage = {
   png: string;
   width: number;
   height: number;
+  rasterWidth?: number;
+  rasterHeight?: number;
 };
 export type EmbedRenderResult = EmbedRenderImage & { hash: string };
 
@@ -59,7 +61,9 @@ export function createEmbedRenderer(
         if (
           Buffer.byteLength(image.svg) > 8_000_000 ||
           size > 12_000_000 ||
-          image.width * image.height > 16_000_000
+          (image.rasterWidth ?? image.width) *
+            (image.rasterHeight ?? image.height) >
+            16_000_000
         )
           throw new Error("Rendered embed exceeds the image limit");
         sizes.set(hash, size);

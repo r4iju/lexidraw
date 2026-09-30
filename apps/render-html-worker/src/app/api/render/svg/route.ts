@@ -78,6 +78,8 @@ export async function POST(request: Request) {
         png: canvas.toDataURL("image/png").split(",")[1],
         width,
         height,
+        rasterWidth: canvas.width,
+        rasterHeight: canvas.height,
       };
     }, source);
     if (!output.png || output.png.length > 12_000_000)

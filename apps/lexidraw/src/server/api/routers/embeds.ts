@@ -62,6 +62,8 @@ const svgPreview = createSVGPreview(async (source) => {
       png: z.string().max(12000000),
       width: z.number().positive().max(16384),
       height: z.number().positive().max(16384),
+      rasterWidth: z.number().int().positive().max(2048),
+      rasterHeight: z.number().int().positive().max(2048),
     })
     .parse(await response.json());
 });

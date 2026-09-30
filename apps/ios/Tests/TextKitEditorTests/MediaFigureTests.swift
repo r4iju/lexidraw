@@ -131,6 +131,25 @@ import ImageIO
     #expect(changes >= 2)
     attachment.setAnimationVisible(false)
   }
+  private func gif(delays: [Double], size: CGFloat = 20) throws -> URL {
+    let frame = UIGraphicsImageRenderer(size: CGSize(width: size, height: size / 2)).image { _ in }
+    let data = NSMutableData()
+    let destination = try #require(CGImageDestinationCreateWithData(data, "com.compuserve.gif" as CFString, delays.count, nil))
+    for delay in delays { CGImageDestinationAddImage(destination, frame.cgImage!, [kCGImagePropertyGIFDictionary: [kCGImagePropertyGIFDelayTime: delay]] as CFDictionary) }
+    #expect(CGImageDestinationFinalize(destination))
+    return try #require(URL(string: "data:image/gif;base64," + (data as Data).base64EncodedString()))
+  }
+  @Test func longUnequalDelaysArePreservedAndSharedFramesDoNotEvictTheCache() async throws {
+    let source = try gif(delays: [61, 0.05], size: 512)
+    let image = try await NativeMediaImages.load(source)
+    #expect(abs(image.duration - 61.05) < 0.001)
+    let cached = try await NativeMediaImages.load(source)
+    #expect(image === cached)
+  }
+  @Test func unrepresentableTimingIsRefusedInsteadOfRounded() async throws {
+    let source = try gif(delays: [60.01, 0.02])
+    await #expect(throws: MediaImageError.unsupportedFormat("Animation frame timings beyond the native presentation budget")) { try await NativeMediaImages.load(source) }
+  }
   @Test func animationRetainsFramesAndTimingInsteadOfBecomingAStillFrame() async throws {
     let photo = UIGraphicsImageRenderer(size: CGSize(width: 20, height: 10)).image { _ in
       UIColor.blue.setFill(); UIRectFill(CGRect(x: 0, y: 0, width: 20, height: 10))

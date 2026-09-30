@@ -5,6 +5,7 @@ import EditorModelInterface
 import ImageIO
 import LinkPresentation
 import UIKit
+import UniformTypeIdentifiers
 
 /// Return an image whose logical size retains the original source dimensions.
 public typealias MediaImageLoader = @MainActor (URL) async throws -> UIImage
@@ -170,7 +171,7 @@ enum MediaImageError: Error, LocalizedError, Equatable {
     }
   }
   private func startAnimation() {
-    guard let image = picture.image, let frames = image.images else { return }
+    guard window != nil, let image = picture.image, let frames = image.images else { return }
     picture.animationImages = frames
     picture.animationDuration = image.duration
     picture.animationRepeatCount = NativeMediaImages.loopCount(image)
@@ -255,10 +256,11 @@ enum MediaImageError: Error, LocalizedError, Equatable {
       let count = CGImageSourceGetCount(source)
       guard count > 0, count <= 512 else { throw URLError(.cannotDecodeContentData) }
       if count > 1 {
+        guard let type = CGImageSourceGetType(source) as String?, [UTType.gif.identifier, UTType.png.identifier, UTType.webP.identifier].contains(type) else { throw MediaImageError.unsupportedFormat("Multi-image sources") }
         // Bound all decoded frames together, rather than downsampling each to the static-image ceiling.
         let side = min(2048, Int(sqrt(Double(32 * 1024 * 1024 / (count * 4)))))
         var frames: [UIImage] = []
-        var delays: [Int] = []
+        var delays: [Double] = []
         var decodedBytes = 0
         for index in 0..<count {
           try Task.checkCancellation()
@@ -277,13 +279,29 @@ enum MediaImageError: Error, LocalizedError, Equatable {
           let metadata = (properties?[kCGImagePropertyGIFDictionary] ?? properties?[kCGImagePropertyPNGDictionary] ?? properties?[kCGImagePropertyWebPDictionary]) as? [CFString: Any]
           let seconds = (metadata?[kCGImagePropertyGIFUnclampedDelayTime] ?? metadata?[kCGImagePropertyAPNGUnclampedDelayTime] ?? metadata?[kCGImagePropertyWebPUnclampedDelayTime] ?? metadata?[kCGImagePropertyGIFDelayTime] ?? metadata?[kCGImagePropertyAPNGDelayTime] ?? metadata?[kCGImagePropertyWebPDelayTime]) as? NSNumber
           let delay = seconds?.doubleValue ?? 0.1
-          delays.append(Int((min(max(delay.isFinite && delay >= 0.02 ? delay : 0.1, 0.02), 60) * 1000).rounded()))
+          guard delay.isFinite else { throw URLError(.cannotDecodeContentData) }
+          // Browsers give very short GIF delays 100ms; other formats retain their source delay.
+          delays.append(type == UTType.gif.identifier && delay < 0.02 ? 0.1 : delay > 0 ? delay : 0.1)
         }
-        func gcd(_ a: Int, _ b: Int) -> Int { b == 0 ? a : gcd(b, a % b) }
         let total = delays.reduce(0, +)
-        let tick = max(delays.reduce(delays[0], gcd), Int(ceil(Double(total) / 4096)))
-        let timed = zip(frames, delays).flatMap { frame, delay in Array(repeating: frame, count: max(1, Int((Double(delay) / Double(tick)).rounded()))) }
-        guard let animation = UIImage.animatedImage(with: timed, duration: Double(total) / 1000) else { throw URLError(.cannotDecodeContentData) }
+        guard total.isFinite, total > 0, total < Double(Int64.max / 2) else { throw URLError(.cannotDecodeContentData) }
+        var repeats: [Int]?
+        // UIImage's uniform frame clock must represent every source delay exactly.
+        // A larger repeat array is refused, rather than rounding unequal timings.
+        for count in frames.count...4096 {
+          let quantum = total / Double(count)
+          var candidate: [Int] = []
+          for delay in delays {
+            let samples = (delay / quantum).rounded()
+            guard samples >= 1, samples <= 4096,
+              abs(samples * quantum - delay) <= max(delay.ulp, total.ulp) * 32 else { break }
+            candidate.append(Int(samples))
+          }
+          if candidate.count == frames.count, candidate.reduce(0, +) == count { repeats = candidate; break }
+        }
+        guard let repeats else { throw MediaImageError.unsupportedFormat("Animation frame timings beyond the native presentation budget") }
+        let timed = zip(frames, repeats).flatMap { frame, count in Array(repeating: frame, count: count) }
+        guard let animation = UIImage.animatedImage(with: timed, duration: total) else { throw URLError(.cannotDecodeContentData) }
         let properties = CGImageSourceCopyProperties(source, nil) as? [CFString: Any]
         let metadata = (properties?[kCGImagePropertyGIFDictionary] ?? properties?[kCGImagePropertyPNGDictionary] ?? properties?[kCGImagePropertyWebPDictionary]) as? [CFString: Any]
         let loops = (metadata?[kCGImagePropertyGIFLoopCount] ?? metadata?[kCGImagePropertyAPNGLoopCount] ?? metadata?[kCGImagePropertyWebPLoopCount]) as? NSNumber
@@ -305,7 +323,12 @@ enum MediaImageError: Error, LocalizedError, Equatable {
     }.value
     try Task.checkCancellation()
     NativeMediaImages.setLoopCount(loopCount, for: image)
-    let cost = image.images.map { frames in frames.reduce(0) { $0 + ($1.cgImage.map { $0.bytesPerRow * $0.height } ?? 0) } } ?? image.cgImage.map { $0.bytesPerRow * $0.height } ?? 0
+    let frames = image.images ?? [image]
+    var counted: Set<ObjectIdentifier> = []
+    let cost = frames.reduce(0) { bytes, frame in
+      guard let bitmap = frame.cgImage, counted.insert(ObjectIdentifier(bitmap)).inserted else { return bytes }
+      return bytes + bitmap.bytesPerRow * bitmap.height
+    }
     images.setObject(image, forKey: cacheKey, cost: cost)
     return image
   }

@@ -510,7 +510,10 @@ Pages-to-Safari HTML capture is claimed.
 
 Images and inline images render stored raster sources; videos use AVKit.
 ImageIO-supported GIF, APNG and WebP animations retain timed frames and loop
-metadata. Block images animate in UIImageView; inline/table images redraw their
+metadata. GIF delays below 20 ms use the browser’s 100 ms floor. Other source
+delays remain intact. A uniform frame clock represents unequal timings with at
+most 4096 references; timing sequences that cannot fit exactly are explicitly
+refused rather than rounded. Cache cost counts each shared bitmap once. Block images animate in UIImageView; inline/table images redraw their
 captioned attachments, pause outside the window and resume after relayout.
 Decoding bounds the source, frame count and combined frame memory; images that
 exceed those limits show an unavailable state instead of a first-frame fallback.
