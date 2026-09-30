@@ -1,7 +1,44 @@
+import OrderedCollections
+
 extension EditorState {
   /// A node as Lexical's `exportJSON` writes it, children included unless
   /// left out, as a copy leaves out those not selected.
   func json(of key: NodeKey, includingChildren: Bool = true, canonicalKeyOrder: Bool = true) -> JSONValue {
+    guard includingChildren, let children = self[key].children, !children.isEmpty else {
+      return json(of: key, children: self[key].children == nil ? nil : [], canonicalKeyOrder: canonicalKeyOrder)
+    }
+    var stack = [ExportFrame(key: key, children: children)]
+    while !stack.isEmpty {
+      if let child = stack[stack.count - 1].iterator.next() {
+        if let children = self[child].children, !children.isEmpty {
+          stack.append(ExportFrame(key: child, children: children))
+        } else {
+          let value = json(of: child, children: self[child].children == nil ? nil : [], canonicalKeyOrder: canonicalKeyOrder)
+          stack[stack.count - 1].exported.append(value)
+        }
+      } else {
+        let frame = stack.removeLast()
+        let value = json(of: frame.key, children: frame.exported, canonicalKeyOrder: canonicalKeyOrder)
+        if stack.isEmpty { return value }
+        stack[stack.count - 1].exported.append(value)
+      }
+    }
+    preconditionFailure("An export always has a root")
+  }
+
+  private struct ExportFrame {
+    let key: NodeKey
+    var iterator: IndexingIterator<OrderedSet<NodeKey>>
+    var exported: [JSONValue] = []
+
+    init(key: NodeKey, children: OrderedSet<NodeKey>) {
+      self.key = key
+      iterator = children.makeIterator()
+      exported.reserveCapacity(children.count)
+    }
+  }
+
+  private func json(of key: NodeKey, children: [JSONValue]?, canonicalKeyOrder: Bool) -> JSONValue {
     let node = self[key]
     let serialized = canonicalKeyOrder ? node.payload.json : node.payload.jsonForPresentation
     guard case .object(var fields) = serialized else { return serialized }
@@ -21,9 +58,7 @@ extension EditorState {
       default: break
       }
     }
-    if let children = node.children {
-      fields["children"] = .array(includingChildren ? children.map { json(of: $0, canonicalKeyOrder: canonicalKeyOrder) } : [])
-    }
+    if let children { fields["children"] = .array(children) }
     guard canonicalKeyOrder, let payload = node.payload.payload else { return .object(fields) }
     return .object(fields.ordered(by: type(of: payload).keyOrder))
   }
