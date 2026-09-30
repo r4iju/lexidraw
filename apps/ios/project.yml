@@ -69,6 +69,12 @@ targets:
       - App/MessageAlert.swift
       - App/DocumentView.swift
       - App/Loaded.swift
+      - App/EmbeddedDrawing.swift
+      - App/DrawingCanvas.swift
+      - App/DrawingEditorView.swift
+      - App/EditorCanvas.swift
+      - App/StyleInspector.swift
+      - App/DrawingImages.swift
       # Built by `bun run build:reference`; without it only LexicalSwift runs.
       - path: reference/dist/lexical-reference.js
         buildPhase: resources
@@ -84,6 +90,8 @@ targets:
         product: LexicalReference
       - package: LexidrawIOS
         product: LexicalFuzz
+      - package: LexidrawIOS
+        product: DrawingKit
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: $(APP_BUNDLE_IDENTIFIER).editor-harness

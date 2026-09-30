@@ -96,6 +96,8 @@ import UIKit
   }
   /// Called when a block has scrolled sideways within itself, moving the
   /// text in it.
+  var embeddedContent: ((String, JSONValue) -> EmbeddedContentView?)?
+
   var onScrollSideways: (() -> Void)?
 
   /// Blocks laid out beyond those on screen, kept for geometry and scrolling
@@ -259,7 +261,10 @@ import UIKit
       case .embedded where styled(index) == .rule:
         RuleBlock(
           rule: typesetting.typography.rule, caretHeight: UIFont.preferredFont(forTextStyle: .body).lineHeight, width: width)
-      case .embedded(let type): EmbedBlock(type: type, width: width)
+      case .embedded(let type):
+        if let embedded = document.embeddedNode(at: index), let view = embeddedContent?(embedded.key, embedded.node) {
+          ContentBlock(view: view, node: embedded.node, type: type, width: width)
+        } else { EmbedBlock(type: type, width: width) }
       }
     laidOut[index] = block
     showTableSelection(in: block, at: index)
@@ -307,7 +312,7 @@ import UIKit
       if block.view.frame != frame { block.view.frame = frame }
       if block.view.superview !== surface {
         // Touches go to the surface, whose text interaction places the caret.
-        block.view.isUserInteractionEnabled = false
+        block.view.isUserInteractionEnabled = block is ContentBlock
         surface.insertSubview(block.view, at: 0)
       }
     }
@@ -742,6 +747,37 @@ private final class TableBlock: LaidOutBlock {
 }
 
 /// An embedded node, the caret before it or after it.
+private final class ContentBlock: LaidOutBlock {
+  private let container = UIView()
+  private let content: EmbeddedContentView
+  private let type: String
+  private var size: CGSize = .zero
+  init(view: EmbeddedContentView, node: JSONValue, type: String, width: CGFloat) {
+    content = view
+    self.type = type
+    container.addSubview(view)
+    content.show(node)
+    fit(width)
+  }
+  private func fit(_ width: CGFloat) {
+    size = content.contentSize(fitting: width)
+    content.frame = CGRect(x: max((width - size.width) / 2, 0), y: 0, width: size.width, height: size.height)
+  }
+  var view: UIView { container }
+  var kind: DocumentText.BlockKind { .embedded(type: type) }
+  var height: CGFloat { size.height }
+  func canShow(_ kind: DocumentText.BlockKind) -> Bool { false }
+  func set(text: NSAttributedString, kind: DocumentText.BlockKind, width: CGFloat) { fit(width) }
+  func redraw() { content.setNeedsDisplay() }
+  func segments(_ range: NSRange) -> [CGRect] {
+    if range.length > 0 { return range.location == 0 ? [content.frame] : [] }
+    return [CGRect(x: range.location == 0 ? content.frame.minX : content.frame.maxX, y: 0, width: 0, height: size.height)]
+  }
+  func offset(closestTo point: CGPoint) -> Int { point.x < content.frame.midX ? 0 : 1 }
+  func offset(movingVerticallyFrom offset: Int, _ direction: NSTextSelectionNavigation.Direction, x: CGFloat) -> Int? { nil }
+  func lineBoundary(at offset: Int, backward: Bool) -> Int { backward ? 0 : 1 }
+}
+
 private final class EmbedBlock: LaidOutBlock {
 
   private let container = UIView()

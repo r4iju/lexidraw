@@ -2,10 +2,21 @@ import DrawingKit
 import SwiftUI
 import UIKit
 
+@MainActor protocol DrawingCanvasEditing: AnyObject {
+  var editor: DrawingEditor { get }
+  var images: [String: DrawingImage] { get }
+  var redraw: () -> Void { get set }
+  var viewport: () -> (center: Point2D, height: Double) { get set }
+  func changing()
+  func edited()
+  func perform(_ action: EditorAction)
+  func select(_ tool: DrawingTool)
+}
+
 /// The drawing as the web editor shows it: drawn afresh for each change
 /// and each step of a pan or pinch, over just what is on screen.
 struct EditorCanvas: UIViewRepresentable {
-  let editing: DrawingEditing
+  let editing: any DrawingCanvasEditing
   let background: String
   let theme: DrawingTheme
 
@@ -24,7 +35,7 @@ final class EditorCanvasView: UIView, UIGestureRecognizerDelegate, UITextViewDel
   /// Room round the drawing when it is first fitted to the screen.
   private static let margin = 40.0
 
-  private let editing: DrawingEditing
+  private let editing: any DrawingCanvasEditing
   private var editor: DrawingEditor { editing.editor }
   private let background: String
   var theme = DrawingTheme.light {
@@ -53,7 +64,7 @@ final class EditorCanvasView: UIView, UIGestureRecognizerDelegate, UITextViewDel
   private var textView: TextBoxView?
   private lazy var undo = EditorUndoManager(editing: editing)
 
-  init(editing: DrawingEditing, background: String) {
+  init(editing: any DrawingCanvasEditing, background: String) {
     self.editing = editing
     self.background = background
     super.init(frame: .zero)
@@ -413,9 +424,9 @@ final class EditorCanvasView: UIView, UIGestureRecognizerDelegate, UITextViewDel
 /// The editor's history as the system's undo: three-finger swipes, the
 /// keyboard's Command-Z and the Edit menu undo and redo drawing edits.
 final class EditorUndoManager: UndoManager {
-  private let editing: DrawingEditing
+  private let editing: any DrawingCanvasEditing
 
-  init(editing: DrawingEditing) {
+  init(editing: any DrawingCanvasEditing) {
     self.editing = editing
     super.init()
   }

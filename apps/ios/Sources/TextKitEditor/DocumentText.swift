@@ -92,6 +92,7 @@ public final class DocumentText {
   private let model: any EditorModel
   private let style: Style
   private let standIn: StandIn?
+  var nativeAttachment: ((JSONValue, [Int]) -> NSTextAttachment?)?
   private var blocks: [Block] = []
   /// Where each block starts, and the text's length last.
   private var starts: [Int] = [0]
@@ -116,6 +117,20 @@ public final class DocumentText {
   }
 
   public func kind(ofBlock index: Int) -> BlockKind { blocks[index].kind }
+
+  func embeddedNode(at index: Int) -> (key: String, node: JSONValue)? {
+    guard blocks.indices.contains(index), let node = try? model.nodeForPresentation(at: [index]) else { return nil }
+    if let drawing = Self.drawingInParagraph(node), let keys = try? model.childKeys(at: [index]), let key = keys.first {
+      return (key, drawing)
+    }
+    return (blocks[index].key, node)
+  }
+
+  private static func drawingInParagraph(_ node: JSONValue) -> JSONValue? {
+    guard node["type"] == "paragraph", let children = node["children"]?.arrayValue,
+      children.count == 1, children[0]["type"] == "excalidraw" else { return nil }
+    return children[0]
+  }
 
   /// The block's type, which for a heading is its tag.
   public func type(ofBlock index: Int) -> String { blocks[index].type }
@@ -201,6 +216,16 @@ public final class DocumentText {
     blocks.replaceSubrange(first...last, with: [block])
     measure()
     return [Splice(old: first..<(last + 1), new: first..<(first + 1))]
+  }
+
+  func embeddedPath(at offset: Int) -> [Int]? {
+    guard !blocks.isEmpty else { return nil }
+    let index = blockIndex(at: offset)
+    let local = offset - starts[index]
+    return blocks[index].spans.first { _, span in
+      if case .character = span.kind { return span.start <= local && local < span.end }
+      return false
+    }.map { [index] + $0.key }
   }
 
   /// Where `point` is in the text, or nil where the document has no such
@@ -289,7 +314,10 @@ public final class DocumentText {
     for index in indexes {
       let node = try model.nodeForPresentation(at: [index])
       let blockType = (node["type"] == "heading" ? node["tag"] : node["type"])?.stringValue ?? ""
-      var renderer = Renderer(style: style, standIn: standIn, blockType: blockType)
+      var renderer = Renderer(style: style, standIn: standIn, blockType: blockType,
+        nativeAttachment: { [nativeAttachment] child, path in
+          Self.drawingInParagraph(node) == nil ? nativeAttachment?(child, [index] + path) : nil
+        })
       renderer.add(node, at: [])
       let block = renderer.text
       rendered.append(
@@ -327,6 +355,7 @@ public final class DocumentText {
   }
 
   private static func kind(of node: JSONValue, spans: [[Int]: Span]) -> BlockKind {
+    if drawingInParagraph(node) != nil { return .embedded(type: "excalidraw") }
     switch spans[[]]?.kind {
     case .character: return .embedded(type: node["type"]?.stringValue ?? "")
     case .element(let rowCount) where node["type"] == "table":
@@ -390,6 +419,7 @@ public final class DocumentText {
     let style: Style
     let standIn: StandIn?
     let blockType: String
+    let nativeAttachment: ((JSONValue, [Int]) -> NSTextAttachment?)?
     var text = NSMutableAttributedString()
     var spans: [[Int]: Span] = [:]
     var lines: [Line] = []
@@ -399,10 +429,11 @@ public final class DocumentText {
     /// it's an autolink undone.
     private var link: URL?
 
-    init(style: @escaping Style, standIn: StandIn?, blockType: String) {
+    init(style: @escaping Style, standIn: StandIn?, blockType: String, nativeAttachment: ((JSONValue, [Int]) -> NSTextAttachment?)?) {
       self.style = style
       self.standIn = standIn
       self.blockType = blockType
+      self.nativeAttachment = nativeAttachment
     }
 
     /// Inline elements, which sit in a line of text rather than on their own.
@@ -410,6 +441,11 @@ public final class DocumentText {
 
     mutating func add(_ node: JSONValue, at path: [Int]) {
       let start = text.length
+      if !path.isEmpty, let attachment = nativeAttachment?(node, path) {
+        text.append(NSAttributedString(string: "\u{FFFC}", attributes: style(blockType, []).merging([.attachment: attachment]) { $1 }))
+        spans[path] = Span(start: start, end: text.length, kind: .character)
+        return
+      }
       if let standIn, let attributes = standIn(node, path.isEmpty) {
         text.append(NSAttributedString(string: "\u{FFFC}", attributes: style(blockType, []).merging(attributes) { $1 }))
         spans[path] = Span(start: start, end: text.length, kind: .character)
