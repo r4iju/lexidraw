@@ -9,6 +9,20 @@ import UIKit
 /// Delete or Forward Delete from XCUITest's `typeKey` to the app. These run
 /// each key's command as UIKit would on the key.
 @MainActor @Suite struct EditorViewTests {
+  @Test func fontSizeShortcutUsesTheWebStep() throws {
+    let (view, model) = try editing(LexicalJSON.paragraph([LexicalJSON.text("hello")]))
+    select(view, 0, 5)
+    try press(".", [.command, .shift], in: view)
+    #expect(try model.node(at: [0, 0])["style"] == "font-size: 17px;")
+  }
+
+  @Test func clearFormattingShortcutClearsSelectedText() throws {
+    let (view, model) = try editing(LexicalJSON.paragraph([LexicalJSON.text("hello", format: .bold)]))
+    select(view, 0, 5)
+    try press("\\", .command, in: view)
+    #expect(try model.node(at: [0, 0])["format"] == 0)
+  }
+
   @Test func embeddedDrawingChangesNotifyAutosaveAndRejectedScenesDoNot() throws {
     let model = Editor()
     let drawing: JSONValue = ["type": "excalidraw", "version": 1, "data": "[]", "width": 320, "height": 180]

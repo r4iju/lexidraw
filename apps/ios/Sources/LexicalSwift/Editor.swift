@@ -300,6 +300,8 @@ extension Update {
     case .formatText(let format): try formatText(selection, format)
     case .setBlockType(let type): try setBlockType(selection, type)
     case .formatElement(let format): try formatElement(selection, format)
+    case .changeFontSize(let increase): try changeFontSize(selection, increase: increase)
+    case .clearFormatting: try clearFormatting(selection)
     case .setWritingDirection(let direction): try setWritingDirection(selection, direction)
     case .insertList(let listType): try insertList(ListType(listType))
     case .removeList: try removeList()
@@ -325,6 +327,8 @@ extension Update {
     case .formatText(let format): try formatCells(selection, format)
     case .setBlockType(let type): try setBlockType(selection, type)
     case .formatElement(let format): try formatElement(selection, format)
+    case .changeFontSize(let increase): try changeFontSize(selection, increase: increase)
+    case .clearFormatting: try clearFormatting(selection)
     // Rich text's Enter answers a range selection alone.
     case .insertParagraph, .insertLineBreak: break
     // Neither the table's Tab nor Tab indentation's answers cells.
@@ -356,6 +360,8 @@ extension Update {
     // elements, and a selected rule is neither.
     case .formatText, .setBlockType, .setWritingDirection: break
     case .formatElement(let format): formatElements(nodes(in: selection), format)
+    case .changeFontSize(let increase): try changeFontSizeOfNodes(nodes(in: selection), increase: increase)
+    case .clearFormatting: break
     case .insertList(let listType): try insertList(selection, ListType(listType))
     // `$removeList`, `$handleIndentAndOutdent` and Tab indentation answer a
     // range selection alone.

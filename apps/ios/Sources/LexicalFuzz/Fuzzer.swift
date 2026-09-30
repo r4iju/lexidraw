@@ -624,7 +624,8 @@ struct Generator {
     case ..<40: return .setBlockType(BlockType.allCases.randomElement(using: &random)!)
     case ..<41: return .formatElement(EditorCommand.ElementAlignment.allCases.randomElement(using: &random)!)
     case ..<42: return .selectAll
-    case ..<44: return .wait(milliseconds: [500, 1000, 2000].randomElement(using: &random)!)
+    case ..<43: return .wait(milliseconds: [500, 1000, 2000].randomElement(using: &random)!)
+    case ..<44: return Bool.random(using: &random) ? .changeFontSize(increase: Bool.random(using: &random)) : .clearFormatting
     case ..<47: return .insertList(EditorCommand.ListType.allCases.randomElement(using: &random)!)
     case ..<48: return .removeList
     case ..<50: return .indent

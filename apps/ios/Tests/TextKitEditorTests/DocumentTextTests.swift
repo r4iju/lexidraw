@@ -16,6 +16,24 @@ import TextKitEditor
     [.lexicalFormat: format.rawValue]
   }
 
+  @Test func fontSizeStyleReachesNativeFont() throws {
+    let model = Editor()
+    try model.load(LexicalJSON.document([LexicalJSON.paragraph([LexicalJSON.text("abc", style: "font-size: 32px;")])]))
+    #if canImport(UIKit)
+    let font = UIFont.systemFont(ofSize: 16)
+    #else
+    let font = NSFont.systemFont(ofSize: 16)
+    #endif
+    let text = DocumentText(model: model, style: { _, _ in [.font: font] })
+    let storage = NSMutableAttributedString()
+    try text.reload(storage)
+    #if canImport(UIKit)
+    #expect((storage.attribute(.font, at: 0, effectiveRange: nil) as? UIFont)?.pointSize == 32)
+    #else
+    #expect((storage.attribute(.font, at: 0, effectiveRange: nil) as? NSFont)?.pointSize == 32)
+    #endif
+  }
+
   @Test func tableAlignmentPreservesItsCellTextAlignment() throws {
     let model = Editor()
     var fields = LexicalJSON.table([["one", "two"]]).objectValue!

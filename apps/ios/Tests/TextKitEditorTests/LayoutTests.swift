@@ -721,6 +721,18 @@ import UIKit
     #expect(jumps == [])
   }
 
+  @Test func largerStyledTextHasRoomBeforeTheNextParagraph() throws {
+    let large = LexicalJSON.text("Large", style: "font-size: 48px;")
+    let view = try Self.host(LexicalJSON.document([
+      LexicalJSON.paragraph([LexicalJSON.text("s "), large]),
+      LexicalJSON.paragraph([LexicalJSON.text("next")]),
+    ]))
+    let big = view.caretRect(for: try position(view, 3))
+    let next = view.caretRect(for: try position(view, 8))
+    #expect(big.height >= 48)
+    #expect(next.minY >= big.maxY, "large glyphs must not overlap the following paragraph")
+  }
+
   static func host(_ document: JSONValue, model: Editor = Editor(), width: CGFloat = 390) throws -> EditorView {
     try model.load(document)
     let window = UIWindow(frame: CGRect(x: 0, y: 0, width: width, height: 600))

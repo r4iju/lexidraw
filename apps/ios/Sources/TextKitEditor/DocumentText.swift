@@ -326,6 +326,30 @@ public final class DocumentText {
           kind: Self.kind(of: node, spans: renderer.spans), lines: renderer.lines))
       block.append(NSAttributedString(string: "\n", attributes: style(blockType, [])))
       for line in renderer.lines { block.addAttribute(line.key, value: line.value.base, range: NSRange(line.range)) }
+      if !renderer.resizedRanges.isEmpty {
+        let base = style(blockType, [])
+        #if canImport(UIKit)
+        let naturalHeight = (base[.font] as? UIFont)?.lineHeight ?? 0
+        #else
+        let naturalHeight = (base[.font] as? NSFont).map { NSLayoutManager().defaultLineHeight(for: $0) } ?? 0
+        #endif
+        let cssHeight = (base[.paragraphStyle] as? NSParagraphStyle)?.minimumLineHeight ?? 0
+        if naturalHeight > 0, cssHeight > 0 {
+          let string = block.string as NSString
+          var paragraphs = Set<NSRange>()
+          for range in renderer.resizedRanges {
+            paragraphs.insert(string.paragraphRange(for: NSRange(range)))
+          }
+          for range in paragraphs {
+            let paragraph = (block.attribute(.paragraphStyle, at: range.location, effectiveRange: nil) as? NSParagraphStyle)?.mutableCopy() as? NSMutableParagraphStyle ?? NSMutableParagraphStyle()
+            // Preserve the generated CSS line-height ratio while allowing each line's largest font to set its height.
+            paragraph.minimumLineHeight = 0
+            paragraph.maximumLineHeight = 0
+            paragraph.lineHeightMultiple = cssHeight / naturalHeight
+            block.addAttribute(.paragraphStyle, value: paragraph, range: range)
+          }
+        }
+      }
       text.append(block)
     }
     return (text, rendered)
@@ -423,6 +447,7 @@ public final class DocumentText {
     var text = NSMutableAttributedString()
     var spans: [[Int]: Span] = [:]
     var lines: [Line] = []
+    var resizedRanges: [Range<Int>] = []
     /// The lists around the node being added.
     private var lists: [EditorCommand.ListType] = []
     /// Where the text being added links to, as a link element's does unless
@@ -495,7 +520,7 @@ public final class DocumentText {
         append("\u{2028}", format: [])
         kind = .character
       } else if let string = node["text"]?.stringValue {
-        append(string, format: TextFormat(rawValue: node["format"]?.intValue ?? 0))
+        append(string, format: TextFormat(rawValue: node["format"]?.intValue ?? 0), css: node["style"]?.stringValue ?? "")
         kind = .text
       } else {
         append("\u{FFFC}", format: [])
@@ -522,8 +547,17 @@ public final class DocumentText {
       node["children"] != nil && !inlineElements.contains(node["type"]?.stringValue ?? "")
     }
 
-    private mutating func append(_ string: String, format: TextFormat) {
+    private mutating func append(_ string: String, format: TextFormat, css: String = "") {
       var attributes = style(blockType, format)
+      if !css.isEmpty, let rawSize = InlineCSS(css)["font-size"], rawSize.hasSuffix("px"),
+        let size = Double(rawSize.dropLast(2)), size.isFinite, size > 0 {
+        resizedRanges.append(text.length..<(text.length + string.utf16.count))
+        #if canImport(UIKit)
+        if let font = attributes[.font] as? UIFont { attributes[.font] = font.withSize(size) }
+        #else
+        if let font = attributes[.font] as? NSFont { attributes[.font] = NSFont(descriptor: font.fontDescriptor, size: size) }
+        #endif
+      }
       if let link { attributes[.link] = link }
       text.append(NSAttributedString(string: string, attributes: attributes))
     }

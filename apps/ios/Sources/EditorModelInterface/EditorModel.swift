@@ -201,6 +201,8 @@ public enum EditorCommand: Equatable, Sendable {
   /// as the web toolbar's block menu does.
   case setBlockType(BlockType)
   case formatElement(ElementAlignment)
+  case changeFontSize(increase: Bool)
+  case clearFormatting
 
   public enum ElementAlignment: String, Codable, CaseIterable, Sendable {
     case left, start, center, right, end, justify
@@ -333,13 +335,13 @@ public struct TextFormat: OptionSet, Codable, Hashable, Sendable {
 extension EditorCommand: Codable {
   private enum CodingKeys: String, CodingKey {
     case type, anchor, focus, text, backward, lineBoundary, format, blockType, listType, path, milliseconds, url, clipboard,
-      rows, columns, color, after, key, extend, native, atCellEdge, direction, parentRTL, anchorRTL
+      rows, columns, color, after, key, extend, native, atCellEdge, direction, parentRTL, anchorRTL, increase
   }
 
   /// The command's `type` in JSON.
   private enum Kind: String, Codable {
     case setSelection, insertText, commitComposition, deleteCharacter, deleteWord, deleteLine, insertParagraph, insertLineBreak,
-      formatText, setBlockType, formatElement, setWritingDirection, insertList, removeList, indent, outdent, tab, toggleChecked, selectAll, toggleLink, editLink,
+      formatText, setBlockType, formatElement, changeFontSize, clearFormatting, setWritingDirection, insertList, removeList, indent, outdent, tab, toggleChecked, selectAll, toggleLink, editLink,
       copy, cut, paste, insertTable, insertTableRow, insertTableColumn, deleteTableRow, deleteTableColumn, mergeTableCells, unmergeTableCell, deleteTable, toggleTableRowHeader, toggleTableColumnHeader, setTableCellBackground, arrow, undo, redo,
       wait
   }
@@ -355,6 +357,8 @@ extension EditorCommand: Codable {
     case .insertParagraph: .insertParagraph
     case .insertLineBreak: .insertLineBreak
     case .formatText: .formatText
+    case .clearFormatting: .clearFormatting
+    case .changeFontSize: .changeFontSize
     case .formatElement: .formatElement
     case .setBlockType: .setBlockType
     case .setWritingDirection: .setWritingDirection
@@ -409,6 +413,8 @@ extension EditorCommand: Codable {
     case .insertParagraph: self = .insertParagraph
     case .insertLineBreak: self = .insertLineBreak
     case .formatText: self = .formatText(try container.decode(TextFormatType.self, forKey: .format))
+    case .clearFormatting: self = .clearFormatting
+    case .changeFontSize: self = .changeFontSize(increase: try container.decode(Bool.self, forKey: .increase))
     case .formatElement: self = .formatElement(try container.decode(ElementAlignment.self, forKey: .format))
     case .setBlockType: self = .setBlockType(try container.decode(BlockType.self, forKey: .blockType))
     case .setWritingDirection: self = .setWritingDirection(try container.decode(WritingDirection.self, forKey: .direction))
@@ -466,6 +472,8 @@ extension EditorCommand: Codable {
       try container.encode(lineBoundary, forKey: .lineBoundary)
     case .formatText(let format):
       try container.encode(format, forKey: .format)
+    case .changeFontSize(let increase):
+      try container.encode(increase, forKey: .increase)
     case .formatElement(let format):
       try container.encode(format, forKey: .format)
     case .setBlockType(let blockType):
@@ -498,7 +506,7 @@ extension EditorCommand: Codable {
       try container.encode(atCellEdge, forKey: .atCellEdge)
       try container.encode(parentRTL, forKey: .parentRTL)
       try container.encodeIfPresent(anchorRTL, forKey: .anchorRTL)
-    case .insertParagraph, .insertLineBreak, .removeList, .indent, .outdent, .selectAll, .copy, .cut, .deleteTableRow,
+    case .clearFormatting, .insertParagraph, .insertLineBreak, .removeList, .indent, .outdent, .selectAll, .copy, .cut, .deleteTableRow,
       .deleteTableColumn, .mergeTableCells, .unmergeTableCell, .deleteTable, .toggleTableRowHeader, .toggleTableColumnHeader, .undo, .redo:
       break
     }
