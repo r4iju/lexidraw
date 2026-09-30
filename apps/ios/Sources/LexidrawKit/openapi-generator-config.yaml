@@ -5,6 +5,7 @@ accessModifier: internal
 namingStrategy: idiomatic
 filter:
   operations:
+    - embeds-rasterizeSVG
     - embeds-render
     - entities-list
     - entities-search

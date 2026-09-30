@@ -508,10 +508,23 @@ Pages-to-Safari HTML capture is claimed.
 
 ## Native media
 
-Images and inline images render their supported stored raster sources; videos use AVKit.
-Animated images and SVG sources show an explicit unsupported-format explanation
-(#131) instead of a still-frame approximation, with opening the original offered
-for web URLs.
+Images and inline images render stored raster sources; videos use AVKit.
+ImageIO-supported GIF, APNG and WebP animations retain timed frames and loop
+metadata. Block images animate in UIImageView; inline/table images redraw their
+captioned attachments, pause outside the window and resume after relayout.
+Decoding bounds the source, frame count and combined frame memory; images that
+exceed those limits show an unavailable state instead of a first-frame fallback.
+
+SVG media keeps its original URL/data and uses an authenticated server PNG
+preview. The worker draws inert SVG image content into a bounded canvas, runs no
+SVG scripts and permits no external resources. Original intrinsic dimensions
+remain separate from downsampled preview pixels. SVGs rely on the worker's fonts
+and the browser's image-context SVG support; malformed or oversized sources
+remain explicitly unavailable. The app never turns the preview into stored PNG
+media. This uses the existing render-worker secret/configuration and deployed
+`POST /api/v1/embeds/rasterize-svg` and worker `/api/render/svg` routes. Standalone
+TextKit clients must supply the explicit `NativeMediaImages.load(_:rasterizeSVG:)`
+platform seam to support SVG; ordinary raster/animation loading is local.
 YouTube, X and Figma use native LinkPresentation previews and open their official
 URLs when tapped. Those previews do not reproduce provider iframe interaction;
 a failed preview leaves an explicit unavailable card with its destination.

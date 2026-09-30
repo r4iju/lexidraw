@@ -28,6 +28,7 @@ const config = {
     "/api/screenshot": [...CHROMIUM_BIN, ...RENDER_FONTS],
     "/api/render-html": [...CHROMIUM_BIN, ...RENDER_FONTS],
     "/api/html-block-preview": [...CHROMIUM_BIN, ...RENDER_FONTS],
+    "/api/render/svg": [...CHROMIUM_BIN, ...RENDER_FONTS],
     "/api/render/pdf": [...CHROMIUM_BIN, ...RENDER_FONTS],
   },
 } satisfies NextConfig;

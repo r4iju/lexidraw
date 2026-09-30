@@ -59,6 +59,32 @@ import UIKit
 import ImageIO
 
 @MainActor @Suite struct UnsupportedMediaFormatTests {
+  @Test func svgUsesAnExplicitRasterPreviewWithoutReplacingOriginalSource() async throws {
+    let svg = Data("<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"20\" height=\"10\"><rect width=\"20\" height=\"10\" fill=\"blue\"/></svg>".utf8)
+    let source = try #require(URL(string: "data:image/svg+xml;base64," + svg.base64EncodedString()))
+    var calls = 0
+    let result = try await NativeMediaImages.load(source, rasterizeSVG: { data in
+      #expect(data == svg)
+      calls += 1
+      return UIGraphicsImageRenderer(size: CGSize(width: 20, height: 10)).image { _ in
+        UIColor.blue.setFill(); UIRectFill(CGRect(x: 0, y: 0, width: 20, height: 10))
+      }
+    })
+    #expect(calls == 1)
+    #expect(result.size == CGSize(width: 20, height: 10))
+    #expect(source.absoluteString.hasPrefix("data:image/svg+xml;base64,"))
+  }
+  @Test func svgPercentEncodedDataURLsReachTheRasterizerAsOriginalBytes() async throws {
+    let svg = "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"30\" height=\"15\"><text>+ &amp; words</text></svg>"
+    let encoded = try #require(svg.addingPercentEncoding(withAllowedCharacters: .alphanumerics))
+    let source = try #require(URL(string: "data:image/svg+xml;charset=utf-8," + encoded))
+    var received: Data?
+    _ = try await NativeMediaImages.load(source, rasterizeSVG: { data in
+      received = data
+      return UIGraphicsImageRenderer(size: CGSize(width: 30, height: 15)).image { _ in }
+    })
+    #expect(received == Data(svg.utf8))
+  }
   @Test func imageLoadingCanBeProvidedWithoutChangingThePayload() async throws {
     let payload = try #require(MediaPayload(["type": "inline-image", "src": "https://example.com/test.svg", "width": 100, "height": 50]))
     var calls = 0
@@ -70,17 +96,54 @@ import ImageIO
     #expect(calls == 1)
     #expect(attachment.payload.source?.absoluteString == "https://example.com/test.svg")
   }
-  @Test func animationDoesNotSilentlyBecomeAStillFrame() async throws {
+  @Test func animatedInlineAttachmentPresentsSuccessiveFramesWithItsCaption() async throws {
+    func frame(_ color: UIColor) -> UIImage {
+      UIGraphicsImageRenderer(size: CGSize(width: 20, height: 10)).image { _ in
+        color.setFill(); UIRectFill(CGRect(x: 0, y: 0, width: 20, height: 10))
+      }
+    }
+    let animation = try #require(UIImage.animatedImage(with: [frame(.blue), frame(.red)], duration: 0.2))
+    let payload = try #require(MediaPayload(["type": "inline-image", "src": "https://example.com/check.gif", "width": 20, "height": 10, "showCaption": true, "caption": ["editorState": ["root": ["type": "root", "children": [["type": "paragraph", "children": [["type": "text", "text": "Caption", "format": 0]]]]]]]]))
+    let attachment = MediaAttachment(payload, imageLoader: { _ in animation })
+    var changes = 0
+    var pixels = Set<Data>()
+    attachment.load {
+      changes += 1
+      if let png = attachment.image?.pngData() { pixels.insert(png) }
+    }
+    try await Task.sleep(for: .milliseconds(350))
+    #expect(changes >= 3)
+    #expect(pixels.count == 2)
+    #expect(attachment.bounds.height > 10)
+  }
+  @Test func animatedAttachmentResumesRedrawingAfterItsTextBoxIsReplaced() async throws {
+    let frame = UIGraphicsImageRenderer(size: CGSize(width: 20, height: 10)).image { _ in }
+    let animation = try #require(UIImage.animatedImage(with: [frame, frame], duration: 0.1))
+    let payload = try #require(MediaPayload(["type": "inline-image", "src": "https://example.com/rebind.gif"]))
+    let attachment = MediaAttachment(payload, imageLoader: { _ in animation })
+    attachment.load { }
+    try await Task.sleep(for: .milliseconds(80))
+    attachment.setAnimationVisible(false)
+    var changes = 0
+    attachment.load { changes += 1 }
+    attachment.setAnimationVisible(true)
+    try await Task.sleep(for: .milliseconds(160))
+    #expect(changes >= 2)
+    attachment.setAnimationVisible(false)
+  }
+  @Test func animationRetainsFramesAndTimingInsteadOfBecomingAStillFrame() async throws {
     let photo = UIGraphicsImageRenderer(size: CGSize(width: 20, height: 10)).image { _ in
       UIColor.blue.setFill(); UIRectFill(CGRect(x: 0, y: 0, width: 20, height: 10))
     }
     let data = NSMutableData()
     let destination = try #require(CGImageDestinationCreateWithData(data, "com.compuserve.gif" as CFString, 2, nil))
-    CGImageDestinationAddImage(destination, photo.cgImage!, nil)
-    CGImageDestinationAddImage(destination, photo.cgImage!, nil)
+    CGImageDestinationAddImage(destination, photo.cgImage!, [kCGImagePropertyGIFDictionary: [kCGImagePropertyGIFDelayTime: 0.1]] as CFDictionary)
+    CGImageDestinationAddImage(destination, photo.cgImage!, [kCGImagePropertyGIFDictionary: [kCGImagePropertyGIFDelayTime: 0.2]] as CFDictionary)
     #expect(CGImageDestinationFinalize(destination))
     let url = try #require(URL(string: "data:image/gif;base64," + (data as Data).base64EncodedString()))
-    await #expect(throws: MediaImageError.unsupportedFormat("Animated images")) { try await MediaView.image(url) }
+    let animation = try await NativeMediaImages.load(url)
+    #expect(animation.images?.count == 3)
+    #expect(abs(animation.duration - 0.3) < 0.001)
   }
 }
 #endif

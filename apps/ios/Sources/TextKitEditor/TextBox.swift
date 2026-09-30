@@ -13,6 +13,13 @@ import UIKit
   private let container = NSTextContainer(size: .zero)
   private(set) var height: CGFloat = 0
   var onRedraw: (() -> Void)?
+  private var animationVisible = false
+  func setAnimationVisible(_ visible: Bool) {
+    animationVisible = visible
+    storage.enumerateAttribute(.attachment, in: NSRange(location: 0, length: storage.length)) { value, _, _ in
+      (value as? any LazyTextAttachment)?.setAnimationVisible(visible)
+    }
+  }
   /// The lines as laid out, the extra one TextKit adds after a final newline
   /// left out.
   private var lines: [Line] = []
@@ -60,6 +67,7 @@ import UIKit
     contentStorage.performEditingTransaction { storage.setAttributedString(styled) }
     measure()
     storage.enumerateAttribute(.attachment, in: NSRange(location: 0, length: storage.length)) { value, _, _ in
+      (value as? any LazyTextAttachment)?.setAnimationVisible(animationVisible)
       (value as? any LazyTextAttachment)?.load { [weak self] in
         guard let self else { return }
         let text = NSAttributedString(attributedString: self.storage)
