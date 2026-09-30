@@ -6,7 +6,7 @@ import MediaPlayer
 /// and controlled from the Lock Screen and Control Centre like a podcast.
 @MainActor @Observable
 final class Listener {
-  struct File: Equatable {
+  struct File: Equatable, Identifiable {
     let id: String
     let title: String
   }
@@ -24,6 +24,10 @@ final class Listener {
   private(set) var state = State.idle
   private(set) var position = Recording.Position.start
   private(set) var isPlaying = false
+  private(set) var generationRequest: File?
+  private var generationAuthorization: CheckedContinuation<Void, any Error>?
+  private var generationAuthorizationID: UUID?
+  private var permitsGeneration = false
   /// Of the part playing, once it is known.
   private(set) var duration: Double?
 
@@ -88,7 +92,10 @@ final class Listener {
     state = .preparing(file, .started)
     preparing = Task {
       do {
-        let recording = try await session.recording(of: file.id) { progress in
+        let recording = try await session.recording(of: file.id, authorizeGeneration: { [weak self] in
+          guard let self else { throw CancellationError() }
+          try await self.authorizeGeneration(for: file)
+        }) { progress in
           Task { @MainActor in
             if case .preparing(file, _) = self.state { self.state = .preparing(file, progress) }
           }
@@ -98,9 +105,44 @@ final class Listener {
         queue(from: recording.resuming(resumePoints.position(of: file.id)), playing: true)
       } catch is CancellationError {
       } catch {
+        guard !Task.isCancelled else { return }
         state = .failed(file, error.localizedDescription)
       }
     }
+  }
+
+  private func authorizeGeneration(for file: File) async throws {
+    guard !permitsGeneration else { return }
+    try Task.checkCancellation()
+    let authorizationID = UUID()
+    try await withTaskCancellationHandler {
+      try await withCheckedThrowingContinuation { continuation in
+        generationRequest = file
+        generationAuthorization = continuation
+        generationAuthorizationID = authorizationID
+      }
+    } onCancel: { [weak self] in
+      Task { @MainActor in self?.cancelGeneration(id: authorizationID) }
+    }
+  }
+
+  func allowGeneration() {
+    guard let authorization = generationAuthorization else { return }
+    permitsGeneration = true
+    generationAuthorization = nil
+    generationAuthorizationID = nil
+    generationRequest = nil
+    authorization.resume()
+  }
+
+  func cancelGeneration() {
+    guard generationAuthorization != nil else { return }
+    stop()
+  }
+
+  private func cancelGeneration(id: UUID) {
+    guard generationAuthorizationID == id else { return }
+    cancelGeneration()
   }
 
   func play() {
@@ -137,6 +179,11 @@ final class Listener {
 
   /// Ends the listen, keeping where it stopped for next time.
   func stop() {
+    let authorization = generationAuthorization
+    generationAuthorization = nil
+    generationAuthorizationID = nil
+    generationRequest = nil
+    authorization?.resume(throwing: CancellationError())
     preparing?.cancel()
     preparing = nil
     if recording != nil { keepPosition() }

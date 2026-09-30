@@ -39,6 +39,24 @@ private final class Reports: Sendable {
 }
 
 @Suite struct RecordingTests {
+  @Test func decliningGenerationDoesNotSendTheFileForAudio() async throws {
+    let server = serverAnswering([(200, Audio.none)])
+    let session = try TestServer.session(server)
+    await #expect(throws: CancellationError.self) {
+      try await session.recording(of: "doc-1", authorizeGeneration: { throw CancellationError() }, pause: {})
+    }
+    #expect(server.requests.map(\.method) == [.get])
+  }
+
+  @Test func existingAudioNeedsNoGenerationPermission() async throws {
+    let server = serverAnswering([(200, Audio.ready)])
+    let session = try TestServer.session(server)
+    let recording = try await session.recording(
+      of: "doc-1", authorizeGeneration: { throw CancellationError() }, pause: {})
+    #expect(recording.parts.count == 2)
+    #expect(server.requests.map(\.method) == [.get])
+  }
+
   @Test func audioAlreadyMadeIsPlayedWithoutMakingItAgain() async throws {
     let server = serverAnswering([(200, Audio.ready)])
     let session = try TestServer.session(server)
