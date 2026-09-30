@@ -1,0 +1,52 @@
+[
+  {
+    "html": "<svg><title><b>bold</b></title></svg>",
+    "name": "svg-title-integration",
+    "nodes": [
+      {
+        "detail": 0,
+        "format": 1,
+        "mode": "normal",
+        "style": "",
+        "text": "bold",
+        "type": "text",
+        "version": 1
+      }
+    ]
+  },
+  {
+    "html": "<textarea data-x=x\">A<b>B</b></textarea><p>C</p>",
+    "name": "rcdata-unquoted-quote",
+    "nodes": [
+      {
+        "detail": 0,
+        "format": 0,
+        "mode": "normal",
+        "style": "",
+        "text": "A<b>B</b>",
+        "type": "text",
+        "version": 1
+      },
+      {
+        "children": [
+          {
+            "detail": 0,
+            "format": 0,
+            "mode": "normal",
+            "style": "",
+            "text": "C",
+            "type": "text",
+            "version": 1
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "textFormat": 0,
+        "textStyle": "",
+        "type": "paragraph",
+        "version": 1
+      }
+    ]
+  }
+]

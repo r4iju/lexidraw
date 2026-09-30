@@ -286,8 +286,10 @@ hand:
   on the pasteboard, and no HTML. Other apps get the plain text. Lexical's
   JSON that Lexical can't insert where the caret is goes in as the plain
   text, as on the web.
-- HTML pasted from another app goes in as the plain text beside it. Pasting
-  it as rich text, images and charts included, is #168.
+- HTML pasted from another app keeps the registered converters' text formats,
+  links, headings, quotes, lists and tables. Nodes not edited yet are refused
+  naming their owning ticket. HTML identical to plain text uses the plain-text
+  importer, as Safari autocorrect requires.
 - The edit menu offers Add Link for a selection, and Open, Edit and Remove
   for a caret in a link, Open only for the protocols the web opens a link
   with; a tap on a link's text offers the same. Saving no URL keeps the
@@ -409,3 +411,81 @@ hand:
   with the web's dialog, five rows and columns to begin with, or in a table
   inserting rows and columns and deleting them. Deleting the table, headers
   and merging cells are left out.
+
+## Rich HTML paste
+
+HTML paste parses with the system libxml2 HTML parser, without network access,
+into an inert tree of text and attributes. `bun run codegen` bundles the web's
+unmodified `$generateNodesFromDOM` and registered node converters for
+JavaScriptCore, over `codegen/html-dom.ts`'s small DOM adapter. This keeps
+converter priorities, equal-priority registration order and child conversions
+in the web's own code. Unsupported DOM APIs throw naming #168; nodes whose
+editing isn't ported throw naming their existing owning ticket. libxml2's
+HTML4 nested-heading recovery is normalized to HTML5's heading closure.
+Qualified tag names are protected during parsing: libxml2 otherwise turns
+Word's unknown `o:p` elements into paragraphs, unlike the browser DOM.
+RCDATA (`textarea`/`title`) preserves literal markup by escaping `<` until an
+exact closing name with an HTML delimiter; entities still decode normally and
+HTML's ignored self-closing flag is removed from those start tags. Foreign SVG
+titles retain their HTML integration-point children; the scanner distinguishes
+quoted attribute values from literal quotes inside unquoted values.
+
+`bun run record:html` records clipboard-shaped Safari, Notes, Pages, Google
+Docs and Word examples and seeded generated HTML with the independent bun
+`@lexical/headless/dom` oracle. They contain synthetic public text, not captured
+private clipboards. `HTMLPasteTests` replays those DOM conversions through the
+public paste command and the existing serialized-node insertion path. Set
+`HTML_FUZZ_SEED` and `HTML_FUZZ_CASES` when recording to replay another corpus.
+It also exports and imports 200 documents from the command fuzzer's own node
+`Generator`, including tables, tabs and links; regenerate those source samples
+with `HTML_RECORD_NODE_SAMPLES=1 swift test --filter generatedHTMLAgreesWithDOMOracle`
+before `bun run record:html`. Recorded HTML seeds 168 (500 cases), 2026 and 999
+(2,000 each), plus those 200 node-generated documents, agree with the DOM oracle.
+The JavaScriptCore command reference has no DOM parser; HTML therefore has
+this separate oracle, and command fuzzing generates plain/serialized clipboard
+content. Copy still writes plain text and Lexical JSON; HTML export is separate.
+
+The additional `Lexical Word` fixture is an unchanged public Word clipboard
+payload from Lexical v0.51.0, with its MIT license, pinned source and SHA-256 in
+`Fixtures/HTML/upstream`. It failed the existing oracle replay before qualified
+tag names were preserved. Disposable verification also replayed three captured
+Google Docs inputs and Word/Word-through-Safari style inputs from CKEditor's
+documented clipboard corpus, plus Lexical's verbatim VS Code-to-Safari payload.
+Run `bun run verify:html-upstream` explicitly for repeatable verification of
+those three Google Docs and two CKEditor Word payloads. It checks pinned input
+bytes and SHA-256, requires the complete Bun-converted nodes to match the
+frozen actual-Chromium canonical digest, and feeds temporary fixtures into the
+existing public native paste replay. It removes all downloaded source payloads
+afterward; default tests and CI never perform this network fetch. CKEditor
+inputs are not vendored, and no fresh user Google Docs copy is claimed.
+All agree with the browser DOM oracle; VS Code code nodes explicitly refuse
+under #132. These are upstream captures, not newly captured on this device.
+The seven upstream payloads, nine raw-text variants, SVG title and malformed
+unquoted-attribute regressions also agree with actual
+Chromium 152 `DOMParser` plus the unmodified web converters. Browser version,
+input/output digests and verification results are in `chromium-verification.json`.
+Captured Word's recorded expected nodes now come from that browser reference.
+The retained malformed textarea regression was red against Chromium even though
+libxml2 and Bun's DOM parser agreed; it prevents treating their shared recovery
+error as browser parity. These bounded cases do not establish general HTML5
+malformed-input recovery parity. Ordered-list start reflection also agrees
+with sixteen actual Chromium cases: zero and negative values survive, invalid
+values and values outside signed Int32 default to one, and only HTML ASCII
+whitespace precedes the decimal prefix.
+Actual disposable Safari, Pages and Notes clipboards were then copied by the
+user and captured through a bounded, read-only native NSPasteboard helper.
+Safari's original `public.html` is retained verbatim with its digest and frozen
+Chromium converter output. Pages and Notes publish RTF/plain text, not HTML.
+At the UIKit boundary, when Lexical JSON and HTML are absent, the OS's
+`NSAttributedString` RTF reader and HTML writer normalize that RTF before the
+same registered HTML converters run. Reader/writer failures explicitly refuse
+with #168. Actual RTF fixtures and source-channel metadata are retained in
+`TextKitEditorTests/Fixtures`: iOS tests were red before this normalization and
+now preserve Pages' bold first paragraph and Notes' bold word, with both source
+paragraphs and no trailing empty paragraph. The Notes sample also has a user
+captured Safari `DataTransfer` HTML normalization and real Chromium oracle,
+which agree with the iOS result. Its recorder's hard-coded Pages source label
+was corrected from the actual Notes native type and text, with the original
+recorder JSON digest retained. This browser-generated HTML is not represented
+as original Pages or Notes HTML. Pages' native RTF is verified directly; no
+Pages-to-Safari HTML capture is claimed.

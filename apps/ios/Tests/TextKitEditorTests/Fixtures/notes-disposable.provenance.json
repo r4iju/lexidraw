@@ -1,0 +1,13 @@
+{
+  "application": "Apple Notes",
+  "capturedAt": "2026-09-30T09:55:55Z",
+  "capture": "User explicitly copied corrected disposable text, bold paste word and two paragraphs. Native NSPasteboard bounded capture, only RTF/plain retained.",
+  "originalRTFSHA256": "55ef4c02618303fd742a981c741ac52b96f89ddadad08b68f5b8296d9704dc48",
+  "clipboardTypes": [
+    "com.apple.notes.richtext",
+    "public.rtf",
+    "public.utf8-plain-text",
+    "public.utf16-external-plain-text"
+  ],
+  "originalHTMLAvailable": false
+}

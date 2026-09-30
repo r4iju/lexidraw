@@ -45,3 +45,6 @@ await Bun.write(
 );
 await Bun.write(LINKS_PATH, await swiftForLinks());
 await Bun.write(LINK_PROTOCOLS_PATH, swiftForLinkProtocols());
+
+const { HTML_IMPORT_PATH, swiftForHTMLImport } = await import("./html");
+await Bun.write(HTML_IMPORT_PATH, await swiftForHTMLImport());

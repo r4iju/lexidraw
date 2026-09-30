@@ -1,0 +1,48 @@
+{
+  "ckeditorProvenance": "https://github.com/ckeditor/ckeditor5/blob/ebe65416ef730e8717ee0ddec5f6444651260b86/packages/ckeditor5-paste-from-office/tests/README.md",
+  "inputsRetained": false,
+  "fixtures": [
+    {
+      "name": "google-docs-text",
+      "source": "https://github.com/ckeditor/ckeditor5/blob/ebe65416ef730e8717ee0ddec5f6444651260b86/packages/ckeditor5-paste-from-office/tests/_data/paste-from-google-docs/bold-wrapper/simple-text/input.html",
+      "sha256": "2d803904b1a25b0d2251a47457de6a5dc5e21f587842e4141ec7fe0b808226bd",
+      "bytes": 500,
+      "verification": "Existing recordedDOMOracleAgreesWithNativePaste replay agreed after qualified-tag-name preservation."
+    },
+    {
+      "name": "google-docs-windows",
+      "source": "https://github.com/ckeditor/ckeditor5/blob/ebe65416ef730e8717ee0ddec5f6444651260b86/packages/ckeditor5-paste-from-office/tests/_data/paste-from-google-docs/bold-wrapper/simple-text-windows/input.html",
+      "sha256": "a7e9a5023937c3953c75cedee76f3fe8440207dc47200b0b6ecf3ec3e2dfeeb5",
+      "bytes": 524,
+      "verification": "Existing recordedDOMOracleAgreesWithNativePaste replay agreed after qualified-tag-name preservation."
+    },
+    {
+      "name": "google-docs-paragraphs",
+      "source": "https://github.com/ckeditor/ckeditor5/blob/ebe65416ef730e8717ee0ddec5f6444651260b86/packages/ckeditor5-paste-from-office/tests/_data/paste-from-google-docs/br-paragraph/simple-paragraphs/input.html",
+      "sha256": "f34dfc39f5d4531e4ea1f70138d6e36d9e829078a9389cb513752d38bdec64e4",
+      "bytes": 793,
+      "verification": "Existing recordedDOMOracleAgreesWithNativePaste replay agreed after qualified-tag-name preservation."
+    },
+    {
+      "name": "word-safari-styles",
+      "source": "https://github.com/ckeditor/ckeditor5/blob/ebe65416ef730e8717ee0ddec5f6444651260b86/packages/ckeditor5-paste-from-office/tests/_data/basic-styles/multiple-styles-single-line/input.safari.word2016.html",
+      "sha256": "a9010e7a29644056f34733b163b473064ea4cdade785aee4162f2d9c321c5e88",
+      "bytes": 899,
+      "verification": "Existing recordedDOMOracleAgreesWithNativePaste replay agreed after qualified-tag-name preservation."
+    },
+    {
+      "name": "word-styles",
+      "source": "https://github.com/ckeditor/ckeditor5/blob/ebe65416ef730e8717ee0ddec5f6444651260b86/packages/ckeditor5-paste-from-office/tests/_data/basic-styles/multiple-styles-single-line/input.word2016.html",
+      "sha256": "1749cb0026144ed240f2e4cd25f7daf51b82bdf3b887a96bd7efa3cfea863d83",
+      "bytes": 39469,
+      "verification": "Existing recordedDOMOracleAgreesWithNativePaste replay agreed after qualified-tag-name preservation."
+    },
+    {
+      "name": "Lexical VSCode to Safari",
+      "source": "https://github.com/facebook/lexical/blob/4c61ded2134f68c8106198d504fd1fb1fff8497a/dev-examples/dom-import/src/fixtures/vscode-safari.html",
+      "provenance": "https://github.com/facebook/lexical/blob/4c61ded2134f68c8106198d504fd1fb1fff8497a/dev-examples/dom-import/README.md",
+      "sha256": "fe2cce40fdb32e1e4cac78d0be6d93c3830127a1dea8196086bf47a4870d6169",
+      "verification": "DOM oracle produced code nodes; native refused under their owning issue #132 with unchanged state."
+    }
+  ]
+}

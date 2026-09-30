@@ -1,0 +1,212 @@
+{
+  "browser": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) T3Code(Alpha)/0.0.55 Chrome/152.0.7977.130 Electron/44.4.2 Safari/537.36",
+  "lexicalVersion": "0.51.0",
+  "oracle": "Unmodified $generateNodesFromDOM with SCHEMA_NODES in actual Chromium DOMParser (T3 tab 9, local detached documents).",
+  "digestFormat": "SHA256 of UTF-8 JSON with recursively sorted object keys, no separator whitespace, Unicode unescaped.",
+  "cases": [
+    {
+      "name": "google-docs-text",
+      "inputSHA256": "2d803904b1a25b0d2251a47457de6a5dc5e21f587842e4141ec7fe0b808226bd",
+      "oracleNodesSHA256": "1ce5ef42dd1d55911f0ef290836c71f5f58e273afe42322d96a49e4d18f22aae",
+      "result": "Public native paste agreed with serialized browser-node insertion."
+    },
+    {
+      "name": "google-docs-windows",
+      "inputSHA256": "a7e9a5023937c3953c75cedee76f3fe8440207dc47200b0b6ecf3ec3e2dfeeb5",
+      "oracleNodesSHA256": "1ce5ef42dd1d55911f0ef290836c71f5f58e273afe42322d96a49e4d18f22aae",
+      "result": "Public native paste agreed with serialized browser-node insertion."
+    },
+    {
+      "name": "google-docs-paragraphs",
+      "inputSHA256": "f34dfc39f5d4531e4ea1f70138d6e36d9e829078a9389cb513752d38bdec64e4",
+      "oracleNodesSHA256": "c00401915a2dea95a7730f4dac06efd625607d5938482e20c58db718fe360d57",
+      "result": "Public native paste agreed with serialized browser-node insertion."
+    },
+    {
+      "name": "word-safari-styles",
+      "inputSHA256": "a9010e7a29644056f34733b163b473064ea4cdade785aee4162f2d9c321c5e88",
+      "oracleNodesSHA256": "21ca162b874cda2fd8f67640d6e9a84782cea38f34ac457ce3202bbcdbf74945",
+      "result": "Public native paste agreed with serialized browser-node insertion."
+    },
+    {
+      "name": "word-styles",
+      "inputSHA256": "1749cb0026144ed240f2e4cd25f7daf51b82bdf3b887a96bd7efa3cfea863d83",
+      "oracleNodesSHA256": "f05d3b3b3e4b0c401094e22ff5e7d23297c20a9b7cc0adbdec99f6f89d2a6eb5",
+      "result": "Public native paste agreed with serialized browser-node insertion."
+    },
+    {
+      "name": "Lexical Word",
+      "inputSHA256": "59c180b966428010e8b811b862b1383549924fb92f848b98053c0782a014953e",
+      "oracleNodesSHA256": "97cfe0e6a39f47714d7a5ea7b4bd24c0d1996cea35d642d8fa16d996acac4f2e",
+      "result": "Public native paste agreed with serialized browser-node insertion."
+    },
+    {
+      "name": "Lexical VSCode to Safari",
+      "inputSHA256": "fe2cce40fdb32e1e4cac78d0be6d93c3830127a1dea8196086bf47a4870d6169",
+      "oracleNodesSHA256": "f3e835b736ca2ae64b1541cacfc22c200ff213f9e4c869a57fa8099bf101914f",
+      "result": "Public native paste agreed with serialized browser-node insertion; code nodes refused under #132."
+    },
+    {
+      "name": "Malformed textarea end tag",
+      "inputSHA256": "8a6c96cb4814e404c1c25e06dfff91c5ff9d891cafad419aa484cda0d40007f5",
+      "oracleNodesSHA256": "13c1b09294d4606d6addf96434828e5866e1eb57ce9adcf06b80a231145a491c",
+      "result": "Public native paste agreed with serialized browser-node insertion."
+    },
+    {
+      "name": "Textarea nested qualified tags",
+      "inputSHA256": "640ffbd1e2c51d612bf0496e0c0334dbc55f0f920da583d5ee950ba152cbe7d2",
+      "oracleNodesSHA256": "6adb0f8ddca7d55f87c5bb610f3cee2f05a1692657795d703b69d79d5ba36a2c",
+      "result": "Public native paste agreed with serialized browser-node insertion."
+    },
+    {
+      "name": "Textarea entities",
+      "inputSHA256": "87dcb41d4114e2704209d4c46e7e5e733ccd5324aa3315f5c61832b31f903b23",
+      "oracleNodesSHA256": "e2ce804ca86f7de493c0a68e0cb735109ff18db69f483fc74dfcdb9e18dec999",
+      "result": "Public native paste agreed with serialized browser-node insertion."
+    },
+    {
+      "name": "Textarea self-closing start",
+      "inputSHA256": "6c5209fc373114300fa6909b7aa09731a97e1502f3f14490727e54cd4a762ae0",
+      "oracleNodesSHA256": "7337cfd6acd0df4a31de2bd3917e8f4e0edb8a7db5737de0dd17c56a0826d662",
+      "result": "Public native paste agreed with serialized browser-node insertion."
+    },
+    {
+      "name": "Textarea uppercase end",
+      "inputSHA256": "b9f2cdb3cfd63e6dc0fca9d80f154d8b6ebd20b649153bc66fcc6542eb552541",
+      "oracleNodesSHA256": "50d6321036720fd1ec4edb7acda7cb182e7bc75c8f79cccaadeb8f7a2bf28d56",
+      "result": "Public native paste agreed with serialized browser-node insertion."
+    },
+    {
+      "name": "Textarea punctuation end",
+      "inputSHA256": "70a4f510aefed91b809fc0e25ab5a428033513248fb92c19c5b9f9e2f59bb6c6",
+      "oracleNodesSHA256": "fed7116dd31b5d856b48e7a0040a531308af82bb2902dea872a5ec5266472f3e",
+      "result": "Public native paste agreed with serialized browser-node insertion."
+    },
+    {
+      "name": "Textarea comment",
+      "inputSHA256": "5772be92840361cb2803e4b7f26812272d7d5fb12b574eb31cb5e4971eece486",
+      "oracleNodesSHA256": "c4b705dcd559a4a6c4fe1ba6ffca68de768df2c19485b841bd5b54f6f58589df",
+      "result": "Public native paste agreed with serialized browser-node insertion."
+    },
+    {
+      "name": "Textarea initial newline",
+      "inputSHA256": "c903145633b3c30692e64f27d24659c2c9dbcce10be02136317a8ef9e0b40aaf",
+      "oracleNodesSHA256": "9e90beefb9b37b4717bec9c8c85f43b9f5166b322d48b0650c2daf345f0b2623",
+      "result": "Public native paste agreed with serialized browser-node insertion."
+    },
+    {
+      "name": "Title nested qualified tags",
+      "inputSHA256": "783e9760a64bf6ef74a9535ff887810696c140cc5764392bcf8bf83e54476145",
+      "oracleNodesSHA256": "7337cfd6acd0df4a31de2bd3917e8f4e0edb8a7db5737de0dd17c56a0826d662",
+      "result": "Public native paste agreed with serialized browser-node insertion."
+    },
+    {
+      "name": "svg-title-integration",
+      "inputSHA256": "717faaa20d793b7602d8a2c54ca69c5f9dde143b773e82949c9ac7dd7117bf97",
+      "oracleNodesSHA256": "5d2029ff353a5eb58cb3d6b42749a9a25775c6c3d8c69f21d6f8550289ea328c",
+      "result": "Public native paste agreed with serialized browser-node insertion."
+    },
+    {
+      "name": "rcdata-unquoted-quote",
+      "inputSHA256": "984bf076210bdfda8255ed64ba068bd62a0f4dba63e6a0aefcea60cb8c497560",
+      "oracleNodesSHA256": "1fff6579c4999ae2787650dffaefac1f73f4885f73795d1938d86a3e51286b38",
+      "result": "Public native paste agreed with serialized browser-node insertion."
+    },
+    {
+      "name": "Ordered start null",
+      "inputSHA256": "382475555f5687f53c5dad9d4144ee879796aea2ceac583b08d644df796ba969",
+      "oracleNodesSHA256": "3434a289cce7487bf3b83a43e3a2c3a2b8906d2351cc370f948fbd9248fda46b",
+      "result": "Public native paste agreed with serialized browser-node insertion; signed Int32 DOM start tested."
+    },
+    {
+      "name": "Ordered start \"0\"",
+      "inputSHA256": "b49c09e97b2b90b8d908aa56fa949899a2c7ade3715b756c53f03c8542b0878c",
+      "oracleNodesSHA256": "8f5025a401ee7d6757f6f9c9381609882e30ffe0b401597193d654e2f293178a",
+      "result": "Public native paste agreed with serialized browser-node insertion; signed Int32 DOM start tested."
+    },
+    {
+      "name": "Ordered start \"-3\"",
+      "inputSHA256": "64a6207b28a17411b3b3076120ac8a4c326c002c8a7cd35a05cbf85005e44c32",
+      "oracleNodesSHA256": "d12e09e4dfed69e71b442602646df2b1bfa91be49ba2fff3a4f1fc45190116a3",
+      "result": "Public native paste agreed with serialized browser-node insertion; signed Int32 DOM start tested."
+    },
+    {
+      "name": "Ordered start \"invalid\"",
+      "inputSHA256": "bc24a22dd7c5a53ae1398d4f8458e04314fd3663d0ce0db78db9fc0a306b22d2",
+      "oracleNodesSHA256": "3434a289cce7487bf3b83a43e3a2c3a2b8906d2351cc370f948fbd9248fda46b",
+      "result": "Public native paste agreed with serialized browser-node insertion; signed Int32 DOM start tested."
+    },
+    {
+      "name": "Ordered start \"\"",
+      "inputSHA256": "d09c296e9ad8b7aa91769f554ec185b2e2130a2300c8e7c074a865b7a9e55e1c",
+      "oracleNodesSHA256": "3434a289cce7487bf3b83a43e3a2c3a2b8906d2351cc370f948fbd9248fda46b",
+      "result": "Public native paste agreed with serialized browser-node insertion; signed Int32 DOM start tested."
+    },
+    {
+      "name": "Ordered start \"2147483647\"",
+      "inputSHA256": "6dca95f0dbacea128957cb8552185a316411373643bc425a03e570c290355f92",
+      "oracleNodesSHA256": "ab0fa21b937d2e8f5397fb734e8832fe877cd22e82ee1b65730dde18140217ca",
+      "result": "Public native paste agreed with serialized browser-node insertion; signed Int32 DOM start tested."
+    },
+    {
+      "name": "Ordered start \"-2147483648\"",
+      "inputSHA256": "e102bf4c9a00a22bb85538508864c33020e914cc9adcd2633d6bb17d45be1d03",
+      "oracleNodesSHA256": "d081cd0d4a12b5684def8a16c4233938da9aa78583727865ea5868df50e87955",
+      "result": "Public native paste agreed with serialized browser-node insertion; signed Int32 DOM start tested."
+    },
+    {
+      "name": "Ordered start \"2147483648\"",
+      "inputSHA256": "5b5212dd3b1967157ea2f1d13e3ef230ccb9c9cdce3e1c5c6326ce2210964123",
+      "oracleNodesSHA256": "3434a289cce7487bf3b83a43e3a2c3a2b8906d2351cc370f948fbd9248fda46b",
+      "result": "Public native paste agreed with serialized browser-node insertion; signed Int32 DOM start tested."
+    },
+    {
+      "name": "Ordered start \"-2147483649\"",
+      "inputSHA256": "a0aca13bb12d55c2bdb4fe8203ec4b1d1efecbea23000f3af060b85537c77fe5",
+      "oracleNodesSHA256": "3434a289cce7487bf3b83a43e3a2c3a2b8906d2351cc370f948fbd9248fda46b",
+      "result": "Public native paste agreed with serialized browser-node insertion; signed Int32 DOM start tested."
+    },
+    {
+      "name": "Ordered start \"999999999999999999999999999\"",
+      "inputSHA256": "102c603ba7543fc6b088af7044538a453e455cf305096c730e4ad83091eae258",
+      "oracleNodesSHA256": "3434a289cce7487bf3b83a43e3a2c3a2b8906d2351cc370f948fbd9248fda46b",
+      "result": "Public native paste agreed with serialized browser-node insertion; signed Int32 DOM start tested."
+    },
+    {
+      "name": "Ordered start \" +0rest\"",
+      "inputSHA256": "52b18db66c17091e31a01826302a1d5febe79c6d4ea7e694c83bfd92a540a7f7",
+      "oracleNodesSHA256": "8f5025a401ee7d6757f6f9c9381609882e30ffe0b401597193d654e2f293178a",
+      "result": "Public native paste agreed with serialized browser-node insertion; signed Int32 DOM start tested."
+    },
+    {
+      "name": "Ordered start \"\\u000b0\"",
+      "inputSHA256": "0863e5f6ea802b7ef3a5c33c3f4cf58c926e1c9309f433f93098f73ffb15a242",
+      "oracleNodesSHA256": "3434a289cce7487bf3b83a43e3a2c3a2b8906d2351cc370f948fbd9248fda46b",
+      "result": "Public native paste agreed with serialized browser-node insertion; signed Int32 DOM start tested."
+    },
+    {
+      "name": "Ordered start \"\u00a00\"",
+      "inputSHA256": "972c277b761dba47aa718f88ef9de1beb104e697fe25a74399f20971ad02ae08",
+      "oracleNodesSHA256": "3434a289cce7487bf3b83a43e3a2c3a2b8906d2351cc370f948fbd9248fda46b",
+      "result": "Public native paste agreed with serialized browser-node insertion; signed Int32 DOM start tested."
+    },
+    {
+      "name": "Ordered start \"0x10\"",
+      "inputSHA256": "7676773130a0e25365948c6039cdb474af546c625f62197e7abf8b2bc00a8abe",
+      "oracleNodesSHA256": "8f5025a401ee7d6757f6f9c9381609882e30ffe0b401597193d654e2f293178a",
+      "result": "Public native paste agreed with serialized browser-node insertion; signed Int32 DOM start tested."
+    },
+    {
+      "name": "Ordered start \"2.9\"",
+      "inputSHA256": "aeec0bec2e428d0232e417bceb6a9babc728ba66305f5ff4d981a8bac1dbc8bc",
+      "oracleNodesSHA256": "e43022598162b661bfda6c67f0a1c1585770f4900a579692280b6075ae518a58",
+      "result": "Public native paste agreed with serialized browser-node insertion; signed Int32 DOM start tested."
+    },
+    {
+      "name": "Ordered start \"- 3\"",
+      "inputSHA256": "bda0cabb25ef97c2c0167027e7becfc2c9e541b8fddba383324ca56cbeae5fec",
+      "oracleNodesSHA256": "3434a289cce7487bf3b83a43e3a2c3a2b8906d2351cc370f948fbd9248fda46b",
+      "result": "Public native paste agreed with serialized browser-node insertion; signed Int32 DOM start tested."
+    }
+  ]
+}

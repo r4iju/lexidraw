@@ -418,7 +418,7 @@ import UIKit
       ])
   }
 
-  @Test func pastingFromAnotherAppInsertsItsPlainText() throws {
+  @Test func pastingFromAnotherAppKeepsItsHTMLFormatting() throws {
     let (view, model) = try editing(LexicalJSON.paragraph([]))
     view.pasteboard.setItems([["public.utf8-plain-text": "a\nb", "public.html": Data("<b>a</b><br>b".utf8)]])
 
@@ -427,8 +427,40 @@ import UIKit
 
     #expect(
       try paragraphs(model) == [
-        LexicalJSON.paragraph([LexicalJSON.text("a")]), LexicalJSON.paragraph([LexicalJSON.text("b")]),
+        LexicalJSON.paragraph([
+          LexicalJSON.text("a", format: .bold),
+          ["type": "linebreak", "version": 1],
+          LexicalJSON.text("b"),
+        ]),
       ])
+  }
+
+  @Test func pastingActualPagesRTFKeepsBoldAndParagraphs() throws {
+    let (view, model) = try editing(LexicalJSON.paragraph([]))
+    let rtfURL = try #require(Bundle.module.url(forResource: "pages-disposable", withExtension: "rtf", subdirectory: "Fixtures"))
+    let plainURL = try #require(Bundle.module.url(forResource: "pages-disposable", withExtension: "txt", subdirectory: "Fixtures"))
+    let plain = try String(contentsOf: plainURL, encoding: .utf8)
+    view.pasteboard.setItems([["public.utf8-plain-text": plain, "public.rtf": try Data(contentsOf: rtfURL)]])
+    view.paste(nil)
+    let pasted = try paragraphs(model)
+    let contents = plain.components(separatedBy: "\n")
+    #expect(pasted.count == 2)
+    #expect(pasted.first?["children"] == .array([LexicalJSON.text(contents[0], format: .bold)]))
+    #expect(pasted.last?["children"] == .array([LexicalJSON.text(contents[1])]))
+  }
+
+  @Test func pastingActualNotesRTFKeepsBoldAndParagraphs() throws {
+    let (view, model) = try editing(LexicalJSON.paragraph([]))
+    let rtfURL = try #require(Bundle.module.url(forResource: "notes-disposable", withExtension: "rtf", subdirectory: "Fixtures"))
+    let plainURL = try #require(Bundle.module.url(forResource: "notes-disposable", withExtension: "txt", subdirectory: "Fixtures"))
+    view.pasteboard.setItems([
+      ["public.utf8-plain-text": try String(contentsOf: plainURL, encoding: .utf8), "public.rtf": try Data(contentsOf: rtfURL)]
+    ])
+    view.paste(nil)
+    #expect(try paragraphs(model) == [
+      LexicalJSON.paragraph([LexicalJSON.text("Lexidraw "), LexicalJSON.text("paste", format: .bold), LexicalJSON.text(" check.")]),
+      LexicalJSON.paragraph([LexicalJSON.text("This is the second disposable paragraph.")]),
+    ])
   }
 
   @Test func aPasteTheModelRefusesSaysWhy() throws {

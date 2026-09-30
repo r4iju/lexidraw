@@ -1,0 +1,642 @@
+[
+  {
+    "html": "<ol><li>a</li></ol>",
+    "name": "Ordered start null",
+    "nodes": [
+      {
+        "children": [
+          {
+            "children": [
+              {
+                "detail": 0,
+                "format": 0,
+                "mode": "normal",
+                "style": "",
+                "text": "a",
+                "type": "text",
+                "version": 1
+              }
+            ],
+            "direction": null,
+            "format": "",
+            "indent": 0,
+            "type": "listitem",
+            "value": 1,
+            "version": 1
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "listType": "number",
+        "start": 1,
+        "tag": "ol",
+        "type": "list",
+        "version": 1
+      }
+    ],
+    "startIDL": 1,
+    "browser": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) T3Code(Alpha)/0.0.55 Chrome/152.0.7977.130 Electron/44.4.2 Safari/537.36",
+    "oracle": "Actual Chromium DOMParser with unmodified Lexical v0.51.0 registered converters."
+  },
+  {
+    "html": "<ol start='0'><li>a</li></ol>",
+    "name": "Ordered start \"0\"",
+    "nodes": [
+      {
+        "children": [
+          {
+            "children": [
+              {
+                "detail": 0,
+                "format": 0,
+                "mode": "normal",
+                "style": "",
+                "text": "a",
+                "type": "text",
+                "version": 1
+              }
+            ],
+            "direction": null,
+            "format": "",
+            "indent": 0,
+            "type": "listitem",
+            "value": 1,
+            "version": 1
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "listType": "number",
+        "start": 0,
+        "tag": "ol",
+        "type": "list",
+        "version": 1
+      }
+    ],
+    "startIDL": 0,
+    "browser": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) T3Code(Alpha)/0.0.55 Chrome/152.0.7977.130 Electron/44.4.2 Safari/537.36",
+    "oracle": "Actual Chromium DOMParser with unmodified Lexical v0.51.0 registered converters."
+  },
+  {
+    "html": "<ol start='-3'><li>a</li></ol>",
+    "name": "Ordered start \"-3\"",
+    "nodes": [
+      {
+        "children": [
+          {
+            "children": [
+              {
+                "detail": 0,
+                "format": 0,
+                "mode": "normal",
+                "style": "",
+                "text": "a",
+                "type": "text",
+                "version": 1
+              }
+            ],
+            "direction": null,
+            "format": "",
+            "indent": 0,
+            "type": "listitem",
+            "value": 1,
+            "version": 1
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "listType": "number",
+        "start": -3,
+        "tag": "ol",
+        "type": "list",
+        "version": 1
+      }
+    ],
+    "startIDL": -3,
+    "browser": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) T3Code(Alpha)/0.0.55 Chrome/152.0.7977.130 Electron/44.4.2 Safari/537.36",
+    "oracle": "Actual Chromium DOMParser with unmodified Lexical v0.51.0 registered converters."
+  },
+  {
+    "html": "<ol start='invalid'><li>a</li></ol>",
+    "name": "Ordered start \"invalid\"",
+    "nodes": [
+      {
+        "children": [
+          {
+            "children": [
+              {
+                "detail": 0,
+                "format": 0,
+                "mode": "normal",
+                "style": "",
+                "text": "a",
+                "type": "text",
+                "version": 1
+              }
+            ],
+            "direction": null,
+            "format": "",
+            "indent": 0,
+            "type": "listitem",
+            "value": 1,
+            "version": 1
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "listType": "number",
+        "start": 1,
+        "tag": "ol",
+        "type": "list",
+        "version": 1
+      }
+    ],
+    "startIDL": 1,
+    "browser": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) T3Code(Alpha)/0.0.55 Chrome/152.0.7977.130 Electron/44.4.2 Safari/537.36",
+    "oracle": "Actual Chromium DOMParser with unmodified Lexical v0.51.0 registered converters."
+  },
+  {
+    "html": "<ol start=''><li>a</li></ol>",
+    "name": "Ordered start \"\"",
+    "nodes": [
+      {
+        "children": [
+          {
+            "children": [
+              {
+                "detail": 0,
+                "format": 0,
+                "mode": "normal",
+                "style": "",
+                "text": "a",
+                "type": "text",
+                "version": 1
+              }
+            ],
+            "direction": null,
+            "format": "",
+            "indent": 0,
+            "type": "listitem",
+            "value": 1,
+            "version": 1
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "listType": "number",
+        "start": 1,
+        "tag": "ol",
+        "type": "list",
+        "version": 1
+      }
+    ],
+    "startIDL": 1,
+    "browser": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) T3Code(Alpha)/0.0.55 Chrome/152.0.7977.130 Electron/44.4.2 Safari/537.36",
+    "oracle": "Actual Chromium DOMParser with unmodified Lexical v0.51.0 registered converters."
+  },
+  {
+    "html": "<ol start='2147483647'><li>a</li></ol>",
+    "name": "Ordered start \"2147483647\"",
+    "nodes": [
+      {
+        "children": [
+          {
+            "children": [
+              {
+                "detail": 0,
+                "format": 0,
+                "mode": "normal",
+                "style": "",
+                "text": "a",
+                "type": "text",
+                "version": 1
+              }
+            ],
+            "direction": null,
+            "format": "",
+            "indent": 0,
+            "type": "listitem",
+            "value": 1,
+            "version": 1
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "listType": "number",
+        "start": 2147483647,
+        "tag": "ol",
+        "type": "list",
+        "version": 1
+      }
+    ],
+    "startIDL": 2147483647,
+    "browser": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) T3Code(Alpha)/0.0.55 Chrome/152.0.7977.130 Electron/44.4.2 Safari/537.36",
+    "oracle": "Actual Chromium DOMParser with unmodified Lexical v0.51.0 registered converters."
+  },
+  {
+    "html": "<ol start='-2147483648'><li>a</li></ol>",
+    "name": "Ordered start \"-2147483648\"",
+    "nodes": [
+      {
+        "children": [
+          {
+            "children": [
+              {
+                "detail": 0,
+                "format": 0,
+                "mode": "normal",
+                "style": "",
+                "text": "a",
+                "type": "text",
+                "version": 1
+              }
+            ],
+            "direction": null,
+            "format": "",
+            "indent": 0,
+            "type": "listitem",
+            "value": 1,
+            "version": 1
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "listType": "number",
+        "start": -2147483648,
+        "tag": "ol",
+        "type": "list",
+        "version": 1
+      }
+    ],
+    "startIDL": -2147483648,
+    "browser": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) T3Code(Alpha)/0.0.55 Chrome/152.0.7977.130 Electron/44.4.2 Safari/537.36",
+    "oracle": "Actual Chromium DOMParser with unmodified Lexical v0.51.0 registered converters."
+  },
+  {
+    "html": "<ol start='2147483648'><li>a</li></ol>",
+    "name": "Ordered start \"2147483648\"",
+    "nodes": [
+      {
+        "children": [
+          {
+            "children": [
+              {
+                "detail": 0,
+                "format": 0,
+                "mode": "normal",
+                "style": "",
+                "text": "a",
+                "type": "text",
+                "version": 1
+              }
+            ],
+            "direction": null,
+            "format": "",
+            "indent": 0,
+            "type": "listitem",
+            "value": 1,
+            "version": 1
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "listType": "number",
+        "start": 1,
+        "tag": "ol",
+        "type": "list",
+        "version": 1
+      }
+    ],
+    "startIDL": 1,
+    "browser": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) T3Code(Alpha)/0.0.55 Chrome/152.0.7977.130 Electron/44.4.2 Safari/537.36",
+    "oracle": "Actual Chromium DOMParser with unmodified Lexical v0.51.0 registered converters."
+  },
+  {
+    "html": "<ol start='-2147483649'><li>a</li></ol>",
+    "name": "Ordered start \"-2147483649\"",
+    "nodes": [
+      {
+        "children": [
+          {
+            "children": [
+              {
+                "detail": 0,
+                "format": 0,
+                "mode": "normal",
+                "style": "",
+                "text": "a",
+                "type": "text",
+                "version": 1
+              }
+            ],
+            "direction": null,
+            "format": "",
+            "indent": 0,
+            "type": "listitem",
+            "value": 1,
+            "version": 1
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "listType": "number",
+        "start": 1,
+        "tag": "ol",
+        "type": "list",
+        "version": 1
+      }
+    ],
+    "startIDL": 1,
+    "browser": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) T3Code(Alpha)/0.0.55 Chrome/152.0.7977.130 Electron/44.4.2 Safari/537.36",
+    "oracle": "Actual Chromium DOMParser with unmodified Lexical v0.51.0 registered converters."
+  },
+  {
+    "html": "<ol start='999999999999999999999999999'><li>a</li></ol>",
+    "name": "Ordered start \"999999999999999999999999999\"",
+    "nodes": [
+      {
+        "children": [
+          {
+            "children": [
+              {
+                "detail": 0,
+                "format": 0,
+                "mode": "normal",
+                "style": "",
+                "text": "a",
+                "type": "text",
+                "version": 1
+              }
+            ],
+            "direction": null,
+            "format": "",
+            "indent": 0,
+            "type": "listitem",
+            "value": 1,
+            "version": 1
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "listType": "number",
+        "start": 1,
+        "tag": "ol",
+        "type": "list",
+        "version": 1
+      }
+    ],
+    "startIDL": 1,
+    "browser": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) T3Code(Alpha)/0.0.55 Chrome/152.0.7977.130 Electron/44.4.2 Safari/537.36",
+    "oracle": "Actual Chromium DOMParser with unmodified Lexical v0.51.0 registered converters."
+  },
+  {
+    "html": "<ol start=' +0rest'><li>a</li></ol>",
+    "name": "Ordered start \" +0rest\"",
+    "nodes": [
+      {
+        "children": [
+          {
+            "children": [
+              {
+                "detail": 0,
+                "format": 0,
+                "mode": "normal",
+                "style": "",
+                "text": "a",
+                "type": "text",
+                "version": 1
+              }
+            ],
+            "direction": null,
+            "format": "",
+            "indent": 0,
+            "type": "listitem",
+            "value": 1,
+            "version": 1
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "listType": "number",
+        "start": 0,
+        "tag": "ol",
+        "type": "list",
+        "version": 1
+      }
+    ],
+    "startIDL": 0,
+    "browser": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) T3Code(Alpha)/0.0.55 Chrome/152.0.7977.130 Electron/44.4.2 Safari/537.36",
+    "oracle": "Actual Chromium DOMParser with unmodified Lexical v0.51.0 registered converters."
+  },
+  {
+    "html": "<ol start='\u000b0'><li>a</li></ol>",
+    "name": "Ordered start \"\\u000b0\"",
+    "nodes": [
+      {
+        "children": [
+          {
+            "children": [
+              {
+                "detail": 0,
+                "format": 0,
+                "mode": "normal",
+                "style": "",
+                "text": "a",
+                "type": "text",
+                "version": 1
+              }
+            ],
+            "direction": null,
+            "format": "",
+            "indent": 0,
+            "type": "listitem",
+            "value": 1,
+            "version": 1
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "listType": "number",
+        "start": 1,
+        "tag": "ol",
+        "type": "list",
+        "version": 1
+      }
+    ],
+    "startIDL": 1,
+    "browser": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) T3Code(Alpha)/0.0.55 Chrome/152.0.7977.130 Electron/44.4.2 Safari/537.36",
+    "oracle": "Actual Chromium DOMParser with unmodified Lexical v0.51.0 registered converters."
+  },
+  {
+    "html": "<ol start=' 0'><li>a</li></ol>",
+    "name": "Ordered start \" 0\"",
+    "nodes": [
+      {
+        "children": [
+          {
+            "children": [
+              {
+                "detail": 0,
+                "format": 0,
+                "mode": "normal",
+                "style": "",
+                "text": "a",
+                "type": "text",
+                "version": 1
+              }
+            ],
+            "direction": null,
+            "format": "",
+            "indent": 0,
+            "type": "listitem",
+            "value": 1,
+            "version": 1
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "listType": "number",
+        "start": 1,
+        "tag": "ol",
+        "type": "list",
+        "version": 1
+      }
+    ],
+    "startIDL": 1,
+    "browser": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) T3Code(Alpha)/0.0.55 Chrome/152.0.7977.130 Electron/44.4.2 Safari/537.36",
+    "oracle": "Actual Chromium DOMParser with unmodified Lexical v0.51.0 registered converters."
+  },
+  {
+    "html": "<ol start='0x10'><li>a</li></ol>",
+    "name": "Ordered start \"0x10\"",
+    "nodes": [
+      {
+        "children": [
+          {
+            "children": [
+              {
+                "detail": 0,
+                "format": 0,
+                "mode": "normal",
+                "style": "",
+                "text": "a",
+                "type": "text",
+                "version": 1
+              }
+            ],
+            "direction": null,
+            "format": "",
+            "indent": 0,
+            "type": "listitem",
+            "value": 1,
+            "version": 1
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "listType": "number",
+        "start": 0,
+        "tag": "ol",
+        "type": "list",
+        "version": 1
+      }
+    ],
+    "startIDL": 0,
+    "browser": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) T3Code(Alpha)/0.0.55 Chrome/152.0.7977.130 Electron/44.4.2 Safari/537.36",
+    "oracle": "Actual Chromium DOMParser with unmodified Lexical v0.51.0 registered converters."
+  },
+  {
+    "html": "<ol start='2.9'><li>a</li></ol>",
+    "name": "Ordered start \"2.9\"",
+    "nodes": [
+      {
+        "children": [
+          {
+            "children": [
+              {
+                "detail": 0,
+                "format": 0,
+                "mode": "normal",
+                "style": "",
+                "text": "a",
+                "type": "text",
+                "version": 1
+              }
+            ],
+            "direction": null,
+            "format": "",
+            "indent": 0,
+            "type": "listitem",
+            "value": 1,
+            "version": 1
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "listType": "number",
+        "start": 2,
+        "tag": "ol",
+        "type": "list",
+        "version": 1
+      }
+    ],
+    "startIDL": 2,
+    "browser": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) T3Code(Alpha)/0.0.55 Chrome/152.0.7977.130 Electron/44.4.2 Safari/537.36",
+    "oracle": "Actual Chromium DOMParser with unmodified Lexical v0.51.0 registered converters."
+  },
+  {
+    "html": "<ol start='- 3'><li>a</li></ol>",
+    "name": "Ordered start \"- 3\"",
+    "nodes": [
+      {
+        "children": [
+          {
+            "children": [
+              {
+                "detail": 0,
+                "format": 0,
+                "mode": "normal",
+                "style": "",
+                "text": "a",
+                "type": "text",
+                "version": 1
+              }
+            ],
+            "direction": null,
+            "format": "",
+            "indent": 0,
+            "type": "listitem",
+            "value": 1,
+            "version": 1
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "listType": "number",
+        "start": 1,
+        "tag": "ol",
+        "type": "list",
+        "version": 1
+      }
+    ],
+    "startIDL": 1,
+    "browser": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) T3Code(Alpha)/0.0.55 Chrome/152.0.7977.130 Electron/44.4.2 Safari/537.36",
+    "oracle": "Actual Chromium DOMParser with unmodified Lexical v0.51.0 registered converters."
+  }
+]

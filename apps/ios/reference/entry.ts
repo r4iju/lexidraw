@@ -465,8 +465,19 @@ function dataTransfer(pasted: Clipboard): DataTransfer {
     types: Object.keys(data).filter((type) => data[type] !== undefined),
     files: [],
     // "text" is the DOM's old name for plain text, which the link plugin uses.
-    getData: (type: string) =>
-      data[type === "text" ? "text/plain" : type] ?? "",
+    getData: (type: string) => {
+      if (
+        type === "text/html" &&
+        data[type] &&
+        data[type] !== data["text/plain"]
+      ) {
+        throw new EditorError(
+          "unsupported",
+          "HTML import requires the bun DOM oracle (#168)",
+        );
+      }
+      return data[type === "text" ? "text/plain" : type] ?? "";
+    },
   } as unknown as DataTransfer;
 }
 

@@ -209,7 +209,7 @@ extension Update {
   }
 
   /// Rich text's paste: the clipboard as Lexical nodes where they're from an
-  /// editor of the same namespace, else as the plain text.
+  /// editor of the same namespace, then HTML, else the plain text.
   private mutating func paste(_ clipboard: Clipboard, into target: ClipboardSelection) throws {
     tags.insert(.paste)
     if let nodes = pastedNodes(clipboard.lexical) {
@@ -227,6 +227,15 @@ extension Update {
         try insertGeneratedNodes(parsed, target)
         return
       } catch EditorError.invalidState {}
+    }
+    if let html = clipboard.html, !html.isEmpty, html != clipboard.plainText {
+      let parsed = try HTMLImport.nodes(html).map { try parse($0) }
+      if let refused = parsed.lazy.compactMap(firstUneditable).first {
+        let node = state[refused]
+        throw EditorError.unsupported("Pasting \(node.type) HTML isn't supported yet (#\(node.portingIssue ?? 168))")
+      }
+      try insertGeneratedNodes(parsed, target)
+      return
     }
     switch target {
     case .range: try insertRawText(clipboard.plainText)

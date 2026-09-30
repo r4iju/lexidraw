@@ -1,0 +1,8 @@
+{
+  "name": "Lexical Word",
+  "source": "https://github.com/facebook/lexical/blob/4c61ded2134f68c8106198d504fd1fb1fff8497a/dev-examples/dom-import/src/fixtures/word.html",
+  "provenance": "https://github.com/facebook/lexical/blob/4c61ded2134f68c8106198d504fd1fb1fff8497a/dev-examples/dom-import/README.md",
+  "sha256": "59c180b966428010e8b811b862b1383549924fb92f848b98053c0782a014953e",
+  "license": "MIT (LICENSE.lexical)",
+  "capture": "Upstream documented Microsoft Word clipboard payload; bytes copied unchanged. This is not a new local capture."
+}
