@@ -1,0 +1,127 @@
+{
+  "status": "draft-awaiting-integrated-build-and-service-retention-audit",
+  "issue": 142,
+  "privacyPolicyURL": "https://lexidraw.vercel.app/privacy-policy",
+  "appleReferences": [
+    "https://developer.apple.com/app-store/app-privacy-details/",
+    "https://developer.apple.com/help/app-store-connect/manage-app-information/manage-app-privacy",
+    "https://developer.apple.com/app-store/review/"
+  ],
+  "processors": [
+    {
+      "name": "Vercel",
+      "features": [
+        "API hosting",
+        "image and audio storage",
+        "authentication website analytics"
+      ],
+      "source": "apps/lexidraw/src/app/privacy-policy/page.tsx"
+    },
+    {
+      "name": "Turso",
+      "features": [
+        "account, documents, sharing and settings persistence"
+      ],
+      "source": "apps/lexidraw/src/app/privacy-policy/page.tsx"
+    },
+    {
+      "name": "OpenAI and Google",
+      "features": [
+        "text sent for requested read-aloud generation"
+      ],
+      "source": "apps/lexidraw/src/server/tts/providers"
+    },
+    {
+      "name": "Apple and GitHub",
+      "features": [
+        "optional website authentication provider"
+      ],
+      "source": "apps/lexidraw/src/server/auth.ts"
+    },
+    {
+      "name": "Google Fonts",
+      "features": [
+        "document font downloads without the Lexidraw API token"
+      ],
+      "source": "apps/ios/Sources/LexidrawKit/DocumentFonts.swift"
+    },
+    {
+      "name": "Bright Data",
+      "features": [
+        "server-side extraction of user-saved web links"
+      ],
+      "source": "apps/lexidraw/src/server/extractors/article.ts"
+    },
+    {
+      "name": "Cloudflare",
+      "features": [
+        "protection of page extraction and audio services"
+      ],
+      "source": "apps/lexidraw/src/app/privacy-policy/page.tsx"
+    },
+    {
+      "name": "Unsplash",
+      "features": [
+        "image search where exposed by the integrated app"
+      ],
+      "source": "apps/lexidraw/src/server/unsplash.ts"
+    },
+    {
+      "name": "User-selected media and link hosts",
+      "features": [
+        "image/video loading",
+        "native link metadata previews"
+      ],
+      "source": "issue #131; audit after merge"
+    }
+  ],
+  "candidateDisclosures": [
+    {
+      "dataType": "Name",
+      "purpose": "App Functionality",
+      "linkedToAccount": true
+    },
+    {
+      "dataType": "Email Address",
+      "purpose": "App Functionality",
+      "linkedToAccount": true
+    },
+    {
+      "dataType": "User ID",
+      "purpose": "App Functionality",
+      "linkedToAccount": true
+    },
+    {
+      "dataType": "Photos or Videos",
+      "purpose": "App Functionality",
+      "linkedToAccount": true
+    },
+    {
+      "dataType": "Other User Content",
+      "purpose": "App Functionality",
+      "linkedToAccount": true
+    },
+    {
+      "dataType": "Audio Data",
+      "purpose": "App Functionality",
+      "linkedToAccount": true,
+      "note": "Read-aloud recordings; classify with Apple guidance before submission."
+    }
+  ],
+  "retentionQuestions": [
+    "Hosting and security request logs: retention of IP addresses, account identifiers and request paths.",
+    "Web-authentication analytics: exact data collection, linking and purposes.",
+    "Native link metadata providers: retained data and automatic preview requests.",
+    "Confirm synthesized audio classification; the app does not record microphone audio for read-aloud."
+  ],
+  "reviewNotesDraft": "Lexidraw is a native document and drawing editor. Sign In opens the secure Lexidraw authentication website and returns to the app. Review credentials will be supplied privately in App Store Connect. The seeded review account will contain disposable sample documents and drawings. Account deletion is available in Settings. Listen generates spoken audio from a selected file; it does not record the microphone. Review notes will be updated with the final supported node families and any explicit limitations.",
+  "submissionPending": [
+    "Final integrated source SHA and local release archive",
+    "App Store Connect issuer ID",
+    "Dedicated review account and disposable seeded corpus",
+    "Final iPhone and iPad screenshots",
+    "Publish verified privacy answers",
+    "Submission and review response"
+  ],
+  "serverURLSource": "apps/ios/project.yml:LEXIDRAW_SERVER_URL"
+}
