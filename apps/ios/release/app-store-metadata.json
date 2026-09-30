@@ -126,8 +126,14 @@
     "appId": "6816381053",
     "version": "1.0",
     "versionId": "dc2f83df-01fa-4185-acbd-ea4c0433d2d2",
-    "latestUploadedBuild": "6",
-    "apiAccessVerified": "2026-09-30"
+    "latestUploadedBuild": "7",
+    "apiAccessVerified": "2026-09-30",
+    "reviewDetailId": "7b45f62e-683a-4c2f-9840-5d3ca9efbd53",
+    "reviewContact": {
+      "status": "copied-and-verified",
+      "source": "Barbellry 1.0.41",
+      "verified": "2026-10-01"
+    }
   },
   "descriptionDraft": "Write, sketch and organize your ideas with Lexidraw. Work with documents, drawings and folders on iPhone and iPad, keep your files synchronized with your Lexidraw account, and share them with other people. Format text, edit tables, create drawings, and listen to your documents read aloud. A Lexidraw account and an internet connection are required for synchronization and read-aloud generation.",
   "reviewAccount": {
@@ -136,6 +142,29 @@
     "seededDocuments": [
       "ios-app-review-welcome-20260930"
     ],
-    "remaining": "Expand disposable examples after all node families integrate."
-  }
+    "remaining": "Expand disposable examples after all node families integrate.",
+    "appStoreConnectCredentialStatus": "saved-and-verified"
+  },
+  "releaseCheckpoint": {
+    "buildNumber": "7",
+    "sourceCommit": "dcd39871646bf9aff93264b5f7ef799ed35e9573",
+    "archiveStatus": "succeeded",
+    "uploadStatus": "succeeded",
+    "method": "local-xcodebuild-no-CI",
+    "processingStatus": "VALID",
+    "buildId": "2748f865-45e8-41d3-88ec-7d23fecad1fc",
+    "internalTestFlightStatus": "build-listed-in-existing-internal-group"
+  },
+  "privacyAudit": [
+    {
+      "source": "https://vercel.com/docs/analytics/privacy-policy",
+      "verified": "2026-10-01",
+      "finding": "Vercel documents anonymous Web Analytics, no stored IP association, and visitor session identifiers discarded after 24 hours. Hosting/security logs are separate. Audit configured events and hosting settings before publishing disclosures."
+    },
+    {
+      "source": "https://developer.apple.com/app-store/app-privacy-details/",
+      "verified": "2026-10-01",
+      "finding": "Apple describes Audio Data as voice recordings and generic free-form text as Other User Content. Lexidraw read-aloud synthesizes audio from document text; it does not capture microphone input. Final classification must reflect the integrated features and stored generated content."
+    }
+  ]
 }
