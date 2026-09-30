@@ -23,6 +23,23 @@ import UIKit
     #expect(try model.node(at: [0, 0])["format"] == 0)
   }
 
+  @Test func structuralArrowEditsAutosaveAndReadOnlyArrowsDoNotEdit() throws {
+    let callout = LexicalJSON.element(
+      "callout", [LexicalJSON.paragraph([LexicalJSON.text("a")])], ["kind": "note", "title": ""])
+    let (view, model) = try editing(callout)
+    select(view, 1, 1)
+    var changes = 0
+    view.onChange = { changes += 1 }
+    try press(UIKeyCommand.inputDownArrow, [], in: view)
+    #expect(try model.node(at: [])["children"]?.arrayValue?.count == 2)
+    #expect(changes == 1)
+    let (readOnly, readOnlyModel) = try editing(callout, isEditable: false)
+    select(readOnly, 1, 1)
+    let before = try readOnlyModel.serializedState()
+    try press(UIKeyCommand.inputDownArrow, [], in: readOnly)
+    #expect(try readOnlyModel.serializedState() == before)
+  }
+
   @Test func embeddedDrawingChangesNotifyAutosaveAndRejectedScenesDoNot() throws {
     let model = Editor()
     let drawing: JSONValue = ["type": "excalidraw", "version": 1, "data": "[]", "width": 320, "height": 180]
@@ -531,14 +548,16 @@ import UIKit
           LexicalJSON.text("a", format: .bold),
           ["type": "linebreak", "version": 1],
           LexicalJSON.text("b"),
-        ]),
+        ])
       ])
   }
 
   @Test func pastingActualPagesRTFKeepsBoldAndParagraphs() throws {
     let (view, model) = try editing(LexicalJSON.paragraph([]))
-    let rtfURL = try #require(Bundle.module.url(forResource: "pages-disposable", withExtension: "rtf", subdirectory: "Fixtures"))
-    let plainURL = try #require(Bundle.module.url(forResource: "pages-disposable", withExtension: "txt", subdirectory: "Fixtures"))
+    let rtfURL = try #require(
+      Bundle.module.url(forResource: "pages-disposable", withExtension: "rtf", subdirectory: "Fixtures"))
+    let plainURL = try #require(
+      Bundle.module.url(forResource: "pages-disposable", withExtension: "txt", subdirectory: "Fixtures"))
     let plain = try String(contentsOf: plainURL, encoding: .utf8)
     view.pasteboard.setItems([["public.utf8-plain-text": plain, "public.rtf": try Data(contentsOf: rtfURL)]])
     view.paste(nil)

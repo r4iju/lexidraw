@@ -44,6 +44,7 @@ struct Node: Sendable {
   var isText: Bool { traits.kind == .text }
   var isLineBreak: Bool { traits.kind == .lineBreak }
   var isDecorator: Bool { traits.kind == .decorator }
+  var isIsolated: Bool { StructuralBlockConfiguration.isolatedNodeTypes.contains(type) }
   var isRoot: Bool { type == "root" }
   var isInline: Bool { trait(traits.inline) }
   var isShadowRoot: Bool { trait(traits.shadowRoot) }
@@ -104,7 +105,7 @@ extension EditorState {
   /// a newline, and blocks are set apart by a blank line.
   func textContent(of key: NodeKey) -> String {
     let node = self[key]
-    if node.isLineBreak || node.type == SerializedHorizontalRuleNode.type { return "\n" }
+    if node.isLineBreak || node.type == SerializedHorizontalRuleNode.type || node.type == "page-break" { return "\n" }
     guard let children = node.children else { return node.text }
     var text = ""
     for (index, child) in children.enumerated() {

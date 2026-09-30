@@ -55,12 +55,21 @@ extension Update {
   /// `getIndent`: a list item's is how deep its list nests.
   func indent(of block: NodeKey) -> Int {
     if isListItem(block), state.isAttached(block) { return state.listItemDepth(block) }
-    return state[block].payload.elementFields?.indent ?? 0
+    return state[block].payload.elementFields?.editorIndent ?? 0
+  }
+
+  func requireWholeIndent(of key: NodeKey) throws -> Int {
+    let value = (state[key].payload.elementFields as? any FloatingElementFields)?.indent ?? Double(indent(of: key))
+    guard value.isFinite, value.rounded(.towardZero) == value,
+      value >= Double(Int.min), value < Double(Int.max) else {
+      throw EditorError.unsupported("Fractional structural indentation cannot be converted to an integer-indented node (#133)")
+    }
+    return indent(of: key)
   }
 
   /// `setIndent`: a list item nests or unnests until it's as deep as asked.
   mutating func setIndent(_ block: NodeKey, _ indent: Int) throws {
-    guard isListItem(block) else { return modifyElement(block) { $0.indent = indent } }
+    guard isListItem(block) else { return modifyElement(block) { $0.editorIndent = indent } }
     var current = self.indent(of: block)
     while current != indent {
       if current < indent {
@@ -355,6 +364,7 @@ extension Update {
   /// joining the lists of that type beside it.
   private mutating func createListOrMerge(_ block: NodeKey, _ listType: ListType) throws {
     if isList(block) { return }
+    let copiedIndent = try requireWholeIndent(of: block)
     let previous = state.previousSibling(of: block)
     let next = state.nextSibling(of: block)
     let item = create(SerializedListItemNode.type)
@@ -379,7 +389,7 @@ extension Update {
     }
     let format = state[block].payload.elementFields?.format
     modifyElement(item) { $0.format = format }
-    try setIndent(item, indent(of: block))
+    try setIndent(item, copiedIndent)
     if let selection {
       for point in [selection.anchor, selection.focus] where point.key == target {
         point.set(item, point.offset, .element)
@@ -413,7 +423,7 @@ extension Update {
         modifyElement(paragraph) {
           $0.takeTextFormatAndStyle(of: selection)
           $0.format = itemFields?.format
-          $0.indent = indent
+          $0.editorIndent = indent
           $0.direction = itemFields?.direction ?? .null
         }
         try splice(paragraph, 0, deleting: 0, inserting: Array(state.children(of: item)))
@@ -564,6 +574,15 @@ extension Update {
       guard let block = findParent(from: node, where: isBlockElement), canIndent(block), !handled.contains(block)
       else { continue }
       handled.insert(block)
+      if var fields = state[block].payload.elementFields as? any FloatingElementFields {
+        let indent = fields.indent ?? 0
+        guard indent.isFinite else { throw EditorError.invalidState("Non-finite structural indentation") }
+        if !outdenting || indent > 0 {
+          fields.indent = indent + (outdenting ? -1 : 1)
+          modify(block) { $0.payload.elementFields = fields }
+        }
+        continue
+      }
       let indent = indent(of: block)
       if !outdenting {
         try setIndent(block, indent + 1)

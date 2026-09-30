@@ -1,0 +1,54 @@
+import { dirname } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const hooks = fileURLToPath(new URL("./structural-hooks.ts", import.meta.url));
+const output = await Bun.build({
+  entrypoints: [fileURLToPath(new URL("./entry.ts", import.meta.url))],
+  target: "browser",
+  format: "iife",
+  minify: true,
+  define: { "process.env.NODE_ENV": '"development"' },
+  plugins: [
+    {
+      name: "original-structural-plugin-hooks",
+      setup(build) {
+        build.onLoad(
+          {
+            filter:
+              /plugins\/(?:CalloutPlugin\/index\.tsx|CollapsiblePlugin\/index\.ts|LayoutPlugin\/LayoutPlugin\.tsx)$/,
+          },
+          async ({ path }) => {
+            const original = await Bun.file(path).text();
+            const contents = original
+              .replace(
+                'from "@lexical/react/LexicalComposerContext"',
+                `from ${JSON.stringify(hooks)}`,
+              )
+              .replace('from "react"', `from ${JSON.stringify(hooks)}`);
+            if (
+              contents === original ||
+              /from "react"|from "@lexical\/react\//.test(contents)
+            )
+              throw new Error(
+                `The structural hook imports changed shape: ${path}`,
+              );
+            return {
+              contents,
+              loader: path.endsWith("tsx") ? "tsx" : "ts",
+              resolveDir: dirname(path),
+            };
+          },
+        );
+      },
+    },
+  ],
+});
+if (!output.success)
+  throw new AggregateError(output.logs, "Reference bundle failed");
+const artifact = output.outputs[0];
+if (!artifact || output.outputs.length !== 1)
+  throw new Error("Reference build did not produce one artifact");
+await Bun.write(
+  new URL("./dist/lexical-reference.js", import.meta.url),
+  artifact,
+);

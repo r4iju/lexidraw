@@ -95,7 +95,10 @@ extension Update {
   mutating func insertNewAfter(_ block: NodeKey, _ selection: RangeSelection, restoringSelection: Bool) throws
     -> NodeKey?
   {
-    let unsplit = [SerializedListNode.type, SerializedTableNode.type, SerializedTableRowNode.type, SerializedTableCellNode.type, SerializedFootnoteDefinitionNode.type]
+    let unsplit = [
+      SerializedListNode.type, SerializedTableNode.type, SerializedTableRowNode.type, SerializedTableCellNode.type,
+      SerializedFootnoteDefinitionNode.type, "callout", "layout-container", "layout-item", "collapsible-container", "collapsible-title", "collapsible-content",
+    ]
     if unsplit.contains(state[block].type) { return nil }
     if isListItem(block) {
       let item = copyNode(block)

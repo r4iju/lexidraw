@@ -629,3 +629,59 @@ payloads and articles retain their explicit unported editing gate.
 Caption/slide hashtag transforms and mention transient CSS still need work.
 Stored social text generation opts in via `socialTextSubclasses`, preserving
 fault-injection seeds; the full differential run enables it.
+
+## Native structural blocks (#133)
+
+Callouts, sections and columns use native panels for their previews and a native
+TextKit editor sharing the parent model for body editing. Enter, arrows, deletion
+and malformed-container repair therefore retain their actual parent context.
+Page breaks remain selectable decorators. Sticky notes retain their inline model
+identity, float at the stored offsets in editable wide documents, and sit in the
+flow for compact/read-only documents, matching document.css. Their caption editor
+uses PlainTextPlugin behavior: literal Markdown, line-break Enter, plain-text
+paste/copy and no automatic links. Color, drag and deletion commit to the parent
+history with the opened node as the conflict guard.
+
+Slide decks render native text, images and presentation-only chart nodes through
+the composed embed provider. Slide creation, deletion/reordering, element content,
+geometry, background and stacking changes preserve the remaining deck metadata.
+Slide text crosses the web's keyed-state boundary by stripping only live `key`
+fields on load and restoring the native editor's live keys on save. Unknown node
+fields and unported body nodes retain the existing explicit read-only/refusal path.
+
+`codegen/structural-blocks.ts` records registered node factories, web insertion
+presets, CSS theme colors and canvas geometry. The reference builder reuses the
+actual CalloutPlugin, CollapsiblePlugin and LayoutPlugin implementations; its
+bounded hook adapter supplies the active headless editor and runs registration
+once. New hook/import shapes fail the bundle build rather than being omitted.
+The web collapsible deletion handler now consumes deletion only when the previous
+sibling is a section; it previously swallowed unrelated deletion at offset zero.
+
+Opt in to structural documents in the existing differential fuzzer with
+`FUZZ_STRUCTURAL=1 FUZZ_SEED=133 FUZZ_STEPS=20000 swift test --filter
+FuzzerTests.lexicalSwiftMatchesTheReference`. Seeds 133 and 134 each agreed for
+20,000 steps; eight discovered regressions are retained as frozen reference fixtures.
+The rebased local UIKit suite passed 123 tests, including accepted structural-arrow autosave
+and refusal to mutate a read-only document. CI was not invoked.
+
+The native column panel currently accepts the five registered fractional presets;
+other CSS grid templates show an explicit #133 limitation. Structural indent/outdent modifies
+the effective Double value without truncating it. Collapsible parts and layout
+items use the web's unread-field import rule: imported indent is retained in stored JSON while
+the effective field starts at zero; a mutation writes the effective value. A
+fractional effective value cannot be copied into integer-indented paragraph/list
+schemas and explicitly refuses under #133. Read-only sections expand
+locally without a document mutation; compact sticky notes cannot drag. Slide
+inherited dimensions follow the canvas and text boxes grow to their content. Slide images currently
+use HTTPS URLs and chart previews require the #132 composed provider. Geometry against the web's CSS and chart configuration/source UI still require
+device-level verification. Slide geometry is edited in a native dialog; direct
+slide drag/resize gestures are not implemented. These are not claimed as
+completed visual/performance gates.
+
+Pure structural-panel documents expose their native controls as accessibility
+containers. Mixed text/panel accessibility still requires composition under #145;
+ordinary text input keeps its existing accessibility surface. The retained slide
+navigation UI regression was observed red against the original stored-ID behavior
+and green with editable autosave and read-only local navigation. Slide chart
+previews clear inherited root-node source callbacks and cached tap recognizers;
+the deck's element editor owns the actual mutation.

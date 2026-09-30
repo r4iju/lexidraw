@@ -450,7 +450,9 @@ import Testing
   @Test func lexicalSwiftMatchesTheReference() throws {
     let steps = Support.environment("FUZZ_STEPS").flatMap(Int.init) ?? 2_000
     let seed = Support.environment("FUZZ_SEED").flatMap(UInt64.init) ?? UInt64.random(in: 0...UInt64.max)
-    var fuzzer = Fuzzer(seed: seed, reference: try Support.referenceEditor(), candidate: Editor(), writingDirections: true, socialTextSubclasses: true)
+    var fuzzer = Fuzzer(
+      seed: seed, reference: try Support.referenceEditor(), candidate: Editor(), writingDirections: true,
+      structuralBlocks: Support.environment("FUZZ_STRUCTURAL") == "1", socialTextSubclasses: true)
 
     let finding: Fuzzer.Finding?
     do {

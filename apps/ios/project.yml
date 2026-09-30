@@ -73,6 +73,8 @@ targets:
       - App/EmbeddedDrawing.swift
       - App/EmbeddedHTMLBlock.swift
       - App/RenderedEmbeds.swift
+
+      - App/StructuralBlocks.swift
       - App/DrawingCanvas.swift
       - App/DrawingEditorView.swift
       - App/EditorCanvas.swift

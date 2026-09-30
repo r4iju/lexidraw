@@ -34,11 +34,58 @@ public final class EditorView: UIScrollView, UITextInput {
     redo: { [weak self] in self?.history.redo() },
     menus: { [unowned self] in formattingMenus() })
 
-  public override var inputAccessoryView: UIView? { isEditable && model.isEditable ? formattingBar : nil }
+  public override var inputAccessoryView: UIView? { isEditable && model.isEditable && model.supportsRichText ? formattingBar : nil }
   private let document: DocumentText
   private let storage = NSTextStorage()
   private let layout: BlockLayout
   private let typesetting: Typesetting
+  private let suppliedStyle: DocumentText.Style?
+
+  public var supportsRichText: Bool { model.supportsRichText }
+  public var configureNestedEmbeds: ((EditorView) -> Void)?
+
+  public func makeNestedEditor(model: any EditorModel, isEditable: Bool, textSize: CGFloat? = nil) -> EditorView {
+    let style: DocumentText.Style?
+    if let textSize {
+      style = { [typesetting, suppliedStyle] block, format in
+        var attributes = suppliedStyle?(block, format) ?? typesetting.attributes(StyledBlock(block), format)
+        if let font = attributes[.font] as? UIFont { attributes[.font] = font.withSize(textSize) }
+        return attributes
+      }
+    } else {
+      style = suppliedStyle
+    }
+    let editor = EditorView(
+      model: model, style: style, isEditable: isEditable,
+      language: typesetting.language, font: typesetting.documentFont)
+    editor.configureNestedEmbeds = configureNestedEmbeds
+    editor.uploadImage = uploadImage
+    configureNestedEmbeds?(editor)
+    return editor
+  }
+
+  public func structuralNode(key: String) throws -> JSONValue {
+    try model.node(at: model.nodePath(for: key))
+  }
+
+  /// A structural body's editing surface shares this document's model, so
+  /// plugin operations that leave the body keep their true parent context.
+  public func makeStructuralEditor(key: String, childPath: [Int] = []) throws -> EditorView {
+    var path = try model.nodePath(for: key) + childPath
+    var value = try model.node(at: path)
+    while let children = value["children"]?.arrayValue, !children.isEmpty {
+      path.append(0)
+      value = children[0]
+    }
+    let editor = makeNestedEditor(model: model, isEditable: isEditable)
+    let point = Point(path: path, offset: 0, type: value["text"] != nil ? .text : .element)
+    editor.perform(.caret(point), fromInput: false)
+    editor.onChange = { [weak self] in
+      self?.render(nil)
+      self?.onChange?()
+    }
+    return editor
+  }
 
   /// The selection as UTF-16 offsets into the text; `focus` is the end that
   /// moves.
@@ -61,6 +108,27 @@ public final class EditorView: UIScrollView, UITextInput {
   /// The owner can schedule autosave without exporting on every keystroke.
   public var onChange: (() -> Void)?
 
+  /// Native panels expose their controls when the document contains only panels.
+  public var accessibleEmbeddedTypes: Set<String> = [] {
+    didSet { updateEmbeddedAccessibility() }
+  }
+  private var embeddedAccessibilityContainer = false
+  public override var isAccessibilityElement: Bool {
+    get { embeddedAccessibilityContainer ? false : super.isAccessibilityElement }
+    set { super.isAccessibilityElement = newValue }
+  }
+  public override var accessibilityElements: [Any]? {
+    get { embeddedAccessibilityContainer ? [surface] : super.accessibilityElements }
+    set { super.accessibilityElements = newValue }
+  }
+
+  public var embeddedElementTypes: Set<String> = [] {
+    didSet {
+      document.embeddedElementTypes = embeddedElementTypes
+      render(nil)
+    }
+  }
+
   public func replaceEmbeddedNode(key: String, expected: JSONValue, replacement: JSONValue?) throws {
     guard isEditable else { throw EditorError.unsupported("This document cannot be edited") }
     let change = try model.replaceEmbeddedNode(key: key, expected: expected, replacement: replacement)
@@ -69,7 +137,10 @@ public final class EditorView: UIScrollView, UITextInput {
   }
 
   public var embeddedContent: ((String, JSONValue) -> EmbeddedContentView?)? {
-    didSet { layout.embeddedContent = embeddedContent; render(nil) }
+    didSet {
+      layout.embeddedContent = embeddedContent
+      render(nil)
+    }
   }
 
   public var inlineEmbeddedContent: ((String, JSONValue, CGFloat) -> NSTextAttachment?)? {
@@ -227,10 +298,56 @@ public final class EditorView: UIScrollView, UITextInput {
     presenter?.present(alert, animated: true)
   }
   private var inlineWidth: CGFloat = 0
-  public func refreshEmbeddedContent() { render(nil); setNeedsLayout() }
+  /// Floats retain their node in the text's selection tree, with their native
+  /// content positioned in document coordinates independently of block flow.
+  public var floatingEmbeddedTypes: Set<String> = [] {
+    didSet { updateFloatingTypes() }
+  }
+  public var floatingEmbeddedMinimumWidth: CGFloat = 0 { didSet { updateFloatingTypes() } }
+  private func updateFloatingTypes() {
+    let active: Set<String> = isEditable && bounds.width > floatingEmbeddedMinimumWidth ? floatingEmbeddedTypes : []
+    guard document.floatingEmbeddedTypes != active else { return }
+    document.floatingEmbeddedTypes = active
+    render(nil)
+  }
+  public var floatingEmbeddedFrame: ((JSONValue, CGFloat) -> CGRect?)? { didSet { setNeedsLayout() } }
+  private var floatingViews: [String: EmbeddedContentView] = [:]
+  private func layoutFloatingContent() {
+    guard let frame = floatingEmbeddedFrame, let provider = embeddedContent else { return }
+    var visible: Set<String> = []
+    let viewport = surface.convert(bounds, from: self).insetBy(dx: -192, dy: -192)
+    for floating in document.floatingNodes {
+      guard let rect = frame(floating.node, surface.bounds.width), rect.intersects(viewport) else { continue }
+      let content: EmbeddedContentView
+      if let existing = floatingViews[floating.key] {
+        content = existing
+      } else {
+        guard let supplied = provider(floating.key, floating.node) else { continue }
+        content = supplied
+        floatingViews[floating.key] = content
+        surface.addSubview(content)
+      }
+      content.show(floating.node)
+      var positioned = rect
+      positioned.size.height = max(rect.height, content.contentSize(fitting: rect.width).height)
+      content.frame = positioned
+      surface.bringSubviewToFront(content)
+      visible.insert(floating.key)
+    }
+    for key in Array(floatingViews.keys) where !visible.contains(key) {
+      floatingViews.removeValue(forKey: key)?.removeFromSuperview()
+    }
+  }
+
+  public func refreshEmbeddedContent() {
+    render(nil)
+    setNeedsLayout()
+  }
 
   private func nodeKey(at path: [Int]) -> String? {
-    guard let index = path.last, let keys = try? model.childKeys(at: Array(path.dropLast())), keys.indices.contains(index) else { return nil }
+    guard let index = path.last, let keys = try? model.childKeys(at: Array(path.dropLast())),
+      keys.indices.contains(index)
+    else { return nil }
     return keys[index]
   }
 
@@ -306,9 +423,12 @@ public final class EditorView: UIScrollView, UITextInput {
   public private(set) lazy var tokenizer: any UITextInputTokenizer = UITextInputStringTokenizer(textInput: self)
 
   /// `style` sets the text's attributes in place of the web's typography.
-  public init(model: any EditorModel, style: DocumentText.Style? = nil, isEditable: Bool = true,
-    language: String? = nil, font: DocumentFont? = nil) {
+  public init(
+    model: any EditorModel, style: DocumentText.Style? = nil, isEditable: Bool = true,
+    language: String? = nil, font: DocumentFont? = nil
+  ) {
     self.model = model
+    suppliedStyle = style
     self.isEditable = isEditable
     let typesetting = Typesetting(.web)
     typesetting.language = language
@@ -373,6 +493,12 @@ public final class EditorView: UIScrollView, UITextInput {
       if openSelectedCodeSource() { return nil }
     default: break
     }
+    let command: EditorCommand = {
+      if !isEditable, case .arrow(_, let extend, let native, _, _, _) = command {
+        return .setSelection(anchor: extend ? modelSelection()?.anchor ?? native : native, focus: native)
+      }
+      return command
+    }()
     // A model left with no selection takes the view's before an edit.
     if command.editsAtSelection, modelSelection() == nil { sendSelection() }
     let now = ProcessInfo.processInfo.systemUptime
@@ -396,7 +522,7 @@ public final class EditorView: UIScrollView, UITextInput {
     render(change)
     if !fromInput { inputDelegate?.textDidChange(self) }
     showModelSelection(fromInput: fromInput)
-    if command.edits && !change.changed.isEmpty { onChange?() }
+    if isEditable && !change.changed.isEmpty { onChange?() }
     return change
   }
 
@@ -423,7 +549,15 @@ public final class EditorView: UIScrollView, UITextInput {
         }
       }
     }
+    updateEmbeddedAccessibility()
     setNeedsLayout()
+  }
+
+  private func updateEmbeddedAccessibility() {
+    embeddedAccessibilityContainer = document.blockCount > 0 && (0..<document.blockCount).allSatisfy {
+      if case .embedded(let type) = document.kind(ofBlock: $0) { return accessibleEmbeddedTypes.contains(type) }
+      return false
+    }
   }
 
   /// A change to the text that is only the view's, as composition is.
@@ -1637,6 +1771,7 @@ public final class EditorView: UIScrollView, UITextInput {
 
   public override func layoutSubviews() {
     super.layoutSubviews()
+    updateFloatingTypes()
     if inlineEmbeddedContent != nil, inlineWidth != bounds.width {
       inlineWidth = bounds.width
       render(nil)
@@ -1647,6 +1782,7 @@ public final class EditorView: UIScrollView, UITextInput {
       if !paths.isEmpty { render(ChangeSet(changed: Set(paths))) }
     }
     typesetting.withFontMetrics { layout.layoutViewport(of: self) }
+    layoutFloatingContent()
   }
 }
 

@@ -385,3 +385,20 @@ extension NSAttributedString.Key {
   static let blockType = NSAttributedString.Key("blockType")
   static let standIn = NSAttributedString.Key("standIn")
 }
+
+extension DocumentTextTests {
+  @Test func nativeStructuralPanelsOccupyOneSelectableBlock() throws {
+    let model = Editor()
+    try model.load(
+      LexicalJSON.document([
+        LexicalJSON.element(
+          "callout", [LexicalJSON.paragraph([LexicalJSON.text("body")])], ["kind": "note", "title": ""])
+      ]))
+    let document = DocumentText(model: model, style: Self.style)
+    document.embeddedElementTypes = ["callout"]
+    let storage = NSMutableAttributedString()
+    try document.reload(storage)
+    #expect(document.kind(ofBlock: 0) == .embedded(type: "callout"))
+    #expect(document.range(ofBlock: 0).length == 1)
+  }
+}

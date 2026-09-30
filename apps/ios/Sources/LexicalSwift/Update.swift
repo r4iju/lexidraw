@@ -31,6 +31,7 @@ struct Update {
   /// then it keeps the marker of a list it loaded as state it doesn't know,
   /// which a copy of the list keeps too.
   var knowsListMarker: Bool
+  var plainText = false
   /// This update's share of `Editor.shortcutsDeclinedAsNotPorted`.
   var shortcutsDeclinedAsNotPorted = 0
   var tags: Set<UpdateTag> = []
@@ -437,7 +438,7 @@ struct Update {
           }
           if state.nodes[key]?.type == SerializedTextNode.type, state.isAttached(key) {
             try syncListItem(withFirstText: key)
-            if state.isAttached(key) { try transformAutoLinkText(key) }
+            if !plainText, state.isAttached(key) { try transformAutoLinkText(key) }
           }
           allLeaves.append(key)
         }

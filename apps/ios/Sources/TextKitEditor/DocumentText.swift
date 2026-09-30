@@ -91,6 +91,11 @@ public final class DocumentText {
   }
 
   private let model: any EditorModel
+  /// Element families supplied as native panels rather than flattened text.
+  public var embeddedElementTypes: Set<String> = []
+  public var floatingEmbeddedTypes: Set<String> = []
+  private var floatingByBlock: [String: [(key: String, node: JSONValue)]] = [:]
+  var floatingNodes: [(key: String, node: JSONValue)] { floatingByBlock.values.flatMap { $0 } }
   private let style: Style
   private let standIn: StandIn?
   var nativeAttachment: ((JSONValue, [Int]) -> NSTextAttachment?)?
@@ -176,7 +181,7 @@ public final class DocumentText {
   private static func decoratorInParagraph(_ node: JSONValue) -> JSONValue? {
     guard node["type"] == "paragraph", let children = node["children"]?.arrayValue, children.count == 1,
       let type = children[0]["type"]?.stringValue,
-      type == "excalidraw" || type == "poll" || type == "mermaid" || type == "chart" || (type == "equation" && children[0]["inline"] != true) || (type != "inline-image" && MediaPayload(children[0]) != nil) else { return nil }
+      type == "excalidraw" || type == "poll" || type == "sticky" || type == "mermaid" || type == "chart" || (type == "equation" && children[0]["inline"] != true) || (type != "inline-image" && MediaPayload(children[0]) != nil) else { return nil }
     return children[0]
   }
 
@@ -192,6 +197,7 @@ public final class DocumentText {
   @discardableResult public func reload(_ storage: NSMutableAttributedString) throws -> [Splice] {
     let old = blocks.count
     footnoteIndexDirty = true
+    floatingByBlock.removeAll(keepingCapacity: true)
     let keys = try model.childKeys(at: [])
     let (text, rendered) = try render(keys.indices) { keys[$0] }
     blocks = rendered
@@ -224,6 +230,7 @@ public final class DocumentText {
       while suffix < min(old.count, keys.count) - prefix, old[old.count - 1 - suffix] == keys[keys.count - 1 - suffix] {
         suffix += 1
       }
+      for index in prefix..<(old.count - suffix) { floatingByBlock[old[index]] = nil }
       let replaced = prefix..<(keys.count - suffix)
       let (text, rendered) = try render(replaced) { keys[$0] }
       storage.replaceCharacters(
@@ -384,19 +391,43 @@ public final class DocumentText {
     }
     for index in indexes {
       let node = try rootNodes[index] ?? model.nodeForPresentation(at: [index])
+      var floating: [(key: String, node: JSONValue)] = []
+      func collectFloating(_ value: JSONValue, at path: [Int]) throws {
+        if floatingEmbeddedTypes.contains(value["type"]?.stringValue ?? ""), let last = path.last {
+          let childKeys = try model.childKeys(at: Array(path.dropLast()))
+          if childKeys.indices.contains(last) { floating.append((childKeys[last], value)) }
+          return
+        }
+        for (child, value) in (value["children"]?.arrayValue ?? []).enumerated() {
+          try collectFloating(value, at: path + [child])
+        }
+      }
+      if !floatingEmbeddedTypes.isEmpty { try collectFloating(node, at: [index]) }
+      floatingByBlock[key(index)] = floating.isEmpty ? nil : floating
       let blockType = (node["type"] == "heading" ? node["tag"] : node["type"])?.stringValue ?? ""
       let blockStyle = node["type"] == "footnote-definition" ? Self.footnoteStyle(style) : style
-      var renderer = Renderer(style: blockStyle, standIn: standIn, blockType: blockType,
-        nativeAttachment: { [nativeAttachment] child, path in
-          Self.decoratorInParagraph(node) == nil ? nativeAttachment?(child, [index] + path) : nil
+      var renderer = Renderer(
+        style: blockStyle, standIn: standIn, blockType: blockType,
+        nativeAttachment: { [nativeAttachment, floatingEmbeddedTypes] child, path in
+          if floatingEmbeddedTypes.contains(child["type"]?.stringValue ?? "") {
+            let attachment = NSTextAttachment()
+            attachment.bounds = .zero
+            return attachment
+          }
+          return Self.decoratorInParagraph(node) == nil ? nativeAttachment?(child, [index] + path) : nil
         })
       renderer.footnoteNumbers = footnoteNumbers
-      renderer.add(node, at: [])
+      if embeddedElementTypes.contains(blockType) {
+        renderer.text.append(NSAttributedString(string: "\u{FFFC}", attributes: blockStyle(blockType, [])))
+        renderer.spans[[]] = Span(start: 0, end: 1, kind: .character)
+      } else {
+        renderer.add(node, at: [])
+      }
       let block = renderer.text
       rendered.append(
         Block(
           key: key(index), type: blockType, length: block.length, spans: renderer.spans,
-          kind: Self.kind(of: node, spans: renderer.spans), lines: renderer.lines))
+          kind: Self.kind(of: node, spans: renderer.spans, floating: floatingEmbeddedTypes), lines: renderer.lines))
       block.append(NSAttributedString(string: "\n", attributes: blockStyle(blockType, [])))
       if let number = footnoteDefinitionNumbers[index] {
         var attributes: [NSAttributedString.Key: Any] = [.footnoteDefinitionNumber: number, .footnoteDefinitionLabel: node["label"]?.stringValue ?? ""]
@@ -473,8 +504,10 @@ public final class DocumentText {
     return inOneCell ? edited : nil
   }
 
-  private static func kind(of node: JSONValue, spans: [[Int]: Span]) -> BlockKind {
-    if let embedded = decoratorInParagraph(node), let type = embedded["type"]?.stringValue { return .embedded(type: type) }
+  private static func kind(of node: JSONValue, spans: [[Int]: Span], floating: Set<String>) -> BlockKind {
+    if let wrapped = decoratorInParagraph(node), let type = wrapped["type"]?.stringValue, !floating.contains(type) {
+      return .embedded(type: type)
+    }
     if node["type"] == "code" { return .embedded(type: "code") }
     switch spans[[]]?.kind {
     case .character: return .embedded(type: node["type"]?.stringValue ?? "")

@@ -83,6 +83,27 @@ final class DocumentPreviewUITests: XCTestCase {
     XCTAssertFalse(app.buttons["Try Again"].exists)
   }
 
+  func testSlideNavigationRestoresTheActiveSlideAndOnlySavesEditableNavigation() {
+    let document = LexicalJSON.document([["type": "slide-deck", "version": 1,
+      "data": ["currentSlideId": "second", "slides": [
+        ["id": "first", "elements": []], ["id": "second", "elements": []]
+      ]]]])
+    for access in ["EDIT", "READ"] {
+      let app = open(access: access, document: document)
+      let current = app.buttons["Slide 2 of 2"]
+      XCTAssertTrue(current.waitForExistence(timeout: 10))
+      current.tap()
+      app.buttons["Slide 1"].tap()
+      XCTAssertTrue(app.buttons["Slide 1 of 2"].waitForExistence(timeout: 5))
+      if access == "EDIT" {
+        let saved = NSPredicate(format: "label CONTAINS %@", "entities-save")
+        expectation(for: saved, evaluatedWith: app.staticTexts["server requests"])
+        waitForExpectations(timeout: 10)
+      } else { XCTAssertEqual(requests(in: app), "entities-load") }
+      app.terminate()
+    }
+  }
+
   private func open(access: String, document: JSONValue? = nil) -> XCUIApplication {
     let app = XCUIApplication()
     app.launchEnvironment["EDITOR_PREVIEW_ACCESS"] = access

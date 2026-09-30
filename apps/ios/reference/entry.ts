@@ -1,4 +1,8 @@
 import { $formatCode } from "@packages/lexical-nodes/code-format";
+import CalloutPlugin from "../../lexidraw/src/app/documents/[documentId]/plugins/CalloutPlugin/index.js";
+import CollapsiblePlugin from "../../lexidraw/src/app/documents/[documentId]/plugins/CollapsiblePlugin/index.js";
+import { LayoutPlugin } from "../../lexidraw/src/app/documents/[documentId]/plugins/LayoutPlugin/LayoutPlugin.js";
+import { withStructuralEditor } from "./structural-hooks.js";
 import {
   $setWritingDirection,
   type WritingDirection,
@@ -244,6 +248,7 @@ function load(stateJSON: string): void {
       lastError = error;
     },
   });
+  withStructuralEditor(next, () => { LayoutPlugin(); CollapsiblePlugin(); CalloutPlugin(); });
   lastError = null;
   const parsed = next.parseEditorState(stateJSON);
   // Parsing reports a bad node through onError and returns an empty state.

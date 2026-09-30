@@ -8,6 +8,7 @@ public protocol EditorModel: AnyObject {
   /// Whether the model can edit the document loaded. One that can't refuses
   /// every command that would change it as `EditorError.unsupported`.
   var isEditable: Bool { get }
+  var supportsRichText: Bool { get }
 
   /// Applies one command as a single update. A command that throws leaves the
   /// document and selection as they were.
@@ -20,6 +21,7 @@ public protocol EditorModel: AnyObject {
   func replaceDrawing(key: String, expectedData: String, data: String?) throws -> ChangeSet
   func replaceRenderedNode(key: String, expected: JSONValue, replacement: JSONValue) throws -> ChangeSet
 
+  /// Commits a native structural panel only while its opened node is unchanged.
   @discardableResult
   func replaceEmbeddedNode(key: String, expected: JSONValue, replacement: JSONValue?) throws -> ChangeSet
 
@@ -48,6 +50,7 @@ public protocol EditorModel: AnyObject {
   /// tell which children an update added, removed or kept. Names mean nothing
   /// across models.
   func childKeys(at path: [Int]) throws -> [String]
+  func nodePath(for key: String) throws -> [Int]
 }
 
 extension EditorModel {
@@ -55,10 +58,13 @@ extension EditorModel {
     throw EditorError.unsupported("Rendered node editing belongs to #132")
   }
 
+  public var supportsRichText: Bool { true }
+  public func nodePath(for key: String) throws -> [Int] {
+    throw EditorError.unsupported("This model cannot resolve a node key")
+  }
   public func replaceEmbeddedNode(key: String, expected: JSONValue, replacement: JSONValue?) throws -> ChangeSet {
     throw EditorError.unsupported("Structural block editing requires #133")
   }
-
   public func replaceDrawing(key: String, expectedData: String, data: String?) throws -> ChangeSet {
     throw EditorError.unsupported("Embedded drawing editing requires #139")
   }
