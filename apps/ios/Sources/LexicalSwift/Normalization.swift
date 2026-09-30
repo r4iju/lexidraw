@@ -10,6 +10,7 @@ extension Node {
     switch payload {
     case .text(let node): node.mode
     case .hashtag(let node): node.mode
+    case .keyword(let node): node.mode
     default: nil
     }
   }
@@ -87,6 +88,10 @@ extension Update {
       guard !(node.text ?? "").isIdentical(to: text) else { return }
       node.text = text
       modify(key) { $0.payload = .hashtag(node) }
+    case .keyword(var node):
+      guard !(node.text?.stringValue ?? "").isIdentical(to: text) else { return }
+      node.text = .string(text)
+      modify(key) { $0.payload = .keyword(node) }
     default:
       throw EditorError.unsupported("Setting the text of a \(self[key].type) node")
     }

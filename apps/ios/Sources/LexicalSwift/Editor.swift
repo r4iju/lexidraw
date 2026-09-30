@@ -300,6 +300,8 @@ extension Node {
     case .excalidraw(let node): node.unknownFields.isEmpty && (node.data == nil || node.data?.stringValue != nil)
     case .text(let node): node.unknownFields.isEmpty && node.mode == .normal && (node.detail ?? 0) == 0
     case .hashtag(let node): node.unknownFields.isEmpty && node.mode == .normal && (node.detail ?? 0) == 0
+    case .keyword(let node): node.unknownFields.isEmpty && node.mode == .normal && node.detail?.numberValue == 0
+      && node.text?.stringValue != nil && node.style?.stringValue != nil && node.format?.numberValue != nil
     case .poll(let node): Self.supportsPoll(node)
     case .tab(let node): node.unknownFields.isEmpty && node.detail == Double(TextDetail.unmergeable.rawValue)
     default: false

@@ -272,7 +272,7 @@ struct NodeFields {
 }
 
 /// What every TextNode holds, a TabNode's included.
-protocol TextPayload: NodePayload {
+protocol TextPayload: Sendable {
   var text: String? { get set }
   var detail: Double? { get set }
   var format: Double? { get set }
@@ -283,6 +283,25 @@ extension SerializedTextNode: TextPayload {}
 extension SerializedCodeHighlightNode: TextPayload {}
 extension SerializedTabNode: TextPayload {}
 extension SerializedHashtagNode: TextPayload {}
+struct KeywordTextPayload: TextPayload {
+  var node: SerializedKeywordNode
+  var text: String? {
+    get { node.text?.stringValue }
+    set { node.text = newValue.map(JSONValue.string) }
+  }
+  var detail: Double? {
+    get { node.detail?.numberValue }
+    set { node.detail = newValue.map(JSONValue.number) }
+  }
+  var format: Double? {
+    get { node.format?.numberValue }
+    set { node.format = newValue.map(JSONValue.number) }
+  }
+  var style: String? {
+    get { node.style?.stringValue }
+    set { node.style = newValue.map(JSONValue.string) }
+  }
+}
 
 extension SerializedNode {
   /// The text's properties, for the text editing is ported for.
@@ -293,6 +312,7 @@ extension SerializedNode {
       case .codeHighlight(let node): node
       case .tab(let node): node
       case .hashtag(let node): node
+      case .keyword(let node): KeywordTextPayload(node: node)
       default: nil
       }
     }
@@ -302,6 +322,7 @@ extension SerializedNode {
       case let node as SerializedCodeHighlightNode: self = .codeHighlight(node)
       case let node as SerializedTabNode: self = .tab(node)
       case let node as SerializedHashtagNode: self = .hashtag(node)
+      case let fields as KeywordTextPayload: self = .keyword(fields.node)
       default: break
       }
     }

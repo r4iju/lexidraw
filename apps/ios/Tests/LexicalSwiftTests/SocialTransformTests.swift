@@ -32,6 +32,18 @@ import Testing
     #expect(try fixture.replay(on: native) == fixture.recorded)
   }
 
+  @Test func storedKeywordsMatchWebBoundariesAndSplitting() throws {
+    var fields = try #require(text("congratulations").objectValue)
+    fields["type"] = "keyword"
+    let start = document(paragraph(.object(fields)))
+    let native = Editor(); try native.load(start)
+    #expect(native.isEditable)
+    let commands: [EditorCommand] = [.caret(.text([0, 0], 0)), .insertText("a"),
+      .caret(.text([0, 1], 15)), .insertText("b"), .caret(.text([0, 1], 3)), .insertParagraph]
+    let fixture = try Fixture.record(start: start, commands: commands, on: Support.referenceEditor())
+    #expect(try fixture.replay(on: native) == fixture.recorded)
+  }
+
   @Test func splittingAStoredHashtagWithEnterMatchesTheWeb() throws {
     var fields = try #require(text("#native").objectValue)
     fields["type"] = "hashtag"

@@ -464,7 +464,7 @@ struct Generator {
         previous = nil
         continue
       // An autolink stays linked only where a separator or nothing is beside it.
-      case 4 where !isAfterLink && children.last?["type"] != "hashtag":
+      case 4 where !isAfterLink && children.last?["type"] != "hashtag" && children.last?["type"] != "keyword":
         if case .object(var last)? = children.last, let text = last["text"]?.stringValue, last["type"] == "text" {
           last["text"] = .string(text + " ")
           children[children.count - 1] = .object(last)
@@ -478,7 +478,7 @@ struct Generator {
         continue
       case 5 where !isAfterLink:
         if case .object(var node) = LexicalJSON.text("#" + text(1...5), format: Self.formats.randomElement(using: &random)!) {
-          node["type"] = "hashtag"
+          node["type"] = Bool.random(using: &random) ? "hashtag" : "keyword"
           children.append(.object(node))
         }
         previous = nil

@@ -5,25 +5,28 @@ extension Update {
     let nodes = try nodes(in: selection)
     let extracted = try extract(selection)
     guard !selection.isCollapsed else { return }
-    try clearFormatting(nodes, extracted: extracted, anchorOffset: selection.anchor.offset, focusOffset: selection.focus.offset)
+    try clearFormatting(nodes, extracted: extracted, anchor: selection.anchor, focus: selection.focus)
   }
 
   mutating func clearFormatting(_ selection: TableSelection) throws {
     let nodes = try nodes(in: selection)
     guard selection.anchor != selection.focus else { return }
-    try clearFormatting(nodes, extracted: nodes, anchorOffset: 0, focusOffset: 0)
+    try clearFormatting(nodes, extracted: nodes, anchor: nil, focus: nil)
   }
 
-  private mutating func clearFormatting(_ nodes: [NodeKey], extracted: [NodeKey], anchorOffset: Int, focusOffset: Int) throws {
+  private mutating func clearFormatting(_ nodes: [NodeKey], extracted: [NodeKey], anchor: SelectionPoint?, focus: SelectionPoint?) throws {
     for (index, original) in nodes.enumerated() {
       var node = original
       if state[node].isText {
+        // The toolbar retains Point objects, not copied offsets. Replacing
+        // a quote can mutate those points before restoring a cloned selection.
+        let anchorOffset = anchor?.offset ?? 0
         if index == 0 && anchorOffset != 0 {
           let split = try splitText(node, at: [anchorOffset])
           node = split.count > 1 ? split[1] : node
         }
         if index == nodes.count - 1 {
-          node = try splitText(node, at: [focusOffset]).first ?? node
+          node = try splitText(node, at: [focus?.offset ?? 0]).first ?? node
         }
         if nodes.count == 1, let first = extracted.first, state[first].isText { node = first }
         if !style(of: node).isEmpty { setStyle(node, "") }
