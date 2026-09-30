@@ -33,7 +33,16 @@
     "layoutJumps": 0,
     "traceLocalPath": "/tmp/lexidraw-119-phone-optimized/large-complete.trace"
   },
-  "inputCoverage": "Existing native UI 20 and TextKit 85 passed before integration; positive autocorrect, text replacement and dictation coverage pending.",
-  "fuzzer": "Current combined million-step run pending; do not count earlier stale-reference diagnostic run.",
-  "corpus": "3 current combined live corpus checks passed locally."
+  "inputCoverage": "88 TextKit tests and eight table UI cases passed on integrated source. Hardware Command-Shift line selection regression fixed after failing tests. Positive software autocorrect and Option-Shift selection passed. Physical dictation and system text replacement remain unverified.",
+  "fuzzer": "Seed 1192026 million-step run terminated with SIGBUS at recursive EditorState export stack guard; no completed million-step result. Diagnosis and reproducible script recovery pending.",
+  "corpus": "3 current combined live corpus checks passed locally.",
+  "warmWindowOpening": {
+    "scope": "Document decode, load and first attached-view display callback after establishing an empty window for one second; does not measure cold app opening or verified pixel presentation",
+    "measuredSourceCommit": "dddd7724 with EDITOR_WARM_WINDOW harness mode",
+    "runs": 10,
+    "medianMs": 138.666,
+    "p95Ms": 152.776,
+    "runsOver150Ms": 3,
+    "gate": "fail"
+  }
 }

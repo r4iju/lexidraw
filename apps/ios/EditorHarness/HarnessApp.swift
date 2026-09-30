@@ -33,12 +33,13 @@ struct HarnessApp: App {
 }
 
 struct HarnessView: View {
-  @State private var opened = Result { try Harness.open() }
+  @State private var opened: Result<Harness, Error>? =
+    ProcessInfo.processInfo.environment["EDITOR_WARM_WINDOW"] == nil ? Result { try Harness.open() } : nil
   @State private var message: String?
 
   var body: some View {
     switch opened {
-    case .success(let harness):
+    case .success(let harness)?:
       EditorRepresentable(harness: harness)
         .navigationTitle(harness.title)
         .navigationBarTitleDisplayMode(.inline)
@@ -53,10 +54,18 @@ struct HarnessView: View {
           }
         }
         .alert("Couldn't save", message: $message)
-    case .failure(let error):
+    case .failure(let error)?:
       ContentUnavailableView(
         "Couldn't open the document", systemImage: "exclamationmark.triangle",
         description: Text(String(describing: error)))
+    case nil:
+      ContentUnavailableView("Preparing measurement window", systemImage: "clock")
+        .navigationTitle("Editor measurement")
+        .navigationBarTitleDisplayMode(.inline)
+        .task {
+          do { try await Task.sleep(for: .seconds(1)) } catch { return }
+          opened = Result { try Harness.open() }
+        }
     }
   }
 }
@@ -142,6 +151,7 @@ final class Harness {
     } else {
       throw HarnessError("The app has no tracer.json to open")
     }
+    if environment["EDITOR_WARM_WINDOW"] != nil { timing.document += "; document open in an existing window" }
     guard let text = String(data: document, encoding: .utf8) else {
       throw HarnessError("The document is not UTF-8 JSON")
     }
