@@ -109,7 +109,7 @@ import UIKit
       return false
     }
     if storage.length > 0, let label = storage.attribute(.footnoteDefinitionLabel, at: 0, effectiveRange: nil) as? String,
-      let font = storage.attribute(.font, at: 0, effectiveRange: nil) as? UIFont, let end = lastTextEnd {
+      let font = storage.attribute(.footnoteBaseFont, at: 0, effectiveRange: nil) as? UIFont, let end = lastTextEnd {
       let text = NSAttributedString(string: "↩︎", attributes: [.font: font, .foregroundColor: ThemeColor.primary.color])
       let size = text.size()
       let rtl = writingDirection(at: storage.length - 1) == .rightToLeft
@@ -146,7 +146,7 @@ import UIKit
       return true
     }
     if storage.length > 0, let title = storage.attribute(.footnoteSectionTitle, at: 0, effectiveRange: nil) as? String,
-      let font = storage.attribute(.font, at: 0, effectiveRange: nil) as? UIFont {
+      let font = storage.attribute(.footnoteBaseFont, at: 0, effectiveRange: nil) as? UIFont {
       ThemeColor.border.color.setFill()
       context.fill(CGRect(x: origin.x, y: origin.y, width: width, height: WebFootnoteStyle.sectionBorder))
       let em = font.pointSize / WebFootnoteStyle.definitionFontScale
@@ -154,7 +154,7 @@ import UIKit
       text.draw(at: CGPoint(x: origin.x, y: origin.y + font.pointSize * WebFootnoteStyle.headerTop))
     }
     if storage.length > 0, let number = storage.attribute(.footnoteDefinitionNumber, at: 0, effectiveRange: nil) as? Int,
-      let font = storage.attribute(.font, at: 0, effectiveRange: nil) as? UIFont, let line = lines.first {
+      let font = storage.attribute(.footnoteBaseFont, at: 0, effectiveRange: nil) as? UIFont, let line = lines.first {
       let marker = NSAttributedString(string: "\(number).", attributes: [.font: font, .foregroundColor: ThemeColor.mutedForeground.color])
       let x = writingDirection(at: 0) == .rightToLeft ? width - marker.size().width : 0
       marker.draw(at: CGPoint(x: origin.x + x, y: origin.y + line.baseline - font.ascender))

@@ -399,7 +399,9 @@ public final class DocumentText {
           kind: Self.kind(of: node, spans: renderer.spans), lines: renderer.lines))
       block.append(NSAttributedString(string: "\n", attributes: blockStyle(blockType, [])))
       if let number = footnoteDefinitionNumbers[index] {
-        block.addAttributes([.footnoteDefinitionNumber: number, .footnoteDefinitionLabel: node["label"]?.stringValue ?? ""], range: NSRange(location: 0, length: block.length))
+        var attributes: [NSAttributedString.Key: Any] = [.footnoteDefinitionNumber: number, .footnoteDefinitionLabel: node["label"]?.stringValue ?? ""]
+        attributes[.footnoteBaseFont] = blockStyle(blockType, [])[.font]
+        block.addAttributes(attributes, range: NSRange(location: 0, length: block.length))
       }
       for line in renderer.lines { block.addAttribute(line.key, value: line.value.base, range: NSRange(line.range)) }
       Self.applyFontGeometry(renderer, to: block, base: blockStyle(blockType, []))
@@ -408,9 +410,9 @@ public final class DocumentText {
         let range = (block.string as NSString).paragraphRange(for: NSRange(location: 0, length: 0))
         let paragraph = (block.attribute(.paragraphStyle, at: 0, effectiveRange: nil) as? NSParagraphStyle)?.mutableCopy() as? NSMutableParagraphStyle ?? NSMutableParagraphStyle()
         #if canImport(UIKit)
-        let size = (block.attribute(.font, at: 0, effectiveRange: nil) as? UIFont)?.pointSize ?? 17 * WebFootnoteStyle.definitionFontScale
+        let size = (block.attribute(.footnoteBaseFont, at: 0, effectiveRange: nil) as? UIFont)?.pointSize ?? 17 * WebFootnoteStyle.definitionFontScale
         #else
-        let size = (block.attribute(.font, at: 0, effectiveRange: nil) as? NSFont)?.pointSize ?? 17 * WebFootnoteStyle.definitionFontScale
+        let size = (block.attribute(.footnoteBaseFont, at: 0, effectiveRange: nil) as? NSFont)?.pointSize ?? 17 * WebFootnoteStyle.definitionFontScale
         #endif
         paragraph.paragraphSpacingBefore = size * WebFootnoteStyle.sectionPadding
         block.addAttribute(.paragraphStyle, value: paragraph, range: range)
@@ -713,6 +715,7 @@ extension Range<Int> {
 extension NSAttributedString.Key {
   static let footnoteReference = NSAttributedString.Key("TextKitEditor.footnoteReference")
   static let footnoteDefinitionNumber = NSAttributedString.Key("TextKitEditor.footnoteDefinitionNumber")
+  static let footnoteBaseFont = NSAttributedString.Key("TextKitEditor.footnoteBaseFont")
   static let footnoteSectionTitle = NSAttributedString.Key("TextKitEditor.footnoteSectionTitle")
   static let footnoteDefinitionLabel = NSAttributedString.Key("TextKitEditor.footnoteDefinitionLabel")
   /// A `DocumentText.ListItem`, on the line of the item it describes.
