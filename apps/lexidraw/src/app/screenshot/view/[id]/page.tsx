@@ -1,3 +1,6 @@
+import { exportBlockPreviews } from "~/server/html-blocks/export";
+import { HTMLBlockPreviews } from "~/app/documents/[documentId]/nodes/HTMLBlockPreviews";
+import { findReadableEntity } from "~/server/entities/readable";
 import { redirect } from "next/navigation";
 import { verifyScreenshotToken } from "~/server/auth/screenshot-token";
 import { api } from "~/trpc/server";
@@ -27,7 +30,11 @@ export default async function ScreenshotDocumentPage(props: Props) {
 
   // Validate token
   const payload = st ? verifyScreenshotToken(st) : null;
-  if (!payload || payload.entityId !== id) {
+  if (
+    !payload ||
+    payload.entityId !== id ||
+    !(await findReadableEntity(db, id, payload.userId))
+  ) {
     return redirect("/dashboard");
   }
 
@@ -63,20 +70,25 @@ export default async function ScreenshotDocumentPage(props: Props) {
     updatedAt: row.updatedAt,
   };
 
-  const iceServers = await api.auth.iceServers.query();
+  const [iceServers, blockPreviews] = await Promise.all([
+    api.auth.iceServers.query(),
+    exportBlockPreviews(row.elements),
+  ]);
 
   const initialLlmConfig = INITIAL_LLM_CONFIG_FOR_PUBLIC_RENDER;
 
   return (
     <div className="w-full h-full overflow-hidden">
       {/* DocumentEditor renders an <article id={`lexical-content-${entity.id}`}> we will clip against */}
-      <DocumentEditor
-        entity={entity}
-        iceServers={iceServers}
-        initialLlmConfig={initialLlmConfig}
-        signedIn={false}
-        renderMode="screenshot"
-      />
+      <HTMLBlockPreviews value={blockPreviews}>
+        <DocumentEditor
+          entity={entity}
+          iceServers={iceServers}
+          initialLlmConfig={initialLlmConfig}
+          signedIn={false}
+          renderMode="screenshot"
+        />
+      </HTMLBlockPreviews>
     </div>
   );
 }

@@ -27,3 +27,4 @@ filter:
     - entities-signImageUpload
     - tts-listen
     - tts-listening
+    - htmlBlocks-preview

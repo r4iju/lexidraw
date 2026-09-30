@@ -1528,6 +1528,23 @@
       "state": {}
     },
     {
+      "type": "html-block",
+      "className": "HTMLBlockNode",
+      "version": 1,
+      "order": [
+        "type",
+        "version",
+        "block"
+      ],
+      "fields": {
+        "block": {
+          "kind": "raw",
+          "default": null
+        }
+      },
+      "state": {}
+    },
+    {
       "type": "image",
       "className": "ImageNode",
       "version": 1,
@@ -3508,6 +3525,7 @@
                 "hashtag",
                 "heading",
                 "horizontalrule",
+                "html-block",
                 "image",
                 "inline-image",
                 "keyword",
@@ -4218,6 +4236,7 @@
             "hashtag",
             "heading",
             "horizontalrule",
+            "html-block",
             "image",
             "inline-image",
             "keyword",
@@ -4542,6 +4561,12 @@
       "canBeEmpty": true
     },
     "horizontalrule": {
+      "kind": "decorator",
+      "inline": false,
+      "shadowRoot": false,
+      "canBeEmpty": false
+    },
+    "html-block": {
       "kind": "decorator",
       "inline": false,
       "shadowRoot": false,

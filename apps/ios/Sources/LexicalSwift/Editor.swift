@@ -243,6 +243,7 @@ extension Node {
     case .table(let node): node.unknownFields.isEmpty
     case .tableRow(let node): node.unknownFields.isEmpty
     case .tableCell(let node): node.unknownFields.isEmpty
+    case .hTMLBlock: true
     case .excalidraw(let node): node.unknownFields.isEmpty && (node.data == nil || node.data?.stringValue != nil)
     case .text(let node): node.unknownFields.isEmpty && node.mode == .normal && (node.detail ?? 0) == 0
     case .tab(let node): node.unknownFields.isEmpty && node.detail == Double(TextDetail.unmergeable.rawValue)

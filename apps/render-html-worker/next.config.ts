@@ -16,13 +16,18 @@ const config = {
   experimental: {},
   outputFileTracingRoot: path.join(__dirname, "../.."),
   typescript: { ignoreBuildErrors: true },
-  serverExternalPackages: ["@sparticuz/chromium", "puppeteer-core"],
+  serverExternalPackages: [
+    "@sparticuz/chromium",
+    "puppeteer-core",
+    "quickjs-emscripten",
+  ],
   // The archives and the render fonts are read from disk at runtime, so the
   // file tracer never sees them; every route that launches a browser needs
   // them.
   outputFileTracingIncludes: {
     "/api/screenshot": [...CHROMIUM_BIN, ...RENDER_FONTS],
     "/api/render-html": [...CHROMIUM_BIN, ...RENDER_FONTS],
+    "/api/html-block-preview": [...CHROMIUM_BIN, ...RENDER_FONTS],
     "/api/render/pdf": [...CHROMIUM_BIN, ...RENDER_FONTS],
   },
 } satisfies NextConfig;

@@ -1,3 +1,4 @@
+import { HTMLBlockNode } from "./HTMLBlockNode";
 import { HorizontalRuleNode } from "@lexical/react/LexicalHorizontalRuleNode";
 import { CORE_NODES } from "@packages/lexical-nodes";
 import type { Klass, LexicalNode } from "lexical";
@@ -38,6 +39,7 @@ export const DOCUMENT_NODES: Klass<LexicalNode>[] = [
   YouTubeNode,
   ExcalidrawNode,
   MermaidNode,
+  HTMLBlockNode,
   ChartNode,
   FigmaNode,
   EquationNode,

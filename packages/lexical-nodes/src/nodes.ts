@@ -30,6 +30,7 @@ import { KeywordNode } from "./nodes/KeywordNode.js";
 import { LayoutContainerNode } from "./nodes/LayoutContainerNode.js";
 import { LayoutItemNode } from "./nodes/LayoutItemNode.js";
 import { MentionNode } from "./nodes/MentionNode.js";
+import { HTMLBlockNode } from "./nodes/HTMLBlockNode.js";
 import { MermaidNode } from "./nodes/MermaidNode.js";
 import { PageBreakNode } from "./nodes/PageBreakNode.js";
 import { PollNode } from "./nodes/PollNode.js";
@@ -84,6 +85,7 @@ export const CORE_NODES: Klass<LexicalNode>[] = [
   SlideNode,
   ExcalidrawNode,
   MermaidNode,
+  HTMLBlockNode,
   ArticleNode,
   CommentNode,
   ThreadNode,
