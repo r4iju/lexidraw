@@ -9,7 +9,9 @@ import UIKit
   let payload: MediaPayload
   private let picture = UIImageView()
   private let message = UILabel()
-  private let caption = UILabel()
+  private let caption: MediaCaptionView
+  var onGeometryChange: (() -> Void)?
+  private var loadedAspectRatio: Double?
   private var player: AVPlayer?
   private var videoLayer: AVPlayerLayer?
   private var preview: LPLinkView?
@@ -23,8 +25,9 @@ import UIKit
     return cache
   }()
 
-  init(_ payload: MediaPayload) {
+  init(_ payload: MediaPayload, style: DocumentText.Style? = nil) {
     self.payload = payload
+    caption = MediaCaptionView(payload, style: style)
     super.init(frame: .zero)
     backgroundColor = .secondarySystemBackground
     layer.cornerRadius = 8
@@ -36,38 +39,51 @@ import UIKit
     message.numberOfLines = 3
     message.font = .preferredFont(forTextStyle: .body)
     addSubview(message)
-    caption.text = payload.caption
-    caption.numberOfLines = 0
-    caption.font = .preferredFont(forTextStyle: .caption1)
-    caption.textColor = .secondaryLabel
-    caption.textAlignment = .center
     addSubview(caption)
     accessibilityLabel = [payload.label, payload.caption].filter { !$0.isEmpty }.joined(separator: ". ")
-    addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(open)))
+    addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(open(_:))))
   }
   required init?(coder: NSCoder) { fatalError("MediaView is made in code") }
 
   static func height(_ payload: MediaPayload, width: CGFloat) -> CGFloat {
-    let mediaWidth = min(width, payload.width ?? width, payload.maxWidth ?? width)
-    let captionHeight = captionHeight(payload, width: width)
-    return min(600, max(40, mediaWidth / payload.aspectRatio)) + captionHeight
+    let size = geometry(payload, width: width, ratio: payload.aspectRatio, viewport: UIScreen.main.bounds.height)
+    let caption = MediaCaptionView(payload)
+    let captionHeight = caption.fittingHeight(size.width)
+    return size.height + (captionHeight > 0 ? captionHeight + FigureStyle.captionGap : 0)
   }
-  private static func captionHeight(_ payload: MediaPayload, width: CGFloat) -> CGFloat {
-    guard !payload.caption.isEmpty else { return 0 }
-    let size = (payload.caption as NSString).boundingRect(with: CGSize(width: max(1, width - 24), height: .greatestFiniteMagnitude), options: [.usesLineFragmentOrigin, .usesFontLeading], attributes: [.font: UIFont.preferredFont(forTextStyle: .caption1)], context: nil)
-    return ceil(size.height) + 12
+  private static func geometry(_ payload: MediaPayload, width: CGFloat, ratio: Double, viewport: CGFloat) -> CGSize {
+    let em = UIFont.preferredFont(forTextStyle: .body).pointSize
+    let figure = payload.figureWidth(fitting: width, em: em)
+    var mediaWidth = payload.figurePlacement == nil ? min(figure, payload.width ?? figure) : figure
+    var height = mediaWidth / ratio
+    if payload.type == "image" {
+      let limit = payload.figurePlacement == nil
+        ? min(viewport * MediaStyle.unplacedViewportShare, em * MediaStyle.unplacedMaximumRem, payload.height ?? .greatestFiniteMagnitude)
+        : viewport * MediaStyle.imageViewportShare
+      if height > limit { height = limit; if payload.figurePlacement == nil { mediaWidth = height * ratio } }
+    }
+    return CGSize(width: mediaWidth, height: height)
+  }
+  private func mediaSize(_ width: CGFloat) -> CGSize {
+    Self.geometry(payload, width: width, ratio: loadedAspectRatio ?? payload.aspectRatio, viewport: window?.bounds.height ?? UIScreen.main.bounds.height)
+  }
+  func fittingHeight(_ width: CGFloat) -> CGFloat {
+    let size = mediaSize(width)
+    let captionHeight = caption.fittingHeight(size.width)
+    return size.height + (captionHeight > 0 ? captionHeight + FigureStyle.captionGap : 0)
   }
   override func layoutSubviews() {
     super.layoutSubviews()
-    let bottom = Self.captionHeight(payload, width: bounds.width)
-    let content = CGRect(x: 0, y: 0, width: bounds.width, height: max(0, bounds.height - bottom))
-    let mediaWidth = min(content.width, payload.width ?? content.width, payload.maxWidth ?? content.width)
-    let mediaFrame = CGRect(x: (content.width - mediaWidth) / 2, y: 0, width: mediaWidth, height: content.height)
+    let size = mediaSize(bounds.width)
+    let mediaWidth = size.width
+    let captionHeight = caption.fittingHeight(mediaWidth)
+    let bodyHeight = size.height
+    let mediaFrame = CGRect(x: (bounds.width - mediaWidth) / 2, y: 0, width: mediaWidth, height: bodyHeight)
     picture.frame = mediaFrame
     videoLayer?.frame = mediaFrame
-    message.frame = content.insetBy(dx: 12, dy: 4)
-    preview?.frame = content
-    caption.frame = CGRect(x: 12, y: content.maxY + 4, width: max(0, bounds.width - 24), height: max(0, bottom - 8))
+    message.frame = mediaFrame.insetBy(dx: 12, dy: 4)
+    preview?.frame = mediaFrame
+    caption.frame = CGRect(x: mediaFrame.minX, y: bodyHeight + FigureStyle.captionGap, width: mediaWidth, height: captionHeight)
   }
   override func didMoveToWindow() {
     super.didMoveToWindow()
@@ -81,6 +97,9 @@ import UIKit
         case "image", "inline-image":
           picture.image = try await Self.image(source)
           try Task.checkCancellation()
+          if let image = picture.image, image.size.height > 0 { loadedAspectRatio = image.size.width / image.size.height }
+          setNeedsLayout()
+          onGeometryChange?()
           picture.accessibilityLabel = payload.label
           picture.isAccessibilityElement = true
           message.isHidden = true
@@ -114,7 +133,9 @@ import UIKit
       }
     }
   }
-  @objc private func open() {
+  @objc private func open(_ gesture: UITapGestureRecognizer) {
+    let point = gesture.location(in: self)
+    if caption.frame.contains(point) { caption.openLink(at: gesture.location(in: caption)); return }
     guard let source = payload.source else { return }
     if payload.type == "video" {
       var responder: UIResponder? = self
@@ -167,8 +188,8 @@ final class MediaAttachment: NSTextAttachment {
     self.payload = payload
     super.init(data: nil, ofType: nil)
     image = UIImage(systemName: "photo")
-    let width = min(240, max(24, payload.width ?? 120))
-    let height = min(240, max(24, payload.height ?? width / payload.aspectRatio))
+    let width = payload.width ?? 120
+    let height = payload.height ?? width / payload.aspectRatio
     bounds = CGRect(x: 0, y: -4, width: width, height: height)
     allowsTextAttachmentView = false
   }
@@ -176,17 +197,28 @@ final class MediaAttachment: NSTextAttachment {
   @MainActor private var loading: Task<Void, Never>?
   @MainActor private var attempted = false
   @MainActor func load(onChange: @escaping @MainActor () -> Void) {
-    guard !attempted, loading == nil, let source = payload.source else { return }
+    guard !attempted, loading == nil else { return }
     attempted = true
     loading = Task {
       defer { loading = nil }
-      do {
-        image = try await MediaView.image(source)
-        onChange()
-      } catch {
-        image = UIImage(systemName: "exclamationmark.triangle")
-        onChange()
-      }
+      let photo: UIImage
+      if let source = payload.source, let loaded = try? await MediaView.image(source) { photo = loaded }
+      else { photo = UIImage(systemName: "exclamationmark.triangle") ?? UIImage() }
+      let caption = MediaCaptionView(payload)
+        let width = bounds.width
+        let captionHeight = caption.fittingHeight(width)
+        if captionHeight > 0 {
+          let bodyHeight = bounds.height
+          let size = CGSize(width: width, height: bodyHeight + FigureStyle.captionGap + captionHeight)
+          image = UIGraphicsImageRenderer(size: size).image { context in
+            photo.draw(in: AVMakeRect(aspectRatio: photo.size, insideRect: CGRect(x: 0, y: 0, width: width, height: bodyHeight)))
+            context.cgContext.translateBy(x: 0, y: bodyHeight + FigureStyle.captionGap)
+            caption.frame = CGRect(x: 0, y: 0, width: width, height: captionHeight)
+            caption.draw(caption.bounds)
+          }
+          bounds.size = size
+        } else { image = photo }
+      onChange()
     }
   }
 }

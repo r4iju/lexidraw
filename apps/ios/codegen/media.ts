@@ -12,3 +12,21 @@ export function swiftForMediaLinks(): string {
     .map(([type, base]) => `  static let ${type} = ${JSON.stringify(base)}`)
     .join("\n")}\n}\n`;
 }
+
+export const MEDIA_STYLE_PATH = new URL(
+  "../Sources/TextKitEditor/MediaStyle.swift",
+  import.meta.url,
+);
+export async function swiftForMediaStyle(): Promise<string> {
+  const css = await Bun.file(
+    new URL("../../lexidraw/src/styles/document.css", import.meta.url),
+  ).text();
+  const image = /\.document-image\s*\{([^}]+)\}/.exec(css)?.[1] ?? "";
+  const viewport = /max-height:\s*([\d.]+)vh/.exec(image)?.[1];
+  const unplaced = /max-height:\s*min\(([\d.]+)svh,\s*([\d.]+)rem\)/.exec(css);
+  const caption = /\.document-caption\s*\{([^}]+)\}/.exec(css)?.[1] ?? "";
+  const captionCh = /max-width:\s*([\d.]+)ch/.exec(caption)?.[1];
+  if (!viewport || !unplaced || !captionCh)
+    throw new Error("Web image/caption geometry changed shape");
+  return `// Generated from web document.css by apps/ios/codegen/media.ts.\nimport Foundation\n\nenum MediaStyle {\n  static let imageViewportShare = ${Number(viewport) / 100}\n  static let unplacedViewportShare = ${Number(unplaced[1]) / 100}\n  static let unplacedMaximumRem = ${unplaced[2]}.0\n  static let captionMaximumCh = ${captionCh}.0\n}\n`;
+}

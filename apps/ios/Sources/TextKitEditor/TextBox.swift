@@ -59,7 +59,12 @@ import UIKit
     contentStorage.performEditingTransaction { storage.setAttributedString(styled) }
     measure()
     storage.enumerateAttribute(.attachment, in: NSRange(location: 0, length: storage.length)) { value, _, _ in
-      (value as? MediaAttachment)?.load { [weak self] in self?.onRedraw?() }
+      (value as? MediaAttachment)?.load { [weak self] in
+        guard let self else { return }
+        let text = NSAttributedString(attributedString: self.storage)
+        self.set(text)
+        self.onRedraw?()
+      }
     }
   }
 

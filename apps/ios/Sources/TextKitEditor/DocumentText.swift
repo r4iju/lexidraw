@@ -106,6 +106,22 @@ public final class DocumentText {
     self.standIn = standIn
   }
 
+  /// Uses the document's own rich-text mapping for a nested media caption.
+  static func caption(_ state: JSONValue, style: @escaping Style) -> NSAttributedString {
+    guard let root = state["root"] else { return NSAttributedString() }
+    var renderer = Renderer(style: style, standIn: nil, blockType: "paragraph")
+    renderer.add(root, at: [])
+    let text = renderer.text
+    text.append(NSAttributedString(string: "\n", attributes: style("paragraph", [])))
+    for line in renderer.lines {
+      let lower = max(0, line.range.lowerBound)
+      let upper = min(text.length, line.range.upperBound)
+      if upper > lower { text.addAttribute(line.key, value: line.value.base, range: NSRange(location: lower, length: upper - lower)) }
+    }
+    if text.length > 0 { text.deleteCharacters(in: NSRange(location: text.length - 1, length: 1)) }
+    return text
+  }
+
   /// The text's length, the newline ending the last block included.
   public var length: Int { starts.last ?? 0 }
 
@@ -509,6 +525,7 @@ public final class DocumentText {
           case "justify": paragraph.alignment = .justified
           case "start": paragraph.alignment = direction == "rtl" ? .right : .left
           case "end": paragraph.alignment = direction == "rtl" ? .left : .right
+
           default: break
           }
           lines.insert(Line(range: start..<(text.length + 1), key: .paragraphStyle, value: paragraph), at: lineCount)

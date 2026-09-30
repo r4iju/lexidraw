@@ -12,6 +12,15 @@ import Testing
     ["type": "figma", "version": 1, "documentID": "abc123"],
   ]
 
+  @Test func anUnportedCaptionStyleDoesNotSilentlyEnableEditing() throws {
+    let caption: JSONValue = ["root": ["type": "root", "version": 1, "children": [["type": "paragraph", "version": 1, "children": [["type": "text", "version": 1, "text": "styled", "format": 0, "style": "text-shadow: 2px 2px red;"]]]]]]
+    let image: JSONValue = ["type": "image", "version": 1, "src": "https://example.com/a.png", "showCaption": true, "caption": ["editorState": caption]]
+    let editor = Editor()
+    try editor.load(document(paragraph(text("before")), image))
+    #expect(!editor.isEditable)
+    #expect(throws: EditorError.self) { try editor.apply(caret([0, 0], 0)) }
+  }
+
   @Test(arguments: nodes)
   func mediaRoundTripsAndAllowsSurroundingEdits(_ node: JSONValue) throws {
     let start = document(paragraph(text("before")), node, paragraph(text("after")))

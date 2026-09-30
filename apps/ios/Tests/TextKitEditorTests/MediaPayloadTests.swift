@@ -12,7 +12,7 @@ import Testing
     #expect(media?.label == "Chart")
   }
   @Test func captionEditorTextSurvives() {
-    let node: JSONValue = ["type": "video", "src": "https://example.com/a.mp4", "showCaption": true, "caption": ["root": ["children": [["type": "paragraph", "children": [["type": "text", "text": "Caption"], ["type": "linebreak"], ["type": "text", "text": "next"]]]]]]]
+    let node: JSONValue = ["type": "video", "src": "https://example.com/a.mp4", "showCaption": true, "captionsEnabled": true, "caption": ["root": ["type": "root", "children": [["type": "paragraph", "children": [["type": "text", "text": "Caption"], ["type": "linebreak"], ["type": "text", "text": "next"]]]]]]]
     #expect(MediaPayload(node)?.caption == "Caption\nnext")
   }
   @Test func embeddedRasterDataIsRenderable() {

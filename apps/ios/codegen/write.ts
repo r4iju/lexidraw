@@ -114,3 +114,5 @@ const { FIGURE_STYLE_PATH, swiftForFigureStyle } = await import(
   "./embedded-drawing"
 );
 await Bun.write(FIGURE_STYLE_PATH, await swiftForFigureStyle());
+const { MEDIA_STYLE_PATH, swiftForMediaStyle } = await import("./media");
+await Bun.write(MEDIA_STYLE_PATH, await swiftForMediaStyle());

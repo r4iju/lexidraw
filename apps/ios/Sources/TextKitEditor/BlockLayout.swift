@@ -270,6 +270,21 @@ import UIKit
         } else { EmbedBlock(type: type, payload: document.payload(ofBlock: index), width: width) }
       }
     laidOut[index] = block
+    (block as? TextBlock)?.onGeometryChange = { [weak self, weak blockView = block.view] in
+      guard let self, let blockView, let current = self.laidOut[index], current.view === blockView else { return }
+      self.measure(index, current)
+      if let scrollView = self.scrollView { self.layoutViewport(of: scrollView) }
+    }
+    (block as? TableBlock)?.onGeometryChange = { [weak self, weak blockView = block.view] in
+      guard let self, let blockView, let current = self.laidOut[index], current.view === blockView else { return }
+      self.measure(index, current)
+      if let scrollView = self.scrollView { self.layoutViewport(of: scrollView) }
+    }
+    (block as? EmbedBlock)?.onGeometryChange = { [weak self, weak blockView = block.view] in
+      guard let self, let blockView, let current = self.laidOut[index], current.view === blockView else { return }
+      self.measure(index, current)
+      if let scrollView = self.scrollView { self.layoutViewport(of: scrollView) }
+    }
     showTableSelection(in: block, at: index)
     showRuleSelection(in: block, at: index)
     showSelectedCharacters(in: block, at: index)
@@ -315,7 +330,7 @@ import UIKit
       if block.view.frame != frame { block.view.frame = frame }
       if block.view.superview !== surface {
         // Touches go to the surface, whose text interaction places the caret.
-        block.view.isUserInteractionEnabled = block is ContentBlock
+        block.view.isUserInteractionEnabled = block is ContentBlock || block is EmbedBlock
         surface.insertSubview(block.view, at: 0)
       }
     }
@@ -529,6 +544,7 @@ extension LaidOutBlock {
 private final class TextBlock: LaidOutBlock {
   private let box: TextBox
   private let drawing = BoxView()
+  var onGeometryChange: (() -> Void)?
   private let selectedOutline: DocumentTypography.Outline
   private var outlines: [OutlineView] = []
 
@@ -536,7 +552,7 @@ private final class TextBlock: LaidOutBlock {
     box = TextBox(text, width: width)
     self.selectedOutline = selectedOutline
     drawing.box = box
-    box.onRedraw = { [weak drawing] in drawing?.setNeedsDisplay() }
+    box.onRedraw = { [weak self] in self?.drawing.setNeedsDisplay(); self?.onGeometryChange?() }
     drawing.border = Self.border(text)
   }
 
@@ -615,6 +631,7 @@ private final class TableBlock: LaidOutBlock {
   private(set) var kind: DocumentText.BlockKind
   private let table: TableView
   private let holder: TableHolder
+  var onGeometryChange: (() -> Void)? { didSet { table.onGeometryChange = onGeometryChange } }
 
   init(
     text: NSAttributedString, kind: DocumentText.BlockKind, width: CGFloat, style: DocumentTypography.Table,
@@ -788,13 +805,19 @@ private final class EmbedBlock: LaidOutBlock {
   private let placeholder: UIView
   private let media: MediaPayload?
   private let type: String
+  var onGeometryChange: (() -> Void)?
 
   init(type: String, payload: JSONValue?, width: CGFloat) {
     self.type = type
     media = payload.flatMap(MediaPayload.init)
     placeholder = media.map { MediaView($0) } ?? PlaceholderView(type: type)
     container.addSubview(placeholder)
-    placeholder.frame = CGRect(x: 0, y: 0, width: width, height: media.map { MediaView.height($0, width: width) } ?? PlaceholderView.height)
+    (placeholder as? MediaView)?.onGeometryChange = { [weak self] in
+      guard let self, let mediaView = self.placeholder as? MediaView else { return }
+      self.placeholder.frame.size.height = mediaView.fittingHeight(self.placeholder.frame.width)
+      self.onGeometryChange?()
+    }
+    placeholder.frame = CGRect(x: 0, y: 0, width: width, height: (placeholder as? MediaView)?.fittingHeight(width) ?? PlaceholderView.height)
   }
 
   var view: UIView { container }
@@ -803,7 +826,7 @@ private final class EmbedBlock: LaidOutBlock {
   func canShow(_ kind: DocumentText.BlockKind) -> Bool { media == nil && kind == self.kind }
 
   func set(text: NSAttributedString, kind: DocumentText.BlockKind, width: CGFloat) {
-    placeholder.frame = CGRect(x: 0, y: 0, width: width, height: media.map { MediaView.height($0, width: width) } ?? PlaceholderView.height)
+    placeholder.frame = CGRect(x: 0, y: 0, width: width, height: (placeholder as? MediaView)?.fittingHeight(width) ?? PlaceholderView.height)
   }
 
   func redraw() {}

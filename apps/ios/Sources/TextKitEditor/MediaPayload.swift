@@ -7,6 +7,9 @@ struct MediaPayload: Sendable {
   let source: URL?
   let label: String
   let caption: String
+  let captionState: JSONValue?
+  let captionRefusal: String?
+  let figurePlacement: String?
   let aspectRatio: Double
   let width: Double?
   let height: Double?
@@ -34,13 +37,37 @@ struct MediaPayload: Sendable {
     width = Self.dimension(node["width"])
     height = Self.dimension(node["height"])
     maxWidth = Self.dimension(node["maxWidth"])
+    figurePlacement = node["$"]?["figure"]?["width"]?.stringValue.flatMap { width in
+      if ["wide", "full"].contains(width) { return width }
+      if width.hasSuffix("%"), (1...3).contains(width.dropLast().count), width.dropLast().allSatisfy({ $0.isASCII && $0.isNumber }), let number = Int(width.dropLast()), (10..<100).contains(number) { return "\(number)%" }
+      return nil
+    }
     let natural = node["$"]?["natural"]
-    let w = width ?? Self.dimension(natural?["width"])
-    let h = height ?? Self.dimension(natural?["height"])
-    aspectRatio = max(0.1, min(10, w.flatMap { w in h.map { w / $0 } } ?? (type == "image" ? 4.0 / 3.0 : 16.0 / 9.0)))
-    if node["showCaption"] == true {
-      caption = Self.text(node["caption"]?["root"])
-    } else { caption = node["$"]?["figure"]?["caption"]?.stringValue ?? "" }
+    let w = Self.dimension(natural?["width"]) ?? width
+    let h = Self.dimension(natural?["height"]) ?? height
+    aspectRatio = w.flatMap { w in h.map { w / $0 } } ?? 16.0 / 9.0
+    if node["showCaption"] == true && (!["inline-image", "video"].contains(type) || node["captionsEnabled"] == true) {
+      captionState = node["caption"]?["editorState"] ?? node["caption"]
+      captionRefusal = MediaCaptionSupport.refusal(in: captionState)
+      caption = captionRefusal ?? Self.text(captionState?["root"])
+    } else {
+      captionState = nil
+      captionRefusal = nil
+      caption = node["$"]?["figure"]?["caption"]?.stringValue ?? ""
+    }
+  }
+
+  func figureWidth(fitting available: Double, em: Double) -> Double {
+    let column = min(available, FigureStyle.columnRem * em)
+    switch figurePlacement {
+    case "wide": return min(available, FigureStyle.wideRem * em)
+    case "full": return available
+    case .some(let share):
+      let percent = Double(share.dropLast()) ?? 100
+      let least = available <= FigureStyle.phoneWidth ? available : min(available, FigureStyle.minimumShareRem * em)
+      return min(available, max(column * percent / 100, least))
+    case nil: return column
+    }
   }
 
   private static func dimension(_ value: JSONValue?) -> Double? {

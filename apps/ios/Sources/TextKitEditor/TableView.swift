@@ -101,6 +101,7 @@ import UIKit
   var overlay: UIView { scrollingFrame }
 
   var height: CGFloat { tableSize.height }
+  var onGeometryChange: (() -> Void)?
 
   private final class Preparation {
     let placed: Placement
@@ -183,7 +184,11 @@ import UIKit
       let at = preparation.indices[preparation.cursor]
       let content = preparation.placed.width(row: at.row, index: at.index, preparation.columns!) - 2 * paddingX - endBorder(at.row, at.index)
       let box = TextBox(styled(cells[at.row][at.index], alignedRight: preparation.alignment.contains(at.index)), width: max(content, 1))
-      box.onRedraw = { [weak self] in self?.redraw() }
+      box.onRedraw = { [weak self] in
+        guard let self else { return }
+        self.finishGeometry(preparation)
+        self.onGeometryChange?()
+      }
       boxes[at.row].append(box)
       preparation.cursor += 1
       return false
