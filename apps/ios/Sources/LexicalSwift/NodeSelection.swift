@@ -374,8 +374,16 @@ extension Update {
       if first.type == .text, first.key == key { startPoint = first }
       if last.type == .text, last.key == key { endPoint = last }
     }
-    try setText(key, String(decoding: parts[0], as: UTF16.self))
-    var nodes = [key]
+    let sourceDetail = state[key].payload.textFields?.detail
+    let first: NodeKey
+    if state[key].textMode == .segmented {
+      first = createText(String(decoding: parts[0], as: UTF16.self), format: format(of: key), style: style(of: key))
+      modifyText(first) { $0.detail = sourceDetail }
+    } else {
+      try setText(key, String(decoding: parts[0], as: UTF16.self))
+      first = key
+    }
+    var nodes = [first]
     for part in parts.dropFirst() {
       guard let fields = state[key].payload.textFields else { break }
       var payload = try SerializedTextNode(json: .object(["type": .string("text"), "version": .number(1)]))

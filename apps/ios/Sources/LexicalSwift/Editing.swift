@@ -357,7 +357,12 @@ extension Update {
         let indices = slice.indices
         units.removeSubrange(indices)
         try setText(origin, String(decoding: units, as: UTF16.self))
-        let next = Caret.text(origin, slice.direction, offset: indices.lowerBound)
+        var next = Caret.text(origin, slice.direction, offset: indices.lowerBound)
+        if state[origin].textMode == .segmented {
+          let replacement = createText(state[origin].text, format: format(of: origin), style: style(of: origin))
+          try replace(origin, with: replacement)
+          next = Caret.text(replacement, slice.direction, offset: indices.lowerBound)
+        }
         if origin == anchorCandidates[0].origin { anchorCandidates[0] = next }
         if origin == focusCandidates[0].origin { focusCandidates[0] = state.flipped(next) }
       }
@@ -488,6 +493,14 @@ extension Update {
         && (!state[anchor].canInsertTextAfter
           || (!state[parent].canInsertTextAfter && state.nextSibling(of: anchor) == nil)))
     if needsRedirect {
+      if state[anchor].textMode == .segmented, offset != 0, offset != size {
+        let replacement = createText(state[anchor].text, format: format, style: style)
+        try replace(anchor, with: replacement)
+        selection.setTextNodeRange(replacement, offset, replacement, offset)
+        setSelection(selection)
+        try insertText(selection, text)
+        return
+      }
       if isTokenOrSegmented(anchor), offset != 0, offset != size {
         let replacement = createText(text, format: format, style: style)
         try replace(anchor, with: replacement)

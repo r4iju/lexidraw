@@ -28,6 +28,15 @@ public struct JSRegExp: Sendable {
     return Int(Self.functions.withLock { $0.forProperty("count").call(withArguments: [source, flags, text]).toInt32() })
   }
 
+  /// JavaScript String.split, including its zero-width boundary handling.
+  public func split(_ text: String) -> [String] {
+    Self.functions.withLock { $0.forProperty("split").call(withArguments: [source, flags, text]).toArray() as? [String] ?? [] }
+  }
+
+  public func replacingMatches(in text: String, with replacement: String) -> String {
+    Self.functions.withLock { $0.forProperty("replace").call(withArguments: [source, flags, text, replacement]).toString() }
+  }
+
   private static let functions = Mutex(
     JSContext().evaluateScript(
       """
@@ -42,6 +51,8 @@ public struct JSRegExp: Sendable {
           const match = text.match(compile(source, flags));
           return match && [match.index, ...Array.from(match, (group) => group ?? null)];
         },
+        split: (source, flags, text) => text.split(compile(source, flags)),
+        replace: (source, flags, text, replacement) => text.replace(compile(source, flags), replacement),
         count: (source, flags, text) => text.match(compile(source, flags))?.length ?? 0,
       })
       """

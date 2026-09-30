@@ -3,6 +3,8 @@ import {
   EMOJI_ALIASES_PATH,
   POLL_STYLE_PATH,
   swiftForEmojiAliases,
+  SOCIAL_STYLE_PATH,
+  swiftForSocialStyle,
   swiftForPollStyle,
 } from "./social";
 
@@ -19,4 +21,10 @@ test("native poll width follows the actual web card", async () => {
   expect(generated.includes("static let emptyOptionJSON =")).toBe(true);
   expect(generated.includes("static let insertionNodeJSON =")).toBe(true);
   expect(await Bun.file(POLL_STYLE_PATH).text()).toBe(generated);
+});
+
+test("native mention styling follows the effective node DOM style", async () => {
+  expect(await Bun.file(SOCIAL_STYLE_PATH).text()).toBe(
+    await swiftForSocialStyle(),
+  );
 });

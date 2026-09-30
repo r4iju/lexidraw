@@ -581,7 +581,7 @@ table, producing ordinary Unicode text. Unknown aliases retain their text;
 the shared markdown pipeline still splits it and moves selection like Lexical.
 Imported table cells apply the same shortcode replacement, including its reset
 of text formatting. The fuzzer generates known and unknown shortcodes and stored
-normal-mode hashtag and keyword nodes, and stored emoji tokens.
+normal-mode hashtag and keyword nodes, stored emoji tokens, and segmented mentions.
 
 The main `document-editor.tsx` mounts `EmojiPickerPlugin` and markdown shortcuts,
 but does not mount `MentionsPlugin`, `KeywordsPlugin`, `EmojisPlugin`, or
@@ -606,6 +606,16 @@ inside a token replaces it, boundary typing redirects beside it, partial deletio
 removes the whole token, and partial formatting preserves the token. The caption
 renderer accepts hashtag, keyword, and emoji text leaves with supported styles.
 
-This checkpoint does not complete #134. Comments, threads, mentions, stored
-non-normal keyword payloads, footnotes, and articles retain their explicit unported
-editing gate until their native behavior is implemented.
+Stored mentions support segmented typing/deletion and plain-text splitting,
+preserving their mention name until Lexical converts them to ordinary text.
+Their initial DOM background override is generated from `MentionNode.createDOM`.
+The headless reference now includes Lexical's private `$removeSegment` helper;
+native splitting and trimming use JavaScript whitespace and UTF-16 offsets.
+Inherited transient DOM CSS updates are still a presentation gap: the native
+renderer currently follows the node's persisted initial style.
+
+This checkpoint does not complete #134. Comments, threads, non-normal keyword
+payloads, footnotes, and articles retain their explicit unported editing gate.
+Caption/slide hashtag transforms and mention transient CSS still need work.
+Stored social text generation opts in via `socialTextSubclasses`, preserving
+fault-injection seeds; the full differential run enables it.

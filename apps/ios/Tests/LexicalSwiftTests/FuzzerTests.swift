@@ -124,9 +124,7 @@ import Testing
     let candidate = NotesIndentsAtTheCap()
     var fuzzer = Fuzzer(seed: 1, reference: try Support.referenceEditor(), candidate: candidate)
 
-    // The generator now also visits stored social text subclasses; allow
-    // enough commands to reach a six-deep list while preserving this check.
-    #expect(try fuzzer.run(steps: 6_000)?.fixture == nil)
+    #expect(try fuzzer.run(steps: 3_000)?.fixture == nil)
     #expect(candidate.indentsAtTheCap > 0)
   }
 
@@ -452,7 +450,7 @@ import Testing
   @Test func lexicalSwiftMatchesTheReference() throws {
     let steps = Support.environment("FUZZ_STEPS").flatMap(Int.init) ?? 2_000
     let seed = Support.environment("FUZZ_SEED").flatMap(UInt64.init) ?? UInt64.random(in: 0...UInt64.max)
-    var fuzzer = Fuzzer(seed: seed, reference: try Support.referenceEditor(), candidate: Editor(), writingDirections: true)
+    var fuzzer = Fuzzer(seed: seed, reference: try Support.referenceEditor(), candidate: Editor(), writingDirections: true, socialTextSubclasses: true)
 
     let finding: Fuzzer.Finding?
     do {

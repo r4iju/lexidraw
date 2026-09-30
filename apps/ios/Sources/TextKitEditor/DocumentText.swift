@@ -551,7 +551,7 @@ public final class DocumentText {
         append("\u{2028}", format: [])
         kind = .character
       } else if let string = node["text"]?.stringValue {
-        append(string, format: TextFormat(rawValue: node["format"]?.intValue ?? 0), css: node["style"]?.stringValue ?? "")
+        append(string, format: TextFormat(rawValue: node["format"]?.intValue ?? 0), css: node["type"] == "mention" ? WebSocialStyle.mentionCSS : node["style"]?.stringValue ?? "")
         kind = .text
       } else {
         append("\u{FFFC}", format: [])

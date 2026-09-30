@@ -57,6 +57,33 @@ import Testing
     #expect(try fixture.replay(on: native) == fixture.recorded)
   }
 
+  @Test func storedMentionsMatchSegmentedTypingAndDeletion() throws {
+    var fields = try #require(text("Native Reader").objectValue)
+    fields["type"] = "mention"; fields["mode"] = "segmented"; fields["detail"] = 1
+    fields["mentionName"] = "Native Reader"
+    let start = document(paragraph(.object(fields)))
+    let native = Editor(); try native.load(start)
+    #expect(native.isEditable)
+    let commands: [EditorCommand] = [.caret(.text([0, 0], 3)), .insertText("x"), .undo,
+      .caret(.text([0, 0], 3)), .deleteCharacter(backward: true), .undo,
+      .setSelection(anchor: .text([0, 0], 1), focus: .text([0, 0], 4)), .deleteCharacter(backward: true)]
+    let fixture = try Fixture.record(start: start, commands: commands, on: Support.referenceEditor())
+    let outcome = try fixture.replay(on: native)
+    #expect(outcome == fixture.recorded)
+  }
+
+  @Test func splittingAStoredMentionMatchesTheWeb() throws {
+    var fields = try #require(text("Native Reader").objectValue)
+    fields["type"] = "mention"; fields["mode"] = "segmented"; fields["detail"] = 1; fields["mentionName"] = "Native Reader"
+    let start = document(paragraph(.object(fields)))
+    let fixture = try Fixture.record(start: start, commands: [.caret(.text([0, 0], 3)), .insertParagraph], on: Support.referenceEditor())
+    let native = Editor()
+    let outcome = try fixture.replay(on: native)
+    #expect(outcome == fixture.recorded)
+    try native.load(outcome.snapshot.state)
+    #expect(native.isEditable)
+  }
+
   @Test func splittingAStoredHashtagWithEnterMatchesTheWeb() throws {
     var fields = try #require(text("#native").objectValue)
     fields["type"] = "hashtag"

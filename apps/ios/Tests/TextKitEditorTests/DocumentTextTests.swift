@@ -16,6 +16,26 @@ import TextKitEditor
     [.lexicalFormat: format.rawValue]
   }
 
+  @Test func mentionDOMStyleOverridesStoredInlineColors() throws {
+    let model = Editor()
+    let mention: JSONValue = ["type": "mention", "version": 1, "text": "Reader", "mentionName": "Reader", "mode": "segmented", "detail": 1, "format": 0, "style": "color: red; background-color: red;"]
+    try model.load(LexicalJSON.document([LexicalJSON.paragraph([mention])]))
+    let storage = NSMutableAttributedString()
+    try DocumentText(model: model, style: Self.style).reload(storage)
+    #expect(storage.string == "Reader\n")
+    #expect(storage.attribute(.foregroundColor, at: 0, effectiveRange: nil) == nil)
+    #if canImport(UIKit)
+    let color = try #require(storage.attribute(.backgroundColor, at: 0, effectiveRange: nil) as? UIColor)
+    var red: CGFloat = 0; var green: CGFloat = 0; var blue: CGFloat = 0; var alpha: CGFloat = 0
+    color.getRed(&red, green: &green, blue: &blue, alpha: &alpha)
+    #else
+    let color = try #require(storage.attribute(.backgroundColor, at: 0, effectiveRange: nil) as? NSColor)
+    let red = color.redComponent; let green = color.greenComponent; let blue = color.blueComponent; let alpha = color.alphaComponent
+    #endif
+    #expect(abs(red - 24.0 / 255) < 0.001 && abs(green - 119.0 / 255) < 0.001)
+    #expect(abs(blue - 232.0 / 255) < 0.001 && abs(alpha - 0.2) < 0.001)
+  }
+
   @Test func textAndHighlightColorsReachNativeRuns() throws {
     let model = Editor()
     try model.load(LexicalJSON.document([LexicalJSON.paragraph([

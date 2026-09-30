@@ -283,28 +283,18 @@ extension SerializedTextNode: TextPayload {}
 extension SerializedCodeHighlightNode: TextPayload {}
 extension SerializedTabNode: TextPayload {}
 extension SerializedHashtagNode: TextPayload {}
-struct KeywordTextPayload: TextPayload {
-  var node: SerializedKeywordNode
-  var text: String? {
-    get { node.text?.stringValue }
-    set { node.text = newValue.map(JSONValue.string) }
-  }
-  var detail: Double? {
-    get { node.detail?.numberValue }
-    set { node.detail = newValue.map(JSONValue.number) }
-  }
-  var format: Double? {
-    get { node.format?.numberValue }
-    set { node.format = newValue.map(JSONValue.number) }
-  }
-  var style: String? {
-    get { node.style?.stringValue }
-    set { node.style = newValue.map(JSONValue.string) }
-  }
+protocol StoredTextFields: NodePayload {
+  var text: JSONValue? { get set }
+  var detail: JSONValue? { get set }
+  var format: JSONValue? { get set }
+  var style: JSONValue? { get set }
 }
+extension SerializedKeywordNode: StoredTextFields {}
+extension SerializedEmojiNode: StoredTextFields {}
+extension SerializedMentionNode: StoredTextFields {}
 
-struct EmojiTextPayload: TextPayload {
-  var node: SerializedEmojiNode
+struct StoredTextPayload<Payload: StoredTextFields>: TextPayload {
+  var node: Payload
   var text: String? {
     get { node.text?.stringValue }
     set { node.text = newValue.map(JSONValue.string) }
@@ -332,8 +322,9 @@ extension SerializedNode {
       case .codeHighlight(let node): node
       case .tab(let node): node
       case .hashtag(let node): node
-      case .keyword(let node): KeywordTextPayload(node: node)
-      case .emoji(let node): EmojiTextPayload(node: node)
+      case .keyword(let node): StoredTextPayload(node: node)
+      case .emoji(let node): StoredTextPayload(node: node)
+      case .mention(let node): StoredTextPayload(node: node)
       default: nil
       }
     }
@@ -343,8 +334,9 @@ extension SerializedNode {
       case let node as SerializedCodeHighlightNode: self = .codeHighlight(node)
       case let node as SerializedTabNode: self = .tab(node)
       case let node as SerializedHashtagNode: self = .hashtag(node)
-      case let fields as KeywordTextPayload: self = .keyword(fields.node)
-      case let fields as EmojiTextPayload: self = .emoji(fields.node)
+      case let fields as StoredTextPayload<SerializedKeywordNode>: self = .keyword(fields.node)
+      case let fields as StoredTextPayload<SerializedEmojiNode>: self = .emoji(fields.node)
+      case let fields as StoredTextPayload<SerializedMentionNode>: self = .mention(fields.node)
       default: break
       }
     }

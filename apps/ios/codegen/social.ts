@@ -79,3 +79,24 @@ export function swiftForEmojiAliases(): string {
   }
   return `// Generated from the web emoji list by apps/ios/codegen/social.ts.\n\nenum WebEmojiAliases {\n  static let values: [String: String] = [\n${[...aliases].map(([alias, emoji]) => `    ${swiftString(alias)}: ${swiftString(emoji)},`).join("\n")}\n  ]\n}\n`;
 }
+
+export const SOCIAL_STYLE_PATH = new URL(
+  "../Sources/TextKitEditor/WebSocialStyle.swift",
+  import.meta.url,
+);
+export async function swiftForSocialStyle(): Promise<string> {
+  const source = await Bun.file(
+    new URL(
+      "../../../packages/lexical-nodes/src/nodes/MentionNode.ts",
+      import.meta.url,
+    ),
+  ).text();
+  const styles = [...source.matchAll(/const mentionStyle = "([^"]+)";/g)];
+  if (
+    styles.length !== 1 ||
+    !styles[0]?.[1] ||
+    !source.includes("dom.style.cssText = mentionStyle;")
+  )
+    throw new Error("Unknown mention DOM style shape");
+  return `// Generated from web MentionNode.createDOM by apps/ios/codegen/social.ts.\n\nenum WebSocialStyle {\n  static let mentionCSS = ${swiftString(styles[0][1])}\n}\n`;
+}

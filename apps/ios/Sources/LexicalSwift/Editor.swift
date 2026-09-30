@@ -298,13 +298,16 @@ extension Node {
     case .equation(let node): node.unknownFields.isEmpty && (node.equation == nil || node.equation?.stringValue != nil) && (node.inline == nil || node.inline?.boolValue != nil)
     case .chart(let node): node.unknownFields.isEmpty && (node.chartType == nil || RenderedEmbedStyle.chartTypes.contains(node.chartType?.stringValue ?? "")) && (node.chartData == nil || node.chartData?.stringValue != nil) && (node.chartConfig == nil || node.chartConfig?.stringValue != nil)
     case .excalidraw(let node): node.unknownFields.isEmpty && (node.data == nil || node.data?.stringValue != nil)
-    case .text(let node): node.unknownFields.isEmpty && node.mode == .normal && (node.detail ?? 0) == 0
+    case .text(let node): node.unknownFields.isEmpty && node.mode == .normal && [0, 1].contains(node.detail ?? 0)
     case .hashtag(let node): node.unknownFields.isEmpty && node.mode == .normal && (node.detail ?? 0) == 0
     case .keyword(let node): node.unknownFields.isEmpty && node.mode == .normal && node.detail?.numberValue == 0
       && node.text?.stringValue != nil && node.style?.stringValue != nil && node.format?.numberValue != nil
     case .emoji(let node): node.unknownFields.isEmpty && (node.mode == .normal || node.mode == .token)
       && node.detail?.numberValue == 0 && node.text?.stringValue != nil && node.style?.stringValue != nil
       && node.format?.numberValue != nil && node.className?.stringValue != nil
+    case .mention(let node): node.unknownFields.isEmpty && (node.mode == .normal || node.mode == .segmented)
+      && [0, 1].contains(node.detail?.numberValue) && node.text?.stringValue != nil && node.style?.stringValue != nil
+      && node.format?.numberValue != nil && node.mentionName?.stringValue != nil
     case .poll(let node): Self.supportsPoll(node)
     case .tab(let node): node.unknownFields.isEmpty && node.detail == Double(TextDetail.unmergeable.rawValue)
     default: false

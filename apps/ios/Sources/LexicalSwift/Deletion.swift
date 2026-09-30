@@ -106,6 +106,19 @@ extension Update {
       }
       try extendForDeletion(selection, backward: isBackward, .character)
       if !selection.isCollapsed {
+        let focus = selection.focus
+        let anchor = selection.anchor
+        if focus.type == .text, state[focus.key].textMode == .segmented {
+          if focus.key == anchor.key || (isBackward && focus.offset != state.textSize(of: focus.key)) || (!isBackward && focus.offset != 0) {
+            try removeSegment(focus.key, backward: isBackward, offset: focus.offset)
+            return
+          }
+        } else if anchor.type == .text, state[anchor.key].textMode == .segmented {
+          if anchor.key == focus.key || (isBackward && anchor.offset != 0) || (!isBackward && anchor.offset != state.textSize(of: anchor.key)) {
+            try removeSegment(anchor.key, backward: isBackward, offset: anchor.offset)
+            return
+          }
+        }
         updateSelectionForUnicodeCharacter(selection, backward: isBackward)
       } else if isBackward, anchor.offset == 0, try collapseAtStart(selection, from: anchor.key) {
         return
@@ -124,6 +137,26 @@ extension Update {
       }
       try ensureRootHasParagraph()
     }
+  }
+
+  /// Lexical's `$removeSegment`, with JavaScript whitespace and UTF-16 lengths.
+  private mutating func removeSegment(_ node: NodeKey, backward: Bool, offset: Int) throws {
+    var split = JSRegExp(#"(?=\s)"#, flags: "g").split(state[node].text)
+    var segmentOffset = 0
+    var restoreOffset: Int? = 0
+    for index in split.indices {
+      let last = index == split.count - 1
+      restoreOffset = segmentOffset
+      segmentOffset += split[index].utf16.count
+      if (backward && segmentOffset == offset) || segmentOffset > offset || last {
+        split.remove(at: index)
+        if last { restoreOffset = nil }
+        break
+      }
+    }
+    let content = JSRegExp(#"^\s+|\s+$"#, flags: "g").replacingMatches(in: split.joined(), with: "")
+    if content.isEmpty { try remove(node) }
+    else { try setText(node, content); selectText(node, restoreOffset, restoreOffset) }
   }
 
   mutating func deleteWord(_ selection: RangeSelection, backward isBackward: Bool) throws {
