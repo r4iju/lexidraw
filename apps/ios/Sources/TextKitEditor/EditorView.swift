@@ -867,7 +867,13 @@ public final class EditorView: UIScrollView, UITextInput {
     return (
       UIMenu(title: "Block type", children: choices.filter { action in
         !webBlockChoices.contains { $0.label == action.title && EditorCommand.ListType(rawValue: $0.type) != nil }
-      }),
+      } + [UIMenu(title: "Alignment", children: EditorCommand.ElementAlignment.allCases.map { alignment in
+        UIAction(title: alignment.rawValue.capitalized) { [weak self] _ in
+          guard let self else { return }
+          unmarkText()
+          _ = perform(.formatElement(alignment), fromInput: false, tellsRefusal: true)
+        }
+      })]),
       UIMenu(title: "Lists", children: choices.filter { action in
         webBlockChoices.contains { $0.label == action.title && EditorCommand.ListType(rawValue: $0.type) != nil }
       }),
@@ -898,7 +904,11 @@ public final class EditorView: UIScrollView, UITextInput {
     case .superscript: formatText(.superscript)
     case .insertCodeBlock: formatText(.code)
     case .insertLink: linkFromKeyboard()
-    case .formatCode, .centerAlign, .leftAlign, .rightAlign, .justifyAlign, .increaseFontSize, .decreaseFontSize, .clearFormatting:
+    case .centerAlign: _ = perform(.formatElement(.center), fromInput: false, tellsRefusal: true)
+    case .leftAlign: _ = perform(.formatElement(.left), fromInput: false, tellsRefusal: true)
+    case .rightAlign: _ = perform(.formatElement(.right), fromInput: false, tellsRefusal: true)
+    case .justifyAlign: _ = perform(.formatElement(.justify), fromInput: false, tellsRefusal: true)
+    case .formatCode, .increaseFontSize, .decreaseFontSize, .clearFormatting:
       preconditionFailure("A shortcut offered before its #135/#132 command is ported")
     }
   }
@@ -1410,7 +1420,8 @@ extension EditorCommand {
 extension WebShortcutAction {
   fileprivate var isImplemented: Bool {
     switch self {
-    case .formatCode, .centerAlign, .leftAlign, .rightAlign, .justifyAlign, .increaseFontSize, .decreaseFontSize, .clearFormatting: false
+    case .formatCode, .increaseFontSize, .decreaseFontSize, .clearFormatting: false
+    case .centerAlign, .leftAlign, .rightAlign, .justifyAlign: true
     case .formatParagraph, .formatHeading, .formatBulletList, .formatNumberedList, .formatCheckList, .formatQuote,
       .lowercase, .uppercase, .capitalize, .strikeThrough, .indent, .outdent, .subscript, .superscript,
       .insertCodeBlock, .insertLink: true

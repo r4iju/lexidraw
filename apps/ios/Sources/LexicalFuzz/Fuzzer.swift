@@ -621,7 +621,8 @@ struct Generator {
     case ..<32: return .insertParagraph
     case ..<35: return .insertLineBreak
     case ..<39: return .formatText(TextFormatType.allCases.randomElement(using: &random)!)
-    case ..<41: return .setBlockType(BlockType.allCases.randomElement(using: &random)!)
+    case ..<40: return .setBlockType(BlockType.allCases.randomElement(using: &random)!)
+    case ..<41: return .formatElement(EditorCommand.ElementAlignment.allCases.randomElement(using: &random)!)
     case ..<42: return .selectAll
     case ..<44: return .wait(milliseconds: [500, 1000, 2000].randomElement(using: &random)!)
     case ..<47: return .insertList(EditorCommand.ListType.allCases.randomElement(using: &random)!)

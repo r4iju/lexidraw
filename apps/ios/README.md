@@ -276,7 +276,7 @@ hand:
   block/list menus. Its block choices and hardware shortcut bindings are
   generated from the web controls. Heading 4 is offered in the block menu;
   headings 5 and 6 remain available through Markdown, as on the web.
-  #135 still owns alignment, font-size and clear-formatting shortcuts, and
+  #135 still owns font-size and clear-formatting shortcuts, and
   #132 owns the code-block command. Insert actions from media/drawing owners
   join the native table menu through `EditorView.insertionActions`.
 - A tap on a checklist item's box, or just past it, checks or unchecks the

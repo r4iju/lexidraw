@@ -31,6 +31,7 @@ import {
   TableObserver,
   type TableSelection,
 } from "@lexical/table";
+import type { ElementFormatType } from "lexical";
 import { $dfs, mergeRegister } from "@lexical/utils";
 import { DOCUMENT_TABLE_PLUGIN } from "@packages/lexical-nodes/tables";
 import {
@@ -252,6 +253,45 @@ export function $clearHighlight(): void {
 }
 
 /** Each table's FORMAT_TEXT_COMMAND handler over a table selection. */
+/** FORMAT_ELEMENT_COMMAND in applyTableHandlers, without the DOM observer. */
+export function $formatCellElements(
+  selection: TableSelection,
+  format: ElementFormatType,
+): void {
+  const table = $getNodeByKey(selection.tableKey);
+  const anchor = selection.anchor.getNode();
+  const focus = selection.focus.getNode();
+  if (
+    !$isTableNode(table) ||
+    !$isTableCellNode(anchor) ||
+    !$isTableCellNode(focus)
+  )
+    return;
+  const [map, a, f] = $computeTableMap(table, anchor, focus);
+  const rect = $computeTableCellRectBoundary(map, a, f);
+  if (
+    rect.minRow === 0 &&
+    rect.minColumn === 0 &&
+    rect.maxRow === map.length - 1 &&
+    rect.maxColumn === map[0]!.length - 1
+  ) {
+    table.setFormat(format);
+    return;
+  }
+  const visited = new Set<TableCellNode>();
+  for (let row = rect.minRow; row <= rect.maxRow; row++) {
+    for (let column = rect.minColumn; column <= rect.maxColumn; column++) {
+      const cell = map[row]![column]!.cell;
+      if (visited.has(cell)) continue;
+      visited.add(cell);
+      cell.setFormat(format);
+      for (const child of cell.getChildren()) {
+        if ($isElementNode(child) && !child.isInline()) child.setFormat(format);
+      }
+    }
+  }
+}
+
 export function $formatCells(
   selection: TableSelection,
   type: TextFormatType,
