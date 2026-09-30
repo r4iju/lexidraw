@@ -42,7 +42,7 @@ extension Update {
     if state.isCollapsed(try state.caretRange(from: selection)) {
       for block in try blocks(in: selection) {
         let code = create(SerializedDocumentCodeNode.type)
-        copyBlockFormatIndent(from: block, to: code)
+        try copyBlockFormatIndent(from: block, to: code)
         try replace(block, with: code, includingChildren: true)
       }
     } else {
