@@ -70,6 +70,7 @@ import Synchronization
   private var task: Task<Void, Never>?
   private var signature: String?
   private var natural = CGSize(width: 320, height: 180)
+  private var availableWidth: CGFloat?
 
   init(session: Session, fontFamily: String) {
     self.session = session
@@ -99,6 +100,7 @@ import Synchronization
     CGSize(width: min(width, natural.width), height: max(min(width, natural.width) * natural.height / max(natural.width, 1), 20))
   }
   override func contentSize(fitting width: CGFloat) -> CGSize {
+    availableWidth = width
     let inline = node["type"] == "equation" && node["inline"] == true
     let em = UIFont.preferredFont(forTextStyle: .body).pointSize
     var column = min(width, FigureStyle.columnRem * em)
@@ -114,7 +116,8 @@ import Synchronization
       }
     }
     let target = inline ? min(width, natural.width) : column
-    render(width: max(target, 1))
+    // Intrinsic inline measurement needs the full container, even when its last image was narrow.
+    render(width: max(inline ? width : target, 1))
     let height = target * natural.height / max(natural.width, 1)
     return CGSize(width: target, height: max(height, 20))
   }
@@ -122,7 +125,7 @@ import Synchronization
     super.layoutSubviews()
     picture.frame = bounds
     status.frame = bounds.insetBy(dx: 8, dy: 8)
-    _ = contentSize(fitting: max(bounds.width, 1))
+    _ = contentSize(fitting: availableWidth ?? max(bounds.width, 1))
   }
   private func render(width: CGFloat) {
     let dark = traitCollection.userInterfaceStyle == .dark

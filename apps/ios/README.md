@@ -561,7 +561,8 @@ SVG `foreignObject` needs browser XHTML support and the web's fonts; it is not a
 portable path-only vector export. The PNG is the portable native preview of the
 same element. Rendering requires `HEADLESS_RENDER_URL`,
 `HEADLESS_RENDER_ENABLED=true`, a matching `RENDER_WORKER_SECRET` on both
-services, and the app origin in worker `RENDER_WORKER_ALLOWED_ORIGINS`.
+services. Public app origins pass the worker’s public-address guard; private or
+local origins need an explicit worker `RENDER_WORKER_ALLOWED_ORIGINS` entry.
 Production uses `VERCEL_GIT_COMMIT_SHA` to invalidate renderer, CSS and bundled
 font changes. Local cache tests may provide their own revision.
 
