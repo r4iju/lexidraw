@@ -154,16 +154,17 @@ private struct DocumentContent: View {
 private struct DocumentEditor: UIViewRepresentable {
   let editing: DocumentEditing
 
-  func makeUIView(context: Context) -> EditorView {
+  func makeUIView(context: Context) -> NativeEditorHost {
     let view = EditorView(
       model: editing.model, isEditable: editing.mode == .editing,
       language: editing.settings.language, font: editing.font)
     view.onChange = { [weak editing] in editing?.changed() }
+    let accountIdentity = Task { [session = editing.session] in try? await session.identity() }
     view.configureNestedEmbeds = { [weak editing] nested in
       guard let editing else { return }
       nested.configureSocialNodes(userID: nil, author: "Guest")
-      Task { [weak nested, session = editing.session] in
-        guard let identity = try? await session.identity() else { return }
+      Task { [weak nested] in
+        guard let identity = await accountIdentity.value else { return }
         nested?.configureSocialNodes(userID: identity.id, author: identity.name)
       }
       configureNativeMedia(nested, session: editing.session)
@@ -179,10 +180,27 @@ private struct DocumentEditor: UIViewRepresentable {
       }
     }
     view.configureNestedEmbeds?(view)
-    return view
+    return NativeEditorHost(editor: view)
   }
 
-  func updateUIView(_ view: EditorView, context: Context) {}
+  func updateUIView(_ view: NativeEditorHost, context: Context) {}
+}
+
+
+/// Keep UIKit's UITextInput accessible and list its native panels beside it.
+@MainActor final class NativeEditorHost: UIView {
+  private let editor: EditorView
+  init(editor: EditorView) {
+    self.editor = editor
+    super.init(frame: .zero)
+    addSubview(editor)
+  }
+  required init?(coder: NSCoder) { fatalError("NativeEditorHost is made in code") }
+  override func layoutSubviews() { super.layoutSubviews(); editor.frame = bounds }
+  override var accessibilityElements: [Any]? {
+    get { editor.isAccessibilityElement ? [editor] + editor.visibleEmbeddedAccessibilityViews : [editor] }
+    set {}
+  }
 }
 
 @MainActor func configureNativeMedia(_ view: EditorView, session: Session) {

@@ -680,8 +680,9 @@ FuzzerTests.lexicalSwiftMatchesTheReference`. Seeds 133 and 134 each agreed for
 The rebased local UIKit suite passed 123 tests, including accepted structural-arrow autosave
 and refusal to mutate a read-only document. CI was not invoked.
 
-The native column panel currently accepts the five registered fractional presets;
-other CSS grid templates show an explicit #133 limitation. Structural indent/outdent modifies
+The native column panel accepts arbitrary positive fractional tracks and all five
+registered presets, with column counting using the web plugin’s generated JavaScript
+whitespace rule. Other CSS grid track grammars retain an explicit #133 limitation. Structural indent/outdent modifies
 the effective Double value without truncating it. Collapsible parts and layout
 items use the web's unread-field import rule: imported indent is retained in stored JSON while
 the effective field starts at zero; a mutation writes the effective value. A
@@ -690,14 +691,29 @@ schemas and explicitly refuses under #133. Read-only sections expand
 locally without a document mutation; compact sticky notes cannot drag. Slide
 inherited dimensions follow the canvas and text boxes grow to their content. Slide images currently
 use HTTPS URLs and chart previews require the #132 composed provider. Geometry against the web's CSS and chart configuration/source UI still require
-device-level verification. Slide geometry is edited in a native dialog; direct
-slide drag/resize gestures are not implemented. These are not claimed as
+device-level verification. Slide geometry supports a native dialog plus direct dragging and four-corner
+resizing. Gesture previews stay local and the completed gesture commits once
+through the opened-node guard and history. Selection follows the element ID across
+autosave rebuilds, so its resize handles remain active. The web’s numeric minimum
+sizes are generated; inherited dimensions stay inherited when resizing. These are not claimed as
 completed visual/performance gates.
 
 Pure structural-panel documents expose their native controls as accessibility
-containers. Mixed text/panel accessibility still requires composition under #145;
-ordinary text input keeps its existing accessibility surface. The retained slide
+containers. Mixed text/panel hosts preserve the original text input while exposing
+visible native panel controls beside it. The retained slide
 navigation UI regression was observed red against the original stored-ID behavior
 and green with editable autosave and read-only local navigation. Slide chart
 previews clear inherited root-node source callbacks and cached tap recognizers;
 the deck's element editor owns the actual mutation.
+
+
+The document and structural body/caption editor host lists the original UIKit
+UITextInput beside its visible native panel containers for accessibility. Mixed
+text and slide controls are reachable without substituting a text-input proxy;
+the visible-view traversal does not serialize the document or scan its model.
+The mixed-document regression was observed red at the missing slide button and
+green after the host change. The gesture UI regression was observed red when an
+autosave rebuild lost resize selection (the second drag moved without increasing
+width), then green after retaining the selected element ID. These checks cover
+actual app document-screen controls; broader VoiceOver narration and every nested
+panel combination remain device verification work.

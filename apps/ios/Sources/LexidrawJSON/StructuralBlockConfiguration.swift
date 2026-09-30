@@ -1,12 +1,15 @@
 // Generated from structural node factories, web presets and document CSS.
 // Run bun run codegen in apps/ios to update.
 public enum StructuralBlockConfiguration {
+  public static let columnWhitespacePattern = "\\s+"
   public static let isolatedNodeTypes: Set<String> = ["sticky"]
   public static let stickyWidth = 192.0
   public static let stickyHeight = 192.0
   public static let stickyPadding = 4.0
   public static let chartTypes: [String] = ["bar", "line", "area", "pie", "radar", "scatter", "composed"]
   public static let slideElements: [String:String] = ["box": #"{"kind":"box","id":"__id__","x":20,"y":20,"width":200,"height":100,"editorStateJSON":{"root":{"children":[{"key":"1","type":"paragraph","version":1,"direction":"ltr","format":"","indent":0,"textFormat":0,"textStyle":"","children":[{"detail":0,"format":0,"mode":"normal","style":"","text":"","type":"text","version":1,"key":"initial-text-content-node"}]}],"direction":"ltr","format":"","indent":0,"type":"root","version":1,"key":"root"}},"zIndex":0}"#, "chart": #"{"kind":"chart","id":"__id__","x":40,"y":40,"width":400,"height":300,"chartType":"bar","chartData":"[]","chartConfig":"{}","zIndex":0}"#, "image": #"{"kind":"image","id":"__id__","x":30,"y":30,"width":250,"height":50,"url":"","zIndex":0}"# ]
+  public static let slideMinimumWidth = 40.0
+  public static let slideMinimumHeight = 20.0
   public static let slideWidth = 1280.0
   public static let slideHeight = 720.0
   public static let stackedColumnsWidth = 567.0

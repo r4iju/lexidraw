@@ -71,6 +71,7 @@ import UIKit
   private var insets = UIEdgeInsets.zero
   private var dragStart: CGPoint?
   private var viewingSectionOpen: Bool?
+  private var selectedSlideElementID: String?
 
   init(owner: EditorView, key: String) {
     self.owner = owner
@@ -87,6 +88,7 @@ import UIKit
 
   override func show(_ value: JSONValue) {
     guard value != node else { return }
+    if value["data"]?["currentSlideId"] != node["data"]?["currentSlideId"] { selectedSlideElementID = nil }
     node = value
     viewingSectionOpen = nil
     viewingSlideOverride = nil
@@ -273,7 +275,7 @@ import UIKit
     stack.addArrangedSubview(columns)
     self.columns = columns
     let template = node["templateColumns"]?.stringValue ?? ""
-    columnWeights = template.split(separator: " ").compactMap { part in
+    columnWeights = JSRegExp(StructuralBlockConfiguration.columnWhitespacePattern, flags: "").split(template).filter { !$0.isEmpty }.compactMap { part in
       guard part.hasSuffix("fr"), let number = Double(part.dropLast(2)) else { return nil }
       return CGFloat(number)
     }
@@ -295,7 +297,7 @@ import UIKit
     }
   }
   private func setColumns(_ value: String) {
-    let count = value.split(separator: " ").count
+    let count = JSRegExp(StructuralBlockConfiguration.columnWhitespacePattern, flags: "").split(value).filter { !$0.isEmpty }.count
     if (node["children"]?.arrayValue?.count ?? 0) > count {
       let opened = node
       let alert = UIAlertController(
@@ -313,7 +315,7 @@ import UIKit
     }
   }
   private func applyColumns(_ value: String) {
-    let count = value.split(separator: " ").count
+    let count = JSRegExp(StructuralBlockConfiguration.columnWhitespacePattern, flags: "").split(value).filter { !$0.isEmpty }.count
     var children = node["children"]?.arrayValue ?? []
     while children.count < count {
       children.append(["type": "layout-item", "version": 1, "children": [paragraph([])]])
@@ -447,7 +449,20 @@ import UIKit
         owner?.embeddedContent?("\(self.key)-slide-\(index)-\(node["id"]?.stringValue ?? "")", node)
       })
     canvas.onEdit = { [weak self] element in self?.editSlideElement(slide: index, element: element) }
+    let opened = node
+    canvas.onGeometryChange = { [weak self] element, updates in
+      guard let self, self.node == opened,
+        var fields = slides[index]["elements"]?.arrayValue?[element].objectValue else { return }
+      for (field, value) in updates { fields[field] = value }
+      self.replaceSlideElement(slide: index, element: element, value: .object(fields))
+    }
+    canvas.onSelection = { [weak self] element in
+      self?.selectedSlideElementID = element.flatMap { slides[index]["elements"]?.arrayValue?[$0]["id"]?.stringValue }
+    }
     canvas.isEditable = owner?.isEditable == true
+    if let selectedSlideElementID {
+      canvas.restoreSelection((slides[index]["elements"]?.arrayValue ?? []).firstIndex { $0["id"] == .string(selectedSlideElementID) })
+    }
     stack.addArrangedSubview(canvas)
     canvas.heightAnchor.constraint(
       equalTo: canvas.widthAnchor,
@@ -667,7 +682,7 @@ import UIKit
       }
       let controller = UIViewController()
       controller.title = title
-      controller.view = editor
+      controller.view = NativeEditorHost(editor: editor)
       let navigation = UINavigationController(rootViewController: controller)
       controller.navigationItem.rightBarButtonItem = UIBarButtonItem(
         systemItem: .done, primaryAction: UIAction { _ in navigation.dismiss(animated: true) })
@@ -689,7 +704,7 @@ import UIKit
       }
       let controller = UIViewController()
       controller.title = "Edit block content"
-      controller.view = editor
+      controller.view = NativeEditorHost(editor: editor)
       let navigation = UINavigationController(rootViewController: controller)
       controller.navigationItem.rightBarButtonItem = UIBarButtonItem(
         systemItem: .done, primaryAction: UIAction { _ in navigation.dismiss(animated: true) })
@@ -764,9 +779,23 @@ import UIKit
   }
 }
 
-@MainActor private final class SlideCanvas: UIView {
+@MainActor private final class SlideCanvas: UIView, UIGestureRecognizerDelegate {
   var onEdit: ((Int) -> Void)?
-  var isEditable = false
+  var onGeometryChange: ((Int, JSONObject) -> Void)?
+  var onSelection: ((Int?) -> Void)?
+  var isEditable = false {
+    didSet {
+      for (view, _) in elements {
+        for gesture in view.gestureRecognizers ?? [] where gesture is UIPanGestureRecognizer { gesture.isEnabled = isEditable }
+      }
+      if !isEditable { selectedElement = nil; showHandles() }
+    }
+  }
+  private var selectedElement: Int?
+  private var handles: [(UIView, String)] = []
+  private var gestureStart: (index: Int, fields: JSONObject)?
+  private var preview: JSONObject?
+
   private let slide: JSONValue
   private let stage = UIView()
   private var elements: [(UIView, JSONValue)] = []
@@ -777,6 +806,9 @@ import UIKit
     super.init(frame: .zero)
     clipsToBounds = true
     addSubview(stage)
+    let backgroundTap = UITapGestureRecognizer(target: self, action: #selector(deselectElement))
+    backgroundTap.delegate = self
+    addGestureRecognizer(backgroundTap)
     stage.backgroundColor =
       slide["backgroundColor"]?.stringValue.flatMap(CSSColor.init).map {
         UIColor(red: $0.red, green: $0.green, blue: $0.blue, alpha: $0.alpha)
@@ -843,19 +875,107 @@ import UIKit
         label.numberOfLines = 0
         view = label
       }
+      // Cached chart previews may still carry the previous canvas's move recognizer.
+      for gesture in view.gestureRecognizers ?? [] where gesture.name == "native-slide-move" {
+        view.removeGestureRecognizer(gesture)
+      }
       stage.addSubview(view)
       elements.append((view, value))
       let tap = UITapGestureRecognizer(target: self, action: #selector(edit(_:)))
       view.isUserInteractionEnabled = true
       view.tag = index
       view.addGestureRecognizer(tap)
+      let pan = UIPanGestureRecognizer(target: self, action: #selector(moveElement(_:)))
+      pan.maximumNumberOfTouches = 1
+      pan.name = "native-slide-move"
+      pan.isEnabled = isEditable
+      view.addGestureRecognizer(pan)
+      tap.require(toFail: pan)
     }
   }
   required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
   deinit { downloads.forEach { $0.cancel() } }
   @objc private func edit(_ recognizer: UITapGestureRecognizer) {
     guard isEditable, let index = recognizer.view?.tag else { return }
-    onEdit?(index)
+    if selectedElement != index {
+      selectedElement = index
+      onSelection?(index)
+      showHandles()
+      setNeedsLayout()
+    } else { onEdit?(index) }
+  }
+  func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
+    touch.view === self || touch.view === stage
+  }
+  @objc private func deselectElement() {
+    restoreSelection(nil)
+    onSelection?(nil)
+  }
+  func restoreSelection(_ index: Int?) {
+    selectedElement = index
+    showHandles()
+    setNeedsLayout()
+  }
+  private func showHandles() {
+    handles.forEach { $0.0.removeFromSuperview() }
+    handles = []
+    guard isEditable, let index = selectedElement else { return }
+    for corner in ["nw", "ne", "sw", "se"] {
+      let handle = UIView()
+      handle.backgroundColor = .systemBlue
+      handle.layer.cornerRadius = 6
+      handle.tag = index
+      handle.accessibilityLabel = "Resize slide element \(index + 1), \(corner)"
+      handle.addGestureRecognizer(UIPanGestureRecognizer(target: self, action: #selector(resize(_:))))
+      stage.addSubview(handle)
+      handles.append((handle, corner))
+    }
+  }
+  @objc private func moveElement(_ gesture: UIPanGestureRecognizer) { changeGeometry(gesture, corner: nil) }
+  @objc private func resize(_ gesture: UIPanGestureRecognizer) {
+    guard let corner = handles.first(where: { $0.0 === gesture.view })?.1 else { return }
+    changeGeometry(gesture, corner: corner)
+  }
+  private func changeGeometry(_ gesture: UIPanGestureRecognizer, corner: String?) {
+    guard isEditable, let index = gesture.view?.tag,
+      let value = slide["elements"]?.arrayValue?[index], let fields = value.objectValue else { return }
+    if gesture.state == .began {
+      selectedElement = index
+      onSelection?(index)
+      gestureStart = (index, fields)
+      if corner == nil { showHandles() }
+    }
+    guard let initial = gestureStart, initial.index == index else { return }
+    let delta = gesture.translation(in: stage)
+    var changed = initial.fields
+    let x = initial.fields["x"]?.numberValue ?? 0
+    let y = initial.fields["y"]?.numberValue ?? 0
+    if let corner {
+      if let width = initial.fields["width"]?.numberValue {
+        let resized = max(StructuralBlockConfiguration.slideMinimumWidth, width + (corner.contains("w") ? -delta.x : delta.x))
+        changed["width"] = .number(resized)
+        if corner.contains("w") { changed["x"] = .number(x + width - resized) }
+      }
+      if let height = initial.fields["height"]?.numberValue {
+        let resized = max(StructuralBlockConfiguration.slideMinimumHeight, height + (corner.contains("n") ? -delta.y : delta.y))
+        changed["height"] = .number(resized)
+        if corner.contains("n") { changed["y"] = .number(y + height - resized) }
+      }
+    } else {
+      changed["x"] = .number(x + delta.x)
+      changed["y"] = .number(y + delta.y)
+    }
+    preview = changed
+    setNeedsLayout()
+    if gesture.state == .ended {
+      let updates = JSONObject(changed.filter { initial.fields[$0.key] != $0.value })
+      gestureStart = nil
+      preview = nil
+      if !updates.isEmpty { onGeometryChange?(index, updates) }
+    } else if gesture.state == .cancelled || gesture.state == .failed {
+      gestureStart = nil
+      preview = nil
+    }
   }
   override func layoutSubviews() {
     super.layoutSubviews()
@@ -863,7 +983,8 @@ import UIKit
     stage.transform = .identity
     stage.frame = CGRect(
       x: 0, y: 0, width: StructuralBlockConfiguration.slideWidth, height: StructuralBlockConfiguration.slideHeight)
-    for (view, value) in elements {
+    for (view, stored) in elements {
+      let value = view.tag == gestureStart?.index ? preview.map(JSONValue.object) ?? stored : stored
       let width = value["width"] == "inherit" ? StructuralBlockConfiguration.slideWidth : value["width"]?.numberValue ?? 0
       let box = value["kind"] == "box"
       let minimumHeight = value["height"]?.numberValue ?? (box ? 0 : StructuralBlockConfiguration.slideHeight)
@@ -872,6 +993,15 @@ import UIKit
       view.layoutIfNeeded()
       // Web text boxes have auto height and the stored numeric height as a minimum.
       if box, let editor = view as? EditorView { view.frame.size.height = max(minimumHeight, editor.contentSize.height) }
+    }
+    if let selected = selectedElement, let view = elements.first(where: { $0.0.tag == selected })?.0 {
+      for (handle, corner) in handles {
+        let point = CGPoint(x: corner.contains("w") ? view.frame.minX : view.frame.maxX,
+          y: corner.contains("n") ? view.frame.minY : view.frame.maxY)
+        let size = 24 / max(scale, 0.01)
+        handle.frame = CGRect(x: point.x - size / 2, y: point.y - size / 2, width: size, height: size)
+        stage.bringSubviewToFront(handle)
+      }
     }
     stage.transform = CGAffineTransform(scaleX: scale, y: scale)
     stage.frame.origin = .zero

@@ -37,6 +37,9 @@ export async function swiftForStructuralBlocks(): Promise<string> {
       import.meta.url,
     ),
   ).text();
+  const layoutPlugin = await Bun.file(new URL("../../lexidraw/src/app/documents/[documentId]/plugins/LayoutPlugin/LayoutPlugin.tsx", import.meta.url)).text();
+  const columnWhitespace = /template\.trim\(\)\.split\(\/([^/]+)\/\)\.length/.exec(layoutPlugin)?.[1];
+  if (!columnWhitespace) throw new Error("Layout column counting changed shape");
   const layouts = [
     ...dialog.matchAll(/\{ label: "([^"]+)", value: "([^"]+)" \}/g),
   ].map((m) => {
@@ -76,6 +79,8 @@ export async function swiftForStructuralBlocks(): Promise<string> {
       import.meta.url,
     ),
   ).text();
+  const resizeMinimum = /const minW = (\d+),\s*minH = (\d+);/.exec(deckEditor);
+  if (!resizeMinimum) throw new Error("Slide resize minima changed shape");
   const stickySource = await Bun.file(
     new URL(
       "../../lexidraw/src/app/documents/[documentId]/nodes/StickyComponent.tsx",
@@ -206,13 +211,13 @@ export async function swiftForStructuralBlocks(): Promise<string> {
     { discrete: true },
   );
   const string = (value: string) => JSON.stringify(value);
-  return `// Generated from structural node factories, web presets and document CSS.\n// Run bun run codegen in apps/ios to update.\npublic enum StructuralBlockConfiguration {\n  public static let isolatedNodeTypes: Set<String> = [${isolated.map(string).join(", ")}]\n  public static let stickyWidth = ${stickyWidth}.0\n  public static let stickyHeight = ${Number(stickyClasses[2]) * 4}.0\n  public static let stickyPadding = ${Number(stickyClasses[3]) * 4}.0\n  public static let chartTypes: [String] = [${CHART_TYPES.map(string).join(", ")}]\n  public static let slideElements: [String:String] = [${Object.entries(
+  return `// Generated from structural node factories, web presets and document CSS.\n// Run bun run codegen in apps/ios to update.\npublic enum StructuralBlockConfiguration {\n  public static let columnWhitespacePattern = ${JSON.stringify(columnWhitespace)}\n  public static let isolatedNodeTypes: Set<String> = [${isolated.map(string).join(", ")}]\n  public static let stickyWidth = ${stickyWidth}.0\n  public static let stickyHeight = ${Number(stickyClasses[2]) * 4}.0\n  public static let stickyPadding = ${Number(stickyClasses[3]) * 4}.0\n  public static let chartTypes: [String] = [${CHART_TYPES.map(string).join(", ")}]\n  public static let slideElements: [String:String] = [${Object.entries(
     slideElements,
   )
     .map(([kind, fields]) => `${string(kind)}: #"${JSON.stringify(fields)}"#`)
     .join(
       ", ",
-    )} ]\n  public static let slideWidth = ${designWidth}.0\n  public static let slideHeight = ${canvas[2]}.0\n  public static let stackedColumnsWidth = ${stackWidth}.0\n  public static let calloutLabels: [String:String] = [${Object.entries(
+    )} ]\n  public static let slideMinimumWidth = ${resizeMinimum[1]}.0\n  public static let slideMinimumHeight = ${resizeMinimum[2]}.0\n  public static let slideWidth = ${designWidth}.0\n  public static let slideHeight = ${canvas[2]}.0\n  public static let stackedColumnsWidth = ${stackWidth}.0\n  public static let calloutLabels: [String:String] = [${Object.entries(
     CALLOUT_LABELS,
   )
     .map(([k, v]) => `${string(k)}: ${string(v)}`)
