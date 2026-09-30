@@ -1,5 +1,5 @@
 "use client";
-import { chartFrame } from "~/lib/chart-frame";
+import { CHART_FRAME_CLASS, chartFrame } from "~/lib/chart-frame";
 
 import { useLexicalEditable } from "@lexical/react/useLexicalEditable";
 import { useLexicalNodeSelection } from "@lexical/react/useLexicalNodeSelection";
@@ -181,14 +181,11 @@ export default function ChartComponent({
   return (
     <>
       <div
-        className={cn(
-          "group/node relative block max-w-full mx-auto chart-component",
-          {
-            "cursor-move":
-              isFocused && !isResizing && $isNodeSelection(selection),
-            "ring-1 ring-muted-foreground": isFocused || isResizing,
-          },
-        )}
+        className={cn(CHART_FRAME_CLASS, {
+          "cursor-move":
+            isFocused && !isResizing && $isNodeSelection(selection),
+          "ring-1 ring-muted-foreground": isFocused || isResizing,
+        })}
         data-empty={parsedChartData.length === 0}
         ref={containerRef}
         draggable={isFocused && !isResizing && $isNodeSelection(selection)}

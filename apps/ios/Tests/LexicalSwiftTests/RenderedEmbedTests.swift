@@ -4,6 +4,14 @@ import LexicalSwift
 import Testing
 
 @Suite struct RenderedEmbedTests {
+  @Test func selectedRuleCanBecomeACodeBlock() throws {
+    let start = Point(path: [0], offset: 0, type: .element)
+    let fixture = try Fixture.record(start: document(paragraph(), LexicalJSON.horizontalRule, paragraph(text("after"))), commands: [
+      .caret(start), .arrow(.down, extend: false, native: start, atCellEdge: false), .formatCode,
+    ], on: Support.referenceEditor())
+    #expect(try fixture.replay(on: Editor()) == fixture.recorded)
+  }
+
   @Test func selectedCodeFormattingCreatesRawTextTabs() throws {
     let fixture = try Fixture.record(start: document(paragraph(text("hello\tworld"))), commands: [
       .setSelection(anchor: .text([0, 0], 0), focus: .text([0, 0], 11)), .formatCode,

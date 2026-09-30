@@ -54,9 +54,9 @@ export const embedRouter = createTRPCRouter({
       z.object({
         node: z.string().max(262144),
         theme: z.enum(["light", "dark"]),
-        width: z.number().int().min(100).max(2048),
+        width: z.number().int().min(1).max(2048),
         fontFamily: z.string().min(1).max(120),
-        fontSize: z.number().min(10).max(64),
+        fontSize: z.number().min(1).max(256),
       }),
     )
     .output(embedRenderImage.extend({ hash: z.string() }))

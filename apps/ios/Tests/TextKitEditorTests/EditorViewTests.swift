@@ -565,7 +565,7 @@ import UIKit
 
   @Test func aPasteTheModelRefusesSaysWhy() throws {
     let (view, model) = try editing(LexicalJSON.paragraph([LexicalJSON.text("hello")]))
-    let unported: JSONValue = ["type": "code", "version": 1, "children": []]
+    let unported: JSONValue = ["type": "code", "version": 1, "children": [], "unported-field": true]
     let payload = LexicalClipboardPayload(namespace: editorNamespace, nodes: [unported])
     view.pasteboard.setItems([
       ["public.utf8-plain-text": "", "application/x-lexical-editor": try JSONEncoder().encode(payload)]

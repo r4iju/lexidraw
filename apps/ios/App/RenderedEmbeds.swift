@@ -14,6 +14,7 @@ import UIKit
   let supported: Set<String> = ["mermaid", "equation", "chart", "code"]
   let open: (String, JSONValue) -> Bool = { [weak view] key, node in
     guard let view, let type = node["type"]?.stringValue, supported.contains(type) else { return false }
+    images.object(forKey: key as NSString)?.retryIfFailed()
     var responder: UIResponder? = view
     while responder != nil, !(responder is UIViewController) { responder = responder?.next }
     guard let parent = responder as? UIViewController else { return false }
@@ -41,10 +42,14 @@ import UIKit
     result.show(node)
     return result
   }
-  view.embeddedContent = { key, node in image(key, node) ?? previousContent?(key, node) }
+  view.embeddedContent = { key, node in
+    guard let rendered = image(key, node) else { return previousContent?(key, node) }
+    rendered.fontSizeOverride = nil
+    return rendered
+  }
   view.inlineEmbeddedContent = { key, node, width in
-    guard node["type"] == "equation", node["inline"] == true else { return previousInline?(key, node, width) }
-    let attachment = RenderedEquationAttachment(cached: images.object(forKey: key as NSString), width: width) { image(key, node) }
+    guard let type = node["type"]?.stringValue, supported.contains(type) else { return previousInline?(key, node, width) }
+    let attachment = RenderedAttachment(cached: images.object(forKey: key as NSString), width: width) { image(key, node) }
     return attachment
   }
   view.onEmbeddedTap = { key, node in open(key, node) || previousTap?(key, node) == true }
@@ -54,7 +59,9 @@ import UIKit
   let session: Session
   let fontFamily: String
   var node: JSONValue = .null
+  var fontSizeOverride: CGFloat?
   var image: UIImage?
+  private(set) var failed = false
   var open: (() -> Void)?
   var onRendered: (() -> Void)?
   private let picture = UIImageView()
@@ -105,8 +112,8 @@ import UIKit
         }
       }
     }
-    let target = inline ? min(width, natural.width) : min(column, CGFloat(node["width"]?.numberValue ?? Double(column)))
-    render(width: max(target, 100))
+    let target = inline ? min(width, natural.width) : column
+    render(width: max(target, 1))
     let height = target * natural.height / max(natural.width, 1)
     return CGSize(width: target, height: max(height, 20))
   }
@@ -114,19 +121,20 @@ import UIKit
     super.layoutSubviews()
     picture.frame = bounds
     status.frame = bounds.insetBy(dx: 8, dy: 8)
-    _ = contentSize(fitting: max(bounds.width, 100))
+    _ = contentSize(fitting: max(bounds.width, 1))
   }
   private func render(width: CGFloat) {
     let dark = traitCollection.userInterfaceStyle == .dark
-    let size = UIFont.preferredFont(forTextStyle: .body).pointSize
+    let size = fontSizeOverride ?? UIFont.preferredFont(forTextStyle: .body).pointSize
     let next = "\(node.stringified)|\(dark)|\(Int(width))|\(size)"
     guard signature != next else { return }
     signature = next
     task?.cancel()
+    failed = false
     status.text = "Rendering…"
     task = Task { [weak self, session, fontFamily, node] in
       do {
-        let result = try await session.renderEmbed(node: node, dark: dark, width: min(max(Int(width), 100), 2048), fontFamily: fontFamily, fontSize: Double(size))
+        let result = try await session.renderEmbed(node: node, dark: dark, width: min(max(Int(width), 1), 2048), fontFamily: fontFamily, fontSize: Double(size))
         guard !Task.isCancelled, let self, self.signature == next else { return }
         guard let image = UIImage(data: result.png) else { throw EditorError.invalidState("The renderer returned an unreadable image") }
         self.image = image
@@ -139,32 +147,50 @@ import UIKit
         status.text = "Couldn’t render. Tap to edit the source.\n\(error.localizedDescription)"
         image = nil
         picture.image = nil
+        failed = true
+        onRendered?()
       }
     }
+  }
+  func retryIfFailed() {
+    guard failed else { return }
+    signature = nil
+    setNeedsLayout()
+    onRendered?()
   }
   deinit { task?.cancel() }
   @objc private func tap() { open?() }
 }
 
-@MainActor private final class RenderedEquationAttachment: NSTextAttachment, LazyTextAttachment {
+@MainActor private final class RenderedAttachment: NSTextAttachment, LazyTextAttachment {
   private let makeRendered: () -> RenderedEmbedView?
-  let width: CGFloat
+  private let cached: RenderedEmbedView?
+  private var width: CGFloat
+  private var font: UIFont?
   private var started = false
   init(cached: RenderedEmbedView?, width: CGFloat, makeRendered: @escaping () -> RenderedEmbedView?) {
     self.makeRendered = makeRendered
+    self.cached = cached
     self.width = width
     super.init(data: nil, ofType: nil)
-    image = cached?.image ?? UIImage(systemName: "function")
+    image = cached?.image ?? UIImage(systemName: cached?.failed == true ? "exclamationmark.triangle" : "function")
     let size = cached?.cachedSize(fitting: width) ?? CGSize(width: 20, height: 20)
     bounds = CGRect(x: 0, y: -3, width: size.width, height: size.height)
   }
   required init?(coder: NSCoder) { fatalError("Equation attachment is made in code") }
+  override func attachmentBounds(for textContainer: NSTextContainer?, proposedLineFragment lineFrag: CGRect, glyphPosition position: CGPoint, characterIndex charIndex: Int) -> CGRect {
+    if let available = textContainer?.size.width, available.isFinite, available > 0 { width = min(width, available) }
+    let size = cached?.cachedSize(fitting: width) ?? CGSize(width: 20, height: 20)
+    return CGRect(x: 0, y: -3, width: size.width, height: size.height)
+  }
+  func use(font: UIFont?) { self.font = font }
   func load(onChange: @escaping @MainActor () -> Void) {
     guard !started else { return }
     started = true
-    _ = makeRendered()?.contentSize(fitting: width)
-    // Provider completion refreshes EditorView so the attachment is rebuilt
-    // with the measured image. No document-wide network work starts here.
+    let rendered = makeRendered()
+    rendered?.fontSizeOverride = font?.pointSize
+    _ = rendered?.contentSize(fitting: width)
+    // Provider completion refreshes EditorView and the measured attachment.
   }
 }
 
@@ -197,10 +223,14 @@ private struct RenderedSourceEditor: View {
           TextField("Language", text: $language).disabled(!editable)
         }
         Section(node["type"] == "chart" ? "Data (JSON)" : "Source") {
-          TextEditor(text: $source).font(.system(.body, design: .monospaced)).frame(minHeight: 240).disabled(!editable)
+          if editable { TextEditor(text: $source).font(.system(.body, design: .monospaced)).frame(minHeight: 240) }
+          else { Text(source).font(.system(.body, design: .monospaced)).textSelection(.enabled) }
         }
         if node["type"] == "chart" {
-          Section("Configuration (JSON)") { TextEditor(text: $secondary).font(.system(.body, design: .monospaced)).frame(minHeight: 160).disabled(!editable) }
+          Section("Configuration (JSON)") {
+            if editable { TextEditor(text: $secondary).font(.system(.body, design: .monospaced)).frame(minHeight: 160) }
+            else { Text(secondary).font(.system(.body, design: .monospaced)).textSelection(.enabled) }
+          }
         }
       }
       .navigationTitle("\(node["type"]?.stringValue?.capitalized ?? "Node") source")

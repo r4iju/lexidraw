@@ -171,7 +171,7 @@ public final class DocumentText {
   private static func decoratorInParagraph(_ node: JSONValue) -> JSONValue? {
     guard node["type"] == "paragraph", let children = node["children"]?.arrayValue, children.count == 1,
       let type = children[0]["type"]?.stringValue,
-      type == "excalidraw" || (type != "inline-image" && MediaPayload(children[0]) != nil) else { return nil }
+      type == "excalidraw" || type == "mermaid" || type == "chart" || (type == "equation" && children[0]["inline"] != true) || (type != "inline-image" && MediaPayload(children[0]) != nil) else { return nil }
     return children[0]
   }
 
@@ -490,6 +490,7 @@ public final class DocumentText {
       if !path.isEmpty, let attachment = nativeAttachment?(node, path) {
         #if canImport(UIKit)
         (attachment as? MediaAttachment)?.captionStyle = style
+        (attachment as? any LazyTextAttachment)?.use(font: style(blockType, [])[.font] as? UIFont)
         #endif
         text.append(NSAttributedString(string: "\u{FFFC}", attributes: style(blockType, []).merging([.attachment: attachment]) { $1 }))
         spans[path] = Span(start: start, end: text.length, kind: .character)

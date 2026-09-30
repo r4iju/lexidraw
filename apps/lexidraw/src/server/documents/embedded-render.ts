@@ -50,11 +50,17 @@ export function createEmbedRenderer(
       cache.set(hash, hit);
       return hit;
     }
+    if (active >= 2 && waiting.length >= 12)
+      throw new Error("Render queue is full");
     const pending = boundedDraw(request)
       .then((image) => {
         const size =
           Buffer.byteLength(image.svg) + Buffer.byteLength(image.png);
-        if (size > 12_000_000 || image.width * image.height > 16_000_000)
+        if (
+          Buffer.byteLength(image.svg) > 8_000_000 ||
+          size > 12_000_000 ||
+          image.width * image.height > 16_000_000
+        )
           throw new Error("Rendered embed exceeds the image limit");
         sizes.set(hash, size);
         bytes += size;

@@ -265,7 +265,7 @@ extension Node {
     case .codeHighlight(let node): node.unknownFields.isEmpty && node.mode == .normal && (node.detail ?? 0) == 0
     case .mermaid(let node): node.unknownFields.isEmpty && (node.schema == nil || node.schema?.stringValue != nil)
     case .equation(let node): node.unknownFields.isEmpty && (node.equation == nil || node.equation?.stringValue != nil) && (node.inline == nil || node.inline?.boolValue != nil)
-    case .chart(let node): node.unknownFields.isEmpty && (node.chartType == nil || node.chartType?.stringValue != nil) && (node.chartData == nil || node.chartData?.stringValue != nil) && (node.chartConfig == nil || node.chartConfig?.stringValue != nil)
+    case .chart(let node): node.unknownFields.isEmpty && (node.chartType == nil || RenderedEmbedStyle.chartTypes.contains(node.chartType?.stringValue ?? "")) && (node.chartData == nil || node.chartData?.stringValue != nil) && (node.chartConfig == nil || node.chartConfig?.stringValue != nil)
     case .excalidraw(let node): node.unknownFields.isEmpty && (node.data == nil || node.data?.stringValue != nil)
     case .text(let node): node.unknownFields.isEmpty && node.mode == .normal && (node.detail ?? 0) == 0
     case .tab(let node): node.unknownFields.isEmpty && node.detail == Double(TextDetail.unmergeable.rawValue)
@@ -358,7 +358,7 @@ extension Update {
     case .formatCode:
       let text = try textContent(selection)
       try insertNodes(selection, [create(SerializedDocumentCodeNode.type)])
-      if let range = self.selection { try insertText(range, text) }
+      if let range = self.selection { try insertCodeSource(text, at: range) }
     case .setBlockType(let type): try setBlockType(selection, type)
     case .formatElement(let format): try formatElement(selection, format)
     case .changeFontSize(let increase): try changeFontSize(selection, increase: increase)
@@ -392,7 +392,11 @@ extension Update {
     case .insertLineBreak: try enter(selection, lineBreak: true)
     // `$updateTextFormat` formats inline nodes and `$setBlocksType` changes
     // elements, and a selected rule is neither.
-    case .formatText, .setBlockType, .formatCode, .setWritingDirection: break
+    case .formatCode:
+      let text = nodes(in: selection).map(state.textContent(of:)).joined()
+      try insertNodes(selection, [create(SerializedDocumentCodeNode.type)])
+      if let range = self.selection { try insertCodeSource(text, at: range) }
+    case .formatText, .setBlockType, .setWritingDirection: break
     case .formatElement(let format): formatElements(nodes(in: selection), format)
     case .changeFontSize(let increase): try changeFontSizeOfNodes(nodes(in: selection), increase: increase)
     case .clearFormatting: break

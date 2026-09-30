@@ -965,7 +965,7 @@ public final class EditorView: UIScrollView, UITextInput {
     case .outdent: outdent()
     case .subscript: formatText(.subscript)
     case .superscript: formatText(.superscript)
-    case .insertCodeBlock: formatCode()
+    case .insertCodeBlock: formatText(.code)
     case .insertLink: linkFromKeyboard()
     case .centerAlign: _ = perform(.formatElement(.center), fromInput: false, tellsRefusal: true)
     case .leftAlign: _ = perform(.formatElement(.left), fromInput: false, tellsRefusal: true)
@@ -974,8 +974,7 @@ public final class EditorView: UIScrollView, UITextInput {
     case .increaseFontSize: _ = perform(.changeFontSize(increase: true), fromInput: false, tellsRefusal: true)
     case .decreaseFontSize: _ = perform(.changeFontSize(increase: false), fromInput: false, tellsRefusal: true)
     case .clearFormatting: _ = perform(.clearFormatting, fromInput: false, tellsRefusal: true)
-    case .formatCode:
-      preconditionFailure("A shortcut offered before its #135/#132 command is ported")
+    case .formatCode: formatCode()
     }
   }
 
@@ -1522,7 +1521,7 @@ extension EditorCommand {
 extension WebShortcutAction {
   fileprivate var isImplemented: Bool {
     switch self {
-    case .formatCode: false
+    case .formatCode: true
     case .increaseFontSize, .decreaseFontSize, .clearFormatting: true
     case .centerAlign, .leftAlign, .rightAlign, .justifyAlign: true
     case .formatParagraph, .formatHeading, .formatBulletList, .formatNumberedList, .formatCheckList, .formatQuote,

@@ -54,6 +54,9 @@ export async function POST(request: Request) {
     viewport: { width: 2048, height: 900, deviceScaleFactor: 2 },
     check,
   });
+  const timeout = setTimeout(() => {
+    void browser.close().catch(() => {});
+  }, 45000);
   try {
     const page = await browser.newPage();
     await guardRequests(page, check);
@@ -150,6 +153,7 @@ export async function POST(request: Request) {
       { status: 422 },
     );
   } finally {
+    clearTimeout(timeout);
     await browser.close();
   }
 }

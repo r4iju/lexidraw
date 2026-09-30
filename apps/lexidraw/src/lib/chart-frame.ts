@@ -1,3 +1,6 @@
+export const CHART_FRAME_CLASS =
+  "group/node relative block max-w-full mx-auto chart-component";
+
 /** Shared chart geometry for the document and native render endpoint. */
 export function chartFrame(
   width: number | "inherit",

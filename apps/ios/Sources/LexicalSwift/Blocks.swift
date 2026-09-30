@@ -48,18 +48,20 @@ extension Update {
     } else {
       let text = try textContent(selection)
       try insertNodes(selection, [create(SerializedDocumentCodeNode.type)])
-      if let next = self.selection {
-        var nodes: [NodeKey] = []
-        for (index, line) in text.components(separatedBy: "\n").enumerated() {
-          if index > 0 { nodes.append(create(SerializedLineBreakNode.type)) }
-          for (tabIndex, part) in line.components(separatedBy: "\t").enumerated() {
-            if tabIndex > 0 { nodes.append(create(SerializedTabNode.type)) }
-            if !part.isEmpty { nodes.append(createText(part)) }
-          }
-        }
-        try insertNodes(next, nodes)
+      if let next = self.selection { try insertCodeSource(text, at: next) }
+    }
+  }
+
+  mutating func insertCodeSource(_ text: String, at selection: RangeSelection) throws {
+    var nodes: [NodeKey] = []
+    for (index, line) in text.components(separatedBy: "\n").enumerated() {
+      if index > 0 { nodes.append(create(SerializedLineBreakNode.type)) }
+      for (tabIndex, part) in line.components(separatedBy: "\t").enumerated() {
+        if tabIndex > 0 { nodes.append(create(SerializedTabNode.type)) }
+        if !part.isEmpty { nodes.append(createText(part)) }
       }
     }
+    try insertNodes(selection, nodes)
   }
 
   /// `$setBlockType` in @packages/lexical-nodes.

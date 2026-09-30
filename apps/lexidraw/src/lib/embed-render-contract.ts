@@ -63,9 +63,9 @@ export const embeddedNode = z.discriminatedUnion("type", [
 export const embedRenderRequest = z.object({
   node: embeddedNode,
   theme: z.enum(["light", "dark"]),
-  width: z.number().int().min(100).max(2048),
+  width: z.number().int().min(1).max(2048),
   fontFamily: z.string().min(1).max(120),
-  fontSize: z.number().min(10).max(64),
+  fontSize: z.number().min(1).max(256),
 });
 export const embedRenderImage = z.object({
   svg: z.string().max(8000000),

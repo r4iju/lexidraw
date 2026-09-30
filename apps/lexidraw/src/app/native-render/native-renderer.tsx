@@ -21,7 +21,7 @@ import { z } from "zod";
 import { documentFont } from "~/lib/document-fonts";
 import { FontResources } from "../documents/[documentId]/document-typography";
 import "~/styles/document.css";
-import { chartFrame } from "~/lib/chart-frame";
+import { CHART_FRAME_CLASS, chartFrame } from "~/lib/chart-frame";
 
 const chartData = z.array(z.record(z.string(), z.unknown()));
 const chartConfig = z.record(
@@ -110,6 +110,7 @@ export default function NativeRenderer() {
           )
         ) : node.type === "chart" ? (
           <div
+            className={CHART_FRAME_CLASS}
             style={{
               position: "relative",
               ...chartFrame(
