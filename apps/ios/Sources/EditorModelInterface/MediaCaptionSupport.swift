@@ -1,3 +1,5 @@
+import CSSValues
+
 /// Shapes the native media caption renderer can display without discarding
 /// visual instructions. The caption's JSON is retained even when it refuses.
 public enum MediaCaptionSupport {
@@ -12,7 +14,7 @@ public enum MediaCaptionSupport {
       if let style = node["style"]?.stringValue, !style.isEmpty, !supportedTextStyle(style) {
         return "This caption uses a text style the native app can't show yet (#135)."
       }
-      if let style = node["textStyle"]?.stringValue, !style.isEmpty {
+      if let style = node["textStyle"]?.stringValue, !style.isEmpty, !supportedTextStyle(style) {
         return "This caption uses a text style the native app can't show yet (#135)."
       }
       pending.append(contentsOf: node["children"]?.arrayValue ?? [])
@@ -21,9 +23,16 @@ public enum MediaCaptionSupport {
   }
   private static func supportedTextStyle(_ value: String) -> Bool {
     var css = InlineCSS(value)
-    guard let rawSize = css["font-size"], rawSize.hasSuffix("px"),
-      let size = Double(rawSize.dropLast(2)), size.isFinite, size > 0 else { return false }
-    css["font-size"] = nil
+    if let rawSize = css["font-size"] {
+      guard rawSize.hasSuffix("px"), let size = Double(rawSize.dropLast(2)), size.isFinite, size > 0 else { return false }
+      css["font-size"] = nil
+    }
+    for property in ["color", "background-color"] {
+      if let value = css[property] {
+        guard CSSColor(value) != nil else { return false }
+        css[property] = nil
+      }
+    }
     return css.serialized.isEmpty
   }
 }

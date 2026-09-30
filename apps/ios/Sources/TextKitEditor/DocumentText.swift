@@ -1,3 +1,4 @@
+import CSSValues
 import EditorModelInterface
 import Foundation
 
@@ -575,14 +576,26 @@ public final class DocumentText {
 
     private mutating func append(_ string: String, format: TextFormat, css: String = "") {
       var attributes = style(blockType, format)
-      if !css.isEmpty, let rawSize = InlineCSS(css)["font-size"], rawSize.hasSuffix("px"),
-        let size = Double(rawSize.dropLast(2)), size.isFinite, size > 0 {
-        resizedRanges.append(text.length..<(text.length + string.utf16.count))
-        #if canImport(UIKit)
-        if let font = attributes[.font] as? UIFont { attributes[.font] = font.withSize(size) }
-        #else
-        if let font = attributes[.font] as? NSFont { attributes[.font] = NSFont(descriptor: font.fontDescriptor, size: size) }
-        #endif
+      if !css.isEmpty {
+        let inline = InlineCSS(css)
+        for (property, key) in [("color", NSAttributedString.Key.foregroundColor), ("background-color", .backgroundColor)] {
+          if let value = inline[property], let color = CSSColor(value) {
+            #if canImport(UIKit)
+            attributes[key] = UIColor(css: color)
+            #else
+            attributes[key] = NSColor(deviceRed: color.red, green: color.green, blue: color.blue, alpha: color.alpha)
+            #endif
+          }
+        }
+        if let rawSize = inline["font-size"], rawSize.hasSuffix("px"),
+          let size = Double(rawSize.dropLast(2)), size.isFinite, size > 0 {
+          resizedRanges.append(text.length..<(text.length + string.utf16.count))
+          #if canImport(UIKit)
+          if let font = attributes[.font] as? UIFont { attributes[.font] = font.withSize(size) }
+          #else
+          if let font = attributes[.font] as? NSFont { attributes[.font] = NSFont(descriptor: font.fontDescriptor, size: size) }
+          #endif
+        }
       }
       if let link { attributes[.link] = link }
       text.append(NSAttributedString(string: string, attributes: attributes))

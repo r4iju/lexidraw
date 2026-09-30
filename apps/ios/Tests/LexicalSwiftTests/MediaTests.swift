@@ -12,6 +12,19 @@ import Testing
     ["type": "figma", "version": 1, "documentID": "abc123"],
   ]
 
+  @Test func supportedCaptionColorsAllowSurroundingEdits() throws {
+    let caption = LexicalJSON.document([LexicalJSON.paragraph([
+      LexicalJSON.text("caption", style: "color: red; background-color: #0000ff;")
+    ])])
+    var fields = try #require(Self.nodes[0].objectValue)
+    fields["showCaption"] = true
+    fields["caption"] = ["editorState": caption]
+    let editor = Editor()
+    try editor.load(document(paragraph(text("before")), .object(fields)))
+    #expect(MediaCaptionSupport.refusal(in: caption) == nil)
+    #expect(editor.isEditable)
+  }
+
   @Test func anUnportedCaptionStyleDoesNotSilentlyEnableEditing() throws {
     let caption: JSONValue = ["root": ["type": "root", "version": 1, "children": [["type": "paragraph", "version": 1, "children": [["type": "text", "version": 1, "text": "styled", "format": 0, "style": "text-shadow: 2px 2px red;"]]]]]]
     let image: JSONValue = ["type": "image", "version": 1, "src": "https://example.com/a.png", "showCaption": true, "caption": ["editorState": caption]]
