@@ -660,8 +660,8 @@ sibling is a section; it previously swallowed unrelated deletion at offset zero.
 Opt in to structural documents in the existing differential fuzzer with
 `FUZZ_STRUCTURAL=1 FUZZ_SEED=133 FUZZ_STEPS=20000 swift test --filter
 FuzzerTests.lexicalSwiftMatchesTheReference`. Seeds 133 and 134 each agreed for
-20,000 steps; six discovered regressions are retained as frozen reference fixtures.
-The local UIKit suite passed 96 tests, including accepted structural-arrow autosave
+20,000 steps; eight discovered regressions are retained as frozen reference fixtures.
+The rebased local UIKit suite passed 123 tests, including accepted structural-arrow autosave
 and refusal to mutate a read-only document. CI was not invoked.
 
 The native column panel currently accepts the five registered fractional presets;

@@ -5,6 +5,8 @@ extension Update {
     let nodes = try nodes(in: selection)
     let extracted = try extract(selection)
     guard !selection.isCollapsed else { return }
+    // The web operation reads live points: replacing an earlier block can move
+    // either point before the final text node is split.
     try clearFormatting(nodes, extracted: extracted, anchor: selection.anchor, focus: selection.focus)
   }
 

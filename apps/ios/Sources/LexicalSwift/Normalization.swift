@@ -144,7 +144,10 @@ extension Update {
       }
     case SerializedCollapsibleTitleNode.type:
       if let parent = state.parent(of: key), state[parent].type != SerializedCollapsibleContainerNode.type {
-        try replace(key, with: create(SerializedParagraphNode.type), includingChildren: true)
+        // The plugin moves children first so a text caret stays on its child.
+        let paragraph = create(SerializedParagraphNode.type)
+        try append(paragraph, Array(state.children(of: key)))
+        try replace(key, with: paragraph)
       }
     case SerializedCollapsibleContainerNode.type:
       let children = Array(state.children(of: key))
