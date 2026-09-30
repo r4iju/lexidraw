@@ -100,7 +100,7 @@ import Testing
     var fuzzer = Fuzzer(
       seed: 1, reference: try Support.referenceEditor(), candidate: TakesEnterAfterAShortcutAsANewLine())
 
-    let fixture = try #require(try fuzzer.run(steps: 5000)).fixture
+    let fixture = try #require(try fuzzer.run(steps: 10000)).fixture
 
     #expect(fixture.commands.last == .insertParagraph)
   }

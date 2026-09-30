@@ -672,13 +672,13 @@ struct Generator {
   }
 
   /// What the last copy or cut put on the clipboard, or text from another
-  /// app, which may come with HTML.
+  /// app. HTML uses the independent DOM oracle in HTMLPasteTests.
   private mutating func pasted() -> Clipboard {
     if let clipboard, Bool.random(using: &random) { return clipboard }
     let text = (0..<Int.random(in: 1...4, using: &random)).map { _ in
       Bool.random(using: &random) ? self.text(1...3) : Self.pastedParts.randomElement(using: &random)!
     }.joined()
-    return Clipboard(plainText: text, html: Int.random(in: 0..<4, using: &random) == 0 ? "<b>\(text)</b>" : nil)
+    return Clipboard(plainText: text)
   }
 
   /// Adjacent text of different formats, which Lexical keeps apart.

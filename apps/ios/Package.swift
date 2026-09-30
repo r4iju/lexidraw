@@ -21,6 +21,7 @@ let package = Package(
     .package(url: "https://github.com/apple/swift-openapi-urlsession", from: "1.3.1"),
   ],
   targets: [
+    .systemLibrary(name: "CLibxml2", pkgConfig: "libxml-2.0"),
     .target(
       name: "LexidrawJSON",
       dependencies: [.product(name: "OrderedCollections", package: "swift-collections")]
@@ -31,6 +32,7 @@ let package = Package(
       name: "LexicalSwift",
       dependencies: [
         "EditorModelInterface",
+        "CLibxml2",
         .product(name: "HashTreeCollections", package: "swift-collections"),
         .product(name: "OrderedCollections", package: "swift-collections"),
       ]

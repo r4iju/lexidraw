@@ -286,8 +286,10 @@ hand:
   on the pasteboard, and no HTML. Other apps get the plain text. Lexical's
   JSON that Lexical can't insert where the caret is goes in as the plain
   text, as on the web.
-- HTML pasted from another app goes in as the plain text beside it. Pasting
-  it as rich text, images and charts included, is #168.
+- HTML pasted from another app keeps the registered converters' text formats,
+  links, headings, quotes, lists and tables. Nodes not edited yet are refused
+  naming their owning ticket. HTML identical to plain text uses the plain-text
+  importer, as Safari autocorrect requires.
 - The edit menu offers Add Link for a selection, and Open, Edit and Remove
   for a caret in a link, Open only for the protocols the web opens a link
   with; a tap on a link's text offers the same. Saving no URL keeps the
@@ -409,3 +411,29 @@ hand:
   with the web's dialog, five rows and columns to begin with, or in a table
   inserting rows and columns and deleting them. Deleting the table, headers
   and merging cells are left out.
+
+## Rich HTML paste
+
+HTML paste parses with the system libxml2 HTML parser, without network access,
+into an inert tree of text and attributes. `bun run codegen` bundles the web's
+unmodified `$generateNodesFromDOM` and registered node converters for
+JavaScriptCore, over `codegen/html-dom.ts`'s small DOM adapter. This keeps
+converter priorities, equal-priority registration order and child conversions
+in the web's own code. Unsupported DOM APIs throw naming #168; nodes whose
+editing isn't ported throw naming their existing owning ticket. libxml2's
+HTML4 nested-heading recovery is normalized to HTML5's heading closure.
+
+`bun run record:html` records clipboard-shaped Safari, Notes, Pages, Google
+Docs and Word examples and seeded generated HTML with the independent bun
+`@lexical/headless/dom` oracle. They contain synthetic public text, not captured
+private clipboards. `HTMLPasteTests` replays those DOM conversions through the
+public paste command and the existing serialized-node insertion path. Set
+`HTML_FUZZ_SEED` and `HTML_FUZZ_CASES` when recording to replay another corpus.
+It also exports and imports 200 documents from the command fuzzer's own node
+`Generator`, including tables, tabs and links; regenerate those source samples
+with `HTML_RECORD_NODE_SAMPLES=1 swift test --filter generatedHTMLAgreesWithDOMOracle`
+before `bun run record:html`. Recorded HTML seeds 168 (500 cases), 2026 and 999
+(2,000 each), plus those 200 node-generated documents, agree with the DOM oracle.
+The JavaScriptCore command reference has no DOM parser; HTML therefore has
+this separate oracle, and command fuzzing generates plain/serialized clipboard
+content. Copy still writes plain text and Lexical JSON; HTML export is separate.
