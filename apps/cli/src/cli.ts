@@ -32,6 +32,9 @@ const VALUE_FLAGS = [
   "scale",
   "paper",
   "orientation",
+  "block-id",
+  "revision",
+  "width",
 ];
 
 const USAGE = `lexidraw — Lexidraw from the terminal
@@ -51,6 +54,14 @@ Usage:
   lexidraw doc render <id|--path P> [--format png|pdf] [--width 1280]
                       [--theme light|dark] [--touch] [--paper A4|Letter]
                       [--orientation portrait|landscape] [--out <file>]
+  lexidraw doc block list <id|--path P>
+  lexidraw doc block get <id|--path P> --block-id <uuid>
+  lexidraw doc block create <id|--path P> --file <source.json|-> --at-block N
+                           --if-unmodified-since <iso|latest>
+  lexidraw doc block update <id|--path P> --block-id <uuid> --file <source.json|->
+                           --if-unmodified-since <iso|latest>
+  lexidraw doc block delete <id|--path P> --block-id <uuid> --if-unmodified-since <iso|latest>
+  lexidraw doc block preview <id|--path P> --block-id <uuid> --revision <revision> [--out file]
   lexidraw doc delete <id|--path P>
   lexidraw dir list [<id>|--path P] [--format json|table] [--page-all]
   lexidraw dir create --title T [--dir <id>|--dir-path P]

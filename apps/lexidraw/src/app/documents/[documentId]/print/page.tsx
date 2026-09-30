@@ -1,5 +1,9 @@
 "use cache: private";
 
+import { exportBlockPreviews } from "~/server/html-blocks/export";
+import { HTMLBlockPreviews } from "~/app/documents/[documentId]/nodes/HTMLBlockPreviews";
+import { findReadableEntity } from "~/server/entities/readable";
+
 import type { Metadata } from "next";
 import { cacheTag } from "next/cache";
 import { redirect } from "next/navigation";
@@ -65,7 +69,11 @@ export default async function PrintDocumentPage(props: Props) {
   // Validate token (for server renderer) or check session (for user preview)
   if (token) {
     const payload = verifyPrintToken(token);
-    if (!payload || payload.entityId !== documentId) {
+    if (
+      !payload ||
+      payload.entityId !== documentId ||
+      !(await findReadableEntity(db, documentId, payload.userId))
+    ) {
       return redirect("/dashboard");
     }
   } else {
@@ -111,20 +119,25 @@ export default async function PrintDocumentPage(props: Props) {
     updatedAt: row.updatedAt,
   };
 
-  const iceServers = await api.auth.iceServers.query();
+  const [iceServers, blockPreviews] = await Promise.all([
+    api.auth.iceServers.query(),
+    exportBlockPreviews(row.elements),
+  ]);
 
   const initialLlmConfig = INITIAL_LLM_CONFIG_FOR_PUBLIC_RENDER;
 
   return (
     <div className="print-container">
       <style>{runningHeaderCss(entity.title)}</style>
-      <DocumentEditor
-        entity={entity}
-        iceServers={iceServers}
-        initialLlmConfig={initialLlmConfig}
-        signedIn={false}
-        renderMode="print"
-      />
+      <HTMLBlockPreviews value={blockPreviews}>
+        <DocumentEditor
+          entity={entity}
+          iceServers={iceServers}
+          initialLlmConfig={initialLlmConfig}
+          signedIn={false}
+          renderMode="print"
+        />
+      </HTMLBlockPreviews>
     </div>
   );
 }

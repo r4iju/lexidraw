@@ -3779,6 +3779,1160 @@
         }
       }
     },
+    "/documents/{id}/html-blocks": {
+      "get": {
+        "operationId": "htmlBlocks-list",
+        "summary": "List saved HTML blocks",
+        "tags": ["documents"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "updatedAt": {
+                      "format": "date-time",
+                      "type": "string"
+                    },
+                    "blocks": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "html": {
+                            "type": "string",
+                            "maxLength": 131072
+                          },
+                          "css": {
+                            "default": "",
+                            "type": "string",
+                            "maxLength": 131072
+                          },
+                          "javascript": {
+                            "default": "",
+                            "type": "string",
+                            "maxLength": 131072
+                          },
+                          "data": {
+                            "default": {},
+                            "type": "object",
+                            "propertyNames": {
+                              "type": "string"
+                            },
+                            "additionalProperties": {}
+                          },
+                          "defaults": {
+                            "default": {},
+                            "type": "object",
+                            "propertyNames": {
+                              "type": "string"
+                            },
+                            "additionalProperties": {
+                              "type": ["string", "number", "boolean"]
+                            }
+                          },
+                          "description": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 500
+                          },
+                          "height": {
+                            "default": 360,
+                            "type": "integer",
+                            "minimum": 180,
+                            "maximum": 900
+                          },
+                          "id": {
+                            "type": "string",
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                          },
+                          "revision": {
+                            "type": "string",
+                            "pattern": "^[a-f0-9]{64}$"
+                          }
+                        },
+                        "required": [
+                          "html",
+                          "css",
+                          "javascript",
+                          "data",
+                          "defaults",
+                          "description",
+                          "height",
+                          "id",
+                          "revision"
+                        ],
+                        "additionalProperties": {}
+                      }
+                    }
+                  },
+                  "required": ["updatedAt", "blocks"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authorization not provided",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient access",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "htmlBlocks-create",
+        "summary": "Insert a self-contained HTML block",
+        "tags": ["documents"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "source": {
+                    "type": "object",
+                    "properties": {
+                      "html": {
+                        "type": "string",
+                        "maxLength": 131072
+                      },
+                      "css": {
+                        "default": "",
+                        "type": "string",
+                        "maxLength": 131072
+                      },
+                      "javascript": {
+                        "default": "",
+                        "type": "string",
+                        "maxLength": 131072
+                      },
+                      "data": {
+                        "default": {},
+                        "type": "object",
+                        "propertyNames": {
+                          "type": "string"
+                        },
+                        "additionalProperties": {}
+                      },
+                      "defaults": {
+                        "default": {},
+                        "type": "object",
+                        "propertyNames": {
+                          "type": "string"
+                        },
+                        "additionalProperties": {
+                          "type": ["string", "number", "boolean"]
+                        }
+                      },
+                      "description": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 500
+                      },
+                      "height": {
+                        "default": 360,
+                        "type": "integer",
+                        "minimum": 180,
+                        "maximum": 900
+                      }
+                    },
+                    "required": ["html", "description"],
+                    "additionalProperties": {}
+                  },
+                  "atBlockIndex": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "ifUnmodifiedSince": {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                  }
+                },
+                "required": ["source", "atBlockIndex", "ifUnmodifiedSince"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "updatedAt": {
+                      "format": "date-time",
+                      "type": "string"
+                    },
+                    "block": {
+                      "type": "object",
+                      "properties": {
+                        "html": {
+                          "type": "string",
+                          "maxLength": 131072
+                        },
+                        "css": {
+                          "default": "",
+                          "type": "string",
+                          "maxLength": 131072
+                        },
+                        "javascript": {
+                          "default": "",
+                          "type": "string",
+                          "maxLength": 131072
+                        },
+                        "data": {
+                          "default": {},
+                          "type": "object",
+                          "propertyNames": {
+                            "type": "string"
+                          },
+                          "additionalProperties": {}
+                        },
+                        "defaults": {
+                          "default": {},
+                          "type": "object",
+                          "propertyNames": {
+                            "type": "string"
+                          },
+                          "additionalProperties": {
+                            "type": ["string", "number", "boolean"]
+                          }
+                        },
+                        "description": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 500
+                        },
+                        "height": {
+                          "default": 360,
+                          "type": "integer",
+                          "minimum": 180,
+                          "maximum": 900
+                        },
+                        "id": {
+                          "type": "string",
+                          "format": "uuid",
+                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                        },
+                        "revision": {
+                          "type": "string",
+                          "pattern": "^[a-f0-9]{64}$"
+                        }
+                      },
+                      "required": [
+                        "html",
+                        "css",
+                        "javascript",
+                        "data",
+                        "defaults",
+                        "description",
+                        "height",
+                        "id",
+                        "revision"
+                      ],
+                      "additionalProperties": {}
+                    }
+                  },
+                  "required": ["id", "updatedAt"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authorization not provided",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient access",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/documents/{id}/html-blocks/{blockId}": {
+      "get": {
+        "operationId": "htmlBlocks-get",
+        "summary": "Read an HTML block source and saved defaults",
+        "tags": ["documents"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "blockId",
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "updatedAt": {
+                      "format": "date-time",
+                      "type": "string"
+                    },
+                    "block": {
+                      "type": "object",
+                      "properties": {
+                        "html": {
+                          "type": "string",
+                          "maxLength": 131072
+                        },
+                        "css": {
+                          "default": "",
+                          "type": "string",
+                          "maxLength": 131072
+                        },
+                        "javascript": {
+                          "default": "",
+                          "type": "string",
+                          "maxLength": 131072
+                        },
+                        "data": {
+                          "default": {},
+                          "type": "object",
+                          "propertyNames": {
+                            "type": "string"
+                          },
+                          "additionalProperties": {}
+                        },
+                        "defaults": {
+                          "default": {},
+                          "type": "object",
+                          "propertyNames": {
+                            "type": "string"
+                          },
+                          "additionalProperties": {
+                            "type": ["string", "number", "boolean"]
+                          }
+                        },
+                        "description": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 500
+                        },
+                        "height": {
+                          "default": 360,
+                          "type": "integer",
+                          "minimum": 180,
+                          "maximum": 900
+                        },
+                        "id": {
+                          "type": "string",
+                          "format": "uuid",
+                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                        },
+                        "revision": {
+                          "type": "string",
+                          "pattern": "^[a-f0-9]{64}$"
+                        }
+                      },
+                      "required": [
+                        "html",
+                        "css",
+                        "javascript",
+                        "data",
+                        "defaults",
+                        "description",
+                        "height",
+                        "id",
+                        "revision"
+                      ],
+                      "additionalProperties": {}
+                    }
+                  },
+                  "required": ["updatedAt", "block"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authorization not provided",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient access",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "operationId": "htmlBlocks-update",
+        "summary": "Replace saved HTML block content while retaining identity",
+        "tags": ["documents"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "blockId",
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "required": true
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "source": {
+                    "type": "object",
+                    "properties": {
+                      "html": {
+                        "type": "string",
+                        "maxLength": 131072
+                      },
+                      "css": {
+                        "default": "",
+                        "type": "string",
+                        "maxLength": 131072
+                      },
+                      "javascript": {
+                        "default": "",
+                        "type": "string",
+                        "maxLength": 131072
+                      },
+                      "data": {
+                        "default": {},
+                        "type": "object",
+                        "propertyNames": {
+                          "type": "string"
+                        },
+                        "additionalProperties": {}
+                      },
+                      "defaults": {
+                        "default": {},
+                        "type": "object",
+                        "propertyNames": {
+                          "type": "string"
+                        },
+                        "additionalProperties": {
+                          "type": ["string", "number", "boolean"]
+                        }
+                      },
+                      "description": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 500
+                      },
+                      "height": {
+                        "default": 360,
+                        "type": "integer",
+                        "minimum": 180,
+                        "maximum": 900
+                      }
+                    },
+                    "required": ["html", "description"],
+                    "additionalProperties": {}
+                  },
+                  "ifUnmodifiedSince": {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                  }
+                },
+                "required": ["source", "ifUnmodifiedSince"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "updatedAt": {
+                      "format": "date-time",
+                      "type": "string"
+                    },
+                    "block": {
+                      "type": "object",
+                      "properties": {
+                        "html": {
+                          "type": "string",
+                          "maxLength": 131072
+                        },
+                        "css": {
+                          "default": "",
+                          "type": "string",
+                          "maxLength": 131072
+                        },
+                        "javascript": {
+                          "default": "",
+                          "type": "string",
+                          "maxLength": 131072
+                        },
+                        "data": {
+                          "default": {},
+                          "type": "object",
+                          "propertyNames": {
+                            "type": "string"
+                          },
+                          "additionalProperties": {}
+                        },
+                        "defaults": {
+                          "default": {},
+                          "type": "object",
+                          "propertyNames": {
+                            "type": "string"
+                          },
+                          "additionalProperties": {
+                            "type": ["string", "number", "boolean"]
+                          }
+                        },
+                        "description": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 500
+                        },
+                        "height": {
+                          "default": 360,
+                          "type": "integer",
+                          "minimum": 180,
+                          "maximum": 900
+                        },
+                        "id": {
+                          "type": "string",
+                          "format": "uuid",
+                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                        },
+                        "revision": {
+                          "type": "string",
+                          "pattern": "^[a-f0-9]{64}$"
+                        }
+                      },
+                      "required": [
+                        "html",
+                        "css",
+                        "javascript",
+                        "data",
+                        "defaults",
+                        "description",
+                        "height",
+                        "id",
+                        "revision"
+                      ],
+                      "additionalProperties": {}
+                    }
+                  },
+                  "required": ["id", "updatedAt"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authorization not provided",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient access",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "htmlBlocks-delete",
+        "summary": "Delete only the identified HTML block",
+        "tags": ["documents"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "blockId",
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "required": true
+          },
+          {
+            "in": "query",
+            "name": "ifUnmodifiedSince",
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "updatedAt": {
+                      "format": "date-time",
+                      "type": "string"
+                    },
+                    "block": {
+                      "type": "object",
+                      "properties": {
+                        "html": {
+                          "type": "string",
+                          "maxLength": 131072
+                        },
+                        "css": {
+                          "default": "",
+                          "type": "string",
+                          "maxLength": 131072
+                        },
+                        "javascript": {
+                          "default": "",
+                          "type": "string",
+                          "maxLength": 131072
+                        },
+                        "data": {
+                          "default": {},
+                          "type": "object",
+                          "propertyNames": {
+                            "type": "string"
+                          },
+                          "additionalProperties": {}
+                        },
+                        "defaults": {
+                          "default": {},
+                          "type": "object",
+                          "propertyNames": {
+                            "type": "string"
+                          },
+                          "additionalProperties": {
+                            "type": ["string", "number", "boolean"]
+                          }
+                        },
+                        "description": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 500
+                        },
+                        "height": {
+                          "default": 360,
+                          "type": "integer",
+                          "minimum": 180,
+                          "maximum": 900
+                        },
+                        "id": {
+                          "type": "string",
+                          "format": "uuid",
+                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                        },
+                        "revision": {
+                          "type": "string",
+                          "pattern": "^[a-f0-9]{64}$"
+                        }
+                      },
+                      "required": [
+                        "html",
+                        "css",
+                        "javascript",
+                        "data",
+                        "defaults",
+                        "description",
+                        "height",
+                        "id",
+                        "revision"
+                      ],
+                      "additionalProperties": {}
+                    }
+                  },
+                  "required": ["id", "updatedAt"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authorization not provided",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient access",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/documents/{id}/html-blocks/{blockId}/preview": {
+      "get": {
+        "operationId": "htmlBlocks-preview",
+        "summary": "Capture the exact saved-state HTML block revision",
+        "tags": ["documents"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "blockId",
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "required": true
+          },
+          {
+            "in": "query",
+            "name": "revision",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "in": "query",
+            "name": "width",
+            "schema": {
+              "default": 800,
+              "type": "integer",
+              "minimum": 320,
+              "maximum": 1280
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "status": {
+                          "type": "string",
+                          "const": "ready"
+                        },
+                        "revision": {
+                          "type": "string"
+                        },
+                        "data": {
+                          "type": "string"
+                        },
+                        "width": {
+                          "type": "number"
+                        },
+                        "height": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "status",
+                        "revision",
+                        "data",
+                        "width",
+                        "height"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "status": {
+                          "type": "string",
+                          "const": "failed"
+                        },
+                        "revision": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "width": {
+                          "type": "number"
+                        },
+                        "height": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "status",
+                        "revision",
+                        "message",
+                        "width",
+                        "height"
+                      ],
+                      "additionalProperties": false
+                    }
+                  ],
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authorization not provided",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient access",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/drawings/{id}": {
       "get": {
         "operationId": "drawings-get",

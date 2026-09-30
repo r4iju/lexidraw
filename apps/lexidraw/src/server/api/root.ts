@@ -1,3 +1,4 @@
+import { htmlBlocksRouter } from "./routers/html-blocks";
 import { createTRPCRouter } from "~/server/api/trpc";
 import { authRouter } from "./routers/auth";
 import { entityRouter } from "./routers/entities";
@@ -39,6 +40,7 @@ export const appRouter = createTRPCRouter({
   tts: ttsRouter,
   llm: llmRouter,
   documents: documentRouter,
+  htmlBlocks: htmlBlocksRouter,
   drawings: drawingRouter,
   backups: backupsRouter,
   tools: toolsRouter,

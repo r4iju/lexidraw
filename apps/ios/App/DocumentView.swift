@@ -160,6 +160,7 @@ private struct DocumentEditor: UIViewRepresentable {
       language: editing.settings.language, font: editing.font)
     view.onChange = { [weak editing] in editing?.changed() }
     configureEmbeddedDrawings(view)
+    configureHTMLBlocks(view, session: editing.session, documentID: editing.id)
     if editing.mode == .editing {
       view.uploadImage = { [weak editing] data in
         guard let editing else { throw CancellationError() }

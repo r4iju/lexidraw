@@ -1,3 +1,4 @@
+import { HTMLBlockNode } from "./nodes/HTMLBlockNode.js";
 import type {
   ElementTransformer,
   MultilineElementTransformer,
@@ -285,6 +286,10 @@ const PLACEHOLDER_SUMMARIES: ReadonlyArray<
   [(node: LexicalNode) => boolean, (node: LexicalNode) => string]
 > = [
   [
+    (node) => node instanceof HTMLBlockNode,
+    (node) => (node as HTMLBlockNode).getBlock()?.description ?? "HTML block",
+  ],
+  [
     (node) => InlineImageNode.$isInlineImageNode(node),
     (node) => {
       const image = node as InlineImageNode;
@@ -372,6 +377,7 @@ const PLACEHOLDER_NODES = [
   SlideNode,
   ExcalidrawNode,
   MermaidNode,
+  HTMLBlockNode,
   CommentNode,
   ThreadNode,
 ];

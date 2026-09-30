@@ -635,3 +635,7 @@ Phase 1 is useful on its own: curl against tRPC works the moment it lands.
   copied code.
 - Excalidraw+ exposes a paid API and MCP with the same skeleton input and a
   documented scene content schema; useful as a reference only.
+
+## Interactive HTML blocks
+
+Agents can create, inspect, revise, remove and capture self-contained HTML blocks with `lexidraw doc block …`. See [the source, revision, runtime and preview contract](html-blocks.md), including the calculator example and read → revise → verify workflow. `lexidraw schema doc block create` and the other block verbs expose their live API schemas.

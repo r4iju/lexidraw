@@ -15,12 +15,14 @@
     "test:ts": "tsgo --noEmit"
   },
   "dependencies": {
+    "@packages/lexical-nodes": "workspace:*",
     "@packages/lib": "workspace:*",
+    "@sparticuz/chromium": "^153.0.0",
+    "linkedom": "0.18.12",
     "next": "16.3.6",
-    "react": "19.3.0",
-    "react-dom": "19.3.0",
     "puppeteer-core": "^25.11.0",
-    "@sparticuz/chromium": "^153.0.0"
+    "react": "19.3.0",
+    "react-dom": "19.3.0"
   },
   "devDependencies": {
     "@packages/dev-stack": "workspace:*",

@@ -21,6 +21,7 @@ public enum SerializedNode: Equatable, Sendable {
   case hashtag(SerializedHashtagNode)
   case heading(SerializedHeadingNode)
   case horizontalRule(SerializedHorizontalRuleNode)
+  case hTMLBlock(SerializedHTMLBlockNode)
   case image(SerializedImageNode)
   case inlineImage(SerializedInlineImageNode)
   case keyword(SerializedKeywordNode)
@@ -74,6 +75,7 @@ public enum SerializedNode: Equatable, Sendable {
     case "hashtag": self.init(json, as: Self.hashtag)
     case "heading": self.init(json, as: Self.heading)
     case "horizontalrule": self.init(json, as: Self.horizontalRule)
+    case "html-block": self.init(json, as: Self.hTMLBlock)
     case "image": self.init(json, as: Self.image)
     case "inline-image": self.init(json, as: Self.inlineImage)
     case "keyword": self.init(json, as: Self.keyword)
@@ -128,6 +130,7 @@ public enum SerializedNode: Equatable, Sendable {
     case .hashtag(let node): node
     case .heading(let node): node
     case .horizontalRule(let node): node
+    case .hTMLBlock(let node): node
     case .image(let node): node
     case .inlineImage(let node): node
     case .keyword(let node): node
@@ -182,6 +185,7 @@ public enum SerializedNode: Equatable, Sendable {
     case .hashtag(let node): node.json
     case .heading(let node): node.json
     case .horizontalRule(let node): node.json
+    case .hTMLBlock(let node): node.json
     case .image(let node): node.json
     case .inlineImage(let node): node.json
     case .keyword(let node): node.json
@@ -236,6 +240,7 @@ public enum SerializedNode: Equatable, Sendable {
     case .hashtag(let node): .hashtag(node.asLoaded())
     case .heading(let node): .heading(node.asLoaded())
     case .horizontalRule(let node): .horizontalRule(node.asLoaded())
+    case .hTMLBlock(let node): .hTMLBlock(node.asLoaded())
     case .image(let node): .image(node.asLoaded())
     case .inlineImage(let node): .inlineImage(node.asLoaded())
     case .keyword(let node): .keyword(node.asLoaded())
@@ -292,6 +297,7 @@ extension NodeTraits {
     "hashtag": NodeTraits(kind: .text, inline: .fixed(true), shadowRoot: .fixed(false), canBeEmpty: .fixed(false)),
     "heading": NodeTraits(kind: .element, inline: .fixed(false), shadowRoot: .fixed(false), canBeEmpty: .fixed(true)),
     "horizontalrule": NodeTraits(kind: .decorator, inline: .fixed(false), shadowRoot: .fixed(false), canBeEmpty: .fixed(false)),
+    "html-block": NodeTraits(kind: .decorator, inline: .fixed(false), shadowRoot: .fixed(false), canBeEmpty: .fixed(false)),
     "image": NodeTraits(kind: .decorator, inline: .fixed(true), shadowRoot: .fixed(false), canBeEmpty: .fixed(false)),
     "inline-image": NodeTraits(kind: .decorator, inline: .fixed(true), shadowRoot: .fixed(false), canBeEmpty: .fixed(false)),
     "keyword": NodeTraits(kind: .text, inline: .fixed(true), shadowRoot: .fixed(false), canBeEmpty: .fixed(false)),
@@ -1611,7 +1617,7 @@ public struct StickyCaption: DeclaredObject {
   }
 
   private enum Schema {
-    static let editorState: FieldSchema<JSONValue> = .savedByEditor(of: ["article", "artificial", "autocomplete", "autolink", "callout", "chart", "code", "code-highlight", "collapsible-container", "collapsible-content", "collapsible-title", "comment", "emoji", "equation", "excalidraw", "figma", "footnote-definition", "footnote-reference", "hashtag", "heading", "horizontalrule", "image", "inline-image", "keyword", "layout-container", "layout-item", "linebreak", "link", "list", "listitem", "mark", "mention", "mermaid", "page-break", "paragraph", "poll", "quote", "root", "slide-deck", "sticky", "tab", "table", "tablecell", "tablerow", "text", "thread", "tweet", "video", "youtube"], .transform(.rawOr(["root": ["children": [], "direction": nil, "format": "", "indent": 0, "type": "root", "version": 1]]), Transforms.nestedEditorState, default: ["root": ["children": [], "direction": nil, "format": "", "indent": 0, "type": "root", "version": 1]]))
+    static let editorState: FieldSchema<JSONValue> = .savedByEditor(of: ["article", "artificial", "autocomplete", "autolink", "callout", "chart", "code", "code-highlight", "collapsible-container", "collapsible-content", "collapsible-title", "comment", "emoji", "equation", "excalidraw", "figma", "footnote-definition", "footnote-reference", "hashtag", "heading", "horizontalrule", "html-block", "image", "inline-image", "keyword", "layout-container", "layout-item", "linebreak", "link", "list", "listitem", "mark", "mention", "mermaid", "page-break", "paragraph", "poll", "quote", "root", "slide-deck", "sticky", "tab", "table", "tablecell", "tablerow", "text", "thread", "tweet", "video", "youtube"], .transform(.rawOr(["root": ["children": [], "direction": nil, "format": "", "indent": 0, "type": "root", "version": 1]]), Transforms.nestedEditorState, default: ["root": ["children": [], "direction": nil, "format": "", "indent": 0, "type": "root", "version": 1]]))
   }
 }
 
@@ -2723,6 +2729,39 @@ public struct SerializedHorizontalRuleNode: NodePayload {
 
   public func asLoaded() -> Self {
     self
+  }
+}
+
+public struct SerializedHTMLBlockNode: NodePayload {
+  public static let type = "html-block"
+  public static let version = 1
+  public static let keyOrder: [String] = ["type", "version", "block"]
+  public var block: JSONValue?
+  public var unknownFields: JSONObject
+
+  public init(json: JSONValue) throws {
+    var fields = try NodeFields(reading: json, as: Self.type)
+    block = fields.take("block", Schema.block)
+    unknownFields = fields.rest
+  }
+
+  public var json: JSONValue { json(canonicalKeyOrder: true) }
+  public var jsonForPresentation: JSONValue { json(canonicalKeyOrder: false) }
+
+  private func json(canonicalKeyOrder: Bool) -> JSONValue {
+    var fields = NodeFields(writing: Self.type, version: Self.version, over: unknownFields)
+    fields.put("block", block, Schema.block)
+    return fields.json(in: Self.keyOrder, canonicalKeyOrder: canonicalKeyOrder)
+  }
+
+  public func asLoaded() -> Self {
+    var node = self
+    node.block = Schema.block.resolving(block)
+    return node
+  }
+
+  private enum Schema {
+    static let block: FieldSchema<JSONValue> = .rawOr(nil)
   }
 }
 
@@ -4294,7 +4333,7 @@ public struct SerializedVideoNode: NodePayload {
   }
 
   private enum Schema {
-    static let caption: FieldSchema<JSONValue> = .savedByEditor(of: ["article", "artificial", "autocomplete", "autolink", "callout", "chart", "code", "code-highlight", "collapsible-container", "collapsible-content", "collapsible-title", "comment", "emoji", "equation", "excalidraw", "figma", "footnote-definition", "footnote-reference", "hashtag", "heading", "horizontalrule", "image", "inline-image", "keyword", "layout-container", "layout-item", "linebreak", "link", "list", "listitem", "mark", "mention", "mermaid", "page-break", "paragraph", "poll", "quote", "root", "slide-deck", "sticky", "tab", "table", "tablecell", "tablerow", "text", "thread", "tweet", "video", "youtube"], .transform(.raw, Transforms.videoCaption, default: ["root": ["children": [["children": [], "direction": nil, "format": "", "indent": 0, "textFormat": 0, "textStyle": "", "type": "paragraph", "version": 1]], "direction": nil, "format": "", "indent": 0, "type": "root", "version": 1]]))
+    static let caption: FieldSchema<JSONValue> = .savedByEditor(of: ["article", "artificial", "autocomplete", "autolink", "callout", "chart", "code", "code-highlight", "collapsible-container", "collapsible-content", "collapsible-title", "comment", "emoji", "equation", "excalidraw", "figma", "footnote-definition", "footnote-reference", "hashtag", "heading", "horizontalrule", "html-block", "image", "inline-image", "keyword", "layout-container", "layout-item", "linebreak", "link", "list", "listitem", "mark", "mention", "mermaid", "page-break", "paragraph", "poll", "quote", "root", "slide-deck", "sticky", "tab", "table", "tablecell", "tablerow", "text", "thread", "tweet", "video", "youtube"], .transform(.raw, Transforms.videoCaption, default: ["root": ["children": [["children": [], "direction": nil, "format": "", "indent": 0, "textFormat": 0, "textStyle": "", "type": "paragraph", "version": 1]], "direction": nil, "format": "", "indent": 0, "type": "root", "version": 1]]))
     static let captionsEnabled: FieldSchema<JSONValue> = .transform(.raw, Transforms.falseOrStored, default: false)
     static let figure: FieldSchema<Shaped<Figure>> = .shaped(.object, .raw)
     static let height: FieldSchema<JSONValue> = .transform(.raw, Transforms.storedSize, default: 0)

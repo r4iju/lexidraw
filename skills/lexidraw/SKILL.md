@@ -413,3 +413,5 @@ fonts, `--scale` multiplies the pixel size. Deleted elements are left out and
 only `viewBackgroundColor` is honoured, so a dark-mode drawing still renders
 light. A raster over 16 megapixels is refused, and so is one that encodes to
 over 3 MB; lower `--scale` or ask for `svg`.
+
+For self-contained calculators, dashboards or interactive explanations, use `doc block create/list/get/update/delete/preview` and follow `docs/html-blocks.md`. Read the saved block and document `updatedAt` before revising it; inputs belong in `defaults` and datasets in `data`. Use `blockReady()` after initialization. Remote libraries/networking, inline scripts and arbitrary browser APIs are unsupported. Never replace surrounding markdown to refresh a block: use its stable block ID and a guarded update. Capture with the exact returned block revision.

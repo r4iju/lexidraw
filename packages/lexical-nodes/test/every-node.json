@@ -1285,6 +1285,25 @@
             }
           ]
         }
+      },
+      {
+        "type": "html-block",
+        "version": 1,
+        "block": {
+          "html": "<output id=\"total\">12</output>",
+          "css": "",
+          "javascript": "blockReady()",
+          "data": {
+            "rate": 3
+          },
+          "defaults": {
+            "amount": 4
+          },
+          "description": "Calculator",
+          "height": 360,
+          "id": "10000000-0000-4000-8000-000000000001",
+          "revision": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        }
       }
     ],
     "direction": null,

@@ -95,6 +95,11 @@ private actor PreviewServer: ClientTransport {
       }
       return try response(["id": target, "updatedAt": revision])
     }
+    if operationID == "htmlBlocks-preview", let preview = ProcessInfo.processInfo.environment["EDITOR_HTML_BLOCK_PREVIEW"] {
+      var response = HTTPResponse(status: .ok)
+      response.headerFields[.contentType] = "application/json"
+      return (response, HTTPBody(preview))
+    }
     guard operationID == "entities-load" else { return (HTTPResponse(status: .notFound), nil) }
     loads += 1
     let elements =

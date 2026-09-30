@@ -1,3 +1,4 @@
+import { htmlBlockCommand } from "./html-block";
 import {
   type ArgSpec,
   integer,
@@ -81,6 +82,7 @@ export async function docCommand(
   context: Context,
   argv: readonly string[],
 ): Promise<void> {
+  if (argv[0] === "block") return htmlBlockCommand(context, argv.slice(1));
   const verb = VERBS.find((name) => name === argv[0]);
   if (verb === undefined) {
     throw usageError(`usage: lexidraw doc ${VERBS.join("|")}`, {

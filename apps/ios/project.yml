@@ -71,6 +71,7 @@ targets:
       - App/DocumentTypography.swift
       - App/Loaded.swift
       - App/EmbeddedDrawing.swift
+      - App/EmbeddedHTMLBlock.swift
       - App/DrawingCanvas.swift
       - App/DrawingEditorView.swift
       - App/EditorCanvas.swift
