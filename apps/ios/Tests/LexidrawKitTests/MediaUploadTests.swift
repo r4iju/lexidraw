@@ -1,0 +1,41 @@
+import Foundation
+import Testing
+@testable import LexidrawKit
+
+@Suite struct MediaUploadTests {
+  static let signed = #"{"url":"https://pictures.test/p.jpg","upload":{"method":"PUT","url":"https://store.test/signed","headers":{"x-upload-token":"disposable","content-type":"image/jpeg"}}}"#
+  @Test func authorizesDocumentThenUploadsOnlySignedHeaders() async throws {
+    let server = FakeServer { request in
+      request.url.path.hasSuffix("/uploads") ? (200, Self.signed) : (200, DocumentTests.loaded(elements: #""{\"root\":{}}""#))
+    }
+    let session = try TestServer.session(server)
+    let url = try await session.uploadImage(Data([1, 2, 3]), in: "n1", send: { request, data in
+      #expect(request.url?.absoluteString == "https://store.test/signed")
+      #expect(request.httpMethod == "PUT")
+      #expect(request.value(forHTTPHeaderField: "Authorization") == nil)
+      #expect(request.value(forHTTPHeaderField: "x-upload-token") == "disposable")
+      #expect(data == Data([1, 2, 3]))
+      return 200
+    })
+    #expect(url.absoluteString == "https://pictures.test/p.jpg")
+    #expect(server.requests.count == 2)
+    #expect(server.requests.last?.object["size"] as? Int == 3)
+  }
+  @Test func refusesReadOnlyBeforeSigningUpload() async throws {
+    let server = FakeServer { _ in (200, DocumentTests.loaded(elements: #""{\"root\":{}}""#, access: "READ")) }
+    let session = try TestServer.session(server)
+    await #expect(throws: ImageUploadError.self) {
+      try await session.uploadImage(Data([1]), in: "n1", send: { _, _ in Issue.record("Read-only upload sent"); return 200 })
+    }
+    #expect(server.requests.count == 1)
+  }
+  @Test func doesNotReturnSourceBeforeUploadSucceeds() async throws {
+    let server = FakeServer { request in
+      request.url.path.hasSuffix("/uploads") ? (200, Self.signed) : (200, DocumentTests.loaded(elements: #""{\"root\":{}}""#))
+    }
+    let session = try TestServer.session(server)
+    await #expect(throws: ImageUploadError.self) {
+      try await session.uploadImage(Data([1]), in: "n1", send: { _, _ in 403 })
+    }
+  }
+}

@@ -1,3 +1,4 @@
+import { MEDIA_LINK_BASES } from "../media-links.js";
 import {
   DecoratorBlockNode,
   type SerializedDecoratorBlockNode,
@@ -74,7 +75,7 @@ export class FigmaNode extends DecoratorBlockNode {
     _includeInert?: boolean | undefined,
     _includeDirectionless?: false | undefined,
   ): string {
-    return `https://www.figma.com/file/${this.__id}`;
+    return `${MEDIA_LINK_BASES.figma}${this.__id}`;
   }
 
   static $createFigmaNode<T extends FigmaNode>(

@@ -120,15 +120,18 @@ public final class DocumentText {
 
   func embeddedNode(at index: Int) -> (key: String, node: JSONValue)? {
     guard blocks.indices.contains(index), let node = try? model.nodeForPresentation(at: [index]) else { return nil }
-    if let drawing = Self.drawingInParagraph(node), let keys = try? model.childKeys(at: [index]), let key = keys.first {
-      return (key, drawing)
+    if let embedded = Self.decoratorInParagraph(node), let keys = try? model.childKeys(at: [index]), let key = keys.first {
+      return (key, embedded)
     }
     return (blocks[index].key, node)
   }
 
-  private static func drawingInParagraph(_ node: JSONValue) -> JSONValue? {
-    guard node["type"] == "paragraph", let children = node["children"]?.arrayValue,
-      children.count == 1, children[0]["type"] == "excalidraw" else { return nil }
+  func payload(ofBlock index: Int) -> JSONValue? { embeddedNode(at: index)?.node }
+
+  private static func decoratorInParagraph(_ node: JSONValue) -> JSONValue? {
+    guard node["type"] == "paragraph", let children = node["children"]?.arrayValue, children.count == 1,
+      let type = children[0]["type"]?.stringValue,
+      type == "excalidraw" || (type != "inline-image" && MediaPayload(children[0]) != nil) else { return nil }
     return children[0]
   }
 
@@ -379,7 +382,7 @@ public final class DocumentText {
   }
 
   private static func kind(of node: JSONValue, spans: [[Int]: Span]) -> BlockKind {
-    if drawingInParagraph(node) != nil { return .embedded(type: "excalidraw") }
+    if let embedded = decoratorInParagraph(node), let type = embedded["type"]?.stringValue { return .embedded(type: type) }
     switch spans[[]]?.kind {
     case .character: return .embedded(type: node["type"]?.stringValue ?? "")
     case .element(let rowCount) where node["type"] == "table":

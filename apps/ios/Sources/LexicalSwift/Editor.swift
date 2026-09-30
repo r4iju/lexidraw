@@ -232,6 +232,12 @@ extension Node {
     case .listItem(let node): node.unknownFields.isEmpty
     case .lineBreak(let node): node.unknownFields.isEmpty || node.holdsOnlyAMarkdownHardLineBreak
     case .horizontalRule(let node): node.unknownFields.isEmpty
+    case .image(let node): node.unknownFields.isEmpty
+    case .inlineImage(let node): node.unknownFields.isEmpty
+    case .video(let node): node.unknownFields.isEmpty
+    case .youTube(let node): node.unknownFields.isEmpty
+    case .tweet(let node): node.unknownFields.isEmpty
+    case .figma(let node): node.unknownFields.isEmpty
     case .link(let node): node.unknownFields.isEmpty
     case .autoLink(let node): node.unknownFields.isEmpty
     case .table(let node): node.unknownFields.isEmpty

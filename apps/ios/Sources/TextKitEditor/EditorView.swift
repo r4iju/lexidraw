@@ -117,6 +117,10 @@ public final class EditorView: UIScrollView, UITextInput {
     if !change.changed.isEmpty { onChange?() }
   }
 
+  /// Provided by the account-backed document screen; absent in disposable harnesses.
+  public var uploadImage: (@MainActor (Data) async throws -> URL)?
+  private var imagePicker: NativeImagePicker?
+
   public weak var inputDelegate: (any UITextInputDelegate)?
   public var markedTextStyle: [NSAttributedString.Key: Any]?
   public private(set) lazy var tokenizer: any UITextInputTokenizer = UITextInputStringTokenizer(textInput: self)
@@ -949,7 +953,7 @@ public final class EditorView: UIScrollView, UITextInput {
   /// its list runs them under the keyboard.
   public func editMenu(for textRange: UITextRange, suggestedActions: [UIMenuElement]) -> UIMenu? {
     guard let range = textRange as? TextRange else { return nil }
-    let own = linkActions(in: range.range) + (isEditable ? [writingDirectionMenu(for: textRange), tableMenu()] : [])
+    let own = linkActions(in: range.range) + (isEditable ? [writingDirectionMenu(for: textRange), tableMenu()] + (uploadImage == nil ? [] : [imageMenu()]) : [])
     func withoutSystemDirection(_ elements: [UIMenuElement]) -> [UIMenuElement] {
       elements.compactMap { element in
         guard let menu = element as? UIMenu else { return element }
@@ -971,6 +975,36 @@ public final class EditorView: UIScrollView, UITextInput {
   public override func makeTextWritingDirectionRightToLeft(_ sender: Any?) {
     guard let range = selectedTextRange else { return }
     setWritingDirection(.rightToLeft, for: range)
+  }
+
+  /// Actions the native formatting bar can include in its insertion menu.
+  public var imageInsertionActions: [UIMenuElement] {
+    isEditable && uploadImage != nil ? imageMenu().children : []
+  }
+
+  private func imageMenu() -> UIMenu {
+    let enabled = uploadImage != nil
+    return UIMenu(title: "Image", children: [
+      UIAction(title: "Choose from Photos…", image: UIImage(systemName: "photo"), attributes: enabled ? [] : .disabled) { [weak self] _ in self?.chooseImage(camera: false) },
+      UIAction(title: "Take Photo…", image: UIImage(systemName: "camera"), attributes: enabled && UIImagePickerController.isSourceTypeAvailable(.camera) ? [] : .disabled) { [weak self] _ in self?.chooseImage(camera: true) },
+    ])
+  }
+
+  /// Inserts a media payload through the same model transaction as rich paste.
+  @discardableResult public func insertMedia(_ node: JSONValue) -> Bool {
+    guard MediaPayload(node) != nil else { return false }
+    return perform(.paste(Clipboard(plainText: "", lexical: LexicalClipboardPayload(namespace: MediaLinks.namespace, nodes: [node]))), fromInput: false, tellsRefusal: true) != nil
+  }
+
+  private func chooseImage(camera: Bool) {
+    guard isEditable, let uploadImage, let presenter else { return }
+    let picker = NativeImagePicker(presenter: presenter, upload: uploadImage) { [weak self] node in
+      guard let self else { return }
+      insertMedia(node)
+      imagePicker = nil
+    }
+    imagePicker = picker
+    picker.present(camera: camera)
   }
 
   private func writingDirectionMenu(for range: UITextRange) -> UIMenu {

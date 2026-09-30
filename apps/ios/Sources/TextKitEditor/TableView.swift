@@ -182,7 +182,9 @@ import UIKit
     if preparation.cursor < preparation.indices.count {
       let at = preparation.indices[preparation.cursor]
       let content = preparation.placed.width(row: at.row, index: at.index, preparation.columns!) - 2 * paddingX - endBorder(at.row, at.index)
-      boxes[at.row].append(TextBox(styled(cells[at.row][at.index], alignedRight: preparation.alignment.contains(at.index)), width: max(content, 1)))
+      let box = TextBox(styled(cells[at.row][at.index], alignedRight: preparation.alignment.contains(at.index)), width: max(content, 1))
+      box.onRedraw = { [weak self] in self?.redraw() }
+      boxes[at.row].append(box)
       preparation.cursor += 1
       return false
     }

@@ -12,6 +12,7 @@ import UIKit
   private let layoutManager = WebLinkLayoutManager()
   private let container = NSTextContainer(size: .zero)
   private(set) var height: CGFloat = 0
+  var onRedraw: (() -> Void)?
   /// The lines as laid out, the extra one TextKit adds after a final newline
   /// left out.
   private var lines: [Line] = []
@@ -57,6 +58,9 @@ import UIKit
     self.listLayout = listLayout
     contentStorage.performEditingTransaction { storage.setAttributedString(styled) }
     measure()
+    storage.enumerateAttribute(.attachment, in: NSRange(location: 0, length: storage.length)) { value, _, _ in
+      (value as? MediaAttachment)?.load { [weak self] in self?.onRedraw?() }
+    }
   }
 
   func set(width: CGFloat) {

@@ -1,0 +1,36 @@
+import LexicalFuzz
+import LexicalSwift
+import Testing
+
+@Suite struct MediaTests {
+  static let nodes: [JSONValue] = [
+    ["type": "image", "version": 1, "src": "https://example.com/photo.png", "altText": "Photo", "width": 640, "height": 480, "$": ["figure": ["caption": "A figure", "width": "wide"]]],
+    ["type": "inline-image", "version": 1, "src": "https://example.com/inline.png", "altText": "Inline", "width": 32, "height": 32, "position": "left"],
+    ["type": "video", "version": 1, "src": "https://example.com/movie.mp4", "width": 640, "height": 360],
+    ["type": "youtube", "version": 1, "videoID": "dQw4w9WgXcQ"],
+    ["type": "tweet", "version": 1, "id": "123456789"],
+    ["type": "figma", "version": 1, "documentID": "abc123"],
+  ]
+
+  @Test(arguments: nodes)
+  func mediaRoundTripsAndAllowsSurroundingEdits(_ node: JSONValue) throws {
+    let start = document(paragraph(text("before")), node, paragraph(text("after")))
+    let reference = try Support.referenceEditor()
+    try reference.load(start)
+    let editor = Editor()
+    try editor.load(start)
+    #expect(editor.isEditable)
+    #expect(try editor.serializedState() == reference.serializedState())
+    let commands: [EditorCommand] = [caret([0, 0], 6), .insertText(" edited"), .undo, .redo]
+    let fixture = try Fixture.record(start: start, commands: commands, on: reference)
+    #expect(try fixture.replay(on: editor) == fixture.recorded)
+  }
+
+  @Test(arguments: nodes)
+  func mediaPastesLikeTheWeb(_ node: JSONValue) throws {
+    let start = document(paragraph(text("before after")))
+    let commands: [EditorCommand] = [caret([0, 0], 7), .paste(copied("", node)), .undo, .redo]
+    let fixture = try Fixture.record(start: start, commands: commands, on: Support.referenceEditor())
+    #expect(try fixture.replay(on: Editor()) == fixture.recorded)
+  }
+}

@@ -68,12 +68,12 @@ import Testing
     }
   }
 
-  @Test func unportedImageReportsItsOwningTicket() throws {
+  @Test func unportedCodeReportsItsOwningTicket() throws {
     let editor = Editor()
     try editor.load(document(paragraph()))
     try editor.apply(.caret(Point(path: [0], offset: 0, type: .element)))
-    #expect(throws: EditorError.unsupported("Pasting inline-image HTML isn't supported yet (#131)")) {
-      try editor.apply(.paste(Clipboard(plainText: "image", html: "<img src='https://example.com/image.png' alt='image'>")))
+    #expect(throws: EditorError.unsupported("Pasting code HTML isn't supported yet (#132)")) {
+      try editor.apply(.paste(Clipboard(plainText: "code", html: "<pre><code>code</code></pre>")))
     }
     #expect(try editor.serializedState() == document(paragraph()))
   }

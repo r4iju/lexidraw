@@ -115,6 +115,7 @@ import UIKit
   /// in the text, as a placeholder the size of a word.
   nonisolated static func standIn(_ node: JSONValue, isBlock: Bool) -> [NSAttributedString.Key: Any]? {
     guard !isBlock, InlinePlaceholder.isEmbedded(node) else { return nil }
+    if let media = MediaPayload(node) { return [.attachment: MediaAttachment(media)] }
     let type = node["type"]?.stringValue ?? ""
     return [.attachment: InlinePlaceholder.attachment(type: type)]
   }
@@ -205,7 +206,9 @@ import UIKit
     let block = styled(index)
     switch document.kind(ofBlock: index) {
     case .embedded where block == .rule: return typesetting.typography.rule.width
-    case .embedded: return PlaceholderView.height
+    case .embedded:
+      if let node = document.payload(ofBlock: index), let media = MediaPayload(node) { return MediaView.height(media, width: width) }
+      return PlaceholderView.height
     case .table(let table):
       let style = typesetting.typography.table
       return CGFloat(table.rows.count) * (typesetting.lineHeight(block) + 2 * style.paddingY + style.border) + style.border
@@ -264,7 +267,7 @@ import UIKit
       case .embedded(let type):
         if let embedded = document.embeddedNode(at: index), let view = embeddedContent?(embedded.key, embedded.node) {
           ContentBlock(view: view, node: embedded.node, type: type, width: width)
-        } else { EmbedBlock(type: type, width: width) }
+        } else { EmbedBlock(type: type, payload: document.payload(ofBlock: index), width: width) }
       }
     laidOut[index] = block
     showTableSelection(in: block, at: index)
@@ -533,6 +536,7 @@ private final class TextBlock: LaidOutBlock {
     box = TextBox(text, width: width)
     self.selectedOutline = selectedOutline
     drawing.box = box
+    box.onRedraw = { [weak drawing] in drawing?.setNeedsDisplay() }
     drawing.border = Self.border(text)
   }
 
@@ -781,23 +785,25 @@ private final class ContentBlock: LaidOutBlock {
 private final class EmbedBlock: LaidOutBlock {
 
   private let container = UIView()
-  private let placeholder: PlaceholderView
+  private let placeholder: UIView
+  private let media: MediaPayload?
   private let type: String
 
-  init(type: String, width: CGFloat) {
+  init(type: String, payload: JSONValue?, width: CGFloat) {
     self.type = type
-    placeholder = PlaceholderView(type: type)
+    media = payload.flatMap(MediaPayload.init)
+    placeholder = media.map { MediaView($0) } ?? PlaceholderView(type: type)
     container.addSubview(placeholder)
-    placeholder.frame = CGRect(x: 0, y: 0, width: width, height: PlaceholderView.height)
+    placeholder.frame = CGRect(x: 0, y: 0, width: width, height: media.map { MediaView.height($0, width: width) } ?? PlaceholderView.height)
   }
 
   var view: UIView { container }
   var kind: DocumentText.BlockKind { .embedded(type: type) }
-  var height: CGFloat { PlaceholderView.height }
-  func canShow(_ kind: DocumentText.BlockKind) -> Bool { kind == self.kind }
+  var height: CGFloat { placeholder.frame.height }
+  func canShow(_ kind: DocumentText.BlockKind) -> Bool { media == nil && kind == self.kind }
 
   func set(text: NSAttributedString, kind: DocumentText.BlockKind, width: CGFloat) {
-    placeholder.frame = CGRect(x: 0, y: 0, width: width, height: PlaceholderView.height)
+    placeholder.frame = CGRect(x: 0, y: 0, width: width, height: media.map { MediaView.height($0, width: width) } ?? PlaceholderView.height)
   }
 
   func redraw() {}

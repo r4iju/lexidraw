@@ -166,16 +166,16 @@ func plain(_ text: String) -> EditorCommand { .paste(Clipboard(plainText: text))
     #expect(try fixture.replay(on: Editor()) == fixture.recorded)
   }
 
-  /// LexicalSwift doesn't edit a document holding an image, so it doesn't
+  /// LexicalSwift doesn't edit a document holding a code block, so it doesn't
   /// paste one, and says which issue will.
-  @Test func pastingAnImageIsRefusedNamingTheIssueThatPortsIt() throws {
+  @Test func pastingCodeIsRefusedNamingTheIssueThatPortsIt() throws {
     let editor = Editor()
     try editor.load(Self.helloWorld)
     try editor.apply(caret([0, 0], 5))
-    let image: JSONValue = ["type": "image", "version": 1, "src": "https://a.io/b.png"]
+    let code: JSONValue = ["type": "code", "version": 1, "children": []]
 
-    #expect(throws: EditorError.unsupported("Pasting image nodes isn't supported yet (#131)")) {
-      try editor.apply(.paste(copied("", paragraph(text("a"), image))))
+    #expect(throws: EditorError.unsupported("Pasting code nodes isn't supported yet (#132)")) {
+      try editor.apply(.paste(copied("", paragraph(text("a"), code))))
     }
   }
 }
