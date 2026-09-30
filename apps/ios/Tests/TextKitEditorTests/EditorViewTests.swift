@@ -56,6 +56,45 @@ import UIKit
     #expect(changes == 2)
   }
 
+  @Test func keyboardFormattingBarFormatsTheSelectedText() throws {
+    let (view, model) = try editing(LexicalJSON.paragraph([LexicalJSON.text("hello world")]))
+    select(view, 0, 5)
+    let bar = try #require(view.inputAccessoryView)
+    func buttons(in view: UIView) -> [UIButton] {
+      (view as? UIButton).map { [$0] } ?? view.subviews.flatMap { buttons(in: $0) }
+    }
+    let bold = try #require(buttons(in: bar).first { $0.accessibilityLabel == "Bold" })
+    bold.sendActions(for: .touchUpInside)
+    let paragraph = try model.node(at: [0])
+    let nodes = try #require(paragraph["children"]?.arrayValue)
+    #expect(nodes.map { $0["text"]?.stringValue } == ["hello", " world"])
+    #expect(nodes.map { $0["format"]?.intValue } == [1, 0])
+    #expect(view.offset(from: view.beginningOfDocument, to: view.selectedTextRange!.start) == 0)
+    #expect(view.offset(from: view.beginningOfDocument, to: view.selectedTextRange!.end) == 5)
+  }
+
+  @Test func readOnlyDocumentsHaveNoKeyboardFormattingBar() throws {
+    let (view, _) = try editing(LexicalJSON.paragraph([LexicalJSON.text("hello")]), isEditable: false)
+    #expect(view.inputAccessoryView == nil)
+  }
+
+  @Test func webStrikethroughShortcutFormatsTheSelection() throws {
+    let (view, model) = try editing(LexicalJSON.paragraph([LexicalJSON.text("hello")]))
+    select(view, 0, 5)
+    try press("s", [.command, .shift], in: view)
+    let node = try model.node(at: [0, 0])
+    #expect(node["format"]?.intValue == TextFormat.strikethrough.rawValue)
+  }
+
+  @Test func webListShortcutTogglesTheListBackToParagraphs() throws {
+    let (view, model) = try editing(LexicalJSON.paragraph([LexicalJSON.text("hello")]))
+    select(view, 2, 2)
+    try press("4", [.command, .alternate], in: view)
+    #expect(try model.node(at: [0])["listType"] == "bullet")
+    try press("4", [.command, .alternate], in: view)
+    #expect(try model.node(at: [0])["type"] == "paragraph")
+  }
+
   @Test func writingDirectionMenuOffersAutomaticAndBothOverrides() throws {
     let (_, view) = try host(
       LexicalJSON.document([LexicalJSON.paragraph([LexicalJSON.text("abc")])]), caretAt: 1)

@@ -272,9 +272,13 @@ hand:
   639 points, sets top-level headings smaller as a phone's browser does. A
   document in Japanese or Chinese (`Typesetting.language`) has the web's
   taller lines and wider letters.
-- ⌘⌥0 to ⌘⌥3 and ⌘⌥Q set the block type from a hardware keyboard, the web's
-  shortcuts. The app has no block menu yet. Headings 4 to 6 come only from
-  typing `####` to `######`, as on the web, where #135 owns the block menu.
+- The keyboard formatting bar provides text formats, links, undo/redo and
+  block/list menus. Its block choices and hardware shortcut bindings are
+  generated from the web controls. Heading 4 is offered in the block menu;
+  headings 5 and 6 remain available through Markdown, as on the web.
+  #135 still owns alignment, font-size and clear-formatting shortcuts, and
+  #132 owns the code-block command. Insert actions from media/drawing owners
+  join the native table menu through `EditorView.insertionActions`.
 - A tap on a checklist item's box, or just past it, checks or unchecks the
   item and leaves the caret where it was, as the web's MobileCheckListPlugin
   does on a phone.
