@@ -49,7 +49,7 @@ final class DocumentPreviewUITests: XCTestCase {
 
   func testADocumentTheAppCantEditYetOpensReadOnlyAndShowsWhatItCantShowYet() {
     let document = LexicalJSON.document([
-      LexicalJSON.paragraph([LexicalJSON.text("Watch this")]), LexicalJSON.youtube("dQw4w9WgXcQ"),
+      LexicalJSON.paragraph([LexicalJSON.text("Watch this")]), ["type": "unported-widget", "version": 1],
     ])
     let app = open(access: "EDIT", document: document)
 
@@ -57,7 +57,7 @@ final class DocumentPreviewUITests: XCTestCase {
       app.staticTexts["Read only: this document has parts the app can’t edit yet"].waitForExistence(
         timeout: 10))
     XCTAssertFalse(app.staticTexts["Preview: changes aren’t saved"].exists)
-    XCTAssertTrue((app.textViews.firstMatch.value as? String)?.contains("youtube") == true)
+    XCTAssertTrue((app.textViews.firstMatch.value as? String)?.contains("unported-widget") == true)
     XCTAssertFalse(offersKeyboard(app))
   }
 

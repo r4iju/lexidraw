@@ -171,7 +171,7 @@ public final class DocumentText {
   private static func decoratorInParagraph(_ node: JSONValue) -> JSONValue? {
     guard node["type"] == "paragraph", let children = node["children"]?.arrayValue, children.count == 1,
       let type = children[0]["type"]?.stringValue,
-      type == "excalidraw" || (type != "inline-image" && MediaPayload(children[0]) != nil) else { return nil }
+      type == "excalidraw" || type == "mermaid" || type == "chart" || (type == "equation" && children[0]["inline"] != true) || (type != "inline-image" && MediaPayload(children[0]) != nil) else { return nil }
     return children[0]
   }
 
@@ -400,6 +400,7 @@ public final class DocumentText {
 
   private static func kind(of node: JSONValue, spans: [[Int]: Span]) -> BlockKind {
     if let embedded = decoratorInParagraph(node), let type = embedded["type"]?.stringValue { return .embedded(type: type) }
+    if node["type"] == "code" { return .embedded(type: "code") }
     switch spans[[]]?.kind {
     case .character: return .embedded(type: node["type"]?.stringValue ?? "")
     case .element(let rowCount) where node["type"] == "table":
@@ -489,6 +490,9 @@ public final class DocumentText {
       if !path.isEmpty, let attachment = nativeAttachment?(node, path) {
         #if canImport(UIKit)
         (attachment as? MediaAttachment)?.captionStyle = style
+        if let font = style(blockType, [])[.font] as? UIFont {
+          (attachment as? any LazyTextAttachment)?.use(fontSize: Double(font.pointSize))
+        }
         #endif
         text.append(NSAttributedString(string: "\u{FFFC}", attributes: style(blockType, []).merging([.attachment: attachment]) { $1 }))
         spans[path] = Span(start: start, end: text.length, kind: .character)

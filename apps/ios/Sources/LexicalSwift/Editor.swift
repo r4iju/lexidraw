@@ -94,6 +94,23 @@ public final class Editor: EditorModel {
     }
   }
 
+  public func replaceRenderedNode(key: String, expected: JSONValue, replacement: JSONValue) throws -> ChangeSet {
+    guard isEditable else { throw EditorError.unsupported("This document cannot be edited") }
+    guard let key = NodeKey(key), let node = state.nodes[key],
+      ["mermaid", "equation", "chart", "code"].contains(node.type),
+      state.json(of: key) == expected, replacement["type"] == expected["type"]
+    else { throw EditorError.invalidState("The node changed while its source was open") }
+    return try commit { update in
+      let new = try update.parse(replacement)
+      var pending = [new]
+      while let key = pending.popLast() {
+        guard update.state[key].isEditable else { throw EditorError.invalidState("Unsupported rendered node fields") }
+        pending.append(contentsOf: update.state.children(of: key))
+      }
+      try update.replace(key, with: new)
+    }
+  }
+
   /// An error in a markdown shortcut's update. Lexical reports it and drops
   /// that update alone, so the updates before it, the one that set the
   /// shortcut off among them, stay.
@@ -244,6 +261,11 @@ extension Node {
     case .tableRow(let node): node.unknownFields.isEmpty
     case .tableCell(let node): node.unknownFields.isEmpty
     case .hTMLBlock: true
+    case .documentCode(let node): node.unknownFields.isEmpty
+    case .codeHighlight(let node): node.unknownFields.isEmpty && node.mode == .normal && (node.detail ?? 0) == 0
+    case .mermaid(let node): node.unknownFields.isEmpty && (node.schema == nil || node.schema?.stringValue != nil)
+    case .equation(let node): node.unknownFields.isEmpty && (node.equation == nil || node.equation?.stringValue != nil) && (node.inline == nil || node.inline?.boolValue != nil)
+    case .chart(let node): node.unknownFields.isEmpty && (node.chartType == nil || RenderedEmbedStyle.chartTypes.contains(node.chartType?.stringValue ?? "")) && (node.chartData == nil || node.chartData?.stringValue != nil) && (node.chartConfig == nil || node.chartConfig?.stringValue != nil)
     case .excalidraw(let node): node.unknownFields.isEmpty && (node.data == nil || node.data?.stringValue != nil)
     case .text(let node): node.unknownFields.isEmpty && node.mode == .normal && (node.detail ?? 0) == 0
     case .tab(let node): node.unknownFields.isEmpty && node.detail == Double(TextDetail.unmergeable.rawValue)
@@ -305,6 +327,7 @@ extension Update {
       if try !runMarkdownShortcutOnEnter(selection) { try enter(selection) }
     case .insertLineBreak: try insertLineBreak(selection)
     case .formatText(let format): try formatText(selection, format)
+    case .formatCode: try formatCode(selection)
     case .setBlockType(let type): try setBlockType(selection, type)
     case .formatElement(let format): try formatElement(selection, format)
     case .changeFontSize(let increase): try changeFontSize(selection, increase: increase)
@@ -332,6 +355,10 @@ extension Update {
     case .deleteWord, .deleteLine: try clearText(selection)
     case .setWritingDirection: break
     case .formatText(let format): try formatCells(selection, format)
+    case .formatCode:
+      let text = try textContent(selection)
+      try insertNodes(selection, [create(SerializedDocumentCodeNode.type)])
+      if let range = self.selection { try insertCodeSource(text, at: range) }
     case .setBlockType(let type): try setBlockType(selection, type)
     case .formatElement(let format): try formatElement(selection, format)
     case .changeFontSize(let increase): try changeFontSize(selection, increase: increase)
@@ -365,6 +392,10 @@ extension Update {
     case .insertLineBreak: try enter(selection, lineBreak: true)
     // `$updateTextFormat` formats inline nodes and `$setBlocksType` changes
     // elements, and a selected rule is neither.
+    case .formatCode:
+      let text = nodes(in: selection).map(state.textContent(of:)).joined()
+      try insertNodes(selection, [create(SerializedDocumentCodeNode.type)])
+      if let range = self.selection { try insertCodeSource(text, at: range) }
     case .formatText, .setBlockType, .setWritingDirection: break
     case .formatElement(let format): formatElements(nodes(in: selection), format)
     case .changeFontSize(let increase): try changeFontSizeOfNodes(nodes(in: selection), increase: increase)

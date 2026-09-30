@@ -279,6 +279,7 @@ protocol TextPayload: NodePayload {
 }
 
 extension SerializedTextNode: TextPayload {}
+extension SerializedCodeHighlightNode: TextPayload {}
 extension SerializedTabNode: TextPayload {}
 
 extension SerializedNode {
@@ -287,6 +288,7 @@ extension SerializedNode {
     get {
       switch self {
       case .text(let node): node
+      case .codeHighlight(let node): node
       case .tab(let node): node
       default: nil
       }
@@ -294,6 +296,7 @@ extension SerializedNode {
     set {
       switch newValue {
       case let node as SerializedTextNode: self = .text(node)
+      case let node as SerializedCodeHighlightNode: self = .codeHighlight(node)
       case let node as SerializedTabNode: self = .tab(node)
       default: break
       }

@@ -535,3 +535,41 @@ real PHPicker with a simulator photo and a deterministic upload callback. Seed a
 disposable image with `xcrun simctl addmedia <simulator> <picture>` if its photo
 library is empty. The callback is enabled only by the harness launch environment
 `EDITOR_IMAGE_UPLOAD_RETURN`; the shipping app always uses `Session.uploadImage`.
+
+### Server-rendered document embeds (#132)
+
+Mermaid, equations, charts and code blocks use authenticated
+`POST /api/v1/embeds/render`. The worker opens `/native-render`, which runs
+Lexidraw's existing Mermaid, KaTeX, Recharts and Shiki components with the
+requested theme, document font and stored dimensions. The same browser element
+produces an SVG containing styled XHTML in a `foreignObject` and a 2× PNG.
+The native app displays that PNG and opens a native source editor on tap;
+it does not execute web JavaScript or use WebKit to display these nodes.
+Source Save is one document history step and participates in autosave. Cancel,
+unchanged code source and unsupported replacement children preserve the original
+node. Read-only source remains selectable for copying.
+
+The endpoint caches both outputs under SHA-256 of the canonical node, theme,
+width, font family/size and deployment revision. Each app process keeps at most
+128 completed entries or 32 MB, with two renders active and twelve waiting.
+Native requests run two at a time; inline and nested attachments start only when
+TextKit lays out their block or cell. Errors remain visible and tapping a failed
+embed retries while opening its source. Unknown node fields or unported children
+retain the document's explicit read-only behavior.
+
+SVG `foreignObject` needs browser XHTML support and the web's fonts; it is not a
+portable path-only vector export. The PNG is the portable native preview of the
+same element. Rendering requires `HEADLESS_RENDER_URL`,
+`HEADLESS_RENDER_ENABLED=true`, a matching `RENDER_WORKER_SECRET` on both
+services. Public app origins pass the worker’s public-address guard; private or
+local origins need an explicit worker `RENDER_WORKER_ALLOWED_ORIGINS` entry.
+Production uses `VERCEL_GIT_COMMIT_SHA` to invalidate renderer, CSS and bundled
+font changes. Local cache tests may provide their own revision.
+
+Local verification used eight real worker renders (all four families in light
+and dark), an additional stored-size/caption chart, the Swift/Bun suites, a
+simulator app build and six document-screen UI tests. Model oracle tests cover
+code formatting, highlighted-text edits, copy/cut/paste around code, source
+replacement/undo, rejected children, tabs and selected rules. Rendered source
+editing on a physical device remains a release integration check. This work
+does not close #119's performance or dictation gates.

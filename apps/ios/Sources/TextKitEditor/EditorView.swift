@@ -97,7 +97,7 @@ public final class EditorView: UIScrollView, UITextInput {
 
   /// Inserts a decorator through the existing clipboard command and opens
   /// only the new node, without mistaking an older drawing for it.
-  public func insertEmbeddedNode(_ node: JSONValue, namespace: String) {
+  public func insertEmbeddedNode(_ node: JSONValue, namespace: String, openAfterInsertion: Bool = true) {
     guard isEditable else { return }
     var before = Set<String>()
     var pending: [[Int]] = [[]]
@@ -110,12 +110,41 @@ public final class EditorView: UIScrollView, UITextInput {
     }
     let clipboard = Clipboard(plainText: "", lexical: LexicalClipboardPayload(namespace: namespace, nodes: [node]))
     guard let change = perform(.paste(clipboard), fromInput: false, tellsRefusal: true) else { return }
+    guard openAfterInsertion else { return }
     for path in change.changed.sorted(by: { $0.count > $1.count }) {
       guard let key = nodeKey(at: path), !before.contains(key),
         let inserted = try? model.nodeForPresentation(at: path), inserted["type"] == node["type"] else { continue }
       _ = onEmbeddedTap?(key, inserted)
       return
     }
+  }
+
+  @discardableResult private func openSelectedCodeSource() -> Bool {
+    guard let selection = modelSelection(), !selection.anchor.path.isEmpty else { return false }
+    var path = selection.anchor.path
+    while !path.isEmpty {
+      if let node = try? model.nodeForPresentation(at: path), node["type"] == "code", selection.focus.path.starts(with: path), let key = nodeKey(at: path) {
+        return onEmbeddedTap?(key, node) == true
+      }
+      path.removeLast()
+    }
+    return false
+  }
+
+  public func formatCode() {
+    if openSelectedCodeSource() { return }
+    unmarkText()
+    perform(.formatCode, fromInput: false, tellsRefusal: true)
+  }
+
+  public func replaceRenderedNode(key: String, expected: JSONValue, replacement: JSONValue) throws {
+    guard isEditable else { throw EditorError.unsupported("This document is read only") }
+    let change = try model.replaceRenderedNode(key: key, expected: expected, replacement: replacement)
+    inputDelegate?.textWillChange(self)
+    render(change)
+    inputDelegate?.textDidChange(self)
+    showModelSelection(fromInput: false)
+    if !change.changed.isEmpty { onChange?() }
   }
 
   /// Commits a drawing edit through the document's history and rendering.
@@ -199,6 +228,11 @@ public final class EditorView: UIScrollView, UITextInput {
   @discardableResult
   private func perform(_ command: EditorCommand, fromInput: Bool, tellsRefusal: Bool = false) -> ChangeSet? {
     guard isEditable || !command.edits else { return nil }
+    switch command {
+    case .insertText, .commitComposition, .deleteCharacter, .deleteWord, .deleteLine, .insertParagraph, .insertLineBreak, .formatText, .tab:
+      if openSelectedCodeSource() { return nil }
+    default: break
+    }
     // A model left with no selection takes the view's before an edit.
     if command.editsAtSelection, modelSelection() == nil { sendSelection() }
     let now = ProcessInfo.processInfo.systemUptime
@@ -863,21 +897,22 @@ public final class EditorView: UIScrollView, UITextInput {
     while !path.isEmpty {
       if let node = try? model.node(at: path) {
         if node["type"] == "list" { selectedType = node["listType"]?.stringValue; break }
-        if let type = node["type"]?.stringValue, BlockType(rawValue: type) != nil {
+        if let type = node["type"]?.stringValue, type == "code" || BlockType(rawValue: type) != nil {
           selectedType = type
         } else if node["type"] == "heading" { selectedType = node["tag"]?.stringValue }
       }
       path.removeLast()
     }
     let choices = webBlockChoices.map { choice in
-      let supported = BlockType(rawValue: choice.type) != nil || EditorCommand.ListType(rawValue: choice.type) != nil
+      let supported = choice.type == "code" || BlockType(rawValue: choice.type) != nil || EditorCommand.ListType(rawValue: choice.type) != nil
       return UIAction(title: choice.label, attributes: supported ? [] : .disabled,
         state: choice.type == selectedType ? .on : .off) { [weak self] _ in
         guard let self else { return }
         unmarkText()
         if let list = EditorCommand.ListType(rawValue: choice.type) {
           if selectedType == choice.type { removeList() } else { insertList(list) }
-        } else if let block = BlockType(rawValue: choice.type) { setBlockType(block) }
+        } else if choice.type == "code" { formatCode() }
+        else if let block = BlockType(rawValue: choice.type) { setBlockType(block) }
       }
     }
     return (
@@ -940,8 +975,7 @@ public final class EditorView: UIScrollView, UITextInput {
     case .increaseFontSize: _ = perform(.changeFontSize(increase: true), fromInput: false, tellsRefusal: true)
     case .decreaseFontSize: _ = perform(.changeFontSize(increase: false), fromInput: false, tellsRefusal: true)
     case .clearFormatting: _ = perform(.clearFormatting, fromInput: false, tellsRefusal: true)
-    case .formatCode:
-      preconditionFailure("A shortcut offered before its #135/#132 command is ported")
+    case .formatCode: formatCode()
     }
   }
 
@@ -1488,7 +1522,7 @@ extension EditorCommand {
 extension WebShortcutAction {
   fileprivate var isImplemented: Bool {
     switch self {
-    case .formatCode: false
+    case .formatCode: true
     case .increaseFontSize, .decreaseFontSize, .clearFormatting: true
     case .centerAlign, .leftAlign, .rightAlign, .justifyAlign: true
     case .formatParagraph, .formatHeading, .formatBulletList, .formatNumberedList, .formatCheckList, .formatQuote,

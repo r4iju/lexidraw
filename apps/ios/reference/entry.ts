@@ -1,3 +1,4 @@
+import { $formatCode } from "@packages/lexical-nodes/code-format";
 import {
   $setWritingDirection,
   type WritingDirection,
@@ -175,6 +176,7 @@ type Command =
   | { type: "changeFontSize"; increase: boolean }
   | { type: "clearFormatting" }
   | { type: "formatElement"; format: Exclude<ElementFormatType, ""> }
+  | { type: "formatCode" }
   | { type: "setWritingDirection"; direction: WritingDirection }
   | { type: "insertList"; listType: ListType }
   | { type: "removeList" | "indent" | "outdent" }
@@ -754,6 +756,9 @@ function run(
     case "formatElement":
       current().dispatchCommand(FORMAT_ELEMENT_COMMAND, command.format);
       return;
+    case "formatCode":
+      $formatCode(selection);
+      return;
     case "setBlockType":
       $setBlockType(selection, command.blockType);
       return;
@@ -1084,6 +1089,9 @@ function runOnCells(
     case "formatElement":
       $formatCellElements(selection, command.format);
       return;
+    case "formatCode":
+      $formatCode(selection);
+      return;
     case "setBlockType":
       $setBlockType(selection, command.blockType);
       return;
@@ -1177,6 +1185,9 @@ function runOnNodes(
       return;
     case "formatElement":
       current().dispatchCommand(FORMAT_ELEMENT_COMMAND, command.format);
+      return;
+    case "formatCode":
+      $formatCode(selection);
       return;
     case "setBlockType":
       $setBlockType(selection, command.blockType);

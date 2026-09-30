@@ -11,6 +11,133 @@
     }
   ],
   "paths": {
+    "/embeds/render": {
+      "post": {
+        "operationId": "embeds-render",
+        "summary": "Render a node as themed SVG with a PNG preview",
+        "description": "SVG contains styled XHTML in foreignObject and requires a browser-compatible SVG renderer and the page's fonts. PNG is the same rendered page at 2x scale, for clients without that renderer. Cached by payload, theme, size, font and deployment revision.",
+        "tags": ["embeds"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "node": {
+                    "type": "string",
+                    "maxLength": 262144
+                  },
+                  "theme": {
+                    "type": "string",
+                    "enum": ["light", "dark"]
+                  },
+                  "width": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 2048
+                  },
+                  "fontFamily": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "fontSize": {
+                    "type": "number",
+                    "minimum": 1,
+                    "maximum": 256
+                  }
+                },
+                "required": ["node", "theme", "width", "fontFamily", "fontSize"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "svg": {
+                      "type": "string",
+                      "maxLength": 8000000
+                    },
+                    "png": {
+                      "type": "string",
+                      "maxLength": 12000000
+                    },
+                    "width": {
+                      "type": "number",
+                      "exclusiveMinimum": 0,
+                      "maximum": 16384
+                    },
+                    "height": {
+                      "type": "number",
+                      "exclusiveMinimum": 0,
+                      "maximum": 16384
+                    },
+                    "hash": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["svg", "png", "width", "height", "hash"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authorization not provided",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient access",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/me": {
       "get": {
         "operationId": "auth-me",

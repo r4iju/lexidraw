@@ -24,7 +24,10 @@ import { adminTokensRouter } from "./routers/admin/tokens";
 import { roomsRouter } from "./routers/rooms";
 import { nativeSignInRouter } from "./routers/native-sign-in";
 
+import { embedRouter } from "./routers/embeds";
+
 export const appRouter = createTRPCRouter({
+  embeds: embedRouter,
   auth: authRouter,
   crons: cronRouter,
   entities: entityRouter,

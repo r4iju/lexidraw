@@ -68,16 +68,6 @@ import Testing
     }
   }
 
-  @Test func unportedCodeReportsItsOwningTicket() throws {
-    let editor = Editor()
-    try editor.load(document(paragraph()))
-    try editor.apply(.caret(Point(path: [0], offset: 0, type: .element)))
-    #expect(throws: EditorError.unsupported("Pasting code HTML isn't supported yet (#132)")) {
-      try editor.apply(.paste(Clipboard(plainText: "code", html: "<pre><code>code</code></pre>")))
-    }
-    #expect(try editor.serializedState() == document(paragraph()))
-  }
-
   @Test func malformedRawTextHTMLAgreesWithChromium() throws {
     try replayHTMLFixtures("HTML/upstream/malformed-raw-text.chromium.json")
     try replayHTMLFixtures("HTML/upstream/foreign-rcdata.chromium.json")
