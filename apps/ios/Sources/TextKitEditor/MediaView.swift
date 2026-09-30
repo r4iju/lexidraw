@@ -183,6 +183,7 @@ import UIKit
 }
 
 final class MediaAttachment: NSTextAttachment {
+  var captionStyle: DocumentText.Style?
   let payload: MediaPayload
   init(_ payload: MediaPayload) {
     self.payload = payload
@@ -204,20 +205,23 @@ final class MediaAttachment: NSTextAttachment {
       let photo: UIImage
       if let source = payload.source, let loaded = try? await MediaView.image(source) { photo = loaded }
       else { photo = UIImage(systemName: "exclamationmark.triangle") ?? UIImage() }
-      let caption = MediaCaptionView(payload)
-        let width = bounds.width
-        let captionHeight = caption.fittingHeight(width)
+      let caption = MediaCaptionView(payload, style: captionStyle)
+      let width = bounds.width
+      let bodyHeight = bounds.height
+      let captionHeight = caption.fittingHeight(width)
+      let gap = captionHeight > 0 ? FigureStyle.captionGap : 0
+      let size = CGSize(width: width, height: bodyHeight + gap + captionHeight)
+      let format = UIGraphicsImageRendererFormat()
+      format.scale = min(format.scale, 2048 / max(size.width, size.height))
+      image = UIGraphicsImageRenderer(size: size, format: format).image { context in
+        photo.draw(in: AVMakeRect(aspectRatio: photo.size, insideRect: CGRect(x: 0, y: 0, width: width, height: bodyHeight)))
         if captionHeight > 0 {
-          let bodyHeight = bounds.height
-          let size = CGSize(width: width, height: bodyHeight + FigureStyle.captionGap + captionHeight)
-          image = UIGraphicsImageRenderer(size: size).image { context in
-            photo.draw(in: AVMakeRect(aspectRatio: photo.size, insideRect: CGRect(x: 0, y: 0, width: width, height: bodyHeight)))
-            context.cgContext.translateBy(x: 0, y: bodyHeight + FigureStyle.captionGap)
-            caption.frame = CGRect(x: 0, y: 0, width: width, height: captionHeight)
-            caption.draw(caption.bounds)
-          }
-          bounds.size = size
-        } else { image = photo }
+          context.cgContext.translateBy(x: 0, y: bodyHeight + gap)
+          caption.frame = CGRect(x: 0, y: 0, width: width, height: captionHeight)
+          caption.draw(caption.bounds)
+        }
+      }
+      bounds.size = size
       onChange()
     }
   }

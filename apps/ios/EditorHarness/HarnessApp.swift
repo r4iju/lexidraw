@@ -197,6 +197,13 @@ struct EditorRepresentable: UIViewRepresentable {
     configureEmbeddedDrawings(editor)
     harness.timing.viewInitialized = CACurrentMediaTime()
     editor.accessibilityIdentifier = "editor"
+    if let source = ProcessInfo.processInfo.environment["EDITOR_IMAGE_UPLOAD_RETURN"], let url = URL(string: source) {
+      editor.uploadImage = { data in
+        guard !data.isEmpty else { throw CocoaError(.fileReadCorruptFile) }
+        return url
+      }
+      editor.insertionActions = editor.imageInsertionActions
+    }
     if harness.scrollReport == nil && harness.typingReport == nil
       || ProcessInfo.processInfo.environment["EDITOR_INPUT_LOG"] != nil {
       editor.onInput = { [harness] in harness.record($0) }

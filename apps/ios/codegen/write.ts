@@ -103,16 +103,5 @@ if ((await formatting.exited) !== 0)
   throw new Error("Reference helper formatting failed");
 const { MEDIA_LINKS_PATH, swiftForMediaLinks } = await import("./media");
 await Bun.write(MEDIA_LINKS_PATH, swiftForMediaLinks());
-const { EMBEDDED_DRAWING_STYLE_PATH, swiftForEmbeddedDrawingStyle } =
-  await import("./embedded-drawing");
-await Bun.write(
-  EMBEDDED_DRAWING_STYLE_PATH,
-  await swiftForEmbeddedDrawingStyle(),
-);
-
-const { FIGURE_STYLE_PATH, swiftForFigureStyle } = await import(
-  "./embedded-drawing"
-);
-await Bun.write(FIGURE_STYLE_PATH, await swiftForFigureStyle());
 const { MEDIA_STYLE_PATH, swiftForMediaStyle } = await import("./media");
 await Bun.write(MEDIA_STYLE_PATH, await swiftForMediaStyle());

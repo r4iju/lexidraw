@@ -28,6 +28,11 @@ import AppKit
     #expect(MediaPayload(node)?.caption == "Stored image caption")
     #expect(MediaPayload(node)?.captionState == state)
   }
+  @Test func inlineCaptionsAreEnabledByDefaultLikeTheWeb() {
+    let state: JSONValue = ["root": ["type": "root", "children": [["type": "paragraph", "children": [["type": "text", "text": "Default caption"]]]]]]
+    let node: JSONValue = ["type": "inline-image", "showCaption": true, "caption": ["editorState": state]]
+    #expect(MediaPayload(node)?.caption == "Default caption")
+  }
   @Test func captionUsesStoredParagraphAlignment() {
     let state: JSONValue = ["root": ["type": "root", "children": [["type": "paragraph", "format": "right", "children": [["type": "text", "text": "Aligned", "format": 0]]]]]]
     let base = NSMutableParagraphStyle()

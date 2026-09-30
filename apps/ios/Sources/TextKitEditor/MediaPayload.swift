@@ -46,7 +46,7 @@ struct MediaPayload: Sendable {
     let w = Self.dimension(natural?["width"]) ?? width
     let h = Self.dimension(natural?["height"]) ?? height
     aspectRatio = w.flatMap { w in h.map { w / $0 } } ?? 16.0 / 9.0
-    if node["showCaption"] == true && (!["inline-image", "video"].contains(type) || node["captionsEnabled"] == true) {
+    if node["showCaption"] == true && (type == "inline-image" ? node["captionsEnabled"] != false : type != "video" || node["captionsEnabled"] == true) {
       captionState = node["caption"]?["editorState"] ?? node["caption"]
       captionRefusal = MediaCaptionSupport.refusal(in: captionState)
       caption = captionRefusal ?? Self.text(captionState?["root"])

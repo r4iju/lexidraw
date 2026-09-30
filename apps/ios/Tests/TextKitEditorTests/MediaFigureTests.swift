@@ -21,3 +21,25 @@ import Testing
     #expect(try width("5%", available: 1200) == 704)
   }
 }
+
+#if canImport(UIKit)
+import UIKit
+
+@MainActor @Suite struct InlineImageGeometryTests {
+  @Test func storedBoxContainsImageWithoutStretching() async throws {
+    let photo = UIGraphicsImageRenderer(size: CGSize(width: 20, height: 10)).image { _ in
+      UIColor.blue.setFill(); UIRectFill(CGRect(x: 0, y: 0, width: 20, height: 10))
+    }
+    let source = "data:image/png;base64," + photo.pngData()!.base64EncodedString()
+    let payload = try #require(MediaPayload(["type": "inline-image", "src": .string(source), "width": 100, "height": 100]))
+    let attachment = MediaAttachment(payload)
+    await withCheckedContinuation { continuation in attachment.load { continuation.resume() } }
+    let rendered = try #require(attachment.image?.cgImage)
+    var pixels = [UInt8](repeating: 0, count: 100 * 100 * 4)
+    let context = try #require(CGContext(data: &pixels, width: 100, height: 100, bitsPerComponent: 8, bytesPerRow: 400, space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))
+    context.draw(rendered, in: CGRect(x: 0, y: 0, width: 100, height: 100))
+    #expect(pixels[3] == 0, "The square attachment should have transparent letterboxing around the 2:1 image")
+    #expect(pixels[(50 * 100 + 50) * 4 + 3] == 255)
+  }
+}
+#endif

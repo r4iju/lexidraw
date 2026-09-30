@@ -505,3 +505,28 @@ was corrected from the actual Notes native type and text, with the original
 recorder JSON digest retained. This browser-generated HTML is not represented
 as original Pages or Notes HTML. Pages' native RTF is verified directly; no
 Pages-to-Safari HTML capture is claimed.
+
+## Native media
+
+Images and inline images render their stored raster sources; videos use AVKit.
+YouTube, X and Figma use native LinkPresentation previews and open their official
+URLs when tapped. Those previews do not reproduce provider iframe interaction;
+a failed preview leaves an explicit unavailable card with its destination.
+Figure sizing, viewport caps and caption measure are generated from the web CSS.
+Rich captions reuse TextKit formatting and paragraph alignment; inline captions
+are drawn into the attachment, retaining the original nested editor JSON.
+The web currently stores inline-image `position` as a data attribute without a
+layout rule, so native inline images likewise remain inline for every position.
+Unsupported caption node families or CSS styles keep the document read only.
+
+The editor's insertion menu offers Photos and camera when uploading is available.
+It checks current EDIT access before signing the JPEG upload and inserts its URL
+only after PUT succeeds. Autosave then claims the uploaded image through the
+existing document-save rule. The current document ID is read at upload time,
+including after Keep Mine as a Copy. The camera action is disabled on simulators.
+
+`MediaInsertionUITests/testPhotosSelectionInsertsOnlyUploadedImage` exercises the
+real PHPicker with a simulator photo and a deterministic upload callback. Seed a
+disposable image with `xcrun simctl addmedia <simulator> <picture>` if its photo
+library is empty. The callback is enabled only by the harness launch environment
+`EDITOR_IMAGE_UPLOAD_RETURN`; the shipping app always uses `Session.uploadImage`.

@@ -233,7 +233,7 @@ extension Node {
     case .lineBreak(let node): node.unknownFields.isEmpty || node.holdsOnlyAMarkdownHardLineBreak
     case .horizontalRule(let node): node.unknownFields.isEmpty
     case .image(let node): node.unknownFields.isEmpty && (node.showCaption != true || MediaCaptionSupport.refusal(in: node.caption?.json) == nil)
-    case .inlineImage(let node): node.unknownFields.isEmpty && (node.showCaption != true || node.captionsEnabled != true || MediaCaptionSupport.refusal(in: node.caption?.json) == nil)
+    case .inlineImage(let node): node.unknownFields.isEmpty && (node.showCaption != true || node.captionsEnabled == false || MediaCaptionSupport.refusal(in: node.caption?.json) == nil)
     case .video(let node): node.unknownFields.isEmpty && (node.showCaption != true || node.captionsEnabled != true || MediaCaptionSupport.refusal(in: node.caption) == nil)
     case .youTube(let node): node.unknownFields.isEmpty
     case .tweet(let node): node.unknownFields.isEmpty

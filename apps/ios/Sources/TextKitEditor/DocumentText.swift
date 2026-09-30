@@ -109,7 +109,7 @@ public final class DocumentText {
   /// Uses the document's own rich-text mapping for a nested media caption.
   static func caption(_ state: JSONValue, style: @escaping Style) -> NSAttributedString {
     guard let root = state["root"] else { return NSAttributedString() }
-    var renderer = Renderer(style: style, standIn: nil, blockType: "paragraph")
+    var renderer = Renderer(style: style, standIn: nil, blockType: "paragraph", nativeAttachment: nil)
     renderer.add(root, at: [])
     let text = renderer.text
     text.append(NSAttributedString(string: "\n", attributes: style("paragraph", [])))
@@ -335,7 +335,7 @@ public final class DocumentText {
       let blockType = (node["type"] == "heading" ? node["tag"] : node["type"])?.stringValue ?? ""
       var renderer = Renderer(style: style, standIn: standIn, blockType: blockType,
         nativeAttachment: { [nativeAttachment] child, path in
-          Self.drawingInParagraph(node) == nil ? nativeAttachment?(child, [index] + path) : nil
+          Self.decoratorInParagraph(node) == nil ? nativeAttachment?(child, [index] + path) : nil
         })
       renderer.add(node, at: [])
       let block = renderer.text
@@ -491,6 +491,9 @@ public final class DocumentText {
         return
       }
       if let standIn, let attributes = standIn(node, path.isEmpty) {
+        #if canImport(UIKit)
+        (attributes[.attachment] as? MediaAttachment)?.captionStyle = style
+        #endif
         text.append(NSAttributedString(string: "\u{FFFC}", attributes: style(blockType, []).merging(attributes) { $1 }))
         spans[path] = Span(start: start, end: text.length, kind: .character)
         return

@@ -186,6 +186,9 @@ import UIKit
       let box = TextBox(styled(cells[at.row][at.index], alignedRight: preparation.alignment.contains(at.index)), width: max(content, 1))
       box.onRedraw = { [weak self] in
         guard let self else { return }
+        // Cells prepared on later frames do not have TextBoxes yet. Their
+        // final geometry pass will include the freshly measured attachment.
+        guard self.preparation == nil else { self.redraw(); return }
         self.finishGeometry(preparation)
         self.onGeometryChange?()
       }
