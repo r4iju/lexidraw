@@ -1080,8 +1080,8 @@ public final class EditorView: UIScrollView, UITextInput {
   /// Opens a link's URL, in the browser unless set.
   public var open: (URL) -> Void = { UIApplication.shared.open($0) }
 
-  /// UIKit cannot open its edit menu over selected cells without replacing
-  /// the rectangle with a text range, so this press keeps the table selection.
+  /// UIKit's word selection replaces the selection needed by table actions,
+  /// so this press preserves selected cells and a merged cell's collapsed caret.
   private lazy var tableSelectionPress: UILongPressGestureRecognizer = {
     let press = UILongPressGestureRecognizer(target: self, action: #selector(showSelectedTableMenu(_:)))
     press.delegate = self
@@ -1254,6 +1254,18 @@ extension EditorView: UIGestureRecognizerDelegate, @MainActor UIEditMenuInteract
   public func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
     if gestureRecognizer === tableSelectionPress {
       if case .table = modelSelection() { return isEditable }
+      if isEditable, canUnmergeTableCell, let selection = modelSelection(),
+        let offset = layout.offset(closestTo: touch.location(in: surface))
+      {
+        let touched = document.point(at: offset).path
+        var path = selection.anchor.path
+        while !path.isEmpty {
+          if (try? model.node(at: path))?["type"] == "tablecell" {
+            return touched.starts(with: path)
+          }
+          path.removeLast()
+        }
+      }
       return false
     }
     return true
