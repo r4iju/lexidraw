@@ -680,9 +680,9 @@ FuzzerTests.lexicalSwiftMatchesTheReference`. Seeds 133 and 134 each agreed for
 The rebased local UIKit suite passed 123 tests, including accepted structural-arrow autosave
 and refusal to mutate a read-only document. CI was not invoked.
 
-The native column panel accepts arbitrary positive fractional tracks and all five
+The native column panel accepts arbitrary positive fractional, pixel and percentage tracks and all five
 registered presets, with column counting using the web plugin’s generated JavaScript
-whitespace rule. Other CSS grid track grammars retain an explicit #133 limitation. Structural indent/outdent modifies
+whitespace rule. Fixed tracks can scroll horizontally when they exceed the available width. Other CSS grid track grammars retain an explicit #133 limitation. Structural indent/outdent modifies
 the effective Double value without truncating it. Collapsible parts and layout
 items use the web's unread-field import rule: imported indent is retained in stored JSON while
 the effective field starts at zero; a mutation writes the effective value. A

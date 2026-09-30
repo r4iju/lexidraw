@@ -64,10 +64,7 @@ import UIKit
     set { viewingSlideOverride = newValue }
   }
   private let stack = UIStackView()
-  private var columns: UIStackView?
-  private var columnSpacer: UIView?
-  private var columnWeights: [CGFloat] = []
-  private var columnWidths: [NSLayoutConstraint] = []
+  private var columns: NativeColumnsView?
   private var bodies: [EditorView] = []
   private var insets = UIEdgeInsets.zero
   private var dragStart: CGPoint?
@@ -143,9 +140,6 @@ import UIKit
     }
     bodies = []
     columns = nil
-    columnSpacer = nil
-    columnWidths.forEach { $0.isActive = false }
-    columnWidths = []
     insets = .zero
     layer.cornerRadius = 0
     backgroundColor = .clear
@@ -272,25 +266,21 @@ import UIKit
       entries: StructuralBlockConfiguration.layouts.map { preset in
         (preset.label, { [weak self] in self?.setColumns(preset.value) })
       })
-    let columns = UIStackView()
-    columns.spacing = 8
-    stack.addArrangedSubview(columns)
-    self.columns = columns
     let template = node["templateColumns"]?.stringValue ?? ""
-    columnWeights = JSRegExp(StructuralBlockConfiguration.columnWhitespacePattern, flags: "").split(template).filter { !$0.isEmpty }.compactMap { part in
-      guard part.hasSuffix("fr"), let number = Double(part.dropLast(2)) else { return nil }
-      return CGFloat(number)
-    }
+    let parts = JSRegExp(StructuralBlockConfiguration.columnWhitespacePattern, flags: "").split(template).filter { !$0.isEmpty }
+    let tracks = parts.compactMap(NativeColumnTrack.init)
     let children = node["children"]?.arrayValue ?? []
-    guard columnWeights.count == children.count, columnWeights.allSatisfy({ $0 > 0 && $0.isFinite }),
-      columnWeights.reduce(0, +).isFinite else {
+    guard tracks.count == parts.count, tracks.count == children.count else {
       label("This CSS column template is not supported by native layout (#133): \(template)")
       return
     }
+    let columns = NativeColumnsView(tracks: tracks, gap: 8)
+    stack.addArrangedSubview(columns)
+    self.columns = columns
     for (index, child) in children.enumerated() {
       let column = UIStackView()
       column.axis = .vertical
-      columns.addArrangedSubview(column)
+      columns.addColumn(column)
       let edit = UIButton(type: .system)
       edit.setTitle("Edit column \(index + 1)", for: .normal)
       edit.isEnabled = owner?.isEditable == true
@@ -752,36 +742,7 @@ import UIKit
   override func contentSize(fitting width: CGFloat) -> CGSize {
     let actualWidth = node["type"] == "sticky" ? min(width, StructuralBlockConfiguration.stickyWidth) : width
     let inner = max(1, actualWidth - insets.left - insets.right)
-    if let columns {
-      // The web stacks columns in compact document containers.
-      columnWidths.forEach { $0.isActive = false }
-      columnWidths = []
-      if let columnSpacer {
-        columns.removeArrangedSubview(columnSpacer)
-        columnSpacer.removeFromSuperview()
-        self.columnSpacer = nil
-      }
-      columns.axis = width <= StructuralBlockConfiguration.stackedColumnsWidth ? .vertical : .horizontal
-      if columns.axis == .horizontal {
-        let total = columnWeights.reduce(0, +)
-        let available = max(1, inner - CGFloat(max(columnWeights.count - 1, 0)) * columns.spacing)
-        for (index, view) in columns.arrangedSubviews.enumerated() where columnWeights.indices.contains(index) {
-          let constraint = view.widthAnchor.constraint(equalToConstant: available * columnWeights[index] / max(1, total))
-          constraint.isActive = true
-          columnWidths.append(constraint)
-        }
-        // Fraction factors below one request only that share of the free space.
-        if total < 1 {
-          let spacer = UIView()
-          if let last = columns.arrangedSubviews.last { columns.setCustomSpacing(0, after: last) }
-          columns.addArrangedSubview(spacer)
-          let constraint = spacer.widthAnchor.constraint(equalToConstant: available * (1 - total))
-          constraint.isActive = true
-          columnWidths.append(constraint)
-          columnSpacer = spacer
-        }
-      }
-    }
+    columns?.prepare(width: inner, stacked: width <= StructuralBlockConfiguration.stackedColumnsWidth)
     let size = stack.systemLayoutSizeFitting(
       CGSize(width: inner, height: UIView.layoutFittingCompressedSize.height), withHorizontalFittingPriority: .required,
       verticalFittingPriority: .fittingSizeLevel)

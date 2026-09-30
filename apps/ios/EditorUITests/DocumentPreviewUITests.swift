@@ -167,6 +167,24 @@ final class DocumentPreviewUITests: XCTestCase {
     XCTAssertLessThan(column.frame.width, app.frame.width * 0.35)
   }
 
+  func testImportedColumnsRetainFixedPercentageAndFractionalTracks() {
+    XCUIDevice.shared.orientation = .landscapeLeft
+    defer { XCUIDevice.shared.orientation = .portrait }
+    let paragraph: JSONValue = ["type": "paragraph", "version": 1, "children": []]
+    let item: JSONValue = ["type": "layout-item", "version": 1, "children": [paragraph]]
+    let document = LexicalJSON.document([["type": "layout-container", "version": 1,
+      "templateColumns": "100px 25% 0.5fr", "children": [item, item, item]]])
+    let app = open(access: "EDIT", document: document)
+    let first = app.buttons["Edit column 1"]
+    XCTAssertTrue(first.waitForExistence(timeout: 10))
+    XCTAssertGreaterThan(app.frame.width, 600)
+    XCTAssertEqual(first.frame.width, 100, accuracy: 1)
+    let percentage = app.buttons["Edit column 2"].frame.width
+    XCTAssertGreaterThan(percentage, app.frame.width * 0.15)
+    XCTAssertLessThan(percentage, app.frame.width * 0.3)
+    XCTAssertTrue(app.buttons["Edit column 3"].exists)
+  }
+
   private func open(access: String, document: JSONValue? = nil) -> XCUIApplication {
     let app = XCUIApplication()
     app.launchEnvironment["EDITOR_PREVIEW_ACCESS"] = access
