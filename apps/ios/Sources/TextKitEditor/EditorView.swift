@@ -102,6 +102,7 @@ public final class EditorView: UIScrollView, UITextInput {
     render(change)
     inputDelegate?.textDidChange(self)
     showModelSelection(fromInput: false)
+    if !change.changed.isEmpty { onChange?() }
   }
 
   public weak var inputDelegate: (any UITextInputDelegate)?

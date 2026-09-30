@@ -159,6 +159,7 @@ private struct DocumentEditor: UIViewRepresentable {
       model: editing.model, isEditable: editing.mode == .editing,
       language: editing.settings.language, font: editing.font)
     view.onChange = { [weak editing] in editing?.changed() }
+    configureEmbeddedDrawings(view)
     return view
   }
 

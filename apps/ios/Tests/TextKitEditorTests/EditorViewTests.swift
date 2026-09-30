@@ -9,6 +9,22 @@ import UIKit
 /// Delete or Forward Delete from XCUITest's `typeKey` to the app. These run
 /// each key's command as UIKit would on the key.
 @MainActor @Suite struct EditorViewTests {
+  @Test func embeddedDrawingChangesNotifyAutosaveAndRejectedScenesDoNot() throws {
+    let model = Editor()
+    let drawing: JSONValue = ["type": "excalidraw", "version": 1, "data": "[]", "width": 320, "height": 180]
+    try model.load(LexicalJSON.document([LexicalJSON.paragraph([drawing])]))
+    let view = EditorView(model: model)
+    let key = try #require(model.childKeys(at: [0]).first)
+    var changes = 0
+    view.onChange = { changes += 1 }
+
+    try view.replaceDrawing(key: key, expectedData: "[]", data: #"{"elements":[],"files":{}}"#)
+
+    #expect(changes == 1)
+    #expect(throws: EditorError.self) { try view.replaceDrawing(key: key, expectedData: "[]", data: "stale") }
+    #expect(changes == 1)
+  }
+
   @Test func documentFontsUseActualDownloadedWOFF2OnIOS() throws {
     let url = try #require(
       Bundle.module.url(
