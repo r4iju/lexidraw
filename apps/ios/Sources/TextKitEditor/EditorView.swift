@@ -97,7 +97,7 @@ public final class EditorView: UIScrollView, UITextInput {
 
   /// Inserts a decorator through the existing clipboard command and opens
   /// only the new node, without mistaking an older drawing for it.
-  public func insertEmbeddedNode(_ node: JSONValue, namespace: String) {
+  public func insertEmbeddedNode(_ node: JSONValue, namespace: String, openAfterInsertion: Bool = true) {
     guard isEditable else { return }
     var before = Set<String>()
     var pending: [[Int]] = [[]]
@@ -110,6 +110,7 @@ public final class EditorView: UIScrollView, UITextInput {
     }
     let clipboard = Clipboard(plainText: "", lexical: LexicalClipboardPayload(namespace: namespace, nodes: [node]))
     guard let change = perform(.paste(clipboard), fromInput: false, tellsRefusal: true) else { return }
+    guard openAfterInsertion else { return }
     for path in change.changed.sorted(by: { $0.count > $1.count }) {
       guard let key = nodeKey(at: path), !before.contains(key),
         let inserted = try? model.nodeForPresentation(at: path), inserted["type"] == node["type"] else { continue }

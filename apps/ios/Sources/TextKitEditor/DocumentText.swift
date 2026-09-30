@@ -490,8 +490,9 @@ public final class DocumentText {
       if !path.isEmpty, let attachment = nativeAttachment?(node, path) {
         #if canImport(UIKit)
         (attachment as? MediaAttachment)?.captionStyle = style
-        // EditorView owns native attachment providers and calls this on its UI actor.
-        MainActor.assumeIsolated { (attachment as? any LazyTextAttachment)?.use(font: style(blockType, [])[.font] as? UIFont) }
+        if let font = style(blockType, [])[.font] as? UIFont {
+          (attachment as? any LazyTextAttachment)?.use(fontSize: Double(font.pointSize))
+        }
         #endif
         text.append(NSAttributedString(string: "\u{FFFC}", attributes: style(blockType, []).merging([.attachment: attachment]) { $1 }))
         spans[path] = Span(start: start, end: text.length, kind: .character)

@@ -4,6 +4,7 @@ import LexidrawKit
 import SwiftUI
 import TextKitEditor
 import UIKit
+import Synchronization
 
 @MainActor func configureRenderedEmbeds(_ view: EditorView, session: Session, fontFamily: String = RenderedEmbedStyle.defaultFontFamily) {
   let previousContent = view.embeddedContent
@@ -166,7 +167,7 @@ import UIKit
   private let makeRendered: () -> RenderedEmbedView?
   private let cached: RenderedEmbedView?
   private var width: CGFloat
-  private var font: UIFont?
+  nonisolated private let fontSize = Mutex<Double?>(nil)
   private var started = false
   init(cached: RenderedEmbedView?, width: CGFloat, makeRendered: @escaping () -> RenderedEmbedView?) {
     self.makeRendered = makeRendered
@@ -183,12 +184,12 @@ import UIKit
     let size = cached?.cachedSize(fitting: width) ?? CGSize(width: 20, height: 20)
     return CGRect(x: 0, y: -3, width: size.width, height: size.height)
   }
-  func use(font: UIFont?) { self.font = font }
+  nonisolated func use(fontSize: Double) { self.fontSize.withLock { $0 = fontSize } }
   func load(onChange: @escaping @MainActor () -> Void) {
     guard !started else { return }
     started = true
     let rendered = makeRendered()
-    rendered?.fontSizeOverride = font?.pointSize
+    rendered?.fontSizeOverride = fontSize.withLock { $0.map(CGFloat.init) }
     _ = rendered?.contentSize(fitting: width)
     // Provider completion refreshes EditorView and the measured attachment.
   }
@@ -202,6 +203,7 @@ private struct RenderedSourceEditor: View {
   @State private var source: String
   @State private var secondary: String
   @State private var language: String
+  @State private var inline: Bool
   @State private var error: String?
   init(node: JSONValue, editable: Bool, save: @escaping (JSONValue) throws -> Void) {
     self.node = node
@@ -209,6 +211,7 @@ private struct RenderedSourceEditor: View {
     self.save = save
     let type = node["type"]?.stringValue
     _source = State(initialValue: type == "mermaid" ? node["schema"]?.stringValue ?? "" : type == "equation" ? node["equation"]?.stringValue ?? "" : type == "chart" ? node["chartData"]?.stringValue ?? "[]" : (node["children"]?.arrayValue ?? []).map { $0["type"] == "linebreak" ? "\n" : $0["type"] == "tab" ? "\t" : $0["text"]?.stringValue ?? "" }.joined())
+    _inline = State(initialValue: node["inline"]?.boolValue ?? false)
     _secondary = State(initialValue: node["chartConfig"]?.stringValue ?? "{}")
     _language = State(initialValue: node["type"] == "chart" ? node["chartType"]?.stringValue ?? "bar" : node["language"]?.stringValue ?? "")
   }
@@ -222,6 +225,7 @@ private struct RenderedSourceEditor: View {
         } else if node["type"] == "code" {
           TextField("Language", text: $language).disabled(!editable)
         }
+        if node["type"] == "equation" { Toggle("Inline", isOn: $inline).disabled(!editable) }
         Section(node["type"] == "chart" ? "Data (JSON)" : "Source") {
           if editable { TextEditor(text: $source).font(.system(.body, design: .monospaced)).frame(minHeight: 240) }
           else { Text(source).font(.system(.body, design: .monospaced)).textSelection(.enabled) }
@@ -253,7 +257,7 @@ private struct RenderedSourceEditor: View {
           state["natural"] = nil
           fields["$"] = state.isEmpty ? nil : .object(state)
         }
-      case "equation": fields["equation"] = .string(source)
+      case "equation": fields["equation"] = .string(source); fields["inline"] = .bool(inline)
       case "chart":
         guard try JSONValue(parsing: source).arrayValue != nil, try JSONValue(parsing: secondary).objectValue != nil else { throw EditorError.invalidState("Chart data must be an array and configuration an object") }
         fields["chartData"] = .string(source)
@@ -280,8 +284,21 @@ private struct RenderedSourceEditor: View {
 @MainActor func renderedInsertionActions(for view: EditorView) -> [UIAction] {
   [("mermaid", "Mermaid"), ("chart", "Chart"), ("equation", "Equation")].map { type, title in
     UIAction(title: title) { [weak view] _ in
-      guard let json = RenderedEmbedStyle.insertionNodeJSON[type], let node = try? JSONValue(parsing: json) else { return }
-      view?.insertEmbeddedNode(node, namespace: editorNamespace)
+      guard let view, view.isEditable, let json = RenderedEmbedStyle.insertionNodeJSON[type], let node = try? JSONValue(parsing: json) else { return }
+      if type == "mermaid" {
+        view.insertEmbeddedNode(node, namespace: editorNamespace)
+        return
+      }
+      var responder: UIResponder? = view
+      while responder != nil, !(responder is UIViewController) { responder = responder?.next }
+      guard let parent = responder as? UIViewController else { return }
+      view.resignFirstResponder()
+      let host = UIHostingController(rootView: RenderedSourceEditor(node: node, editable: true) { [weak view] replacement in
+        guard let view, view.isEditable else { throw EditorError.invalidState("The document closed") }
+        view.insertEmbeddedNode(replacement, namespace: editorNamespace, openAfterInsertion: false)
+      })
+      host.modalPresentationStyle = .pageSheet
+      parent.present(host, animated: true)
     }
   }
 }
