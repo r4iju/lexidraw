@@ -677,3 +677,11 @@ use HTTPS URLs and chart previews require the #132 composed provider. Geometry a
 device-level verification. Slide geometry is edited in a native dialog; direct
 slide drag/resize gestures are not implemented. These are not claimed as
 completed visual/performance gates.
+
+Pure structural-panel documents expose their native controls as accessibility
+containers. Mixed text/panel accessibility still requires composition under #145;
+ordinary text input keeps its existing accessibility surface. The retained slide
+navigation UI regression was observed red against the original stored-ID behavior
+and green with editable autosave and read-only local navigation. Slide chart
+previews clear inherited root-node source callbacks and cached tap recognizers;
+the deck's element editor owns the actual mutation.

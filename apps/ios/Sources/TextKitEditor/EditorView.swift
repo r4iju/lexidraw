@@ -108,6 +108,18 @@ public final class EditorView: UIScrollView, UITextInput {
   /// The owner can schedule autosave without exporting on every keystroke.
   public var onChange: (() -> Void)?
 
+  /// Native panels expose their controls when the document contains only panels.
+  public var accessibleEmbeddedTypes: Set<String> = []
+  private var embeddedAccessibilityContainer = false
+  public override var isAccessibilityElement: Bool {
+    get { embeddedAccessibilityContainer ? false : super.isAccessibilityElement }
+    set { super.isAccessibilityElement = newValue }
+  }
+  public override var accessibilityElements: [Any]? {
+    get { embeddedAccessibilityContainer ? [surface] : super.accessibilityElements }
+    set { super.accessibilityElements = newValue }
+  }
+
   public var embeddedElementTypes: Set<String> = [] {
     didSet {
       document.embeddedElementTypes = embeddedElementTypes
@@ -1761,6 +1773,10 @@ public final class EditorView: UIScrollView, UITextInput {
     }
     typesetting.withFontMetrics { layout.layoutViewport(of: self) }
     layoutFloatingContent()
+    embeddedAccessibilityContainer = document.blockCount > 0 && (0..<document.blockCount).allSatisfy {
+      if case .embedded(let type) = document.kind(ofBlock: $0) { return accessibleEmbeddedTypes.contains(type) }
+      return false
+    }
   }
 }
 

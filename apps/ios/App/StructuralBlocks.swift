@@ -17,6 +17,7 @@ import UIKit
       }
     }))
   }
+  view.accessibleEmbeddedTypes.formUnion(StructuralPanel.types)
   let prior = view.embeddedContent
   let priorFrame = view.floatingEmbeddedFrame
   view.floatingEmbeddedMinimumWidth = StructuralBlockConfiguration.stackedColumnsWidth
@@ -53,7 +54,15 @@ import UIKit
   private let key: String
   private var node: JSONValue = .null
   private var saving = false
-  private var viewingSlideIndex = 0
+  private var viewingSlideOverride: Int?
+  private var viewingSlideIndex: Int {
+    get {
+      if let viewingSlideOverride { return viewingSlideOverride }
+      let slides = node["data"]?["slides"]?.arrayValue ?? []
+      return slides.firstIndex { $0["id"] == node["data"]?["currentSlideId"] } ?? 0
+    }
+    set { viewingSlideOverride = newValue }
+  }
   private let stack = UIStackView()
   private var columns: UIStackView?
   private var columnWeights: [CGFloat] = []
@@ -80,6 +89,7 @@ import UIKit
     guard value != node else { return }
     node = value
     viewingSectionOpen = nil
+    viewingSlideOverride = nil
     guard !saving else { return }
     rebuild()
   }
@@ -118,8 +128,8 @@ import UIKit
     label.textColor = .secondaryLabel
     stack.addArrangedSubview(label)
   }
-  private func menu(_ title: String, entries: [(String, () -> Void)]) {
-    let button = button(title) {}
+  private func menu(_ title: String, viewing: Bool = false, entries: [(String, () -> Void)]) {
+    let button = button(title, viewing: viewing) {}
     button.showsMenuAsPrimaryAction = true
     button.menu = UIMenu(children: entries.map { name, action in UIAction(title: name) { _ in action() } })
   }
@@ -409,15 +419,21 @@ import UIKit
         ("Delete slide", { [weak self] in self?.deleteSlide(index) }),
       ])
     menu(
-      "Slide \(index + 1) of \(slides.count)",
+      "Slide \(index + 1) of \(slides.count)", viewing: true,
       entries: slides.enumerated().map { offset, _ in
         (
           "Slide \(offset + 1)",
           { [weak self] in
             guard let self else { return }
-            self.viewingSlideIndex = offset
-            self.rebuild()
-            self.owner?.refreshEmbeddedContent()
+            if self.owner?.isEditable == true {
+              var data = self.node["data"]?.objectValue ?? [:]
+              data["currentSlideId"] = slides[offset]["id"]
+              self.field("data", .object(data), rebuild: true)
+            } else {
+              self.viewingSlideIndex = offset
+              self.rebuild()
+              self.owner?.refreshEmbeddedContent()
+            }
           }
         )
       })
@@ -808,6 +824,11 @@ import UIKit
         fields["version"] = 1
         if let chart = provider(.object(fields)) {
           chart.show(.object(fields))
+          // The synthetic preview key is not a document node. The deck owns editing.
+          (chart as? RenderedEmbedView)?.open = nil
+          for gesture in chart.gestureRecognizers ?? [] where gesture is UITapGestureRecognizer {
+            chart.removeGestureRecognizer(gesture)
+          }
           view = chart
         } else {
           let label = UILabel()
