@@ -124,6 +124,7 @@ async function summarize(run: string) {
     .filter((_, index) => signposts.names[index] === "frame")
     .map(ms);
   const hangs = column(trace, "potential-hangs", "duration").values.map(ms);
+  const renderingHitches = column(trace, "hitches", "duration").values.map(ms);
   // The display's frame, as the harness saw it.
   const frame = report.intervalMs.p50;
   return {
@@ -160,6 +161,11 @@ async function summarize(run: string) {
         .length,
       hangs: hangs.length,
       longestHangMs: round(Math.max(0, ...hangs)),
+      renderingHitches: renderingHitches.length,
+      renderingHitchTimeMs: round(
+        renderingHitches.reduce((total, duration) => total + duration, 0),
+      ),
+      renderingHitchMs: rounded(percentiles(renderingHitches)),
     },
     stability: { jumps: report.jumps, largestJumps: report.largestJumps },
     memoryMB: Object.fromEntries(
