@@ -482,6 +482,17 @@ public final class EditorView: UIScrollView, UITextInput {
   }
 
   public func setBaseWritingDirection(_ writingDirection: NSWritingDirection, for range: UITextRange) {
+    // UIKit reapplies the inferred direction when typing replaces a selection.
+    // Preserve automatic mode when this does not change how the paragraph reads.
+    if writingDirection != .natural,
+      baseWritingDirection(for: range.start, in: .forward) == .natural,
+      let range = range as? TextRange,
+      layout.writingDirection(at: range.range.location) == writingDirection
+    { return }
+    setWritingDirection(writingDirection, for: range)
+  }
+
+  private func setWritingDirection(_ writingDirection: NSWritingDirection, for range: UITextRange) {
     guard let range = range as? TextRange else { return }
     perform(.setSelection(anchor: document.point(at: range.range.location), focus: document.point(at: NSMaxRange(range.range))), fromInput: false)
     let direction: EditorCommand.WritingDirection = writingDirection == .natural ? .auto : writingDirection == .rightToLeft ? .rtl : .ltr
@@ -773,12 +784,12 @@ public final class EditorView: UIScrollView, UITextInput {
 
   public override func makeTextWritingDirectionLeftToRight(_ sender: Any?) {
     guard let range = selectedTextRange else { return }
-    setBaseWritingDirection(.leftToRight, for: range)
+    setWritingDirection(.leftToRight, for: range)
   }
 
   public override func makeTextWritingDirectionRightToLeft(_ sender: Any?) {
     guard let range = selectedTextRange else { return }
-    setBaseWritingDirection(.rightToLeft, for: range)
+    setWritingDirection(.rightToLeft, for: range)
   }
 
   private func writingDirectionMenu(for range: UITextRange) -> UIMenu {
@@ -786,7 +797,7 @@ public final class EditorView: UIScrollView, UITextInput {
       ("Automatic", .natural), ("Left to Right", .leftToRight), ("Right to Left", .rightToLeft),
     ]
     return UIMenu(title: "Writing Direction", children: choices.map { title, direction in
-      UIAction(title: title) { [weak self] _ in self?.setBaseWritingDirection(direction, for: range) }
+      UIAction(title: title) { [weak self] _ in self?.setWritingDirection(direction, for: range) }
     })
   }
 
