@@ -422,6 +422,8 @@ converter priorities, equal-priority registration order and child conversions
 in the web's own code. Unsupported DOM APIs throw naming #168; nodes whose
 editing isn't ported throw naming their existing owning ticket. libxml2's
 HTML4 nested-heading recovery is normalized to HTML5's heading closure.
+Qualified tag names are protected during parsing: libxml2 otherwise turns
+Word's unknown `o:p` elements into paragraphs, unlike the browser DOM.
 
 `bun run record:html` records clipboard-shaped Safari, Notes, Pages, Google
 Docs and Word examples and seeded generated HTML with the independent bun
@@ -437,3 +439,14 @@ before `bun run record:html`. Recorded HTML seeds 168 (500 cases), 2026 and 999
 The JavaScriptCore command reference has no DOM parser; HTML therefore has
 this separate oracle, and command fuzzing generates plain/serialized clipboard
 content. Copy still writes plain text and Lexical JSON; HTML export is separate.
+
+The additional `Lexical Word` fixture is an unchanged public Word clipboard
+payload from Lexical v0.51.0, with its MIT license, pinned source and SHA-256 in
+`Fixtures/HTML/upstream`. It failed the existing oracle replay before qualified
+tag names were preserved. Disposable verification also replayed three captured
+Google Docs inputs and Word/Word-through-Safari style inputs from CKEditor's
+documented clipboard corpus, plus Lexical's verbatim VS Code-to-Safari payload.
+All agree with the browser DOM oracle; VS Code code nodes explicitly refuse
+under #132. These are upstream captures, not newly captured on this device.
+Actual Pages and Notes clipboard fixtures remain unverified, as does a fresh
+Safari webpage capture; synthetic app-shaped examples do not close those gaps.

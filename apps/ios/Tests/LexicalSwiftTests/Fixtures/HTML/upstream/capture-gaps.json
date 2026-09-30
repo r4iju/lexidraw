@@ -1,0 +1,30 @@
+{
+  "reviewedCatalogs": [
+    "Lexical v0.51.0 dev-examples/dom-import fixtures",
+    "CKEditor 5 paste-from-office native clipboard corpus",
+    "ProseMirror view clipboard tests",
+    "Slate paste-html integration tests",
+    "Tiptap core/paste/table tests",
+    "Quill clipboard tests",
+    "Intevation Tiptap office-paste public fixtures and PR #17",
+    "WebKit editing/pasteboard tests"
+  ],
+  "remainingGaps": [
+    {
+      "sourceApp": "Apple Pages",
+      "candidate": "https://github.com/Intevation/tiptap-extension-office-paste/issues/16",
+      "reason": "Public issue describes Pages paste and asks to contact author for payload details. Public PR #17 contains Google Docs fixtures, no Pages payload."
+    },
+    {
+      "sourceApp": "Apple Notes",
+      "candidate": "https://github.com/facebook/lexical/issues/4466",
+      "reason": "Notes paste report includes plain text, not text/html capture; no authenticated Notes HTML fixture in reviewed catalogs."
+    },
+    {
+      "sourceApp": "Safari webpage copy",
+      "candidate": "https://github.com/WebKit/WebKit/blob/d8f95afbc3f57c7eba0f1f981f4a1b27f7de937f/LayoutTests/editing/pasteboard/data-transfer-get-data-on-paste-rich-text.html",
+      "reason": "Public WebKit test captures clipboard HTML but replaces style values with ellipses in expected output, so it is not a verbatim payload. Word-through-Safari and VS Code-to-Safari inputs do not establish Safari webpage copying."
+    }
+  ],
+  "freshLocalCaptures": "Native app CUA runtime unavailable; Google Docs tab unauthenticated. No fresh local clipboard captures claimed."
+}

@@ -35,6 +35,15 @@ const samples = [
     "<table><colgroup><col width='100'><col style='width:120px'></colgroup><tr><th>A</th><th>B</th></tr><tr><td><b>one</b></td><td>two</td></tr></table>",
   ],
 ];
+samples.push([
+  "Lexical Word",
+  await Bun.file(
+    new URL(
+      "../Tests/LexicalSwiftTests/Fixtures/HTML/upstream/word.html",
+      import.meta.url,
+    ),
+  ).text(),
+]);
 const fixtures = samples.map(([name, html]) => {
   if (!name || !html) throw new Error("Missing sample");
   return { name, html, nodes: htmlOracle(html) };
