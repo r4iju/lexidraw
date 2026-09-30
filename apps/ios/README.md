@@ -723,4 +723,13 @@ Fractional tracks whose factors total less than one leave the remaining free
 space unused, following [CSS Grid’s fractional-track rule](https://www.w3.org/TR/css-grid-2/#fr-unit).
 The landscape UI fixture `0.25fr 0.25fr` was observed red when each column occupied
 half the row, then green with the unused half retained. Compact layout still
-stacks those columns; the spacer participates only in wide layout.
+stacks those columns; track allocation applies only in wide layout.
+The imported `100px 25% 0.5fr` fixture was observed red when its controls were
+unavailable, then green with the pixel width preserved and percentage/fractional
+tracks allocated separately. Fixed-track overflow uses a native horizontal viewport.
+
+The follow-up rebased with SVG/animated media passed all 11 document-screen UI
+tests, 93 Bun tests and TypeScript checks, and built the production app for the
+iOS Simulator. The UI checks include mixed text accessibility, slide drag/resize
+autosave, fixed/percentage tracks, partial fractional tracks and read-only slide
+navigation. CI was not invoked.
