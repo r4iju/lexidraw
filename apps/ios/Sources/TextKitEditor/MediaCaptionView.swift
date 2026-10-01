@@ -2,6 +2,14 @@
 import EditorModelInterface
 import UIKit
 
+@MainActor private final class CaptionAccessibilityElement: UIAccessibilityElement {
+  private let url: URL?
+  init(container: UIView, url: URL?) { self.url = url; super.init(accessibilityContainer: container) }
+  override func accessibilityActivate() -> Bool {
+    guard let url else { return false }; UIApplication.shared.open(url); return true
+  }
+}
+
 @MainActor final class MediaCaptionView: UIView {
   private let payload: MediaPayload
   private let bodyStyle: DocumentText.Style
@@ -56,6 +64,24 @@ import UIKit
       setNeedsDisplay()
     }
     return box.map { max(0, $0.height - $0.spacingAfter) } ?? 0
+  }
+  override var accessibilityElements: [Any]? {
+    get {
+      guard let box, !payload.caption.isEmpty else { return [] }
+      let text = Self.attributedText(payload, style: bodyStyle)
+      var elements: [UIAccessibilityElement] = []
+      text.enumerateAttribute(.link, in: NSRange(location: 0, length: text.length)) { value, range, _ in
+        let label = (text.string as NSString).substring(with: range).trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !label.isEmpty else { return }
+        let element = CaptionAccessibilityElement(container: self, url: value as? URL)
+        element.accessibilityLabel = label
+        element.accessibilityTraits = value is URL ? .link : .staticText
+        element.accessibilityFrameInContainerSpace = box.segments(range).reduce(CGRect.null) { $0.union($1) }.offsetBy(dx: self.textInset, dy: 0)
+        elements.append(element)
+      }
+      return elements
+    }
+    set {}
   }
   override func layoutSubviews() {
     super.layoutSubviews()

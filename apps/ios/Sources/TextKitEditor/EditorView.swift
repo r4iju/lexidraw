@@ -152,7 +152,7 @@ public final class EditorView: UIScrollView, UITextInput {
     var result: [UIView] = []
     func collect(_ view: UIView) {
       guard !view.isHidden, view.alpha > 0 else { return }
-      if view is EmbeddedContentView {
+      if view is EmbeddedContentView || view is MediaView {
         if view.convert(view.bounds, to: self).intersects(bounds) { result.append(view) }
         return
       }

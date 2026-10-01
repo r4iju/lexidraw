@@ -42,7 +42,14 @@ enum MediaImageError: Error, LocalizedError, Equatable {
   }
 }
 
+@MainActor private final class MediaBodyAccessibilityElement: UIAccessibilityElement {
+  private weak var owner: MediaView?
+  init(owner: MediaView) { self.owner = owner; super.init(accessibilityContainer: owner) }
+  override func accessibilityActivate() -> Bool { owner?.openBody() ?? false }
+}
+
 @MainActor final class MediaView: UIView {
+  private lazy var bodyAccessibility = MediaBodyAccessibilityElement(owner: self)
   let payload: MediaPayload
   private let picture = UIImageView()
   private let message = UILabel()
@@ -82,10 +89,18 @@ enum MediaImageError: Error, LocalizedError, Equatable {
     message.font = .preferredFont(forTextStyle: .body)
     addSubview(message)
     addSubview(caption)
-    accessibilityLabel = [payload.label, payload.caption].filter { !$0.isEmpty }.joined(separator: ". ")
+    isAccessibilityElement = false
+    picture.isAccessibilityElement = false
+    message.isAccessibilityElement = false
+    bodyAccessibility.accessibilityLabel = payload.label
+    bodyAccessibility.accessibilityTraits = .button
     addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(open(_:))))
   }
   required init?(coder: NSCoder) { fatalError("MediaView is made in code") }
+  override var accessibilityElements: [Any]? {
+    get { [bodyAccessibility] + (caption.accessibilityElements ?? []) }
+    set {}
+  }
 
   static func height(_ payload: MediaPayload, width: CGFloat) -> CGFloat {
     let size = geometry(payload, width: width, ratio: payload.aspectRatio, naturalWidth: payload.naturalWidth, viewport: UIScreen.main.bounds.height)
@@ -123,6 +138,7 @@ enum MediaImageError: Error, LocalizedError, Equatable {
     let captionHeight = caption.fittingHeight(mediaWidth)
     let bodyHeight = size.height
     let mediaFrame = CGRect(x: (bounds.width - mediaWidth) / 2, y: 0, width: mediaWidth, height: bodyHeight)
+    bodyAccessibility.accessibilityFrameInContainerSpace = mediaFrame
     picture.frame = mediaFrame
     videoLayer?.frame = mediaFrame
     message.frame = mediaFrame.insetBy(dx: 12, dy: 4)
@@ -192,15 +208,18 @@ enum MediaImageError: Error, LocalizedError, Equatable {
   @objc private func open(_ gesture: UITapGestureRecognizer) {
     let point = gesture.location(in: self)
     if caption.frame.contains(point) { caption.openLink(at: gesture.location(in: caption)); return }
+    _ = openBody()
+  }
+  fileprivate func openBody() -> Bool {
     var owner: UIView? = superview
     while let view = owner {
       if let editor = view as? EditorView {
-        if editor.handleMediaBodyTap(from: self) { return }
+        if editor.handleMediaBodyTap(from: self) { return true }
         break
       }
       owner = view.superview
     }
-    guard let source = payload.source else { return }
+    guard let source = payload.source else { return false }
     if payload.type == "video" {
       var responder: UIResponder? = self
       while let current = responder {
@@ -210,11 +229,12 @@ enum MediaImageError: Error, LocalizedError, Equatable {
           self.player = player
           playback.player = player
           controller.present(playback, animated: true) { player.play() }
-          return
+          return true
         }
         responder = current.next
       }
-    } else { UIApplication.shared.open(source) }
+      return false
+    } else { UIApplication.shared.open(source); return true }
   }
   static func image(_ url: URL, rasterizeSVG: (@MainActor (Data) async throws -> UIImage)? = nil) async throws -> UIImage {
     // Data URLs can be megabytes long; the bounded cache retains only their digest.
