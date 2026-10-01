@@ -275,6 +275,7 @@ public enum EditorCommand: Equatable, Sendable {
   /// CommentPlugin’s $saveThread; nil runs its comment/thread marker deletion callback.
   case saveCommentThread(id: String, thread: JSONValue?)
   case removeCommentAnnotations(id: String)
+  case convertArticle(path: [Int], html: String)
   /// The web's insert-table dialog: a table after the caret's block, with a
   /// header row, and the caret in its first cell.
   case insertTable(rows: Int, columns: Int)
@@ -381,7 +382,7 @@ extension EditorCommand: Codable {
     case setSelection, insertText, commitComposition, deleteCharacter, deleteWord, deleteLine, insertParagraph, insertLineBreak,
       formatText, setBlockType, formatCode, formatElement, changeFontSize, clearFormatting, setWritingDirection, insertList, removeList, indent, outdent, tab, toggleChecked, selectAll, toggleLink, editLink,
       copy, cut, paste, insertTable, insertTableRow, insertTableColumn, deleteTableRow, deleteTableColumn, mergeTableCells, unmergeTableCell, deleteTable, toggleTableRowHeader, toggleTableColumnHeader, setTableCellBackground, arrow, undo, redo,
-      wait, appendComment, annotateComment, saveCommentThread, removeCommentAnnotations
+      wait, appendComment, annotateComment, saveCommentThread, removeCommentAnnotations, convertArticle
   }
 
   private var kind: Kind {
@@ -417,6 +418,7 @@ extension EditorCommand: Codable {
     case .annotateComment: .annotateComment
     case .saveCommentThread: .saveCommentThread
     case .removeCommentAnnotations: .removeCommentAnnotations
+    case .convertArticle: .convertArticle
     case .insertTable: .insertTable
     case .insertTableRow: .insertTableRow
     case .insertTableColumn: .insertTableColumn
@@ -476,6 +478,7 @@ extension EditorCommand: Codable {
     case .paste: self = .paste(try container.decode(Clipboard.self, forKey: .clipboard))
     case .appendComment: self = .appendComment(try container.decode(JSONValue.self, forKey: .node))
     case .annotateComment: self = .annotateComment(id: try container.decode(String.self, forKey: .id))
+    case .convertArticle: self = .convertArticle(path: try container.decode([Int].self, forKey: .path), html: try container.decode(String.self, forKey: .text))
     case .removeCommentAnnotations: self = .removeCommentAnnotations(id: try container.decode(String.self, forKey: .id))
     case .saveCommentThread: self = .saveCommentThread(id: try container.decode(String.self, forKey: .id), thread: try container.decodeIfPresent(JSONValue.self, forKey: .thread))
     case .insertTable:
@@ -538,6 +541,9 @@ extension EditorCommand: Codable {
       try container.encode(url, forKey: .url)
     case .editLink(let url):
       try container.encode(url, forKey: .url)
+    case .convertArticle(let path, let html):
+      try container.encode(path, forKey: .path)
+      try container.encode(html, forKey: .text)
     case .removeCommentAnnotations(let id):
       try container.encode(id, forKey: .id)
     case .saveCommentThread(let id, let thread):

@@ -6,6 +6,7 @@ import {
   embedRenderRequest,
   type EmbedRequest,
 } from "~/lib/embed-render-contract";
+import { sanitizeArticleContent } from "~/server/extractors/article";
 import { createSVGPreview } from "~/server/documents/svg-preview";
 import { createEmbedRenderer } from "~/server/documents/embedded-render";
 import { askRenderWorker } from "~/server/render-worker";
@@ -138,6 +139,15 @@ export const embedRouter = createTRPCRouter({
           code: "BAD_REQUEST",
           message: "Invalid embedded node payload",
         });
+      }
+      if (request.node.type === "article") {
+        const data = request.node.data;
+        const snapshot = data.mode === "url" ? data.distilled : data.snapshot;
+        if (snapshot) {
+          snapshot.contentHtml = sanitizeArticleContent(
+            snapshot.contentHtml, data.mode === "url" ? data.url : env.NEXTAUTH_URL, true,
+          );
+        }
       }
       return render(request);
     }),

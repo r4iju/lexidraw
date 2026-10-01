@@ -358,9 +358,21 @@ extension Node {
     case .mark(let node): node.unknownFields.isEmpty
     case .footnoteDefinition(let node): node.unknownFields.isEmpty
     case .footnoteReference(let node): node.unknownFields.isEmpty && node.label?.stringValue != nil
+    case .article(let node): Self.supportsArticle(node)
     case .poll(let node): Self.supportsPoll(node)
     case .tab(let node): node.unknownFields.isEmpty && node.detail == Double(TextDetail.unmergeable.rawValue)
     default: false
+    }
+  }
+
+  private static func supportsArticle(_ node: SerializedArticleNode) -> Bool {
+    guard node.unknownFields.isEmpty, ElementFormat(rawValue: node.format?.stringValue ?? "") != nil,
+      case .typed(let data)? = node.data else { return false }
+    switch data {
+    case .url(let value):
+      return value.mode == .url && value.url != nil && value.distilled?.title != nil && value.distilled?.contentHtml != nil
+    case .entity(let value):
+      return value.mode == .entity && value.entityId != nil && (value.snapshot == nil || (value.snapshot?.title != nil && value.snapshot?.contentHtml != nil))
     }
   }
 
@@ -399,6 +411,10 @@ extension Optional {
 
 extension Update {
   mutating func run(_ command: EditorCommand, plainText: Bool = false) throws {
+    if case .convertArticle(let path, let html) = command {
+      guard !plainText else { throw EditorError.unsupported("Articles require rich text") }
+      return try convertArticle(path: path, html: html)
+    }
     if case .removeCommentAnnotations(let id) = command {
       guard !plainText else { throw EditorError.unsupported("Comments require rich text") }
       return try removeCommentAnnotations(id: id)

@@ -2,7 +2,7 @@ import postcss from "postcss";
 import { ThemeColors, swiftRGBA } from "./typography";
 import { createHeadlessEditor } from "@lexical/headless";
 import emojiList from "../../../packages/lexical-nodes/src/emoji-list";
-import { PollNode, CommentNode, ThreadNode } from "@packages/lexical-nodes";
+import { ArticleNode, PollNode, CommentNode, ThreadNode } from "@packages/lexical-nodes";
 import { CommentStore } from "../../lexidraw/src/app/documents/[documentId]/commenting";
 import { swiftString } from "./swift";
 
@@ -163,4 +163,27 @@ export async function swiftForCommentData(): Promise<string> {
     threadJSON = JSON.stringify(new ThreadNode(thread).exportJSON());
   }, { discrete: true });
   return `// Generated from web CommentStore and marker constructors by apps/ios/codegen/social.ts.\n\nenum WebCommentData {\n  static let quoteLimit = ${Number(limit)}\n  static let quotePrefix = ${Number(truncation[1])}\n  static let quoteEllipsis = ${swiftString(truncation[2])}\n  static let emptyCommentJSON = ${swiftString(JSON.stringify(comment))}\n  static let emptyCommentNodeJSON = ${swiftString(commentJSON)}\n  static let emptyThreadNodeJSON = ${swiftString(threadJSON)}\n}\n`;
+}
+
+export const ARTICLE_DATA_PATH = new URL("../Sources/LexidrawKit/WebArticleData.swift", import.meta.url);
+export async function swiftForArticleData(): Promise<string> {
+  const source = await Bun.file(new URL("../../lexidraw/src/app/documents/[documentId]/nodes/ArticleNode/ArticleBlock.tsx", import.meta.url)).text();
+  const route = source.match(/href=\{`([^$`]+)\$\{data\.entityId\}/)?.[1];
+  if (!route) throw new Error("Unknown article route shape");
+  let json = "";
+  const editor = createHeadlessEditor({ nodes: [ArticleNode], onError(error) { throw error; } });
+  editor.update(() => { json = JSON.stringify(new ArticleNode().exportJSON()); }, { discrete: true });
+  return `// Generated from the web ArticleNode constructor.\npublic enum WebArticleData {\n  public static let routePrefix = ${swiftString(route)}\n  public static let insertionNodeJSON = ${swiftString(json)}\n}\n`;
+}
+
+export const ARTICLE_TEXT_PATH = new URL("../Sources/LexicalSwift/WebArticlePlainText.swift", import.meta.url);
+export async function swiftForArticlePlainText(): Promise<string> {
+  const source = await Bun.file(new URL("../../../packages/lexical-nodes/src/html-to-text.ts", import.meta.url)).text();
+  const matches = [...source.matchAll(/\.replace\((\/(?:[^\/\n]|\\.)+\/[a-z]*),\s*("(?:[^"\\]|\\.)*")\)/g)];
+  if (matches.length !== 7 || !source.includes(".trim()")) throw new Error("Unknown article plain-text converter shape");
+  const rules = matches.map(([, expression, replacement]) => {
+    const regex = Function(`return (${expression})`)() as RegExp;
+    return `    (JSRegExp(${swiftString(regex.source)}, flags: ${swiftString(regex.flags)}), ${swiftString(JSON.parse(replacement!))}),`;
+  });
+  return `// Generated from the web htmlToPlainText converter.\nimport EditorModelInterface\n\nenum WebArticlePlainText {\n  static let rules: [(JSRegExp, String)] = [\n${rules.join("\n")}\n  ]\n  static func convert(_ html: String) -> String {\n    JSRegExp("^\\\\s+|\\\\s+$", flags: "g").replacingMatches(in: rules.reduce(html) { $1.0.replacingMatches(in: $0, with: $1.1) }, with: "")\n  }\n}\n`;
 }

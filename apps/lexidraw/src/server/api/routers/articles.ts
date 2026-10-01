@@ -5,6 +5,15 @@ import { eq, schema } from "@packages/drizzle";
 
 export const articlesRouter = createTRPCRouter({
   extractFromUrl: protectedProcedure
+    .meta({
+      openapi: {
+        method: "POST",
+        path: "/articles/extract",
+        protect: true,
+        tags: ["articles"],
+        summary: "Extract the sanitized content of a public article URL",
+      },
+    })
     .input(
       z.object({
         url: z.url(),
@@ -13,6 +22,18 @@ export const articlesRouter = createTRPCRouter({
         keepQuotes: z.boolean().optional(),
       }),
     )
+    .output(z.object({
+      title: z.string(),
+      byline: z.string().nullable(),
+      siteName: z.string().nullable(),
+      wordCount: z.number().nullable(),
+      excerpt: z.string().nullable(),
+      contentHtml: z.string(),
+      bestImageUrl: z.string().nullable(),
+      datePublished: z.string().nullable(),
+      updatedAt: z.string(),
+      __options: z.object({ maxChars: z.number().optional(), keepQuotes: z.boolean().optional() }),
+    }))
     .mutation(async ({ ctx, input }) => {
       // Load per-user defaults (if any) to record intent; extractor returns HTML
       const user = await ctx.drizzle.query.users.findFirst({

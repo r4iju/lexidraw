@@ -3,6 +3,18 @@ import LexicalSwift
 import Testing
 
 @Suite struct SocialTransformTests {
+  @Test func malformedArticleDataStaysReadOnly() throws {
+    let editor = Editor()
+    try editor.load(document(["type": "article", "version": 1, "format": ""]))
+    #expect(!editor.isEditable)
+  }
+
+  @Test func convertsArticleBodyAsTheWebDoesAndUndoesAsOneUpdate() throws {
+    let article: JSONValue = ["type": "article", "version": 1, "format": "", "data": ["mode": "url", "url": "https://example.test", "distilled": ["title": "Article", "contentHtml": "<h2>Heading</h2><p>Body <strong>bold</strong>.</p>"]]]
+    let fixture = try Fixture.record(start: document(article, paragraph(text("After"))), commands: [.convertArticle(path: [0], html: "<h2>Heading</h2><p>Body <strong>bold</strong>.</p>"), .undo, .redo], on: Support.referenceEditor())
+    #expect(try fixture.replay(on: Editor()) == fixture.recorded)
+  }
+
   @Test func malformedCommentPayloadsStayReadOnly() throws {
     for marker: JSONValue in [
       ["type": "comment", "version": 1, "comment": ["id": "partial"]],

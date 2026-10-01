@@ -185,6 +185,17 @@ public final class EditorView: UIScrollView, UITextInput {
     }
   }
 
+  public func convertArticle(key: String, expected: JSONValue, html: String) throws {
+    guard isEditable else { throw EditorError.unsupported("This document cannot be edited") }
+    let path = try model.nodePath(for: key)
+    guard try model.node(at: path) == expected else {
+      throw EditorError.invalidState("The article changed while its controls were open")
+    }
+    let change = try model.apply(.convertArticle(path: path, html: html))
+    render(change)
+    if !change.changed.isEmpty { onChange?() }
+  }
+
   public func replaceEmbeddedNode(key: String, expected: JSONValue, replacement: JSONValue?) throws {
     guard isEditable else { throw EditorError.unsupported("This document cannot be edited") }
     let change = try model.replaceEmbeddedNode(key: key, expected: expected, replacement: replacement)

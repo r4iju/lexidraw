@@ -74,6 +74,13 @@ describe("openApiDocument", () => {
     expect(document.info.description).toContain("/settings#api-tokens");
   });
 
+  it("exposes authenticated article extraction for native URL blocks", () => {
+    const operation = document.paths?.["/articles/extract"]?.post;
+    expect(operation).toBeDefined();
+    expect(operation?.operationId).toBe("articles-extractFromUrl");
+    expect(operation?.security).toEqual([{ bearerAuth: [] }]);
+  });
+
   it("exposes entity load as GET /entities/{id}", () => {
     const operation = document.paths?.["/entities/{id}"]?.get;
     expect(operation).toBeDefined();
@@ -100,6 +107,9 @@ describe("openApiDocument", () => {
 
   // The v1 surface, as docs/agent-access.md promises it.
   const expectedOperations = [
+    ["/embeds/rasterize-svg", "post", "embeds"],
+    ["/embeds/render", "post", "embeds"],
+    ["/articles/extract", "post", "articles"],
     ["/me", "get", "auth"],
     ["/me/delete", "get", "auth"],
     ["/me/delete", "post", "auth"],

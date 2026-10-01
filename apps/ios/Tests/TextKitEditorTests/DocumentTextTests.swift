@@ -117,6 +117,37 @@ import Testing
     [.lexicalFormat: format.rawValue]
   }
 
+  @Test func undoRecreatesAMentionDOMBackgroundAfterItsNodeWasRemoved() throws {
+    let model = Editor()
+    let mention: JSONValue = ["type": "mention", "version": 1, "text": "Reader", "mentionName": "Reader", "mode": "segmented", "detail": 1, "format": 0, "style": "background-color: red;"]
+    try model.load(LexicalJSON.document([LexicalJSON.paragraph([mention])]))
+    let storage = NSMutableAttributedString()
+    let document = DocumentText(model: model, style: { _, _ in [:] })
+    try document.reload(storage)
+    try model.apply(.setSelection(anchor: .text([0, 0], 0), focus: .text([0, 0], 6)))
+    try document.update(storage, after: model.apply(.clearFormatting))
+    #expect(storage.attribute(.backgroundColor, at: 0, effectiveRange: nil) == nil)
+    try model.apply(.wait(milliseconds: 1000))
+    try model.apply(.setSelection(anchor: .text([0, 0], 0), focus: .text([0, 0], 6)))
+    try document.update(storage, after: model.apply(.deleteCharacter(backward: true)))
+    try document.update(storage, after: model.apply(.undo))
+    #expect(storage.attribute(.backgroundColor, at: 0, effectiveRange: nil) != nil)
+  }
+
+  @Test func clearingMentionStylesFollowsTheLiveDOMStyleDelta() throws {
+    let model = Editor()
+    let mention: JSONValue = ["type": "mention", "version": 1, "text": "Reader", "mentionName": "Reader", "mode": "segmented", "detail": 1, "format": 0, "style": "background-color: red;"]
+    try model.load(LexicalJSON.document([LexicalJSON.paragraph([mention])]))
+    let storage = NSMutableAttributedString()
+    let document = DocumentText(model: model, style: { _, _ in [:] })
+    try document.reload(storage)
+    #expect(storage.attribute(.backgroundColor, at: 0, effectiveRange: nil) != nil)
+    try model.apply(.setSelection(anchor: .text([0, 0], 0), focus: .text([0, 0], 6)))
+    let change = try model.apply(.clearFormatting)
+    try document.update(storage, after: change)
+    #expect(storage.attribute(.backgroundColor, at: 0, effectiveRange: nil) == nil)
+  }
+
   @Test func mentionDOMStyleOverridesStoredInlineColors() throws {
     let model = Editor()
     let mention: JSONValue = ["type": "mention", "version": 1, "text": "Reader", "mentionName": "Reader", "mode": "segmented", "detail": 1, "format": 0, "style": "color: red; background-color: red;"]

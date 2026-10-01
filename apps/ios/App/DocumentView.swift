@@ -183,6 +183,7 @@ private struct DocumentEditor: UIViewRepresentable {
       configureEmbeddedDrawings(nested)
       configureHTMLBlocks(nested, session: editing.session, documentID: editing.id)
       configureRenderedEmbeds(nested, session: editing.session, fontFamily: editing.settings.fontFamily)
+      configureArticleBlocks(nested, session: editing.session, fontFamily: editing.settings.fontFamily)
       if nested.isEditable && nested.supportsRichText {
         nested.uploadImage = { [weak editing] data in
           guard let editing else { throw CancellationError() }
@@ -192,7 +193,8 @@ private struct DocumentEditor: UIViewRepresentable {
           guard let editing else { throw CancellationError() }
           return try await editing.session.uploadVideo(data, in: editing.id)
         }
-        nested.insertionActions += nested.imageInsertionActions + nested.socialInsertionActions + [drawingInsertionAction(for: nested)] + renderedInsertionActions(for: nested)
+        nested.insertionActions += nested.imageInsertionActions + nested.socialInsertionActions + [drawingInsertionAction(for: nested)] + renderedInsertionActions(for: nested) + [articleInsertionAction(for: nested, session: editing.session)]
+
       }
     }
     view.configureNestedEmbeds?(view)

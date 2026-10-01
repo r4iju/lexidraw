@@ -20,10 +20,10 @@ import {
 import { SERIALIZED_NODES_PATH, swiftForNodeSchema } from "./swift";
 import { SHORTCUTS_PATH, swiftForShortcuts } from "./shortcuts";
 import {
-  FOOTNOTE_STYLE_PATH,
-  swiftForFootnoteStyle,
-  COMMENT_DATA_PATH,
-  swiftForCommentData,
+  ARTICLE_TEXT_PATH, swiftForArticlePlainText,
+  ARTICLE_DATA_PATH, swiftForArticleData,
+  FOOTNOTE_STYLE_PATH, swiftForFootnoteStyle,
+  COMMENT_DATA_PATH, swiftForCommentData,
   EMOJI_ALIASES_PATH,
   SOCIAL_STYLE_PATH,
   swiftForSocialStyle,
@@ -144,3 +144,7 @@ await Bun.write(MEDIA_INSERTIONS_PATH, await swiftForMediaInsertions());
 
 const { MEDIA_VIDEOS_PATH, swiftForMediaVideos } = await import("./media");
 await Bun.write(MEDIA_VIDEOS_PATH, swiftForMediaVideos());
+
+await Bun.write(ARTICLE_DATA_PATH, await swiftForArticleData());
+
+await Bun.write(ARTICLE_TEXT_PATH, await swiftForArticlePlainText());
