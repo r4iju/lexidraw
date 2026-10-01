@@ -74,6 +74,10 @@ import UIKit
   /// `insertText`; these gaps are a physical iPhone's (#236).
   @Test func swipedWordsUndoAndRedoAsOneRunUpToABoundary() async throws {
     let (view, model) = try editing(LexicalJSON.paragraph([LexicalJSON.text("Say ")]))
+    // Across awaits; an iPad on iOS 26 otherwise releases it, and the editor
+    // resigning first responder rightly ends the run.
+    let window = try #require(view.window)
+    defer { withExtendedLifetime(window) {} }
     func typed() -> String {
       (try? paragraphs(model))?.first?["children"]?.arrayValue?.compactMap { $0["text"]?.stringValue }.joined() ?? ""
     }
