@@ -192,6 +192,14 @@ enum MediaImageError: Error, LocalizedError, Equatable {
   @objc private func open(_ gesture: UITapGestureRecognizer) {
     let point = gesture.location(in: self)
     if caption.frame.contains(point) { caption.openLink(at: gesture.location(in: caption)); return }
+    var owner: UIView? = superview
+    while let view = owner {
+      if let editor = view as? EditorView {
+        if editor.handleMediaBodyTap(from: self) { return }
+        break
+      }
+      owner = view.superview
+    }
     guard let source = payload.source else { return }
     if payload.type == "video" {
       var responder: UIResponder? = self

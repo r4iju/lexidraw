@@ -1966,6 +1966,11 @@ public final class EditorView: UIScrollView, UITextInput {
   /// offers to open or edit the link.
   @objc private func tapped(_ tap: UITapGestureRecognizer) {
     let point = tap.location(in: surface)
+    var hit = surface.hitTest(point, with: nil)
+    while let view = hit, view !== surface {
+      if view is MediaView { return }
+      hit = view.superview
+    }
     if let label = layout.footnoteBacklink(at: point) { followFootnoteBacklink(label); return }
     if let character = characterRange(at: point) as? TextRange, character.range.length > 0,
       let ids = storage.attribute(.commentIDs, at: character.range.location, effectiveRange: nil) as? [String], !ids.isEmpty {
@@ -1984,6 +1989,13 @@ public final class EditorView: UIScrollView, UITextInput {
     }
     guard linkCharacter(at: point) != nil else { return }
     linkMenu.presentEditMenu(with: UIEditMenuConfiguration(identifier: nil, sourcePoint: point))
+  }
+
+  func handleMediaBodyTap(from media: UIView) -> Bool {
+    let point = surface.convert(CGPoint(x: 0, y: media.bounds.midY), from: media)
+    guard let offset = layout.offset(closestTo: point), let path = document.embeddedPath(at: offset),
+      let key = nodeKey(at: path), let node = try? model.nodeForPresentation(at: path) else { return false }
+    return onEmbeddedTap?(key, node) == true
   }
 
   // MARK: Layout
