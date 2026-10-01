@@ -157,6 +157,9 @@
                     "type": "number",
                     "minimum": 1,
                     "maximum": 256
+                  },
+                  "includeAccessibility": {
+                    "type": "boolean"
                   }
                 },
                 "required": ["node", "theme", "width", "fontFamily", "fontSize"]
@@ -172,6 +175,53 @@
                 "schema": {
                   "type": "object",
                   "properties": {
+                    "accessibility": {
+                      "maxItems": 4096,
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "role": {
+                            "type": "string",
+                            "enum": ["heading", "text", "link"]
+                          },
+                          "heading": {
+                            "type": "boolean"
+                          },
+                          "text": {
+                            "type": "string",
+                            "maxLength": 262144
+                          },
+                          "url": {
+                            "type": "string",
+                            "maxLength": 8192
+                          },
+                          "x": {
+                            "type": "number"
+                          },
+                          "y": {
+                            "type": "number"
+                          },
+                          "width": {
+                            "type": "number",
+                            "exclusiveMinimum": 0
+                          },
+                          "height": {
+                            "type": "number",
+                            "exclusiveMinimum": 0
+                          }
+                        },
+                        "required": [
+                          "role",
+                          "text",
+                          "x",
+                          "y",
+                          "width",
+                          "height"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
                     "accessibleText": {
                       "type": "string",
                       "maxLength": 262144

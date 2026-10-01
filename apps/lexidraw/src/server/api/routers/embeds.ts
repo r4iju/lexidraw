@@ -124,6 +124,7 @@ export const embedRouter = createTRPCRouter({
         width: z.number().int().min(1).max(2048),
         fontFamily: z.string().min(1).max(120),
         fontSize: z.number().min(1).max(256),
+        includeAccessibility: z.boolean().optional(),
       }),
     )
     .output(embedRenderImage.extend({ hash: z.string() }))
@@ -145,7 +146,9 @@ export const embedRouter = createTRPCRouter({
         const snapshot = data.mode === "url" ? data.distilled : data.snapshot;
         if (snapshot) {
           snapshot.contentHtml = sanitizeArticleContent(
-            snapshot.contentHtml, data.mode === "url" ? data.url : env.NEXTAUTH_URL, true,
+            snapshot.contentHtml,
+            data.mode === "url" ? data.url : env.NEXTAUTH_URL,
+            true,
           );
         }
       }

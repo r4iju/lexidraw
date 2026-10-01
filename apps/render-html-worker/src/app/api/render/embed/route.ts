@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { extractArticleInteractions } from "~/lib/article-interactions";
 import { refusedUnlessFromTheApp } from "~/lib/worker-access";
 import { launchGuardedBrowser } from "~/lib/guarded-browser";
 import { guardRequests, renderCheck } from "~/lib/public-requests";
@@ -100,18 +101,15 @@ export async function POST(request: Request) {
       throw new Error("Empty render");
     if (bounds.width * bounds.height * 4 > 16000000)
       return new NextResponse("Render exceeds 16 megapixels", { status: 413 });
-    const interactions = await page.evaluate(() => {
-      const article = document.querySelector<HTMLElement>("[data-native-article]");
-      const root = document.getElementById("native-embed");
-      if (!article || !root) return {};
-      const origin = root.getBoundingClientRect();
-      const links = Array.from(article.querySelectorAll<HTMLAnchorElement>("a[href]")).flatMap((anchor) =>
-        Array.from(anchor.getClientRects()).filter((rect) => rect.width > 0 && rect.height > 0).map((rect) => ({
-          url: anchor.href, x: rect.x - origin.x, y: rect.y - origin.y, width: rect.width, height: rect.height,
-        })),
-      );
-      return { accessibleText: article.innerText, links };
-    });
+    const includeAccessibility =
+      input.request !== null &&
+      typeof input.request === "object" &&
+      "includeAccessibility" in input.request &&
+      input.request.includeAccessibility === true;
+    const interactions = await page.evaluate(
+      extractArticleInteractions,
+      includeAccessibility,
+    );
     const svg = await page.evaluate(async () => {
       const original = document.getElementById("native-embed");
       if (!original) throw new Error("No rendered embed");
@@ -136,7 +134,10 @@ export async function POST(request: Request) {
           target instanceof HTMLImageElement &&
           source.src
         ) {
-          if (source.closest("[data-native-article]") && source.naturalWidth === 0) {
+          if (
+            source.closest("[data-native-article]") &&
+            source.naturalWidth === 0
+          ) {
             target.removeAttribute("src");
             continue;
           }
