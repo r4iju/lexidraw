@@ -568,7 +568,7 @@ function cut(): void {
       const selection = selectionToCut();
       // Plain text removes the existing range; only rich text widens it.
       if (
-        !hasContextPlugin("PlainTextPlugin") &&
+        (editorContext === "document" || !hasContextPlugin("PlainTextPlugin")) &&
         $isRangeSelection(selection) &&
         !selection.isCollapsed()
       ) {
