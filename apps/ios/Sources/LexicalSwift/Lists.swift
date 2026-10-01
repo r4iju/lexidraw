@@ -722,10 +722,13 @@ public enum ListMarker: String, CaseIterable, Sendable {
 }
 
 extension SerializedListNode {
-  /// Whether all the list holds that LexicalSwift doesn't read is a marker
-  /// other than the default.
+  /// Whether all the list holds that LexicalSwift doesn't read is a marker.
+  /// Any value is one: Lexical reads all but `-`, `*` and `+` as `-`, and
+  /// keeps the value as stored, like the `[` older @lexical/markdown wrote
+  /// for `[ ] `.
   var holdsOnlyAMarkdownMarker: Bool {
-    ListMarker.allCases.contains { $0 != .default && unknownFields == ["$": ["mdListMarker": .string($0.rawValue)]] }
+    guard unknownFields.count == 1, case .object(let nodeState)? = unknownFields["$"] else { return false }
+    return nodeState.count == 1 && nodeState["mdListMarker"] != nil
   }
 
   /// `$setState(list, listMarkerState, marker)`.

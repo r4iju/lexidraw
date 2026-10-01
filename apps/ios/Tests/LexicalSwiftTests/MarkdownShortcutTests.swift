@@ -348,6 +348,50 @@ import Testing
     #expect(try fixture.replay(on: Editor()) == fixture.recorded)
   }
 
+  /// A checklist holding the `[` an older @lexical/markdown kept as its
+  /// marker from the `[ ] ` shortcut, as the Purchase List document does
+  /// (#239). Lexical reads any marker but `-`, `*` and `+` as `-`.
+  static func legacyMarkerChecklist(_ items: JSONValue...) -> JSONValue {
+    LexicalJSON.element("list", items, ["listType": "check", "start": 1, "tag": "ul", "$": ["mdListMarker": "["]])
+  }
+
+  static func item(_ children: [JSONValue], checked: Bool = false, value: Int = 1) -> JSONValue {
+    LexicalJSON.element("listitem", children, ["checked": .bool(checked), "indent": 0, "value": .number(Double(value))])
+  }
+
+  static let legacyMarkers: [Script] = [
+    Script(
+      name: "an item of a checklist with a legacy marker takes typing and a tap on its box",
+      start: document(heading("h3", text("Dairy")), legacyMarkerChecklist(item([]))),
+      commands: [.caret(Point(path: [1, 0], offset: 0, type: .element)), .insertText("milk"), .toggleChecked(path: [1, 0])],
+      expected: document(heading("h3", text("Dairy")), legacyMarkerChecklist(item([text("milk")], checked: true)))),
+    Script(
+      name: "a legacy marker stays on its list when a shortcut has set a marker since",
+      start: document(legacyMarkerChecklist(item([text("a")])), paragraph()),
+      commands: [.caret(Point(path: [1], offset: 0, type: .element))] + typing("* ")
+        + [.caret(.text([0, 0, 0], 1)), .insertParagraph],
+      expected: document(
+        legacyMarkerChecklist(item([text("a")]), item([], value: 2)),
+        list(.bullet, [.item([])], marker: .asterisk))),
+    Script(
+      name: "a checklist with a legacy marker split by a quote keeps the marker in both parts",
+      start: document(legacyMarkerChecklist(item([text("a")]), item([text("b")], value: 2), item([text("c")], value: 3))),
+      commands: [.caret(.text([0, 1, 0], 1)), .setBlockType(.quote)],
+      expected: document(
+        legacyMarkerChecklist(item([text("a")])), quote(text("b")), legacyMarkerChecklist(item([text("c")])))),
+  ]
+
+  @Test(arguments: legacyMarkers)
+  func aLegacyListMarkerEditsAsLexicalEditsIt(_ script: Script) throws {
+    let fixture = try Fixture.record(start: script.start, commands: script.commands, on: try Support.referenceEditor())
+    let editor = Editor()
+    try editor.load(script.start)
+
+    #expect(editor.isEditable)
+    #expect(fixture.expected.state == script.expected)
+    #expect(try fixture.replay(on: Editor()) == fixture.recorded)
+  }
+
   /// Typing that a transformer LexicalSwift doesn't port yet turns into
   /// something else in Lexical, and what LexicalSwift leaves instead.
   static let notPortedYet: [Script] = [
