@@ -1,6 +1,6 @@
 import { createHeadlessEditor } from "@lexical/headless";
 import { $createTextNode } from "lexical";
-import { parse } from "@babel/parser";
+import { basicTypeaheadPattern } from "./typeahead-trigger";
 import emojis from "@packages/lexical-nodes/emoji-list";
 import {
   EMOJI_TRIGGER,
@@ -14,54 +14,7 @@ export const EMOJI_PICKER_PATH = new URL(
   import.meta.url,
 );
 export async function swiftForEmojiPicker() {
-  const source = await Bun.file(
-    new URL(
-      "../../lexidraw/node_modules/@lexical/react/src/LexicalTypeaheadMenuPluginUtils.ts",
-      import.meta.url,
-    ),
-  ).text();
-  const ast = parse(source, { sourceType: "module", plugins: ["typescript"] });
-  const declarations = ast.program.body
-    .filter((n) => n.type === "ExportNamedDeclaration")
-    .map((n) => n.declaration)
-    .filter(
-      (n) =>
-        n &&
-        ((n.type === "FunctionDeclaration" &&
-          n.id?.name === "useBasicTypeaheadTriggerMatch") ||
-          (n.type === "VariableDeclaration" &&
-            n.declarations.some(
-              (d) => d.id.type === "Identifier" && d.id.name === "PUNCTUATION",
-            ))),
-    );
-  if (declarations.length !== 2)
-    throw new Error("Upstream trigger matcher changed");
-  const code = declarations
-    .map((n) => source.slice(n!.start!, n!.end!))
-    .join("\n");
-  let pattern = "";
-  class ObservedRegExp extends RegExp {
-    constructor(source: string, flags?: string) {
-      super(source, flags);
-      pattern = this.source;
-    }
-  }
-  const matcher = new Function(
-    "useCallback",
-    "RegExp",
-    new Bun.Transpiler({ loader: "ts" }).transformSync(code) +
-      ";return useBasicTypeaheadTriggerMatch;",
-  )((fn: unknown) => fn, ObservedRegExp)(EMOJI_TRIGGER, {
-    minLength: EMOJI_MIN_LENGTH,
-  });
-  const probe = matcher(":smile");
-  if (
-    probe?.matchingString !== "smile" ||
-    probe.replaceableString !== ":smile" ||
-    probe.leadOffset !== 0 ||
-    !pattern
-  )
-    throw new Error("Upstream trigger result changed");
+  const pattern = await basicTypeaheadPattern(EMOJI_TRIGGER, EMOJI_MIN_LENGTH);
   const main = await Bun.file(
     new URL(
       "../../lexidraw/src/app/documents/[documentId]/document-editor.tsx",

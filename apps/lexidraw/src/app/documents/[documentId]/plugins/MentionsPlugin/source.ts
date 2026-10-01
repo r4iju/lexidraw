@@ -31,7 +31,7 @@ const VALID_JOINS =
 
 const LENGTH_LIMIT = 75;
 
-const AtSignMentionsRegex = new RegExp(
+export const AtSignMentionsRegex = new RegExp(
   "(^|\\s|\\()(" +
     "[" +
     TRIGGERS +
@@ -49,7 +49,7 @@ const AtSignMentionsRegex = new RegExp(
 const ALIAS_LENGTH_LIMIT = 50;
 
 // Regex used to match alias.
-const AtSignMentionsRegexAliasRegex = new RegExp(
+export const AtSignMentionsRegexAliasRegex = new RegExp(
   "(^|\\s|\\()(" +
     "[" +
     TRIGGERS +
@@ -472,6 +472,9 @@ export const dummyMentionsData = [
 ];
 
 export const MENTION_LOOKUP_DELAY = 500;
+export const MENTION_MINIMUM_QUERY_LENGTH = 1;
+export const MENTION_SLASH_TRIGGER = "/";
+export const MENTION_SLASH_MINIMUM_LENGTH = 0;
 
 export function matchAtSignMention(
   text: string,

@@ -63,6 +63,8 @@ public final class ReferenceEditor: EditorModel {
 
   public func remountCaption() throws { _ = try call("remountCaption") }
 
+  public func selectWholeQueryMention(_ name: String) throws { _ = try call("selectWholeQueryMention", name) }
+
   public func setCaptionVisibility(_ show: Bool) throws {
     _ = try call("setCaptionVisibility", show ? "true" : "false")
   }

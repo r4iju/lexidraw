@@ -15,6 +15,9 @@ import {
   lookupMentions,
   selectMention,
   MENTION_LOOKUP_DELAY,
+  MENTION_MINIMUM_QUERY_LENGTH,
+  MENTION_SLASH_TRIGGER,
+  MENTION_SLASH_MINIMUM_LENGTH,
   SUGGESTION_LIST_LENGTH_LIMIT,
 } from "./source";
 
@@ -81,9 +84,12 @@ export default function NewMentionsPlugin(): React.JSX.Element | null {
 
   const results = useMentionLookupService(queryString);
 
-  const checkForSlashTriggerMatch = useBasicTypeaheadTriggerMatch("/", {
-    minLength: 0,
-  });
+  const checkForSlashTriggerMatch = useBasicTypeaheadTriggerMatch(
+    MENTION_SLASH_TRIGGER,
+    {
+      minLength: MENTION_SLASH_MINIMUM_LENGTH,
+    },
+  );
 
   const options = useMemo(
     () =>
@@ -113,7 +119,7 @@ export default function NewMentionsPlugin(): React.JSX.Element | null {
 
   const getPossibleQueryMatch = useCallback(
     (text: string): MenuTextMatch | null => {
-      return checkForAtSignMentions(text, 1);
+      return checkForAtSignMentions(text, MENTION_MINIMUM_QUERY_LENGTH);
     },
     [checkForAtSignMentions],
   );

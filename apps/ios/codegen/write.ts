@@ -158,3 +158,5 @@ await Bun.write(new URL("../reference/generated-editor-contexts.ts", import.meta
 
 const { EMOJI_PICKER_PATH, swiftForEmojiPicker } = await import("./emoji-picker");
 await Bun.write(EMOJI_PICKER_PATH, await swiftForEmojiPicker());
+const { MENTIONS_PATH, swiftForMentions } = await import("./mentions");
+await Bun.write(MENTIONS_PATH, await swiftForMentions());

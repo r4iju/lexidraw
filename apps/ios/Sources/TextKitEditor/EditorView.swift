@@ -556,6 +556,7 @@ public final class EditorView: UIScrollView, UITextInput {
     super.init(frame: .zero)
     typeahead = EditorTypeaheadController(editor: self)
     if model.mountedTypeaheadPlugins.contains("EmojiPickerPlugin") { typeaheadProviders.append(.emoji) }
+    if model.mountedTypeaheadPlugins.contains("MentionsPlugin") { typeaheadProviders.append(.mentions) }
     backgroundColor = .systemBackground
     alwaysBounceVertical = true
     keyboardDismissMode = .interactive

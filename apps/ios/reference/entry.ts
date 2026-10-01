@@ -1,3 +1,4 @@
+import { matchAtSignMention, selectMention, MENTION_MINIMUM_QUERY_LENGTH } from "../../lexidraw/src/app/documents/[documentId]/plugins/MentionsPlugin/source.js";
 import { registerPlainText } from "@lexical/plain-text";
 import { withDOM } from "@lexical/headless/dom";
 import { $generateNodesFromDOM } from "@lexical/html";
@@ -712,6 +713,22 @@ function replacedKeys(before: EditorState, after: EditorState): string[] {
   return [...after._nodeMap]
     .filter(([key, node]) => before._nodeMap.get(key) !== node)
     .map(([key]) => key);
+}
+
+/** Exercise the actual picker callback where its query is the whole simple node.
+ * The source menu's split returns this same node in this bounded fixture. */
+function selectWholeQueryMention(name: string): void {
+  const owner = current();
+  owner.update(() => {
+    const selection = $getSelection();
+    if (!$isRangeSelection(selection) || !selection.isCollapsed() || selection.anchor.type !== "text") throw new Error("Mention selection needs a collapsed text caret");
+    const node = selection.anchor.getNode();
+    if (!$isTextNode(node) || !node.isSimpleText() || selection.anchor.offset !== node.getTextContentSize()) throw new Error("Mention selection needs a whole simple text query");
+    const text = node.getTextContent();
+    const match = matchAtSignMention(text, MENTION_MINIMUM_QUERY_LENGTH);
+    if (!match || match.leadOffset !== 0 || match.replaceableString !== text) throw new Error("Unported reference query split shape");
+    selectMention(owner, name, node, () => {});
+  }, { discrete: true });
 }
 
 function snapshot(): string {
@@ -1761,6 +1778,7 @@ Object.assign(globalThis, {
     captionOwnerSnapshot,
     remountCaption,
     setCaptionVisibility,
+    selectWholeQueryMention,
     applyToParent: (command: string) => onParent(() => apply(command)),
     apply,
     snapshot,

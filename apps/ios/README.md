@@ -1161,3 +1161,19 @@ The new UI case genuinely failed waiting for the source-tag `grinning` option
 when typing `:smile` before implementation (`/tmp/134-emoji-red.xcresult`). It
 passes with the trigger replaced by `😀`, subsequent typing retained and the
 menu dismissed. No personal clipboard or corpus is used.
+
+The mounted image, inline-image and slide mention pickers now register the actual
+MentionNode their callback creates; each missing web registry had a retained
+headless source regression that failed before correction. Native suggestions use
+that same source matcher, Star Wars sample dataset, minimum query length,
+500 ms lookup delay and first-five limit. The main document does not acquire a
+mention picker where its source does not mount one. No account search or
+notifications are added.
+
+The native picker replaces its query inside one model transaction, preserving
+its original collapsed-caret history and source typing format/style. Actual
+MentionsPlugin selection callbacks are compared with native image and inline
+caption edits for plain, bold and color cases, next typing, undo/redo and live
+parent serialization. Matcher differential cases include all JavaScript
+whitespace and UTF16 limits. A hosted NativeEditorHost regression types and
+selects a real suggestion and verifies the owned caption's autosave/export path.
