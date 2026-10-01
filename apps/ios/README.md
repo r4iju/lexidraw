@@ -843,3 +843,11 @@ integer `repeat` and implicit-row subset. Arbitrary CSS strings are accepted by
 the web node schema; auto/min/max-content, auto-repeat, fixed-maximum `minmax`,
 fit-content, relative units/functions and named lines still explicitly refuse
 under #133. No runtime JavaScript or WebKit layout boundary was added.
+
+Local box/direction validation: `133-box-rtl-final.xcresult` passed 147 UIKit,
+13 document UI and seven hosted tests. The explicit-zero overflow follow-up
+then passed all eight hosted tests. After rebasing onto merged parent-preview
+and video work, `133-box-integrated.xcresult` passed all eight hosted tests and
+the three affected column UI tests; Bun passed 95 tests / 198 expectations,
+TypeScript/code generation passed, and the production simulator app build
+succeeded (`133-box-integrated-app.log`). No CI was invoked.
