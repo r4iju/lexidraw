@@ -15,6 +15,7 @@ import {
   KeywordNode,
   LayoutContainerNode,
   LayoutItemNode,
+  MentionNode,
 } from "@packages/lexical-nodes";
 import { LineBreakNode, ParagraphNode, TextNode } from "lexical";
 import { ArticleNode } from "../ArticleNode/ArticleNode";
@@ -44,6 +45,7 @@ export const NESTED_EDITOR_NODES = [
   // set, and MarkdownShortcutPlugin runs in here too; the React subclasses
   // after it take over their types, as in document-editor.
   ...CORE_NODES,
+  MentionNode,
   SlideNode,
   ArticleNode,
   ChartNode,
