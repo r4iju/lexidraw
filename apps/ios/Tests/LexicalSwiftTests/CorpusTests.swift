@@ -91,7 +91,13 @@ struct Corpus {
   static func differences(_ lexicalSwift: JSONValue, _ lexical: JSONValue, loaded: JSONValue) -> [String] {
     // Loading wraps, merges and drops only nodes LexicalSwift knows, so the
     // others come in the same order.
-    var unknownNodes = preorder(loaded).filter { SerializedNode(json: $0).payload == nil }.makeIterator()
+    var unknownNodes = preorder(loaded).filter { node in
+      guard case .object(var fields) = node else { return true }
+      // Classification needs this node's payload, not recursive child payloads.
+      // Keep the original node in the iterator for unknown-field comparison.
+      fields["children"] = nil
+      return SerializedNode(json: .object(fields)).payload == nil
+    }.makeIterator()
 
     func differences(_ lexicalSwift: JSONValue, _ lexical: JSONValue, at path: String) -> [String] {
       guard case .object(let ours) = lexicalSwift, case .object(let theirs) = lexical, ours["type"] == theirs["type"]
@@ -133,6 +139,19 @@ struct Corpus {
 }
 
 @Suite struct CorpusComparisonTests {
+  @Test func deeplyNestedListsCompareOnTheAsyncExecutorWithoutDecodingTheirDescendants() async {
+    await Task.yield()
+    let opaque: JSONValue = ["type": "future-node", "version": 1, "extra": ["kept": true],
+      "children": [["type": "future-child", "version": 1, "value": 2.5]]]
+    var node = opaque
+    for _ in 0..<24 {
+      let item: JSONValue = ["type": "listitem", "version": 1, "value": 1, "children": [node]]
+      node = ["type": "list", "version": 1, "listType": "bullet", "tag": "ul", "start": 1, "children": [item]]
+    }
+    let state = root([node])
+    #expect(Corpus.differences(state, state, loaded: state) == [])
+  }
+
   @Test func anOpaqueNodeSavesWhatWasLoadedWhateverLexicalSaves() {
     let asLoaded: JSONValue = ["type": "not-a-node-type", "version": 1, "size": 1]
     let asLexicalSaves: JSONValue = ["type": "not-a-node-type", "version": 1, "size": 2, "added": true]
