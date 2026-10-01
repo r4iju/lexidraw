@@ -16,6 +16,11 @@ public protocol EditorModel: AnyObject {
   @discardableResult
   func apply(_ command: EditorCommand) throws -> ChangeSet
 
+  /// The picker replaces its query while keeping the typing attributes its
+  /// source TextNode.select() callback leaves on the collapsed caret.
+  @discardableResult
+  func applyTypeahead(_ clipboard: Clipboard, anchor: Point, focus: Point, preservingTypingAttributes: Bool) throws -> ChangeSet
+
   /// Replaces the inline drawing opened at `key`, only if it still holds
   /// the scene the editor opened. Nil deletes an empty saved drawing.
   @discardableResult
@@ -60,6 +65,10 @@ public protocol EditorModel: AnyObject {
 }
 
 extension EditorModel {
+  @discardableResult
+  public func applyTypeahead(_ clipboard: Clipboard, anchor: Point, focus: Point, preservingTypingAttributes: Bool) throws -> ChangeSet {
+    throw EditorError.unsupported("This model does not implement atomic picker insertion")
+  }
   public var mountedTypeaheadPlugins: Set<String> { [] }
   public func captionEditor(key: String) throws -> any EditorModel {
     throw EditorError.unsupported("Owned caption editing requires #134")
