@@ -174,6 +174,19 @@
           "processingErrorCodes": []
         }
       ]
+    },
+    "availability": {
+      "status": "saved-and-verified",
+      "availableTerritories": 175,
+      "availableInNewTerritories": true
+    },
+    "pricing": {
+      "status": "saved-and-verified",
+      "downloadPrice": "free",
+      "baseTerritory": "USA",
+      "automaticTerritories": 174,
+      "allAutomaticCustomerPricesZero": true,
+      "basis": "Matches the current web app; no download price preference supplied."
     }
   },
   "descriptionDraft": "Write, sketch and organize your ideas with Lexidraw. Work with documents, drawings and folders on iPhone and iPad, keep your files synchronized with your Lexidraw account, and share them with other people. Format text, edit tables, create drawings, and listen to your documents read aloud. A Lexidraw account and an internet connection are required for synchronization and read-aloud generation.",
@@ -182,13 +195,21 @@
     "credentialStorage": "Mac Keychain, service cli/lexidraw-app-review",
     "seededDocuments": [
       "ios-app-review-welcome-20260930",
-      "ios-review-ideas-20261001"
+      "ios-review-ideas-20261001",
+      "ios-review-structure-20261001",
+      "ios-review-diagrams-20261001",
+      "ios-review-table-20261001"
     ],
-    "remaining": "Expand disposable examples after all node families integrate.",
+    "remaining": "Final review notes after all node families integrate.",
     "appStoreConnectCredentialStatus": "saved-and-verified",
     "seededDrawings": [
       "ios-review-sketch-20261001"
-    ]
+    ],
+    "fixtureVerification": {
+      "sourceCommit": "6d8fcdb4e435833702e091a890078a091a5039c8",
+      "storedState": "Exact web headless export preserved; private authenticated reads returned200.",
+      "nativeRoundTrip": "Existing CorpusTests passed against the disposable account and actual web bundle."
+    }
   },
   "releaseCheckpoint": {
     "buildNumber": "7",
