@@ -117,17 +117,7 @@ export const embedRouter = createTRPCRouter({
           "SVG contains styled XHTML in foreignObject and requires a browser-compatible SVG renderer and the page's fonts. PNG is the same rendered page at 2x scale, for clients without that renderer. Cached by payload, theme, size, font and deployment revision.",
       },
     })
-    .input(
-      z.object({
-        node: z.string().max(262144),
-        theme: z.enum(["light", "dark"]),
-        width: z.number().int().min(1).max(2048),
-        fontFamily: z.string().min(1).max(120),
-        fontSize: z.number().min(1).max(256),
-        includeAccessibility: z.boolean().optional(),
-        articleImagesVersion: z.enum(["v1"]).optional(),
-      }),
-    )
+    .input(embedRenderRequest.extend({ node: z.string().max(262144) }))
     .output(embedRenderImage.extend({ hash: z.string() }))
     .mutation(async ({ input }) => {
       let request: EmbedRequest;
