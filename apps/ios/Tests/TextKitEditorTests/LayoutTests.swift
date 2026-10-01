@@ -181,9 +181,46 @@ import UIKit
     #expect(abs(marker.lowerBound - text.lowerBound) < 0.5 && abs(marker.upperBound - text.upperBound) < 0.5, "\(marker), \(text)")
   }
 
+  /// An empty checklist item that ends the document shows its whole box, as
+  /// the web does.
+  @Test
+  func theLastItemOfAChecklistShowsItsWholeBox() throws {
+    let view = try Self.host(
+      LexicalJSON.document([LexicalJSON.heading("h3", [LexicalJSON.text("Clothes")]), LexicalJSON.list(.check, [.item([])])]))
+    let em = UIFont.preferredFont(forTextStyle: .body).pointSize
+    let item = view.caretRect(for: view.endOfDocument)
+    let canvas = view.textInputView
+    let image = UIGraphicsImageRenderer(bounds: canvas.bounds).image { context in
+      UIColor.white.setFill()
+      context.fill(canvas.bounds)
+      canvas.layer.render(in: context.cgContext)
+    }
+
+    let box = try #require(Self.inkedRows(image, from: 0, to: item.minX, below: item.minY))
+    #expect(box.upperBound - box.lowerBound > ListAndIndentLayout.list.box.size * em - 1, "\(box), item \(item)")
+  }
+
+  /// An empty item is as tall as one holding a space, as on the web.
+  @Test
+  func anEmptyItemIsAsTallAsOneHoldingASpace() throws {
+    func nextBlockTop(_ item: [JSONValue]) throws -> CGFloat {
+      let view = try Self.host(
+        LexicalJSON.document([
+          LexicalJSON.list(.check, [.item(item)]), LexicalJSON.heading("h3", [LexicalJSON.text("Other")]),
+        ]))
+      return view.caretRect(for: try #require(view.position(from: view.endOfDocument, offset: -5))).minY
+    }
+
+    let empty = try nextBlockTop([])
+    let space = try nextBlockTop([LexicalJSON.text(" ")])
+    #expect(abs(space - empty) < 0.5, "after a space \(space), after nothing \(empty)")
+  }
+
   /// The top and bottom, in points, of what is drawn darker than a white
-  /// background between `minX` and `maxX`.
-  static func inkedRows(_ image: UIImage, from minX: CGFloat, to maxX: CGFloat) -> ClosedRange<CGFloat>? {
+  /// background between `minX` and `maxX`, below `minY`.
+  static func inkedRows(_ image: UIImage, from minX: CGFloat, to maxX: CGFloat, below minY: CGFloat = 0)
+    -> ClosedRange<CGFloat>?
+  {
     guard let cgImage = image.cgImage else { return nil }
     let (width, height) = (cgImage.width, cgImage.height)
     var pixels = [UInt8](repeating: 0, count: width * height * 4)
@@ -197,7 +234,7 @@ import UIKit
     guard drawn else { return nil }
     let scale = image.scale
     let columns = max(Int(minX * scale), 0)..<min(Int(maxX * scale), width)
-    let rows = (0..<height).filter { row in
+    let rows = (max(Int(minY * scale), 0)..<height).filter { row in
       columns.contains { column in
         let pixel = (row * width + column) * 4
         return pixels[pixel..<pixel + 3].contains { $0 < 200 }

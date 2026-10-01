@@ -110,10 +110,15 @@ import UIKit
     var bottom: CGFloat = 0
     layoutManager.enumerateTextLayoutFragments(from: layoutManager.documentRange.endLocation, options: [.reverse]) {
       fragment in
-      // The last paragraph's frame counts the extra line after its newline.
-      let lines = fragment.textLineFragments
-      let extra = lines.count > 1 && lines.last?.characterRange.length == 0 ? lines.last?.typographicBounds.height : nil
-      bottom = fragment.layoutFragmentFrame.maxY - (extra ?? 0)
+      // The last paragraph's frame counts a line for after the newline that
+      // ends the text, and of an empty paragraph overlaps it and leaves out
+      // the paragraph's spacing: the text ends below its last line and that.
+      let endsInNewline = self.storage.length > 0 && self.storage.mutableString.character(at: self.storage.length - 1) == 10
+      if endsInNewline, let line = fragment.textLineFragments.last(where: { $0.characterRange.length > 0 }) {
+        bottom = fragment.layoutFragmentFrame.minY + line.typographicBounds.maxY + self.trailingSpacing
+      } else {
+        bottom = fragment.layoutFragmentFrame.maxY
+      }
       return false
     }
     if storage.length > 0, let label = storage.attribute(.footnoteDefinitionLabel, at: 0, effectiveRange: nil) as? String,
