@@ -16,6 +16,15 @@ struct MediaPayload: Sendable {
   let height: Double?
   let maxWidth: Double?
 
+  /// `string` as a browser parses a URL from it: without the controls and
+  /// spaces around it, nor any tab or newline within.
+  static func browserURLString(_ string: String) -> String {
+    let isControlOrSpace = { (scalar: Unicode.Scalar) in scalar.value <= 0x20 }
+    var scalars = Substring(string).unicodeScalars.drop(while: isControlOrSpace)
+    while let last = scalars.last, isControlOrSpace(last) { scalars.removeLast() }
+    return String(String.UnicodeScalarView(scalars.filter { !["\t", "\n", "\r"].contains($0) }))
+  }
+
   init?(_ node: JSONValue) {
     guard let type = node["type"]?.stringValue,
       ["image", "inline-image", "video", "youtube", "tweet", "figma"].contains(type) else { return nil }
@@ -27,7 +36,7 @@ struct MediaPayload: Sendable {
     case "figma": destination = node["documentID"]?.stringValue.map { MediaLinks.figma + $0 }
     default: destination = node["src"]?.stringValue
     }
-    source = destination.flatMap(URL.init(string:)).flatMap {
+    source = destination.map(Self.browserURLString).flatMap(URL.init(string:)).flatMap {
       if ["https", "http"].contains($0.scheme?.lowercased() ?? ""), $0.host != nil { return $0 }
       if ["image", "inline-image"].contains(type), $0.scheme == "data",
         ["data:image/png;base64,", "data:image/jpeg;base64,", "data:image/gif;base64,", "data:image/webp;base64,"].contains(where: $0.absoluteString.hasPrefix) { return $0 }

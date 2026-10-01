@@ -60,12 +60,37 @@ public final class EditorView: UIScrollView, UITextInput {
   private var sharedActiveComments: Set<String> = []
   private var sharedFootnoteNumbers: [String: Int] = [:]
 
-  public func makeNestedEditor(model: any EditorModel, isEditable: Bool, textSize: CGFloat? = nil, shareDocumentMetadata: Bool = false) -> EditorView {
+  /// `textWeight` and `textLineHeight` (in ems) are what nested text inherits
+  /// from a web wrapper, as a section's `text-base` and its title's
+  /// `font-medium`; bold runs and headings keep their own.
+  public func makeNestedEditor(
+    model: any EditorModel, isEditable: Bool, textSize: CGFloat? = nil, textWeight: CGFloat? = nil,
+    textLineHeight: CGFloat? = nil, shareDocumentMetadata: Bool = false
+  ) -> EditorView {
     let style: DocumentText.Style?
-    if let textSize {
+    if textSize != nil || textWeight != nil || textLineHeight != nil {
       style = { [typesetting, suppliedStyle] block, format in
         var attributes = suppliedStyle?(block, format) ?? typesetting.attributes(StyledBlock(block), format)
-        if let font = attributes[.font] as? UIFont { attributes[.font] = font.withSize(textSize) }
+        guard var font = attributes[.font] as? UIFont else { return attributes }
+        if let textSize { font = font.withSize(textSize) }
+        let traits = font.fontDescriptor.symbolicTraits
+        if let textWeight, !traits.contains(.traitBold), !traits.contains(.traitMonoSpace) {
+          let weight = Typesetting.weight(Int(textWeight)), italic = traits.contains(.traitItalic)
+          font = typesetting.documentFont?.font(size: font.pointSize, weight: weight, italic: italic)
+            ?? UIFont.systemFont(ofSize: font.pointSize, weight: weight)
+          if italic, typesetting.documentFont == nil, let slanted = font.fontDescriptor.withSymbolicTraits(.traitItalic) {
+            font = UIFont(descriptor: slanted, size: 0)
+          }
+        }
+        attributes[.font] = font
+        if let textLineHeight, typesetting.typography.heading(StyledBlock(block)) == nil,
+          let inherited = attributes[.paragraphStyle] as? NSParagraphStyle
+        {
+          let paragraph = inherited.mutableCopy() as! NSMutableParagraphStyle
+          paragraph.minimumLineHeight = textLineHeight * font.pointSize
+          paragraph.maximumLineHeight = paragraph.minimumLineHeight
+          attributes[.paragraphStyle] = paragraph
+        }
         return attributes
       }
     } else {
@@ -142,44 +167,87 @@ public final class EditorView: UIScrollView, UITextInput {
   /// merges edits by.
   private var lastCommand = ProcessInfo.processInfo.systemUptime
   private var inputTurnToken: Int?
-  private struct AcceptedReplacement {
+  /// A keyboard input turn kept open past its main callback, for input
+  /// UIKit delivers across callbacks to join it.
+  private struct HeldInputTurn {
+    enum Reason {
+      /// An accepted word replacement, joined by its trailing space.
+      case acceptedReplacement
+      /// A swiped word, joined by the next swiped word: QuickPath delivers
+      /// each word, with its automatic space, as one multi-character
+      /// `insertText`, which Lexical's history never merges (#236).
+      case swipedWord
+    }
+    let reason: Reason
     let selection: Selection
     let finishedAt: TimeInterval
     let revision: Int
   }
-  private var acceptedReplacement: AcceptedReplacement?
+  private var heldInputTurn: HeldInputTurn?
+  private func holdKeyboardInputTurn(_ reason: HeldInputTurn.Reason) {
+    guard let token = inputTurnToken, let history = model as? any KeyboardInputHistory,
+      history.isInputTurnActive(token), composition == nil,
+      let selection = modelSelection(), selection.isCollapsed else { return }
+    heldInputTurn = HeldInputTurn(reason: reason, selection: selection,
+      finishedAt: ProcessInfo.processInfo.systemUptime, revision: history.inputHistoryRevision)
+  }
+  /// What UIKit delivers for one swiped word. Tapped keys and emoji are one
+  /// character; Return goes through paragraph insertion.
+  private static func isSwipedWord(_ text: String) -> Bool {
+    text.count > 1 && !text.contains(where: \.isNewline)
+  }
   private func beginKeyboardInputTurn() {
     guard let history = model as? any KeyboardInputHistory else { return }
     if let token = inputTurnToken, !history.isInputTurnActive(token) {
       inputTurnToken = nil
-      acceptedReplacement = nil
+      heldInputTurn = nil
     }
     if inputTurnToken == nil { inputTurnToken = history.beginInputTurn() }
     let token = inputTurnToken!
     DispatchQueue.main.async { [weak self, history] in
       guard let self else { history.endInputTurn(token); return }
-      guard self.inputTurnToken == token, self.acceptedReplacement == nil else { return }
+      guard self.inputTurnToken == token, self.heldInputTurn == nil else { return }
       self.endKeyboardInputTurn()
     }
   }
   private func endKeyboardInputTurn() {
-    acceptedReplacement = nil
+    heldInputTurn = nil
     guard let token = inputTurnToken else { return }
     inputTurnToken = nil
     (model as? any KeyboardInputHistory)?.endInputTurn(token)
   }
-  private func continueAcceptedReplacement(with text: String) {
-    guard let acceptedReplacement else { return }
+  private func continueHeldInputTurn(with text: String) {
+    guard let heldInputTurn else { return }
     guard let history = model as? any KeyboardInputHistory else { endKeyboardInputTurn(); return }
-    let continues = text == " " && composition == nil && selected.length == 0
-      && modelSelection() == acceptedReplacement.selection
-      && history.inputHistoryRevision == acceptedReplacement.revision
-      && (ProcessInfo.processInfo.systemUptime - acceptedReplacement.finishedAt) * 1000
-        < Double(history.inputHistoryDelayMilliseconds)
-    if continues { self.acceptedReplacement = nil }
+    let (joins, pause) = switch heldInputTurn.reason {
+    case .acceptedReplacement: (text == " ", history.inputHistoryDelayMilliseconds)
+    // The pause runs from one word's lift to the next's, so it includes the
+    // time drawing the next word takes, which a tapped key's doesn't.
+    case .swipedWord: (Self.isSwipedWord(text), 2 * history.inputHistoryDelayMilliseconds)
+    }
+    let continues = joins && composition == nil && selected.length == 0
+      && modelSelection() == heldInputTurn.selection
+      && history.inputHistoryRevision == heldInputTurn.revision
+      && (ProcessInfo.processInfo.systemUptime - heldInputTurn.finishedAt) * 1000 < Double(pause)
+    if continues { self.heldInputTurn = nil }
     else { endKeyboardInputTurn() }
   }
   private var lastChangeChangedParent = false
+
+  /// The space the editor keeps around its text on every side.
+  public static var defaultContentMargin: CGFloat { BlockLayout.margin }
+
+  /// The height that shows the whole document at `width` without scrolling,
+  /// for an editor nested in content that grows to fit it.
+  public func fittingHeight(width: CGFloat) -> CGFloat {
+    if bounds.width != width { frame.size.width = width }
+    layoutIfNeeded()
+    return layout.measuredHeight()
+  }
+  /// Called when the document's height changes, as when an image in it loads.
+  public var onContentHeightChange: (() -> Void)? {
+    didSet { layout.onHeightChange = onContentHeightChange }
+  }
 
   /// Called after each call a keyboard's input method makes.
   public var onInput: ((TextInputRecord) -> Void)?
@@ -889,19 +957,20 @@ public final class EditorView: UIScrollView, UITextInput {
   public var hasText: Bool { storage.length > 1 }
 
   public func insertText(_ text: String) {
-    continueAcceptedReplacement(with: text)
+    continueHeldInputTurn(with: text)
     beginKeyboardInputTurn()
     if text == "\n", typeahead?.choose() == true { return }
     if composition != nil {
       commit(text)
     } else {
       insert(text, fromInput: true)
+      if Self.isSwipedWord(text) { holdKeyboardInputTurn(.swipedWord) }
     }
     report(.insertText(text))
   }
 
   public func deleteBackward() {
-    if acceptedReplacement != nil { endKeyboardInputTurn() }
+    if heldInputTurn != nil { endKeyboardInputTurn() }
     beginKeyboardInputTurn()
     commitMarkedText()
     perform(.deleteCharacter(backward: true), fromInput: true)
@@ -969,7 +1038,7 @@ public final class EditorView: UIScrollView, UITextInput {
   }
 
   public func unmarkText() {
-    if acceptedReplacement != nil { endKeyboardInputTurn() }
+    if heldInputTurn != nil { endKeyboardInputTurn() }
     beginKeyboardInputTurn()
     commitMarkedText()
     report(.unmarkText)
@@ -1058,12 +1127,7 @@ public final class EditorView: UIScrollView, UITextInput {
     focus = NSMaxRange(replaced)
     sendSelection()
     insert(text, fromInput: true)
-    if replacingWord, let token = inputTurnToken, let history = model as? any KeyboardInputHistory,
-      history.isInputTurnActive(token),
-      let selection = modelSelection(), selection.isCollapsed {
-      acceptedReplacement = AcceptedReplacement(selection: selection, finishedAt: ProcessInfo.processInfo.systemUptime,
-        revision: history.inputHistoryRevision)
-    }
+    if replacingWord { holdKeyboardInputTurn(.acceptedReplacement) }
   }
 
   public func textRange(from fromPosition: UITextPosition, to toPosition: UITextPosition) -> UITextRange? {

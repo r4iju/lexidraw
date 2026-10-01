@@ -778,6 +778,36 @@ iOS Simulator. The UI checks include mixed text accessibility, slide drag/resize
 autosave, fixed/percentage tracks, partial fractional tracks and read-only slide
 navigation. CI was not invoked.
 
+### Sections, inline images and empty paragraphs (#238)
+
+"Shopping - Clothing" is 17 sections of photo paragraphs. A section is now the
+web's accordion item: a bordered, rounded row with the lucide chevron and the
+title in medium weight, the whole row toggling it, and the content below sized
+to fit and re-measured as its images load. Editors get the title and content
+editing in a section menu. The border, radius, padding, row height, gap,
+chevron path and stroke, title weight and line height are generated from the
+collapsible node classes and theme. Text keeps its ems of the Dynamic Type body
+size, so a closed row is the web's 46px at 16px text and 48.25pt at 17pt.
+
+An image `src` is parsed as a browser parses one, without the controls and
+spaces around it or tabs and newlines within: 17 of the document's 80 photos
+are stored with a trailing space, which the blob store answers with 404 once
+percent-encoded. A paragraph with an inline image taller than its lines lets
+those lines grow as a CSS line box does, so a
+paragraph of photos no longer overlaps itself or the text around it. An empty
+paragraph keeps its line and margin: TextKit puts the extra line after its
+newline inside it, which had left 14pt of its 40pt.
+
+Each change first failed its regression: the closed row measured 226pt with no
+border and system buttons and open content was cut to 150pt
+(`/tmp/238-red-evidence.log`), the trailing-space URL kept `%20`, the paragraph
+after two inline photos started inside the second, and an empty paragraph
+measured 14pt. Simulator screenshots of the whole document, the open section
+and an opened photo section match the web's layout at equal content width
+(`/tmp/238-native-initial.png` before, `/tmp/238-after-*.png` after). The
+iPad app on macOS was not run: there is no signed install path for it yet.
+CI was not invoked.
+
 ### Native media insertion controls (#135)
 
 The native insertion menu offers image Photos/camera actions, inline-image Photos,
@@ -1217,6 +1247,27 @@ undo/redo, pauses and caret/format boundaries. The physical-device plain-letter
 report still needs its metadata trace; the delivered simulator plain typing and
 DocumentEditing autosave control groups normally. No document content is logged
 by the shipping implementation.
+
+QuickPath delivers each swiped word, with its automatic space, as one
+multi-character `insertText`, which Lexical's history keeps as its own undo step
+(#236). The adapter holds a swiped word's input turn the same way: the next
+multi-character, newline-free `insertText` at the same model caret, typing
+format/style and mutation revision joins it, so one Undo or Redo takes the whole
+run. The pause is twice the history delay, measured lift to lift, because it
+includes drawing the next word; a physical iPhone traced 759 to 1262 ms between
+words. Tapped keys and emoji (one character), Return, Backspace, suggestion
+replacement, caret movement, formatting, undo, view removal or a longer pause
+end the run; tapped typing still merges as Lexical's does. A swiped word deleted
+with Backspace still arrives as per-character selections and deletions and is
+not grouped here.
+
+`EditorViewTests.swipedWordsUndoAndRedoAsOneRunUpToABoundary` replays the
+physical gaps through the public `insertText` seam and checks the pause and
+caret boundaries. `DocumentPreviewUITests.testRealDocumentSwipedWordsUndoAndRedoTogether`
+drags real QuickPath words on the simulator keyboard in DocumentScreen; both
+failed before the change. The iOS 27 simulator delivers the first word of a run
+as the word, a separate space, and a caret move back before that space, so that
+word stays its own undo step there; the physical trace showed no such split.
 
 ### Saved links (#242)
 
