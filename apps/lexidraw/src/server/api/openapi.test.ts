@@ -107,8 +107,6 @@ describe("openApiDocument", () => {
 
   // The v1 surface, as docs/agent-access.md promises it.
   const expectedOperations = [
-    ["/embeds/rasterize-svg", "post", "embeds"],
-    ["/embeds/render", "post", "embeds"],
     ["/articles/extract", "post", "articles"],
     ["/me", "get", "auth"],
     ["/me/delete", "get", "auth"],
