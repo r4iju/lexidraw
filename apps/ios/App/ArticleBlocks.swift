@@ -75,6 +75,7 @@ import UIKit
     }, for: .touchUpInside)
     addSubview(openArticle)
     actions.axis = .horizontal
+    actions.isHidden = !editable
     actions.distribution = .fillEqually
     for (name, action) in [("Refresh", Action.refresh), ("Convert to text", .convert), ("Remove", .remove)] {
       let button = UIButton(type: .system)

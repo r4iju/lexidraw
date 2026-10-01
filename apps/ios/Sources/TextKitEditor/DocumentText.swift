@@ -191,6 +191,28 @@ public final class DocumentText {
     }
   }
 
+  /// A CSS line box grows to hold an inline image, where a paragraph's fixed
+  /// line height would clip it and overlap the lines around it, so a
+  /// paragraph with an attachment taller than its lines keeps their height
+  /// only as their least.
+  private static func fitAttachmentLines(in text: NSMutableAttributedString) {
+    let string = text.string as NSString
+    var paragraphs = Set<NSRange>()
+    text.enumerateAttribute(.attachment, in: NSRange(location: 0, length: text.length)) { value, range, _ in
+      guard let attachment = value as? NSTextAttachment,
+        let style = text.attribute(.paragraphStyle, at: range.location, effectiveRange: nil) as? NSParagraphStyle,
+        style.maximumLineHeight > 0, attachment.bounds.height > style.maximumLineHeight else { return }
+      paragraphs.insert(string.paragraphRange(for: range))
+    }
+    for paragraph in paragraphs {
+      text.enumerateAttribute(.paragraphStyle, in: paragraph) { value, range, _ in
+        guard let style = (value as? NSParagraphStyle)?.mutableCopy() as? NSMutableParagraphStyle else { return }
+        style.maximumLineHeight = 0
+        text.addAttribute(.paragraphStyle, value: style, range: range)
+      }
+    }
+  }
+
   /// Uses the document's own rich-text mapping for a nested media caption.
   static func caption(_ state: JSONValue, style: @escaping Style) -> NSAttributedString {
     guard let root = state["root"] else { return NSAttributedString() }
@@ -537,6 +559,7 @@ public final class DocumentText {
         block.addAttribute(.ancestorElementPadding, value: renderer.contextPadding, range: NSRange(location: 0, length: block.length))
       }
       Self.applyFontGeometry(renderer, to: block, base: blockStyle(blockType, []))
+      Self.fitAttachmentLines(in: block)
       if footnoteDefinitionNumbers[index] != nil, index > 0,
         (rootNodes[index - 1] ?? (try? model.nodeForPresentation(at: [index - 1])))?["type"] != "footnote-definition" {
         let range = (block.string as NSString).paragraphRange(for: NSRange(location: 0, length: 0))

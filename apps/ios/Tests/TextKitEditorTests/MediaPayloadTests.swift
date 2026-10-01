@@ -19,6 +19,13 @@ import Testing
     #expect(MediaPayload(["type": "image", "src": "data:image/png;base64,aGVsbG8="])?.source != nil)
     #expect(MediaPayload(["type": "image", "src": "data:text/html;base64,aGVsbG8="])?.source == nil)
   }
+  // Stored as in "Shopping - Clothing"; the browser's URL parser strips the
+  // space, and the blob store answers the percent-encoded one with a 404.
+  @Test func sourcesAreParsedAsTheBrowserParsesAnImgSrc() {
+    let stored = "https://wzjiyy9aqsfxib5p.public.blob.vercel-storage.com/75d8b37e-4971-44d6-ad21-07897d58f38a-8cb30c35-eb98-46a5-9f63-19afe39eedbf.jpeg "
+    #expect(MediaPayload(["type": "image", "src": .string(stored)])?.source?.absoluteString == String(stored.dropLast()))
+    #expect(MediaPayload(["type": "image", "src": "\n\t https://example.com/a\tb\n.png \u{0}"])?.source?.absoluteString == "https://example.com/ab.png")
+  }
   @Test func unsafeSourcesAreNotLoaded() {
     #expect(MediaPayload(["type": "image", "src": "javascript:alert(1)"])?.source == nil)
     #expect(MediaPayload(["type": "image", "src": "file:///private/token"])?.source == nil)

@@ -23,6 +23,9 @@ import UIKit
   /// This view's margin; nested editors whose container pads them as the
   /// web does set it to zero.
   var contentMargin = BlockLayout.margin
+  /// Whether the last block keeps no space after it, as the web's callout
+  /// body drops its last child's margin.
+  var dropsTrailingSpace = false
 
   /// What the text is drawn in, and `EditorView`'s text input view.
   let surface = UIView()
@@ -114,6 +117,8 @@ import UIKit
 
   var mediaImageLoader: MediaImageLoader?
   var onScrollSideways: (() -> Void)?
+  /// Called when the blocks' total height changes, as when an image loads.
+  var onHeightChange: (() -> Void)?
 
   /// Blocks laid out beyond those on screen, kept for geometry and scrolling
   /// back, before the farthest are let go.
@@ -201,6 +206,17 @@ import UIKit
 
   private var totalHeight: CGFloat { top(heights.count) }
 
+  /// The height of every block at the width last laid out, with the margins
+  /// and the document header, measuring blocks that only have estimates.
+  func measuredHeight() -> CGFloat {
+    if heights.count != document.blockCount { reset() }
+    for index in heights.indices {
+      let block = block(index)
+      if !measured[index] { measure(index, block) }
+    }
+    return totalHeight + 2 * contentMargin + leadingHeight
+  }
+
   private func replaceHeights(_ range: Range<Int>, with new: [CGFloat]) {
     if heights.isEmpty && range.isEmpty && new.isEmpty { return }
     let above = top(range.lowerBound) + heights[range].reduce(0, +) <= visibleTop
@@ -209,6 +225,7 @@ import UIKit
     validTops = min(validTops, range.lowerBound)
     if tops.count != heights.count + 1 { tops = Array(tops.prefix(validTops + 1)) + Array(repeating: 0, count: heights.count - validTops) }
     if above, change != 0, let scrollView { scrollView.contentOffset.y += change }
+    if change != 0 { onHeightChange?() }
   }
 
   private func measure(_ index: Int, _ block: any LaidOutBlock) {
@@ -259,7 +276,7 @@ import UIKit
     if nextIsNote && !isNote { return em * WebFootnoteStyle.definitionFontScale * WebFootnoteStyle.sectionMargin }
     if isNote { return nextIsNote || next == document.blockCount ? em * WebFootnoteStyle.definitionFontScale * WebFootnoteStyle.definitionAfter : em * WebFootnoteStyle.followingMargin }
     let after = typesetting.space(block, after: previous >= 0 ? styled(previous) : nil).after
-    guard next < document.blockCount else { return after }
+    guard next < document.blockCount else { return dropsTrailingSpace ? 0 : after }
     return max(after, typesetting.space(styled(next), after: block).before)
   }
 
