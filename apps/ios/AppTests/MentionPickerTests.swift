@@ -14,8 +14,15 @@ import TextKitEditor
     let editor = try parent.makeCaptionEditor(key: key)
     let host = NativeEditorHost(editor: editor)
     host.frame = CGRect(x: 0, y: 0, width: 390, height: 600)
+    let window = UIWindow(frame: host.frame)
+    let controller = UIViewController()
+    window.rootViewController = controller
+    controller.view.addSubview(host)
+    window.makeKeyAndVisible()
+    defer { window.isHidden = true }
     host.layoutIfNeeded()
     editor.layoutIfNeeded()
+    XCTAssertTrue(editor.becomeFirstResponder())
     var changes = 0
     parent.onChange = { changes += 1 }
     editor.selectedTextRange = editor.textRange(from: editor.beginningOfDocument, to: editor.beginningOfDocument)
