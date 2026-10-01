@@ -85,6 +85,9 @@ private actor PreviewServer: ClientTransport {
       }
       let target = object?["id"] as? String ?? id
       saved[target] = object?["elements"] as? String
+      if let path = ProcessInfo.processInfo.environment["EDITOR_SAVE_PATH"], let elements = saved[target] {
+        try Data(elements.utf8).write(to: URL(fileURLWithPath: path), options: .atomic)
+      }
       saves += 1
       let revision = "2026-09-25T09:31:\(String(format: "%02d", saves)).000Z"
       if operationID == "entities-create" {

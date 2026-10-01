@@ -159,6 +159,12 @@ export async function swiftForStructuralBlocks(): Promise<string> {
       import.meta.url,
     ),
   ).text();
+  const previewInitialIndex = /const \[viewingSlideIndex, setViewingSlideIndex\] = useState\((\d+)\);/.exec(slideView)?.[1];
+  const versionIncrement = /version: \(el\.version \|\| 0\) \+ (\d+),/.exec(deckEditor)?.[1];
+  const transformations = await Bun.file(new URL("../../lexidraw/src/app/documents/[documentId]/context/editors-context.tsx", import.meta.url)).text();
+  const projection = /const \{ key: _key, children, \.\.\.lexicalProps \} = keyedNode;\s*const result = \{ \.\.\.lexicalProps \};\s*if \(children && children\.length > (\d+)\) \{\s*result\.children = children\.map\(\(child\) => transformRef\.current\(child\)\);\s*\}\s*return result as SerializedRootNode;/.exec(transformations);
+  if (previewInitialIndex === undefined || versionIncrement === undefined || !projection)
+    throw new Error("Slide draft/view/keyed projection changed shape");
   const resizeMinimum = /const minW = (\d+),\s*minH = (\d+);/.exec(deckEditor);
   if (!resizeMinimum) throw new Error("Slide resize minima changed shape");
   const stickySource = await Bun.file(
@@ -292,7 +298,7 @@ export async function swiftForStructuralBlocks(): Promise<string> {
     { discrete: true },
   );
   const string = (value: string) => JSON.stringify(value);
-  return `// Generated from structural node factories, web presets and document CSS.\n// Run bun run codegen in apps/ios to update.\npublic enum StructuralBlockConfiguration {\n  public static let columnGap = ${columnGap}.0\n  public static let columnBorderColors = ${JSON.stringify(columnBorderColors)}\n  public static let columnPadding = ${columnPadding}.0\n  public static let columnBorderWidth = ${columnBorderWidth}.0\n  public static let columnWhitespacePattern = ${JSON.stringify(columnWhitespace)}\n  public static let isolatedNodeTypes: Set<String> = [${isolated.map(string).join(", ")}]\n  public static let stickyWidth = ${stickyWidth}.0\n  public static let stickyHeight = ${Number(stickyClasses[2]) * 4}.0\n  public static let stickyPadding = ${Number(stickyClasses[3]) * 4}.0\n  public static let chartTypes: [String] = [${CHART_TYPES.map(string).join(", ")}]\n  public static let slideElements: [String:String] = [${Object.entries(
+  return `// Generated from structural node factories, web presets and document CSS.\n// Run bun run codegen in apps/ios to update.\npublic enum StructuralBlockConfiguration {\n  public static let slidePreviewInitialIndex = ${previewInitialIndex}\n  public static let slideBoxVersionIncrement = ${versionIncrement}.0\n  public static let slideContentMinimumChildCount = ${projection[1]}\n  public static let columnGap = ${columnGap}.0\n  public static let columnBorderColors = ${JSON.stringify(columnBorderColors)}\n  public static let columnPadding = ${columnPadding}.0\n  public static let columnBorderWidth = ${columnBorderWidth}.0\n  public static let columnWhitespacePattern = ${JSON.stringify(columnWhitespace)}\n  public static let isolatedNodeTypes: Set<String> = [${isolated.map(string).join(", ")}]\n  public static let stickyWidth = ${stickyWidth}.0\n  public static let stickyHeight = ${Number(stickyClasses[2]) * 4}.0\n  public static let stickyPadding = ${Number(stickyClasses[3]) * 4}.0\n  public static let chartTypes: [String] = [${CHART_TYPES.map(string).join(", ")}]\n  public static let slideElements: [String:String] = [${Object.entries(
     slideElements,
   )
     .map(([kind, fields]) => `${string(kind)}: #"${JSON.stringify(fields)}"#`)
