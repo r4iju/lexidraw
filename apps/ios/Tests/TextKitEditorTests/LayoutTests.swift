@@ -733,6 +733,37 @@ import UIKit
     #expect(next.minY >= big.maxY, "large glyphs must not overlap the following paragraph")
   }
 
+  // A browser gives an empty paragraph, `<p><br></p>`, a whole line and its
+  // margin, as "Shopping - Clothing" spaces its sections with them.
+  @Test func anEmptyParagraphKeepsItsLineAndMargin() throws {
+    let view = try Self.host(LexicalJSON.document([
+      LexicalJSON.paragraph([LexicalJSON.text("a")]),
+      LexicalJSON.paragraph([]),
+      LexicalJSON.paragraph([LexicalJSON.text("b")]),
+    ]), width: 704)
+    let em = UIFont.preferredFont(forTextStyle: .body).pointSize
+    let a = view.caretRect(for: try position(view, 0))
+    let empty = view.caretRect(for: try position(view, 2))
+    let b = view.caretRect(for: try position(view, 3))
+    #expect(abs(empty.minY - a.minY - (1.6 + 0.75) * em) < 1)
+    #expect(abs(b.minY - empty.minY - (1.6 + 0.75) * em) < 1)
+  }
+
+  // "Shopping - Clothing" keeps its photos as images in one paragraph; each
+  // line grows to hold its image, as an inline box grows a web line box.
+  @Test func inlineImagesInOneParagraphDoNotOverlap() throws {
+    let image: JSONValue = ["type": "image", "version": 1, "src": "https://example.com/a.png", "width": 500, "height": 500, "altText": ""]
+    let view = try Self.host(LexicalJSON.document([
+      LexicalJSON.paragraph([image, LexicalJSON.text(" "), image]),
+      LexicalJSON.paragraph([LexicalJSON.text("after")]),
+    ]), width: 704)
+    let first = view.caretRect(for: try position(view, 0))
+    let second = view.caretRect(for: try position(view, 2))
+    let after = view.caretRect(for: try position(view, 4))
+    #expect(second.minY >= first.minY + 500, "the second image wraps below the first")
+    #expect(after.minY >= first.minY + 1000, "the next paragraph follows both images")
+  }
+
   static func host(_ document: JSONValue, model: Editor = Editor(), width: CGFloat = 390) throws -> EditorView {
     try model.load(document)
     let window = UIWindow(frame: CGRect(x: 0, y: 0, width: width, height: 600))

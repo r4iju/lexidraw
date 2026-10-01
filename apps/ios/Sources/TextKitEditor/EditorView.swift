@@ -60,12 +60,37 @@ public final class EditorView: UIScrollView, UITextInput {
   private var sharedActiveComments: Set<String> = []
   private var sharedFootnoteNumbers: [String: Int] = [:]
 
-  public func makeNestedEditor(model: any EditorModel, isEditable: Bool, textSize: CGFloat? = nil, shareDocumentMetadata: Bool = false) -> EditorView {
+  /// `textWeight` and `textLineHeight` (in ems) are what nested text inherits
+  /// from a web wrapper, as a section's `text-base` and its title's
+  /// `font-medium`; bold runs and headings keep their own.
+  public func makeNestedEditor(
+    model: any EditorModel, isEditable: Bool, textSize: CGFloat? = nil, textWeight: CGFloat? = nil,
+    textLineHeight: CGFloat? = nil, shareDocumentMetadata: Bool = false
+  ) -> EditorView {
     let style: DocumentText.Style?
-    if let textSize {
+    if textSize != nil || textWeight != nil || textLineHeight != nil {
       style = { [typesetting, suppliedStyle] block, format in
         var attributes = suppliedStyle?(block, format) ?? typesetting.attributes(StyledBlock(block), format)
-        if let font = attributes[.font] as? UIFont { attributes[.font] = font.withSize(textSize) }
+        guard var font = attributes[.font] as? UIFont else { return attributes }
+        if let textSize { font = font.withSize(textSize) }
+        let traits = font.fontDescriptor.symbolicTraits
+        if let textWeight, !traits.contains(.traitBold), !traits.contains(.traitMonoSpace) {
+          let weight = Typesetting.weight(Int(textWeight)), italic = traits.contains(.traitItalic)
+          font = typesetting.documentFont?.font(size: font.pointSize, weight: weight, italic: italic)
+            ?? UIFont.systemFont(ofSize: font.pointSize, weight: weight)
+          if italic, typesetting.documentFont == nil, let slanted = font.fontDescriptor.withSymbolicTraits(.traitItalic) {
+            font = UIFont(descriptor: slanted, size: 0)
+          }
+        }
+        attributes[.font] = font
+        if let textLineHeight, typesetting.typography.heading(StyledBlock(block)) == nil,
+          let inherited = attributes[.paragraphStyle] as? NSParagraphStyle
+        {
+          let paragraph = inherited.mutableCopy() as! NSMutableParagraphStyle
+          paragraph.minimumLineHeight = textLineHeight * font.pointSize
+          paragraph.maximumLineHeight = paragraph.minimumLineHeight
+          attributes[.paragraphStyle] = paragraph
+        }
         return attributes
       }
     } else {
@@ -208,6 +233,21 @@ public final class EditorView: UIScrollView, UITextInput {
     else { endKeyboardInputTurn() }
   }
   private var lastChangeChangedParent = false
+
+  /// The space the editor keeps around its text on every side.
+  public static var defaultContentMargin: CGFloat { BlockLayout.margin }
+
+  /// The height that shows the whole document at `width` without scrolling,
+  /// for an editor nested in content that grows to fit it.
+  public func fittingHeight(width: CGFloat) -> CGFloat {
+    if bounds.width != width { frame.size.width = width }
+    layoutIfNeeded()
+    return layout.measuredHeight()
+  }
+  /// Called when the document's height changes, as when an image in it loads.
+  public var onContentHeightChange: (() -> Void)? {
+    didSet { layout.onHeightChange = onContentHeightChange }
+  }
 
   /// Called after each call a keyboard's input method makes.
   public var onInput: ((TextInputRecord) -> Void)?
