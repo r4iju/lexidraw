@@ -9,6 +9,7 @@
     "test": "bun test ./codegen ./reference && bun run build:reference && swift test",
     "test:ui": "scripts/test-ui.sh",
     "test:drawing-ui": "scripts/test-drawing-ui.sh",
+    "test:browser-ui": "scripts/test-browser-ui.sh",
     "measure:scroll": "scripts/measure-scroll.sh",
     "test:corpus": "bun run build:reference && LEXIDRAW_TOKEN=\"${LEXIDRAW_TOKEN:-$(security find-generic-password -s cli/lexidraw -a prod -w)}\" swift test --filter CorpusTests",
     "test:ts": "tsgo --noEmit && tsgo --noEmit --project codegen && tsgo --noEmit --project reference/test && tsgo --noEmit --project recording && tsgo --noEmit --project measure",

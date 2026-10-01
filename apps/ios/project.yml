@@ -148,6 +148,7 @@ targets:
     platform: iOS
     sources:
       - DrawingHarness
+      - HarnessSupport
       - App/DrawingEditorView.swift
       - App/EditorCanvas.swift
       - App/StyleInspector.swift
@@ -175,6 +176,42 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: $(APP_BUNDLE_IDENTIFIER).drawing-ui-tests
         TEST_TARGET_NAME: DrawingHarness
+  # The app's browser over a small folder tree with no server, for the UI
+  # tests of moving between folders.
+  BrowserHarness:
+    type: application
+    platform: iOS
+    sources:
+      - BrowserHarness
+      - HarnessSupport
+      - path: App
+        excludes: [LexidrawApp.swift, Info.plist, Lexidraw.entitlements, PrivacyInfo.xcprivacy]
+    dependencies:
+      - package: LexidrawIOS
+        product: LexidrawKit
+      - package: LexidrawIOS
+        product: DrawingKit
+      - package: LexidrawIOS
+        product: TextKitEditor
+      - package: LexidrawIOS
+        product: LexicalSwift
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: $(APP_BUNDLE_IDENTIFIER).browser-harness
+        INFOPLIST_KEY_CFBundleDisplayName: Browser Harness
+        INFOPLIST_KEY_UILaunchScreen_Generation: true
+        INFOPLIST_KEY_UIApplicationSceneManifest_Generation: true
+  BrowserUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - BrowserUITests
+    dependencies:
+      - target: BrowserHarness
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: $(APP_BUNDLE_IDENTIFIER).browser-ui-tests
+        TEST_TARGET_NAME: BrowserHarness
 schemes:
   Lexidraw:
     build:
@@ -197,3 +234,10 @@ schemes:
     test:
       targets:
         - DrawingUITests
+  BrowserHarness:
+    build:
+      targets:
+        BrowserHarness: all
+    test:
+      targets:
+        - BrowserUITests

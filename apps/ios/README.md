@@ -111,6 +111,15 @@ reached them unhandled, and both UI test targets press keys through
 the first real key. `scripts/simulator.sh` makes the simulators for both
 scripts.
 
+## Browser harness and UI tests
+
+The **BrowserHarness** scheme is the app's browser, `BrowserView` and
+everything it opens, over a small folder tree that `BrowserHarness` answers
+itself: Home holds Projects, which holds Q3, and Recipes. `bun run
+test:browser-ui` runs `BrowserUITests` on an iPad simulator it makes and
+deletes after (`scripts/test-browser-ui.sh`). They open folders from the
+listing, the sidebar and the breadcrumbs, by tap and by click.
+
 ## TestFlight
 
 The **iOS TestFlight** workflow runs by hand on `master`. It tests, archives,
