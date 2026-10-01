@@ -130,6 +130,11 @@ import Synchronization
     let target = node["type"] == "article" ? width : (inline ? min(width, natural.width) : column)
     // Intrinsic inline measurement needs the full container, even when its last image was narrow.
     render(width: max(inline ? width : target, 1))
+    // A failure has no image, so its height is the message, not the placeholder's aspect ratio.
+    if failed, !inline {
+      let message = status.sizeThatFits(CGSize(width: max(target - 16, 1), height: .greatestFiniteMagnitude))
+      return CGSize(width: target, height: ceil(message.height) + 16)
+    }
     let height = target * natural.height / max(natural.width, 1)
     return CGSize(width: target, height: max(height, 20))
   }

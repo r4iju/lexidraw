@@ -92,7 +92,9 @@ export const embedRenderRequest = z.object({
   node: embeddedNode,
   theme: z.enum(["light", "dark"]),
   width: z.number().int().min(1).max(2048),
-  fontFamily: z.string().min(1).max(120),
+  // Native sends the document's fully expanded CSS font stack, about 300
+  // characters for CJK documents, plus a custom font name in front.
+  fontFamily: z.string().min(1).max(1024),
   fontSize: z.number().min(1).max(256),
   includeAccessibility: z.boolean().optional(),
   articleImagesVersion: z.enum(["v1"]).optional(),
