@@ -507,7 +507,7 @@ extension Update {
   /// `$escapeFormatsForTrigger` with rich text's default triggers: the caret
   /// stops typing capitalized, lowercase or uppercase on Enter, Space and
   /// Tab.
-  private func escapeCaseFormats(_ selection: RangeSelection) {
+  func escapeCaseFormats(_ selection: RangeSelection) {
     for format in [TextFormatType.capitalize, .lowercase, .uppercase] where selection.format.contains(format.format) {
       selection.setFormat(format.toggled(in: selection.format, aligningWith: nil))
     }

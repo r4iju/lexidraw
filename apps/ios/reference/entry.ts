@@ -1,6 +1,6 @@
 import { withDOM } from "@lexical/headless/dom";
 import { $generateNodesFromDOM } from "@lexical/html";
-import { htmlToPlainText, ArticleNode, CollapsibleContainerNode, CollapsibleContentNode, CollapsibleTitleNode, CommentNode, ThreadNode } from "@packages/lexical-nodes";
+import { htmlToPlainText, ArticleNode, CalloutNode, StickyNode, SlideNode, CollapsibleContainerNode, CollapsibleContentNode, CollapsibleTitleNode, CommentNode, ThreadNode } from "@packages/lexical-nodes";
 import { $createMarkNode, $unwrapMarkNode, $wrapSelectionInMarkNode, MarkNode } from "@lexical/mark";
 import { $dfs, registerNestedElementResolver } from "@lexical/utils";
 import { $formatCode } from "@packages/lexical-nodes/code-format";
@@ -196,6 +196,7 @@ type Command =
   | { type: "toggleChecked"; path: number[] }
   | { type: "toggleLink"; url: string | null }
   | { type: "editLink"; url: string }
+  | { type: "updateStructuralFields"; path: number[]; node: Record<string, unknown> }
   | { type: "appendComment"; node: Record<string, unknown> }
   | { type: "annotateComment"; id: string }
   | { type: "convertArticle"; path: number[]; text: string }
@@ -729,6 +730,27 @@ function run(
       node.remove();
     });
   }
+  if (command.type === "updateStructuralFields") {
+    const node = nodeAt(command.path), fields = command.node;
+    const allowed = node instanceof CalloutNode ? ["kind", "title"] : node instanceof CollapsibleContainerNode ? ["open"] : node instanceof StickyNode ? ["color", "xOffset", "yOffset", "caption"] : node instanceof SlideNode ? ["data"] : [];
+    if (!Object.keys(fields).length) throw new EditorError("invalidState", "No structural fields");
+    if (Object.keys(fields).some(key => !allowed.includes(key))) throw new EditorError("unsupported", "Structural setter belongs to #133");
+    if (node instanceof CalloutNode) {
+      if ("kind" in fields) node.setKind(fields.kind as Parameters<CalloutNode["setKind"]>[0]);
+      if ("title" in fields) node.setTitle(fields.title as string);
+    } else if (node instanceof CollapsibleContainerNode) {
+      if ("open" in fields) node.setOpen(fields.open as boolean);
+    } else if (node instanceof StickyNode) {
+      if ("xOffset" in fields || "yOffset" in fields) node.setPosition((fields.xOffset ?? node.__x) as number, (fields.yOffset ?? node.__y) as number);
+      if ("caption" in fields) node.setCaptionJSON(fields.caption as Parameters<StickyNode["setCaptionJSON"]>[0]);
+      if ("color" in fields) {
+        const start = node.getLatest().__color;
+        do { node.toggleColor(); } while (node.getLatest().__color !== fields.color && node.getLatest().__color !== start);
+        if (node.getLatest().__color !== fields.color) throw new EditorError("invalidState", "Unknown sticky color");
+      }
+    } else if (node instanceof SlideNode) node.setData(fields.data as Parameters<SlideNode["setData"]>[0]);
+    return;
+  }
   if (command.type === "removeCommentAnnotations") {
     for (const { node } of $dfs($getRoot())) {
       if (node instanceof MarkNode && node.hasID(command.id)) {
@@ -1142,6 +1164,7 @@ function runOnCells(
         | "redo"
         | "wait"
         | "cut"
+        | "updateStructuralFields"
         | "appendComment"
         | "annotateComment"
         | "saveCommentThread"
@@ -1234,6 +1257,7 @@ function runOnNodes(
         | "redo"
         | "wait"
         | "cut"
+        | "updateStructuralFields"
         | "appendComment"
         | "annotateComment"
         | "saveCommentThread"

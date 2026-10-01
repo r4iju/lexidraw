@@ -350,7 +350,10 @@ import UIKit
       fields["xOffset"] = .number(Double(start.x + delta.x))
       fields["yOffset"] = .number(Double(start.y + delta.y))
       dragStart = nil
-      save(.object(fields))
+      do {
+        try owner?.updateStructuralFields(key: key, expected: node, fields: ["xOffset": fields["xOffset"]!, "yOffset": fields["yOffset"]!])
+        if let owner { node = try owner.structuralNode(key: key) }
+      } catch { presentError(error) }
       owner?.setNeedsLayout()
     case .cancelled, .failed:
       dragStart = nil
