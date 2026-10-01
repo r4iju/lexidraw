@@ -52,12 +52,15 @@ import UIKit
   ]
   private weak var owner: EditorView?
   private let key: String
+  private let isSlideDraft: Bool
+  private var slideTextEditors: [String: (model: Editor, view: EditorView)] = [:]
   private var node: JSONValue = .null
   private var saving = false
   private var viewingSlideOverride: Int?
   private var viewingSlideIndex: Int {
     get {
       if let viewingSlideOverride { return viewingSlideOverride }
+      guard isSlideDraft else { return StructuralBlockConfiguration.slidePreviewInitialIndex }
       let slides = node["data"]?["slides"]?.arrayValue ?? []
       return slides.firstIndex { $0["id"] == node["data"]?["currentSlideId"] } ?? 0
     }
@@ -71,9 +74,10 @@ import UIKit
   private var viewingSectionOpen: Bool?
   private var selectedSlideElementID: String?
 
-  init(owner: EditorView, key: String) {
+  init(owner: EditorView, key: String, isSlideDraft: Bool = false) {
     self.owner = owner
     self.key = key
+    self.isSlideDraft = isSlideDraft
     super.init(frame: .zero)
     stack.axis = .vertical
     stack.spacing = 8
@@ -385,6 +389,7 @@ import UIKit
     }
   }
   private func slides() {
+    if !isSlideDraft { slidePreview(); return }
     let slides = node["data"]?["slides"]?.arrayValue ?? []
     let index = min(viewingSlideIndex, max(slides.count - 1, 0))
     button("Add slide") { [weak self] in self?.addSlide() }
@@ -451,8 +456,8 @@ import UIKit
         owner?.makeNestedEditor(model: model, isEditable: false) ?? EditorView(model: model, isEditable: false)
       },
       imageLoader: owner?.mediaImageLoader,
-      provider: { [weak owner] node in
-        owner?.embeddedContent?("\(self.key)-slide-\(index)-\(node["id"]?.stringValue ?? "")", node)
+      provider: { [weak owner, key] node in
+        owner?.embeddedContent?("\(key)-slide-\(index)-\(node["id"]?.stringValue ?? "")", node)
       })
     canvas.onEdit = { [weak self] element in self?.editSlideElement(slide: index, element: element) }
     let opened = node
@@ -485,6 +490,40 @@ import UIKit
         label(description)
       }
     }
+  }
+
+  private func slidePreview() {
+    if owner?.isEditable == true {
+      button("Edit slide deck") { [weak self] in self?.openSlideDraft() }
+    }
+    let slides = node["data"]?["slides"]?.arrayValue ?? []
+    guard !slides.isEmpty else { label("Empty slide deck"); return }
+    let index = min(viewingSlideIndex, slides.count - 1)
+    menu("Slide \(index + 1) of \(slides.count)", viewing: true,
+      entries: slides.indices.map { offset in
+        ("Slide \(offset + 1)", { [weak self] in
+          self?.viewingSlideIndex = offset
+          self?.rebuild()
+          self?.owner?.refreshEmbeddedContent()
+        })
+      })
+    let canvas = SlideCanvas(slide: slides[index], makeEditor: { [weak owner] model in
+      owner?.makeNestedEditor(model: model, isEditable: false) ?? EditorView(model: model, isEditable: false)
+    }, imageLoader: owner?.mediaImageLoader, provider: { [weak owner, key] node in
+      owner?.embeddedContent?("\(key)-slide-\(index)-\(node["id"]?.stringValue ?? "")", node)
+    })
+    stack.addArrangedSubview(canvas)
+    for (index, element) in (slides[index]["elements"]?.arrayValue ?? []).enumerated() {
+      label("Slide element \(index + 1), \(element["kind"]?.stringValue ?? "unknown")")
+    }
+  }
+
+  private func openSlideDraft() {
+    guard let owner, let presenter = parentController() else { return }
+    do {
+      let controller = try SlideDraftController(owner: owner, key: key, expected: node)
+      presenter.present(UINavigationController(rootViewController: controller), animated: true)
+    } catch { presentError(error) }
   }
 
   private func editSlideElement(slide: Int, element: Int) {
@@ -572,8 +611,25 @@ import UIKit
     guard let value = node["data"]?["slides"]?.arrayValue?[slide]["elements"]?.arrayValue?[element] else { return }
     switch value["kind"]?.stringValue {
     case "box":
-      presentBody(value["editorStateJSON"] ?? document([]), title: "Slide text") { [weak self] state in
-        self?.updateSlideElement(slide: slide, element: element, field: "editorStateJSON", value: state)
+      guard let id = value["id"]?.stringValue, !id.isEmpty else {
+        presentError(EditorError.invalidState("Slide box identity is missing")); return
+      }
+      presentBody(value["editorStateJSON"] ?? document([]), id: id, title: "Slide text") { [weak self] state in
+        guard let self else { return }
+        guard let current = self.node["data"]?["slides"]?.arrayValue?[slide]["elements"]?.arrayValue?[element],
+          current["id"] == value["id"], var fields = current.objectValue,
+          let retained = self.slideTextEditors[id] else {
+          throw EditorError.invalidState("Slide box changed while its editor was open")
+        }
+        if let stored = current["editorStateJSON"],
+          try retained.model.slideContentForComparison(stored).stringified
+            == retained.model.slideContentForComparison(state).stringified { return }
+        guard current["version"] == nil || current["version"]?.numberValue != nil else {
+          throw EditorError.unsupported("Slide box version is not numeric (#133)")
+        }
+        fields["editorStateJSON"] = state
+        fields["version"] = .number((current["version"]?.numberValue ?? 0) + StructuralBlockConfiguration.slideBoxVersionIncrement)
+        self.replaceSlideElement(slide: slide, element: element, value: .object(fields))
       }
     case "image":
       rename("Image URL", value: value["url"]?.stringValue ?? "") { [weak self] url in
@@ -677,32 +733,38 @@ import UIKit
     data["slides"] = .array(slides)
     self.field("data", .object(data), rebuild: true)
   }
-  private func presentBody(_ state: JSONValue, title: String, changed: @escaping (JSONValue) -> Void) {
+  private func presentBody(_ state: JSONValue, id: String, title: String, changed: @escaping (JSONValue) throws -> Void) {
     do {
-      let model = Editor(editorContext: .slide)
-      try model.loadKeyed(state)
-      let editor =
-        owner?.makeNestedEditor(model: model, isEditable: owner?.isEditable == true && model.isEditable)
-        ?? EditorView(model: model, isEditable: false)
-      if owner?.configureNestedEmbeds == nil { configureEmbeddedDrawings(editor) }
-      var opened = node
-      editor.onChange = { [weak self] in
-        guard let self else { return }
-        guard self.node == opened else {
-          self.presentError(EditorError.invalidState("The block changed while its editor was open"))
-          return
-        }
-        do {
-          changed(try model.serializedKeyedState())
-          opened = self.node
-        } catch { self.presentError(error) }
+      let model: Editor
+      let editor: EditorView
+      if let retained = slideTextEditors[id] {
+        model = retained.model
+        editor = retained.view
+      } else {
+        model = Editor(editorContext: .slide)
+        try model.loadKeyed(state)
+        editor = owner?.makeNestedEditor(model: model, isEditable: owner?.isEditable == true && model.isEditable)
+          ?? EditorView(model: model, isEditable: false)
+        if owner?.configureNestedEmbeds == nil { configureEmbeddedDrawings(editor) }
+        editor.accessibilityIdentifier = "slide text editor"
+        slideTextEditors[id] = (model, editor)
       }
       let controller = UIViewController()
       controller.title = title
       controller.view = NativeEditorHost(editor: editor)
       let navigation = UINavigationController(rootViewController: controller)
       controller.navigationItem.rightBarButtonItem = UIBarButtonItem(
-        systemItem: .done, primaryAction: UIAction { _ in navigation.dismiss(animated: true) })
+        systemItem: .done, primaryAction: UIAction { [weak navigation, weak controller] _ in
+          do {
+            try changed(model.serializedKeyedState())
+            navigation?.dismiss(animated: true)
+          } catch {
+            let alert = UIAlertController(title: "Cannot save slide text", message: error.localizedDescription, preferredStyle: .alert)
+            alert.addAction(UIAlertAction(title: "OK", style: .default))
+            controller?.present(alert, animated: true)
+          }
+        })
+      navigation.isModalInPresentation = true
       parentController()?.present(navigation, animated: true)
     } catch { presentError(error) }
   }
@@ -729,7 +791,7 @@ import UIKit
     } catch { presentError(error) }
   }
   private func parentController() -> UIViewController? {
-    var responder: UIResponder? = owner
+    var responder: UIResponder? = self
     while responder != nil, !(responder is UIViewController) { responder = responder?.next }
     return responder as? UIViewController
   }
@@ -1024,5 +1086,73 @@ import UIKit
     node["type"] == "sticky" && owner?.isEditable == true
       && (owner?.bounds.width ?? 0) > StructuralBlockConfiguration.stackedColumnsWidth
       && (touch.view === self || touch.view === stack)
+  }
+}
+
+/// The web modal owns a deck draft; only its Save calls SlideNode.setData.
+@MainActor private final class SlideDraftController: UIViewController {
+  private let owner: EditorView
+  private let key: String
+  private let expected: JSONValue
+  private let model: Editor
+  private let draftOwner: EditorView
+  private let panel: StructuralPanel
+
+  init(owner: EditorView, key: String, expected: JSONValue) throws {
+    self.owner = owner
+    self.key = key
+    self.expected = expected
+    let model = Editor()
+    try model.load(["root": ["type": "root", "version": 1, "children": [expected]]])
+    self.model = model
+    draftOwner = owner.makeNestedEditor(model: model, isEditable: true, shareDocumentMetadata: true)
+    guard let draftKey = try model.childKeys(at: []).first else { throw EditorError.invalidState("Slide draft is missing") }
+    panel = StructuralPanel(owner: draftOwner, key: draftKey, isSlideDraft: true)
+    super.init(nibName: nil, bundle: nil)
+    panel.show(expected)
+    title = "Edit slide deck"
+    draftOwner.onChange = { [weak self] in self?.view.setNeedsLayout() }
+    navigationItem.leftBarButtonItem = UIBarButtonItem(title: "Cancel", primaryAction: UIAction { [weak self] _ in
+      self?.dismiss(animated: true)
+    })
+    navigationItem.rightBarButtonItem = UIBarButtonItem(title: "Save", primaryAction: UIAction { [weak self] _ in
+      self?.save()
+    })
+  }
+
+  required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+  override func loadView() { view = SlideDraftHost(panel: panel) }
+
+  private func save() {
+    do {
+      let saved = try model.node(at: [0])
+      guard let data = saved["data"] else { throw EditorError.invalidState("Slide deck data is missing") }
+      try owner.updateStructuralFields(key: key, expected: expected, fields: ["data": data])
+      dismiss(animated: true)
+    } catch {
+      let alert = UIAlertController(title: "Cannot save slide deck", message: error.localizedDescription, preferredStyle: .alert)
+      alert.addAction(UIAlertAction(title: "OK", style: .default))
+      present(alert, animated: true)
+    }
+  }
+}
+
+@MainActor private final class SlideDraftHost: UIScrollView {
+  private let panel: EmbeddedContentView
+  init(panel: EmbeddedContentView) {
+    self.panel = panel
+    super.init(frame: .zero)
+    backgroundColor = .systemBackground
+    accessibilityIdentifier = "slide deck draft"
+    addSubview(panel)
+  }
+  required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+  override func layoutSubviews() {
+    super.layoutSubviews()
+    let width = bounds.width - 32
+    guard width > 0 else { return }
+    let size = panel.contentSize(fitting: width)
+    panel.frame = CGRect(x: 16, y: 16, width: width, height: size.height)
+    contentSize = CGSize(width: bounds.width, height: size.height + 32)
   }
 }

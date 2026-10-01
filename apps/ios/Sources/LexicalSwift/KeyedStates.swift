@@ -11,7 +11,14 @@ extension Editor {
     ["root": try keyedTree(serializedState()["root"] ?? .null, liveKeys: true)]
   }
 
-  private func keyedTree(_ root: JSONValue, liveKeys: Bool) throws -> JSONValue {
+  /// The source keyed projection omits keys and empty children before its
+  /// logical-content comparison; import defaults must not hide differences.
+  public func slideContentForComparison(_ json: JSONValue) throws -> JSONValue {
+    guard let root = json["root"] else { throw EditorError.invalidState("No keyed root") }
+    return ["root": try keyedTree(root, liveKeys: false, minimumChildren: StructuralBlockConfiguration.slideContentMinimumChildCount)]
+  }
+
+  private func keyedTree(_ root: JSONValue, liveKeys: Bool, minimumChildren: Int? = nil) throws -> JSONValue {
     struct Frame {
       var fields: JSONObject
       var children: [JSONValue]?
@@ -34,7 +41,12 @@ extension Editor {
         }
         fields["key"] = .string(key)
       }
-      return Frame(fields: fields, children: fields["children"]?.arrayValue, path: path)
+      var children = fields["children"]?.arrayValue
+      if let minimumChildren {
+        fields["children"] = nil
+        if let count = children?.count, count <= minimumChildren { children = nil }
+      }
+      return Frame(fields: fields, children: children, path: path)
     }
     var stack = [try frame(root, at: [])]
     while var current = stack.popLast() {

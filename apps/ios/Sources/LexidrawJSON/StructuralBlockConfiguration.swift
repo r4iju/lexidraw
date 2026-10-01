@@ -1,6 +1,9 @@
 // Generated from structural node factories, web presets and document CSS.
 // Run bun run codegen in apps/ios to update.
 public enum StructuralBlockConfiguration {
+  public static let slidePreviewInitialIndex = 0
+  public static let slideBoxVersionIncrement = 1.0
+  public static let slideContentMinimumChildCount = 0
   public static let columnGap = 8.0
   public static let columnBorderColors = ["rgba(237.94559999999998, 238.03179, 241.030845, 1)","rgba(42.491415, 42.58245, 49.221375, 1)"]
   public static let columnPadding = 8.0

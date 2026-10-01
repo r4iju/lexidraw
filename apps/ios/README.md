@@ -1114,3 +1114,23 @@ and probe failures were setup/assertion issues, not behavioral red evidence.
 Final scoped run: all four article accessibility/image/rich-selection hosted tests
 passed (`/tmp/134-rich-final.xcresult`); the production simulator app built
 successfully (`/tmp/134-rich-production.log`). No CI or account mutation ran.
+### Slide deck draft lifetime (#133)
+
+Native slide previews start at slide zero and navigate locally, matching `SlideView`.
+Edit slide deck opens a retained local deck draft; geometry, chart/configuration,
+background, ordering, additions/deletions, navigation and box text update that
+local draft. Cancel discards it. Save applies one stale-checked `setData` through
+the parent model and autosave. Box editors use the generated `.slide` context
+and retain their text, selection and local undo while the draft remains on the
+same slide. Done flushes keyed text only when the actual source keyless projection
+changes and increments the source-generated box version, including fractional
+versions. The text sheet requires Done so it cannot dismiss without flushing.
+Slide-switch HistoryPlugin remount/reset remains a tracked #133 follow-up;
+no claim of equivalent undo across slide navigation is made here.
+
+Validation: genuine hosted UI reds preceded draft Save/Cancel, retained box Undo
+and saved REST box-version fixes. All 16 DocumentPreview UI tests pass, alongside
+20 StructuralBlock model tests, 97 Bun tests, five TypeScript projects and the
+existing generated-slide 20,000-command oracle run (3,124 matched refusals,
+12 unported, zero unreadable). The standalone command fuzzer does not model the
+React modal lifetime; the production hosted UI tests cover that separate boundary.
