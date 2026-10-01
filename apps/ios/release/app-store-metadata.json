@@ -1,5 +1,5 @@
 {
-  "status": "store-information-configured-awaiting-integrated-release-and-submission",
+  "status": "final-build-valid-and-selected-awaiting-device-check-and-submission",
   "issue": 142,
   "privacyPolicyURL": "https://lexidraw.vercel.app/privacy-policy",
   "appleReferences": [
@@ -80,10 +80,9 @@
   "retentionQuestions": [
     "Third-party operational request/log retention can change independently of this source; declarations include retained IP/visitor and request information without claiming short-term deletion."
   ],
-  "reviewNotesDraft": "Lexidraw is a native document and drawing editor. Sign In opens the secure Lexidraw authentication website and returns to the app. Review credentials will be supplied privately in App Store Connect. The seeded review account will contain disposable sample documents and drawings. Account deletion is available in Settings. Listen generates spoken audio from a selected file; it does not record the microphone. Review notes will be updated with the final supported node families and any explicit limitations. Users choose the content they upload, import and share. Lexidraw\u2019s terms prohibit copyright infringement and authorize processing user content to operate the service.",
+  "reviewNotesDraft": "Lexidraw is a native document and drawing editor for iPhone and iPad. An account and internet connection are required for synchronization.\n\nTap Sign In to open the secure Lexidraw authentication website. Use the demo credentials supplied below; successful sign-in returns to the app. The review account has disposable sample documents covering rich text, callouts, sections, columns, diagrams, code and tables, plus a sample drawing. Open files from the file list to edit them. Changes save to the account.\n\nListen generates spoken audio from document text using a disclosed third-party service after the user's consent. It does not record microphone input. Existing generated audio can be played without generating new audio.\n\nAccount deletion is available in Settings. Users choose the files and links they upload, import and share. The terms prohibit copyright infringement and authorize processing user content to operate the service. Unsupported imported representations are preserved and shown explicitly rather than silently rewritten.",
   "submissionPending": [
-    "Final integrated source SHA and local release archive",
-    "Select processed 1.0 build and finalize review notes",
+    "Investigate maintainer typing-undo grouping feedback and complete remaining physical save/undo checks",
     "Submission and review response"
   ],
   "serverURLSource": "apps/ios/project.yml:LEXIDRAW_SERVER_URL",
@@ -91,7 +90,7 @@
     "appId": "6816381053",
     "version": "1.0",
     "versionId": "dc2f83df-01fa-4185-acbd-ea4c0433d2d2",
-    "latestUploadedBuild": "7",
+    "latestUploadedBuild": "8",
     "apiAccessVerified": "2026-09-30",
     "reviewDetailId": "7b45f62e-683a-4c2f-9840-5d3ca9efbd53",
     "reviewContact": {
@@ -407,5 +406,35 @@
     "declaration": "USES_THIRD_PARTY_CONTENT",
     "confirmed": "2026-10-01",
     "verification": "App Store Connect PATCH200 followed by GET confirmed USES_THIRD_PARTY_CONTENT."
+  },
+  "reviewNotesStatus": {
+    "status": "saved-and-verified",
+    "verified": "2026-10-01",
+    "verification": "PATCH200; safe GET confirms notes, demo credentials and contact are present."
+  },
+  "finalRelease": {
+    "marketingVersion": "1.0",
+    "buildNumber": "8",
+    "sourceCommit": "4d9b8595b061ddbede220b3522336bc08d151c9a",
+    "archiveStatus": "succeeded",
+    "uploadStatus": "succeeded",
+    "processingStatus": "VALID",
+    "method": "local-xcodebuild-no-CI",
+    "physicalDeviceInstall": "Signed Debug build of the same source/version installed and launched on iPhone 14 Plus. Maintainer confirms three-finger left Undo works; reports per-letter typing undo under investigation. Redo, shake Undo and leave/reopen saving remain unconfirmed.",
+    "corpus": "Final integrated live-account Debug corpus passed, including comparison regression: four tests.",
+    "productionDeployments": {
+      "web": "dpl_FxaaUeXEKWXry6napgiWP6XBKXqR",
+      "renderer": "dpl_C1sfTVpeUvfpJUbog1pDFHdpKJoe",
+      "status": "READY",
+      "sourceBuild": "Clean archived repository source, built on Linux; no macOS prebuilt artifacts."
+    },
+    "buildId": "4a9daedb-9afb-4ec0-a350-8c6fa382f2ea",
+    "internalTestFlightStatus": "build-listed-in-existing-internal-group",
+    "appStoreVersionBuildSelection": "selected-and-verified",
+    "productionVerification": "Six article capability/image/cache/style checks and eight light/dark Mermaid/equation/chart/code renders returned200.",
+    "reviewSubmissionId": "1c0fea53-a386-47aa-895c-54168ec197a5",
+    "reviewSubmissionStatus": "READY_FOR_REVIEW",
+    "testFlightNotesStatus": "saved-en-US",
+    "submitted": false
   }
 }
