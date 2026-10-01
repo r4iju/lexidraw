@@ -190,6 +190,9 @@ public final class Editor: EditorModel {
       captionJSON(of: key) == expected, replacement == nil || replacement?["type"] == expected["type"]
     else { throw EditorError.invalidState("The block changed while its editor was open") }
     guard let replacement else { return try commit { try $0.remove(key) } }
+    guard captionEditors[key] == nil || replacement["caption"] == expected["caption"] else {
+      throw EditorError.unsupported("Replacing an open caption's editor state requires #134")
+    }
     // Load with the registered schemas before committing; unknown fields/nodes
     // cannot make an editable document silently become an approximated one.
     let validation = Editor()

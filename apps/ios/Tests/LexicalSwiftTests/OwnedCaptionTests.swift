@@ -3,6 +3,23 @@ import LexidrawJSON
 import Testing
 
 @Suite struct OwnedCaptionTests {
+  @Test func explicitCaptionReplacementCannotBeHiddenByTheLiveEditor() throws {
+    var fields = try #require(JSONValue(parsing: MediaImages.insertionNodeJSON).objectValue)
+    fields["showCaption"] = true
+    fields["caption"] = ["editorState": document(paragraph(text("Caption")))]
+    let parent = Editor()
+    try parent.load(document(paragraph(text("Parent")), .object(fields)))
+    let key = try #require(parent.childKeys(at: [1]).first)
+    _ = try parent.captionEditor(key: key)
+    let before = try parent.snapshot()
+    let expected = try parent.node(at: [1, 0])
+    var replacement = try #require(expected.objectValue)
+    replacement["caption"] = ["editorState": document(paragraph(text("Replacement")))]
+    #expect(throws: EditorError.self) {
+      try parent.replaceEmbeddedNode(key: key, expected: expected, replacement: .object(replacement))
+    }
+    #expect(try parent.snapshot() == before)
+  }
   @Test func copyingTheOwnerIncludesItsCurrentCaption() throws {
     var fields = try #require(JSONValue(parsing: MediaImages.insertionNodeJSON).objectValue)
     fields["showCaption"] = true
