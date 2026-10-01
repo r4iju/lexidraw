@@ -1,3 +1,4 @@
+import { registerPlainText } from "@lexical/plain-text";
 import { withDOM } from "@lexical/headless/dom";
 import { $generateNodesFromDOM } from "@lexical/html";
 import { htmlToPlainText, ArticleNode, CalloutNode, LayoutContainerNode, StickyNode, SlideNode, CollapsibleContainerNode, CollapsibleContentNode, CollapsibleTitleNode, CommentNode, ThreadNode } from "@packages/lexical-nodes";
@@ -295,7 +296,7 @@ function configureEditor(next: LexicalEditor, stateJSON: string): void {
   if (lastError) throw lastError;
   now = 0;
   // Registered first, so the loaded document is where undoing stops.
-  registerHistory(next, createEmptyHistoryState(), 1000, () => now);
+  if (!plugins || plugins.includes("HistoryPlugin")) registerHistory(next, createEmptyHistoryState(), 1000, () => now);
   const registerCommand = next.registerCommand.bind(next);
   next.registerCommand = (command, listener, priority) =>
     registerCommand(
@@ -321,9 +322,10 @@ function configureEditor(next: LexicalEditor, stateJSON: string): void {
       },
       priority,
     );
-  registerRichText(next);
+  if (plugins?.includes("PlainTextPlugin")) registerPlainText(next);
+  else registerRichText(next);
   next.registerCommand = registerCommand;
-  registerLineMoveOntoBlockDecorators(next);
+  if (!plugins?.includes("PlainTextPlugin")) registerLineMoveOntoBlockDecorators(next);
   // A headless editor refuses root listeners, where an editor without a root
   // element calls them only with none; the checklist's pointer handling
   // registers one, which does nothing without a root.
@@ -349,7 +351,7 @@ function configureEditor(next: LexicalEditor, stateJSON: string): void {
     matchers: AUTOLINK_MATCHERS,
   });
   if (!plugins || plugins.includes("TablePlugin")) registerTables(next);
-  registerLink(next, namedSignals({ attributes: undefined, validateUrl }));
+  if (!plugins || plugins.includes("LinkPlugin")) registerLink(next, namedSignals({ attributes: undefined, validateUrl }));
   // CommentPlugin flattens directly nested marks and merges their thread IDs.
   if (editorContext === "document") registerNestedElementResolver(next, MarkNode,
     (from) => $createMarkNode(from.getIDs()),
@@ -382,7 +384,7 @@ function configureEditor(next: LexicalEditor, stateJSON: string): void {
 function loadNested(argument: string): void {
   const { state, ownerPath } = JSON.parse(argument) as { state: unknown; ownerPath: number[] };
   const childContext = editorContext;
-  if (!["imageCaption", "inlineImageCaption", "videoCaption"].includes(childContext)) {
+  if (!["imageCaption", "inlineImageCaption", "videoCaption", "stickyCaption"].includes(childContext)) {
     throw new EditorError("invalidState", "This context has no media caption owner");
   }
   editorContext = "document";
@@ -398,7 +400,7 @@ function loadNested(argument: string): void {
         node = found;
       }
       const captionNode = node as LexicalNode & { __caption?: LexicalEditor };
-      const expectedTypes: Record<string, string> = { imageCaption: "image", inlineImageCaption: "inline-image", videoCaption: "video" };
+      const expectedTypes: Record<string, string> = { imageCaption: "image", inlineImageCaption: "inline-image", videoCaption: "video", stickyCaption: "sticky" };
       const expectedType = expectedTypes[childContext];
       if (node.getType() !== expectedType || !captionNode.__caption) {
         throw new EditorError("invalidState", `Caption owner ${node.getType()} (editor=${Boolean(captionNode.__caption)}) does not match ${expectedType}`);

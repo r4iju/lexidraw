@@ -2,6 +2,7 @@
 
 public enum EditorContext: String, Codable, Sendable {
   case document
+  case stickyCaption
   case imageCaption
   case inlineImageCaption
   case videoCaption
@@ -10,6 +11,7 @@ public enum EditorContext: String, Codable, Sendable {
   var mountedPlugins: [String] {
     switch self {
     case .document: []
+    case .stickyCaption: Self.stickyCaptionPlugins
     case .imageCaption: Self.imageCaptionPlugins
     case .inlineImageCaption: Self.inlineImageCaptionPlugins
     case .videoCaption: Self.videoCaptionPlugins
@@ -23,10 +25,12 @@ public enum EditorContext: String, Codable, Sendable {
     case .imageCaption: Self.imageCaptionRegistry
     case .inlineImageCaption: Self.inlineImageCaptionRegistry
     case .videoCaption: nil
+    case .stickyCaption: nil
     case .slide: Self.slideRegistry
     }
   }
 
+  private static let stickyCaptionPlugins: [String] = ["PlainTextPlugin"]
   private static let imageCaptionPlugins: [String] = ["MentionsPlugin", "LinkPlugin", "EmojisPlugin", "HashtagPlugin", "KeywordsPlugin", "HistoryPlugin", "TreeViewPlugin"]
   private static let inlineImageCaptionPlugins: [String] = ["MentionsPlugin", "LinkPlugin", "EmojisPlugin", "HashtagPlugin", "KeywordsPlugin", "HistoryPlugin", "TreeViewPlugin"]
   private static let videoCaptionPlugins: [String] = ["MentionsPlugin", "LinkPlugin", "EmojisPlugin", "HashtagPlugin", "KeywordsPlugin", "HistoryPlugin", "TreeViewPlugin"]

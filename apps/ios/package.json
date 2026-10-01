@@ -29,6 +29,7 @@
     "@lexical/list": "^0.51.0",
     "@lexical/mark": "^0.51.0",
     "@lexical/markdown": "^0.51.0",
+    "@lexical/plain-text": "0.51.0",
     "@lexical/rich-text": "^0.51.0",
     "@lexical/selection": "^0.51.0",
     "@lexical/table": "^0.51.0",

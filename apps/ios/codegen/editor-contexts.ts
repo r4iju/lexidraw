@@ -16,12 +16,13 @@ import { swiftString } from "./swift";
 
 export const CONTEXTS_PATH = new URL("../Sources/LexicalSwift/WebEditorContext.swift", import.meta.url);
 const sources = {
+  stickyCaption: ["StickyComponent.tsx", "LexicalNestedComposer"],
   imageCaption: ["ImageNode/ImageComponent.tsx", "ImageCaption"],
   inlineImageCaption: ["InlineImageNode/InlineImageComponent.tsx", "ImageCaption"],
   videoCaption: ["VideoNode/VideoComponent.tsx", "ImageCaption"],
   slide: ["SlideNode/SlideDeckEditor.tsx", "LexicalNestedComposer"],
 } as const;
-const knownPlugins = new Set("MentionsPlugin LinkPlugin EmojisPlugin HashtagPlugin KeywordsPlugin HistoryPlugin TreeViewPlugin DisableChecklistSpacebarPlugin TabIndentationPlugin EmojiPickerPlugin ChartPlugin RichTextPlugin BlurPlugin AutocompletePlugin PageBreakPlugin MermaidPlugin MarkdownShortcutPlugin HorizontalRulePlugin EquationsPlugin AutoFocusPlugin TablePlugin TwitterPlugin YouTubePlugin ExcalidrawPlugin FigmaPlugin ImagePlugin InlineImagePlugin VideoPlugin LayoutPlugin CollapsiblePlugin CalloutPlugin PollPlugin TableActionMenuPlugin CodeActionMenuPlugin FloatingLinkEditorPlugin FloatingTextFormatToolbarPlugin".split(" "));
+const knownPlugins = new Set("PlainTextPlugin MentionsPlugin LinkPlugin EmojisPlugin HashtagPlugin KeywordsPlugin HistoryPlugin TreeViewPlugin DisableChecklistSpacebarPlugin TabIndentationPlugin EmojiPickerPlugin ChartPlugin RichTextPlugin BlurPlugin AutocompletePlugin PageBreakPlugin MermaidPlugin MarkdownShortcutPlugin HorizontalRulePlugin EquationsPlugin AutoFocusPlugin TablePlugin TwitterPlugin YouTubePlugin ExcalidrawPlugin FigmaPlugin ImagePlugin InlineImagePlugin VideoPlugin LayoutPlugin CollapsiblePlugin CalloutPlugin PollPlugin TableActionMenuPlugin CodeActionMenuPlugin FloatingLinkEditorPlugin FloatingTextFormatToolbarPlugin".split(" "));
 
 export async function webEditorContexts(): Promise<Record<keyof typeof sources, string[]>> {
   const result = {} as Record<keyof typeof sources, string[]>;
@@ -79,6 +80,15 @@ export async function webEditorRegistries(): Promise<Record<keyof typeof sources
     });
     result[name as keyof typeof sources] = [...createHeadlessEditor({ nodes: registered })._nodes.keys()].sort();
   }
+  const stickySource = await Bun.file(new URL("../../../packages/lexical-nodes/src/nodes/StickyNode.ts", import.meta.url)).text();
+  const stickyAST = parse(stickySource, { sourceType: "module", plugins: ["typescript"] });
+  const stickyConstructors: Node[] = [];
+  walk(stickyAST, node => { if (node.type === "ClassMethod" && node.kind === "constructor") stickyConstructors.push(node); });
+  if (stickyConstructors.length !== 1) throw new Error("Unknown sticky caption constructor");
+  const stickyEditors: Node[] = [];
+  walk(stickyConstructors[0]!, node => { if (node.type === "CallExpression" && node.callee.type === "Identifier" && node.callee.name === "createEditor") stickyEditors.push(node); });
+  if (stickyEditors.length !== 1 || stickyEditors[0]?.type !== "CallExpression" || stickyEditors[0].arguments.length !== 0) throw new Error("Unknown sticky caption editor configuration");
+  result.stickyCaption = null;
   const slide = await Bun.file(new URL("../../lexidraw/src/app/documents/[documentId]/nodes/SlideNode/nested-editor-nodes.ts", import.meta.url)).text();
   const slideAst = parse(slide, { sourceType: "module", plugins: ["typescript"] });
   const exportNodes = slideAst.program.body.find(node => node.type === "ExportNamedDeclaration" && node.declaration?.type === "VariableDeclaration");

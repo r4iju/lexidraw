@@ -27,3 +27,19 @@ import Testing
     #expect(parent["root"]?["children"]?.arrayValue?[0]["children"]?.arrayValue?[0]["type"] == "text")
   }
 }
+
+
+extension NestedReferenceTests {
+  @Test func stickyCaptionEnterUsesItsActualPlainTextMount() throws {
+    let json = try #require(StructuralBlockConfiguration.insertionNodes["sticky"])
+    var sticky = try #require(JSONValue(parsing: json).objectValue)
+    sticky["caption"] = ["editorState": document(paragraph(text("one")))]
+    let reference = try Support.referenceEditor(editorContext: .stickyCaption)
+    try reference.loadNested(parent: document(paragraph(.object(sticky))), ownerPath: [0, 0])
+    try reference.apply(.caret(.text([0, 0], 3)))
+    try reference.apply(.insertParagraph)
+    let children = try #require(reference.snapshot().state["root"]?["children"]?.arrayValue)
+    #expect(children.count == 1)
+    #expect(children[0]["children"]?.arrayValue?.last?["type"] == "linebreak")
+  }
+}
