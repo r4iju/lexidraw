@@ -26,7 +26,7 @@ import OpenAPIRuntime
       "accessibleText": "Ideas\nFirst paragraph\nRead more", "links": [], "accessibility": [
         ["role": "heading", "text": "Ideas", "x": 0, "y": 0, "width": 390, "height": 30],
         ["role": "text", "text": "First paragraph", "x": 0, "y": 40, "width": 390, "height": 20],
-        ["role": "link", "text": "Read more", "url": "https://example.com/article", "x": 0, "y": 80, "width": 80, "height": 20]
+        ["role": "link", "heading": true, "text": "Read more", "url": "https://example.com/article", "x": 0, "y": 80, "width": 80, "height": 20]
       ]]
     let response = String(decoding: try JSONSerialization.data(withJSONObject: payload), as: UTF8.self)
     let session = try XCTUnwrap(Account(origin: URL(string: "https://example.test")!, store: Store(), transport: Renderer(response: response)).restore())
@@ -42,6 +42,7 @@ import OpenAPIRuntime
     XCTAssertEqual(elements.map(\.accessibilityLabel), ["Ideas", "First paragraph", "Read more"])
     XCTAssertTrue(elements[0].accessibilityTraits.contains(.header))
     XCTAssertTrue(elements[2].accessibilityTraits.contains(.link))
+    XCTAssertTrue(elements[2].accessibilityTraits.contains(.header), "A linked heading must remain in the heading rotor")
     XCTAssertEqual(elements[2].accessibilityFrameInContainerSpace, CGRect(x: 0, y: 80, width: 80, height: 20))
     XCTAssertFalse(view.isAccessibilityElement)
   }

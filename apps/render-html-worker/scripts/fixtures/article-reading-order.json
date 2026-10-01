@@ -1,5 +1,5 @@
 {
-  "html": "<div id=\"native-embed\" style=\"width:390px;font:16px Arial\"><article data-native-article><h2>Heading <em>one</em></h2><p>Read <a href=\"https://example.com/more\">more</a> here.</p>Bare <strong>body</strong> text.<ul><li>Outer before<ul><li>Nested child</li></ul>Outer after</li></ul><div>Division text.</div><p style=\"display:none\">Hidden text</p></article></div>",
+  "html": "<div id=\"native-embed\" style=\"width:390px;font:16px Arial\"><article data-native-article><h2>Heading <em>one</em></h2><p>Read <a href=\"https://example.com/more\">more</a> here.</p>Bare <strong>body</strong> text.<ul><li>Outer before<ul><li>Nested child</li></ul>Outer after</li></ul><div>Division text.</div><p style=\"display:none\">Hidden text</p><h2><a href=\"https://example.com/heading\">Linked heading</a></h2></article></div>",
   "expected": [
     ["heading", "Heading one"],
     ["text", "Read"],
@@ -9,7 +9,8 @@
     ["text", "Outer before"],
     ["text", "Nested child"],
     ["text", "Outer after"],
-    ["text", "Division text."]
+    ["text", "Division text."],
+    ["link", "Linked heading"]
   ],
   "provenance": "Actual T3 Chromium DOM red observed 2026-10-01 on source 3a8c908e: paragraph/link duplication and missing bare/ancestor text"
 }

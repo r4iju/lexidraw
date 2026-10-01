@@ -157,6 +157,9 @@
                     "type": "number",
                     "minimum": 1,
                     "maximum": 256
+                  },
+                  "includeAccessibility": {
+                    "type": "boolean"
                   }
                 },
                 "required": ["node", "theme", "width", "fontFamily", "fontSize"]
@@ -181,6 +184,9 @@
                           "role": {
                             "type": "string",
                             "enum": ["heading", "text", "link"]
+                          },
+                          "heading": {
+                            "type": "boolean"
                           },
                           "text": {
                             "type": "string",

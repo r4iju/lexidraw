@@ -101,7 +101,15 @@ export async function POST(request: Request) {
       throw new Error("Empty render");
     if (bounds.width * bounds.height * 4 > 16000000)
       return new NextResponse("Render exceeds 16 megapixels", { status: 413 });
-    const interactions = await page.evaluate(extractArticleInteractions);
+    const includeAccessibility =
+      input.request !== null &&
+      typeof input.request === "object" &&
+      "includeAccessibility" in input.request &&
+      input.request.includeAccessibility === true;
+    const interactions = await page.evaluate(
+      extractArticleInteractions,
+      includeAccessibility,
+    );
     const svg = await page.evaluate(async () => {
       const original = document.getElementById("native-embed");
       if (!original) throw new Error("No rendered embed");
@@ -126,7 +134,10 @@ export async function POST(request: Request) {
           target instanceof HTMLImageElement &&
           source.src
         ) {
-          if (source.closest("[data-native-article]") && source.naturalWidth === 0) {
+          if (
+            source.closest("[data-native-article]") &&
+            source.naturalWidth === 0
+          ) {
             target.removeAttribute("src");
             continue;
           }

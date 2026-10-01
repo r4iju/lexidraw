@@ -159,7 +159,8 @@ import Synchronization
           articleElements = result.accessibility.map { item in
             let element = ArticleAccessibilityElement(accessibilityContainer: self)
             element.accessibilityLabel = item.text
-            element.accessibilityTraits = item.role == "heading" ? [.staticText, .header] : item.role == "link" && item.url != nil ? .link : .staticText
+            element.accessibilityTraits = item.role == "link" && item.url != nil ? .link : .staticText
+            if item.heading { element.accessibilityTraits.insert(.header) }
             element.activate = item.url.map { url in { UIApplication.shared.open(url); return true } }
             return (element, item.rect)
           }

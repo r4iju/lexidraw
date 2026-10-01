@@ -1,5 +1,5 @@
 /** Serializable browser callback: each visible text node belongs to one reading segment. */
-export function extractArticleInteractions() {
+export function extractArticleInteractions(includeAccessibility = false) {
   const article = document.querySelector<HTMLElement>("[data-native-article]");
   const root = document.getElementById("native-embed");
   if (!article || !root) return {};
@@ -17,9 +17,12 @@ export function extractArticleInteractions() {
         height: rect.height,
       })),
   );
+  if (!includeAccessibility)
+    return { accessibleText: article.innerText, links };
   const accessibility: {
     role: "heading" | "text" | "link";
     text: string;
+    heading?: boolean;
     url?: string;
     x: number;
     y: number;
@@ -42,6 +45,7 @@ export function extractArticleInteractions() {
       accessibility.push({
         role: group.url ? "link" : group.heading ? "heading" : "text",
         text,
+        ...(group.heading ? { heading: true } : {}),
         ...(group.url ? { url: group.url } : {}),
         x: rect.x - origin.x,
         y: rect.y - origin.y,

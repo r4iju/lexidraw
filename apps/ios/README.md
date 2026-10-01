@@ -1001,3 +1001,7 @@ The disposable fixture/probe is retained at
 from that app). Both T3 Chromium and the local browser reproduced duplicated
 links and omitted bare/list text before the fix (`134-article-reading-red.log`),
 then passed the same ordered-text, link URL and positive-geometry assertions.
+
+Linked headings retain both the heading and link traits. Actual Chromium first failed the linked-heading flag check (`/tmp/134-linked-heading-browser-red.log`); after the optional DTO field was established, the native trait check also failed (`/tmp/134-linked-heading-red2.xcresult`) before the UI fix. The earlier native run with an unknown fixture key was a decoder-shape failure, not behavioral proof.
+
+Accessibility segments are negotiated with the optional `includeAccessibility` request flag. Older native response decoders reject unknown keys, so requests without that flag receive the prior article response shape. The browser compatibility check failed before gating (`/tmp/134-article-capability-red.log`). New clients also retain the whole-text fallback when an older server omits the metadata.
