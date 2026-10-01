@@ -1,3 +1,13 @@
+/// An engine that exposes keyboard changes immediately while recording a
+/// logical keyboard group as one history update over its original/final state.
+public protocol KeyboardInputHistory: EditorModel {
+  var inputHistoryDelayMilliseconds: Int { get }
+  var inputHistoryRevision: Int { get }
+  func beginInputTurn() -> Int
+  func isInputTurnActive(_ token: Int) -> Bool
+  func endInputTurn(_ token: Int)
+}
+
 /// The editor-model interface: everything a view needs from a document model,
 /// and the seam the reference fixtures and differential fuzzer test at.
 public protocol EditorModel: AnyObject {

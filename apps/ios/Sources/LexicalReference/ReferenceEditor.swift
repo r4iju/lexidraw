@@ -78,6 +78,10 @@ public final class ReferenceEditor: EditorModel {
     return try decoder.decode(ChangeSet.self, from: Data(result.utf8))
   }
 
+  public func applyInputTurn(_ commands: [EditorCommand]) throws {
+    _ = try call("applyInputTurn", String(decoding: try encoder.encode(commands), as: UTF8.self))
+  }
+
   public func snapshot() throws -> Snapshot {
     try decodeSnapshot(call("snapshot"))
   }

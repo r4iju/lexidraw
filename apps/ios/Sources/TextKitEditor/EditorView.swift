@@ -141,6 +141,44 @@ public final class EditorView: UIScrollView, UITextInput {
   /// When the model last heard from the view, for the time its history
   /// merges edits by.
   private var lastCommand = ProcessInfo.processInfo.systemUptime
+  private var inputTurnToken: Int?
+  private struct AcceptedReplacement {
+    let selection: Selection
+    let finishedAt: TimeInterval
+    let revision: Int
+  }
+  private var acceptedReplacement: AcceptedReplacement?
+  private func beginKeyboardInputTurn() {
+    guard let history = model as? any KeyboardInputHistory else { return }
+    if let token = inputTurnToken, !history.isInputTurnActive(token) {
+      inputTurnToken = nil
+      acceptedReplacement = nil
+    }
+    if inputTurnToken == nil { inputTurnToken = history.beginInputTurn() }
+    let token = inputTurnToken!
+    DispatchQueue.main.async { [weak self, history] in
+      guard let self else { history.endInputTurn(token); return }
+      guard self.inputTurnToken == token, self.acceptedReplacement == nil else { return }
+      self.endKeyboardInputTurn()
+    }
+  }
+  private func endKeyboardInputTurn() {
+    acceptedReplacement = nil
+    guard let token = inputTurnToken else { return }
+    inputTurnToken = nil
+    (model as? any KeyboardInputHistory)?.endInputTurn(token)
+  }
+  private func continueAcceptedReplacement(with text: String) {
+    guard let acceptedReplacement else { return }
+    guard let history = model as? any KeyboardInputHistory else { endKeyboardInputTurn(); return }
+    let continues = text == " " && composition == nil && selected.length == 0
+      && modelSelection() == acceptedReplacement.selection
+      && history.inputHistoryRevision == acceptedReplacement.revision
+      && (ProcessInfo.processInfo.systemUptime - acceptedReplacement.finishedAt) * 1000
+        < Double(history.inputHistoryDelayMilliseconds)
+    if continues { self.acceptedReplacement = nil }
+    else { endKeyboardInputTurn() }
+  }
   private var lastChangeChangedParent = false
 
   /// Called after each call a keyboard's input method makes.
@@ -605,6 +643,7 @@ public final class EditorView: UIScrollView, UITextInput {
   /// what the command changed, where the model took it.
   @discardableResult
   private func perform(_ command: EditorCommand, fromInput: Bool, tellsRefusal: Bool = false, preservingTypingAttributes: Bool = false, typeaheadSelection: (Point, Point)? = nil) -> ChangeSet? {
+    if !fromInput { endKeyboardInputTurn() }
     guard isEditable || !command.edits else { return nil }
     switch command {
     case .insertText, .commitComposition, .deleteCharacter, .deleteWord, .deleteLine, .insertParagraph, .insertLineBreak, .formatText, .tab:
@@ -850,6 +889,8 @@ public final class EditorView: UIScrollView, UITextInput {
   public var hasText: Bool { storage.length > 1 }
 
   public func insertText(_ text: String) {
+    continueAcceptedReplacement(with: text)
+    beginKeyboardInputTurn()
     if text == "\n", typeahead?.choose() == true { return }
     if composition != nil {
       commit(text)
@@ -860,6 +901,8 @@ public final class EditorView: UIScrollView, UITextInput {
   }
 
   public func deleteBackward() {
+    if acceptedReplacement != nil { endKeyboardInputTurn() }
+    beginKeyboardInputTurn()
     commitMarkedText()
     perform(.deleteCharacter(backward: true), fromInput: true)
     report(.deleteBackward)
@@ -870,11 +913,12 @@ public final class EditorView: UIScrollView, UITextInput {
   }
 
   public override func willMove(toSuperview newSuperview: UIView?) {
-    if newSuperview !== superview { typeahead?.clear() }
+    if newSuperview !== superview { endKeyboardInputTurn(); typeahead?.clear() }
     super.willMove(toSuperview: newSuperview)
   }
 
   public override func resignFirstResponder() -> Bool {
+    endKeyboardInputTurn()
     let resigned = super.resignFirstResponder()
     if resigned { typeahead?.clear() }
     return resigned
@@ -904,6 +948,7 @@ public final class EditorView: UIScrollView, UITextInput {
   public var markedTextRange: UITextRange? { composition.map { TextRange($0.marked) } }
 
   public func setMarkedText(_ markedText: String?, selectedRange: NSRange) {
+    endKeyboardInputTurn()
     let text = markedText ?? ""
     // Selected nodes have no caret to compose at, as a browser shows none.
     if isNodeSelection, composition == nil { return report(.setMarkedText(text, selectedRange: selectedRange)) }
@@ -924,6 +969,8 @@ public final class EditorView: UIScrollView, UITextInput {
   }
 
   public func unmarkText() {
+    if acceptedReplacement != nil { endKeyboardInputTurn() }
+    beginKeyboardInputTurn()
     commitMarkedText()
     report(.unmarkText)
   }
@@ -958,6 +1005,7 @@ public final class EditorView: UIScrollView, UITextInput {
       guard let range = newValue as? TextRange else { return }
       let snapped = wholeCharacters(range.range)
       guard composition != nil || snapped != selected || caretBeforeBlock != nil else { return }
+      endKeyboardInputTurn()
       caretBeforeBlock = nil
       anchor = snapped.location
       focus = NSMaxRange(snapped)
@@ -968,6 +1016,7 @@ public final class EditorView: UIScrollView, UITextInput {
 
   /// Moves the caret by keyboard, or extends the selection's moving end.
   private func move(to offset: Int, extending: Bool) {
+    endKeyboardInputTurn()
     caretBeforeBlock = nil
     inputDelegate?.selectionWillChange(self)
     focus = clamp(offset)
@@ -996,13 +1045,25 @@ public final class EditorView: UIScrollView, UITextInput {
 
   public func replace(_ range: UITextRange, withText text: String) {
     guard let range = range as? TextRange else { return }
-    commitMarkedText()
+    endKeyboardInputTurn()
+    beginKeyboardInputTurn()
     let replaced = wholeCharacters(range.range)
+    let replacingWord = composition == nil && selected.length == 0 && replaced.length > 0
+      && NSMaxRange(replaced) == selected.location && !text.isEmpty
+      && !text.contains(where: \.isWhitespace)
+      && !(storage.string as NSString).substring(with: replaced).contains(where: \.isWhitespace)
+    commitMarkedText()
     caretBeforeBlock = nil
     anchor = replaced.location
     focus = NSMaxRange(replaced)
     sendSelection()
     insert(text, fromInput: true)
+    if replacingWord, let token = inputTurnToken, let history = model as? any KeyboardInputHistory,
+      history.isInputTurnActive(token),
+      let selection = modelSelection(), selection.isCollapsed {
+      acceptedReplacement = AcceptedReplacement(selection: selection, finishedAt: ProcessInfo.processInfo.systemUptime,
+        revision: history.inputHistoryRevision)
+    }
   }
 
   public func textRange(from fromPosition: UITextPosition, to toPosition: UITextPosition) -> UITextRange? {
