@@ -490,7 +490,7 @@ extension Update {
   /// list's before rich text's.
   mutating func enter(_ selection: RangeSelection) throws {
     escapeCaseFormats(selection)
-    if try !insertParagraphLeavingList() { try insertParagraph(selection) }
+    if try editorContext != .document || !insertParagraphLeavingList() { try insertParagraph(selection) }
   }
 
   /// Rich text's Enter, Shift too where `lineBreak`, over selected nodes: a
@@ -517,7 +517,7 @@ extension Update {
   /// then rich text's, which outdents a block the caret is at the front of
   /// and otherwise deletes a character.
   mutating func backspace(_ selection: RangeSelection) throws {
-    if try collapseListItemAtStartOfSelection(selection) { return }
+    if editorContext == .document, try collapseListItemAtStartOfSelection(selection) { return }
     if try isCollapsedAtFrontOfIndentedBlock(selection) { return try outdentContent() }
     if structuralDelete(selection) { return }
     try deleteCharacter(selection, backward: true)
@@ -557,7 +557,7 @@ extension Update {
   /// (`registerListMaxIndentLevel`), and otherwise every selected block one
   /// deeper.
   mutating func indentContent() throws {
-    if try isIndentTooDeep() { return }
+    if editorContext == .document, try isIndentTooDeep() { return }
     _ = try indentSelectedBlocks(outdenting: false)
   }
 
@@ -627,6 +627,7 @@ extension Update {
   /// either inserts a tab.
   mutating func tab(_ selection: RangeSelection, backward: Bool) throws {
     escapeCaseFormats(selection)
+    guard hasEditorPlugin("TabIndentationPlugin") else { return }
     guard try indentsOverTab(selection) else { return try insertTab(selection) }
     if backward {
       try outdentContent()

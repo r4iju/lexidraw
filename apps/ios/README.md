@@ -1081,3 +1081,13 @@ Review-fix evidence: the retained actual-Chromium probe observed
 `overlay: true` for later positioned overlapping text before the stacking guard
 (`/tmp/134-images-stacking-red.log`), then passed with raster refusal. Worker
 TypeScript and production simulator app build passed after the review fixes.
+Sticky captions use the actual generated `StickyComponent` mount: inherited
+node registration, `PlainTextPlugin`, and no caption `HistoryPlugin`. The native
+panel retains an owner-keyed child editor instead of replacing serialized
+caption JSON on each keystroke. Caption undo/redo delegates to the parent;
+parent undo preserves live caption text, and both editors share history time.
+Readonly panels display snapshots without mutation. Paired source tests cover
+these history rules and the plain clipboard channel; the headless clipboard
+oracle still excludes HTML serialization. Explicit replacement of an already
+open caption remains an owning-#134 refusal until source-equivalent state import
+and history semantics are ported.

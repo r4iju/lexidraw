@@ -73,6 +73,11 @@ import UIKit
     update(format: [])
   }
 
+  func setMenuAvailability(lists availableLists: Bool, insert availableInsert: Bool) {
+    lists.isHidden = !availableLists
+    insert.isHidden = !availableInsert
+  }
+
   override var intrinsicContentSize: CGSize { CGSize(width: UIView.noIntrinsicMetric, height: 48) }
 
   func update(format: TextFormat) {

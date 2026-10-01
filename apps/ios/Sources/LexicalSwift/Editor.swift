@@ -5,7 +5,9 @@ public final class Editor: EditorModel {
   private var nextKey: NodeKey = 0
   private var revisions = 0
   private var history = History(EditorState(nodes: [:], selection: nil))
-  private var now = 0
+  private final class HistoryClock { var milliseconds = 0 }
+  private var clock = HistoryClock()
+  private var now: Int { clock.milliseconds }
   /// Whether the document holds only what the editing commands are ported
   /// for: paragraphs, headings, quotes, lists, horizontal rules, line
   /// breaks, tabs and text in any format, with no field the payload types
@@ -18,26 +20,102 @@ public final class Editor: EditorModel {
 
   public var supportsRichText: Bool { !plainText }
   private let plainText: Bool
-  public init(plainText: Bool = false) { self.plainText = plainText }
+  private let editorContext: EditorContext
+  private struct CaptionIdentity: Hashable {
+    let key: NodeKey
+    let revision: Int
+  }
+  private final class CachedCaption {
+    weak var lifetime: CaptionLifetime?
+    let editor: Editor
+    init(_ editor: Editor, lifetime: CaptionLifetime?) {
+      self.editor = editor
+      self.lifetime = lifetime
+    }
+  }
+  private var captionEditors: [CaptionIdentity: CachedCaption] = [:]
+  private var pruneCaptionsAfterHistoryDiscard = false
+
+  private func pruneExpiredCaptions() {
+    captionEditors = captionEditors.filter { $0.value.lifetime != nil }
+  }
+  private var captionOwnerIdentity: CaptionIdentity?
+
+  private func captionIdentity(for key: NodeKey, in state: EditorState) -> CaptionIdentity {
+    CaptionIdentity(key: key, revision: state.nodes[key]?.type == "video" ? state.nodes[key]!.revision : 0)
+  }
+  private weak var captionParent: Editor?
+  private var captionOwnerKey: NodeKey?
+  public init(plainText: Bool = false, editorContext: EditorContext = .document) {
+    self.plainText = plainText
+    self.editorContext = editorContext
+  }
 
   public func load(_ json: JSONValue) throws {
     guard let root = json["root"], root["type"] == "root" else { throw EditorError.invalidState("No root") }
     var update = Update(EditorState(nodes: [:], selection: nil), nextKey: 0, revision: nextRevision())
     update.plainText = plainText
+    update.editorContext = editorContext
     _ = try update.parse(root)
     try update.applyTransforms()
+    if update.unregisteredType != nil {
+      throw EditorError.invalidState("Node type is not registered in \(editorContext.rawValue)")
+    }
     update.collectGarbage()
     state = update.state
     nextKey = update.nextKey
-    now = 0
+    clock = HistoryClock()
     history = History(state)
+    captionEditors = [:]
     knowsListMarker = false
     isEditable = state.nodes.values.allSatisfy(\.isEditable)
   }
 
   @discardableResult
   public func apply(_ command: EditorCommand) throws -> ChangeSet {
+    defer {
+      if pruneCaptionsAfterHistoryDiscard {
+        pruneExpiredCaptions()
+        pruneCaptionsAfterHistoryDiscard = false
+      }
+    }
+    return try applyCommand(command)
+  }
+
+  private func applyCommand(_ command: EditorCommand) throws -> ChangeSet {
     guard !state.nodes.isEmpty else { throw EditorError.invalidState("No document loaded") }
+    if let captionOwnerKey {
+      guard let captionParent, let captionOwnerIdentity, captionParent.state.path(of: captionOwnerKey) != nil,
+        captionOwnerIdentity == captionParent.captionIdentity(for: captionOwnerKey, in: captionParent.state),
+        captionParent.captionEditors[captionOwnerIdentity]?.editor === self else {
+        throw EditorError.invalidState("The caption owner no longer exists")
+      }
+      switch command {
+      case .undo, .redo:
+        if !editorContext.mountedPlugins.contains("HistoryPlugin") {
+          let change = try captionParent.apply(command)
+          return ChangeSet(clipboard: change.clipboard, parentChanged: !change.changed.isEmpty || change.parentChanged)
+        }
+      case .insertList, .removeList:
+        guard captionParent.state.selection != nil else { return ChangeSet(changed: []) }
+        let change = try captionParent.apply(command)
+        return ChangeSet(clipboard: change.clipboard, parentChanged: !change.changed.isEmpty || change.parentChanged)
+      case .tab:
+        let saved = (state, nextKey, history, knowsListMarker)
+        do {
+          var change = try commit { try $0.run(command, plainText: plainText) }
+          if case .range = captionParent.state.selection {
+            let parent = try captionParent.apply(command)
+            change.parentChanged = !parent.changed.isEmpty || parent.parentChanged
+          }
+          return change
+        } catch {
+          (state, nextKey, history, knowsListMarker) = saved
+          throw error
+        }
+      default: break
+      }
+    }
     switch command {
     case .updateStructuralFields(let path, let fields):
       guard let index = path.last else { throw EditorError.invalidState("No structural node") }
@@ -64,11 +142,12 @@ public final class Editor: EditorModel {
       for (field, value) in changes { replacement[field] = value }
       return try replaceEmbeddedNode(key: keys[index], expected: original, replacement: .object(replacement), clearsSelection: original["type"] == "sticky" && (changes["xOffset"] != nil || changes["yOffset"] != nil))
     case .wait(let milliseconds):
-      now += milliseconds
+      clock.milliseconds += milliseconds
       return ChangeSet(changed: [])
     case .undo, .redo:
       let restored = command == .undo ? history.undo(at: now) : history.redo(at: now)
       guard let restored else { return ChangeSet(changed: []) }
+      resetMountedCaptionHistory(from: state, to: restored, keys: Array(Set(captionEditors.keys.map(\.key))))
       defer { state = restored }
       return ChangeSet(changed: restored.changedPaths(since: state))
     default:
@@ -149,9 +228,12 @@ public final class Editor: EditorModel {
   private func replaceEmbeddedNode(key: String, expected: JSONValue, replacement: JSONValue?, clearsSelection: Bool) throws -> ChangeSet {
     guard isEditable else { throw EditorError.unsupported("This document cannot be edited") }
     guard let key = NodeKey(key), let node = state.nodes[key], (node.isDecorator || Self.structuralTypes.contains(node.type)),
-      state.json(of: key) == expected, replacement == nil || replacement?["type"] == expected["type"]
+      captionJSON(of: key) == expected, replacement == nil || replacement?["type"] == expected["type"]
     else { throw EditorError.invalidState("The block changed while its editor was open") }
     guard let replacement else { return try commit { try $0.remove(key) } }
+    guard captionEditors[captionIdentity(for: key, in: state)] == nil || replacement["caption"] == expected["caption"] else {
+      throw EditorError.unsupported("Replacing an open caption's editor state requires #134")
+    }
     // Load with the registered schemas before committing; unknown fields/nodes
     // cannot make an editable document silently become an approximated one.
     let validation = Editor()
@@ -195,7 +277,9 @@ public final class Editor: EditorModel {
   ) throws -> ChangeSet {
     var update = Update(state, nextKey: nextKey, revision: nextRevision(), knowsListMarker: knowsListMarker)
     update.plainText = plainText
+    update.editorContext = editorContext
     update.tags = tags
+    update.resolveNestedEditorJSON = resolveCaptionJSON
     try run(&update)
     shortcutsDeclinedAsNotPorted += update.shortcutsDeclinedAsNotPorted
     let clipboard = update.clipboard
@@ -203,13 +287,15 @@ public final class Editor: EditorModel {
     guard try commit(&update) else { return ChangeSet(changed: [], clipboard: clipboard) }
     var changed = update.changedKeys
     var compositionEnd = compositionEnd
-    while !plainText,
+    while !plainText, editorContext == .document || editorContext.mountedPlugins.contains("MarkdownShortcutPlugin"),
       let caret = state.markdownShortcutCaret(
         after: previous, dirtyLeaves: update.dirtyLeaves, compositionEnd: compositionEnd)
     {
       compositionEnd = false
       previous = state
       update = Update(state, nextKey: nextKey, revision: nextRevision(), knowsListMarker: knowsListMarker)
+      update.editorContext = editorContext
+      update.resolveNestedEditorJSON = resolveCaptionJSON
       let isShortcut: Bool
       do { isShortcut = try update.runMarkdownShortcut(at: caret) } catch { throw ShortcutFailure(error: error) }
       shortcutsDeclinedAsNotPorted += update.shortcutsDeclinedAsNotPorted
@@ -222,7 +308,13 @@ public final class Editor: EditorModel {
   /// Lexical commits an update that marked a node or moved the selection,
   /// and drops one that did neither. Returns whether `update` committed.
   private func commit(_ update: inout Update, pushingHistory: Bool = false) throws -> Bool {
+    if update.unregisteredType != nil {
+      throw EditorError.invalidState("Node type is not registered in \(editorContext.rawValue)")
+    }
     try update.applyTransforms()
+    if update.unregisteredType != nil {
+      throw EditorError.invalidState("Node type is not registered in \(editorContext.rawValue)")
+    }
     update.collectGarbage()
     if let selection = update.selection,
       update.state.nodes[selection.anchor.key] == nil || update.state.nodes[selection.focus.key] == nil
@@ -251,8 +343,32 @@ public final class Editor: EditorModel {
     guard update.hasDirtyNodes || movesSelection else { return false }
     var next = update.state
     next.selection = saved
-    history.record(update, from: state, to: next, at: now, pushing: pushingHistory)
+    if editorContext == .document || editorContext.mountedPlugins.contains("HistoryPlugin") {
+      pruneCaptionsAfterHistoryDiscard = history.record(update, from: state, to: next, at: now, pushing: pushingHistory) || pruneCaptionsAfterHistoryDiscard
+    }
+    // VideoNode.afterCloneFrom copies its live caption editor. Image and
+    // sticky clones retain theirs, so only video revisions need new identity.
+    for key in update.changedKeys where next.nodes[key]?.type == "video" && state.nodes[key]?.type == "video" {
+      let previousIdentity = captionIdentity(for: key, in: state)
+      let nextIdentity = captionIdentity(for: key, in: next)
+      if previousIdentity != nextIdentity, let previous = captionEditors[previousIdentity]?.editor {
+        let copy = Editor(plainText: previous.plainText, editorContext: previous.editorContext)
+        copy.state = previous.state
+        copy.nextKey = previous.nextKey
+        copy.revisions = previous.revisions
+        copy.history = History(copy.state)
+        copy.clock = clock
+        copy.isEditable = previous.isEditable
+        copy.captionEditors = previous.captionEditors
+        copy.captionParent = self
+        copy.captionOwnerKey = key
+        copy.captionOwnerIdentity = nextIdentity
+        captionEditors[nextIdentity] = CachedCaption(copy, lifetime: next.nodes[key]?.captionLifetime)
+      }
+    }
+    resetMountedCaptionHistory(from: state, to: next, keys: update.changedKeys)
     state = next
+    if pruneCaptionsAfterHistoryDiscard { pruneExpiredCaptions() }
     nextKey = update.nextKey
     knowsListMarker = update.knowsListMarker
     return true
@@ -269,7 +385,70 @@ public final class Editor: EditorModel {
 
   public func serializedState() throws -> JSONValue {
     guard !state.nodes.isEmpty else { throw EditorError.invalidState("No document loaded") }
-    return state.json
+    return ["root": captionJSON(of: EditorState.rootKey)]
+  }
+
+  private func resetMountedCaptionHistory(from previous: EditorState, to next: EditorState, keys: [NodeKey]) {
+    // Visibility and video-owner identity changes remount HistoryPlugin over
+    // retained state. Parent undo can cause the same mount as a direct setter.
+    for key in keys {
+      guard let shown = next.nodes[key],
+        ["image", "inline-image", "video"].contains(shown.type),
+        shown.payload.json["showCaption"] == true,
+        shown.type == "image" || shown.payload.json["captionsEnabled"] != false,
+        previous.nodes[key]?.payload.json["showCaption"] != true
+          || captionIdentity(for: key, in: previous) != captionIdentity(for: key, in: next),
+        let caption = captionEditors[captionIdentity(for: key, in: next)]?.editor else { continue }
+      caption.history = History(caption.state)
+    }
+  }
+
+  public func captionEditor(key: String) throws -> any EditorModel {
+    guard isEditable else { throw EditorError.unsupported("This document cannot be edited") }
+    guard let key = NodeKey(key), let node = state.nodes[key], state.path(of: key) != nil else {
+      throw EditorError.invalidState("The caption owner no longer exists")
+    }
+    let context: EditorContext
+    switch node.type {
+    case "sticky": context = .stickyCaption
+    case "image": context = .imageCaption
+    case "inline-image": context = .inlineImageCaption
+    case "video": context = .videoCaption
+    default: throw EditorError.unsupported("This caption's ownership requires #134")
+    }
+    let identity = captionIdentity(for: key, in: state)
+    if let editor = captionEditors[identity]?.editor { return editor }
+    let fields = node.payload.json
+    guard let constructor = MediaInsertions.nodes[node.type] ?? StructuralBlockConfiguration.insertionNodes[node.type],
+      let caption = try fields["caption"] ?? JSONValue(parsing: constructor)["caption"],
+      let saved = node.type == "video" ? caption : caption["editorState"] else {
+      throw EditorError.invalidState("No caption editor state")
+    }
+    let editor = Editor(plainText: context.mountedPlugins.contains("PlainTextPlugin"), editorContext: context)
+    try editor.load(saved)
+    editor.clock = clock
+    editor.captionParent = self
+    editor.captionOwnerKey = key
+    editor.captionOwnerIdentity = identity
+    captionEditors[identity] = CachedCaption(editor, lifetime: node.captionLifetime)
+    return editor
+  }
+
+  private func captionJSON(of key: NodeKey, canonicalKeyOrder: Bool = true) -> JSONValue {
+    guard !captionEditors.isEmpty else { return state.json(of: key, canonicalKeyOrder: canonicalKeyOrder) }
+    return state.json(of: key, canonicalKeyOrder: canonicalKeyOrder, resolve: resolveCaptionJSON)
+  }
+
+  private func resolveCaptionJSON(_ key: NodeKey, _ value: JSONValue) -> JSONValue {
+    guard let editor = captionEditors[captionIdentity(for: key, in: state)]?.editor, var fields = value.objectValue else { return value }
+    if state.nodes[key]?.type == "video" {
+      fields["caption"] = ["root": editor.captionJSON(of: EditorState.rootKey)]
+      return .object(fields)
+    }
+    var caption = fields["caption"]?.objectValue ?? [:]
+    caption["editorState"] = ["root": editor.captionJSON(of: EditorState.rootKey)]
+    fields["caption"] = .object(caption)
+    return .object(fields)
   }
 
   /// `state` as an editor that registers `types` saves it once it has read
@@ -291,11 +470,11 @@ public final class Editor: EditorModel {
   }
 
   public func node(at path: [Int]) throws -> JSONValue {
-    state.json(of: try key(at: path))
+    captionJSON(of: try key(at: path))
   }
 
   public func nodeForPresentation(at path: [Int]) throws -> JSONValue {
-    state.json(of: try key(at: path), canonicalKeyOrder: false)
+    captionJSON(of: try key(at: path), canonicalKeyOrder: false)
   }
 
   public func elementFormatting(at path: [Int]) throws -> JSONValue {
@@ -373,7 +552,7 @@ extension Node {
     case .excalidraw(let node): node.unknownFields.isEmpty && (node.data == nil || node.data?.stringValue != nil)
     case .text(let node): node.unknownFields.isEmpty && node.mode == .normal && [0, 1].contains(node.detail ?? 0)
     case .hashtag(let node): node.unknownFields.isEmpty && node.mode == .normal && (node.detail ?? 0) == 0
-    case .keyword(let node): node.unknownFields.isEmpty && node.mode == .normal && node.detail?.numberValue == 0
+    case .keyword(let node): node.unknownFields.isEmpty && node.detail?.numberValue == 0
       && node.text?.stringValue != nil && node.style?.stringValue != nil && node.format?.numberValue != nil
     case .emoji(let node): node.unknownFields.isEmpty && (node.mode == .normal || node.mode == .token)
       && node.detail?.numberValue == 0 && node.text?.stringValue != nil && node.style?.stringValue != nil
@@ -479,7 +658,7 @@ extension Update {
     }
     if command == .selectAll {
       // Rich text answers what the table's handler leaves.
-      if try !selectAllCells() { selectAll() }
+      if try !hasEditorPlugin("TablePlugin") || !selectAllCells() { selectAll() }
       return
     }
     if case .toggleChecked(let path) = command {
@@ -513,7 +692,7 @@ extension Update {
     switch command {
     case .insertText(let text), .commitComposition(let text): try insertText(selection, text)
     case .deleteCharacter(let backward):
-      if try deleteCellHandler() { return }
+      if hasEditorPlugin("TablePlugin"), try deleteCellHandler() { return }
       guard let grown = self.selection else { return }
       if backward { try backspace(grown) } else if !structuralDelete(grown) { try deleteCharacter(grown, backward: false) }
     case .deleteWord(let backward): try deleteWord(selection, backward: backward)
@@ -524,7 +703,9 @@ extension Update {
         lineBoundary: KeyPoint(key: boundary, offset: lineBoundary.offset, type: lineBoundary.type))
     case .insertParagraph:
       if try !structuralEnter(selection) {
-        if try !runMarkdownShortcutOnEnter(selection) { try enter(selection) }
+        if editorContext != .document && !editorContext.mountedPlugins.contains("MarkdownShortcutPlugin") {
+          try enter(selection)
+        } else if try !runMarkdownShortcutOnEnter(selection) { try enter(selection) }
       }
     case .insertLineBreak: try insertLineBreak(selection)
     case .formatText(let format): try formatText(selection, format)
@@ -534,8 +715,8 @@ extension Update {
     case .changeFontSize(let increase): try changeFontSize(selection, increase: increase)
     case .clearFormatting: try clearFormatting(selection)
     case .setWritingDirection(let direction): try setWritingDirection(selection, direction)
-    case .insertList(let listType): try insertList(ListType(listType))
-    case .removeList: try removeList()
+    case .insertList(let listType): if editorContext == .document { try insertList(ListType(listType)) }
+    case .removeList: if editorContext == .document { try removeList() }
     case .indent: try indentContent()
     case .outdent: try outdentContent()
     case .toggleLink(let url): try toggleLinkCommand(selection, url: url)
@@ -543,7 +724,8 @@ extension Update {
     case .copy: clipboard = try copy(selection)
     case .paste(let clipboard): try paste(selection, clipboard)
     case .tab(let backward):
-      if try !tabHandler(backward: backward) { try tab(selection, backward: backward) }
+      if !hasEditorPlugin("TablePlugin") { try tab(selection, backward: backward) }
+      else if try !tabHandler(backward: backward) { try tab(selection, backward: backward) }
     default: try runOnTable(command)
     }
   }
@@ -570,7 +752,7 @@ extension Update {
     case .tab: break
     // `$toggleLink` leaves a table selection be.
     case .toggleLink, .editLink: break
-    case .insertList(let listType): try insertList(selection, ListType(listType))
+    case .insertList(let listType): if editorContext == .document { try insertList(selection, ListType(listType)) }
     // `$removeList` and `$handleIndentAndOutdent` answer a range selection
     // alone.
     case .removeList, .indent, .outdent: break
@@ -601,7 +783,7 @@ extension Update {
     case .formatElement(let format): formatElements(nodes(in: selection), format)
     case .changeFontSize(let increase): try changeFontSizeOfNodes(nodes(in: selection), increase: increase)
     case .clearFormatting: break
-    case .insertList(let listType): try insertList(selection, ListType(listType))
+    case .insertList(let listType): if editorContext == .document { try insertList(selection, ListType(listType)) }
     // `$removeList`, `$handleIndentAndOutdent` and Tab indentation answer a
     // range selection alone.
     case .removeList, .indent, .outdent, .tab: break
@@ -616,7 +798,7 @@ extension Update {
   /// The insert-table dialog and the table menu.
   private mutating func runOnTable(_ command: EditorCommand) throws {
     switch command {
-    case .insertTable(let rows, let columns): try insertDocumentTable(rows: rows, columns: columns)
+    case .insertTable(let rows, let columns): if hasEditorPlugin("TablePlugin") { try insertDocumentTable(rows: rows, columns: columns) }
     case .insertTableRow(let after): try insertDocumentTableRows(after: after)
     case .insertTableColumn(let after): try insertDocumentTableColumns(after: after)
     case .deleteTableRow: try deleteTableRowAtSelection()
@@ -666,7 +848,7 @@ extension Update {
     } else {
       placed.format = try combinedFormat(placed, anchorAt, focusAt)
     }
-    try fixRangeSelectionForSelectedTable(placed)
+    if hasEditorPlugin("TablePlugin") { try fixRangeSelectionForSelectedTable(placed) }
   }
 
   /// `combinedFormat` in `reference/entry.ts`.

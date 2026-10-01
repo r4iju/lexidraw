@@ -5,6 +5,9 @@ extension Update {
     guard case .object(var fields) = json, let type = fields["type"]?.stringValue else {
       throw EditorError.invalidState("A node without a type")
     }
+    if let registered = editorContext.registeredTypes, !registered.contains(type) {
+      throw EditorError.invalidState("Node type \(type) is not registered in \(editorContext.rawValue)")
+    }
     guard let traits = NodeTraits.byType[type] else {
       return create(.opaque(json.withoutKeys), type: type, children: nil)
     }

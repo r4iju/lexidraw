@@ -66,7 +66,7 @@ export function swiftForMediaImages(): string {
 }
 
 export const MEDIA_INSERTIONS_PATH = new URL(
-  "../Sources/TextKitEditor/MediaInsertions.swift",
+  "../Sources/LexidrawJSON/MediaInsertions.swift",
   import.meta.url,
 );
 export async function swiftForMediaInsertions(): Promise<string> {
@@ -197,7 +197,7 @@ export async function swiftForMediaInsertions(): Promise<string> {
     /altText: ("[^"\n]*"),\s*src: ("[^"\n]*cat-typing\.gif")/,
   );
   if (!gif) throw new Error("Unknown toolbar GIF insertion shape");
-  return `// Generated from web media constructors and insertion URL parsers.\nimport Foundation\n\nenum MediaInsertions {\n  static let nodes: [String: String] = [\n${Object.entries(
+  return `// Generated from web media constructors and insertion URL parsers.\nimport Foundation\n\npublic enum MediaInsertions {\n  public static let nodes: [String: String] = [\n${Object.entries(
     factories,
   )
     .map(
@@ -206,13 +206,13 @@ export async function swiftForMediaInsertions(): Promise<string> {
     .join("\n")}\n  ]\n${Object.entries(patterns)
     .map(
       ([type, regex]) =>
-        `  static let ${type}Pattern = ${swiftRawString(regex)}`,
+        `  public static let ${type}Pattern = ${swiftRawString(regex)}`,
     )
     .join("\n")}\n${Object.entries(captures)
-    .map(([type, capture]) => `  static let ${type}Capture = ${capture}`)
+    .map(([type, capture]) => `  public static let ${type}Capture = ${capture}`)
     .join(
       "\n",
-    )}\n  static let inlinePositions: [(String, String)] = [${positions.map(([value, label]) => `(${JSON.stringify(value)}, ${JSON.stringify(label)})`).join(", ")}]\n  static let youtubeIDLength = ${youtubeIDLength}\n  static let gifSource = ${gif[2]}\n  static let gifAltText = ${gif[1]}\n}\n`;
+    )}\n  public static let inlinePositions: [(String, String)] = [${positions.map(([value, label]) => `(${JSON.stringify(value)}, ${JSON.stringify(label)})`).join(", ")}]\n  public static let youtubeIDLength = ${youtubeIDLength}\n  public static let gifSource = ${gif[2]}\n  public static let gifAltText = ${gif[1]}\n}\n`;
 }
 
 export const MEDIA_VIDEOS_PATH = new URL(

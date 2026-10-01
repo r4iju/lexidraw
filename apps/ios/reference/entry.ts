@@ -1,3 +1,4 @@
+import { registerPlainText } from "@lexical/plain-text";
 import { withDOM } from "@lexical/headless/dom";
 import { $generateNodesFromDOM } from "@lexical/html";
 import { htmlToPlainText, ArticleNode, CalloutNode, LayoutContainerNode, StickyNode, SlideNode, CollapsibleContainerNode, CollapsibleContentNode, CollapsibleTitleNode, CommentNode, ThreadNode } from "@packages/lexical-nodes";
@@ -8,6 +9,17 @@ import CalloutPlugin from "../../lexidraw/src/app/documents/[documentId]/plugins
 import CollapsiblePlugin from "../../lexidraw/src/app/documents/[documentId]/plugins/CollapsiblePlugin/index.js";
 import { LayoutPlugin, UPDATE_LAYOUT_COMMAND } from "../../lexidraw/src/app/documents/[documentId]/plugins/LayoutPlugin/LayoutPlugin.js";
 import { withStructuralEditor } from "./structural-hooks.js";
+import { withNestedParent } from "./nested-composer-hooks.js";
+import { LexicalNestedComposer } from "@lexical/react/LexicalNestedComposer";
+import KeywordsPlugin from "../../lexidraw/src/app/documents/[documentId]/plugins/KeywordsPlugin/index.js";
+import EmojisPlugin from "../../lexidraw/src/app/documents/[documentId]/plugins/EmojisPlugin/index.js";
+import { registerLexicalHashtag } from "@lexical/hashtag";
+import { editorContexts, editorRegistries } from "./generated-editor-contexts.js";
+import { registerTabIndentation } from "@lexical/extension";
+let editorContext: keyof typeof editorContexts | "document" = "document";
+function hasContextPlugin(plugin: string): boolean {
+  return editorContext === "document" || editorContexts[editorContext].includes(plugin);
+}
 import {
   $setWritingDirection,
   type WritingDirection,
@@ -244,6 +256,9 @@ let clipboard: Clipboard | undefined;
 /** The clock history reads, which only `wait` moves. */
 let now = 0;
 
+let parentEditor: LexicalEditor | null = null;
+let parentCaptionOwnerKey: string | null = null;
+
 function current(): LexicalEditor {
   if (!editor) throw new EditorError("invalidState", "No document loaded");
   return editor;
@@ -255,21 +270,54 @@ function current(): LexicalEditor {
  * editor updates as a headless one does.
  */
 function load(stateJSON: string): void {
+  parentEditor = null;
+  parentCaptionOwnerKey = null;
+  const registry = editorContext === "document" ? null : editorRegistries[editorContext];
   const next = createEditor({
     namespace: EDITOR_NAMESPACE,
-    nodes: SCHEMA_NODES,
+    nodes: registry ? SCHEMA_NODES.filter(node => registry.includes(node.getType())) : SCHEMA_NODES,
     onError: (error) => {
       lastError = error;
     },
   });
-  withStructuralEditor(next, () => { LayoutPlugin(); CollapsiblePlugin(); CalloutPlugin(); });
+  configureEditor(next, stateJSON);
+}
+
+const mountedRegistrations = new WeakMap<LexicalEditor, (() => void)[]>();
+
+function configureEditor(next: LexicalEditor, stateJSON?: string): void {
+  const cleanups: (() => void)[] = [];
+  const originalCommand = next.registerCommand.bind(next);
+  const originalUpdate = next.registerUpdateListener.bind(next);
+  const originalTransform = next.registerNodeTransform.bind(next);
+  next.registerCommand = (command, listener, priority) => {
+    const cleanup = originalCommand(command, listener, priority);
+    cleanups.push(cleanup);
+    return cleanup;
+  };
+  next.registerUpdateListener = listener => {
+    const cleanup = originalUpdate(listener);
+    cleanups.push(cleanup);
+    return cleanup;
+  };
+  next.registerNodeTransform = (node, listener) => {
+    const cleanup = originalTransform(node, listener);
+    cleanups.push(cleanup);
+    return cleanup;
+  };
+  const plugins = editorContext === "document" ? null : editorContexts[editorContext];
+  withStructuralEditor(next, () => {
+    if (!plugins || plugins.includes("LayoutPlugin")) LayoutPlugin();
+    if (!plugins || plugins.includes("CollapsiblePlugin")) CollapsiblePlugin();
+    if (!plugins || plugins.includes("CalloutPlugin")) CalloutPlugin();
+  });
   lastError = null;
-  const parsed = next.parseEditorState(stateJSON);
+  const parsed = stateJSON === undefined ? null : next.parseEditorState(stateJSON);
   // Parsing reports a bad node through onError and returns an empty state.
   if (lastError) throw lastError;
-  now = 0;
+  if (stateJSON !== undefined) now = 0;
   // Registered first, so the loaded document is where undoing stops.
-  registerHistory(next, createEmptyHistoryState(), 1000, () => now);
+  if (!plugins || plugins.includes("HistoryPlugin")) registerHistory(next, createEmptyHistoryState(), 1000, () => now);
   const registerCommand = next.registerCommand.bind(next);
   next.registerCommand = (command, listener, priority) =>
     registerCommand(
@@ -295,14 +343,16 @@ function load(stateJSON: string): void {
       },
       priority,
     );
-  registerRichText(next);
+  if (plugins?.includes("PlainTextPlugin")) registerPlainText(next);
+  else registerRichText(next);
   next.registerCommand = registerCommand;
-  registerLineMoveOntoBlockDecorators(next);
+  if (!plugins?.includes("PlainTextPlugin")) registerLineMoveOntoBlockDecorators(next);
   // A headless editor refuses root listeners, where an editor without a root
   // element calls them only with none; the checklist's pointer handling
   // registers one, which does nothing without a root.
   next.registerRootListener = () => () => {};
-  registerDocumentEditing(next);
+  if (editorContext === "document") registerDocumentEditing(next);
+  else if (plugins?.includes("TabIndentationPlugin")) registerTabIndentation(next);
   // Rich text deletes through the DOM's selection, which a headless editor
   // hasn't got.
   next.registerCommand(
@@ -316,18 +366,25 @@ function load(stateJSON: string): void {
     COMMAND_PRIORITY_LOW,
   );
   // The document editor's link and table plugins, in the order it mounts them.
-  registerAutoLink(next, {
+  if (editorContext === "document") registerAutoLink(next, {
     changeHandlers: [],
     excludeParents: [],
     matchers: AUTOLINK_MATCHERS,
   });
-  registerTables(next);
-  registerLink(next, namedSignals({ attributes: undefined, validateUrl }));
+  if (!plugins || plugins.includes("TablePlugin")) registerTables(next);
+  if (!plugins || plugins.includes("LinkPlugin")) registerLink(next, namedSignals({ attributes: undefined, validateUrl }));
   // CommentPlugin flattens directly nested marks and merges their thread IDs.
-  registerNestedElementResolver(next, MarkNode,
+  if (editorContext === "document") registerNestedElementResolver(next, MarkNode,
     (from) => $createMarkNode(from.getIDs()),
     (from, to) => { for (const id of from.getIDs()) to.addID(id); });
-  next.setEditorState(parsed);
+  if (parsed) next.setEditorState(parsed);
+  if (editorContext !== "document") {
+    for (const plugin of editorContexts[editorContext]) {
+      if (plugin === "EmojisPlugin") withStructuralEditor(next, () => { EmojisPlugin(); });
+      if (plugin === "HashtagPlugin") registerLexicalHashtag(next);
+      if (plugin === "KeywordsPlugin") withStructuralEditor(next, () => { KeywordsPlugin(); });
+    }
+  }
   next.registerUpdateListener(
     ({ dirtyElements, dirtyLeaves, editorState, prevEditorState, tags }) => {
       const keys = tags.has(HISTORIC_TAG)
@@ -341,8 +398,102 @@ function load(stateJSON: string): void {
       for (const key of keys) changed.add(key);
     },
   );
-  registerMarkdownShortcuts(next, createTransformers());
+  if (editorContext === "document" || editorContexts[editorContext].includes("MarkdownShortcutPlugin")) registerMarkdownShortcuts(next, createTransformers());
+  next.registerCommand = originalCommand;
+  next.registerUpdateListener = originalUpdate;
+  next.registerNodeTransform = originalTransform;
+  mountedRegistrations.set(next, cleanups);
   editor = next;
+}
+
+function loadNested(argument: string): void {
+  const { state, ownerPath } = JSON.parse(argument) as { state: unknown; ownerPath: number[] };
+  const childContext = editorContext;
+  if (!["imageCaption", "inlineImageCaption", "videoCaption", "stickyCaption"].includes(childContext)) {
+    throw new EditorError("invalidState", "This context has no media caption owner");
+  }
+  editorContext = "document";
+  try {
+    load(JSON.stringify(state));
+    const parent = current();
+    const child = parent.read(() => {
+      let node: LexicalNode = $getRoot();
+      for (const index of ownerPath) {
+        if (!$isElementNode(node)) throw new EditorError("invalidState", "Caption owner path is not an element");
+        const found = node.getChildAtIndex(index);
+        if (!found) throw new EditorError("invalidState", "Caption owner is missing");
+        node = found;
+      }
+      const captionNode = node as LexicalNode & { __caption?: LexicalEditor };
+      const expectedTypes: Record<string, string> = { imageCaption: "image", inlineImageCaption: "inline-image", videoCaption: "video", stickyCaption: "sticky" };
+      const expectedType = expectedTypes[childContext];
+      if (node.getType() !== expectedType || !captionNode.__caption) {
+        throw new EditorError("invalidState", `Caption owner ${node.getType()} (editor=${Boolean(captionNode.__caption)}) does not match ${expectedType}`);
+      }
+      parentCaptionOwnerKey = node.getKey();
+      return captionNode.__caption;
+    });
+    editorContext = childContext;
+    const effects: (() => void)[] = [];
+    withNestedParent(parent, () => LexicalNestedComposer({ initialEditor: child, children: null, skipCollabChecks: true }), effects);
+    configureEditor(child, JSON.stringify(child.getEditorState().toJSON()));
+    mountedRegistrations.get(child)!.push(...effects);
+    parentEditor = parent;
+  } finally { editorContext = childContext; }
+}
+
+function onParent<T>(run: () => T): T {
+  if (!parentEditor) throw new EditorError("invalidState", "No parent editor loaded");
+  const child = editor;
+  const childContext = editorContext;
+  editor = parentEditor;
+  editorContext = "document";
+  try { return run(); }
+  finally { editor = child; editorContext = childContext; }
+}
+
+function setCaptionVisibility(argument: string): void {
+  const show = JSON.parse(argument) as boolean;
+  if (typeof show !== "boolean" || !parentCaptionOwnerKey) throw new EditorError("invalidState", "No caption visibility value or owner");
+  onParent(() => {
+    lastError = null;
+    current().update(() => {
+      const node = $getNodeByKey(parentCaptionOwnerKey!);
+      if (!node || !["image", "inline-image", "video"].includes(node.getType())) {
+        throw new EditorError("invalidState", "Caption owner no longer exists");
+      }
+      (node as LexicalNode & { setShowCaption(show: boolean): void }).setShowCaption(show);
+    }, { discrete: true });
+    if (lastError) throw lastError;
+  });
+}
+
+function captionOwnerSnapshot(): string {
+  if (!parentEditor || !parentCaptionOwnerKey) throw new EditorError("invalidState", "No caption owner loaded");
+  const owned = parentEditor.read(() => {
+    const node = $getNodeByKey(parentCaptionOwnerKey!) as (LexicalNode & { __caption?: LexicalEditor }) | null;
+    if (!node?.__caption) throw new EditorError("invalidState", "Caption owner no longer exists");
+    return node.__caption;
+  });
+  const mounted = editor;
+  editor = owned;
+  try { return snapshot(); }
+  finally { editor = mounted; }
+}
+
+function remountCaption(): void {
+  if (!parentEditor || !parentCaptionOwnerKey) throw new EditorError("invalidState", "No caption owner loaded");
+  const next = parentEditor.read(() => {
+    const owner = $getNodeByKey(parentCaptionOwnerKey!) as (LexicalNode & { __caption?: LexicalEditor }) | null;
+    if (!owner?.__caption) throw new EditorError("invalidState", "Caption owner no longer exists");
+    return owner.__caption;
+  });
+  for (const cleanup of mountedRegistrations.get(current()) ?? []) cleanup();
+  mountedRegistrations.delete(current());
+  const effects: (() => void)[] = [];
+  withNestedParent(parentEditor, () => LexicalNestedComposer({ initialEditor: next, children: null, skipCollabChecks: true }), effects);
+  configureEditor(next);
+  mountedRegistrations.get(next)!.push(...effects);
 }
 
 function apply(commandJSON: string): string {
@@ -405,7 +556,7 @@ function cut(): void {
   let isCutByATable = false;
   current().update(
     () => {
-      isCutByATable = $cutHandler((selection) => {
+      isCutByATable = hasContextPlugin("TablePlugin") && $cutHandler((selection) => {
         clipboard = clipboardData(selection);
       });
     },
@@ -415,7 +566,12 @@ function cut(): void {
   current().update(
     () => {
       const selection = selectionToCut();
-      if ($isRangeSelection(selection) && !selection.isCollapsed()) {
+      // Plain text removes the existing range; only rich text widens it.
+      if (
+        (editorContext === "document" || !hasContextPlugin("PlainTextPlugin")) &&
+        $isRangeSelection(selection) &&
+        !selection.isCollapsed()
+      ) {
         INTERNAL_$expandSelectionToWholeDocument(selection);
       }
       clipboard = copy(selection);
@@ -445,6 +601,11 @@ function selectionToCut(): RangeSelection | NodeSelection {
  */
 function copy(selection: BaseSelection): Clipboard | undefined {
   if ($isRangeSelection(selection) && selection.isCollapsed()) return undefined;
+  // PlainTextPlugin's copy handler omits Lexical JSON. HTML remains outside
+  // this headless clipboard oracle, as in the document copy adapter (#168).
+  if (editorContext !== "document" && editorContexts[editorContext].includes("PlainTextPlugin")) {
+    return { "text/plain": selection.getTextContent() };
+  }
   return clipboardData(selection);
 }
 
@@ -822,7 +983,7 @@ function run(
       selection.insertText(command.text);
       return;
     case "deleteCharacter": {
-      if ($deleteCellHandler()) return;
+      if (hasContextPlugin("TablePlugin") && $deleteCellHandler()) return;
       editor.dispatchCommand(
         command.backward ? KEY_BACKSPACE_COMMAND : KEY_DELETE_COMMAND,
         key(),
@@ -881,7 +1042,7 @@ function run(
       return;
     case "tab":
       if (
-        DOCUMENT_TABLE_PLUGIN.hasTabHandler &&
+        hasContextPlugin("TablePlugin") && DOCUMENT_TABLE_PLUGIN.hasTabHandler &&
         $tabHandler(command.backward)
       ) {
         return;
@@ -1479,7 +1640,7 @@ function setSelection(anchorAt: PathPoint, focusAt: PathPoint): void {
   } else {
     selection.format = combinedFormat(selection, anchorAt, focusAt);
   }
-  $fixRangeSelectionForSelectedTable(selection);
+  if (hasContextPlugin("TablePlugin")) $fixRangeSelectionForSelectedTable(selection);
 }
 
 /** `$updateSelectionFormatStyle` from Lexical's selection-change handler. */
@@ -1593,7 +1754,14 @@ function pathPoint(point: PointType): PathPoint {
 
 Object.assign(globalThis, {
   LexicalReference: {
+    setContext: (context: typeof editorContext) => { editorContext = context; },
     load,
+    loadNested,
+    parentSnapshot: () => onParent(snapshot),
+    captionOwnerSnapshot,
+    remountCaption,
+    setCaptionVisibility,
+    applyToParent: (command: string) => onParent(() => apply(command)),
     apply,
     snapshot,
     serializedState,

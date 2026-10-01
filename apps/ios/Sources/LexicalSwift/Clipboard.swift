@@ -64,7 +64,7 @@ extension Update {
     _ key: NodeKey, _ copied: ClipboardSelection, _ selected: Set<NodeKey>, into target: inout [JSONValue]
   ) throws -> Bool {
     var shouldInclude = isSelected(key, copied, selected)
-    guard case .object(var json) = state.json(of: key, includingChildren: false) else {
+    guard case .object(var json) = state.json(of: key, includingChildren: false, resolve: resolveNestedEditorJSON) else {
       preconditionFailure("A node's JSON is an object")
     }
     if state[key].isText {
@@ -254,7 +254,7 @@ extension Update {
   /// `$insertGeneratedNodes`, which the table plugin's handler answers
   /// first.
   private mutating func insertGeneratedNodes(_ nodes: [NodeKey], _ target: ClipboardSelection) throws {
-    if try tableSelectionInsertClipboardNodes(nodes, target) { return }
+    if hasEditorPlugin("TablePlugin"), try tableSelectionInsertClipboardNodes(nodes, target) { return }
     switch target {
     case .range(let selection):
       try insertNodes(selection, nodes)

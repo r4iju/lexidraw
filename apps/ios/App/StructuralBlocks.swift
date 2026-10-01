@@ -373,11 +373,15 @@ import UIKit
       entries: StructuralBlockConfiguration.stickyColors.keys.sorted().map { color in
         (color.capitalized, { [weak self] in self?.field("color", .string(color), rebuild: true) })
       })
-    body(node["caption"]?["editorState"] ?? document([]), editable: true) { [weak self] state in
-      guard let self else { return }
-      var caption = self.node["caption"]?.objectValue ?? [:]
-      caption["editorState"] = state
-      self.field("caption", .object(caption))
+    if let owner, owner.isEditable {
+      do {
+        let editor = try owner.makeCaptionEditor(key: key, textSize: 24)
+        editor.heightAnchor.constraint(equalToConstant: 90).isActive = true
+        bodies.append(editor)
+        stack.addArrangedSubview(editor)
+      } catch { label("Cannot open this caption: \(error.localizedDescription)") }
+    } else {
+      body(node["caption"]?["editorState"] ?? document([])) { _ in }
     }
   }
   private func slides() {
@@ -675,7 +679,7 @@ import UIKit
   }
   private func presentBody(_ state: JSONValue, title: String, changed: @escaping (JSONValue) -> Void) {
     do {
-      let model = Editor()
+      let model = Editor(editorContext: .slide)
       try model.loadKeyed(state)
       let editor =
         owner?.makeNestedEditor(model: model, isEditable: owner?.isEditable == true && model.isEditable)
@@ -828,7 +832,7 @@ import UIKit
       switch value["kind"]?.stringValue {
       case "box":
         do {
-          let model = Editor()
+          let model = Editor(editorContext: .slide)
           try model.loadKeyed(value["editorStateJSON"] ?? ["root": ["type": "root", "version": 1, "children": []]])
           let editor = makeEditor(model)
           editor.isUserInteractionEnabled = false

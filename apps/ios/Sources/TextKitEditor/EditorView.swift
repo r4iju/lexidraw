@@ -42,6 +42,10 @@ public final class EditorView: UIScrollView, UITextInput {
   private let suppliedStyle: DocumentText.Style?
 
   public var supportsRichText: Bool { model.supportsRichText }
+  /// Caption editors mount inline formatting without block or insertion plugins.
+  public var captionFormattingOnly = false {
+    didSet { formattingBar.setMenuAvailability(lists: !captionFormattingOnly, insert: !captionFormattingOnly) }
+  }
   public var configureNestedEmbeds: ((EditorView) -> Void)?
   private weak var metadataOwner: EditorView?
   private let metadataChildren = NSHashTable<EditorView>.weakObjects()
@@ -80,6 +84,23 @@ public final class EditorView: UIScrollView, UITextInput {
     try model.node(at: model.nodePath(for: key))
   }
 
+  public func makeCaptionEditor(key: String, textSize: CGFloat? = nil) throws -> EditorView {
+    guard isEditable else { throw EditorError.unsupported("This document cannot be edited") }
+    let caption = try model.captionEditor(key: key)
+    let editor = makeNestedEditor(model: caption, isEditable: caption.isEditable, textSize: textSize, shareDocumentMetadata: true)
+    editor.captionFormattingOnly = true
+    editor.onChange = { [weak self, weak editor] in
+      guard let self else { return }
+      if editor?.lastChangeChangedParent == true {
+        self.refreshEmbeddedContent()
+      } else if let path = try? self.model.nodePath(for: key) {
+        self.render(ChangeSet(changed: [path]))
+      }
+      self.onChange?()
+    }
+    return editor
+  }
+
   /// A structural body's editing surface shares this document's model, so
   /// plugin operations that leave the body keep their true parent context.
   public func makeStructuralEditor(key: String, childPath: [Int] = []) throws -> EditorView {
@@ -113,6 +134,7 @@ public final class EditorView: UIScrollView, UITextInput {
   /// When the model last heard from the view, for the time its history
   /// merges edits by.
   private var lastCommand = ProcessInfo.processInfo.systemUptime
+  private var lastChangeChangedParent = false
 
   /// Called after each call a keyboard's input method makes.
   public var onInput: ((TextInputRecord) -> Void)?
@@ -604,10 +626,11 @@ public final class EditorView: UIScrollView, UITextInput {
       return nil
     }
     if !fromInput { inputDelegate?.textWillChange(self) }
+    lastChangeChangedParent = change.parentChanged
     render(change)
     if !fromInput { inputDelegate?.textDidChange(self) }
     showModelSelection(fromInput: fromInput)
-    if isEditable && !change.changed.isEmpty { onChange?() }
+    if isEditable && (!change.changed.isEmpty || change.parentChanged) { onChange?() }
     return change
   }
 
@@ -1146,6 +1169,9 @@ public final class EditorView: UIScrollView, UITextInput {
       command("\t", [], #selector(tab)),
       command("\t", .shift, #selector(tabBackward)),
     ] + webKeyboardShortcuts.compactMap { binding in
+      // The web mounts these on the parent editor, using the active child's
+      // toolbar state. They cannot safely run as child-local shortcuts.
+      guard !captionFormattingOnly else { return nil }
       guard binding.action.isImplemented else { return nil }
       let key = command(binding.input, binding.modifiers, #selector(performWebShortcut(_:)))
       key.allowsAutomaticMirroring = false
@@ -1278,7 +1304,7 @@ public final class EditorView: UIScrollView, UITextInput {
       }
       path.removeLast()
     }
-    let choices = webBlockChoices.map { choice in
+    let choices = webBlockChoices.filter { !captionFormattingOnly || $0.type == "paragraph" }.map { choice in
       let supported = choice.type == "code" || BlockType(rawValue: choice.type) != nil || EditorCommand.ListType(rawValue: choice.type) != nil
       return UIAction(title: choice.label, attributes: supported ? [] : .disabled,
         state: choice.type == selectedType ? .on : .off) { [weak self] _ in
@@ -1316,7 +1342,7 @@ public final class EditorView: UIScrollView, UITextInput {
       UIMenu(title: "Lists", children: choices.filter { action in
         webBlockChoices.contains { $0.label == action.title && EditorCommand.ListType(rawValue: $0.type) != nil }
       }),
-      UIMenu(title: "Insert", children: [tableMenu()] + insertionActions))
+      UIMenu(title: "Insert", children: captionFormattingOnly ? [] : [tableMenu()] + insertionActions))
   }
 
   @objc private func performWebShortcut(_ key: UIKeyCommand) {

@@ -10,6 +10,7 @@ enum UpdateTag {
 /// through the same operations, marking the same nodes dirty, so transforms,
 /// garbage collection and the change set see what Lexical's would.
 struct Update {
+  var resolveNestedEditorJSON: ((NodeKey, JSONValue) -> JSONValue)?
   var state: EditorState
   /// The committed state the update started from.
   let base: EditorState
@@ -32,6 +33,9 @@ struct Update {
   /// which a copy of the list keeps too.
   var knowsListMarker: Bool
   var plainText = false
+  private(set) var unregisteredType: String?
+  var editorContext = EditorContext.document
+  func hasEditorPlugin(_ name: String) -> Bool { editorContext == .document || editorContext.mountedPlugins.contains(name) }
   /// This update's share of `Editor.shortcutsDeclinedAsNotPorted`.
   var shortcutsDeclinedAsNotPorted = 0
   var tags: Set<UpdateTag> = []
@@ -91,6 +95,9 @@ struct Update {
 
   private mutating func markOwnDirty(_ key: NodeKey) {
     touched.insert(key)
+    if state[key].type == "video", state[key].revision != revision {
+      state.nodes[key]!.captionLifetime = CaptionLifetime()
+    }
     state.nodes[key]!.revision = revision
     if state[key].isElement {
       dirtyElements[key] = true
@@ -106,6 +113,7 @@ struct Update {
 
   /// A new node, as a Lexical constructor makes one: dirty, and in no parent.
   mutating func create(_ payload: SerializedNode, type: String, children: OrderedSet<NodeKey>?) -> NodeKey {
+    if let registered = editorContext.registeredTypes, !registered.contains(type) { unregisteredType = type }
     let key = nextKey
     nextKey += 1
     state.nodes[key] = Node(payload, type: type, children: children)
@@ -437,9 +445,10 @@ struct Update {
             try normalizeText(key)
           }
           if state.nodes[key]?.type == SerializedTextNode.type, state.isAttached(key) {
-            try syncListItem(withFirstText: key)
-            if !plainText, state.isAttached(key) { try transformAutoLinkText(key) }
+            if editorContext == .document { try syncListItem(withFirstText: key) }
+            if !plainText, editorContext == .document, state.isAttached(key) { try transformAutoLinkText(key) }
           }
+          if !plainText, state.isAttached(key) { try transformNestedTextEntities(key) }
           allLeaves.append(key)
         }
         untransformedLeaves = dirtyLeaves

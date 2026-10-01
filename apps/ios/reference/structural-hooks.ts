@@ -1,4 +1,5 @@
 import type { LexicalEditor } from "lexical";
+import { registerLexicalTextEntity } from "@lexical/text";
 
 let registering: LexicalEditor | null = null;
 export function withStructuralEditor(
@@ -28,4 +29,12 @@ export function useCallback<T>(callback: T, _dependencies: unknown[]): T {
   if (!registering || typeof callback !== "function")
     throw new Error("Unsupported structural callback registration");
   return callback;
+}
+export function useMemo<T>(create: () => T, _dependencies: unknown[]): T {
+  if (!registering) throw new Error("Memo outside plugin registration");
+  return create();
+}
+export function useLexicalTextEntity(...args: Parameters<typeof registerLexicalTextEntity> extends [LexicalEditor, ...infer Rest] ? Rest : never) {
+  if (!registering) throw new Error("Text entity outside plugin registration");
+  registerLexicalTextEntity(registering, ...args);
 }

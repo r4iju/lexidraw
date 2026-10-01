@@ -68,6 +68,7 @@ targets:
       - EditorHarness
       - App/MessageAlert.swift
       - App/DocumentView.swift
+      - App/MediaCaptionEditor.swift
       - App/DocumentTypography.swift
       - App/Loaded.swift
       - App/EmbeddedDrawing.swift
