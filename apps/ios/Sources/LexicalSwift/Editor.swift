@@ -13,6 +13,7 @@ public final class Editor: EditorModel, KeyboardInputHistory {
     var time: Int
   }
   private var inputTurn: InputTurn?
+  private var applyingCommands = 0
   private var nextInputTurnToken = 0
   public var inputHistoryDelayMilliseconds: Int { History.delay }
   public var inputHistoryRevision: Int { revisions }
@@ -32,7 +33,7 @@ public final class Editor: EditorModel, KeyboardInputHistory {
     inputTurn = nil
     guard turn.committed else { return }
     pruneCaptionsAfterHistoryDiscard = history.record(turn.update, from: turn.original, to: state, at: turn.time) || pruneCaptionsAfterHistoryDiscard
-    if pruneCaptionsAfterHistoryDiscard {
+    if applyingCommands == 0 && pruneCaptionsAfterHistoryDiscard {
       pruneExpiredCaptions()
       pruneCaptionsAfterHistoryDiscard = false
     }
@@ -128,12 +129,14 @@ public final class Editor: EditorModel, KeyboardInputHistory {
   }
 
   private func apply(_ command: EditorCommand, preservingTypingAttributes: Bool, typeaheadSelection: (Point, Point)? = nil) throws -> ChangeSet {
+    applyingCommands += 1
     switch command {
     case .wait, .setSelection, .insertText, .commitComposition, .deleteCharacter, .insertParagraph, .insertLineBreak: break
     default: endInputTurn()
     }
     defer {
-      if pruneCaptionsAfterHistoryDiscard {
+      applyingCommands -= 1
+      if applyingCommands == 0 && pruneCaptionsAfterHistoryDiscard {
         pruneExpiredCaptions()
         pruneCaptionsAfterHistoryDiscard = false
       }
