@@ -1347,8 +1347,67 @@ public final class EditorView: UIScrollView, UITextInput {
   }
 
   /// Actions the native formatting bar can include in its insertion menu.
+  public var mediaOrigin: URL?
   public var imageInsertionActions: [UIMenuElement] {
-    isEditable && uploadImage != nil ? imageMenu().children : []
+    guard isEditable else { return [] }
+    return [imageMenu(),
+      UIAction(title: "Inline image from Photos…", image: UIImage(systemName: "photo.on.rectangle"), attributes: uploadImage == nil ? .disabled : []) { [weak self] _ in self?.chooseImage(camera: false, inline: true) },
+      UIAction(title: "GIF", image: UIImage(systemName: "film"), attributes: mediaOrigin == nil ? .disabled : []) { [weak self] _ in
+        guard let self, let origin = mediaOrigin, let source = URL(string: MediaInsertions.gifSource, relativeTo: origin)?.absoluteURL else { return }
+        insertMedia(Self.mediaNode("image", fields: ["src": .string(source.absoluteString), "altText": .string(MediaInsertions.gifAltText)]))
+      },
+      UIMenu(title: "Embeds", children: [("YouTube", "youtube"), ("Tweet", "tweet"), ("Figma", "figma")].map { title, type in
+        UIAction(title: title) { [weak self] _ in self?.askForMediaURL(type: type, title: title) }
+      })]
+  }
+
+  private static func mediaNode(_ type: String, fields: [String: JSONValue]) -> JSONValue {
+    guard let source = MediaInsertions.nodes[type], var node = try? JSONValue(parsing: source).objectValue else {
+      preconditionFailure("Generated media insertion factory is missing")
+    }
+    for (name, value) in fields { node[name] = value }
+    return .object(node)
+  }
+
+  private static func mediaURLFields(type: String, value: String) -> [String: JSONValue]? {
+    let pattern: String
+    let capture: Int
+    let field: String
+    switch type {
+    case "youtube": pattern = MediaInsertions.youtubePattern; capture = MediaInsertions.youtubeCapture; field = "videoID"
+    case "tweet": pattern = MediaInsertions.tweetPattern; capture = MediaInsertions.tweetCapture; field = "id"
+    case "figma": pattern = MediaInsertions.figmaPattern; capture = MediaInsertions.figmaCapture; field = "documentID"
+    default: preconditionFailure("Unknown media URL parser")
+    }
+    let regex = try! NSRegularExpression(pattern: pattern)
+    guard let match = regex.firstMatch(in: value, range: NSRange(location: 0, length: value.utf16.count)),
+      let range = Range(match.range(at: capture), in: value) else { return nil }
+    let id = String(value[range])
+    guard type != "youtube" || id.utf16.count == MediaInsertions.youtubeIDLength else { return nil }
+    return [field: .string(id)]
+  }
+
+  private func askForMediaURL(type: String, title: String) {
+    guard isEditable, let presenter else { return }
+    let alert = UIAlertController(title: "Insert \(title)", message: "Paste its URL.", preferredStyle: .alert)
+    var insert: UIAlertAction?
+    alert.addTextField { field in
+      field.accessibilityLabel = "\(title) URL"
+      field.keyboardType = .URL
+      field.autocapitalizationType = .none
+      field.autocorrectionType = .no
+      field.addAction(UIAction { [weak field] _ in
+        insert?.isEnabled = Self.mediaURLFields(type: type, value: field?.text ?? "") != nil
+      }, for: .editingChanged)
+    }
+    alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+    insert = UIAlertAction(title: "Insert", style: .default) { [weak self, weak alert] _ in
+      guard let fields = Self.mediaURLFields(type: type, value: alert?.textFields?.first?.text ?? "") else { return }
+      self?.insertMedia(Self.mediaNode(type, fields: fields))
+    }
+    insert!.isEnabled = false
+    alert.addAction(insert!)
+    presenter.present(alert, animated: true)
   }
 
   private func imageMenu() -> UIMenu {
@@ -1365,11 +1424,13 @@ public final class EditorView: UIScrollView, UITextInput {
     return perform(.paste(Clipboard(plainText: "", lexical: LexicalClipboardPayload(namespace: MediaLinks.namespace, nodes: [node]))), fromInput: false, tellsRefusal: true) != nil
   }
 
-  private func chooseImage(camera: Bool) {
+  private func chooseImage(camera: Bool, inline: Bool = false) {
     guard isEditable, let uploadImage, let presenter else { return }
     let picker = NativeImagePicker(presenter: presenter, upload: uploadImage) { [weak self] node in
       guard let self else { return }
-      insertMedia(node)
+      if inline {
+        insertMedia(Self.mediaNode("inline-image", fields: ["src": node["src"]!, "width": node["width"]!, "height": node["height"]!]))
+      } else { insertMedia(node) }
       imagePicker = nil
     }
     imagePicker = picker

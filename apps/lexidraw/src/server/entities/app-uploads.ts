@@ -55,10 +55,45 @@ export function appUploadsIn(elements: string, userId: string): AppUpload[] {
     if (!isNode(node)) return;
     const { type, src, children } = node;
     const pathname =
-      type === "image" && typeof src === "string" && sent.exec(src)?.[1];
+      (type === "image" || type === "inline-image") &&
+      typeof src === "string" &&
+      sent.exec(src)?.[1];
     if (pathname && typeof src === "string")
       found.set(src, { url: src, pathname });
     if (Array.isArray(children)) children.forEach(visit);
+    const caption = "caption" in node ? node.caption : undefined;
+    if (
+      type === "slide-deck" &&
+      "data" in node &&
+      isNode(node.data) &&
+      "slides" in node.data &&
+      Array.isArray(node.data.slides)
+    ) {
+      for (const slide of node.data.slides) {
+        if (
+          !isNode(slide) ||
+          !("elements" in slide) ||
+          !Array.isArray(slide.elements)
+        )
+          continue;
+        for (const element of slide.elements) {
+          if (
+            isNode(element) &&
+            "kind" in element &&
+            element.kind === "box" &&
+            "editorStateJSON" in element &&
+            isNode(element.editorStateJSON) &&
+            "root" in element.editorStateJSON
+          )
+            visit(element.editorStateJSON.root);
+        }
+      }
+    }
+    if (isNode(caption)) {
+      const editorState =
+        "editorState" in caption ? caption.editorState : caption;
+      if (isNode(editorState) && "root" in editorState) visit(editorState.root);
+    }
   };
   visit(Elements.parse(JSON.parse(elements)).root);
   return [...found.values()];

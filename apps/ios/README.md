@@ -751,3 +751,17 @@ tests, 93 Bun tests and TypeScript checks, and built the production app for the
 iOS Simulator. The UI checks include mixed text accessibility, slide drag/resize
 autosave, fixed/percentage tracks, partial fractional tracks and read-only slide
 navigation. CI was not invoked.
+
+### Native media insertion controls (#135)
+
+The native insertion menu offers image Photos/camera actions, inline-image Photos,
+the web toolbar GIF, and YouTube/Tweet/Figma URL dialogs. Constructor defaults,
+URL patterns, capture indexes and YouTube ID length come from the actual web
+sources through codegen. JavaScript word/digit classes are emitted as ASCII
+ranges for Foundation regular expressions. GIF URLs resolve against the app's
+configured server origin. Cancel leaves the document untouched.
+
+Saving now claims owner-uploaded inline images and pictures in caption/slide
+text editors through the existing signed-image validation and cleanup policy.
+Video upload and the inline-image dialog's alternative text, position and caption
+controls remain #135 work; external embeds retain native link-preview behavior.

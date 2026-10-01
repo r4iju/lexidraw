@@ -1,5 +1,13 @@
 import { createHeadlessEditor } from "@lexical/headless";
-import { ImageNode } from "@packages/lexical-nodes";
+import {
+  ImageNode,
+  InlineImageNode,
+  VideoNode,
+  YouTubeNode,
+  TweetNode,
+  FigmaNode,
+} from "@packages/lexical-nodes";
+import { swiftRawString } from "./links";
 import { IMAGE } from "../../lexidraw/src/lib/media-kinds";
 import { fileURLToPath } from "node:url";
 import { EDITOR_NAMESPACE } from "@packages/lexical-nodes/links";
@@ -55,4 +63,143 @@ export function swiftForMediaImages(): string {
     { discrete: true },
   );
   return `// Generated from web ImageNode constructor and IMAGE upload policy.\npublic enum MediaImages {\n  public static let insertionNodeJSON = #"${insertionNodeJSON}"#\n  public static let maximumBytes = ${IMAGE.maxBytes}\n  public static let maximumLabel = ${JSON.stringify(IMAGE.max)}\n}\n`;
+}
+
+export const MEDIA_INSERTIONS_PATH = new URL(
+  "../Sources/TextKitEditor/MediaInsertions.swift",
+  import.meta.url,
+);
+export async function swiftForMediaInsertions(): Promise<string> {
+  const inlineSource = await Bun.file(
+    new URL(
+      "../../lexidraw/src/app/documents/[documentId]/plugins/InlineImagePlugin/index.tsx",
+      import.meta.url,
+    ),
+  ).text();
+  const inlineDefaults = inlineSource.match(
+    /useState<Position>\(("[^"\n]+")\)/,
+  );
+  const captionDefault = inlineSource.match(
+    /\[showCaption, setShowCaption\] = useState\((true|false)\)/,
+  );
+  if (!inlineDefaults || !captionDefault)
+    throw new Error("Unknown inline-image dialog defaults");
+  const position: "left" | "right" | "full" = JSON.parse(inlineDefaults[1]!);
+  if (!["left", "right", "full"].includes(position))
+    throw new Error("Unknown inline-image position");
+  const factories: Record<string, string> = {};
+  const editor = createHeadlessEditor({
+    nodes: [
+      ImageNode,
+      InlineImageNode,
+      VideoNode,
+      YouTubeNode,
+      TweetNode,
+      FigmaNode,
+    ],
+    onError(error) {
+      throw error;
+    },
+  });
+  editor.update(
+    () => {
+      for (const node of [
+        ImageNode.$createImageNode({ src: "", altText: "" }),
+        InlineImageNode.$createInlineImageNode({
+          src: "",
+          altText: "",
+          position,
+          showCaption: captionDefault[1] === "true",
+        }),
+        VideoNode.$createVideoNode({ src: "", showCaption: true }),
+        YouTubeNode.$createYouTubeNode(""),
+        TweetNode.$createTweetNode(""),
+        FigmaNode.$createFigmaNode(""),
+      ]) {
+        const json = node.exportJSON();
+        factories[json.type] = JSON.stringify(json);
+      }
+    },
+    { discrete: true },
+  );
+  const source = await Bun.file(
+    new URL(
+      "../../lexidraw/src/app/documents/[documentId]/plugins/AutoEmbedPlugin/index.tsx",
+      import.meta.url,
+    ),
+  ).text();
+  const patterns: Record<string, string> = {};
+  const captures: Record<string, number> = {};
+  let youtubeIDLength = 0;
+  for (const [type, name] of [
+    ["youtube", "Youtube"],
+    ["tweet", "Twitter"],
+    ["figma", "Figma"],
+  ] as const) {
+    // Each parser contains exactly one regex literal directly before .exec.
+    const sectionEnd = source
+      .split(`const ${name}EmbedConfig:`)[1]
+      ?.split("\n  const ")[0];
+    const matches = [
+      ...(sectionEnd ?? "").matchAll(/(\/(?:[^\/\n]|\\.)+\/[a-z]*)\.exec/g),
+    ];
+    if (matches.length !== 1)
+      throw new Error(`Unknown ${type} URL parser shape`);
+    const idCapture =
+      type === "youtube"
+        ? sectionEnd?.match(/const id = match\?\.\[(\d+)\]\?\.length === (\d+)/)
+        : sectionEnd?.match(/return\s*\{\s*id:\s*match\[(\d+)\]/);
+    if (!idCapture) throw new Error(`Unknown ${type} ID capture shape`);
+    captures[type] = Number(idCapture[1]);
+    if (type === "youtube") youtubeIDLength = Number(idCapture[2]);
+    const expression = matches[0]![1]!;
+    const regex = Function(`return (${expression})`)() as RegExp;
+    if (regex.flags !== "") throw new Error(`Unported ${type} URL regex flags`);
+    let inClass = false;
+    let nativePattern = "";
+    for (let index = 0; index < regex.source.length; index++) {
+      const character = regex.source[index]!;
+      if (character === "\\") {
+        const escaped = regex.source[++index]!;
+        const ascii =
+          escaped === "w" ? "A-Za-z0-9_" : escaped === "d" ? "0-9" : null;
+        nativePattern += ascii
+          ? inClass
+            ? ascii
+            : `[${ascii}]`
+          : `\\${escaped}`;
+      } else {
+        if (character === "[") inClass = true;
+        if (character === "]") inClass = false;
+        nativePattern += character;
+      }
+    }
+    patterns[type] = nativePattern;
+  }
+  const toolbar = await Bun.file(
+    new URL(
+      "../../lexidraw/src/app/documents/[documentId]/plugins/ToolbarPlugin/insert-item.tsx",
+      import.meta.url,
+    ),
+  ).text();
+  const gif = toolbar.match(
+    /altText: ("[^"\n]*"),\s*src: ("[^"\n]*cat-typing\.gif")/,
+  );
+  if (!gif) throw new Error("Unknown toolbar GIF insertion shape");
+  return `// Generated from web media constructors and insertion URL parsers.\nimport Foundation\n\nenum MediaInsertions {\n  static let nodes: [String: String] = [\n${Object.entries(
+    factories,
+  )
+    .map(
+      ([type, json]) => `    ${JSON.stringify(type)}: ${swiftRawString(json)},`,
+    )
+    .join("\n")}\n  ]\n${Object.entries(patterns)
+    .map(
+      ([type, regex]) =>
+        `  static let ${type}Pattern = ${swiftRawString(regex)}`,
+    )
+    .join("\n")}\n${Object.entries(captures)
+    .map(([type, capture]) => `  static let ${type}Capture = ${capture}`)
+    .join(
+      "\n",
+    )}\n  static let youtubeIDLength = ${youtubeIDLength}\n  static let gifSource = ${gif[2]}\n  static let gifAltText = ${gif[1]}\n}\n`;
 }
