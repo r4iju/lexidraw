@@ -79,7 +79,10 @@ import Testing
   /// Into the folder it left, or Home when its owner may no longer write there.
   @Test func restoringSaysWhetherItWentBackToHome() async throws {
     let server = FakeServer { request in
-      request.url.path.contains("gone-home")
+      guard request.headers[.contentType] == "application/json" else {
+        return (415, #"{"message":"Missing content-type header","code":"UNSUPPORTED_MEDIA_TYPE"}"#)
+      }
+      return request.url.path.contains("gone-home")
         ? (200, Summary.json(id: "gone-home", type: "document", title: "A"))
         : (200, Summary.json(id: "gone-back", type: "document", title: "B", parentId: "dir-1"))
     }

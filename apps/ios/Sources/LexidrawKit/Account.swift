@@ -109,7 +109,7 @@ public struct Account: Sendable {
     Connection(
       serverURL: origin.appending(path: "api/v1"),
       transport: transport,
-      middlewares: [Refusals()] + (token.map { [BearerToken(token: $0)] } ?? [])
+      middlewares: [Refusals(), JSONContentType()] + (token.map { [BearerToken(token: $0)] } ?? [])
     )
   }
 }
@@ -220,6 +220,24 @@ private struct BearerToken: ClientMiddleware {
   ) async throws -> (HTTPResponse, HTTPBody?) {
     var request = request
     request.headerFields[.authorization] = "Bearer \(token)"
+    return try await next(request, body, baseURL)
+  }
+}
+
+/// The REST adapter requires JSON content type on POST, PUT and PATCH even
+/// without a body, which the generated client does not add for those calls.
+private struct JSONContentType: ClientMiddleware {
+  func intercept(
+    _ request: HTTPRequest,
+    body: HTTPBody?,
+    baseURL: URL,
+    operationID: String,
+    next: @Sendable (HTTPRequest, HTTPBody?, URL) async throws -> (HTTPResponse, HTTPBody?)
+  ) async throws -> (HTTPResponse, HTTPBody?) {
+    var request = request
+    if [.post, .put, .patch].contains(request.method), request.headerFields[.contentType] == nil {
+      request.headerFields[.contentType] = "application/json"
+    }
     return try await next(request, body, baseURL)
   }
 }
