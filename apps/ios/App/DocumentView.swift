@@ -50,7 +50,8 @@ struct DocumentScreen: View {
     self.session = session
     self.settings = settings
     self.font = font
-    header = try stored.state["root"]?["$"]?["header"].map { try DocumentHeader($0, language: settings.language) }
+    // A header the web's code can't read isn't shown; the root keeps it.
+    header = stored.state["root"]?["$"]?["header"].flatMap { try? DocumentHeader($0, language: settings.language) }
     id = stored.id
     title = stored.title
     appState = stored.appState

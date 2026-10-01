@@ -61,7 +61,12 @@ public struct DocumentHeader: Decodable, Equatable, Sendable {
 
   var header: DocumentHeader { didSet { if header != oldValue { rebuild() } } }
   var outline: [Heading] = [] { didSet { if outline != oldValue, header.toc { rebuild() } } }
-  var imageLoader: MediaImageLoader? { didSet { loadCover() } }
+  var imageLoader: MediaImageLoader? {
+    didSet {
+      loadedCover = nil
+      loadCover()
+    }
+  }
   var onSelectHeading: ((Int) -> Void)?
   private let points: (CGFloat) -> CGFloat
   private let font: (CGFloat, Int) -> UIFont
@@ -69,6 +74,8 @@ public struct DocumentHeader: Decodable, Equatable, Sendable {
   private var rows: [(term: UILabel, value: UITextView)] = []
   private var blocks: [(view: UIView, after: CGFloat)] = []
   private var loading: Task<Void, Never>?
+  /// The cover last loaded, kept across rebuilds so it doesn't flash.
+  private var loadedCover: (src: String, image: UIImage)?
 
   init(header: DocumentHeader, points: @escaping (CGFloat) -> CGFloat, font: @escaping (CGFloat, Int) -> UIFont) {
     self.header = header
@@ -112,7 +119,7 @@ public struct DocumentHeader: Decodable, Equatable, Sendable {
       view.isAccessibilityElement = !(source.alt ?? "").isEmpty
       cover = view
       blocks.append((view, points(Style.coverAfter)))
-      loadCover()
+      if let loadedCover, loadedCover.src == source.src { view.image = loadedCover.image } else { loadCover() }
     }
     if let subtitle = header.subtitle {
       let size = 16 * Style.subtitleSize
@@ -197,8 +204,9 @@ public struct DocumentHeader: Decodable, Equatable, Sendable {
   private func loadCover() {
     loading?.cancel()
     guard let cover, let loader = imageLoader, let source = header.cover?.src, let url = URL(string: source) else { return }
-    loading = Task { [weak cover] in
+    loading = Task { [weak self, weak cover] in
       guard let image = try? await loader(url), !Task.isCancelled else { return }
+      self?.loadedCover = (source, image)
       cover?.image = image
     }
   }

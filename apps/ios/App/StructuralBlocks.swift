@@ -71,6 +71,9 @@ import UIKit
   private var bodies: [EditorView] = []
   /// A body as tall as its text, refitted whenever the panel is measured.
   private var fittedBody: (editor: EditorView, height: NSLayoutConstraint)?
+  /// The width the body was last fitted at, and whether a refit is queued.
+  private var fittedWidth: CGFloat?
+  private var refitPending = false
   private var insets = UIEdgeInsets.zero
   private var dragStart: CGPoint?
   private var viewingSectionOpen: Bool?
@@ -167,6 +170,7 @@ import UIKit
     }
     bodies = []
     fittedBody = nil
+    fittedWidth = nil
     columns = nil
     section?.removeFromSuperview()
     section = nil
@@ -289,7 +293,7 @@ import UIKit
     body.dropsTrailingSpace = true
     if let height = body.constraints.first(where: { $0.firstAttribute == .height && $0.secondItem == nil }) {
       fittedBody = (body, height)
-      body.onContentHeightChange = { [weak self] in self?.owner?.refreshEmbeddedContent() }
+      body.onContentHeightChange = { [weak self] in self?.bodyHeightChanged() }
     }
   }
   /// The web draws the kind's icon and the title in the kind's colour. Where
@@ -348,6 +352,18 @@ import UIKit
       UIAction(title: "Edit callout body") { [weak self] _ in self?.editBody() },
     ])
     return button
+  }
+  /// Images load after the body was fitted; the parent re-measures the
+  /// callout once, after its own layout, if the body's height really changed.
+  private func bodyHeightChanged() {
+    guard fittedWidth != nil, !refitPending else { return }
+    refitPending = true
+    DispatchQueue.main.async { [weak self] in
+      guard let self else { return }
+      self.refitPending = false
+      guard let fittedBody = self.fittedBody, let width = self.fittedWidth else { return }
+      if abs(fittedBody.editor.fittingHeight(width: width) - fittedBody.height.constant) > 0.5 { self.owner?.refreshEmbeddedContent() }
+    }
   }
   /// SF Symbols for the web's Lucide callout icons.
   private static let calloutSymbols: [String: String] = [
@@ -975,7 +991,10 @@ import UIKit
     let actualWidth = node["type"] == "sticky" ? min(width, StructuralBlockConfiguration.stickyWidth) : width
     let inner = max(1, actualWidth - insets.left - insets.right)
     columns?.prepare(width: inner, stacked: width <= StructuralBlockConfiguration.stackedColumnsWidth)
-    if let fittedBody { fittedBody.height.constant = fittedBody.editor.fittingHeight(width: inner) }
+    if let fittedBody {
+      fittedBody.height.constant = fittedBody.editor.fittingHeight(width: inner)
+      fittedWidth = inner
+    }
     let size = stack.systemLayoutSizeFitting(
       CGSize(width: inner, height: UIView.layoutFittingCompressedSize.height), withHorizontalFittingPriority: .required,
       verticalFittingPriority: .fittingSizeLevel)

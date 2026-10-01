@@ -33,13 +33,13 @@ import UIKit
   var leading: DocumentHeaderView? {
     didSet {
       if oldValue !== leading { oldValue?.removeFromSuperview() }
-      leadingWidth = nil
+      leadingSize = nil
     }
   }
   private var leadingHeight: CGFloat = 0
-  /// The width `leading` was last laid out at, or nil where it must be again.
-  private var leadingWidth: CGFloat?
-  func invalidateLeading() { leadingWidth = nil }
+  /// The size `leading` was last laid out for, or nil where it must be again.
+  private var leadingSize: CGSize?
+  func invalidateLeading() { leadingSize = nil }
   private let storage: NSTextStorage
   private let document: DocumentText
   private let typesetting: Typesetting
@@ -416,8 +416,9 @@ import UIKit
       return
     }
     if leading.superview !== scrollView { scrollView.addSubview(leading) }
-    guard leadingWidth != width else { return }
-    leadingWidth = width
+    let size = CGSize(width: width, height: scrollView.bounds.height)
+    guard leadingSize != size else { return }
+    leadingSize = size
     let height = leading.layout(width: width, viewportHeight: scrollView.bounds.height)
     leading.frame = CGRect(x: contentMargin, y: contentMargin, width: width, height: height)
     if height != leadingHeight { moveText(by: height - leadingHeight, in: scrollView); leadingHeight = height }
