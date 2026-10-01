@@ -15,7 +15,7 @@ const output = await Bun.build({
         build.onLoad(
           {
             filter:
-              /plugins\/(?:CalloutPlugin\/index\.tsx|CollapsiblePlugin\/index\.ts|LayoutPlugin\/LayoutPlugin\.tsx)$/,
+              /plugins\/(?:CalloutPlugin\/index\.tsx|CollapsiblePlugin\/index\.ts|LayoutPlugin\/LayoutPlugin\.tsx|KeywordsPlugin\/index\.ts|EmojisPlugin\/index\.ts)$/,
           },
           async ({ path }) => {
             const original = await Bun.file(path).text();
@@ -25,15 +25,16 @@ const output = await Bun.build({
                 `from ${JSON.stringify(hooks)}`,
               )
               .replace('from "react"', `from ${JSON.stringify(hooks)}`);
+            const adapted = contents.replace('from "@lexical/react/useLexicalTextEntity"', `from ${JSON.stringify(hooks)}`);
             if (
               contents === original ||
-              /from "react"|from "@lexical\/react\//.test(contents)
+              /from "react"|from "@lexical\/react\//.test(adapted)
             )
               throw new Error(
                 `The structural hook imports changed shape: ${path}`,
               );
             return {
-              contents,
+              contents: adapted,
               loader: path.endsWith("tsx") ? "tsx" : "ts",
               resolveDir: dirname(path),
             };

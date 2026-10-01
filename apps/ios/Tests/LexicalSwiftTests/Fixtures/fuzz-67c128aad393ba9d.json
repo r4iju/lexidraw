@@ -1,0 +1,225 @@
+{
+  "changes" : [
+    {
+      "changed" : [
+
+      ]
+    },
+    {
+      "changed" : [
+
+      ]
+    }
+  ],
+  "commands" : [
+    {
+      "anchor" : {
+        "offset" : 0,
+        "path" : [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "type" : "text"
+      },
+      "focus" : {
+        "offset" : 0,
+        "path" : [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "type" : "text"
+      },
+      "type" : "setSelection"
+    },
+    {
+      "type" : "selectAll"
+    }
+  ],
+  "editorContext" : "videoCaption",
+  "expected" : {
+    "selection" : {
+      "anchor" : {
+        "offset" : 0,
+        "path" : [
+
+        ],
+        "type" : "element"
+      },
+      "focus" : {
+        "offset" : 1,
+        "path" : [
+
+        ],
+        "type" : "element"
+      },
+      "format" : 32,
+      "style" : ""
+    },
+    "state" : {
+      "root" : {
+        "children" : [
+          {
+            "children" : [
+              {
+                "children" : [
+                  {
+                    "backgroundColor" : null,
+                    "children" : [
+                      {
+                        "children" : [
+                          {
+                            "children" : [
+                              {
+                                "detail" : 0,
+                                "format" : 32,
+                                "mode" : "normal",
+                                "style" : "",
+                                "text" : "o",
+                                "type" : "text",
+                                "version" : 1
+                              }
+                            ],
+                            "direction" : null,
+                            "format" : "",
+                            "indent" : 0,
+                            "isUnlinked" : false,
+                            "rel" : null,
+                            "target" : null,
+                            "title" : null,
+                            "type" : "autolink",
+                            "url" : "mailto:me@b.io",
+                            "version" : 1
+                          }
+                        ],
+                        "direction" : null,
+                        "format" : "",
+                        "indent" : 0,
+                        "textFormat" : 32,
+                        "textStyle" : "",
+                        "type" : "paragraph",
+                        "version" : 1
+                      }
+                    ],
+                    "colSpan" : 1,
+                    "direction" : null,
+                    "format" : "",
+                    "headerState" : 2,
+                    "indent" : 0,
+                    "rowSpan" : 1,
+                    "type" : "tablecell",
+                    "version" : 1
+                  }
+                ],
+                "direction" : null,
+                "format" : "",
+                "indent" : 0,
+                "type" : "tablerow",
+                "version" : 1
+              }
+            ],
+            "colWidths" : [
+              92.5
+            ],
+            "direction" : null,
+            "format" : "",
+            "indent" : 0,
+            "type" : "table",
+            "version" : 1
+          }
+        ],
+        "direction" : null,
+        "format" : "",
+        "indent" : 0,
+        "type" : "root",
+        "version" : 1
+      }
+    }
+  },
+  "start" : {
+    "root" : {
+      "children" : [
+        {
+          "children" : [
+            {
+              "children" : [
+                {
+                  "backgroundColor" : null,
+                  "children" : [
+                    {
+                      "children" : [
+                        {
+                          "children" : [
+                            {
+                              "detail" : 0,
+                              "format" : 32,
+                              "mode" : "normal",
+                              "style" : "",
+                              "text" : "o",
+                              "type" : "text",
+                              "version" : 1
+                            }
+                          ],
+                          "direction" : null,
+                          "format" : "",
+                          "indent" : 0,
+                          "isUnlinked" : false,
+                          "rel" : null,
+                          "target" : null,
+                          "title" : null,
+                          "type" : "autolink",
+                          "url" : "mailto:me@b.io",
+                          "version" : 1
+                        }
+                      ],
+                      "direction" : null,
+                      "format" : "",
+                      "indent" : 0,
+                      "textFormat" : 32,
+                      "textStyle" : "",
+                      "type" : "paragraph",
+                      "version" : 1
+                    }
+                  ],
+                  "colSpan" : 1,
+                  "direction" : null,
+                  "format" : "",
+                  "headerState" : 2,
+                  "indent" : 0,
+                  "rowSpan" : 1,
+                  "type" : "tablecell",
+                  "version" : 1
+                }
+              ],
+              "direction" : null,
+              "format" : "",
+              "indent" : 0,
+              "type" : "tablerow",
+              "version" : 1
+            }
+          ],
+          "colWidths" : [
+            92.5
+          ],
+          "direction" : null,
+          "format" : "",
+          "indent" : 0,
+          "type" : "table",
+          "version" : 1
+        }
+      ],
+      "direction" : null,
+      "format" : "",
+      "indent" : 0,
+      "type" : "root",
+      "version" : 1
+    }
+  }
+}

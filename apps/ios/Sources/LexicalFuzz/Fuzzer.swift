@@ -40,16 +40,21 @@ public struct Fuzzer {
   private let reference: any EditorModel
   private let candidate: any EditorModel
   private var generator: Generator
+  private let normalizesGeneratedDocuments: Bool
+  private let registeredTypes: Set<String>?
   /// Commands per generated document before starting a fresh one.
   private let sessionLength = 24
 
   /// Direction cases opt in so established fault-injection seeds keep their scripts.
   public init(
     seed: UInt64, reference: some EditorModel, candidate: some EditorModel, writingDirections: Bool = false,
-    structuralBlocks: Bool = false, socialTextSubclasses: Bool = false
+    structuralBlocks: Bool = false, socialTextSubclasses: Bool = false, normalizesGeneratedDocuments: Bool = false,
+    registeredTypes: Set<String>? = nil
   ) {
     self.reference = reference
     self.candidate = candidate
+    self.normalizesGeneratedDocuments = normalizesGeneratedDocuments
+    self.registeredTypes = registeredTypes
     self.generator = Generator(seed: seed, writingDirections: writingDirections, structuralBlocks: structuralBlocks, socialTextSubclasses: socialTextSubclasses)
   }
 
@@ -79,9 +84,23 @@ public struct Fuzzer {
   public mutating func run(steps: Int) throws -> Finding? {
     var stepsRun = 0
     while stepsRun < steps {
-      let start = generator.document()
+      var start = generator.document()
+      if let registeredTypes {
+        var attempts = 0
+        while !start.nodeTypes.isSubset(of: registeredTypes) {
+          attempts += 1
+          guard attempts < 1000 else { throw FuzzerError("The generator couldn't produce a document in this node registry") }
+          start = generator.document()
+        }
+      }
       var commands: [EditorCommand] = []
       try reference.load(start)
+      if normalizesGeneratedDocuments {
+        // Mounted nested-editor plugins normalize generated entity text. Start
+        // command fuzzing from the same canonical source state as shrinking.
+        start = try reference.snapshot().state
+        try reference.load(start)
+      }
       guard try reference.snapshot().state == start else {
         throw FuzzerError("The generator wrote a document Lexical normalizes on load")
       }

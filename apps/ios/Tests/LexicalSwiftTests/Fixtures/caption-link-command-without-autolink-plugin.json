@@ -1,0 +1,148 @@
+{
+  "changes": [
+    {
+      "changed": []
+    },
+    {
+      "changed": []
+    }
+  ],
+  "commands": [
+    {
+      "anchor": {
+        "offset": 0,
+        "path": [
+          0,
+          0,
+          0
+        ],
+        "type": "text"
+      },
+      "focus": {
+        "offset": 0,
+        "path": [
+          0,
+          0,
+          0
+        ],
+        "type": "text"
+      },
+      "type": "setSelection"
+    },
+    {
+      "type": "toggleLink",
+      "url": null
+    }
+  ],
+  "editorContext": "videoCaption",
+  "expected": {
+    "selection": {
+      "anchor": {
+        "offset": 0,
+        "path": [
+          0,
+          0,
+          0
+        ],
+        "type": "text"
+      },
+      "focus": {
+        "offset": 0,
+        "path": [
+          0,
+          0,
+          0
+        ],
+        "type": "text"
+      },
+      "format": 1,
+      "style": ""
+    },
+    "state": {
+      "root": {
+        "children": [
+          {
+            "children": [
+              {
+                "children": [
+                  {
+                    "detail": 0,
+                    "format": 1,
+                    "mode": "normal",
+                    "style": "",
+                    "text": "o",
+                    "type": "text",
+                    "version": 1
+                  }
+                ],
+                "direction": null,
+                "format": "",
+                "indent": 0,
+                "isUnlinked": false,
+                "rel": null,
+                "target": null,
+                "title": null,
+                "type": "autolink",
+                "url": "https://www.a.io",
+                "version": 1
+              }
+            ],
+            "direction": null,
+            "format": "",
+            "indent": 0,
+            "type": "quote",
+            "version": 1
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "root",
+        "version": 1
+      }
+    }
+  },
+  "start": {
+    "root": {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "detail": 0,
+                  "format": 1,
+                  "mode": "normal",
+                  "style": "",
+                  "text": "o",
+                  "type": "text",
+                  "version": 1
+                }
+              ],
+              "direction": null,
+              "format": "",
+              "indent": 0,
+              "isUnlinked": false,
+              "rel": null,
+              "target": null,
+              "title": null,
+              "type": "autolink",
+              "url": "https://www.a.io",
+              "version": 1
+            }
+          ],
+          "direction": null,
+          "format": "",
+          "indent": 0,
+          "type": "quote",
+          "version": 1
+        }
+      ],
+      "direction": null,
+      "format": "",
+      "indent": 0,
+      "type": "root",
+      "version": 1
+    }
+  }
+}

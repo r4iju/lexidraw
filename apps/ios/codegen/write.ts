@@ -148,3 +148,10 @@ await Bun.write(MEDIA_VIDEOS_PATH, swiftForMediaVideos());
 await Bun.write(ARTICLE_DATA_PATH, await swiftForArticleData());
 
 await Bun.write(ARTICLE_TEXT_PATH, await swiftForArticlePlainText());
+
+const { CONTEXTS_PATH, swiftForEditorContexts } = await import("./editor-contexts");
+await Bun.write(CONTEXTS_PATH, await swiftForEditorContexts());
+const { TEXT_ENTITIES_PATH, swiftForTextEntities } = await import("./text-entities");
+await Bun.write(TEXT_ENTITIES_PATH, await swiftForTextEntities());
+const { webEditorContexts, webEditorRegistries } = await import("./editor-contexts");
+await Bun.write(new URL("../reference/generated-editor-contexts.ts", import.meta.url), `// Generated from actual mounted plugin sources.\nexport const editorContexts = ${JSON.stringify(await webEditorContexts())};\nexport const editorRegistries = ${JSON.stringify(await webEditorRegistries())};\n`);

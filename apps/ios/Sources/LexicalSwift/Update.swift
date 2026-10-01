@@ -32,6 +32,8 @@ struct Update {
   /// which a copy of the list keeps too.
   var knowsListMarker: Bool
   var plainText = false
+  var editorContext = EditorContext.document
+  func hasEditorPlugin(_ name: String) -> Bool { editorContext == .document || editorContext.mountedPlugins.contains(name) }
   /// This update's share of `Editor.shortcutsDeclinedAsNotPorted`.
   var shortcutsDeclinedAsNotPorted = 0
   var tags: Set<UpdateTag> = []
@@ -437,9 +439,10 @@ struct Update {
             try normalizeText(key)
           }
           if state.nodes[key]?.type == SerializedTextNode.type, state.isAttached(key) {
-            try syncListItem(withFirstText: key)
-            if !plainText, state.isAttached(key) { try transformAutoLinkText(key) }
+            if editorContext == .document { try syncListItem(withFirstText: key) }
+            if !plainText, editorContext == .document, state.isAttached(key) { try transformAutoLinkText(key) }
           }
+          if !plainText, state.isAttached(key) { try transformNestedTextEntities(key) }
           allLeaves.append(key)
         }
         untransformedLeaves = dirtyLeaves

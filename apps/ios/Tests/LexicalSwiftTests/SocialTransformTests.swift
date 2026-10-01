@@ -3,6 +3,20 @@ import LexicalSwift
 import Testing
 
 @Suite struct SocialTransformTests {
+  @Test func imageCaptionKeepsItsActualRestrictedNodeRegistry() throws {
+    for context: EditorContext in [.imageCaption, .inlineImageCaption] {
+      #expect(throws: EditorError.self) { try Editor(editorContext: context).load(document(heading("h2", text("Caption heading")))) }
+    }
+  }
+  @Test func nestedEditorTransformsFollowEachMountedWebContext() throws {
+    for context: EditorContext in [.imageCaption, .inlineImageCaption, .videoCaption, .slide] {
+      let start = document(paragraph(text("Before ", format: .bold)))
+      let commands: [EditorCommand] = [.caret(.text([0, 0], 7)), .insertText("#native congratulations :) "), .undo, .redo]
+      let fixture = try Fixture.record(start: start, commands: commands, on: Support.referenceEditor(editorContext: context))
+      let outcome = try fixture.replay(on: Editor(editorContext: context))
+      #expect(outcome == fixture.recorded)
+    }
+  }
   @Test func storedKeywordModesFollowTheActualTextEntityClass() throws {
     for mode in ["token", "segmented"] {
       var fields = try #require(text("congratulations").objectValue)

@@ -8,6 +8,15 @@ import CalloutPlugin from "../../lexidraw/src/app/documents/[documentId]/plugins
 import CollapsiblePlugin from "../../lexidraw/src/app/documents/[documentId]/plugins/CollapsiblePlugin/index.js";
 import { LayoutPlugin, UPDATE_LAYOUT_COMMAND } from "../../lexidraw/src/app/documents/[documentId]/plugins/LayoutPlugin/LayoutPlugin.js";
 import { withStructuralEditor } from "./structural-hooks.js";
+import KeywordsPlugin from "../../lexidraw/src/app/documents/[documentId]/plugins/KeywordsPlugin/index.js";
+import EmojisPlugin from "../../lexidraw/src/app/documents/[documentId]/plugins/EmojisPlugin/index.js";
+import { registerLexicalHashtag } from "@lexical/hashtag";
+import { editorContexts, editorRegistries } from "./generated-editor-contexts.js";
+import { registerTabIndentation } from "@lexical/extension";
+let editorContext: keyof typeof editorContexts | "document" = "document";
+function hasContextPlugin(plugin: string): boolean {
+  return editorContext === "document" || editorContexts[editorContext].includes(plugin);
+}
 import {
   $setWritingDirection,
   type WritingDirection,
@@ -255,14 +264,20 @@ function current(): LexicalEditor {
  * editor updates as a headless one does.
  */
 function load(stateJSON: string): void {
+  const registry = editorContext === "document" ? null : editorRegistries[editorContext];
   const next = createEditor({
     namespace: EDITOR_NAMESPACE,
-    nodes: SCHEMA_NODES,
+    nodes: registry ? SCHEMA_NODES.filter(node => registry.includes(node.getType())) : SCHEMA_NODES,
     onError: (error) => {
       lastError = error;
     },
   });
-  withStructuralEditor(next, () => { LayoutPlugin(); CollapsiblePlugin(); CalloutPlugin(); });
+  const plugins = editorContext === "document" ? null : editorContexts[editorContext];
+  withStructuralEditor(next, () => {
+    if (!plugins || plugins.includes("LayoutPlugin")) LayoutPlugin();
+    if (!plugins || plugins.includes("CollapsiblePlugin")) CollapsiblePlugin();
+    if (!plugins || plugins.includes("CalloutPlugin")) CalloutPlugin();
+  });
   lastError = null;
   const parsed = next.parseEditorState(stateJSON);
   // Parsing reports a bad node through onError and returns an empty state.
@@ -302,7 +317,8 @@ function load(stateJSON: string): void {
   // element calls them only with none; the checklist's pointer handling
   // registers one, which does nothing without a root.
   next.registerRootListener = () => () => {};
-  registerDocumentEditing(next);
+  if (editorContext === "document") registerDocumentEditing(next);
+  else if (plugins?.includes("TabIndentationPlugin")) registerTabIndentation(next);
   // Rich text deletes through the DOM's selection, which a headless editor
   // hasn't got.
   next.registerCommand(
@@ -316,18 +332,25 @@ function load(stateJSON: string): void {
     COMMAND_PRIORITY_LOW,
   );
   // The document editor's link and table plugins, in the order it mounts them.
-  registerAutoLink(next, {
+  if (editorContext === "document") registerAutoLink(next, {
     changeHandlers: [],
     excludeParents: [],
     matchers: AUTOLINK_MATCHERS,
   });
-  registerTables(next);
+  if (!plugins || plugins.includes("TablePlugin")) registerTables(next);
   registerLink(next, namedSignals({ attributes: undefined, validateUrl }));
   // CommentPlugin flattens directly nested marks and merges their thread IDs.
-  registerNestedElementResolver(next, MarkNode,
+  if (editorContext === "document") registerNestedElementResolver(next, MarkNode,
     (from) => $createMarkNode(from.getIDs()),
     (from, to) => { for (const id of from.getIDs()) to.addID(id); });
   next.setEditorState(parsed);
+  if (editorContext !== "document") {
+    for (const plugin of editorContexts[editorContext]) {
+      if (plugin === "EmojisPlugin") withStructuralEditor(next, () => { EmojisPlugin(); });
+      if (plugin === "HashtagPlugin") registerLexicalHashtag(next);
+      if (plugin === "KeywordsPlugin") withStructuralEditor(next, () => { KeywordsPlugin(); });
+    }
+  }
   next.registerUpdateListener(
     ({ dirtyElements, dirtyLeaves, editorState, prevEditorState, tags }) => {
       const keys = tags.has(HISTORIC_TAG)
@@ -341,7 +364,7 @@ function load(stateJSON: string): void {
       for (const key of keys) changed.add(key);
     },
   );
-  registerMarkdownShortcuts(next, createTransformers());
+  if (editorContext === "document" || editorContexts[editorContext].includes("MarkdownShortcutPlugin")) registerMarkdownShortcuts(next, createTransformers());
   editor = next;
 }
 
@@ -405,7 +428,7 @@ function cut(): void {
   let isCutByATable = false;
   current().update(
     () => {
-      isCutByATable = $cutHandler((selection) => {
+      isCutByATable = hasContextPlugin("TablePlugin") && $cutHandler((selection) => {
         clipboard = clipboardData(selection);
       });
     },
@@ -822,7 +845,7 @@ function run(
       selection.insertText(command.text);
       return;
     case "deleteCharacter": {
-      if ($deleteCellHandler()) return;
+      if (hasContextPlugin("TablePlugin") && $deleteCellHandler()) return;
       editor.dispatchCommand(
         command.backward ? KEY_BACKSPACE_COMMAND : KEY_DELETE_COMMAND,
         key(),
@@ -881,7 +904,7 @@ function run(
       return;
     case "tab":
       if (
-        DOCUMENT_TABLE_PLUGIN.hasTabHandler &&
+        hasContextPlugin("TablePlugin") && DOCUMENT_TABLE_PLUGIN.hasTabHandler &&
         $tabHandler(command.backward)
       ) {
         return;
@@ -1479,7 +1502,7 @@ function setSelection(anchorAt: PathPoint, focusAt: PathPoint): void {
   } else {
     selection.format = combinedFormat(selection, anchorAt, focusAt);
   }
-  $fixRangeSelectionForSelectedTable(selection);
+  if (hasContextPlugin("TablePlugin")) $fixRangeSelectionForSelectedTable(selection);
 }
 
 /** `$updateSelectionFormatStyle` from Lexical's selection-change handler. */
@@ -1593,6 +1616,7 @@ function pathPoint(point: PointType): PathPoint {
 
 Object.assign(globalThis, {
   LexicalReference: {
+    setContext: (context: typeof editorContext) => { editorContext = context; },
     load,
     apply,
     snapshot,

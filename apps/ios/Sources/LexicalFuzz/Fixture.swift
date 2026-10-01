@@ -11,6 +11,7 @@ public struct Fixture: Codable, Equatable, Sendable {
   /// True where the script ends on a selection the reference can't read
   /// back, so `expected` holds its tree and no selection.
   public var isSelectionUnreadable: Bool?
+  public var editorContext: EditorContext?
 
   public init(
     start: JSONValue, commands: [EditorCommand], changes: [Change], expected: Snapshot,

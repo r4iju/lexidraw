@@ -19,7 +19,7 @@ extension Update {
   /// registers its handlers: the AutoLink plugin's, then the Link plugin's
   /// with the web's `validateUrl`.
   mutating func toggleLinkCommand(_ selection: RangeSelection, url: String?) throws {
-    if url == nil {
+    if url == nil, editorContext == .document {
       for node in try extract(selection) {
         guard let parent = state.parent(of: node), case .autoLink(var link) = state[parent].payload else { continue }
         link.isUnlinked = !(link.isUnlinked ?? false)

@@ -12,7 +12,7 @@ public final class ReferenceEditor: EditorModel {
   private let decoder = JSONDecoder()
 
   /// `scriptURL` is the bundle `bun run build:reference` writes.
-  public init(scriptURL: URL) throws {
+  public init(scriptURL: URL, editorContext: EditorContext = .document) throws {
     guard let context = JSContext() else { throw ReferenceError("Couldn't create a JSContext") }
     self.context = context
     // Lexical only needs the console to exist. Its one timer resets how many
@@ -36,6 +36,7 @@ public final class ReferenceEditor: EditorModel {
     }
     self.api = api
     runTimers = context.objectForKeyedSubscript("runTimers")
+    api.invokeMethod("setContext", withArguments: [editorContext.rawValue])
   }
 
   /// JSON crosses as the text JavaScript reads and writes, so key order

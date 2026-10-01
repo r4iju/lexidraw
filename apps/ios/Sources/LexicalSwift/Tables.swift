@@ -1223,6 +1223,7 @@ extension Update {
   /// table's `$deleteCellHandler` deletes, and a range's text removed. True
   /// where a table's handler took the cut.
   mutating func cutHandler() throws -> Bool {
+    guard hasEditorPlugin("TablePlugin") else { return false }
     for table in tables() {
       if let selection {
         clipboard = try copy(selection) ?? Clipboard(plainText: "")

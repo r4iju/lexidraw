@@ -675,7 +675,7 @@ import UIKit
   }
   private func presentBody(_ state: JSONValue, title: String, changed: @escaping (JSONValue) -> Void) {
     do {
-      let model = Editor()
+      let model = Editor(editorContext: .slide)
       try model.loadKeyed(state)
       let editor =
         owner?.makeNestedEditor(model: model, isEditable: owner?.isEditable == true && model.isEditable)
@@ -828,7 +828,7 @@ import UIKit
       switch value["kind"]?.stringValue {
       case "box":
         do {
-          let model = Editor()
+          let model = Editor(editorContext: .slide)
           try model.loadKeyed(value["editorStateJSON"] ?? ["root": ["type": "root", "version": 1, "children": []]])
           let editor = makeEditor(model)
           editor.isUserInteractionEnabled = false
