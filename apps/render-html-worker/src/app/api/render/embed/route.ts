@@ -109,6 +109,10 @@ export async function POST(request: Request) {
     const interactions = await page.evaluate(
       extractArticleInteractions,
       includeAccessibility,
+      input.request !== null &&
+        typeof input.request === "object" &&
+        "articleImagesVersion" in input.request &&
+        input.request.articleImagesVersion === "v1",
     );
     const svg = await page.evaluate(async () => {
       const original = document.getElementById("native-embed");
@@ -171,8 +175,41 @@ export async function POST(request: Request) {
     const png = Buffer.from(
       await element.screenshot({ type: "png", omitBackground: true }),
     ).toString("base64");
+    let articleImageBasePNG: string | undefined;
+    if (
+      "articleImages" in interactions &&
+      interactions.articleImages?.some((image) => image.overlay)
+    ) {
+      await page.evaluate((metadata) => {
+        const root = document.getElementById("native-embed");
+        if (!root) throw new Error("No render root");
+        const origin = root.getBoundingClientRect();
+        const images = [
+          ...document.querySelectorAll<HTMLImageElement>(
+            "[data-native-article] img",
+          ),
+        ];
+        for (const item of metadata) {
+          if (!item.overlay) continue;
+          const image = images.find((image) => {
+            const rect = image.getBoundingClientRect();
+            return (
+              (image.currentSrc || image.src) === item.source &&
+              Math.abs(rect.x - origin.x - item.x) < 0.01 &&
+              Math.abs(rect.y - origin.y - item.y) < 0.01
+            );
+          });
+          if (!image) throw new Error("Article image geometry changed");
+          image.style.opacity = "0";
+        }
+      }, interactions.articleImages);
+      articleImageBasePNG = Buffer.from(
+        await element.screenshot({ type: "png", omitBackground: true }),
+      ).toString("base64");
+    }
     return NextResponse.json({
       ...interactions,
+      ...(articleImageBasePNG ? { articleImageBasePNG } : {}),
       svg,
       png,
       width: bounds.width,

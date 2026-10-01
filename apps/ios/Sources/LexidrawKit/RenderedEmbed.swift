@@ -16,6 +16,19 @@ public struct RenderedEmbed: Sendable {
     public let url: URL?
     public let rect: [Double]
   }
+  public struct ArticleImage: Sendable {
+    public let source: URL
+    public let url: URL?
+    public let heading: Bool
+    public let alt: String
+    public let textIndex: Int
+    public let rect: [Double]
+    public let objectFit: String
+    public let overlay: Bool
+    public let refusal: String?
+  }
+  public let articleImages: [ArticleImage]
+  public let articleImageBasePNG: Data?
   public let accessibility: [Accessibility]
   public let accessibleText: String?
   public let links: [Link]
@@ -48,12 +61,17 @@ extension Session {
   public func renderEmbed(node: JSONValue, dark: Bool, width: Int, fontFamily: String, fontSize: Double) async throws -> RenderedEmbed {
     try await RenderedEmbedQueue.shared.perform {
     let result = try await ask {
-      try await $0.embedsRender(body: .json(.init(node: node.stringified, theme: dark ? .dark : .light, width: width, fontFamily: fontFamily, fontSize: fontSize, includeAccessibility: true)))
+      try await $0.embedsRender(body: .json(.init(node: node.stringified, theme: dark ? .dark : .light, width: width, fontFamily: fontFamily, fontSize: fontSize, includeAccessibility: true, articleImagesVersion: .v1)))
     }.ok.body.json
     guard let png = Data(base64Encoded: result.png), png.count <= 12_000_000 else {
       throw Refusal(status: 502, message: "The renderer returned an invalid image")
     }
-    return RenderedEmbed(accessibility: (result.accessibility ?? []).compactMap { item in
+    return RenderedEmbed(articleImages: (result.articleImages ?? []).compactMap { item in
+      guard let source = URL(string: item.source), ["http", "https", "data"].contains(source.scheme?.lowercased() ?? ""),
+        [item.x, item.y, item.width, item.height].allSatisfy(\.isFinite), item.width > 0, item.height > 0 else { return nil }
+      let url = item.url.flatMap(URL.init(string:)).flatMap { ["http","https","mailto","tel","ftp"].contains($0.scheme?.lowercased() ?? "") ? $0 : nil }
+      return RenderedEmbed.ArticleImage(source: source, url:url, heading:item.heading ?? false, alt: item.alt, textIndex: item.textIndex, rect: [item.x,item.y,item.width,item.height], objectFit: item.objectFit, overlay: item.overlay, refusal: item.refusal)
+    }, articleImageBasePNG: result.articleImageBasePNG.flatMap { Data(base64Encoded: $0) }, accessibility: (result.accessibility ?? []).compactMap { item in
       guard [item.x, item.y, item.width, item.height].allSatisfy(\.isFinite), item.width > 0, item.height > 0 else { return nil }
       let url = item.url.flatMap(URL.init(string:)).flatMap { ["http", "https", "mailto", "tel", "ftp"].contains($0.scheme?.lowercased() ?? "") ? $0 : nil }
       return RenderedEmbed.Accessibility(role: item.role.rawValue, heading: item.heading ?? (item.role == .heading), text: item.text, url: url, rect: [item.x, item.y, item.width, item.height])

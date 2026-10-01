@@ -9,7 +9,7 @@ import UIKit
   articles.countLimit = 100
   editor.embeddedContent = { [weak editor] key, node in
     guard node["type"] == "article", let editor else { return previous?(key, node) }
-    let article = articles.object(forKey: key as NSString) ?? ArticleBlockView(session: session, fontFamily: fontFamily)
+    let article = articles.object(forKey: key as NSString) ?? ArticleBlockView(session: session, fontFamily: fontFamily, imageLoader:editor.mediaImageLoader)
     articles.setObject(article, forKey: key as NSString)
     article.onChange = { [weak editor] in editor?.refreshEmbeddedContent() }
     article.editable = editor.isEditable
@@ -56,9 +56,10 @@ import UIKit
   private var missing = false
   var onChange: (() -> Void)?
 
-  init(session: Session, fontFamily: String) {
+  init(session: Session, fontFamily: String, imageLoader:MediaImageLoader? = nil) {
     self.session = session
     content = RenderedEmbedView(session: session, fontFamily: fontFamily)
+    content.articleImageLoader=imageLoader
     super.init(frame: .zero)
     title.font = .preferredFont(forTextStyle: .subheadline)
     metadata.font = .preferredFont(forTextStyle: .caption1)

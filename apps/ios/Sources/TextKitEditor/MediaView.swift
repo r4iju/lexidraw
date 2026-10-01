@@ -15,6 +15,21 @@ public typealias MediaImageLoader = @MainActor (URL) async throws -> UIImage
   public static func load(_ source: URL, rasterizeSVG: @escaping @MainActor (Data) async throws -> UIImage) async throws -> UIImage {
     try await MediaView.image(source, rasterizeSVG: rasterizeSVG)
   }
+  public static func configureAnimation(on view: UIImageView, image: UIImage) {
+    view.stopAnimating()
+    view.image = image
+    view.animationImages = image.images
+    view.animationDuration = image.duration
+    view.animationRepeatCount = loopCount(image)
+    if view.window != nil, image.images != nil { view.startAnimating() }
+  }
+  public static func decodedCost(_ image: UIImage) -> Int {
+    var counted: Set<ObjectIdentifier> = []
+    return (image.images ?? [image]).reduce(0) { bytes, frame in
+      guard let bitmap = frame.cgImage, counted.insert(ObjectIdentifier(bitmap)).inserted else { return bytes }
+      return bytes + bitmap.bytesPerRow * bitmap.height
+    }
+  }
   private static let loops = NSMapTable<UIImage, NSNumber>(keyOptions: .weakMemory, valueOptions: .strongMemory)
   static func setLoopCount(_ count: Int, for image: UIImage) { loops.setObject(NSNumber(value: count), forKey: image) }
   static func loopCount(_ image: UIImage) -> Int { loops.object(forKey: image)?.intValue ?? 0 }
@@ -171,11 +186,8 @@ enum MediaImageError: Error, LocalizedError, Equatable {
     }
   }
   private func startAnimation() {
-    guard window != nil, let image = picture.image, let frames = image.images else { return }
-    picture.animationImages = frames
-    picture.animationDuration = image.duration
-    picture.animationRepeatCount = NativeMediaImages.loopCount(image)
-    picture.startAnimating()
+    guard window != nil, let image = picture.image, image.images != nil else { return }
+    NativeMediaImages.configureAnimation(on: picture, image: image)
   }
   @objc private func open(_ gesture: UITapGestureRecognizer) {
     let point = gesture.location(in: self)
@@ -323,12 +335,7 @@ enum MediaImageError: Error, LocalizedError, Equatable {
     }.value
     try Task.checkCancellation()
     NativeMediaImages.setLoopCount(loopCount, for: image)
-    let frames = image.images ?? [image]
-    var counted: Set<ObjectIdentifier> = []
-    let cost = frames.reduce(0) { bytes, frame in
-      guard let bitmap = frame.cgImage, counted.insert(ObjectIdentifier(bitmap)).inserted else { return bytes }
-      return bytes + bitmap.bytesPerRow * bitmap.height
-    }
+    let cost = NativeMediaImages.decodedCost(image)
     images.setObject(image, forKey: cacheKey, cost: cost)
     return image
   }
