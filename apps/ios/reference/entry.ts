@@ -566,7 +566,12 @@ function cut(): void {
   current().update(
     () => {
       const selection = selectionToCut();
-      if ($isRangeSelection(selection) && !selection.isCollapsed()) {
+      // Plain text removes the existing range; only rich text widens it.
+      if (
+        !hasContextPlugin("PlainTextPlugin") &&
+        $isRangeSelection(selection) &&
+        !selection.isCollapsed()
+      ) {
         INTERNAL_$expandSelectionToWholeDocument(selection);
       }
       clipboard = copy(selection);
