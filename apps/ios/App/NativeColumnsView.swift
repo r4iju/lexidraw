@@ -37,14 +37,27 @@ indirect enum NativeColumnTrack {
     if value == "0" { self = .pixels(0); return }
     let suffix: String
     if value.hasSuffix("fr") { suffix = "fr" }
-    else if value.hasSuffix("px") { suffix = "px" }
     else if value.hasSuffix("%") { suffix = "%" }
+    else if let unit = ["px", "in", "cm", "mm", "pt", "pc", "q"].first(where: { value.hasSuffix($0) }) { suffix = unit }
     else { return nil }
     guard let number = Double(value.dropLast(suffix.count)), number.isFinite, number >= 0 else { return nil }
     switch suffix {
     case "fr": self = .fraction(number)
-    case "px": self = .pixels(number)
-    default: self = .percentage(number / 100)
+    case "%": self = .percentage(number / 100)
+    default:
+      // CSS absolute units use the fixed 96px/in ratio, independent of screen DPI.
+      let scale: Double
+      switch suffix {
+      case "in": scale = 96
+      case "cm": scale = 96 / 2.54
+      case "mm": scale = 96 / 25.4
+      case "q": scale = 96 / 101.6
+      case "pt": scale = 96 / 72
+      case "pc": scale = 16
+      default: scale = 1
+      }
+      guard (number * scale).isFinite else { return nil }
+      self = .pixels(number * scale)
     }
   }
 

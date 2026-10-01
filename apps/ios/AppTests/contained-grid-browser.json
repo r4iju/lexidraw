@@ -168,6 +168,66 @@
       "template": "fit-content(5px) 1fr",
       "tracks": "18px 374px",
       "width": 400
+    },
+    {
+      "frames": [
+        {
+          "width": 96,
+          "x": 0
+        },
+        {
+          "width": 96,
+          "x": 104
+        },
+        {
+          "width": 96,
+          "x": 208
+        }
+      ],
+      "gap": 8,
+      "template": "1in 72pt 2.54cm",
+      "tracks": "96px 96px 96px",
+      "width": 400
+    },
+    {
+      "frames": [
+        {
+          "width": 96,
+          "x": 0
+        },
+        {
+          "width": 96,
+          "x": 104
+        },
+        {
+          "width": 96,
+          "x": 208
+        }
+      ],
+      "gap": 8,
+      "template": "25.4mm 101.6q 6pc",
+      "tracks": "96px 96px 96px",
+      "width": 400
+    },
+    {
+      "frames": [
+        {
+          "width": 32,
+          "x": 0
+        },
+        {
+          "width": 360,
+          "x": 40
+        },
+        {
+          "width": 32,
+          "x": 0
+        }
+      ],
+      "gap": 8,
+      "template": "minmax(12pt,2pc) 1fr",
+      "tracks": "32px 360px",
+      "width": 400
     }
   ]
 }
