@@ -4,14 +4,10 @@ import {
   MenuOption,
   useBasicTypeaheadTriggerMatch,
 } from "@lexical/react/LexicalTypeaheadMenuPlugin";
-import {
-  $createTextNode,
-  $getSelection,
-  $isRangeSelection,
-  type TextNode,
-} from "lexical";
+import { type TextNode } from "lexical";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  $selectEmoji,
   EMOJI_TRIGGER,
   EMOJI_MIN_LENGTH,
   emojiOptions as sourceOptions,
@@ -84,17 +80,11 @@ export default function EmojiPickerPlugin() {
       closeMenu: () => void,
     ) => {
       editor.update(() => {
-        const selection = $getSelection();
-
-        if (!$isRangeSelection(selection) || selectedOption == null) {
+        if (
+          selectedOption == null ||
+          !$selectEmoji(selectedOption.emoji, nodeToRemove)
+        )
           return;
-        }
-
-        if (nodeToRemove) {
-          nodeToRemove.remove();
-        }
-
-        selection.insertNodes([$createTextNode(selectedOption.emoji)]);
 
         closeMenu();
       });

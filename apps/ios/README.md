@@ -1146,11 +1146,12 @@ The source-mounted EmojiPickerPlugin is reachable through `:` in main documents
 and slide text. Its aliases/tags/order, first-ten limit, empty-query behavior and
 JavaScript trigger pattern are generated from the actual web picker/list and
 upstream hook. Selection inserts a source-created plain TextNode payload and
-removes the matched trigger through the existing native model paste command.
+removes the matched trigger through the source-attributed atomic model insertion transaction.
 Media captions mount EmojisPlugin transforms, not this picker.
 
-`EditorTypeaheadProvider` exposes async source-owned matches over a bounded
-256-UTF-16-unit suffix of the current normal text node. The shared native menu
+`EditorTypeaheadProvider` exposes async source-owned matches over the current
+normal text node prefix, exactly as the upstream picker does. There is no
+arbitrary suffix truncation that could silently narrow future source patterns. The shared native menu
 cancels obsolete requests and rechecks the node/caret/prefix before selection.
 It stays outside the UITextInput accessibility element and is exposed beside it
 by the app host. Touch selection is covered by the production EditorHarness UI
@@ -1166,7 +1167,9 @@ The mounted image, inline-image and slide mention pickers now register the actua
 MentionNode their callback creates; each missing web registry had a retained
 headless source regression that failed before correction. Native suggestions use
 that same source matcher, Star Wars sample dataset, minimum query length,
-500 ms lookup delay and first-five limit. The main document does not acquire a
+500 ms delay for an uncached, uninterrupted lookup and first-five limit. Native
+lookup cancels stale requests; its in-flight cache behavior differs from the
+web’s existing stale-result effect. The main document does not acquire a
 mention picker where its source does not mount one. No account search or
 notifications are added.
 
@@ -1177,3 +1180,22 @@ caption edits for plain, bold and color cases, next typing, undo/redo and live
 parent serialization. Matcher differential cases include all JavaScript
 whitespace and UTF16 limits. A hosted NativeEditorHost regression types and
 selects a real suggestion and verifies the owned caption's autosave/export path.
+
+The shared menu now requires a focused, window-mounted editor, a visible popup
+for selection, and an unchanged node/caret/prefix. Its source-derived preceding
+text-entity guard suppresses lead-offset-zero matches beside actual entity
+nodes; whitespace-prefixed matches remain allowed. Both Tab and Shift-Tab choose
+as the actual upstream menu does. A refused atomic insertion retains the view's
+original collapsed selection rather than leaving a query range highlighted.
+
+The actual `$selectEmoji` callback body is shared by the web picker and
+`reference/emoji-picker-selection.ts`; its headless replay types a bold/color
+query, inserts an unformatted Unicode node, retains the prior typing attributes
+and types a bold/color exclamation mark. The new production UI styled case was
+authored before adopting that atomic seam: it genuinely failed saving unformatted
+`😀!` (`/tmp/134-emoji-style-red2.log`), then passed with separate plain emoji and
+bold exclamation (`/tmp/134-emoji-followup-green.xcresult`, both emoji UI cases).
+The first hardware-setup attempt failed finding the menu and is not counted as
+proof of the typing-attribute mismatch. The source replay's color caret proof is
+in `/tmp/134-emoji-source-styled.json`; the production UI case uses the actual
+formatting bar's Bold control.
