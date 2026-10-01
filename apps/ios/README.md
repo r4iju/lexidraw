@@ -808,5 +808,6 @@ model, including non-panel wrappers and the root. A hosted nested list →
 list item → callout regression failed in `133-ancestor-red.xcresult` (the
 preview caret stayed at x=0 despite inherited RTL/right formatting), then all
 four hosted cases passed in `133-ancestor-green.xcresult` after the prefix fix.
-Raw fractional tracks still need CSS automatic minimum-content sizing; the
-current zero base only matches explicit `minmax(0, …fr)` or empty content.
+Raw fractional tracks still need the web column box minimum. Production CSS
+sets `min-width: 0` and inline-size containment, so text-content minima are
+suppressed; the generated border and padding still contribute to track sizing.
