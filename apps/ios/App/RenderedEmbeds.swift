@@ -56,7 +56,7 @@ import Synchronization
   view.onEmbeddedTap = { key, node in open(key, node) || previousTap?(key, node) == true }
 }
 
-@MainActor final class RenderedEmbedView: EmbeddedContentView {
+@MainActor final class RenderedEmbedView: EmbeddedContentView, UIContextMenuInteractionDelegate {
   let session: Session
   let fontFamily: String
   var node: JSONValue = .null
@@ -67,6 +67,8 @@ import Synchronization
   var onRendered: (() -> Void)?
   var failureDescription = "Couldn’t render. Tap to edit the source."
   private var links: [RenderedEmbed.Link] = []
+  private var articleText: String?
+  private var articleElements: [(ArticleAccessibilityElement, [Double])] = []
   private let picture = UIImageView()
   private let status = UILabel()
   private var task: Task<Void, Never>?
@@ -85,6 +87,7 @@ import Synchronization
     addSubview(picture)
     addSubview(status)
     addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(tap(_:))))
+    addInteraction(UIContextMenuInteraction(delegate: self))
     accessibilityTraits = .button
     registerForTraitChanges([UITraitUserInterfaceStyle.self, UITraitPreferredContentSizeCategory.self]) { (view: RenderedEmbedView, _: UITraitCollection) in
       view.signature = nil
@@ -96,7 +99,7 @@ import Synchronization
   override func show(_ node: JSONValue) {
     if self.node != node {
       signature = nil; self.node = node
-      if node["type"] == "article" { links = []; image = nil; picture.image = nil }
+      if node["type"] == "article" { links = []; articleText = nil; articleElements = []; accessibilityElements = nil; isAccessibilityElement = true; image = nil; picture.image = nil }
     }
     accessibilityLabel = "\(node["type"]?.stringValue ?? "Rendered node"). Edit source"
     setNeedsLayout()
@@ -129,6 +132,7 @@ import Synchronization
   override func layoutSubviews() {
     super.layoutSubviews()
     picture.frame = bounds
+    updateArticleAccessibilityFrames()
     status.frame = bounds.insetBy(dx: 8, dy: 8)
     _ = contentSize(fitting: availableWidth ?? max(bounds.width, 1))
   }
@@ -149,22 +153,70 @@ import Synchronization
         self.image = image
         links = result.links
         if node["type"] == "article" {
+          articleText = result.accessibleText
           accessibilityLabel = result.accessibleText
           accessibilityTraits = .staticText
+          articleElements = result.accessibility.map { item in
+            let element = ArticleAccessibilityElement(accessibilityContainer: self)
+            element.accessibilityLabel = item.text
+            element.accessibilityTraits = item.role == "heading" ? [.staticText, .header] : item.role == "link" && item.url != nil ? .link : .staticText
+            element.activate = item.url.map { url in { UIApplication.shared.open(url); return true } }
+            return (element, item.rect)
+          }
+          isAccessibilityElement = articleElements.isEmpty
+          accessibilityElements = articleElements.isEmpty ? nil : articleElements.map { $0.0 }
+          updateArticleAccessibilityFrames()
         }
         picture.image = image
         natural = CGSize(width: result.width, height: result.height)
         status.text = nil
+        updateArticleAccessibilityFrames()
         onRendered?()
       } catch {
         guard !Task.isCancelled, let self, self.signature == next else { return }
         status.text = "\(failureDescription)\n\(error.localizedDescription)"
         links = []
+        articleElements = []
+        accessibilityElements = nil
+        isAccessibilityElement = true
+        accessibilityLabel = status.text
         image = nil
         picture.image = nil
         failed = true
         onRendered?()
       }
+    }
+  }
+  func contextMenuInteraction(_ interaction: UIContextMenuInteraction, configurationForMenuAtLocation location: CGPoint) -> UIContextMenuConfiguration? {
+    guard node["type"] == "article", let text = articleText, !text.isEmpty else { return nil }
+    return UIContextMenuConfiguration(actionProvider: { [weak self] _ in
+      UIMenu(children: [
+        UIAction(title: "Copy article text", image: UIImage(systemName: "doc.on.doc")) { _ in UIPasteboard.general.string = text },
+        UIAction(title: "Select article text", image: UIImage(systemName: "text.cursor")) { _ in self?.selectArticleText(text) }
+      ])
+    })
+  }
+  private func selectArticleText(_ text: String) {
+    var responder: UIResponder? = self
+    while responder != nil, !(responder is UIViewController) { responder = responder?.next }
+    guard let parent = responder as? UIViewController else { return }
+    let controller = UIViewController()
+    let body = UITextView()
+    body.text = text
+    body.isEditable = false
+    body.isSelectable = true
+    body.font = .preferredFont(forTextStyle: .body)
+    body.adjustsFontForContentSizeCategory = true
+    controller.view = body
+    controller.title = "Article text"
+    controller.navigationItem.rightBarButtonItem = UIBarButtonItem(systemItem: .done, primaryAction: UIAction { [weak controller] _ in controller?.dismiss(animated: true) })
+    parent.present(UINavigationController(rootViewController: controller), animated: true)
+  }
+  private func updateArticleAccessibilityFrames() {
+    let scale = min(bounds.width / max(natural.width, 1), bounds.height / max(natural.height, 1))
+    let offset = CGPoint(x: (bounds.width - natural.width * scale) / 2, y: (bounds.height - natural.height * scale) / 2)
+    for (element, rect) in articleElements {
+      element.accessibilityFrameInContainerSpace = CGRect(x: offset.x + rect[0] * scale, y: offset.y + rect[1] * scale, width: rect[2] * scale, height: rect[3] * scale)
     }
   }
   func retryIfFailed() {
@@ -182,6 +234,11 @@ import Synchronization
       UIApplication.shared.open(link.url)
     } else { open?() }
   }
+}
+
+@MainActor private final class ArticleAccessibilityElement: UIAccessibilityElement {
+  var activate: (() -> Bool)?
+  override func accessibilityActivate() -> Bool { activate?() ?? false }
 }
 
 @MainActor private final class RenderedAttachment: NSTextAttachment, LazyTextAttachment {

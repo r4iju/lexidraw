@@ -9,6 +9,7 @@ export type EmbedRenderRequest = {
 };
 export type EmbedRenderImage = {
   accessibleText?: string;
+  accessibility?: { role: "heading" | "text" | "link"; text: string; url?: string; x: number; y: number; width: number; height: number }[];
   links?: { url: string; x: number; y: number; width: number; height: number }[];
   svg: string;
   png: string;
@@ -59,7 +60,7 @@ export function createEmbedRenderer(
     const pending = boundedDraw(request)
       .then((image) => {
         const size =
-          Buffer.byteLength(image.svg) + Buffer.byteLength(image.png) + Buffer.byteLength(JSON.stringify({ links: image.links, accessibleText: image.accessibleText }));
+          Buffer.byteLength(image.svg) + Buffer.byteLength(image.png) + Buffer.byteLength(JSON.stringify({ links: image.links, accessibleText: image.accessibleText, accessibility: image.accessibility }));
         if (
           Buffer.byteLength(image.svg) > 8_000_000 ||
           size > 12_000_000 ||

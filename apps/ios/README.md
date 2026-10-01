@@ -984,3 +984,8 @@ and the production simulator build passed (`133-auto-repeat-app.log`). No CI
 was invoked. Font/viewport/container-relative lengths, named lines and CSS math
 functions remain explicit imported-shape limitations. The node-setting model
 command fuzz coverage identified by the acceptance audit is a separate follow-up.
+### Native article accessibility
+
+Article renders optionally return semantic heading, paragraph/list/table-cell and link geometry from the actual article DOM. Native VoiceOver exposes these in DOM order, marks headings and permits link activation; older render responses retain the whole-body text fallback. Long-press offers copying the rendered plain text or selecting a range in a native read-only text sheet. This preserves readable text; it does not promise rich HTML copying or selection directly over the rasterized article.
+
+The hosted ArticleAccessibilityTests first failed with missing accessibility elements (`/tmp/134-article-ax-red4.xcresult`) and then passed (`/tmp/134-article-ax-green.xcresult`). Native/website TypeScript, renderer cache tests and the production simulator build pass locally. The optional metadata is included in the server cache byte limit.

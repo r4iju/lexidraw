@@ -110,7 +110,17 @@ export async function POST(request: Request) {
           url: anchor.href, x: rect.x - origin.x, y: rect.y - origin.y, width: rect.width, height: rect.height,
         })),
       );
-      return { accessibleText: article.innerText, links };
+      const accessibility = Array.from(article.querySelectorAll<HTMLElement>("h1,h2,h3,h4,h5,h6,p,li,pre,td,th,a[href]")).flatMap((element) => {
+        // Nested lists/cells expose their own paragraphs; avoid reading those bodies twice.
+        if (element.matches("li,td,th") && element.querySelector("p,li,pre")) return [];
+        const text = element.innerText.trim();
+        const rect = element.getBoundingClientRect();
+        if (!text || rect.width <= 0 || rect.height <= 0) return [];
+        const role = element.matches("h1,h2,h3,h4,h5,h6") ? "heading" : element instanceof HTMLAnchorElement ? "link" : "text";
+        return [{ role, text, ...(element instanceof HTMLAnchorElement ? { url: element.href } : {}), x: rect.x - origin.x, y: rect.y - origin.y, width: rect.width, height: rect.height }];
+      });
+      if (accessibility.length > 4096) throw new Error("Article exceeds accessibility element limit");
+      return { accessibleText: article.innerText, links, accessibility };
     });
     const svg = await page.evaluate(async () => {
       const original = document.getElementById("native-embed");

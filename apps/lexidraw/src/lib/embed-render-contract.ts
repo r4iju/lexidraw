@@ -78,6 +78,7 @@ export const embedRenderRequest = z.object({
   fontSize: z.number().min(1).max(256),
 });
 export const embedRenderImage = z.object({
+  accessibility: z.array(z.object({ role: z.enum(["heading", "text", "link"]), text: z.string().max(262144), url: z.string().max(8192).optional(), x: z.number(), y: z.number(), width: z.number().positive(), height: z.number().positive() })).max(4096).optional(),
   accessibleText: z.string().max(262144).optional(),
   links: z.array(z.object({ url: z.string().max(8192), x: z.number(), y: z.number(), width: z.number().positive(), height: z.number().positive() })).optional(),
   svg: z.string().max(8000000),

@@ -9,6 +9,13 @@ public struct RenderedEmbed: Sendable {
     public let width: Double
     public let height: Double
   }
+  public struct Accessibility: Sendable {
+    public let role: String
+    public let text: String
+    public let url: URL?
+    public let rect: [Double]
+  }
+  public let accessibility: [Accessibility]
   public let accessibleText: String?
   public let links: [Link]
   public let hash: String
@@ -45,7 +52,11 @@ extension Session {
     guard let png = Data(base64Encoded: result.png), png.count <= 12_000_000 else {
       throw Refusal(status: 502, message: "The renderer returned an invalid image")
     }
-    return RenderedEmbed(accessibleText: result.accessibleText, links: (result.links ?? []).compactMap { link in
+    return RenderedEmbed(accessibility: (result.accessibility ?? []).compactMap { item in
+      guard [item.x, item.y, item.width, item.height].allSatisfy(\.isFinite), item.width > 0, item.height > 0 else { return nil }
+      let url = item.url.flatMap(URL.init(string:)).flatMap { ["http", "https", "mailto", "tel", "ftp"].contains($0.scheme?.lowercased() ?? "") ? $0 : nil }
+      return RenderedEmbed.Accessibility(role: item.role.rawValue, text: item.text, url: url, rect: [item.x, item.y, item.width, item.height])
+    }, accessibleText: result.accessibleText, links: (result.links ?? []).compactMap { link in
       guard let url = URL(string: link.url), ["http", "https", "mailto", "tel", "ftp"].contains(url.scheme?.lowercased() ?? "") else { return nil }
       return RenderedEmbed.Link(url: url, x: link.x, y: link.y, width: link.width, height: link.height)
     }, hash: result.hash, svg: result.svg, png: png, width: result.width, height: result.height)
