@@ -278,11 +278,13 @@ import UIKit
     let rightToLeft: Bool
     do { rightToLeft = try owner?.elementWritingDirection(for: key) == .rtl }
     catch { label("Cannot read the column direction: \(error.localizedDescription)"); return }
-    let columns = NativeColumnsView(tracks: tracks, gap: 8, rightToLeft: rightToLeft)
+    let columns = NativeColumnsView(tracks: tracks, gap: StructuralBlockConfiguration.columnGap, rightToLeft: rightToLeft)
     stack.addArrangedSubview(columns)
     self.columns = columns
     for (index, child) in children.enumerated() {
-      let column = UIStackView()
+      let column: NativeColumnBox
+      do { column = try NativeColumnBox(editable: owner?.isEditable == true) }
+      catch { label("Cannot draw this column: \(error.localizedDescription)"); return }
       column.axis = .vertical
       let inset = StructuralBlockConfiguration.columnPadding + StructuralBlockConfiguration.columnBorderWidth
       column.isLayoutMarginsRelativeArrangement = true

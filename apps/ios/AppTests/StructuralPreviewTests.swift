@@ -12,10 +12,10 @@ import TextKitEditor
     let body: EditorView
   }
 
-  private func preview(_ callout: JSONValue, wrapper: ((JSONValue) -> JSONValue)? = nil, path: [Int] = [0], width: CGFloat = 400) throws -> Preview {
+  private func preview(_ callout: JSONValue, wrapper: ((JSONValue) -> JSONValue)? = nil, path: [Int] = [0], width: CGFloat = 400, editable: Bool = false) throws -> Preview {
     let model = Editor()
     try model.load(["root": ["type": "root", "version": 1, "children": [wrapper?(callout) ?? callout]]])
-    let owner = EditorView(model: model, isEditable: false)
+    let owner = EditorView(model: model, isEditable: editable)
     owner.frame = CGRect(x: 0, y: 0, width: width, height: 600)
     configureStructuralBlocks(owner)
     let key = try XCTUnwrap(model.childKeys(at: Array(path.dropLast()))[path.last!])
@@ -49,6 +49,27 @@ import TextKitEditor
     let indented = try preview(["type": "callout", "version": 1, "kind": "note", "title": "", "indent": 2, "children": [list]])
     XCTAssertEqual(indented.body.caretRect(for: indented.body.beginningOfDocument).minX,
       unindented.body.caretRect(for: unindented.body.beginningOfDocument).minX + 80, accuracy: 1)
+  }
+
+  func testEditableColumnBordersAreDashedAndReadersKeepTheirBoxTransparent() throws {
+    let item: JSONValue = ["type": "layout-item", "version": 1, "children": [["type": "paragraph", "version": 1, "children": []]]]
+    let node: JSONValue = ["type": "layout-container", "version": 1, "templateColumns": "1fr 1fr", "children": [item, item]]
+    func stroke(in fixture: Preview) throws -> CAShapeLayer {
+      func columns(in view: UIView) -> NativeColumnsView? {
+        if let columns = view as? NativeColumnsView { return columns }
+        return view.subviews.lazy.compactMap { columns(in: $0) }.first
+      }
+      let view = try XCTUnwrap(columns(in: fixture.panel))
+      let column = try XCTUnwrap(view.subviews.flatMap(\.subviews).compactMap { $0 as? UIStackView }.first)
+      return try XCTUnwrap(column.layer.sublayers?.compactMap { $0 as? CAShapeLayer }.first)
+    }
+    let editing = try preview(node, width: 800, editable: true)
+    let reading = try preview(node, width: 800)
+    let border = try stroke(in: editing), transparent = try stroke(in: reading)
+    XCTAssertEqual(border.lineWidth, 1)
+    XCTAssertFalse(try XCTUnwrap(border.lineDashPattern).isEmpty)
+    XCTAssertGreaterThan(try XCTUnwrap(border.strokeColor).alpha, 0)
+    XCTAssertEqual(try XCTUnwrap(transparent.strokeColor).alpha, 0)
   }
 
   func testAnExplicitZeroTrackKeepsItsColumnBoxOverflow() throws {
