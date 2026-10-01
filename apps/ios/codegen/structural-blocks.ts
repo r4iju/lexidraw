@@ -2,6 +2,7 @@ import postcss from "postcss";
 import { ThemeColors } from "./typography";
 import { EMPTY_CONTENT, CHART_TYPES } from "@packages/lexical-nodes";
 import { createHeadlessEditor } from "@lexical/headless";
+import { $createHorizontalRuleNode } from "@lexical/extension";
 import { SCHEMA_NODES } from "@packages/lexical-nodes/nodes";
 import {
   CalloutNode,
@@ -27,6 +28,17 @@ export const STRUCTURAL_BLOCKS_PATH = new URL(
   import.meta.url,
 );
 export async function swiftForStructuralBlocks(): Promise<string> {
+  const insertMenu = await Bun.file(
+    new URL(
+      "../../lexidraw/src/app/documents/[documentId]/plugins/ToolbarPlugin/insert-item.tsx",
+      import.meta.url,
+    ),
+  ).text();
+  const dividerLabel =
+    /label: "([^"]+)",\s*icon: icon\(SeparatorHorizontal\),\s*insert: \(\) =>\s*editor\.dispatchCommand\(INSERT_HORIZONTAL_RULE_COMMAND, undefined\)/.exec(
+      insertMenu,
+    )?.[1];
+  if (!dividerLabel) throw new Error("Web divider insertion changed shape");
   const globals = await Bun.file(
     new URL("../../lexidraw/src/styles/globals.css", import.meta.url),
   ).text();
@@ -233,6 +245,7 @@ export async function swiftForStructuralBlocks(): Promise<string> {
         LayoutItemNode.$createLayoutItemNode().append($createParagraphNode()),
       );
       for (const node of [
+        $createHorizontalRuleNode(),
         c,
         section,
         layout,
@@ -281,7 +294,7 @@ export async function swiftForStructuralBlocks(): Promise<string> {
     .map((v) => Number.parseFloat(v) / 100)
     .join(
       ", ",
-    )}]\n  public static let calloutRadius = ${radius}.0\n  public static let calloutPaddingY = ${padding[1]}.0\n  public static let calloutPaddingX = ${padding[2]}.0\n  public static let layouts: [(label: String, value: String)] = [${layouts.map((v) => `(${string(v.label)}, ${string(v.value)})`).join(", ")}]\n  public static let stickyColors: [String:[String]] = [${["pink", "yellow", "green", "blue", "red", "orange", "purple", "gray"].map((k) => `${string(k)}: [${colors(`color-sticky-${k}`).map(string).join(", ")}]`).join(", ")}]\n  public static let insertionNodes: [String:String] = [${Object.entries(
+    )}]\n  public static let calloutRadius = ${radius}.0\n  public static let calloutPaddingY = ${padding[1]}.0\n  public static let calloutPaddingX = ${padding[2]}.0\n  public static let layouts: [(label: String, value: String)] = [${layouts.map((v) => `(${string(v.label)}, ${string(v.value)})`).join(", ")}]\n  public static let stickyColors: [String:[String]] = [${["pink", "yellow", "green", "blue", "red", "orange", "purple", "gray"].map((k) => `${string(k)}: [${colors(`color-sticky-${k}`).map(string).join(", ")}]`).join(", ")}]\n  public static let dividerLabel = ${string(dividerLabel)}\n  public static let insertionNodes: [String:String] = [${Object.entries(
     nodes,
   )
     .map(([k, v]) => `${string(k)}: #"${JSON.stringify(v)}"#`)
