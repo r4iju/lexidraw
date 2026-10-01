@@ -1,6 +1,7 @@
 import XCTest
 import UIKit
 import LexicalSwift
+import LexidrawJSON
 import TextKitEditor
 @testable import EditorHarness
 
@@ -49,6 +50,23 @@ import TextKitEditor
     let indented = try preview(["type": "callout", "version": 1, "kind": "note", "title": "", "indent": 2, "children": [list]])
     XCTAssertEqual(indented.body.caretRect(for: indented.body.beginningOfDocument).minX,
       unindented.body.caretRect(for: unindented.body.beginningOfDocument).minX + 80, accuracy: 1)
+  }
+
+  func testCalloutTintFollowsDarkTraitsAfterThePanelWasCreated() throws {
+    let paragraph: JSONValue = ["type": "paragraph", "version": 1, "children": []]
+    let fixture = try preview(["type": "callout", "version": 1, "kind": "note", "title": "", "children": [paragraph]])
+    fixture.panel.overrideUserInterfaceStyle = .dark
+    var red: CGFloat = 0, green: CGFloat = 0, blue: CGFloat = 0, alpha: CGFloat = 0
+    try XCTUnwrap(fixture.panel.backgroundColor).resolvedColor(with: UITraitCollection(userInterfaceStyle: .dark)).getRed(&red, green: &green, blue: &blue, alpha: &alpha)
+    XCTAssertEqual(alpha, 0.14, accuracy: 0.0001) // Source .dark --callout-tint:14%.
+  }
+
+  func testRegisteredStickyInsertionShowsItsSourceBackgroundColor() throws {
+    let node = try JSONValue(parsing: XCTUnwrap(StructuralBlockConfiguration.insertionNodes["sticky"]))
+    let fixture = try preview(node, path: [0, 0]) // Sticky is an inline isolated decorator.
+    var red: CGFloat = 0, green: CGFloat = 0, blue: CGFloat = 0, alpha: CGFloat = 0
+    try XCTUnwrap(fixture.panel.backgroundColor).getRed(&red, green: &green, blue: &blue, alpha: &alpha)
+    XCTAssertEqual(alpha, 1)
   }
 
   func testEditableColumnBordersAreDashedAndReadersKeepTheirBoxTransparent() throws {

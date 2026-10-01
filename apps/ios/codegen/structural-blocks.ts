@@ -1,5 +1,5 @@
 import postcss from "postcss";
-import { ThemeColors } from "./typography";
+import { ThemeColors, srgbForOklch } from "./typography";
 import { EMPTY_CONTENT, CHART_TYPES } from "@packages/lexical-nodes";
 import { createHeadlessEditor } from "@lexical/headless";
 import { $createHorizontalRuleNode } from "@lexical/extension";
@@ -122,6 +122,26 @@ export async function swiftForStructuralBlocks(): Promise<string> {
       throw new Error(`The web ${name} theme colors changed shape`);
     return values;
   };
+  const cssRoot = postcss.parse(globals);
+  const stickyDefaults = cssRoot.nodes.find((node) => node.type === "atrule" && node.name === "theme" && node.params === "");
+  let stickyDark: postcss.Rule | undefined;
+  cssRoot.walkRules(".dark .sticky-note-container", (rule) => {
+    if (stickyDark || rule.parent?.type !== "atrule" || rule.parent.name !== "media" || rule.parent.params !== "screen")
+      throw new Error("Sticky dark palette scope changed shape");
+    stickyDark = rule;
+  });
+  if (!stickyDefaults || stickyDefaults.type !== "atrule" || !stickyDark) throw new Error("Sticky palette scopes changed shape");
+  const stickyPalette = (name: string) => [stickyDefaults, stickyDark].map((scope) => {
+    const literals: string[] = [];
+    scope?.walkDecls(`--color-sticky-${name}`, (declaration) => { literals.push(declaration.value); });
+    if (literals.length !== 1) throw new Error(`Sticky ${name} palette changed shape`);
+    const match = /^oklch\(([\d.]+) ([\d.]+) ([\d.]+)(?: \/ ([\d.]+))?\)$/.exec(literals[0] ?? "");
+    if (!match) throw new Error(`Unsupported sticky ${name} color: ${literals[0]}`);
+    const l = Number(match[1]), c = Number(match[2]), h = Number(match[3]), alpha = Number(match[4] ?? 1);
+    if (![l, c, h, alpha].every(Number.isFinite)) throw new Error(`Invalid sticky ${name} channels`);
+    const [r, g, b] = srgbForOklch(l, c, h);
+    return `rgba(${r * 255}, ${g * 255}, ${b * 255}, ${Math.max(0, Math.min(1, alpha))})`;
+  });
   const callout = /\.callout \{([\s\S]*?)\}/.exec(document)?.[1] ?? "";
   const radius = /border-radius: (\d+)px/.exec(callout)?.[1];
   const padding = /padding: (\d+)px (\d+)px/.exec(callout);
@@ -294,7 +314,7 @@ export async function swiftForStructuralBlocks(): Promise<string> {
     .map((v) => Number.parseFloat(v) / 100)
     .join(
       ", ",
-    )}]\n  public static let calloutRadius = ${radius}.0\n  public static let calloutPaddingY = ${padding[1]}.0\n  public static let calloutPaddingX = ${padding[2]}.0\n  public static let layouts: [(label: String, value: String)] = [${layouts.map((v) => `(${string(v.label)}, ${string(v.value)})`).join(", ")}]\n  public static let stickyColors: [String:[String]] = [${["pink", "yellow", "green", "blue", "red", "orange", "purple", "gray"].map((k) => `${string(k)}: [${colors(`color-sticky-${k}`).map(string).join(", ")}]`).join(", ")}]\n  public static let dividerLabel = ${string(dividerLabel)}\n  public static let insertionNodes: [String:String] = [${Object.entries(
+    )}]\n  public static let calloutRadius = ${radius}.0\n  public static let calloutPaddingY = ${padding[1]}.0\n  public static let calloutPaddingX = ${padding[2]}.0\n  public static let layouts: [(label: String, value: String)] = [${layouts.map((v) => `(${string(v.label)}, ${string(v.value)})`).join(", ")}]\n  public static let stickyColors: [String:[String]] = [${["pink", "yellow", "green", "blue", "red", "orange", "purple", "gray"].map((k) => `${string(k)}: [${stickyPalette(k).map(string).join(", ")}]`).join(", ")}]\n  public static let dividerLabel = ${string(dividerLabel)}\n  public static let insertionNodes: [String:String] = [${Object.entries(
     nodes,
   )
     .map(([k, v]) => `${string(k)}: #"${JSON.stringify(v)}"#`)
