@@ -570,6 +570,23 @@ function node(pathJSON: string): string {
     .read(() => JSON.stringify(exportNode(nodeAt(JSON.parse(pathJSON)))));
 }
 
+function elementFormatting(pathJSON: string): string {
+  return current().getEditorState().read(() => {
+    const node = nodeAt(JSON.parse(pathJSON));
+    if (!$isElementNode(node)) throw new EditorError("unsupported", "Not an element");
+    return JSON.stringify({ type: node.getType(), direction: node.getDirection(),
+      format: node.getFormatType(), indent: node.__indent });
+  });
+}
+
+function nodePath(key: string): string {
+  return current().getEditorState().read(() => {
+    const node = $getNodeByKey(key);
+    if (!node?.isAttached()) throw new EditorError("invalidState", "The structural block no longer exists");
+    return JSON.stringify(pathOf(node));
+  });
+}
+
 function childKeys(pathJSON: string): string {
   return current()
     .getEditorState()
@@ -1531,5 +1548,7 @@ Object.assign(globalThis, {
     selection,
     node,
     childKeys,
+    elementFormatting,
+    nodePath,
   },
 });

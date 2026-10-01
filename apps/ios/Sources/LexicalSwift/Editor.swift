@@ -265,6 +265,17 @@ public final class Editor: EditorModel {
     state.json(of: try key(at: path), canonicalKeyOrder: false)
   }
 
+  public func elementFormatting(at path: [Int]) throws -> JSONValue {
+    let node = state[try key(at: path)]
+    guard let fields = node.payload.elementFields else { throw EditorError.unsupported("Not an element") }
+    let indent = node.type == SerializedListItemNode.type ? 0
+      : (fields as? any FloatingElementFields)?.indent ?? fields.editorIndent.map(Double.init) ?? 0
+    let direction: JSONValue
+    if case .value(let value) = fields.direction { direction = .string(value.rawValue) } else { direction = .null }
+    return ["type": .string(node.type), "direction": direction,
+      "format": .string(fields.format?.rawValue ?? ""), "indent": .number(indent)]
+  }
+
   public func nodeTextContent(at path: [Int]) throws -> String {
     state.textContent(of: try key(at: path))
   }

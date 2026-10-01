@@ -93,6 +93,7 @@ public final class DocumentText {
   private let model: any EditorModel
   /// Element families supplied as native panels rather than flattened text.
   public var embeddedElementTypes: Set<String> = []
+  var inheritedElementFormatting: [JSONValue] = []
   public var floatingEmbeddedTypes: Set<String> = []
   private var floatingByBlock: [String: [(key: String, node: JSONValue)]] = [:]
   var floatingNodes: [(key: String, node: JSONValue)] { floatingByBlock.values.flatMap { $0 } }
@@ -456,6 +457,7 @@ public final class DocumentText {
           }
           return Self.decoratorInParagraph(node) == nil ? nativeAttachment?(child, [index] + path) : nil
         })
+      for context in inheritedElementFormatting { renderer.inheritElementFormatting(context, context: true) }
       renderer.activeCommentIDs = activeCommentIDs
       renderer.resolvedCommentIDs = commentResolution
       renderer.footnoteNumbers = referenceNumbers
@@ -477,6 +479,9 @@ public final class DocumentText {
         block.addAttributes(attributes, range: NSRange(location: 0, length: block.length))
       }
       for line in renderer.lines { block.addAttribute(line.key, value: line.value.base, range: NSRange(line.range)) }
+      if renderer.contextPadding != ContextPadding() {
+        block.addAttribute(.ancestorElementPadding, value: renderer.contextPadding, range: NSRange(location: 0, length: block.length))
+      }
       Self.applyFontGeometry(renderer, to: block, base: blockStyle(blockType, []))
       if footnoteDefinitionNumbers[index] != nil, index > 0,
         (rootNodes[index - 1] ?? (try? model.nodeForPresentation(at: [index - 1])))?["type"] != "footnote-definition" {
@@ -633,6 +638,9 @@ public final class DocumentText {
     /// Where the text being added links to, as a link element's does unless
     /// it's an autolink undone.
     private var link: URL?
+    private var inheritedParagraph: NSParagraphStyle?
+    private var inheritedLogicalAlignment: String?
+    var contextPadding = ContextPadding()
 
     init(style: @escaping Style, standIn: StandIn?, blockType: String, nativeAttachment: ((JSONValue, [Int]) -> NSTextAttachment?)?) {
       self.style = style
@@ -641,11 +649,40 @@ public final class DocumentText {
       self.nativeAttachment = nativeAttachment
     }
 
+    mutating func inheritElementFormatting(_ node: JSONValue, context: Bool = false) {
+      let format = node["format"]?.stringValue
+      if node["type"] != "table", node["type"] != "tablerow", let format, !format.isEmpty {
+        inheritedLogicalAlignment = format
+      }
+      if node["direction"]?.stringValue != nil || node["format"]?.stringValue?.isEmpty == false {
+        let paragraph = (inheritedParagraph ?? style(blockType, [])[.paragraphStyle] as? NSParagraphStyle)?.mutableCopy() as? NSMutableParagraphStyle ?? NSMutableParagraphStyle()
+        let direction = node["direction"]?.stringValue
+        if let direction { paragraph.baseWritingDirection = direction == "rtl" ? .rightToLeft : .leftToRight }
+        switch inheritedLogicalAlignment {
+        case "left": paragraph.alignment = .left
+        case "center": paragraph.alignment = .center
+        case "right": paragraph.alignment = .right
+        case "justify": paragraph.alignment = .justified
+        case "start": paragraph.alignment = paragraph.baseWritingDirection == .rightToLeft ? .right : .left
+        case "end": paragraph.alignment = paragraph.baseWritingDirection == .rightToLeft ? .left : .right
+        default: break
+        }
+        inheritedParagraph = paragraph
+      }
+      if context, let indent = node["indent"]?.numberValue, indent.isFinite {
+        if inheritedParagraph?.baseWritingDirection == .rightToLeft { contextPadding.right += max(0, indent) }
+        else { contextPadding.left += max(0, indent) }
+      }
+    }
+
     /// Inline elements, which sit in a line of text rather than on their own.
     private static let inlineElements: Set<String> = ["link", "autolink", "mark", "comment", "thread"]
 
     mutating func add(_ node: JSONValue, at path: [Int]) {
       let start = text.length
+      let outerParagraph = inheritedParagraph, outerAlignment = inheritedLogicalAlignment
+      defer { inheritedParagraph = outerParagraph; inheritedLogicalAlignment = outerAlignment }
+      if Self.isBlock(node) { inheritElementFormatting(node) }
       if node["type"] == "comment" || node["type"] == "thread" {
         #if canImport(UIKit)
         let attachment = HiddenCommentAttachment()
@@ -724,20 +761,7 @@ public final class DocumentText {
           }
         }
         spans[path] = Span(start: start, end: text.length, kind: .element(childCount: children.count))
-        if Self.isBlock(node), node["direction"]?.stringValue != nil || node["format"]?.stringValue?.isEmpty == false {
-          let paragraph = (style(blockType, [])[.paragraphStyle] as? NSParagraphStyle)?.mutableCopy() as? NSMutableParagraphStyle ?? NSMutableParagraphStyle()
-          let direction = node["direction"]?.stringValue
-          if let direction { paragraph.baseWritingDirection = direction == "rtl" ? .rightToLeft : .leftToRight }
-          switch node["type"] == "table" || node["type"] == "tablerow" ? nil : node["format"]?.stringValue {
-          case "left": paragraph.alignment = .left
-          case "center": paragraph.alignment = .center
-          case "right": paragraph.alignment = .right
-          case "justify": paragraph.alignment = .justified
-          case "start": paragraph.alignment = direction == "rtl" ? .right : .left
-          case "end": paragraph.alignment = direction == "rtl" ? .left : .right
-
-          default: break
-          }
+        if Self.isBlock(node), let paragraph = inheritedParagraph {
           lines.insert(Line(range: start..<(text.length + 1), key: .paragraphStyle, value: paragraph), at: lineCount)
         }
         if let line = line(for: node, at: path) {
@@ -769,7 +793,7 @@ public final class DocumentText {
           path: path, lists: lists, value: node["value"]?.intValue ?? 1, checked: node["checked"]?.boolValue ?? false)
         return (.listItem, item)
       }
-      guard let indent = node["indent"]?.intValue, indent > 0 else { return nil }
+      guard let indent = node["indent"]?.numberValue, indent > 0 else { return nil }
       return (.elementIndent, indent)
     }
 
@@ -820,7 +844,13 @@ extension Range<Int> {
   }
 }
 
+struct ContextPadding: Hashable {
+  var left: Double = 0
+  var right: Double = 0
+}
+
 extension NSAttributedString.Key {
+  static let ancestorElementPadding = NSAttributedString.Key("TextKitEditor.ancestorElementPadding")
   static let commentIDs = NSAttributedString.Key("TextKitEditor.commentIDs")
   static let commentHighlights = NSAttributedString.Key("TextKitEditor.commentHighlights")
   static let commentResolved = NSAttributedString.Key("TextKitEditor.commentResolved")

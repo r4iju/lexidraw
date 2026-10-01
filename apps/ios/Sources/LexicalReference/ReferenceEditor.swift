@@ -76,8 +76,16 @@ public final class ReferenceEditor: EditorModel {
     try JSONValue(parsing: call("node", try pathJSON(path)))
   }
 
+  public func elementFormatting(at path: [Int]) throws -> JSONValue {
+    try JSONValue(parsing: call("elementFormatting", try pathJSON(path)))
+  }
+
   public func childKeys(at path: [Int]) throws -> [String] {
     try decoder.decode([String].self, from: Data(try call("childKeys", try pathJSON(path)).utf8))
+  }
+
+  public func nodePath(for key: String) throws -> [Int] {
+    try decoder.decode([Int].self, from: Data(try call("nodePath", key).utf8))
   }
 
   private func pathJSON(_ path: [Int]) throws -> String {
