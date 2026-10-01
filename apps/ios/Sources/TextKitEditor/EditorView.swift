@@ -152,7 +152,9 @@ public final class EditorView: UIScrollView, UITextInput {
   private func elementFormattingContexts(for key: String, childPath: [Int] = []) throws -> [JSONValue] {
     var path = try model.nodePath(for: key)
     var contexts = document.inheritedElementFormatting
-    contexts.append(try model.elementFormatting(at: path))
+    for length in 0...path.count {
+      contexts.append(try model.elementFormatting(at: Array(path.prefix(length))))
+    }
     for index in childPath {
       path.append(index)
       contexts.append(try model.elementFormatting(at: path))

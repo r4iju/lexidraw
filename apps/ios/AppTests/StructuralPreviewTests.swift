@@ -12,14 +12,14 @@ import TextKitEditor
     let body: EditorView
   }
 
-  private func preview(_ callout: JSONValue) throws -> Preview {
+  private func preview(_ callout: JSONValue, wrapper: ((JSONValue) -> JSONValue)? = nil, path: [Int] = [0]) throws -> Preview {
     let model = Editor()
-    try model.load(["root": ["type": "root", "version": 1, "children": [callout]]])
+    try model.load(["root": ["type": "root", "version": 1, "children": [wrapper?(callout) ?? callout]]])
     let owner = EditorView(model: model, isEditable: false)
     owner.frame = CGRect(x: 0, y: 0, width: 400, height: 600)
     configureStructuralBlocks(owner)
-    let key = try XCTUnwrap(model.childKeys(at: []).first)
-    let panel = try XCTUnwrap(owner.embeddedContent?(key, model.node(at: [0])))
+    let key = try XCTUnwrap(model.childKeys(at: Array(path.dropLast()))[path.last!])
+    let panel = try XCTUnwrap(owner.embeddedContent?(key, model.node(at: path)))
     panel.frame = CGRect(origin: .zero, size: panel.contentSize(fitting: 400))
     panel.layoutIfNeeded()
     func body(in view: UIView) -> EditorView? {
@@ -49,6 +49,17 @@ import TextKitEditor
     let indented = try preview(["type": "callout", "version": 1, "kind": "note", "title": "", "indent": 2, "children": [list]])
     XCTAssertEqual(indented.body.caretRect(for: indented.body.beginningOfDocument).minX,
       unindented.body.caretRect(for: unindented.body.beginningOfDocument).minX + 80, accuracy: 1)
+  }
+
+  func testNestedCalloutRetainsTheNonPanelAncestorFormatting() throws {
+    let paragraph: JSONValue = ["type": "paragraph", "version": 1, "children": [["type": "text", "version": 1, "text": "abc"]]]
+    let callout: JSONValue = ["type": "callout", "version": 1, "kind": "note", "title": "", "children": [paragraph]]
+    let plain = try preview(callout)
+    let nested = try preview(callout, wrapper: { node in
+      ["type": "list", "version": 1, "listType": "bullet", "tag": "ul", "start": 1, "format": "right", "direction": "rtl", "children": [["type": "listitem", "version": 1, "value": 1, "children": [node]]]]
+    }, path: [0, 0, 0])
+    XCTAssertGreaterThan(nested.body.caretRect(for: nested.body.beginningOfDocument).minX,
+      plain.body.caretRect(for: plain.body.beginningOfDocument).minX + 200)
   }
 
   func testLogicalParentAlignmentAndPaddingRespectTheChildDirection() throws {

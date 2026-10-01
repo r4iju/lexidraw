@@ -802,3 +802,11 @@ Remaining #133 fidelity work includes RTL grid column flow and intrinsic/auto
 tracks, auto-repeat, fixed-maximum `minmax`, other CSS units/functions and named
 lines. Those unsupported grid grammars retain their explicit limitation rather
 than receiving guessed geometry. This checkpoint does not close #133.
+
+The formatting context also includes every live ancestor prefix in the owning
+model, including non-panel wrappers and the root. A hosted nested list →
+list item → callout regression failed in `133-ancestor-red.xcresult` (the
+preview caret stayed at x=0 despite inherited RTL/right formatting), then all
+four hosted cases passed in `133-ancestor-green.xcresult` after the prefix fix.
+Raw fractional tracks still need CSS automatic minimum-content sizing; the
+current zero base only matches explicit `minmax(0, …fr)` or empty content.
