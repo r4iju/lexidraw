@@ -891,8 +891,21 @@ The hosted outline case failed because no CAShapeLayer border existed in
 all nine hosted cases and the three affected column UI tests; Bun passed
 95 tests / 198 expectations, TypeScript passed, and the production simulator
 app build succeeded (`133-gap-style-app.log`). Callout colors remain their
-existing source HEX palette. Sticky OKLCH conversion is a separate pending
-regression slice; no successful sticky-color test is claimed here.
+existing source HEX palette.
+
+Sticky palettes now resolve their actual `@theme` and screen-only dark CSS
+scopes through the existing build-time OKLCH converter to native RGBA. Unknown
+palette scopes/formats fail generation. Native structural colors refuse
+unsupported values explicitly with the owning #133 issue instead of becoming
+invisible. Callout RGB and source tint resolve together for light/dark traits.
+The registered sticky insertion genuinely failed alpha 0 versus 1 in
+`133-sticky-color-red.xcresult`; the old callout opacity failed explicit dark
+resolution at 0.08 versus 0.14 in `133-dark-explicit-red.xcresult`. Final
+`133-sticky-green.xcresult` passed all 11 hosted cases and three affected column
+UI tests. Bun passed 95 tests / 198 expectations, TypeScript/code generation
+passed, and the production simulator app build passed (`133-sticky-app.log`).
+No CI was invoked. Advanced imported grid grammar remains explicitly refused
+until its separate native sizing implementation is verified.
 
 The column utility adapter requires the exact known item class set (including
 its generated padding utility); additions such as background, shadow or

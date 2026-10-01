@@ -230,8 +230,8 @@ import UIKit
       bottom: StructuralBlockConfiguration.calloutPaddingY, right: StructuralBlockConfiguration.calloutPaddingX)
     layer.cornerRadius = StructuralBlockConfiguration.calloutRadius
     let colors = StructuralBlockConfiguration.calloutColors[kind] ?? []
-    backgroundColor = themed(colors).withAlphaComponent(
-      StructuralBlockConfiguration.calloutTint[traitCollection.userInterfaceStyle == .dark ? 1 : 0])
+    do { backgroundColor = try themed(colors, opacity: StructuralBlockConfiguration.calloutTint) }
+    catch { label("Cannot render this callout (#133): \(structuralReason(error))"); return }
     menu(
       title.isEmpty ? StructuralBlockConfiguration.calloutLabels[kind] ?? kind : title,
       entries: StructuralBlockConfiguration.calloutLabels.sorted { $0.key < $1.key }.map { kind, label in
@@ -360,7 +360,8 @@ import UIKit
   }
   private func sticky() {
     let color = node["color"]?.stringValue ?? ""
-    backgroundColor = themed(StructuralBlockConfiguration.stickyColors[color] ?? [])
+    do { backgroundColor = try themed(StructuralBlockConfiguration.stickyColors[color] ?? []) }
+    catch { label("Cannot render this sticky (#133): \(structuralReason(error))"); return }
     insets = UIEdgeInsets(top: 12, left: 12, bottom: 12, right: 12)
     button("Delete sticky note") { [weak self] in
       guard let self, let owner = self.owner else { return }
@@ -751,12 +752,20 @@ import UIKit
     alert.addAction(UIAlertAction(title: "OK", style: .default))
     parentController()?.present(alert, animated: true)
   }
-  private func themed(_ values: [String]) -> UIColor {
-    UIColor { traits in
-      guard values.count == 2, let color = CSSColor(values[traits.userInterfaceStyle == .dark ? 1 : 0]) else {
-        return .clear
-      }
-      return UIColor(red: color.red, green: color.green, blue: color.blue, alpha: color.alpha)
+  private func structuralReason(_ error: Error) -> String {
+    if let error = error as? EditorError, case .unsupported(let reason) = error { return reason }
+    return error.localizedDescription
+  }
+
+  private func themed(_ values: [String], opacity: [Double] = [1, 1]) throws -> UIColor {
+    guard values.count == 2, let light = CSSColor(values[0]), let dark = CSSColor(values[1]),
+      opacity.count == 2, opacity.allSatisfy({ $0.isFinite && $0 >= 0 && $0 <= 1 }) else {
+      throw EditorError.unsupported("The structural theme color cannot be represented natively (#133)")
+    }
+    return UIColor { traits in
+      let index = traits.userInterfaceStyle == .dark ? 1 : 0
+      let color = index == 1 ? dark : light
+      return UIColor(red: color.red, green: color.green, blue: color.blue, alpha: color.alpha * opacity[index])
     }
   }
   override func contentSize(fitting width: CGFloat) -> CGSize {
