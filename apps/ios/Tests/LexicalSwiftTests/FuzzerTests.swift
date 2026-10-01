@@ -465,6 +465,7 @@ import Testing
       let url = try finding.fixture.write(into: Support.fixturesSource)
       Issue.record("Seed \(seed) diverged after \(finding.stepsRun) steps; shrunk fixture written to \(url.path)")
     } else {
+      if !fuzzer.structuralSetterCounts.isEmpty { print("Structural setter counts: \(fuzzer.structuralSetterCounts.sorted { $0.key < $1.key })") }
       print(
         "Seed \(seed): \(steps) steps agreed, \(fuzzer.refusals) commands both refused, "
           + "\(fuzzer.sessionsEndedNotPortedYet) sessions ended on a shortcut or node not ported yet, and "

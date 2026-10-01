@@ -12,6 +12,7 @@ public struct Fuzzer {
   }
 
   /// Commands both refused, which don't count as steps.
+  public private(set) var structuralSetterCounts: [String: Int] = [:]
   public private(set) var refusals = 0
   /// Sessions ended as `isNotPortedYet` says.
   public private(set) var sessionsEndedNotPortedYet = 0
@@ -85,6 +86,10 @@ public struct Fuzzer {
           return Finding(fixture: fixture, stepsRun: stepsRun)
         }
         if case .applied(let changes) = step.change {
+          if case .updateStructuralFields(let path, let fields) = command,
+            let type = snapshot.state.node(at: path)?["type"]?.stringValue {
+            for field in fields.objectValue?.keys ?? [] { structuralSetterCounts["\(type).\(field)", default: 0] += 1 }
+          }
           if let clipboard = changes.clipboard { generator.clipboard = clipboard }
           stepsRun += 1
         } else {
@@ -267,6 +272,7 @@ extension EditorCommand {
     switch self {
     case .setSelection(let anchor, let focus): return .setSelection(anchor: adjust(anchor), focus: adjust(focus))
     case .deleteLine(let backward, let lineBoundary): return .deleteLine(backward: backward, lineBoundary: adjust(lineBoundary))
+    case .updateStructuralFields(let path, let fields): return .updateStructuralFields(path: adjust(Point(path: path, offset: 0, type: .element)).path, fields: fields)
     case .toggleChecked(let path): return .toggleChecked(path: adjust(Point(path: path, offset: 0, type: .text)).path)
     case .arrow(let key, let extend, let native, let atCellEdge, let parentRTL, let anchorRTL):
       return .arrow(key, extend: extend, native: adjust(native), atCellEdge: atCellEdge, parentRTL: parentRTL, anchorRTL: anchorRTL)
@@ -660,7 +666,65 @@ struct Generator {
     [0] + text.indices.map { text[..<text.index(after: $0)].utf16.count }
   }
 
+  private mutating func structuralSetter(in state: JSONValue) -> EditorCommand? {
+    let paths = state.nodePaths().filter { ["callout", "collapsible-container", "sticky", "slide-deck"].contains(state.node(at: $0)?["type"]?.stringValue ?? "") }
+    guard let path = paths.randomElement(using: &random), let node = state.node(at: path) else { return nil }
+    let fields: JSONValue
+    switch node["type"]?.stringValue {
+    case "callout":
+      fields = Bool.random(using: &random) ? ["title": .string(text(1...12))] : ["kind": .string(StructuralBlockConfiguration.calloutLabels.keys.sorted().randomElement(using: &random)!)]
+    case "collapsible-container": fields = ["open": .bool(!(node["open"]?.boolValue ?? false))]
+    case "sticky":
+      if Bool.random(using: &random) {
+        fields = ["color": .string(StructuralBlockConfiguration.stickyColors.keys.sorted().randomElement(using: &random)!)]
+      } else {
+        fields = ["xOffset": .number(Double.random(in: -100...500, using: &random)), "yOffset": .number(Double.random(in: -100...500, using: &random))]
+      }
+    case "slide-deck":
+      guard var data = node["data"]?.objectValue, var slides = data["slides"]?.arrayValue, !slides.isEmpty else { return nil }
+      let index = Int.random(in: slides.indices, using: &random)
+      var slide = slides[index].objectValue!
+      var elements = slide["elements"]?.arrayValue ?? []
+      switch Int.random(in: 0..<7, using: &random) {
+      case 0:
+        if slides.count == 1 {
+          slides.append(["id": .string("fuzz-slide-\(UInt64.random(in: 0...UInt64.max, using: &random))"), "elements": []])
+        }
+        data["currentSlideId"] = slides.randomElement(using: &random)?["id"]
+      case 1:
+        if let chosen = elements.indices.randomElement(using: &random), var element = elements[chosen].objectValue {
+          for field in ["x", "y", "width", "height"] { element[field] = .number(Double.random(in: 20...400, using: &random)) }
+          element["zIndex"] = .number(Double(Int.random(in: -3...10, using: &random)))
+          elements[chosen] = .object(element)
+        }
+      case 2:
+        var chart = (try! JSONValue(parsing: StructuralBlockConfiguration.slideElements["chart"]!)).objectValue!
+        chart["id"] = .string("fuzz-chart-\(UInt64.random(in: 0...UInt64.max, using: &random))")
+        chart["chartType"] = .string(StructuralBlockConfiguration.chartTypes.randomElement(using: &random)!)
+        chart["chartData"] = .string("[{\"value\":\(Int.random(in: 1...100, using: &random))}]")
+        elements.append(.object(chart))
+      case 3: slide["backgroundColor"] = .string(Bool.random(using: &random) ? "#ffffff" : "#0969da")
+      case 4:
+        if slides.count > 1 { slides.swapAt(index, (index + 1) % slides.count) }
+      case 5:
+        if let chosen = elements.indices.randomElement(using: &random) { elements.remove(at: chosen) }
+      default:
+        var box = (try! JSONValue(parsing: StructuralBlockConfiguration.slideElements["box"]!)).objectValue!
+        box["id"] = .string("fuzz-box-\(UInt64.random(in: 0...UInt64.max, using: &random))")
+        elements.append(.object(box))
+      }
+      slide["elements"] = .array(elements)
+      // Reorder keeps each complete slide rather than writing the previous index back.
+      if slides[index]["id"] == slide["id"] { slides[index] = .object(slide) }
+      data["slides"] = .array(slides)
+      fields = ["data": .object(data)]
+    default: return nil
+    }
+    return .updateStructuralFields(path: path, fields: fields)
+  }
+
   mutating func command(for snapshot: Snapshot) -> EditorCommand? {
+    if structuralBlocks, Int.random(in: 0..<5, using: &random) == 0, let setter = structuralSetter(in: snapshot.state) { return setter }
     if socialTextSubclasses, case .range(let anchor, let focus, _, _)? = snapshot.selection,
       anchor != focus, Int.random(in: 0..<20, using: &random) == 0 {
       return .annotateComment(id: "fuzz-thread-\(Int.random(in: 0..<4, using: &random))")

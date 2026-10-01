@@ -39,6 +39,24 @@ public final class Editor: EditorModel {
   public func apply(_ command: EditorCommand) throws -> ChangeSet {
     guard !state.nodes.isEmpty else { throw EditorError.invalidState("No document loaded") }
     switch command {
+    case .updateStructuralFields(let path, let fields):
+      guard let index = path.last else { throw EditorError.invalidState("No structural node") }
+      let keys = try childKeys(at: Array(path.dropLast()))
+      guard keys.indices.contains(index) else { throw EditorError.invalidState("No structural node") }
+      let original = try node(at: path)
+      guard let changes = fields.objectValue, !changes.isEmpty else { throw EditorError.invalidState("No structural fields") }
+      let allowed: Set<String>
+      switch original["type"]?.stringValue {
+      case "callout": allowed = ["kind", "title"]
+      case "collapsible-container": allowed = ["open"]
+      case "sticky": allowed = ["color", "xOffset", "yOffset", "caption"]
+      case "slide-deck": allowed = ["data"]
+      default: throw EditorError.unsupported("Structural setter belongs to #133")
+      }
+      guard changes.keys.allSatisfy(allowed.contains) else { throw EditorError.unsupported("Structural setter belongs to #133") }
+      var replacement = original.objectValue!
+      for (field, value) in changes { replacement[field] = value }
+      return try replaceEmbeddedNode(key: keys[index], expected: original, replacement: .object(replacement), clearsSelection: original["type"] == "sticky" && (changes["xOffset"] != nil || changes["yOffset"] != nil))
     case .wait(let milliseconds):
       now += milliseconds
       return ChangeSet(changed: [])
@@ -117,6 +135,12 @@ public final class Editor: EditorModel {
   }
 
   public func replaceEmbeddedNode(key: String, expected: JSONValue, replacement: JSONValue?) throws -> ChangeSet {
+    let moved = expected["type"] == "sticky" && replacement != nil &&
+      (expected["xOffset"] != replacement?["xOffset"] || expected["yOffset"] != replacement?["yOffset"])
+    return try replaceEmbeddedNode(key: key, expected: expected, replacement: replacement, clearsSelection: moved)
+  }
+
+  private func replaceEmbeddedNode(key: String, expected: JSONValue, replacement: JSONValue?, clearsSelection: Bool) throws -> ChangeSet {
     guard isEditable else { throw EditorError.unsupported("This document cannot be edited") }
     guard let key = NodeKey(key), let node = state.nodes[key], (node.isDecorator || Self.structuralTypes.contains(node.type)),
       state.json(of: key) == expected, replacement == nil || replacement?["type"] == expected["type"]
@@ -131,7 +155,8 @@ public final class Editor: EditorModel {
     guard validation.isEditable else { throw EditorError.unsupported("The replacement contains unported behavior (#133)") }
     let loaded = try validation.node(at: node.isInline ? [0, 0] : [0])
     return try commit { update in
-      if loaded["children"] != expected["children"], let children = loaded["children"]?.arrayValue {
+      if clearsSelection { update.current = nil }
+      if replacement["children"] != expected["children"], let children = loaded["children"]?.arrayValue {
         update.current = nil
         for child in Array(update.state.children(of: key)) { try update.remove(child, preservingEmptyParent: true) }
         try update.append(key, children.map { try update.parse($0) })

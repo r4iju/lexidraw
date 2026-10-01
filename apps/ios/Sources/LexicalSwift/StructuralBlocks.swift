@@ -20,6 +20,8 @@ extension Update {
     if let title = findParent(from: selection.anchor.key, where: { state[$0].type == "collapsible-title" }),
       let container = state.parent(of: title), state[container].type == "collapsible-container"
     {
+      // Rich text escapes case formats before dispatching INSERT_PARAGRAPH.
+      escapeCaseFormats(selection)
       if case .collapsibleContainer(let current) = state[container].payload, !(current.open ?? false).isTruthy {
         modify(container) { node in
           guard case .collapsibleContainer(var value) = node.payload else { return }
@@ -36,6 +38,7 @@ extension Update {
       isEmpty(selection.anchor.key), state.parent(of: selection.anchor.key) == callout,
       state.nextSibling(of: selection.anchor.key) == nil, state.previousSibling(of: selection.anchor.key) != nil
     {
+      escapeCaseFormats(selection)
       let line = selection.anchor.key
       try insert(line, after: callout)
       select(line)

@@ -1,0 +1,202 @@
+{
+  "changes" : [
+    {
+      "changed" : [
+
+      ]
+    },
+    {
+      "changed" : [
+        [
+
+        ],
+        [
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "changed" : [
+        [
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "changed" : [
+        [
+          0,
+          0
+        ]
+      ]
+    }
+  ],
+  "commands" : [
+    {
+      "anchor" : {
+        "offset" : 2,
+        "path" : [
+          1,
+          0
+        ],
+        "type" : "text"
+      },
+      "focus" : {
+        "offset" : 2,
+        "path" : [
+          1,
+          0
+        ],
+        "type" : "text"
+      },
+      "type" : "setSelection"
+    },
+    {
+      "node" : {
+        "xOffset" : 20,
+        "yOffset" : 30
+      },
+      "path" : [
+        0,
+        0
+      ],
+      "type" : "updateStructuralFields"
+    },
+    {
+      "type" : "undo"
+    },
+    {
+      "type" : "redo"
+    }
+  ],
+  "expected" : {
+    "state" : {
+      "root" : {
+        "children" : [
+          {
+            "children" : [
+              {
+                "caption" : {
+                  "editorState" : {
+                    "root" : {
+                      "children" : [
+
+                      ],
+                      "direction" : null,
+                      "format" : "",
+                      "indent" : 0,
+                      "type" : "root",
+                      "version" : 1
+                    }
+                  }
+                },
+                "color" : "yellow",
+                "type" : "sticky",
+                "version" : 1,
+                "xOffset" : 20,
+                "yOffset" : 30
+              }
+            ],
+            "direction" : null,
+            "format" : "",
+            "indent" : 0,
+            "textFormat" : 0,
+            "textStyle" : "",
+            "type" : "paragraph",
+            "version" : 1
+          },
+          {
+            "children" : [
+              {
+                "detail" : 0,
+                "format" : 0,
+                "mode" : "normal",
+                "style" : "",
+                "text" : "after",
+                "type" : "text",
+                "version" : 1
+              }
+            ],
+            "direction" : null,
+            "format" : "",
+            "indent" : 0,
+            "textFormat" : 0,
+            "textStyle" : "",
+            "type" : "paragraph",
+            "version" : 1
+          }
+        ],
+        "direction" : null,
+        "format" : "",
+        "indent" : 0,
+        "type" : "root",
+        "version" : 1
+      }
+    }
+  },
+  "start" : {
+    "root" : {
+      "children" : [
+        {
+          "children" : [
+            {
+              "caption" : {
+                "editorState" : {
+                  "root" : {
+                    "children" : [
+
+                    ],
+                    "direction" : null,
+                    "format" : "",
+                    "indent" : 0,
+                    "type" : "root",
+                    "version" : 1
+                  }
+                }
+              },
+              "color" : "yellow",
+              "type" : "sticky",
+              "version" : 1,
+              "xOffset" : 0,
+              "yOffset" : 0
+            }
+          ],
+          "direction" : null,
+          "format" : "",
+          "indent" : 0,
+          "textFormat" : 0,
+          "textStyle" : "",
+          "type" : "paragraph",
+          "version" : 1
+        },
+        {
+          "children" : [
+            {
+              "detail" : 0,
+              "format" : 0,
+              "mode" : "normal",
+              "style" : "",
+              "text" : "after",
+              "type" : "text",
+              "version" : 1
+            }
+          ],
+          "direction" : null,
+          "format" : "",
+          "indent" : 0,
+          "textFormat" : 0,
+          "textStyle" : "",
+          "type" : "paragraph",
+          "version" : 1
+        }
+      ],
+      "direction" : null,
+      "format" : "",
+      "indent" : 0,
+      "type" : "root",
+      "version" : 1
+    }
+  }
+}

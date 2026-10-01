@@ -261,3 +261,17 @@ extension StructuralBlockTests {
     #expect(try editor.node(at: [0, 0, 0])["color"] == "blue")
   }
 }
+
+
+extension StructuralBlockTests {
+  @Test func panelSetterCommandsKeepTheSourceSelectionAndHistory() throws {
+    let sticky = try JSONValue(parsing: #require(StructuralBlockConfiguration.insertionNodes["sticky"]))
+    let fixture = try Fixture.record(
+      start: document(paragraph(sticky), paragraph(text("after"))),
+      commands: [.caret(.text([1, 0], 2)), .updateStructuralFields(path: [0, 0], fields: ["xOffset": 20, "yOffset": 30]), .undo, .redo],
+      on: try Support.referenceEditor())
+    let observed = try fixture.replay(on: Editor())
+    if observed != fixture.recorded { _ = try fixture.write(into: Support.fixturesSource) }
+    #expect(observed == fixture.recorded)
+  }
+}

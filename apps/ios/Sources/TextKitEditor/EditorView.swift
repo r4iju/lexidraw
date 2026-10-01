@@ -203,6 +203,15 @@ public final class EditorView: UIScrollView, UITextInput {
     if !change.changed.isEmpty { onChange?() }
   }
 
+  public func updateStructuralFields(key: String, expected: JSONValue, fields: JSONValue) throws {
+    guard isEditable else { throw EditorError.unsupported("This document cannot be edited") }
+    let path = try model.nodePath(for: key)
+    guard try model.node(at: path) == expected else { throw EditorError.invalidState("The block changed while its editor was open") }
+    let change = try model.apply(.updateStructuralFields(path: path, fields: fields))
+    render(change)
+    if !change.changed.isEmpty { onChange?() }
+  }
+
   public var embeddedContent: ((String, JSONValue) -> EmbeddedContentView?)? {
     didSet {
       layout.embeddedContent = embeddedContent
