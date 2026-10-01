@@ -75,6 +75,7 @@ targets:
       - App/RenderedEmbeds.swift
 
       - App/StructuralBlocks.swift
+      - App/NativeColumnsView.swift
       - App/DrawingCanvas.swift
       - App/DrawingEditorView.swift
       - App/EditorCanvas.swift

@@ -112,6 +112,21 @@ public final class EditorView: UIScrollView, UITextInput {
   public var accessibleEmbeddedTypes: Set<String> = [] {
     didSet { updateEmbeddedAccessibility() }
   }
+  /// Visible native panels can be listed beside this UITextInput by its host.
+  /// Listing them outside the text input retains UIKit's own editing accessibility.
+  public var visibleEmbeddedAccessibilityViews: [UIView] {
+    var result: [UIView] = []
+    func collect(_ view: UIView) {
+      guard !view.isHidden, view.alpha > 0 else { return }
+      if view is EmbeddedContentView {
+        if view.convert(view.bounds, to: self).intersects(bounds) { result.append(view) }
+        return
+      }
+      for child in view.subviews { collect(child) }
+    }
+    collect(surface)
+    return result
+  }
   private var embeddedAccessibilityContainer = false
   public override var isAccessibilityElement: Bool {
     get { embeddedAccessibilityContainer ? false : super.isAccessibilityElement }

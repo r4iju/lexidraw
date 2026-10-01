@@ -104,6 +104,87 @@ final class DocumentPreviewUITests: XCTestCase {
     }
   }
 
+  func testMixedTextAndSlideControlsRemainAccessibleAndAutosave() {
+    let document = LexicalJSON.document([
+      ["type": "paragraph", "version": 1, "children": [["type": "text", "version": 1, "text": "Mixed text remains editable", "format": 0, "detail": 0, "mode": "normal", "style": ""]]],
+      ["type": "slide-deck", "version": 1, "data": ["currentSlideId": "second", "slides": [
+        ["id": "first", "elements": []], ["id": "second", "elements": []]
+      ]]]
+    ])
+    let app = open(access: "EDIT", document: document)
+    XCTAssertTrue(app.textViews.firstMatch.waitForExistence(timeout: 10))
+    XCTAssertTrue((app.textViews.firstMatch.value as? String)?.contains("Mixed text remains editable") == true)
+    let current = app.buttons["Slide 2 of 2"]
+    XCTAssertTrue(current.waitForExistence(timeout: 5))
+    current.tap()
+    app.buttons["Slide 1"].tap()
+    XCTAssertTrue(app.buttons["Slide 1 of 2"].waitForExistence(timeout: 5))
+    let saved = NSPredicate(format: "label CONTAINS %@", "entities-save")
+    expectation(for: saved, evaluatedWith: app.staticTexts["server requests"])
+    waitForExpectations(timeout: 10)
+  }
+
+  func testSlideDragAndCornerResizeAutosaveGeometry() {
+    let content = LexicalJSON.document([["type": "paragraph", "version": 1, "children": [["type": "text", "version": 1, "text": "Move me", "format": 0, "detail": 0, "mode": "normal", "style": ""]]]])
+    let document = LexicalJSON.document([["type": "slide-deck", "version": 1, "data": ["currentSlideId": "first", "slides": [["id": "first", "elements": [["id": "box", "kind": "box", "x": 100, "y": 100, "width": 400, "height": 120, "zIndex": 0, "backgroundColor": "yellow", "editorStateJSON": content]]]]]]])
+    let app = open(access: "EDIT", document: document)
+    let text = app.textViews.matching(NSPredicate(format: "value CONTAINS %@", "Move me")).firstMatch
+    XCTAssertTrue(text.waitForExistence(timeout: 10))
+    let before = XCTAttachment(screenshot: app.screenshot())
+    before.name = "Native slide before drag and resize"
+    before.lifetime = .keepAlways
+    add(before)
+    let start = text.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+    start.press(forDuration: 0.1, thenDragTo: start.withOffset(CGVector(dx: 50, dy: 30)))
+    let saved = NSPredicate(format: "label CONTAINS %@", "entities-save")
+    expectation(for: saved, evaluatedWith: app.staticTexts["server requests"])
+    waitForExpectations(timeout: 10)
+    let originalWidth = text.frame.width
+    let edge = text.coordinate(withNormalizedOffset: CGVector(dx: 1, dy: 1))
+    edge.press(forDuration: 0.1, thenDragTo: edge.withOffset(CGVector(dx: 30, dy: 20)))
+    let savedTwice = NSPredicate(format: "label MATCHES %@", ".*entities-save.*entities-save.*")
+    expectation(for: savedTwice, evaluatedWith: app.staticTexts["server requests"])
+    waitForExpectations(timeout: 10)
+    XCTAssertGreaterThan(text.frame.width, originalWidth + 10)
+    let after = XCTAttachment(screenshot: app.screenshot())
+    after.name = "Native slide after drag and resize"
+    after.lifetime = .keepAlways
+    add(after)
+  }
+
+  func testFractionalColumnsBelowOneLeaveTheRemainingSpaceEmpty() {
+    XCUIDevice.shared.orientation = .landscapeLeft
+    defer { XCUIDevice.shared.orientation = .portrait }
+    let paragraph: JSONValue = ["type": "paragraph", "version": 1, "children": []]
+    let item: JSONValue = ["type": "layout-item", "version": 1, "children": [paragraph]]
+    let document = LexicalJSON.document([["type": "layout-container", "version": 1,
+      "templateColumns": "0.25fr 0.25fr", "children": [item, item]]])
+    let app = open(access: "EDIT", document: document)
+    let column = app.buttons["Edit column 1"]
+    XCTAssertTrue(column.waitForExistence(timeout: 10))
+    XCTAssertGreaterThan(app.frame.width, 600)
+    XCTAssertGreaterThan(column.frame.width, app.frame.width * 0.15)
+    XCTAssertLessThan(column.frame.width, app.frame.width * 0.35)
+  }
+
+  func testImportedColumnsRetainFixedPercentageAndFractionalTracks() {
+    XCUIDevice.shared.orientation = .landscapeLeft
+    defer { XCUIDevice.shared.orientation = .portrait }
+    let paragraph: JSONValue = ["type": "paragraph", "version": 1, "children": []]
+    let item: JSONValue = ["type": "layout-item", "version": 1, "children": [paragraph]]
+    let document = LexicalJSON.document([["type": "layout-container", "version": 1,
+      "templateColumns": "100px 25% 0.5fr", "children": [item, item, item]]])
+    let app = open(access: "EDIT", document: document)
+    let first = app.buttons["Edit column 1"]
+    XCTAssertTrue(first.waitForExistence(timeout: 10))
+    XCTAssertGreaterThan(app.frame.width, 600)
+    XCTAssertEqual(first.frame.width, 100, accuracy: 1)
+    let percentage = app.buttons["Edit column 2"].frame.width
+    XCTAssertGreaterThan(percentage, app.frame.width * 0.15)
+    XCTAssertLessThan(percentage, app.frame.width * 0.3)
+    XCTAssertTrue(app.buttons["Edit column 3"].exists)
+  }
+
   private func open(access: String, document: JSONValue? = nil) -> XCUIApplication {
     let app = XCUIApplication()
     app.launchEnvironment["EDITOR_PREVIEW_ACCESS"] = access
@@ -122,8 +203,8 @@ final class DocumentPreviewUITests: XCTestCase {
     return app.keyboards.firstMatch.waitForExistence(timeout: 3)
   }
 
-  /// The operations the harness's server was asked for, in order.
+  /// Document operations, excluding the independent account identity read.
   private func requests(in app: XCUIApplication) -> String {
-    app.staticTexts["server requests"].label
+    app.staticTexts["server requests"].label.split(separator: " ").filter { $0 != "auth-me" }.joined(separator: " ")
   }
 }
