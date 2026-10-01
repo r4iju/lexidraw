@@ -8,7 +8,7 @@ import UIKit
 /// plugin escapes and repair transforms retain document history and autosave.
 @MainActor func configureStructuralBlocks(_ view: EditorView) {
   if view.isEditable && view.supportsRichText {
-    let entries: [(String, String)] = [("Callout", "callout"), ("Collapsible section", "collapsible-container"), ("Columns", "layout-container"), ("Page break", "page-break"), ("Sticky note", "sticky"), ("Slide deck", "slide-deck")]
+    let entries: [(String, String)] = [(StructuralBlockConfiguration.dividerLabel, "horizontalrule"), ("Callout", "callout"), ("Collapsible section", "collapsible-container"), ("Columns", "layout-container"), ("Page break", "page-break"), ("Sticky note", "sticky"), ("Slide deck", "slide-deck")]
     view.insertionActions.append(UIMenu(title: "Structural blocks", children: entries.map { title, type in
       UIAction(title: title) { [weak view] _ in
         guard let template = StructuralBlockConfiguration.insertionNodes[type] else { preconditionFailure("No registered structural insertion template") }
