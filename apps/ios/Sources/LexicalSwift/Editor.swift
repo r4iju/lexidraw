@@ -31,6 +31,9 @@ public final class Editor: EditorModel {
     update.editorContext = editorContext
     _ = try update.parse(root)
     try update.applyTransforms()
+    if update.unregisteredType != nil {
+      throw EditorError.invalidState("Node type is not registered in \(editorContext.rawValue)")
+    }
     update.collectGarbage()
     state = update.state
     nextKey = update.nextKey
@@ -229,10 +232,13 @@ public final class Editor: EditorModel {
   /// Lexical commits an update that marked a node or moved the selection,
   /// and drops one that did neither. Returns whether `update` committed.
   private func commit(_ update: inout Update, pushingHistory: Bool = false) throws -> Bool {
-    if let registered = editorContext.registeredTypes, update.state.nodes.values.contains(where: { !registered.contains($0.type) }) {
+    if update.unregisteredType != nil {
       throw EditorError.invalidState("Node type is not registered in \(editorContext.rawValue)")
     }
     try update.applyTransforms()
+    if update.unregisteredType != nil {
+      throw EditorError.invalidState("Node type is not registered in \(editorContext.rawValue)")
+    }
     update.collectGarbage()
     if let selection = update.selection,
       update.state.nodes[selection.anchor.key] == nil || update.state.nodes[selection.focus.key] == nil
