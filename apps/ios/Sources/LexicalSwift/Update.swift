@@ -32,6 +32,7 @@ struct Update {
   /// which a copy of the list keeps too.
   var knowsListMarker: Bool
   var plainText = false
+  private(set) var unregisteredType: String?
   var editorContext = EditorContext.document
   func hasEditorPlugin(_ name: String) -> Bool { editorContext == .document || editorContext.mountedPlugins.contains(name) }
   /// This update's share of `Editor.shortcutsDeclinedAsNotPorted`.
@@ -108,6 +109,7 @@ struct Update {
 
   /// A new node, as a Lexical constructor makes one: dirty, and in no parent.
   mutating func create(_ payload: SerializedNode, type: String, children: OrderedSet<NodeKey>?) -> NodeKey {
+    if let registered = editorContext.registeredTypes, !registered.contains(type) { unregisteredType = type }
     let key = nextKey
     nextKey += 1
     state.nodes[key] = Node(payload, type: type, children: children)
