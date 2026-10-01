@@ -1,0 +1,184 @@
+{
+  "changes" : [
+    {
+      "changed" : [
+
+      ]
+    },
+    {
+      "changed" : [
+        [
+
+        ],
+        [
+          0,
+          1
+        ]
+      ]
+    },
+    {
+      "changed" : [
+        [
+
+        ],
+        [
+          0
+        ],
+        [
+          0,
+          0
+        ]
+      ]
+    }
+  ],
+  "commands" : [
+    {
+      "anchor" : {
+        "offset" : 4,
+        "path" : [
+          0,
+          1,
+          0
+        ],
+        "type" : "text"
+      },
+      "focus" : {
+        "offset" : 4,
+        "path" : [
+          0,
+          1,
+          0
+        ],
+        "type" : "text"
+      },
+      "type" : "setSelection"
+    },
+    {
+      "backward" : true,
+      "lineBoundary" : {
+        "offset" : 0,
+        "path" : [
+          0,
+          1,
+          0
+        ],
+        "type" : "text"
+      },
+      "type" : "deleteLine"
+    },
+    {
+      "backward" : true,
+      "type" : "deleteCharacter"
+    }
+  ],
+  "editorContext" : "slide",
+  "expected" : {
+    "selection" : {
+      "anchor" : {
+        "offset" : 0,
+        "path" : [
+          0,
+          0
+        ],
+        "type" : "element"
+      },
+      "focus" : {
+        "offset" : 0,
+        "path" : [
+          0,
+          0
+        ],
+        "type" : "element"
+      },
+      "format" : 0,
+      "style" : ""
+    },
+    "state" : {
+      "root" : {
+        "children" : [
+          {
+            "children" : [
+              {
+                "children" : [
+
+                ],
+                "direction" : null,
+                "format" : "",
+                "indent" : 0,
+                "type" : "listitem",
+                "value" : 1,
+                "version" : 1
+              }
+            ],
+            "direction" : null,
+            "format" : "",
+            "indent" : 0,
+            "listType" : "number",
+            "start" : 1,
+            "tag" : "ol",
+            "type" : "list",
+            "version" : 1
+          }
+        ],
+        "direction" : null,
+        "format" : "",
+        "indent" : 0,
+        "type" : "root",
+        "version" : 1
+      }
+    }
+  },
+  "start" : {
+    "root" : {
+      "children" : [
+        {
+          "children" : [
+            {
+              "children" : [
+
+              ],
+              "direction" : null,
+              "format" : "",
+              "indent" : 0,
+              "type" : "listitem",
+              "value" : 1,
+              "version" : 1
+            },
+            {
+              "children" : [
+                {
+                  "detail" : 0,
+                  "format" : 16,
+                  "mode" : "normal",
+                  "style" : "",
+                  "text" : "(東京b",
+                  "type" : "text",
+                  "version" : 1
+                }
+              ],
+              "direction" : null,
+              "format" : "",
+              "indent" : 0,
+              "type" : "listitem",
+              "value" : 2,
+              "version" : 1
+            }
+          ],
+          "direction" : null,
+          "format" : "",
+          "indent" : 0,
+          "listType" : "number",
+          "start" : 1,
+          "tag" : "ol",
+          "type" : "list",
+          "version" : 1
+        }
+      ],
+      "direction" : null,
+      "format" : "",
+      "indent" : 0,
+      "type" : "root",
+      "version" : 1
+    }
+  }
+}

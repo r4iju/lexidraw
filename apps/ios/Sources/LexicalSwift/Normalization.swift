@@ -119,39 +119,39 @@ extension Update {
       numberListItems(key)
     case SerializedListItemNode.type:
       try wrapInList(key)
-      if state.isAttached(key) { try syncListItemTextStyle(key) }
-    case SerializedMarkNode.type:
+      if editorContext == .document, state.isAttached(key) { try syncListItemTextStyle(key) }
+    case SerializedMarkNode.type where editorContext == .document:
       try transformCommentMark(key)
     case SerializedLinkNode.type:
       try transformLink(key)
-    case SerializedTableCellNode.type:
+    case SerializedTableCellNode.type where hasEditorPlugin("TablePlugin"):
       try transformCell(key)
-    case SerializedTableRowNode.type:
+    case SerializedTableRowNode.type where hasEditorPlugin("TablePlugin"):
       try transformRow(key)
-    case SerializedTableNode.type:
+    case SerializedTableNode.type where hasEditorPlugin("TablePlugin"):
       try transformTable(key)
-    case SerializedCalloutNode.type:
+    case SerializedCalloutNode.type where hasEditorPlugin("CalloutPlugin"):
       if isEmpty(key) { try append(key, [create(SerializedParagraphNode.type)]) }
-    case SerializedLayoutItemNode.type:
+    case SerializedLayoutItemNode.type where hasEditorPlugin("LayoutPlugin"):
       if let parent = state.parent(of: key), state[parent].type != SerializedLayoutContainerNode.type {
         try unwrapStructuralElement(key)
       }
-    case SerializedLayoutContainerNode.type:
+    case SerializedLayoutContainerNode.type where hasEditorPlugin("LayoutPlugin"):
       if state.children(of: key).contains(where: { state[$0].type != SerializedLayoutItemNode.type }) {
         try unwrapStructuralElement(key)
       }
-    case SerializedCollapsibleContentNode.type:
+    case SerializedCollapsibleContentNode.type where hasEditorPlugin("CollapsiblePlugin"):
       if let parent = state.parent(of: key), state[parent].type != SerializedCollapsibleContainerNode.type {
         try unwrapStructuralElement(key)
       }
-    case SerializedCollapsibleTitleNode.type:
+    case SerializedCollapsibleTitleNode.type where hasEditorPlugin("CollapsiblePlugin"):
       if let parent = state.parent(of: key), state[parent].type != SerializedCollapsibleContainerNode.type {
         // The plugin moves children first so a text caret stays on its child.
         let paragraph = create(SerializedParagraphNode.type)
         try append(paragraph, Array(state.children(of: key)))
         try replace(key, with: paragraph)
       }
-    case SerializedCollapsibleContainerNode.type:
+    case SerializedCollapsibleContainerNode.type where hasEditorPlugin("CollapsiblePlugin"):
       let children = Array(state.children(of: key))
       if children.count != 2 || state[children[0]].type != SerializedCollapsibleTitleNode.type
         || state[children[1]].type != SerializedCollapsibleContentNode.type

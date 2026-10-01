@@ -19,12 +19,12 @@ enum Support {
   /// The committed node schema the payload types are generated from.
   static let nodeSchema = iosRoot.appending(path: "../../packages/lexical-nodes/node-schema.json")
 
-  static func referenceEditor() throws -> ReferenceEditor {
+  static func referenceEditor(editorContext: EditorContext = .document) throws -> ReferenceEditor {
     let bundle = iosRoot.appending(path: "reference/dist/lexical-reference.js")
     guard FileManager.default.fileExists(atPath: bundle.path) else {
       throw SupportError("The JS reference isn't built; run `bun run build:reference` in apps/ios")
     }
-    return try ReferenceEditor(scriptURL: bundle)
+    return try ReferenceEditor(scriptURL: bundle, editorContext: editorContext)
   }
 
   static func environment(_ name: String) -> String? {

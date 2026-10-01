@@ -21,6 +21,7 @@
   "dependencies": {
     "@lexical/clipboard": "^0.51.0",
     "@lexical/extension": "^0.51.0",
+    "@lexical/hashtag": "0.51.0",
     "@lexical/headless": "^0.51.0",
     "@lexical/history": "^0.51.0",
     "@lexical/html": "^0.51.0",
@@ -31,6 +32,7 @@
     "@lexical/rich-text": "^0.51.0",
     "@lexical/selection": "^0.51.0",
     "@lexical/table": "^0.51.0",
+    "@lexical/text": "0.51.0",
     "@lexical/utils": "^0.51.0",
     "@packages/lexical-nodes": "workspace:*",
     "@packages/types": "workspace:*",
@@ -41,6 +43,8 @@
     "rrweb-cssom": "0.8.0"
   },
   "devDependencies": {
+    "@babel/parser": "^7.29.9",
+    "@babel/types": "7.29.8",
     "@excalidraw/excalidraw": "^0.18.1",
     "@lexical/react": "^0.51.0",
     "@packages/dev-stack": "workspace:*",

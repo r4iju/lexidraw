@@ -18,12 +18,17 @@ public final class Editor: EditorModel {
 
   public var supportsRichText: Bool { !plainText }
   private let plainText: Bool
-  public init(plainText: Bool = false) { self.plainText = plainText }
+  private let editorContext: EditorContext
+  public init(plainText: Bool = false, editorContext: EditorContext = .document) {
+    self.plainText = plainText
+    self.editorContext = editorContext
+  }
 
   public func load(_ json: JSONValue) throws {
     guard let root = json["root"], root["type"] == "root" else { throw EditorError.invalidState("No root") }
     var update = Update(EditorState(nodes: [:], selection: nil), nextKey: 0, revision: nextRevision())
     update.plainText = plainText
+    update.editorContext = editorContext
     _ = try update.parse(root)
     try update.applyTransforms()
     update.collectGarbage()
@@ -162,6 +167,7 @@ public final class Editor: EditorModel {
   ) throws -> ChangeSet {
     var update = Update(state, nextKey: nextKey, revision: nextRevision(), knowsListMarker: knowsListMarker)
     update.plainText = plainText
+    update.editorContext = editorContext
     update.tags = tags
     try run(&update)
     shortcutsDeclinedAsNotPorted += update.shortcutsDeclinedAsNotPorted
@@ -170,13 +176,14 @@ public final class Editor: EditorModel {
     guard try commit(&update) else { return ChangeSet(changed: [], clipboard: clipboard) }
     var changed = update.changedKeys
     var compositionEnd = compositionEnd
-    while !plainText,
+    while !plainText, editorContext == .document || editorContext.mountedPlugins.contains("MarkdownShortcutPlugin"),
       let caret = state.markdownShortcutCaret(
         after: previous, dirtyLeaves: update.dirtyLeaves, compositionEnd: compositionEnd)
     {
       compositionEnd = false
       previous = state
       update = Update(state, nextKey: nextKey, revision: nextRevision(), knowsListMarker: knowsListMarker)
+      update.editorContext = editorContext
       let isShortcut: Bool
       do { isShortcut = try update.runMarkdownShortcut(at: caret) } catch { throw ShortcutFailure(error: error) }
       shortcutsDeclinedAsNotPorted += update.shortcutsDeclinedAsNotPorted
@@ -189,6 +196,9 @@ public final class Editor: EditorModel {
   /// Lexical commits an update that marked a node or moved the selection,
   /// and drops one that did neither. Returns whether `update` committed.
   private func commit(_ update: inout Update, pushingHistory: Bool = false) throws -> Bool {
+    if let registered = editorContext.registeredTypes, update.state.nodes.values.contains(where: { !registered.contains($0.type) }) {
+      throw EditorError.invalidState("Node type is not registered in \(editorContext.rawValue)")
+    }
     try update.applyTransforms()
     update.collectGarbage()
     if let selection = update.selection,
@@ -446,7 +456,7 @@ extension Update {
     }
     if command == .selectAll {
       // Rich text answers what the table's handler leaves.
-      if try !selectAllCells() { selectAll() }
+      if try !hasEditorPlugin("TablePlugin") || !selectAllCells() { selectAll() }
       return
     }
     if case .toggleChecked(let path) = command {
@@ -480,7 +490,7 @@ extension Update {
     switch command {
     case .insertText(let text), .commitComposition(let text): try insertText(selection, text)
     case .deleteCharacter(let backward):
-      if try deleteCellHandler() { return }
+      if hasEditorPlugin("TablePlugin"), try deleteCellHandler() { return }
       if structuralDelete(selection) { return }
       guard let grown = self.selection else { return }
       if backward { try backspace(grown) } else { try deleteCharacter(grown, backward: false) }
@@ -492,7 +502,9 @@ extension Update {
         lineBoundary: KeyPoint(key: boundary, offset: lineBoundary.offset, type: lineBoundary.type))
     case .insertParagraph:
       if try !structuralEnter(selection) {
-        if try !runMarkdownShortcutOnEnter(selection) { try enter(selection) }
+        if editorContext != .document && !editorContext.mountedPlugins.contains("MarkdownShortcutPlugin") {
+          try enter(selection)
+        } else if try !runMarkdownShortcutOnEnter(selection) { try enter(selection) }
       }
     case .insertLineBreak: try insertLineBreak(selection)
     case .formatText(let format): try formatText(selection, format)
@@ -502,8 +514,8 @@ extension Update {
     case .changeFontSize(let increase): try changeFontSize(selection, increase: increase)
     case .clearFormatting: try clearFormatting(selection)
     case .setWritingDirection(let direction): try setWritingDirection(selection, direction)
-    case .insertList(let listType): try insertList(ListType(listType))
-    case .removeList: try removeList()
+    case .insertList(let listType): if editorContext == .document { try insertList(ListType(listType)) }
+    case .removeList: if editorContext == .document { try removeList() }
     case .indent: try indentContent()
     case .outdent: try outdentContent()
     case .toggleLink(let url): try toggleLinkCommand(selection, url: url)
@@ -511,7 +523,8 @@ extension Update {
     case .copy: clipboard = try copy(selection)
     case .paste(let clipboard): try paste(selection, clipboard)
     case .tab(let backward):
-      if try !tabHandler(backward: backward) { try tab(selection, backward: backward) }
+      if !hasEditorPlugin("TablePlugin") { try tab(selection, backward: backward) }
+      else if try !tabHandler(backward: backward) { try tab(selection, backward: backward) }
     default: try runOnTable(command)
     }
   }
@@ -538,7 +551,7 @@ extension Update {
     case .tab: break
     // `$toggleLink` leaves a table selection be.
     case .toggleLink, .editLink: break
-    case .insertList(let listType): try insertList(selection, ListType(listType))
+    case .insertList(let listType): if editorContext == .document { try insertList(selection, ListType(listType)) }
     // `$removeList` and `$handleIndentAndOutdent` answer a range selection
     // alone.
     case .removeList, .indent, .outdent: break
@@ -569,7 +582,7 @@ extension Update {
     case .formatElement(let format): formatElements(nodes(in: selection), format)
     case .changeFontSize(let increase): try changeFontSizeOfNodes(nodes(in: selection), increase: increase)
     case .clearFormatting: break
-    case .insertList(let listType): try insertList(selection, ListType(listType))
+    case .insertList(let listType): if editorContext == .document { try insertList(selection, ListType(listType)) }
     // `$removeList`, `$handleIndentAndOutdent` and Tab indentation answer a
     // range selection alone.
     case .removeList, .indent, .outdent, .tab: break
@@ -584,7 +597,7 @@ extension Update {
   /// The insert-table dialog and the table menu.
   private mutating func runOnTable(_ command: EditorCommand) throws {
     switch command {
-    case .insertTable(let rows, let columns): try insertDocumentTable(rows: rows, columns: columns)
+    case .insertTable(let rows, let columns): if hasEditorPlugin("TablePlugin") { try insertDocumentTable(rows: rows, columns: columns) }
     case .insertTableRow(let after): try insertDocumentTableRows(after: after)
     case .insertTableColumn(let after): try insertDocumentTableColumns(after: after)
     case .deleteTableRow: try deleteTableRowAtSelection()
@@ -634,7 +647,7 @@ extension Update {
     } else {
       placed.format = try combinedFormat(placed, anchorAt, focusAt)
     }
-    try fixRangeSelectionForSelectedTable(placed)
+    if hasEditorPlugin("TablePlugin") { try fixRangeSelectionForSelectedTable(placed) }
   }
 
   /// `combinedFormat` in `reference/entry.ts`.

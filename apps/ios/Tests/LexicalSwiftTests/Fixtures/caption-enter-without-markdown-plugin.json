@@ -1,0 +1,230 @@
+{
+  "changes": [
+    {
+      "changed": []
+    },
+    {
+      "changed": [
+        [],
+        [
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "changed": [
+        [],
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          1
+        ]
+      ]
+    }
+  ],
+  "commands": [
+    {
+      "anchor": {
+        "offset": 0,
+        "path": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "type": "element"
+      },
+      "focus": {
+        "offset": 0,
+        "path": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "type": "element"
+      },
+      "type": "setSelection"
+    },
+    {
+      "text": "[] ",
+      "type": "insertText"
+    },
+    {
+      "type": "insertParagraph"
+    }
+  ],
+  "editorContext": "videoCaption",
+  "expected": {
+    "selection": {
+      "anchor": {
+        "offset": 0,
+        "path": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "type": "element"
+      },
+      "focus": {
+        "offset": 0,
+        "path": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "type": "element"
+      },
+      "format": 0,
+      "style": ""
+    },
+    "state": {
+      "root": {
+        "children": [
+          {
+            "children": [
+              {
+                "children": [
+                  {
+                    "backgroundColor": "#eee",
+                    "children": [
+                      {
+                        "children": [
+                          {
+                            "detail": 0,
+                            "format": 0,
+                            "mode": "normal",
+                            "style": "",
+                            "text": "[] ",
+                            "type": "text",
+                            "version": 1
+                          }
+                        ],
+                        "direction": null,
+                        "format": "",
+                        "indent": 0,
+                        "textFormat": 0,
+                        "textStyle": "",
+                        "type": "paragraph",
+                        "version": 1
+                      },
+                      {
+                        "children": [],
+                        "direction": null,
+                        "format": "",
+                        "indent": 0,
+                        "textFormat": 0,
+                        "textStyle": "",
+                        "type": "paragraph",
+                        "version": 1
+                      }
+                    ],
+                    "colSpan": 1,
+                    "direction": null,
+                    "format": "",
+                    "headerState": 2,
+                    "indent": 0,
+                    "rowSpan": 1,
+                    "type": "tablecell",
+                    "version": 1
+                  }
+                ],
+                "direction": null,
+                "format": "",
+                "indent": 0,
+                "type": "tablerow",
+                "version": 1
+              }
+            ],
+            "direction": null,
+            "format": "",
+            "indent": 0,
+            "type": "table",
+            "version": 1
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "root",
+        "version": 1
+      }
+    }
+  },
+  "start": {
+    "root": {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "backgroundColor": "#eee",
+                  "children": [
+                    {
+                      "children": [],
+                      "direction": null,
+                      "format": "",
+                      "indent": 0,
+                      "textFormat": 0,
+                      "textStyle": "",
+                      "type": "paragraph",
+                      "version": 1
+                    }
+                  ],
+                  "colSpan": 1,
+                  "direction": null,
+                  "format": "",
+                  "headerState": 2,
+                  "indent": 0,
+                  "rowSpan": 1,
+                  "type": "tablecell",
+                  "version": 1
+                }
+              ],
+              "direction": null,
+              "format": "",
+              "indent": 0,
+              "type": "tablerow",
+              "version": 1
+            }
+          ],
+          "direction": null,
+          "format": "",
+          "indent": 0,
+          "type": "table",
+          "version": 1
+        }
+      ],
+      "direction": null,
+      "format": "",
+      "indent": 0,
+      "type": "root",
+      "version": 1
+    }
+  }
+}

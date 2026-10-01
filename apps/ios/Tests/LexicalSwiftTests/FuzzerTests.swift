@@ -450,9 +450,12 @@ import Testing
   @Test func lexicalSwiftMatchesTheReference() throws {
     let steps = Support.environment("FUZZ_STEPS").flatMap(Int.init) ?? 2_000
     let seed = Support.environment("FUZZ_SEED").flatMap(UInt64.init) ?? UInt64.random(in: 0...UInt64.max)
+    let contextName = Support.environment("FUZZ_CONTEXT") ?? "document"
+    guard let context = EditorContext(rawValue: contextName) else { throw SupportError("Unknown fuzzer editor context \(contextName)") }
     var fuzzer = Fuzzer(
-      seed: seed, reference: try Support.referenceEditor(), candidate: Editor(), writingDirections: true,
-      structuralBlocks: Support.environment("FUZZ_STRUCTURAL") == "1", socialTextSubclasses: true)
+      seed: seed, reference: try Support.referenceEditor(editorContext: context), candidate: Editor(editorContext: context), writingDirections: true,
+      structuralBlocks: Support.environment("FUZZ_STRUCTURAL") == "1", socialTextSubclasses: true,
+      normalizesGeneratedDocuments: context != .document, registeredTypes: context.registeredTypes)
 
     let finding: Fuzzer.Finding?
     do {
@@ -462,7 +465,9 @@ import Testing
       return
     }
     if let finding {
-      let url = try finding.fixture.write(into: Support.fixturesSource)
+      var fixture = finding.fixture
+      fixture.editorContext = context == .document ? nil : context
+      let url = try fixture.write(into: Support.fixturesSource)
       Issue.record("Seed \(seed) diverged after \(finding.stepsRun) steps; shrunk fixture written to \(url.path)")
     } else {
       print(
