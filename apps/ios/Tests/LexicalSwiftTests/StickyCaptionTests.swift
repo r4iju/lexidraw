@@ -77,3 +77,19 @@ extension StickyCaptionTests {
     #expect(try parent.snapshot() == source.parentSnapshot())
   }
 }
+
+
+extension StickyCaptionTests {
+  @Test func standaloneStickyContextDoesNotMountItsOwnHistory() throws {
+    let state = document(paragraph(text("sticky")))
+    let native = Editor(plainText: true, editorContext: .stickyCaption)
+    try native.load(state)
+    let source = try Support.referenceEditor(editorContext: .stickyCaption)
+    try source.load(state)
+    for command: EditorCommand in [.caret(.text([0, 0], 6)), .insertText("!"), .undo, .redo] {
+      try native.apply(command)
+      try source.apply(command)
+      #expect(try native.snapshot() == source.snapshot())
+    }
+  }
+}

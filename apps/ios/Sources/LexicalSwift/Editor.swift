@@ -309,7 +309,9 @@ public final class Editor: EditorModel {
     guard update.hasDirtyNodes || movesSelection else { return false }
     var next = update.state
     next.selection = saved
-    history.record(update, from: state, to: next, at: now, pushing: pushingHistory)
+    if editorContext == .document || editorContext.mountedPlugins.contains("HistoryPlugin") {
+      history.record(update, from: state, to: next, at: now, pushing: pushingHistory)
+    }
     state = next
     nextKey = update.nextKey
     knowsListMarker = update.knowsListMarker
