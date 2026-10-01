@@ -83,8 +83,6 @@
   "reviewNotesDraft": "Lexidraw is a native document and drawing editor. Sign In opens the secure Lexidraw authentication website and returns to the app. Review credentials will be supplied privately in App Store Connect. The seeded review account will contain disposable sample documents and drawings. Account deletion is available in Settings. Listen generates spoken audio from a selected file; it does not record the microphone. Review notes will be updated with the final supported node families and any explicit limitations.",
   "submissionPending": [
     "Final integrated source SHA and local release archive",
-    "Verify read-aloud generation disclosure and permission before third-party AI transmission",
-    "Final iPhone and iPad screenshots",
     "Publish verified privacy answers",
     "Submission and review response"
   ],
@@ -112,6 +110,70 @@
         "privacyPolicyUrl"
       ],
       "verified": "2026-10-01"
+    },
+    "category": {
+      "primary": "PRODUCTIVITY",
+      "status": "saved-and-verified"
+    },
+    "ageRating": {
+      "status": "saved-and-verified",
+      "minimumOverride": "THIRTEEN_PLUS",
+      "userGeneratedContent": true,
+      "messagingAndChat": true,
+      "basis": "Shared documents and comments; policy excludes children under 13. No embedded arbitrary-browser navigation, social feed, advertising, gambling or app-authored mature content.",
+      "reference": "https://developer.apple.com/help/app-store-connect/reference/app-information/age-ratings-values-and-definitions/"
+    },
+    "copyright": "2026 r4iju",
+    "screenshots": {
+      "status": "uploaded-and-processing-complete",
+      "sourceCommit": "b9f46b669385accdd6928285131e59cf6023a0a7",
+      "capture": "Actual shipping DocumentScreen and DrawingScreen; temporary authentication/entry selection only in an uncommitted artifact worktree. No overlays or fake UI.",
+      "images": [
+        {
+          "id": "32b09215-24e0-427f-8f1e-970a8086192e",
+          "setID": "e28939c6-b341-4184-9ebf-734b6d598c7d",
+          "fileName": "iphone-document.jpg",
+          "checksum": "1e1980e30a115ba36ddee317c693ef2f",
+          "bytes": 864246,
+          "width": 1320,
+          "height": 2868,
+          "state": "COMPLETE",
+          "processingErrorCodes": []
+        },
+        {
+          "id": "8f92b61c-b68b-4355-8ba0-c1e77a617ccb",
+          "setID": "e28939c6-b341-4184-9ebf-734b6d598c7d",
+          "fileName": "iphone-drawing.jpg",
+          "checksum": "c59faee17cf848ef6f8c640a047fe489",
+          "bytes": 267913,
+          "width": 1320,
+          "height": 2868,
+          "state": "COMPLETE",
+          "processingErrorCodes": []
+        },
+        {
+          "id": "cff4c631-48ea-4f4e-aef7-a68d61e2f68a",
+          "setID": "1997c060-3e45-4162-a6a4-7d15581cda52",
+          "fileName": "ipad-document.jpg",
+          "checksum": "ae820b7a6609d30ba560e4a51dae1993",
+          "bytes": 706741,
+          "width": 2064,
+          "height": 2752,
+          "state": "COMPLETE",
+          "processingErrorCodes": []
+        },
+        {
+          "id": "771eb083-c11b-4d5b-85b7-f1b71a8173ec",
+          "setID": "1997c060-3e45-4162-a6a4-7d15581cda52",
+          "fileName": "ipad-drawing.jpg",
+          "checksum": "41152b4bffb742f1062233173e3efb7b",
+          "bytes": 257287,
+          "width": 2064,
+          "height": 2752,
+          "state": "COMPLETE",
+          "processingErrorCodes": []
+        }
+      ]
     }
   },
   "descriptionDraft": "Write, sketch and organize your ideas with Lexidraw. Work with documents, drawings and folders on iPhone and iPad, keep your files synchronized with your Lexidraw account, and share them with other people. Format text, edit tables, create drawings, and listen to your documents read aloud. A Lexidraw account and an internet connection are required for synchronization and read-aloud generation.",
@@ -119,10 +181,14 @@
     "status": "created-and-sign-in-verified",
     "credentialStorage": "Mac Keychain, service cli/lexidraw-app-review",
     "seededDocuments": [
-      "ios-app-review-welcome-20260930"
+      "ios-app-review-welcome-20260930",
+      "ios-review-ideas-20261001"
     ],
     "remaining": "Expand disposable examples after all node families integrate.",
-    "appStoreConnectCredentialStatus": "saved-and-verified"
+    "appStoreConnectCredentialStatus": "saved-and-verified",
+    "seededDrawings": [
+      "ios-review-sketch-20261001"
+    ]
   },
   "releaseCheckpoint": {
     "buildNumber": "7",
