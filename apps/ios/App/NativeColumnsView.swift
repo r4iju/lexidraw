@@ -9,6 +9,7 @@ indirect enum NativeColumnTrack {
   case intrinsic(stretches: Bool)
   case bounded(minimum: Self, maximum: Self)
   case fitContent(Self)
+  case automatic(repeated: [Self], collapses: Bool)
 
   init?(_ source: String) {
     let value = source.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
@@ -69,14 +70,25 @@ indirect enum NativeColumnTrack {
     for token in tokens {
       if token.lowercased().hasPrefix("repeat("), token.hasSuffix(")") {
         guard allowsRepeat, let arguments = split(String(token.dropFirst(7).dropLast()), separator: ","), arguments.count == 2,
-          let count = Int(arguments[0].trimmingCharacters(in: .whitespacesAndNewlines)), count > 0,
-          let repeated = parse(arguments[1], allowsRepeat: false), count <= 4096 / repeated.count else { return nil }
-        for _ in 0..<count { tracks.append(contentsOf: repeated) }
+          let repeated = parse(arguments[1], allowsRepeat: false) else { return nil }
+        let countSource = arguments[0].trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if countSource == "auto-fill" || countSource == "auto-fit" {
+          guard repeated.allSatisfy(\.isFixedRepeatSize) else { return nil }
+          tracks.append(.automatic(repeated: repeated, collapses: countSource == "auto-fit"))
+        } else {
+          guard let count = Int(countSource), count > 0, count <= 4096 / repeated.count else { return nil }
+          for _ in 0..<count { tracks.append(contentsOf: repeated) }
+        }
       } else {
         guard let track = Self(token) else { return nil }
         tracks.append(track)
       }
       guard tracks.count <= 4096 else { return nil }
+    }
+    let automaticCount = tracks.filter { if case .automatic = $0 { true } else { false } }.count
+    guard automaticCount <= 1 else { return nil }
+    if automaticCount == 1 {
+      guard tracks.allSatisfy({ if case .automatic = $0 { true } else { $0.isFixedRepeatSize } }) else { return nil }
     }
     return tracks
   }
@@ -95,6 +107,56 @@ indirect enum NativeColumnTrack {
     guard depth == 0, separator == nil || !token.isEmpty else { return nil }
     if !token.isEmpty { result.append(token) }
     return result
+  }
+
+  private var isFixedBreadth: Bool {
+    switch self { case .pixels, .percentage: true; default: false }
+  }
+  private var isFixedRepeatSize: Bool {
+    switch self {
+    case .pixels, .percentage: true
+    case .bounded(let minimum, let maximum): minimum.isFixedBreadth || maximum.isFixedBreadth
+    default: false
+    }
+  }
+  private func repetitionSize(width: CGFloat) -> CGFloat {
+    if case .bounded(let minimum, let maximum) = self {
+      let minimumSize = minimum.isFixedBreadth ? minimum.base(width: width, occupied: false) : 0
+      return maximum.isFixedBreadth ? max(minimumSize, maximum.base(width: width, occupied: false)) : minimumSize
+    }
+    return base(width: width, occupied: false)
+  }
+  static func resolve(_ source: [Self], width: CGFloat, gap: CGFloat, occupied: Int) -> (tracks: [Self], collapsed: Set<Int>)? {
+    guard let automaticIndex = source.firstIndex(where: { if case .automatic = $0 { true } else { false } }) else {
+      return (source, [])
+    }
+    guard case .automatic(let repeated, let collapses) = source[automaticIndex],
+      !repeated.isEmpty, source.filter({ if case .automatic = $0 { true } else { false } }).count == 1 else { return nil }
+    let fixed = source.enumerated().filter { $0.offset != automaticIndex }.map(\.element)
+    guard fixed.allSatisfy(\.isFixedRepeatSize), repeated.allSatisfy(\.isFixedRepeatSize) else { return nil }
+    // CSS auto-repeat counts definite maxima, floored by definite minima.
+    // Subpixel repeat contributions depend on the browser's UA floor/zoom.
+    // Refuse that unported #133 context rather than guessing a repeat count.
+    let contributions = repeated.map { $0.repetitionSize(width: width) }
+    guard contributions.allSatisfy({ $0.isFinite && $0 >= 1 }) else { return nil }
+    let fixedSize = fixed.reduce(CGFloat(0)) { $0 + $1.repetitionSize(width: width) }
+    let groupSize = contributions.reduce(0, +)
+    let available = width + gap - fixedSize - gap * CGFloat(fixed.count)
+    let denominator = groupSize + gap * CGFloat(repeated.count)
+    let repetitions = max(1, floor(available / denominator))
+    guard repetitions.isFinite, repetitions <= CGFloat((4096 - fixed.count) / repeated.count) else { return nil }
+    var tracks: [Self] = [], collapsed = Set<Int>()
+    for (index, track) in source.enumerated() {
+      if index == automaticIndex {
+        for _ in 0..<Int(repetitions) {
+          for item in repeated {
+            if collapses && tracks.count >= occupied { collapsed.insert(tracks.count) }
+            tracks.append(item)
+          }
+        }
+      } else { tracks.append(track) }
+    }
+    return (tracks, collapsed)
   }
 
   var factor: CGFloat? {
@@ -118,6 +180,7 @@ indirect enum NativeColumnTrack {
     case .percentage(let value): return width * value
     case .bounded(let minimum, _): return minimum.base(width: width, occupied: occupied)
     case .fraction, .intrinsic, .fitContent: return intrinsic
+    case .automatic: preconditionFailure("Automatic tracks must resolve before sizing")
     }
   }
   func growthLimit(width: CGFloat, occupied: Bool) -> CGFloat {
@@ -165,14 +228,23 @@ indirect enum NativeColumnTrack {
 
   func prepare(width: CGFloat, stacked: Bool) {
     if stacked != wasStacked { initialScrollPosition = true; wasStacked = stacked }
+    guard let resolved = NativeColumnTrack.resolve(tracks, width: width, gap: gap, occupied: columns.count), !resolved.tracks.isEmpty else {
+      showUnavailable(width: width); return
+    }
+    let tracks = resolved.tracks
+    let collapsed = stacked ? Set<Int>() : resolved.collapsed
+    let active = tracks.indices.filter { !collapsed.contains($0) }
+    var gapsAfter = Array(repeating: CGFloat(0), count: stacked ? 1 : tracks.count)
+    if !stacked { for index in active.dropLast() { gapsAfter[index] = gap } }
+    let gutters = gapsAfter.reduce(0, +)
     var widths = Array(repeating: width, count: stacked ? 1 : tracks.count)
     if !stacked {
       widths = tracks.enumerated().map { index, track in
-        track.base(width: width, occupied: index < columns.count)
+        collapsed.contains(index) ? 0 : track.base(width: width, occupied: index < columns.count)
       }
-      let available = max(0, width - gap * CGFloat(max(0, tracks.count - 1)))
+      let available = max(0, width - gutters)
       let limits = tracks.enumerated().map { index, track in
-        track.growthLimit(width: width, occupied: index < columns.count)
+        collapsed.contains(index) ? 0 : track.growthLimit(width: width, occupied: index < columns.count)
       }
       // CSS Grid maximize phase: equal growth, freezing each bounded maximum.
       var growing = Set(tracks.indices.filter { limits[$0] > widths[$0] })
@@ -188,12 +260,12 @@ indirect enum NativeColumnTrack {
         for index in frozen { widths[index] = limits[index] }
         growing.subtract(frozen)
       }
-      var flexible = Set(tracks.indices.filter { tracks[$0].factor != nil })
+      var flexible = Set(tracks.indices.filter { !collapsed.contains($0) && tracks[$0].factor != nil })
       while !flexible.isEmpty {
         let fixed = widths.indices.filter { !flexible.contains($0) }.reduce(CGFloat(0)) { $0 + widths[$1] }
         let factors = flexible.reduce(CGFloat(0)) { $0 + (tracks[$1].factor ?? 0) }
         guard fixed.isFinite, factors.isFinite else { showUnavailable(width: width); return }
-        let available = max(0, width - gap * CGFloat(max(0, tracks.count - 1)) - fixed)
+        let available = max(0, width - gutters - fixed)
         let unit = available / max(1, factors)
         let frozen = flexible.filter { widths[$0] > unit * (tracks[$0].factor ?? 0) }
         if frozen.isEmpty {
@@ -203,7 +275,7 @@ indirect enum NativeColumnTrack {
         flexible.subtract(frozen)
       }
       // Normal justify-content stretches only tracks with an auto maximum.
-      let stretching = tracks.indices.filter { tracks[$0].stretches }
+      let stretching = tracks.indices.filter { !collapsed.contains($0) && tracks[$0].stretches }
       if !stretching.isEmpty {
         let free = max(0, available - widths.reduce(0, +)) / CGFloat(stretching.count)
         for index in stretching { widths[index] += free }
@@ -227,7 +299,7 @@ indirect enum NativeColumnTrack {
       let size = column.systemLayoutSizeFitting(CGSize(width: boxWidth, height: 0),
         withHorizontalFittingPriority: .required, verticalFittingPriority: .fittingSizeLevel)
       row.append(CGRect(x: x, y: y, width: boxWidth, height: size.height))
-      x += widths[trackIndex] + gap
+      x += widths[trackIndex] + gapsAfter[trackIndex]
       tallest = max(tallest, size.height)
       if trackIndex == widths.count - 1 || index == columns.count - 1 {
         frames.append(contentsOf: row.map { CGRect(x: $0.minX, y: y, width: $0.width, height: tallest) })
@@ -236,7 +308,7 @@ indirect enum NativeColumnTrack {
       }
     }
     measuredHeight = max(0, y - gap)
-    measuredWidth = stacked ? width : max(width, widths.reduce(0, +) + gap * CGFloat(max(0, widths.count - 1)))
+    measuredWidth = stacked ? width : max(width, widths.reduce(0, +) + gutters)
     measuredWidth = max(measuredWidth, frames.map(\.maxX).max() ?? 0)
     if rightToLeft && !stacked {
       frames = frames.map { CGRect(x: measuredWidth - $0.maxX, y: $0.minY, width: $0.width, height: $0.height) }

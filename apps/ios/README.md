@@ -962,3 +962,25 @@ slide geometry, panel settings and native gesture events are not claimed as
 part of that fuzz run. Their native UI and stale-update/history tests provide
 separate coverage. Remaining imported grammar refusals and those fuzz scope
 limits remain explicit rather than being treated as completed acceptance.
+
+
+Native automatic repetition now supports one `auto-fill` or `auto-fit` group
+of CSS fixed-size tracks, including bounded fractional maxima, multiple tracks
+per repetition and fixed-size tracks before/after the group. Count calculation
+uses definite maxima floored by definite minima and keeps surrounding zero
+tracks zero. `auto-fit` collapses only unoccupied repeated tracks and their
+gutters; `auto-fill` keeps them. Resizing resolves the template again without
+changing stored document JSON. Expanded grids retain the 4,096-track bound.
+
+The retained browser corpus now contains 20 supported actual Chromium cases.
+Automatic-repeat parsing genuinely failed before implementation
+(`133-auto-repeat-red.xcresult`). Additional browser probing caught incorrect
+flooring of surrounding zero tracks and an unported UA/zoom-dependent subpixel
+repeat floor (`133-auto-repeat-boundary-red.xcresult`). Sub-1px repeated count
+contributions explicitly refuse under #133; the unsupported records are kept
+separately in the browser corpus rather than called matching layouts. Final
+`133-auto-repeat-final.xcresult` passed all 12 hosted and three column UI cases,
+and the production simulator build passed (`133-auto-repeat-app.log`). No CI
+was invoked. Font/viewport/container-relative lengths, named lines and CSS math
+functions remain explicit imported-shape limitations. The node-setting model
+command fuzz coverage identified by the acceptance audit is a separate follow-up.

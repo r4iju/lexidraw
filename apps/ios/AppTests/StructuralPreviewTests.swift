@@ -143,16 +143,23 @@ import TextKitEditor
   func testImportedIntrinsicAndBoundedTracksMatchContainedBrowserColumns() throws {
     let url = try XCTUnwrap(Bundle(for: Self.self).url(forResource: "contained-grid-browser", withExtension: "json"))
     let fixture = try JSONValue(parsing: String(decoding: Data(contentsOf: url), as: UTF8.self))
+    for record in fixture["unsupportedCases"]?.arrayValue ?? [] {
+      let template = try XCTUnwrap(record["template"]?.stringValue)
+      let tracks = try XCTUnwrap(NativeColumnTrack.parse(template))
+      XCTAssertNil(NativeColumnTrack.resolve(tracks, width: 400, gap: 8, occupied: 2), template)
+    }
     for record in try XCTUnwrap(fixture["cases"]?.arrayValue) {
       let template = try XCTUnwrap(record["template"]?.stringValue)
       let tracks = try XCTUnwrap(NativeColumnTrack.parse(template), template)
       let view = NativeColumnsView(tracks: tracks, gap: 8)
-      let columns = (0..<3).map { _ in UIStackView() }
+      let expectedFrames = try XCTUnwrap(record["frames"]?.arrayValue)
+      let width = try XCTUnwrap(record["width"]?.numberValue)
+      let columns = expectedFrames.map { _ in UIStackView() }
       columns.forEach(view.addColumn)
-      view.prepare(width: 400, stacked: false)
-      view.frame = CGRect(x: 0, y: 0, width: 400, height: 200)
+      view.prepare(width: width, stacked: false)
+      view.frame = CGRect(x: 0, y: 0, width: width, height: 200)
       view.layoutIfNeeded()
-      for (column, expected) in zip(columns, try XCTUnwrap(record["frames"]?.arrayValue)) {
+      for (column, expected) in zip(columns, expectedFrames) {
         XCTAssertEqual(column.frame.minX, try XCTUnwrap(expected["x"]?.numberValue), accuracy: 0.05, template)
         XCTAssertEqual(column.frame.width, try XCTUnwrap(expected["width"]?.numberValue), accuracy: 0.05, template)
       }
