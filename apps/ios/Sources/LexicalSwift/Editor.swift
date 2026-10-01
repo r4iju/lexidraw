@@ -47,6 +47,7 @@ public final class Editor: EditorModel {
       guard let changes = fields.objectValue, !changes.isEmpty else { throw EditorError.invalidState("No structural fields") }
       let allowed: Set<String>
       switch original["type"]?.stringValue {
+      case "layout-container": allowed = ["templateColumns"]
       case "callout": allowed = ["kind", "title"]
       case "collapsible-container": allowed = ["open"]
       case "sticky": allowed = ["color", "xOffset", "yOffset", "caption"]
@@ -54,6 +55,11 @@ public final class Editor: EditorModel {
       default: throw EditorError.unsupported("Structural setter belongs to #133")
       }
       guard changes.keys.allSatisfy(allowed.contains) else { throw EditorError.unsupported("Structural setter belongs to #133") }
+      if original["type"] == "layout-container" {
+        guard isEditable else { throw EditorError.unsupported("This document cannot be edited") }
+        guard let key = NodeKey(keys[index]), let template = changes["templateColumns"]?.stringValue else { throw EditorError.invalidState("No column template") }
+        return try commit { try $0.updateLayoutColumns(key, template: template) }
+      }
       var replacement = original.objectValue!
       for (field, value) in changes { replacement[field] = value }
       return try replaceEmbeddedNode(key: keys[index], expected: original, replacement: .object(replacement), clearsSelection: original["type"] == "sticky" && (changes["xOffset"] != nil || changes["yOffset"] != nil))
@@ -163,7 +169,9 @@ public final class Editor: EditorModel {
       }
       var fields = loaded.objectValue!
       fields["children"] = nil
-      update.modify(key) { $0.payload = SerializedNode(json: .object(fields)).asLoaded() }
+      update.modify(key) { node in
+        node.payload = SerializedNode(json: .object(fields)).asLoaded().preservingUnchangedUnreadFields(from: node.payload, before: expected, after: replacement)
+      }
     }
   }
 
@@ -506,9 +514,8 @@ extension Update {
     case .insertText(let text), .commitComposition(let text): try insertText(selection, text)
     case .deleteCharacter(let backward):
       if try deleteCellHandler() { return }
-      if structuralDelete(selection) { return }
       guard let grown = self.selection else { return }
-      if backward { try backspace(grown) } else { try deleteCharacter(grown, backward: false) }
+      if backward { try backspace(grown) } else if !structuralDelete(grown) { try deleteCharacter(grown, backward: false) }
     case .deleteWord(let backward): try deleteWord(selection, backward: backward)
     case .deleteLine(let backward, let lineBoundary):
       let boundary = try pointNode(lineBoundary)

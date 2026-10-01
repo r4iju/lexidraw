@@ -89,3 +89,29 @@ extension Update {
     }
   }
 }
+
+
+extension Update {
+  mutating func updateLayoutColumns(_ key: NodeKey, template: String) throws {
+    guard case .layoutContainer(var container) = state[key].payload else { return }
+    // Match LayoutPlugin's whitespace count, including one item for an empty
+    // template. Imported function syntax retains the plugin's own behavior.
+    let whitespace = JSRegExp(StructuralBlockConfiguration.columnWhitespacePattern, flags: "")
+    let count = max(1, whitespace.split(template).filter { !$0.isEmpty }.count)
+    let previous = max(1, whitespace.split(container.templateColumns?.stringValue ?? "").filter { !$0.isEmpty }.count)
+    if count > previous {
+      for _ in previous..<count {
+        let item = create("layout-item")
+        try append(item, [create(SerializedParagraphNode.type)])
+        try append(key, [item])
+      }
+    } else if count < previous {
+      for index in stride(from: previous - 1, through: count, by: -1) {
+        let children = Array(state.children(of: key))
+        if children.indices.contains(index), state[children[index]].type == "layout-item" { try remove(children[index]) }
+      }
+    }
+    container.templateColumns = .string(template)
+    modify(key) { $0.payload = .layoutContainer(container) }
+  }
+}
