@@ -18,6 +18,13 @@ public final class EditorView: UIScrollView, UITextInput {
   private static let log = Logger(subsystem: "TextKitEditor", category: "EditorView")
 
   private let model: any EditorModel
+  public var typeaheadProviders: [EditorTypeaheadProvider] = [] {
+    didSet {
+      typeahead?.clear()
+      refreshTypeahead()
+    }
+  }
+  private var typeahead: EditorTypeaheadController?
   /// Whether the user may change the document. A view that isn't still
   /// becomes first responder, for its text to be selected and copied, but
   /// UIKit shows no keyboard for it, as `UITextInput.isEditable` asks, and
@@ -159,6 +166,7 @@ public final class EditorView: UIScrollView, UITextInput {
       for child in view.subviews { collect(child) }
     }
     collect(surface)
+    if let popup = typeahead?.accessibilityView { result.append(popup) }
     return result
   }
   private var embeddedAccessibilityContainer = false
@@ -167,7 +175,7 @@ public final class EditorView: UIScrollView, UITextInput {
     set { super.isAccessibilityElement = newValue }
   }
   public override var accessibilityElements: [Any]? {
-    get { embeddedAccessibilityContainer ? [surface] : super.accessibilityElements }
+    get { embeddedAccessibilityContainer ? [surface] + (typeahead?.accessibilityView.map { [$0] } ?? []) : super.accessibilityElements }
     set { super.accessibilityElements = newValue }
   }
 
@@ -546,6 +554,9 @@ public final class EditorView: UIScrollView, UITextInput {
     document.footnoteSectionTitle = WebFootnoteStyle.titles[language?.lowercased().split(separator: "-").first.map(String.init) ?? ""] ?? WebFootnoteStyle.titles[""]!
     layout = BlockLayout(storage: storage, document: document, typesetting: typesetting)
     super.init(frame: .zero)
+    typeahead = EditorTypeaheadController(editor: self)
+    if model.mountedTypeaheadPlugins.contains("EmojiPickerPlugin") { typeaheadProviders.append(.emoji) }
+    if model.mountedTypeaheadPlugins.contains("MentionsPlugin") { typeaheadProviders.append(.mentions) }
     backgroundColor = .systemBackground
     alwaysBounceVertical = true
     keyboardDismissMode = .interactive
@@ -593,7 +604,7 @@ public final class EditorView: UIScrollView, UITextInput {
   /// without being told; anything else tells the input delegate. Returns
   /// what the command changed, where the model took it.
   @discardableResult
-  private func perform(_ command: EditorCommand, fromInput: Bool, tellsRefusal: Bool = false) -> ChangeSet? {
+  private func perform(_ command: EditorCommand, fromInput: Bool, tellsRefusal: Bool = false, preservingTypingAttributes: Bool = false, typeaheadSelection: (Point, Point)? = nil) -> ChangeSet? {
     guard isEditable || !command.edits else { return nil }
     switch command {
     case .insertText, .commitComposition, .deleteCharacter, .deleteWord, .deleteLine, .insertParagraph, .insertLineBreak, .formatText, .tab:
@@ -616,7 +627,9 @@ public final class EditorView: UIScrollView, UITextInput {
     }
     let change: ChangeSet
     do {
-      change = try model.apply(command)
+      if let typeaheadSelection, case .paste(let clipboard) = command {
+        change = try model.applyTypeahead(clipboard, anchor: typeaheadSelection.0, focus: typeaheadSelection.1, preservingTypingAttributes: preservingTypingAttributes)
+      } else { change = try model.apply(command) }
     } catch EditorError.unsupported(let what) {
       Self.log.notice("The model can't \(command.name, privacy: .public) here yet: \(what, privacy: .public)")
       if tellsRefusal { tell(refusal: what) }
@@ -631,6 +644,7 @@ public final class EditorView: UIScrollView, UITextInput {
     if !fromInput { inputDelegate?.textDidChange(self) }
     showModelSelection(fromInput: fromInput)
     if isEditable && (!change.changed.isEmpty || change.parentChanged) { onChange?() }
+    refreshTypeahead()
     return change
   }
 
@@ -773,6 +787,37 @@ public final class EditorView: UIScrollView, UITextInput {
       })
   }
 
+  func currentTypeaheadInput() -> EditorTypeaheadInput? {
+    guard isFirstResponder, window != nil, isEditable, model.isEditable, composition == nil, selected.length == 0,
+      let selection = modelSelection(), case .range(let point, let focus, _, _) = selection,
+      point == focus, point.type == .text,
+      let node = try? model.nodeForPresentation(at: point.path), node["type"]?.stringValue == "text",
+      node["mode"]?.stringValue == "normal", let text = node["text"]?.stringValue,
+      point.offset <= (text as NSString).length, let index = point.path.last,
+      let keys = try? model.childKeys(at: Array(point.path.dropLast())), index < keys.count
+    else { return nil }
+    let prefix = (text as NSString).substring(to: point.offset)
+    let previousType = index > 0
+      ? (try? model.nodeForPresentation(at: Array(point.path.dropLast()) + [index - 1]))?["type"]?.stringValue
+      : nil
+    return EditorTypeaheadInput(prefix: prefix, replacementBase: selected.location - prefix.utf16.count,
+      selectionOffset: selected.location, nodeKey: keys[index],
+      previousSiblingIsTextEntity: previousType.map(WebEmojiPicker.textEntityTypes.contains) ?? false)
+  }
+
+  private func refreshTypeahead() {
+    guard let input = currentTypeaheadInput() else { typeahead?.clear(); return }
+    typeahead?.update(input, providers: typeaheadProviders)
+  }
+
+  public func replaceTypeahead(range: NSRange, with clipboard: Clipboard, preservingTypingAttributes: Bool = false) {
+    guard isEditable, composition == nil, range.location >= 0, NSMaxRange(range) == selected.location else { return }
+    typeahead?.clear()
+    let queryAnchor = document.point(at: range.location)
+    let queryFocus = document.point(at: NSMaxRange(range))
+    perform(.paste(clipboard), fromInput: false, tellsRefusal: true, preservingTypingAttributes: preservingTypingAttributes, typeaheadSelection: (queryAnchor, queryFocus))
+  }
+
   /// Tells the model where the view's selection is, which it needs before
   /// any edit.
   private func sendSelection() {
@@ -805,6 +850,7 @@ public final class EditorView: UIScrollView, UITextInput {
   public var hasText: Bool { storage.length > 1 }
 
   public func insertText(_ text: String) {
+    if text == "\n", typeahead?.choose() == true { return }
     if composition != nil {
       commit(text)
     } else {
@@ -823,6 +869,17 @@ public final class EditorView: UIScrollView, UITextInput {
     onInput?(TextInputRecord(call: call, text: storage.string, marked: composition?.marked))
   }
 
+  public override func willMove(toSuperview newSuperview: UIView?) {
+    if newSuperview !== superview { typeahead?.clear() }
+    super.willMove(toSuperview: newSuperview)
+  }
+
+  public override func resignFirstResponder() -> Bool {
+    let resigned = super.resignFirstResponder()
+    if resigned { typeahead?.clear() }
+    return resigned
+  }
+
   public override var canBecomeFirstResponder: Bool { true }
 
   /// A model with no selection yet takes the view's, so typing has
@@ -830,6 +887,7 @@ public final class EditorView: UIScrollView, UITextInput {
   public override func becomeFirstResponder() -> Bool {
     guard super.becomeFirstResponder() else { return false }
     if modelSelection() == nil { sendSelection() }
+    refreshTypeahead()
     return true
   }
 
@@ -1145,6 +1203,7 @@ public final class EditorView: UIScrollView, UITextInput {
       command.wantsPriorityOverSystemBehavior = true
       return command
     }
+    let suggestionKeys: [UIKeyCommand] = typeahead?.isVisible == true ? [command("\r", [], #selector(chooseTypeahead)), command(UIKeyCommand.inputEscape, [], #selector(dismissTypeahead))] : []
     let moves = [
       command(UIKeyCommand.inputLeftArrow, [], #selector(moveLeft)),
       command(UIKeyCommand.inputRightArrow, [], #selector(moveRight)),
@@ -1160,7 +1219,7 @@ public final class EditorView: UIScrollView, UITextInput {
       command(UIKeyCommand.inputRightArrow, [.command, .shift], #selector(extendToLineEnd)),
     ]
     guard isEditable else { return moves }
-    return moves + [
+    return suggestionKeys + moves + [
       command("\r", .shift, #selector(insertLineBreak)),
       command(UIKeyCommand.inputDelete, .alternate, #selector(deleteWordBackward)),
       command(UIKeyCommand.inputDelete, .command, #selector(deleteLineBackward)),
@@ -1193,8 +1252,16 @@ public final class EditorView: UIScrollView, UITextInput {
     arrow(.right, extend: false, to: anchor == focus ? character(after: focus) : NSMaxRange(selected))
   }
 
-  @objc private func moveUp() { arrow(.up, extend: false, to: line(from: focus, .up) ?? 0) }
-  @objc private func moveDown() { arrow(.down, extend: false, to: line(from: focus, .down) ?? lastOffset) }
+  @objc private func chooseTypeahead() { _ = typeahead?.choose() }
+  @objc private func dismissTypeahead() { typeahead?.clear() }
+  @objc private func moveUp() {
+    if typeahead?.move(-1) == true { return }
+    arrow(.up, extend: false, to: line(from: focus, .up) ?? 0)
+  }
+  @objc private func moveDown() {
+    if typeahead?.move(1) == true { return }
+    arrow(.down, extend: false, to: line(from: focus, .down) ?? lastOffset)
+  }
   @objc private func extendLeft() { arrow(.left, extend: true, to: character(before: focus)) }
   @objc private func extendRight() { arrow(.right, extend: true, to: character(after: focus)) }
   @objc private func extendUp() { arrow(.up, extend: true, to: line(from: focus, .up) ?? 0) }
@@ -1241,8 +1308,14 @@ public final class EditorView: UIScrollView, UITextInput {
   @objc private func deleteWordBackward() { perform(.deleteWord(backward: true), fromInput: false) }
   @objc private func deleteWordForward() { perform(.deleteWord(backward: false), fromInput: false) }
   @objc private func deleteForward() { perform(.deleteCharacter(backward: false), fromInput: false) }
-  @objc private func tab() { perform(.tab(backward: false), fromInput: false) }
-  @objc private func tabBackward() { perform(.tab(backward: true), fromInput: false) }
+  @objc private func tab() {
+    if typeahead?.choose() == true { return }
+    perform(.tab(backward: false), fromInput: false)
+  }
+  @objc private func tabBackward() {
+    if typeahead?.choose() == true { return }
+    perform(.tab(backward: true), fromInput: false)
+  }
 
   @objc private func deleteLineBackward() {
     guard let boundary = lineBoundary(backward: true) else { return }
@@ -2002,6 +2075,7 @@ public final class EditorView: UIScrollView, UITextInput {
 
   public override func layoutSubviews() {
     super.layoutSubviews()
+    typeahead?.layoutChanged()
     updateFloatingTypes()
     if inlineEmbeddedContent != nil, inlineWidth != bounds.width {
       inlineWidth = bounds.width

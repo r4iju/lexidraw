@@ -23,6 +23,32 @@ class EditorUITests: XCTestCase {
     continueAfterFailure = false
   }
 
+  func testEmojiAliasSuggestionsReplaceTheTypedTrigger() throws {
+    guard Self.model == .lexicalSwift else { return }
+    open(LexicalJSON.document([LexicalJSON.paragraph([])]))
+    editor.typeText(":smile")
+    let choice=app.buttons["emoji-option-grinning"]
+    XCTAssertTrue(choice.waitForExistence(timeout:5), "The actual source tag search must offer grinning")
+    choice.tap()
+    editor.typeText("!")
+    XCTAssertEqual(try saved(),LexicalJSON.document([LexicalJSON.paragraph([LexicalJSON.text("😀!")])]))
+    XCTAssertFalse(app.buttons["emoji-option-grinning"].exists)
+  }
+
+  func testEmojiSelectionRetainsSourceTypingFormat() throws {
+    guard Self.model == .lexicalSwift else { return }
+    open(LexicalJSON.document([LexicalJSON.paragraph([])]))
+    app.buttons["editor bold"].tap()
+    editor.typeText(":smile")
+    let choice = app.buttons["emoji-option-grinning"]
+    XCTAssertTrue(choice.waitForExistence(timeout: 5))
+    choice.tap()
+    editor.typeText("!")
+    XCTAssertEqual(try saved(), LexicalJSON.document([LexicalJSON.paragraph([
+      LexicalJSON.text("😀"), LexicalJSON.text("!", format: .bold),
+    ])]))
+  }
+
   func testCommandShiftLeftSelectsToStartOfLine() throws {
     open(LexicalJSON.document([LexicalJSON.paragraph([LexicalJSON.text("one two three")])]))
     keyboard.press(.leftArrow, [.command, .shift])

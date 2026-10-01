@@ -29,6 +29,9 @@ public final class Editor: EditorModel {
 
   public var supportsRichText: Bool { !plainText }
   private let plainText: Bool
+  public var mountedTypeaheadPlugins: Set<String> {
+    editorContext == .document ? WebEmojiPicker.mainPlugins : Set(editorContext.mountedPlugins)
+  }
   private let editorContext: EditorContext
   private struct CaptionIdentity: Hashable {
     let key: NodeKey
@@ -82,16 +85,25 @@ public final class Editor: EditorModel {
 
   @discardableResult
   public func apply(_ command: EditorCommand) throws -> ChangeSet {
+    try apply(command, preservingTypingAttributes: false)
+  }
+
+  @discardableResult
+  public func applyTypeahead(_ clipboard: Clipboard, anchor: Point, focus: Point, preservingTypingAttributes: Bool) throws -> ChangeSet {
+    try apply(.paste(clipboard), preservingTypingAttributes: preservingTypingAttributes, typeaheadSelection: (anchor, focus))
+  }
+
+  private func apply(_ command: EditorCommand, preservingTypingAttributes: Bool, typeaheadSelection: (Point, Point)? = nil) throws -> ChangeSet {
     defer {
       if pruneCaptionsAfterHistoryDiscard {
         pruneExpiredCaptions()
         pruneCaptionsAfterHistoryDiscard = false
       }
     }
-    return try applyCommand(command)
+    return try applyCommand(command, preservingTypingAttributes: preservingTypingAttributes, typeaheadSelection: typeaheadSelection)
   }
 
-  private func applyCommand(_ command: EditorCommand) throws -> ChangeSet {
+  private func applyCommand(_ command: EditorCommand, preservingTypingAttributes: Bool = false, typeaheadSelection: (Point, Point)? = nil) throws -> ChangeSet {
     guard !state.nodes.isEmpty else { throw EditorError.invalidState("No document loaded") }
     if let captionOwnerKey {
       guard let captionParent, let captionOwnerIdentity, captionParent.state.path(of: captionOwnerKey) != nil,
@@ -168,7 +180,12 @@ public final class Editor: EditorModel {
     do {
       guard command == .cut else {
         let compositionEnd = if case .commitComposition = command { true } else { false }
-        return try commit(compositionEnd: compositionEnd) { try $0.run(command, plainText: plainText) }
+        return try commit(compositionEnd: compositionEnd) { update in
+          let typing = preservingTypingAttributes ? update.selection.map { ($0.format, $0.style) } : nil
+          if let typeaheadSelection { try update.placeSelection(typeaheadSelection.0, typeaheadSelection.1) }
+          try update.run(command, plainText: plainText)
+          if preservingTypingAttributes, let typing { update.selection?.updateFormatStyle(typing.0, typing.1) }
+        }
       }
       var isCutByATable = false
       let byATable = try commit { isCutByATable = try $0.cutHandler() }

@@ -155,3 +155,8 @@ const { TEXT_ENTITIES_PATH, swiftForTextEntities } = await import("./text-entiti
 await Bun.write(TEXT_ENTITIES_PATH, await swiftForTextEntities());
 const { webEditorContexts, webEditorRegistries } = await import("./editor-contexts");
 await Bun.write(new URL("../reference/generated-editor-contexts.ts", import.meta.url), `// Generated from actual mounted plugin sources.\nexport const editorContexts = ${JSON.stringify(await webEditorContexts())};\nexport const editorRegistries = ${JSON.stringify(await webEditorRegistries())};\n`);
+
+const { EMOJI_PICKER_PATH, swiftForEmojiPicker } = await import("./emoji-picker");
+await Bun.write(EMOJI_PICKER_PATH, await swiftForEmojiPicker());
+const { MENTIONS_PATH, swiftForMentions } = await import("./mentions");
+await Bun.write(MENTIONS_PATH, await swiftForMentions());
