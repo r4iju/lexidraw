@@ -50,3 +50,30 @@ extension StickyCaptionTests {
     #expect(copied.clipboard?.lexical == nil)
   }
 }
+
+extension StickyCaptionTests {
+  @Test func parentHistoryUsesTimeSpentInTheStickyCaption() throws {
+    let json = try #require(StructuralBlockConfiguration.insertionNodes["sticky"])
+    var sticky = try #require(JSONValue(parsing: json).objectValue)
+    sticky["caption"] = ["editorState": document(paragraph(text("one")))]
+    let state = document(paragraph(text("parent")), paragraph(.object(sticky)))
+    let parent = Editor()
+    try parent.load(state)
+    let key = try #require(parent.childKeys(at: [1]).first)
+    let caption = try parent.captionEditor(key: key)
+    let source = try Support.referenceEditor(editorContext: .stickyCaption)
+    try source.loadNested(parent: state, ownerPath: [1, 0])
+    for command: EditorCommand in [.caret(.text([0, 0], 6)), .insertText("A")] {
+      try parent.apply(command)
+      try source.applyToParent(command)
+    }
+    try caption.apply(.wait(milliseconds: 1001))
+    try source.apply(.wait(milliseconds: 1001))
+    try parent.apply(.insertText("B"))
+    try source.applyToParent(.insertText("B"))
+    try caption.apply(.undo)
+    try source.apply(.undo)
+    #expect(try caption.snapshot() == source.snapshot())
+    #expect(try parent.snapshot() == source.parentSnapshot())
+  }
+}

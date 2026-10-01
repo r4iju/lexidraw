@@ -5,7 +5,9 @@ public final class Editor: EditorModel {
   private var nextKey: NodeKey = 0
   private var revisions = 0
   private var history = History(EditorState(nodes: [:], selection: nil))
-  private var now = 0
+  private final class HistoryClock { var milliseconds = 0 }
+  private var clock = HistoryClock()
+  private var now: Int { clock.milliseconds }
   /// Whether the document holds only what the editing commands are ported
   /// for: paragraphs, headings, quotes, lists, horizontal rules, line
   /// breaks, tabs and text in any format, with no field the payload types
@@ -40,7 +42,7 @@ public final class Editor: EditorModel {
     update.collectGarbage()
     state = update.state
     nextKey = update.nextKey
-    now = 0
+    clock = HistoryClock()
     history = History(state)
     captionEditors = [:]
     knowsListMarker = false
@@ -107,7 +109,7 @@ public final class Editor: EditorModel {
       for (field, value) in changes { replacement[field] = value }
       return try replaceEmbeddedNode(key: keys[index], expected: original, replacement: .object(replacement), clearsSelection: original["type"] == "sticky" && (changes["xOffset"] != nil || changes["yOffset"] != nil))
     case .wait(let milliseconds):
-      now += milliseconds
+      clock.milliseconds += milliseconds
       return ChangeSet(changed: [])
     case .undo, .redo:
       let restored = command == .undo ? history.undo(at: now) : history.redo(at: now)
@@ -349,6 +351,7 @@ public final class Editor: EditorModel {
     }
     let editor = Editor(plainText: context.mountedPlugins.contains("PlainTextPlugin"), editorContext: context)
     try editor.load(saved)
+    editor.clock = clock
     editor.captionParent = self
     editor.captionOwnerKey = key
     captionEditors[key] = editor
