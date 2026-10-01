@@ -2,8 +2,8 @@
   "provenance": {
     "engine": "Actual Chromium DOM via T3 preview_evaluate, 2026-10-01",
     "source": [
-      "apps/lexidraw/src/app/documents/[documentId]/document.css .document-column",
-      "apps/lexidraw/src/app/documents/[documentId]/theme.ts layoutContainer/layoutItem"
+      "apps/lexidraw/src/styles/document.css .document-column",
+      "apps/lexidraw/src/app/documents/[documentId]/themes/theme.ts layoutContainer/layoutItem"
     ],
     "columnStyle": "min-width:0;container-type:inline-size;padding:8px;border:1px dashed;box-sizing:border-box",
     "text": "AnUnbreakableLongWordToProveContainment"
