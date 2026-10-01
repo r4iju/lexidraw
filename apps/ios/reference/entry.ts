@@ -8,6 +8,8 @@ import CalloutPlugin from "../../lexidraw/src/app/documents/[documentId]/plugins
 import CollapsiblePlugin from "../../lexidraw/src/app/documents/[documentId]/plugins/CollapsiblePlugin/index.js";
 import { LayoutPlugin, UPDATE_LAYOUT_COMMAND } from "../../lexidraw/src/app/documents/[documentId]/plugins/LayoutPlugin/LayoutPlugin.js";
 import { withStructuralEditor } from "./structural-hooks.js";
+import { withNestedParent } from "./nested-composer-hooks.js";
+import { LexicalNestedComposer } from "@lexical/react/LexicalNestedComposer";
 import KeywordsPlugin from "../../lexidraw/src/app/documents/[documentId]/plugins/KeywordsPlugin/index.js";
 import EmojisPlugin from "../../lexidraw/src/app/documents/[documentId]/plugins/EmojisPlugin/index.js";
 import { registerLexicalHashtag } from "@lexical/hashtag";
@@ -253,6 +255,8 @@ let clipboard: Clipboard | undefined;
 /** The clock history reads, which only `wait` moves. */
 let now = 0;
 
+let parentEditor: LexicalEditor | null = null;
+
 function current(): LexicalEditor {
   if (!editor) throw new EditorError("invalidState", "No document loaded");
   return editor;
@@ -264,6 +268,7 @@ function current(): LexicalEditor {
  * editor updates as a headless one does.
  */
 function load(stateJSON: string): void {
+  parentEditor = null;
   const registry = editorContext === "document" ? null : editorRegistries[editorContext];
   const next = createEditor({
     namespace: EDITOR_NAMESPACE,
@@ -272,6 +277,10 @@ function load(stateJSON: string): void {
       lastError = error;
     },
   });
+  configureEditor(next, stateJSON);
+}
+
+function configureEditor(next: LexicalEditor, stateJSON: string): void {
   const plugins = editorContext === "document" ? null : editorContexts[editorContext];
   withStructuralEditor(next, () => {
     if (!plugins || plugins.includes("LayoutPlugin")) LayoutPlugin();
@@ -366,6 +375,49 @@ function load(stateJSON: string): void {
   );
   if (editorContext === "document" || editorContexts[editorContext].includes("MarkdownShortcutPlugin")) registerMarkdownShortcuts(next, createTransformers());
   editor = next;
+}
+
+function loadNested(argument: string): void {
+  const { state, ownerPath } = JSON.parse(argument) as { state: unknown; ownerPath: number[] };
+  const childContext = editorContext;
+  if (!["imageCaption", "inlineImageCaption", "videoCaption"].includes(childContext)) {
+    throw new EditorError("invalidState", "This context has no media caption owner");
+  }
+  editorContext = "document";
+  try {
+    load(JSON.stringify(state));
+    const parent = current();
+    const child = parent.read(() => {
+      let node: LexicalNode = $getRoot();
+      for (const index of ownerPath) {
+        if (!$isElementNode(node)) throw new EditorError("invalidState", "Caption owner path is not an element");
+        const found = node.getChildAtIndex(index);
+        if (!found) throw new EditorError("invalidState", "Caption owner is missing");
+        node = found;
+      }
+      const captionNode = node as LexicalNode & { __caption?: LexicalEditor };
+      const expectedTypes: Record<string, string> = { imageCaption: "image", inlineImageCaption: "inline-image", videoCaption: "video" };
+      const expectedType = expectedTypes[childContext];
+      if (node.getType() !== expectedType || !captionNode.__caption) {
+        throw new EditorError("invalidState", `Caption owner ${node.getType()} (editor=${Boolean(captionNode.__caption)}) does not match ${expectedType}`);
+      }
+      return captionNode.__caption;
+    });
+    editorContext = childContext;
+    withNestedParent(parent, () => LexicalNestedComposer({ initialEditor: child, children: null, skipCollabChecks: true }));
+    configureEditor(child, JSON.stringify(child.getEditorState().toJSON()));
+    parentEditor = parent;
+  } finally { editorContext = childContext; }
+}
+
+function onParent<T>(run: () => T): T {
+  if (!parentEditor) throw new EditorError("invalidState", "No parent editor loaded");
+  const child = editor;
+  const childContext = editorContext;
+  editor = parentEditor;
+  editorContext = "document";
+  try { return run(); }
+  finally { editor = child; editorContext = childContext; }
 }
 
 function apply(commandJSON: string): string {
@@ -1618,6 +1670,9 @@ Object.assign(globalThis, {
   LexicalReference: {
     setContext: (context: typeof editorContext) => { editorContext = context; },
     load,
+    loadNested,
+    parentSnapshot: () => onParent(snapshot),
+    applyToParent: (command: string) => onParent(() => apply(command)),
     apply,
     snapshot,
     serializedState,

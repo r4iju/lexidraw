@@ -45,6 +45,20 @@ public final class ReferenceEditor: EditorModel {
     _ = try call("load", state.stringified)
   }
 
+  public func loadNested(parent: JSONValue, ownerPath: [Int]) throws {
+    _ = try call("loadNested", JSONValue.object([
+      "state": parent, "ownerPath": .array(ownerPath.map { .number(Double($0)) }),
+    ]).stringified)
+  }
+
+  @discardableResult
+  public func applyToParent(_ command: EditorCommand) throws -> ChangeSet {
+    let result = try call("applyToParent", String(decoding: try encoder.encode(command), as: UTF8.self))
+    return try decoder.decode(ChangeSet.self, from: Data(result.utf8))
+  }
+
+  public func parentSnapshot() throws -> Snapshot { try decodeSnapshot(call("parentSnapshot")) }
+
   /// Lexical edits every node it has registered.
   public var isEditable: Bool { true }
 
@@ -55,7 +69,11 @@ public final class ReferenceEditor: EditorModel {
   }
 
   public func snapshot() throws -> Snapshot {
-    let snapshot = try JSONValue(parsing: call("snapshot"))
+    try decodeSnapshot(call("snapshot"))
+  }
+
+  private func decodeSnapshot(_ value: String) throws -> Snapshot {
+    let snapshot = try JSONValue(parsing: value)
     var selection: Selection?
     if let json = snapshot["selection"], json != .null {
       selection = try decoder.decode(Selection.self, from: Data(json.stringified.utf8))
