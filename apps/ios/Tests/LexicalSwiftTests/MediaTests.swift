@@ -12,6 +12,18 @@ import Testing
     ["type": "figma", "version": 1, "documentID": "abc123"],
   ]
 
+  @Test func mountedCaptionMentionKeepsDocumentEditable() throws {
+    let mention: JSONValue = ["type": "mention", "version": 1, "text": "Aayla Secura", "mentionName": "Aayla Secura", "mode": "segmented", "format": 0, "style": "", "detail": 0]
+    let caption = LexicalJSON.document([LexicalJSON.paragraph([mention])])
+    for type in ["image", "inline-image"] {
+      let image: JSONValue = ["type": .string(type), "version": 1, "src": "https://example.com/disposable.png", "showCaption": true, "caption": ["editorState": caption]]
+      let editor = Editor()
+      try editor.load(document(image))
+      #expect(MediaCaptionSupport.refusal(in: caption) == nil)
+      #expect(editor.isEditable)
+    }
+  }
+
   @Test func supportedCaptionColorsAllowSurroundingEdits() throws {
     let caption = LexicalJSON.document([LexicalJSON.paragraph([
       LexicalJSON.text("caption", style: "color: red; background-color: #0000ff;")
