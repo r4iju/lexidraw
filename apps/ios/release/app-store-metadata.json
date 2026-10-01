@@ -1,11 +1,13 @@
 {
-  "status": "draft-awaiting-integrated-build-and-service-retention-audit",
+  "status": "privacy-source-audited-awaiting-integrated-release-and-app-store-publication",
   "issue": 142,
   "privacyPolicyURL": "https://lexidraw.vercel.app/privacy-policy",
   "appleReferences": [
     "https://developer.apple.com/app-store/app-privacy-details/",
     "https://developer.apple.com/help/app-store-connect/manage-app-information/manage-app-privacy",
-    "https://developer.apple.com/app-store/review/"
+    "https://developer.apple.com/app-store/review/",
+    "https://developer.apple.com/documentation/bundleresources/app-privacy-configuration/nsprivacyaccessedapitypes/nsprivacyaccessedapitypereasons",
+    "https://developer.apple.com/documentation/bundleresources/app-privacy-configuration/nsprivacycollecteddatatypes/nsprivacycollecteddatatype"
   ],
   "processors": [
     {
@@ -75,44 +77,8 @@
       "source": "issue #131; audit after merge"
     }
   ],
-  "candidateDisclosures": [
-    {
-      "dataType": "Name",
-      "purpose": "App Functionality",
-      "linkedToAccount": true
-    },
-    {
-      "dataType": "Email Address",
-      "purpose": "App Functionality",
-      "linkedToAccount": true
-    },
-    {
-      "dataType": "User ID",
-      "purpose": "App Functionality",
-      "linkedToAccount": true
-    },
-    {
-      "dataType": "Photos or Videos",
-      "purpose": "App Functionality",
-      "linkedToAccount": true
-    },
-    {
-      "dataType": "Other User Content",
-      "purpose": "App Functionality",
-      "linkedToAccount": true
-    },
-    {
-      "dataType": "Audio Data",
-      "purpose": "App Functionality",
-      "linkedToAccount": true,
-      "note": "Read-aloud recordings; classify with Apple guidance before submission."
-    }
-  ],
   "retentionQuestions": [
-    "Hosting and security request logs: retention of IP addresses, account identifiers and request paths.",
-    "Custom website Analytics table stores IP/geolocation/page/referrer/user-agent and a visitor hash; no automatic source cleanup was found. Confirm operational retention and disclose this separately from Vercel Web Analytics.",
-    "Native link metadata providers: retained data and automatic preview requests.",
-    "Confirm synthesized audio classification; the app does not record microphone audio for read-aloud."
+    "Third-party operational request/log retention can change independently of this source; declarations include retained IP/visitor and request information without claiming short-term deletion."
   ],
   "reviewNotesDraft": "Lexidraw is a native document and drawing editor. Sign In opens the secure Lexidraw authentication website and returns to the app. Review credentials will be supplied privately in App Store Connect. The seeded review account will contain disposable sample documents and drawings. Account deletion is available in Settings. Listen generates spoken audio from a selected file; it does not record the microphone. Review notes will be updated with the final supported node families and any explicit limitations.",
   "submissionPending": [
@@ -133,6 +99,18 @@
     "reviewContact": {
       "status": "copied-and-verified",
       "source": "Barbellry 1.0.41",
+      "verified": "2026-10-01"
+    },
+    "listingMetadata": {
+      "status": "saved-and-verified",
+      "locale": "en-US",
+      "fields": [
+        "description",
+        "keywords",
+        "supportUrl",
+        "subtitle",
+        "privacyPolicyUrl"
+      ],
       "verified": "2026-10-01"
     }
   },
@@ -171,6 +149,16 @@
       "source": "apps/lexidraw/src/proxy.ts; apps/lexidraw/src/lib/generate-visitor-id.ts; packages/drizzle/src/drizzle-schema.ts",
       "verified": "2026-10-01",
       "finding": "Separate from Vercel Web Analytics, the website proxy writes page/referrer, user agent, IP, city/region/country and a deterministic visitor hash to the Analytics table. No automatic deletion path was found in source. Authentication browser visits use this website. Final disclosures must include this custom collection; Vercel anonymous-analytics documentation does not describe it."
+    },
+    {
+      "source": "apps/lexidraw/src/proxy.ts:matcher",
+      "verified": "2026-10-01",
+      "finding": "The proxy matcher excludes /api routes. Custom Analytics covers authentication website page visits, not native REST API searches. Separate Vercel Runtime Logs retain request parameters, so main-app Search History is declared for operational App Functionality. The share extension does not issue native searches or open the authentication website."
+    },
+    {
+      "source": "https://vercel.com/docs/logs/runtime",
+      "verified": "2026-10-01",
+      "finding": "Runtime log details include User Agent and Search Params, browser requests can be filtered by IP and user agent, and logs have a retention window on all plans. Declare operational IP/user-agent collection for both targets and native GET searches for the main app; this is separate from custom website Analytics."
     }
   ],
   "releaseIntegration": {
@@ -181,8 +169,132 @@
   },
   "readAloudConsent": {
     "status": "implemented-and-locally-verified",
-    "behavior": "Permission is requested only before new audio generation; existing audio plays without the prompt. Cancel sends no generation request. Approval applies to the current signed-in listener session. The disclosure names Google/OpenAI and links the privacy policy.",
+    "behavior": "Permission is requested only before new audio generation; existing audio plays without the prompt. Cancel sends no generation request. Each pending request has a cancellation identity guard. The disclosure names Google/OpenAI and links the privacy policy.",
     "validation": "Two API regression tests observed red before implementation, then all eight RecordingTests passed. Production simulator app compiled. Fresh review cancellation race fixed with request identity guard.",
     "reference": "https://developer.apple.com/app-store/review/guidelines/#data-use-and-sharing"
-  }
+  },
+  "disclosures": [
+    {
+      "dataType": "Name",
+      "purpose": "App Functionality",
+      "linkedToAccount": true,
+      "tracking": false
+    },
+    {
+      "dataType": "Email Address",
+      "purpose": "App Functionality",
+      "linkedToAccount": true,
+      "tracking": false
+    },
+    {
+      "dataType": "User ID",
+      "purpose": "App Functionality",
+      "linkedToAccount": true,
+      "tracking": false
+    },
+    {
+      "dataType": "Photos or Videos",
+      "purpose": "App Functionality",
+      "linkedToAccount": true,
+      "tracking": false
+    },
+    {
+      "dataType": "Other User Content",
+      "purpose": "App Functionality",
+      "linkedToAccount": true,
+      "tracking": false
+    },
+    {
+      "dataType": "Audio Data",
+      "purpose": "App Functionality",
+      "linkedToAccount": true,
+      "tracking": false
+    },
+    {
+      "dataType": "Coarse Location",
+      "purposes": [
+        "Analytics"
+      ],
+      "linkedToAccount": true,
+      "tracking": false,
+      "source": "Website proxy stores IP-derived city/region/country alongside visitor hash."
+    },
+    {
+      "dataType": "Product Interaction",
+      "purposes": [
+        "Analytics"
+      ],
+      "linkedToAccount": true,
+      "tracking": false,
+      "source": "Website proxy retains visited request URLs and referrers."
+    },
+    {
+      "dataType": "Browsing History",
+      "purposes": [
+        "App Functionality",
+        "Analytics"
+      ],
+      "linkedToAccount": true,
+      "tracking": false,
+      "source": "User-saved web links and external website referrers retained by the website proxy."
+    },
+    {
+      "dataType": "Other Data Types",
+      "purposes": [
+        "App Functionality",
+        "Analytics"
+      ],
+      "linkedToAccount": true,
+      "tracking": false,
+      "source": "IP address, user agent and deterministic visitor hash in website analytics; service security/request logs."
+    },
+    {
+      "dataType": "Device ID",
+      "purposes": [
+        "Analytics"
+      ],
+      "linkedToAccount": true,
+      "tracking": false,
+      "source": "The custom analytics visitor identifier derives from user agent and geolocation and is retained to associate visits."
+    },
+    {
+      "dataType": "Emails or Text Messages",
+      "purposes": [
+        "App Functionality"
+      ],
+      "linkedToAccount": true,
+      "tracking": false,
+      "source": "Comments and thread replies are account-associated conversations in shared documents."
+    },
+    {
+      "dataType": "Search History",
+      "purposes": [
+        "App Functionality"
+      ],
+      "linkedToAccount": true,
+      "tracking": false,
+      "source": "Native search queries use GET parameters. Vercel Runtime Logs retain request Search Params for operational troubleshooting/security; the custom website proxy excludes API routes."
+    }
+  ],
+  "privacyLabelPublication": {
+    "status": "ready-for-App-Store-Connect-entry",
+    "browserStatus": "collaborative browser tab_g requires Apple sign-in",
+    "linkedClassification": "Declared linked where account or identifying IP/visitor information may associate records; no advertising tracking.",
+    "scope": "Includes the native authentication website; custom website Analytics excludes API paths. Share-extension collection is scoped independently."
+  },
+  "requiredReasonAPIs": [
+    {
+      "category": "System Boot Time",
+      "reason": "35F9.1",
+      "source": "EditorView command grouping uses systemUptime only to measure elapsed time."
+    },
+    {
+      "category": "User Defaults",
+      "reason": "CA92.1",
+      "source": "Listening.swift persists app-only playback settings."
+    }
+  ],
+  "supportURL": "https://github.com/r4iju/lexidraw/issues",
+  "subtitleDraft": "Write, draw and organize",
+  "keywordsDraft": "notes,editor,documents,drawings,sketch,markdown,folders,writing,organization,rich text"
 }
