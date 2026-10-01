@@ -1276,5 +1276,6 @@ renderer as a document's article block, with Listen and Open page in the
 toolbar. A link with no address yet points to its web page, where one is added;
 one whose text was never kept offers the page itself. When the article can't be
 drawn, as one beyond the renderer's 16 megapixels can't, its kept HTML is
-shown as native read-only text through the paste importer instead. Article images that the
-extraction stored with a broken `src` stay broken, as they do on the web.
+shown as native read-only text through the paste importer instead. Article
+images that the extraction stored with a broken `src` stay broken, as they do
+on the web.
