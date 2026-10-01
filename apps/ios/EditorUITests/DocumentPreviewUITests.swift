@@ -38,6 +38,38 @@ final class DocumentPreviewUITests: XCTestCase {
   }
 
 
+  /// Real QuickPath drags. The simulator delivers the first word and its
+  /// space as separate calls, then each later word as one `insertText` (#236).
+  func testRealDocumentSwipedWordsUndoAndRedoTogether() throws {
+    let original = LexicalJSON.document([LexicalJSON.paragraph([LexicalJSON.text("Say ")])])
+    let app = open(access: "EDIT", document: original)
+    XCTAssertTrue(app.staticTexts["Saved"].waitForExistence(timeout: 10))
+    let editor = app.textViews.firstMatch
+    editor.tap()
+    XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5))
+    if app.buttons["Continue"].waitForExistence(timeout: 2) { app.buttons["Continue"].tap() }
+    func swipe(_ from: String, _ to: String) {
+      func key(_ name: String) -> XCUICoordinate {
+        let lower = app.keyboards.keys[name]
+        return (lower.exists ? lower : app.keyboards.keys[name.uppercased()])
+          .coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+      }
+      key(from).press(forDuration: 0.05, thenDragTo: key(to), withVelocity: 300, thenHoldForDuration: 0.05)
+    }
+    swipe("t", "o")
+    let afterFirstWord = try XCTUnwrap(editor.value as? String)
+    swipe("w", "e")
+    swipe("t", "o")
+    let swiped = try XCTUnwrap(editor.value as? String)
+    XCTAssertEqual(swiped.split(separator: " ").count, afterFirstWord.split(separator: " ").count + 2)
+    editor.typeKey(XCUIKeyboardKey.shift.rawValue, modifierFlags: [])
+    editor.typeKey(XCUIKeyboardKey.F13.rawValue, modifierFlags: .shift)
+    editor.typeKey("z", modifierFlags: .command)
+    XCTAssertEqual(editor.value as? String, afterFirstWord)
+    editor.typeKey("z", modifierFlags: [.command, .shift])
+    XCTAssertEqual(editor.value as? String, swiped)
+  }
+
   func testAnEditableDocumentAutosavesItsChanges() {
     let app = open(access: "EDIT")
     let notice = app.staticTexts["Saved"]

@@ -70,6 +70,34 @@ import UIKit
     #expect(bold.fontDescriptor.symbolicTraits.contains(.traitBold))
   }
 
+  /// QuickPath delivers each word, with its automatic space, as one
+  /// `insertText`; these gaps are a physical iPhone's (#236).
+  @Test func swipedWordsUndoAndRedoAsOneRunUpToABoundary() async throws {
+    let (view, model) = try editing(LexicalJSON.paragraph([LexicalJSON.text("Say ")]))
+    func typed() -> String {
+      (try? paragraphs(model))?.first?["children"]?.arrayValue?.compactMap { $0["text"]?.stringValue }.joined() ?? ""
+    }
+    select(view, 4, 4)
+    for (word, gap) in [("hello", 0), (" swiped", 966), (" words", 823), (" later", 2100), (" moved", 300)] {
+      try await Task.sleep(for: .milliseconds(gap))
+      if word == " moved" {
+        select(view, 0, 0)
+        select(view, 28, 28)
+      }
+      view.insertText(word)
+    }
+    try await Task.sleep(for: .milliseconds(100))
+    #expect(typed() == "Say hello swiped words later moved")
+    view.undoManager?.undo()
+    #expect(typed() == "Say hello swiped words later")
+    view.undoManager?.undo()
+    #expect(typed() == "Say hello swiped words")
+    view.undoManager?.undo()
+    #expect(typed() == "Say ")
+    view.undoManager?.redo()
+    #expect(typed() == "Say hello swiped words")
+  }
+
   @Test func contentChangesNotifyAutosaveButSelectionsAndReadOnlyEditsDoNot() throws {
     let (view, _) = try editing(LexicalJSON.paragraph([LexicalJSON.text("hello")]))
     var changes = 0

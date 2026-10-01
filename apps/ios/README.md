@@ -1217,3 +1217,24 @@ undo/redo, pauses and caret/format boundaries. The physical-device plain-letter
 report still needs its metadata trace; the delivered simulator plain typing and
 DocumentEditing autosave control groups normally. No document content is logged
 by the shipping implementation.
+
+QuickPath delivers each swiped word, with its automatic space, as one
+multi-character `insertText`, which Lexical's history keeps as its own undo step
+(#236). The adapter holds a swiped word's input turn the same way: the next
+multi-character, newline-free `insertText` at the same model caret, typing
+format/style and mutation revision joins it, so one Undo or Redo takes the whole
+run. The pause is twice the history delay, measured lift to lift, because it
+includes drawing the next word; a physical iPhone traced 759 to 1262 ms between
+words. Tapped keys and emoji (one character), Return, Backspace, suggestion
+replacement, caret movement, formatting, undo, view removal or a longer pause
+end the run; tapped typing still merges as Lexical's does. A swiped word deleted
+with Backspace still arrives as per-character selections and deletions and is
+not grouped here.
+
+`EditorViewTests.swipedWordsUndoAndRedoAsOneRunUpToABoundary` replays the
+physical gaps through the public `insertText` seam and checks the pause and
+caret boundaries. `DocumentPreviewUITests.testRealDocumentSwipedWordsUndoAndRedoTogether`
+drags real QuickPath words on the simulator keyboard in DocumentScreen; both
+failed before the change. The iOS 27 simulator delivers the first word of a run
+as the word, a separate space, and a caret move back before that space, so that
+word stays its own undo step there; the physical trace showed no such split.
