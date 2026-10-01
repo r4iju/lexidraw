@@ -179,6 +179,7 @@ private struct DocumentEditor: UIViewRepresentable {
         nested?.configureSocialNodes(userID: identity.id, author: identity.name)
       }
       configureNativeMedia(nested, session: editing.session)
+      nested.mediaOrigin = (Bundle.main.object(forInfoDictionaryKey: "LexidrawServerURL") as? String).flatMap(URL.init(string:))
       configureEmbeddedDrawings(nested)
       configureHTMLBlocks(nested, session: editing.session, documentID: editing.id)
       configureRenderedEmbeds(nested, session: editing.session, fontFamily: editing.settings.fontFamily)
