@@ -61,6 +61,8 @@ public final class ReferenceEditor: EditorModel {
 
   public func captionOwnerSnapshot() throws -> Snapshot { try decodeSnapshot(call("captionOwnerSnapshot")) }
 
+  public func remountCaption() throws { _ = try call("remountCaption") }
+
   public func setCaptionVisibility(_ show: Bool) throws {
     _ = try call("setCaptionVisibility", show ? "true" : "false")
   }

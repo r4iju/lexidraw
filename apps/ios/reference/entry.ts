@@ -283,7 +283,28 @@ function load(stateJSON: string): void {
   configureEditor(next, stateJSON);
 }
 
-function configureEditor(next: LexicalEditor, stateJSON: string): void {
+const mountedRegistrations = new WeakMap<LexicalEditor, (() => void)[]>();
+
+function configureEditor(next: LexicalEditor, stateJSON?: string): void {
+  const cleanups: (() => void)[] = [];
+  const originalCommand = next.registerCommand.bind(next);
+  const originalUpdate = next.registerUpdateListener.bind(next);
+  const originalTransform = next.registerNodeTransform.bind(next);
+  next.registerCommand = (command, listener, priority) => {
+    const cleanup = originalCommand(command, listener, priority);
+    cleanups.push(cleanup);
+    return cleanup;
+  };
+  next.registerUpdateListener = listener => {
+    const cleanup = originalUpdate(listener);
+    cleanups.push(cleanup);
+    return cleanup;
+  };
+  next.registerNodeTransform = (node, listener) => {
+    const cleanup = originalTransform(node, listener);
+    cleanups.push(cleanup);
+    return cleanup;
+  };
   const plugins = editorContext === "document" ? null : editorContexts[editorContext];
   withStructuralEditor(next, () => {
     if (!plugins || plugins.includes("LayoutPlugin")) LayoutPlugin();
@@ -291,10 +312,10 @@ function configureEditor(next: LexicalEditor, stateJSON: string): void {
     if (!plugins || plugins.includes("CalloutPlugin")) CalloutPlugin();
   });
   lastError = null;
-  const parsed = next.parseEditorState(stateJSON);
+  const parsed = stateJSON === undefined ? null : next.parseEditorState(stateJSON);
   // Parsing reports a bad node through onError and returns an empty state.
   if (lastError) throw lastError;
-  now = 0;
+  if (stateJSON !== undefined) now = 0;
   // Registered first, so the loaded document is where undoing stops.
   if (!plugins || plugins.includes("HistoryPlugin")) registerHistory(next, createEmptyHistoryState(), 1000, () => now);
   const registerCommand = next.registerCommand.bind(next);
@@ -356,7 +377,7 @@ function configureEditor(next: LexicalEditor, stateJSON: string): void {
   if (editorContext === "document") registerNestedElementResolver(next, MarkNode,
     (from) => $createMarkNode(from.getIDs()),
     (from, to) => { for (const id of from.getIDs()) to.addID(id); });
-  next.setEditorState(parsed);
+  if (parsed) next.setEditorState(parsed);
   if (editorContext !== "document") {
     for (const plugin of editorContexts[editorContext]) {
       if (plugin === "EmojisPlugin") withStructuralEditor(next, () => { EmojisPlugin(); });
@@ -378,6 +399,10 @@ function configureEditor(next: LexicalEditor, stateJSON: string): void {
     },
   );
   if (editorContext === "document" || editorContexts[editorContext].includes("MarkdownShortcutPlugin")) registerMarkdownShortcuts(next, createTransformers());
+  next.registerCommand = originalCommand;
+  next.registerUpdateListener = originalUpdate;
+  next.registerNodeTransform = originalTransform;
+  mountedRegistrations.set(next, cleanups);
   editor = next;
 }
 
@@ -452,6 +477,19 @@ function captionOwnerSnapshot(): string {
   editor = owned;
   try { return snapshot(); }
   finally { editor = mounted; }
+}
+
+function remountCaption(): void {
+  if (!parentEditor || !parentCaptionOwnerKey) throw new EditorError("invalidState", "No caption owner loaded");
+  const next = parentEditor.read(() => {
+    const owner = $getNodeByKey(parentCaptionOwnerKey!) as (LexicalNode & { __caption?: LexicalEditor }) | null;
+    if (!owner?.__caption) throw new EditorError("invalidState", "Caption owner no longer exists");
+    return owner.__caption;
+  });
+  for (const cleanup of mountedRegistrations.get(current()) ?? []) cleanup();
+  mountedRegistrations.delete(current());
+  withNestedParent(parentEditor, () => LexicalNestedComposer({ initialEditor: next, children: null, skipCollabChecks: true }));
+  configureEditor(next);
 }
 
 function apply(commandJSON: string): string {
@@ -1712,6 +1750,7 @@ Object.assign(globalThis, {
     loadNested,
     parentSnapshot: () => onParent(snapshot),
     captionOwnerSnapshot,
+    remountCaption,
     setCaptionVisibility,
     applyToParent: (command: string) => onParent(() => apply(command)),
     apply,

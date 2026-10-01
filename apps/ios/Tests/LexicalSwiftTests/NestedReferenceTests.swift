@@ -60,3 +60,21 @@ extension NestedReferenceTests {
     #expect(try reference.snapshot() != before)
   }
 }
+
+extension NestedReferenceTests {
+  @Test func remountedCaptionHistoryStartsAtItsRetainedState() throws {
+    var image = try #require(JSONValue(parsing: MediaImages.insertionNodeJSON).objectValue)
+    image["showCaption"] = true
+    image["caption"] = ["editorState": document(paragraph(text("Caption")))]
+    let source = try Support.referenceEditor(editorContext: .imageCaption)
+    try source.loadNested(parent: document(paragraph(text("Parent")), .object(image)), ownerPath: [1, 0])
+    try source.apply(.caret(.text([0, 0], 7)))
+    try source.apply(.insertText("!"))
+    let before = try source.snapshot()
+    try source.setCaptionVisibility(false)
+    try source.setCaptionVisibility(true)
+    try source.remountCaption()
+    try source.apply(.undo)
+    #expect(try source.snapshot() == before)
+  }
+}

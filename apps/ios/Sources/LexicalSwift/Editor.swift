@@ -342,6 +342,17 @@ public final class Editor: EditorModel {
         captionEditors[nextIdentity] = copy
       }
     }
+    // Showing a hidden caption mounts a new HistoryPlugin over the same
+    // retained editor state; reopening must not undo edits from its old mount.
+    for key in update.changedKeys {
+      guard let previous = state.nodes[key], let shown = next.nodes[key],
+        ["image", "inline-image", "video"].contains(shown.type),
+        previous.payload.json["showCaption"] != true,
+        shown.payload.json["showCaption"] == true,
+        shown.type == "image" || shown.payload.json["captionsEnabled"] != false,
+        let caption = captionEditors[captionIdentity(for: key, in: next)] else { continue }
+      caption.history = History(caption.state)
+    }
     state = next
     nextKey = update.nextKey
     knowsListMarker = update.knowsListMarker
