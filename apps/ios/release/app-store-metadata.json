@@ -1,5 +1,5 @@
 {
-  "status": "privacy-source-audited-awaiting-integrated-release-and-app-store-publication",
+  "status": "store-information-configured-awaiting-integrated-release-and-submission",
   "issue": 142,
   "privacyPolicyURL": "https://lexidraw.vercel.app/privacy-policy",
   "appleReferences": [
@@ -80,10 +80,10 @@
   "retentionQuestions": [
     "Third-party operational request/log retention can change independently of this source; declarations include retained IP/visitor and request information without claiming short-term deletion."
   ],
-  "reviewNotesDraft": "Lexidraw is a native document and drawing editor. Sign In opens the secure Lexidraw authentication website and returns to the app. Review credentials will be supplied privately in App Store Connect. The seeded review account will contain disposable sample documents and drawings. Account deletion is available in Settings. Listen generates spoken audio from a selected file; it does not record the microphone. Review notes will be updated with the final supported node families and any explicit limitations.",
+  "reviewNotesDraft": "Lexidraw is a native document and drawing editor. Sign In opens the secure Lexidraw authentication website and returns to the app. Review credentials will be supplied privately in App Store Connect. The seeded review account will contain disposable sample documents and drawings. Account deletion is available in Settings. Listen generates spoken audio from a selected file; it does not record the microphone. Review notes will be updated with the final supported node families and any explicit limitations. Users choose the content they upload, import and share. Lexidraw\u2019s terms prohibit copyright infringement and authorize processing user content to operate the service.",
   "submissionPending": [
     "Final integrated source SHA and local release archive",
-    "Publish verified privacy answers",
+    "Select processed 1.0 build and finalize review notes",
     "Submission and review response"
   ],
   "serverURLSource": "apps/ios/project.yml:LEXIDRAW_SERVER_URL",
@@ -186,7 +186,15 @@
       "baseTerritory": "USA",
       "automaticTerritories": 174,
       "allAutomaticCustomerPricesZero": true,
-      "basis": "Matches the current web app; no download price preference supplied."
+      "basis": "Free download explicitly confirmed by the maintainer on 2026-10-01; matches the current web app."
+    },
+    "euDigitalServicesAct": {
+      "status": "active",
+      "classification": "non-trader",
+      "basis": "Maintainer confirmed App Store publishing is purely personal and noncommercial hobby activity.",
+      "scope": "Apple account compliance, 27 EU countries or regions",
+      "verified": "2026-10-01",
+      "publicTraderContactRequired": false
     }
   },
   "descriptionDraft": "Write, sketch and organize your ideas with Lexidraw. Work with documents, drawings and folders on iPhone and iPad, keep your files synchronized with your Lexidraw account, and share them with other people. Format text, edit tables, create drawings, and listen to your documents read aloud. A Lexidraw account and an internet connection are required for synchronization and read-aloud generation.",
@@ -388,5 +396,16 @@
   ],
   "supportURL": "https://github.com/r4iju/lexidraw/issues",
   "subtitleDraft": "Write, draw and organize",
-  "keywordsDraft": "notes,editor,documents,drawings,sketch,markdown,folders,writing,organization,rich text"
+  "keywordsDraft": "notes,editor,documents,drawings,sketch,markdown,folders,writing,organization,rich text",
+  "contentRightsReview": {
+    "status": "maintainer-confirmed-saved-and-verified",
+    "model": "User-directed uploads, imports and sharing; no app-curated third-party article or media catalog.",
+    "termsURL": "https://lexidraw.vercel.app/terms-of-service",
+    "draftExplanation": "Lexidraw is a document and drawing editor. Users choose the files and web links they upload, import and share. The terms prohibit copyright infringement and authorize storing, processing and displaying user content to operate the service. This describes the permitted-use model; it does not guarantee that every user submission is lawful. Third-party integrations and app-provided materials are checked separately.",
+    "remaining": [],
+    "appleReference": "https://developer.apple.com/help/app-store-connect/reference/app-information/app-information/",
+    "declaration": "USES_THIRD_PARTY_CONTENT",
+    "confirmed": "2026-10-01",
+    "verification": "App Store Connect PATCH200 followed by GET confirmed USES_THIRD_PARTY_CONTENT."
+  }
 }
