@@ -269,6 +269,7 @@ extension SerializedTableNode: IntegerElementFields {}
 extension SerializedTableRowNode: IntegerElementFields {}
 extension SerializedTableCellNode: IntegerElementFields {}
 extension SerializedFootnoteDefinitionNode: IntegerElementFields {}
+extension SerializedMarkNode: IntegerElementFields {}
 
 extension SerializedNode {
   var elementFields: (any ElementFields)? {
@@ -284,6 +285,7 @@ extension SerializedNode {
       case .root(let node): node
       case .link(let node): node
       case .autoLink(let node): node
+      case .mark(let node): node
       case .table(let node): node
       case .tableRow(let node): node
       case .tableCell(let node): node
@@ -308,6 +310,7 @@ extension SerializedNode {
       case let node as SerializedRootNode: self = .root(node)
       case let node as SerializedLinkNode: self = .link(node)
       case let node as SerializedAutoLinkNode: self = .autoLink(node)
+      case let node as SerializedMarkNode: self = .mark(node)
       case let node as SerializedTableNode: self = .table(node)
       case let node as SerializedTableRowNode: self = .tableRow(node)
       case let node as SerializedTableCellNode: self = .tableCell(node)

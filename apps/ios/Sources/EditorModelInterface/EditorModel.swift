@@ -262,6 +262,13 @@ public enum EditorCommand: Equatable, Sendable {
   /// Pastes as the web's rich-text editor does: Lexical nodes copied from a
   /// document, or else the plain text.
   case paste(Clipboard)
+  /// Appends the comment sidebar’s metadata marker to the document root.
+  case appendComment(JSONValue)
+  /// CommentPlugin’s wrap of a selected range in a thread’s marks.
+  case annotateComment(id: String)
+  /// CommentPlugin’s $saveThread; nil runs its comment/thread marker deletion callback.
+  case saveCommentThread(id: String, thread: JSONValue?)
+  case removeCommentAnnotations(id: String)
   /// The web's insert-table dialog: a table after the caret's block, with a
   /// header row, and the caret in its first cell.
   case insertTable(rows: Int, columns: Int)
@@ -360,7 +367,7 @@ public struct TextFormat: OptionSet, Codable, Hashable, Sendable {
 extension EditorCommand: Codable {
   private enum CodingKeys: String, CodingKey {
     case type, anchor, focus, text, backward, lineBoundary, format, blockType, listType, path, milliseconds, url, clipboard,
-      rows, columns, color, after, key, extend, native, atCellEdge, direction, parentRTL, anchorRTL, increase
+      rows, columns, color, after, key, extend, native, atCellEdge, direction, parentRTL, anchorRTL, increase, node, id, thread
   }
 
   /// The command's `type` in JSON.
@@ -368,7 +375,7 @@ extension EditorCommand: Codable {
     case setSelection, insertText, commitComposition, deleteCharacter, deleteWord, deleteLine, insertParagraph, insertLineBreak,
       formatText, setBlockType, formatCode, formatElement, changeFontSize, clearFormatting, setWritingDirection, insertList, removeList, indent, outdent, tab, toggleChecked, selectAll, toggleLink, editLink,
       copy, cut, paste, insertTable, insertTableRow, insertTableColumn, deleteTableRow, deleteTableColumn, mergeTableCells, unmergeTableCell, deleteTable, toggleTableRowHeader, toggleTableColumnHeader, setTableCellBackground, arrow, undo, redo,
-      wait
+      wait, appendComment, annotateComment, saveCommentThread, removeCommentAnnotations
   }
 
   private var kind: Kind {
@@ -400,6 +407,10 @@ extension EditorCommand: Codable {
     case .copy: .copy
     case .cut: .cut
     case .paste: .paste
+    case .appendComment: .appendComment
+    case .annotateComment: .annotateComment
+    case .saveCommentThread: .saveCommentThread
+    case .removeCommentAnnotations: .removeCommentAnnotations
     case .insertTable: .insertTable
     case .insertTableRow: .insertTableRow
     case .insertTableColumn: .insertTableColumn
@@ -457,6 +468,10 @@ extension EditorCommand: Codable {
     case .copy: self = .copy
     case .cut: self = .cut
     case .paste: self = .paste(try container.decode(Clipboard.self, forKey: .clipboard))
+    case .appendComment: self = .appendComment(try container.decode(JSONValue.self, forKey: .node))
+    case .annotateComment: self = .annotateComment(id: try container.decode(String.self, forKey: .id))
+    case .removeCommentAnnotations: self = .removeCommentAnnotations(id: try container.decode(String.self, forKey: .id))
+    case .saveCommentThread: self = .saveCommentThread(id: try container.decode(String.self, forKey: .id), thread: try container.decodeIfPresent(JSONValue.self, forKey: .thread))
     case .insertTable:
       self = .insertTable(
         rows: try container.decode(Int.self, forKey: .rows), columns: try container.decode(Int.self, forKey: .columns))
@@ -517,6 +532,15 @@ extension EditorCommand: Codable {
       try container.encode(url, forKey: .url)
     case .editLink(let url):
       try container.encode(url, forKey: .url)
+    case .removeCommentAnnotations(let id):
+      try container.encode(id, forKey: .id)
+    case .saveCommentThread(let id, let thread):
+      try container.encode(id, forKey: .id)
+      try container.encodeIfPresent(thread, forKey: .thread)
+    case .annotateComment(let id):
+      try container.encode(id, forKey: .id)
+    case .appendComment(let node):
+      try container.encode(node, forKey: .node)
     case .paste(let clipboard):
       try container.encode(clipboard, forKey: .clipboard)
     case .insertTable(let rows, let columns):

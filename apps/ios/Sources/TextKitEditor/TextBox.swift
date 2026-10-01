@@ -139,6 +139,18 @@ import UIKit
   }
 
   func draw(at origin: CGPoint, in context: CGContext) {
+    storage.enumerateAttribute(.commentHighlights, in: NSRange(location: 0, length: storage.length)) { value, range, _ in
+      guard let highlights = value as? [CommentHighlight] else { return }
+      let frames = self.lineSegments(range).map { $0.offsetBy(dx: origin.x, dy: origin.y) }
+      for highlight in highlights where highlight.active || !highlight.resolved {
+        let color = highlight.active ? WebSocialStyle.commentMarkActive : WebSocialStyle.commentMark
+        context.setFillColor(color.color.cgColor)
+        context.fill(frames)
+        context.setFillColor(WebSocialStyle.commentBorder.color.cgColor)
+        context.fill(frames.map { CGRect(x: $0.minX, y: $0.maxY - WebSocialStyle.commentBorderWidth,
+          width: $0.width, height: WebSocialStyle.commentBorderWidth) })
+      }
+    }
     layoutManager.enumerateTextLayoutFragments(from: layoutManager.documentRange.location, options: []) { fragment in
       let frame = fragment.layoutFragmentFrame
       let start = self.offset(fragment.rangeInElement.location)

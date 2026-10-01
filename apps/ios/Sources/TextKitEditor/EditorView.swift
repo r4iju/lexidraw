@@ -43,8 +43,13 @@ public final class EditorView: UIScrollView, UITextInput {
 
   public var supportsRichText: Bool { model.supportsRichText }
   public var configureNestedEmbeds: ((EditorView) -> Void)?
+  private weak var metadataOwner: EditorView?
+  private let metadataChildren = NSHashTable<EditorView>.weakObjects()
+  private var sharedCommentResolution: Set<String> = []
+  private var sharedActiveComments: Set<String> = []
+  private var sharedFootnoteNumbers: [String: Int] = [:]
 
-  public func makeNestedEditor(model: any EditorModel, isEditable: Bool, textSize: CGFloat? = nil) -> EditorView {
+  public func makeNestedEditor(model: any EditorModel, isEditable: Bool, textSize: CGFloat? = nil, shareDocumentMetadata: Bool = false) -> EditorView {
     let style: DocumentText.Style?
     if let textSize {
       style = { [typesetting, suppliedStyle] block, format in
@@ -61,6 +66,12 @@ public final class EditorView: UIScrollView, UITextInput {
     editor.configureNestedEmbeds = configureNestedEmbeds
     editor.uploadImage = uploadImage
     configureNestedEmbeds?(editor)
+    if shareDocumentMetadata {
+      metadataChildren.add(editor)
+      editor.metadataOwner = self
+      editor.document.rendersRootFootnotes = false
+      updateSharedMetadata(in: editor)
+    }
     return editor
   }
 
@@ -219,6 +230,7 @@ public final class EditorView: UIScrollView, UITextInput {
   }
 
   private func showFootnote(_ label: String) {
+    if let metadataOwner { metadataOwner.showFootnote(label); return }
     let definition = footnoteDefinition(label)
     let message: String
     if let definition, let text = try? model.nodeTextContent(at: [definition.index]) {
@@ -267,7 +279,11 @@ public final class EditorView: UIScrollView, UITextInput {
   }
 
   public var socialInsertionActions: [UIMenuElement] {
-    [UIAction(title: "Poll", image: UIImage(systemName: "chart.bar")) { [weak self] _ in
+    [UIAction(title: "Comment", image: UIImage(systemName: "text.bubble")) { [weak self] _ in
+      self?.presentCommentComposer()
+    }, UIAction(title: "Comments", image: UIImage(systemName: "bubble.left.and.bubble.right")) { [weak self] _ in
+      self?.presentComments()
+    }, UIAction(title: "Poll", image: UIImage(systemName: "chart.bar")) { [weak self] _ in
       guard let self, isEditable else { return }
       let alert = UIAlertController(title: "Insert poll", message: "Question", preferredStyle: .alert)
       alert.addTextField()
@@ -286,15 +302,17 @@ public final class EditorView: UIScrollView, UITextInput {
     }]
   }
 
-  private func showSocialError(_ error: any Error) {
+  private func showSocialError(_ error: any Error, title: String = "Couldn’t update poll") {
     let message: String
     switch error {
     case EditorError.unsupported(let reason), EditorError.invalidState(let reason): message = reason
     default: message = error.localizedDescription
     }
-    let alert = UIAlertController(title: "Couldn’t update poll", message: message, preferredStyle: .alert)
+    let alert = UIAlertController(title: title, message: message, preferredStyle: .alert)
     alert.addAction(UIAlertAction(title: "OK", style: .default))
-    presenter?.present(alert, animated: true)
+    var owner = presenter
+    while let next = owner?.presentedViewController { owner = next }
+    owner?.present(alert, animated: true)
   }
 
   private func editPollOption(key: String, node: JSONValue, uid: String, text: String) {
@@ -564,8 +582,24 @@ public final class EditorView: UIScrollView, UITextInput {
         }
       }
     }
+    refreshSharedMetadata()
     updateEmbeddedAccessibility()
     setNeedsLayout()
+  }
+
+
+  private func updateSharedMetadata(in child: EditorView) {
+    child.document.externalResolvedCommentIDs = document.commentResolution
+    child.document.externalFootnoteNumbers = document.referenceNumbers
+    child.document.activeCommentIDs = document.activeCommentIDs
+    child.render(nil)
+  }
+
+  private func refreshSharedMetadata() {
+    let resolution = document.commentResolution, numbers = document.referenceNumbers, active = document.activeCommentIDs
+    guard resolution != sharedCommentResolution || numbers != sharedFootnoteNumbers || active != sharedActiveComments else { return }
+    sharedCommentResolution = resolution; sharedFootnoteNumbers = numbers; sharedActiveComments = active
+    for child in metadataChildren.allObjects { updateSharedMetadata(in: child) }
   }
 
   private func updateEmbeddedAccessibility() {
@@ -1770,6 +1804,13 @@ public final class EditorView: UIScrollView, UITextInput {
   @objc private func tapped(_ tap: UITapGestureRecognizer) {
     let point = tap.location(in: surface)
     if let label = layout.footnoteBacklink(at: point) { followFootnoteBacklink(label); return }
+    if let character = characterRange(at: point) as? TextRange, character.range.length > 0,
+      let ids = storage.attribute(.commentIDs, at: character.range.location, effectiveRange: nil) as? [String], !ids.isEmpty {
+      document.activeCommentIDs = Set(ids)
+      render(nil)
+      presentComments()
+      return
+    }
     if let offset = layout.offset(closestTo: point), let path = document.embeddedPath(at: offset),
       let key = nodeKey(at: path), let node = try? model.nodeForPresentation(at: path) {
       if onEmbeddedTap?(key, node) == true { return }
@@ -1805,7 +1846,7 @@ extension EditorCommand {
   /// Whether the command acts at the selection, so the model needs one.
   fileprivate var editsAtSelection: Bool {
     switch self {
-    case .setSelection, .wait, .undo, .redo, .selectAll: false
+    case .setSelection, .wait, .undo, .redo, .selectAll, .appendComment, .saveCommentThread, .removeCommentAnnotations: false
     default: true
     }
   }
@@ -1936,5 +1977,175 @@ private final class ModelHistory: UndoManager {
   override var canRedo: Bool { true }
   override func undo() { undoEdit() }
   override func redo() { redoEdit() }
+}
+#endif
+
+#if canImport(UIKit)
+extension EditorView {
+  private func storedComments() throws -> [JSONValue] {
+    var entries: [JSONValue] = []
+    var seen: Set<String> = []
+    func collect(_ node: JSONValue) {
+      let item = node["type"] == "thread" ? node["thread"] : node["type"] == "comment" ? node["comment"] : nil
+      if let item, let id = item["id"]?.stringValue, seen.insert(id).inserted {
+        entries.append(item)
+        for comment in item["comments"]?.arrayValue ?? [] {
+          if let id = comment["id"]?.stringValue { seen.insert(id) }
+        }
+      }
+      for child in node["children"]?.arrayValue ?? [] { collect(child) }
+    }
+    collect(try model.node(at: []))
+    return entries
+  }
+
+  @discardableResult public func deleteCommentReply(threadID: String, commentID: String) -> Bool {
+    guard isEditable, supportsRichText, model.isEditable else { return false }
+    do {
+      guard let stored = try storedComments().first(where: { $0["type"] == "thread" && $0["id"] == .string(threadID) }),
+        var comments = stored["comments"]?.arrayValue,
+        let index = comments.firstIndex(where: { $0["id"] == .string(commentID) }) else { return false }
+      comments.remove(at: index)
+      let thread: JSONValue = ["type": "thread", "id": .string(threadID), "quote": stored["quote"] ?? "", "comments": .array(comments)]
+      return perform(.saveCommentThread(id: threadID, thread: thread), fromInput: false, tellsRefusal: true) != nil
+    } catch { showSocialError(error, title: "Couldn’t delete reply"); return false }
+  }
+
+  @discardableResult public func setCommentThreadResolved(id: String, resolved: Bool) -> Bool {
+    guard isEditable, supportsRichText, model.isEditable else { return false }
+    do {
+      guard var thread = try storedComments().first(where: { $0["type"] == "thread" && $0["id"] == .string(id) })?.objectValue else { return false }
+      thread["resolved"] = .bool(resolved)
+      return perform(.saveCommentThread(id: id, thread: .object(thread)), fromInput: false, tellsRefusal: true) != nil
+    } catch { showSocialError(error, title: "Couldn’t update comment"); return false }
+  }
+
+  private func showCommentAnchor(id: String) {
+    func first(_ node: JSONValue, path: [Int]) -> Point {
+      if node["text"]?.stringValue != nil { return .text(path, 0) }
+      if let child = node["children"]?.arrayValue?.first { return first(child, path: path + [0]) }
+      return Point(path: path, offset: 0, type: .element)
+    }
+    func anchor(_ node: JSONValue, path: [Int]) -> Point? {
+      if node["type"] == "mark", node["ids"]?.arrayValue?.contains(.string(id)) == true { return first(node, path: path) }
+      for (index, child) in (node["children"]?.arrayValue ?? []).enumerated() {
+        if let point = anchor(child, path: path + [index]) { return point }
+      }
+      return nil
+    }
+    if let root = try? model.node(at: []), let point = anchor(root, path: []) { goToFootnotePoint(point) }
+  }
+
+  public func presentComments() {
+    if let metadataOwner {
+      metadataOwner.document.activeCommentIDs = document.activeCommentIDs
+      metadataOwner.render(nil)
+      metadataOwner.presentComments()
+      return
+    }
+    let panel = CommentPanelController(onClose: { [weak self] in
+      self?.document.activeCommentIDs = []
+      self?.render(nil)
+    }, show: { [weak self] id in self?.showCommentAnchor(id: id) },
+      entries: { [weak self] in (try? self?.storedComments()) ?? [] },
+      editable: { [weak self] in self?.isEditable == true && self?.model.isEditable == true },
+      reply: { [weak self] id in
+        guard let self else { return }
+        let composer = CommentComposerController(title: "Reply") { [weak self] in self?.replyToCommentThread(id: id, content: $0) ?? false }
+        var owner = self.presenter
+        while let next = owner?.presentedViewController { owner = next }
+        owner?.present(UINavigationController(rootViewController: composer), animated: true)
+      }, resolve: { [weak self] id, resolved in _ = self?.setCommentThreadResolved(id: id, resolved: resolved) },
+      removeReply: { [weak self] threadID, commentID in _ = self?.deleteCommentReply(threadID: threadID, commentID: commentID) },
+      remove: { [weak self] id in
+        guard let self else { return }
+        do {
+          guard let item = try self.storedComments().first(where: { $0["id"] == .string(id) }) else { return }
+          guard self.perform(.saveCommentThread(id: id, thread: nil), fromInput: false, tellsRefusal: true) != nil else { return }
+          if item["type"] == "thread" { _ = self.perform(.removeCommentAnnotations(id: id), fromInput: false, tellsRefusal: true) }
+        } catch { self.showSocialError(error, title: "Couldn’t delete comment") }
+      })
+    presenter?.present(UINavigationController(rootViewController: panel), animated: true)
+  }
+
+  public func presentCommentComposer() {
+    guard isEditable, supportsRichText, model.isEditable else { return }
+    do {
+      guard case .range(let anchor, let focus, _, _)? = try model.selection(), anchor != focus else {
+        throw EditorError.unsupported("Select the text you want to comment on.")
+      }
+      let snapshot = try model.serializedState()
+      let composer = CommentComposerController(title: "New comment") { [weak self] content in
+        guard let self else { return false }
+        do {
+          guard try self.model.serializedState() == snapshot else {
+            throw EditorError.unsupported("The document changed. Select the text again before adding a comment.")
+          }
+          return self.insertComment(content: content)
+        } catch { self.showSocialError(error, title: "Couldn’t add comment"); return false }
+      }
+      presenter?.present(UINavigationController(rootViewController: composer), animated: true)
+    } catch { showSocialError(error, title: "Couldn’t add comment") }
+  }
+
+  @discardableResult public func replyToCommentThread(id: String, content: String) -> Bool {
+    guard isEditable, supportsRichText, model.isEditable,
+      JSRegExp(#"^\s*$"#, flags: "").firstMatch(in: content) == nil else { return false }
+    do {
+      var pending = [try model.node(at: [])]
+      while let node = pending.popLast() {
+        if node["type"] == "thread", let stored = node["thread"]?.objectValue,
+          stored["id"] == .string(id) {
+          guard stored["resolved"] != .bool(true), let comments = stored["comments"]?.arrayValue else { return false }
+          var comment = try commentObject(WebCommentData.emptyCommentJSON)
+          comment["author"] = .string(socialAuthor); comment["content"] = .string(content)
+          comment["id"] = .string(UUID().uuidString)
+          comment["timeStamp"] = .number(Date().timeIntervalSince1970 * 1000)
+          // CommentStore.cloneThread retains these fields and omits resolution.
+          let thread: JSONValue = .object([
+            "type": .string("thread"), "id": .string(id),
+            "quote": stored["quote"] ?? .string(""), "comments": .array(comments + [.object(comment)])
+          ])
+          return perform(.saveCommentThread(id: id, thread: thread), fromInput: false, tellsRefusal: true) != nil
+        }
+        if let children = node["children"]?.arrayValue { pending.append(contentsOf: children.reversed()) }
+      }
+      return false
+    } catch { showSocialError(error, title: "Couldn’t update comment"); return false }
+  }
+
+  @discardableResult public func insertComment(content: String) -> Bool {
+    guard isEditable, supportsRichText, model.isEditable,
+      JSRegExp(#"^\s*$"#, flags: "").firstMatch(in: content) == nil else { return false }
+    do {
+      guard case .range(let anchor, let focus, _, _)? = try model.selection(), anchor != focus else { return false }
+      var quote = try model.apply(.copy).clipboard?.plainText ?? ""
+      if quote.utf16.count > WebCommentData.quoteLimit {
+        let units = Array(quote.utf16)
+        let prefix = Array(units.prefix(WebCommentData.quotePrefix))
+        if let last = prefix.last, (0xD800...0xDBFF).contains(last) {
+          throw EditorError.unsupported("This comment preview would split a character. Select a shorter range.")
+        }
+        quote = String(decoding: prefix, as: UTF16.self) + WebCommentData.quoteEllipsis
+      }
+      var comment = try commentObject(WebCommentData.emptyCommentJSON)
+      comment["author"] = .string(socialAuthor); comment["content"] = .string(content)
+      comment["id"] = .string(UUID().uuidString); comment["timeStamp"] = .number(Date().timeIntervalSince1970 * 1000)
+      var marker = try commentObject(WebCommentData.emptyThreadNodeJSON)
+      guard var thread = marker["thread"]?.objectValue else { preconditionFailure("Invalid generated thread") }
+      let id = UUID().uuidString
+      thread["id"] = .string(id); thread["quote"] = .string(quote); thread["comments"] = .array([.object(comment)])
+      marker["thread"] = .object(thread)
+      guard perform(.appendComment(.object(marker)), fromInput: false, tellsRefusal: true) != nil else { return false }
+      return perform(.annotateComment(id: id), fromInput: false, tellsRefusal: true) != nil
+    } catch { showSocialError(error, title: "Couldn’t update comment"); return false }
+  }
+}
+#endif
+
+#if canImport(UIKit)
+private func commentObject(_ json: String) throws -> JSONObject {
+  guard let value = try JSONValue(parsing: json).objectValue else { preconditionFailure("Invalid generated comment defaults") }
+  return value
 }
 #endif

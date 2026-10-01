@@ -1,6 +1,9 @@
+import postcss from "postcss";
+import { ThemeColors, swiftRGBA } from "./typography";
 import { createHeadlessEditor } from "@lexical/headless";
 import emojiList from "../../../packages/lexical-nodes/src/emoji-list";
-import { PollNode } from "@packages/lexical-nodes";
+import { PollNode, CommentNode, ThreadNode } from "@packages/lexical-nodes";
+import { CommentStore } from "../../lexidraw/src/app/documents/[documentId]/commenting";
 import { swiftString } from "./swift";
 
 export const EMOJI_ALIASES_PATH = new URL(
@@ -98,7 +101,18 @@ export async function swiftForSocialStyle(): Promise<string> {
     !source.includes("dom.style.cssText = mentionStyle;")
   )
     throw new Error("Unknown mention DOM style shape");
-  return `// Generated from web MentionNode.createDOM by apps/ios/codegen/social.ts.\n\nenum WebSocialStyle {\n  static let mentionCSS = ${swiftString(styles[0][1])}\n}\n`;
+  const theme = await Bun.file(new URL("../../lexidraw/src/app/documents/[documentId]/themes/theme.ts", import.meta.url)).text();
+  const mark = /mark:\s*"([^"]+)"/.exec(theme)?.[1] ?? "";
+  const borderWidth = /(?:^| )border-b-(\d+)(?: |$)/.exec(mark)?.[1];
+  if (!borderWidth || !mark.includes("bg-comment-mark") || !mark.includes("data-[comment=active]:bg-comment-mark-active")
+    || !mark.includes("data-[comment=resolved]:bg-transparent") || !mark.includes("data-[comment=resolved]:border-transparent"))
+    throw new Error("Unknown effective comment mark theme shape");
+  const globals = await Bun.file(new URL("../../lexidraw/src/styles/globals.css", import.meta.url)).text();
+  const colors = new ThemeColors(postcss.parse(globals));
+  for (const name of ["comment-mark", "comment-border", "comment-mark-active"]) colors.name(`var(--${name})`);
+  const generatedColors = colors.used.map(([name, light, dark]) =>
+    `  static let ${name} = ThemeColor(light: ${swiftRGBA(light)}, dark: ${swiftRGBA(dark)})`).join("\n");
+  return `// Generated from web MentionNode.createDOM and the comment theme by apps/ios/codegen/social.ts.\n\nenum WebSocialStyle {\n  static let mentionCSS = ${swiftString(styles[0][1])}\n${generatedColors}\n  static let commentBorderWidth: Double = ${Number(borderWidth)}\n}\n`;
 }
 
 export const FOOTNOTE_STYLE_PATH = new URL("../Sources/TextKitEditor/WebFootnoteStyle.swift", import.meta.url);
@@ -131,4 +145,22 @@ export async function swiftForFootnoteStyle(): Promise<string> {
   }
   if (!heading || Object.values(values).some(value => value === undefined)) throw new Error("Unknown footnote CSS shape");
   return `// Generated from document.css by apps/ios/codegen/social.ts.\n\nenum WebFootnoteStyle {\n${Object.entries(values).map(([key,value])=>`  static let ${key}: Double = ${value}`).join("\n")}\n  static let titles: [String: String] = [${[...titles].map(([key, value]) => `${swiftString(key)}: ${swiftString(value)}`).join(", ")}]\n}\n`;
+}
+
+export const COMMENT_DATA_PATH = new URL("../Sources/TextKitEditor/WebCommentData.swift", import.meta.url);
+export async function swiftForCommentData(): Promise<string> {
+  const plugin = await Bun.file(new URL("../../lexidraw/src/app/documents/[documentId]/plugins/CommentPlugin/index.tsx", import.meta.url)).text();
+  const limit = /quote\.length\s*>\s*(\d+)/.exec(plugin)?.[1];
+  const truncation = /\$\{quote\.slice\(0,\s*(\d+)\)\}([^`]*)/.exec(plugin);
+  if (!limit || !truncation?.[1] || truncation[2] === undefined || Number(truncation[1]) >= Number(limit))
+    throw new Error("Unknown comment quote truncation shape");
+  const comment = CommentStore.createComment("", "", "", 0);
+  const thread = CommentStore.createThread("", [], "");
+  let commentJSON = "", threadJSON = "";
+  const editor = createHeadlessEditor({ nodes: [CommentNode, ThreadNode], onError(error) { throw error; } });
+  editor.update(() => {
+    commentJSON = JSON.stringify(new CommentNode(comment).exportJSON());
+    threadJSON = JSON.stringify(new ThreadNode(thread).exportJSON());
+  }, { discrete: true });
+  return `// Generated from web CommentStore and marker constructors by apps/ios/codegen/social.ts.\n\nenum WebCommentData {\n  static let quoteLimit = ${Number(limit)}\n  static let quotePrefix = ${Number(truncation[1])}\n  static let quoteEllipsis = ${swiftString(truncation[2])}\n  static let emptyCommentJSON = ${swiftString(JSON.stringify(comment))}\n  static let emptyCommentNodeJSON = ${swiftString(commentJSON)}\n  static let emptyThreadNodeJSON = ${swiftString(threadJSON)}\n}\n`;
 }

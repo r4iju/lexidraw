@@ -11,6 +11,89 @@ import Testing
 @testable import TextKitEditor
 
 @Suite struct DocumentTextTests {
+  @Test func multipleCommentMarkersShareOneHiddenParagraph() throws {
+    let editor = Editor()
+    let thread: JSONValue = ["type": "thread", "version": 1, "thread": ["type": "thread", "id": "one", "quote": "Body", "comments": []]]
+    try editor.load(["root": ["type": "root", "version": 1, "children": [["type": "paragraph", "version": 1, "children": [thread, thread]]]]])
+    let document = DocumentText(model: editor, style: { _, _ in [:] })
+    let storage = NSMutableAttributedString()
+    try document.reload(storage)
+    #expect(document.kind(ofBlock: 0) == .embedded(type: "thread"))
+    #expect(document.range(ofBlock: 0).length == 2)
+  }
+
+  @Test func structuralPreviewsUseOwningDocumentCommentAndFootnoteMetadata() throws {
+    let model = Editor()
+    let mark: JSONValue = ["type": "mark", "version": 1, "ids": ["thread"], "children": .array([LexicalJSON.text("Body")])]
+    let reference: JSONValue = ["type": "footnote-reference", "version": 1, "label": "root-note"]
+    let definition: JSONValue = ["type": "footnote-definition", "version": 1, "label": "nested-note", "children": .array([LexicalJSON.text("Nested")])]
+    try model.load(LexicalJSON.document([LexicalJSON.paragraph([mark, reference]), definition]))
+    let storage = NSMutableAttributedString()
+    let document = DocumentText(model: model, style: Self.style)
+    document.externalResolvedCommentIDs = ["thread"]
+    document.externalFootnoteNumbers = ["root-note": 7]
+    document.rendersRootFootnotes = false
+    try document.reload(storage)
+    #expect(storage.attribute(.commentResolved, at: 0, effectiveRange: nil) as? Bool == true)
+    #expect((storage.attribute(.attachment, at: 4, effectiveRange: nil) as? FootnoteReferenceAttachment)?.marker == "7")
+    #expect(storage.attribute(.footnoteDefinitionNumber, at: storage.length - 2, effectiveRange: nil) == nil)
+  }
+
+  @Test func aDeepNestedCommentKeepsItsOwnTapIDsAndBothHighlightLayers() throws {
+    let model = Editor()
+    let inner: JSONValue = ["type": "mark", "version": 1, "ids": ["inner"], "children": .array([LexicalJSON.text("Nested")])]
+    let link: JSONValue = ["type": "link", "version": 1, "url": "https://example.com", "children": [inner]]
+    let outer: JSONValue = ["type": "mark", "version": 1, "ids": ["outer"], "children": [link]]
+    try model.load(LexicalJSON.document([LexicalJSON.paragraph([outer])]))
+    let storage = NSMutableAttributedString()
+    try DocumentText(model: model, style: Self.style).reload(storage)
+    #expect(storage.attribute(.commentIDs, at: 0, effectiveRange: nil) as? [String] == ["inner"])
+    let highlights = try #require(storage.attribute(.commentHighlights, at: 0, effectiveRange: nil) as? [CommentHighlight])
+    #expect(highlights.map(\.ids) == [["outer"], ["inner"]])
+  }
+
+  @Test func commentHighlightResolutionFollowsEveryThreadAndActiveSelection() throws {
+    let model = Editor()
+    let mark: JSONValue = ["type": "mark", "version": 1, "ids": ["one", "two"], "children": .array([LexicalJSON.text("Annotated")])]
+    func thread(_ id: String, resolved: Bool) -> JSONValue {
+      ["type": "thread", "version": 1, "thread": ["type": "thread", "id": .string(id), "quote": "Annotated", "comments": [], "resolved": .bool(resolved)]]
+    }
+    try model.load(LexicalJSON.document([LexicalJSON.paragraph([mark]), LexicalJSON.paragraph([thread("one", resolved: true)]), LexicalJSON.paragraph([thread("two", resolved: false)])]))
+    let storage = NSMutableAttributedString()
+    let document = DocumentText(model: model, style: Self.style)
+    try document.reload(storage)
+    #expect(storage.attribute(.commentResolved, at: 0, effectiveRange: nil) as? Bool == false)
+    let change = try model.apply(.saveCommentThread(id: "two", thread: thread("two", resolved: true)["thread"]))
+    try document.update(storage, after: change)
+    #expect(storage.attribute(.commentResolved, at: 0, effectiveRange: nil) as? Bool == true)
+    document.activeCommentIDs = ["one"]
+    try document.reload(storage)
+    #expect(storage.attribute(.commentActive, at: 0, effectiveRange: nil) as? Bool == true)
+  }
+
+  @Test func aCommentOnlyParagraphUsesHiddenMetadataPresentation() throws {
+    let model = Editor()
+    let comment: JSONValue = ["type": "comment", "version": 1, "comment": ["type": "comment", "id": "note", "author": "Reader", "content": "Disposable comment", "deleted": false, "timeStamp": 0]]
+    try model.load(LexicalJSON.document([LexicalJSON.paragraph([comment])]))
+    let storage = NSMutableAttributedString()
+    let document = DocumentText(model: model, style: Self.style)
+    try document.reload(storage)
+    #expect(document.kind(ofBlock: 0) == .embedded(type: "comment"))
+    #expect(storage.string == "\u{FFFC}\n")
+  }
+
+  @Test func commentMarksKeepTheirThreadIDsOnNativeTextRuns() throws {
+    let model = Editor()
+    let mark: JSONValue = ["type": "mark", "version": 1, "ids": ["thread-one", "thread-two"],
+      "children": .array([LexicalJSON.text("Annotated")])]
+    try model.load(LexicalJSON.document([LexicalJSON.paragraph([mark, LexicalJSON.text(" plain")])]))
+    let storage = NSMutableAttributedString()
+    try DocumentText(model: model, style: Self.style).reload(storage)
+    #expect(storage.attribute(.commentIDs, at: 0, effectiveRange: nil) as? [String] == ["thread-one", "thread-two"])
+    #expect(storage.attribute(.commentIDs, at: 10, effectiveRange: nil) == nil)
+    #expect(storage.string == "Annotated plain\n")
+  }
+
   @Test func footnoteReferencesUseFirstDefinitionNumbersAndMissingLabels() throws {
     let model = Editor()
     let references: [JSONValue] = ["second", "first", "missing"].map { ["type": "footnote-reference", "version": 1, "label": .string($0)] }

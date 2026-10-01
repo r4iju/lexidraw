@@ -1,3 +1,6 @@
+import { CommentNode, ThreadNode } from "@packages/lexical-nodes";
+import { $createMarkNode, $unwrapMarkNode, $wrapSelectionInMarkNode, MarkNode } from "@lexical/mark";
+import { $dfs, registerNestedElementResolver } from "@lexical/utils";
 import { $formatCode } from "@packages/lexical-nodes/code-format";
 import CalloutPlugin from "../../lexidraw/src/app/documents/[documentId]/plugins/CalloutPlugin/index.js";
 import CollapsiblePlugin from "../../lexidraw/src/app/documents/[documentId]/plugins/CollapsiblePlugin/index.js";
@@ -188,6 +191,10 @@ type Command =
   | { type: "toggleChecked"; path: number[] }
   | { type: "toggleLink"; url: string | null }
   | { type: "editLink"; url: string }
+  | { type: "appendComment"; node: Record<string, unknown> }
+  | { type: "annotateComment"; id: string }
+  | { type: "removeCommentAnnotations"; id: string }
+  | { type: "saveCommentThread"; id: string; thread?: Parameters<ThreadNode["setThread"]>[0] }
   | { type: "copy" }
   | { type: "cut" }
   | { type: "paste"; clipboard: Clipboard }
@@ -309,6 +316,10 @@ function load(stateJSON: string): void {
   });
   registerTables(next);
   registerLink(next, namedSignals({ attributes: undefined, validateUrl }));
+  // CommentPlugin flattens directly nested marks and merges their thread IDs.
+  registerNestedElementResolver(next, MarkNode,
+    (from) => $createMarkNode(from.getIDs()),
+    (from, to) => { for (const id of from.getIDs()) to.addID(id); });
   next.setEditorState(parsed);
   next.registerUpdateListener(
     ({ dirtyElements, dirtyLeaves, editorState, prevEditorState, tags }) => {
@@ -677,6 +688,36 @@ function run(
   command: Exclude<Command, { type: "undo" | "redo" | "wait" | "cut" }>,
 ) {
   const editor = current();
+  if (command.type === "removeCommentAnnotations") {
+    for (const { node } of $dfs($getRoot())) {
+      if (node instanceof MarkNode && node.hasID(command.id)) {
+        node.deleteID(command.id);
+        if (node.getIDs().length === 0) $unwrapMarkNode(node);
+      }
+    }
+    return;
+  }
+  if (command.type === "saveCommentThread") {
+    for (const { node } of $dfs($getRoot())) {
+      if (!command.thread && CommentNode.$isCommentNode(node) && node.__comment.id === command.id) node.remove();
+      if (ThreadNode.$isThreadNode(node) && node.getThread().id === command.id) {
+        if (command.thread) node.setThread(command.thread); else node.remove();
+      }
+    }
+    return;
+  }
+  if (command.type === "annotateComment") {
+    const selection = $getSelection();
+    if (!$isRangeSelection(selection)) throw new EditorError("noSelection", "No range selection");
+    $wrapSelectionInMarkNode(selection, selection.isBackward(), command.id);
+    return;
+  }
+  if (command.type === "appendComment") {
+    if (command.node.type === "comment") $getRoot().append(CommentNode.importJSON(command.node as never));
+    else if (command.node.type === "thread") $getRoot().append(ThreadNode.importJSON(command.node as never));
+    else throw new EditorError("invalidState", "Not a comment marker");
+    return;
+  }
   if (command.type === "setSelection") {
     setSelection(command.anchor, command.focus);
     return;
@@ -1059,7 +1100,11 @@ function runOnCells(
         | "undo"
         | "redo"
         | "wait"
-        | "cut";
+        | "cut"
+        | "appendComment"
+        | "annotateComment"
+        | "saveCommentThread"
+        | "removeCommentAnnotations";
     }
   >,
   selection: TableSelection,
@@ -1146,7 +1191,11 @@ function runOnNodes(
         | "undo"
         | "redo"
         | "wait"
-        | "cut";
+        | "cut"
+        | "appendComment"
+        | "annotateComment"
+        | "saveCommentThread"
+        | "removeCommentAnnotations";
     }
   >,
   selection: NodeSelection,

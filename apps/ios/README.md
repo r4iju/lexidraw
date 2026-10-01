@@ -640,9 +640,27 @@ Enter behavior, and imported table-cell markdown supports definitions/references
 typing a reference or definition does not invent a new shortcut. Definitions and
 references preserve their stored labels and payloads through editing and undo.
 
-This checkpoint does not complete #134. Comments, threads, non-normal keyword
-payloads and articles retain their explicit unported editing gate.
-Caption/slide hashtag transforms and mention transient CSS still need work.
+Comment marks now follow the mounted CommentPlugin's boundary typing, paragraph
+splitting, selection wrapping, nested-mark resolver, partial copy and unwrapping.
+Comment/thread metadata markers remain inline in their stored paragraphs and
+render invisibly without extra paragraph gaps. Native annotations preserve
+nested highlights and thread resolution; readonly structural previews inherit
+the owning document's thread resolution and footnote numbering.
+
+The native Comments panel supports reading, selected-text comments, replies,
+resolve/reopen, deleting threads/imported comments/replies, and navigation to the
+first text anchor. Plain multiline content and author identity come from the
+same stored payload; marker updates go through editor commands and autosave.
+Reply/removal clones follow the web's current omission of `resolved`, including
+its reopening behavior. Read-only documents expose the panel without edit
+controls. An input whose web quote truncation would split a UTF-16 surrogate is
+explicitly refused instead of storing a damaged quote. Generated defaults,
+quote limits and annotation colors come from the current web source. Malformed
+or unknown comment payload fields keep the document read-only.
+
+This checkpoint does not complete #134. Non-normal keyword payloads and articles
+retain their explicit unported editing gate. Caption/slide hashtag transforms,
+mention transient CSS and unsupported social caption contexts still need work.
 Stored social text generation opts in via `socialTextSubclasses`, preserving
 fault-injection seeds; the full differential run enables it.
 

@@ -661,6 +661,10 @@ struct Generator {
   }
 
   mutating func command(for snapshot: Snapshot) -> EditorCommand? {
+    if socialTextSubclasses, case .range(let anchor, let focus, _, _)? = snapshot.selection,
+      anchor != focus, Int.random(in: 0..<20, using: &random) == 0 {
+      return .annotateComment(id: "fuzz-thread-\(Int.random(in: 0..<4, using: &random))")
+    }
     if !typing.isEmpty { return typing.removeFirst() }
     let roll = Int.random(in: 0..<(writingDirections ? 128 : 125), using: &random)
     let backward = Int.random(in: 0..<3, using: &random) > 0

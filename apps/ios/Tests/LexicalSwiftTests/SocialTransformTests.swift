@@ -3,6 +3,105 @@ import LexicalSwift
 import Testing
 
 @Suite struct SocialTransformTests {
+  @Test func malformedCommentPayloadsStayReadOnly() throws {
+    for marker: JSONValue in [
+      ["type": "comment", "version": 1, "comment": ["id": "partial"]],
+      ["type": "thread", "version": 1, "thread": ["type": "thread", "id": "thread", "quote": "Body", "comments": [["id": "partial"]]]]
+    ] {
+      let editor = Editor()
+      try editor.load(document(paragraph(marker)))
+      #expect(!editor.isEditable)
+    }
+  }
+
+  @Test func deletingCommentsRemovesBothMarkerKindsWithTheSameID() throws {
+    let comment: JSONValue = ["type": "comment", "version": 1,
+      "comment": ["type": "comment", "id": "same", "author": "Reader", "content": "Imported", "deleted": false, "timeStamp": 0]]
+    let thread: JSONValue = ["type": "thread", "version": 1, "thread": ["type": "thread", "id": "same", "quote": "Body", "comments": []]]
+    let fixture = try Fixture.record(start: document(paragraph(comment), paragraph(thread)),
+      commands: [.saveCommentThread(id: "same", thread: nil), .undo, .redo], on: Support.referenceEditor())
+    let outcome = try fixture.replay(on: Editor())
+    #expect(outcome == fixture.recorded)
+  }
+
+  @Test func deletingAThreadKeepsOtherAnnotationsAndUnwrapsItsOwnMarks() throws {
+    func mark(_ ids: [String], _ body: String) -> JSONValue {
+      ["type": "mark", "version": 1, "ids": .array(ids.map(JSONValue.string)), "children": .array([text(body)])]
+    }
+    let thread: JSONValue = ["type": "thread", "version": 1, "thread": ["type": "thread", "id": "one", "quote": "SharedOnly", "comments": []]]
+    let start = document(paragraph(mark(["one", "two"], "Shared"), mark(["one"], "Only")), paragraph(thread))
+    let commands: [EditorCommand] = [.saveCommentThread(id: "one", thread: nil), .removeCommentAnnotations(id: "one"), .undo, .redo]
+    let fixture = try Fixture.record(start: start, commands: commands, on: Support.referenceEditor())
+    let outcome = try fixture.replay(on: Editor())
+    #expect(outcome == fixture.recorded)
+  }
+
+  @Test func savingAThreadUpdatesEveryStoredMarkerWithThatID() throws {
+    let original: JSONValue = ["type": "thread", "id": "thread-one", "quote": "Selected text", "comments": [], "resolved": false]
+    let marker: JSONValue = ["type": "thread", "version": 1, "thread": original]
+    var resolved = try #require(original.objectValue)
+    resolved["resolved"] = true
+    let commands: [EditorCommand] = [.saveCommentThread(id: "thread-one", thread: .object(resolved)), .undo, .redo]
+    let start = document(paragraph(marker), paragraph(marker))
+    let fixture = try Fixture.record(start: start, commands: commands, on: Support.referenceEditor())
+    let outcome = try fixture.replay(on: Editor())
+    #expect(outcome == fixture.recorded)
+  }
+
+  @Test func anchoringAThreadMatchesWebSelectionWrapping() throws {
+    let start = document(paragraph(text("First paragraph")), paragraph(text("Second paragraph")))
+    for backward in [false, true] {
+      let startPoint = Point.text([0, 0], 3), endPoint = Point.text([1, 0], 6)
+      let commands: [EditorCommand] = [.setSelection(anchor: backward ? endPoint : startPoint, focus: backward ? startPoint : endPoint), .annotateComment(id: "native-thread")]
+      let fixture = try Fixture.record(start: start, commands: commands, on: Support.referenceEditor())
+      let outcome = try fixture.replay(on: Editor())
+      #expect(outcome == fixture.recorded)
+    }
+  }
+
+  @Test func addingAnUnanchoredCommentMatchesTheWebRootMarker() throws {
+    let comment: JSONValue = ["type": "comment", "version": 1,
+      "comment": ["type": "comment", "id": "disposable-comment", "author": "Reader", "content": "Native comment", "deleted": false, "timeStamp": 0]]
+    let commands: [EditorCommand] = [.appendComment(comment), .undo, .redo]
+    let fixture = try Fixture.record(start: document(paragraph(text("Document"))), commands: commands, on: Support.referenceEditor())
+    let outcome = try fixture.replay(on: Editor())
+    #expect(outcome == fixture.recorded)
+  }
+
+  @Test func overlappingCommentMarksFlattenLikeTheMountedPlugin() throws {
+    func mark(_ id: String, _ children: JSONValue...) -> JSONValue {
+      ["type": "mark", "version": 1, "ids": .array([.string(id)]), "children": .array(children)]
+    }
+    let start = document(paragraph(mark("outer", text("Before "), mark("inner", text("Shared")), text(" After"))))
+    let commands: [EditorCommand] = [.caret(.text([0, 0, 1, 0], 3)), .insertText("x")]
+    let fixture = try Fixture.record(start: start, commands: commands, on: Support.referenceEditor())
+    #expect(try fixture.replay(on: Editor()) == fixture.recorded)
+  }
+
+  @Test func partialAndWholeCommentMarkCopiesMatchTheWeb() throws {
+    var fields = try #require(paragraph(text("Annotated words")).objectValue)
+    fields["type"] = "mark"; fields["ids"] = ["native-thread"]
+    let start = document(paragraph(.object(fields)))
+    for end in [5, 15] {
+      let commands: [EditorCommand] = [.setSelection(anchor: .text([0, 0, 0], 0), focus: .text([0, 0, 0], end)), .copy]
+      let fixture = try Fixture.record(start: start, commands: commands, on: Support.referenceEditor())
+      #expect(try fixture.replay(on: Editor()) == fixture.recorded)
+    }
+  }
+
+  @Test func storedCommentMarksMatchBoundaryTypingAndParagraphSplits() throws {
+    var fields = try #require(paragraph(text("Annotated words")).objectValue)
+    fields["type"] = "mark"; fields["ids"] = ["native-thread"]
+    let start = document(paragraph(.object(fields)))
+    let native = Editor(); try native.load(start)
+    #expect(native.isEditable)
+    let commands: [EditorCommand] = [.caret(.text([0, 0, 0], 0)), .insertText("before"), .undo,
+      .caret(.text([0, 0, 0], 15)), .insertText("after"), .undo,
+      .caret(.text([0, 0, 0], 5)), .insertParagraph]
+    let fixture = try Fixture.record(start: start, commands: commands, on: Support.referenceEditor())
+    #expect(try fixture.replay(on: native) == fixture.recorded)
+  }
+
   @Test func footnotePreviewKeepsBlockBreaksAndOmitsOtherReferences() throws {
     let model = Editor()
     let reference: JSONValue = ["type": "footnote-reference", "version": 1, "label": "other"]
