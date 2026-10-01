@@ -25,6 +25,8 @@ public protocol EditorModel: AnyObject {
   @discardableResult
   func replaceEmbeddedNode(key: String, expected: JSONValue, replacement: JSONValue?) throws -> ChangeSet
 
+  func captionEditor(key: String) throws -> any EditorModel
+
   /// The serialized editor state and the selection.
   func snapshot() throws -> Snapshot
 
@@ -57,6 +59,9 @@ public protocol EditorModel: AnyObject {
 }
 
 extension EditorModel {
+  public func captionEditor(key: String) throws -> any EditorModel {
+    throw EditorError.unsupported("Owned caption editing requires #134")
+  }
   public func replaceRenderedNode(key: String, expected: JSONValue, replacement: JSONValue) throws -> ChangeSet {
     throw EditorError.unsupported("Rendered node editing belongs to #132")
   }
@@ -644,24 +649,29 @@ public struct LexicalClipboardPayload: Codable, Equatable, Sendable {
 /// changed. Adding or removing a node changes its parent.
 public struct ChangeSet: Equatable, Sendable {
   public var changed: Set<[Int]>
+  /// A nested command changed its owning editor. Its paths do not belong
+  /// to this editor's layout, but the owner must render and save the edit.
+  public var parentChanged: Bool
   /// What a copy or cut put on the clipboard: nothing for an empty selection.
   public var clipboard: Clipboard?
 
-  public init(changed: Set<[Int]> = [], clipboard: Clipboard? = nil) {
+  public init(changed: Set<[Int]> = [], clipboard: Clipboard? = nil, parentChanged: Bool = false) {
     self.changed = changed
     self.clipboard = clipboard
+    self.parentChanged = parentChanged
   }
 }
 
 extension ChangeSet: Codable {
   private enum CodingKeys: String, CodingKey {
-    case changed, clipboard
+    case changed, clipboard, parentChanged
   }
 
   public init(from decoder: any Decoder) throws {
     let container = try decoder.container(keyedBy: CodingKeys.self)
     changed = Set(try container.decode([[Int]].self, forKey: .changed))
     clipboard = try container.decodeIfPresent(Clipboard.self, forKey: .clipboard)
+    parentChanged = try container.decodeIfPresent(Bool.self, forKey: .parentChanged) ?? false
   }
 
   /// Sorted, so a recorded fixture's bytes don't depend on hashing.
@@ -669,6 +679,7 @@ extension ChangeSet: Codable {
     var container = encoder.container(keyedBy: CodingKeys.self)
     try container.encode(changed.sorted { $0.lexicographicallyPrecedes($1) }, forKey: .changed)
     try container.encodeIfPresent(clipboard, forKey: .clipboard)
+    if parentChanged { try container.encode(true, forKey: .parentChanged) }
   }
 }
 

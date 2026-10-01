@@ -19,6 +19,9 @@ public final class Editor: EditorModel {
   public var supportsRichText: Bool { !plainText }
   private let plainText: Bool
   private let editorContext: EditorContext
+  private var captionEditors: [NodeKey: Editor] = [:]
+  private weak var captionParent: Editor?
+  private var captionOwnerKey: NodeKey?
   public init(plainText: Bool = false, editorContext: EditorContext = .document) {
     self.plainText = plainText
     self.editorContext = editorContext
@@ -39,6 +42,7 @@ public final class Editor: EditorModel {
     nextKey = update.nextKey
     now = 0
     history = History(state)
+    captionEditors = [:]
     knowsListMarker = false
     isEditable = state.nodes.values.allSatisfy(\.isEditable)
   }
@@ -46,6 +50,32 @@ public final class Editor: EditorModel {
   @discardableResult
   public func apply(_ command: EditorCommand) throws -> ChangeSet {
     guard !state.nodes.isEmpty else { throw EditorError.invalidState("No document loaded") }
+    if let captionOwnerKey {
+      guard let captionParent, captionParent.state.path(of: captionOwnerKey) != nil,
+        captionParent.captionEditors[captionOwnerKey] === self else {
+        throw EditorError.invalidState("The caption owner no longer exists")
+      }
+      switch command {
+      case .insertList, .removeList:
+        guard captionParent.state.selection != nil else { return ChangeSet(changed: []) }
+        let change = try captionParent.apply(command)
+        return ChangeSet(clipboard: change.clipboard, parentChanged: !change.changed.isEmpty || change.parentChanged)
+      case .tab:
+        let saved = (state, nextKey, history, knowsListMarker)
+        do {
+          var change = try commit { try $0.run(command, plainText: plainText) }
+          if case .range = captionParent.state.selection {
+            let parent = try captionParent.apply(command)
+            change.parentChanged = !parent.changed.isEmpty || parent.parentChanged
+          }
+          return change
+        } catch {
+          (state, nextKey, history, knowsListMarker) = saved
+          throw error
+        }
+      default: break
+      }
+    }
     switch command {
     case .updateStructuralFields(let path, let fields):
       guard let index = path.last else { throw EditorError.invalidState("No structural node") }
@@ -157,7 +187,7 @@ public final class Editor: EditorModel {
   private func replaceEmbeddedNode(key: String, expected: JSONValue, replacement: JSONValue?, clearsSelection: Bool) throws -> ChangeSet {
     guard isEditable else { throw EditorError.unsupported("This document cannot be edited") }
     guard let key = NodeKey(key), let node = state.nodes[key], (node.isDecorator || Self.structuralTypes.contains(node.type)),
-      state.json(of: key) == expected, replacement == nil || replacement?["type"] == expected["type"]
+      captionJSON(of: key) == expected, replacement == nil || replacement?["type"] == expected["type"]
     else { throw EditorError.invalidState("The block changed while its editor was open") }
     guard let replacement else { return try commit { try $0.remove(key) } }
     // Load with the registered schemas before committing; unknown fields/nodes
@@ -285,7 +315,44 @@ public final class Editor: EditorModel {
 
   public func serializedState() throws -> JSONValue {
     guard !state.nodes.isEmpty else { throw EditorError.invalidState("No document loaded") }
-    return state.json
+    return ["root": captionJSON(of: EditorState.rootKey)]
+  }
+
+  public func captionEditor(key: String) throws -> any EditorModel {
+    guard isEditable else { throw EditorError.unsupported("This document cannot be edited") }
+    guard let key = NodeKey(key), let node = state.nodes[key], state.path(of: key) != nil else {
+      throw EditorError.invalidState("The caption owner no longer exists")
+    }
+    let context: EditorContext
+    switch node.type {
+    case "image": context = .imageCaption
+    case "inline-image": context = .inlineImageCaption
+    default: throw EditorError.unsupported("This caption's ownership requires #134")
+    }
+    if let editor = captionEditors[key] { return editor }
+    let fields = node.payload.json
+    guard let constructor = MediaInsertions.nodes[node.type],
+      let caption = try fields["caption"] ?? JSONValue(parsing: constructor)["caption"],
+      let saved = caption["editorState"] else {
+      throw EditorError.invalidState("No caption editor state")
+    }
+    let editor = Editor(editorContext: context)
+    try editor.load(saved)
+    editor.captionParent = self
+    editor.captionOwnerKey = key
+    captionEditors[key] = editor
+    return editor
+  }
+
+  private func captionJSON(of key: NodeKey, canonicalKeyOrder: Bool = true) -> JSONValue {
+    guard !captionEditors.isEmpty else { return state.json(of: key, canonicalKeyOrder: canonicalKeyOrder) }
+    return state.json(of: key, canonicalKeyOrder: canonicalKeyOrder) { key, value in
+      guard let editor = self.captionEditors[key], var fields = value.objectValue else { return value }
+      var caption = fields["caption"]?.objectValue ?? [:]
+      caption["editorState"] = editor.state.json
+      fields["caption"] = .object(caption)
+      return .object(fields)
+    }
   }
 
   /// `state` as an editor that registers `types` saves it once it has read
@@ -307,11 +374,11 @@ public final class Editor: EditorModel {
   }
 
   public func node(at path: [Int]) throws -> JSONValue {
-    state.json(of: try key(at: path))
+    captionJSON(of: try key(at: path))
   }
 
   public func nodeForPresentation(at path: [Int]) throws -> JSONValue {
-    state.json(of: try key(at: path), canonicalKeyOrder: false)
+    captionJSON(of: try key(at: path), canonicalKeyOrder: false)
   }
 
   public func elementFormatting(at path: [Int]) throws -> JSONValue {

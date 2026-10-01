@@ -59,6 +59,10 @@ public final class ReferenceEditor: EditorModel {
 
   public func parentSnapshot() throws -> Snapshot { try decodeSnapshot(call("parentSnapshot")) }
 
+  public func setCaptionVisibility(_ show: Bool) throws {
+    _ = try call("setCaptionVisibility", show ? "true" : "false")
+  }
+
   /// Lexical edits every node it has registered.
   public var isEditable: Bool { true }
 

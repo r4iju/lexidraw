@@ -256,6 +256,7 @@ let clipboard: Clipboard | undefined;
 let now = 0;
 
 let parentEditor: LexicalEditor | null = null;
+let parentCaptionOwnerKey: string | null = null;
 
 function current(): LexicalEditor {
   if (!editor) throw new EditorError("invalidState", "No document loaded");
@@ -269,6 +270,7 @@ function current(): LexicalEditor {
  */
 function load(stateJSON: string): void {
   parentEditor = null;
+  parentCaptionOwnerKey = null;
   const registry = editorContext === "document" ? null : editorRegistries[editorContext];
   const next = createEditor({
     namespace: EDITOR_NAMESPACE,
@@ -401,6 +403,7 @@ function loadNested(argument: string): void {
       if (node.getType() !== expectedType || !captionNode.__caption) {
         throw new EditorError("invalidState", `Caption owner ${node.getType()} (editor=${Boolean(captionNode.__caption)}) does not match ${expectedType}`);
       }
+      parentCaptionOwnerKey = node.getKey();
       return captionNode.__caption;
     });
     editorContext = childContext;
@@ -418,6 +421,22 @@ function onParent<T>(run: () => T): T {
   editorContext = "document";
   try { return run(); }
   finally { editor = child; editorContext = childContext; }
+}
+
+function setCaptionVisibility(argument: string): void {
+  const show = JSON.parse(argument) as boolean;
+  if (typeof show !== "boolean" || !parentCaptionOwnerKey) throw new EditorError("invalidState", "No caption visibility value or owner");
+  onParent(() => {
+    lastError = null;
+    current().update(() => {
+      const node = $getNodeByKey(parentCaptionOwnerKey!);
+      if (!node || !["image", "inline-image", "video"].includes(node.getType())) {
+        throw new EditorError("invalidState", "Caption owner no longer exists");
+      }
+      (node as LexicalNode & { setShowCaption(show: boolean): void }).setShowCaption(show);
+    }, { discrete: true });
+    if (lastError) throw lastError;
+  });
 }
 
 function apply(commandJSON: string): string {
@@ -1672,6 +1691,7 @@ Object.assign(globalThis, {
     load,
     loadNested,
     parentSnapshot: () => onParent(snapshot),
+    setCaptionVisibility,
     applyToParent: (command: string) => onParent(() => apply(command)),
     apply,
     snapshot,
