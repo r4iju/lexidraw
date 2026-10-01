@@ -315,6 +315,14 @@ public final class Editor: EditorModel {
     if update.unregisteredType != nil {
       throw EditorError.invalidState("Node type is not registered in \(editorContext.rawValue)")
     }
+    if captionOwnerKey != nil, editorContext == .videoCaption {
+      for key in update.changedKeys where update.state.path(of: key) != nil {
+        let own = update.state.json(of: key, includingChildren: false)
+        if let refusal = MediaCaptionSupport.refusal(in: ["root": own]) {
+          throw EditorError.unsupported(refusal)
+        }
+      }
+    }
     update.collectGarbage()
     if let selection = update.selection,
       update.state.nodes[selection.anchor.key] == nil || update.state.nodes[selection.focus.key] == nil

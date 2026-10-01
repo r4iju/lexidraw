@@ -152,7 +152,7 @@ public final class EditorView: UIScrollView, UITextInput {
     var result: [UIView] = []
     func collect(_ view: UIView) {
       guard !view.isHidden, view.alpha > 0 else { return }
-      if view is EmbeddedContentView {
+      if view is EmbeddedContentView || view is MediaView {
         if view.convert(view.bounds, to: self).intersects(bounds) { result.append(view) }
         return
       }
@@ -1777,10 +1777,21 @@ public final class EditorView: UIScrollView, UITextInput {
   private func copySelection(_ command: EditorCommand) {
     commitMarkedText()
     syncSelection()
+    let range = selected
+    let attributed = range.length > 0 && NSMaxRange(range) <= storage.length
+      ? storage.attributedSubstring(from: range) : nil
     guard let clipboard = perform(command, fromInput: false)?.clipboard else { return }
     var item: [String: Any] = [UTType.utf8PlainText.identifier: clipboard.plainText]
     if let lexical = clipboard.lexical, let data = try? JSONEncoder().encode(lexical) {
       item[LexicalClipboardPayload.mimeType] = data
+    }
+    // Foundation writes the displayed selection for apps that do not consume
+    // Lexical's structural clipboard. Lexical remains the internal source of truth.
+    if let attributed {
+      if let rtf = try? attributed.data(from: NSRange(location: 0, length: attributed.length),
+        documentAttributes: [.documentType: NSAttributedString.DocumentType.rtf]) {
+        item[UTType.rtf.identifier] = rtf
+      }
     }
     pasteboard.setItems([item])
   }
@@ -1955,6 +1966,11 @@ public final class EditorView: UIScrollView, UITextInput {
   /// offers to open or edit the link.
   @objc private func tapped(_ tap: UITapGestureRecognizer) {
     let point = tap.location(in: surface)
+    var hit = surface.hitTest(point, with: nil)
+    while let view = hit, view !== surface {
+      if view is MediaView { return }
+      hit = view.superview
+    }
     if let label = layout.footnoteBacklink(at: point) { followFootnoteBacklink(label); return }
     if let character = characterRange(at: point) as? TextRange, character.range.length > 0,
       let ids = storage.attribute(.commentIDs, at: character.range.location, effectiveRange: nil) as? [String], !ids.isEmpty {
@@ -1973,6 +1989,13 @@ public final class EditorView: UIScrollView, UITextInput {
     }
     guard linkCharacter(at: point) != nil else { return }
     linkMenu.presentEditMenu(with: UIEditMenuConfiguration(identifier: nil, sourcePoint: point))
+  }
+
+  func handleMediaBodyTap(from media: UIView) -> Bool {
+    let point = surface.convert(CGPoint(x: 0, y: media.bounds.midY), from: media)
+    guard let offset = layout.offset(closestTo: point), let path = document.embeddedPath(at: offset),
+      let key = nodeKey(at: path), let node = try? model.nodeForPresentation(at: path) else { return false }
+    return onEmbeddedTap?(key, node) == true
   }
 
   // MARK: Layout

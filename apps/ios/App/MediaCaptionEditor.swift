@@ -1,4 +1,5 @@
 import EditorModelInterface
+import AVKit
 import LexidrawJSON
 import TextKitEditor
 import UIKit
@@ -23,7 +24,7 @@ import UIKit
         presenter.present(UINavigationController(rootViewController: panel), animated: true)
       } catch { mediaError(error, presenter) }
     }
-    edit.isEnabled = type != "video"
+    edit.isEnabled = type != "video" || node["captionsEnabled"] == true
     options.addAction(edit)
     let visibility = UIAlertAction(title: node["showCaption"] == true ? "Hide caption" : "Show caption", style: .default) { [weak view, weak presenter] _ in
       guard let view, let presenter, var fields = node.objectValue else { return }
@@ -35,6 +36,13 @@ import UIKit
     options.addAction(visibility)
     if let src = node["src"]?.stringValue, let url = URL(string: src),
       ["https", "http"].contains(url.scheme?.lowercased() ?? "") {
+      if type == "video" {
+        options.addAction(UIAlertAction(title: "Play video", style: .default) { [weak presenter] _ in
+          let playback = AVPlayerViewController()
+          playback.player = AVPlayer(url: url)
+          presenter?.present(playback, animated: true) { playback.player?.play() }
+        })
+      }
       options.addAction(UIAlertAction(title: "Open original", style: .default) { _ in UIApplication.shared.open(url) })
     }
     options.addAction(UIAlertAction(title: "Cancel", style: .cancel))

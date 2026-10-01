@@ -214,19 +214,36 @@ import Synchronization
       ])
     })
   }
-  private func selectArticleText(_ text: String) {
+  func selectArticleText(_ text: String) {
     var responder: UIResponder? = self
     while responder != nil, !(responder is UIViewController) { responder = responder?.next }
     guard let parent = responder as? UIViewController else { return }
     let controller = UIViewController()
-    let body = UITextView()
-    body.text = text
-    body.isEditable = false
-    body.isSelectable = true
-    body.font = .preferredFont(forTextStyle: .body)
-    body.adjustsFontForContentSizeCategory = true
-    controller.view = body
-    controller.title = "Article text"
+    do {
+      let data = node["data"]
+      guard let html = data?[data?["mode"] == "url" ? "distilled" : "snapshot"]?["contentHtml"]?.stringValue,
+        !html.isEmpty, html.utf8.count <= 300_000 else {
+        throw EditorError.unsupported("The article has no bounded rich selection representation")
+      }
+      let model = Editor()
+      try model.load(["root": ["type": "root", "version": 1, "children": [["type": "paragraph", "version": 1, "children": []]]]])
+      try model.apply(.caret(Point(path: [0], offset: 0, type: .element)))
+      try model.apply(.paste(Clipboard(plainText: text, html: html)))
+      guard model.isEditable else { throw EditorError.unsupported("The article contains unported rich selection behavior (#134)") }
+      let body = EditorView(model: model, isEditable: false)
+      controller.view = NativeEditorHost(editor: body)
+      controller.title = "Article text"
+    } catch {
+      let body = UITextView()
+      body.text = text
+      body.isEditable = false
+      body.isSelectable = true
+      body.font = .preferredFont(forTextStyle: .body)
+      body.adjustsFontForContentSizeCategory = true
+      controller.view = body
+      controller.title = "Article text (plain preview)"
+      body.accessibilityHint = "Rich selection is unavailable for this article. Plain text remains selectable."
+    }
     controller.navigationItem.rightBarButtonItem = UIBarButtonItem(systemItem: .done, primaryAction: UIAction { [weak controller] _ in controller?.dismiss(animated: true) })
     parent.present(UINavigationController(rootViewController: controller), animated: true)
   }
