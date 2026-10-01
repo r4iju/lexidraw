@@ -191,6 +191,25 @@ final class DocumentPreviewUITests: XCTestCase {
     XCTAssertLessThan(column.frame.width, app.frame.width * 0.35)
   }
 
+  func testRepeatedMinmaxColumnsKeepTheirImplicitRows() {
+    XCUIDevice.shared.orientation = .landscapeLeft
+    defer { XCUIDevice.shared.orientation = .portrait }
+    let paragraph: JSONValue = ["type": "paragraph", "version": 1, "children": []]
+    let item: JSONValue = ["type": "layout-item", "version": 1, "children": [paragraph]]
+    let document = LexicalJSON.document([["type": "layout-container", "version": 1,
+      "templateColumns": "repeat(2, minmax(100px, 1fr))", "children": [item, item, item, item]]])
+    let app = open(access: "EDIT", document: document)
+    let first = app.buttons["Edit column 1"]
+    XCTAssertTrue(first.waitForExistence(timeout: 10))
+    let second = app.buttons["Edit column 2"]
+    let third = app.buttons["Edit column 3"]
+    XCTAssertTrue(third.exists)
+    XCTAssertEqual(first.frame.width, second.frame.width, accuracy: 1)
+    XCTAssertGreaterThan(first.frame.width, 100)
+    XCTAssertEqual(third.frame.minX, first.frame.minX, accuracy: 1)
+    XCTAssertGreaterThan(third.frame.minY, first.frame.maxY)
+  }
+
   func testImportedColumnsRetainFixedPercentageAndFractionalTracks() {
     XCUIDevice.shared.orientation = .landscapeLeft
     defer { XCUIDevice.shared.orientation = .portrait }

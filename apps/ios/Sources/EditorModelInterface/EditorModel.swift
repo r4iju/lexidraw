@@ -42,6 +42,9 @@ public protocol EditorModel: AnyObject {
   /// order need not match the stored bytes; this value must not be saved.
   func nodeForPresentation(at path: [Int]) throws -> JSONValue
 
+  /// Effective ElementNode DOM fields, independent of unread stored fields.
+  func elementFormatting(at path: [Int]) throws -> JSONValue
+
   /// The node’s model text, including element breaks and excluding decorator glyphs.
   func nodeTextContent(at path: [Int]) throws -> String
 
@@ -70,6 +73,9 @@ extension EditorModel {
   }
   public func serializedState() throws -> JSONValue { ["root": try node(at: [])] }
   public func nodeForPresentation(at path: [Int]) throws -> JSONValue { try node(at: path) }
+  public func elementFormatting(at path: [Int]) throws -> JSONValue {
+    throw EditorError.unsupported("This model cannot read effective element formatting")
+  }
   public func nodeTextContent(at path: [Int]) throws -> String {
     throw EditorError.unsupported("This model cannot read node text")
   }

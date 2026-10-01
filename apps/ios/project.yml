@@ -122,6 +122,22 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: $(APP_BUNDLE_IDENTIFIER).editor-ui-tests
         TEST_TARGET_NAME: EditorHarness
+  StructuralPreviewTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - AppTests
+    dependencies:
+      - target: EditorHarness
+      - package: LexidrawIOS
+        product: LexicalSwift
+      - package: LexidrawIOS
+        product: TextKitEditor
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: $(APP_BUNDLE_IDENTIFIER).structural-preview-tests
+        TEST_HOST: $(BUILT_PRODUCTS_DIR)/EditorHarness.app/EditorHarness
+        BUNDLE_LOADER: $(TEST_HOST)
   # The drawing editor on a bundled drawing with no server, for trying it
   # and for the UI tests.
   DrawingHarness:
@@ -169,6 +185,7 @@ schemes:
     test:
       targets:
         - EditorUITests
+        - StructuralPreviewTests
         - package: LexidrawIOS/TextKitEditorTests
   DrawingHarness:
     build:

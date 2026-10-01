@@ -22,9 +22,10 @@ struct ListAndIndentLayout {
     var range: NSRange
     var em: CGFloat
     var font: UIFont
+    var parentIndent: CGFloat = 0
 
     var textStart: CGFloat {
-      item.lists.reduce(0) { $0 + (list.padding + ($1 == .check ? list.checklistPadding : 0)) * em }
+      parentIndent + item.lists.reduce(0) { $0 + (list.padding + ($1 == .check ? list.checklistPadding : 0)) * em }
     }
     var isChecklistItem: Bool { item.lists.last == .check }
 
@@ -94,14 +95,18 @@ struct ListAndIndentLayout {
       guard enclosing.length > 0 else { return }
       let last = NSMaxRange(enclosing) - 1
       let item = text.attribute(.listItem, at: last, effectiveRange: nil) as? DocumentText.ListItem
-      let indent = text.attribute(.elementIndent, at: last, effectiveRange: nil) as? Int
-      guard item != nil || indent != nil else { return }
+      let indent = text.attribute(.elementIndent, at: last, effectiveRange: nil) as? Double
+      let padding = text.attribute(.ancestorElementPadding, at: last, effectiveRange: nil) as? ContextPadding
+      guard item != nil || indent != nil || padding != nil else { return }
       let font = text.attribute(.font, at: last, effectiveRange: nil) as? UIFont ?? .preferredFont(forTextStyle: .body)
       let paragraph =
         (text.attribute(.paragraphStyle, at: enclosing.location, effectiveRange: nil) as? NSParagraphStyle)?
         .mutableCopy() as? NSMutableParagraphStyle ?? NSMutableParagraphStyle()
+      let rtl = paragraph.baseWritingDirection == .rightToLeft
+      let leading = CGFloat((rtl ? padding?.right : padding?.left) ?? 0) * Self.indentWidth
+      let trailing = CGFloat((rtl ? padding?.left : padding?.right) ?? 0) * Self.indentWidth
       if let item {
-        let line = Item(item: item, range: range, em: font.pointSize, font: font)
+        let line = Item(item: item, range: range, em: font.pointSize, font: font, parentIndent: leading)
         layout.items.append(line)
         paragraph.firstLineHeadIndent = line.textStart
         paragraph.headIndent = line.textStart
@@ -117,6 +122,11 @@ struct ListAndIndentLayout {
         paragraph.firstLineHeadIndent = border + CGFloat(indent) * Self.indentWidth
         paragraph.headIndent = paragraph.firstLineHeadIndent
       }
+      if item == nil {
+        paragraph.firstLineHeadIndent += leading
+        paragraph.headIndent += leading
+      }
+      paragraph.tailIndent -= trailing
       styled.addAttribute(.paragraphStyle, value: paragraph, range: enclosing)
     }
     return (styled, layout)

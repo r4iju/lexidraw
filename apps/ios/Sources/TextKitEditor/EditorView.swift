@@ -149,6 +149,28 @@ public final class EditorView: UIScrollView, UITextInput {
     set { super.accessibilityElements = newValue }
   }
 
+  private func elementFormattingContexts(for key: String, childPath: [Int] = []) throws -> [JSONValue] {
+    var path = try model.nodePath(for: key)
+    var contexts = document.inheritedElementFormatting
+    for length in 0...path.count {
+      contexts.append(try model.elementFormatting(at: Array(path.prefix(length))))
+    }
+    for index in childPath {
+      path.append(index)
+      contexts.append(try model.elementFormatting(at: path))
+    }
+    let indent = contexts.reduce(0.0) { $0 + max(0, $1["indent"]?.numberValue ?? 0) }
+    guard indent.isFinite, indent < Double(Float.greatestFiniteMagnitude) / 80 else {
+      throw EditorError.unsupported("The parent indent cannot be represented natively (#133)")
+    }
+    return contexts
+  }
+
+  public func inheritElementFormatting(from owner: EditorView, key: String, childPath: [Int] = []) throws {
+    document.inheritedElementFormatting = try owner.elementFormattingContexts(for: key, childPath: childPath)
+    render(nil)
+  }
+
   public var embeddedElementTypes: Set<String> = [] {
     didSet {
       document.embeddedElementTypes = embeddedElementTypes

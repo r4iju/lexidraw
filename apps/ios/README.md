@@ -769,3 +769,45 @@ the same document edit rule and upload records as the web, with a bounded token.
 Inline-image insertion offers alternative text, position and caption controls;
 position values, labels and initial payload come from the web dialog/constructor.
 External embeds retain native link-preview behavior.
+
+Imported column templates also support integer `repeat()` and `minmax()` with
+pixel/percentage minima and fractional maxima, including zero-sized tracks.
+Items beyond the explicit columns occupy subsequent rows. A Chromium DOM
+reference confirmed the two-column, two-row layout for
+`repeat(2, minmax(100px, 1fr))`; the production document-screen case was observed
+red at missing column controls, then green. All 12 document UI tests passed
+after the change. Content-sized tracks, automatic repeat and other CSS units
+remain explicitly unsupported rather than flattened.
+
+Structural panel bodies retain the live parent alignment, writing direction and
+indent as presentation context instead of copying those fields into saved child
+nodes. Callout bodies, section title/content and column bodies inherit the
+context; list padding remains inside parent padding, and logical `start`/`end`
+alignment resolves against each child's effective direction. Root document
+metadata and composed drawing/media/rendered/social providers remain shared.
+The native model reads effective element fields; the reference backend reads
+the original Lexical getters for the same contract.
+
+Three hosted production-panel regressions were observed failing before their
+fixes: centered RTL parent context (`133-parent-preview-red2.xcresult`), parent
+indent around a list (`133-parent-list-red.xcresult`), and RTL parent padding
+with an LTR child (`133-parent-logical-red.xcresult`). The last case also follows
+a Chromium CSS oracle with logical padding and inherited `text-align:start`.
+Final local verification in `133-context-final.xcresult` passed 147 UIKit tests,
+13 document UI tests and all three hosted panel tests. Swift package suites
+passed 385 test methods; Bun passed 95 tests / 198 expectations, and reference
+bundle generation and TypeScript checking passed. No CI was invoked.
+
+Remaining #133 fidelity work includes RTL grid column flow and intrinsic/auto
+tracks, auto-repeat, fixed-maximum `minmax`, other CSS units/functions and named
+lines. Those unsupported grid grammars retain their explicit limitation rather
+than receiving guessed geometry. This checkpoint does not close #133.
+
+The formatting context also includes every live ancestor prefix in the owning
+model, including non-panel wrappers and the root. A hosted nested list →
+list item → callout regression failed in `133-ancestor-red.xcresult` (the
+preview caret stayed at x=0 despite inherited RTL/right formatting), then all
+four hosted cases passed in `133-ancestor-green.xcresult` after the prefix fix.
+Raw fractional tracks still need the web column box minimum. Production CSS
+sets `min-width: 0` and inline-size containment, so text-content minima are
+suppressed; the generated border and padding still contribute to track sizing.
