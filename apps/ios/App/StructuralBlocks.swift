@@ -275,12 +275,18 @@ import UIKit
       label("This CSS column template is not supported by native layout (#133): \(template)")
       return
     }
-    let columns = NativeColumnsView(tracks: tracks, gap: 8)
+    let rightToLeft: Bool
+    do { rightToLeft = try owner?.elementWritingDirection(for: key) == .rtl }
+    catch { label("Cannot read the column direction: \(error.localizedDescription)"); return }
+    let columns = NativeColumnsView(tracks: tracks, gap: 8, rightToLeft: rightToLeft)
     stack.addArrangedSubview(columns)
     self.columns = columns
     for (index, child) in children.enumerated() {
       let column = UIStackView()
       column.axis = .vertical
+      let inset = StructuralBlockConfiguration.columnPadding + StructuralBlockConfiguration.columnBorderWidth
+      column.isLayoutMarginsRelativeArrangement = true
+      column.layoutMargins = UIEdgeInsets(top: inset, left: inset, bottom: inset, right: inset)
       columns.addColumn(column)
       let edit = UIButton(type: .system)
       edit.setTitle("Edit column \(index + 1)", for: .normal)

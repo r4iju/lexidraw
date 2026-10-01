@@ -166,6 +166,13 @@ public final class EditorView: UIScrollView, UITextInput {
     return contexts
   }
 
+  public func elementWritingDirection(for key: String) throws -> EditorCommand.WritingDirection {
+    let contexts = try elementFormattingContexts(for: key)
+    return contexts.reversed().compactMap { context in
+      context["direction"]?.stringValue.flatMap(EditorCommand.WritingDirection.init(rawValue:))
+    }.first ?? .auto
+  }
+
   public func inheritElementFormatting(from owner: EditorView, key: String, childPath: [Int] = []) throws {
     document.inheritedElementFormatting = try owner.elementFormattingContexts(for: key, childPath: childPath)
     render(nil)

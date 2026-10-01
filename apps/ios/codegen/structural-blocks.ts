@@ -37,6 +37,25 @@ export async function swiftForStructuralBlocks(): Promise<string> {
       import.meta.url,
     ),
   ).text();
+  const theme = await Bun.file(new URL("../../lexidraw/src/app/documents/[documentId]/themes/theme.ts", import.meta.url)).text();
+  const itemClasses = /layoutItem:\s*"([^"]+)"/.exec(theme)?.[1]?.split(/\s+/);
+  const paddingClass = itemClasses?.find((value) => /^p-\d+$/.test(value));
+  const spacingCSS = await Bun.file(new URL("../../lexidraw/node_modules/tailwindcss/theme.css", import.meta.url)).text();
+  const spacingRem = /--spacing:\s*([\d.]+)rem;/.exec(spacingCSS)?.[1];
+  const itemContainment = /\.document-content :is\(\[data-lexical-layout-item\], \.document-column\) \{([^}]+)\}/.exec(document)?.[1];
+  if (!paddingClass || !spacingRem || !itemClasses?.includes("border") ||
+    !itemContainment?.includes("min-width: 0;") || !itemContainment.includes("container-type: inline-size;"))
+    throw new Error("Column box/containment CSS changed shape");
+  // Tailwind's rem utilities use the browser's 16px root, as existing native structural utilities do.
+  const columnPadding = Number(paddingClass.slice(2)) * Number(spacingRem) * 16;
+  const tailwind = await import(Bun.resolveSync("tailwindcss", new URL("../../lexidraw/", import.meta.url).pathname));
+  if (typeof tailwind.compile !== "function") throw new Error("Tailwind compiler API changed shape");
+  const compiler = await tailwind.compile(`@theme { --spacing: ${spacingRem}rem; } @tailwind utilities;`);
+  const boxCSS: string = compiler.build(["border", paddingClass]);
+  const border = /\.border \{[^}]*border-width: ([\d.]+)px;/.exec(boxCSS)?.[1];
+  if (!border || !boxCSS.includes(`padding: calc(var(--spacing) * ${paddingClass.slice(2)});`))
+    throw new Error("Tailwind column box utilities changed shape");
+  const columnBorderWidth = Number(border);
   const layoutPlugin = await Bun.file(new URL("../../lexidraw/src/app/documents/[documentId]/plugins/LayoutPlugin/LayoutPlugin.tsx", import.meta.url)).text();
   const columnWhitespace = /template\.trim\(\)\.split\(\/([^/]+)\/\)\.length/.exec(layoutPlugin)?.[1];
   if (!columnWhitespace) throw new Error("Layout column counting changed shape");
@@ -211,7 +230,7 @@ export async function swiftForStructuralBlocks(): Promise<string> {
     { discrete: true },
   );
   const string = (value: string) => JSON.stringify(value);
-  return `// Generated from structural node factories, web presets and document CSS.\n// Run bun run codegen in apps/ios to update.\npublic enum StructuralBlockConfiguration {\n  public static let columnWhitespacePattern = ${JSON.stringify(columnWhitespace)}\n  public static let isolatedNodeTypes: Set<String> = [${isolated.map(string).join(", ")}]\n  public static let stickyWidth = ${stickyWidth}.0\n  public static let stickyHeight = ${Number(stickyClasses[2]) * 4}.0\n  public static let stickyPadding = ${Number(stickyClasses[3]) * 4}.0\n  public static let chartTypes: [String] = [${CHART_TYPES.map(string).join(", ")}]\n  public static let slideElements: [String:String] = [${Object.entries(
+  return `// Generated from structural node factories, web presets and document CSS.\n// Run bun run codegen in apps/ios to update.\npublic enum StructuralBlockConfiguration {\n  public static let columnPadding = ${columnPadding}.0\n  public static let columnBorderWidth = ${columnBorderWidth}.0\n  public static let columnWhitespacePattern = ${JSON.stringify(columnWhitespace)}\n  public static let isolatedNodeTypes: Set<String> = [${isolated.map(string).join(", ")}]\n  public static let stickyWidth = ${stickyWidth}.0\n  public static let stickyHeight = ${Number(stickyClasses[2]) * 4}.0\n  public static let stickyPadding = ${Number(stickyClasses[3]) * 4}.0\n  public static let chartTypes: [String] = [${CHART_TYPES.map(string).join(", ")}]\n  public static let slideElements: [String:String] = [${Object.entries(
     slideElements,
   )
     .map(([kind, fields]) => `${string(kind)}: #"${JSON.stringify(fields)}"#`)
