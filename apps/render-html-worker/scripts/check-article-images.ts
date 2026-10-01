@@ -39,6 +39,19 @@ try {
   assert.equal(modern.articleImages[0].width, 64);
   assert.equal(modern.articleImages[0].height, 48);
   assert.equal(modern.articleImages[1].alt, "");
+  await page.evaluate(() => {
+    const image = document.images[0];
+    const text = document.createElement("span");
+    text.textContent = "Later overlapping text";
+    const rect = image.getBoundingClientRect();
+    text.style.cssText = `position:absolute;left:${rect.x}px;top:${rect.y}px`;
+    image.parentElement!.append(text);
+  });
+  const overlapping = await page.evaluate(
+    `(()=>{${js.replace(/extractArticleInteractions\(\);\s*$/, "return extractArticleInteractions(true, true);")}})()`,
+  );
+  assert.equal(overlapping.articleImages[0].overlay, false,
+    "Later positioned text must retain raster stacking");
   const legacy = await page.evaluate(
     `(()=>{${js.replace(/extractArticleInteractions\(\);\s*$/, "return extractArticleInteractions(true);")}})()`,
   );

@@ -1037,8 +1037,11 @@ with supported images hidden. Native overlays use the shared bounded
 `NativeMediaImages` GIF/APNG/WebP decoder and animation loop/timing helper,
 without showing the original sampled frame through transparent animation
 pixels. All supported images must decode before switching to the cleared base.
-Retained overlay frames plus the base bitmap are bounded to 16 MiB per article
-and 32 MiB across article views; two asset groups run concurrently with at most
+Retained original raster, overlay frames, and image-free base bitmap (deduplicated
+by CGImage identity) are bounded to 16 MiB per article
+and 32 MiB across admitted article overlay groups; static-only renderer previews
+remain governed by the existing renderer cache, rather than this overlay budget.
+Two asset groups run concurrently with at most
 12 queued. Failures retain the original static raster and report the #134
 limitation. The owner supplies the same SVG-capable loader used by other media.
 
@@ -1069,3 +1072,12 @@ fetched again by native overlays. Final two hosted tests passed
 (`134-images-final.xcresult`), production simulator build passed
 (`134-images-production.log`), and existing three render contract/cache tests
 passed. No CI, physical capture prompts or user corpus mutations were used.
+
+Article image overlays refuse intersecting DOM text or non-ancestor element boxes so the
+original raster retains browser paint order. Queued image groups check cancellation
+and render identity before reserving decoded memory.
+
+Review-fix evidence: the retained actual-Chromium probe observed
+`overlay: true` for later positioned overlapping text before the stacking guard
+(`/tmp/134-images-stacking-red.log`), then passed with raster refusal. Worker
+TypeScript and production simulator app build passed after the review fixes.

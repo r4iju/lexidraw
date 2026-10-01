@@ -251,15 +251,18 @@ import Synchronization
       guard let self else { return }
       do {
         try await ArticleImageRequests.shared.perform { @MainActor [weak self] in
-          guard let self else { return }
+          guard let self, signature == expected else { return }
+          try Task.checkCancellation()
           var loaded: [(RenderedEmbed.ArticleImage,UIImage)] = []
-          var bytes=NativeMediaImages.decodedCost(background)
+          var retained = [background] + (self.image.map { [$0] } ?? [])
+          var bytes=ArticleImageBudget.decodedCost(retained)
           guard ArticleImageBudget.reserve(self,bytes:bytes) else { throw EditorError.unsupported("Article image memory budget exceeded (#134)") }
           for item in metadata {
             let image=try await (articleImageLoader ?? NativeMediaImages.load)(item.source)
             try Task.checkCancellation()
             guard signature == expected else { return }
-            bytes += NativeMediaImages.decodedCost(image)
+            retained.append(image)
+            bytes = ArticleImageBudget.decodedCost(retained)
             guard ArticleImageBudget.reserve(self,bytes:bytes) else { throw EditorError.unsupported("Article image memory budget exceeded (#134)") }
             loaded.append((item,image))
           }
@@ -314,6 +317,13 @@ import Synchronization
 
 @MainActor private enum ArticleImageBudget {
   private static let costs=NSMapTable<UIView,NSNumber>(keyOptions:.weakMemory,valueOptions:.strongMemory)
+  static func decodedCost(_ images:[UIImage])->Int {
+    var counted:Set<ObjectIdentifier>=[]
+    return images.flatMap { $0.images ?? [$0] }.reduce(0) { bytes,frame in
+      guard let bitmap=frame.cgImage, counted.insert(ObjectIdentifier(bitmap)).inserted else { return bytes }
+      return bytes + bitmap.bytesPerRow * bitmap.height
+    }
+  }
   static func reserve(_ owner:UIView,bytes:Int)->Bool {
     let previous=costs.object(forKey:owner)?.intValue ?? 0
     let total=costs.objectEnumerator()?.allObjects.compactMap { ($0 as? NSNumber)?.intValue }.reduce(0,+) ?? 0
