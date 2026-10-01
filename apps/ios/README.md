@@ -1139,3 +1139,25 @@ and saved REST box-version fixes. All 16 DocumentPreview UI tests pass, alongsid
 existing generated-slide 20,000-command oracle run (3,124 matched refusals,
 12 unported, zero unreadable). The standalone command fuzzer does not model the
 React modal lifetime; the production hosted UI tests cover that separate boundary.
+
+### Native emoji suggestions (#134)
+
+The source-mounted EmojiPickerPlugin is reachable through `:` in main documents
+and slide text. Its aliases/tags/order, first-ten limit, empty-query behavior and
+JavaScript trigger pattern are generated from the actual web picker/list and
+upstream hook. Selection inserts a source-created plain TextNode payload and
+removes the matched trigger through the existing native model paste command.
+Media captions mount EmojisPlugin transforms, not this picker.
+
+`EditorTypeaheadProvider` exposes async source-owned matches over a bounded
+256-UTF-16-unit suffix of the current normal text node. The shared native menu
+cancels obsolete requests and rechecks the node/caret/prefix before selection.
+It stays outside the UITextInput accessibility element and is exposed beside it
+by the app host. Touch selection is covered by the production EditorHarness UI
+case; hardware Up/Down/Return/Tab/Escape are wired but not physically exercised.
+Scrolling or resizing dismisses suggestions rather than leaving stale geometry.
+
+The new UI case genuinely failed waiting for the source-tag `grinning` option
+when typing `:smile` before implementation (`/tmp/134-emoji-red.xcresult`). It
+passes with the trigger replaced by `😀`, subsequent typing retained and the
+menu dismissed. No personal clipboard or corpus is used.

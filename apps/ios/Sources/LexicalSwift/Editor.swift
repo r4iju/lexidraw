@@ -29,6 +29,9 @@ public final class Editor: EditorModel {
 
   public var supportsRichText: Bool { !plainText }
   private let plainText: Bool
+  public var mountedTypeaheadPlugins: Set<String> {
+    editorContext == .document ? WebEmojiPicker.mainPlugins : Set(editorContext.mountedPlugins)
+  }
   private let editorContext: EditorContext
   private struct CaptionIdentity: Hashable {
     let key: NodeKey

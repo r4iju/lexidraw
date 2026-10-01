@@ -11,6 +11,12 @@ import {
   type TextNode,
 } from "lexical";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  EMOJI_TRIGGER,
+  EMOJI_MIN_LENGTH,
+  emojiOptions as sourceOptions,
+  emojiSuggestions,
+} from "./options";
 import { TypeaheadMenu } from "../typeahead-menu";
 
 class EmojiOption extends MenuOption {
@@ -42,8 +48,6 @@ type Emoji = {
   skin_tones?: boolean;
 };
 
-const MAX_EMOJI_SUGGESTION_COUNT = 10;
-
 export default function EmojiPickerPlugin() {
   const [editor] = useLexicalComposerContext();
   const [queryString, setQueryString] = useState<string | null>(null);
@@ -57,31 +61,21 @@ export default function EmojiPickerPlugin() {
 
   const emojiOptions = useMemo(
     () =>
-      emojis != null
-        ? emojis.map(
-            ({ emoji, aliases, tags }) =>
-              new EmojiOption(aliases[0] ?? "", emoji, {
-                keywords: [...aliases, ...tags],
-              }),
-          )
-        : [],
+      sourceOptions(emojis).map(
+        ({ title, emoji, keywords }) =>
+          new EmojiOption(title, emoji, { keywords }),
+      ),
     [emojis],
   );
 
-  const checkForTriggerMatch = useBasicTypeaheadTriggerMatch(":", {
-    minLength: 0,
+  const checkForTriggerMatch = useBasicTypeaheadTriggerMatch(EMOJI_TRIGGER, {
+    minLength: EMOJI_MIN_LENGTH,
   });
 
-  const options: EmojiOption[] = useMemo(() => {
-    const query = queryString?.toLowerCase() ?? "";
-    return emojiOptions
-      .filter((option) =>
-        option.keywords.some((keyword) =>
-          keyword.toLowerCase().includes(query),
-        ),
-      )
-      .slice(0, MAX_EMOJI_SUGGESTION_COUNT);
-  }, [emojiOptions, queryString]);
+  const options: EmojiOption[] = useMemo(
+    () => emojiSuggestions(emojiOptions, queryString),
+    [emojiOptions, queryString],
+  );
 
   const onSelectOption = useCallback(
     (
