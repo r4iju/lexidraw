@@ -56,6 +56,11 @@ public final class Editor: EditorModel {
         throw EditorError.invalidState("The caption owner no longer exists")
       }
       switch command {
+      case .undo, .redo:
+        if !editorContext.mountedPlugins.contains("HistoryPlugin") {
+          let change = try captionParent.apply(command)
+          return ChangeSet(clipboard: change.clipboard, parentChanged: !change.changed.isEmpty || change.parentChanged)
+        }
       case .insertList, .removeList:
         guard captionParent.state.selection != nil else { return ChangeSet(changed: []) }
         let change = try captionParent.apply(command)
@@ -330,18 +335,19 @@ public final class Editor: EditorModel {
     }
     let context: EditorContext
     switch node.type {
+    case "sticky": context = .stickyCaption
     case "image": context = .imageCaption
     case "inline-image": context = .inlineImageCaption
     default: throw EditorError.unsupported("This caption's ownership requires #134")
     }
     if let editor = captionEditors[key] { return editor }
     let fields = node.payload.json
-    guard let constructor = MediaInsertions.nodes[node.type],
+    guard let constructor = MediaInsertions.nodes[node.type] ?? StructuralBlockConfiguration.insertionNodes[node.type],
       let caption = try fields["caption"] ?? JSONValue(parsing: constructor)["caption"],
       let saved = caption["editorState"] else {
       throw EditorError.invalidState("No caption editor state")
     }
-    let editor = Editor(editorContext: context)
+    let editor = Editor(plainText: context.mountedPlugins.contains("PlainTextPlugin"), editorContext: context)
     try editor.load(saved)
     editor.captionParent = self
     editor.captionOwnerKey = key
