@@ -147,6 +147,29 @@ export async function swiftForStructuralBlocks(): Promise<string> {
   const padding = /padding: (\d+)px (\d+)px/.exec(callout);
   if (!radius || !padding)
     throw new Error("The callout geometry changed shape");
+  const calloutHeader = /\.callout-header \{([\s\S]*?)\}/.exec(document)?.[1] ?? "";
+  const calloutIcon = /\.callout-icon \{([\s\S]*?)\}/.exec(document)?.[1] ?? "";
+  const header = {
+    gap: /gap: (\d+)px/.exec(calloutHeader)?.[1],
+    after: /margin-bottom: (\d+)px/.exec(calloutHeader)?.[1],
+    weight: /font-weight: (\d+)/.exec(calloutHeader)?.[1],
+    lineHeight: /line-height: ([\d.]+)/.exec(calloutHeader)?.[1],
+    icon: /width: (\d+)px/.exec(calloutIcon)?.[1],
+  };
+  if (
+    Object.values(header).some((value) => value === undefined) ||
+    !/color: var\(--callout\)/.test(calloutHeader) ||
+    !/\.callout-body \{[^}]*color: var\(--foreground\)/.test(document)
+  )
+    throw new Error("The callout header changed shape");
+  // The icons are Lucide's, named in a comment beside each kind's mask.
+  const calloutIcons = Object.keys(CALLOUT_LABELS).map((kind) => {
+    const name = new RegExp(
+      `\\.callout\\[data-callout-kind="${kind}"\\] \\{[^}]*?/\\* Lucide ([\\w-]+) \\*/`,
+    ).exec(document)?.[1];
+    if (!name) throw new Error(`The ${kind} callout icon changed shape`);
+    return [kind, name] as const;
+  });
   const nodeSource = (name: string) =>
     Bun.file(new URL(`../../../packages/lexical-nodes/src/nodes/${name}.ts`, import.meta.url)).text();
   const itemClass = /root\.className = "([^"]+)";/.exec(await nodeSource("CollapsibleContainerNode"))?.[1]?.split(" ");
@@ -381,7 +404,7 @@ export async function swiftForStructuralBlocks(): Promise<string> {
     .map((v) => Number.parseFloat(v) / 100)
     .join(
       ", ",
-    )}]\n  public static let calloutRadius = ${radius}.0\n  public static let calloutPaddingY = ${padding[1]}.0\n  public static let calloutPaddingX = ${padding[2]}.0\n  public static let sectionBorderWidth = ${section.borderWidth}.0\n  public static let sectionBorderColors = ${JSON.stringify(rgbaColors("border"))}\n  public static let sectionRadius = ${section.radius}.0\n  public static let sectionPadding = ${section.padding}.0\n  public static let sectionTriggerPadding = ${section.triggerPadding}.0\n  public static let sectionTriggerMinimumHeight = ${section.triggerMinimumHeight}.0\n  public static let sectionTriggerGap = ${section.triggerGap}.0\n  public static let sectionChevronSize = ${section.chevronSize}.0\n  public static let sectionChevronColors = ${JSON.stringify(rgbaColors("muted-foreground"))}\n  public static let sectionChevronViewBox = ${section.chevronViewBox}.0\n  public static let sectionChevronStrokeWidth = ${section.chevronStrokeWidth}.0\n  public static let sectionChevronPoints: [(x: Double, y: Double)] = [${section.chevronPoints.map(([x, y]) => `(${x}.0, ${y}.0)`).join(", ")}]\n  public static let sectionTitleWeight = ${section.titleWeight}.0\n  public static let sectionLineHeight = ${section.lineHeight}\n  public static let layouts: [(label: String, value: String)] = [${layouts.map((v) => `(${string(v.label)}, ${string(v.value)})`).join(", ")}]\n  public static let stickyColors: [String:[String]] = [${["pink", "yellow", "green", "blue", "red", "orange", "purple", "gray"].map((k) => `${string(k)}: [${stickyPalette(k).map(string).join(", ")}]`).join(", ")}]\n  public static let dividerLabel = ${string(dividerLabel)}\n  public static let insertionNodes: [String:String] = [${Object.entries(
+    )}]\n  public static let calloutRadius = ${radius}.0\n  public static let calloutPaddingY = ${padding[1]}.0\n  public static let calloutPaddingX = ${padding[2]}.0\n  public static let calloutHeaderGap = ${header.gap}.0\n  public static let calloutHeaderAfter = ${header.after}.0\n  public static let calloutHeaderWeight = ${header.weight}.0\n  public static let calloutHeaderLineHeight = ${header.lineHeight}\n  public static let calloutIconSize = ${header.icon}.0\n  /// Lucide icon names by kind.\n  public static let calloutIcons: [String:String] = [${calloutIcons.map(([k, v]) => `${string(k)}: ${string(v)}`).join(", ")}]\n  public static let sectionBorderWidth = ${section.borderWidth}.0\n  public static let sectionBorderColors = ${JSON.stringify(rgbaColors("border"))}\n  public static let sectionRadius = ${section.radius}.0\n  public static let sectionPadding = ${section.padding}.0\n  public static let sectionTriggerPadding = ${section.triggerPadding}.0\n  public static let sectionTriggerMinimumHeight = ${section.triggerMinimumHeight}.0\n  public static let sectionTriggerGap = ${section.triggerGap}.0\n  public static let sectionChevronSize = ${section.chevronSize}.0\n  public static let sectionChevronColors = ${JSON.stringify(rgbaColors("muted-foreground"))}\n  public static let sectionChevronViewBox = ${section.chevronViewBox}.0\n  public static let sectionChevronStrokeWidth = ${section.chevronStrokeWidth}.0\n  public static let sectionChevronPoints: [(x: Double, y: Double)] = [${section.chevronPoints.map(([x, y]) => `(${x}.0, ${y}.0)`).join(", ")}]\n  public static let sectionTitleWeight = ${section.titleWeight}.0\n  public static let sectionLineHeight = ${section.lineHeight}\n  public static let layouts: [(label: String, value: String)] = [${layouts.map((v) => `(${string(v.label)}, ${string(v.value)})`).join(", ")}]\n  public static let stickyColors: [String:[String]] = [${["pink", "yellow", "green", "blue", "red", "orange", "purple", "gray"].map((k) => `${string(k)}: [${stickyPalette(k).map(string).join(", ")}]`).join(", ")}]\n  public static let dividerLabel = ${string(dividerLabel)}\n  public static let insertionNodes: [String:String] = [${Object.entries(
     nodes,
   )
     .map(([k, v]) => `${string(k)}: #"${JSON.stringify(v)}"#`)

@@ -71,6 +71,7 @@ public final class ReferenceEditor: EditorModel {
 
   /// Lexical edits every node it has registered.
   public var isEditable: Bool { true }
+  public var uneditableParts: [String] { [] }
 
   @discardableResult
   public func apply(_ command: EditorCommand) throws -> ChangeSet {

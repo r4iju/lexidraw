@@ -69,6 +69,11 @@ import UIKit
   private let stack = UIStackView()
   private var columns: NativeColumnsView?
   private var bodies: [EditorView] = []
+  /// A body as tall as its text, refitted whenever the panel is measured.
+  private var fittedBody: (editor: EditorView, height: NSLayoutConstraint)?
+  /// The width the body was last fitted at, and whether a refit is queued.
+  private var fittedWidth: CGFloat?
+  private var refitPending = false
   private var insets = UIEdgeInsets.zero
   private var dragStart: CGPoint?
   private var viewingSectionOpen: Bool?
@@ -164,6 +169,8 @@ import UIKit
       view.removeFromSuperview()
     }
     bodies = []
+    fittedBody = nil
+    fittedWidth = nil
     columns = nil
     section?.removeFromSuperview()
     section = nil
@@ -268,19 +275,101 @@ import UIKit
       bottom: StructuralBlockConfiguration.calloutPaddingY, right: StructuralBlockConfiguration.calloutPaddingX)
     layer.cornerRadius = StructuralBlockConfiguration.calloutRadius
     let colors = StructuralBlockConfiguration.calloutColors[kind] ?? []
-    do { backgroundColor = try themed(colors, opacity: StructuralBlockConfiguration.calloutTint) }
-    catch { label("Cannot render this callout (#133): \(structuralReason(error))"); return }
-    menu(
-      title.isEmpty ? StructuralBlockConfiguration.calloutLabels[kind] ?? kind : title,
-      entries: StructuralBlockConfiguration.calloutLabels.sorted { $0.key < $1.key }.map { kind, label in
-        (label, { [weak self] in self?.field("kind", .string(kind), rebuild: true) })
-      })
-    button("Edit callout title") { [weak self] in
-      self?.rename("Callout title", value: title) { self?.field("title", .string($0), rebuild: true) }
-    }
-    button("Edit callout body") { [weak self] in self?.editBody() }
+    let accent: UIColor
+    do {
+      backgroundColor = try themed(colors, opacity: StructuralBlockConfiguration.calloutTint)
+      accent = try themed(colors)
+    } catch { label("Cannot render this callout (#133): \(structuralReason(error))"); return }
+    let header = calloutHeader(
+      kind: kind, title: title.isEmpty ? StructuralBlockConfiguration.calloutLabels[kind] ?? kind : title, color: accent)
+    stack.addArrangedSubview(header)
+    stack.setCustomSpacing(StructuralBlockConfiguration.calloutHeaderAfter, after: header)
     body(document(node["children"]?.arrayValue ?? []), contextPath: [], shareDocumentMetadata: true) { _ in }
+    // The callout's tint shows through its body, its padding is the body's
+    // only inset, and the body is as tall as its text, as on the web.
+    guard let body = bodies.last else { return }
+    body.backgroundColor = .clear
+    body.contentMargin = 0
+    body.dropsTrailingSpace = true
+    if let height = body.constraints.first(where: { $0.firstAttribute == .height && $0.secondItem == nil }) {
+      fittedBody = (body, height)
+      body.onContentHeightChange = { [weak self] in self?.bodyHeightChanged() }
+    }
   }
+  /// The web draws the kind's icon and the title in the kind's colour. Where
+  /// the reader may edit, the header is the menu that changes the callout.
+  private func calloutHeader(kind: String, title: String, color: UIColor) -> UIView {
+    let size = owner?.points(webPixels: 16) ?? 16
+    let font = owner?.documentFont(webPixels: 16, weight: Int(StructuralBlockConfiguration.calloutHeaderWeight))
+      ?? .systemFont(ofSize: size, weight: .semibold)
+    let paragraph = NSMutableParagraphStyle()
+    paragraph.minimumLineHeight = size * StructuralBlockConfiguration.calloutHeaderLineHeight
+    paragraph.maximumLineHeight = paragraph.minimumLineHeight
+    let text = NSAttributedString(string: title, attributes: [.font: font, .foregroundColor: color, .paragraphStyle: paragraph])
+    let icon = Self.calloutSymbols[StructuralBlockConfiguration.calloutIcons[kind] ?? ""].flatMap {
+      UIImage(systemName: $0, withConfiguration: UIImage.SymbolConfiguration(pointSize: owner?.points(webPixels: StructuralBlockConfiguration.calloutIconSize) ?? 18, weight: .medium))
+    }
+    let gap = owner?.points(webPixels: StructuralBlockConfiguration.calloutHeaderGap) ?? 8
+    guard owner?.isEditable == true else {
+      let label = UILabel()
+      label.attributedText = text
+      label.numberOfLines = 0
+      label.accessibilityTraits.insert(.header)
+      let row = UIStackView(arrangedSubviews: [label])
+      if let icon {
+        let image = UIImageView(image: icon)
+        image.tintColor = color
+        image.setContentHuggingPriority(.required, for: .horizontal)
+        image.isAccessibilityElement = false
+        row.insertArrangedSubview(image, at: 0)
+      }
+      row.spacing = gap
+      row.alignment = .center
+      return row
+    }
+    var configuration = UIButton.Configuration.plain()
+    configuration.attributedTitle = try? AttributedString(text, including: \.uiKit)
+    configuration.image = icon
+    configuration.imagePadding = gap
+    configuration.baseForegroundColor = color
+    configuration.contentInsets = .zero
+    configuration.titleAlignment = .leading
+    let button = UIButton(configuration: configuration)
+    button.contentHorizontalAlignment = .leading
+    button.accessibilityHint = "Changes the callout’s kind, title or content"
+    button.showsMenuAsPrimaryAction = true
+    let kinds = StructuralBlockConfiguration.calloutLabels.sorted { $0.key < $1.key }.map { value, name in
+      UIAction(title: name, state: value == kind ? .on : .off) { [weak self] _ in
+        self?.field("kind", .string(value), rebuild: true)
+      }
+    }
+    let current = node["title"]?.stringValue ?? ""
+    button.menu = UIMenu(children: [
+      UIMenu(title: "Kind", options: .displayInline, children: kinds),
+      UIAction(title: "Edit callout title") { [weak self] _ in
+        self?.rename("Callout title", value: current) { self?.field("title", .string($0), rebuild: true) }
+      },
+      UIAction(title: "Edit callout body") { [weak self] _ in self?.editBody() },
+    ])
+    return button
+  }
+  /// Images load after the body was fitted; the parent re-measures the
+  /// callout once, after its own layout, if the body's height really changed.
+  private func bodyHeightChanged() {
+    guard fittedWidth != nil, !refitPending else { return }
+    refitPending = true
+    DispatchQueue.main.async { [weak self] in
+      guard let self else { return }
+      self.refitPending = false
+      guard let fittedBody = self.fittedBody, let width = self.fittedWidth else { return }
+      if abs(fittedBody.editor.fittingHeight(width: width) - fittedBody.height.constant) > 0.5 { self.owner?.refreshEmbeddedContent() }
+    }
+  }
+  /// SF Symbols for the web's Lucide callout icons.
+  private static let calloutSymbols: [String: String] = [
+    "info": "info.circle", "lightbulb": "lightbulb", "message-square-warning": "exclamationmark.bubble",
+    "triangle-alert": "exclamationmark.triangle", "octagon-alert": "exclamationmark.octagon",
+  ]
   private func collapsible() {
     let open = viewingSectionOpen ?? node["open"]?.isTruthy ?? false
     let children = node["children"]?.arrayValue ?? []
@@ -902,6 +991,10 @@ import UIKit
     let actualWidth = node["type"] == "sticky" ? min(width, StructuralBlockConfiguration.stickyWidth) : width
     let inner = max(1, actualWidth - insets.left - insets.right)
     columns?.prepare(width: inner, stacked: width <= StructuralBlockConfiguration.stackedColumnsWidth)
+    if let fittedBody {
+      fittedBody.height.constant = fittedBody.editor.fittingHeight(width: inner)
+      fittedWidth = inner
+    }
     let size = stack.systemLayoutSizeFitting(
       CGSize(width: inner, height: UIView.layoutFittingCompressedSize.height), withHorizontalFittingPriority: .required,
       verticalFittingPriority: .fittingSizeLevel)

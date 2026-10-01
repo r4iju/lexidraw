@@ -33,6 +33,7 @@ struct DocumentScreen: View {
   let session: Session
   let settings: DocumentSettings
   let font: DocumentFont
+  let header: DocumentHeader?
   private let appState: JSONValue?
   private let saver: DocumentSaver
   private var sending: Task<Void, Never>?
@@ -49,6 +50,8 @@ struct DocumentScreen: View {
     self.session = session
     self.settings = settings
     self.font = font
+    // A header the web's code can't read isn't shown; the root keeps it.
+    header = stored.state["root"]?["$"]?["header"].flatMap { try? DocumentHeader($0, language: settings.language) }
     id = stored.id
     title = stored.title
     appState = stored.appState
@@ -129,7 +132,9 @@ private struct DocumentContent: View {
       switch editing.mode {
       case .readOnly: Label("Read only", systemImage: "eye")
       case .notYetEditable:
-        Label("Read only: this document has parts the app can’t edit yet", systemImage: "eye")
+        Label(
+          "Read only: the app can’t edit \(ListFormatter.localizedString(byJoining: editing.model.uneditableParts)) yet",
+          systemImage: "eye")
       case .editing:
         if editing.conflict {
           Text(
@@ -170,6 +175,7 @@ private struct DocumentEditor: UIViewRepresentable {
       model: editing.model, isEditable: editing.mode == .editing,
       language: editing.settings.language, font: editing.font)
     view.onChange = { [weak editing] in editing?.changed() }
+    view.documentHeader = editing.header
     let accountIdentity = Task { [session = editing.session] in try? await session.identity() }
     view.configureNestedEmbeds = { [weak editing] nested in
       guard let editing else { return }

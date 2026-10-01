@@ -160,3 +160,12 @@ const { EMOJI_PICKER_PATH, swiftForEmojiPicker } = await import("./emoji-picker"
 await Bun.write(EMOJI_PICKER_PATH, await swiftForEmojiPicker());
 const { MENTIONS_PATH, swiftForMentions } = await import("./mentions");
 await Bun.write(MENTIONS_PATH, await swiftForMentions());
+
+const {
+  DOCUMENT_HEADER_STYLE_PATH,
+  swiftForDocumentHeaderStyle,
+  DOCUMENT_HEADER_SCRIPT_PATH,
+  swiftForDocumentHeaderScript,
+} = await import("./document-header");
+await Bun.write(DOCUMENT_HEADER_STYLE_PATH, await swiftForDocumentHeaderStyle());
+await Bun.write(DOCUMENT_HEADER_SCRIPT_PATH, await swiftForDocumentHeaderScript());

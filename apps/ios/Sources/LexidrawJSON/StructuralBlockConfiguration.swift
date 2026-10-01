@@ -26,6 +26,13 @@ public enum StructuralBlockConfiguration {
   public static let calloutRadius = 8.0
   public static let calloutPaddingY = 12.0
   public static let calloutPaddingX = 16.0
+  public static let calloutHeaderGap = 8.0
+  public static let calloutHeaderAfter = 4.0
+  public static let calloutHeaderWeight = 600.0
+  public static let calloutHeaderLineHeight = 1.5
+  public static let calloutIconSize = 18.0
+  /// Lucide icon names by kind.
+  public static let calloutIcons: [String:String] = ["note": "info", "tip": "lightbulb", "important": "message-square-warning", "warning": "triangle-alert", "caution": "octagon-alert"]
   public static let sectionBorderWidth = 1.0
   public static let sectionBorderColors = ["rgba(224.655, 224.75955000000002, 228.466995, 1)","rgba(47.69469, 47.785725, 52.297439999999995, 1)"]
   public static let sectionRadius = 10.0
