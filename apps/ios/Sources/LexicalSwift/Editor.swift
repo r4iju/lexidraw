@@ -46,6 +46,8 @@ public final class Editor: EditorModel, KeyboardInputHistory {
   /// breaks, tabs and text in any format, with no field the payload types
   /// don't model, tables of them, and embedded drawing nodes.
   public private(set) var isEditable = false
+  /// What keeps the document from being editable, by node type or root state.
+  public private(set) var uneditableParts: [String] = []
   private var knowsListMarker = false
   /// How many markdown shortcuts this editor has left as typed where Lexical
   /// runs a transformer LexicalSwift doesn't port yet.
@@ -115,7 +117,22 @@ public final class Editor: EditorModel, KeyboardInputHistory {
     history = History(state)
     captionEditors = [:]
     knowsListMarker = false
-    isEditable = state.nodes.values.allSatisfy(\.isEditable)
+    uneditableParts = Self.uneditableParts(of: state)
+    isEditable = uneditableParts.isEmpty
+  }
+
+  private static func uneditableParts(of state: EditorState) -> [String] {
+    var parts: [String] = []
+    for key in state.nodes.keys.sorted() {
+      let node = state.nodes[key]!
+      if case .root(let root) = node.payload, !root.unreadState.isEmpty {
+        parts += root.unreadState.map { "root state “\($0)”" }
+      } else if !node.isEditable {
+        parts.append(node.type)
+      }
+    }
+    var seen = Set<String>()
+    return parts.filter { seen.insert($0).inserted }
   }
 
   @discardableResult
@@ -603,7 +620,7 @@ public final class Editor: EditorModel, KeyboardInputHistory {
 extension Node {
   var isEditable: Bool {
     switch payload {
-    case .root(let node): node.unknownFields.isEmpty
+    case .root(let node): node.unknownFields.keys.allSatisfy { $0 == "$" } && node.unreadState.isEmpty
     case .paragraph(let node): node.unknownFields.isEmpty
     case .heading(let node): node.unknownFields.isEmpty
     case .quote(let node): node.unknownFields.isEmpty && node.shadowRoot != true
@@ -702,6 +719,19 @@ extension Node {
     "footnote-definition": 134, "footnote-reference": 134, "article": 134, "mark": 134,
     "excalidraw": 139,
   ]
+}
+
+extension SerializedRootNode {
+  /// The web keeps its document header on the root's NodeState and edits it
+  /// only through the header, never through content commands, so it stays as
+  /// it was stored while the content is edited.
+  static let preservedState: Set<String> = ["header"]
+
+  var unreadState: [String] {
+    guard let state = unknownFields["$"] else { return [] }
+    guard case .object(let fields) = state else { return ["$"] }
+    return fields.keys.filter { !Self.preservedState.contains($0) }.sorted()
+  }
 }
 
 extension Optional {

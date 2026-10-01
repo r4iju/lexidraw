@@ -18,6 +18,8 @@ public protocol EditorModel: AnyObject {
   /// Whether the model can edit the document loaded. One that can't refuses
   /// every command that would change it as `EditorError.unsupported`.
   var isEditable: Bool { get }
+  /// Names what keeps the document from being editable, for the reader.
+  var uneditableParts: [String] { get }
   var supportsRichText: Bool { get }
   var mountedTypeaheadPlugins: Set<String> { get }
 

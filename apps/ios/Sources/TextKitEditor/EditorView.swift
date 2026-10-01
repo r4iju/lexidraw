@@ -87,6 +87,68 @@ public final class EditorView: UIScrollView, UITextInput {
     return editor
   }
 
+  /// The document's font and size for text the web sets in pixels beside
+  /// the content, such as a callout's title, following the reader's text size.
+  public func documentFont(webPixels pixels: CGFloat, weight: Int) -> UIFont {
+    typesetting.font(webPixels: pixels, weight: weight)
+  }
+  public func points(webPixels pixels: CGFloat) -> CGFloat { typesetting.points(webPixels: pixels) }
+  public var documentLanguage: String? { typesetting.language }
+  /// Around the text, and between it and the edge of the view. A nested
+  /// editor whose container pads it as the web does sets it to zero.
+  public var contentMargin: CGFloat {
+    get { layout.contentMargin }
+    set {
+      layout.contentMargin = newValue
+      setNeedsLayout()
+    }
+  }
+
+  /// The web's document header, which it keeps on the root's NodeState,
+  /// shown read-only above the content.
+  public var documentHeader: DocumentHeader? {
+    didSet {
+      guard documentHeader != oldValue else { return }
+      guard let header = documentHeader, !header.isEmpty else { layout.leading = nil; setNeedsLayout(); return }
+      if let view = layout.leading {
+        view.header = header
+      } else {
+        let view = DocumentHeaderView(
+          header: header, points: { [typesetting] in typesetting.points(webPixels: $0) },
+          font: { [typesetting] in typesetting.font(webPixels: $0, weight: $1) })
+        view.imageLoader = mediaImageLoader ?? { try await NativeMediaImages.load($0) }
+        view.onSelectHeading = { [weak self] in self?.layout.scrollToBlock($0) }
+        view.registerForTraitChanges([UITraitUserInterfaceStyle.self, UITraitPreferredContentSizeCategory.self]) {
+          [weak self] (view: DocumentHeaderView, _: UITraitCollection) in
+          view.refresh()
+          self?.layout.invalidateLeading()
+          self?.setNeedsLayout()
+        }
+        layout.leading = view
+      }
+      updateDocumentOutline()
+      layout.invalidateLeading()
+      setNeedsLayout()
+    }
+  }
+
+  /// The headings the header's contents list names: H2 and H3 at the root,
+  /// as the web's lists them.
+  private func updateDocumentOutline() {
+    guard let view = layout.leading, view.header.toc else { return }
+    let text = storage.string as NSString
+    let outline = (0..<document.blockCount).compactMap { index -> DocumentHeaderView.Heading? in
+      let type = document.type(ofBlock: index)
+      guard type == "h2" || type == "h3" else { return nil }
+      let heading = text.substring(with: document.range(ofBlock: index)).trimmingCharacters(in: .whitespacesAndNewlines)
+      return heading.isEmpty ? nil : .init(block: index, text: heading, subheading: type == "h3")
+    }
+    if outline != view.outline {
+      view.outline = outline
+      layout.invalidateLeading()
+    }
+  }
+
   public func structuralNode(key: String) throws -> JSONValue {
     try model.node(at: model.nodePath(for: key))
   }
@@ -293,7 +355,11 @@ public final class EditorView: UIScrollView, UITextInput {
 
   /// Optional platform decoder/rasterizer; the built-in raster loader is the default.
   public var mediaImageLoader: MediaImageLoader? {
-    didSet { layout.mediaImageLoader = mediaImageLoader; configureInlineAttachments() }
+    didSet {
+      layout.mediaImageLoader = mediaImageLoader
+      layout.leading?.imageLoader = mediaImageLoader ?? { try await NativeMediaImages.load($0) }
+      configureInlineAttachments()
+    }
   }
 
   private func configureInlineAttachments() {
@@ -301,7 +367,7 @@ public final class EditorView: UIScrollView, UITextInput {
     else {
       document.nativeAttachment = { [weak self] node, path in
         guard let self, let key = nodeKey(at: path) else { return nil }
-        if let view = inlineEmbeddedContent?(key, node, max(bounds.width - BlockLayout.margin * 2, 1)) { return view }
+        if let view = inlineEmbeddedContent?(key, node, max(bounds.width - contentMargin * 2, 1)) { return view }
         guard let loader = mediaImageLoader, let payload = MediaPayload(node), ["image", "inline-image"].contains(payload.type) else { return nil }
         return MediaAttachment(payload, imageLoader: loader)
       }
@@ -712,6 +778,7 @@ public final class EditorView: UIScrollView, UITextInput {
     }
     refreshSharedMetadata()
     updateEmbeddedAccessibility()
+    updateDocumentOutline()
     setNeedsLayout()
   }
 

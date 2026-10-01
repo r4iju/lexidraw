@@ -249,19 +249,83 @@ import UIKit
       bottom: StructuralBlockConfiguration.calloutPaddingY, right: StructuralBlockConfiguration.calloutPaddingX)
     layer.cornerRadius = StructuralBlockConfiguration.calloutRadius
     let colors = StructuralBlockConfiguration.calloutColors[kind] ?? []
-    do { backgroundColor = try themed(colors, opacity: StructuralBlockConfiguration.calloutTint) }
-    catch { label("Cannot render this callout (#133): \(structuralReason(error))"); return }
-    menu(
-      title.isEmpty ? StructuralBlockConfiguration.calloutLabels[kind] ?? kind : title,
-      entries: StructuralBlockConfiguration.calloutLabels.sorted { $0.key < $1.key }.map { kind, label in
-        (label, { [weak self] in self?.field("kind", .string(kind), rebuild: true) })
-      })
-    button("Edit callout title") { [weak self] in
-      self?.rename("Callout title", value: title) { self?.field("title", .string($0), rebuild: true) }
-    }
-    button("Edit callout body") { [weak self] in self?.editBody() }
+    let accent: UIColor
+    do {
+      backgroundColor = try themed(colors, opacity: StructuralBlockConfiguration.calloutTint)
+      accent = try themed(colors)
+    } catch { label("Cannot render this callout (#133): \(structuralReason(error))"); return }
+    let header = calloutHeader(
+      kind: kind, title: title.isEmpty ? StructuralBlockConfiguration.calloutLabels[kind] ?? kind : title, color: accent)
+    stack.addArrangedSubview(header)
+    stack.setCustomSpacing(StructuralBlockConfiguration.calloutHeaderAfter, after: header)
     body(document(node["children"]?.arrayValue ?? []), contextPath: [], shareDocumentMetadata: true) { _ in }
+    // The callout's tint shows through its body, and its padding is the
+    // body's only inset, as on the web.
+    bodies.last?.backgroundColor = .clear
+    bodies.last?.contentMargin = 0
   }
+  /// The web draws the kind's icon and the title in the kind's colour. Where
+  /// the reader may edit, the header is the menu that changes the callout.
+  private func calloutHeader(kind: String, title: String, color: UIColor) -> UIView {
+    let size = owner?.points(webPixels: 16) ?? 16
+    let font = owner?.documentFont(webPixels: 16, weight: Int(StructuralBlockConfiguration.calloutHeaderWeight))
+      ?? .systemFont(ofSize: size, weight: .semibold)
+    let paragraph = NSMutableParagraphStyle()
+    paragraph.minimumLineHeight = size * StructuralBlockConfiguration.calloutHeaderLineHeight
+    paragraph.maximumLineHeight = paragraph.minimumLineHeight
+    let text = NSAttributedString(string: title, attributes: [.font: font, .foregroundColor: color, .paragraphStyle: paragraph])
+    let icon = Self.calloutSymbols[StructuralBlockConfiguration.calloutIcons[kind] ?? ""].flatMap {
+      UIImage(systemName: $0, withConfiguration: UIImage.SymbolConfiguration(pointSize: owner?.points(webPixels: StructuralBlockConfiguration.calloutIconSize) ?? 18, weight: .medium))
+    }
+    let gap = owner?.points(webPixels: StructuralBlockConfiguration.calloutHeaderGap) ?? 8
+    guard owner?.isEditable == true else {
+      let label = UILabel()
+      label.attributedText = text
+      label.numberOfLines = 0
+      label.accessibilityTraits.insert(.header)
+      let row = UIStackView(arrangedSubviews: [label])
+      if let icon {
+        let image = UIImageView(image: icon)
+        image.tintColor = color
+        image.setContentHuggingPriority(.required, for: .horizontal)
+        image.isAccessibilityElement = false
+        row.insertArrangedSubview(image, at: 0)
+      }
+      row.spacing = gap
+      row.alignment = .center
+      return row
+    }
+    var configuration = UIButton.Configuration.plain()
+    configuration.attributedTitle = try? AttributedString(text, including: \.uiKit)
+    configuration.image = icon
+    configuration.imagePadding = gap
+    configuration.baseForegroundColor = color
+    configuration.contentInsets = .zero
+    configuration.titleAlignment = .leading
+    let button = UIButton(configuration: configuration)
+    button.contentHorizontalAlignment = .leading
+    button.accessibilityHint = "Changes the callout’s kind, title or content"
+    button.showsMenuAsPrimaryAction = true
+    let kinds = StructuralBlockConfiguration.calloutLabels.sorted { $0.key < $1.key }.map { value, name in
+      UIAction(title: name, state: value == kind ? .on : .off) { [weak self] _ in
+        self?.field("kind", .string(value), rebuild: true)
+      }
+    }
+    let current = node["title"]?.stringValue ?? ""
+    button.menu = UIMenu(children: [
+      UIMenu(title: "Kind", options: .displayInline, children: kinds),
+      UIAction(title: "Edit callout title") { [weak self] _ in
+        self?.rename("Callout title", value: current) { self?.field("title", .string($0), rebuild: true) }
+      },
+      UIAction(title: "Edit callout body") { [weak self] _ in self?.editBody() },
+    ])
+    return button
+  }
+  /// SF Symbols for the web's Lucide callout icons.
+  private static let calloutSymbols: [String: String] = [
+    "info": "info.circle", "lightbulb": "lightbulb", "message-square-warning": "exclamationmark.bubble",
+    "triangle-alert": "exclamationmark.triangle", "octagon-alert": "exclamationmark.octagon",
+  ]
   private func collapsible() {
     let open = viewingSectionOpen ?? node["open"]?.isTruthy ?? false
     let children = node["children"]?.arrayValue ?? []

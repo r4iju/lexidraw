@@ -9,6 +9,7 @@ import Testing
     var shortcutsDeclinedAsNotPorted: Int { editor.shortcutsDeclinedAsNotPorted }
     func load(_ state: JSONValue) throws { try editor.load(state) }
     var isEditable: Bool { editor.isEditable }
+    var uneditableParts: [String] { editor.uneditableParts }
     func snapshot() throws -> Snapshot { try editor.snapshot() }
     func selection() throws -> Selection? { try editor.selection() }
     func node(at path: [Int]) throws -> JSONValue { try editor.node(at: path) }
@@ -190,6 +191,7 @@ import Testing
       changed = false
     }
     var isEditable: Bool { model.isEditable }
+    var uneditableParts: [String] { model.uneditableParts }
     func snapshot() throws -> Snapshot {
       if changed { throw failure }
       return try model.snapshot()

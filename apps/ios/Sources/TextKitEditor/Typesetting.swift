@@ -54,6 +54,16 @@ final class Typesetting {
 
   func fontSize(_ block: StyledBlock) -> CGFloat { typography.fontSize(block, width: width) * em }
 
+  /// The web's body text is 16px, so one of its pixels is a sixteenth of an em.
+  func points(webPixels pixels: CGFloat) -> CGFloat { pixels / 16 * em }
+
+  /// The document's font at `pixels` of the web's, in a CSS weight.
+  func font(webPixels pixels: CGFloat, weight: Int) -> UIFont {
+    let size = points(webPixels: pixels)
+    return documentFont?.font(size: size, weight: Self.weight(weight), italic: false)
+      ?? UIFont.systemFont(ofSize: size, weight: Self.weight(weight))
+  }
+
   func lineHeight(_ block: StyledBlock) -> CGFloat { setting(block).lineHeight * fontSize(block) }
 
   /// What a block's text is set by besides its size and weight: a table's

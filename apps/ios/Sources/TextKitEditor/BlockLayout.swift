@@ -20,9 +20,23 @@ import UIKit
 @MainActor final class BlockLayout {
   /// Around the text, and between it and the edge of the view.
   static let margin: CGFloat = 16
+  /// This view's margin; nested editors whose container pads them as the
+  /// web does set it to zero.
+  var contentMargin = BlockLayout.margin
 
   /// What the text is drawn in, and `EditorView`'s text input view.
   let surface = UIView()
+  /// Shown above the text, in its column: the document header.
+  var leading: DocumentHeaderView? {
+    didSet {
+      if oldValue !== leading { oldValue?.removeFromSuperview() }
+      leadingWidth = nil
+    }
+  }
+  private var leadingHeight: CGFloat = 0
+  /// The width `leading` was last laid out at, or nil where it must be again.
+  private var leadingWidth: CGFloat?
+  func invalidateLeading() { leadingWidth = nil }
   private let storage: NSTextStorage
   private let document: DocumentText
   private let typesetting: Typesetting
@@ -171,7 +185,7 @@ import UIKit
 
   // MARK: Heights
 
-  private var visibleTop: CGFloat { (scrollView?.contentOffset.y ?? 0) - Self.margin }
+  private var visibleTop: CGFloat { (scrollView?.contentOffset.y ?? 0) - contentMargin - leadingHeight }
 
   private func top(_ index: Int) -> CGFloat {
     if index > validTops {
@@ -318,7 +332,8 @@ import UIKit
     self.scrollView = scrollView
     if surface.superview !== scrollView { scrollView.addSubview(surface) }
     if heights.count != document.blockCount { reset() }
-    let width = max(scrollView.bounds.width - 2 * Self.margin, 0)
+    let width = max(scrollView.bounds.width - 2 * contentMargin, 0)
+    layoutLeading(in: scrollView, width: width)
     if width != self.width {
       cancelPreparation()
       // What is at the top stays there, as far into its block as it was.
@@ -329,7 +344,7 @@ import UIKit
       heights = heights.indices.map { index in laidOut[index].map { $0.height + spaceAfter(index) } ?? estimate(index) }
       measured = heights.indices.map { laidOut[$0] != nil }
       validTops = 0
-      if !heights.isEmpty { scrollView.contentOffset.y = top(anchor) + within * heights[anchor] + Self.margin }
+      if !heights.isEmpty { scrollView.contentOffset.y = top(anchor) + within * heights[anchor] + contentMargin + leadingHeight }
     }
     guard !heights.isEmpty else { return }
     // Laying out blocks can bring more into the viewport.
@@ -361,19 +376,48 @@ import UIKit
         laidOut[index] = nil
       }
     }
-    let margin = Self.margin
+    let margin = contentMargin
     let visible = scrollView.bounds.height - scrollView.adjustedContentInset.top - scrollView.adjustedContentInset.bottom
     // A tap anywhere below the text lands on the surface and puts the caret
     // at the end.
-    let surfaceHeight = max(totalHeight, visible - 2 * margin)
-    let frame = CGRect(x: margin, y: margin, width: width, height: surfaceHeight)
+    let surfaceHeight = max(totalHeight, visible - 2 * margin - leadingHeight)
+    let frame = CGRect(x: margin, y: margin + leadingHeight, width: width, height: surfaceHeight)
     if surface.frame != frame { surface.frame = frame }
-    let size = CGSize(width: scrollView.bounds.width, height: surfaceHeight + 2 * margin)
+    let size = CGSize(width: scrollView.bounds.width, height: surfaceHeight + 2 * margin + leadingHeight)
     if scrollView.contentSize != size { scrollView.contentSize = size }
   }
 
   func redraw() {
     for block in laidOut.values { block.redraw() }
+  }
+
+  /// Lays `leading` out above the text where its width or content changed,
+  /// keeping what is on screen below it in place.
+  private func layoutLeading(in scrollView: UIScrollView, width: CGFloat) {
+    guard let leading else {
+      if leadingHeight != 0 { moveText(by: -leadingHeight, in: scrollView); leadingHeight = 0 }
+      return
+    }
+    if leading.superview !== scrollView { scrollView.addSubview(leading) }
+    guard leadingWidth != width else { return }
+    leadingWidth = width
+    let height = leading.layout(width: width, viewportHeight: scrollView.bounds.height)
+    leading.frame = CGRect(x: contentMargin, y: contentMargin, width: width, height: height)
+    if height != leadingHeight { moveText(by: height - leadingHeight, in: scrollView); leadingHeight = height }
+  }
+
+  private func moveText(by change: CGFloat, in scrollView: UIScrollView) {
+    if scrollView.contentOffset.y > contentMargin + leadingHeight { scrollView.contentOffset.y += change }
+  }
+
+  /// Scrolls block `index`'s top to the top of the view, as the web's
+  /// contents list scrolls a heading into view.
+  func scrollToBlock(_ index: Int) {
+    guard let scrollView, heights.indices.contains(index) else { return }
+    let insets = scrollView.adjustedContentInset
+    let maximum = max(scrollView.contentSize.height - scrollView.bounds.height + insets.bottom, -insets.top)
+    let y = min(contentMargin + leadingHeight + top(index) - insets.top, maximum)
+    scrollView.setContentOffset(CGPoint(x: scrollView.contentOffset.x, y: y), animated: !UIAccessibility.isReduceMotionEnabled)
   }
 
   /// The cells of the table block a table selection has, drawn as the web

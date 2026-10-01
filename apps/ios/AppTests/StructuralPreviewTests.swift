@@ -58,6 +58,8 @@ import TextKitEditor
     let fixture = try preview(["type": "callout", "version": 1, "kind": "note", "title": "", "format": "center", "direction": "rtl", "indent": 2, "children": [paragraph]])
     let reference = fixture.owner.makeNestedEditor(model: fixture.model, isEditable: false)
     reference.embeddedElementTypes = []
+    // Laid out as the body is, so only the inherited format differs.
+    reference.contentMargin = fixture.body.contentMargin
     reference.frame = fixture.body.bounds
     reference.layoutIfNeeded()
     XCTAssertEqual(fixture.body.caretRect(for: fixture.body.beginningOfDocument).minX,
@@ -204,5 +206,29 @@ import TextKitEditor
     let mixed = try preview(["type": "callout", "version": 1, "kind": "note", "title": "", "format": "start", "direction": "rtl", "indent": 2, "children": [paragraph]])
     XCTAssertEqual(mixed.body.caretRect(for: mixed.body.beginningOfDocument).minX,
       plain.body.caretRect(for: plain.body.beginningOfDocument).minX, accuracy: 1)
+  }
+
+  func testReadOnlyCalloutShowsTheWebHeaderWithoutEditControls() throws {
+    let paragraph: JSONValue = ["type": "paragraph", "version": 1, "children": [["type": "text", "version": 1, "text": "本資料"]]]
+    let fixture = try preview(["type": "callout", "version": 1, "kind": "important", "title": "このPDFについて", "children": [paragraph]])
+    fixture.panel.overrideUserInterfaceStyle = .dark
+    func all(_ view: UIView) -> [UIView] { view.subviews + view.subviews.flatMap(all) }
+    let views = all(fixture.panel).filter { !$0.isDescendant(of: fixture.body) }
+    XCTAssertEqual(views.compactMap { $0 as? UIButton }.count, 0)
+    let title = try XCTUnwrap(views.compactMap { $0 as? UILabel }.first { $0.text == "このPDFについて" })
+    let dark = UITraitCollection(userInterfaceStyle: .dark)
+    var red: CGFloat = 0, green: CGFloat = 0, blue: CGFloat = 0, alpha: CGFloat = 0
+    title.textColor.resolvedColor(with: dark).getRed(&red, green: &green, blue: &blue, alpha: &alpha)
+    // Source .dark --callout-important: #ab7df8.
+    XCTAssertEqual(red, 0xab / 255, accuracy: 0.002)
+    XCTAssertEqual(green, 0x7d / 255, accuracy: 0.002)
+    XCTAssertEqual(blue, 0xf8 / 255, accuracy: 0.002)
+    XCTAssertEqual(alpha, 1)
+    let body = fixture.body.backgroundColor?.resolvedColor(with: dark)
+    body?.getRed(&red, green: &green, blue: &blue, alpha: &alpha)
+    XCTAssertTrue(body == nil || alpha == 0, "The callout's tint shows through its body, as on the web")
+    // The callout's padding is the only inset before its text, as on the web.
+    let caret = fixture.body.textInputView.convert(fixture.body.caretRect(for: fixture.body.beginningOfDocument), to: fixture.panel)
+    XCTAssertEqual(caret.minX, StructuralBlockConfiguration.calloutPaddingX, accuracy: 1)
   }
 }
