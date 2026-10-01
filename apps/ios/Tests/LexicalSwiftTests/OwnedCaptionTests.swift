@@ -3,6 +3,37 @@ import LexidrawJSON
 import Testing
 
 @Suite struct OwnedCaptionTests {
+  @Test(arguments: ["image", "inline-image"])
+  func parentUndoRestoringVisibilityRemountsCaptionHistory(type: String) throws {
+    let constructor = try #require(MediaInsertions.nodes[type])
+    var fields = try #require(JSONValue(parsing: constructor).objectValue)
+    fields["showCaption"] = true
+    fields["caption"] = ["editorState": document(paragraph(text("Caption")))]
+    let initial = document(paragraph(text("Parent")), paragraph(.object(fields)))
+    let parent = Editor()
+    try parent.load(initial)
+    let key = try #require(parent.childKeys(at: [1]).first)
+    let caption = try parent.captionEditor(key: key)
+    let source = try Support.referenceEditor(editorContext: type == "image" ? .imageCaption : .inlineImageCaption)
+    try source.loadNested(parent: initial, ownerPath: [1, 0])
+    for command: EditorCommand in [.caret(.text([0, 0], 7)), .insertText("!")] {
+      try caption.apply(command)
+      try source.apply(command)
+    }
+    let expected = try parent.node(at: [1, 0])
+    var replacement = try #require(expected.objectValue)
+    replacement["showCaption"] = false
+    _ = try parent.replaceEmbeddedNode(key: key, expected: expected, replacement: .object(replacement))
+    try source.setCaptionVisibility(false)
+    try parent.apply(.undo)
+    try source.applyToParent(.undo)
+    try source.remountCaption()
+    #expect(try parent.snapshot() == source.parentSnapshot())
+    try caption.apply(.undo)
+    try source.apply(.undo)
+    #expect(try caption.snapshot() == source.snapshot())
+    #expect(try parent.snapshot() == source.parentSnapshot())
+  }
   @Test func showingARetainedCaptionStartsANewMountedHistory() throws {
     var fields = try #require(JSONValue(parsing: MediaImages.insertionNodeJSON).objectValue)
     fields["showCaption"] = true

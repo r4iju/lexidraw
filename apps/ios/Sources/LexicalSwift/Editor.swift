@@ -124,6 +124,7 @@ public final class Editor: EditorModel {
     case .undo, .redo:
       let restored = command == .undo ? history.undo(at: now) : history.redo(at: now)
       guard let restored else { return ChangeSet(changed: []) }
+      resetMountedCaptionHistory(from: state, to: restored, keys: Array(Set(captionEditors.keys.map(\.key))))
       defer { state = restored }
       return ChangeSet(changed: restored.changedPaths(since: state))
     default:
@@ -342,17 +343,7 @@ public final class Editor: EditorModel {
         captionEditors[nextIdentity] = copy
       }
     }
-    // Showing a hidden caption mounts a new HistoryPlugin over the same
-    // retained editor state; reopening must not undo edits from its old mount.
-    for key in update.changedKeys {
-      guard let previous = state.nodes[key], let shown = next.nodes[key],
-        ["image", "inline-image", "video"].contains(shown.type),
-        previous.payload.json["showCaption"] != true,
-        shown.payload.json["showCaption"] == true,
-        shown.type == "image" || shown.payload.json["captionsEnabled"] != false,
-        let caption = captionEditors[captionIdentity(for: key, in: next)] else { continue }
-      caption.history = History(caption.state)
-    }
+    resetMountedCaptionHistory(from: state, to: next, keys: update.changedKeys)
     state = next
     nextKey = update.nextKey
     knowsListMarker = update.knowsListMarker
@@ -371,6 +362,21 @@ public final class Editor: EditorModel {
   public func serializedState() throws -> JSONValue {
     guard !state.nodes.isEmpty else { throw EditorError.invalidState("No document loaded") }
     return ["root": captionJSON(of: EditorState.rootKey)]
+  }
+
+  private func resetMountedCaptionHistory(from previous: EditorState, to next: EditorState, keys: [NodeKey]) {
+    // Visibility and video-owner identity changes remount HistoryPlugin over
+    // retained state. Parent undo can cause the same mount as a direct setter.
+    for key in keys {
+      guard let shown = next.nodes[key],
+        ["image", "inline-image", "video"].contains(shown.type),
+        shown.payload.json["showCaption"] == true,
+        shown.type == "image" || shown.payload.json["captionsEnabled"] != false,
+        previous.nodes[key]?.payload.json["showCaption"] != true
+          || captionIdentity(for: key, in: previous) != captionIdentity(for: key, in: next),
+        let caption = captionEditors[captionIdentity(for: key, in: next)] else { continue }
+      caption.history = History(caption.state)
+    }
   }
 
   public func captionEditor(key: String) throws -> any EditorModel {
