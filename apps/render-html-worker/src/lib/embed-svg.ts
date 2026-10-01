@@ -9,38 +9,33 @@ export async function serializeEmbedSVG(): Promise<string> {
   if (!(clone instanceof HTMLElement)) throw new Error("Invalid render root");
   const originals = [original, ...original.querySelectorAll("*")];
   const copies = [clone, ...clone.querySelectorAll("*")];
-  // Inlining every computed property on every element made a long highlighted
-  // code block exceed the SVG limit (#240). A property is left out when the
-  // element would get the same value anyway: equal to the parent's value covers
-  // inherited properties, equal to the browser default covers the rest.
+  // A property is left out when the copy would get the same value anyway:
+  // equal to the parent's covers inherited properties, and equal to a blank
+  // element's browser default at the same tag path covers the rest.
   const sandbox = document.createElement("iframe");
   sandbox.style.cssText =
     "position:absolute;width:0;height:0;border:0;visibility:hidden";
   document.body.append(sandbox);
   const sandboxDocument = sandbox.contentDocument;
   if (!sandboxDocument) throw new Error("No style sandbox");
-  const sandboxSVG = sandboxDocument.createElementNS(
-    "http://www.w3.org/2000/svg",
-    "svg",
-  );
-  sandboxDocument.body.append(sandboxSVG);
-  const defaults = new Map<string, CSSStyleDeclaration>();
-  const defaultStyle = (element: Element) => {
-    const key = `${element.namespaceURI} ${element.localName}`;
-    let style = defaults.get(key);
-    if (!style) {
-      const blank = sandboxDocument.createElementNS(
-        element.namespaceURI,
-        element.localName,
-      );
-      (element instanceof SVGElement && element.localName !== "svg"
-        ? sandboxSVG
-        : sandboxDocument.body
-      ).append(blank);
-      style = getComputedStyle(blank);
-      defaults.set(key, style);
-    }
-    return style;
+  const blanks = new Map<Element, Element>();
+  const blankFor = (element: Element): Element => {
+    const known = blanks.get(element);
+    if (known) return known;
+    const parent =
+      element === original || !element.parentElement
+        ? sandboxDocument.body
+        : blankFor(element.parentElement);
+    const blank = sandboxDocument.createElementNS(
+      element.namespaceURI,
+      element.localName,
+    );
+    for (const attribute of element.attributes)
+      if (!/^(class|style|id|src|srcset|data-.*|aria-.*)$/.test(attribute.name))
+        blank.setAttribute(attribute.name, attribute.value);
+    parent.append(blank);
+    blanks.set(element, blank);
+    return blank;
   };
   for (let i = 0; i < originals.length; i++) {
     const source = originals[i];
@@ -55,11 +50,13 @@ export async function serializeEmbedSVG(): Promise<string> {
       source === original || !source.parentElement
         ? undefined
         : getComputedStyle(source.parentElement);
-    const initial = defaultStyle(source);
+    const initial = getComputedStyle(blankFor(source));
     for (const property of style) {
       if (property.startsWith("--")) continue;
       const value = style.getPropertyValue(property);
       if (
+        // A declaration copied with the element may name an undefined var().
+        !target.style.getPropertyValue(property) &&
         initial.getPropertyValue(property) === value &&
         (!inherited || inherited.getPropertyValue(property) === value)
       )

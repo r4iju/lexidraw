@@ -73,3 +73,25 @@ test("a long highlighted code block serializes within the 8 MB SVG contract and 
   expect(changed / (live.width * live.height)).toBeLessThan(0.01);
   await page.close();
 }, 60000);
+
+test("author styles that equal a browser default in another context stay in the SVG", async () => {
+  const page = await browser.newPage();
+  await page.setContent(`<!doctype html><html><head><style>
+    :root { --block: block; }
+    .prose ul { list-style-type: disc; }
+  </style></head><body><article id="native-embed" class="prose"><div style="display: var(--block)">Lead</div><ul><li>Outer<ul><li>Inner</li></ul></li></ul></article></body></html>`);
+  const svg = await page.evaluate(serializeEmbedSVG);
+  await page.setContent(`<!doctype html><html><body>${svg}</body></html>`);
+  const drawn = await page.evaluate(() => {
+    const root = document.querySelector("foreignObject > *");
+    const lead = root?.querySelector("div");
+    const inner = root?.querySelector("ul ul");
+    if (!lead || !inner) throw new Error("No serialized embed");
+    return {
+      lead: getComputedStyle(lead).display,
+      innerList: getComputedStyle(inner).listStyleType,
+    };
+  });
+  expect(drawn).toEqual({ lead: "block", innerList: "disc" });
+  await page.close();
+});

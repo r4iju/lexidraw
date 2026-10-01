@@ -75,6 +75,8 @@ export default function NativeRenderer() {
             : request.width,
         maxWidth: request.width,
         minHeight: 0,
+        // The body is a viewport-high flex column; a taller embed must not shrink.
+        flexShrink: 0,
         padding: 0,
         margin: 0,
         backgroundColor: "var(--background)",
