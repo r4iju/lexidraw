@@ -152,6 +152,30 @@ final class DocumentPreviewUITests: XCTestCase {
     add(after)
   }
 
+  func testSlideElementsOfferAccessibleActionsWithoutCanvasGestures() {
+    let element: JSONValue = ["id": "image", "kind": "image", "x": 10, "y": 20,
+      "width": 200, "height": 100, "zIndex": 0, "url": ""]
+    let slide: JSONValue = ["id": "first", "elements": [element]]
+    let document = LexicalJSON.document([["type": "slide-deck", "version": 1,
+      "data": ["currentSlideId": "first", "slides": [slide]]]])
+    let app = open(access: "EDIT", document: document)
+    let actions = app.buttons["Slide element 1, image actions"]
+    XCTAssertTrue(actions.waitForExistence(timeout: 10))
+    actions.tap()
+    XCTAssertTrue(app.buttons["Edit content"].exists)
+    XCTAssertTrue(app.buttons["Bring to front"].exists)
+    XCTAssertTrue(app.buttons["Delete element"].exists)
+    app.buttons["Position and size"].tap()
+    XCTAssertTrue(app.alerts["Position and size"].waitForExistence(timeout: 5))
+    app.alerts["Position and size"].buttons["Cancel"].tap()
+    XCTAssertFalse(requests(in: app).contains("entities-save"))
+    app.terminate()
+    let readOnly = open(access: "READ", document: document)
+    XCTAssertTrue(readOnly.staticTexts["Slide element 1, image"].waitForExistence(timeout: 10))
+    XCTAssertFalse(readOnly.buttons["Slide element 1, image actions"].exists)
+    XCTAssertFalse(requests(in: readOnly).contains("entities-save"))
+  }
+
   func testFractionalColumnsBelowOneLeaveTheRemainingSpaceEmpty() {
     XCUIDevice.shared.orientation = .landscapeLeft
     defer { XCUIDevice.shared.orientation = .portrait }

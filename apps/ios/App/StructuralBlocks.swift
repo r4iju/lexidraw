@@ -461,6 +461,17 @@ import UIKit
       equalTo: canvas.widthAnchor,
       multiplier: StructuralBlockConfiguration.slideHeight / StructuralBlockConfiguration.slideWidth
     ).isActive = true
+    // A separate button preserves text-input accessibility inside the canvas.
+    for (element, value) in (slides[index]["elements"]?.arrayValue ?? []).enumerated() {
+      let description = "Slide element \(element + 1), \(value["kind"]?.stringValue ?? "unknown")"
+      if owner?.isEditable == true {
+        button("\(description) actions") { [weak self] in
+          self?.editSlideElement(slide: index, element: element)
+        }
+      } else {
+        label(description)
+      }
+    }
   }
 
   private func editSlideElement(slide: Int, element: Int) {
