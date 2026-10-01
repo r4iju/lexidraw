@@ -16,7 +16,7 @@ const route = readFileSync(
 // Run the same browser callback the worker uses, including the original inline
 // form so the retained probe can reproduce the pre-fix failure at its base SHA.
 let callback: string;
-if (route.includes("page.evaluate(extractArticleInteractions")) {
+if (/page\.evaluate\(\s*extractArticleInteractions\b/.test(route)) {
   callback = readFileSync(
     new URL("src/lib/article-interactions.ts", root),
     "utf8",
