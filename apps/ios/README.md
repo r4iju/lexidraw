@@ -989,3 +989,15 @@ command fuzz coverage identified by the acceptance audit is a separate follow-up
 Article renders optionally return semantic heading, paragraph/list/table-cell and link geometry from the actual article DOM. Native VoiceOver exposes these in DOM order, marks headings and permits link activation; older render responses retain the whole-body text fallback. Long-press offers copying the rendered plain text or selecting a range in a native read-only text sheet. This preserves readable text; it does not promise rich HTML copying or selection directly over the rasterized article.
 
 The hosted ArticleAccessibilityTests first failed with missing accessibility elements (`/tmp/134-article-ax-red4.xcresult`) and then passed (`/tmp/134-article-ax-green.xcresult`). Native/website TypeScript, renderer cache tests and the production simulator build pass locally. The optional metadata is included in the server cache byte limit.
+
+Article accessibility extraction now walks visible DOM text once in reading
+order. Block and anchor boundaries split segments, while inline emphasis stays
+with its heading or paragraph. Each segment uses an actual DOM Range rectangle;
+links retain their activation URL without repeating the containing paragraph.
+Bare body text and text before/after nested lists remain included. Extraction
+uses an iterative traversal and explicitly refuses more than 4096 segments.
+The disposable fixture/probe is retained at
+`apps/render-html-worker/scripts/check-article-accessibility.ts` (run with Bun
+from that app). Both T3 Chromium and the local browser reproduced duplicated
+links and omitted bare/list text before the fix (`134-article-reading-red.log`),
+then passed the same ordered-text, link URL and positive-geometry assertions.

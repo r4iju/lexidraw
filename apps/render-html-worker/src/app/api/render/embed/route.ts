@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { extractArticleInteractions } from "~/lib/article-interactions";
 import { refusedUnlessFromTheApp } from "~/lib/worker-access";
 import { launchGuardedBrowser } from "~/lib/guarded-browser";
 import { guardRequests, renderCheck } from "~/lib/public-requests";
@@ -100,28 +101,7 @@ export async function POST(request: Request) {
       throw new Error("Empty render");
     if (bounds.width * bounds.height * 4 > 16000000)
       return new NextResponse("Render exceeds 16 megapixels", { status: 413 });
-    const interactions = await page.evaluate(() => {
-      const article = document.querySelector<HTMLElement>("[data-native-article]");
-      const root = document.getElementById("native-embed");
-      if (!article || !root) return {};
-      const origin = root.getBoundingClientRect();
-      const links = Array.from(article.querySelectorAll<HTMLAnchorElement>("a[href]")).flatMap((anchor) =>
-        Array.from(anchor.getClientRects()).filter((rect) => rect.width > 0 && rect.height > 0).map((rect) => ({
-          url: anchor.href, x: rect.x - origin.x, y: rect.y - origin.y, width: rect.width, height: rect.height,
-        })),
-      );
-      const accessibility = Array.from(article.querySelectorAll<HTMLElement>("h1,h2,h3,h4,h5,h6,p,li,pre,td,th,a[href]")).flatMap((element) => {
-        // Nested lists/cells expose their own paragraphs; avoid reading those bodies twice.
-        if (element.matches("li,td,th") && element.querySelector("p,li,pre")) return [];
-        const text = element.innerText.trim();
-        const rect = element.getBoundingClientRect();
-        if (!text || rect.width <= 0 || rect.height <= 0) return [];
-        const role = element.matches("h1,h2,h3,h4,h5,h6") ? "heading" : element instanceof HTMLAnchorElement ? "link" : "text";
-        return [{ role, text, ...(element instanceof HTMLAnchorElement ? { url: element.href } : {}), x: rect.x - origin.x, y: rect.y - origin.y, width: rect.width, height: rect.height }];
-      });
-      if (accessibility.length > 4096) throw new Error("Article exceeds accessibility element limit");
-      return { accessibleText: article.innerText, links, accessibility };
-    });
+    const interactions = await page.evaluate(extractArticleInteractions);
     const svg = await page.evaluate(async () => {
       const original = document.getElementById("native-embed");
       if (!original) throw new Error("No rendered embed");
