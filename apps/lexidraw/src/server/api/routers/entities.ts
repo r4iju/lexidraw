@@ -39,7 +39,8 @@ import {
   createdFromMarkdown,
   type DocumentChange,
 } from "~/server/documents/write";
-import { IMAGE } from "~/lib/media-kinds";
+import { IMAGE, VIDEO } from "~/lib/media-kinds";
+import { blobUploadRequest } from "~/server/entities/blob-upload";
 import { extensionOf } from "~/server/documents/raster-type";
 import { entityText, snippetAround } from "~/lib/entity-text";
 import env from "@packages/env";
@@ -228,6 +229,59 @@ async function writableOrNotFound(
   const entity = await findWritableEntity(db, id, userId);
   if (!entity) throw notFound();
   return entity;
+}
+
+async function signedVideoUpload(
+  db: typeof drizzle,
+  entityId: string,
+  userId: string,
+  contentType: (typeof VIDEO.types)[number],
+  size?: number,
+) {
+  if (size !== undefined && size > VIDEO.maxBytes)
+    throw new TRPCError({
+      code: "PAYLOAD_TOO_LARGE",
+      message: `Choose a video no larger than ${VIDEO.max}.`,
+    });
+
+  await writableOrNotFound(db, entityId, userId);
+
+  const extension = contentType.split("/")[1]?.replace(/\+.*$/, "");
+  if (!extension)
+    throw new TRPCError({
+      code: "INTERNAL_SERVER_ERROR",
+      message: "Invalid content type",
+    });
+  const randomId = uuidV4();
+  const pathname = `${entityId}-${randomId}.${extension}`;
+
+  const token = await generateClientTokenFromReadWriteToken({
+    token: env.BLOB_READ_WRITE_TOKEN,
+    pathname,
+    allowedContentTypes: [contentType],
+    ...(size === undefined ? {} : { maximumSizeInBytes: size }),
+  });
+
+  await db
+    .insert(schema.uploadedVideos)
+    .values({
+      id: randomId,
+      userId: userId,
+      entityId: entityId,
+      fileName: pathname,
+      signedUploadUrl: token,
+      signedDownloadUrl: "",
+      requestId: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    })
+    .onConflictDoUpdate({
+      target: schema.uploadedVideos.id,
+      set: { signedUploadUrl: token, updatedAt: new Date() },
+    })
+    .execute();
+
+  return { token, pathname };
 }
 
 /** Where an upload of `contentType` into `entityId` lives, under a fresh id. */
@@ -1601,52 +1655,63 @@ export const entityRouter = createTRPCRouter({
     .input(
       z.object({
         entityId: z.string(),
-        contentType: z.enum(["video/mp4", "video/webm", "video/ogg"]),
+        contentType: z.enum(VIDEO.types),
         mode: z.enum(["direct", "redirect"]),
       }),
     )
-    .mutation(async ({ input, ctx }) => {
-      await writableOrNotFound(
+    .mutation(({ input, ctx }) =>
+      signedVideoUpload(
         ctx.drizzle,
         input.entityId,
         ctx.session.user.id,
+        input.contentType,
+      ),
+    ),
+
+  signVideoUpload: protectedProcedure
+    .meta({
+      openapi: {
+        method: "POST",
+        path: "/entities/{entityId}/video-uploads",
+        tags: ["entities"],
+        summary: "Sign a video upload into an editable document",
+        protect: true,
+        errorResponses: [400, 401, 404, 413, 500],
+      },
+    })
+    .input(
+      z.object({
+        entityId: z.string(),
+        contentType: z.enum(VIDEO.types),
+        size: z.number().int().positive(),
+      }),
+    )
+    .output(
+      z.object({
+        url: z.url(),
+        upload: z.object({
+          method: z.literal("PUT"),
+          url: z.url(),
+          headers: z.record(z.string(), z.string()),
+        }),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      const signed = await signedVideoUpload(
+        ctx.drizzle,
+        input.entityId,
+        ctx.session.user.id,
+        input.contentType,
+        input.size,
       );
-
-      const extension = input.contentType.split("/")[1]?.replace(/\+.*$/, "");
-      if (!extension)
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: "Invalid content type",
-        });
-      const randomId = uuidV4();
-      const pathname = `${input.entityId}-${randomId}.${extension}`;
-
-      const token = await generateClientTokenFromReadWriteToken({
-        token: env.BLOB_READ_WRITE_TOKEN,
-        pathname,
-        allowedContentTypes: [input.contentType],
-      });
-
-      await ctx.drizzle
-        .insert(ctx.schema.uploadedVideos)
-        .values({
-          id: randomId,
-          userId: ctx.session.user.id,
-          entityId: input.entityId,
-          fileName: pathname,
-          signedUploadUrl: token,
-          signedDownloadUrl: "",
-          requestId: null,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        })
-        .onConflictDoUpdate({
-          target: ctx.schema.uploadedVideos.id,
-          set: { signedUploadUrl: token, updatedAt: new Date() },
-        })
-        .execute();
-
-      return { token, pathname };
+      return {
+        url: `${env.VERCEL_BLOB_STORAGE_HOST}/${signed.pathname}`,
+        upload: blobUploadRequest(
+          signed.pathname,
+          signed.token,
+          input.contentType,
+        ),
+      };
     }),
 
   // searches for tags or content

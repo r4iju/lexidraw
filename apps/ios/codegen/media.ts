@@ -8,7 +8,7 @@ import {
   FigmaNode,
 } from "@packages/lexical-nodes";
 import { swiftRawString } from "./links";
-import { IMAGE } from "../../lexidraw/src/lib/media-kinds";
+import { IMAGE, VIDEO } from "../../lexidraw/src/lib/media-kinds";
 import { fileURLToPath } from "node:url";
 import { EDITOR_NAMESPACE } from "@packages/lexical-nodes/links";
 import { MEDIA_LINK_BASES } from "@packages/lexical-nodes/media-links";
@@ -87,6 +87,17 @@ export async function swiftForMediaInsertions(): Promise<string> {
   const position: "left" | "right" | "full" = JSON.parse(inlineDefaults[1]!);
   if (!["left", "right", "full"].includes(position))
     throw new Error("Unknown inline-image position");
+  const positions = [
+    ...inlineSource.matchAll(
+      /<SelectItem value="([^"\n]+)">([^<]+)<\/SelectItem>/g,
+    ),
+  ].map((match) => [match[1]!, match[2]!] as const);
+  if (
+    positions.length !== 3 ||
+    new Set(positions.map(([value]) => value)).size !== 3 ||
+    positions.some(([value]) => !["left", "right", "full"].includes(value))
+  )
+    throw new Error("Unknown inline-image position choices");
   const factories: Record<string, string> = {};
   const editor = createHeadlessEditor({
     nodes: [
@@ -201,5 +212,13 @@ export async function swiftForMediaInsertions(): Promise<string> {
     .map(([type, capture]) => `  static let ${type}Capture = ${capture}`)
     .join(
       "\n",
-    )}\n  static let youtubeIDLength = ${youtubeIDLength}\n  static let gifSource = ${gif[2]}\n  static let gifAltText = ${gif[1]}\n}\n`;
+    )}\n  static let inlinePositions: [(String, String)] = [${positions.map(([value, label]) => `(${JSON.stringify(value)}, ${JSON.stringify(label)})`).join(", ")}]\n  static let youtubeIDLength = ${youtubeIDLength}\n  static let gifSource = ${gif[2]}\n  static let gifAltText = ${gif[1]}\n}\n`;
+}
+
+export const MEDIA_VIDEOS_PATH = new URL(
+  "../Sources/LexidrawJSON/MediaVideos.swift",
+  import.meta.url,
+);
+export function swiftForMediaVideos(): string {
+  return `// Generated from the web VIDEO upload policy.\npublic enum MediaVideos {\n  public static let maximumBytes = ${VIDEO.maxBytes}\n  public static let maximumLabel = ${JSON.stringify(VIDEO.max)}\n}\n`;
 }

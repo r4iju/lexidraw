@@ -16,6 +16,7 @@ enum MediaInsertions {
   static let youtubeCapture = 2
   static let tweetCapture = 5
   static let figmaCapture = 3
+  static let inlinePositions: [(String, String)] = [("left", "Left"), ("right", "Right"), ("full", "Full Width")]
   static let youtubeIDLength = 11
   static let gifSource = "/images/cat-typing.gif"
   static let gifAltText = "Cat typing on a laptop"
