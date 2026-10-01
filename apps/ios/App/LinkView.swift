@@ -15,7 +15,7 @@ struct LinkScreen: View {
       try await session.savedLink(file.id)
     } content: { link, _ in
       Group {
-        if link.url == nil {
+        if link.address.isEmpty {
           ContentUnavailableView {
             Label("No page saved yet", systemImage: "link")
           } description: {
@@ -58,8 +58,10 @@ private struct SavedArticle: UIViewRepresentable {
   }
 
   func updateUIView(_ view: ArticleScroll, context: Context) {
-    var data: JSONObject = ["mode": "url", "distilled": link.distilled ?? .null]
-    if let url = link.url { data["url"] = .string(url.absoluteString) }
+    // The web titles a page kept without one by the link's own title.
+    var distilled = link.distilled?.objectValue ?? [:]
+    if distilled["title"]?.stringValue?.isEmpty != false { distilled["title"] = .string(link.title) }
+    let data: JSONObject = ["mode": "url", "url": .string(link.address), "distilled": .object(distilled)]
     view.article.show(["type": "article", "version": 1, "data": .object(data)])
   }
 }
@@ -68,20 +70,27 @@ final class ArticleScroll: UIScrollView {
   let article: ArticleBlockView
   /// The web's medium reading width, `max-w-2xl`.
   private let column: CGFloat = 672
+  /// Scrolling lays the view out every frame and measuring renders, so only a
+  /// new width or a finished render measures again.
+  private var measuredWidth: CGFloat?
 
   init(article: ArticleBlockView) {
     self.article = article
     super.init(frame: .zero)
     alwaysBounceVertical = true
     addSubview(article)
-    article.onChange = { [weak self] in self?.setNeedsLayout() }
+    article.onChange = { [weak self] in
+      self?.measuredWidth = nil
+      self?.setNeedsLayout()
+    }
   }
   required init?(coder: NSCoder) { fatalError("ArticleScroll is made in code") }
 
   override func layoutSubviews() {
     super.layoutSubviews()
-    let margins = readableContentGuide.layoutFrame
-    let width = min(margins.width, column)
+    let width = min(readableContentGuide.layoutFrame.width, column)
+    guard width > 0, bounds.width != measuredWidth else { return }
+    measuredWidth = bounds.width
     let size = article.contentSize(fitting: width)
     article.frame = CGRect(x: (bounds.width - width) / 2, y: 16, width: width, height: size.height)
     contentSize = CGSize(width: bounds.width, height: article.frame.maxY + 16)
