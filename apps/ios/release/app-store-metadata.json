@@ -1,5 +1,5 @@
 {
-  "status": "final-build-valid-and-selected-awaiting-device-check-and-submission",
+  "status": "submitted-awaiting-apple-review",
   "issue": 142,
   "privacyPolicyURL": "https://lexidraw.vercel.app/privacy-policy",
   "appleReferences": [
@@ -82,15 +82,14 @@
   ],
   "reviewNotesDraft": "Lexidraw is a native document and drawing editor for iPhone and iPad. An account and internet connection are required for synchronization.\n\nTap Sign In to open the secure Lexidraw authentication website. Use the demo credentials supplied below; successful sign-in returns to the app. The review account has disposable sample documents covering rich text, callouts, sections, columns, diagrams, code and tables, plus a sample drawing. Open files from the file list to edit them. Changes save to the account.\n\nListen generates spoken audio from document text using a disclosed third-party service after the user's consent. It does not record microphone input. Existing generated audio can be played without generating new audio.\n\nAccount deletion is available in Settings. Users choose the files and links they upload, import and share. The terms prohibit copyright infringement and authorize processing user content to operate the service. Unsupported imported representations are preserved and shown explicitly rather than silently rewritten.",
   "submissionPending": [
-    "Investigate maintainer typing-undo grouping feedback and complete remaining physical save/undo checks",
-    "Submission and review response"
+    "Apple review and any review response"
   ],
   "serverURLSource": "apps/ios/project.yml:LEXIDRAW_SERVER_URL",
   "appStoreRecord": {
     "appId": "6816381053",
     "version": "1.0",
     "versionId": "dc2f83df-01fa-4185-acbd-ea4c0433d2d2",
-    "latestUploadedBuild": "8",
+    "latestUploadedBuild": "9",
     "apiAccessVerified": "2026-09-30",
     "reviewDetailId": "7b45f62e-683a-4c2f-9840-5d3ca9efbd53",
     "reviewContact": {
@@ -207,7 +206,7 @@
       "ios-review-diagrams-20261001",
       "ios-review-table-20261001"
     ],
-    "remaining": "Final review notes after all node families integrate.",
+    "remaining": "Apple review and any review response.",
     "appStoreConnectCredentialStatus": "saved-and-verified",
     "seededDrawings": [
       "ios-review-sketch-20261001"
@@ -414,27 +413,38 @@
   },
   "finalRelease": {
     "marketingVersion": "1.0",
-    "buildNumber": "8",
-    "sourceCommit": "4d9b8595b061ddbede220b3522336bc08d151c9a",
+    "buildNumber": "9",
+    "sourceCommit": "67c8ffe943432a296bc2eac97c4da28041fd9aae",
     "archiveStatus": "succeeded",
     "uploadStatus": "succeeded",
     "processingStatus": "VALID",
     "method": "local-xcodebuild-no-CI",
-    "physicalDeviceInstall": "Signed Debug build of the same source/version installed and launched on iPhone 14 Plus. Maintainer confirms three-finger left Undo works; reports per-letter typing undo under investigation. Redo, shake Undo and leave/reopen saving remain unconfirmed.",
-    "corpus": "Final integrated live-account Debug corpus passed, including comparison regression: four tests.",
+    "physicalDeviceInstall": "Signed Debug 1.0 build 9 of the release source installed and launched on iPhone 14 Plus. Before the final build 9 install, the maintainer confirmed three-finger left Undo, grouping of continuous tapped letters, and whole-word swipe Undo during diagnostic runs. Right three-finger Redo, shake Undo and leave/reopen saving were explicitly deferred by the maintainer; not claimed passed.",
+    "corpus": "Release source 67c8ffe9 live-account corpus passed: four tests in two suites, including comparison regressions.",
     "productionDeployments": {
       "web": "dpl_FxaaUeXEKWXry6napgiWP6XBKXqR",
       "renderer": "dpl_C1sfTVpeUvfpJUbog1pDFHdpKJoe",
       "status": "READY",
       "sourceBuild": "Clean archived repository source, built on Linux; no macOS prebuilt artifacts."
     },
-    "buildId": "4a9daedb-9afb-4ec0-a350-8c6fa382f2ea",
+    "buildId": "cd92b5db-a959-4028-bdce-887104b9695c",
     "internalTestFlightStatus": "build-listed-in-existing-internal-group",
     "appStoreVersionBuildSelection": "selected-and-verified",
     "productionVerification": "Six article capability/image/cache/style checks and eight light/dark Mermaid/equation/chart/code renders returned200.",
     "reviewSubmissionId": "1c0fea53-a386-47aa-895c-54168ec197a5",
-    "reviewSubmissionStatus": "READY_FOR_REVIEW",
+    "reviewSubmissionStatus": "WAITING_FOR_REVIEW",
     "testFlightNotesStatus": "saved-en-US",
-    "submitted": false
+    "submitted": true,
+    "submittedDate": "2026-10-01T10:00:29.39Z",
+    "deferredFollowUps": [
+      {
+        "issue": 135,
+        "scope": "Physical Redo, shake Undo and leave/reopen save acceptance checks; maintainer deferred to a later stage."
+      },
+      {
+        "issue": 236,
+        "scope": "Group multiple continuously swipe-typed words into bulk Undo; latest word currently undoes as a unit."
+      }
+    ]
   }
 }
