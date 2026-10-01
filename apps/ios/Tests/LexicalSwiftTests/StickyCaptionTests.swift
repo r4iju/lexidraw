@@ -28,3 +28,25 @@ import Testing
     #expect(try parent.captionEditor(key: key) === caption)
   }
 }
+
+extension StickyCaptionTests {
+  @Test func stickyCopyDoesNotExportTheRichLexicalClipboardChannel() throws {
+    let json = try #require(StructuralBlockConfiguration.insertionNodes["sticky"])
+    var sticky = try #require(JSONValue(parsing: json).objectValue)
+    sticky["caption"] = ["editorState": document(paragraph(text("Disposable sticky text")))]
+    let state = document(paragraph(.object(sticky)))
+    let parent = Editor()
+    try parent.load(state)
+    let key = try #require(parent.childKeys(at: [0]).first)
+    let caption = try parent.captionEditor(key: key)
+    let source = try Support.referenceEditor(editorContext: .stickyCaption)
+    try source.loadNested(parent: state, ownerPath: [0, 0])
+    let selected = EditorCommand.setSelection(anchor: .text([0, 0], 0), focus: .text([0, 0], 21))
+    try caption.apply(selected)
+    try source.apply(selected)
+    let copied = try caption.apply(.copy)
+    let recorded = try source.apply(.copy)
+    #expect(copied.clipboard == recorded.clipboard)
+    #expect(copied.clipboard?.lexical == nil)
+  }
+}

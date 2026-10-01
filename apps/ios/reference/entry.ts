@@ -541,6 +541,11 @@ function selectionToCut(): RangeSelection | NodeSelection {
  */
 function copy(selection: BaseSelection): Clipboard | undefined {
   if ($isRangeSelection(selection) && selection.isCollapsed()) return undefined;
+  // PlainTextPlugin's copy handler omits Lexical JSON. HTML remains outside
+  // this headless clipboard oracle, as in the document copy adapter (#168).
+  if (editorContext !== "document" && editorContexts[editorContext].includes("PlainTextPlugin")) {
+    return { "text/plain": selection.getTextContent() };
+  }
   return clipboardData(selection);
 }
 
