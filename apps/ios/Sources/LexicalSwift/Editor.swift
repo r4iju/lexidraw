@@ -25,7 +25,20 @@ public final class Editor: EditorModel {
     let key: NodeKey
     let revision: Int
   }
-  private var captionEditors: [CaptionIdentity: Editor] = [:]
+  private final class CachedCaption {
+    weak var lifetime: CaptionLifetime?
+    let editor: Editor
+    init(_ editor: Editor, lifetime: CaptionLifetime?) {
+      self.editor = editor
+      self.lifetime = lifetime
+    }
+  }
+  private var captionEditors: [CaptionIdentity: CachedCaption] = [:]
+  private var pruneCaptionsAfterHistoryDiscard = false
+
+  private func pruneExpiredCaptions() {
+    captionEditors = captionEditors.filter { $0.value.lifetime != nil }
+  }
   private var captionOwnerIdentity: CaptionIdentity?
 
   private func captionIdentity(for key: NodeKey, in state: EditorState) -> CaptionIdentity {
@@ -60,11 +73,21 @@ public final class Editor: EditorModel {
 
   @discardableResult
   public func apply(_ command: EditorCommand) throws -> ChangeSet {
+    defer {
+      if pruneCaptionsAfterHistoryDiscard {
+        pruneExpiredCaptions()
+        pruneCaptionsAfterHistoryDiscard = false
+      }
+    }
+    return try applyCommand(command)
+  }
+
+  private func applyCommand(_ command: EditorCommand) throws -> ChangeSet {
     guard !state.nodes.isEmpty else { throw EditorError.invalidState("No document loaded") }
     if let captionOwnerKey {
       guard let captionParent, let captionOwnerIdentity, captionParent.state.path(of: captionOwnerKey) != nil,
         captionOwnerIdentity == captionParent.captionIdentity(for: captionOwnerKey, in: captionParent.state),
-        captionParent.captionEditors[captionOwnerIdentity] === self else {
+        captionParent.captionEditors[captionOwnerIdentity]?.editor === self else {
         throw EditorError.invalidState("The caption owner no longer exists")
       }
       switch command {
@@ -321,14 +344,14 @@ public final class Editor: EditorModel {
     var next = update.state
     next.selection = saved
     if editorContext == .document || editorContext.mountedPlugins.contains("HistoryPlugin") {
-      history.record(update, from: state, to: next, at: now, pushing: pushingHistory)
+      pruneCaptionsAfterHistoryDiscard = history.record(update, from: state, to: next, at: now, pushing: pushingHistory) || pruneCaptionsAfterHistoryDiscard
     }
     // VideoNode.afterCloneFrom copies its live caption editor. Image and
     // sticky clones retain theirs, so only video revisions need new identity.
     for key in update.changedKeys where next.nodes[key]?.type == "video" && state.nodes[key]?.type == "video" {
       let previousIdentity = captionIdentity(for: key, in: state)
       let nextIdentity = captionIdentity(for: key, in: next)
-      if previousIdentity != nextIdentity, let previous = captionEditors[previousIdentity] {
+      if previousIdentity != nextIdentity, let previous = captionEditors[previousIdentity]?.editor {
         let copy = Editor(plainText: previous.plainText, editorContext: previous.editorContext)
         copy.state = previous.state
         copy.nextKey = previous.nextKey
@@ -340,11 +363,12 @@ public final class Editor: EditorModel {
         copy.captionParent = self
         copy.captionOwnerKey = key
         copy.captionOwnerIdentity = nextIdentity
-        captionEditors[nextIdentity] = copy
+        captionEditors[nextIdentity] = CachedCaption(copy, lifetime: next.nodes[key]?.captionLifetime)
       }
     }
     resetMountedCaptionHistory(from: state, to: next, keys: update.changedKeys)
     state = next
+    if pruneCaptionsAfterHistoryDiscard { pruneExpiredCaptions() }
     nextKey = update.nextKey
     knowsListMarker = update.knowsListMarker
     return true
@@ -374,7 +398,7 @@ public final class Editor: EditorModel {
         shown.type == "image" || shown.payload.json["captionsEnabled"] != false,
         previous.nodes[key]?.payload.json["showCaption"] != true
           || captionIdentity(for: key, in: previous) != captionIdentity(for: key, in: next),
-        let caption = captionEditors[captionIdentity(for: key, in: next)] else { continue }
+        let caption = captionEditors[captionIdentity(for: key, in: next)]?.editor else { continue }
       caption.history = History(caption.state)
     }
   }
@@ -393,7 +417,7 @@ public final class Editor: EditorModel {
     default: throw EditorError.unsupported("This caption's ownership requires #134")
     }
     let identity = captionIdentity(for: key, in: state)
-    if let editor = captionEditors[identity] { return editor }
+    if let editor = captionEditors[identity]?.editor { return editor }
     let fields = node.payload.json
     guard let constructor = MediaInsertions.nodes[node.type] ?? StructuralBlockConfiguration.insertionNodes[node.type],
       let caption = try fields["caption"] ?? JSONValue(parsing: constructor)["caption"],
@@ -406,7 +430,7 @@ public final class Editor: EditorModel {
     editor.captionParent = self
     editor.captionOwnerKey = key
     editor.captionOwnerIdentity = identity
-    captionEditors[identity] = editor
+    captionEditors[identity] = CachedCaption(editor, lifetime: node.captionLifetime)
     return editor
   }
 
@@ -416,7 +440,7 @@ public final class Editor: EditorModel {
   }
 
   private func resolveCaptionJSON(_ key: NodeKey, _ value: JSONValue) -> JSONValue {
-    guard let editor = captionEditors[captionIdentity(for: key, in: state)], var fields = value.objectValue else { return value }
+    guard let editor = captionEditors[captionIdentity(for: key, in: state)]?.editor, var fields = value.objectValue else { return value }
     if state.nodes[key]?.type == "video" {
       fields["caption"] = ["root": editor.captionJSON(of: EditorState.rootKey)]
       return .object(fields)

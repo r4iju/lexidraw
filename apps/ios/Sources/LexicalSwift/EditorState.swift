@@ -18,7 +18,12 @@ public struct EditorState: Sendable {
   public var json: JSONValue { ["root": json(of: Self.rootKey)] }
 }
 
+// Persistent owner nodes and history retain the token; the caption cache
+// observes it weakly so discarded history cannot retain abandoned editors.
+final class CaptionLifetime: Sendable {}
+
 struct Node: Sendable {
+  var captionLifetime: CaptionLifetime?
   let type: String
   let traits: NodeTraits
   var parent: NodeKey?
@@ -34,6 +39,7 @@ struct Node: Sendable {
   var revision = 0
 
   init(_ payload: SerializedNode, type: String, children: OrderedSet<NodeKey>?) {
+    captionLifetime = ["image", "inline-image", "video", "sticky"].contains(type) ? CaptionLifetime() : nil
     self.type = type
     traits = NodeTraits.byType[type] ?? .unregistered
     self.payload = payload

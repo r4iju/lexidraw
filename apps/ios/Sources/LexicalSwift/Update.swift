@@ -95,6 +95,9 @@ struct Update {
 
   private mutating func markOwnDirty(_ key: NodeKey) {
     touched.insert(key)
+    if state[key].type == "video", state[key].revision != revision {
+      state.nodes[key]!.captionLifetime = CaptionLifetime()
+    }
     state.nodes[key]!.revision = revision
     if state[key].isElement {
       dirtyElements[key] = true
