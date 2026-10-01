@@ -207,6 +207,27 @@ function serializedNode(nodes: NodeDescription[]): string[] {
     "    case .opaque: self",
     "    }",
     "  }",
+    "",
+    "  /// Field-only setters must retain live unread properties; re-importing",
+    "  /// them would restore the import default instead of the editor value.",
+    "  public func preservingUnchangedUnreadFields(from previous: Self, before: JSONValue, after: JSONValue) -> Self {",
+    "    switch (self, previous) {",
+    ...nodes.flatMap((node, index) => {
+      const fields = [
+        ...Object.entries(node.fields).filter(([, field]) => field.kind === "unread").map(([key]) => ({key, path: `[${swiftString(key)}]`})),
+        ...Object.entries(node.state).filter(([, state]) => state.value.kind === "unread").map(([key, state]) => ({key, path: state.flat ? `[${swiftString(key)}]` : `["$"]?[${swiftString(key)}]`})),
+      ];
+      if (!fields.length) return [];
+      const name = cases[index]!.name;
+      return [
+        `    case (.${name}(var node), .${name}(let old)):`,
+        ...fields.map(({key, path}) => `      if before${path} == after${path} { node.${identifier(key)} = old.${identifier(key)} }`),
+        `      return .${name}(node)`,
+      ];
+    }),
+    "    default: return self",
+    "    }",
+    "  }",
     "}",
     "",
   ];

@@ -317,16 +317,12 @@ import UIKit
     }
   }
   private func applyColumns(_ value: String) {
-    let count = JSRegExp(StructuralBlockConfiguration.columnWhitespacePattern, flags: "").split(value).filter { !$0.isEmpty }.count
-    var children = node["children"]?.arrayValue ?? []
-    while children.count < count {
-      children.append(["type": "layout-item", "version": 1, "children": [paragraph([])]])
-    }
-    if children.count > count { children.removeSubrange(count...) }
-    var fields = node.objectValue ?? [:]
-    fields["templateColumns"] = .string(value)
-    fields["children"] = .array(children)
-    save(.object(fields), rebuild: true)
+    do {
+      try owner?.updateStructuralFields(key: key, expected: node, fields: ["templateColumns": .string(value)])
+      if let owner { node = try owner.structuralNode(key: key) }
+      rebuild()
+      owner?.setNeedsLayout()
+    } catch { presentError(error) }
   }
   @objc private func dragSticky(_ gesture: UIPanGestureRecognizer) {
     guard node["type"] == "sticky", owner?.isEditable == true,

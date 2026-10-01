@@ -275,3 +275,18 @@ extension StructuralBlockTests {
     #expect(observed == fixture.recorded)
   }
 }
+
+
+extension StructuralBlockTests {
+  @Test func changingColumnsKeepsTheExistingCaretThroughHistory() throws {
+    let column: JSONValue = ["type": "layout-item", "version": 1, "children": [paragraph(text("keep"))]]
+    let layout: JSONValue = ["type": "layout-container", "version": 1, "templateColumns": "1fr 1fr", "children": [column, column]]
+    let fixture = try Fixture.record(
+      start: document(layout),
+      commands: [.caret(.text([0, 0, 0, 0], 2)), .updateStructuralFields(path: [0], fields: ["templateColumns": "1fr 1fr 1fr"]), .undo, .redo],
+      on: try Support.referenceEditor())
+    let observed = try fixture.replay(on: Editor())
+    if observed != fixture.recorded { _ = try fixture.write(into: Support.fixturesSource) }
+    #expect(observed == fixture.recorded)
+  }
+}

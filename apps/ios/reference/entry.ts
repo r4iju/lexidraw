@@ -1,12 +1,12 @@
 import { withDOM } from "@lexical/headless/dom";
 import { $generateNodesFromDOM } from "@lexical/html";
-import { htmlToPlainText, ArticleNode, CalloutNode, StickyNode, SlideNode, CollapsibleContainerNode, CollapsibleContentNode, CollapsibleTitleNode, CommentNode, ThreadNode } from "@packages/lexical-nodes";
+import { htmlToPlainText, ArticleNode, CalloutNode, LayoutContainerNode, StickyNode, SlideNode, CollapsibleContainerNode, CollapsibleContentNode, CollapsibleTitleNode, CommentNode, ThreadNode } from "@packages/lexical-nodes";
 import { $createMarkNode, $unwrapMarkNode, $wrapSelectionInMarkNode, MarkNode } from "@lexical/mark";
 import { $dfs, registerNestedElementResolver } from "@lexical/utils";
 import { $formatCode } from "@packages/lexical-nodes/code-format";
 import CalloutPlugin from "../../lexidraw/src/app/documents/[documentId]/plugins/CalloutPlugin/index.js";
 import CollapsiblePlugin from "../../lexidraw/src/app/documents/[documentId]/plugins/CollapsiblePlugin/index.js";
-import { LayoutPlugin } from "../../lexidraw/src/app/documents/[documentId]/plugins/LayoutPlugin/LayoutPlugin.js";
+import { LayoutPlugin, UPDATE_LAYOUT_COMMAND } from "../../lexidraw/src/app/documents/[documentId]/plugins/LayoutPlugin/LayoutPlugin.js";
 import { withStructuralEditor } from "./structural-hooks.js";
 import {
   $setWritingDirection,
@@ -732,10 +732,12 @@ function run(
   }
   if (command.type === "updateStructuralFields") {
     const node = nodeAt(command.path), fields = command.node;
-    const allowed = node instanceof CalloutNode ? ["kind", "title"] : node instanceof CollapsibleContainerNode ? ["open"] : node instanceof StickyNode ? ["color", "xOffset", "yOffset", "caption"] : node instanceof SlideNode ? ["data"] : [];
+    const allowed = node instanceof LayoutContainerNode ? ["templateColumns"] : node instanceof CalloutNode ? ["kind", "title"] : node instanceof CollapsibleContainerNode ? ["open"] : node instanceof StickyNode ? ["color", "xOffset", "yOffset", "caption"] : node instanceof SlideNode ? ["data"] : [];
     if (!Object.keys(fields).length) throw new EditorError("invalidState", "No structural fields");
     if (Object.keys(fields).some(key => !allowed.includes(key))) throw new EditorError("unsupported", "Structural setter belongs to #133");
-    if (node instanceof CalloutNode) {
+    if (node instanceof LayoutContainerNode) {
+      editor.dispatchCommand(UPDATE_LAYOUT_COMMAND, {nodeKey: node.getKey(), template: fields.templateColumns as string});
+    } else if (node instanceof CalloutNode) {
       if ("kind" in fields) node.setKind(fields.kind as Parameters<CalloutNode["setKind"]>[0]);
       if ("title" in fields) node.setTitle(fields.title as string);
     } else if (node instanceof CollapsibleContainerNode) {

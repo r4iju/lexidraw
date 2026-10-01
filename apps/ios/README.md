@@ -1005,3 +1005,21 @@ then passed the same ordered-text, link URL and positive-geometry assertions.
 Linked headings retain both the heading and link traits. Actual Chromium first failed the linked-heading flag check (`/tmp/134-linked-heading-browser-red.log`); after the optional DTO field was established, the native trait check also failed (`/tmp/134-linked-heading-red2.xcresult`) before the UI fix. The earlier native run with an unknown fixture key was a decoder-shape failure, not behavioral proof.
 
 Accessibility segments are negotiated with the optional `includeAccessibility` request flag. Older native response decoders reject unknown keys, so requests without that flag receive the prior article response shape. The browser compatibility check failed before gating (`/tmp/134-article-capability-red.log`). New clients also retain the whole-text fallback when an older server omits the metadata.
+
+The structural setter differential slice also executes the original LayoutPlugin
+`UPDATE_LAYOUT_COMMAND`. The native command preserves surviving column keys and
+selection when adding/removing columns, including undo/redo; its item count follows
+the source plugin's whitespace rule rather than the CSS track parser. The expanded
+structural fuzzer exercises callout kind/title, section open state, sticky palette
+and position, layout templates, and slide data (geometry/z-order, navigation,
+slide/element order, background, chart type/data/config, and stored text editor
+JSON). It records accepted feature counts separately from ordinary wrapper edits.
+Two 20,000-step seeds (133 and 134) agreed with the original source setters; the
+runs reported 3,533/3,627 shared refusals, 14/11 unported session endings, and 1/2
+unreadable-selection endings. Genuine minimized regressions remain as fixtures:
+layout history/caret preservation, list Backspace dispatch before section character
+deletion, and retaining live unread parent fields during a field-only save. The
+schema generates the unread-field preservation rule, including fractional values.
+Sticky caption typing still needs the actual parent-aware plain-text nested editor
+oracle and owner/history integration; the import setter `setCaptionJSON` is not
+claimed as typing or child-history parity.

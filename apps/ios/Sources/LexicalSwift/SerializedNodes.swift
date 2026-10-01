@@ -272,6 +272,42 @@ public enum SerializedNode: Equatable, Sendable {
     case .opaque: self
     }
   }
+
+  /// Field-only setters must retain live unread properties; re-importing
+  /// them would restore the import default instead of the editor value.
+  public func preservingUnchangedUnreadFields(from previous: Self, before: JSONValue, after: JSONValue) -> Self {
+    switch (self, previous) {
+    case (.collapsibleContainer(var node), .collapsibleContainer(let old)):
+      if before["direction"] == after["direction"] { node.direction = old.direction }
+      if before["format"] == after["format"] { node.format = old.format }
+      if before["indent"] == after["indent"] { node.indent = old.indent }
+      if before["textFormat"] == after["textFormat"] { node.textFormat = old.textFormat }
+      if before["textStyle"] == after["textStyle"] { node.textStyle = old.textStyle }
+      return .collapsibleContainer(node)
+    case (.collapsibleContent(var node), .collapsibleContent(let old)):
+      if before["direction"] == after["direction"] { node.direction = old.direction }
+      if before["format"] == after["format"] { node.format = old.format }
+      if before["indent"] == after["indent"] { node.indent = old.indent }
+      if before["textFormat"] == after["textFormat"] { node.textFormat = old.textFormat }
+      if before["textStyle"] == after["textStyle"] { node.textStyle = old.textStyle }
+      return .collapsibleContent(node)
+    case (.collapsibleTitle(var node), .collapsibleTitle(let old)):
+      if before["direction"] == after["direction"] { node.direction = old.direction }
+      if before["format"] == after["format"] { node.format = old.format }
+      if before["indent"] == after["indent"] { node.indent = old.indent }
+      if before["textFormat"] == after["textFormat"] { node.textFormat = old.textFormat }
+      if before["textStyle"] == after["textStyle"] { node.textStyle = old.textStyle }
+      return .collapsibleTitle(node)
+    case (.layoutItem(var node), .layoutItem(let old)):
+      if before["direction"] == after["direction"] { node.direction = old.direction }
+      if before["format"] == after["format"] { node.format = old.format }
+      if before["indent"] == after["indent"] { node.indent = old.indent }
+      if before["textFormat"] == after["textFormat"] { node.textFormat = old.textFormat }
+      if before["textStyle"] == after["textStyle"] { node.textStyle = old.textStyle }
+      return .layoutItem(node)
+    default: return self
+    }
+  }
 }
 
 extension NodeTraits {
