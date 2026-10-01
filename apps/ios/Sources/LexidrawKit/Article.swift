@@ -1,7 +1,31 @@
 import Foundation
 import LexidrawJSON
 
+/// A saved link as its page shows it: where it points and the text kept from there.
+public struct SavedLink: Sendable {
+  public let title: String
+  /// Nil when no address has been saved yet, or what is saved isn't one.
+  public let url: URL?
+  /// The page's sanitized text and its details, when it has been kept.
+  public let distilled: JSONValue?
+  /// Where the web shows this link, for what the app doesn't do itself.
+  public let webPage: URL
+}
+
 extension Session {
+  /// A saved link, read as the web's `parseLinkElements` reads it: a field
+  /// that doesn't fit is absent rather than a failure.
+  public func savedLink(_ id: String) async throws -> SavedLink {
+    let entity = try await ask { try await $0.entitiesLoad(path: .init(id: id)) }.ok.body.json
+    let elements = try? JSONValue(parsing: entity.elements)
+    let distilled = elements?["distilled"]
+    return SavedLink(
+      title: entity.title,
+      url: elements?["url"]?.stringValue.flatMap { $0.isEmpty ? nil : URL(string: $0) },
+      distilled: distilled?.objectValue == nil ? nil : distilled,
+      webPage: origin.appending(path: "\(Entry.Kind.url.webPath)/\(entity.id)"))
+  }
+
   public func savedArticles() async throws -> [Entry] {
     try await ask {
       try await $0.entitiesList(query: .init(sortBy: .updatedAt, sortOrder: .desc, includeArchived: .init(value1: false), onlyFavorites: .init(value1: false), entityTypes: .init(value1: [.url])))

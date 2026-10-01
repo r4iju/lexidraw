@@ -64,6 +64,7 @@ struct OpenLink<Label: View>: View {
     switch (file.kind, session) {
     case (.drawing, let session?): DrawingScreen(session: session, id: file.id, title: file.title)
     case (.document, let session?): DocumentScreen(session: session, id: file.id, title: file.title)
+    case (.url, let session?): LinkScreen(session: session, file: file)
     default: NotYet(title: file.title, systemImage: file.kind.systemImage, feature: "Files open")
     }
   }
