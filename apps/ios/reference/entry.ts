@@ -434,8 +434,10 @@ function loadNested(argument: string): void {
       return captionNode.__caption;
     });
     editorContext = childContext;
-    withNestedParent(parent, () => LexicalNestedComposer({ initialEditor: child, children: null, skipCollabChecks: true }));
+    const effects: (() => void)[] = [];
+    withNestedParent(parent, () => LexicalNestedComposer({ initialEditor: child, children: null, skipCollabChecks: true }), effects);
     configureEditor(child, JSON.stringify(child.getEditorState().toJSON()));
+    mountedRegistrations.get(child)!.push(...effects);
     parentEditor = parent;
   } finally { editorContext = childContext; }
 }
@@ -488,8 +490,10 @@ function remountCaption(): void {
   });
   for (const cleanup of mountedRegistrations.get(current()) ?? []) cleanup();
   mountedRegistrations.delete(current());
-  withNestedParent(parentEditor, () => LexicalNestedComposer({ initialEditor: next, children: null, skipCollabChecks: true }));
+  const effects: (() => void)[] = [];
+  withNestedParent(parentEditor, () => LexicalNestedComposer({ initialEditor: next, children: null, skipCollabChecks: true }), effects);
   configureEditor(next);
+  mountedRegistrations.get(next)!.push(...effects);
 }
 
 function apply(commandJSON: string): string {
