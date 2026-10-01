@@ -84,10 +84,10 @@ public final class EditorView: UIScrollView, UITextInput {
     try model.node(at: model.nodePath(for: key))
   }
 
-  public func makeCaptionEditor(key: String) throws -> EditorView {
+  public func makeCaptionEditor(key: String, textSize: CGFloat? = nil) throws -> EditorView {
     guard isEditable else { throw EditorError.unsupported("This document cannot be edited") }
     let caption = try model.captionEditor(key: key)
-    let editor = makeNestedEditor(model: caption, isEditable: caption.isEditable, shareDocumentMetadata: true)
+    let editor = makeNestedEditor(model: caption, isEditable: caption.isEditable, textSize: textSize, shareDocumentMetadata: true)
     editor.captionFormattingOnly = true
     editor.onChange = { [weak self, weak editor] in
       guard let self else { return }

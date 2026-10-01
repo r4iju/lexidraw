@@ -32,6 +32,27 @@ import TextKitEditor
     return Preview(model: model, owner: owner, panel: panel, body: body)
   }
 
+  func testStickyBodyTypingKeepsCaptionLiveAcrossParentUndo() throws {
+    let encoded = try XCTUnwrap(StructuralBlockConfiguration.insertionNodes["sticky"])
+    let node = try JSONValue(parsing: encoded)
+    let fixture = try preview(node, wrapper: { ["type": "paragraph", "version": 1, "children": [$0]] }, path: [0, 0], editable: true)
+    let key = try XCTUnwrap(fixture.model.childKeys(at: [0]).first)
+    var autosaves = 0
+    fixture.owner.onChange = { autosaves += 1 }
+    fixture.body.selectedTextRange = fixture.body.textRange(from: fixture.body.beginningOfDocument, to: fixture.body.beginningOfDocument)
+    fixture.body.insertText("Live sticky text")
+    let edited = try XCTUnwrap(fixture.model.node(at: [0, 0])["caption"]?["editorState"])
+    let current = try fixture.model.node(at: [0, 0])
+    var changed = try XCTUnwrap(current.objectValue)
+    changed["color"] = "pink"
+    try fixture.owner.replaceEmbeddedNode(key: key, expected: current, replacement: .object(changed))
+    let undo = try XCTUnwrap(fixture.owner.undoManager)
+    undo.undo()
+    undo.undo()
+    XCTAssertEqual(try fixture.model.node(at: [0, 0])["caption"]?["editorState"], edited)
+    XCTAssertGreaterThan(autosaves, 0)
+  }
+
   func testCalloutPreviewRetainsParentAlignmentDirectionAndIndent() throws {
     let paragraph: JSONValue = ["type": "paragraph", "version": 1, "children": [["type": "text", "version": 1, "text": "שלום abc"]]]
     let fixture = try preview(["type": "callout", "version": 1, "kind": "note", "title": "", "format": "center", "direction": "rtl", "indent": 2, "children": [paragraph]])
