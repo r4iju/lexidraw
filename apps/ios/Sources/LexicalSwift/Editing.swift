@@ -105,6 +105,16 @@ extension Update {
       try insert(item, after: block, restoringSelection: restoringSelection)
       return item
     }
+    if case .mark(let original) = state[block].payload {
+      let mark = create(SerializedMarkNode.type)
+      modify(mark) {
+        guard case .mark(var payload) = $0.payload else { return }
+        payload.ids = original.ids
+        $0.payload = .mark(payload)
+      }
+      try insert(mark, after: block, restoringSelection: restoringSelection)
+      return mark
+    }
     if state[block].isLink {
       let link = copyNode(block)
       try insert(link, after: block, restoringSelection: restoringSelection)

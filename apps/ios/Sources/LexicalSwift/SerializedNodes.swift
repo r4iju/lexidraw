@@ -2271,6 +2271,7 @@ public struct SerializedCommentNode: ParentNodePayload {
 
   public func asLoaded() -> Self {
     var node = self
+    node.children = []
     node.comment = Schema.comment.resolving(comment)
     node.direction = Schema.direction.resolving(direction)
     node.format = Schema.format.resolving(format)
@@ -4205,6 +4206,7 @@ public struct SerializedThreadNode: ParentNodePayload {
 
   public func asLoaded() -> Self {
     var node = self
+    node.children = []
     node.direction = Schema.direction.resolving(direction)
     node.format = Schema.format.resolving(format)
     node.indent = Schema.indent.resolving(indent)

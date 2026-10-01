@@ -337,12 +337,25 @@ extension Node {
     case .mention(let node): node.unknownFields.isEmpty && (node.mode == .normal || node.mode == .segmented)
       && [0, 1].contains(node.detail?.numberValue) && node.text?.stringValue != nil && node.style?.stringValue != nil
       && node.format?.numberValue != nil && node.mentionName?.stringValue != nil
+    case .comment(let node):
+      if case .typed(let comment)? = node.comment { node.unknownFields.isEmpty && Self.supportsComment(comment) } else { false }
+    case .thread(let node):
+      if case .typed(let thread)? = node.thread {
+        node.unknownFields.isEmpty && thread.unknownFields.isEmpty && thread.id != nil && thread.quote != nil
+          && thread.type == .thread && thread.comments != nil && (thread.comments ?? []).allSatisfy(Self.supportsComment)
+      } else { false }
+    case .mark(let node): node.unknownFields.isEmpty
     case .footnoteDefinition(let node): node.unknownFields.isEmpty
     case .footnoteReference(let node): node.unknownFields.isEmpty && node.label?.stringValue != nil
     case .poll(let node): Self.supportsPoll(node)
     case .tab(let node): node.unknownFields.isEmpty && node.detail == Double(TextDetail.unmergeable.rawValue)
     default: false
     }
+  }
+
+  static func supportsComment(_ comment: Comment) -> Bool {
+    comment.unknownFields.isEmpty && comment.author != nil && comment.content != nil && comment.deleted != nil
+      && comment.id != nil && comment.timeStamp != nil && comment.type == .comment
   }
 
   private static func supportsPoll(_ node: SerializedPollNode) -> Bool {
@@ -375,6 +388,27 @@ extension Optional {
 
 extension Update {
   mutating func run(_ command: EditorCommand, plainText: Bool = false) throws {
+    if case .removeCommentAnnotations(let id) = command {
+      guard !plainText else { throw EditorError.unsupported("Comments require rich text") }
+      return try removeCommentAnnotations(id: id)
+    }
+    if case .saveCommentThread(let id, let thread) = command {
+      guard !plainText else { throw EditorError.unsupported("Comments require rich text") }
+      return try saveCommentThread(id: id, thread: thread)
+    }
+    if case .annotateComment(let id) = command {
+      guard !plainText else { throw EditorError.unsupported("Comments require rich text") }
+      guard let selection else { throw EditorError.noSelection }
+      return try annotateComment(selection, id: id)
+    }
+    if case .appendComment(let json) = command {
+      guard !plainText else { throw EditorError.unsupported("Comments require rich text") }
+      guard json["type"] == "comment" || json["type"] == "thread" else { throw EditorError.invalidState("Not a comment marker") }
+      let node = try parse(json)
+      guard state[node].isEditable else { throw EditorError.unsupported("Unsupported comment fields (#134)") }
+      try append(EditorState.rootKey, [node])
+      return
+    }
     if case .setSelection(let anchor, let focus) = command {
       return try placeSelection(anchor, focus)
     }

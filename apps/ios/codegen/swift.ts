@@ -153,7 +153,7 @@ export function swiftForNodeSchema(schema: NodeSchema): string {
       .flatMap(([name, { type, paths }]) =>
         declaredObject(name, type, paths[0] ?? name, names),
       ),
-    ...schema.nodes.flatMap((node) => payload(node, names)),
+    ...schema.nodes.flatMap((node) => payload(node, names, schema.traits[node.type]?.kind !== "element")),
   ];
   return `${lines.join("\n").trimEnd()}\n`;
 }
@@ -581,7 +581,7 @@ function swiftStrings(strings: string[]): string {
   return `[${strings.map(swiftString).join(", ")}]`;
 }
 
-function payload(node: NodeDescription, names: Names): string[] {
+function payload(node: NodeDescription, names: Names, nonElement: boolean): string[] {
   const fields = members(
     [
       ...Object.entries(node.fields).map(
@@ -646,7 +646,9 @@ function payload(node: NodeDescription, names: Names): string[] {
     "  }",
     "",
     "  public func asLoaded() -> Self {",
-    ...lines.asLoaded,
+    ...lines.asLoaded.flatMap((line) =>
+      line === "    var node = self" && children && nonElement
+        ? [line, "    node.children = []"] : [line]),
     "  }",
     ...lines.schema,
     "}",

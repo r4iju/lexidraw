@@ -21,6 +21,7 @@ import { SERIALIZED_NODES_PATH, swiftForNodeSchema } from "./swift";
 import { SHORTCUTS_PATH, swiftForShortcuts } from "./shortcuts";
 import {
   FOOTNOTE_STYLE_PATH, swiftForFootnoteStyle,
+  COMMENT_DATA_PATH, swiftForCommentData,
   EMOJI_ALIASES_PATH,
   SOCIAL_STYLE_PATH,
   swiftForSocialStyle,
@@ -132,3 +133,5 @@ const { STRUCTURAL_BLOCKS_PATH, swiftForStructuralBlocks } = await import(
   "./structural-blocks"
 );
 await Bun.write(STRUCTURAL_BLOCKS_PATH, await swiftForStructuralBlocks());
+
+await Bun.write(COMMENT_DATA_PATH, await swiftForCommentData());

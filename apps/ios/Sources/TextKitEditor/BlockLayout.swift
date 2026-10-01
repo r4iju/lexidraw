@@ -133,7 +133,9 @@ import UIKit
     }
     var respaced: [Int] = []
     for splice in splices {
-      if splice.new.lowerBound > 0 { respaced.append(splice.new.lowerBound - 1) }
+      var previous = splice.new.lowerBound - 1
+      while previous >= 0 && isCommentMetadata(previous) { previous -= 1 }
+      if previous >= 0 { respaced.append(previous) }
       let reused = splice.old.count == 1 && splice.new.count == 1 ? laidOut[splice.old.lowerBound] : nil
       for index in splice.old { laidOut.removeValue(forKey: index)?.view.removeFromSuperview() }
       let shift = splice.new.count - splice.old.count
@@ -207,6 +209,7 @@ import UIKit
     let block = styled(index)
     switch document.kind(ofBlock: index) {
     case .embedded where block == .rule: return typesetting.typography.rule.width
+    case .embedded(let type) where type == "comment" || type == "thread": return 0
     case .embedded:
       if let node = document.payload(ofBlock: index), let media = MediaPayload(node) { return MediaView.height(media, width: width) }
       return PlaceholderView.height
@@ -223,16 +226,27 @@ import UIKit
 
   /// The larger of the block's space after it and the next block's before
   /// it, as CSS collapses margins.
+  private func isCommentMetadata(_ index: Int) -> Bool {
+    if case .embedded(let type) = document.kind(ofBlock: index) { return type == "comment" || type == "thread" }
+    return false
+  }
+
   private func spaceAfter(_ index: Int) -> CGFloat {
+    // Empty metadata paragraphs collapse their margins in the web flow.
+    guard !isCommentMetadata(index) else { return 0 }
+    var next = index + 1
+    while next < document.blockCount && isCommentMetadata(next) { next += 1 }
+    var previous = index - 1
+    while previous >= 0 && isCommentMetadata(previous) { previous -= 1 }
     let block = styled(index)
     let isNote = document.type(ofBlock: index) == "footnote-definition"
-    let nextIsNote = index + 1 < document.blockCount && document.type(ofBlock: index + 1) == "footnote-definition"
+    let nextIsNote = next < document.blockCount && document.type(ofBlock: next) == "footnote-definition"
     let em = typesetting.fontSize(.other)
     if nextIsNote && !isNote { return em * WebFootnoteStyle.definitionFontScale * WebFootnoteStyle.sectionMargin }
-    if isNote { return nextIsNote || index + 1 == document.blockCount ? em * WebFootnoteStyle.definitionFontScale * WebFootnoteStyle.definitionAfter : em * WebFootnoteStyle.followingMargin }
-    let after = typesetting.space(block, after: index > 0 ? styled(index - 1) : nil).after
-    guard index + 1 < document.blockCount else { return after }
-    return max(after, typesetting.space(styled(index + 1), after: block).before)
+    if isNote { return nextIsNote || next == document.blockCount ? em * WebFootnoteStyle.definitionFontScale * WebFootnoteStyle.definitionAfter : em * WebFootnoteStyle.followingMargin }
+    let after = typesetting.space(block, after: previous >= 0 ? styled(previous) : nil).after
+    guard next < document.blockCount else { return after }
+    return max(after, typesetting.space(styled(next), after: block).before)
   }
 
   private func styled(_ index: Int) -> StyledBlock { StyledBlock(document.type(ofBlock: index)) }
@@ -273,7 +287,7 @@ import UIKit
       case .embedded(let type):
         if let embedded = document.embeddedNode(at: index), let view = embeddedContent?(embedded.key, embedded.node) {
           ContentBlock(view: view, node: embedded.node, type: type, width: width)
-        } else { EmbedBlock(type: type, payload: document.payload(ofBlock: index), width: width, style: { [typesetting] in typesetting.attributes(StyledBlock($0), $1) }, imageLoader: mediaImageLoader) }
+        } else { EmbedBlock(type: type, length: document.range(ofBlock: index).length, payload: document.payload(ofBlock: index), width: width, style: { [typesetting] in typesetting.attributes(StyledBlock($0), $1) }, imageLoader: mediaImageLoader) }
       }
     laidOut[index] = block
     (block as? TextBlock)?.onGeometryChange = { [weak self, weak blockView = block.view] in
@@ -824,12 +838,15 @@ private final class EmbedBlock: LaidOutBlock {
   private let placeholder: UIView
   private let media: MediaPayload?
   private let type: String
+  private var length: Int
   var onGeometryChange: (() -> Void)?
 
-  init(type: String, payload: JSONValue?, width: CGFloat, style: @escaping DocumentText.Style, imageLoader: MediaImageLoader?) {
+  init(type: String, length: Int, payload: JSONValue?, width: CGFloat, style: @escaping DocumentText.Style, imageLoader: MediaImageLoader?) {
     self.type = type
+    self.length = length
     media = payload.flatMap(MediaPayload.init)
-    if let media { placeholder = MediaView(media, style: style, imageLoader: imageLoader) }
+    if type == "comment" || type == "thread" { placeholder = HiddenCommentView() }
+    else if let media { placeholder = MediaView(media, style: style, imageLoader: imageLoader) }
     else if type == "poll", let payload { placeholder = NativePollView(payload) }
     else { placeholder = PlaceholderView(type: type) }
     container.addSubview(placeholder)
@@ -853,6 +870,7 @@ private final class EmbedBlock: LaidOutBlock {
   }
 
   func set(text: NSAttributedString, kind: DocumentText.BlockKind, width: CGFloat) {
+    length = text.length
     placeholder.frame = CGRect(x: 0, y: 0, width: width, height: fittingHeight(width))
   }
 
@@ -864,11 +882,11 @@ private final class EmbedBlock: LaidOutBlock {
     return [CGRect(x: range.location == 0 ? frame.minX : frame.maxX, y: frame.minY, width: 0, height: frame.height)]
   }
 
-  func offset(closestTo point: CGPoint) -> Int { point.x < placeholder.frame.midX ? 0 : 1 }
+  func offset(closestTo point: CGPoint) -> Int { point.x < placeholder.frame.midX ? 0 : length }
   func offset(movingVerticallyFrom offset: Int, _ direction: NSTextSelectionNavigation.Direction, x: CGFloat) -> Int? {
     nil
   }
-  func lineBoundary(at offset: Int, backward: Bool) -> Int { backward ? 0 : 1 }
+  func lineBoundary(at offset: Int, backward: Bool) -> Int { backward ? 0 : length }
 }
 
 /// A horizontal rule, the caret before it or after it as tall as a line of

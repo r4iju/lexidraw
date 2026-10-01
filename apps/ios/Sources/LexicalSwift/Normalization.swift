@@ -120,6 +120,8 @@ extension Update {
     case SerializedListItemNode.type:
       try wrapInList(key)
       if state.isAttached(key) { try syncListItemTextStyle(key) }
+    case SerializedMarkNode.type:
+      try transformCommentMark(key)
     case SerializedLinkNode.type:
       try transformLink(key)
     case SerializedTableCellNode.type:
@@ -254,5 +256,33 @@ extension Update {
     try insertAtNearestRoot(
       list, state.rewind(.sibling(list, .next)), SplitOptions(splitsAtEdges: false, removesEmptyDestination: true))
     if isEmpty(parent), state.isAttached(parent) { try remove(parent) }
+  }
+}
+
+// CommentPlugin's registerNestedElementResolver(MarkNode) only resolves
+// a directly nested mark; its deeper-wrapper path intentionally does nothing.
+extension Update {
+  private mutating func transformCommentMark(_ key: NodeKey) throws {
+    guard !state.children(of: key).contains(where: { state[$0].type == SerializedMarkNode.type }) else { return }
+    guard let parent = state.parent(of: key), case .mark(let outer) = state[parent].payload,
+      case .mark(var inner) = state[key].payload else { return }
+    var ids = inner.ids ?? []
+    for id in outer.ids ?? [] where !ids.contains(id) { ids.append(id) }
+    inner.ids = ids
+    modify(key) { $0.payload = .mark(inner) }
+    let siblings = Array(state.children(of: parent))
+    let next = Array(siblings.dropFirst((state.index(of: key) ?? 0) + 1))
+    try insert(key, after: parent)
+    if !next.isEmpty {
+      let clone = create(SerializedMarkNode.type)
+      modify(clone) {
+        guard case .mark(var payload) = $0.payload else { return }
+        payload.ids = outer.ids
+        $0.payload = .mark(payload)
+      }
+      try insert(clone, after: key)
+      try append(clone, next)
+    }
+    if state.childCount(of: parent) == 0 { try remove(parent) }
   }
 }

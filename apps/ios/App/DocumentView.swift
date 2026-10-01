@@ -98,15 +98,25 @@ struct DocumentScreen: View {
   }
 }
 
+private final class DocumentEditorReference {
+  weak var view: EditorView?
+}
+
 private struct DocumentContent: View {
   @Bindable var editing: DocumentEditing
+  @State private var editorReference = DocumentEditorReference()
   let reload: () async -> Void
   @Environment(\.scenePhase) private var scenePhase
 
   var body: some View {
-    DocumentEditor(editing: editing)
+    DocumentEditor(editing: editing, reference: editorReference)
       .ignoresSafeArea(.container, edges: .bottom)
       .safeAreaInset(edge: .top, spacing: 0) { notice }
+      .toolbar {
+        ToolbarItem(placement: .topBarTrailing) {
+          Button("Comments", systemImage: "bubble.left.and.bubble.right") { editorReference.view?.presentComments() }
+        }
+      }
       .task { await editing.followSaving() }
       .onDisappear { Task { await editing.saveNow() } }
       .onChange(of: scenePhase) { _, phase in
@@ -153,6 +163,7 @@ private struct DocumentContent: View {
 
 private struct DocumentEditor: UIViewRepresentable {
   let editing: DocumentEditing
+  let reference: DocumentEditorReference
 
   func makeUIView(context: Context) -> NativeEditorHost {
     let view = EditorView(
@@ -180,6 +191,7 @@ private struct DocumentEditor: UIViewRepresentable {
       }
     }
     view.configureNestedEmbeds?(view)
+    reference.view = view
     return NativeEditorHost(editor: view)
   }
 

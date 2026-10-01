@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
 import {
   FOOTNOTE_STYLE_PATH, swiftForFootnoteStyle,
+  COMMENT_DATA_PATH, swiftForCommentData,
   EMOJI_ALIASES_PATH,
   POLL_STYLE_PATH,
   swiftForEmojiAliases,
@@ -32,4 +33,19 @@ test("native mention styling follows the effective node DOM style", async () => 
 
 test("native footnote dimensions follow actual document CSS", async () => {
   expect(await Bun.file(FOOTNOTE_STYLE_PATH).text()).toBe(await swiftForFootnoteStyle());
+});
+
+test("native annotation colors follow the web comment theme", async () => {
+  const generated = await swiftForSocialStyle();
+  expect(generated.includes("static let commentMark = ThemeColor(")).toBe(true);
+  expect(generated.includes("static let commentBorder = ThemeColor(")).toBe(true);
+  expect(generated.includes("static let commentMarkActive = ThemeColor(")).toBe(true);
+  expect(await Bun.file(SOCIAL_STYLE_PATH).text()).toBe(generated);
+});
+
+test("native comment insertion uses web marker and store defaults", async () => {
+  const generated = await swiftForCommentData();
+  expect(generated.includes("static let emptyCommentJSON =")).toBe(true);
+  expect(generated.includes("static let emptyThreadNodeJSON =")).toBe(true);
+  expect(await Bun.file(COMMENT_DATA_PATH).text()).toBe(generated);
 });

@@ -132,6 +132,12 @@ extension Update {
       guard hasAncestor(selection.anchor.key, key), hasAncestor(selection.focus.key, key) else { return false }
       return try state.textContent(of: key).utf16.count == textContent(selection).utf16.count
     }
+    if node.type == SerializedMarkNode.type {
+      guard hasAncestor(selection.anchor.key, key), hasAncestor(selection.focus.key, key) else { return false }
+      let length = try state.isBackward(selection)
+        ? selection.anchor.offset - selection.focus.offset : selection.focus.offset - selection.anchor.offset
+      return state.textContent(of: key).utf16.count == length
+    }
     if node.isLink {
       let holds = { (point: SelectionPoint) in point.key == key || self.hasAncestor(point.key, key) }
       guard holds(selection.anchor), holds(selection.focus) else { return false }

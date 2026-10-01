@@ -162,7 +162,7 @@ import UIKit
   }
 
   private func body(
-    _ state: JSONValue, parent: UIStackView? = nil, editable: Bool = false, changed: @escaping (JSONValue) -> Void
+    _ state: JSONValue, parent: UIStackView? = nil, editable: Bool = false, shareDocumentMetadata: Bool = false, changed: @escaping (JSONValue) -> Void
   ) {
     do {
       let model = Editor(plainText: node["type"] == "sticky")
@@ -170,7 +170,7 @@ import UIKit
       let editor =
         owner?.makeNestedEditor(
           model: model, isEditable: editable && owner?.isEditable == true && model.isEditable,
-          textSize: node["type"] == "sticky" ? 24 : nil) ?? EditorView(model: model, isEditable: false)
+          textSize: node["type"] == "sticky" ? 24 : nil, shareDocumentMetadata: shareDocumentMetadata) ?? EditorView(model: model, isEditable: false)
       if owner?.configureNestedEmbeds == nil { configureEmbeddedDrawings(editor) }
       let height = editor.heightAnchor.constraint(equalToConstant: node["type"] == "sticky" ? 90 : 150)
       height.isActive = true
@@ -238,7 +238,7 @@ import UIKit
       self?.rename("Callout title", value: title) { self?.field("title", .string($0), rebuild: true) }
     }
     button("Edit callout body") { [weak self] in self?.editBody() }
-    body(document(node["children"]?.arrayValue ?? [])) { _ in }
+    body(document(node["children"]?.arrayValue ?? []), shareDocumentMetadata: true) { _ in }
   }
   private func collapsible() {
     let open = viewingSectionOpen ?? node["open"]?.isTruthy ?? false
@@ -254,10 +254,10 @@ import UIKit
       else { self.viewingSectionOpen = !open; self.rebuild(); self.owner?.refreshEmbeddedContent() }
     }
     button("Edit section title") { [weak self] in self?.editBody(path: [0]) }
-    body(document([paragraph(children[0]["children"]?.arrayValue ?? [])])) { _ in }
+    body(document([paragraph(children[0]["children"]?.arrayValue ?? [])]), shareDocumentMetadata: true) { _ in }
     if open {
       button("Edit section content") { [weak self] in self?.editBody(path: [1]) }
-      body(document(children[1]["children"]?.arrayValue ?? [])) { _ in }
+      body(document(children[1]["children"]?.arrayValue ?? []), shareDocumentMetadata: true) { _ in }
     }
   }
   private func layoutColumns() {
@@ -286,7 +286,7 @@ import UIKit
       edit.isEnabled = owner?.isEditable == true
       edit.addAction(UIAction { [weak self] _ in self?.editBody(path: [index]) }, for: .touchUpInside)
       column.addArrangedSubview(edit)
-      body(document(child["children"]?.arrayValue ?? []), parent: column) { _ in }
+      body(document(child["children"]?.arrayValue ?? []), parent: column, shareDocumentMetadata: true) { _ in }
     }
   }
   private func setColumns(_ value: String) {
