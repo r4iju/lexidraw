@@ -110,12 +110,11 @@ import UIKit
     var bottom: CGFloat = 0
     layoutManager.enumerateTextLayoutFragments(from: layoutManager.documentRange.endLocation, options: [.reverse]) {
       fragment in
-      // The last paragraph's frame counts a line for after the newline that
-      // ends the text, and of an empty paragraph overlaps it and leaves out
-      // the paragraph's spacing: the text ends below its last line and that.
-      let endsInNewline = self.storage.length > 0 && self.storage.mutableString.character(at: self.storage.length - 1) == 10
-      if endsInNewline, let line = fragment.textLineFragments.last(where: { $0.characterRange.length > 0 }) {
-        bottom = fragment.layoutFragmentFrame.minY + line.typographicBounds.maxY + self.trailingSpacing
+      // The text ends at its last line and spacing, before the extra line
+      // TextKit adds after a final newline (inside an empty paragraph's own).
+      let lines = fragment.textLineFragments
+      if lines.count > 1, lines.last?.characterRange.length == 0 {
+        bottom = fragment.layoutFragmentFrame.minY + lines[lines.count - 2].typographicBounds.maxY + self.spacingAfter
       } else {
         bottom = fragment.layoutFragmentFrame.maxY
       }
