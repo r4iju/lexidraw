@@ -72,6 +72,9 @@ import UIKit
   private var insets = UIEdgeInsets.zero
   private var dragStart: CGPoint?
   private var viewingSectionOpen: Bool?
+  private var section: SectionView?
+  private var borderColor: UIColor? { didSet { resolveBorderColor() } }
+  private func resolveBorderColor() { layer.borderColor = borderColor?.resolvedColor(with: traitCollection).cgColor }
   private var selectedSlideElementID: String?
 
   init(owner: EditorView, key: String, isSlideDraft: Bool = false) {
@@ -82,6 +85,9 @@ import UIKit
     stack.axis = .vertical
     stack.spacing = 8
     addSubview(stack)
+    registerForTraitChanges([UITraitUserInterfaceStyle.self]) { (self: Self, _) in
+      self.resolveBorderColor()
+    }
     let drag = UIPanGestureRecognizer(target: self, action: #selector(dragSticky(_:)))
     drag.delegate = self
     addGestureRecognizer(drag)
@@ -159,8 +165,12 @@ import UIKit
     }
     bodies = []
     columns = nil
+    section?.removeFromSuperview()
+    section = nil
     insets = .zero
     layer.cornerRadius = 0
+    layer.borderWidth = 0
+    borderColor = nil
     backgroundColor = .clear
     accessibilityLabel = node["type"]?.stringValue
     switch node["type"]?.stringValue {
@@ -180,20 +190,29 @@ import UIKit
     setNeedsLayout()
   }
 
+  private func nestedEditor(
+    _ state: JSONValue, editable: Bool = false, textWeight: CGFloat? = nil, textLineHeight: CGFloat? = nil, contextPath: [Int]? = nil,
+    shareDocumentMetadata: Bool = false
+  ) throws -> (model: Editor, view: EditorView) {
+    let model = Editor(plainText: node["type"] == "sticky")
+    try model.load(state)
+    let editor =
+      owner?.makeNestedEditor(
+        model: model, isEditable: editable && owner?.isEditable == true && model.isEditable,
+        textSize: node["type"] == "sticky" ? 24 : nil, textWeight: textWeight, textLineHeight: textLineHeight, shareDocumentMetadata: shareDocumentMetadata)
+      ?? EditorView(model: model, isEditable: false)
+    if let contextPath, let owner {
+      try editor.inheritElementFormatting(from: owner, key: key, childPath: contextPath)
+    }
+    if owner?.configureNestedEmbeds == nil { configureEmbeddedDrawings(editor) }
+    return (model, editor)
+  }
+
   private func body(
     _ state: JSONValue, parent: UIStackView? = nil, editable: Bool = false, contextPath: [Int]? = nil, shareDocumentMetadata: Bool = false, changed: @escaping (JSONValue) -> Void
   ) {
     do {
-      let model = Editor(plainText: node["type"] == "sticky")
-      try model.load(state)
-      let editor =
-        owner?.makeNestedEditor(
-          model: model, isEditable: editable && owner?.isEditable == true && model.isEditable,
-          textSize: node["type"] == "sticky" ? 24 : nil, shareDocumentMetadata: shareDocumentMetadata) ?? EditorView(model: model, isEditable: false)
-      if let contextPath, let owner {
-        try editor.inheritElementFormatting(from: owner, key: key, childPath: contextPath)
-      }
-      if owner?.configureNestedEmbeds == nil { configureEmbeddedDrawings(editor) }
+      let (model, editor) = try nestedEditor(state, editable: editable, contextPath: contextPath, shareDocumentMetadata: shareDocumentMetadata)
       let height = editor.heightAnchor.constraint(equalToConstant: node["type"] == "sticky" ? 90 : 150)
       height.isActive = true
       var opened = node
@@ -270,17 +289,43 @@ import UIKit
       label("Invalid collapsible structure (#133)")
       return
     }
-    button(open ? "Collapse section" : "Expand section", viewing: true) { [weak self] in
+    let border: UIColor, chevron: UIColor
+    do {
+      border = try themed(StructuralBlockConfiguration.sectionBorderColors)
+      chevron = try themed(StructuralBlockConfiguration.sectionChevronColors)
+    } catch { label("Cannot render this section (#133): \(structuralReason(error))"); return }
+    let title: EditorView, content: EditorView?
+    do {
+      title = try nestedEditor(
+        document([paragraph(children[0]["children"]?.arrayValue ?? [])]),
+        textWeight: StructuralBlockConfiguration.sectionTitleWeight, textLineHeight: StructuralBlockConfiguration.sectionLineHeight,
+        contextPath: [0], shareDocumentMetadata: true
+      ).view
+      content = open
+        ? try nestedEditor(
+          document(children[1]["children"]?.arrayValue ?? []), textLineHeight: StructuralBlockConfiguration.sectionLineHeight,
+          contextPath: [1], shareDocumentMetadata: true
+        ).view : nil
+    } catch { label("Cannot open this block: \(error.localizedDescription)"); return }
+    layer.borderWidth = StructuralBlockConfiguration.sectionBorderWidth
+    layer.cornerRadius = StructuralBlockConfiguration.sectionRadius
+    borderColor = border
+    func text(_ node: JSONValue) -> String { node["text"]?.stringValue ?? (node["children"]?.arrayValue ?? []).map(text).joined() }
+    let actions = owner?.isEditable == true ? [
+      UIAction(title: "Edit section title") { [weak self] _ in self?.editBody(path: [0]) },
+      UIAction(title: "Edit section content") { [weak self] _ in self?.editBody(path: [1]) },
+    ] : []
+    let section = SectionView(
+      title: title, content: content, open: open, label: text(children[0]).trimmingCharacters(in: .whitespaces),
+      chevronColor: chevron, actions: actions)
+    section.onToggle = { [weak self] in
       guard let self else { return }
       if self.owner?.isEditable == true { self.field("open", .bool(!open), rebuild: true) }
       else { self.viewingSectionOpen = !open; self.rebuild(); self.owner?.refreshEmbeddedContent() }
     }
-    button("Edit section title") { [weak self] in self?.editBody(path: [0]) }
-    body(document([paragraph(children[0]["children"]?.arrayValue ?? [])]), contextPath: [0], shareDocumentMetadata: true) { _ in }
-    if open {
-      button("Edit section content") { [weak self] in self?.editBody(path: [1]) }
-      body(document(children[1]["children"]?.arrayValue ?? []), contextPath: [1], shareDocumentMetadata: true) { _ in }
-    }
+    section.onHeightChange = { [weak self] in self?.owner?.refreshEmbeddedContent() }
+    addSubview(section)
+    self.section = section
   }
   private func layoutColumns() {
     menu(
@@ -853,6 +898,7 @@ import UIKit
     }
   }
   override func contentSize(fitting width: CGFloat) -> CGSize {
+    if let section { return CGSize(width: width, height: section.height(fitting: width)) }
     let actualWidth = node["type"] == "sticky" ? min(width, StructuralBlockConfiguration.stickyWidth) : width
     let inner = max(1, actualWidth - insets.left - insets.right)
     columns?.prepare(width: inner, stacked: width <= StructuralBlockConfiguration.stackedColumnsWidth)
@@ -868,6 +914,126 @@ import UIKit
   override func layoutSubviews() {
     super.layoutSubviews()
     stack.frame = bounds.inset(by: insets)
+    section?.frame = bounds
+  }
+}
+
+/// A collapsible section as the web draws its accordion item: a row with a
+/// chevron and the title that opens and closes it, then the content when open.
+/// Nested editors keep their margin, so each is placed that far outside the
+/// box its text has on the web.
+@MainActor private final class SectionView: UIView {
+  private typealias Style = StructuralBlockConfiguration
+  var onToggle: (() -> Void)?
+  var onHeightChange: (() -> Void)?
+  private let title: EditorView
+  private let content: EditorView?
+  private let chevron = UIView()
+  private let trigger = UIButton(type: .custom)
+  private let actionsButton: UIButton?
+  private var lastMeasurement: (width: CGFloat, height: CGFloat)?
+  private var resizePending = false
+
+  init(title: EditorView, content: EditorView?, open: Bool, label: String, chevronColor: UIColor, actions: [UIAction]) {
+    self.title = title
+    self.content = content
+    actionsButton = actions.isEmpty ? nil : UIButton(type: .system)
+    super.init(frame: .zero)
+    for editor in [content, title].compactMap(\.self) {
+      editor.backgroundColor = .clear
+      editor.isScrollEnabled = false
+      editor.onContentHeightChange = { [weak self] in self?.contentHeightChanged() }
+      addSubview(editor)
+    }
+    // The whole row is the web's trigger button, title included.
+    title.isUserInteractionEnabled = false
+    title.accessibilityElementsHidden = true
+    let size = Style.sectionChevronSize, scale = size / Style.sectionChevronViewBox
+    let path = UIBezierPath()
+    for (index, point) in Style.sectionChevronPoints.enumerated() {
+      let point = CGPoint(x: point.x * scale, y: point.y * scale)
+      if index == 0 { path.move(to: point) } else { path.addLine(to: point) }
+    }
+    let stroke = CAShapeLayer()
+    stroke.path = path.cgPath
+    stroke.fillColor = nil
+    stroke.lineWidth = Style.sectionChevronStrokeWidth * scale
+    stroke.lineCap = .round
+    stroke.lineJoin = .round
+    chevron.layer.addSublayer(stroke)
+    chevron.bounds = CGRect(x: 0, y: 0, width: size, height: size)
+    chevron.transform = open ? CGAffineTransform(rotationAngle: .pi / 2) : .identity
+    chevron.isUserInteractionEnabled = false
+    let paint = { (view: UIView) in stroke.strokeColor = chevronColor.resolvedColor(with: view.traitCollection).cgColor }
+    paint(self)
+    registerForTraitChanges([UITraitUserInterfaceStyle.self]) { (view: Self, _) in paint(view) }
+    addSubview(chevron)
+    trigger.accessibilityLabel = label
+    trigger.accessibilityTraits = .button
+    trigger.accessibilityValue = open ? "Expanded" : "Collapsed"
+    trigger.addAction(UIAction { [weak self] _ in self?.onToggle?() }, for: .primaryActionTriggered)
+    addSubview(trigger)
+    if let actionsButton {
+      actionsButton.setImage(UIImage(systemName: "ellipsis"), for: .normal)
+      actionsButton.tintColor = chevronColor
+      actionsButton.accessibilityLabel = "Section actions"
+      actionsButton.showsMenuAsPrimaryAction = true
+      actionsButton.menu = UIMenu(children: actions)
+      addSubview(actionsButton)
+    }
+  }
+  required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+  /// Where everything goes in a section `width` wide.
+  private struct Layout {
+    var height: CGFloat
+    var title, trigger, actions, content: CGRect
+    var chevronCenter: CGPoint
+  }
+  private func layout(_ width: CGFloat) -> Layout {
+    let margin = EditorView.defaultContentMargin, border = Style.sectionBorderWidth, inset = border + Style.sectionPadding
+    let actionsWidth = actionsButton == nil ? 0 : Style.sectionTriggerMinimumHeight
+    let titleX = inset + Style.sectionChevronSize + Style.sectionTriggerGap - margin
+    let titleWidth = max(1, width - titleX - inset - actionsWidth + margin)
+    let titleHeight = max(0, title.fittingHeight(width: titleWidth) - 2 * margin)
+    let contentWidth = max(1, width - 2 * inset + 2 * margin)
+    let contentHeight = content.map { max(0, $0.fittingHeight(width: contentWidth) - 2 * margin) } ?? 0
+    let row = max(Style.sectionTriggerMinimumHeight, titleHeight + 2 * Style.sectionTriggerPadding)
+    return Layout(
+      height: 2 * border + row + contentHeight,
+      title: CGRect(x: titleX, y: border + (row - titleHeight) / 2 - margin, width: titleWidth, height: titleHeight + 2 * margin),
+      trigger: CGRect(x: 0, y: 0, width: width - actionsWidth, height: border + row),
+      actions: CGRect(x: width - border - actionsWidth, y: border, width: actionsWidth, height: row),
+      content: CGRect(x: inset - margin, y: border + row - margin, width: contentWidth, height: contentHeight + 2 * margin),
+      chevronCenter: CGPoint(x: inset + Style.sectionChevronSize / 2, y: border + row / 2))
+  }
+
+  func height(fitting width: CGFloat) -> CGFloat {
+    let height = layout(width).height
+    lastMeasurement = (width, height)
+    return height
+  }
+
+  override func layoutSubviews() {
+    super.layoutSubviews()
+    let layout = layout(bounds.width)
+    title.frame = layout.title
+    chevron.center = layout.chevronCenter
+    trigger.frame = layout.trigger
+    actionsButton?.frame = layout.actions
+    content?.frame = layout.content
+  }
+
+  /// Images load after the section was measured; the parent re-measures it
+  /// once their height settles.
+  private func contentHeightChanged() {
+    guard lastMeasurement != nil, !resizePending else { return }
+    resizePending = true
+    DispatchQueue.main.async { [weak self] in
+      guard let self, let measured = self.lastMeasurement else { return }
+      self.resizePending = false
+      if abs(self.height(fitting: measured.width) - measured.height) > 0.5 { self.onHeightChange?() }
+    }
   }
 }
 

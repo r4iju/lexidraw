@@ -100,6 +100,8 @@ import UIKit
 
   var mediaImageLoader: MediaImageLoader?
   var onScrollSideways: (() -> Void)?
+  /// Called when the blocks' total height changes, as when an image loads.
+  var onHeightChange: (() -> Void)?
 
   /// Blocks laid out beyond those on screen, kept for geometry and scrolling
   /// back, before the farthest are let go.
@@ -187,6 +189,17 @@ import UIKit
 
   private var totalHeight: CGFloat { top(heights.count) }
 
+  /// The height of every block at the width last laid out, with the margins,
+  /// measuring blocks that only have estimates.
+  func measuredHeight() -> CGFloat {
+    if heights.count != document.blockCount { reset() }
+    for index in heights.indices {
+      let block = block(index)
+      if !measured[index] { measure(index, block) }
+    }
+    return totalHeight + 2 * Self.margin
+  }
+
   private func replaceHeights(_ range: Range<Int>, with new: [CGFloat]) {
     if heights.isEmpty && range.isEmpty && new.isEmpty { return }
     let above = top(range.lowerBound) + heights[range].reduce(0, +) <= visibleTop
@@ -195,6 +208,7 @@ import UIKit
     validTops = min(validTops, range.lowerBound)
     if tops.count != heights.count + 1 { tops = Array(tops.prefix(validTops + 1)) + Array(repeating: 0, count: heights.count - validTops) }
     if above, change != 0, let scrollView { scrollView.contentOffset.y += change }
+    if change != 0 { onHeightChange?() }
   }
 
   private func measure(_ index: Int, _ block: any LaidOutBlock) {
