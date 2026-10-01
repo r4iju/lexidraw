@@ -31,7 +31,12 @@ export async function serializeEmbedSVG(): Promise<string> {
       element.localName,
     );
     for (const attribute of element.attributes)
-      if (!/^(class|style|id|src|srcset|data-.*|aria-.*)$/.test(attribute.name))
+      if (
+        !/^(class|style|id|src|srcset|srcdoc|poster|autofocus|autoplay|on.*|data-.*|aria-.*)$/.test(
+          attribute.name,
+        ) &&
+        !(element instanceof SVGElement && /(^|:)href$/.test(attribute.name))
+      )
         blank.setAttribute(attribute.name, attribute.value);
     parent.append(blank);
     blanks.set(element, blank);
@@ -51,12 +56,13 @@ export async function serializeEmbedSVG(): Promise<string> {
         ? undefined
         : getComputedStyle(source.parentElement);
     const initial = getComputedStyle(blankFor(source));
+    // Copied declarations can name custom properties the SVG lacks; the
+    // computed differences below restate everything they contributed.
+    target.removeAttribute("style");
     for (const property of style) {
       if (property.startsWith("--")) continue;
       const value = style.getPropertyValue(property);
       if (
-        // A declaration copied with the element may name an undefined var().
-        !target.style.getPropertyValue(property) &&
         initial.getPropertyValue(property) === value &&
         (!inherited || inherited.getPropertyValue(property) === value)
       )

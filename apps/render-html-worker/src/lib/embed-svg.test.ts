@@ -77,9 +77,10 @@ test("a long highlighted code block serializes within the 8 MB SVG contract and 
 test("author styles that equal a browser default in another context stay in the SVG", async () => {
   const page = await browser.newPage();
   await page.setContent(`<!doctype html><html><head><style>
-    :root { --block: block; }
+    :root { --block: block; --indent: 40px; }
     .prose ul { list-style-type: disc; }
-  </style></head><body><article id="native-embed" class="prose"><div style="display: var(--block)">Lead</div><ul><li>Outer<ul><li>Inner</li></ul></li></ul></article></body></html>`);
+    .prose li { padding-left: 40px; }
+  </style></head><body><article id="native-embed" class="prose"><div style="display: var(--block)">Lead</div><ul><li>Outer<ul style="padding: 0 0 0 var(--indent)"><li>Inner</li></ul></li></ul></article></body></html>`);
   const svg = await page.evaluate(serializeEmbedSVG);
   await page.setContent(`<!doctype html><html><body>${svg}</body></html>`);
   const drawn = await page.evaluate(() => {
@@ -90,8 +91,13 @@ test("author styles that equal a browser default in another context stay in the 
     return {
       lead: getComputedStyle(lead).display,
       innerList: getComputedStyle(inner).listStyleType,
+      innerIndent: getComputedStyle(inner).paddingLeft,
     };
   });
-  expect(drawn).toEqual({ lead: "block", innerList: "disc" });
+  expect(drawn).toEqual({
+    lead: "block",
+    innerList: "disc",
+    innerIndent: "40px",
+  });
   await page.close();
 });
