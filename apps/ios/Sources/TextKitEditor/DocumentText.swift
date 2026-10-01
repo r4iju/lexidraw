@@ -90,6 +90,49 @@ public final class DocumentText {
     public var columnWidths: [Double]?
   }
 
+  private struct MentionPresentation {
+    var style: String
+    var tag: String
+    var innerTag: String
+    var effective: InlineCSS
+  }
+  private var mentions: [String: MentionPresentation] = [:]
+  private var mentionsByBlock: [String: Set<String>] = [:]
+  private func forgetMentions(in block: String) {
+    for key in mentionsByBlock.removeValue(forKey: block) ?? [] { mentions[key] = nil }
+  }
+
+  private func liveMentionCSS(_ node: JSONValue, path: [Int], block: String) -> String {
+    guard let index = path.last, let keys = try? model.childKeys(at: Array(path.dropLast())), keys.indices.contains(index) else { return WebSocialStyle.mentionCSS }
+    let key = keys[index]
+    mentionsByBlock[block, default: []].insert(key)
+    let format = TextFormat(rawValue: node["format"]?.intValue ?? 0)
+    // TextNode.updateDOM recreates the outer element when its tag changes.
+    let tag = [(TextFormat.code, "code"), (.highlight, "mark"), (.subscript, "sub"), (.superscript, "sup"), (.bold, "strong"), (.italic, "em")]
+      .first { format.contains($0.0) }?.1 ?? "span"
+    let innerTag = format.contains(.bold) ? "strong" : format.contains(.italic) ? "em" : "span"
+    let style = node["style"]?.stringValue ?? ""
+    var presentation = mentions[key] ?? MentionPresentation(style: style, tag: tag, innerTag: innerTag, effective: InlineCSS(WebSocialStyle.mentionCSS))
+    if presentation.tag != tag {
+      presentation = MentionPresentation(style: style, tag: tag, innerTag: innerTag, effective: InlineCSS(WebSocialStyle.mentionCSS))
+    } else if ["code", "mark", "sub", "sup"].contains(tag), presentation.innerTag != innerTag {
+      // The upstream inner-element replacement returns before patching CSS.
+      presentation.style = style
+    } else if presentation.style != style {
+      let previous = InlineCSS(presentation.style), next = InlineCSS(style)
+      for property in previous.propertyNames where next[property] == nil { presentation.effective[property] = nil }
+      for property in next.propertyNames {
+        guard let value = next[property] else { continue }
+        if ["color", "background-color"].contains(property), CSSColor(value) == nil { continue }
+        presentation.effective[property] = value
+      }
+      presentation.style = style
+    }
+    presentation.innerTag = innerTag
+    mentions[key] = presentation
+    return presentation.effective.serialized
+  }
+
   private let model: any EditorModel
   /// Element families supplied as native panels rather than flattened text.
   public var embeddedElementTypes: Set<String> = []
@@ -210,6 +253,8 @@ public final class DocumentText {
     footnoteIndexDirty = true
     floatingByBlock.removeAll(keepingCapacity: true)
     let keys = try model.childKeys(at: [])
+    let present = Set(keys)
+    for block in blocks where !present.contains(block.key) { forgetMentions(in: block.key) }
     let (text, rendered) = try render(keys.indices) { keys[$0] }
     blocks = rendered
     merged = false
@@ -264,7 +309,11 @@ public final class DocumentText {
       while suffix < min(old.count, keys.count) - prefix, old[old.count - 1 - suffix] == keys[keys.count - 1 - suffix] {
         suffix += 1
       }
-      for index in prefix..<(old.count - suffix) { floatingByBlock[old[index]] = nil }
+      let present = Set(keys)
+      for index in prefix..<(old.count - suffix) {
+        floatingByBlock[old[index]] = nil
+        if !present.contains(old[index]) { forgetMentions(in: old[index]) }
+      }
       let replaced = prefix..<(keys.count - suffix)
       let (text, rendered) = try render(replaced) { keys[$0] }
       storage.replaceCharacters(
@@ -431,6 +480,9 @@ public final class DocumentText {
       footnoteIndexDirty = false
     }
     for index in indexes {
+      let blockKey = key(index)
+      let oldMentions = mentionsByBlock[blockKey] ?? []
+      mentionsByBlock[blockKey] = []
       let node = try rootNodes[index] ?? model.nodeForPresentation(at: [index])
       var floating: [(key: String, node: JSONValue)] = []
       func collectFloating(_ value: JSONValue, at path: [Int]) throws {
@@ -458,6 +510,7 @@ public final class DocumentText {
           return Self.decoratorInParagraph(node) == nil ? nativeAttachment?(child, [index] + path) : nil
         })
       for context in inheritedElementFormatting { renderer.inheritElementFormatting(context, context: true) }
+      renderer.mentionCSS = { [self] value, path in liveMentionCSS(value, path: [index] + path, block: blockKey) }
       renderer.activeCommentIDs = activeCommentIDs
       renderer.resolvedCommentIDs = commentResolution
       renderer.footnoteNumbers = referenceNumbers
@@ -467,6 +520,7 @@ public final class DocumentText {
       } else {
         renderer.add(node, at: [])
       }
+      for removed in oldMentions.subtracting(mentionsByBlock[blockKey] ?? []) { mentions[removed] = nil }
       let block = renderer.text
       rendered.append(
         Block(
@@ -676,6 +730,8 @@ public final class DocumentText {
     }
 
     /// Inline elements, which sit in a line of text rather than on their own.
+    var mentionCSS: ((JSONValue, [Int]) -> String)?
+
     private static let inlineElements: Set<String> = ["link", "autolink", "mark", "comment", "thread"]
 
     mutating func add(_ node: JSONValue, at path: [Int]) {
@@ -774,7 +830,7 @@ public final class DocumentText {
         append("\u{2028}", format: [])
         kind = .character
       } else if let string = node["text"]?.stringValue {
-        append(string, format: TextFormat(rawValue: node["format"]?.intValue ?? 0), css: node["type"] == "mention" ? WebSocialStyle.mentionCSS : node["style"]?.stringValue ?? "")
+        append(string, format: TextFormat(rawValue: node["format"]?.intValue ?? 0), css: node["type"] == "mention" ? mentionCSS?(node, path) ?? WebSocialStyle.mentionCSS : node["style"]?.stringValue ?? "")
         kind = .text
       } else {
         append("\u{FFFC}", format: [])

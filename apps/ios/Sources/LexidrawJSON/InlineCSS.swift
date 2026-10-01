@@ -53,6 +53,8 @@ public struct InlineCSS: Sendable {
     set { properties[property] = newValue }
   }
 
+  public var propertyNames: [String] { Array(properties.keys) }
+
   public var serialized: String {
     // JavaScript object enumeration emits array-index keys before other keys.
     let numeric = properties.keys.compactMap { key -> (String, UInt32)? in

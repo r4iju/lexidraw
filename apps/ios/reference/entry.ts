@@ -1,4 +1,6 @@
-import { CommentNode, ThreadNode } from "@packages/lexical-nodes";
+import { withDOM } from "@lexical/headless/dom";
+import { $generateNodesFromDOM } from "@lexical/html";
+import { htmlToPlainText, ArticleNode, CollapsibleContainerNode, CollapsibleContentNode, CollapsibleTitleNode, CommentNode, ThreadNode } from "@packages/lexical-nodes";
 import { $createMarkNode, $unwrapMarkNode, $wrapSelectionInMarkNode, MarkNode } from "@lexical/mark";
 import { $dfs, registerNestedElementResolver } from "@lexical/utils";
 import { $formatCode } from "@packages/lexical-nodes/code-format";
@@ -71,6 +73,9 @@ import {
   registerDocumentTableInsertion,
 } from "@packages/lexical-nodes/tables";
 import {
+  $createParagraphNode,
+  $createTextNode,
+  $insertNodes,
   $createRangeSelection,
   $createNodeSelection,
   $exportNodeJSON,
@@ -193,6 +198,7 @@ type Command =
   | { type: "editLink"; url: string }
   | { type: "appendComment"; node: Record<string, unknown> }
   | { type: "annotateComment"; id: string }
+  | { type: "convertArticle"; path: number[]; text: string }
   | { type: "removeCommentAnnotations"; id: string }
   | { type: "saveCommentThread"; id: string; thread?: Parameters<ThreadNode["setThread"]>[0] }
   | { type: "copy" }
@@ -705,6 +711,24 @@ function run(
   command: Exclude<Command, { type: "undo" | "redo" | "wait" | "cut" }>,
 ) {
   const editor = current();
+  if (command.type === "convertArticle") {
+    return withDOM((window) => {
+      let nodes = $generateNodesFromDOM(editor, new window.DOMParser().parseFromString(command.text, "text/html"));
+      nodes = nodes.flatMap((node) =>
+        CollapsibleContainerNode.$isCollapsibleContainerNode(node) || CollapsibleContentNode.$isCollapsibleContentNode(node) || CollapsibleTitleNode.$isCollapsibleTitleNode(node)
+          ? $isElementNode(node) ? node.getChildren() : [] : [node]);
+      if (!nodes.length) nodes = [$createParagraphNode().append($createTextNode(htmlToPlainText(command.text)))];
+      const node = nodeAt(command.path);
+      if (!ArticleNode.$isArticleNode(node)) return;
+      let parent = node.getParent();
+      while (parent && !CollapsibleContainerNode.$isCollapsibleContainerNode(parent)) parent = parent.getParent();
+      (parent ?? node).selectNext();
+      $insertNodes(nodes);
+      const last = nodes[nodes.length - 1];
+      if (last && $isElementNode(last)) last.selectEnd();
+      node.remove();
+    });
+  }
   if (command.type === "removeCommentAnnotations") {
     for (const { node } of $dfs($getRoot())) {
       if (node instanceof MarkNode && node.hasID(command.id)) {
@@ -1121,7 +1145,8 @@ function runOnCells(
         | "appendComment"
         | "annotateComment"
         | "saveCommentThread"
-        | "removeCommentAnnotations";
+        | "removeCommentAnnotations"
+        | "convertArticle";
     }
   >,
   selection: TableSelection,
@@ -1212,7 +1237,8 @@ function runOnNodes(
         | "appendComment"
         | "annotateComment"
         | "saveCommentThread"
-        | "removeCommentAnnotations";
+        | "removeCommentAnnotations"
+        | "convertArticle";
     }
   >,
   selection: NodeSelection,

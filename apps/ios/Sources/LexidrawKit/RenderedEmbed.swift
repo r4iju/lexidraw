@@ -2,6 +2,15 @@ import Foundation
 import LexidrawJSON
 
 public struct RenderedEmbed: Sendable {
+  public struct Link: Sendable {
+    public let url: URL
+    public let x: Double
+    public let y: Double
+    public let width: Double
+    public let height: Double
+  }
+  public let accessibleText: String?
+  public let links: [Link]
   public let hash: String
   public let svg: String
   public let png: Data
@@ -36,7 +45,10 @@ extension Session {
     guard let png = Data(base64Encoded: result.png), png.count <= 12_000_000 else {
       throw Refusal(status: 502, message: "The renderer returned an invalid image")
     }
-    return RenderedEmbed(hash: result.hash, svg: result.svg, png: png, width: result.width, height: result.height)
+    return RenderedEmbed(accessibleText: result.accessibleText, links: (result.links ?? []).compactMap { link in
+      guard let url = URL(string: link.url), ["http", "https", "mailto", "tel", "ftp"].contains(url.scheme?.lowercased() ?? "") else { return nil }
+      return RenderedEmbed.Link(url: url, x: link.x, y: link.y, width: link.width, height: link.height)
+    }, hash: result.hash, svg: result.svg, png: png, width: result.width, height: result.height)
     }
   }
 }

@@ -65,6 +65,8 @@ import Synchronization
   private(set) var failed = false
   var open: (() -> Void)?
   var onRendered: (() -> Void)?
+  var failureDescription = "Couldn’t render. Tap to edit the source."
+  private var links: [RenderedEmbed.Link] = []
   private let picture = UIImageView()
   private let status = UILabel()
   private var task: Task<Void, Never>?
@@ -82,7 +84,7 @@ import Synchronization
     status.font = .preferredFont(forTextStyle: .footnote)
     addSubview(picture)
     addSubview(status)
-    addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(tap)))
+    addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(tap(_:))))
     accessibilityTraits = .button
     registerForTraitChanges([UITraitUserInterfaceStyle.self, UITraitPreferredContentSizeCategory.self]) { (view: RenderedEmbedView, _: UITraitCollection) in
       view.signature = nil
@@ -92,7 +94,10 @@ import Synchronization
   }
   required init?(coder: NSCoder) { fatalError("RenderedEmbedView is made in code") }
   override func show(_ node: JSONValue) {
-    if self.node != node { signature = nil; self.node = node }
+    if self.node != node {
+      signature = nil; self.node = node
+      if node["type"] == "article" { links = []; image = nil; picture.image = nil }
+    }
     accessibilityLabel = "\(node["type"]?.stringValue ?? "Rendered node"). Edit source"
     setNeedsLayout()
   }
@@ -115,7 +120,7 @@ import Synchronization
         }
       }
     }
-    let target = inline ? min(width, natural.width) : column
+    let target = node["type"] == "article" ? width : (inline ? min(width, natural.width) : column)
     // Intrinsic inline measurement needs the full container, even when its last image was narrow.
     render(width: max(inline ? width : target, 1))
     let height = target * natural.height / max(natural.width, 1)
@@ -142,13 +147,19 @@ import Synchronization
         guard !Task.isCancelled, let self, self.signature == next else { return }
         guard let image = UIImage(data: result.png) else { throw EditorError.invalidState("The renderer returned an unreadable image") }
         self.image = image
+        links = result.links
+        if node["type"] == "article" {
+          accessibilityLabel = result.accessibleText
+          accessibilityTraits = .staticText
+        }
         picture.image = image
         natural = CGSize(width: result.width, height: result.height)
         status.text = nil
         onRendered?()
       } catch {
         guard !Task.isCancelled, let self, self.signature == next else { return }
-        status.text = "Couldn’t render. Tap to edit the source.\n\(error.localizedDescription)"
+        status.text = "\(failureDescription)\n\(error.localizedDescription)"
+        links = []
         image = nil
         picture.image = nil
         failed = true
@@ -163,7 +174,14 @@ import Synchronization
     onRendered?()
   }
   deinit { task?.cancel() }
-  @objc private func tap() { open?() }
+  @objc private func tap(_ tap: UITapGestureRecognizer) {
+    let scale = min(bounds.width / max(natural.width, 1), bounds.height / max(natural.height, 1))
+    let point = tap.location(in: self)
+    let local = CGPoint(x: (point.x - (bounds.width - natural.width * scale) / 2) / scale, y: (point.y - (bounds.height - natural.height * scale) / 2) / scale)
+    if let link = links.first(where: { CGRect(x: $0.x, y: $0.y, width: $0.width, height: $0.height).contains(local) }) {
+      UIApplication.shared.open(link.url)
+    } else { open?() }
+  }
 }
 
 @MainActor private final class RenderedAttachment: NSTextAttachment, LazyTextAttachment {

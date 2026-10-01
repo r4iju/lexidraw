@@ -7,6 +7,7 @@ import { RichTextPlugin } from "@lexical/react/LexicalRichTextPlugin";
 import { LexicalErrorBoundary } from "@lexical/react/LexicalErrorBoundary";
 import { CodeHighlightNode } from "@lexical/code";
 import { DocumentCodeNode } from "@packages/lexical-nodes";
+import { ArticleContent } from "../documents/[documentId]/nodes/ArticleNode/ArticleContent";
 import MermaidImage from "../documents/[documentId]/nodes/MermaidNode/MermaidImage";
 import DynamicChartRenderer from "../documents/[documentId]/nodes/ChartNode/DynamicChartRenderer";
 import KatexRenderer from "~/components/ui/katex-renderer";
@@ -55,7 +56,7 @@ export default function NativeRenderer() {
     window.nativeEmbedReady = () =>
       !captureHeld() &&
       !!document.getElementById("native-embed") &&
-      !document.querySelector('[aria-busy="true"]');
+      !Array.from(document.querySelectorAll('[aria-busy="true"]')).some((element) => !element.closest("[data-native-article]"));
     return () => {
       delete window.renderNativeEmbed;
       delete window.nativeEmbedReady;
@@ -127,6 +128,10 @@ export default function NativeRenderer() {
               width={node.width ?? "inherit"}
               height={node.height ?? "inherit"}
             />
+          </div>
+        ) : node.type === "article" ? (
+          <div data-native-article style={{ textAlign: node.format || undefined }}>
+            <ArticleContent html={(node.data.mode === "url" ? node.data.distilled : node.data.snapshot)?.contentHtml ?? ""} />
           </div>
         ) : (
           <LexicalComposer

@@ -78,10 +78,14 @@ export async function POST(request: Request) {
       await document.fonts.ready;
       await Promise.all(
         Array.from(document.querySelectorAll("#native-embed img")).map(
-          (image) =>
-            image instanceof HTMLImageElement
-              ? image.decode()
-              : Promise.resolve(),
+          (image) => {
+            if (!(image instanceof HTMLImageElement)) return Promise.resolve();
+            const decoded = image.decode();
+            // The web article retains its readable body when a remote image fails.
+            return image.closest("[data-native-article]")
+              ? decoded.catch(() => {})
+              : decoded;
+          },
         ),
       );
       await new Promise<void>((resolve) =>
@@ -96,6 +100,18 @@ export async function POST(request: Request) {
       throw new Error("Empty render");
     if (bounds.width * bounds.height * 4 > 16000000)
       return new NextResponse("Render exceeds 16 megapixels", { status: 413 });
+    const interactions = await page.evaluate(() => {
+      const article = document.querySelector<HTMLElement>("[data-native-article]");
+      const root = document.getElementById("native-embed");
+      if (!article || !root) return {};
+      const origin = root.getBoundingClientRect();
+      const links = Array.from(article.querySelectorAll<HTMLAnchorElement>("a[href]")).flatMap((anchor) =>
+        Array.from(anchor.getClientRects()).filter((rect) => rect.width > 0 && rect.height > 0).map((rect) => ({
+          url: anchor.href, x: rect.x - origin.x, y: rect.y - origin.y, width: rect.width, height: rect.height,
+        })),
+      );
+      return { accessibleText: article.innerText, links };
+    });
     const svg = await page.evaluate(async () => {
       const original = document.getElementById("native-embed");
       if (!original) throw new Error("No rendered embed");
@@ -120,6 +136,10 @@ export async function POST(request: Request) {
           target instanceof HTMLImageElement &&
           source.src
         ) {
+          if (source.closest("[data-native-article]") && source.naturalWidth === 0) {
+            target.removeAttribute("src");
+            continue;
+          }
           const blob = await (await fetch(source.src)).blob();
           target.src = await new Promise<string>((resolve, reject) => {
             const reader = new FileReader();
@@ -142,6 +162,7 @@ export async function POST(request: Request) {
       await element.screenshot({ type: "png", omitBackground: true }),
     ).toString("base64");
     return NextResponse.json({
+      ...interactions,
       svg,
       png,
       width: bounds.width,

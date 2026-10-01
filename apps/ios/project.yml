@@ -73,6 +73,8 @@ targets:
       - App/EmbeddedDrawing.swift
       - App/EmbeddedHTMLBlock.swift
       - App/RenderedEmbeds.swift
+      - App/ArticleBlocks.swift
+      - App/ArticleInsertion.swift
 
       - App/StructuralBlocks.swift
       - App/NativeColumnsView.swift

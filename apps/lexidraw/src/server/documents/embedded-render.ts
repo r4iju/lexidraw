@@ -8,6 +8,8 @@ export type EmbedRenderRequest = {
   fontSize: number;
 };
 export type EmbedRenderImage = {
+  accessibleText?: string;
+  links?: { url: string; x: number; y: number; width: number; height: number }[];
   svg: string;
   png: string;
   width: number;
@@ -57,7 +59,7 @@ export function createEmbedRenderer(
     const pending = boundedDraw(request)
       .then((image) => {
         const size =
-          Buffer.byteLength(image.svg) + Buffer.byteLength(image.png);
+          Buffer.byteLength(image.svg) + Buffer.byteLength(image.png) + Buffer.byteLength(JSON.stringify({ links: image.links, accessibleText: image.accessibleText }));
         if (
           Buffer.byteLength(image.svg) > 8_000_000 ||
           size > 12_000_000 ||

@@ -95,7 +95,7 @@ function pickLargestTextContainer(document: Document): Element | null {
   return best?.el ?? null;
 }
 
-function sanitize(contentHtml: string, baseUrl: string): string {
+export function sanitizeArticleContent(contentHtml: string, baseUrl: string, eagerImages = false): string {
   const options: IOptions = {
     allowedTags: [
       "article",
@@ -161,7 +161,7 @@ function sanitize(contentHtml: string, baseUrl: string): string {
           attribs: {
             ...attribs,
             ...(src ? { src } : {}),
-            loading: "lazy",
+            loading: eagerImages ? "eager" : "lazy",
           },
         };
       },
@@ -599,7 +599,7 @@ export async function extractAndSanitizeArticle({
       null;
 
     const contentHtmlRaw = article?.content || "";
-    let selectedContentHtml = sanitize(contentHtmlRaw, url);
+    let selectedContentHtml = sanitizeArticleContent(contentHtmlRaw, url);
     let selectedDocForMeta: Document = doc;
 
     const initialWordCount = computeWordCount(selectedContentHtml);
@@ -651,7 +651,7 @@ export async function extractAndSanitizeArticle({
             const altReader = new Readability(altDoc);
             const altArticle = altReader.parse();
             const altRaw = altArticle?.content || "";
-            const altSanitized = sanitize(altRaw, ampUrl);
+            const altSanitized = sanitizeArticleContent(altRaw, ampUrl);
             const altCount = computeWordCount(altSanitized);
             if (
               altSanitized.length > selectedContentHtml.length ||
@@ -691,7 +691,7 @@ export async function extractAndSanitizeArticle({
               cls ? `.${cls.split(/\s+/).slice(0, 2).join(".")}` : ""
             }`;
           })();
-          const fallbackSanitized = sanitize(container.innerHTML, url);
+          const fallbackSanitized = sanitizeArticleContent(container.innerHTML, url);
           const fallbackCount = computeWordCount(fallbackSanitized);
           if (
             fallbackSanitized.length > selectedContentHtml.length ||
@@ -759,7 +759,7 @@ export async function extractAndSanitizeArticle({
             const canReader = new Readability(canDoc);
             const canArticle = canReader.parse();
             const canRaw = canArticle?.content || "";
-            const canSanitized = sanitize(canRaw, canonicalUrl);
+            const canSanitized = sanitizeArticleContent(canRaw, canonicalUrl);
             const canCount = computeWordCount(canSanitized);
             if (
               canSanitized.length > selectedContentHtml.length ||
@@ -793,7 +793,7 @@ export async function extractAndSanitizeArticle({
           chars: jsonLd?.html.length || 0,
         });
         if (jsonLd?.html) {
-          const jsonLdSanitized = sanitize(jsonLd.html, url);
+          const jsonLdSanitized = sanitizeArticleContent(jsonLd.html, url);
           const jsonLdCount = computeWordCount(jsonLdSanitized);
           if (
             jsonLdSanitized.length > selectedContentHtml.length ||
@@ -834,7 +834,7 @@ export async function extractAndSanitizeArticle({
               const sdReader = new Readability(sdDoc);
               const sdArticle = sdReader.parse();
               const sdRaw = sdArticle?.content || sdDoc.body?.innerHTML || "";
-              const sdSanitized = sanitize(sdRaw, url);
+              const sdSanitized = sanitizeArticleContent(sdRaw, url);
               const sdCount = computeWordCount(sdSanitized);
               if (
                 sdSanitized.length > selectedContentHtml.length ||
@@ -902,7 +902,7 @@ export async function extractAndSanitizeArticle({
             const frReader = new Readability(frDoc);
             const frArticle = frReader.parse();
             const frRaw = frArticle?.content || frDoc.body?.innerHTML || "";
-            const frSanitized = sanitize(frRaw, abs);
+            const frSanitized = sanitizeArticleContent(frRaw, abs);
             const frCount = computeWordCount(frSanitized);
             if (
               frSanitized.length > selectedContentHtml.length ||

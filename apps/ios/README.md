@@ -658,9 +658,35 @@ explicitly refused instead of storing a damaged quote. Generated defaults,
 quote limits and annotation colors come from the current web source. Malformed
 or unknown comment payload fields keep the document read-only.
 
-This checkpoint does not complete #134. Non-normal keyword payloads and articles
-retain their explicit unported editing gate. Caption/slide hashtag transforms,
-mention transient CSS and unsupported social caption contexts still need work.
+Native article blocks preserve URL/distilled and saved-entity/snapshot payloads.
+The saved-link picker uses authenticated extraction or the web's recent URL list
+and search. Saved entities load the current distilled body, retaining the stored
+snapshot when that body is absent or malformed; query failure stays visible.
+Title, author, site, word count and local update time accompany the full body.
+The guarded server render uses the same `ArticleContent` prose component as the
+web, with eager images for complete capture. Body link hit regions and readable
+accessibility text come from that DOM. Refresh, convert to editable text, and
+confirmed removal use editor history and autosave; stale panels cannot overwrite
+newer node data. Conversion unwraps the same top-level collapsible nodes and
+selects beyond the same nearest collapsible ancestor before insertion.
+HTML shapes the native importer cannot edit are explicitly refused rather than
+silently converted to plain text.
+
+Article bodies are native raster previews of the full sanitized web content,
+not selectable browser DOM. Link taps open their browser destinations, and
+VoiceOver reads the body as one text element; per-paragraph DOM navigation and
+animated article media remain unported. The existing 16-megapixel render and
+payload budgets apply, with a maximum link URL length of 8,192 characters.
+Blocked/broken images retain the readable body. The clipboard/caption renderer's
+broader CSS limits remain assigned to their owning tickets. Article generation
+uses no AI. Real local authenticated light/dark render probes included headings,
+bold/italic text, a public link, a table, a public GIF and a final paragraph;
+a separate blocked-private-image probe proved the public request guard stayed
+active while the article body remained readable.
+
+This checkpoint does not complete #134. Non-normal keyword payloads retain their
+explicit unported editing gate. Active caption/slide hashtag and keyword
+transforms and unsupported social caption contexts still need work.
 Stored social text generation opts in via `socialTextSubclasses`, preserving
 fault-injection seeds; the full differential run enables it.
 
