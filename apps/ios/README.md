@@ -778,6 +778,36 @@ iOS Simulator. The UI checks include mixed text accessibility, slide drag/resize
 autosave, fixed/percentage tracks, partial fractional tracks and read-only slide
 navigation. CI was not invoked.
 
+### Sections, inline images and empty paragraphs (#238)
+
+"Shopping - Clothing" is 17 sections of photo paragraphs. A section is now the
+web's accordion item: a bordered, rounded row with the lucide chevron and the
+title in medium weight, the whole row toggling it, and the content below sized
+to fit and re-measured as its images load. Editors get the title and content
+editing in a section menu. The border, radius, padding, row height, gap,
+chevron path and stroke, title weight and line height are generated from the
+collapsible node classes and theme. Text keeps its ems of the Dynamic Type body
+size, so a closed row is the web's 46px at 16px text and 48.25pt at 17pt.
+
+An image `src` is parsed as a browser parses one, without the controls and
+spaces around it or tabs and newlines within: 17 of the document's 80 photos
+are stored with a trailing space, which the blob store answers with 404 once
+percent-encoded. A paragraph with an inline image taller than its lines lets
+those lines grow as a CSS line box does, so a
+paragraph of photos no longer overlaps itself or the text around it. An empty
+paragraph keeps its line and margin: TextKit puts the extra line after its
+newline inside it, which had left 14pt of its 40pt.
+
+Each change first failed its regression: the closed row measured 226pt with no
+border and system buttons and open content was cut to 150pt
+(`/tmp/238-red-evidence.log`), the trailing-space URL kept `%20`, the paragraph
+after two inline photos started inside the second, and an empty paragraph
+measured 14pt. Simulator screenshots of the whole document, the open section
+and an opened photo section match the web's layout at equal content width
+(`/tmp/238-native-initial.png` before, `/tmp/238-after-*.png` after). The
+iPad app on macOS was not run: there is no signed install path for it yet.
+CI was not invoked.
+
 ### Native media insertion controls (#135)
 
 The native insertion menu offers image Photos/camera actions, inline-image Photos,

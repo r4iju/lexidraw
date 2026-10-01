@@ -198,6 +198,89 @@ import TextKitEditor
       plain.body.caretRect(for: plain.body.beginningOfDocument).minX + 200)
   }
 
+  private func section(open: Bool, title: String = "Adidas Checked Wide Pants / JF5016", lines: Int = 1) -> JSONValue {
+    func paragraph(_ text: String) -> JSONValue {
+      ["type": "paragraph", "version": 1, "children": [["type": "text", "version": 1, "text": .string(text)]]]
+    }
+    return ["type": "collapsible-container", "version": 1, "open": .bool(open), "children": [
+      ["type": "collapsible-title", "version": 1, "children": [paragraph(title)]],
+      ["type": "collapsible-content", "version": 1, "children": .array((0..<lines).map { paragraph("Line \($0)") })],
+    ]]
+  }
+  private func disclosure(in view: UIView) -> UIControl? {
+    if let control = view as? UIControl, control.accessibilityTraits.contains(.button), control.accessibilityValue != nil { return control }
+    return view.subviews.lazy.compactMap { self.disclosure(in: $0) }.first
+  }
+
+  // "Shopping - Clothing" at 704px: a closed item is a 46px bordered row, its
+  // title after a 16px chevron, and no other controls. Text is in ems of the
+  // body font, 16px on the web: the title's 1.5em line and 0.75em margin.
+  private var sectionRow: CGFloat { 2 * 4 + 2.25 * UIFont.preferredFont(forTextStyle: .body).pointSize }
+  func testAClosedSectionIsTheWebsBorderedDisclosureRow() throws {
+    let fixture = try preview(section(open: false), width: 704)
+    XCTAssertEqual(fixture.panel.frame.height, 2 + sectionRow, accuracy: 1)
+    XCTAssertEqual(fixture.panel.layer.borderWidth, 1)
+    XCTAssertEqual(fixture.panel.layer.cornerRadius, 10)
+    let title = fixture.body.textInputView.convert(fixture.body.caretRect(for: fixture.body.beginningOfDocument), to: fixture.panel)
+    XCTAssertEqual(title.minX, 41, accuracy: 1)
+    let visibleButtons = fixture.panel.subviews.flatMap { [$0] + $0.subviews }.compactMap { $0 as? UIButton }.filter { !$0.isHidden }
+    XCTAssertEqual(visibleButtons.compactMap { $0.title(for: .normal) }, [])
+    let control = try XCTUnwrap(disclosure(in: fixture.panel))
+    XCTAssertEqual(control.accessibilityLabel, "Adidas Checked Wide Pants / JF5016")
+    XCTAssertEqual(control.accessibilityValue, "Collapsed")
+  }
+
+  func testAnOpenSectionShowsAllOfItsContentBelowTheRow() throws {
+    let fixture = try preview(section(open: true, lines: 40), width: 704)
+    func editors(in view: UIView) -> [EditorView] {
+      if let editor = view as? EditorView { return [editor] }
+      return view.subviews.flatMap(editors)
+    }
+    let content = try XCTUnwrap(editors(in: fixture.panel).max { $0.frame.maxY < $1.frame.maxY })
+    // Nothing of the content is scrolled away inside a fixed-height box.
+    XCTAssertGreaterThanOrEqual(content.frame.height, content.contentSize.height - 1)
+    XCTAssertGreaterThan(fixture.panel.frame.height, 40 * 20)
+    let first = content.textInputView.convert(content.caretRect(for: content.beginningOfDocument), to: fixture.panel)
+    XCTAssertEqual(first.minX, 17, accuracy: 1)
+    XCTAssertEqual(first.minY, 1 + sectionRow, accuracy: 4)
+  }
+
+  // Between two items the web keeps the item's 0.75em block margin and the
+  // empty paragraph the document stores there, a 1.6em line and its 0.75em.
+  func testSectionsKeepTheWebsSpacingAroundTheEmptyParagraphBetweenThem() throws {
+    let model = Editor()
+    try model.load(["root": ["type": "root", "version": 1, "children": [
+      section(open: false), ["type": "paragraph", "version": 1, "children": []], section(open: false, title: "Second"),
+      ["type": "paragraph", "version": 1, "children": [["type": "text", "version": 1, "text": "after"]]],
+    ]]])
+    let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 736, height: 1000))
+    let owner = EditorView(model: model, isEditable: false)
+    configureStructuralBlocks(owner)
+    owner.frame = window.bounds
+    window.addSubview(owner)
+    window.makeKeyAndVisible()
+    owner.layoutIfNeeded()
+    func panels(in view: UIView) -> [UIView] {
+      if view.layer.borderWidth > 0, view !== owner { return [view] }
+      return view.subviews.flatMap(panels)
+    }
+    let boxes = panels(in: owner).map { $0.convert($0.bounds, to: owner) }.sorted { $0.minY < $1.minY }
+    XCTAssertEqual(boxes.count, 2)
+    guard boxes.count == 2 else { return }
+    let em = UIFont.preferredFont(forTextStyle: .body).pointSize
+    XCTAssertEqual(boxes[1].minY - boxes[0].maxY, (0.75 + 1.6 + 0.75) * em, accuracy: 1.5)
+  }
+
+  func testTheDisclosureRowTogglesAReadOnlySectionWithoutEditingIt() throws {
+    let fixture = try preview(section(open: false), width: 704)
+    let node = try fixture.model.node(at: [0])
+    let control = try XCTUnwrap(disclosure(in: fixture.panel))
+    control.sendActions(for: .primaryActionTriggered)
+    XCTAssertEqual(disclosure(in: fixture.panel)?.accessibilityValue, "Expanded")
+    XCTAssertGreaterThan(fixture.panel.contentSize(fitting: 704).height, 60)
+    XCTAssertEqual(try fixture.model.node(at: [0]), node)
+  }
+
   func testLogicalParentAlignmentAndPaddingRespectTheChildDirection() throws {
     let paragraph: JSONValue = ["type": "paragraph", "version": 1, "direction": "ltr", "children": [["type": "text", "version": 1, "text": "abc"]]]
     let plain = try preview(["type": "callout", "version": 1, "kind": "note", "title": "", "format": "start", "direction": "ltr", "indent": 0, "children": [paragraph]])
