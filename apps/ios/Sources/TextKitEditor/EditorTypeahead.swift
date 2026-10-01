@@ -65,7 +65,7 @@ public struct EditorTypeaheadInput: Equatable, Sendable {
           range: range,
           with: Clipboard(
             plainText: entry.emoji,
-            lexical: LexicalClipboardPayload(namespace: MediaLinks.namespace, nodes: [.object(fields)])))
+            lexical: LexicalClipboardPayload(namespace: MediaLinks.namespace, nodes: [.object(fields)])), preservingTypingAttributes: true)
       }
     }
     return EditorTypeaheadMatch(range: range, candidates: Array(candidates))

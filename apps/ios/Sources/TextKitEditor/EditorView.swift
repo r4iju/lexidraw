@@ -603,7 +603,7 @@ public final class EditorView: UIScrollView, UITextInput {
   /// without being told; anything else tells the input delegate. Returns
   /// what the command changed, where the model took it.
   @discardableResult
-  private func perform(_ command: EditorCommand, fromInput: Bool, tellsRefusal: Bool = false) -> ChangeSet? {
+  private func perform(_ command: EditorCommand, fromInput: Bool, tellsRefusal: Bool = false, preservingTypingAttributes: Bool = false, typeaheadSelection: (Point, Point)? = nil) -> ChangeSet? {
     guard isEditable || !command.edits else { return nil }
     switch command {
     case .insertText, .commitComposition, .deleteCharacter, .deleteWord, .deleteLine, .insertParagraph, .insertLineBreak, .formatText, .tab:
@@ -626,7 +626,9 @@ public final class EditorView: UIScrollView, UITextInput {
     }
     let change: ChangeSet
     do {
-      change = try model.apply(command)
+      if let typeaheadSelection, case .paste(let clipboard) = command {
+        change = try model.applyTypeahead(clipboard, anchor: typeaheadSelection.0, focus: typeaheadSelection.1, preservingTypingAttributes: preservingTypingAttributes)
+      } else { change = try model.apply(command) }
     } catch EditorError.unsupported(let what) {
       Self.log.notice("The model can't \(command.name, privacy: .public) here yet: \(what, privacy: .public)")
       if tellsRefusal { tell(refusal: what) }
@@ -803,13 +805,12 @@ public final class EditorView: UIScrollView, UITextInput {
     typeahead?.update(input, providers: typeaheadProviders)
   }
 
-  public func replaceTypeahead(range: NSRange, with clipboard: Clipboard) {
+  public func replaceTypeahead(range: NSRange, with clipboard: Clipboard, preservingTypingAttributes: Bool = false) {
     guard isEditable, composition == nil, range.location >= 0, NSMaxRange(range) == selected.location else { return }
     typeahead?.clear()
     anchor = range.location
     focus = NSMaxRange(range)
-    sendSelection()
-    perform(.paste(clipboard), fromInput: false, tellsRefusal: true)
+    perform(.paste(clipboard), fromInput: false, tellsRefusal: true, preservingTypingAttributes: preservingTypingAttributes, typeaheadSelection: (document.point(at: anchor), document.point(at: focus)))
   }
 
   /// Tells the model where the view's selection is, which it needs before
