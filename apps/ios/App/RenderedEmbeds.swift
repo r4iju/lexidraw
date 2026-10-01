@@ -78,6 +78,7 @@ import Synchronization
   private var signature: String?
   private var natural = CGSize(width: 320, height: 180)
   private var availableWidth: CGFloat?
+  private let statusInset: CGFloat = 8
 
   init(session: Session, fontFamily: String) {
     self.session = session
@@ -132,8 +133,8 @@ import Synchronization
     render(width: max(inline ? width : target, 1))
     // A failure has no image, so its height is the message, not the placeholder's aspect ratio.
     if failed, !inline {
-      let message = status.sizeThatFits(CGSize(width: max(target - 16, 1), height: .greatestFiniteMagnitude))
-      return CGSize(width: target, height: ceil(message.height) + 16)
+      let message = status.sizeThatFits(CGSize(width: max(target - 2 * statusInset, 1), height: .greatestFiniteMagnitude))
+      return CGSize(width: target, height: ceil(message.height) + 2 * statusInset)
     }
     let height = target * natural.height / max(natural.width, 1)
     return CGSize(width: target, height: max(height, 20))
@@ -143,7 +144,7 @@ import Synchronization
     picture.frame = bounds
     updateArticleAccessibilityFrames()
     updateArticleImageFrames()
-    status.frame = bounds.insetBy(dx: 8, dy: 8)
+    status.frame = bounds.insetBy(dx: statusInset, dy: statusInset)
     _ = contentSize(fitting: availableWidth ?? max(bounds.width, 1))
   }
   private func render(width: CGFloat) {
