@@ -221,7 +221,7 @@ final class DocumentPreviewUITests: XCTestCase {
     let first = app.buttons["Edit column 1"]
     XCTAssertTrue(first.waitForExistence(timeout: 10))
     XCTAssertGreaterThan(app.frame.width, 600)
-    XCTAssertEqual(first.frame.width, 100, accuracy: 1)
+    XCTAssertEqual(first.frame.width, 82, accuracy: 1) // 100px track minus the source border and padding.
     let percentage = app.buttons["Edit column 2"].frame.width
     XCTAssertGreaterThan(percentage, app.frame.width * 0.15)
     XCTAssertLessThan(percentage, app.frame.width * 0.3)

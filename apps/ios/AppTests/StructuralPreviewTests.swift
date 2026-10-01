@@ -12,15 +12,15 @@ import TextKitEditor
     let body: EditorView
   }
 
-  private func preview(_ callout: JSONValue, wrapper: ((JSONValue) -> JSONValue)? = nil, path: [Int] = [0]) throws -> Preview {
+  private func preview(_ callout: JSONValue, wrapper: ((JSONValue) -> JSONValue)? = nil, path: [Int] = [0], width: CGFloat = 400) throws -> Preview {
     let model = Editor()
     try model.load(["root": ["type": "root", "version": 1, "children": [wrapper?(callout) ?? callout]]])
     let owner = EditorView(model: model, isEditable: false)
-    owner.frame = CGRect(x: 0, y: 0, width: 400, height: 600)
+    owner.frame = CGRect(x: 0, y: 0, width: width, height: 600)
     configureStructuralBlocks(owner)
     let key = try XCTUnwrap(model.childKeys(at: Array(path.dropLast()))[path.last!])
     let panel = try XCTUnwrap(owner.embeddedContent?(key, model.node(at: path)))
-    panel.frame = CGRect(origin: .zero, size: panel.contentSize(fitting: 400))
+    panel.frame = CGRect(origin: .zero, size: panel.contentSize(fitting: width))
     panel.layoutIfNeeded()
     func body(in view: UIView) -> EditorView? {
       if let editor = view as? EditorView { return editor }
@@ -49,6 +49,56 @@ import TextKitEditor
     let indented = try preview(["type": "callout", "version": 1, "kind": "note", "title": "", "indent": 2, "children": [list]])
     XCTAssertEqual(indented.body.caretRect(for: indented.body.beginningOfDocument).minX,
       unindented.body.caretRect(for: unindented.body.beginningOfDocument).minX + 80, accuracy: 1)
+  }
+
+  func testAnExplicitZeroTrackKeepsItsColumnBoxOverflow() throws {
+    let view = NativeColumnsView(tracks: try XCTUnwrap(NativeColumnTrack.parse("minmax(0,0fr) 1fr")), gap: 8)
+    let first = UIStackView(), second = UIStackView()
+    view.addColumn(first); view.addColumn(second)
+    view.prepare(width: 400, stacked: false)
+    view.frame = CGRect(x: 0, y: 0, width: 400, height: 200)
+    view.layoutIfNeeded()
+    XCTAssertEqual(first.frame.width, 18, accuracy: 0.01)
+    XCTAssertEqual(second.frame.minX, 8, accuracy: 0.01)
+    XCTAssertEqual(second.frame.width, 392, accuracy: 0.01)
+  }
+
+  func testTheSourceColumnBoxPaddingStaysOutsideTheNestedEditor() throws {
+    let item: JSONValue = ["type": "layout-item", "version": 1, "children": [["type": "paragraph", "version": 1, "children": []]]]
+    let fixture = try preview(["type": "layout-container", "version": 1, "templateColumns": "100px 1fr", "children": [item, item]], width: 800)
+    XCTAssertEqual(fixture.body.frame.minX, 9, accuracy: 0.01)
+    XCTAssertEqual(fixture.body.frame.width, 82, accuracy: 0.01)
+  }
+
+  func testRTLColumnsFollowTheLiveInheritedDirection() throws {
+    let item: JSONValue = ["type": "layout-item", "version": 1, "children": [["type": "paragraph", "version": 1, "children": []]]]
+    let fixture = try preview(["type": "layout-container", "version": 1, "templateColumns": "100px 200px", "children": [item, item]], wrapper: { node in
+      ["type": "callout", "version": 1, "kind": "note", "title": "", "direction": "rtl", "children": [node]]
+    }, path: [0, 0], width: 800)
+    func find(_ view: UIView) -> NativeColumnsView? {
+      if let columns = view as? NativeColumnsView { return columns }
+      return view.subviews.lazy.compactMap { find($0) }.first
+    }
+    let columns = try XCTUnwrap(find(fixture.panel))
+    let stacks = columns.subviews.flatMap(\.subviews).compactMap { $0 as? UIStackView }
+    XCTAssertEqual(stacks.count, 2)
+    XCTAssertGreaterThan(stacks[0].frame.minX, stacks[1].frame.minX)
+    XCTAssertEqual(stacks[0].frame.maxX, columns.bounds.width, accuracy: 1)
+  }
+
+  func testRawZeroFractionReservesTheSourceColumnBoxWithoutMeasuringControls() throws {
+    let view = NativeColumnsView(tracks: try XCTUnwrap(NativeColumnTrack.parse("0fr 1fr")), gap: 8)
+    let first = UIStackView(), second = UIStackView()
+    let word = UILabel(); word.text = "UnbreakableLongWord"
+    let control = UIButton(type: .system); control.setTitle("An intentionally much wider native editor control", for: .normal)
+    first.addArrangedSubview(word); first.addArrangedSubview(control)
+    view.addColumn(first); view.addColumn(second)
+    view.prepare(width: 400, stacked: false)
+    view.frame = CGRect(x: 0, y: 0, width: 400, height: 200)
+    view.layoutIfNeeded()
+    // Production CSS: min-width:0, inline-size containment, p-2 and a 1px border.
+    XCTAssertEqual(first.frame.width, 18, accuracy: 0.01)
+    XCTAssertEqual(second.frame.width, 374, accuracy: 0.01)
   }
 
   func testNestedCalloutRetainsTheNonPanelAncestorFormatting() throws {

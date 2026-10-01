@@ -1,4 +1,5 @@
 import UIKit
+import LexidrawJSON
 
 /// The native track grammars currently supported without a browser layout engine.
 indirect enum NativeColumnTrack {
@@ -80,13 +81,16 @@ indirect enum NativeColumnTrack {
     switch self {
     case .pixels(let value), .minimum(let value, _): value
     case .percentage(let value), .percentageMinimum(let value, _): width * value
-    case .fraction: 0
+    case .fraction: 2 * (StructuralBlockConfiguration.columnPadding + StructuralBlockConfiguration.columnBorderWidth)
     }
   }
 }
 
 /// Fixed tracks may overflow their grid; they must not become conflicting stack constraints.
 @MainActor final class NativeColumnsView: UIView {
+  private let rightToLeft: Bool
+  private var initialScrollPosition = true
+  private var wasStacked = false
   private let tracks: [NativeColumnTrack]
   private let gap: CGFloat
   private let viewport = UIScrollView()
@@ -96,7 +100,8 @@ indirect enum NativeColumnTrack {
   private var measuredWidth: CGFloat = 0
   private let unavailable = UILabel()
 
-  init(tracks: [NativeColumnTrack], gap: CGFloat) {
+  init(tracks: [NativeColumnTrack], gap: CGFloat, rightToLeft: Bool = false) {
+    self.rightToLeft = rightToLeft
     self.tracks = tracks
     self.gap = gap
     super.init(frame: .zero)
@@ -113,9 +118,13 @@ indirect enum NativeColumnTrack {
   override var intrinsicContentSize: CGSize { CGSize(width: UIView.noIntrinsicMetric, height: measuredHeight) }
 
   func prepare(width: CGFloat, stacked: Bool) {
+    if stacked != wasStacked { initialScrollPosition = true; wasStacked = stacked }
     var widths = Array(repeating: width, count: stacked ? 1 : tracks.count)
     if !stacked {
-      widths = tracks.map { $0.base(width: width) }
+      widths = tracks.enumerated().map { index, track in
+        if case .fraction = track, index >= columns.count { return 0 }
+        return track.base(width: width)
+      }
       var flexible = Set(tracks.indices.filter { tracks[$0].factor != nil })
       while !flexible.isEmpty {
         let fixed = widths.indices.filter { !flexible.contains($0) }.reduce(CGFloat(0)) { $0 + widths[$1] }
@@ -145,9 +154,10 @@ indirect enum NativeColumnTrack {
     var tallest: CGFloat = 0
     for (index, column) in columns.enumerated() {
       let trackIndex = index % widths.count
-      let size = column.systemLayoutSizeFitting(CGSize(width: widths[trackIndex], height: 0),
+      let boxWidth = max(widths[trackIndex], 2 * (StructuralBlockConfiguration.columnPadding + StructuralBlockConfiguration.columnBorderWidth))
+      let size = column.systemLayoutSizeFitting(CGSize(width: boxWidth, height: 0),
         withHorizontalFittingPriority: .required, verticalFittingPriority: .fittingSizeLevel)
-      row.append(CGRect(x: x, y: y, width: widths[trackIndex], height: size.height))
+      row.append(CGRect(x: x, y: y, width: boxWidth, height: size.height))
       x += widths[trackIndex] + gap
       tallest = max(tallest, size.height)
       if trackIndex == widths.count - 1 || index == columns.count - 1 {
@@ -158,6 +168,10 @@ indirect enum NativeColumnTrack {
     }
     measuredHeight = max(0, y - gap)
     measuredWidth = stacked ? width : max(width, widths.reduce(0, +) + gap * CGFloat(max(0, widths.count - 1)))
+    measuredWidth = max(measuredWidth, frames.map(\.maxX).max() ?? 0)
+    if rightToLeft && !stacked {
+      frames = frames.map { CGRect(x: measuredWidth - $0.maxX, y: $0.minY, width: $0.width, height: $0.height) }
+    }
     viewport.isScrollEnabled = !stacked && measuredWidth > width
     if stacked { viewport.contentOffset = .zero }
     invalidateIntrinsicContentSize()
@@ -176,6 +190,10 @@ indirect enum NativeColumnTrack {
     super.layoutSubviews()
     viewport.frame = bounds
     viewport.contentSize = CGSize(width: measuredWidth, height: measuredHeight)
+    if initialScrollPosition {
+      viewport.contentOffset = CGPoint(x: rightToLeft && !wasStacked ? max(0, measuredWidth - bounds.width) : 0, y: 0)
+      initialScrollPosition = false
+    }
     unavailable.frame = bounds
     for (column, frame) in zip(columns, frames) { column.frame = frame }
   }

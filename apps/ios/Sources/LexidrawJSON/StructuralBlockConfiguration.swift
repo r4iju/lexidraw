@@ -1,6 +1,8 @@
 // Generated from structural node factories, web presets and document CSS.
 // Run bun run codegen in apps/ios to update.
 public enum StructuralBlockConfiguration {
+  public static let columnPadding = 8.0
+  public static let columnBorderWidth = 1.0
   public static let columnWhitespacePattern = "\\s+"
   public static let isolatedNodeTypes: Set<String> = ["sticky"]
   public static let stickyWidth = 192.0

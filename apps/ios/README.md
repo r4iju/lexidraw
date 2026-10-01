@@ -798,7 +798,7 @@ Final local verification in `133-context-final.xcresult` passed 147 UIKit tests,
 passed 385 test methods; Bun passed 95 tests / 198 expectations, and reference
 bundle generation and TypeScript checking passed. No CI was invoked.
 
-Remaining #133 fidelity work includes RTL grid column flow and intrinsic/auto
+Remaining #133 fidelity work includes intrinsic/auto
 tracks, auto-repeat, fixed-maximum `minmax`, other CSS units/functions and named
 lines. Those unsupported grid grammars retain their explicit limitation rather
 than receiving guessed geometry. This checkpoint does not close #133.
@@ -808,6 +808,38 @@ model, including non-panel wrappers and the root. A hosted nested list →
 list item → callout regression failed in `133-ancestor-red.xcresult` (the
 preview caret stayed at x=0 despite inherited RTL/right formatting), then all
 four hosted cases passed in `133-ancestor-green.xcresult` after the prefix fix.
-Raw fractional tracks still need the web column box minimum. Production CSS
-sets `min-width: 0` and inline-size containment, so text-content minima are
-suppressed; the generated border and padding still contribute to track sizing.
+The initial bare-grid oracle omitted production containment: `document.css`
+sets column items to `min-width:0` and `container-type:inline-size`. Consequently
+content (including a long unbreakable word) supplies no intrinsic track minimum.
+The generated web border/padding box still contributes 18px for an occupied raw
+fractional track. Tailwind's actual utilities and theme spacing generate those
+values; unsupported source shapes fail code generation. Explicit fixed minima
+keep their own track semantics and unoccupied fractional tracks have no box
+contribution. Native editor controls do not participate in track sizing.
+
+Column bodies keep the source box inset outside the nested editor. At a 100px
+track, the source's 8px padding and 1px border leave an 82px content width, with
+text starting 9px inside the column. RTL columns read effective live ancestor
+direction, put the first column at inline-start and initially show inline-start
+when fixed tracks overflow; subsequent manual scrolling is retained.
+
+The box minimum, actual body inset and inherited RTL ordering were each
+observed failing in hosted tests before their fixes (`133-box-red.xcresult`,
+`133-column-padding-red.xcresult`, `133-columns-rtl-red.xcresult`). Browser
+oracles used the production min-width, containment, padding and border styles,
+including long text; bare-grid content minima are not claimed as app behavior.
+
+Explicit zero/narrow tracks keep their declared grid positions while the actual
+column border/padding box can overflow them, matching CSS box sizing. A hosted
+`minmax(0,0fr) 1fr` case failed with a zero-width first box before the correction
+(`133-column-overflow-red.xcresult`); the next track still starts at x=8 and
+retains width 392 in a 400px grid.
+
+The web insertion dialog exposes exactly five templates: `1fr 1fr`,
+`1fr 3fr`, `1fr 1fr 1fr`, `1fr 2fr 1fr`, and `1fr 1fr 1fr 1fr`. All use the
+common native fractional-track path. Additional imported templates can use the
+implemented nonnegative px/%/fr, fixed-minimum/fractional-maximum `minmax`,
+integer `repeat` and implicit-row subset. Arbitrary CSS strings are accepted by
+the web node schema; auto/min/max-content, auto-repeat, fixed-maximum `minmax`,
+fit-content, relative units/functions and named lines still explicitly refuse
+under #133. No runtime JavaScript or WebKit layout boundary was added.
