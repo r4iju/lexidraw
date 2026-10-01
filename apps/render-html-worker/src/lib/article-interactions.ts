@@ -1,5 +1,43 @@
 /** Serializable browser callback: each visible text node belongs to one reading segment. */
-export function extractArticleInteractions(includeAccessibility = false) {
+type ArticleImage = {
+  url?: string;
+  heading?: boolean;
+  source: string;
+  alt: string;
+  textIndex: number;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  objectFit: string;
+  overlay: boolean;
+  refusal?: string;
+};
+type ArticleInteractions = {
+  accessibleText?: string;
+  links?: {
+    url: string;
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  }[];
+  accessibility?: {
+    role: "heading" | "text" | "link";
+    heading?: boolean;
+    text: string;
+    url?: string;
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  }[];
+  articleImages?: ArticleImage[];
+};
+export function extractArticleInteractions(
+  includeAccessibility = false,
+  includeImages = false,
+): ArticleInteractions {
   const article = document.querySelector<HTMLElement>("[data-native-article]");
   const root = document.getElementById("native-embed");
   if (!article || !root) return {};
@@ -17,7 +55,7 @@ export function extractArticleInteractions(includeAccessibility = false) {
         height: rect.height,
       })),
   );
-  if (!includeAccessibility)
+  if (!includeAccessibility && !includeImages)
     return { accessibleText: article.innerText, links };
   const accessibility: {
     role: "heading" | "text" | "link";
@@ -28,6 +66,20 @@ export function extractArticleInteractions(includeAccessibility = false) {
     y: number;
     width: number;
     height: number;
+  }[] = [];
+  const articleImages: {
+    source: string;
+    alt: string;
+    textIndex: number;
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    objectFit: string;
+    overlay: boolean;
+    refusal?: string;
+    url?: string;
+    heading?: boolean;
   }[] = [];
   let group:
     | { first: Text; last: Text; text: string; heading: boolean; url?: string }
@@ -115,6 +167,107 @@ export function extractArticleInteractions(includeAccessibility = false) {
       element.matches("script,style,template")
     )
       continue;
+    if (element instanceof HTMLImageElement && includeImages) {
+      flush();
+      const rect = element.getBoundingClientRect();
+      if (style.visibility === "visible" && rect.width > 0 && rect.height > 0) {
+        if (articleImages.length >= 64)
+          throw new Error("Article exceeds image element limit");
+        let supported =
+          element.naturalWidth > 0 &&
+          element.naturalHeight > 0 &&
+          ["fill", "contain", "cover"].includes(style.objectFit) &&
+          style.objectPosition === "50% 50%";
+        for (
+          let parent: HTMLElement | null = element;
+          parent && root.contains(parent);
+          parent = parent.parentElement
+        ) {
+          const css = getComputedStyle(parent);
+          supported &&=
+            css.transform === "none" &&
+            css.filter === "none" &&
+            css.opacity === "1" &&
+            css.mixBlendMode === "normal" &&
+            css.clipPath === "none" &&
+            css.maskImage === "none" &&
+            css.backdropFilter === "none" &&
+            (parent === element ||
+              (css.overflowX === "visible" && css.overflowY === "visible"));
+        }
+        supported &&=
+          style.position === "static" &&
+          style.boxShadow === "none" &&
+          style.outlineStyle === "none" &&
+          style.backgroundImage === "none" &&
+          style.backgroundColor === "rgba(0, 0, 0, 0)";
+        supported &&= [
+          style.borderTopWidth,
+          style.borderRightWidth,
+          style.borderBottomWidth,
+          style.borderLeftWidth,
+          style.paddingTop,
+          style.paddingRight,
+          style.paddingBottom,
+          style.paddingLeft,
+          style.borderTopLeftRadius,
+          style.borderTopRightRadius,
+          style.borderBottomLeftRadius,
+          style.borderBottomRightRadius,
+        ].every((value) => value === "0px");
+        // Native image views sit above the raster. Refuse intersecting content
+        // rather than changing the browser's paint order.
+        if (supported) {
+          const overlaps = (other: DOMRect) =>
+            other.width > 0 && other.height > 0 &&
+            other.left < rect.right && other.right > rect.left &&
+            other.top < rect.bottom && other.bottom > rect.top;
+          const walker = document.createTreeWalker(article, NodeFilter.SHOW_TEXT);
+          let inspected = 0;
+          for (let text = walker.nextNode(); text; text = walker.nextNode()) {
+            if (++inspected > 4096) { supported = false; break; }
+            if (!text.textContent?.trim()) continue;
+            const range = document.createRange();
+            range.selectNodeContents(text);
+            if (Array.from(range.getClientRects()).some(overlaps)) {
+              supported = false; break;
+            }
+          }
+          const others = article.querySelectorAll("*");
+          if (others.length > 4096) supported = false;
+          else for (const other of others) {
+            if (other !== element && !other.contains(element) &&
+              overlaps(other.getBoundingClientRect())) {
+              supported = false; break;
+            }
+          }
+        }
+        articleImages.push({
+          source: element.currentSrc || element.src,
+          alt: ["none", "presentation"].includes(
+            element.getAttribute("role") ?? "",
+          )
+            ? ""
+            : (element.getAttribute("aria-label") ?? element.alt),
+          ...(entry.url ? { url: entry.url } : {}),
+          ...(entry.heading ? { heading: true } : {}),
+          textIndex: accessibility.length,
+          x: rect.x - origin.x,
+          y: rect.y - origin.y,
+          width: rect.width,
+          height: rect.height,
+          objectFit: style.objectFit,
+          overlay: supported,
+          ...(!supported
+            ? {
+                refusal:
+                  "Article image style requires the raster preview (#134)",
+              }
+            : {}),
+        });
+      }
+      continue;
+    }
     if (element.tagName === "BR") {
       if (group) group.text += "\n";
       continue;
@@ -132,5 +285,10 @@ export function extractArticleInteractions(includeAccessibility = false) {
     }
   }
   flush();
-  return { accessibleText: article.innerText, links, accessibility };
+  return {
+    accessibleText: article.innerText,
+    links,
+    ...(includeAccessibility ? { accessibility } : {}),
+    ...(includeImages ? { articleImages } : {}),
+  };
 }

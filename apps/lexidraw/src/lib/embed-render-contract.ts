@@ -95,8 +95,29 @@ export const embedRenderRequest = z.object({
   fontFamily: z.string().min(1).max(120),
   fontSize: z.number().min(1).max(256),
   includeAccessibility: z.boolean().optional(),
+  articleImagesVersion: z.enum(["v1"]).optional(),
 });
 export const embedRenderImage = z.object({
+  articleImageBasePNG: z.string().max(12000000).optional(),
+  articleImages: z
+    .array(
+      z.object({
+        source: z.string().max(8192),
+        url: z.string().max(8192).optional(),
+        heading: z.boolean().optional(),
+        alt: z.string().max(262144),
+        textIndex: z.number().int().min(0).max(4096),
+        x: z.number(),
+        y: z.number(),
+        width: z.number().positive(),
+        height: z.number().positive(),
+        objectFit: z.string().max(64),
+        overlay: z.boolean(),
+        refusal: z.string().max(1024).optional(),
+      }),
+    )
+    .max(64)
+    .optional(),
   accessibility: z
     .array(
       z.object({

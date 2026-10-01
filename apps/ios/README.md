@@ -1023,3 +1023,61 @@ schema generates the unread-field preservation rule, including fractional values
 Sticky caption typing still needs the actual parent-aware plain-text nested editor
 oracle and owner/history integration; the import setter `setCaptionJSON` is not
 claimed as typing or child-history parity.
+### Native article image slice
+
+Article images negotiate a separate `articleImagesVersion: v1` capability.
+Existing accessibility clients receive exactly their prior response keys and
+roles. New metadata retains visible DOM image source, alt/ARIA label, link and
+heading semantics, text insertion index, actual geometry and measured object
+fit. Empty-alt/presentation images stay decorative. Metadata is limited to 64
+images and joins the existing aggregate renderer/cache byte limits.
+
+The worker retains the original PNG/SVG fallback and supplies a second PNG
+with supported images hidden. Native overlays use the shared bounded
+`NativeMediaImages` GIF/APNG/WebP decoder and animation loop/timing helper,
+without showing the original sampled frame through transparent animation
+pixels. All supported images must decode before switching to the cleared base.
+Retained original raster, overlay frames, and image-free base bitmap (deduplicated
+by CGImage identity) are bounded to 16 MiB per article
+and 32 MiB across admitted article overlay groups; static-only renderer previews
+remain governed by the existing renderer cache, rather than this overlay budget.
+Two asset groups run concurrently with at most
+12 queued. Failures retain the original static raster and report the #134
+limitation. The owner supplies the same SVG-capable loader used by other media.
+
+Only ordinary static-position, undecorated images with centered fill/contain/
+cover sizing overlay natively. Transforms, filters, blending, ancestor clipping,
+nonzero borders/padding/radii, custom positioning or backgrounds retain the
+original raster with an explicit metadata refusal/accessibility hint. This
+bounded slice does not claim all imported CSS image effects or rich selection.
+
+Disposable actual Chromium metadata assertions first failed with missing image
+metadata (`134-images-browser-red.log`), then passed. Browser inspection also
+caught the UA's default replaced-image `overflow:clip`; the new check genuinely
+failed (`134-images-ua-clip-red.log`) before its native-clipping-compatible fix.
+Valid-contract native image-alt order/trait and visible two-frame GIF tests
+failed before UI implementation (`134-images-alt-red.xcresult`,
+`134-images-animation-red.xcresult`), then both passed
+(`134-images-green2.xcresult`). The alt run also exposed a fixture indexing crash
+after its behavioral assertion, corrected with an explicit count guard. APNG
+and WebP reuse the existing decoder; these article-specific tests prove GIF
+presentation rather than claiming new per-format device measurements.
+
+The local worker was also checked against the actual public source renderer
+with a disposable repository GIF: absent capability returned no new keys;
+v1 returned the measured 128×72 image, alt text and a smaller cleared base PNG
+(`134-images-worker-evidence.json`). Both original and cleared PNGs were
+visually inspected. Images the guarded worker failed to decode are never
+fetched again by native overlays. Final two hosted tests passed
+(`134-images-final.xcresult`), production simulator build passed
+(`134-images-production.log`), and existing three render contract/cache tests
+passed. No CI, physical capture prompts or user corpus mutations were used.
+
+Article image overlays refuse intersecting DOM text or non-ancestor element boxes so the
+original raster retains browser paint order. Queued image groups check cancellation
+and render identity before reserving decoded memory.
+
+Review-fix evidence: the retained actual-Chromium probe observed
+`overlay: true` for later positioned overlapping text before the stacking guard
+(`/tmp/134-images-stacking-red.log`), then passed with raster refusal. Worker
+TypeScript and production simulator app build passed after the review fixes.

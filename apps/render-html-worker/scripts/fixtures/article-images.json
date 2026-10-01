@@ -1,0 +1,4 @@
+{
+  "html": "<div id=\"native-embed\" style=\"width:390px;font:16px Arial\"><article data-native-article><p>Before.</p><img src=\"data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7\" alt=\"Disposable colored frame\" width=\"64\" height=\"48\"><p>After.</p><img src=\"data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7\" alt=\"\" width=\"20\" height=\"20\"></article></div>",
+  "provenance": "Actual T3 Chromium b7dd0d1e red 2026-10-01: image alt and geometry absent from article interactions"
+}

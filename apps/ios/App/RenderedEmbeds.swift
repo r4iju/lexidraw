@@ -67,6 +67,9 @@ import Synchronization
   var onRendered: (() -> Void)?
   var failureDescription = "Couldn’t render. Tap to edit the source."
   private var links: [RenderedEmbed.Link] = []
+  var articleImageLoader: MediaImageLoader?
+  private var articleImageTask: Task<Void, Never>?
+  private var articleImageViews: [(UIImageView, [Double], UIImage)] = []
   private var articleText: String?
   private var articleElements: [(ArticleAccessibilityElement, [Double])] = []
   private let picture = UIImageView()
@@ -99,6 +102,7 @@ import Synchronization
   override func show(_ node: JSONValue) {
     if self.node != node {
       signature = nil; self.node = node
+      clearArticleImages()
       if node["type"] == "article" { links = []; articleText = nil; articleElements = []; accessibilityElements = nil; isAccessibilityElement = true; image = nil; picture.image = nil }
     }
     accessibilityLabel = "\(node["type"]?.stringValue ?? "Rendered node"). Edit source"
@@ -133,6 +137,7 @@ import Synchronization
     super.layoutSubviews()
     picture.frame = bounds
     updateArticleAccessibilityFrames()
+    updateArticleImageFrames()
     status.frame = bounds.insetBy(dx: 8, dy: 8)
     _ = contentSize(fitting: availableWidth ?? max(bounds.width, 1))
   }
@@ -143,6 +148,7 @@ import Synchronization
     guard signature != next else { return }
     signature = next
     task?.cancel()
+    clearArticleImages()
     failed = false
     status.text = "Rendering…"
     task = Task { [weak self, session, fontFamily, node] in
@@ -164,6 +170,16 @@ import Synchronization
             element.activate = item.url.map { url in { UIApplication.shared.open(url); return true } }
             return (element, item.rect)
           }
+          for item in result.articleImages.reversed() where !item.alt.isEmpty {
+            let element = ArticleAccessibilityElement(accessibilityContainer:self)
+            element.accessibilityLabel = item.alt
+            element.accessibilityTraits = .image
+            if item.url != nil { element.accessibilityTraits.insert(.link) }
+            if item.heading { element.accessibilityTraits.insert(.header) }
+            element.accessibilityHint = item.refusal
+            element.activate = item.url.map { url in { UIApplication.shared.open(url); return true } }
+            articleElements.insert((element,item.rect),at:min(max(item.textIndex,0),articleElements.count))
+          }
           isAccessibilityElement = articleElements.isEmpty
           accessibilityElements = articleElements.isEmpty ? nil : articleElements.map { $0.0 }
           updateArticleAccessibilityFrames()
@@ -172,6 +188,7 @@ import Synchronization
         natural = CGSize(width: result.width, height: result.height)
         status.text = nil
         updateArticleAccessibilityFrames()
+        loadArticleImages(result, signature:next)
         onRendered?()
       } catch {
         guard !Task.isCancelled, let self, self.signature == next else { return }
@@ -220,13 +237,74 @@ import Synchronization
       element.accessibilityFrameInContainerSpace = CGRect(x: offset.x + rect[0] * scale, y: offset.y + rect[1] * scale, width: rect[2] * scale, height: rect[3] * scale)
     }
   }
+  private func clearArticleImages() {
+    articleImageTask?.cancel(); articleImageTask=nil
+    articleImageViews.forEach { $0.0.stopAnimating(); $0.0.removeFromSuperview() }
+    articleImageViews=[]
+    ArticleImageBudget.release(self)
+  }
+  private func loadArticleImages(_ result: RenderedEmbed, signature expected: String) {
+    guard node["type"] == "article", let data = result.articleImageBasePNG, let background=UIImage(data:data) else { return }
+    let metadata=result.articleImages.filter(\.overlay)
+    guard !metadata.isEmpty else { return }
+    articleImageTask=Task { [weak self] in
+      guard let self else { return }
+      do {
+        try await ArticleImageRequests.shared.perform { @MainActor [weak self] in
+          guard let self, signature == expected else { return }
+          try Task.checkCancellation()
+          var loaded: [(RenderedEmbed.ArticleImage,UIImage)] = []
+          var retained = [background] + (self.image.map { [$0] } ?? [])
+          var bytes=ArticleImageBudget.decodedCost(retained)
+          guard ArticleImageBudget.reserve(self,bytes:bytes) else { throw EditorError.unsupported("Article image memory budget exceeded (#134)") }
+          for item in metadata {
+            let image=try await (articleImageLoader ?? NativeMediaImages.load)(item.source)
+            try Task.checkCancellation()
+            guard signature == expected else { return }
+            retained.append(image)
+            bytes = ArticleImageBudget.decodedCost(retained)
+            guard ArticleImageBudget.reserve(self,bytes:bytes) else { throw EditorError.unsupported("Article image memory budget exceeded (#134)") }
+            loaded.append((item,image))
+          }
+          guard signature == expected else { return }
+          picture.image=background
+          for (item,image) in loaded {
+            let view=UIImageView()
+            view.contentMode=item.objectFit == "contain" ? .scaleAspectFit : item.objectFit == "cover" ? .scaleAspectFill : .scaleToFill
+            view.clipsToBounds=true
+            addSubview(view)
+            articleImageViews.append((view,item.rect,image))
+            NativeMediaImages.configureAnimation(on:view,image:image)
+          }
+          bringSubviewToFront(status)
+          updateArticleImageFrames()
+          onRendered?()
+        }
+      } catch {
+        guard signature == expected else { return }
+        ArticleImageBudget.release(self)
+        status.text="Article images use a static preview (#134). \(error.localizedDescription)"
+      }
+    }
+  }
+  private func updateArticleImageFrames() {
+    let scale=min(bounds.width/max(natural.width,1),bounds.height/max(natural.height,1))
+    let offset=CGPoint(x:(bounds.width-natural.width*scale)/2,y:(bounds.height-natural.height*scale)/2)
+    for (view,rect,_) in articleImageViews { view.frame=CGRect(x:offset.x+rect[0]*scale,y:offset.y+rect[1]*scale,width:rect[2]*scale,height:rect[3]*scale) }
+  }
+  override func didMoveToWindow() {
+    super.didMoveToWindow()
+    for (view,_,image) in articleImageViews {
+      if window == nil { view.stopAnimating() } else { NativeMediaImages.configureAnimation(on:view,image:image) }
+    }
+  }
   func retryIfFailed() {
     guard failed else { return }
     signature = nil
     setNeedsLayout()
     onRendered?()
   }
-  deinit { task?.cancel() }
+  deinit { task?.cancel(); articleImageTask?.cancel() }
   @objc private func tap(_ tap: UITapGestureRecognizer) {
     let scale = min(bounds.width / max(natural.width, 1), bounds.height / max(natural.height, 1))
     let point = tap.location(in: self)
@@ -234,6 +312,34 @@ import Synchronization
     if let link = links.first(where: { CGRect(x: $0.x, y: $0.y, width: $0.width, height: $0.height).contains(local) }) {
       UIApplication.shared.open(link.url)
     } else { open?() }
+  }
+}
+
+@MainActor private enum ArticleImageBudget {
+  private static let costs=NSMapTable<UIView,NSNumber>(keyOptions:.weakMemory,valueOptions:.strongMemory)
+  static func decodedCost(_ images:[UIImage])->Int {
+    var counted:Set<ObjectIdentifier>=[]
+    return images.flatMap { $0.images ?? [$0] }.reduce(0) { bytes,frame in
+      guard let bitmap=frame.cgImage, counted.insert(ObjectIdentifier(bitmap)).inserted else { return bytes }
+      return bytes + bitmap.bytesPerRow * bitmap.height
+    }
+  }
+  static func reserve(_ owner:UIView,bytes:Int)->Bool {
+    let previous=costs.object(forKey:owner)?.intValue ?? 0
+    let total=costs.objectEnumerator()?.allObjects.compactMap { ($0 as? NSNumber)?.intValue }.reduce(0,+) ?? 0
+    guard bytes <= 16*1024*1024, total-previous+bytes <= 32*1024*1024 else { return false }
+    costs.setObject(NSNumber(value:bytes),forKey:owner);return true
+  }
+  static func release(_ owner:UIView) { costs.removeObject(forKey:owner) }
+}
+private actor ArticleImageRequests {
+  static let shared=ArticleImageRequests()
+  private var active=0
+  private var waiting:[CheckedContinuation<Void,Never>]=[]
+  func perform(_ operation:@Sendable () async throws -> Void) async throws {
+    if active>=2 { guard waiting.count<12 else { throw EditorError.unsupported("Article image queue is full (#134)") };await withCheckedContinuation {waiting.append($0)} } else {active += 1}
+    defer {if waiting.isEmpty {active -= 1} else {waiting.removeFirst().resume()}}
+    try Task.checkCancellation();try await operation()
   }
 }
 

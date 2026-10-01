@@ -7,8 +7,24 @@ export type EmbedRenderRequest = {
   fontFamily: string;
   fontSize: number;
   includeAccessibility?: boolean;
+  articleImagesVersion?: "v1";
 };
 export type EmbedRenderImage = {
+  articleImageBasePNG?: string;
+  articleImages?: {
+    source: string;
+    url?: string;
+    heading?: boolean;
+    alt: string;
+    textIndex: number;
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    objectFit: string;
+    overlay: boolean;
+    refusal?: string;
+  }[];
   accessibleText?: string;
   accessibility?: {
     role: "heading" | "text" | "link";
@@ -83,6 +99,8 @@ export function createEmbedRenderer(
               links: image.links,
               accessibleText: image.accessibleText,
               accessibility: image.accessibility,
+              articleImages: image.articleImages,
+              articleImageBasePNG: image.articleImageBasePNG,
             }),
           );
         if (

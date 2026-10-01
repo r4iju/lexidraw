@@ -125,6 +125,7 @@ export const embedRouter = createTRPCRouter({
         fontFamily: z.string().min(1).max(120),
         fontSize: z.number().min(1).max(256),
         includeAccessibility: z.boolean().optional(),
+        articleImagesVersion: z.enum(["v1"]).optional(),
       }),
     )
     .output(embedRenderImage.extend({ hash: z.string() }))

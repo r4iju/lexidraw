@@ -160,6 +160,10 @@
                   },
                   "includeAccessibility": {
                     "type": "boolean"
+                  },
+                  "articleImagesVersion": {
+                    "type": "string",
+                    "enum": ["v1"]
                   }
                 },
                 "required": ["node", "theme", "width", "fontFamily", "fontSize"]
@@ -175,6 +179,76 @@
                 "schema": {
                   "type": "object",
                   "properties": {
+                    "articleImageBasePNG": {
+                      "type": "string",
+                      "maxLength": 12000000
+                    },
+                    "articleImages": {
+                      "maxItems": 64,
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "source": {
+                            "type": "string",
+                            "maxLength": 8192
+                          },
+                          "url": {
+                            "type": "string",
+                            "maxLength": 8192
+                          },
+                          "heading": {
+                            "type": "boolean"
+                          },
+                          "alt": {
+                            "type": "string",
+                            "maxLength": 262144
+                          },
+                          "textIndex": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 4096
+                          },
+                          "x": {
+                            "type": "number"
+                          },
+                          "y": {
+                            "type": "number"
+                          },
+                          "width": {
+                            "type": "number",
+                            "exclusiveMinimum": 0
+                          },
+                          "height": {
+                            "type": "number",
+                            "exclusiveMinimum": 0
+                          },
+                          "objectFit": {
+                            "type": "string",
+                            "maxLength": 64
+                          },
+                          "overlay": {
+                            "type": "boolean"
+                          },
+                          "refusal": {
+                            "type": "string",
+                            "maxLength": 1024
+                          }
+                        },
+                        "required": [
+                          "source",
+                          "alt",
+                          "textIndex",
+                          "x",
+                          "y",
+                          "width",
+                          "height",
+                          "objectFit",
+                          "overlay"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
                     "accessibility": {
                       "maxItems": 4096,
                       "type": "array",
