@@ -1091,3 +1091,25 @@ these history rules and the plain clipboard channel; the headless clipboard
 oracle still excludes HTML serialization. Explicit replacement of an already
 open caption remains an owning-#134 refusal until source-equivalent state import
 and history semantics are ported.
+
+### Native emoji suggestions (#134)
+
+The source-mounted EmojiPickerPlugin is reachable through `:` in main documents
+and slide text. Its aliases/tags/order, first-ten limit, empty-query behavior and
+JavaScript trigger pattern are generated from the actual web picker/list and
+upstream hook. Selection inserts a source-created plain TextNode payload and
+removes the matched trigger through the existing native model paste command.
+Media captions mount EmojisPlugin transforms, not this picker.
+
+`EditorTypeaheadProvider` exposes async source-owned matches over a bounded
+256-UTF-16-unit suffix of the current normal text node. The shared native menu
+cancels obsolete requests and rechecks the node/caret/prefix before selection.
+It stays outside the UITextInput accessibility element and is exposed beside it
+by the app host. Touch selection is covered by the production EditorHarness UI
+case; hardware Up/Down/Return/Tab/Escape are wired but not physically exercised.
+Scrolling or resizing dismisses suggestions rather than leaving stale geometry.
+
+The new UI case genuinely failed waiting for the source-tag `grinning` option
+when typing `:smile` before implementation (`/tmp/134-emoji-red.xcresult`). It
+passes with the trigger replaced by `😀`, subsequent typing retained and the
+menu dismissed. No personal clipboard or corpus is used.

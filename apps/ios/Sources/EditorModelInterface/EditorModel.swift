@@ -9,6 +9,7 @@ public protocol EditorModel: AnyObject {
   /// every command that would change it as `EditorError.unsupported`.
   var isEditable: Bool { get }
   var supportsRichText: Bool { get }
+  var mountedTypeaheadPlugins: Set<String> { get }
 
   /// Applies one command as a single update. A command that throws leaves the
   /// document and selection as they were.
@@ -59,6 +60,7 @@ public protocol EditorModel: AnyObject {
 }
 
 extension EditorModel {
+  public var mountedTypeaheadPlugins: Set<String> { [] }
   public func captionEditor(key: String) throws -> any EditorModel {
     throw EditorError.unsupported("Owned caption editing requires #134")
   }
