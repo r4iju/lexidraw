@@ -23,7 +23,10 @@ private enum Audio {
 /// they run out.
 private func serverAnswering(_ answers: [(Int, String)]) -> FakeServer {
   let next = Mutex(0)
-  return FakeServer { _ in
+  return FakeServer { request in
+    if request.method == .post && request.headers[.contentType] != "application/json" {
+      return (415, #"{"message":"Missing content-type header","code":"UNSUPPORTED_MEDIA_TYPE"}"#)
+    }
     let index = next.withLock { index in
       defer { index += 1 }
       return min(index, answers.count - 1)
