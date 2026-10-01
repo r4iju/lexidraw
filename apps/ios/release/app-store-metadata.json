@@ -364,10 +364,15 @@
     }
   ],
   "privacyLabelPublication": {
-    "status": "ready-for-App-Store-Connect-entry",
-    "browserStatus": "collaborative browser tab_g requires Apple sign-in",
+    "status": "published",
+    "browserStatus": "Published in App Store Connect via collaborative browser tab_g; publication confirmation observed",
     "linkedClassification": "Declared linked where account or identifying IP/visitor information may associate records; no advertising tracking.",
-    "scope": "Includes the native authentication website; custom website Analytics excludes API paths. Share-extension collection is scoped independently."
+    "scope": "Includes the native authentication website; custom website Analytics excludes API paths. Share-extension collection is scoped independently.",
+    "publishedAt": "2026-10-01T03:01:58.444Z",
+    "appId": "6816381053",
+    "dataTypeCount": 13,
+    "tracking": false,
+    "evidence": "142-privacy-publication-evidence.json (local safe DOM confirmation and screenshot; no credentials)"
   },
   "requiredReasonAPIs": [
     {
