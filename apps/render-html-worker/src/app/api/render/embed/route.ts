@@ -140,16 +140,25 @@ export async function POST(request: Request) {
             target.removeAttribute("src");
             continue;
           }
-          const blob = await (await fetch(source.src)).blob();
-          target.src = await new Promise<string>((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = () =>
-              typeof reader.result === "string"
-                ? resolve(reader.result)
-                : reject(new Error("Invalid image"));
-            reader.onerror = reject;
-            reader.readAsDataURL(blob);
-          });
+          try {
+            const blob = await (await fetch(source.src)).blob();
+            target.src = await new Promise<string>((resolve, reject) => {
+              const reader = new FileReader();
+              reader.onload = () =>
+                typeof reader.result === "string"
+                  ? resolve(reader.result)
+                  : reject(new Error("Invalid image"));
+              reader.onerror = reject;
+              reader.readAsDataURL(blob);
+            });
+          } catch (error) {
+            if (!source.closest("[data-native-article]")) throw error;
+            // Images can display without granting fetch CORS permission. The PNG
+            // retains that image; the self-contained SVG keeps its accessible alt.
+            target.removeAttribute("src");
+            target.removeAttribute("srcset");
+            if (!target.alt) target.alt = "Article image unavailable in SVG";
+          }
         }
       }
       const box = original.getBoundingClientRect();
