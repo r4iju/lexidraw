@@ -131,10 +131,3 @@ struct HarnessServer: ClientTransport {
     return (response, HTTPBody(answer))
   }
 }
-
-/// Signed in, as far as the editor can tell.
-struct HarnessToken: TokenStore {
-  func load() throws -> String? { "harness" }
-  func save(_ token: String) throws {}
-  func delete() throws {}
-}
