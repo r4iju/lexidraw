@@ -769,3 +769,12 @@ the same document edit rule and upload records as the web, with a bounded token.
 Inline-image insertion offers alternative text, position and caption controls;
 position values, labels and initial payload come from the web dialog/constructor.
 External embeds retain native link-preview behavior.
+
+Imported column templates also support integer `repeat()` and `minmax()` with
+pixel/percentage minima and fractional maxima, including zero-sized tracks.
+Items beyond the explicit columns occupy subsequent rows. A Chromium DOM
+reference confirmed the two-column, two-row layout for
+`repeat(2, minmax(100px, 1fr))`; the production document-screen case was observed
+red at missing column controls, then green. All 12 document UI tests passed
+after the change. Content-sized tracks, automatic repeat and other CSS units
+remain explicitly unsupported rather than flattened.

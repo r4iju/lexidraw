@@ -1,21 +1,86 @@
 import UIKit
 
 /// The native track grammars currently supported without a browser layout engine.
-enum NativeColumnTrack {
+indirect enum NativeColumnTrack {
   case fraction(CGFloat), pixels(CGFloat), percentage(CGFloat)
+  case minimum(CGFloat, fraction: CGFloat)
+  case percentageMinimum(CGFloat, fraction: CGFloat)
 
   init?(_ source: String) {
-    let value = source.lowercased()
+    let value = source.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    if value.hasPrefix("minmax("), value.hasSuffix(")") {
+      let arguments = Self.split(String(value.dropFirst(7).dropLast()), separator: ",")
+      guard let arguments, arguments.count == 2,
+        let minimum = Self(arguments[0]), let maximum = Self(arguments[1]),
+        case .fraction(let factor) = maximum else { return nil }
+      switch minimum {
+      case .pixels(let amount): self = .minimum(amount, fraction: factor)
+      case .percentage(let amount): self = .percentageMinimum(amount, fraction: factor)
+      default: return nil
+      }
+      return
+    }
+    if value == "0" { self = .pixels(0); return }
     let suffix: String
     if value.hasSuffix("fr") { suffix = "fr" }
     else if value.hasSuffix("px") { suffix = "px" }
     else if value.hasSuffix("%") { suffix = "%" }
     else { return nil }
-    guard let number = Double(value.dropLast(suffix.count)), number.isFinite, number > 0 else { return nil }
+    guard let number = Double(value.dropLast(suffix.count)), number.isFinite, number >= 0 else { return nil }
     switch suffix {
     case "fr": self = .fraction(number)
     case "px": self = .pixels(number)
     default: self = .percentage(number / 100)
+    }
+  }
+
+  static func parse(_ source: String) -> [Self]? { parse(source, allowsRepeat: true) }
+
+  private static func parse(_ source: String, allowsRepeat: Bool) -> [Self]? {
+    guard let tokens = split(source, separator: nil), !tokens.isEmpty else { return nil }
+    var tracks: [Self] = []
+    for token in tokens {
+      if token.lowercased().hasPrefix("repeat("), token.hasSuffix(")") {
+        guard allowsRepeat, let arguments = split(String(token.dropFirst(7).dropLast()), separator: ","), arguments.count == 2,
+          let count = Int(arguments[0].trimmingCharacters(in: .whitespacesAndNewlines)), count > 0,
+          let repeated = parse(arguments[1], allowsRepeat: false), count <= 4096 / repeated.count else { return nil }
+        for _ in 0..<count { tracks.append(contentsOf: repeated) }
+      } else {
+        guard let track = Self(token) else { return nil }
+        tracks.append(track)
+      }
+      guard tracks.count <= 4096 else { return nil }
+    }
+    return tracks
+  }
+
+  private static func split(_ source: String, separator: Character?) -> [String]? {
+    var depth = 0, token = "", result: [String] = []
+    for character in source {
+      if character == "(" { depth += 1 }
+      if character == ")" { depth -= 1; if depth < 0 { return nil } }
+      let separates = separator.map { character == $0 } ?? " \t\n\r\u{000C}".contains(character)
+      if depth == 0 && separates {
+        if !token.isEmpty { result.append(token); token = "" }
+        else if separator != nil { return nil }
+      } else { token.append(character) }
+    }
+    guard depth == 0, separator == nil || !token.isEmpty else { return nil }
+    if !token.isEmpty { result.append(token) }
+    return result
+  }
+
+  var factor: CGFloat? {
+    switch self {
+    case .fraction(let value), .minimum(_, let value), .percentageMinimum(_, let value): value
+    default: nil
+    }
+  }
+  func base(width: CGFloat) -> CGFloat {
+    switch self {
+    case .pixels(let value), .minimum(let value, _): value
+    case .percentage(let value), .percentageMinimum(let value, _): width * value
+    case .fraction: 0
     }
   }
 }
@@ -48,21 +113,22 @@ enum NativeColumnTrack {
   override var intrinsicContentSize: CGSize { CGSize(width: UIView.noIntrinsicMetric, height: measuredHeight) }
 
   func prepare(width: CGFloat, stacked: Bool) {
-    var widths = Array(repeating: width, count: columns.count)
+    var widths = Array(repeating: width, count: stacked ? 1 : tracks.count)
     if !stacked {
-      var fixed: CGFloat = 0
-      var fractions: CGFloat = 0
-      for (index, track) in tracks.enumerated() {
-        switch track {
-        case .pixels(let value): widths[index] = value; fixed += value
-        case .percentage(let value): widths[index] = width * value; fixed += widths[index]
-        case .fraction(let value): widths[index] = 0; fractions += value
+      widths = tracks.map { $0.base(width: width) }
+      var flexible = Set(tracks.indices.filter { tracks[$0].factor != nil })
+      while !flexible.isEmpty {
+        let fixed = widths.indices.filter { !flexible.contains($0) }.reduce(CGFloat(0)) { $0 + widths[$1] }
+        let factors = flexible.reduce(CGFloat(0)) { $0 + (tracks[$1].factor ?? 0) }
+        guard fixed.isFinite, factors.isFinite else { showUnavailable(width: width); return }
+        let available = max(0, width - gap * CGFloat(max(0, tracks.count - 1)) - fixed)
+        let unit = available / max(1, factors)
+        let frozen = flexible.filter { widths[$0] > unit * (tracks[$0].factor ?? 0) }
+        if frozen.isEmpty {
+          for index in flexible { widths[index] = unit * (tracks[index].factor ?? 0) }
+          break
         }
-      }
-      guard fixed.isFinite, fractions.isFinite else { showUnavailable(width: width); return }
-      let remaining = max(0, width - gap * CGFloat(max(0, tracks.count - 1)) - fixed)
-      for (index, track) in tracks.enumerated() {
-        if case .fraction(let value) = track { widths[index] = remaining * (value / max(1, fractions)) }
+        flexible.subtract(frozen)
       }
     }
     guard widths.allSatisfy({ $0.isFinite && $0 >= 0 }),
@@ -73,20 +139,25 @@ enum NativeColumnTrack {
     unavailable.isHidden = true
     columns.forEach { $0.isHidden = false }
     frames = []
-    var x: CGFloat = 0
     var y: CGFloat = 0
+    var row: [CGRect] = []
+    var x: CGFloat = 0
     var tallest: CGFloat = 0
     for (index, column) in columns.enumerated() {
-      let size = column.systemLayoutSizeFitting(CGSize(width: widths[index], height: 0),
+      let trackIndex = index % widths.count
+      let size = column.systemLayoutSizeFitting(CGSize(width: widths[trackIndex], height: 0),
         withHorizontalFittingPriority: .required, verticalFittingPriority: .fittingSizeLevel)
-      frames.append(CGRect(x: stacked ? 0 : x, y: stacked ? y : 0, width: widths[index], height: size.height))
-      x += widths[index] + gap
-      y += size.height + gap
+      row.append(CGRect(x: x, y: y, width: widths[trackIndex], height: size.height))
+      x += widths[trackIndex] + gap
       tallest = max(tallest, size.height)
+      if trackIndex == widths.count - 1 || index == columns.count - 1 {
+        frames.append(contentsOf: row.map { CGRect(x: $0.minX, y: y, width: $0.width, height: tallest) })
+        y += tallest + gap
+        row = []; x = 0; tallest = 0
+      }
     }
-    if !stacked { frames = frames.map { CGRect(x: $0.minX, y: 0, width: $0.width, height: tallest) } }
-    measuredHeight = stacked ? max(0, y - gap) : tallest
-    measuredWidth = stacked ? width : max(width, x - gap)
+    measuredHeight = max(0, y - gap)
+    measuredWidth = stacked ? width : max(width, widths.reduce(0, +) + gap * CGFloat(max(0, widths.count - 1)))
     viewport.isScrollEnabled = !stacked && measuredWidth > width
     if stacked { viewport.contentOffset = .zero }
     invalidateIntrinsicContentSize()

@@ -267,10 +267,8 @@ import UIKit
         (preset.label, { [weak self] in self?.setColumns(preset.value) })
       })
     let template = node["templateColumns"]?.stringValue ?? ""
-    let parts = JSRegExp(StructuralBlockConfiguration.columnWhitespacePattern, flags: "").split(template).filter { !$0.isEmpty }
-    let tracks = parts.compactMap(NativeColumnTrack.init)
     let children = node["children"]?.arrayValue ?? []
-    guard tracks.count == parts.count, tracks.count == children.count else {
+    guard let tracks = NativeColumnTrack.parse(template) else {
       label("This CSS column template is not supported by native layout (#133): \(template)")
       return
     }
