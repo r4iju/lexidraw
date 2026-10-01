@@ -3,6 +3,26 @@ import LexidrawJSON
 import Testing
 
 @Suite struct OwnedCaptionTests {
+  @Test func copyingTheOwnerIncludesItsCurrentCaption() throws {
+    var fields = try #require(JSONValue(parsing: MediaImages.insertionNodeJSON).objectValue)
+    fields["showCaption"] = true
+    fields["caption"] = ["editorState": document(paragraph(text("Caption")))]
+    let state = document(paragraph(text("Parent")), .object(fields))
+    let parent = Editor()
+    try parent.load(state)
+    let caption = try parent.captionEditor(key: #require(parent.childKeys(at: [1]).first))
+    let source = try Support.referenceEditor(editorContext: .imageCaption)
+    try source.loadNested(parent: state, ownerPath: [1, 0])
+    for command: EditorCommand in [.caret(.text([0, 0], 7)), .insertText("!")] {
+      try caption.apply(command)
+      try source.apply(command)
+    }
+    try parent.apply(.selectAll)
+    try source.applyToParent(.selectAll)
+    let native = try parent.apply(.copy).clipboard
+    let actual = try source.applyToParent(.copy).clipboard
+    #expect(native?.lexical == actual?.lexical)
+  }
   @Test func anUnportedParentCannotBeEditedThroughItsCaption() throws {
     var fields = try #require(JSONValue(parsing: MediaImages.insertionNodeJSON).objectValue)
     fields["showCaption"] = true

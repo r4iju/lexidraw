@@ -235,6 +235,7 @@ public final class Editor: EditorModel {
     update.plainText = plainText
     update.editorContext = editorContext
     update.tags = tags
+    update.resolveNestedEditorJSON = resolveCaptionJSON
     try run(&update)
     shortcutsDeclinedAsNotPorted += update.shortcutsDeclinedAsNotPorted
     let clipboard = update.clipboard
@@ -250,6 +251,7 @@ public final class Editor: EditorModel {
       previous = state
       update = Update(state, nextKey: nextKey, revision: nextRevision(), knowsListMarker: knowsListMarker)
       update.editorContext = editorContext
+      update.resolveNestedEditorJSON = resolveCaptionJSON
       let isShortcut: Bool
       do { isShortcut = try update.runMarkdownShortcut(at: caret) } catch { throw ShortcutFailure(error: error) }
       shortcutsDeclinedAsNotPorted += update.shortcutsDeclinedAsNotPorted
@@ -346,13 +348,15 @@ public final class Editor: EditorModel {
 
   private func captionJSON(of key: NodeKey, canonicalKeyOrder: Bool = true) -> JSONValue {
     guard !captionEditors.isEmpty else { return state.json(of: key, canonicalKeyOrder: canonicalKeyOrder) }
-    return state.json(of: key, canonicalKeyOrder: canonicalKeyOrder) { key, value in
-      guard let editor = self.captionEditors[key], var fields = value.objectValue else { return value }
-      var caption = fields["caption"]?.objectValue ?? [:]
-      caption["editorState"] = editor.state.json
-      fields["caption"] = .object(caption)
-      return .object(fields)
-    }
+    return state.json(of: key, canonicalKeyOrder: canonicalKeyOrder, resolve: resolveCaptionJSON)
+  }
+
+  private func resolveCaptionJSON(_ key: NodeKey, _ value: JSONValue) -> JSONValue {
+    guard let editor = captionEditors[key], var fields = value.objectValue else { return value }
+    var caption = fields["caption"]?.objectValue ?? [:]
+    caption["editorState"] = ["root": editor.captionJSON(of: EditorState.rootKey)]
+    fields["caption"] = .object(caption)
+    return .object(fields)
   }
 
   /// `state` as an editor that registers `types` saves it once it has read

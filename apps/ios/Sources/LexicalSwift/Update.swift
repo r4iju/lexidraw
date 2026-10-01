@@ -10,6 +10,7 @@ enum UpdateTag {
 /// through the same operations, marking the same nodes dirty, so transforms,
 /// garbage collection and the change set see what Lexical's would.
 struct Update {
+  var resolveNestedEditorJSON: ((NodeKey, JSONValue) -> JSONValue)?
   var state: EditorState
   /// The committed state the update started from.
   let base: EditorState

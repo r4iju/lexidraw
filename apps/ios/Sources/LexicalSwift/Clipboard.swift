@@ -64,7 +64,7 @@ extension Update {
     _ key: NodeKey, _ copied: ClipboardSelection, _ selected: Set<NodeKey>, into target: inout [JSONValue]
   ) throws -> Bool {
     var shouldInclude = isSelected(key, copied, selected)
-    guard case .object(var json) = state.json(of: key, includingChildren: false) else {
+    guard case .object(var json) = state.json(of: key, includingChildren: false, resolve: resolveNestedEditorJSON) else {
       preconditionFailure("A node's JSON is an object")
     }
     if state[key].isText {
