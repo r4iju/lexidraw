@@ -441,6 +441,19 @@ function setCaptionVisibility(argument: string): void {
   });
 }
 
+function captionOwnerSnapshot(): string {
+  if (!parentEditor || !parentCaptionOwnerKey) throw new EditorError("invalidState", "No caption owner loaded");
+  const owned = parentEditor.read(() => {
+    const node = $getNodeByKey(parentCaptionOwnerKey!) as (LexicalNode & { __caption?: LexicalEditor }) | null;
+    if (!node?.__caption) throw new EditorError("invalidState", "Caption owner no longer exists");
+    return node.__caption;
+  });
+  const mounted = editor;
+  editor = owned;
+  try { return snapshot(); }
+  finally { editor = mounted; }
+}
+
 function apply(commandJSON: string): string {
   const command = JSON.parse(commandJSON) as Command;
   lastError = null;
@@ -1698,6 +1711,7 @@ Object.assign(globalThis, {
     load,
     loadNested,
     parentSnapshot: () => onParent(snapshot),
+    captionOwnerSnapshot,
     setCaptionVisibility,
     applyToParent: (command: string) => onParent(() => apply(command)),
     apply,

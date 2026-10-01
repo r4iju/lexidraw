@@ -43,3 +43,20 @@ extension NestedReferenceTests {
     #expect(children[0]["children"]?.arrayValue?.last?["type"] == "linebreak")
   }
 }
+
+extension NestedReferenceTests {
+  @Test func videoOwnerClonesItsCaptionEditorWhenTheOwnerChanges() throws {
+    let video: JSONValue = ["type": "video", "version": 1, "src": "", "showCaption": true,
+      "caption": document(paragraph(text("Caption")))]
+    let reference = try Support.referenceEditor(editorContext: .videoCaption)
+    try reference.loadNested(parent: document(paragraph(text("Parent")), video), ownerPath: [1])
+    try reference.apply(.caret(.text([0, 0], 7)))
+    try reference.apply(.insertText("!"))
+    let before = try reference.snapshot()
+    try reference.setCaptionVisibility(false)
+    #expect(try reference.captionOwnerSnapshot() == before)
+    try reference.apply(.insertText("stale"))
+    #expect(try reference.captionOwnerSnapshot() == before)
+    #expect(try reference.snapshot() != before)
+  }
+}
