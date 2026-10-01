@@ -1199,3 +1199,21 @@ The first hardware-setup attempt failed finding the menu and is not counted as
 proof of the typing-attribute mismatch. The source replay's color caret proof is
 in `/tmp/134-emoji-source-styled.json`; the production UI case uses the actual
 formatting bar's Bold control.
+
+Keyboard edits expose their state immediately while recording one history update
+for the input turn, like Lexical's queued editor updates. UIKit can deliver an
+accepted word replacement and its trailing space across separate main callbacks.
+The native adapter holds that replacement until the next single U+0020 at the
+same model caret, typing format/style and mutation revision, within the existing
+history pause budget. Other input, caret movement, formatting, undo, view removal
+or a pause ends it. Public UITextInput supplies no predictive-acceptance marker;
+a manually typed identical separator in those conditions joins the replacement
+too. This is an explicit native keyboard adaptation, not a wider typing timeout.
+
+The regression taps a real English suggestion in DocumentScreen, verifies the
+accepted text, then checks one undo exactly restores the pre-acceptance text.
+Actual-source paired history checks cover the replacement, following typing,
+undo/redo, pauses and caret/format boundaries. The physical-device plain-letter
+report still needs its metadata trace; the delivered simulator plain typing and
+DocumentEditing autosave control groups normally. No document content is logged
+by the shipping implementation.

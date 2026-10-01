@@ -497,6 +497,20 @@ function remountCaption(): void {
   mountedRegistrations.get(next)!.push(...effects);
 }
 
+function applyInputTurn(commandsJSON: string): void {
+  lastError = null;
+  for (const command of JSON.parse(commandsJSON) as Command[]) {
+    switch (command.type) {
+      case "wait": now += command.milliseconds; break;
+      case "setSelection": case "insertText": case "deleteCharacter": case "insertParagraph": case "insertLineBreak":
+        current().update(() => run(command)); break;
+      default: throw new Error("Not a keyboard input command");
+    }
+  }
+  commitQueuedUpdates();
+  if (lastError) throw lastError;
+}
+
 function apply(commandJSON: string): string {
   const command = JSON.parse(commandJSON) as Command;
   lastError = null;
@@ -1781,6 +1795,7 @@ Object.assign(globalThis, {
     selectWholeQueryMention,
     applyToParent: (command: string) => onParent(() => apply(command)),
     apply,
+    applyInputTurn,
     snapshot,
     serializedState,
     selection,

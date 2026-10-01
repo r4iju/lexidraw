@@ -10,6 +10,34 @@ final class DocumentPreviewUITests: XCTestCase {
     continueAfterFailure = false
   }
 
+  func testRealDocumentPredictionAcceptanceUndoesOneReplacement() throws {
+    let original = LexicalJSON.document([LexicalJSON.paragraph([LexicalJSON.text("prefix ")])])
+    let app = open(access: "EDIT", document: original)
+    XCTAssertTrue(app.staticTexts["Saved"].waitForExistence(timeout: 10))
+    let editor = app.textViews.firstMatch
+    editor.tap()
+    XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5))
+    if app.buttons["Continue"].exists { app.buttons["Continue"].tap() }
+    for character in "hel" {
+      let lower = app.keyboards.keys[String(character)]
+      let key = lower.exists ? lower : app.keyboards.keys[String(character).uppercased()]
+      XCTAssertTrue(key.isHittable)
+      key.tap()
+    }
+    XCTAssertTrue((editor.value as? String)?.lowercased().contains("hel") == true)
+    let beforeAcceptance = try XCTUnwrap(editor.value as? String)
+    let prediction = app.descendants(matching: .any).matching(NSPredicate(format: "label ==[c] %@", "Hello")).firstMatch
+    XCTAssertTrue(prediction.waitForExistence(timeout: 3), "\(app.keyboards.debugDescription)")
+    XCTAssertTrue(prediction.isHittable)
+    prediction.tap()
+    XCTAssertTrue((editor.value as? String)?.lowercased().contains("hello") == true)
+    editor.typeKey(XCUIKeyboardKey.shift.rawValue, modifierFlags: [])
+    editor.typeKey(XCUIKeyboardKey.F13.rawValue, modifierFlags: .shift)
+    editor.typeKey("z", modifierFlags: .command)
+    XCTAssertEqual(editor.value as? String, beforeAcceptance)
+  }
+
+
   func testAnEditableDocumentAutosavesItsChanges() {
     let app = open(access: "EDIT")
     let notice = app.staticTexts["Saved"]

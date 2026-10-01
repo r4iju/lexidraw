@@ -1,10 +1,43 @@
 /// LexicalSwift's editor: a document, its selection and its history, changed
 /// by one update per command as Lexical's editor is.
-public final class Editor: EditorModel {
+public final class Editor: EditorModel, KeyboardInputHistory {
   public private(set) var state = EditorState(nodes: [:], selection: nil)
   private var nextKey: NodeKey = 0
   private var revisions = 0
   private var history = History(EditorState(nodes: [:], selection: nil))
+  private struct InputTurn {
+    let token: Int
+    let original: EditorState
+    var update: Update
+    var committed = false
+    var time: Int
+  }
+  private var inputTurn: InputTurn?
+  private var applyingCommands = 0
+  private var nextInputTurnToken = 0
+  public var inputHistoryDelayMilliseconds: Int { History.delay }
+  public var inputHistoryRevision: Int { revisions }
+  public func beginInputTurn() -> Int {
+    endInputTurn()
+    nextInputTurnToken &+= 1
+    inputTurn = InputTurn(token: nextInputTurnToken, original: state, update: Update(state, nextKey: nextKey, revision: revisions), time: now)
+    return nextInputTurnToken
+  }
+  public func isInputTurnActive(_ token: Int) -> Bool { inputTurn?.token == token }
+  public func endInputTurn(_ token: Int) {
+    guard isInputTurnActive(token) else { return }
+    endInputTurn()
+  }
+  private func endInputTurn() {
+    guard let turn = inputTurn else { return }
+    inputTurn = nil
+    guard turn.committed else { return }
+    pruneCaptionsAfterHistoryDiscard = history.record(turn.update, from: turn.original, to: state, at: turn.time) || pruneCaptionsAfterHistoryDiscard
+    if applyingCommands == 0 && pruneCaptionsAfterHistoryDiscard {
+      pruneExpiredCaptions()
+      pruneCaptionsAfterHistoryDiscard = false
+    }
+  }
   private final class HistoryClock { var milliseconds = 0 }
   private var clock = HistoryClock()
   private var now: Int { clock.milliseconds }
@@ -24,6 +57,7 @@ public final class Editor: EditorModel {
     guard editorContext == .slide else {
       throw EditorError.unsupported("Only slide boxes have this history mount boundary (#133)")
     }
+    endInputTurn()
     history = History(state)
   }
 
@@ -77,6 +111,7 @@ public final class Editor: EditorModel {
     state = update.state
     nextKey = update.nextKey
     clock = HistoryClock()
+    inputTurn = nil
     history = History(state)
     captionEditors = [:]
     knowsListMarker = false
@@ -94,8 +129,14 @@ public final class Editor: EditorModel {
   }
 
   private func apply(_ command: EditorCommand, preservingTypingAttributes: Bool, typeaheadSelection: (Point, Point)? = nil) throws -> ChangeSet {
+    applyingCommands += 1
+    switch command {
+    case .wait, .setSelection, .insertText, .commitComposition, .deleteCharacter, .insertParagraph, .insertLineBreak: break
+    default: endInputTurn()
+    }
     defer {
-      if pruneCaptionsAfterHistoryDiscard {
+      applyingCommands -= 1
+      if applyingCommands == 0 && pruneCaptionsAfterHistoryDiscard {
         pruneExpiredCaptions()
         pruneCaptionsAfterHistoryDiscard = false
       }
@@ -122,7 +163,7 @@ public final class Editor: EditorModel {
         let change = try captionParent.apply(command)
         return ChangeSet(clipboard: change.clipboard, parentChanged: !change.changed.isEmpty || change.parentChanged)
       case .tab:
-        let saved = (state, nextKey, history, knowsListMarker)
+        let saved = (state, nextKey, history, knowsListMarker, inputTurn)
         do {
           var change = try commit { try $0.run(command, plainText: plainText) }
           if case .range = captionParent.state.selection {
@@ -131,7 +172,7 @@ public final class Editor: EditorModel {
           }
           return change
         } catch {
-          (state, nextKey, history, knowsListMarker) = saved
+          (state, nextKey, history, knowsListMarker, inputTurn) = saved
           throw error
         }
       default: break
@@ -176,7 +217,7 @@ public final class Editor: EditorModel {
         throw EditorError.unsupported("Editing a document with a node LexicalSwift doesn't edit yet")
       }
     }
-    let saved = (state, nextKey, history, knowsListMarker)
+    let saved = (state, nextKey, history, knowsListMarker, inputTurn)
     do {
       guard command == .cut else {
         let compositionEnd = if case .commitComposition = command { true } else { false }
@@ -205,12 +246,13 @@ public final class Editor: EditorModel {
     } catch let failure as ShortcutFailure {
       throw failure.error
     } catch {
-      (state, nextKey, history, knowsListMarker) = saved
+      (state, nextKey, history, knowsListMarker, inputTurn) = saved
       throw error
     }
   }
 
   public func replaceDrawing(key: String, expectedData: String, data: String?) throws -> ChangeSet {
+    endInputTurn()
     guard isEditable else { throw EditorError.unsupported("This document cannot be edited") }
     guard let key = NodeKey(key), let node = state.nodes[key],
       case .excalidraw(let drawing) = node.payload, (drawing.data?.stringValue ?? "[]") == expectedData
@@ -229,6 +271,7 @@ public final class Editor: EditorModel {
   }
 
   public func replaceRenderedNode(key: String, expected: JSONValue, replacement: JSONValue) throws -> ChangeSet {
+    endInputTurn()
     guard isEditable else { throw EditorError.unsupported("This document cannot be edited") }
     guard let key = NodeKey(key), let node = state.nodes[key],
       ["mermaid", "equation", "chart", "code"].contains(node.type),
@@ -246,6 +289,7 @@ public final class Editor: EditorModel {
   }
 
   public func replaceEmbeddedNode(key: String, expected: JSONValue, replacement: JSONValue?) throws -> ChangeSet {
+    endInputTurn()
     let moved = expected["type"] == "sticky" && replacement != nil &&
       (expected["xOffset"] != replacement?["xOffset"] || expected["yOffset"] != replacement?["yOffset"])
     return try replaceEmbeddedNode(key: key, expected: expected, replacement: replacement, clearsSelection: moved)
@@ -378,7 +422,18 @@ public final class Editor: EditorModel {
     var next = update.state
     next.selection = saved
     if editorContext == .document || editorContext.mountedPlugins.contains("HistoryPlugin") {
-      pruneCaptionsAfterHistoryDiscard = history.record(update, from: state, to: next, at: now, pushing: pushingHistory) || pruneCaptionsAfterHistoryDiscard
+      if pushingHistory { endInputTurn() }
+      if inputTurn != nil {
+        inputTurn!.update.dirtyLeaves.formUnion(update.dirtyLeaves)
+        for (key, dirty) in update.dirtyElements {
+          inputTurn!.update.dirtyElements[key] = (inputTurn!.update.dirtyElements[key] ?? false) || dirty
+        }
+        inputTurn!.update.tags.formUnion(update.tags)
+        inputTurn!.committed = true
+        inputTurn!.time = now
+      } else {
+        pruneCaptionsAfterHistoryDiscard = history.record(update, from: state, to: next, at: now, pushing: pushingHistory) || pruneCaptionsAfterHistoryDiscard
+      }
     }
     // VideoNode.afterCloneFrom copies its live caption editor. Image and
     // sticky clones retain theirs, so only video revisions need new identity.
@@ -434,6 +489,7 @@ public final class Editor: EditorModel {
           || captionIdentity(for: key, in: previous) != captionIdentity(for: key, in: next),
         let caption = captionEditors[captionIdentity(for: key, in: next)]?.editor else { continue }
       caption.history = History(caption.state)
+      caption.inputTurn = nil
     }
   }
 
