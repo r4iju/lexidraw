@@ -3,6 +3,9 @@ import UIKit
 import ImageIO
 import UniformTypeIdentifiers
 import LexidrawKit
+import LexicalSwift
+import TextKitEditor
+import EditorModelInterface
 import HTTPTypes
 import OpenAPIRuntime
 @testable import EditorHarness
@@ -20,6 +23,58 @@ import OpenAPIRuntime
       return (HTTPResponse(status: .ok, headerFields: headers), HTTPBody(response))
     }
   }
+  func testReadOnlyRichCopyPublishesStandardRTFBoldAndLink() throws {
+    let model=Editor()
+    try model.load(["root":["type":"root","version":1,"children":[["type":"paragraph","version":1,"children":[["type":"text","version":1,"text":"bold","format":1],["type":"link","version":1,"url":"https://example.com","children":[["type":"text","version":1,"text":"link"]]]]]]]])
+    let view=EditorView(model:model,isEditable:false)
+    view.frame=CGRect(x:0,y:0,width:390,height:300)
+    view.layoutIfNeeded()
+    view.selectedTextRange=view.textRange(from:view.beginningOfDocument,to:view.endOfDocument)
+    view.pasteboard=UIPasteboard(name:UIPasteboard.Name(rawValue:UUID().uuidString),create:true)!
+    view.copy(nil)
+    let data=view.pasteboard.data(forPasteboardType:UTType.rtf.identifier)
+    XCTAssertNotNil(data,"External rich copy must publish standard RTF")
+    guard let data else {return}
+    let attributed=try NSAttributedString(data:data,options:[.documentType:NSAttributedString.DocumentType.rtf],documentAttributes:nil)
+    let font=try XCTUnwrap(attributed.attribute(.font,at:0,effectiveRange:nil) as? UIFont)
+    XCTAssertTrue(font.fontDescriptor.symbolicTraits.contains(.traitBold))
+    XCTAssertNotNil(attributed.attribute(.link,at:4,effectiveRange:nil))
+  }
+
+  func testSelectedArticleTextCopiesRichNodesWithoutEditingTheArticle() async throws {
+    let session = try XCTUnwrap(Account(origin: URL(string:"https://example.test")!, store:Store(), transport:Renderer(response:"{}")).restore())
+    let view=RenderedEmbedView(session:session,fontFamily:"sans")
+    let html="<p>Read <strong>bold</strong> and <a href=\"https://example.com\">link</a>.</p><ul><li>First item</li><li>Second item</li></ul>"
+    view.show(["type":"article","version":1,"data":["mode":"url","url":"https://example.com","distilled":["contentHtml":.string(html)]]])
+    let window=UIWindow(frame:CGRect(x:0,y:0,width:390,height:844))
+    let parent=UIViewController();window.rootViewController=parent;parent.view.addSubview(view);window.makeKeyAndVisible()
+    defer {window.isHidden=true}
+    view.selectArticleText("Read bold and link.\nFirst item\nSecond item")
+    let shown=expectation(for:NSPredicate {_,_ in parent.presentedViewController != nil},evaluatedWith:parent)
+    await fulfillment(of:[shown],timeout:3)
+    let navigation=try XCTUnwrap(parent.presentedViewController as? UINavigationController)
+    let sheet=try XCTUnwrap(navigation.topViewController)
+    func inputs(_ view:UIView)->[UIView] { ([view] + view.subviews.flatMap(inputs)).filter {$0 is UITextInput} }
+    let input=try XCTUnwrap(inputs(sheet.view).first)
+    let selection=try XCTUnwrap(input as? any UITextInput)
+    selection.selectedTextRange=selection.textRange(from:selection.beginningOfDocument,to:selection.endOfDocument)
+    UIPasteboard.general.items=[]
+    input.perform(#selector(UIResponderStandardEditActions.copy(_:)),with:nil)
+    let data=UIPasteboard.general.data(forPasteboardType:LexicalClipboardPayload.mimeType)
+    XCTAssertNotNil(data,"Selected article prose must retain rich clipboard structure")
+    guard let data else {return}
+    let copied=try JSONDecoder().decode(LexicalClipboardPayload.self,from:data)
+    let target=Editor();try target.load(["root":["type":"root","version":1,"children":[["type":"paragraph","version":1,"children":[]]]]])
+    try target.apply(.caret(Point(path:[0],offset:0,type:.element)))
+    try target.apply(.paste(Clipboard(plainText:"",lexical:copied)))
+    let saved=try target.serializedState().stringified
+    XCTAssertTrue(saved.contains("\"format\":1"),"Bold survives native rich paste")
+    XCTAssertTrue(saved.contains("https://example.com"),"Link survives native rich paste")
+    XCTAssertTrue(saved.contains("\"type\":\"list\""),"List structure survives native rich paste")
+    XCTAssertFalse((input as? EditorView)?.isEditable ?? (input as? UITextView)?.isEditable ?? true)
+    navigation.dismiss(animated:false)
+  }
+
   func testArticleBodyExposesHeadingParagraphAndLinkInReadingOrder() async throws {
     let png = try XCTUnwrap(UIGraphicsImageRenderer(size: CGSize(width: 4, height: 4)).image { context in
       UIColor.white.setFill(); context.fill(CGRect(x: 0, y: 0, width: 4, height: 4))

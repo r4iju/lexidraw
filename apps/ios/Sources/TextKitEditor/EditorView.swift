@@ -1777,10 +1777,21 @@ public final class EditorView: UIScrollView, UITextInput {
   private func copySelection(_ command: EditorCommand) {
     commitMarkedText()
     syncSelection()
+    let range = selected
+    let attributed = range.length > 0 && NSMaxRange(range) <= storage.length
+      ? storage.attributedSubstring(from: range) : nil
     guard let clipboard = perform(command, fromInput: false)?.clipboard else { return }
     var item: [String: Any] = [UTType.utf8PlainText.identifier: clipboard.plainText]
     if let lexical = clipboard.lexical, let data = try? JSONEncoder().encode(lexical) {
       item[LexicalClipboardPayload.mimeType] = data
+    }
+    // Foundation writes the displayed selection for apps that do not consume
+    // Lexical's structural clipboard. Lexical remains the internal source of truth.
+    if let attributed {
+      if let rtf = try? attributed.data(from: NSRange(location: 0, length: attributed.length),
+        documentAttributes: [.documentType: NSAttributedString.DocumentType.rtf]) {
+        item[UTType.rtf.identifier] = rtf
+      }
     }
     pasteboard.setItems([item])
   }

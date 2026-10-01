@@ -1091,3 +1091,26 @@ these history rules and the plain clipboard channel; the headless clipboard
 oracle still excludes HTML serialization. Explicit replacement of an already
 open caption remains an owning-#134 refusal until source-equivalent state import
 and history semantics are ported.
+
+
+The article selection sheet imports its exact current sanitized HTML through the
+existing registered native HTML-paste converters into a detached editor. It is
+read-only and does not replace or autosave the article. Rich selection preserves
+bold text, link URLs and list structure in the Lexical clipboard for native paste.
+Copy also publishes standard RTF through Foundation from the actual selected
+native attributes, preserving tested bold/link formatting for external apps;
+this does not claim identical browser HTML markup or arbitrary CSS reproduction.
+Missing HTML, inputs above 300,000 UTF-8 bytes, or refused/unported imports use an
+explicitly labelled plain preview. Import happens once per opened selection sheet.
+
+Actual isolated Chromium copied the disposable bold/link/list fixture to a rich
+HTML clipboard (`/tmp/134-rich-browser-clipboard.json`). Before the native changes,
+the hosted sheet-copy regression failed because its clipboard contained no rich
+Lexical data, and the standard-RTF regression failed because native copy published
+no RTF (`/tmp/134-rich-red4.xcresult`). Both then passed, including native rich
+paste and decoded RTF attributes (`/tmp/134-rich-green.xcresult`). Earlier build
+and probe failures were setup/assertion issues, not behavioral red evidence.
+
+Final scoped run: all four article accessibility/image/rich-selection hosted tests
+passed (`/tmp/134-rich-final.xcresult`); the production simulator app built
+successfully (`/tmp/134-rich-production.log`). No CI or account mutation ran.
