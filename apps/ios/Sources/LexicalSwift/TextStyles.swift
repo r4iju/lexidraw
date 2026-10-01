@@ -34,7 +34,7 @@ extension Update {
         if !style(of: node).isEmpty { setStyle(node, "") }
         if !format(of: node).isEmpty {
           setFormat(node, [])
-          guard let block = findParent(from: node, where: isBlock), state[block].isElement else {
+          guard let block = findParent(from: node, where: { state[$0].isElement && !state[$0].isInline }) else {
             throw EditorError.invalidState("Formatting has no enclosing block")
           }
           modifyElement(block) { $0.format = .empty }
