@@ -1,12 +1,13 @@
 #if canImport(UIKit)
 import UIKit
 import EditorModelInterface
-/// The current simple text node suffix; offsets are UTF-16 storage positions.
+/// The current simple text node prefix; offsets are UTF-16 storage positions.
 public struct EditorTypeaheadInput: Equatable, Sendable {
   public let prefix: String
   public let replacementBase: Int
   public let selectionOffset: Int
   public let nodeKey: String
+  public let previousSiblingIsTextEntity: Bool
 }
 @MainActor public struct EditorTypeaheadCandidate {
   public let id: String
@@ -56,7 +57,7 @@ public struct EditorTypeaheadInput: Equatable, Sendable {
         id: "emoji-option-\(entry.title)", label: "\(entry.emoji) \(entry.title)"
       ) { editor, range in
         guard
-          var node = try? JSONDecoder().decode(
+          let node = try? JSONDecoder().decode(
             JSONValue.self, from: Data(WebEmojiPicker.textNodeJSON.utf8))
         else { return }
         guard case .object(var fields) = node else { return }
@@ -79,18 +80,22 @@ public struct EditorTypeaheadInput: Equatable, Sendable {
   private var match: EditorTypeaheadMatch?
   private var selectedIndex = 0
   private var buttons: [UIButton] = []
-  var isVisible: Bool { popup != nil }
+  var isVisible: Bool {
+    guard let popup else { return false }
+    return popup.superview != nil && popup.window != nil && !popup.isHidden && popup.alpha > 0
+  }
   var accessibilityView: UIView? { popup }
   private var presentedBounds: CGRect?
   func layoutChanged() { if let editor, let presentedBounds, editor.bounds != presentedBounds { clear() } }
   func move(_ direction: Int) -> Bool {
-    guard let match, !match.candidates.isEmpty else { return false }
+    guard isVisible, let match, !match.candidates.isEmpty, let editor,
+      let input, editor.currentTypeaheadInput() == input else { return false }
     selectedIndex = (selectedIndex + direction + match.candidates.count) % match.candidates.count
     highlight()
     return true
   }
   func choose() -> Bool {
-    guard let match, let editor, let input, editor.currentTypeaheadInput() == input else {
+    guard isVisible, let match, let editor, let input, editor.currentTypeaheadInput() == input else {
       return false
     }
     let candidate = match.candidates[selectedIndex]
@@ -127,14 +132,16 @@ public struct EditorTypeaheadInput: Equatable, Sendable {
           continue
         }
         guard !Task.isCancelled, let self, self.input == input else { return }
+        if input.previousSiblingIsTextEntity && match.range.location == input.replacementBase { continue }
         self.show(match, input: input)
         return
       }
     }
   }
   private func show(_ match: EditorTypeaheadMatch, input: EditorTypeaheadInput) {
-    guard let editor else { return }
-    presentedBounds=editor.bounds
+    guard let editor, let host = editor.superview, editor.window != nil,
+      editor.currentTypeaheadInput() == input else { return }
+    presentedBounds = editor.bounds
     self.match = match
     selectedIndex = 0
     let stack = UIStackView()
@@ -177,7 +184,6 @@ public struct EditorTypeaheadInput: Equatable, Sendable {
     stack.frame = CGRect(
       x: 8, y: 0, width: width - 16, height: CGFloat(match.candidates.count) * 36)
     panel.contentSize = stack.frame.size
-    guard let host = editor.superview else { return }
     panel.frame = editor.convert(panel.frame, to: host)
     host.addSubview(panel)
     popup = panel

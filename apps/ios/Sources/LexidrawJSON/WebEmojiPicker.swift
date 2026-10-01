@@ -1,5 +1,6 @@
 // Generated from the mounted web picker, its emoji list, and the upstream trigger hook.
 public enum WebEmojiPicker {
+  public static let textEntityTypes: Set<String> = ["hashtag", "keyword", "mention"]
   public static let textNodeJSON = "{\"detail\":0,\"format\":0,\"mode\":\"normal\",\"style\":\"\",\"text\":\"\",\"type\":\"text\",\"version\":1}"
   public static let pattern = "(^|\\s|\\()([:]((?:[^:\\.,\\+\\*\\?\\$\\@\\|#{}\\(\\)\\^\\-\\[\\]\\\\/!%'\"~=<>_:;\\s]){0,75}))$"
   public static let limit = 10

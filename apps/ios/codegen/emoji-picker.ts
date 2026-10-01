@@ -1,5 +1,6 @@
 import { createHeadlessEditor } from "@lexical/headless";
-import { $createTextNode } from "lexical";
+import { $createTextNode, TextNode } from "lexical";
+import { SCHEMA_NODES } from "@packages/lexical-nodes/nodes";
 import { parse } from "@babel/parser";
 import emojis from "@packages/lexical-nodes/emoji-list";
 import {
@@ -77,6 +78,28 @@ export async function swiftForEmojiPicker() {
   ];
   if (!mounts.includes("EmojiPickerPlugin"))
     throw new Error("Main emoji mount changed");
+  const entitySource = await Bun.file(
+    new URL(
+      "../../lexidraw/node_modules/@lexical/react/src/LexicalTypeaheadMenuPlugin.tsx",
+      import.meta.url,
+    ),
+  ).text();
+  if (
+    !entitySource.includes("if (offset !== 0)") ||
+    !entitySource.includes(
+      "return $isTextNode(prevSibling) && prevSibling.isTextEntity();",
+    ) ||
+    !entitySource.includes(
+      "!isSelectionOnEntityBoundary(editor, match.leadOffset)",
+    )
+  )
+    throw new Error("Upstream entity boundary guard changed");
+  const textEntities = SCHEMA_NODES.filter(
+    (node) =>
+      node.prototype instanceof TextNode && node.prototype.isTextEntity(),
+  )
+    .map((node) => node.getType())
+    .sort();
   let textNode = "";
   createHeadlessEditor({
     onError(error) {
@@ -88,7 +111,7 @@ export async function swiftForEmojiPicker() {
     },
     { discrete: true },
   );
-  return `// Generated from the mounted web picker, its emoji list, and the upstream trigger hook.\npublic enum WebEmojiPicker {\n  public static let textNodeJSON = ${swiftString(textNode)}\n  public static let pattern = ${swiftString(pattern)}\n  public static let limit = ${EMOJI_LIMIT}\n  public static let mainPlugins: Set<String> = [${mounts.map(swiftString).join(", ")}]\n  public struct Entry: Sendable { public let title: String; public let emoji: String; public let keywords: [String] }\n  public static let entries: [Entry] = [\n${emojiOptions(
+  return `// Generated from the mounted web picker, its emoji list, and the upstream trigger hook.\npublic enum WebEmojiPicker {\n  public static let textEntityTypes: Set<String> = [${textEntities.map(swiftString).join(", ")}]\n  public static let textNodeJSON = ${swiftString(textNode)}\n  public static let pattern = ${swiftString(pattern)}\n  public static let limit = ${EMOJI_LIMIT}\n  public static let mainPlugins: Set<String> = [${mounts.map(swiftString).join(", ")}]\n  public struct Entry: Sendable { public let title: String; public let emoji: String; public let keywords: [String] }\n  public static let entries: [Entry] = [\n${emojiOptions(
     emojis,
   )
     .map(

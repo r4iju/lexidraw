@@ -787,7 +787,7 @@ public final class EditorView: UIScrollView, UITextInput {
   }
 
   func currentTypeaheadInput() -> EditorTypeaheadInput? {
-    guard isEditable, model.isEditable, composition == nil, selected.length == 0,
+    guard isFirstResponder, window != nil, isEditable, model.isEditable, composition == nil, selected.length == 0,
       let selection = modelSelection(), case .range(let point, let focus, _, _) = selection,
       point == focus, point.type == .text,
       let node = try? model.nodeForPresentation(at: point.path), node["type"]?.stringValue == "text",
@@ -795,9 +795,13 @@ public final class EditorView: UIScrollView, UITextInput {
       point.offset <= (text as NSString).length, let index = point.path.last,
       let keys = try? model.childKeys(at: Array(point.path.dropLast())), index < keys.count
     else { return nil }
-    let start = max(0, point.offset - 256)
-    let prefix = (text as NSString).substring(with: NSRange(location: start, length: point.offset - start))
-    return EditorTypeaheadInput(prefix: prefix, replacementBase: selected.location - prefix.utf16.count, selectionOffset: selected.location, nodeKey: keys[index])
+    let prefix = (text as NSString).substring(to: point.offset)
+    let previousType = index > 0
+      ? (try? model.nodeForPresentation(at: Array(point.path.dropLast()) + [index - 1]))?["type"]?.stringValue
+      : nil
+    return EditorTypeaheadInput(prefix: prefix, replacementBase: selected.location - prefix.utf16.count,
+      selectionOffset: selected.location, nodeKey: keys[index],
+      previousSiblingIsTextEntity: previousType.map(WebEmojiPicker.textEntityTypes.contains) ?? false)
   }
 
   private func refreshTypeahead() {
@@ -808,9 +812,9 @@ public final class EditorView: UIScrollView, UITextInput {
   public func replaceTypeahead(range: NSRange, with clipboard: Clipboard, preservingTypingAttributes: Bool = false) {
     guard isEditable, composition == nil, range.location >= 0, NSMaxRange(range) == selected.location else { return }
     typeahead?.clear()
-    anchor = range.location
-    focus = NSMaxRange(range)
-    perform(.paste(clipboard), fromInput: false, tellsRefusal: true, preservingTypingAttributes: preservingTypingAttributes, typeaheadSelection: (document.point(at: anchor), document.point(at: focus)))
+    let queryAnchor = document.point(at: range.location)
+    let queryFocus = document.point(at: NSMaxRange(range))
+    perform(.paste(clipboard), fromInput: false, tellsRefusal: true, preservingTypingAttributes: preservingTypingAttributes, typeaheadSelection: (queryAnchor, queryFocus))
   }
 
   /// Tells the model where the view's selection is, which it needs before
@@ -882,6 +886,7 @@ public final class EditorView: UIScrollView, UITextInput {
   public override func becomeFirstResponder() -> Bool {
     guard super.becomeFirstResponder() else { return false }
     if modelSelection() == nil { sendSelection() }
+    refreshTypeahead()
     return true
   }
 
@@ -1306,7 +1311,10 @@ public final class EditorView: UIScrollView, UITextInput {
     if typeahead?.choose() == true { return }
     perform(.tab(backward: false), fromInput: false)
   }
-  @objc private func tabBackward() { perform(.tab(backward: true), fromInput: false) }
+  @objc private func tabBackward() {
+    if typeahead?.choose() == true { return }
+    perform(.tab(backward: true), fromInput: false)
+  }
 
   @objc private func deleteLineBackward() {
     guard let boundary = lineBoundary(backward: true) else { return }
