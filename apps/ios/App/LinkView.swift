@@ -23,8 +23,8 @@ struct LinkScreen: View {
           } actions: {
             Link("Open in Lexidraw on the web", destination: link.webPage)
           }
-        } else if link.distilled?["contentHtml"]?.stringValue?.isEmpty == false {
-          SavedArticle(session: session, link: link)
+        } else if let html = link.distilled?["contentHtml"]?.stringValue, !html.isEmpty {
+          SavedArticleBody(session: session, link: link, html: html)
         } else {
           ContentUnavailableView {
             Label(link.title, systemImage: "link")
@@ -47,10 +47,47 @@ struct LinkScreen: View {
   }
 }
 
+/// The kept text as the web draws it, or as native text when that drawing
+/// fails, as it does for an article beyond the renderer's 16 megapixels.
+private struct SavedArticleBody: View {
+  let session: Session
+  let link: SavedLink
+  let html: String
+  /// Nil while the drawing stands; once it fails, the native text, or nil
+  /// within when the importer can't take it either.
+  @State private var fallback: EditorView??
+
+  var body: some View {
+    switch fallback {
+    case nil:
+      SavedArticle(session: session, link: link) {
+        if fallback == nil { fallback = .some(nativeArticleText(html: html, plainText: "")) }
+      }
+    case let editor??:
+      NativeArticleText(editor: editor)
+    case .some(nil):
+      ContentUnavailableView {
+        Label(link.title, systemImage: "link")
+      } description: {
+        Text("The app can’t show this page’s text.")
+      } actions: {
+        if let url = link.url { Link("Open page", destination: url) }
+      }
+    }
+  }
+}
+
+private struct NativeArticleText: UIViewRepresentable {
+  let editor: EditorView
+  func makeUIView(context: Context) -> NativeEditorHost { NativeEditorHost(editor: editor) }
+  func updateUIView(_ view: NativeEditorHost, context: Context) {}
+}
+
 /// The kept text drawn by the article block documents show, read-only.
 private struct SavedArticle: UIViewRepresentable {
   let session: Session
   let link: SavedLink
+  let failed: () -> Void
 
   func makeUIView(context: Context) -> ArticleScroll {
     // The web's link page sets no font of its own, so the renderer's default.
@@ -58,6 +95,7 @@ private struct SavedArticle: UIViewRepresentable {
   }
 
   func updateUIView(_ view: ArticleScroll, context: Context) {
+    view.failed = failed
     // The web titles a page kept without one by the link's own title.
     var distilled = link.distilled?.objectValue ?? [:]
     if distilled["title"]?.stringValue?.isEmpty != false { distilled["title"] = .string(link.title) }
@@ -73,6 +111,7 @@ final class ArticleScroll: UIScrollView {
   /// Scrolling lays the view out every frame and measuring renders, so only a
   /// new width or a finished render measures again.
   private var measuredWidth: CGFloat?
+  var failed: (() -> Void)?
 
   init(article: ArticleBlockView) {
     self.article = article
@@ -80,8 +119,10 @@ final class ArticleScroll: UIScrollView {
     alwaysBounceVertical = true
     addSubview(article)
     article.onChange = { [weak self] in
-      self?.measuredWidth = nil
-      self?.setNeedsLayout()
+      guard let self else { return }
+      if article.renderFailed { failed?() }
+      measuredWidth = nil
+      setNeedsLayout()
     }
   }
   required init?(coder: NSCoder) { fatalError("ArticleScroll is made in code") }

@@ -47,6 +47,7 @@ import UIKit
   var perform: ((Action) -> Void)?
   var editable = false { didSet { actions.isHidden = !editable } }
   var currentSnapshot: JSONValue? { snapshot }
+  var renderFailed: Bool { content.failed }
   private let openArticle = UIButton(type: .system)
   private let actions = UIStackView()
   private let content: RenderedEmbedView

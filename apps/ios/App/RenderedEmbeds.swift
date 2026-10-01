@@ -219,21 +219,12 @@ import Synchronization
     while responder != nil, !(responder is UIViewController) { responder = responder?.next }
     guard let parent = responder as? UIViewController else { return }
     let controller = UIViewController()
-    do {
-      let data = node["data"]
-      guard let html = data?[data?["mode"] == "url" ? "distilled" : "snapshot"]?["contentHtml"]?.stringValue,
-        !html.isEmpty, html.utf8.count <= 300_000 else {
-        throw EditorError.unsupported("The article has no bounded rich selection representation")
-      }
-      let model = Editor()
-      try model.load(["root": ["type": "root", "version": 1, "children": [["type": "paragraph", "version": 1, "children": []]]]])
-      try model.apply(.caret(Point(path: [0], offset: 0, type: .element)))
-      try model.apply(.paste(Clipboard(plainText: text, html: html)))
-      guard model.isEditable else { throw EditorError.unsupported("The article contains unported rich selection behavior (#134)") }
-      let body = EditorView(model: model, isEditable: false)
+    let data = node["data"]
+    if let html = data?[data?["mode"] == "url" ? "distilled" : "snapshot"]?["contentHtml"]?.stringValue,
+      let body = nativeArticleText(html: html, plainText: text) {
       controller.view = NativeEditorHost(editor: body)
       controller.title = "Article text"
-    } catch {
+    } else {
       let body = UITextView()
       body.text = text
       body.isEditable = false
@@ -505,4 +496,18 @@ private struct RenderedSourceEditor: View {
       parent.present(host, animated: true)
     }
   }
+}
+
+/// An article's sanitized HTML as read-only native text, imported as a paste
+/// of it would be; nil when it is too large or holds what the importer can't
+/// edit (#134).
+@MainActor func nativeArticleText(html: String, plainText: String) -> EditorView? {
+  guard !html.isEmpty, html.utf8.count <= 300_000 else { return nil }
+  let model = Editor()
+  do {
+    try model.load(["root": ["type": "root", "version": 1, "children": [["type": "paragraph", "version": 1, "children": []]]]])
+    try model.apply(.caret(Point(path: [0], offset: 0, type: .element)))
+    try model.apply(.paste(Clipboard(plainText: plainText, html: html)))
+  } catch { return nil }
+  return model.isEditable ? EditorView(model: model, isEditable: false) : nil
 }
