@@ -103,14 +103,29 @@ import UIKit
     saving = true
     defer { saving = false }
     do {
+      let previouslyMounted = mountedSlideBoxes(in: node)
       try owner.replaceEmbeddedNode(key: key, expected: node, replacement: replacement)
       node = try owner.structuralNode(key: key)
+      if isSlideDraft {
+        let currentlyMounted = mountedSlideBoxes(in: node)
+        for id in previouslyMounted.symmetricDifference(currentlyMounted) {
+          try slideTextEditors[id]?.model.remountSlideHistory()
+        }
+      }
       if rebuild {
         self.rebuild()
         owner.refreshEmbeddedContent()
       }
     } catch { presentError(error) }
   }
+  private func mountedSlideBoxes(in node: JSONValue) -> Set<String> {
+    guard isSlideDraft, let slides = node["data"]?["slides"]?.arrayValue, !slides.isEmpty else { return [] }
+    let index = slides.firstIndex { $0["id"] == node["data"]?["currentSlideId"] } ?? 0
+    return Set((slides[index]["elements"]?.arrayValue ?? []).compactMap {
+      $0["kind"] == "box" ? $0["id"]?.stringValue : nil
+    })
+  }
+
   private func field(_ name: String, _ value: JSONValue, rebuild: Bool = false) {
     var fields = node.objectValue ?? [:]
     fields[name] = value
@@ -521,6 +536,8 @@ import UIKit
   private func openSlideDraft() {
     guard let owner, let presenter = parentController() else { return }
     do {
+      owner.unmarkText()
+      owner.resignFirstResponder()
       let controller = try SlideDraftController(owner: owner, key: key, expected: node)
       presenter.present(UINavigationController(rootViewController: controller), animated: true)
     } catch { presentError(error) }
@@ -756,6 +773,8 @@ import UIKit
       controller.navigationItem.rightBarButtonItem = UIBarButtonItem(
         systemItem: .done, primaryAction: UIAction { [weak navigation, weak controller] _ in
           do {
+            editor.unmarkText()
+            editor.resignFirstResponder()
             try changed(model.serializedKeyedState())
             navigation?.dismiss(animated: true)
           } catch {

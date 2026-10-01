@@ -1125,8 +1125,13 @@ and retain their text, selection and local undo while the draft remains on the
 same slide. Done flushes keyed text only when the actual source keyless projection
 changes and increments the source-generated box version, including fractional
 versions. The text sheet requires Done so it cannot dismiss without flushing.
-Slide-switch HistoryPlugin remount/reset remains a tracked #133 follow-up;
-no claim of equivalent undo across slide navigation is made here.
+Switching the active slide resets undo/redo only for box component identities
+that leave or enter the mounted slide, matching source HistoryPlugin remounts.
+Cached box text and selection survive navigation. Opening the deck and closing
+a box explicitly commit marked text and release keyboard focus before serialization.
+The navigation undo regression was observed red before this lifecycle correction
+and passes on the actual hosted editor. Japanese IME inside the slide modal has
+not been separately exercised; the existing UITextInput composition path is reused.
 
 Validation: genuine hosted UI reds preceded draft Save/Cancel, retained box Undo
 and saved REST box-version fixes. All 16 DocumentPreview UI tests pass, alongside

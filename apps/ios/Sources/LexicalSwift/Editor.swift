@@ -18,6 +18,15 @@ public final class Editor: EditorModel {
   /// runs a transformer LexicalSwift doesn't port yet.
   public private(set) var shortcutsDeclinedAsNotPorted = 0
 
+  /// Slide box editors outlive their mounted source HistoryPlugin. Remounting
+  /// that plugin starts fresh undo/redo stacks without replacing the editor state.
+  public func remountSlideHistory() throws {
+    guard editorContext == .slide else {
+      throw EditorError.unsupported("Only slide boxes have this history mount boundary (#133)")
+    }
+    history = History(state)
+  }
+
   public var supportsRichText: Bool { !plainText }
   private let plainText: Bool
   private let editorContext: EditorContext

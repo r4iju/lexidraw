@@ -146,6 +146,43 @@ final class DocumentPreviewUITests: XCTestCase {
     XCTAssertFalse(requests(in: app).contains("entities-save"))
   }
 
+  func testSwitchingSlidesKeepsBoxTextButRemountsItsUndoHistory() {
+    let content = LexicalJSON.document([LexicalJSON.paragraph([LexicalJSON.text("Hello")])])
+    let box: JSONValue = ["id": "box", "kind": "box", "x": 100, "y": 100, "width": 400, "height": 120,
+      "zIndex": 0, "backgroundColor": "yellow", "editorStateJSON": content]
+    let document = LexicalJSON.document([["type": "slide-deck", "version": 1,
+      "data": ["currentSlideId": "first", "slides": [["id": "first", "elements": [box]], ["id": "second", "elements": []]]]]])
+    let app = open(access: "EDIT", document: document)
+    XCTAssertTrue(app.buttons["Edit slide deck"].waitForExistence(timeout: 10))
+    app.buttons["Edit slide deck"].tap()
+    func openText() -> XCUIElement {
+      app.buttons["Slide element 1, box actions"].tap()
+      app.buttons["Edit content"].tap()
+      XCTAssertTrue(app.navigationBars["Slide text"].waitForExistence(timeout: 5))
+      let editor = app.textViews["slide text editor"]
+      XCTAssertTrue(editor.waitForExistence(timeout: 5))
+      return editor
+    }
+    let first = openText()
+    first.tap()
+    first.typeText(" typed")
+    app.navigationBars["Slide text"].buttons["Done"].tap()
+    app.scrollViews["slide deck draft"].buttons["Slide 1 of 2"].tap()
+    app.buttons["Slide 2"].tap()
+    app.scrollViews["slide deck draft"].buttons["Slide 2 of 2"].tap()
+    app.buttons["Slide 1"].tap()
+    let reopened = openText()
+    XCTAssertTrue((reopened.value as? String)?.contains(" typed") == true)
+    reopened.tap()
+    reopened.typeKey(XCUIKeyboardKey.shift.rawValue, modifierFlags: [])
+    reopened.typeKey(XCUIKeyboardKey.F13.rawValue, modifierFlags: .shift)
+    reopened.typeKey("z", modifierFlags: .command)
+    XCTAssertTrue((reopened.value as? String)?.contains(" typed") == true)
+    app.navigationBars["Slide text"].buttons["Done"].tap()
+    app.navigationBars["Edit slide deck"].buttons["Cancel"].tap()
+    XCTAssertFalse(requests(in: app).contains("entities-save"))
+  }
+
   func testSlideDeckChangesStayDraftUntilSaveAndCancelDiscardsThem() {
     let document = LexicalJSON.document([["type": "slide-deck", "version": 1,
       "data": ["currentSlideId": "second", "slides": [
