@@ -877,3 +877,25 @@ and video work, `133-box-integrated.xcresult` passed all eight hosted tests and
 the three affected column UI tests; Bun passed 95 tests / 198 expectations,
 TypeScript/code generation passed, and the production simulator app build
 succeeded (`133-box-integrated-app.log`). No CI was invoked.
+
+Column gap now comes from the actual `layoutContainer` Tailwind utility and
+spacing theme. Editing columns draw the source's dashed, square-cornered
+`border-muted` outline; read-only columns reserve the same border box with a
+transparent stroke. The source declares no rounding. Muted light/dark colors
+resolve through the existing build-time theme converter to native-readable
+RGBA, since the runtime CSS color parser does not accept OKLCH. Theme changes
+outside the supported gap/border/containment shape fail generation explicitly.
+
+The hosted outline case failed because no CAShapeLayer border existed in
+`133-column-style-red.xcresult`. Final `133-gap-style-final.xcresult` passed
+all nine hosted cases and the three affected column UI tests; Bun passed
+95 tests / 198 expectations, TypeScript passed, and the production simulator
+app build succeeded (`133-gap-style-app.log`). Callout colors remain their
+existing source HEX palette. Sticky OKLCH conversion is a separate pending
+regression slice; no successful sticky-color test is claimed here.
+
+The column utility adapter requires the exact known item class set (including
+its generated padding utility); additions such as background, shadow or
+opacity fail generation instead of being ignored. Native dashed strokes use a
+conventional three-border-width dash/gap pattern; browser corner/dash phase
+placement is not claimed to be pixel-identical.

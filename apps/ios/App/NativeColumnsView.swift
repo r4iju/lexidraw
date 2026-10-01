@@ -1,5 +1,7 @@
 import UIKit
 import LexidrawJSON
+import CSSValues
+import EditorModelInterface
 
 /// The native track grammars currently supported without a browser layout engine.
 indirect enum NativeColumnTrack {
@@ -196,5 +198,38 @@ indirect enum NativeColumnTrack {
     }
     unavailable.frame = bounds
     for (column, frame) in zip(columns, frames) { column.frame = frame }
+  }
+}
+
+/// The web's column outline guides editing; readers retain a transparent border.
+@MainActor final class NativeColumnBox: UIStackView {
+  private let outline = CAShapeLayer()
+  private let borderColor: UIColor
+
+  init(editable: Bool) throws {
+    let values = StructuralBlockConfiguration.columnBorderColors
+    guard values.count == 2, let light = CSSColor(values[0]), let dark = CSSColor(values[1]) else {
+      throw EditorError.unsupported("The column border color cannot be represented natively (#133)")
+    }
+    borderColor = editable ? UIColor { traits in
+      let color = traits.userInterfaceStyle == .dark ? dark : light
+      return UIColor(red: color.red, green: color.green, blue: color.blue, alpha: color.alpha)
+    } : .clear
+    super.init(frame: .zero)
+    outline.fillColor = UIColor.clear.cgColor
+    outline.lineWidth = StructuralBlockConfiguration.columnBorderWidth
+    outline.lineDashPattern = [NSNumber(value: 3 * outline.lineWidth), NSNumber(value: 3 * outline.lineWidth)]
+    layer.addSublayer(outline)
+    registerForTraitChanges([UITraitUserInterfaceStyle.self]) { (view: NativeColumnBox, _: UITraitCollection) in
+      view.updateBorder()
+    }
+  }
+  required init(coder: NSCoder) { fatalError("NativeColumnBox is made in code") }
+  private func updateBorder() { outline.strokeColor = borderColor.resolvedColor(with: traitCollection).cgColor }
+  override func layoutSubviews() {
+    super.layoutSubviews()
+    outline.frame = bounds
+    outline.path = CGPath(rect: bounds.insetBy(dx: outline.lineWidth / 2, dy: outline.lineWidth / 2), transform: nil)
+    updateBorder()
   }
 }
