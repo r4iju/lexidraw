@@ -3,6 +3,20 @@ import LexicalSwift
 import Testing
 
 @Suite struct SocialTransformTests {
+  @Test func storedKeywordModesFollowTheActualTextEntityClass() throws {
+    for mode in ["token", "segmented"] {
+      var fields = try #require(text("congratulations").objectValue)
+      fields["type"] = "keyword"; fields["mode"] = .string(mode)
+      let start = document(paragraph(.object(fields)))
+      let editor = Editor(); try editor.load(start)
+      #expect(editor.isEditable)
+      let commands: [EditorCommand] = [.caret(.text([0, 0], 4)), .insertText("x"), .undo,
+        .caret(.text([0, 0], 4)), .deleteCharacter(backward: true), .undo,
+        .setSelection(anchor: .text([0, 0], 2), focus: .text([0, 0], 8)), .formatText(.bold), .undo, .redo]
+      let fixture = try Fixture.record(start: start, commands: commands, on: Support.referenceEditor())
+      #expect(try fixture.replay(on: editor) == fixture.recorded)
+    }
+  }
   @Test func malformedArticleDataStaysReadOnly() throws {
     let editor = Editor()
     try editor.load(document(["type": "article", "version": 1, "format": ""]))
