@@ -1,0 +1,233 @@
+{
+  "provenance": {
+    "engine": "Actual Chromium DOM via T3 preview_evaluate, 2026-10-01",
+    "source": [
+      "apps/lexidraw/src/styles/document.css .document-column",
+      "apps/lexidraw/src/app/documents/[documentId]/themes/theme.ts layoutContainer/layoutItem"
+    ],
+    "columnStyle": "min-width:0;container-type:inline-size;padding:8px;border:1px dashed;box-sizing:border-box",
+    "text": "AnUnbreakableLongWordToProveContainment"
+  },
+  "cases": [
+    {
+      "frames": [
+        {
+          "width": 208,
+          "x": 0
+        },
+        {
+          "width": 158,
+          "x": 216
+        },
+        {
+          "width": 18,
+          "x": 382
+        }
+      ],
+      "gap": 8,
+      "template": "minmax(50px,300px) minmax(0,300px) 1fr",
+      "tracks": "208px 158px 18px",
+      "width": 400
+    },
+    {
+      "frames": [
+        {
+          "width": 221,
+          "x": 0
+        },
+        {
+          "width": 171,
+          "x": 229
+        },
+        {
+          "width": 221,
+          "x": 0
+        }
+      ],
+      "gap": 8,
+      "template": "minmax(50px,300px) minmax(0,300px)",
+      "tracks": "221px 171px",
+      "width": 400
+    },
+    {
+      "frames": [
+        {
+          "width": 317.203125,
+          "x": 0
+        },
+        {
+          "width": 74.796875,
+          "x": 325.203125
+        },
+        {
+          "width": 317.203125,
+          "x": 0
+        }
+      ],
+      "gap": 8,
+      "template": "minmax(0,auto) 0.2fr",
+      "tracks": "317.203px 74.7969px",
+      "width": 400
+    },
+    {
+      "frames": [
+        {
+          "width": 18,
+          "x": 0
+        },
+        {
+          "width": 374,
+          "x": 26
+        },
+        {
+          "width": 18,
+          "x": 0
+        }
+      ],
+      "gap": 8,
+      "template": "minmax(auto,10px) 1fr",
+      "tracks": "18px 374px",
+      "width": 400
+    },
+    {
+      "frames": [
+        {
+          "width": 18,
+          "x": 0
+        },
+        {
+          "width": 374,
+          "x": 26
+        },
+        {
+          "width": 18,
+          "x": 0
+        }
+      ],
+      "gap": 8,
+      "template": "minmax(0,max-content) 1fr",
+      "tracks": "18px 374px",
+      "width": 400
+    },
+    {
+      "frames": [
+        {
+          "width": 237,
+          "x": 0
+        },
+        {
+          "width": 155,
+          "x": 245
+        },
+        {
+          "width": 237,
+          "x": 0
+        }
+      ],
+      "gap": 8,
+      "template": "minmax(100px,auto) minmax(0,auto)",
+      "tracks": "237px 155px",
+      "width": 400
+    },
+    {
+      "frames": [
+        {
+          "width": 196,
+          "x": 0
+        },
+        {
+          "width": 196,
+          "x": 204
+        },
+        {
+          "width": 196,
+          "x": 0
+        }
+      ],
+      "gap": 8,
+      "template": "auto auto",
+      "tracks": "196px 196px",
+      "width": 400
+    },
+    {
+      "frames": [
+        {
+          "width": 18,
+          "x": 0
+        },
+        {
+          "width": 374,
+          "x": 26
+        },
+        {
+          "width": 18,
+          "x": 0
+        }
+      ],
+      "gap": 8,
+      "template": "fit-content(5px) 1fr",
+      "tracks": "18px 374px",
+      "width": 400
+    },
+    {
+      "frames": [
+        {
+          "width": 96,
+          "x": 0
+        },
+        {
+          "width": 96,
+          "x": 104
+        },
+        {
+          "width": 96,
+          "x": 208
+        }
+      ],
+      "gap": 8,
+      "template": "1in 72pt 2.54cm",
+      "tracks": "96px 96px 96px",
+      "width": 400
+    },
+    {
+      "frames": [
+        {
+          "width": 96,
+          "x": 0
+        },
+        {
+          "width": 96,
+          "x": 104
+        },
+        {
+          "width": 96,
+          "x": 208
+        }
+      ],
+      "gap": 8,
+      "template": "25.4mm 101.6q 6pc",
+      "tracks": "96px 96px 96px",
+      "width": 400
+    },
+    {
+      "frames": [
+        {
+          "width": 32,
+          "x": 0
+        },
+        {
+          "width": 360,
+          "x": 40
+        },
+        {
+          "width": 32,
+          "x": 0
+        }
+      ],
+      "gap": 8,
+      "template": "minmax(12pt,2pc) 1fr",
+      "tracks": "32px 360px",
+      "width": 400
+    }
+  ]
+}

@@ -6,34 +6,58 @@ import EditorModelInterface
 /// The native track grammars currently supported without a browser layout engine.
 indirect enum NativeColumnTrack {
   case fraction(CGFloat), pixels(CGFloat), percentage(CGFloat)
-  case minimum(CGFloat, fraction: CGFloat)
-  case percentageMinimum(CGFloat, fraction: CGFloat)
+  case intrinsic(stretches: Bool)
+  case bounded(minimum: Self, maximum: Self)
+  case fitContent(Self)
 
   init?(_ source: String) {
     let value = source.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
     if value.hasPrefix("minmax("), value.hasSuffix(")") {
-      let arguments = Self.split(String(value.dropFirst(7).dropLast()), separator: ",")
-      guard let arguments, arguments.count == 2,
-        let minimum = Self(arguments[0]), let maximum = Self(arguments[1]),
-        case .fraction(let factor) = maximum else { return nil }
-      switch minimum {
-      case .pixels(let amount): self = .minimum(amount, fraction: factor)
-      case .percentage(let amount): self = .percentageMinimum(amount, fraction: factor)
+      guard let arguments = Self.split(String(value.dropFirst(7).dropLast()), separator: ","), arguments.count == 2,
+        let minimum = Self(primitive: arguments[0]), let maximum = Self(primitive: arguments[1]),
+        minimum.factor == nil else { return nil }
+      self = .bounded(minimum: minimum, maximum: maximum)
+    } else if value.hasPrefix("fit-content("), value.hasSuffix(")") {
+      guard let limit = Self(primitive: String(value.dropFirst(12).dropLast())) else { return nil }
+      switch limit {
+      case .pixels, .percentage: self = .fitContent(limit)
       default: return nil
       }
-      return
+    } else {
+      guard let track = Self(primitive: value) else { return nil }
+      self = track
     }
+  }
+
+  // Functions accept only CSS track-breadth primitives, never nested functions.
+  private init?(primitive source: String) {
+    let value = source.trimmingCharacters(in: .whitespacesAndNewlines)
+    if value == "auto" { self = .intrinsic(stretches: true); return }
+    if value == "min-content" || value == "max-content" { self = .intrinsic(stretches: false); return }
     if value == "0" { self = .pixels(0); return }
     let suffix: String
     if value.hasSuffix("fr") { suffix = "fr" }
-    else if value.hasSuffix("px") { suffix = "px" }
     else if value.hasSuffix("%") { suffix = "%" }
+    else if let unit = ["px", "in", "cm", "mm", "pt", "pc", "q"].first(where: { value.hasSuffix($0) }) { suffix = unit }
     else { return nil }
     guard let number = Double(value.dropLast(suffix.count)), number.isFinite, number >= 0 else { return nil }
     switch suffix {
     case "fr": self = .fraction(number)
-    case "px": self = .pixels(number)
-    default: self = .percentage(number / 100)
+    case "%": self = .percentage(number / 100)
+    default:
+      // CSS absolute units use the fixed 96px/in ratio, independent of screen DPI.
+      let scale: Double
+      switch suffix {
+      case "in": scale = 96
+      case "cm": scale = 96 / 2.54
+      case "mm": scale = 96 / 25.4
+      case "q": scale = 96 / 101.6
+      case "pt": scale = 96 / 72
+      case "pc": scale = 16
+      default: scale = 1
+      }
+      guard (number * scale).isFinite else { return nil }
+      self = .pixels(number * scale)
     }
   }
 
@@ -75,17 +99,37 @@ indirect enum NativeColumnTrack {
 
   var factor: CGFloat? {
     switch self {
-    case .fraction(let value), .minimum(_, let value), .percentageMinimum(_, let value): value
+    case .fraction(let value): value
+    case .bounded(_, let maximum): maximum.factor
     default: nil
     }
   }
-  func base(width: CGFloat) -> CGFloat {
+  var stretches: Bool {
     switch self {
-    case .pixels(let value), .minimum(let value, _): value
-    case .percentage(let value), .percentageMinimum(let value, _): width * value
-    case .fraction: 2 * (StructuralBlockConfiguration.columnPadding + StructuralBlockConfiguration.columnBorderWidth)
+    case .intrinsic(let stretches): stretches
+    case .bounded(_, let maximum): maximum.stretches
+    default: false
     }
   }
+  func base(width: CGFloat, occupied: Bool) -> CGFloat {
+    let intrinsic = occupied ? 2 * (StructuralBlockConfiguration.columnPadding + StructuralBlockConfiguration.columnBorderWidth) : 0
+    switch self {
+    case .pixels(let value): return value
+    case .percentage(let value): return width * value
+    case .bounded(let minimum, _): return minimum.base(width: width, occupied: occupied)
+    case .fraction, .intrinsic, .fitContent: return intrinsic
+    }
+  }
+  func growthLimit(width: CGFloat, occupied: Bool) -> CGFloat {
+    let minimum = base(width: width, occupied: occupied)
+    if case .bounded(_, let maximum) = self {
+      // Flexible maxima participate only in the later fr phase.
+      if maximum.factor != nil { return minimum }
+      return max(minimum, maximum.base(width: width, occupied: occupied))
+    }
+    return minimum
+  }
+
 }
 
 /// Fixed tracks may overflow their grid; they must not become conflicting stack constraints.
@@ -124,8 +168,25 @@ indirect enum NativeColumnTrack {
     var widths = Array(repeating: width, count: stacked ? 1 : tracks.count)
     if !stacked {
       widths = tracks.enumerated().map { index, track in
-        if case .fraction = track, index >= columns.count { return 0 }
-        return track.base(width: width)
+        track.base(width: width, occupied: index < columns.count)
+      }
+      let available = max(0, width - gap * CGFloat(max(0, tracks.count - 1)))
+      let limits = tracks.enumerated().map { index, track in
+        track.growthLimit(width: width, occupied: index < columns.count)
+      }
+      // CSS Grid maximize phase: equal growth, freezing each bounded maximum.
+      var growing = Set(tracks.indices.filter { limits[$0] > widths[$0] })
+      while !growing.isEmpty {
+        let free = max(0, available - widths.reduce(0, +))
+        guard free > 0 else { break }
+        let share = free / CGFloat(growing.count)
+        let frozen = growing.filter { limits[$0] - widths[$0] <= share }
+        if frozen.isEmpty {
+          for index in growing { widths[index] += share }
+          break
+        }
+        for index in frozen { widths[index] = limits[index] }
+        growing.subtract(frozen)
       }
       var flexible = Set(tracks.indices.filter { tracks[$0].factor != nil })
       while !flexible.isEmpty {
@@ -140,6 +201,12 @@ indirect enum NativeColumnTrack {
           break
         }
         flexible.subtract(frozen)
+      }
+      // Normal justify-content stretches only tracks with an auto maximum.
+      let stretching = tracks.indices.filter { tracks[$0].stretches }
+      if !stretching.isEmpty {
+        let free = max(0, available - widths.reduce(0, +)) / CGFloat(stretching.count)
+        for index in stretching { widths[index] += free }
       }
     }
     guard widths.allSatisfy({ $0.isFinite && $0 >= 0 }),

@@ -912,3 +912,53 @@ its generated padding utility); additions such as background, shadow or
 opacity fail generation instead of being ignored. Native dashed strokes use a
 conventional three-border-width dash/gap pattern; browser corner/dash phase
 placement is not claimed to be pixel-identical.
+
+
+Imported contained grids now support `auto`, `min-content`, `max-content`,
+`fit-content(px-or-percent)` and `minmax()` with fixed/intrinsic minima and
+fixed/intrinsic/fractional maxima. Function arguments are track-breadth
+primitives, so nested functions and fractional minima explicitly refuse.
+Under the actual source `min-width:0` plus inline-size containment, occupied
+columns have an intrinsic contribution of their generated padding/border box
+(18px), while unoccupied columns contribute zero; native controls and text
+never substitute for CSS intrinsic widths. The sizing phases maximize bounded
+tracks, expand fractions, then stretch auto maxima as specified by
+[CSS Grid track sizing](https://www.w3.org/TR/css-grid-2/#algo-track-sizing).
+`fit-content()` is clamped between identical contained min/max contributions.
+
+`AppTests/contained-grid-browser.json` retains eight actual Chromium DOM
+records using the production column containment, padding, border and gap,
+including fixed-maximum water filling and auto stretch after a partial `fr`.
+The native comparison genuinely failed the imported bounded template before
+implementation (`133-contained-grid-red.xcresult`). Final
+`133-contained-grid-green.xcresult` passed all 12 hosted cases and three
+existing column UI cases; production simulator build passed
+(`133-contained-grid-app.log`). No CI was invoked. Automatic repeat, named
+lines, relative/other length units and `calc()`/other CSS functions remain
+explicit #133 refusals; this checkpoint does not close those imported shapes.
+
+
+Absolute imported grid lengths (`in`, `cm`, `mm`, `q`, `pt`, `pc`) resolve
+with the CSS-defined fixed 96px/in ratios, not native device DPI. The retained
+browser corpus now has 11 actual cases, including equal inch/point/centimeter
+tracks and absolute lengths inside bounded tracks. The existing browser
+comparison failed on `1in 72pt 2.54cm` before implementation
+(`133-grid-lengths-red.xcresult`), then passed all 12 hosted and three column UI
+cases (`133-grid-lengths-green.xcresult`); the production simulator build passed
+(`133-grid-lengths-app.log`). Font-relative and viewport/container-relative
+units still explicitly refuse until their source context is faithfully resolved.
+
+The current #133 acceptance audit distinguishes model and panel coverage:
+all six node families have native render/edit entry points; the generated
+all-node fixture and schema completeness tests cover each family's Codable and
+source JSON round trip. Fresh `StructuralBlockTests` passed all 18 cases and
+`SerializedNodeTests` passed seven methods, including 76 domain cases
+(`133-final-structural-tests.log`, `133-final-roundtrip.log`). Fresh structural
+fuzz seed 133 agreed for 20,000 steps with zero divergence, 4,337 commands both
+refused, 14 sessions ended on an unported shortcut/node, and zero unreadable
+sessions (`133-final-fuzz-133.log`). Its differential commands cover document
+editing around decorators and inside callout/section/column bodies; randomized
+slide geometry, panel settings and native gesture events are not claimed as
+part of that fuzz run. Their native UI and stale-update/history tests provide
+separate coverage. Remaining imported grammar refusals and those fuzz scope
+limits remain explicit rather than being treated as completed acceptance.
