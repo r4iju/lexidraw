@@ -893,3 +893,9 @@ all nine hosted cases and the three affected column UI tests; Bun passed
 app build succeeded (`133-gap-style-app.log`). Callout colors remain their
 existing source HEX palette. Sticky OKLCH conversion is a separate pending
 regression slice; no successful sticky-color test is claimed here.
+
+The column utility adapter requires the exact known item class set (including
+its generated padding utility); additions such as background, shadow or
+opacity fail generation instead of being ignored. Native dashed strokes use a
+conventional three-border-width dash/gap pattern; browser corner/dash phase
+placement is not claimed to be pixel-identical.

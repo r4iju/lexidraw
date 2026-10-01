@@ -41,6 +41,12 @@ export async function swiftForStructuralBlocks(): Promise<string> {
   ).text();
   const theme = await Bun.file(new URL("../../lexidraw/src/app/documents/[documentId]/themes/theme.ts", import.meta.url)).text();
   const itemClasses = /layoutItem:\s*"([^"]+)"/.exec(theme)?.[1]?.split(/\s+/);
+  const paddingClass = itemClasses?.find((value) => /^p-\d+$/.test(value));
+  const knownItemClasses = new Set(["document-column", "border", "border-dashed", "border-muted", paddingClass,
+    "[[aria-readonly=true]_&]:border-transparent", "print:border-transparent"]);
+  if (!itemClasses || !paddingClass || itemClasses.length !== knownItemClasses.size ||
+    itemClasses.some((value) => !knownItemClasses.has(value)))
+    throw new Error("Column item utilities changed shape");
   const containerClasses = /layoutContainer:\s*"([^"]+)"/.exec(theme)?.[1]?.split(/\s+/);
   const gapClass = containerClasses?.find((value) => /^gap-\d+$/.test(value));
   const mutedAlias = /--muted:\s*var\((--[\w-]+)\);/.exec(globals)?.[1];
@@ -60,7 +66,6 @@ export async function swiftForStructuralBlocks(): Promise<string> {
     });
   };
   const columnBorderColors = rgbaColors("muted");
-  const paddingClass = itemClasses?.find((value) => /^p-\d+$/.test(value));
   const spacingCSS = await Bun.file(new URL("../../lexidraw/node_modules/tailwindcss/theme.css", import.meta.url)).text();
   const spacingRem = /--spacing:\s*([\d.]+)rem;/.exec(spacingCSS)?.[1];
   const itemContainment = /\.document-content :is\(\[data-lexical-layout-item\], \.document-column\) \{([^}]+)\}/.exec(document)?.[1];
