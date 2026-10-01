@@ -65,6 +65,7 @@ public final class EditorView: UIScrollView, UITextInput {
       language: typesetting.language, font: typesetting.documentFont)
     editor.configureNestedEmbeds = configureNestedEmbeds
     editor.uploadImage = uploadImage
+    editor.uploadVideo = uploadVideo
     configureNestedEmbeds?(editor)
     if shareDocumentMetadata {
       metadataChildren.add(editor)
@@ -449,6 +450,8 @@ public final class EditorView: UIScrollView, UITextInput {
 
   /// Provided by the account-backed document screen; absent in disposable harnesses.
   public var uploadImage: (@MainActor (Data) async throws -> URL)?
+  public var uploadVideo: (@MainActor (Data) async throws -> URL)?
+  private var videoPicker: NativeVideoPicker?
   private var imagePicker: NativeImagePicker?
 
   public weak var inputDelegate: (any UITextInputDelegate)?
@@ -1351,6 +1354,7 @@ public final class EditorView: UIScrollView, UITextInput {
   public var imageInsertionActions: [UIMenuElement] {
     guard isEditable else { return [] }
     return [imageMenu(),
+      UIAction(title: "Video from Photos…", image: UIImage(systemName: "video"), attributes: uploadVideo == nil ? .disabled : []) { [weak self] _ in self?.chooseVideo() },
       UIAction(title: "Inline image from Photos…", image: UIImage(systemName: "photo.on.rectangle"), attributes: uploadImage == nil ? .disabled : []) { [weak self] _ in self?.chooseImage(camera: false, inline: true) },
       UIAction(title: "GIF", image: UIImage(systemName: "film"), attributes: mediaOrigin == nil ? .disabled : []) { [weak self] _ in
         guard let self, let origin = mediaOrigin, let source = URL(string: MediaInsertions.gifSource, relativeTo: origin)?.absoluteURL else { return }
@@ -1424,12 +1428,24 @@ public final class EditorView: UIScrollView, UITextInput {
     return perform(.paste(Clipboard(plainText: "", lexical: LexicalClipboardPayload(namespace: MediaLinks.namespace, nodes: [node]))), fromInput: false, tellsRefusal: true) != nil
   }
 
+  private func chooseVideo() {
+    guard isEditable, let uploadVideo, let presenter else { return }
+    let picker = NativeVideoPicker(presenter: presenter, upload: uploadVideo) { [weak self] node in
+      self?.insertMedia(node)
+      self?.videoPicker = nil
+    }
+    videoPicker = picker
+    picker.present()
+  }
+
   private func chooseImage(camera: Bool, inline: Bool = false) {
     guard isEditable, let uploadImage, let presenter else { return }
     let picker = NativeImagePicker(presenter: presenter, upload: uploadImage) { [weak self] node in
       guard let self else { return }
       if inline {
-        insertMedia(Self.mediaNode("inline-image", fields: ["src": node["src"]!, "width": node["width"]!, "height": node["height"]!]))
+        let inlineNode = Self.mediaNode("inline-image", fields: ["src": node["src"]!, "width": node["width"]!, "height": node["height"]!])
+        let options = NativeInlineImageOptions(node: inlineNode) { [weak self] in self?.insertMedia($0) }
+        presenter.present(UINavigationController(rootViewController: options), animated: true)
       } else { insertMedia(node) }
       imagePicker = nil
     }

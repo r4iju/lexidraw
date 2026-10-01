@@ -344,3 +344,42 @@ describe("reading a saved link's page", () => {
     expect([...stored.keys()].filter((key) => key.includes(LINK))).toEqual([]);
   });
 });
+
+describe("native video upload", () => {
+  test("signs a bounded direct upload into an editable document", async () => {
+    const signed = await callerOf(OWNER).signVideoUpload({
+      entityId: DOC,
+      contentType: "video/mp4",
+      size: 32,
+    });
+    const pathname = new URL(signed.url).pathname.slice(1);
+    expect(pathname).toStartWith(`${DOC}-`);
+    expect(signed.upload.method).toBe("PUT");
+    expect(signed.upload.headers["x-content-type"]).toBe("video/mp4");
+    expect(tokensAsked.at(-1)?.maximumSizeInBytes).toBe(32);
+    const rows = await db
+      .select()
+      .from(schema.uploadedVideos)
+      .where(eq(schema.uploadedVideos.fileName, pathname));
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.entityId).toBe(DOC);
+  });
+  test("refuses read-only access and excessive size before signing", async () => {
+    const count = tokensAsked.length;
+    await expect(
+      callerOf(READER).signVideoUpload({
+        entityId: DOC,
+        contentType: "video/mp4",
+        size: 32,
+      }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+    await expect(
+      callerOf(OWNER).signVideoUpload({
+        entityId: DOC,
+        contentType: "video/mp4",
+        size: 101 * 1024 * 1024,
+      }),
+    ).rejects.toMatchObject({ code: "PAYLOAD_TOO_LARGE" });
+    expect(tokensAsked).toHaveLength(count);
+  });
+});

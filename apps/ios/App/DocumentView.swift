@@ -188,6 +188,10 @@ private struct DocumentEditor: UIViewRepresentable {
           guard let editing else { throw CancellationError() }
           return try await editing.session.uploadImage(data, in: editing.id)
         }
+        nested.uploadVideo = { [weak editing] data in
+          guard let editing else { throw CancellationError() }
+          return try await editing.session.uploadVideo(data, in: editing.id)
+        }
         nested.insertionActions += nested.imageInsertionActions + nested.socialInsertionActions + [drawingInsertionAction(for: nested)] + renderedInsertionActions(for: nested)
       }
     }

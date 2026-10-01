@@ -763,5 +763,9 @@ configured server origin. Cancel leaves the document untouched.
 
 Saving now claims owner-uploaded inline images and pictures in caption/slide
 text editors through the existing signed-image validation and cleanup policy.
-Video upload and the inline-image dialog's alternative text, position and caption
-controls remain #135 work; external embeds retain native link-preview behavior.
+Video selection uses the system Photos picker, converts the chosen asset to MP4,
+and inserts only after the signed transfer succeeds. The signing endpoint applies
+the same document edit rule and upload records as the web, with a bounded token.
+Inline-image insertion offers alternative text, position and caption controls;
+position values, labels and initial payload come from the web dialog/constructor.
+External embeds retain native link-preview behavior.

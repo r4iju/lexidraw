@@ -39,3 +39,31 @@ import Testing
     }
   }
 }
+
+@Suite struct VideoUploadTests {
+  @Test func uploadsOnlyToSignedVideoDestination() async throws {
+    let server = FakeServer { _ in (200, MediaUploadTests.signed) }
+    let session = try TestServer.session(server)
+    let source = try await session.uploadVideo(Data([1, 2, 3]), in: "n1", send: { request, data in
+      #expect(request.url?.absoluteString == "https://store.test/signed")
+      #expect(request.httpMethod == "PUT")
+      #expect(request.value(forHTTPHeaderField: "Authorization") == nil)
+      #expect(request.value(forHTTPHeaderField: "x-upload-token") == "disposable")
+      #expect(data == Data([1, 2, 3]))
+      return 200
+    })
+    #expect(source.absoluteString == "https://pictures.test/p.jpg")
+    #expect(server.requests.count == 1)
+    #expect(server.requests.first?.url.path == "/api/v1/entities/n1/video-uploads")
+    #expect(server.requests.first?.object["contentType"] as? String == "video/mp4")
+    #expect(server.requests.first?.object["size"] as? Int == 3)
+  }
+  @Test func refusesFailedSigningWithoutUploading() async throws {
+    let server = FakeServer { _ in (404, #"{"message":"Entity not found","code":"NOT_FOUND"}"#) }
+    let session = try TestServer.session(server)
+    do {
+      _ = try await session.uploadVideo(Data([1]), in: "n1", send: { _, _ in Issue.record("Upload sent after signing refusal"); return 200 })
+      Issue.record("Signing refusal was ignored")
+    } catch {}
+  }
+}

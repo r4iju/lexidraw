@@ -141,3 +141,6 @@ const { MEDIA_INSERTIONS_PATH, swiftForMediaInsertions } = await import(
   "./media"
 );
 await Bun.write(MEDIA_INSERTIONS_PATH, await swiftForMediaInsertions());
+
+const { MEDIA_VIDEOS_PATH, swiftForMediaVideos } = await import("./media");
+await Bun.write(MEDIA_VIDEOS_PATH, swiftForMediaVideos());
