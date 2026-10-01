@@ -183,7 +183,7 @@ export async function swiftForStructuralBlocks(): Promise<string> {
   const triggerMinimum = triggerClass?.find((value) => /^min-h-\d+$/.test(value));
   const triggerGap = triggerClass?.find((value) => /^gap-\d+$/.test(value));
   const chevronSize = chevronClass?.find((value) => /^size-\d+$/.test(value));
-  if (itemClass?.join(" ") !== `border border-border rounded-md ${sectionPadding}` || !triggerPadding || !triggerMinimum ||
+  if (!sectionPadding || itemClass?.join(" ") !== `border border-border rounded-md ${sectionPadding}` || !triggerPadding || !triggerMinimum ||
     !triggerGap || !triggerClass?.includes("font-medium") || !triggerClass.includes("text-base") || !triggerClass.includes("items-center") ||
     !triggerClass.includes("[&[data-state=open]>svg]:rotate-90") || !chevronSize ||
     !chevronClass?.includes("lucide-chevron-right") || !chevronClass.includes("text-muted-foreground") ||
@@ -202,13 +202,16 @@ export async function swiftForStructuralBlocks(): Promise<string> {
   const chevronOffsets = /^m([\d.\s-]+)$/.exec(chevronSVG?.[2] ?? "")?.[1]?.match(/-?[\d.]+/g)?.map(Number);
   if (!chevronViewBox || chevronViewBox[1] !== chevronViewBox[2] || !chevronStroke || !chevronOffsets ||
     chevronOffsets.length < 4 || chevronOffsets.length % 2 !== 0 ||
-    !chevronSVG?.[1].includes('stroke-linecap="round"') || !chevronSVG[1].includes('stroke-linejoin="round"'))
+    !chevronSVG?.[1]?.includes('stroke-linecap="round"') || !chevronSVG[1]?.includes('stroke-linejoin="round"'))
     throw new Error("Collapsible chevron icon changed shape");
   // A relative moveto's further pairs are relative linetos.
   const chevronPoints: [number, number][] = [];
   for (let index = 0; index < chevronOffsets.length; index += 2) {
     const [x, y] = chevronPoints.at(-1) ?? [0, 0];
-    chevronPoints.push([x + chevronOffsets[index], y + chevronOffsets[index + 1]]);
+    const dx = chevronOffsets[index];
+    const dy = chevronOffsets[index + 1];
+    if (dx === undefined || dy === undefined) throw new Error("Collapsible chevron coordinates changed shape");
+    chevronPoints.push([x + dx, y + dy]);
   }
   if (!sectionBorder || radiusMd.length !== 1 || !fontWeightMedium || !textBase || !sectionCSS.includes("border-radius: var(--radius-md);") ||
     !sectionCSS.includes("font-weight: var(--font-weight-medium);") ||
