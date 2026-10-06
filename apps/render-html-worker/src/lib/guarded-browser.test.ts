@@ -2,7 +2,7 @@ import { afterAll, beforeAll, expect, test } from "bun:test";
 import { publicAddress } from "@packages/lib/public-address";
 import type { Browser } from "puppeteer-core";
 import { launchGuardedBrowser } from "./guarded-browser";
-import { type Check, guardRequests } from "./public-requests";
+import { type Check, guardRequests, renderCheck } from "./public-requests";
 
 /** What the machine's own services were asked for. */
 const asked: string[] = [];
@@ -88,4 +88,42 @@ test("the browser connects only to the address that was checked", async () => {
   });
 
   expect(asked).toEqual(["/"]);
+}, 30_000);
+
+/**
+ * The app in development reloads its page when its HMR socket can't
+ * connect, so a socket to an allowed http origin must get through.
+ */
+test("a page from an allowed origin opens a socket to it", async () => {
+  const app = Bun.serve({
+    hostname: "127.0.0.1",
+    port: 0,
+    fetch(request, server) {
+      if (server.upgrade(request)) return;
+      return new Response(
+        `<script>
+          const socket = new WebSocket("ws://localhost:${app.port}/socket");
+          socket.onopen = () => (document.title = "open");
+          socket.onerror = () => (document.title = "refused");
+        </script>`,
+        { headers: { "content-type": "text/html" } },
+      );
+    },
+    websocket: { message() {} },
+  });
+  const allowed = renderCheck(`http://localhost:${app.port}`);
+  const browser = await launchGuardedBrowser({
+    viewport: { width: 800, height: 600 },
+    check: allowed,
+  });
+  try {
+    const page = await browser.newPage();
+    await guardRequests(page, allowed);
+    await page.goto(`http://localhost:${app.port}/`);
+    await page.waitForFunction(() => document.title !== "");
+    expect(await page.title()).toBe("open");
+  } finally {
+    await browser.close();
+    app.stop(true);
+  }
 }, 30_000);
