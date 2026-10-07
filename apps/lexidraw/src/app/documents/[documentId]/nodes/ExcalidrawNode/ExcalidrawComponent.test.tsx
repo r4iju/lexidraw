@@ -3,7 +3,7 @@ import { installDom, render } from "~/test/dom";
 
 installDom("https://app.test/documents/1");
 
-import { expect, mock, test } from "bun:test";
+import { afterEach, expect, mock, test } from "bun:test";
 import { createHeadlessEditor } from "@lexical/headless";
 import { LexicalComposer } from "@lexical/react/LexicalComposer";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
@@ -19,14 +19,30 @@ import {
 } from "lexical";
 import { act } from "react";
 
-// Drawing the picture and editing it are Excalidraw's; here the editor only
-// has to open.
+// Drawing the picture and the canvas are Excalidraw's; here the editor only
+// has to open. The mocks match ExcalidrawModal.test's, as bun shares a
+// module's mock across the files of one run.
 mock.module("@excalidraw/excalidraw", () => ({
+  Excalidraw: () => (
+    <button type="button" aria-label="Rectangle">
+      Rectangle
+    </button>
+  ),
+  CaptureUpdateAction: {},
+  getCommonBounds: () => [0, 0, 0, 0],
   exportToSvg: async () =>
     document.createElementNS("http://www.w3.org/2000/svg", "svg"),
 }));
-mock.module("./ExcalidrawModal", () => ({
-  default: () => <div role="dialog" aria-label="Drawing editor" />,
+mock.module("@excalidraw/excalidraw/index.css", () => ({}));
+mock.module("./ExcalidrawMenu", () => ({ DrawingBoardMenu: () => null }));
+mock.module("~/app/drawings/[drawingId]/use-synced-excalidraw", () => ({
+  useSyncedExcalidraw: () => ({ needsSave: () => false }),
+}));
+mock.module("~/app/drawings/[drawingId]/use-fit-on-open", () => ({
+  useFitOnOpen: () => {},
+}));
+mock.module("../../context/document-title-context", () => ({
+  useDocumentTitle: () => "Field notes",
 }));
 
 const { ExcalidrawNode } = await import("./index");
@@ -52,6 +68,12 @@ function Capture() {
   return null;
 }
 
+let mounted: { unmount: () => Promise<void> } | undefined;
+afterEach(async () => {
+  await mounted?.unmount();
+  mounted = undefined;
+});
+
 async function mountDrawing({ editable }: { editable: boolean }) {
   const view = await render(
     <LexicalComposer
@@ -75,7 +97,7 @@ async function mountDrawing({ editable }: { editable: boolean }) {
   // The component loads lazily.
   for (let tries = 0; tries < 25; tries++)
     await act(() => new Promise((settle) => setTimeout(settle, 20)));
-  return view;
+  mounted = view;
 }
 
 const selected = () =>
@@ -87,10 +109,8 @@ const selected = () =>
   });
 
 test("an empty drawing shows a writer a placeholder to select and open", async () => {
-  const view = await mountDrawing({ editable: true });
-  expect(
-    document.querySelector('[role="dialog"][aria-label="Drawing editor"]'),
-  ).toBeNull();
+  await mountDrawing({ editable: true });
+  expect(document.querySelector('[role="dialog"]')).toBeNull();
   const placeholder = [
     ...document.querySelectorAll<HTMLElement>("[data-lexical-decorator] *"),
   ].find((element) => element.textContent === "Empty drawing");
@@ -104,16 +124,12 @@ test("an empty drawing shows a writer a placeholder to select and open", async (
       .querySelector<HTMLButtonElement>('button[aria-label="Edit drawing"]')
       ?.click(),
   );
-  expect(
-    document.querySelector('[role="dialog"][aria-label="Drawing editor"]'),
-  ).not.toBeNull();
-  await view.unmount();
+  expect(document.querySelector('[role="dialog"]')).not.toBeNull();
 });
 
 test("a reader sees nothing of an empty drawing", async () => {
-  const view = await mountDrawing({ editable: false });
+  await mountDrawing({ editable: false });
   expect(
     document.querySelector("[data-lexical-decorator]")?.textContent ?? "",
   ).toBe("");
-  await view.unmount();
 });
