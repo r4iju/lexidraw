@@ -1,0 +1,406 @@
+{
+  "changes" : [
+    {
+      "changed" : [
+
+      ]
+    },
+    {
+      "changed" : [
+
+      ],
+      "clipboard" : {
+        "application/x-lexical-editor" : {
+          "namespace" : "Lexidraw",
+          "nodes" : [
+            {
+              "children" : [
+                {
+                  "children" : [
+                    {
+                      "children" : [
+
+                      ],
+                      "direction" : null,
+                      "format" : "",
+                      "indent" : 0,
+                      "isUnlinked" : false,
+                      "rel" : null,
+                      "target" : null,
+                      "title" : null,
+                      "type" : "autolink",
+                      "url" : "https://www.a.o",
+                      "version" : 1
+                    }
+                  ],
+                  "direction" : null,
+                  "format" : "",
+                  "indent" : 2,
+                  "textFormat" : 3,
+                  "textStyle" : "",
+                  "type" : "paragraph",
+                  "version" : 1
+                }
+              ],
+              "direction" : null,
+              "format" : "",
+              "indent" : 0,
+              "kind" : "warning",
+              "title" : "",
+              "type" : "callout",
+              "version" : 1
+            },
+            {
+              "type" : "page-break",
+              "version" : 1
+            },
+            {
+              "children" : [
+                {
+                  "children" : [
+                    {
+                      "children" : [
+
+                      ],
+                      "direction" : null,
+                      "format" : "",
+                      "indent" : 0,
+                      "textFormat" : 0,
+                      "textStyle" : "",
+                      "type" : "paragraph",
+                      "version" : 1
+                    }
+                  ],
+                  "direction" : null,
+                  "format" : "",
+                  "indent" : 0,
+                  "type" : "collapsible-title",
+                  "version" : 1
+                },
+                {
+                  "children" : [
+                    {
+                      "children" : [
+                        {
+                          "detail" : 0,
+                          "format" : 16,
+                          "mode" : "normal",
+                          "style" : "",
+                          "text" : "語",
+                          "type" : "text",
+                          "version" : 1
+                        }
+                      ],
+                      "direction" : null,
+                      "format" : "",
+                      "indent" : 0,
+                      "textFormat" : 16,
+                      "textStyle" : "",
+                      "type" : "paragraph",
+                      "version" : 1
+                    }
+                  ],
+                  "direction" : null,
+                  "format" : "",
+                  "indent" : 0,
+                  "type" : "collapsible-content",
+                  "version" : 1
+                }
+              ],
+              "direction" : null,
+              "format" : "",
+              "indent" : 0,
+              "open" : true,
+              "type" : "collapsible-container",
+              "version" : 1
+            }
+          ]
+        },
+        "text/plain" : "\n\n\n\n語"
+      }
+    }
+  ],
+  "commands" : [
+    {
+      "anchor" : {
+        "offset" : 1,
+        "path" : [
+          2,
+          1,
+          0,
+          0
+        ],
+        "type" : "text"
+      },
+      "focus" : {
+        "offset" : 7,
+        "path" : [
+          0,
+          0,
+          0,
+          0
+        ],
+        "type" : "text"
+      },
+      "type" : "setSelection"
+    },
+    {
+      "type" : "copy"
+    }
+  ],
+  "expected" : {
+    "selection" : {
+      "anchor" : {
+        "offset" : 1,
+        "path" : [
+          2,
+          1,
+          0,
+          0
+        ],
+        "type" : "text"
+      },
+      "focus" : {
+        "offset" : 7,
+        "path" : [
+          0,
+          0,
+          0,
+          0
+        ],
+        "type" : "text"
+      },
+      "format" : 16,
+      "style" : ""
+    },
+    "state" : {
+      "root" : {
+        "children" : [
+          {
+            "children" : [
+              {
+                "children" : [
+                  {
+                    "children" : [
+                      {
+                        "detail" : 0,
+                        "format" : 32,
+                        "mode" : "normal",
+                        "style" : "",
+                        "text" : "www.a.o",
+                        "type" : "text",
+                        "version" : 1
+                      }
+                    ],
+                    "direction" : null,
+                    "format" : "",
+                    "indent" : 0,
+                    "isUnlinked" : false,
+                    "rel" : null,
+                    "target" : null,
+                    "title" : null,
+                    "type" : "autolink",
+                    "url" : "https://www.a.o",
+                    "version" : 1
+                  }
+                ],
+                "direction" : null,
+                "format" : "",
+                "indent" : 2,
+                "textFormat" : 3,
+                "textStyle" : "",
+                "type" : "paragraph",
+                "version" : 1
+              }
+            ],
+            "direction" : null,
+            "format" : "",
+            "indent" : 0,
+            "kind" : "warning",
+            "title" : "",
+            "type" : "callout",
+            "version" : 1
+          },
+          {
+            "type" : "page-break",
+            "version" : 1
+          },
+          {
+            "children" : [
+              {
+                "children" : [
+                  {
+                    "children" : [
+
+                    ],
+                    "direction" : null,
+                    "format" : "",
+                    "indent" : 0,
+                    "textFormat" : 0,
+                    "textStyle" : "",
+                    "type" : "paragraph",
+                    "version" : 1
+                  }
+                ],
+                "direction" : null,
+                "format" : "",
+                "indent" : 0,
+                "type" : "collapsible-title",
+                "version" : 1
+              },
+              {
+                "children" : [
+                  {
+                    "children" : [
+                      {
+                        "detail" : 0,
+                        "format" : 16,
+                        "mode" : "normal",
+                        "style" : "",
+                        "text" : "語",
+                        "type" : "text",
+                        "version" : 1
+                      }
+                    ],
+                    "direction" : null,
+                    "format" : "",
+                    "indent" : 0,
+                    "textFormat" : 16,
+                    "textStyle" : "",
+                    "type" : "paragraph",
+                    "version" : 1
+                  }
+                ],
+                "direction" : null,
+                "format" : "",
+                "indent" : 0,
+                "type" : "collapsible-content",
+                "version" : 1
+              }
+            ],
+            "direction" : null,
+            "format" : "",
+            "indent" : 0,
+            "open" : true,
+            "type" : "collapsible-container",
+            "version" : 1
+          }
+        ],
+        "direction" : null,
+        "format" : "",
+        "indent" : 0,
+        "type" : "root",
+        "version" : 1
+      }
+    }
+  },
+  "start" : {
+    "root" : {
+      "children" : [
+        {
+          "children" : [
+            {
+              "children" : [
+                {
+                  "children" : [
+                    {
+                      "detail" : 0,
+                      "format" : 32,
+                      "mode" : "normal",
+                      "style" : "",
+                      "text" : "www.a.o",
+                      "type" : "text",
+                      "version" : 1
+                    }
+                  ],
+                  "direction" : null,
+                  "format" : "",
+                  "indent" : 0,
+                  "isUnlinked" : false,
+                  "rel" : null,
+                  "target" : null,
+                  "title" : null,
+                  "type" : "autolink",
+                  "url" : "https://www.a.o",
+                  "version" : 1
+                }
+              ],
+              "direction" : null,
+              "format" : "",
+              "indent" : 2,
+              "textFormat" : 3,
+              "textStyle" : "",
+              "type" : "paragraph",
+              "version" : 1
+            }
+          ],
+          "direction" : null,
+          "format" : "",
+          "indent" : 0,
+          "kind" : "warning",
+          "title" : "",
+          "type" : "callout",
+          "version" : 1
+        },
+        {
+          "type" : "page-break",
+          "version" : 1
+        },
+        {
+          "children" : [
+            {
+              "children" : [
+
+              ],
+              "direction" : null,
+              "format" : "",
+              "indent" : 0,
+              "type" : "collapsible-title",
+              "version" : 1
+            },
+            {
+              "children" : [
+                {
+                  "children" : [
+                    {
+                      "detail" : 0,
+                      "format" : 16,
+                      "mode" : "normal",
+                      "style" : "",
+                      "text" : "語",
+                      "type" : "text",
+                      "version" : 1
+                    }
+                  ],
+                  "direction" : null,
+                  "format" : "",
+                  "indent" : 0,
+                  "textFormat" : 16,
+                  "textStyle" : "",
+                  "type" : "paragraph",
+                  "version" : 1
+                }
+              ],
+              "direction" : null,
+              "format" : "",
+              "indent" : 0,
+              "type" : "collapsible-content",
+              "version" : 1
+            }
+          ],
+          "direction" : null,
+          "format" : "",
+          "indent" : 0,
+          "open" : true,
+          "type" : "collapsible-container",
+          "version" : 1
+        }
+      ],
+      "direction" : null,
+      "format" : "",
+      "indent" : 0,
+      "type" : "root",
+      "version" : 1
+    }
+  }
+}

@@ -671,7 +671,7 @@ type RGBA = [number, number, number, number];
  * The theme's colours, light as `:root` sets them and dark as `.dark` on
  * the screen does, by the Swift name of the custom property each is.
  */
-class ThemeColors {
+export class ThemeColors {
   private readonly light = new Map<string, string>();
   private readonly dark = new Map<string, string>();
   readonly used: [string, RGBA, RGBA][] = [];
@@ -778,7 +778,7 @@ export function srgbForOklch(
   ];
 }
 
-function swiftRGBA([red, green, blue, alpha]: RGBA): string {
+export function swiftRGBA([red, green, blue, alpha]: RGBA): string {
   const channel = (value: number) => (Math.round(value * 1e4) / 1e4).toString();
   return `RGBA(${channel(red)}, ${channel(green)}, ${channel(blue)}, ${channel(alpha)})`;
 }

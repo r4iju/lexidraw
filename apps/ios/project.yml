@@ -68,10 +68,17 @@ targets:
       - EditorHarness
       - App/MessageAlert.swift
       - App/DocumentView.swift
+      - App/MediaCaptionEditor.swift
       - App/DocumentTypography.swift
       - App/Loaded.swift
       - App/EmbeddedDrawing.swift
       - App/EmbeddedHTMLBlock.swift
+      - App/RenderedEmbeds.swift
+      - App/ArticleBlocks.swift
+      - App/ArticleInsertion.swift
+
+      - App/StructuralBlocks.swift
+      - App/NativeColumnsView.swift
       - App/DrawingCanvas.swift
       - App/DrawingEditorView.swift
       - App/EditorCanvas.swift
@@ -118,6 +125,22 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: $(APP_BUNDLE_IDENTIFIER).editor-ui-tests
         TEST_TARGET_NAME: EditorHarness
+  StructuralPreviewTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - AppTests
+    dependencies:
+      - target: EditorHarness
+      - package: LexidrawIOS
+        product: LexicalSwift
+      - package: LexidrawIOS
+        product: TextKitEditor
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: $(APP_BUNDLE_IDENTIFIER).structural-preview-tests
+        TEST_HOST: $(BUILT_PRODUCTS_DIR)/EditorHarness.app/EditorHarness
+        BUNDLE_LOADER: $(TEST_HOST)
   # The drawing editor on a bundled drawing with no server, for trying it
   # and for the UI tests.
   DrawingHarness:
@@ -125,6 +148,7 @@ targets:
     platform: iOS
     sources:
       - DrawingHarness
+      - HarnessSupport
       - App/DrawingEditorView.swift
       - App/EditorCanvas.swift
       - App/StyleInspector.swift
@@ -152,6 +176,42 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: $(APP_BUNDLE_IDENTIFIER).drawing-ui-tests
         TEST_TARGET_NAME: DrawingHarness
+  # The app's browser over a small folder tree with no server, for the UI
+  # tests of moving between folders.
+  BrowserHarness:
+    type: application
+    platform: iOS
+    sources:
+      - BrowserHarness
+      - HarnessSupport
+      - path: App
+        excludes: [LexidrawApp.swift, Info.plist, Lexidraw.entitlements, PrivacyInfo.xcprivacy]
+    dependencies:
+      - package: LexidrawIOS
+        product: LexidrawKit
+      - package: LexidrawIOS
+        product: DrawingKit
+      - package: LexidrawIOS
+        product: TextKitEditor
+      - package: LexidrawIOS
+        product: LexicalSwift
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: $(APP_BUNDLE_IDENTIFIER).browser-harness
+        INFOPLIST_KEY_CFBundleDisplayName: Browser Harness
+        INFOPLIST_KEY_UILaunchScreen_Generation: true
+        INFOPLIST_KEY_UIApplicationSceneManifest_Generation: true
+  BrowserUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - BrowserUITests
+    dependencies:
+      - target: BrowserHarness
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: $(APP_BUNDLE_IDENTIFIER).browser-ui-tests
+        TEST_TARGET_NAME: BrowserHarness
 schemes:
   Lexidraw:
     build:
@@ -165,6 +225,7 @@ schemes:
     test:
       targets:
         - EditorUITests
+        - StructuralPreviewTests
         - package: LexidrawIOS/TextKitEditorTests
   DrawingHarness:
     build:
@@ -173,3 +234,10 @@ schemes:
     test:
       targets:
         - DrawingUITests
+  BrowserHarness:
+    build:
+      targets:
+        BrowserHarness: all
+    test:
+      targets:
+        - BrowserUITests

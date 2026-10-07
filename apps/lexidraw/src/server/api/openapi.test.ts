@@ -74,6 +74,13 @@ describe("openApiDocument", () => {
     expect(document.info.description).toContain("/settings#api-tokens");
   });
 
+  it("exposes authenticated article extraction for native URL blocks", () => {
+    const operation = document.paths?.["/articles/extract"]?.post;
+    expect(operation).toBeDefined();
+    expect(operation?.operationId).toBe("articles-extractFromUrl");
+    expect(operation?.security).toEqual([{ bearerAuth: [] }]);
+  });
+
   it("exposes entity load as GET /entities/{id}", () => {
     const operation = document.paths?.["/entities/{id}"]?.get;
     expect(operation).toBeDefined();
@@ -100,6 +107,7 @@ describe("openApiDocument", () => {
 
   // The v1 surface, as docs/agent-access.md promises it.
   const expectedOperations = [
+    ["/articles/extract", "post", "articles"],
     ["/me", "get", "auth"],
     ["/me/delete", "get", "auth"],
     ["/me/delete", "post", "auth"],
@@ -117,6 +125,9 @@ describe("openApiDocument", () => {
     ["/entities/{id}/restore", "post", "entities"],
     ["/entities/{id}/distill", "post", "entities"],
     ["/uploads", "post", "entities"],
+    ["/entities/{entityId}/video-uploads", "post", "entities"],
+    ["/embeds/render", "post", "embeds"],
+    ["/embeds/rasterize-svg", "post", "embeds"],
     ["/entities/{id}/listen", "post", "entities"],
     ["/entities/{id}/listen", "get", "entities"],
     ["/entities/{id}/tags", "get", "entities"],

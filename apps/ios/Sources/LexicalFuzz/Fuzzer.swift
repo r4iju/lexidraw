@@ -12,6 +12,7 @@ public struct Fuzzer {
   }
 
   /// Commands both refused, which don't count as steps.
+  public private(set) var structuralSetterCounts: [String: Int] = [:]
   public private(set) var refusals = 0
   /// Sessions ended as `isNotPortedYet` says.
   public private(set) var sessionsEndedNotPortedYet = 0
@@ -39,14 +40,43 @@ public struct Fuzzer {
   private let reference: any EditorModel
   private let candidate: any EditorModel
   private var generator: Generator
+  private let normalizesGeneratedDocuments: Bool
+  private let registeredTypes: Set<String>?
   /// Commands per generated document before starting a fresh one.
   private let sessionLength = 24
 
   /// Direction cases opt in so established fault-injection seeds keep their scripts.
-  public init(seed: UInt64, reference: some EditorModel, candidate: some EditorModel, writingDirections: Bool = false) {
+  public init(
+    seed: UInt64, reference: some EditorModel, candidate: some EditorModel, writingDirections: Bool = false,
+    structuralBlocks: Bool = false, socialTextSubclasses: Bool = false, normalizesGeneratedDocuments: Bool = false,
+    registeredTypes: Set<String>? = nil
+  ) {
     self.reference = reference
     self.candidate = candidate
-    self.generator = Generator(seed: seed, writingDirections: writingDirections)
+    self.normalizesGeneratedDocuments = normalizesGeneratedDocuments
+    self.registeredTypes = registeredTypes
+    self.generator = Generator(seed: seed, writingDirections: writingDirections, structuralBlocks: structuralBlocks, socialTextSubclasses: socialTextSubclasses)
+  }
+
+  private mutating func recordStructuralSetter(type: String, before: JSONValue, fields: JSONValue) {
+    for field in fields.objectValue?.keys ?? [] { structuralSetterCounts["\(type).\(field)", default: 0] += 1 }
+    guard type == "slide-deck", let after = fields["data"] else { return }
+    let old = before["data"]
+    if old?["currentSlideId"] != after["currentSlideId"] { structuralSetterCounts["slide.navigation", default: 0] += 1 }
+    let previous = old?["slides"]?.arrayValue ?? [], next = after["slides"]?.arrayValue ?? []
+    if previous.map({ $0["id"] }) != next.map({ $0["id"] }) { structuralSetterCounts["slide.order", default: 0] += 1 }
+    for slide in next {
+      let earlier = previous.first { $0["id"] == slide["id"] }
+      if earlier?["backgroundColor"] != slide["backgroundColor"] { structuralSetterCounts["slide.backgroundColor", default: 0] += 1 }
+      let oldElements = earlier?["elements"]?.arrayValue ?? [], elements = slide["elements"]?.arrayValue ?? []
+      if oldElements.map({ $0["id"] }) != elements.map({ $0["id"] }) { structuralSetterCounts["slide.elements", default: 0] += 1 }
+      for element in elements {
+        guard let oldElement = oldElements.first(where: { $0["id"] == element["id"] }) else { continue }
+        for field in ["x", "y", "width", "height", "zIndex", "chartType", "chartData", "chartConfig", "editorStateJSON"] where oldElement[field] != element[field] {
+          structuralSetterCounts["slide.\(field)", default: 0] += 1
+        }
+      }
+    }
   }
 
   /// Runs until both models have accepted `steps` commands. Returns the
@@ -54,9 +84,23 @@ public struct Fuzzer {
   public mutating func run(steps: Int) throws -> Finding? {
     var stepsRun = 0
     while stepsRun < steps {
-      let start = generator.document()
+      var start = generator.document()
+      if let registeredTypes {
+        var attempts = 0
+        while !start.nodeTypes.isSubset(of: registeredTypes) {
+          attempts += 1
+          guard attempts < 1000 else { throw FuzzerError("The generator couldn't produce a document in this node registry") }
+          start = generator.document()
+        }
+      }
       var commands: [EditorCommand] = []
       try reference.load(start)
+      if normalizesGeneratedDocuments {
+        // Mounted nested-editor plugins normalize generated entity text. Start
+        // command fuzzing from the same canonical source state as shrinking.
+        start = try reference.snapshot().state
+        try reference.load(start)
+      }
       guard try reference.snapshot().state == start else {
         throw FuzzerError("The generator wrote a document Lexical normalizes on load")
       }
@@ -82,6 +126,10 @@ public struct Fuzzer {
           return Finding(fixture: fixture, stepsRun: stepsRun)
         }
         if case .applied(let changes) = step.change {
+          if case .updateStructuralFields(let path, let fields) = command,
+            let type = snapshot.state.node(at: path)?["type"]?.stringValue {
+            recordStructuralSetter(type: type, before: snapshot.state.node(at: path)!, fields: fields)
+          }
           if let clipboard = changes.clipboard { generator.clipboard = clipboard }
           stepsRun += 1
         } else {
@@ -264,6 +312,7 @@ extension EditorCommand {
     switch self {
     case .setSelection(let anchor, let focus): return .setSelection(anchor: adjust(anchor), focus: adjust(focus))
     case .deleteLine(let backward, let lineBoundary): return .deleteLine(backward: backward, lineBoundary: adjust(lineBoundary))
+    case .updateStructuralFields(let path, let fields): return .updateStructuralFields(path: adjust(Point(path: path, offset: 0, type: .element)).path, fields: fields)
     case .toggleChecked(let path): return .toggleChecked(path: adjust(Point(path: path, offset: 0, type: .text)).path)
     case .arrow(let key, let extend, let native, let atCellEdge, let parentRTL, let anchorRTL):
       return .arrow(key, extend: extend, native: adjust(native), atCellEdge: atCellEdge, parentRTL: parentRTL, anchorRTL: anchorRTL)
@@ -289,6 +338,8 @@ extension String {
 struct Generator {
   private var random: SplitMix64
   private let writingDirections: Bool
+  private let structuralBlocks: Bool
+  private let socialTextSubclasses: Bool
   /// What the last copy or cut put on the clipboard, for a paste in the same
   /// document or a later one.
   var clipboard: Clipboard?
@@ -317,6 +368,7 @@ struct Generator {
     "[x] ", "- [ ] ", "\t- ", "``` ", "[a](b)", "[a]()", "[[a](b)", "[a](<b c> \"t\")", "[a](https://x.io)",
     "![a](b)", "[a](b\\))", "[a](\\a)", "[a](&#33;)", "[a](\\&#33;)", "[a](&#128077)", "[a](b \"\\\"t\")",
     "|a| ", "|a|b| ", "|---| ", "|:---:|---:| ",
+    ":smile:", ":heart:", ":unknown_native_sample:", "a:smile:b", "|:smile:| ",
   ]
   /// The rest of a shortcut being typed.
   private var typing: [EditorCommand] = []
@@ -332,7 +384,9 @@ struct Generator {
   /// What plain text from another app breaks into lines, tabs and links at.
   private static let pastedParts = ["\n", "\r\n", "\r", "\t", " ", "https://x.io"] + autoLinks.map(\.text)
 
-  init(seed: UInt64, writingDirections: Bool) {
+  init(seed: UInt64, writingDirections: Bool, structuralBlocks: Bool = false, socialTextSubclasses: Bool = false) {
+    self.structuralBlocks = structuralBlocks
+    self.socialTextSubclasses = socialTextSubclasses
     self.writingDirections = writingDirections
     random = SplitMix64(seed: seed)
   }
@@ -340,6 +394,10 @@ struct Generator {
   mutating func document() -> JSONValue {
     var blocks: [JSONValue] = []
     for _ in 0..<Int.random(in: 1...3, using: &random) {
+      if structuralBlocks && Int.random(in: 0..<2, using: &random) == 0 {
+        blocks.append(structuralBlock())
+        continue
+      }
       if Int.random(in: 0..<3, using: &random) == 0 {
         blocks.append(table())
         continue
@@ -351,8 +409,47 @@ struct Generator {
     return LexicalJSON.document(blocks)
   }
 
+  private mutating func structuralBlock() -> JSONValue {
+    let types = ["callout", "layout-container", "collapsible-container", "page-break", "sticky", "slide-deck"]
+    let type = types.randomElement(using: &random)!
+    guard let source = StructuralBlockConfiguration.insertionNodes[type],
+      var fields = (try? JSONValue(parsing: source))?.objectValue
+    else {
+      preconditionFailure("The generated structural insertion node is missing")
+    }
+    switch type {
+    case "callout":
+      fields["children"] = .array((0..<Int.random(in: 1...3, using: &random)).map { _ in paragraph() })
+      fields["kind"] = .string(StructuralBlockConfiguration.calloutLabels.keys.sorted().randomElement(using: &random)!)
+    case "layout-container":
+      var items = fields["children"]!.arrayValue!
+      for index in items.indices {
+        var item = items[index].objectValue!
+        item["children"] = .array([paragraph()])
+        items[index] = .object(item)
+      }
+      fields["children"] = .array(items)
+    case "collapsible-container":
+      var children = fields["children"]!.arrayValue!
+      var title = children[0].objectValue!
+      title["children"] = .array([LexicalJSON.text(text(1...6))])
+      children[0] = .object(title)
+      var content = children[1].objectValue!
+      content["children"] = .array([paragraph(), paragraph()])
+      children[1] = .object(content)
+      fields["children"] = .array(children)
+      fields["open"] = .bool(Bool.random(using: &random))
+    default: break
+    }
+    let node = JSONValue.object(fields)
+    return type == "sticky" ? LexicalJSON.paragraph([node]) : node
+  }
+
   private mutating func block(unlike previousType: ListType?) -> JSONValue {
-    switch Int.random(in: 0..<9, using: &random) {
+    if socialTextSubclasses && Int.random(in: 0..<8, using: &random) == 0 {
+      return LexicalJSON.element("footnote-definition", inlineNodes(), ["label": .string(["note", "second", "日本語"].randomElement(using: &random)!)])
+    }
+    return switch Int.random(in: 0..<9, using: &random) {
     case 0: LexicalJSON.heading(Self.headingTags.randomElement(using: &random)!, inlineNodes())
     case 1: LexicalJSON.quote(inlineNodes())
     case 2: LexicalJSON.horizontalRule
@@ -463,7 +560,7 @@ struct Generator {
         previous = nil
         continue
       // An autolink stays linked only where a separator or nothing is beside it.
-      case 4 where !isAfterLink:
+      case 4 where !isAfterLink && children.last?["type"] != "hashtag" && children.last?["type"] != "keyword" && children.last?["type"] != "emoji" && children.last?["type"] != "mention" && children.last?["type"] != "footnote-reference":
         if case .object(var last)? = children.last, let text = last["text"]?.stringValue, last["type"] == "text" {
           last["text"] = .string(text + " ")
           children[children.count - 1] = .object(last)
@@ -473,6 +570,28 @@ struct Generator {
           LexicalJSON.autoLink(
             link.url, [LexicalJSON.text(link.text, format: Self.formats.randomElement(using: &random)!)],
             isUnlinked: Int.random(in: 0..<4, using: &random) == 0))
+        previous = nil
+        continue
+      case 5 where socialTextSubclasses && !isAfterLink:
+        if Int.random(in: 0..<5, using: &random) == 0 {
+          children.append(["type": "footnote-reference", "version": 1, "label": .string(["note", "second", "日本語"].randomElement(using: &random)!)])
+          previous = nil
+          continue
+        }
+        if case .object(var node) = LexicalJSON.text("#" + text(1...5), format: Self.formats.randomElement(using: &random)!) {
+          switch Int.random(in: 0..<4, using: &random) {
+          case 0: node["type"] = "hashtag"
+          case 1: node["type"] = "keyword"
+          case 2:
+            node["type"] = "emoji"; node["mode"] = "token"; node["className"] = "emoji"
+            node["text"] = .string(["😄", "👍", "👨‍👩‍👧"].randomElement(using: &random)!)
+          default:
+            let name = ["Native Reader", "Mira", "日本語 reader", "العربية Reader"].randomElement(using: &random)!
+            node["type"] = "mention"; node["mode"] = "segmented"; node["detail"] = 1
+            node["mentionName"] = .string(name); node["text"] = .string(name)
+          }
+          children.append(.object(node))
+        }
         previous = nil
         continue
       default: break
@@ -587,7 +706,88 @@ struct Generator {
     [0] + text.indices.map { text[..<text.index(after: $0)].utf16.count }
   }
 
+  private mutating func structuralSetter(in state: JSONValue) -> EditorCommand? {
+    let paths = state.nodePaths().filter { ["callout", "layout-container", "collapsible-container", "sticky", "slide-deck"].contains(state.node(at: $0)?["type"]?.stringValue ?? "") }
+    guard let path = paths.randomElement(using: &random), let node = state.node(at: path) else { return nil }
+    let fields: JSONValue
+    switch node["type"]?.stringValue {
+    case "callout":
+      fields = Bool.random(using: &random) ? ["title": .string(text(1...12))] : ["kind": .string(StructuralBlockConfiguration.calloutLabels.keys.sorted().randomElement(using: &random)!)]
+    case "layout-container": fields = ["templateColumns": .string(StructuralBlockConfiguration.layouts.randomElement(using: &random)!.value)]
+    case "collapsible-container": fields = ["open": .bool(!(node["open"]?.boolValue ?? false))]
+    case "sticky":
+      if Bool.random(using: &random) {
+        fields = ["color": .string(StructuralBlockConfiguration.stickyColors.keys.sorted().randomElement(using: &random)!)]
+      } else {
+        fields = ["xOffset": .number(Double.random(in: -100...500, using: &random)), "yOffset": .number(Double.random(in: -100...500, using: &random))]
+      }
+    case "slide-deck":
+      guard var data = node["data"]?.objectValue, var slides = data["slides"]?.arrayValue, !slides.isEmpty else { return nil }
+      let index = Int.random(in: slides.indices, using: &random)
+      var slide = slides[index].objectValue!
+      var elements = slide["elements"]?.arrayValue ?? []
+      switch Int.random(in: 0..<9, using: &random) {
+      case 0:
+        if slides.count == 1 {
+          slides.append(["id": .string("fuzz-slide-\(UInt64.random(in: 0...UInt64.max, using: &random))"), "elements": []])
+        }
+        data["currentSlideId"] = slides.randomElement(using: &random)?["id"]
+      case 1:
+        if let chosen = elements.indices.randomElement(using: &random), var element = elements[chosen].objectValue {
+          for field in ["x", "y", "width", "height"] { element[field] = .number(Double.random(in: 20...400, using: &random)) }
+          element["zIndex"] = .number(Double(Int.random(in: -3...10, using: &random)))
+          elements[chosen] = .object(element)
+        }
+      case 2:
+        var chart = (try! JSONValue(parsing: StructuralBlockConfiguration.slideElements["chart"]!)).objectValue!
+        chart["id"] = .string("fuzz-chart-\(UInt64.random(in: 0...UInt64.max, using: &random))")
+        chart["chartType"] = .string(StructuralBlockConfiguration.chartTypes.randomElement(using: &random)!)
+        chart["chartData"] = .string("[{\"value\":\(Int.random(in: 1...100, using: &random))}]")
+        chart["chartConfig"] = .string("{\"value\":{\"label\":\"Series\",\"color\":\"#0969da\"}}")
+        elements.append(.object(chart))
+      case 3: slide["backgroundColor"] = .string(Bool.random(using: &random) ? "#ffffff" : "#0969da")
+      case 4:
+        if slides.count > 1 { slides.swapAt(index, (index + 1) % slides.count) }
+      case 5:
+        if let chosen = elements.indices.randomElement(using: &random) { elements.remove(at: chosen) }
+      case 6:
+        let boxes = elements.indices.filter { elements[$0]["kind"] == "box" }
+        if let chosen = boxes.randomElement(using: &random), var element = elements[chosen].objectValue,
+          var editor = element["editorStateJSON"]?.objectValue, var root = editor["root"]?.objectValue,
+          var paragraphs = root["children"]?.arrayValue, !paragraphs.isEmpty, var paragraph = paragraphs[0].objectValue {
+          paragraph["children"] = [["type": "text", "version": 1, "text": .string(text(1...12)), "format": 0, "detail": 0, "mode": "normal", "style": ""]]
+          paragraphs[0] = .object(paragraph); root["children"] = .array(paragraphs); editor["root"] = .object(root)
+          element["editorStateJSON"] = .object(editor); elements[chosen] = .object(element)
+        }
+      case 7:
+        let charts = elements.indices.filter { elements[$0]["kind"] == "chart" }
+        if let chosen = charts.randomElement(using: &random), var element = elements[chosen].objectValue {
+          element["chartType"] = .string(StructuralBlockConfiguration.chartTypes.randomElement(using: &random)!)
+          element["chartData"] = .string("[{\"value\":\(Int.random(in: 1...100, using: &random))}]")
+          element["chartConfig"] = .string(Bool.random(using: &random) ? "{\"value\":{\"label\":\"Series\",\"color\":\"#0969da\"}}" : "{\"value\":{\"label\":\"Other\",\"color\":\"#ff0000\"}}")
+          elements[chosen] = .object(element)
+        }
+      default:
+        var box = (try! JSONValue(parsing: StructuralBlockConfiguration.slideElements["box"]!)).objectValue!
+        box["id"] = .string("fuzz-box-\(UInt64.random(in: 0...UInt64.max, using: &random))")
+        elements.append(.object(box))
+      }
+      slide["elements"] = .array(elements)
+      // Reorder keeps each complete slide rather than writing the previous index back.
+      if slides[index]["id"] == slide["id"] { slides[index] = .object(slide) }
+      data["slides"] = .array(slides)
+      fields = ["data": .object(data)]
+    default: return nil
+    }
+    return .updateStructuralFields(path: path, fields: fields)
+  }
+
   mutating func command(for snapshot: Snapshot) -> EditorCommand? {
+    if structuralBlocks, Int.random(in: 0..<5, using: &random) == 0, let setter = structuralSetter(in: snapshot.state) { return setter }
+    if socialTextSubclasses, case .range(let anchor, let focus, _, _)? = snapshot.selection,
+      anchor != focus, Int.random(in: 0..<20, using: &random) == 0 {
+      return .annotateComment(id: "fuzz-thread-\(Int.random(in: 0..<4, using: &random))")
+    }
     if !typing.isEmpty { return typing.removeFirst() }
     let roll = Int.random(in: 0..<(writingDirections ? 128 : 125), using: &random)
     let backward = Int.random(in: 0..<3, using: &random) > 0

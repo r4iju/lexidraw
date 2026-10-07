@@ -33,6 +33,7 @@ struct DocumentScreen: View {
   let session: Session
   let settings: DocumentSettings
   let font: DocumentFont
+  let header: DocumentHeader?
   private let appState: JSONValue?
   private let saver: DocumentSaver
   private var sending: Task<Void, Never>?
@@ -49,6 +50,8 @@ struct DocumentScreen: View {
     self.session = session
     self.settings = settings
     self.font = font
+    // A header the web's code can't read isn't shown; the root keeps it.
+    header = stored.state["root"]?["$"]?["header"].flatMap { try? DocumentHeader($0, language: settings.language) }
     id = stored.id
     title = stored.title
     appState = stored.appState
@@ -98,15 +101,25 @@ struct DocumentScreen: View {
   }
 }
 
+private final class DocumentEditorReference {
+  weak var view: EditorView?
+}
+
 private struct DocumentContent: View {
   @Bindable var editing: DocumentEditing
+  @State private var editorReference = DocumentEditorReference()
   let reload: () async -> Void
   @Environment(\.scenePhase) private var scenePhase
 
   var body: some View {
-    DocumentEditor(editing: editing)
+    DocumentEditor(editing: editing, reference: editorReference)
       .ignoresSafeArea(.container, edges: .bottom)
       .safeAreaInset(edge: .top, spacing: 0) { notice }
+      .toolbar {
+        ToolbarItem(placement: .topBarTrailing) {
+          Button("Comments", systemImage: "bubble.left.and.bubble.right") { editorReference.view?.presentComments() }
+        }
+      }
       .task { await editing.followSaving() }
       .onDisappear { Task { await editing.saveNow() } }
       .onChange(of: scenePhase) { _, phase in
@@ -119,7 +132,9 @@ private struct DocumentContent: View {
       switch editing.mode {
       case .readOnly: Label("Read only", systemImage: "eye")
       case .notYetEditable:
-        Label("Read only: this document has parts the app can’t edit yet", systemImage: "eye")
+        Label(
+          "Read only: the app can’t edit \(ListFormatter.localizedString(byJoining: editing.model.uneditableParts)) yet",
+          systemImage: "eye")
       case .editing:
         if editing.conflict {
           Text(
@@ -153,23 +168,78 @@ private struct DocumentContent: View {
 
 private struct DocumentEditor: UIViewRepresentable {
   let editing: DocumentEditing
+  let reference: DocumentEditorReference
 
-  func makeUIView(context: Context) -> EditorView {
+  func makeUIView(context: Context) -> NativeEditorHost {
     let view = EditorView(
       model: editing.model, isEditable: editing.mode == .editing,
       language: editing.settings.language, font: editing.font)
     view.onChange = { [weak editing] in editing?.changed() }
-    configureEmbeddedDrawings(view)
-    configureHTMLBlocks(view, session: editing.session, documentID: editing.id)
-    if editing.mode == .editing {
-      view.uploadImage = { [weak editing] data in
-        guard let editing else { throw CancellationError() }
-        return try await editing.session.uploadImage(data, in: editing.id)
+    view.documentHeader = editing.header
+    let accountIdentity = Task { [session = editing.session] in try? await session.identity() }
+    view.configureNestedEmbeds = { [weak editing] nested in
+      guard let editing else { return }
+      nested.configureSocialNodes(userID: nil, author: "Guest")
+      Task { [weak nested] in
+        guard let identity = await accountIdentity.value else { return }
+        nested?.configureSocialNodes(userID: identity.id, author: identity.name)
       }
-      view.insertionActions = view.imageInsertionActions + [drawingInsertionAction(for: view)]
+      configureNativeMedia(nested, session: editing.session)
+      configureMediaCaptions(nested)
+      nested.mediaOrigin = (Bundle.main.object(forInfoDictionaryKey: "LexidrawServerURL") as? String).flatMap(URL.init(string:))
+      configureEmbeddedDrawings(nested)
+      configureHTMLBlocks(nested, session: editing.session, documentID: editing.id)
+      configureRenderedEmbeds(nested, session: editing.session, fontFamily: editing.settings.fontFamily)
+      configureArticleBlocks(nested, session: editing.session, fontFamily: editing.settings.fontFamily)
+      if nested.isEditable && nested.supportsRichText {
+        nested.uploadImage = { [weak editing] data in
+          guard let editing else { throw CancellationError() }
+          return try await editing.session.uploadImage(data, in: editing.id)
+        }
+        nested.uploadVideo = { [weak editing] data in
+          guard let editing else { throw CancellationError() }
+          return try await editing.session.uploadVideo(data, in: editing.id)
+        }
+        nested.insertionActions += nested.imageInsertionActions + nested.socialInsertionActions + [drawingInsertionAction(for: nested)] + renderedInsertionActions(for: nested) + [articleInsertionAction(for: nested, session: editing.session)]
+
+      }
     }
-    return view
+    view.configureNestedEmbeds?(view)
+    reference.view = view
+    return NativeEditorHost(editor: view)
   }
 
-  func updateUIView(_ view: EditorView, context: Context) {}
+  func updateUIView(_ view: NativeEditorHost, context: Context) {}
+}
+
+
+/// Keep UIKit's UITextInput accessible and list its native panels beside it.
+@MainActor final class NativeEditorHost: UIView {
+  private let editor: EditorView
+  init(editor: EditorView) {
+    self.editor = editor
+    super.init(frame: .zero)
+    addSubview(editor)
+  }
+  required init?(coder: NSCoder) { fatalError("NativeEditorHost is made in code") }
+  override func layoutSubviews() { super.layoutSubviews(); editor.frame = bounds }
+  override var accessibilityElements: [Any]? {
+    get { editor.isAccessibilityElement ? [editor] + editor.visibleEmbeddedAccessibilityViews : [editor] }
+    set {}
+  }
+}
+
+@MainActor func configureNativeMedia(_ view: EditorView, session: Session) {
+  view.mediaImageLoader = nativeMediaImageLoader(session: session)
+}
+
+@MainActor func nativeMediaImageLoader(session: Session) -> MediaImageLoader {
+  { source in
+    try await NativeMediaImages.load(source, rasterizeSVG: { svg in
+      let preview = try await session.rasterizeSVG(svg)
+      guard let image = UIImage(data: preview.png), let bitmap = image.cgImage else { throw URLError(.cannotDecodeContentData) }
+      let scale = Double(max(bitmap.width, bitmap.height)) / max(preview.width, preview.height)
+      return UIImage(cgImage: bitmap, scale: scale, orientation: .up)
+    })
+  }
 }

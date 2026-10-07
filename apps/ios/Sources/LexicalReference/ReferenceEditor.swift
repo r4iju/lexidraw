@@ -12,7 +12,7 @@ public final class ReferenceEditor: EditorModel {
   private let decoder = JSONDecoder()
 
   /// `scriptURL` is the bundle `bun run build:reference` writes.
-  public init(scriptURL: URL) throws {
+  public init(scriptURL: URL, editorContext: EditorContext = .document) throws {
     guard let context = JSContext() else { throw ReferenceError("Couldn't create a JSContext") }
     self.context = context
     // Lexical only needs the console to exist. Its one timer resets how many
@@ -36,6 +36,7 @@ public final class ReferenceEditor: EditorModel {
     }
     self.api = api
     runTimers = context.objectForKeyedSubscript("runTimers")
+    api.invokeMethod("setContext", withArguments: [editorContext.rawValue])
   }
 
   /// JSON crosses as the text JavaScript reads and writes, so key order
@@ -44,8 +45,33 @@ public final class ReferenceEditor: EditorModel {
     _ = try call("load", state.stringified)
   }
 
+  public func loadNested(parent: JSONValue, ownerPath: [Int]) throws {
+    _ = try call("loadNested", JSONValue.object([
+      "state": parent, "ownerPath": .array(ownerPath.map { .number(Double($0)) }),
+    ]).stringified)
+  }
+
+  @discardableResult
+  public func applyToParent(_ command: EditorCommand) throws -> ChangeSet {
+    let result = try call("applyToParent", String(decoding: try encoder.encode(command), as: UTF8.self))
+    return try decoder.decode(ChangeSet.self, from: Data(result.utf8))
+  }
+
+  public func parentSnapshot() throws -> Snapshot { try decodeSnapshot(call("parentSnapshot")) }
+
+  public func captionOwnerSnapshot() throws -> Snapshot { try decodeSnapshot(call("captionOwnerSnapshot")) }
+
+  public func remountCaption() throws { _ = try call("remountCaption") }
+
+  public func selectWholeQueryMention(_ name: String) throws { _ = try call("selectWholeQueryMention", name) }
+
+  public func setCaptionVisibility(_ show: Bool) throws {
+    _ = try call("setCaptionVisibility", show ? "true" : "false")
+  }
+
   /// Lexical edits every node it has registered.
   public var isEditable: Bool { true }
+  public var uneditableParts: [String] { [] }
 
   @discardableResult
   public func apply(_ command: EditorCommand) throws -> ChangeSet {
@@ -53,8 +79,16 @@ public final class ReferenceEditor: EditorModel {
     return try decoder.decode(ChangeSet.self, from: Data(result.utf8))
   }
 
+  public func applyInputTurn(_ commands: [EditorCommand]) throws {
+    _ = try call("applyInputTurn", String(decoding: try encoder.encode(commands), as: UTF8.self))
+  }
+
   public func snapshot() throws -> Snapshot {
-    let snapshot = try JSONValue(parsing: call("snapshot"))
+    try decodeSnapshot(call("snapshot"))
+  }
+
+  private func decodeSnapshot(_ value: String) throws -> Snapshot {
+    let snapshot = try JSONValue(parsing: value)
     var selection: Selection?
     if let json = snapshot["selection"], json != .null {
       selection = try decoder.decode(Selection.self, from: Data(json.stringified.utf8))
@@ -76,8 +110,16 @@ public final class ReferenceEditor: EditorModel {
     try JSONValue(parsing: call("node", try pathJSON(path)))
   }
 
+  public func elementFormatting(at path: [Int]) throws -> JSONValue {
+    try JSONValue(parsing: call("elementFormatting", try pathJSON(path)))
+  }
+
   public func childKeys(at path: [Int]) throws -> [String] {
     try decoder.decode([String].self, from: Data(try call("childKeys", try pathJSON(path)).utf8))
+  }
+
+  public func nodePath(for key: String) throws -> [Int] {
+    try decoder.decode([Int].self, from: Data(try call("nodePath", key).utf8))
   }
 
   private func pathJSON(_ path: [Int]) throws -> String {

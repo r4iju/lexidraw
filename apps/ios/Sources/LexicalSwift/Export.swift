@@ -3,9 +3,11 @@ import OrderedCollections
 extension EditorState {
   /// A node as Lexical's `exportJSON` writes it, children included unless
   /// left out, as a copy leaves out those not selected.
-  func json(of key: NodeKey, includingChildren: Bool = true, canonicalKeyOrder: Bool = true) -> JSONValue {
+  func json(of key: NodeKey, includingChildren: Bool = true, canonicalKeyOrder: Bool = true,
+    resolve: ((NodeKey, JSONValue) -> JSONValue)? = nil) -> JSONValue {
     guard includingChildren, let children = self[key].children, !children.isEmpty else {
-      return json(of: key, children: self[key].children == nil ? nil : [], canonicalKeyOrder: canonicalKeyOrder)
+      let value = json(of: key, children: self[key].children == nil ? nil : [], canonicalKeyOrder: canonicalKeyOrder)
+      return resolve?(key, value) ?? value
     }
     var stack = [ExportFrame(key: key, children: children)]
     while !stack.isEmpty {
@@ -14,11 +16,12 @@ extension EditorState {
           stack.append(ExportFrame(key: child, children: children))
         } else {
           let value = json(of: child, children: self[child].children == nil ? nil : [], canonicalKeyOrder: canonicalKeyOrder)
-          stack[stack.count - 1].exported.append(value)
+          stack[stack.count - 1].exported.append(resolve?(child, value) ?? value)
         }
       } else {
         let frame = stack.removeLast()
-        let value = json(of: frame.key, children: frame.exported, canonicalKeyOrder: canonicalKeyOrder)
+        let exported = json(of: frame.key, children: frame.exported, canonicalKeyOrder: canonicalKeyOrder)
+        let value = resolve?(frame.key, exported) ?? exported
         if stack.isEmpty { return value }
         stack[stack.count - 1].exported.append(value)
       }

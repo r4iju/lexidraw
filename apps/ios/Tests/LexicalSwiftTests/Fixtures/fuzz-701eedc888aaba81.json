@@ -1,0 +1,325 @@
+{
+  "changes" : [
+    {
+      "changed" : [
+
+      ]
+    },
+    {
+      "changed" : [
+        [
+
+        ],
+        [
+          0
+        ],
+        [
+          0,
+          1
+        ],
+        [
+          0,
+          1,
+          0
+        ],
+        [
+          0,
+          1,
+          0,
+          0
+        ],
+        [
+          1
+        ],
+        [
+          1,
+          0
+        ]
+      ]
+    },
+    {
+      "changed" : [
+        [
+
+        ],
+        [
+          0
+        ]
+      ]
+    }
+  ],
+  "commands" : [
+    {
+      "anchor" : {
+        "offset" : 2,
+        "path" : [
+          0,
+          1,
+          0,
+          0,
+          0
+        ],
+        "type" : "text"
+      },
+      "focus" : {
+        "offset" : 0,
+        "path" : [
+          1,
+          0
+        ],
+        "type" : "element"
+      },
+      "type" : "setSelection"
+    },
+    {
+      "format" : "bold",
+      "type" : "formatText"
+    },
+    {
+      "node" : {
+        "open" : false
+      },
+      "path" : [
+        0
+      ],
+      "type" : "updateStructuralFields"
+    }
+  ],
+  "expected" : {
+    "selection" : {
+      "anchor" : {
+        "offset" : 2,
+        "path" : [
+          0,
+          1,
+          0,
+          0,
+          0
+        ],
+        "type" : "text"
+      },
+      "focus" : {
+        "offset" : 0,
+        "path" : [
+          1,
+          0
+        ],
+        "type" : "element"
+      },
+      "format" : 0,
+      "style" : ""
+    },
+    "state" : {
+      "root" : {
+        "children" : [
+          {
+            "children" : [
+              {
+                "children" : [
+                  {
+                    "children" : [
+
+                    ],
+                    "direction" : null,
+                    "format" : "",
+                    "indent" : 0,
+                    "textFormat" : 0,
+                    "textStyle" : "",
+                    "type" : "paragraph",
+                    "version" : 1
+                  }
+                ],
+                "direction" : null,
+                "format" : "",
+                "indent" : 0,
+                "type" : "collapsible-title",
+                "version" : 1
+              },
+              {
+                "children" : [
+                  {
+                    "children" : [
+                      {
+                        "children" : [
+                          {
+                            "detail" : 0,
+                            "format" : 0,
+                            "mode" : "normal",
+                            "style" : "",
+                            "text" : "(>",
+                            "type" : "text",
+                            "version" : 1
+                          }
+                        ],
+                        "direction" : null,
+                        "format" : "",
+                        "indent" : 0,
+                        "rel" : "noreferrer",
+                        "target" : null,
+                        "title" : null,
+                        "type" : "link",
+                        "url" : "nope",
+                        "version" : 1
+                      }
+                    ],
+                    "direction" : null,
+                    "format" : "",
+                    "indent" : 0,
+                    "textFormat" : 65,
+                    "textStyle" : "",
+                    "type" : "paragraph",
+                    "version" : 1
+                  }
+                ],
+                "direction" : null,
+                "format" : "",
+                "indent" : 0,
+                "type" : "collapsible-content",
+                "version" : 1
+              }
+            ],
+            "direction" : null,
+            "format" : "",
+            "indent" : 0,
+            "open" : false,
+            "textFormat" : 1,
+            "type" : "collapsible-container",
+            "version" : 1
+          },
+          {
+            "$" : {
+              "mdListMarker" : "*"
+            },
+            "children" : [
+              {
+                "children" : [
+
+                ],
+                "direction" : null,
+                "format" : "",
+                "indent" : 0,
+                "textFormat" : 1,
+                "type" : "listitem",
+                "value" : 1,
+                "version" : 1
+              }
+            ],
+            "direction" : null,
+            "format" : "",
+            "indent" : 0,
+            "listType" : "bullet",
+            "start" : 1,
+            "tag" : "ul",
+            "textFormat" : 1,
+            "type" : "list",
+            "version" : 1
+          }
+        ],
+        "direction" : null,
+        "format" : "",
+        "indent" : 0,
+        "type" : "root",
+        "version" : 1
+      }
+    }
+  },
+  "start" : {
+    "root" : {
+      "children" : [
+        {
+          "children" : [
+            {
+              "children" : [
+
+              ],
+              "direction" : null,
+              "format" : "",
+              "indent" : 0,
+              "type" : "collapsible-title",
+              "version" : 1
+            },
+            {
+              "children" : [
+                {
+                  "children" : [
+                    {
+                      "children" : [
+                        {
+                          "detail" : 0,
+                          "format" : 0,
+                          "mode" : "normal",
+                          "style" : "",
+                          "text" : "(>",
+                          "type" : "text",
+                          "version" : 1
+                        }
+                      ],
+                      "direction" : null,
+                      "format" : "",
+                      "indent" : 0,
+                      "rel" : "noreferrer",
+                      "target" : null,
+                      "title" : null,
+                      "type" : "link",
+                      "url" : "nope",
+                      "version" : 1
+                    }
+                  ],
+                  "direction" : null,
+                  "format" : "",
+                  "indent" : 0,
+                  "textFormat" : 64,
+                  "textStyle" : "",
+                  "type" : "paragraph",
+                  "version" : 1
+                }
+              ],
+              "direction" : null,
+              "format" : "",
+              "indent" : 0,
+              "type" : "collapsible-content",
+              "version" : 1
+            }
+          ],
+          "direction" : null,
+          "format" : "",
+          "indent" : 0,
+          "open" : false,
+          "type" : "collapsible-container",
+          "version" : 1
+        },
+        {
+          "$" : {
+            "mdListMarker" : "*"
+          },
+          "children" : [
+            {
+              "children" : [
+
+              ],
+              "direction" : null,
+              "format" : "",
+              "indent" : 0,
+              "type" : "listitem",
+              "value" : 1,
+              "version" : 1
+            }
+          ],
+          "direction" : null,
+          "format" : "",
+          "indent" : 0,
+          "listType" : "bullet",
+          "start" : 1,
+          "tag" : "ul",
+          "type" : "list",
+          "version" : 1
+        }
+      ],
+      "direction" : null,
+      "format" : "",
+      "indent" : 0,
+      "type" : "root",
+      "version" : 1
+    }
+  }
+}

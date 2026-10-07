@@ -69,8 +69,7 @@ extension Update {
               break walk
             }
           } else if node.isDecorator {
-            // A horizontal rule, the one decorator LexicalSwift edits, isn't
-            // isolated, can be selected from the keyboard and isn't inline.
+            if node.isIsolated { return }
             let anchorOrigin = initialRange.anchor.origin
             if case .nextBlock = merge, state[anchorOrigin].isElement, isEmpty(anchorOrigin) {
               try remove(anchorOrigin)
@@ -106,6 +105,19 @@ extension Update {
       }
       try extendForDeletion(selection, backward: isBackward, .character)
       if !selection.isCollapsed {
+        let focus = selection.focus
+        let anchor = selection.anchor
+        if focus.type == .text, state[focus.key].textMode == .segmented {
+          if focus.key == anchor.key || (isBackward && focus.offset != state.textSize(of: focus.key)) || (!isBackward && focus.offset != 0) {
+            try removeSegment(focus.key, backward: isBackward, offset: focus.offset)
+            return
+          }
+        } else if anchor.type == .text, state[anchor.key].textMode == .segmented {
+          if anchor.key == focus.key || (isBackward && anchor.offset != 0) || (!isBackward && anchor.offset != state.textSize(of: anchor.key)) {
+            try removeSegment(anchor.key, backward: isBackward, offset: anchor.offset)
+            return
+          }
+        }
         updateSelectionForUnicodeCharacter(selection, backward: isBackward)
       } else if isBackward, anchor.offset == 0, try collapseAtStart(selection, from: anchor.key) {
         return
@@ -124,6 +136,26 @@ extension Update {
       }
       try ensureRootHasParagraph()
     }
+  }
+
+  /// Lexical's `$removeSegment`, with JavaScript whitespace and UTF-16 lengths.
+  private mutating func removeSegment(_ node: NodeKey, backward: Bool, offset: Int) throws {
+    var split = JSRegExp(#"(?=\s)"#, flags: "g").split(state[node].text)
+    var segmentOffset = 0
+    var restoreOffset: Int? = 0
+    for index in split.indices {
+      let last = index == split.count - 1
+      restoreOffset = segmentOffset
+      segmentOffset += split[index].utf16.count
+      if (backward && segmentOffset == offset) || segmentOffset > offset || last {
+        split.remove(at: index)
+        if last { restoreOffset = nil }
+        break
+      }
+    }
+    let content = JSRegExp(#"^\s+|\s+$"#, flags: "g").replacingMatches(in: split.joined(), with: "")
+    if content.isEmpty { try remove(node) }
+    else { try setText(node, content); selectText(node, restoreOffset, restoreOffset) }
   }
 
   mutating func deleteWord(_ selection: RangeSelection, backward isBackward: Bool) throws {
@@ -233,6 +265,10 @@ extension Update {
       try collapseQuoteAtStart(key)
       return true
     case SerializedListItemNode.type: return try collapseListItemAtStart(key)
+    case SerializedCollapsibleTitleNode.type:
+      guard let parent = state.parent(of: key) else { return false }
+      try insert(key, before: parent)
+      return true
     case SerializedParagraphNode.type: break
     default: return false
     }
@@ -446,6 +482,7 @@ extension Update {
       while let caret = sibling {
         checkForBlock = false
         guard state[caret.origin].isDecorator else { break }
+        if state[caret.origin].isIsolated { return true }
         focus = caret
         guard isLineBoundary, state[caret.origin].isInline else { break }
         sibling = state.adjacentCaret(caret)

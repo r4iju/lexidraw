@@ -1,0 +1,234 @@
+{
+  "changes" : [
+    {
+      "changed" : [
+
+      ]
+    },
+    {
+      "changed" : [
+        [
+
+        ],
+        [
+          0
+        ],
+        [
+          1
+        ]
+      ]
+    }
+  ],
+  "commands" : [
+    {
+      "anchor" : {
+        "offset" : 0,
+        "path" : [
+          0,
+          1
+        ],
+        "type" : "element"
+      },
+      "focus" : {
+        "offset" : 0,
+        "path" : [
+          0,
+          1
+        ],
+        "type" : "element"
+      },
+      "type" : "setSelection"
+    },
+    {
+      "atCellEdge" : true,
+      "extend" : false,
+      "key" : "down",
+      "native" : {
+        "offset" : 7,
+        "path" : [
+          0,
+          0,
+          0,
+          0
+        ],
+        "type" : "text"
+      },
+      "parentRTL" : false,
+      "type" : "arrow"
+    }
+  ],
+  "expected" : {
+    "selection" : {
+      "anchor" : {
+        "offset" : 7,
+        "path" : [
+          0,
+          0,
+          0,
+          0
+        ],
+        "type" : "text"
+      },
+      "focus" : {
+        "offset" : 7,
+        "path" : [
+          0,
+          0,
+          0,
+          0
+        ],
+        "type" : "text"
+      },
+      "format" : 2,
+      "style" : ""
+    },
+    "state" : {
+      "root" : {
+        "children" : [
+          {
+            "children" : [
+              {
+                "children" : [
+                  {
+                    "children" : [
+                      {
+                        "detail" : 0,
+                        "format" : 2,
+                        "mode" : "normal",
+                        "style" : "",
+                        "text" : "me@b.io",
+                        "type" : "text",
+                        "version" : 1
+                      }
+                    ],
+                    "direction" : null,
+                    "format" : "",
+                    "indent" : 0,
+                    "isUnlinked" : false,
+                    "rel" : null,
+                    "target" : null,
+                    "title" : null,
+                    "type" : "autolink",
+                    "url" : "mailto:me@b.io",
+                    "version" : 1
+                  }
+                ],
+                "direction" : null,
+                "format" : "",
+                "indent" : 0,
+                "textFormat" : 8,
+                "textStyle" : "",
+                "type" : "paragraph",
+                "version" : 1
+              },
+              {
+                "children" : [
+
+                ],
+                "direction" : null,
+                "format" : "",
+                "indent" : 0,
+                "textFormat" : 32,
+                "textStyle" : "",
+                "type" : "paragraph",
+                "version" : 1
+              }
+            ],
+            "direction" : null,
+            "format" : "",
+            "indent" : 0,
+            "kind" : "tip",
+            "title" : "",
+            "type" : "callout",
+            "version" : 1
+          },
+          {
+            "children" : [
+
+            ],
+            "direction" : null,
+            "format" : "",
+            "indent" : 0,
+            "textFormat" : 0,
+            "textStyle" : "",
+            "type" : "paragraph",
+            "version" : 1
+          }
+        ],
+        "direction" : null,
+        "format" : "",
+        "indent" : 0,
+        "type" : "root",
+        "version" : 1
+      }
+    }
+  },
+  "start" : {
+    "root" : {
+      "children" : [
+        {
+          "children" : [
+            {
+              "children" : [
+                {
+                  "children" : [
+                    {
+                      "detail" : 0,
+                      "format" : 2,
+                      "mode" : "normal",
+                      "style" : "",
+                      "text" : "me@b.io",
+                      "type" : "text",
+                      "version" : 1
+                    }
+                  ],
+                  "direction" : null,
+                  "format" : "",
+                  "indent" : 0,
+                  "isUnlinked" : false,
+                  "rel" : null,
+                  "target" : null,
+                  "title" : null,
+                  "type" : "autolink",
+                  "url" : "mailto:me@b.io",
+                  "version" : 1
+                }
+              ],
+              "direction" : null,
+              "format" : "",
+              "indent" : 0,
+              "textFormat" : 8,
+              "textStyle" : "",
+              "type" : "paragraph",
+              "version" : 1
+            },
+            {
+              "children" : [
+
+              ],
+              "direction" : null,
+              "format" : "",
+              "indent" : 0,
+              "textFormat" : 32,
+              "textStyle" : "",
+              "type" : "paragraph",
+              "version" : 1
+            }
+          ],
+          "direction" : null,
+          "format" : "",
+          "indent" : 0,
+          "kind" : "tip",
+          "title" : "",
+          "type" : "callout",
+          "version" : 1
+        }
+      ],
+      "direction" : null,
+      "format" : "",
+      "indent" : 0,
+      "type" : "root",
+      "version" : 1
+    }
+  }
+}

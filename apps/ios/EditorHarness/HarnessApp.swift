@@ -202,6 +202,7 @@ struct EditorRepresentable: UIViewRepresentable {
         guard !data.isEmpty else { throw CocoaError(.fileReadCorruptFile) }
         return url
       }
+      editor.uploadVideo = editor.uploadImage
       editor.insertionActions = editor.imageInsertionActions
     }
     if harness.scrollReport == nil && harness.typingReport == nil

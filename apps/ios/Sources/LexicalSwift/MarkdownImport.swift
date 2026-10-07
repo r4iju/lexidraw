@@ -15,7 +15,7 @@ enum MarkdownImport {
   /// A line of markdown as the import reads it.
   struct Line {
     enum Block {
-      case paragraph, horizontalRule, heading(HeadingTag), quote
+      case paragraph, horizontalRule, heading(HeadingTag), quote, footnoteDefinition(String)
       /// A list item, with the list transformer's match.
       case listItem(ListType, groups: [String?])
     }
@@ -23,7 +23,7 @@ enum MarkdownImport {
     let block: Block
     /// The line's text past its block's markdown, formatted, and the link
     /// each part is the text of, if any.
-    let text: [(text: Text, format: TextFormat, link: Link?)]
+    let text: [(text: Text, format: TextFormat, link: Link?, footnote: String?)]
     let isEmpty: Bool
   }
 
@@ -154,6 +154,7 @@ enum MarkdownImport {
         }
         block = .heading(tag)
       case .quote: block = .quote
+      case .footnoteDefinition: block = .footnoteDefinition(match.groups[1] ?? "")
       default:
         try requirePorted(transformer.name)
         throw EditorError.unsupported("Importing the markdown \(transformer.name.rawValue)")
@@ -162,7 +163,7 @@ enum MarkdownImport {
     }
     var pieces = [text]
     try importTextTransformers(text, in: &pieces)
-    return Line(block: block, text: pieces.map { ($0.text, $0.format, $0.link) }, isEmpty: line.isEmpty)
+    return Line(block: block, text: pieces.map { ($0.text, $0.format, $0.link, $0.footnote) }, isEmpty: line.isEmpty)
   }
 
   /// Ends the import where the web would run a transformer LexicalSwift
@@ -178,6 +179,7 @@ enum MarkdownImport {
     var text: Text
     var format: TextFormat
     let link: Link?
+    var footnote: String?
 
     init(_ text: Text, format: TextFormat = [], link: Link? = nil) {
       self.text = text
@@ -186,7 +188,7 @@ enum MarkdownImport {
     }
 
     /// `canContainTransformableMarkdown`.
-    var canContainTransformableMarkdown: Bool { !format.contains(.code) }
+    var canContainTransformableMarkdown: Bool { footnote == nil && !format.contains(.code) }
   }
 
   /// `splitText`: `piece` keeps its text up to the first offset, and a piece
@@ -245,7 +247,7 @@ enum MarkdownImport {
       next = [after, before, transformed]
     } else if let match {
       switch match.transformer.name {
-      case .placeholderInline, .link: break
+      case .placeholderInline, .link, .emoji, .footnoteReference: break
       default:
         try requirePorted(match.transformer.name)
         throw EditorError.unsupported("Importing the markdown \(match.transformer.name.rawValue)")
@@ -255,7 +257,19 @@ enum MarkdownImport {
         ? split(piece, at: [match.end], in: &pieces) : split(piece, at: [match.start, match.end], in: &pieces)
       let transformed = match.start == 0 ? parts[0] : parts[1]
       // The placeholder's `replace` leaves it as text.
-      let replaced = match.transformer.name == .link ? try replaceLink(transformed, match.groups, in: &pieces) : nil
+      let replaced: Piece?
+      if match.transformer.name == .footnoteReference {
+        transformed.footnote = match.groups[1] ?? ""
+        transformed.text = []
+        replaced = transformed
+      } else if match.transformer.name == .link {
+        replaced = try replaceLink(transformed, match.groups, in: &pieces)
+      } else if match.transformer.name == .emoji, let name = match.groups[1], let emoji = WebEmojiAliases.values[name] {
+        let replacement = Piece(Text(emoji.utf16), link: transformed.link)
+        let index = pieces.firstIndex { $0 === transformed }!
+        pieces[index] = replacement
+        replaced = replacement
+      } else { replaced = nil }
       next = match.start == 0 ? [parts[safe: 1], nil, replaced] : [parts[safe: 2], parts.first, replaced]
     }
     for case let piece? in next where piece.canContainTransformableMarkdown {
@@ -633,6 +647,10 @@ extension Update {
           try append(quote, text)
           try replace(paragraph, with: quote)
         }
+      case .footnoteDefinition(let label):
+        let definition = create(.footnoteDefinition(try SerializedFootnoteDefinitionNode(json: ["type": "footnote-definition", "version": 1, "label": .string(label)]).asLoaded()), type: SerializedFootnoteDefinitionNode.type, children: [])
+        try append(definition, text)
+        try replace(paragraph, with: definition)
       case .listItem(let listType, let groups):
         try listReplace(paragraph, listType, text, groups, &mode)
       }
@@ -653,13 +671,16 @@ extension Update {
   }
 
   /// The texts of a line, those of one link in it.
-  private mutating func inlineNodes(_ text: [(text: MarkdownImport.Text, format: TextFormat, link: MarkdownImport.Link?)])
+  private mutating func inlineNodes(_ text: [(text: MarkdownImport.Text, format: TextFormat, link: MarkdownImport.Link?, footnote: String?)])
     throws -> [NodeKey]
   {
     var nodes: [NodeKey] = []
     var last: (link: MarkdownImport.Link, key: NodeKey)?
     for part in text {
-      let node = createText(MarkdownImport.string(part.text), format: part.format)
+      let node: NodeKey
+      if let label = part.footnote {
+        node = create(.footnoteReference(try SerializedFootnoteReferenceNode(json: ["type": "footnote-reference", "version": 1, "label": .string(label)])), type: SerializedFootnoteReferenceNode.type, children: nil)
+      } else { node = createText(MarkdownImport.string(part.text), format: part.format) }
       guard let link = part.link else {
         nodes.append(node)
         continue

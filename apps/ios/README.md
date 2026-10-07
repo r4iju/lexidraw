@@ -111,6 +111,15 @@ reached them unhandled, and both UI test targets press keys through
 the first real key. `scripts/simulator.sh` makes the simulators for both
 scripts.
 
+## Browser harness and UI tests
+
+The **BrowserHarness** scheme is the app's browser, `BrowserView` and
+everything it opens, over a small folder tree that `BrowserHarness` answers
+itself: Home holds Projects, which holds Q3, and Recipes. `bun run
+test:browser-ui` runs `BrowserUITests` on an iPad simulator it makes and
+deletes after (`scripts/test-browser-ui.sh`). They open folders from the
+listing, the sidebar and the breadcrumbs, by tap and by click.
+
 ## TestFlight
 
 The **iOS TestFlight** workflow runs by hand on `master`. It tests, archives,
@@ -508,10 +517,26 @@ Pages-to-Safari HTML capture is claimed.
 
 ## Native media
 
-Images and inline images render their supported stored raster sources; videos use AVKit.
-Animated images and SVG sources show an explicit unsupported-format explanation
-(#131) instead of a still-frame approximation, with opening the original offered
-for web URLs.
+Images and inline images render stored raster sources; videos use AVKit.
+ImageIO-supported GIF, APNG and WebP animations retain timed frames and loop
+metadata. GIF delays below 20 ms use the browser’s 100 ms floor. Other source
+delays remain intact. A uniform frame clock represents unequal timings with at
+most 4096 references; timing sequences that cannot fit exactly are explicitly
+refused rather than rounded. Cache cost counts each shared bitmap once. Block images animate in UIImageView; inline/table images redraw their
+captioned attachments, pause outside the window and resume after relayout.
+Decoding bounds the source, frame count and combined frame memory; images that
+exceed those limits show an unavailable state instead of a first-frame fallback.
+
+SVG media keeps its original URL/data and uses an authenticated server PNG
+preview. The worker draws inert SVG image content into a bounded canvas, runs no
+SVG scripts and permits no external resources. Original intrinsic dimensions
+remain separate from downsampled preview pixels. SVGs rely on the worker's fonts
+and the browser's image-context SVG support; malformed or oversized sources
+remain explicitly unavailable. The app never turns the preview into stored PNG
+media. This uses the existing render-worker secret/configuration and deployed
+`POST /api/v1/embeds/rasterize-svg` and worker `/api/render/svg` routes. Standalone
+TextKit clients must supply the explicit `NativeMediaImages.load(_:rasterizeSVG:)`
+platform seam to support SVG; ordinary raster/animation loading is local.
 YouTube, X and Figma use native LinkPresentation previews and open their official
 URLs when tapped. Those previews do not reproduce provider iframe interaction;
 a failed preview leaves an explicit unavailable card with its destination.
@@ -535,3 +560,736 @@ real PHPicker with a simulator photo and a deterministic upload callback. Seed a
 disposable image with `xcrun simctl addmedia <simulator> <picture>` if its photo
 library is empty. The callback is enabled only by the harness launch environment
 `EDITOR_IMAGE_UPLOAD_RETURN`; the shipping app always uses `Session.uploadImage`.
+
+### Server-rendered document embeds (#132)
+
+Mermaid, equations, charts and code blocks use authenticated
+`POST /api/v1/embeds/render`. The worker opens `/native-render`, which runs
+Lexidraw's existing Mermaid, KaTeX, Recharts and Shiki components with the
+requested theme, document font and stored dimensions. The same browser element
+produces an SVG containing styled XHTML in a `foreignObject` and a 2× PNG.
+The native app displays that PNG and opens a native source editor on tap;
+it does not execute web JavaScript or use WebKit to display these nodes.
+Source Save is one document history step and participates in autosave. Cancel,
+unchanged code source and unsupported replacement children preserve the original
+node. Read-only source remains selectable for copying.
+
+The endpoint caches both outputs under SHA-256 of the canonical node, theme,
+width, font family/size and deployment revision. Each app process keeps at most
+128 completed entries or 32 MB, with two renders active and twelve waiting.
+Native requests run two at a time; inline and nested attachments start only when
+TextKit lays out their block or cell. Errors remain visible and tapping a failed
+embed retries while opening its source. Unknown node fields or unported children
+retain the document's explicit read-only behavior.
+
+SVG `foreignObject` needs browser XHTML support and the web's fonts; it is not a
+portable path-only vector export. The PNG is the portable native preview of the
+same element. Rendering requires `HEADLESS_RENDER_URL`,
+`HEADLESS_RENDER_ENABLED=true`, a matching `RENDER_WORKER_SECRET` on both
+services. Public app origins pass the worker’s public-address guard; private or
+local origins need an explicit worker `RENDER_WORKER_ALLOWED_ORIGINS` entry.
+Production uses `VERCEL_GIT_COMMIT_SHA` to invalidate renderer, CSS and bundled
+font changes. Local cache tests may provide their own revision.
+
+Local verification used eight real worker renders (all four families in light
+and dark), an additional stored-size/caption chart, the Swift/Bun suites, a
+simulator app build and six document-screen UI tests. Model oracle tests cover
+code formatting, highlighted-text edits, copy/cut/paste around code, source
+replacement/undo, rejected children, tabs and selected rules. Rendered source
+editing on a physical device remains a release integration check. This work
+does not close #119's performance or dictation gates.
+
+## Social and reference nodes (#134)
+
+Emoji shortcodes use the web's `EMOJI` markdown transformer and generated alias
+table, producing ordinary Unicode text. Unknown aliases retain their text;
+the shared markdown pipeline still splits it and moves selection like Lexical.
+Imported table cells apply the same shortcode replacement, including its reset
+of text formatting. The fuzzer generates known and unknown shortcodes and stored
+normal-mode hashtag and keyword nodes, stored emoji tokens, and segmented mentions.
+
+The main `document-editor.tsx` mounts `EmojiPickerPlugin` and markdown shortcuts,
+but does not mount `MentionsPlugin`, `KeywordsPlugin`, `EmojisPlugin`, or
+`HashtagPlugin`. Native main-editor typing follows that effective behavior:
+it does not automatically turn mentions, hashtags, congratulations, or emoticons
+into nodes. Hashtag transforms belong to the caption and slide editors that
+actually mount that plugin. Stored normal-mode hashtags and keywords support native text
+editing boundaries and splitting. They have no extra effective web color:
+upstream `HashtagNode.createDOM` reads `theme.hashtag`, while the current theme
+puts its unused hashtag class under `theme.text.hashtag`.
+
+Polls render question, options, vote counts and rounded percentages in native
+cards. Insert creates the web plugin's two empty options from generated constructor
+JSON. Edit/remove/add and authenticated voting preserve option IDs and existing
+votes, validate the captured node before replacement, and notify autosave once.
+Undo restores the prior poll. The account identity comes from `auth.me`; its new
+nullable name field remains compatible with older clients. Voting stays disabled
+when identity is unavailable. Native option editing commits on the alert's Save.
+
+Stored emoji tokens retain their payload and render their Unicode glyphs. Typing
+inside a token replaces it, boundary typing redirects beside it, partial deletion
+removes the whole token, and partial formatting preserves the token. The caption
+renderer accepts hashtag, keyword, and emoji text leaves with supported styles.
+
+Stored mentions support segmented typing/deletion and plain-text splitting,
+preserving their mention name until Lexical converts them to ordinary text.
+Their initial DOM background override is generated from `MentionNode.createDOM`.
+The headless reference now includes Lexical's private `$removeSegment` helper;
+native splitting and trimming use JavaScript whitespace and UTF-16 offsets.
+Inherited transient DOM CSS updates are still a presentation gap: the native
+renderer currently follows the node's persisted initial style.
+
+Stored footnote references render as numbered superscript attachments. The first
+root definition of each label supplies its number and plain preview; missing
+labels show `label?`. Definition markers count every root definition, matching
+the CSS counter, and have a native backlink to the first reference. The Notes
+heading, localized titles, font sizes, indentation and spacing come from the
+actual document CSS through codegen. Definitions use inherited ElementNode
+Enter behavior, and imported table-cell markdown supports definitions/references;
+typing a reference or definition does not invent a new shortcut. Definitions and
+references preserve their stored labels and payloads through editing and undo.
+
+Comment marks now follow the mounted CommentPlugin's boundary typing, paragraph
+splitting, selection wrapping, nested-mark resolver, partial copy and unwrapping.
+Comment/thread metadata markers remain inline in their stored paragraphs and
+render invisibly without extra paragraph gaps. Native annotations preserve
+nested highlights and thread resolution; readonly structural previews inherit
+the owning document's thread resolution and footnote numbering.
+
+The native Comments panel supports reading, selected-text comments, replies,
+resolve/reopen, deleting threads/imported comments/replies, and navigation to the
+first text anchor. Plain multiline content and author identity come from the
+same stored payload; marker updates go through editor commands and autosave.
+Reply/removal clones follow the web's current omission of `resolved`, including
+its reopening behavior. Read-only documents expose the panel without edit
+controls. An input whose web quote truncation would split a UTF-16 surrogate is
+explicitly refused instead of storing a damaged quote. Generated defaults,
+quote limits and annotation colors come from the current web source. Malformed
+or unknown comment payload fields keep the document read-only.
+
+Native article blocks preserve URL/distilled and saved-entity/snapshot payloads.
+The saved-link picker uses authenticated extraction or the web's recent URL list
+and search. Saved entities load the current distilled body, retaining the stored
+snapshot when that body is absent or malformed; query failure stays visible.
+Title, author, site, word count and local update time accompany the full body.
+The guarded server render uses the same `ArticleContent` prose component as the
+web, with eager images for complete capture. Body link hit regions and readable
+accessibility text come from that DOM. Refresh, convert to editable text, and
+confirmed removal use editor history and autosave; stale panels cannot overwrite
+newer node data. Conversion unwraps the same top-level collapsible nodes and
+selects beyond the same nearest collapsible ancestor before insertion.
+HTML shapes the native importer cannot edit are explicitly refused rather than
+silently converted to plain text.
+
+Article bodies are native raster previews of the full sanitized web content,
+not selectable browser DOM. Link taps open their browser destinations, and
+VoiceOver reads the body as one text element; per-paragraph DOM navigation and
+animated article media remain unported. The existing 16-megapixel render and
+payload budgets apply, with a maximum link URL length of 8,192 characters.
+Blocked/broken images retain the readable body. The clipboard/caption renderer's
+broader CSS limits remain assigned to their owning tickets. Article generation
+uses no AI. Real local authenticated light/dark render probes included headings,
+bold/italic text, a public link, a table, a public GIF and a final paragraph;
+a separate blocked-private-image probe proved the public request guard stayed
+active while the article body remained readable.
+
+This checkpoint does not complete #134. Non-normal keyword payloads retain their
+explicit unported editing gate. Active caption/slide hashtag and keyword
+transforms and unsupported social caption contexts still need work.
+Stored social text generation opts in via `socialTextSubclasses`, preserving
+fault-injection seeds; the full differential run enables it.
+
+## Native structural blocks (#133)
+
+Callouts, sections and columns use native panels for their previews and a native
+TextKit editor sharing the parent model for body editing. Enter, arrows, deletion
+and malformed-container repair therefore retain their actual parent context.
+Page breaks remain selectable decorators. Sticky notes retain their inline model
+identity, float at the stored offsets in editable wide documents, and sit in the
+flow for compact/read-only documents, matching document.css. Their caption editor
+uses PlainTextPlugin behavior: literal Markdown, line-break Enter, plain-text
+paste/copy and no automatic links. Color, drag and deletion commit to the parent
+history with the opened node as the conflict guard.
+
+Slide decks render native text, images and presentation-only chart nodes through
+the composed embed provider. Slide creation, deletion/reordering, element content,
+geometry, background and stacking changes preserve the remaining deck metadata.
+Slide text crosses the web's keyed-state boundary by stripping only live `key`
+fields on load and restoring the native editor's live keys on save. Unknown node
+fields and unported body nodes retain the existing explicit read-only/refusal path.
+
+`codegen/structural-blocks.ts` records registered node factories, web insertion
+presets, CSS theme colors and canvas geometry. The reference builder reuses the
+actual CalloutPlugin, CollapsiblePlugin and LayoutPlugin implementations; its
+bounded hook adapter supplies the active headless editor and runs registration
+once. New hook/import shapes fail the bundle build rather than being omitted.
+LexicalSwift ports the toggle plugin of #249: the repairs that keep a title to
+one paragraph or heading (wrapping a title stored as text) and give empty
+content a line; Backspace at a title's start unwrapping the toggle, and after
+a closed toggle opening it; deletion into folded content opening the toggles
+instead; Enter in a title; and the arrows' lines around a toggle at the
+document's edges. `ToggleTests` record each against the reference.
+
+Opt in to structural documents in the existing differential fuzzer with
+`FUZZ_STRUCTURAL=1 FUZZ_SEED=133 FUZZ_STEPS=20000 swift test --filter
+FuzzerTests.lexicalSwiftMatchesTheReference`. Seeds 133 and 134 each agreed for
+20,000 steps; eight discovered regressions are retained as frozen reference fixtures.
+The rebased local UIKit suite passed 123 tests, including accepted structural-arrow autosave
+and refusal to mutate a read-only document. CI was not invoked.
+
+The native column panel accepts arbitrary positive fractional, pixel and percentage tracks and all five
+registered presets, with column counting using the web plugin’s generated JavaScript
+whitespace rule. Fixed tracks can scroll horizontally when they exceed the available width. Other CSS grid track grammars retain an explicit #133 limitation. Structural indent/outdent modifies
+the effective Double value without truncating it. Collapsible parts and layout
+items use the web's unread-field import rule: imported indent is retained in stored JSON while
+the effective field starts at zero; a mutation writes the effective value. A
+fractional effective value cannot be copied into integer-indented paragraph/list
+schemas and explicitly refuses under #133. Read-only sections expand
+locally without a document mutation; compact sticky notes cannot drag. Slide
+inherited dimensions follow the canvas and text boxes grow to their content. Slide images currently
+use HTTPS URLs and chart previews require the #132 composed provider. Geometry against the web's CSS and chart configuration/source UI still require
+device-level verification. Slide geometry supports a native dialog plus direct dragging and four-corner
+resizing. Gesture previews stay local and the completed gesture commits once
+through the opened-node guard and history. Selection follows the element ID across
+autosave rebuilds, so its resize handles remain active. The web’s numeric minimum
+sizes are generated; inherited dimensions stay inherited when resizing. These are not claimed as
+completed visual/performance gates.
+
+Pure structural-panel documents expose their native controls as accessibility
+containers. Mixed text/panel hosts preserve the original text input while exposing
+visible native panel controls beside it. The retained slide
+navigation UI regression was observed red against the original stored-ID behavior
+and green with editable autosave and read-only local navigation. Slide chart
+previews clear inherited root-node source callbacks and cached tap recognizers;
+the deck's element editor owns the actual mutation.
+
+
+The document and structural body/caption editor host lists the original UIKit
+UITextInput beside its visible native panel containers for accessibility. Mixed
+text and slide controls are reachable without substituting a text-input proxy;
+the visible-view traversal does not serialize the document or scan its model.
+The mixed-document regression was observed red at the missing slide button and
+green after the host change. The gesture UI regression was observed red when an
+autosave rebuild lost resize selection (the second drag moved without increasing
+width), then green after retaining the selected element ID. These checks cover
+actual app document-screen controls; broader VoiceOver narration and every nested
+panel combination remain device verification work.
+
+
+Fractional tracks whose factors total less than one leave the remaining free
+space unused, following [CSS Grid’s fractional-track rule](https://www.w3.org/TR/css-grid-2/#fr-unit).
+The landscape UI fixture `0.25fr 0.25fr` was observed red when each column occupied
+half the row, then green with the unused half retained. Compact layout still
+stacks those columns; track allocation applies only in wide layout.
+The imported `100px 25% 0.5fr` fixture was observed red when its controls were
+unavailable, then green with the pixel width preserved and percentage/fractional
+tracks allocated separately. Fixed-track overflow uses a native horizontal viewport.
+
+The follow-up rebased with SVG/animated media passed all 11 document-screen UI
+tests, 93 Bun tests and TypeScript checks, and built the production app for the
+iOS Simulator. The UI checks include mixed text accessibility, slide drag/resize
+autosave, fixed/percentage tracks, partial fractional tracks and read-only slide
+navigation. CI was not invoked.
+
+### Sections, inline images and empty paragraphs (#238)
+
+"Shopping - Clothing" is 17 sections of photo paragraphs. A section is the
+web's toggle (#249): unboxed, the lucide chevron in a 1.625em gutter centred
+on the title's first line, the title its own paragraph or heading, the whole
+title line toggling it, and the content under the title sized to fit and
+re-measured as its images load. Editors get the title and content editing in
+a section menu. The gutter, chevron box and path, content gap and each title
+level's size and leading are generated from document.css and the collapsible
+container node. Text keeps its ems of the Dynamic Type body size, so a closed
+paragraph toggle is one 1.6em line.
+
+An image `src` is parsed as a browser parses one, without the controls and
+spaces around it or tabs and newlines within: 17 of the document's 80 photos
+are stored with a trailing space, which the blob store answers with 404 once
+percent-encoded. A paragraph with an inline image taller than its lines lets
+those lines grow as a CSS line box does, so a
+paragraph of photos no longer overlaps itself or the text around it. An empty
+paragraph keeps its line and margin: TextKit puts the extra line after its
+newline inside it, which had left 14pt of its 40pt.
+
+Each change first failed its regression: the closed row measured 226pt with no
+border and system buttons and open content was cut to 150pt
+(`/tmp/238-red-evidence.log`), the trailing-space URL kept `%20`, the paragraph
+after two inline photos started inside the second, and an empty paragraph
+measured 14pt. Simulator screenshots of the whole document, the open section
+and an opened photo section match the web's layout at equal content width
+(`/tmp/238-native-initial.png` before, `/tmp/238-after-*.png` after). The
+iPad app on macOS was not run: there is no signed install path for it yet.
+CI was not invoked.
+
+### Native media insertion controls (#135)
+
+The native insertion menu offers image Photos/camera actions, inline-image Photos,
+the web toolbar GIF, and YouTube/Tweet/Figma URL dialogs. Constructor defaults,
+URL patterns, capture indexes and YouTube ID length come from the actual web
+sources through codegen. JavaScript word/digit classes are emitted as ASCII
+ranges for Foundation regular expressions. GIF URLs resolve against the app's
+configured server origin. Cancel leaves the document untouched.
+
+Saving now claims owner-uploaded inline images and pictures in caption/slide
+text editors through the existing signed-image validation and cleanup policy.
+Video selection uses the system Photos picker, converts the chosen asset to MP4,
+and inserts only after the signed transfer succeeds. The signing endpoint applies
+the same document edit rule and upload records as the web, with a bounded token.
+Inline-image insertion offers alternative text, position and caption controls;
+position values, labels and initial payload come from the web dialog/constructor.
+External embeds retain native link-preview behavior.
+
+Imported column templates also support integer `repeat()` and `minmax()` with
+pixel/percentage minima and fractional maxima, including zero-sized tracks.
+Items beyond the explicit columns occupy subsequent rows. A Chromium DOM
+reference confirmed the two-column, two-row layout for
+`repeat(2, minmax(100px, 1fr))`; the production document-screen case was observed
+red at missing column controls, then green. All 12 document UI tests passed
+after the change. Content-sized tracks, automatic repeat and other CSS units
+remain explicitly unsupported rather than flattened.
+
+Structural panel bodies retain the live parent alignment, writing direction and
+indent as presentation context instead of copying those fields into saved child
+nodes. Callout bodies, section title/content and column bodies inherit the
+context; list padding remains inside parent padding, and logical `start`/`end`
+alignment resolves against each child's effective direction. Root document
+metadata and composed drawing/media/rendered/social providers remain shared.
+The native model reads effective element fields; the reference backend reads
+the original Lexical getters for the same contract.
+
+Three hosted production-panel regressions were observed failing before their
+fixes: centered RTL parent context (`133-parent-preview-red2.xcresult`), parent
+indent around a list (`133-parent-list-red.xcresult`), and RTL parent padding
+with an LTR child (`133-parent-logical-red.xcresult`). The last case also follows
+a Chromium CSS oracle with logical padding and inherited `text-align:start`.
+Final local verification in `133-context-final.xcresult` passed 147 UIKit tests,
+13 document UI tests and all three hosted panel tests. Swift package suites
+passed 385 test methods; Bun passed 95 tests / 198 expectations, and reference
+bundle generation and TypeScript checking passed. No CI was invoked.
+
+Remaining #133 fidelity work includes intrinsic/auto
+tracks, auto-repeat, fixed-maximum `minmax`, other CSS units/functions and named
+lines. Those unsupported grid grammars retain their explicit limitation rather
+than receiving guessed geometry. This checkpoint does not close #133.
+
+The formatting context also includes every live ancestor prefix in the owning
+model, including non-panel wrappers and the root. A hosted nested list →
+list item → callout regression failed in `133-ancestor-red.xcresult` (the
+preview caret stayed at x=0 despite inherited RTL/right formatting), then all
+four hosted cases passed in `133-ancestor-green.xcresult` after the prefix fix.
+The initial bare-grid oracle omitted production containment: `document.css`
+sets column items to `min-width:0` and `container-type:inline-size`. Consequently
+content (including a long unbreakable word) supplies no intrinsic track minimum.
+The generated web border/padding box still contributes 18px for an occupied raw
+fractional track. Tailwind's actual utilities and theme spacing generate those
+values; unsupported source shapes fail code generation. Explicit fixed minima
+keep their own track semantics and unoccupied fractional tracks have no box
+contribution. Native editor controls do not participate in track sizing.
+
+Column bodies keep the source box inset outside the nested editor. At a 100px
+track, the source's 8px padding and 1px border leave an 82px content width, with
+text starting 9px inside the column. RTL columns read effective live ancestor
+direction, put the first column at inline-start and initially show inline-start
+when fixed tracks overflow; subsequent manual scrolling is retained.
+
+The box minimum, actual body inset and inherited RTL ordering were each
+observed failing in hosted tests before their fixes (`133-box-red.xcresult`,
+`133-column-padding-red.xcresult`, `133-columns-rtl-red.xcresult`). Browser
+oracles used the production min-width, containment, padding and border styles,
+including long text; bare-grid content minima are not claimed as app behavior.
+
+Explicit zero/narrow tracks keep their declared grid positions while the actual
+column border/padding box can overflow them, matching CSS box sizing. A hosted
+`minmax(0,0fr) 1fr` case failed with a zero-width first box before the correction
+(`133-column-overflow-red.xcresult`); the next track still starts at x=8 and
+retains width 392 in a 400px grid.
+
+The web insertion dialog exposes exactly five templates: `1fr 1fr`,
+`1fr 3fr`, `1fr 1fr 1fr`, `1fr 2fr 1fr`, and `1fr 1fr 1fr 1fr`. All use the
+common native fractional-track path. Additional imported templates can use the
+implemented nonnegative px/%/fr, fixed-minimum/fractional-maximum `minmax`,
+integer `repeat` and implicit-row subset. Arbitrary CSS strings are accepted by
+the web node schema; auto/min/max-content, auto-repeat, fixed-maximum `minmax`,
+fit-content, relative units/functions and named lines still explicitly refuse
+under #133. No runtime JavaScript or WebKit layout boundary was added.
+
+Local box/direction validation: `133-box-rtl-final.xcresult` passed 147 UIKit,
+13 document UI and seven hosted tests. The explicit-zero overflow follow-up
+then passed all eight hosted tests. After rebasing onto merged parent-preview
+and video work, `133-box-integrated.xcresult` passed all eight hosted tests and
+the three affected column UI tests; Bun passed 95 tests / 198 expectations,
+TypeScript/code generation passed, and the production simulator app build
+succeeded (`133-box-integrated-app.log`). No CI was invoked.
+
+Column gap now comes from the actual `layoutContainer` Tailwind utility and
+spacing theme. Editing columns draw the source's dashed, square-cornered
+`border-muted` outline; read-only columns reserve the same border box with a
+transparent stroke. The source declares no rounding. Muted light/dark colors
+resolve through the existing build-time theme converter to native-readable
+RGBA, since the runtime CSS color parser does not accept OKLCH. Theme changes
+outside the supported gap/border/containment shape fail generation explicitly.
+
+The hosted outline case failed because no CAShapeLayer border existed in
+`133-column-style-red.xcresult`. Final `133-gap-style-final.xcresult` passed
+all nine hosted cases and the three affected column UI tests; Bun passed
+95 tests / 198 expectations, TypeScript passed, and the production simulator
+app build succeeded (`133-gap-style-app.log`). Callout colors remain their
+existing source HEX palette.
+
+Sticky palettes now resolve their actual `@theme` and screen-only dark CSS
+scopes through the existing build-time OKLCH converter to native RGBA. Unknown
+palette scopes/formats fail generation. Native structural colors refuse
+unsupported values explicitly with the owning #133 issue instead of becoming
+invisible. Callout RGB and source tint resolve together for light/dark traits.
+The registered sticky insertion genuinely failed alpha 0 versus 1 in
+`133-sticky-color-red.xcresult`; the old callout opacity failed explicit dark
+resolution at 0.08 versus 0.14 in `133-dark-explicit-red.xcresult`. Final
+`133-sticky-green.xcresult` passed all 11 hosted cases and three affected column
+UI tests. Bun passed 95 tests / 198 expectations, TypeScript/code generation
+passed, and the production simulator app build passed (`133-sticky-app.log`).
+No CI was invoked. Advanced imported grid grammar remains explicitly refused
+until its separate native sizing implementation is verified.
+
+The column utility adapter requires the exact known item class set (including
+its generated padding utility); additions such as background, shadow or
+opacity fail generation instead of being ignored. Native dashed strokes use a
+conventional three-border-width dash/gap pattern; browser corner/dash phase
+placement is not claimed to be pixel-identical.
+
+
+Imported contained grids now support `auto`, `min-content`, `max-content`,
+`fit-content(px-or-percent)` and `minmax()` with fixed/intrinsic minima and
+fixed/intrinsic/fractional maxima. Function arguments are track-breadth
+primitives, so nested functions and fractional minima explicitly refuse.
+Under the actual source `min-width:0` plus inline-size containment, occupied
+columns have an intrinsic contribution of their generated padding/border box
+(18px), while unoccupied columns contribute zero; native controls and text
+never substitute for CSS intrinsic widths. The sizing phases maximize bounded
+tracks, expand fractions, then stretch auto maxima as specified by
+[CSS Grid track sizing](https://www.w3.org/TR/css-grid-2/#algo-track-sizing).
+`fit-content()` is clamped between identical contained min/max contributions.
+
+`AppTests/contained-grid-browser.json` retains eight actual Chromium DOM
+records using the production column containment, padding, border and gap,
+including fixed-maximum water filling and auto stretch after a partial `fr`.
+The native comparison genuinely failed the imported bounded template before
+implementation (`133-contained-grid-red.xcresult`). Final
+`133-contained-grid-green.xcresult` passed all 12 hosted cases and three
+existing column UI cases; production simulator build passed
+(`133-contained-grid-app.log`). No CI was invoked. Automatic repeat, named
+lines, relative/other length units and `calc()`/other CSS functions remain
+explicit #133 refusals; this checkpoint does not close those imported shapes.
+
+
+Absolute imported grid lengths (`in`, `cm`, `mm`, `q`, `pt`, `pc`) resolve
+with the CSS-defined fixed 96px/in ratios, not native device DPI. The retained
+browser corpus now has 11 actual cases, including equal inch/point/centimeter
+tracks and absolute lengths inside bounded tracks. The existing browser
+comparison failed on `1in 72pt 2.54cm` before implementation
+(`133-grid-lengths-red.xcresult`), then passed all 12 hosted and three column UI
+cases (`133-grid-lengths-green.xcresult`); the production simulator build passed
+(`133-grid-lengths-app.log`). Font-relative and viewport/container-relative
+units still explicitly refuse until their source context is faithfully resolved.
+
+The current #133 acceptance audit distinguishes model and panel coverage:
+all six node families have native render/edit entry points; the generated
+all-node fixture and schema completeness tests cover each family's Codable and
+source JSON round trip. Fresh `StructuralBlockTests` passed all 18 cases and
+`SerializedNodeTests` passed seven methods, including 76 domain cases
+(`133-final-structural-tests.log`, `133-final-roundtrip.log`). Fresh structural
+fuzz seed 133 agreed for 20,000 steps with zero divergence, 4,337 commands both
+refused, 14 sessions ended on an unported shortcut/node, and zero unreadable
+sessions (`133-final-fuzz-133.log`). Its differential commands cover document
+editing around decorators and inside callout/section/column bodies; randomized
+slide geometry, panel settings and native gesture events are not claimed as
+part of that fuzz run. Their native UI and stale-update/history tests provide
+separate coverage. Remaining imported grammar refusals and those fuzz scope
+limits remain explicit rather than being treated as completed acceptance.
+
+
+Native automatic repetition now supports one `auto-fill` or `auto-fit` group
+of CSS fixed-size tracks, including bounded fractional maxima, multiple tracks
+per repetition and fixed-size tracks before/after the group. Count calculation
+uses definite maxima floored by definite minima and keeps surrounding zero
+tracks zero. `auto-fit` collapses only unoccupied repeated tracks and their
+gutters; `auto-fill` keeps them. Resizing resolves the template again without
+changing stored document JSON. Expanded grids retain the 4,096-track bound.
+
+The retained browser corpus now contains 20 supported actual Chromium cases.
+Automatic-repeat parsing genuinely failed before implementation
+(`133-auto-repeat-red.xcresult`). Additional browser probing caught incorrect
+flooring of surrounding zero tracks and an unported UA/zoom-dependent subpixel
+repeat floor (`133-auto-repeat-boundary-red.xcresult`). Sub-1px repeated count
+contributions explicitly refuse under #133; the unsupported records are kept
+separately in the browser corpus rather than called matching layouts. Final
+`133-auto-repeat-final.xcresult` passed all 12 hosted and three column UI cases,
+and the production simulator build passed (`133-auto-repeat-app.log`). No CI
+was invoked. Font/viewport/container-relative lengths, named lines and CSS math
+functions remain explicit imported-shape limitations. The node-setting model
+command fuzz coverage identified by the acceptance audit is a separate follow-up.
+### Native article accessibility
+
+Article renders optionally return semantic heading, paragraph/list/table-cell and link geometry from the actual article DOM. Native VoiceOver exposes these in DOM order, marks headings and permits link activation; older render responses retain the whole-body text fallback. Long-press offers copying the rendered plain text or selecting a range in a native read-only text sheet. This preserves readable text; it does not promise rich HTML copying or selection directly over the rasterized article.
+
+The hosted ArticleAccessibilityTests first failed with missing accessibility elements (`/tmp/134-article-ax-red4.xcresult`) and then passed (`/tmp/134-article-ax-green.xcresult`). Native/website TypeScript, renderer cache tests and the production simulator build pass locally. The optional metadata is included in the server cache byte limit.
+
+Article accessibility extraction now walks visible DOM text once in reading
+order. Block and anchor boundaries split segments, while inline emphasis stays
+with its heading or paragraph. Each segment uses an actual DOM Range rectangle;
+links retain their activation URL without repeating the containing paragraph.
+Bare body text and text before/after nested lists remain included. Extraction
+uses an iterative traversal and explicitly refuses more than 4096 segments.
+The disposable fixture/probe is retained at
+`apps/render-html-worker/scripts/check-article-accessibility.ts` (run with Bun
+from that app). Both T3 Chromium and the local browser reproduced duplicated
+links and omitted bare/list text before the fix (`134-article-reading-red.log`),
+then passed the same ordered-text, link URL and positive-geometry assertions.
+
+Linked headings retain both the heading and link traits. Actual Chromium first failed the linked-heading flag check (`/tmp/134-linked-heading-browser-red.log`); after the optional DTO field was established, the native trait check also failed (`/tmp/134-linked-heading-red2.xcresult`) before the UI fix. The earlier native run with an unknown fixture key was a decoder-shape failure, not behavioral proof.
+
+Accessibility segments are negotiated with the optional `includeAccessibility` request flag. Older native response decoders reject unknown keys, so requests without that flag receive the prior article response shape. The browser compatibility check failed before gating (`/tmp/134-article-capability-red.log`). New clients also retain the whole-text fallback when an older server omits the metadata.
+
+The structural setter differential slice also executes the original LayoutPlugin
+`UPDATE_LAYOUT_COMMAND`. The native command preserves surviving column keys and
+selection when adding/removing columns, including undo/redo; its item count follows
+the source plugin's whitespace rule rather than the CSS track parser. The expanded
+structural fuzzer exercises callout kind/title, section open state, sticky palette
+and position, layout templates, and slide data (geometry/z-order, navigation,
+slide/element order, background, chart type/data/config, and stored text editor
+JSON). It records accepted feature counts separately from ordinary wrapper edits.
+Two 20,000-step seeds (133 and 134) agreed with the original source setters; the
+runs reported 3,533/3,627 shared refusals, 14/11 unported session endings, and 1/2
+unreadable-selection endings. Genuine minimized regressions remain as fixtures:
+layout history/caret preservation, list Backspace dispatch before section character
+deletion, and retaining live unread parent fields during a field-only save. The
+schema generates the unread-field preservation rule, including fractional values.
+Sticky caption typing still needs the actual parent-aware plain-text nested editor
+oracle and owner/history integration; the import setter `setCaptionJSON` is not
+claimed as typing or child-history parity.
+### Native article image slice
+
+Article images negotiate a separate `articleImagesVersion: v1` capability.
+Existing accessibility clients receive exactly their prior response keys and
+roles. New metadata retains visible DOM image source, alt/ARIA label, link and
+heading semantics, text insertion index, actual geometry and measured object
+fit. Empty-alt/presentation images stay decorative. Metadata is limited to 64
+images and joins the existing aggregate renderer/cache byte limits.
+
+The worker retains the original PNG/SVG fallback and supplies a second PNG
+with supported images hidden. Native overlays use the shared bounded
+`NativeMediaImages` GIF/APNG/WebP decoder and animation loop/timing helper,
+without showing the original sampled frame through transparent animation
+pixels. All supported images must decode before switching to the cleared base.
+Retained original raster, overlay frames, and image-free base bitmap (deduplicated
+by CGImage identity) are bounded to 16 MiB per article
+and 32 MiB across admitted article overlay groups; static-only renderer previews
+remain governed by the existing renderer cache, rather than this overlay budget.
+Two asset groups run concurrently with at most
+12 queued. Failures retain the original static raster and report the #134
+limitation. The owner supplies the same SVG-capable loader used by other media.
+
+Only ordinary static-position, undecorated images with centered fill/contain/
+cover sizing overlay natively. Transforms, filters, blending, ancestor clipping,
+nonzero borders/padding/radii, custom positioning or backgrounds retain the
+original raster with an explicit metadata refusal/accessibility hint. This
+bounded slice does not claim all imported CSS image effects or rich selection.
+
+Disposable actual Chromium metadata assertions first failed with missing image
+metadata (`134-images-browser-red.log`), then passed. Browser inspection also
+caught the UA's default replaced-image `overflow:clip`; the new check genuinely
+failed (`134-images-ua-clip-red.log`) before its native-clipping-compatible fix.
+Valid-contract native image-alt order/trait and visible two-frame GIF tests
+failed before UI implementation (`134-images-alt-red.xcresult`,
+`134-images-animation-red.xcresult`), then both passed
+(`134-images-green2.xcresult`). The alt run also exposed a fixture indexing crash
+after its behavioral assertion, corrected with an explicit count guard. APNG
+and WebP reuse the existing decoder; these article-specific tests prove GIF
+presentation rather than claiming new per-format device measurements.
+
+The local worker was also checked against the actual public source renderer
+with a disposable repository GIF: absent capability returned no new keys;
+v1 returned the measured 128×72 image, alt text and a smaller cleared base PNG
+(`134-images-worker-evidence.json`). Both original and cleared PNGs were
+visually inspected. Images the guarded worker failed to decode are never
+fetched again by native overlays. Final two hosted tests passed
+(`134-images-final.xcresult`), production simulator build passed
+(`134-images-production.log`), and existing three render contract/cache tests
+passed. No CI, physical capture prompts or user corpus mutations were used.
+
+Article image overlays refuse intersecting DOM text or non-ancestor element boxes so the
+original raster retains browser paint order. Queued image groups check cancellation
+and render identity before reserving decoded memory.
+
+Review-fix evidence: the retained actual-Chromium probe observed
+`overlay: true` for later positioned overlapping text before the stacking guard
+(`/tmp/134-images-stacking-red.log`), then passed with raster refusal. Worker
+TypeScript and production simulator app build passed after the review fixes.
+Sticky captions use the actual generated `StickyComponent` mount: inherited
+node registration, `PlainTextPlugin`, and no caption `HistoryPlugin`. The native
+panel retains an owner-keyed child editor instead of replacing serialized
+caption JSON on each keystroke. Caption undo/redo delegates to the parent;
+parent undo preserves live caption text, and both editors share history time.
+Readonly panels display snapshots without mutation. Paired source tests cover
+these history rules and the plain clipboard channel; the headless clipboard
+oracle still excludes HTML serialization. Explicit replacement of an already
+open caption remains an owning-#134 refusal until source-equivalent state import
+and history semantics are ported.
+
+
+The article selection sheet imports its exact current sanitized HTML through the
+existing registered native HTML-paste converters into a detached editor. It is
+read-only and does not replace or autosave the article. Rich selection preserves
+bold text, link URLs and list structure in the Lexical clipboard for native paste.
+Copy also publishes standard RTF through Foundation from the actual selected
+native attributes, preserving tested bold/link formatting for external apps;
+this does not claim identical browser HTML markup or arbitrary CSS reproduction.
+Missing HTML, inputs above 300,000 UTF-8 bytes, or refused/unported imports use an
+explicitly labelled plain preview. Import happens once per opened selection sheet.
+
+Actual isolated Chromium copied the disposable bold/link/list fixture to a rich
+HTML clipboard (`/tmp/134-rich-browser-clipboard.json`). Before the native changes,
+the hosted sheet-copy regression failed because its clipboard contained no rich
+Lexical data, and the standard-RTF regression failed because native copy published
+no RTF (`/tmp/134-rich-red4.xcresult`). Both then passed, including native rich
+paste and decoded RTF attributes (`/tmp/134-rich-green.xcresult`). Earlier build
+and probe failures were setup/assertion issues, not behavioral red evidence.
+
+Final scoped run: all four article accessibility/image/rich-selection hosted tests
+passed (`/tmp/134-rich-final.xcresult`); the production simulator app built
+successfully (`/tmp/134-rich-production.log`). No CI or account mutation ran.
+### Slide deck draft lifetime (#133)
+
+Native slide previews start at slide zero and navigate locally, matching `SlideView`.
+Edit slide deck opens a retained local deck draft; geometry, chart/configuration,
+background, ordering, additions/deletions, navigation and box text update that
+local draft. Cancel discards it. Save applies one stale-checked `setData` through
+the parent model and autosave. Box editors use the generated `.slide` context
+and retain their text, selection and local undo while the draft remains on the
+same slide. Done flushes keyed text only when the actual source keyless projection
+changes and increments the source-generated box version, including fractional
+versions. The text sheet requires Done so it cannot dismiss without flushing.
+Switching the active slide resets undo/redo only for box component identities
+that leave or enter the mounted slide, matching source HistoryPlugin remounts.
+Cached box text and selection survive navigation. Opening the deck and closing
+a box explicitly commit marked text and release keyboard focus before serialization.
+The navigation undo regression was observed red before this lifecycle correction
+and passes on the actual hosted editor. Japanese IME inside the slide modal has
+not been separately exercised; the existing UITextInput composition path is reused.
+
+Validation: genuine hosted UI reds preceded draft Save/Cancel, retained box Undo
+and saved REST box-version fixes. All 16 DocumentPreview UI tests pass, alongside
+20 StructuralBlock model tests, 97 Bun tests, five TypeScript projects and the
+existing generated-slide 20,000-command oracle run (3,124 matched refusals,
+12 unported, zero unreadable). The standalone command fuzzer does not model the
+React modal lifetime; the production hosted UI tests cover that separate boundary.
+
+### Native emoji suggestions (#134)
+
+The source-mounted EmojiPickerPlugin is reachable through `:` in main documents
+and slide text. Its aliases/tags/order, first-ten limit, empty-query behavior and
+JavaScript trigger pattern are generated from the actual web picker/list and
+upstream hook. Selection inserts a source-created plain TextNode payload and
+removes the matched trigger through the source-attributed atomic model insertion transaction.
+Media captions mount EmojisPlugin transforms, not this picker.
+
+`EditorTypeaheadProvider` exposes async source-owned matches over the current
+normal text node prefix, exactly as the upstream picker does. There is no
+arbitrary suffix truncation that could silently narrow future source patterns. The shared native menu
+cancels obsolete requests and rechecks the node/caret/prefix before selection.
+It stays outside the UITextInput accessibility element and is exposed beside it
+by the app host. Touch selection is covered by the production EditorHarness UI
+case; hardware Up/Down/Return/Tab/Escape are wired but not physically exercised.
+Scrolling or resizing dismisses suggestions rather than leaving stale geometry.
+
+The new UI case genuinely failed waiting for the source-tag `grinning` option
+when typing `:smile` before implementation (`/tmp/134-emoji-red.xcresult`). It
+passes with the trigger replaced by `😀`, subsequent typing retained and the
+menu dismissed. No personal clipboard or corpus is used.
+
+The mounted image, inline-image and slide mention pickers now register the actual
+MentionNode their callback creates; each missing web registry had a retained
+headless source regression that failed before correction. Native suggestions use
+that same source matcher, Star Wars sample dataset, minimum query length,
+500 ms delay for an uncached, uninterrupted lookup and first-five limit. Native
+lookup cancels stale requests; its in-flight cache behavior differs from the
+web’s existing stale-result effect. The main document does not acquire a
+mention picker where its source does not mount one. No account search or
+notifications are added.
+
+The native picker replaces its query inside one model transaction, preserving
+its original collapsed-caret history and source typing format/style. Actual
+MentionsPlugin selection callbacks are compared with native image and inline
+caption edits for plain, bold and color cases, next typing, undo/redo and live
+parent serialization. Matcher differential cases include all JavaScript
+whitespace and UTF16 limits. A hosted NativeEditorHost regression types and
+selects a real suggestion and verifies the owned caption's autosave/export path.
+
+The shared menu now requires a focused, window-mounted editor, a visible popup
+for selection, and an unchanged node/caret/prefix. Its source-derived preceding
+text-entity guard suppresses lead-offset-zero matches beside actual entity
+nodes; whitespace-prefixed matches remain allowed. Both Tab and Shift-Tab choose
+as the actual upstream menu does. A refused atomic insertion retains the view's
+original collapsed selection rather than leaving a query range highlighted.
+
+The actual `$selectEmoji` callback body is shared by the web picker and
+`reference/emoji-picker-selection.ts`; its headless replay types a bold/color
+query, inserts an unformatted Unicode node, retains the prior typing attributes
+and types a bold/color exclamation mark. The new production UI styled case was
+authored before adopting that atomic seam: it genuinely failed saving unformatted
+`😀!` (`/tmp/134-emoji-style-red2.log`), then passed with separate plain emoji and
+bold exclamation (`/tmp/134-emoji-followup-green.xcresult`, both emoji UI cases).
+The first hardware-setup attempt failed finding the menu and is not counted as
+proof of the typing-attribute mismatch. The source replay's color caret proof is
+in `/tmp/134-emoji-source-styled.json`; the production UI case uses the actual
+formatting bar's Bold control.
+
+Keyboard edits expose their state immediately while recording one history update
+for the input turn, like Lexical's queued editor updates. UIKit can deliver an
+accepted word replacement and its trailing space across separate main callbacks.
+The native adapter holds that replacement until the next single U+0020 at the
+same model caret, typing format/style and mutation revision, within the existing
+history pause budget. Other input, caret movement, formatting, undo, view removal
+or a pause ends it. Public UITextInput supplies no predictive-acceptance marker;
+a manually typed identical separator in those conditions joins the replacement
+too. This is an explicit native keyboard adaptation, not a wider typing timeout.
+
+The regression taps a real English suggestion in DocumentScreen, verifies the
+accepted text, then checks one undo exactly restores the pre-acceptance text.
+Actual-source paired history checks cover the replacement, following typing,
+undo/redo, pauses and caret/format boundaries. The physical-device plain-letter
+report still needs its metadata trace; the delivered simulator plain typing and
+DocumentEditing autosave control groups normally. No document content is logged
+by the shipping implementation.
+
+QuickPath delivers each swiped word, with its automatic space, as one
+multi-character `insertText`, which Lexical's history keeps as its own undo step
+(#236). The adapter holds a swiped word's input turn the same way: the next
+multi-character, newline-free `insertText` at the same model caret, typing
+format/style and mutation revision joins it, so one Undo or Redo takes the whole
+run. The pause is twice the history delay, measured lift to lift, because it
+includes drawing the next word; a physical iPhone traced 759 to 1262 ms between
+words. Tapped keys and emoji (one character), Return, Backspace, suggestion
+replacement, caret movement, formatting, undo, view removal or a longer pause
+end the run; tapped typing still merges as Lexical's does. A swiped word deleted
+with Backspace still arrives as per-character selections and deletions and is
+not grouped here.
+
+`EditorViewTests.swipedWordsUndoAndRedoAsOneRunUpToABoundary` replays the
+physical gaps through the public `insertText` seam and checks the pause and
+caret boundaries. `DocumentPreviewUITests.testRealDocumentSwipedWordsUndoAndRedoTogether`
+drags real QuickPath words on the simulator keyboard in DocumentScreen; both
+failed before the change. The iOS 27 simulator delivers the first word of a run
+as the word, a separate space, and a caret move back before that space, so that
+word stays its own undo step there; the physical trace showed no such split.
+
+### Saved links (#242)
+
+A saved link opens to its kept page text, drawn by the same read-only article
+renderer as a document's article block, with Listen and Open page in the
+toolbar. A link with no address yet points to its web page, where one is added;
+one whose text was never kept offers the page itself. When the article can't be
+drawn, as one beyond the renderer's 16 megapixels can't, its kept HTML is
+shown as native read-only text through the paste importer instead. Article
+images that the extraction stored with a broken `src` stay broken, as they do
+on the web.

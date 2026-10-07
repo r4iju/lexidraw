@@ -6,9 +6,9 @@ extension Node {
 
   /// Lexical's `canInsertTextBefore`: whether typing at the start of the
   /// node goes into it.
-  var canInsertTextBefore: Bool { !isLink && type != SerializedTabNode.type }
+  var canInsertTextBefore: Bool { !isLink && type != SerializedMarkNode.type && type != SerializedTabNode.type && type != SerializedHashtagNode.type && type != SerializedKeywordNode.type && type != SerializedMentionNode.type }
 
-  var canInsertTextAfter: Bool { !isLink && type != SerializedTabNode.type }
+  var canInsertTextAfter: Bool { !isLink && type != SerializedMarkNode.type && type != SerializedTabNode.type && type != SerializedKeywordNode.type && type != SerializedMentionNode.type }
 }
 
 /// `@lexical/link`'s `TOGGLE_LINK_COMMAND` handlers and `LinkNode`'s
@@ -19,7 +19,7 @@ extension Update {
   /// registers its handlers: the AutoLink plugin's, then the Link plugin's
   /// with the web's `validateUrl`.
   mutating func toggleLinkCommand(_ selection: RangeSelection, url: String?) throws {
-    if url == nil {
+    if url == nil, editorContext == .document {
       for node in try extract(selection) {
         guard let parent = state.parent(of: node), case .autoLink(var link) = state[parent].payload else { continue }
         link.isUnlinked = !(link.isUnlinked ?? false)

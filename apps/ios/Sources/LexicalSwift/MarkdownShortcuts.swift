@@ -37,7 +37,7 @@ struct MarkdownTransformer: Sendable {
     .tweet: 131, .image: 131,
     .equation: 132, .code: 132, .blockEquation: 132, .blockEquationFence: 132,
     .callout: 133, .admonition: 133, .details: 133, .columns: 133, .toggleShortcut: 133,
-    .emoji: 134, .footnoteDefinition: 134, .footnoteReference: 134,
+
   ]
 
   /// `compositionEndTriggerChars`: the characters that can finish a
@@ -435,6 +435,9 @@ extension Update {
   /// A text match transformer's `replace`.
   private mutating func replaceText(_ transformer: MarkdownTransformer, _ matched: NodeKey, _ groups: [String?]) throws {
     switch transformer.name {
+    case .emoji:
+      guard let name = groups[1], let emoji = WebEmojiAliases.values[name] else { return }
+      try replace(matched, with: createText(emoji))
     case .link:
       guard findParent(from: matched, where: { state[$0].isLink }) == nil else { return }
       let url = try Self.unescapeText(groups[2] ?? groups[3] ?? "")

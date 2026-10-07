@@ -153,7 +153,7 @@ export function swiftForNodeSchema(schema: NodeSchema): string {
       .flatMap(([name, { type, paths }]) =>
         declaredObject(name, type, paths[0] ?? name, names),
       ),
-    ...schema.nodes.flatMap((node) => payload(node, names)),
+    ...schema.nodes.flatMap((node) => payload(node, names, schema.traits[node.type]?.kind !== "element")),
   ];
   return `${lines.join("\n").trimEnd()}\n`;
 }
@@ -205,6 +205,27 @@ function serializedNode(nodes: NodeDescription[]): string[] {
       ({ name }) => `    case .${name}(let node): .${name}(node.asLoaded())`,
     ),
     "    case .opaque: self",
+    "    }",
+    "  }",
+    "",
+    "  /// Field-only setters must retain live unread properties; re-importing",
+    "  /// them would restore the import default instead of the editor value.",
+    "  public func preservingUnchangedUnreadFields(from previous: Self, before: JSONValue, after: JSONValue) -> Self {",
+    "    switch (self, previous) {",
+    ...nodes.flatMap((node, index) => {
+      const fields = [
+        ...Object.entries(node.fields).filter(([, field]) => field.kind === "unread").map(([key]) => ({key, path: `[${swiftString(key)}]`})),
+        ...Object.entries(node.state).filter(([, state]) => state.value.kind === "unread").map(([key, state]) => ({key, path: state.flat ? `[${swiftString(key)}]` : `["$"]?[${swiftString(key)}]`})),
+      ];
+      if (!fields.length) return [];
+      const name = cases[index]!.name;
+      return [
+        `    case (.${name}(var node), .${name}(let old)):`,
+        ...fields.map(({key, path}) => `      if before${path} == after${path} { node.${identifier(key)} = old.${identifier(key)} }`),
+        `      return .${name}(node)`,
+      ];
+    }),
+    "    default: return self",
     "    }",
     "  }",
     "}",
@@ -581,7 +602,7 @@ function swiftStrings(strings: string[]): string {
   return `[${strings.map(swiftString).join(", ")}]`;
 }
 
-function payload(node: NodeDescription, names: Names): string[] {
+function payload(node: NodeDescription, names: Names, nonElement: boolean): string[] {
   const fields = members(
     [
       ...Object.entries(node.fields).map(
@@ -646,7 +667,9 @@ function payload(node: NodeDescription, names: Names): string[] {
     "  }",
     "",
     "  public func asLoaded() -> Self {",
-    ...lines.asLoaded,
+    ...lines.asLoaded.flatMap((line) =>
+      line === "    var node = self" && children && nonElement
+        ? [line, "    node.children = []"] : [line]),
     "  }",
     ...lines.schema,
     "}",

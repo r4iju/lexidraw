@@ -23,7 +23,10 @@ private enum Audio {
 /// they run out.
 private func serverAnswering(_ answers: [(Int, String)]) -> FakeServer {
   let next = Mutex(0)
-  return FakeServer { _ in
+  return FakeServer { request in
+    if request.method == .post && request.headers[.contentType] != "application/json" {
+      return (415, #"{"message":"Missing content-type header","code":"UNSUPPORTED_MEDIA_TYPE"}"#)
+    }
     let index = next.withLock { index in
       defer { index += 1 }
       return min(index, answers.count - 1)
@@ -39,6 +42,24 @@ private final class Reports: Sendable {
 }
 
 @Suite struct RecordingTests {
+  @Test func decliningGenerationDoesNotSendTheFileForAudio() async throws {
+    let server = serverAnswering([(200, Audio.none)])
+    let session = try TestServer.session(server)
+    await #expect(throws: CancellationError.self) {
+      try await session.recording(of: "doc-1", authorizeGeneration: { throw CancellationError() }, pause: {})
+    }
+    #expect(server.requests.map(\.method) == [.get])
+  }
+
+  @Test func existingAudioNeedsNoGenerationPermission() async throws {
+    let server = serverAnswering([(200, Audio.ready)])
+    let session = try TestServer.session(server)
+    let recording = try await session.recording(
+      of: "doc-1", authorizeGeneration: { throw CancellationError() }, pause: {})
+    #expect(recording.parts.count == 2)
+    #expect(server.requests.map(\.method) == [.get])
+  }
+
   @Test func audioAlreadyMadeIsPlayedWithoutMakingItAgain() async throws {
     let server = serverAnswering([(200, Audio.ready)])
     let session = try TestServer.session(server)

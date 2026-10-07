@@ -1,3 +1,13 @@
+/// An engine that exposes keyboard changes immediately while recording a
+/// logical keyboard group as one history update over its original/final state.
+public protocol KeyboardInputHistory: EditorModel {
+  var inputHistoryDelayMilliseconds: Int { get }
+  var inputHistoryRevision: Int { get }
+  func beginInputTurn() -> Int
+  func isInputTurnActive(_ token: Int) -> Bool
+  func endInputTurn(_ token: Int)
+}
+
 /// The editor-model interface: everything a view needs from a document model,
 /// and the seam the reference fixtures and differential fuzzer test at.
 public protocol EditorModel: AnyObject {
@@ -8,16 +18,32 @@ public protocol EditorModel: AnyObject {
   /// Whether the model can edit the document loaded. One that can't refuses
   /// every command that would change it as `EditorError.unsupported`.
   var isEditable: Bool { get }
+  /// Names what keeps the document from being editable, for the reader.
+  var uneditableParts: [String] { get }
+  var supportsRichText: Bool { get }
+  var mountedTypeaheadPlugins: Set<String> { get }
 
   /// Applies one command as a single update. A command that throws leaves the
   /// document and selection as they were.
   @discardableResult
   func apply(_ command: EditorCommand) throws -> ChangeSet
 
+  /// The picker replaces its query while keeping the typing attributes its
+  /// source TextNode.select() callback leaves on the collapsed caret.
+  @discardableResult
+  func applyTypeahead(_ clipboard: Clipboard, anchor: Point, focus: Point, preservingTypingAttributes: Bool) throws -> ChangeSet
+
   /// Replaces the inline drawing opened at `key`, only if it still holds
   /// the scene the editor opened. Nil deletes an empty saved drawing.
   @discardableResult
   func replaceDrawing(key: String, expectedData: String, data: String?) throws -> ChangeSet
+  func replaceRenderedNode(key: String, expected: JSONValue, replacement: JSONValue) throws -> ChangeSet
+
+  /// Commits a native structural panel only while its opened node is unchanged.
+  @discardableResult
+  func replaceEmbeddedNode(key: String, expected: JSONValue, replacement: JSONValue?) throws -> ChangeSet
+
+  func captionEditor(key: String) throws -> any EditorModel
 
   /// The serialized editor state and the selection.
   func snapshot() throws -> Snapshot
@@ -36,19 +62,51 @@ public protocol EditorModel: AnyObject {
   /// order need not match the stored bytes; this value must not be saved.
   func nodeForPresentation(at path: [Int]) throws -> JSONValue
 
+  /// Effective ElementNode DOM fields, independent of unread stored fields.
+  func elementFormatting(at path: [Int]) throws -> JSONValue
+
+  /// The node’s model text, including element breaks and excluding decorator glyphs.
+  func nodeTextContent(at path: [Int]) throws -> String
+
   /// Names for the children of the element at `path`. A child keeps its name
   /// for as long as it stays in the document, wherever it moves, so a view can
   /// tell which children an update added, removed or kept. Names mean nothing
   /// across models.
   func childKeys(at path: [Int]) throws -> [String]
+  func nodePath(for key: String) throws -> [Int]
 }
 
 extension EditorModel {
+  @discardableResult
+  public func applyTypeahead(_ clipboard: Clipboard, anchor: Point, focus: Point, preservingTypingAttributes: Bool) throws -> ChangeSet {
+    throw EditorError.unsupported("This model does not implement atomic picker insertion")
+  }
+  public var mountedTypeaheadPlugins: Set<String> { [] }
+  public func captionEditor(key: String) throws -> any EditorModel {
+    throw EditorError.unsupported("Owned caption editing requires #134")
+  }
+  public func replaceRenderedNode(key: String, expected: JSONValue, replacement: JSONValue) throws -> ChangeSet {
+    throw EditorError.unsupported("Rendered node editing belongs to #132")
+  }
+
+  public var supportsRichText: Bool { true }
+  public func nodePath(for key: String) throws -> [Int] {
+    throw EditorError.unsupported("This model cannot resolve a node key")
+  }
+  public func replaceEmbeddedNode(key: String, expected: JSONValue, replacement: JSONValue?) throws -> ChangeSet {
+    throw EditorError.unsupported("Structural block editing requires #133")
+  }
   public func replaceDrawing(key: String, expectedData: String, data: String?) throws -> ChangeSet {
     throw EditorError.unsupported("Embedded drawing editing requires #139")
   }
   public func serializedState() throws -> JSONValue { ["root": try node(at: [])] }
   public func nodeForPresentation(at path: [Int]) throws -> JSONValue { try node(at: path) }
+  public func elementFormatting(at path: [Int]) throws -> JSONValue {
+    throw EditorError.unsupported("This model cannot read effective element formatting")
+  }
+  public func nodeTextContent(at path: [Int]) throws -> String {
+    throw EditorError.unsupported("This model cannot read node text")
+  }
 }
 
 public struct Snapshot: Codable, Equatable, Sendable {
@@ -207,6 +265,7 @@ public enum EditorCommand: Equatable, Sendable {
   public enum ElementAlignment: String, Codable, CaseIterable, Sendable {
     case left, start, center, right, end, justify
   }
+  case formatCode
   /// Sets each selected text block; automatic removes the stored override.
   case setWritingDirection(WritingDirection)
 
@@ -237,6 +296,16 @@ public enum EditorCommand: Equatable, Sendable {
   /// Pastes as the web's rich-text editor does: Lexical nodes copied from a
   /// document, or else the plain text.
   case paste(Clipboard)
+  /// The actual source node setters exercised by native structural panels.
+  case updateStructuralFields(path: [Int], fields: JSONValue)
+  /// Appends the comment sidebar’s metadata marker to the document root.
+  case appendComment(JSONValue)
+  /// CommentPlugin’s wrap of a selected range in a thread’s marks.
+  case annotateComment(id: String)
+  /// CommentPlugin’s $saveThread; nil runs its comment/thread marker deletion callback.
+  case saveCommentThread(id: String, thread: JSONValue?)
+  case removeCommentAnnotations(id: String)
+  case convertArticle(path: [Int], html: String)
   /// The web's insert-table dialog: a table after the caret's block, with a
   /// header row, and the caret in its first cell.
   case insertTable(rows: Int, columns: Int)
@@ -335,15 +404,15 @@ public struct TextFormat: OptionSet, Codable, Hashable, Sendable {
 extension EditorCommand: Codable {
   private enum CodingKeys: String, CodingKey {
     case type, anchor, focus, text, backward, lineBoundary, format, blockType, listType, path, milliseconds, url, clipboard,
-      rows, columns, color, after, key, extend, native, atCellEdge, direction, parentRTL, anchorRTL, increase
+      rows, columns, color, after, key, extend, native, atCellEdge, direction, parentRTL, anchorRTL, increase, node, id, thread
   }
 
   /// The command's `type` in JSON.
   private enum Kind: String, Codable {
     case setSelection, insertText, commitComposition, deleteCharacter, deleteWord, deleteLine, insertParagraph, insertLineBreak,
-      formatText, setBlockType, formatElement, changeFontSize, clearFormatting, setWritingDirection, insertList, removeList, indent, outdent, tab, toggleChecked, selectAll, toggleLink, editLink,
+      formatText, setBlockType, formatCode, formatElement, changeFontSize, clearFormatting, setWritingDirection, insertList, removeList, indent, outdent, tab, toggleChecked, selectAll, toggleLink, editLink,
       copy, cut, paste, insertTable, insertTableRow, insertTableColumn, deleteTableRow, deleteTableColumn, mergeTableCells, unmergeTableCell, deleteTable, toggleTableRowHeader, toggleTableColumnHeader, setTableCellBackground, arrow, undo, redo,
-      wait
+      wait, updateStructuralFields, appendComment, annotateComment, saveCommentThread, removeCommentAnnotations, convertArticle
   }
 
   private var kind: Kind {
@@ -360,6 +429,7 @@ extension EditorCommand: Codable {
     case .clearFormatting: .clearFormatting
     case .changeFontSize: .changeFontSize
     case .formatElement: .formatElement
+    case .formatCode: .formatCode
     case .setBlockType: .setBlockType
     case .setWritingDirection: .setWritingDirection
     case .insertList: .insertList
@@ -374,6 +444,12 @@ extension EditorCommand: Codable {
     case .copy: .copy
     case .cut: .cut
     case .paste: .paste
+    case .updateStructuralFields: .updateStructuralFields
+    case .appendComment: .appendComment
+    case .annotateComment: .annotateComment
+    case .saveCommentThread: .saveCommentThread
+    case .removeCommentAnnotations: .removeCommentAnnotations
+    case .convertArticle: .convertArticle
     case .insertTable: .insertTable
     case .insertTableRow: .insertTableRow
     case .insertTableColumn: .insertTableColumn
@@ -416,6 +492,7 @@ extension EditorCommand: Codable {
     case .clearFormatting: self = .clearFormatting
     case .changeFontSize: self = .changeFontSize(increase: try container.decode(Bool.self, forKey: .increase))
     case .formatElement: self = .formatElement(try container.decode(ElementAlignment.self, forKey: .format))
+    case .formatCode: self = .formatCode
     case .setBlockType: self = .setBlockType(try container.decode(BlockType.self, forKey: .blockType))
     case .setWritingDirection: self = .setWritingDirection(try container.decode(WritingDirection.self, forKey: .direction))
     case .insertList: self = .insertList(try container.decode(ListType.self, forKey: .listType))
@@ -430,6 +507,12 @@ extension EditorCommand: Codable {
     case .copy: self = .copy
     case .cut: self = .cut
     case .paste: self = .paste(try container.decode(Clipboard.self, forKey: .clipboard))
+    case .updateStructuralFields: self = .updateStructuralFields(path: try container.decode([Int].self, forKey: .path), fields: try container.decode(JSONValue.self, forKey: .node))
+    case .appendComment: self = .appendComment(try container.decode(JSONValue.self, forKey: .node))
+    case .annotateComment: self = .annotateComment(id: try container.decode(String.self, forKey: .id))
+    case .convertArticle: self = .convertArticle(path: try container.decode([Int].self, forKey: .path), html: try container.decode(String.self, forKey: .text))
+    case .removeCommentAnnotations: self = .removeCommentAnnotations(id: try container.decode(String.self, forKey: .id))
+    case .saveCommentThread: self = .saveCommentThread(id: try container.decode(String.self, forKey: .id), thread: try container.decodeIfPresent(JSONValue.self, forKey: .thread))
     case .insertTable:
       self = .insertTable(
         rows: try container.decode(Int.self, forKey: .rows), columns: try container.decode(Int.self, forKey: .columns))
@@ -490,6 +573,21 @@ extension EditorCommand: Codable {
       try container.encode(url, forKey: .url)
     case .editLink(let url):
       try container.encode(url, forKey: .url)
+    case .convertArticle(let path, let html):
+      try container.encode(path, forKey: .path)
+      try container.encode(html, forKey: .text)
+    case .removeCommentAnnotations(let id):
+      try container.encode(id, forKey: .id)
+    case .saveCommentThread(let id, let thread):
+      try container.encode(id, forKey: .id)
+      try container.encodeIfPresent(thread, forKey: .thread)
+    case .annotateComment(let id):
+      try container.encode(id, forKey: .id)
+    case .updateStructuralFields(let path, let fields):
+      try container.encode(path, forKey: .path)
+      try container.encode(fields, forKey: .node)
+    case .appendComment(let node):
+      try container.encode(node, forKey: .node)
     case .paste(let clipboard):
       try container.encode(clipboard, forKey: .clipboard)
     case .insertTable(let rows, let columns):
@@ -506,7 +604,7 @@ extension EditorCommand: Codable {
       try container.encode(atCellEdge, forKey: .atCellEdge)
       try container.encode(parentRTL, forKey: .parentRTL)
       try container.encodeIfPresent(anchorRTL, forKey: .anchorRTL)
-    case .clearFormatting, .insertParagraph, .insertLineBreak, .removeList, .indent, .outdent, .selectAll, .copy, .cut, .deleteTableRow,
+    case .formatCode, .clearFormatting, .insertParagraph, .insertLineBreak, .removeList, .indent, .outdent, .selectAll, .copy, .cut, .deleteTableRow,
       .deleteTableColumn, .mergeTableCells, .unmergeTableCell, .deleteTable, .toggleTableRowHeader, .toggleTableColumnHeader, .undo, .redo:
       break
     }
@@ -574,24 +672,29 @@ public struct LexicalClipboardPayload: Codable, Equatable, Sendable {
 /// changed. Adding or removing a node changes its parent.
 public struct ChangeSet: Equatable, Sendable {
   public var changed: Set<[Int]>
+  /// A nested command changed its owning editor. Its paths do not belong
+  /// to this editor's layout, but the owner must render and save the edit.
+  public var parentChanged: Bool
   /// What a copy or cut put on the clipboard: nothing for an empty selection.
   public var clipboard: Clipboard?
 
-  public init(changed: Set<[Int]> = [], clipboard: Clipboard? = nil) {
+  public init(changed: Set<[Int]> = [], clipboard: Clipboard? = nil, parentChanged: Bool = false) {
     self.changed = changed
     self.clipboard = clipboard
+    self.parentChanged = parentChanged
   }
 }
 
 extension ChangeSet: Codable {
   private enum CodingKeys: String, CodingKey {
-    case changed, clipboard
+    case changed, clipboard, parentChanged
   }
 
   public init(from decoder: any Decoder) throws {
     let container = try decoder.container(keyedBy: CodingKeys.self)
     changed = Set(try container.decode([[Int]].self, forKey: .changed))
     clipboard = try container.decodeIfPresent(Clipboard.self, forKey: .clipboard)
+    parentChanged = try container.decodeIfPresent(Bool.self, forKey: .parentChanged) ?? false
   }
 
   /// Sorted, so a recorded fixture's bytes don't depend on hashing.
@@ -599,6 +702,7 @@ extension ChangeSet: Codable {
     var container = encoder.container(keyedBy: CodingKeys.self)
     try container.encode(changed.sorted { $0.lexicographicallyPrecedes($1) }, forKey: .changed)
     try container.encodeIfPresent(clipboard, forKey: .clipboard)
+    if parentChanged { try container.encode(true, forKey: .parentChanged) }
   }
 }
 

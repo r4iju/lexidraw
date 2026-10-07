@@ -1,15 +1,23 @@
 {
   "compilerOptions": {
     "target": "es2022",
-    "lib": ["es2022"],
+    "lib": [
+      "es2022",
+      "dom"
+    ],
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
     "strict": true,
     "noUncheckedIndexedAccess": true,
     "skipLibCheck": true,
     "isolatedModules": true,
-    "noEmit": true
+    "noEmit": true,
+    "jsx": "react-jsx"
   },
-  "include": ["reference"],
-  "exclude": ["reference/test"]
+  "include": [
+    "reference"
+  ],
+  "exclude": [
+    "reference/test"
+  ]
 }

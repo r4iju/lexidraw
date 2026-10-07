@@ -15,6 +15,8 @@ import { RENDER_FONTS } from "./render-fonts";
 let scratch: string;
 let lambdaTmp: string;
 let events: string[];
+let preparationGate: Promise<void> | undefined;
+let preparationFailure: Error | undefined;
 const hostTmp = tmpdir();
 const savedCwd = process.cwd();
 const envKeys = ["TMPDIR", "VERCEL", "NODE_ENV"] as const;
@@ -37,6 +39,9 @@ mock.module("@sparticuz/chromium", () => ({
   default: {
     args: ["--single-process"],
     async executablePath() {
+      events.push("preparation");
+      await preparationGate;
+      if (preparationFailure) throw preparationFailure;
       const fonts = path.join(lambdaTmp, "fonts");
       // The real one unpacks its fonts.conf only when this folder is absent.
       events.push(`executablePath:fonts-dir-existed=${existsSync(fonts)}`);
@@ -75,6 +80,8 @@ beforeEach(() => {
   env.VERCEL = "1";
   env.NODE_ENV = "production";
   events = [];
+  preparationGate = undefined;
+  preparationFailure = undefined;
   installedAtLaunch = new Map();
   confAtLaunch = false;
   launchOptions = undefined;
@@ -98,7 +105,11 @@ test("the serverless Chromium starts with every render font installed for fontco
   });
 
   expect(browser).toEqual({ fake: "browser" } as never);
-  expect(events).toEqual(["executablePath:fonts-dir-existed=false", "launch"]);
+  expect(events).toEqual([
+    "preparation",
+    "executablePath:fonts-dir-existed=false",
+    "launch",
+  ]);
   expect(confAtLaunch).toBe(true);
   expect(Object.fromEntries(installedAtLaunch)).toEqual(
     Object.fromEntries(
@@ -132,4 +143,43 @@ test("a bundle without its fonts fails the launch instead of rendering blanks", 
     launchBrowser({ viewport: { width: 1280, height: 900 } }),
   ).rejects.toThrow("NotoSansJP.ttf");
   expect(events).not.toContain("launch");
+});
+
+test("concurrent cold requests prepare the shared Chromium files once before either launches", async () => {
+  let release!: () => void;
+  preparationGate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const { launchBrowser } = await import("./launch-browser");
+  const first = launchBrowser({ viewport: { width: 375, height: 812 } });
+  const second = launchBrowser({ viewport: { width: 420, height: 900 } });
+  await Bun.sleep(20);
+  const preparations = events.filter((event) => event === "preparation").length;
+  const launchesBeforeReady = events.filter(
+    (event) => event === "launch",
+  ).length;
+  release();
+  await Promise.all([first, second]);
+  expect(preparations).toBe(1);
+  expect(launchesBeforeReady).toBe(0);
+  expect(events.filter((event) => event === "launch")).toHaveLength(2);
+  expect(confAtLaunch).toBe(true);
+  expect(installedAtLaunch.size).toBe(RENDER_FONTS.length);
+});
+
+test("a failed shared preparation is retried by the next request", async () => {
+  preparationFailure = new Error("Chromium unpack failed");
+  const { launchBrowser } = await import("./launch-browser");
+  const results = await Promise.allSettled([
+    launchBrowser({ viewport: { width: 375, height: 812 } }),
+    launchBrowser({ viewport: { width: 420, height: 900 } }),
+  ]);
+  expect(results.every((result) => result.status === "rejected")).toBe(true);
+  expect(events).not.toContain("launch");
+  const preparations = events.filter((event) => event === "preparation").length;
+  preparationFailure = undefined;
+  await launchBrowser({ viewport: { width: 375, height: 812 } });
+  expect(preparations).toBe(1);
+  expect(events.filter((event) => event === "preparation")).toHaveLength(2);
+  expect(events.filter((event) => event === "launch")).toHaveLength(1);
 });

@@ -34,11 +34,16 @@ extension Update {
       case .down: .down
       }
     var handled = false
-    for table in tables() {
-      handled = try handleArrowKey(&event, direction, table, grid(table))
-      if handled { break }
+    if hasEditorPlugin("TablePlugin") {
+      for table in tables() {
+        handled = try handleArrowKey(&event, direction, table, grid(table))
+        if handled { break }
+      }
     }
-    if !handled { handled = try richTextArrow(&event, key) }
+    if !handled {
+      try structuralArrow(key)
+      handled = try richTextArrow(&event, key)
+    }
     if !handled, !event.defaultPrevented {
       // Rich text turns selected nodes into the range the platform extends,
       // and where it leaves them selected the platform shows no caret to move.

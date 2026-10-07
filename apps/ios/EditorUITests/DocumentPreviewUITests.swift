@@ -10,6 +10,66 @@ final class DocumentPreviewUITests: XCTestCase {
     continueAfterFailure = false
   }
 
+  func testRealDocumentPredictionAcceptanceUndoesOneReplacement() throws {
+    let original = LexicalJSON.document([LexicalJSON.paragraph([LexicalJSON.text("prefix ")])])
+    let app = open(access: "EDIT", document: original)
+    XCTAssertTrue(app.staticTexts["Saved"].waitForExistence(timeout: 10))
+    let editor = app.textViews.firstMatch
+    editor.tap()
+    XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5))
+    if app.buttons["Continue"].exists { app.buttons["Continue"].tap() }
+    for character in "hel" {
+      let lower = app.keyboards.keys[String(character)]
+      let key = lower.exists ? lower : app.keyboards.keys[String(character).uppercased()]
+      XCTAssertTrue(key.isHittable)
+      key.tap()
+    }
+    XCTAssertTrue((editor.value as? String)?.lowercased().contains("hel") == true)
+    let beforeAcceptance = try XCTUnwrap(editor.value as? String)
+    let prediction = app.descendants(matching: .any).matching(NSPredicate(format: "label ==[c] %@", "Hello")).firstMatch
+    XCTAssertTrue(prediction.waitForExistence(timeout: 3), "\(app.keyboards.debugDescription)")
+    XCTAssertTrue(prediction.isHittable)
+    prediction.tap()
+    XCTAssertTrue((editor.value as? String)?.lowercased().contains("hello") == true)
+    editor.typeKey(XCUIKeyboardKey.shift.rawValue, modifierFlags: [])
+    editor.typeKey(XCUIKeyboardKey.F13.rawValue, modifierFlags: .shift)
+    editor.typeKey("z", modifierFlags: .command)
+    XCTAssertEqual(editor.value as? String, beforeAcceptance)
+  }
+
+
+  /// Real QuickPath drags. The simulator delivers the first word and its
+  /// space as separate calls, then each later word as one `insertText` (#236).
+  func testRealDocumentSwipedWordsUndoAndRedoTogether() throws {
+    let original = LexicalJSON.document([LexicalJSON.paragraph([LexicalJSON.text("Say ")])])
+    let app = open(access: "EDIT", document: original)
+    XCTAssertTrue(app.staticTexts["Saved"].waitForExistence(timeout: 10))
+    let editor = app.textViews.firstMatch
+    editor.tap()
+    XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5))
+    if app.buttons["Continue"].waitForExistence(timeout: 2) { app.buttons["Continue"].tap() }
+    func swipe(_ from: String, _ to: String) {
+      func key(_ name: String) -> XCUICoordinate {
+        let lower = app.keyboards.keys[name]
+        return (lower.exists ? lower : app.keyboards.keys[name.uppercased()])
+          .coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+      }
+      key(from).press(forDuration: 0.05, thenDragTo: key(to), withVelocity: 300, thenHoldForDuration: 0.05)
+    }
+    swipe("t", "o")
+    let afterFirstWord = try XCTUnwrap(editor.value as? String)
+    swipe("w", "e")
+    swipe("t", "o")
+    let swiped = try XCTUnwrap(editor.value as? String)
+    XCTAssertEqual(swiped.split(separator: " ").count, afterFirstWord.split(separator: " ").count + 2)
+    editor.typeKey(XCUIKeyboardKey.shift.rawValue, modifierFlags: [])
+    editor.typeKey(XCUIKeyboardKey.F13.rawValue, modifierFlags: .shift)
+    editor.typeKey("z", modifierFlags: .command)
+    XCTAssertEqual(editor.value as? String, afterFirstWord)
+    editor.typeKey("z", modifierFlags: [.command, .shift])
+    XCTAssertEqual(editor.value as? String, swiped)
+  }
+
   func testAnEditableDocumentAutosavesItsChanges() {
     let app = open(access: "EDIT")
     let notice = app.staticTexts["Saved"]
@@ -49,7 +109,7 @@ final class DocumentPreviewUITests: XCTestCase {
 
   func testADocumentTheAppCantEditYetOpensReadOnlyAndShowsWhatItCantShowYet() {
     let document = LexicalJSON.document([
-      LexicalJSON.paragraph([LexicalJSON.text("Watch this")]), LexicalJSON.youtube("dQw4w9WgXcQ"),
+      LexicalJSON.paragraph([LexicalJSON.text("Watch this")]), ["type": "unported-widget", "version": 1],
     ])
     let app = open(access: "EDIT", document: document)
 
@@ -57,7 +117,7 @@ final class DocumentPreviewUITests: XCTestCase {
       app.staticTexts["Read only: this document has parts the app can’t edit yet"].waitForExistence(
         timeout: 10))
     XCTAssertFalse(app.staticTexts["Preview: changes aren’t saved"].exists)
-    XCTAssertTrue((app.textViews.firstMatch.value as? String)?.contains("youtube") == true)
+    XCTAssertTrue((app.textViews.firstMatch.value as? String)?.contains("unported-widget") == true)
     XCTAssertFalse(offersKeyboard(app))
   }
 
@@ -83,9 +143,282 @@ final class DocumentPreviewUITests: XCTestCase {
     XCTAssertFalse(app.buttons["Try Again"].exists)
   }
 
-  private func open(access: String, document: JSONValue? = nil) -> XCUIApplication {
+  func testSlideBoxBlurIncrementsItsVersionOnlyForChangedContent() throws {
+    let content = LexicalJSON.document([LexicalJSON.paragraph([LexicalJSON.text("Hello")])])
+    let box: JSONValue = ["id": "box", "kind": "box", "x": 100, "y": 100, "width": 400, "height": 120,
+      "zIndex": 0, "version": 7.5, "backgroundColor": "yellow", "editorStateJSON": content]
+    let document = LexicalJSON.document([["type": "slide-deck", "version": 1,
+      "data": ["currentSlideId": "first", "slides": [["id": "first", "elements": [box]]]]]])
+    let savedURL = FileManager.default.temporaryDirectory.appending(path: "slide-\(UUID().uuidString).json")
+    defer { try? FileManager.default.removeItem(at: savedURL) }
+    let app = open(access: "EDIT", document: document, savedTo: savedURL)
+    XCTAssertTrue(app.buttons["Edit slide deck"].waitForExistence(timeout: 10))
+    app.buttons["Edit slide deck"].tap()
+    func openText() {
+      app.buttons["Slide element 1, box actions"].tap()
+      app.buttons["Edit content"].tap()
+      XCTAssertTrue(app.textViews["slide text editor"].waitForExistence(timeout: 5))
+    }
+    openText()
+    app.textViews["slide text editor"].tap()
+    app.textViews["slide text editor"].typeText(" typed")
+    app.navigationBars["Slide text"].buttons["Done"].tap()
+    openText()
+    app.navigationBars["Slide text"].buttons["Done"].tap()
+    app.navigationBars["Edit slide deck"].buttons["Save"].tap()
+    let saved = NSPredicate(format: "label CONTAINS %@", "entities-save")
+    expectation(for: saved, evaluatedWith: app.staticTexts["server requests"])
+    waitForExpectations(timeout: 10)
+    let state = try JSONDecoder().decode(JSONValue.self, from: Data(contentsOf: savedURL))
+    let stored = state["root"]?["children"]?.arrayValue?[0]["data"]?["slides"]?.arrayValue?[0]["elements"]?.arrayValue?[0]
+    XCTAssertEqual(stored?["version"], 8.5)
+  }
+
+  func testSlideBoxKeepsItsUndoHistoryWhileTheDeckDraftIsOpen() {
+    let content = LexicalJSON.document([LexicalJSON.paragraph([LexicalJSON.text("Hello")])])
+    let box: JSONValue = ["id": "box", "kind": "box", "x": 100, "y": 100, "width": 400, "height": 120,
+      "zIndex": 0, "backgroundColor": "yellow", "editorStateJSON": content]
+    let document = LexicalJSON.document([["type": "slide-deck", "version": 1,
+      "data": ["currentSlideId": "first", "slides": [["id": "first", "elements": [box]]]]]])
+    let app = open(access: "EDIT", document: document)
+    XCTAssertTrue(app.buttons["Edit slide deck"].waitForExistence(timeout: 10))
+    app.buttons["Edit slide deck"].tap()
+    func openText() -> XCUIElement {
+      app.buttons["Slide element 1, box actions"].tap()
+      app.buttons["Edit content"].tap()
+      XCTAssertTrue(app.navigationBars["Slide text"].waitForExistence(timeout: 5))
+      let editor = app.textViews["slide text editor"]
+      XCTAssertTrue(editor.waitForExistence(timeout: 5))
+      return editor
+    }
+    let first = openText()
+    first.tap()
+    first.typeText(" typed")
+    app.navigationBars["Slide text"].buttons["Done"].tap()
+    let reopened = openText()
+    reopened.tap()
+    reopened.typeKey(XCUIKeyboardKey.shift.rawValue, modifierFlags: [])
+    reopened.typeKey(XCUIKeyboardKey.F13.rawValue, modifierFlags: .shift)
+    reopened.typeKey("z", modifierFlags: .command)
+    XCTAssertFalse((reopened.value as? String)?.contains(" typed") == true)
+    app.navigationBars["Slide text"].buttons["Done"].tap()
+    app.navigationBars["Edit slide deck"].buttons["Cancel"].tap()
+    XCTAssertFalse(requests(in: app).contains("entities-save"))
+  }
+
+  func testSwitchingSlidesKeepsBoxTextButRemountsItsUndoHistory() {
+    let content = LexicalJSON.document([LexicalJSON.paragraph([LexicalJSON.text("Hello")])])
+    let box: JSONValue = ["id": "box", "kind": "box", "x": 100, "y": 100, "width": 400, "height": 120,
+      "zIndex": 0, "backgroundColor": "yellow", "editorStateJSON": content]
+    let document = LexicalJSON.document([["type": "slide-deck", "version": 1,
+      "data": ["currentSlideId": "first", "slides": [["id": "first", "elements": [box]], ["id": "second", "elements": []]]]]])
+    let app = open(access: "EDIT", document: document)
+    XCTAssertTrue(app.buttons["Edit slide deck"].waitForExistence(timeout: 10))
+    app.buttons["Edit slide deck"].tap()
+    func openText() -> XCUIElement {
+      app.buttons["Slide element 1, box actions"].tap()
+      app.buttons["Edit content"].tap()
+      XCTAssertTrue(app.navigationBars["Slide text"].waitForExistence(timeout: 5))
+      let editor = app.textViews["slide text editor"]
+      XCTAssertTrue(editor.waitForExistence(timeout: 5))
+      return editor
+    }
+    let first = openText()
+    first.tap()
+    first.typeText(" typed")
+    app.navigationBars["Slide text"].buttons["Done"].tap()
+    app.scrollViews["slide deck draft"].buttons["Slide 1 of 2"].tap()
+    app.buttons["Slide 2"].tap()
+    app.scrollViews["slide deck draft"].buttons["Slide 2 of 2"].tap()
+    app.buttons["Slide 1"].tap()
+    let reopened = openText()
+    XCTAssertTrue((reopened.value as? String)?.contains(" typed") == true)
+    reopened.tap()
+    reopened.typeKey(XCUIKeyboardKey.shift.rawValue, modifierFlags: [])
+    reopened.typeKey(XCUIKeyboardKey.F13.rawValue, modifierFlags: .shift)
+    reopened.typeKey("z", modifierFlags: .command)
+    XCTAssertTrue((reopened.value as? String)?.contains(" typed") == true)
+    app.navigationBars["Slide text"].buttons["Done"].tap()
+    app.navigationBars["Edit slide deck"].buttons["Cancel"].tap()
+    XCTAssertFalse(requests(in: app).contains("entities-save"))
+  }
+
+  func testSlideDeckChangesStayDraftUntilSaveAndCancelDiscardsThem() {
+    let document = LexicalJSON.document([["type": "slide-deck", "version": 1,
+      "data": ["currentSlideId": "second", "slides": [
+        ["id": "first", "elements": []], ["id": "second", "elements": []]]]]])
+    let app = open(access: "EDIT", document: document)
+    let edit = app.buttons["Edit slide deck"]
+    XCTAssertTrue(edit.waitForExistence(timeout: 10))
+    edit.tap()
+    app.scrollViews["slide deck draft"].buttons["Slide 2 of 2"].tap()
+    app.buttons["Slide 1"].tap()
+    XCTAssertTrue(app.scrollViews["slide deck draft"].buttons["Slide 1 of 2"].waitForExistence(timeout: 5))
+    app.navigationBars["Edit slide deck"].buttons["Cancel"].tap()
+    XCTAssertTrue(app.buttons["Slide 1 of 2"].waitForExistence(timeout: 5))
+    XCTAssertFalse(requests(in: app).contains("entities-save"))
+    edit.tap()
+    app.scrollViews["slide deck draft"].buttons["Slide 2 of 2"].tap()
+    app.buttons["Slide 1"].tap()
+    app.navigationBars["Edit slide deck"].buttons["Save"].tap()
+    XCTAssertTrue(app.buttons["Slide 1 of 2"].waitForExistence(timeout: 5))
+    let saved = NSPredicate(format: "label CONTAINS %@", "entities-save")
+    expectation(for: saved, evaluatedWith: app.staticTexts["server requests"])
+    waitForExpectations(timeout: 10)
+  }
+
+  func testSlidePreviewNavigationIsLocalForReadersAndEditors() {
+    let document = LexicalJSON.document([["type": "slide-deck", "version": 1,
+      "data": ["currentSlideId": "second", "slides": [
+        ["id": "first", "elements": []], ["id": "second", "elements": []]
+      ]]]])
+    for access in ["EDIT", "READ"] {
+      let app = open(access: access, document: document)
+      let current = app.buttons["Slide 1 of 2"]
+      XCTAssertTrue(current.waitForExistence(timeout: 10))
+      current.tap()
+      app.buttons["Slide 2"].tap()
+      XCTAssertTrue(app.buttons["Slide 2 of 2"].waitForExistence(timeout: 5))
+      XCTAssertEqual(requests(in: app), "entities-load")
+      app.terminate()
+    }
+  }
+
+  func testMixedTextAndSlideControlsRemainAccessibleAndAutosave() {
+    let document = LexicalJSON.document([
+      ["type": "paragraph", "version": 1, "children": [["type": "text", "version": 1, "text": "Mixed text remains editable", "format": 0, "detail": 0, "mode": "normal", "style": ""]]],
+      ["type": "slide-deck", "version": 1, "data": ["currentSlideId": "second", "slides": [
+        ["id": "first", "elements": []], ["id": "second", "elements": []]
+      ]]]
+    ])
+    let app = open(access: "EDIT", document: document)
+    XCTAssertTrue(app.textViews.firstMatch.waitForExistence(timeout: 10))
+    XCTAssertTrue((app.textViews.firstMatch.value as? String)?.contains("Mixed text remains editable") == true)
+    app.buttons["Edit slide deck"].tap()
+    let current = app.scrollViews["slide deck draft"].buttons["Slide 2 of 2"]
+    XCTAssertTrue(current.waitForExistence(timeout: 5))
+    current.tap()
+    app.buttons["Slide 1"].tap()
+    XCTAssertTrue(app.scrollViews["slide deck draft"].buttons["Slide 1 of 2"].waitForExistence(timeout: 5))
+    app.navigationBars["Edit slide deck"].buttons["Save"].tap()
+    let saved = NSPredicate(format: "label CONTAINS %@", "entities-save")
+    expectation(for: saved, evaluatedWith: app.staticTexts["server requests"])
+    waitForExpectations(timeout: 10)
+  }
+
+  func testSlideDragAndCornerResizeAutosaveGeometry() {
+    let content = LexicalJSON.document([["type": "paragraph", "version": 1, "children": [["type": "text", "version": 1, "text": "Move me", "format": 0, "detail": 0, "mode": "normal", "style": ""]]]])
+    let document = LexicalJSON.document([["type": "slide-deck", "version": 1, "data": ["currentSlideId": "first", "slides": [["id": "first", "elements": [["id": "box", "kind": "box", "x": 100, "y": 100, "width": 400, "height": 120, "zIndex": 0, "backgroundColor": "yellow", "editorStateJSON": content]]]]]]])
+    let app = open(access: "EDIT", document: document)
+    let edit = app.buttons["Edit slide deck"]
+    XCTAssertTrue(edit.waitForExistence(timeout: 10))
+    edit.tap()
+    let text = app.scrollViews["slide deck draft"].textViews.matching(NSPredicate(format: "value CONTAINS %@", "Move me")).firstMatch
+    XCTAssertTrue(text.waitForExistence(timeout: 10))
+    let before = XCTAttachment(screenshot: app.screenshot())
+    before.name = "Native slide before drag and resize"
+    before.lifetime = .keepAlways
+    add(before)
+    let start = text.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+    start.press(forDuration: 0.1, thenDragTo: start.withOffset(CGVector(dx: 50, dy: 30)))
+    let originalWidth = text.frame.width
+    let edge = text.coordinate(withNormalizedOffset: CGVector(dx: 1, dy: 1))
+    edge.press(forDuration: 0.1, thenDragTo: edge.withOffset(CGVector(dx: 30, dy: 20)))
+    XCTAssertGreaterThan(text.frame.width, originalWidth + 10)
+    XCTAssertFalse(requests(in: app).contains("entities-save"))
+    app.navigationBars["Edit slide deck"].buttons["Save"].tap()
+    let saved = NSPredicate(format: "label CONTAINS %@", "entities-save")
+    expectation(for: saved, evaluatedWith: app.staticTexts["server requests"])
+    waitForExpectations(timeout: 10)
+    let after = XCTAttachment(screenshot: app.screenshot())
+    after.name = "Native slide after drag and resize"
+    after.lifetime = .keepAlways
+    add(after)
+  }
+
+  func testSlideElementsOfferAccessibleActionsWithoutCanvasGestures() {
+    let element: JSONValue = ["id": "image", "kind": "image", "x": 10, "y": 20,
+      "width": 200, "height": 100, "zIndex": 0, "url": ""]
+    let slide: JSONValue = ["id": "first", "elements": [element]]
+    let document = LexicalJSON.document([["type": "slide-deck", "version": 1,
+      "data": ["currentSlideId": "first", "slides": [slide]]]])
+    let app = open(access: "EDIT", document: document)
+    let edit = app.buttons["Edit slide deck"]
+    XCTAssertTrue(edit.waitForExistence(timeout: 10))
+    edit.tap()
+    let actions = app.buttons["Slide element 1, image actions"]
+    XCTAssertTrue(actions.waitForExistence(timeout: 10))
+    actions.tap()
+    XCTAssertTrue(app.buttons["Edit content"].exists)
+    XCTAssertTrue(app.buttons["Bring to front"].exists)
+    XCTAssertTrue(app.buttons["Delete element"].exists)
+    app.buttons["Position and size"].tap()
+    XCTAssertTrue(app.alerts["Position and size"].waitForExistence(timeout: 5))
+    app.alerts["Position and size"].buttons["Cancel"].tap()
+    XCTAssertFalse(requests(in: app).contains("entities-save"))
+    app.terminate()
+    let readOnly = open(access: "READ", document: document)
+    XCTAssertTrue(readOnly.staticTexts["Slide element 1, image"].waitForExistence(timeout: 10))
+    XCTAssertFalse(readOnly.buttons["Slide element 1, image actions"].exists)
+    XCTAssertFalse(requests(in: readOnly).contains("entities-save"))
+  }
+
+  func testFractionalColumnsBelowOneLeaveTheRemainingSpaceEmpty() {
+    XCUIDevice.shared.orientation = .landscapeLeft
+    defer { XCUIDevice.shared.orientation = .portrait }
+    let paragraph: JSONValue = ["type": "paragraph", "version": 1, "children": []]
+    let item: JSONValue = ["type": "layout-item", "version": 1, "children": [paragraph]]
+    let document = LexicalJSON.document([["type": "layout-container", "version": 1,
+      "templateColumns": "0.25fr 0.25fr", "children": [item, item]]])
+    let app = open(access: "EDIT", document: document)
+    let column = app.buttons["Edit column 1"]
+    XCTAssertTrue(column.waitForExistence(timeout: 10))
+    XCTAssertGreaterThan(app.frame.width, 600)
+    XCTAssertGreaterThan(column.frame.width, app.frame.width * 0.15)
+    XCTAssertLessThan(column.frame.width, app.frame.width * 0.35)
+  }
+
+  func testRepeatedMinmaxColumnsKeepTheirImplicitRows() {
+    XCUIDevice.shared.orientation = .landscapeLeft
+    defer { XCUIDevice.shared.orientation = .portrait }
+    let paragraph: JSONValue = ["type": "paragraph", "version": 1, "children": []]
+    let item: JSONValue = ["type": "layout-item", "version": 1, "children": [paragraph]]
+    let document = LexicalJSON.document([["type": "layout-container", "version": 1,
+      "templateColumns": "repeat(2, minmax(100px, 1fr))", "children": [item, item, item, item]]])
+    let app = open(access: "EDIT", document: document)
+    let first = app.buttons["Edit column 1"]
+    XCTAssertTrue(first.waitForExistence(timeout: 10))
+    let second = app.buttons["Edit column 2"]
+    let third = app.buttons["Edit column 3"]
+    XCTAssertTrue(third.exists)
+    XCTAssertEqual(first.frame.width, second.frame.width, accuracy: 1)
+    XCTAssertGreaterThan(first.frame.width, 100)
+    XCTAssertEqual(third.frame.minX, first.frame.minX, accuracy: 1)
+    XCTAssertGreaterThan(third.frame.minY, first.frame.maxY)
+  }
+
+  func testImportedColumnsRetainFixedPercentageAndFractionalTracks() {
+    XCUIDevice.shared.orientation = .landscapeLeft
+    defer { XCUIDevice.shared.orientation = .portrait }
+    let paragraph: JSONValue = ["type": "paragraph", "version": 1, "children": []]
+    let item: JSONValue = ["type": "layout-item", "version": 1, "children": [paragraph]]
+    let document = LexicalJSON.document([["type": "layout-container", "version": 1,
+      "templateColumns": "100px 25% 0.5fr", "children": [item, item, item]]])
+    let app = open(access: "EDIT", document: document)
+    let first = app.buttons["Edit column 1"]
+    XCTAssertTrue(first.waitForExistence(timeout: 10))
+    XCTAssertGreaterThan(app.frame.width, 600)
+    XCTAssertEqual(first.frame.width, 82, accuracy: 1) // 100px track minus the source border and padding.
+    let percentage = app.buttons["Edit column 2"].frame.width
+    XCTAssertGreaterThan(percentage, app.frame.width * 0.15)
+    XCTAssertLessThan(percentage, app.frame.width * 0.3)
+    XCTAssertTrue(app.buttons["Edit column 3"].exists)
+  }
+
+  private func open(access: String, document: JSONValue? = nil, savedTo: URL? = nil) -> XCUIApplication {
     let app = XCUIApplication()
     app.launchEnvironment["EDITOR_PREVIEW_ACCESS"] = access
+    if let savedTo { app.launchEnvironment["EDITOR_SAVE_PATH"] = savedTo.path }
     if let document {
       app.launchEnvironment["EDITOR_DOCUMENT"] = String(
         decoding: try! JSONEncoder().encode(document), as: UTF8.self)
@@ -101,8 +434,8 @@ final class DocumentPreviewUITests: XCTestCase {
     return app.keyboards.firstMatch.waitForExistence(timeout: 3)
   }
 
-  /// The operations the harness's server was asked for, in order.
+  /// Document operations, excluding the independent account identity read.
   private func requests(in app: XCUIApplication) -> String {
-    app.staticTexts["server requests"].label
+    app.staticTexts["server requests"].label.split(separator: " ").filter { $0 != "auth-me" }.joined(separator: " ")
   }
 }

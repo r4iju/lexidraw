@@ -1,4 +1,4 @@
-import { $createCodeNode } from "@lexical/code";
+import { $formatCode } from "@packages/lexical-nodes/code-format";
 import {
   INSERT_CHECK_LIST_COMMAND,
   INSERT_ORDERED_LIST_COMMAND,
@@ -10,7 +10,7 @@ import {
   $isQuoteNode,
   type HeadingTagType,
 } from "@lexical/rich-text";
-import { $patchStyleText, $setBlocksType } from "@lexical/selection";
+import { $patchStyleText } from "@lexical/selection";
 import { $isTableSelection } from "@lexical/table";
 import { $getNearestBlockElementAncestorOrThrow } from "@lexical/utils";
 import { $setBlockType } from "@packages/lexical-nodes/block-type";
@@ -215,21 +215,7 @@ export const useToolbarUtils = () => {
   const formatCode = (editor: LexicalEditor, blockType: string) => {
     if (blockType !== "code") {
       editor.update(() => {
-        let selection = $getSelection();
-
-        if (selection !== null) {
-          if (selection.isCollapsed()) {
-            $setBlocksType(selection, () => $createCodeNode());
-          } else {
-            const textContent = selection.getTextContent();
-            const codeNode = $createCodeNode();
-            selection.insertNodes([codeNode]);
-            selection = $getSelection();
-            if ($isRangeSelection(selection)) {
-              selection.insertRawText(textContent);
-            }
-          }
-        }
+        $formatCode($getSelection());
       });
     }
   };

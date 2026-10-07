@@ -9,6 +9,17 @@ import AppKit
 @testable import TextKitEditor
 
 @Suite struct MediaCaptionTests {
+  @Test func socialTextLeavesRenderInCaptions() {
+    let state: JSONValue = ["root": ["type": "root", "children": [["type": "paragraph", "children": [
+      ["type": "hashtag", "text": "#native", "format": 1, "style": ""],
+      ["type": "keyword", "text": " congratulations", "format": 0, "style": ""],
+      ["type": "emoji", "text": "😄", "className": "emoji", "mode": "token", "format": 0, "style": ""],
+    ]]]]]
+    #expect(MediaCaptionSupport.refusal(in: state) == nil)
+    let rendered = DocumentText.caption(state, style: { _, _ in [:] })
+    #expect(rendered.string == "#native congratulations😄")
+  }
+
   @Test func captionKeepsTextFormatsLinksAndParagraphs() throws {
     let state: JSONValue = ["root": ["type": "root", "children": [
       ["type": "paragraph", "children": [["type": "text", "text": "Bold", "format": 1], ["type": "text", "text": " italic", "format": 2]]],

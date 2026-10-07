@@ -1,3 +1,4 @@
+import CSSValues
 import EditorModelInterface
 import Foundation
 
@@ -89,7 +90,56 @@ public final class DocumentText {
     public var columnWidths: [Double]?
   }
 
+  private struct MentionPresentation {
+    var style: String
+    var tag: String
+    var innerTag: String
+    var effective: InlineCSS
+  }
+  private var mentions: [String: MentionPresentation] = [:]
+  private var mentionsByBlock: [String: Set<String>] = [:]
+  private func forgetMentions(in block: String) {
+    for key in mentionsByBlock.removeValue(forKey: block) ?? [] { mentions[key] = nil }
+  }
+
+  private func liveMentionCSS(_ node: JSONValue, path: [Int], block: String) -> String {
+    guard let index = path.last, let keys = try? model.childKeys(at: Array(path.dropLast())), keys.indices.contains(index) else { return WebSocialStyle.mentionCSS }
+    let key = keys[index]
+    mentionsByBlock[block, default: []].insert(key)
+    let format = TextFormat(rawValue: node["format"]?.intValue ?? 0)
+    // TextNode.updateDOM recreates the outer element when its tag changes.
+    let tag = [(TextFormat.code, "code"), (.highlight, "mark"), (.subscript, "sub"), (.superscript, "sup"), (.bold, "strong"), (.italic, "em")]
+      .first { format.contains($0.0) }?.1 ?? "span"
+    let innerTag = format.contains(.bold) ? "strong" : format.contains(.italic) ? "em" : "span"
+    let style = node["style"]?.stringValue ?? ""
+    var presentation = mentions[key] ?? MentionPresentation(style: style, tag: tag, innerTag: innerTag, effective: InlineCSS(WebSocialStyle.mentionCSS))
+    if presentation.tag != tag {
+      presentation = MentionPresentation(style: style, tag: tag, innerTag: innerTag, effective: InlineCSS(WebSocialStyle.mentionCSS))
+    } else if ["code", "mark", "sub", "sup"].contains(tag), presentation.innerTag != innerTag {
+      // The upstream inner-element replacement returns before patching CSS.
+      presentation.style = style
+    } else if presentation.style != style {
+      let previous = InlineCSS(presentation.style), next = InlineCSS(style)
+      for property in previous.propertyNames where next[property] == nil { presentation.effective[property] = nil }
+      for property in next.propertyNames {
+        guard let value = next[property] else { continue }
+        if ["color", "background-color"].contains(property), CSSColor(value) == nil { continue }
+        presentation.effective[property] = value
+      }
+      presentation.style = style
+    }
+    presentation.innerTag = innerTag
+    mentions[key] = presentation
+    return presentation.effective.serialized
+  }
+
   private let model: any EditorModel
+  /// Element families supplied as native panels rather than flattened text.
+  public var embeddedElementTypes: Set<String> = []
+  var inheritedElementFormatting: [JSONValue] = []
+  public var floatingEmbeddedTypes: Set<String> = []
+  private var floatingByBlock: [String: [(key: String, node: JSONValue)]] = [:]
+  var floatingNodes: [(key: String, node: JSONValue)] { floatingByBlock.values.flatMap { $0 } }
   private let style: Style
   private let standIn: StandIn?
   var nativeAttachment: ((JSONValue, [Int]) -> NSTextAttachment?)?
@@ -99,6 +149,19 @@ public final class DocumentText {
   /// Set while an edit of the text's own has merged blocks, which only a
   /// fresh render can tell apart again.
   private var merged = false
+  var externalResolvedCommentIDs: Set<String>?
+  var externalFootnoteNumbers: [String: Int]?
+  var rendersRootFootnotes = true
+  var commentResolution: Set<String> { externalResolvedCommentIDs ?? resolvedCommentIDs }
+  var referenceNumbers: [String: Int] { externalFootnoteNumbers ?? footnoteNumbers }
+  var activeCommentIDs: Set<String> = []
+  private var resolvedCommentIDs: Set<String> = []
+  private var commentMetadataBlocks: Set<Int> = []
+  private var footnoteNumbers: [String: Int] = [:]
+  private var footnoteDefinitionNumbers: [Int: Int] = [:]
+  private var hasFootnotes = false
+  private var footnoteIndexDirty = true
+  var footnoteSectionTitle = WebFootnoteStyle.titles[""]!
 
   public init(model: any EditorModel, style: @escaping Style, standIn: StandIn? = nil) {
     self.model = model
@@ -125,6 +188,28 @@ public final class DocumentText {
       paragraph.maximumLineHeight = 0
       paragraph.lineHeightMultiple = cssHeight / naturalHeight
       text.addAttribute(.paragraphStyle, value: paragraph, range: range)
+    }
+  }
+
+  /// A CSS line box grows to hold an inline image, where a paragraph's fixed
+  /// line height would clip it and overlap the lines around it, so a
+  /// paragraph with an attachment taller than its lines keeps their height
+  /// only as their least.
+  private static func fitAttachmentLines(in text: NSMutableAttributedString) {
+    let string = text.string as NSString
+    var paragraphs = Set<NSRange>()
+    text.enumerateAttribute(.attachment, in: NSRange(location: 0, length: text.length)) { value, range, _ in
+      guard let attachment = value as? NSTextAttachment,
+        let style = text.attribute(.paragraphStyle, at: range.location, effectiveRange: nil) as? NSParagraphStyle,
+        style.maximumLineHeight > 0, attachment.bounds.height > style.maximumLineHeight else { return }
+      paragraphs.insert(string.paragraphRange(for: range))
+    }
+    for paragraph in paragraphs {
+      text.enumerateAttribute(.paragraphStyle, in: paragraph) { value, range, _ in
+        guard let style = (value as? NSParagraphStyle)?.mutableCopy() as? NSMutableParagraphStyle else { return }
+        style.maximumLineHeight = 0
+        text.addAttribute(.paragraphStyle, value: style, range: range)
+      }
     }
   }
 
@@ -168,9 +253,11 @@ public final class DocumentText {
   func payload(ofBlock index: Int) -> JSONValue? { embeddedNode(at: index)?.node }
 
   private static func decoratorInParagraph(_ node: JSONValue) -> JSONValue? {
-    guard node["type"] == "paragraph", let children = node["children"]?.arrayValue, children.count == 1,
+    guard node["type"] == "paragraph", let children = node["children"]?.arrayValue, !children.isEmpty else { return nil }
+    if children.allSatisfy({ $0["type"] == "comment" || $0["type"] == "thread" }) { return children[0] }
+    guard children.count == 1,
       let type = children[0]["type"]?.stringValue,
-      type == "excalidraw" || (type != "inline-image" && MediaPayload(children[0]) != nil) else { return nil }
+      type == "comment" || type == "thread" || type == "excalidraw" || type == "poll" || type == "sticky" || type == "mermaid" || type == "chart" || (type == "equation" && children[0]["inline"] != true) || (type != "inline-image" && MediaPayload(children[0]) != nil) else { return nil }
     return children[0]
   }
 
@@ -185,7 +272,11 @@ public final class DocumentText {
   /// Renders the whole document into `storage`, replacing what it held.
   @discardableResult public func reload(_ storage: NSMutableAttributedString) throws -> [Splice] {
     let old = blocks.count
+    footnoteIndexDirty = true
+    floatingByBlock.removeAll(keepingCapacity: true)
     let keys = try model.childKeys(at: [])
+    let present = Set(keys)
+    for block in blocks where !present.contains(block.key) { forgetMentions(in: block.key) }
     let (text, rendered) = try render(keys.indices) { keys[$0] }
     blocks = rendered
     merged = false
@@ -199,7 +290,36 @@ public final class DocumentText {
   @discardableResult public func update(_ storage: NSMutableAttributedString, after change: ChangeSet) throws
     -> [Splice]
   {
-    if merged { return try reload(storage) }
+    let changedBlocks = Set(change.changed.compactMap(\.first))
+    let includesFootnote = changedBlocks.contains { index in
+      guard let node = try? model.nodeForPresentation(at: [index]) else { return false }
+      return node["type"] == "footnote-definition" || Self.containsFootnote(node)
+    }
+    let rootChanged = change.changed.contains([])
+    if rootChanged || !changedBlocks.isDisjoint(with: commentMetadataBlocks) || changedBlocks.contains(where: { index in
+      guard let node = try? model.nodeForPresentation(at: [index]) else { return false }
+      return !Self.commentThreads(in: node).isEmpty
+    }) {
+      let keys = try model.childKeys(at: [])
+      let oldKeys = Set(blocks.map(\.key))
+      let metadataKeys = Set(commentMetadataBlocks.compactMap { blocks.indices.contains($0) ? blocks[$0].key : nil })
+      var candidates = changedBlocks
+      for (index, key) in keys.enumerated() where metadataKeys.contains(key) || !oldKeys.contains(key) { candidates.insert(index) }
+      var metadata: Set<Int> = []
+      var resolved: Set<String> = []
+      var seen: Set<String> = []
+      for index in candidates.sorted() where keys.indices.contains(index) {
+        let threads = Self.commentThreads(in: try model.nodeForPresentation(at: [index]))
+        if !threads.isEmpty { metadata.insert(index) }
+        for (id, isResolved) in threads where seen.insert(id).inserted {
+          if isResolved { resolved.insert(id) }
+        }
+      }
+      if resolved != resolvedCommentIDs { return try reload(storage) }
+      commentMetadataBlocks = metadata
+    }
+    if merged || (hasFootnotes && change.changed.contains([])) || (!hasFootnotes && includesFootnote) { return try reload(storage) }
+    if change.changed.contains([]) { footnoteIndexDirty = true }
     var splices: [Splice] = []
     var stale = Set(change.changed.compactMap(\.first))
     if change.changed.contains([]) {
@@ -210,6 +330,11 @@ public final class DocumentText {
       var suffix = 0
       while suffix < min(old.count, keys.count) - prefix, old[old.count - 1 - suffix] == keys[keys.count - 1 - suffix] {
         suffix += 1
+      }
+      let present = Set(keys)
+      for index in prefix..<(old.count - suffix) {
+        floatingByBlock[old[index]] = nil
+        if !present.contains(old[index]) { forgetMentions(in: old[index]) }
       }
       let replaced = prefix..<(keys.count - suffix)
       let (text, rendered) = try render(replaced) { keys[$0] }
@@ -353,25 +478,137 @@ public final class DocumentText {
   private func render(_ indexes: Range<Int>, key: (Int) -> String) throws -> (NSAttributedString, [Block]) {
     let text = NSMutableAttributedString()
     var rendered: [Block] = []
+    var rootNodes: [Int: JSONValue] = [:]
+    if footnoteIndexDirty {
+      footnoteDefinitionNumbers = [:]
+      footnoteNumbers = [:]
+      hasFootnotes = false
+      resolvedCommentIDs = []; commentMetadataBlocks = []
+      var seenThreads: Set<String> = []
+      for index in try model.childKeys(at: []).indices {
+        let node = try model.nodeForPresentation(at: [index])
+        rootNodes[index] = node
+        let threads = Self.commentThreads(in: node)
+        if !threads.isEmpty { commentMetadataBlocks.insert(index) }
+        for (id, resolved) in threads where seenThreads.insert(id).inserted {
+          if resolved { resolvedCommentIDs.insert(id) }
+        }
+        if rendersRootFootnotes, node["type"] == "footnote-definition" {
+          footnoteDefinitionNumbers[index] = footnoteDefinitionNumbers.count + 1
+          if let label = node["label"]?.stringValue, footnoteNumbers[label] == nil { footnoteNumbers[label] = footnoteNumbers.count + 1 }
+        }
+        hasFootnotes = hasFootnotes || node["type"] == "footnote-definition" || Self.containsFootnote(node)
+      }
+      footnoteIndexDirty = false
+    }
     for index in indexes {
-      let node = try model.nodeForPresentation(at: [index])
+      let blockKey = key(index)
+      let oldMentions = mentionsByBlock[blockKey] ?? []
+      mentionsByBlock[blockKey] = []
+      let node = try rootNodes[index] ?? model.nodeForPresentation(at: [index])
+      var floating: [(key: String, node: JSONValue)] = []
+      func collectFloating(_ value: JSONValue, at path: [Int]) throws {
+        if floatingEmbeddedTypes.contains(value["type"]?.stringValue ?? ""), let last = path.last {
+          let childKeys = try model.childKeys(at: Array(path.dropLast()))
+          if childKeys.indices.contains(last) { floating.append((childKeys[last], value)) }
+          return
+        }
+        for (child, value) in (value["children"]?.arrayValue ?? []).enumerated() {
+          try collectFloating(value, at: path + [child])
+        }
+      }
+      if !floatingEmbeddedTypes.isEmpty { try collectFloating(node, at: [index]) }
+      floatingByBlock[key(index)] = floating.isEmpty ? nil : floating
       let blockType = (node["type"] == "heading" ? node["tag"] : node["type"])?.stringValue ?? ""
-      var renderer = Renderer(style: style, standIn: standIn, blockType: blockType,
-        nativeAttachment: { [nativeAttachment] child, path in
-          Self.decoratorInParagraph(node) == nil ? nativeAttachment?(child, [index] + path) : nil
+      let blockStyle = rendersRootFootnotes && node["type"] == "footnote-definition" ? Self.footnoteStyle(style) : style
+      var renderer = Renderer(
+        style: blockStyle, standIn: standIn, blockType: blockType,
+        nativeAttachment: { [nativeAttachment, floatingEmbeddedTypes] child, path in
+          if floatingEmbeddedTypes.contains(child["type"]?.stringValue ?? "") {
+            let attachment = NSTextAttachment()
+            attachment.bounds = .zero
+            return attachment
+          }
+          return Self.decoratorInParagraph(node) == nil ? nativeAttachment?(child, [index] + path) : nil
         })
-      renderer.add(node, at: [])
+      for context in inheritedElementFormatting { renderer.inheritElementFormatting(context, context: true) }
+      renderer.mentionCSS = { [self] value, path in liveMentionCSS(value, path: [index] + path, block: blockKey) }
+      renderer.activeCommentIDs = activeCommentIDs
+      renderer.resolvedCommentIDs = commentResolution
+      renderer.footnoteNumbers = referenceNumbers
+      if embeddedElementTypes.contains(blockType) {
+        renderer.text.append(NSAttributedString(string: "\u{FFFC}", attributes: blockStyle(blockType, [])))
+        renderer.spans[[]] = Span(start: 0, end: 1, kind: .character)
+      } else {
+        renderer.add(node, at: [])
+      }
+      for removed in oldMentions.subtracting(mentionsByBlock[blockKey] ?? []) { mentions[removed] = nil }
       let block = renderer.text
       rendered.append(
         Block(
           key: key(index), type: blockType, length: block.length, spans: renderer.spans,
-          kind: Self.kind(of: node, spans: renderer.spans), lines: renderer.lines))
-      block.append(NSAttributedString(string: "\n", attributes: style(blockType, [])))
+          kind: Self.kind(of: node, spans: renderer.spans, floating: floatingEmbeddedTypes), lines: renderer.lines))
+      block.append(NSAttributedString(string: "\n", attributes: blockStyle(blockType, [])))
+      if let number = footnoteDefinitionNumbers[index] {
+        var attributes: [NSAttributedString.Key: Any] = [.footnoteDefinitionNumber: number, .footnoteDefinitionLabel: node["label"]?.stringValue ?? ""]
+        attributes[.footnoteBaseFont] = blockStyle(blockType, [])[.font]
+        block.addAttributes(attributes, range: NSRange(location: 0, length: block.length))
+      }
       for line in renderer.lines { block.addAttribute(line.key, value: line.value.base, range: NSRange(line.range)) }
-      Self.applyFontGeometry(renderer, to: block, base: style(blockType, []))
+      if renderer.contextPadding != ContextPadding() {
+        block.addAttribute(.ancestorElementPadding, value: renderer.contextPadding, range: NSRange(location: 0, length: block.length))
+      }
+      Self.applyFontGeometry(renderer, to: block, base: blockStyle(blockType, []))
+      Self.fitAttachmentLines(in: block)
+      if footnoteDefinitionNumbers[index] != nil, index > 0,
+        (rootNodes[index - 1] ?? (try? model.nodeForPresentation(at: [index - 1])))?["type"] != "footnote-definition" {
+        let range = (block.string as NSString).paragraphRange(for: NSRange(location: 0, length: 0))
+        let paragraph = (block.attribute(.paragraphStyle, at: 0, effectiveRange: nil) as? NSParagraphStyle)?.mutableCopy() as? NSMutableParagraphStyle ?? NSMutableParagraphStyle()
+        #if canImport(UIKit)
+        let size = (block.attribute(.footnoteBaseFont, at: 0, effectiveRange: nil) as? UIFont)?.pointSize ?? 17 * WebFootnoteStyle.definitionFontScale
+        #else
+        let size = (block.attribute(.footnoteBaseFont, at: 0, effectiveRange: nil) as? NSFont)?.pointSize ?? 17 * WebFootnoteStyle.definitionFontScale
+        #endif
+        paragraph.paragraphSpacingBefore = size * WebFootnoteStyle.sectionPadding
+        block.addAttribute(.paragraphStyle, value: paragraph, range: range)
+        block.addAttribute(.footnoteSectionTitle, value: footnoteSectionTitle, range: NSRange(location: 0, length: block.length))
+      }
       text.append(block)
     }
     return (text, rendered)
+  }
+
+  private static func footnoteStyle(_ style: @escaping Style) -> Style {
+    { block, format in
+      var attributes = style(block, format)
+      #if canImport(UIKit)
+      if let font = attributes[.font] as? UIFont { attributes[.font] = font.withSize(font.pointSize * WebFootnoteStyle.definitionFontScale) }
+      let font = attributes[.font] as? UIFont
+      #else
+      if let font = attributes[.font] as? NSFont { attributes[.font] = NSFont(descriptor: font.fontDescriptor, size: font.pointSize * WebFootnoteStyle.definitionFontScale) }
+      let font = attributes[.font] as? NSFont
+      #endif
+      if let font {
+        let paragraph = (attributes[.paragraphStyle] as? NSParagraphStyle)?.mutableCopy() as? NSMutableParagraphStyle ?? NSMutableParagraphStyle()
+        paragraph.paragraphSpacing = 0
+        paragraph.minimumLineHeight = font.pointSize * WebFootnoteStyle.definitionLineHeight
+        paragraph.maximumLineHeight = paragraph.minimumLineHeight
+        paragraph.headIndent = font.pointSize * WebFootnoteStyle.definitionIndent
+        paragraph.firstLineHeadIndent = paragraph.headIndent
+        attributes[.paragraphStyle] = paragraph
+      }
+      return attributes
+    }
+  }
+
+  private static func commentThreads(in node: JSONValue) -> [(String, Bool)] {
+    let own: [(String, Bool)] = node["type"] == "thread" && node["thread"]?["id"]?.stringValue != nil
+      ? [(node["thread"]!["id"]!.stringValue!, node["thread"]?["resolved"] == true)] : []
+    return own + (node["children"]?.arrayValue ?? []).flatMap(commentThreads)
+  }
+
+  private static func containsFootnote(_ node: JSONValue) -> Bool {
+    node["type"] == "footnote-reference" || (node["children"]?.arrayValue?.contains(where: containsFootnote) ?? false)
   }
 
   /// A table after `range` of it is replaced with text `length` long, or
@@ -397,8 +634,11 @@ public final class DocumentText {
     return inOneCell ? edited : nil
   }
 
-  private static func kind(of node: JSONValue, spans: [[Int]: Span]) -> BlockKind {
-    if let embedded = decoratorInParagraph(node), let type = embedded["type"]?.stringValue { return .embedded(type: type) }
+  private static func kind(of node: JSONValue, spans: [[Int]: Span], floating: Set<String>) -> BlockKind {
+    if let wrapped = decoratorInParagraph(node), let type = wrapped["type"]?.stringValue, !floating.contains(type) {
+      return .embedded(type: type)
+    }
+    if node["type"] == "code" { return .embedded(type: "code") }
     switch spans[[]]?.kind {
     case .character: return .embedded(type: node["type"]?.stringValue ?? "")
     case .element(let rowCount) where node["type"] == "table":
@@ -467,11 +707,17 @@ public final class DocumentText {
     var spans: [[Int]: Span] = [:]
     var lines: [Line] = []
     var resizedRanges: [Range<Int>] = []
+    var activeCommentIDs: Set<String> = []
+    var resolvedCommentIDs: Set<String> = []
+    var footnoteNumbers: [String: Int] = [:]
     /// The lists around the node being added.
     private var lists: [EditorCommand.ListType] = []
     /// Where the text being added links to, as a link element's does unless
     /// it's an autolink undone.
     private var link: URL?
+    private var inheritedParagraph: NSParagraphStyle?
+    private var inheritedLogicalAlignment: String?
+    var contextPadding = ContextPadding()
 
     init(style: @escaping Style, standIn: StandIn?, blockType: String, nativeAttachment: ((JSONValue, [Int]) -> NSTextAttachment?)?) {
       self.style = style
@@ -480,14 +726,74 @@ public final class DocumentText {
       self.nativeAttachment = nativeAttachment
     }
 
+    mutating func inheritElementFormatting(_ node: JSONValue, context: Bool = false) {
+      let format = node["format"]?.stringValue
+      if node["type"] != "table", node["type"] != "tablerow", let format, !format.isEmpty {
+        inheritedLogicalAlignment = format
+      }
+      if node["direction"]?.stringValue != nil || node["format"]?.stringValue?.isEmpty == false {
+        let paragraph = (inheritedParagraph ?? style(blockType, [])[.paragraphStyle] as? NSParagraphStyle)?.mutableCopy() as? NSMutableParagraphStyle ?? NSMutableParagraphStyle()
+        let direction = node["direction"]?.stringValue
+        if let direction { paragraph.baseWritingDirection = direction == "rtl" ? .rightToLeft : .leftToRight }
+        switch inheritedLogicalAlignment {
+        case "left": paragraph.alignment = .left
+        case "center": paragraph.alignment = .center
+        case "right": paragraph.alignment = .right
+        case "justify": paragraph.alignment = .justified
+        case "start": paragraph.alignment = paragraph.baseWritingDirection == .rightToLeft ? .right : .left
+        case "end": paragraph.alignment = paragraph.baseWritingDirection == .rightToLeft ? .left : .right
+        default: break
+        }
+        inheritedParagraph = paragraph
+      }
+      if context, let indent = node["indent"]?.numberValue, indent.isFinite {
+        if inheritedParagraph?.baseWritingDirection == .rightToLeft { contextPadding.right += max(0, indent) }
+        else { contextPadding.left += max(0, indent) }
+      }
+    }
+
     /// Inline elements, which sit in a line of text rather than on their own.
-    private static let inlineElements: Set<String> = ["link", "autolink", "mark"]
+    var mentionCSS: ((JSONValue, [Int]) -> String)?
+
+    private static let inlineElements: Set<String> = ["link", "autolink", "mark", "comment", "thread"]
 
     mutating func add(_ node: JSONValue, at path: [Int]) {
       let start = text.length
+      let outerParagraph = inheritedParagraph, outerAlignment = inheritedLogicalAlignment
+      defer { inheritedParagraph = outerParagraph; inheritedLogicalAlignment = outerAlignment }
+      if Self.isBlock(node) { inheritElementFormatting(node) }
+      if node["type"] == "comment" || node["type"] == "thread" {
+        #if canImport(UIKit)
+        let attachment = HiddenCommentAttachment()
+        #else
+        let attachment = NSTextAttachment()
+        attachment.attachmentCell = nil
+        #endif
+        text.append(NSAttributedString(string: "\u{FFFC}", attributes: style(blockType, []).merging([.attachment: attachment]) { $1 }))
+        spans[path] = Span(start: start, end: text.length, kind: .character)
+        return
+      }
+      if node["type"] == "footnote-reference", let label = node["label"]?.stringValue {
+        let marker = footnoteNumbers[label].map(String.init) ?? "\(label)?"
+        var attributes = style(blockType, [.superscript])
+        attributes[.footnoteReference] = label
+        #if canImport(UIKit)
+        attributes[.foregroundColor] = ThemeColor.primary.color
+        if let font = attributes[.font] as? UIFont {
+          attributes[.font] = UIFont(descriptor: font.fontDescriptor.addingAttributes([.traits: [UIFontDescriptor.TraitKey.weight: Typesetting.weight(Int(WebFootnoteStyle.referenceWeight))]]), size: font.pointSize)
+        }
+        #endif
+        attributes[.attachment] = FootnoteReferenceAttachment(marker: marker, attributes: attributes)
+        text.append(NSAttributedString(string: "\u{FFFC}", attributes: attributes))
+        spans[path] = Span(start: start, end: text.length, kind: .character)
+        return
+      }
       if !path.isEmpty, let attachment = nativeAttachment?(node, path) {
         #if canImport(UIKit)
         (attachment as? MediaAttachment)?.captionStyle = style
+        if let font = style(blockType, [])[.font] as? UIFont {
+          (attachment as? any LazyTextAttachment)?.use(fontSize: Double(font.pointSize))
+        }
         #endif
         text.append(NSAttributedString(string: "\u{FFFC}", attributes: style(blockType, []).merging([.attachment: attachment]) { $1 }))
         spans[path] = Span(start: start, end: text.length, kind: .character)
@@ -519,21 +825,22 @@ public final class DocumentText {
           add(child, at: path + [index])
         }
         if listType != nil { lists.removeLast() }
-        spans[path] = Span(start: start, end: text.length, kind: .element(childCount: children.count))
-        if Self.isBlock(node), node["direction"]?.stringValue != nil || node["format"]?.stringValue?.isEmpty == false {
-          let paragraph = (style(blockType, [])[.paragraphStyle] as? NSParagraphStyle)?.mutableCopy() as? NSMutableParagraphStyle ?? NSMutableParagraphStyle()
-          let direction = node["direction"]?.stringValue
-          if let direction { paragraph.baseWritingDirection = direction == "rtl" ? .rightToLeft : .leftToRight }
-          switch node["type"] == "table" || node["type"] == "tablerow" ? nil : node["format"]?.stringValue {
-          case "left": paragraph.alignment = .left
-          case "center": paragraph.alignment = .center
-          case "right": paragraph.alignment = .right
-          case "justify": paragraph.alignment = .justified
-          case "start": paragraph.alignment = direction == "rtl" ? .right : .left
-          case "end": paragraph.alignment = direction == "rtl" ? .left : .right
-
-          default: break
+        if node["type"] == "mark", let ids = node["ids"]?.arrayValue?.compactMap(\.stringValue), text.length > start {
+          let highlight = CommentHighlight(ids: ids, resolved: ids.allSatisfy(resolvedCommentIDs.contains),
+            active: ids.contains(where: activeCommentIDs.contains))
+          var runs: [(NSRange, [CommentHighlight])] = []
+          text.enumerateAttribute(.commentHighlights, in: NSRange(location: start, length: text.length - start)) { value, range, _ in
+            runs.append((range, value as? [CommentHighlight] ?? []))
           }
+          for (range, nested) in runs {
+            text.addAttribute(.commentHighlights, value: [highlight] + nested, range: range)
+            if nested.isEmpty {
+              text.addAttributes([.commentIDs: ids, .commentResolved: highlight.resolved, .commentActive: highlight.active], range: range)
+            }
+          }
+        }
+        spans[path] = Span(start: start, end: text.length, kind: .element(childCount: children.count))
+        if Self.isBlock(node), let paragraph = inheritedParagraph {
           lines.insert(Line(range: start..<(text.length + 1), key: .paragraphStyle, value: paragraph), at: lineCount)
         }
         if let line = line(for: node, at: path) {
@@ -546,7 +853,7 @@ public final class DocumentText {
         append("\u{2028}", format: [])
         kind = .character
       } else if let string = node["text"]?.stringValue {
-        append(string, format: TextFormat(rawValue: node["format"]?.intValue ?? 0), css: node["style"]?.stringValue ?? "")
+        append(string, format: TextFormat(rawValue: node["format"]?.intValue ?? 0), css: node["type"] == "mention" ? mentionCSS?(node, path) ?? WebSocialStyle.mentionCSS : node["style"]?.stringValue ?? "")
         kind = .text
       } else {
         append("\u{FFFC}", format: [])
@@ -565,7 +872,7 @@ public final class DocumentText {
           path: path, lists: lists, value: node["value"]?.intValue ?? 1, checked: node["checked"]?.boolValue ?? false)
         return (.listItem, item)
       }
-      guard let indent = node["indent"]?.intValue, indent > 0 else { return nil }
+      guard let indent = node["indent"]?.numberValue, indent > 0 else { return nil }
       return (.elementIndent, indent)
     }
 
@@ -575,14 +882,26 @@ public final class DocumentText {
 
     private mutating func append(_ string: String, format: TextFormat, css: String = "") {
       var attributes = style(blockType, format)
-      if !css.isEmpty, let rawSize = InlineCSS(css)["font-size"], rawSize.hasSuffix("px"),
-        let size = Double(rawSize.dropLast(2)), size.isFinite, size > 0 {
-        resizedRanges.append(text.length..<(text.length + string.utf16.count))
-        #if canImport(UIKit)
-        if let font = attributes[.font] as? UIFont { attributes[.font] = font.withSize(size) }
-        #else
-        if let font = attributes[.font] as? NSFont { attributes[.font] = NSFont(descriptor: font.fontDescriptor, size: size) }
-        #endif
+      if !css.isEmpty {
+        let inline = InlineCSS(css)
+        for (property, key) in [("color", NSAttributedString.Key.foregroundColor), ("background-color", .backgroundColor)] {
+          if let value = inline[property], let color = CSSColor(value) {
+            #if canImport(UIKit)
+            attributes[key] = UIColor(css: color)
+            #else
+            attributes[key] = NSColor(deviceRed: color.red, green: color.green, blue: color.blue, alpha: color.alpha)
+            #endif
+          }
+        }
+        if let rawSize = inline["font-size"], rawSize.hasSuffix("px"),
+          let size = Double(rawSize.dropLast(2)), size.isFinite, size > 0 {
+          resizedRanges.append(text.length..<(text.length + string.utf16.count))
+          #if canImport(UIKit)
+          if let font = attributes[.font] as? UIFont { attributes[.font] = font.withSize(size) }
+          #else
+          if let font = attributes[.font] as? NSFont { attributes[.font] = NSFont(descriptor: font.fontDescriptor, size: size) }
+          #endif
+        }
       }
       if let link { attributes[.link] = link }
       text.append(NSAttributedString(string: string, attributes: attributes))
@@ -604,7 +923,22 @@ extension Range<Int> {
   }
 }
 
+struct ContextPadding: Hashable {
+  var left: Double = 0
+  var right: Double = 0
+}
+
 extension NSAttributedString.Key {
+  static let ancestorElementPadding = NSAttributedString.Key("TextKitEditor.ancestorElementPadding")
+  static let commentIDs = NSAttributedString.Key("TextKitEditor.commentIDs")
+  static let commentHighlights = NSAttributedString.Key("TextKitEditor.commentHighlights")
+  static let commentResolved = NSAttributedString.Key("TextKitEditor.commentResolved")
+  static let commentActive = NSAttributedString.Key("TextKitEditor.commentActive")
+  static let footnoteReference = NSAttributedString.Key("TextKitEditor.footnoteReference")
+  static let footnoteDefinitionNumber = NSAttributedString.Key("TextKitEditor.footnoteDefinitionNumber")
+  static let footnoteBaseFont = NSAttributedString.Key("TextKitEditor.footnoteBaseFont")
+  static let footnoteSectionTitle = NSAttributedString.Key("TextKitEditor.footnoteSectionTitle")
+  static let footnoteDefinitionLabel = NSAttributedString.Key("TextKitEditor.footnoteDefinitionLabel")
   /// A `DocumentText.ListItem`, on the line of the item it describes.
   static let listItem = NSAttributedString.Key("TextKitEditor.listItem")
   /// How many levels in a block is indented, on its lines.

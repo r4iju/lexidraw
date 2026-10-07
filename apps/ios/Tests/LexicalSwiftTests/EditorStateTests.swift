@@ -121,7 +121,7 @@ import Testing
     #expect(model.isEditable)
 
     try model.load(
-      LexicalJSON.document([LexicalJSON.paragraph([LexicalJSON.text("plain")]), ["type": "code", "version": 1, "children": []]]))
+      LexicalJSON.document([LexicalJSON.paragraph([LexicalJSON.text("plain")]), ["type": "unported-widget", "version": 1, "children": []]]))
     #expect(!model.isEditable)
   }
 

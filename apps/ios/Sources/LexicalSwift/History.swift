@@ -25,9 +25,10 @@ struct History {
   /// A committed update, from `previous` to `next`, at `time`. One `pushing`
   /// a new undo step, as `HISTORY_PUSH_TAG` does, joins the last only where
   /// it changed nothing.
+  @discardableResult
   mutating func record(
     _ update: Update, from previous: EditorState, to next: EditorState, at time: Int, pushing: Bool = false
-  ) {
+  ) -> Bool {
     let changeType = update.tags.isEmpty ? Self.changeType(update, from: previous, to: next) : .other
     let movesOnlySelection = update.dirtyLeaves.isEmpty && update.dirtyElements.isEmpty
     defer {
@@ -36,17 +37,19 @@ struct History {
     }
     if movesOnlySelection {
       if next.selection != nil { current = next }
-      return
+      return false
     }
     let merges =
       (!pushing && changeType != .other && changeType == previousChangeType
         && time < previousChangeTime + Self.delay)
       || (update.dirtyLeaves.count == 1 && Self.isTextUnchanged(update.dirtyLeaves[0], from: previous, to: next))
+    let discardsRedo = !merges && !redoStack.isEmpty
     if !merges {
       redoStack = []
       undoStack.append(current)
     }
     current = next
+    return discardsRedo
   }
 
   /// The state to go back to, if there is one.
@@ -90,11 +93,11 @@ struct History {
       else { return .other }
       return .insertCharacterAfterSelection
     }
-    guard let before = previous.nodes[dirtyNode]?.textNode, let after = next.nodes[dirtyNode]?.textNode,
-      before.mode == after.mode, !(before.text ?? "").isIdentical(to: after.text ?? ""), nextAnchor.key == previousAnchor.key,
+    guard let before = previous.nodes[dirtyNode], let after = next.nodes[dirtyNode], before.isText, after.isText,
+      before.textMode == after.textMode, !before.text.isIdentical(to: after.text), nextAnchor.key == previousAnchor.key,
       nextAnchor.type == .text
     else { return .other }
-    let textDiff = (after.text ?? "").utf16.count - (before.text ?? "").utf16.count
+    let textDiff = after.text.utf16.count - before.text.utf16.count
     switch (textDiff, previousAnchor.offset - nextAnchor.offset) {
     case (1, -1): return .insertCharacterAfterSelection
     case (-1, 1): return .deleteCharacterBeforeSelection

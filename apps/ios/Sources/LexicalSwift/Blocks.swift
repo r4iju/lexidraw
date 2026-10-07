@@ -38,6 +38,32 @@ extension Update {
     }
   }
 
+  mutating func formatCode(_ selection: RangeSelection) throws {
+    if state.isCollapsed(try state.caretRange(from: selection)) {
+      for block in try blocks(in: selection) {
+        let code = create(SerializedDocumentCodeNode.type)
+        try copyBlockFormatIndent(from: block, to: code)
+        try replace(block, with: code, includingChildren: true)
+      }
+    } else {
+      let text = try textContent(selection)
+      try insertNodes(selection, [create(SerializedDocumentCodeNode.type)])
+      if let next = self.selection { try insertCodeSource(text, at: next) }
+    }
+  }
+
+  mutating func insertCodeSource(_ text: String, at selection: RangeSelection) throws {
+    var nodes: [NodeKey] = []
+    for (index, line) in text.components(separatedBy: "\n").enumerated() {
+      if index > 0 { nodes.append(create(SerializedLineBreakNode.type)) }
+      for (tabIndex, part) in line.components(separatedBy: "\t").enumerated() {
+        if tabIndex > 0 { nodes.append(create(SerializedTabNode.type)) }
+        if !part.isEmpty { nodes.append(createText(part)) }
+      }
+    }
+    try insertNodes(selection, nodes)
+  }
+
   /// `$setBlockType` in @packages/lexical-nodes.
   mutating func setBlockType(_ selection: RangeSelection, _ type: BlockType) throws {
     try replace(try blocks(in: selection), with: type)
@@ -66,7 +92,7 @@ extension Update {
         case .quote: create(SerializedQuoteNode.type)
         case .h1, .h2, .h3, .h4, .h5, .h6: createHeading(HeadingTag(rawValue: type.rawValue)!)
         }
-      copyBlockFormatIndent(from: block, to: element)
+      try copyBlockFormatIndent(from: block, to: element)
       try replace(block, with: element, includingChildren: true)
     }
   }
@@ -115,16 +141,16 @@ extension Update {
   }
 
   /// `$copyBlockFormatIndent`.
-  private mutating func copyBlockFormatIndent(from source: NodeKey, to destination: NodeKey) {
+  private mutating func copyBlockFormatIndent(from source: NodeKey, to destination: NodeKey) throws {
     let json = state[source].payload.json
     let format = json["format"]?.stringValue.flatMap(ElementFormat.init(rawValue:)) ?? .empty
-    let indent = self.indent(of: source)
+    let indent = try requireWholeIndent(of: source)
     let destinationJSON = state[destination].payload.json
     if format.rawValue != destinationJSON["format"]?.stringValue ?? "" {
       modifyElement(destination) { $0.format = format }
     }
     if indent != self.indent(of: destination) {
-      modifyElement(destination) { $0.indent = indent }
+      modifyElement(destination) { $0.editorIndent = indent }
     }
   }
 
@@ -204,28 +230,54 @@ extension Update {
 protocol ElementFields {
   var direction: Nullable<Direction> { get set }
   var format: ElementFormat? { get set }
-  var indent: Int? { get set }
+  var editorIndent: Int? { get set }
   var textFormat: Double? { get set }
   var textStyle: String? { get set }
 }
 
-extension SerializedParagraphNode: ElementFields {}
-extension SerializedHeadingNode: ElementFields {}
-extension SerializedQuoteNode: ElementFields {}
-extension SerializedListNode: ElementFields {}
-extension SerializedListItemNode: ElementFields {}
-extension SerializedRootNode: ElementFields {}
-extension SerializedLinkNode: ElementFields {}
-extension SerializedAutoLinkNode: ElementFields {}
-extension SerializedTableNode: ElementFields {}
-extension SerializedTableRowNode: ElementFields {}
-extension SerializedTableCellNode: ElementFields {}
+protocol IntegerElementFields: ElementFields { var indent: Int? { get set } }
+extension IntegerElementFields {
+  var editorIndent: Int? {
+    get { indent }
+    set { indent = newValue }
+  }
+}
+protocol FloatingElementFields: ElementFields { var indent: Double? { get set } }
+extension FloatingElementFields {
+  var editorIndent: Int? {
+    get { indent.flatMap { $0.isFinite && $0.rounded(.towardZero) == $0 && $0 >= Double(Int.min) && $0 < Double(Int.max) ? Int($0) : nil } }
+    set { indent = newValue.map(Double.init) }
+  }
+}
+extension SerializedCalloutNode: IntegerElementFields {}
+extension SerializedLayoutContainerNode: IntegerElementFields {}
+extension SerializedLayoutItemNode: FloatingElementFields {}
+extension SerializedCollapsibleContainerNode: FloatingElementFields {}
+extension SerializedCollapsibleContentNode: FloatingElementFields {}
+extension SerializedCollapsibleTitleNode: FloatingElementFields {}
+
+extension SerializedDocumentCodeNode: IntegerElementFields {}
+extension SerializedParagraphNode: IntegerElementFields {}
+extension SerializedHeadingNode: IntegerElementFields {}
+extension SerializedQuoteNode: IntegerElementFields {}
+extension SerializedListNode: IntegerElementFields {}
+extension SerializedListItemNode: IntegerElementFields {}
+extension SerializedRootNode: IntegerElementFields {}
+extension SerializedLinkNode: IntegerElementFields {}
+extension SerializedAutoLinkNode: IntegerElementFields {}
+extension SerializedTableNode: IntegerElementFields {}
+extension SerializedTableRowNode: IntegerElementFields {}
+extension SerializedTableCellNode: IntegerElementFields {}
+extension SerializedFootnoteDefinitionNode: IntegerElementFields {}
+extension SerializedMarkNode: IntegerElementFields {}
 
 extension SerializedNode {
   var elementFields: (any ElementFields)? {
     get {
       switch self {
       case .paragraph(let node): node
+      case .documentCode(let node): node
+      case .footnoteDefinition(let node): node
       case .heading(let node): node
       case .quote(let node): node
       case .list(let node): node
@@ -233,15 +285,24 @@ extension SerializedNode {
       case .root(let node): node
       case .link(let node): node
       case .autoLink(let node): node
+      case .mark(let node): node
       case .table(let node): node
       case .tableRow(let node): node
       case .tableCell(let node): node
+      case .collapsibleTitle(let node): node
+      case .collapsibleContent(let node): node
+      case .collapsibleContainer(let node): node
+      case .layoutItem(let node): node
+      case .layoutContainer(let node): node
+      case .callout(let node): node
       default: nil
       }
     }
     set {
       switch newValue {
+      case let node as SerializedDocumentCodeNode: self = .documentCode(node)
       case let node as SerializedParagraphNode: self = .paragraph(node)
+      case let node as SerializedFootnoteDefinitionNode: self = .footnoteDefinition(node)
       case let node as SerializedHeadingNode: self = .heading(node)
       case let node as SerializedQuoteNode: self = .quote(node)
       case let node as SerializedListNode: self = .list(node)
@@ -249,9 +310,16 @@ extension SerializedNode {
       case let node as SerializedRootNode: self = .root(node)
       case let node as SerializedLinkNode: self = .link(node)
       case let node as SerializedAutoLinkNode: self = .autoLink(node)
+      case let node as SerializedMarkNode: self = .mark(node)
       case let node as SerializedTableNode: self = .table(node)
       case let node as SerializedTableRowNode: self = .tableRow(node)
       case let node as SerializedTableCellNode: self = .tableCell(node)
+      case let node as SerializedCollapsibleTitleNode: self = .collapsibleTitle(node)
+      case let node as SerializedCollapsibleContentNode: self = .collapsibleContent(node)
+      case let node as SerializedCollapsibleContainerNode: self = .collapsibleContainer(node)
+      case let node as SerializedLayoutItemNode: self = .layoutItem(node)
+      case let node as SerializedLayoutContainerNode: self = .layoutContainer(node)
+      case let node as SerializedCalloutNode: self = .callout(node)
       default: break
       }
     }

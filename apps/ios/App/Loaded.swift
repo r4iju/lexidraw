@@ -13,7 +13,8 @@ enum Loaded<Value> {
   }
 
   /// What `fetch` gave, or why it failed; nil when the task was cancelled,
-  /// as it is when a newer load takes over, so what is shown stays.
+  /// as it is when a newer load takes over, so what is shown stays. A
+  /// cancelled request can fail as a URL error rather than as cancellation.
   @MainActor static func from(_ fetch: () async throws -> Value) async -> Loaded? {
     do {
       return .loaded(try await fetch())
@@ -22,7 +23,7 @@ enum Loaded<Value> {
     } catch is Unreadable {
       return .unreadable
     } catch {
-      return .failed(error.localizedDescription)
+      return Task.isCancelled ? nil : .failed(error.localizedDescription)
     }
   }
 }

@@ -1,0 +1,213 @@
+{
+  "changes" : [
+    {
+      "refused" : "invalidState"
+    },
+    {
+      "refused" : "noSelection"
+    }
+  ],
+  "commands" : [
+    {
+      "anchor" : {
+        "offset" : 2,
+        "path" : [
+          0,
+          1,
+          0,
+          0,
+          0
+        ],
+        "type" : "text"
+      },
+      "focus" : {
+        "offset" : 5,
+        "path" : [
+          0,
+          0,
+          0
+        ],
+        "type" : "text"
+      },
+      "type" : "setSelection"
+    },
+    {
+      "type" : "insertParagraph"
+    }
+  ],
+  "expected" : {
+    "state" : {
+      "root" : {
+        "children" : [
+          {
+            "children" : [
+              {
+                "children" : [
+                  {
+                    "children" : [
+                      {
+                        "detail" : 0,
+                        "format" : 0,
+                        "mode" : "normal",
+                        "style" : "",
+                        "text" : "#-話す-",
+                        "type" : "text",
+                        "version" : 1
+                      }
+                    ],
+                    "direction" : null,
+                    "format" : "",
+                    "indent" : 0,
+                    "textFormat" : 0,
+                    "textStyle" : "",
+                    "type" : "paragraph",
+                    "version" : 1
+                  }
+                ],
+                "direction" : null,
+                "format" : "",
+                "indent" : 0,
+                "type" : "collapsible-title",
+                "version" : 1
+              },
+              {
+                "children" : [
+                  {
+                    "children" : [
+                      {
+                        "children" : [
+                          {
+                            "detail" : 0,
+                            "format" : 1,
+                            "mode" : "normal",
+                            "style" : "",
+                            "text" : "\\~",
+                            "type" : "text",
+                            "version" : 1
+                          }
+                        ],
+                        "direction" : null,
+                        "format" : "",
+                        "indent" : 0,
+                        "rel" : "noreferrer",
+                        "target" : null,
+                        "title" : null,
+                        "type" : "link",
+                        "url" : "https://",
+                        "version" : 1
+                      }
+                    ],
+                    "direction" : null,
+                    "format" : "",
+                    "indent" : 2,
+                    "textFormat" : 0,
+                    "textStyle" : "color: red;",
+                    "type" : "paragraph",
+                    "version" : 1
+                  }
+                ],
+                "direction" : null,
+                "format" : "",
+                "indent" : 0,
+                "type" : "collapsible-content",
+                "version" : 1
+              }
+            ],
+            "direction" : null,
+            "format" : "",
+            "indent" : 0,
+            "open" : true,
+            "type" : "collapsible-container",
+            "version" : 1
+          }
+        ],
+        "direction" : null,
+        "format" : "",
+        "indent" : 0,
+        "type" : "root",
+        "version" : 1
+      }
+    }
+  },
+  "start" : {
+    "root" : {
+      "children" : [
+        {
+          "children" : [
+            {
+              "children" : [
+                {
+                  "detail" : 0,
+                  "format" : 0,
+                  "mode" : "normal",
+                  "style" : "",
+                  "text" : "#-話す-",
+                  "type" : "text",
+                  "version" : 1
+                }
+              ],
+              "direction" : null,
+              "format" : "",
+              "indent" : 0,
+              "type" : "collapsible-title",
+              "version" : 1
+            },
+            {
+              "children" : [
+                {
+                  "children" : [
+                    {
+                      "children" : [
+                        {
+                          "detail" : 0,
+                          "format" : 1,
+                          "mode" : "normal",
+                          "style" : "",
+                          "text" : "\\~",
+                          "type" : "text",
+                          "version" : 1
+                        }
+                      ],
+                      "direction" : null,
+                      "format" : "",
+                      "indent" : 0,
+                      "rel" : "noreferrer",
+                      "target" : null,
+                      "title" : null,
+                      "type" : "link",
+                      "url" : "https://",
+                      "version" : 1
+                    }
+                  ],
+                  "direction" : null,
+                  "format" : "",
+                  "indent" : 2,
+                  "textFormat" : 0,
+                  "textStyle" : "color: red;",
+                  "type" : "paragraph",
+                  "version" : 1
+                }
+              ],
+              "direction" : null,
+              "format" : "",
+              "indent" : 0,
+              "type" : "collapsible-content",
+              "version" : 1
+            }
+          ],
+          "direction" : null,
+          "format" : "",
+          "indent" : 0,
+          "open" : true,
+          "type" : "collapsible-container",
+          "version" : 1
+        }
+      ],
+      "direction" : null,
+      "format" : "",
+      "indent" : 0,
+      "type" : "root",
+      "version" : 1
+    }
+  }
+}

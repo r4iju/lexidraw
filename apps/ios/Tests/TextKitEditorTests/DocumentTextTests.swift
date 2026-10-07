@@ -8,12 +8,187 @@ import LexicalFuzz
 import LexicalReference
 import LexicalSwift
 import Testing
-import TextKitEditor
+@testable import TextKitEditor
 
 @Suite struct DocumentTextTests {
+  @Test func multipleCommentMarkersShareOneHiddenParagraph() throws {
+    let editor = Editor()
+    let thread: JSONValue = ["type": "thread", "version": 1, "thread": ["type": "thread", "id": "one", "quote": "Body", "comments": []]]
+    try editor.load(["root": ["type": "root", "version": 1, "children": [["type": "paragraph", "version": 1, "children": [thread, thread]]]]])
+    let document = DocumentText(model: editor, style: { _, _ in [:] })
+    let storage = NSMutableAttributedString()
+    try document.reload(storage)
+    #expect(document.kind(ofBlock: 0) == .embedded(type: "thread"))
+    #expect(document.range(ofBlock: 0).length == 2)
+  }
+
+  @Test func structuralPreviewsUseOwningDocumentCommentAndFootnoteMetadata() throws {
+    let model = Editor()
+    let mark: JSONValue = ["type": "mark", "version": 1, "ids": ["thread"], "children": .array([LexicalJSON.text("Body")])]
+    let reference: JSONValue = ["type": "footnote-reference", "version": 1, "label": "root-note"]
+    let definition: JSONValue = ["type": "footnote-definition", "version": 1, "label": "nested-note", "children": .array([LexicalJSON.text("Nested")])]
+    try model.load(LexicalJSON.document([LexicalJSON.paragraph([mark, reference]), definition]))
+    let storage = NSMutableAttributedString()
+    let document = DocumentText(model: model, style: Self.style)
+    document.externalResolvedCommentIDs = ["thread"]
+    document.externalFootnoteNumbers = ["root-note": 7]
+    document.rendersRootFootnotes = false
+    try document.reload(storage)
+    #expect(storage.attribute(.commentResolved, at: 0, effectiveRange: nil) as? Bool == true)
+    #expect((storage.attribute(.attachment, at: 4, effectiveRange: nil) as? FootnoteReferenceAttachment)?.marker == "7")
+    #expect(storage.attribute(.footnoteDefinitionNumber, at: storage.length - 2, effectiveRange: nil) == nil)
+  }
+
+  @Test func aDeepNestedCommentKeepsItsOwnTapIDsAndBothHighlightLayers() throws {
+    let model = Editor()
+    let inner: JSONValue = ["type": "mark", "version": 1, "ids": ["inner"], "children": .array([LexicalJSON.text("Nested")])]
+    let link: JSONValue = ["type": "link", "version": 1, "url": "https://example.com", "children": [inner]]
+    let outer: JSONValue = ["type": "mark", "version": 1, "ids": ["outer"], "children": [link]]
+    try model.load(LexicalJSON.document([LexicalJSON.paragraph([outer])]))
+    let storage = NSMutableAttributedString()
+    try DocumentText(model: model, style: Self.style).reload(storage)
+    #expect(storage.attribute(.commentIDs, at: 0, effectiveRange: nil) as? [String] == ["inner"])
+    let highlights = try #require(storage.attribute(.commentHighlights, at: 0, effectiveRange: nil) as? [CommentHighlight])
+    #expect(highlights.map(\.ids) == [["outer"], ["inner"]])
+  }
+
+  @Test func commentHighlightResolutionFollowsEveryThreadAndActiveSelection() throws {
+    let model = Editor()
+    let mark: JSONValue = ["type": "mark", "version": 1, "ids": ["one", "two"], "children": .array([LexicalJSON.text("Annotated")])]
+    func thread(_ id: String, resolved: Bool) -> JSONValue {
+      ["type": "thread", "version": 1, "thread": ["type": "thread", "id": .string(id), "quote": "Annotated", "comments": [], "resolved": .bool(resolved)]]
+    }
+    try model.load(LexicalJSON.document([LexicalJSON.paragraph([mark]), LexicalJSON.paragraph([thread("one", resolved: true)]), LexicalJSON.paragraph([thread("two", resolved: false)])]))
+    let storage = NSMutableAttributedString()
+    let document = DocumentText(model: model, style: Self.style)
+    try document.reload(storage)
+    #expect(storage.attribute(.commentResolved, at: 0, effectiveRange: nil) as? Bool == false)
+    let change = try model.apply(.saveCommentThread(id: "two", thread: thread("two", resolved: true)["thread"]))
+    try document.update(storage, after: change)
+    #expect(storage.attribute(.commentResolved, at: 0, effectiveRange: nil) as? Bool == true)
+    document.activeCommentIDs = ["one"]
+    try document.reload(storage)
+    #expect(storage.attribute(.commentActive, at: 0, effectiveRange: nil) as? Bool == true)
+  }
+
+  @Test func aCommentOnlyParagraphUsesHiddenMetadataPresentation() throws {
+    let model = Editor()
+    let comment: JSONValue = ["type": "comment", "version": 1, "comment": ["type": "comment", "id": "note", "author": "Reader", "content": "Disposable comment", "deleted": false, "timeStamp": 0]]
+    try model.load(LexicalJSON.document([LexicalJSON.paragraph([comment])]))
+    let storage = NSMutableAttributedString()
+    let document = DocumentText(model: model, style: Self.style)
+    try document.reload(storage)
+    #expect(document.kind(ofBlock: 0) == .embedded(type: "comment"))
+    #expect(storage.string == "\u{FFFC}\n")
+  }
+
+  @Test func commentMarksKeepTheirThreadIDsOnNativeTextRuns() throws {
+    let model = Editor()
+    let mark: JSONValue = ["type": "mark", "version": 1, "ids": ["thread-one", "thread-two"],
+      "children": .array([LexicalJSON.text("Annotated")])]
+    try model.load(LexicalJSON.document([LexicalJSON.paragraph([mark, LexicalJSON.text(" plain")])]))
+    let storage = NSMutableAttributedString()
+    try DocumentText(model: model, style: Self.style).reload(storage)
+    #expect(storage.attribute(.commentIDs, at: 0, effectiveRange: nil) as? [String] == ["thread-one", "thread-two"])
+    #expect(storage.attribute(.commentIDs, at: 10, effectiveRange: nil) == nil)
+    #expect(storage.string == "Annotated plain\n")
+  }
+
+  @Test func footnoteReferencesUseFirstDefinitionNumbersAndMissingLabels() throws {
+    let model = Editor()
+    let references: [JSONValue] = ["second", "first", "missing"].map { ["type": "footnote-reference", "version": 1, "label": .string($0)] }
+    func note(_ label: String, _ body: String) -> JSONValue {
+      ["type": "footnote-definition", "version": 1, "label": .string(label), "children": .array([LexicalJSON.text(body)]), "direction": .null, "format": "", "indent": 0]
+    }
+    try model.load(LexicalJSON.document([LexicalJSON.paragraph(references), note("first", "One"), note("first", "Duplicate"), note("second", "Two")]))
+    let storage = NSMutableAttributedString()
+    let document = DocumentText(model: model, style: Self.style)
+    try document.reload(storage)
+    #expect(storage.string == "\u{FFFC}\u{FFFC}\u{FFFC}\nOne\nDuplicate\nTwo\n")
+    #expect((storage.attribute(.attachment, at: 0, effectiveRange: nil) as? FootnoteReferenceAttachment)?.marker == "2")
+    #expect((storage.attribute(.attachment, at: 1, effectiveRange: nil) as? FootnoteReferenceAttachment)?.marker == "1")
+    #expect((storage.attribute(.attachment, at: 2, effectiveRange: nil) as? FootnoteReferenceAttachment)?.marker == "missing?")
+    #expect(document.point(at: 1) == Point(path: [0], offset: 1, type: .element))
+    #expect(document.point(at: 5) == .text([1, 0], 1))
+  }
+
   /// Format bits as the only attribute, so a wrong run shows as a difference.
   static func style(_ blockType: String, _ format: TextFormat) -> [NSAttributedString.Key: Any] {
     [.lexicalFormat: format.rawValue]
+  }
+
+  @Test func undoRecreatesAMentionDOMBackgroundAfterItsNodeWasRemoved() throws {
+    let model = Editor()
+    let mention: JSONValue = ["type": "mention", "version": 1, "text": "Reader", "mentionName": "Reader", "mode": "segmented", "detail": 1, "format": 0, "style": "background-color: red;"]
+    try model.load(LexicalJSON.document([LexicalJSON.paragraph([mention])]))
+    let storage = NSMutableAttributedString()
+    let document = DocumentText(model: model, style: { _, _ in [:] })
+    try document.reload(storage)
+    try model.apply(.setSelection(anchor: .text([0, 0], 0), focus: .text([0, 0], 6)))
+    try document.update(storage, after: model.apply(.clearFormatting))
+    #expect(storage.attribute(.backgroundColor, at: 0, effectiveRange: nil) == nil)
+    try model.apply(.wait(milliseconds: 1000))
+    try model.apply(.setSelection(anchor: .text([0, 0], 0), focus: .text([0, 0], 6)))
+    try document.update(storage, after: model.apply(.deleteCharacter(backward: true)))
+    try document.update(storage, after: model.apply(.undo))
+    #expect(storage.attribute(.backgroundColor, at: 0, effectiveRange: nil) != nil)
+  }
+
+  @Test func clearingMentionStylesFollowsTheLiveDOMStyleDelta() throws {
+    let model = Editor()
+    let mention: JSONValue = ["type": "mention", "version": 1, "text": "Reader", "mentionName": "Reader", "mode": "segmented", "detail": 1, "format": 0, "style": "background-color: red;"]
+    try model.load(LexicalJSON.document([LexicalJSON.paragraph([mention])]))
+    let storage = NSMutableAttributedString()
+    let document = DocumentText(model: model, style: { _, _ in [:] })
+    try document.reload(storage)
+    #expect(storage.attribute(.backgroundColor, at: 0, effectiveRange: nil) != nil)
+    try model.apply(.setSelection(anchor: .text([0, 0], 0), focus: .text([0, 0], 6)))
+    let change = try model.apply(.clearFormatting)
+    try document.update(storage, after: change)
+    #expect(storage.attribute(.backgroundColor, at: 0, effectiveRange: nil) == nil)
+  }
+
+  @Test func mentionDOMStyleOverridesStoredInlineColors() throws {
+    let model = Editor()
+    let mention: JSONValue = ["type": "mention", "version": 1, "text": "Reader", "mentionName": "Reader", "mode": "segmented", "detail": 1, "format": 0, "style": "color: red; background-color: red;"]
+    try model.load(LexicalJSON.document([LexicalJSON.paragraph([mention])]))
+    let storage = NSMutableAttributedString()
+    try DocumentText(model: model, style: Self.style).reload(storage)
+    #expect(storage.string == "Reader\n")
+    #expect(storage.attribute(.foregroundColor, at: 0, effectiveRange: nil) == nil)
+    #if canImport(UIKit)
+    let color = try #require(storage.attribute(.backgroundColor, at: 0, effectiveRange: nil) as? UIColor)
+    var red: CGFloat = 0; var green: CGFloat = 0; var blue: CGFloat = 0; var alpha: CGFloat = 0
+    color.getRed(&red, green: &green, blue: &blue, alpha: &alpha)
+    #else
+    let color = try #require(storage.attribute(.backgroundColor, at: 0, effectiveRange: nil) as? NSColor)
+    let red = color.redComponent; let green = color.greenComponent; let blue = color.blueComponent; let alpha = color.alphaComponent
+    #endif
+    #expect(abs(red - 24.0 / 255) < 0.001 && abs(green - 119.0 / 255) < 0.001)
+    #expect(abs(blue - 232.0 / 255) < 0.001 && abs(alpha - 0.2) < 0.001)
+  }
+
+  @Test func textAndHighlightColorsReachNativeRuns() throws {
+    let model = Editor()
+    try model.load(LexicalJSON.document([LexicalJSON.paragraph([
+      LexicalJSON.text("abc", style: "color: #ff0000; background-color: #0000ff;")
+    ])]))
+    let storage = NSMutableAttributedString()
+    try DocumentText(model: model, style: Self.style).reload(storage)
+    #if canImport(UIKit)
+    let foreground = try #require(storage.attribute(.foregroundColor, at: 0, effectiveRange: nil) as? UIColor)
+    let background = try #require(storage.attribute(.backgroundColor, at: 0, effectiveRange: nil) as? UIColor)
+    var red: CGFloat = 0, green: CGFloat = 0, blue: CGFloat = 0, alpha: CGFloat = 0
+    foreground.getRed(&red, green: &green, blue: &blue, alpha: &alpha)
+    #expect(red == 1 && green == 0 && blue == 0 && alpha == 1)
+    background.getRed(&red, green: &green, blue: &blue, alpha: &alpha)
+    #expect(red == 0 && green == 0 && blue == 1 && alpha == 1)
+    #else
+    let foreground = try #require((storage.attribute(.foregroundColor, at: 0, effectiveRange: nil) as? NSColor)?.usingColorSpace(.deviceRGB))
+    let background = try #require((storage.attribute(.backgroundColor, at: 0, effectiveRange: nil) as? NSColor)?.usingColorSpace(.deviceRGB))
+    #expect(foreground.redComponent == 1 && foreground.greenComponent == 0 && foreground.blueComponent == 0)
+    #expect(background.redComponent == 0 && background.greenComponent == 0 && background.blueComponent == 1)
+    #endif
   }
 
   @Test func fontSizeStyleReachesNativeFont() throws {
@@ -323,4 +498,21 @@ extension NSAttributedString.Key {
   static let lexicalFormat = NSAttributedString.Key("lexicalFormat")
   static let blockType = NSAttributedString.Key("blockType")
   static let standIn = NSAttributedString.Key("standIn")
+}
+
+extension DocumentTextTests {
+  @Test func nativeStructuralPanelsOccupyOneSelectableBlock() throws {
+    let model = Editor()
+    try model.load(
+      LexicalJSON.document([
+        LexicalJSON.element(
+          "callout", [LexicalJSON.paragraph([LexicalJSON.text("body")])], ["kind": "note", "title": ""])
+      ]))
+    let document = DocumentText(model: model, style: Self.style)
+    document.embeddedElementTypes = ["callout"]
+    let storage = NSMutableAttributedString()
+    try document.reload(storage)
+    #expect(document.kind(ofBlock: 0) == .embedded(type: "callout"))
+    #expect(document.range(ofBlock: 0).length == 1)
+  }
 }

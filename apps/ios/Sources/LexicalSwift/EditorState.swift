@@ -18,7 +18,12 @@ public struct EditorState: Sendable {
   public var json: JSONValue { ["root": json(of: Self.rootKey)] }
 }
 
+// Persistent owner nodes and history retain the token; the caption cache
+// observes it weakly so discarded history cannot retain abandoned editors.
+final class CaptionLifetime: Sendable {}
+
 struct Node: Sendable {
+  var captionLifetime: CaptionLifetime?
   let type: String
   let traits: NodeTraits
   var parent: NodeKey?
@@ -34,6 +39,7 @@ struct Node: Sendable {
   var revision = 0
 
   init(_ payload: SerializedNode, type: String, children: OrderedSet<NodeKey>?) {
+    captionLifetime = ["image", "inline-image", "video", "sticky"].contains(type) ? CaptionLifetime() : nil
     self.type = type
     traits = NodeTraits.byType[type] ?? .unregistered
     self.payload = payload
@@ -44,6 +50,7 @@ struct Node: Sendable {
   var isText: Bool { traits.kind == .text }
   var isLineBreak: Bool { traits.kind == .lineBreak }
   var isDecorator: Bool { traits.kind == .decorator }
+  var isIsolated: Bool { StructuralBlockConfiguration.isolatedNodeTypes.contains(type) }
   var isRoot: Bool { type == "root" }
   var isInline: Bool { trait(traits.inline) }
   var isShadowRoot: Bool { trait(traits.shadowRoot) }
@@ -104,7 +111,7 @@ extension EditorState {
   /// a newline, and blocks are set apart by a blank line.
   func textContent(of key: NodeKey) -> String {
     let node = self[key]
-    if node.isLineBreak || node.type == SerializedHorizontalRuleNode.type { return "\n" }
+    if node.isLineBreak || node.type == SerializedHorizontalRuleNode.type || node.type == "page-break" { return "\n" }
     guard let children = node.children else { return node.text }
     var text = ""
     for (index, child) in children.enumerated() {

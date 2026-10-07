@@ -23,6 +23,23 @@ import UIKit
     #expect(try model.node(at: [0, 0])["format"] == 0)
   }
 
+  @Test func structuralArrowEditsAutosaveAndReadOnlyArrowsDoNotEdit() throws {
+    let callout = LexicalJSON.element(
+      "callout", [LexicalJSON.paragraph([LexicalJSON.text("a")])], ["kind": "note", "title": ""])
+    let (view, model) = try editing(callout)
+    select(view, 1, 1)
+    var changes = 0
+    view.onChange = { changes += 1 }
+    try press(UIKeyCommand.inputDownArrow, [], in: view)
+    #expect(try model.node(at: [])["children"]?.arrayValue?.count == 2)
+    #expect(changes == 1)
+    let (readOnly, readOnlyModel) = try editing(callout, isEditable: false)
+    select(readOnly, 1, 1)
+    let before = try readOnlyModel.serializedState()
+    try press(UIKeyCommand.inputDownArrow, [], in: readOnly)
+    #expect(try readOnlyModel.serializedState() == before)
+  }
+
   @Test func embeddedDrawingChangesNotifyAutosaveAndRejectedScenesDoNot() throws {
     let model = Editor()
     let drawing: JSONValue = ["type": "excalidraw", "version": 1, "data": "[]", "width": 320, "height": 180]
@@ -51,6 +68,38 @@ import UIKit
     #expect(regular.pointSize == 17)
     #expect(bold.familyName == "Source Serif 4")
     #expect(bold.fontDescriptor.symbolicTraits.contains(.traitBold))
+  }
+
+  /// QuickPath delivers each word, with its automatic space, as one
+  /// `insertText`; these gaps are a physical iPhone's (#236).
+  @Test func swipedWordsUndoAndRedoAsOneRunUpToABoundary() async throws {
+    let (view, model) = try editing(LexicalJSON.paragraph([LexicalJSON.text("Say ")]))
+    // Across awaits; an iPad on iOS 26 otherwise releases it, and the editor
+    // resigning first responder rightly ends the run.
+    let window = try #require(view.window)
+    defer { withExtendedLifetime(window) {} }
+    func typed() -> String {
+      (try? paragraphs(model))?.first?["children"]?.arrayValue?.compactMap { $0["text"]?.stringValue }.joined() ?? ""
+    }
+    select(view, 4, 4)
+    for (word, gap) in [("hello", 0), (" swiped", 966), (" words", 823), (" later", 2100), (" moved", 300)] {
+      try await Task.sleep(for: .milliseconds(gap))
+      if word == " moved" {
+        select(view, 0, 0)
+        select(view, 28, 28)
+      }
+      view.insertText(word)
+    }
+    try await Task.sleep(for: .milliseconds(100))
+    #expect(typed() == "Say hello swiped words later moved")
+    view.undoManager?.undo()
+    #expect(typed() == "Say hello swiped words later")
+    view.undoManager?.undo()
+    #expect(typed() == "Say hello swiped words")
+    view.undoManager?.undo()
+    #expect(typed() == "Say ")
+    view.undoManager?.redo()
+    #expect(typed() == "Say hello swiped words")
   }
 
   @Test func contentChangesNotifyAutosaveButSelectionsAndReadOnlyEditsDoNot() throws {
@@ -531,14 +580,16 @@ import UIKit
           LexicalJSON.text("a", format: .bold),
           ["type": "linebreak", "version": 1],
           LexicalJSON.text("b"),
-        ]),
+        ])
       ])
   }
 
   @Test func pastingActualPagesRTFKeepsBoldAndParagraphs() throws {
     let (view, model) = try editing(LexicalJSON.paragraph([]))
-    let rtfURL = try #require(Bundle.module.url(forResource: "pages-disposable", withExtension: "rtf", subdirectory: "Fixtures"))
-    let plainURL = try #require(Bundle.module.url(forResource: "pages-disposable", withExtension: "txt", subdirectory: "Fixtures"))
+    let rtfURL = try #require(
+      Bundle.module.url(forResource: "pages-disposable", withExtension: "rtf", subdirectory: "Fixtures"))
+    let plainURL = try #require(
+      Bundle.module.url(forResource: "pages-disposable", withExtension: "txt", subdirectory: "Fixtures"))
     let plain = try String(contentsOf: plainURL, encoding: .utf8)
     view.pasteboard.setItems([["public.utf8-plain-text": plain, "public.rtf": try Data(contentsOf: rtfURL)]])
     view.paste(nil)
@@ -565,7 +616,7 @@ import UIKit
 
   @Test func aPasteTheModelRefusesSaysWhy() throws {
     let (view, model) = try editing(LexicalJSON.paragraph([LexicalJSON.text("hello")]))
-    let unported: JSONValue = ["type": "code", "version": 1, "children": []]
+    let unported: JSONValue = ["type": "code", "version": 1, "children": [], "unported-field": true]
     let payload = LexicalClipboardPayload(namespace: editorNamespace, nodes: [unported])
     view.pasteboard.setItems([
       ["public.utf8-plain-text": "", "application/x-lexical-editor": try JSONEncoder().encode(payload)]

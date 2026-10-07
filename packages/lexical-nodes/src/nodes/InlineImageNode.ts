@@ -34,6 +34,7 @@ import {
 } from "../schema-values.js";
 import { EmojiNode } from "./EmojiNode.js";
 import { KeywordNode } from "./KeywordNode.js";
+import { MentionNode } from "./MentionNode.js";
 import {
   type ImportJSON,
   storedFields,
@@ -94,6 +95,7 @@ function createCaptionEditor(): LexicalEditor {
       EmojiNode,
       HashtagNode,
       KeywordNode,
+      MentionNode,
     ],
   });
 }

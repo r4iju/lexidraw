@@ -23,6 +23,30 @@ async function installFonts() {
   );
 }
 
+let serverlessPreparation:
+  | { directory: string; ready: Promise<string> }
+  | undefined;
+
+function prepareChromium(chromium: {
+  executablePath(): Promise<string>;
+}): Promise<string> {
+  const directory = JSON.stringify([process.cwd(), tmpdir()]);
+  if (serverlessPreparation?.directory === directory)
+    return serverlessPreparation.ready;
+  // Concurrent cold requests must not execute Chromium while another request unpacks it.
+  const ready = (async () => {
+    const executablePath = await chromium.executablePath();
+    await installFonts();
+    return executablePath;
+  })();
+  const attempt = { directory, ready };
+  serverlessPreparation = attempt;
+  void ready.catch(() => {
+    if (serverlessPreparation === attempt) serverlessPreparation = undefined;
+  });
+  return ready;
+}
+
 /**
  * Starts the Chromium every route renders with: the serverless build on a
  * Vercel production deployment, the host's Puppeteer anywhere else.
@@ -57,8 +81,7 @@ export async function launchBrowser({
     .join(":");
   const { default: chromium } = await import("@sparticuz/chromium");
   // First, as it unpacks its fonts.conf only while the fonts folder is absent.
-  const executablePath = await chromium.executablePath();
-  await installFonts();
+  const executablePath = await prepareChromium(chromium);
   const puppeteer = await import("puppeteer-core");
   return puppeteer.launch({
     headless: true,

@@ -5,6 +5,9 @@ accessModifier: internal
 namingStrategy: idiomatic
 filter:
   operations:
+    - embeds-rasterizeSVG
+    - articles-extractFromUrl
+    - embeds-render
     - entities-list
     - entities-search
     - entities-sharedWithMe
@@ -20,10 +23,12 @@ filter:
     - entities-delete
     - entities-restore
     - auth-deletionConfirmation
+    - auth-me
     - auth-deleteAccount
     - nativeSignIn-exchange
     - tokens-revokeCurrent
     - entities-distillUrl
+    - entities-signVideoUpload
     - entities-signImageUpload
     - tts-listen
     - tts-listening

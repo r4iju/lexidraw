@@ -29,6 +29,7 @@ import {
   CollapsibleTitleNode,
 } from "@packages/lexical-nodes";
 import { ArticleNode } from "./ArticleNode";
+import { ArticleContent } from "./ArticleContent";
 import {
   Dialog,
   DialogContent,
@@ -326,17 +327,7 @@ export function ArticleBlock({
           )}
         </div>
       </div>
-      <div
-        className={cn("prose max-w-none dark:prose-invert")}
-        data-prose="scoped"
-      >
-        <div
-          // biome-ignore lint/security/noDangerouslySetInnerHtml: content is sanitized on the server before persisting
-          dangerouslySetInnerHTML={{
-            __html: latestDistilled?.contentHtml ?? "",
-          }}
-        />
-      </div>
+      <ArticleContent html={latestDistilled?.contentHtml ?? ""} />
       <Dialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
         <DialogContent size="sm">
           <DialogHeader>

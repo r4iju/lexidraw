@@ -64,7 +64,7 @@ extension Update {
     _ key: NodeKey, _ copied: ClipboardSelection, _ selected: Set<NodeKey>, into target: inout [JSONValue]
   ) throws -> Bool {
     var shouldInclude = isSelected(key, copied, selected)
-    guard case .object(var json) = state.json(of: key, includingChildren: false) else {
+    guard case .object(var json) = state.json(of: key, includingChildren: false, resolve: resolveNestedEditorJSON) else {
       preconditionFailure("A node's JSON is an object")
     }
     if state[key].isText {
@@ -131,6 +131,12 @@ extension Update {
     if isListItem(key) {
       guard hasAncestor(selection.anchor.key, key), hasAncestor(selection.focus.key, key) else { return false }
       return try state.textContent(of: key).utf16.count == textContent(selection).utf16.count
+    }
+    if node.type == SerializedMarkNode.type {
+      guard hasAncestor(selection.anchor.key, key), hasAncestor(selection.focus.key, key) else { return false }
+      let length = try state.isBackward(selection)
+        ? selection.anchor.offset - selection.focus.offset : selection.focus.offset - selection.anchor.offset
+      return state.textContent(of: key).utf16.count == length
     }
     if node.isLink {
       let holds = { (point: SelectionPoint) in point.key == key || self.hasAncestor(point.key, key) }
@@ -248,7 +254,7 @@ extension Update {
   /// `$insertGeneratedNodes`, which the table plugin's handler answers
   /// first.
   private mutating func insertGeneratedNodes(_ nodes: [NodeKey], _ target: ClipboardSelection) throws {
-    if try tableSelectionInsertClipboardNodes(nodes, target) { return }
+    if hasEditorPlugin("TablePlugin"), try tableSelectionInsertClipboardNodes(nodes, target) { return }
     switch target {
     case .range(let selection):
       try insertNodes(selection, nodes)
@@ -314,7 +320,7 @@ extension Update {
 
   /// The plain-text importer: `tokenizeRawText`, each part inserted at the
   /// selection the last left.
-  private mutating func insertRawText(_ text: String) throws {
+  mutating func insertRawText(_ text: String, lineBreaks: Bool = false) throws {
     var part: [UInt16] = []
     func insertPart() throws {
       guard !part.isEmpty, let selection else { return }
@@ -328,7 +334,9 @@ extension Update {
       let isCRLF = unit == 13 && index + 1 < units.count && units[index + 1] == 10
       if unit == 10 || isCRLF {
         try insertPart()
-        if let selection { try insertParagraph(selection) }
+        if let selection {
+          if lineBreaks { try insertLineBreak(selection) } else { try insertParagraph(selection) }
+        }
         index += isCRLF ? 2 : 1
       } else if unit == 9 {
         try insertPart()

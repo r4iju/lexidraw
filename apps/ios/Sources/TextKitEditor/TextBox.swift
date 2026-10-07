@@ -13,10 +13,18 @@ import UIKit
   private let container = NSTextContainer(size: .zero)
   private(set) var height: CGFloat = 0
   var onRedraw: (() -> Void)?
+  private var animationVisible = false
+  func setAnimationVisible(_ visible: Bool) {
+    animationVisible = visible
+    storage.enumerateAttribute(.attachment, in: NSRange(location: 0, length: storage.length)) { value, _, _ in
+      (value as? any LazyTextAttachment)?.setAnimationVisible(visible)
+    }
+  }
   /// The lines as laid out, the extra one TextKit adds after a final newline
   /// left out.
   private var lines: [Line] = []
   private var listLayout = ListAndIndentLayout()
+  private var backref: (label: String, text: NSAttributedString, frame: CGRect)?
 
   private struct Line {
     var frame: CGRect
@@ -59,6 +67,7 @@ import UIKit
     contentStorage.performEditingTransaction { storage.setAttributedString(styled) }
     measure()
     storage.enumerateAttribute(.attachment, in: NSRange(location: 0, length: storage.length)) { value, _, _ in
+      (value as? any LazyTextAttachment)?.setAnimationVisible(animationVisible)
       (value as? any LazyTextAttachment)?.load { [weak self] in
         guard let self else { return }
         let text = NSAttributedString(attributedString: self.storage)
@@ -76,6 +85,8 @@ import UIKit
 
   private func measure() {
     lines = []
+    backref = nil
+    var lastTextEnd: CGPoint?
     layoutManager.enumerateTextLayoutFragments(from: layoutManager.documentRange.location, options: [.ensuresLayout]) {
       fragment in
       let origin = fragment.layoutFragmentFrame.origin
@@ -84,6 +95,10 @@ import UIKit
         let range = NSRange(location: start + line.characterRange.location, length: line.characterRange.length)
         guard range.length > 0 || self.lines.isEmpty else { continue }
         let placement = self.placement(of: line, at: start)
+        if line.characterRange.length > 0 {
+          let end = line.locationForCharacter(at: NSMaxRange(line.characterRange) - 1)
+          lastTextEnd = CGPoint(x: origin.x + end.x, y: origin.y + line.typographicBounds.minY + line.glyphOrigin.y)
+        }
         self.lines.append(
           Line(
             frame: line.typographicBounds.offsetBy(dx: origin.x, dy: origin.y), range: range,
@@ -95,16 +110,51 @@ import UIKit
     var bottom: CGFloat = 0
     layoutManager.enumerateTextLayoutFragments(from: layoutManager.documentRange.endLocation, options: [.reverse]) {
       fragment in
-      // The last paragraph's frame counts the extra line after its newline.
+      // The text ends at its last line and spacing, before the extra line
+      // TextKit adds after a final newline (inside an empty paragraph's own).
       let lines = fragment.textLineFragments
-      let extra = lines.count > 1 && lines.last?.characterRange.length == 0 ? lines.last?.typographicBounds.height : nil
-      bottom = fragment.layoutFragmentFrame.maxY - (extra ?? 0)
+      if lines.count > 1, lines.last?.characterRange.length == 0 {
+        bottom = fragment.layoutFragmentFrame.minY + lines[lines.count - 2].typographicBounds.maxY + self.spacingAfter
+      } else {
+        bottom = fragment.layoutFragmentFrame.maxY
+      }
       return false
+    }
+    if storage.length > 0, let label = storage.attribute(.footnoteDefinitionLabel, at: 0, effectiveRange: nil) as? String,
+      let font = storage.attribute(.footnoteBaseFont, at: 0, effectiveRange: nil) as? UIFont, let end = lastTextEnd {
+      let text = NSAttributedString(string: "↩︎", attributes: [.font: font, .foregroundColor: ThemeColor.primary.color])
+      let size = text.size()
+      let rtl = writingDirection(at: storage.length - 1) == .rightToLeft
+      let margin = WebFootnoteStyle.backrefMargin * font.pointSize
+      var origin = CGPoint(x: rtl ? end.x - margin - size.width : end.x + margin, y: end.y - font.ascender)
+      if origin.x < 0 || origin.x + size.width > width {
+        let indent = font.pointSize * WebFootnoteStyle.definitionIndent
+        origin = CGPoint(x: rtl ? width - indent - size.width : indent, y: bottom - trailingSpacing)
+        bottom += font.pointSize * WebFootnoteStyle.definitionLineHeight
+      }
+      backref = (label, text, CGRect(origin: origin, size: size))
     }
     height = ceil(bottom)
   }
 
+  func footnoteBacklink(at point: CGPoint) -> String? {
+    guard let backref, backref.frame.insetBy(dx: -4, dy: -4).contains(point) else { return nil }
+    return backref.label
+  }
+
   func draw(at origin: CGPoint, in context: CGContext) {
+    storage.enumerateAttribute(.commentHighlights, in: NSRange(location: 0, length: storage.length)) { value, range, _ in
+      guard let highlights = value as? [CommentHighlight] else { return }
+      let frames = self.lineSegments(range).map { $0.offsetBy(dx: origin.x, dy: origin.y) }
+      for highlight in highlights where highlight.active || !highlight.resolved {
+        let color = highlight.active ? WebSocialStyle.commentMarkActive : WebSocialStyle.commentMark
+        context.setFillColor(color.color.cgColor)
+        context.fill(frames)
+        context.setFillColor(WebSocialStyle.commentBorder.color.cgColor)
+        context.fill(frames.map { CGRect(x: $0.minX, y: $0.maxY - WebSocialStyle.commentBorderWidth,
+          width: $0.width, height: WebSocialStyle.commentBorderWidth) })
+      }
+    }
     layoutManager.enumerateTextLayoutFragments(from: layoutManager.documentRange.location, options: []) { fragment in
       let frame = fragment.layoutFragmentFrame
       let start = self.offset(fragment.rangeInElement.location)
@@ -119,6 +169,21 @@ import UIKit
       }
       return true
     }
+    if storage.length > 0, let title = storage.attribute(.footnoteSectionTitle, at: 0, effectiveRange: nil) as? String,
+      let font = storage.attribute(.footnoteBaseFont, at: 0, effectiveRange: nil) as? UIFont {
+      ThemeColor.border.color.setFill()
+      context.fill(CGRect(x: origin.x, y: origin.y, width: width, height: WebFootnoteStyle.sectionBorder))
+      let em = font.pointSize / WebFootnoteStyle.definitionFontScale
+      let text = NSAttributedString(string: title, attributes: [.font: UIFont.systemFont(ofSize: em * WebFootnoteStyle.headerFontScale, weight: Typesetting.weight(Int(WebFootnoteStyle.headerWeight))), .foregroundColor: ThemeColor.mutedForeground.color])
+      text.draw(at: CGPoint(x: origin.x, y: origin.y + font.pointSize * WebFootnoteStyle.headerTop))
+    }
+    if storage.length > 0, let number = storage.attribute(.footnoteDefinitionNumber, at: 0, effectiveRange: nil) as? Int,
+      let font = storage.attribute(.footnoteBaseFont, at: 0, effectiveRange: nil) as? UIFont, let line = lines.first {
+      let marker = NSAttributedString(string: "\(number).", attributes: [.font: font, .foregroundColor: ThemeColor.mutedForeground.color])
+      let x = writingDirection(at: 0) == .rightToLeft ? width - marker.size().width : 0
+      marker.draw(at: CGPoint(x: origin.x + x, y: origin.y + line.baseline - font.ascender))
+    }
+    if let backref { backref.text.draw(at: CGPoint(x: origin.x + backref.frame.minX, y: origin.y + backref.frame.minY)) }
     for item in listLayout.items {
       guard let line = lines.first(where: { $0.range.location >= item.range.location }) else { continue }
       if item.isChecklistItem {

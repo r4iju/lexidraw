@@ -20,9 +20,26 @@ import UIKit
 @MainActor final class BlockLayout {
   /// Around the text, and between it and the edge of the view.
   static let margin: CGFloat = 16
+  /// This view's margin; nested editors whose container pads them as the
+  /// web does set it to zero.
+  var contentMargin = BlockLayout.margin
+  /// Whether the last block keeps no space after it, as the web's callout
+  /// body drops its last child's margin.
+  var dropsTrailingSpace = false
 
   /// What the text is drawn in, and `EditorView`'s text input view.
   let surface = UIView()
+  /// Shown above the text, in its column: the document header.
+  var leading: DocumentHeaderView? {
+    didSet {
+      if oldValue !== leading { oldValue?.removeFromSuperview() }
+      leadingSize = nil
+    }
+  }
+  private var leadingHeight: CGFloat = 0
+  /// The size `leading` was last laid out for, or nil where it must be again.
+  private var leadingSize: CGSize?
+  func invalidateLeading() { leadingSize = nil }
   private let storage: NSTextStorage
   private let document: DocumentText
   private let typesetting: Typesetting
@@ -100,6 +117,8 @@ import UIKit
 
   var mediaImageLoader: MediaImageLoader?
   var onScrollSideways: (() -> Void)?
+  /// Called when the blocks' total height changes, as when an image loads.
+  var onHeightChange: (() -> Void)?
 
   /// Blocks laid out beyond those on screen, kept for geometry and scrolling
   /// back, before the farthest are let go.
@@ -133,7 +152,9 @@ import UIKit
     }
     var respaced: [Int] = []
     for splice in splices {
-      if splice.new.lowerBound > 0 { respaced.append(splice.new.lowerBound - 1) }
+      var previous = splice.new.lowerBound - 1
+      while previous >= 0 && isCommentMetadata(previous) { previous -= 1 }
+      if previous >= 0 { respaced.append(previous) }
       let reused = splice.old.count == 1 && splice.new.count == 1 ? laidOut[splice.old.lowerBound] : nil
       for index in splice.old { laidOut.removeValue(forKey: index)?.view.removeFromSuperview() }
       let shift = splice.new.count - splice.old.count
@@ -169,7 +190,7 @@ import UIKit
 
   // MARK: Heights
 
-  private var visibleTop: CGFloat { (scrollView?.contentOffset.y ?? 0) - Self.margin }
+  private var visibleTop: CGFloat { (scrollView?.contentOffset.y ?? 0) - contentMargin - leadingHeight }
 
   private func top(_ index: Int) -> CGFloat {
     if index > validTops {
@@ -185,6 +206,17 @@ import UIKit
 
   private var totalHeight: CGFloat { top(heights.count) }
 
+  /// The height of every block at the width last laid out, with the margins
+  /// and the document header, measuring blocks that only have estimates.
+  func measuredHeight() -> CGFloat {
+    if heights.count != document.blockCount { reset() }
+    for index in heights.indices {
+      let block = block(index)
+      if !measured[index] { measure(index, block) }
+    }
+    return totalHeight + 2 * contentMargin + leadingHeight
+  }
+
   private func replaceHeights(_ range: Range<Int>, with new: [CGFloat]) {
     if heights.isEmpty && range.isEmpty && new.isEmpty { return }
     let above = top(range.lowerBound) + heights[range].reduce(0, +) <= visibleTop
@@ -193,6 +225,7 @@ import UIKit
     validTops = min(validTops, range.lowerBound)
     if tops.count != heights.count + 1 { tops = Array(tops.prefix(validTops + 1)) + Array(repeating: 0, count: heights.count - validTops) }
     if above, change != 0, let scrollView { scrollView.contentOffset.y += change }
+    if change != 0 { onHeightChange?() }
   }
 
   private func measure(_ index: Int, _ block: any LaidOutBlock) {
@@ -207,6 +240,7 @@ import UIKit
     let block = styled(index)
     switch document.kind(ofBlock: index) {
     case .embedded where block == .rule: return typesetting.typography.rule.width
+    case .embedded(let type) where type == "comment" || type == "thread": return 0
     case .embedded:
       if let node = document.payload(ofBlock: index), let media = MediaPayload(node) { return MediaView.height(media, width: width) }
       return PlaceholderView.height
@@ -223,11 +257,27 @@ import UIKit
 
   /// The larger of the block's space after it and the next block's before
   /// it, as CSS collapses margins.
+  private func isCommentMetadata(_ index: Int) -> Bool {
+    if case .embedded(let type) = document.kind(ofBlock: index) { return type == "comment" || type == "thread" }
+    return false
+  }
+
   private func spaceAfter(_ index: Int) -> CGFloat {
+    // Empty metadata paragraphs collapse their margins in the web flow.
+    guard !isCommentMetadata(index) else { return 0 }
+    var next = index + 1
+    while next < document.blockCount && isCommentMetadata(next) { next += 1 }
+    var previous = index - 1
+    while previous >= 0 && isCommentMetadata(previous) { previous -= 1 }
     let block = styled(index)
-    let after = typesetting.space(block, after: index > 0 ? styled(index - 1) : nil).after
-    guard index + 1 < document.blockCount else { return after }
-    return max(after, typesetting.space(styled(index + 1), after: block).before)
+    let isNote = document.type(ofBlock: index) == "footnote-definition"
+    let nextIsNote = next < document.blockCount && document.type(ofBlock: next) == "footnote-definition"
+    let em = typesetting.fontSize(.other)
+    if nextIsNote && !isNote { return em * WebFootnoteStyle.definitionFontScale * WebFootnoteStyle.sectionMargin }
+    if isNote { return nextIsNote || next == document.blockCount ? em * WebFootnoteStyle.definitionFontScale * WebFootnoteStyle.definitionAfter : em * WebFootnoteStyle.followingMargin }
+    let after = typesetting.space(block, after: previous >= 0 ? styled(previous) : nil).after
+    guard next < document.blockCount else { return dropsTrailingSpace ? 0 : after }
+    return max(after, typesetting.space(styled(next), after: block).before)
   }
 
   private func styled(_ index: Int) -> StyledBlock { StyledBlock(document.type(ofBlock: index)) }
@@ -268,7 +318,7 @@ import UIKit
       case .embedded(let type):
         if let embedded = document.embeddedNode(at: index), let view = embeddedContent?(embedded.key, embedded.node) {
           ContentBlock(view: view, node: embedded.node, type: type, width: width)
-        } else { EmbedBlock(type: type, payload: document.payload(ofBlock: index), width: width, style: { [typesetting] in typesetting.attributes(StyledBlock($0), $1) }, imageLoader: mediaImageLoader) }
+        } else { EmbedBlock(type: type, length: document.range(ofBlock: index).length, payload: document.payload(ofBlock: index), width: width, style: { [typesetting] in typesetting.attributes(StyledBlock($0), $1) }, imageLoader: mediaImageLoader) }
       }
     laidOut[index] = block
     (block as? TextBlock)?.onGeometryChange = { [weak self, weak blockView = block.view] in
@@ -299,7 +349,8 @@ import UIKit
     self.scrollView = scrollView
     if surface.superview !== scrollView { scrollView.addSubview(surface) }
     if heights.count != document.blockCount { reset() }
-    let width = max(scrollView.bounds.width - 2 * Self.margin, 0)
+    let width = max(scrollView.bounds.width - 2 * contentMargin, 0)
+    layoutLeading(in: scrollView, width: width)
     if width != self.width {
       cancelPreparation()
       // What is at the top stays there, as far into its block as it was.
@@ -310,7 +361,7 @@ import UIKit
       heights = heights.indices.map { index in laidOut[index].map { $0.height + spaceAfter(index) } ?? estimate(index) }
       measured = heights.indices.map { laidOut[$0] != nil }
       validTops = 0
-      if !heights.isEmpty { scrollView.contentOffset.y = top(anchor) + within * heights[anchor] + Self.margin }
+      if !heights.isEmpty { scrollView.contentOffset.y = top(anchor) + within * heights[anchor] + contentMargin + leadingHeight }
     }
     guard !heights.isEmpty else { return }
     // Laying out blocks can bring more into the viewport.
@@ -342,19 +393,49 @@ import UIKit
         laidOut[index] = nil
       }
     }
-    let margin = Self.margin
+    let margin = contentMargin
     let visible = scrollView.bounds.height - scrollView.adjustedContentInset.top - scrollView.adjustedContentInset.bottom
     // A tap anywhere below the text lands on the surface and puts the caret
     // at the end.
-    let surfaceHeight = max(totalHeight, visible - 2 * margin)
-    let frame = CGRect(x: margin, y: margin, width: width, height: surfaceHeight)
+    let surfaceHeight = max(totalHeight, visible - 2 * margin - leadingHeight)
+    let frame = CGRect(x: margin, y: margin + leadingHeight, width: width, height: surfaceHeight)
     if surface.frame != frame { surface.frame = frame }
-    let size = CGSize(width: scrollView.bounds.width, height: surfaceHeight + 2 * margin)
+    let size = CGSize(width: scrollView.bounds.width, height: surfaceHeight + 2 * margin + leadingHeight)
     if scrollView.contentSize != size { scrollView.contentSize = size }
   }
 
   func redraw() {
     for block in laidOut.values { block.redraw() }
+  }
+
+  /// Lays `leading` out above the text where its width or content changed,
+  /// keeping what is on screen below it in place.
+  private func layoutLeading(in scrollView: UIScrollView, width: CGFloat) {
+    guard let leading else {
+      if leadingHeight != 0 { moveText(by: -leadingHeight, in: scrollView); leadingHeight = 0 }
+      return
+    }
+    if leading.superview !== scrollView { scrollView.addSubview(leading) }
+    let size = CGSize(width: width, height: scrollView.bounds.height)
+    guard leadingSize != size else { return }
+    leadingSize = size
+    let height = leading.layout(width: width, viewportHeight: scrollView.bounds.height)
+    leading.frame = CGRect(x: contentMargin, y: contentMargin, width: width, height: height)
+    if height != leadingHeight { moveText(by: height - leadingHeight, in: scrollView); leadingHeight = height }
+  }
+
+  private func moveText(by change: CGFloat, in scrollView: UIScrollView) {
+    if scrollView.contentOffset.y > contentMargin + leadingHeight { scrollView.contentOffset.y += change }
+  }
+
+  /// Scrolls block `index`'s top to the top of the view, as the web's
+  /// contents list scrolls a heading into view.
+  func scrollToBlock(_ index: Int) {
+    guard let scrollView, heights.indices.contains(index) else { return }
+    let insets = scrollView.adjustedContentInset
+    let maximum = max(scrollView.contentSize.height - scrollView.bounds.height + insets.bottom, -insets.top)
+    let y = min(contentMargin + leadingHeight + top(index) - insets.top, maximum)
+    scrollView.setContentOffset(CGPoint(x: scrollView.contentOffset.x, y: y), animated: !UIAccessibility.isReduceMotionEnabled)
   }
 
   /// The cells of the table block a table selection has, drawn as the web
@@ -471,6 +552,12 @@ import UIKit
     return start + block.lineBoundary(at: local, backward: backward)
   }
 
+  func footnoteBacklink(at point: CGPoint) -> String? {
+    guard document.blockCount > 0 else { return nil }
+    let index = blockIndex(atY: point.y)
+    return block(index).footnoteBacklink(at: CGPoint(x: point.x, y: point.y - top(index)))
+  }
+
   /// The path of the checklist item whose box a tap at `point` toggles.
   func checklistItem(at point: CGPoint) -> [Int]? {
     guard document.blockCount > 0 else { return nil }
@@ -533,12 +620,14 @@ import UIKit
   func writingDirection(at offset: Int) -> NSWritingDirection
   /// Scrolls within the block, where it can, to show `offset`.
   func reveal(_ offset: Int)
+  func footnoteBacklink(at point: CGPoint) -> String?
   func checklistItem(at point: CGPoint) -> DocumentText.ListItem?
 }
 
 extension LaidOutBlock {
   func writingDirection(at offset: Int) -> NSWritingDirection { .leftToRight }
   func reveal(_ offset: Int) {}
+  func footnoteBacklink(at point: CGPoint) -> String? { nil }
   func checklistItem(at point: CGPoint) -> DocumentText.ListItem? { nil }
 }
 
@@ -602,10 +691,15 @@ private final class TextBlock: LaidOutBlock {
   }
   func writingDirection(at offset: Int) -> NSWritingDirection { box.writingDirection(at: offset) }
   func lineBoundary(at offset: Int, backward: Bool) -> Int { box.lineBoundary(at: offset, backward: backward) }
+  func footnoteBacklink(at point: CGPoint) -> String? { box.footnoteBacklink(at: point) }
   func checklistItem(at point: CGPoint) -> DocumentText.ListItem? { box.checklistItem(at: point) }
 
   final class BoxView: UIView {
     var box: TextBox?
+    override func didMoveToWindow() {
+      super.didMoveToWindow()
+      box?.setAnimationVisible(window != nil)
+    }
     var border: LeadingBorder?
 
     override init(frame: CGRect) {
@@ -806,28 +900,40 @@ private final class EmbedBlock: LaidOutBlock {
   private let placeholder: UIView
   private let media: MediaPayload?
   private let type: String
+  private var length: Int
   var onGeometryChange: (() -> Void)?
 
-  init(type: String, payload: JSONValue?, width: CGFloat, style: @escaping DocumentText.Style, imageLoader: MediaImageLoader?) {
+  init(type: String, length: Int, payload: JSONValue?, width: CGFloat, style: @escaping DocumentText.Style, imageLoader: MediaImageLoader?) {
     self.type = type
+    self.length = length
     media = payload.flatMap(MediaPayload.init)
-    placeholder = media.map { MediaView($0, style: style, imageLoader: imageLoader) } ?? PlaceholderView(type: type)
+    if type == "comment" || type == "thread" { placeholder = HiddenCommentView() }
+    else if let media { placeholder = MediaView(media, style: style, imageLoader: imageLoader) }
+    else if type == "poll", let payload { placeholder = NativePollView(payload) }
+    else { placeholder = PlaceholderView(type: type) }
     container.addSubview(placeholder)
     (placeholder as? MediaView)?.onGeometryChange = { [weak self] in
       guard let self, let mediaView = self.placeholder as? MediaView else { return }
       self.placeholder.frame.size.height = mediaView.fittingHeight(self.placeholder.frame.width)
       self.onGeometryChange?()
     }
-    placeholder.frame = CGRect(x: 0, y: 0, width: width, height: (placeholder as? MediaView)?.fittingHeight(width) ?? PlaceholderView.height)
+    placeholder.frame = CGRect(x: 0, y: 0, width: width, height: fittingHeight(width))
   }
 
   var view: UIView { container }
   var kind: DocumentText.BlockKind { .embedded(type: type) }
   var height: CGFloat { placeholder.frame.height }
-  func canShow(_ kind: DocumentText.BlockKind) -> Bool { media == nil && kind == self.kind }
+  func canShow(_ kind: DocumentText.BlockKind) -> Bool { media == nil && type != "poll" && kind == self.kind }
+
+  private func fittingHeight(_ width: CGFloat) -> CGFloat {
+    if let media = placeholder as? MediaView { return media.fittingHeight(width) }
+    if let embedded = placeholder as? EmbeddedContentView { return embedded.contentSize(fitting: width).height }
+    return PlaceholderView.height
+  }
 
   func set(text: NSAttributedString, kind: DocumentText.BlockKind, width: CGFloat) {
-    placeholder.frame = CGRect(x: 0, y: 0, width: width, height: (placeholder as? MediaView)?.fittingHeight(width) ?? PlaceholderView.height)
+    length = text.length
+    placeholder.frame = CGRect(x: 0, y: 0, width: width, height: fittingHeight(width))
   }
 
   func redraw() {}
@@ -838,11 +944,11 @@ private final class EmbedBlock: LaidOutBlock {
     return [CGRect(x: range.location == 0 ? frame.minX : frame.maxX, y: frame.minY, width: 0, height: frame.height)]
   }
 
-  func offset(closestTo point: CGPoint) -> Int { point.x < placeholder.frame.midX ? 0 : 1 }
+  func offset(closestTo point: CGPoint) -> Int { point.x < placeholder.frame.midX ? 0 : length }
   func offset(movingVerticallyFrom offset: Int, _ direction: NSTextSelectionNavigation.Direction, x: CGFloat) -> Int? {
     nil
   }
-  func lineBoundary(at offset: Int, backward: Bool) -> Int { backward ? 0 : 1 }
+  func lineBoundary(at offset: Int, backward: Bool) -> Int { backward ? 0 : length }
 }
 
 /// A horizontal rule, the caret before it or after it as tall as a line of

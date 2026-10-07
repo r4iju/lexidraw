@@ -18,6 +18,13 @@ public final class EditorView: UIScrollView, UITextInput {
   private static let log = Logger(subsystem: "TextKitEditor", category: "EditorView")
 
   private let model: any EditorModel
+  public var typeaheadProviders: [EditorTypeaheadProvider] = [] {
+    didSet {
+      typeahead?.clear()
+      refreshTypeahead()
+    }
+  }
+  private var typeahead: EditorTypeaheadController?
   /// Whether the user may change the document. A view that isn't still
   /// becomes first responder, for its text to be selected and copied, but
   /// UIKit shows no keyboard for it, as `UITextInput.isEditable` asks, and
@@ -34,11 +41,187 @@ public final class EditorView: UIScrollView, UITextInput {
     redo: { [weak self] in self?.history.redo() },
     menus: { [unowned self] in formattingMenus() })
 
-  public override var inputAccessoryView: UIView? { isEditable && model.isEditable ? formattingBar : nil }
+  public override var inputAccessoryView: UIView? { isEditable && model.isEditable && model.supportsRichText ? formattingBar : nil }
   private let document: DocumentText
   private let storage = NSTextStorage()
   private let layout: BlockLayout
   private let typesetting: Typesetting
+  private let suppliedStyle: DocumentText.Style?
+
+  public var supportsRichText: Bool { model.supportsRichText }
+  /// Caption editors mount inline formatting without block or insertion plugins.
+  public var captionFormattingOnly = false {
+    didSet { formattingBar.setMenuAvailability(lists: !captionFormattingOnly, insert: !captionFormattingOnly) }
+  }
+  public var configureNestedEmbeds: ((EditorView) -> Void)?
+  private weak var metadataOwner: EditorView?
+  private let metadataChildren = NSHashTable<EditorView>.weakObjects()
+  private var sharedCommentResolution: Set<String> = []
+  private var sharedActiveComments: Set<String> = []
+  private var sharedFootnoteNumbers: [String: Int] = [:]
+
+  /// `textWeight` and `textLineHeight` (in ems) are what nested text inherits
+  /// from a web wrapper, as a section's `text-base` and its title's
+  /// `font-medium`; bold runs and headings keep their own.
+  public func makeNestedEditor(
+    model: any EditorModel, isEditable: Bool, textSize: CGFloat? = nil, textWeight: CGFloat? = nil,
+    textLineHeight: CGFloat? = nil, shareDocumentMetadata: Bool = false
+  ) -> EditorView {
+    let style: DocumentText.Style?
+    if textSize != nil || textWeight != nil || textLineHeight != nil {
+      style = { [typesetting, suppliedStyle] block, format in
+        var attributes = suppliedStyle?(block, format) ?? typesetting.attributes(StyledBlock(block), format)
+        guard var font = attributes[.font] as? UIFont else { return attributes }
+        if let textSize { font = font.withSize(textSize) }
+        let traits = font.fontDescriptor.symbolicTraits
+        if let textWeight, !traits.contains(.traitBold), !traits.contains(.traitMonoSpace) {
+          let weight = Typesetting.weight(Int(textWeight)), italic = traits.contains(.traitItalic)
+          font = typesetting.documentFont?.font(size: font.pointSize, weight: weight, italic: italic)
+            ?? UIFont.systemFont(ofSize: font.pointSize, weight: weight)
+          if italic, typesetting.documentFont == nil, let slanted = font.fontDescriptor.withSymbolicTraits(.traitItalic) {
+            font = UIFont(descriptor: slanted, size: 0)
+          }
+        }
+        attributes[.font] = font
+        if let textLineHeight, typesetting.typography.heading(StyledBlock(block)) == nil,
+          let inherited = attributes[.paragraphStyle] as? NSParagraphStyle
+        {
+          let paragraph = inherited.mutableCopy() as! NSMutableParagraphStyle
+          paragraph.minimumLineHeight = textLineHeight * font.pointSize
+          paragraph.maximumLineHeight = paragraph.minimumLineHeight
+          attributes[.paragraphStyle] = paragraph
+        }
+        return attributes
+      }
+    } else {
+      style = suppliedStyle
+    }
+    let editor = EditorView(
+      model: model, style: style, isEditable: isEditable,
+      language: typesetting.language, font: typesetting.documentFont)
+    editor.configureNestedEmbeds = configureNestedEmbeds
+    editor.uploadImage = uploadImage
+    editor.uploadVideo = uploadVideo
+    configureNestedEmbeds?(editor)
+    if shareDocumentMetadata {
+      metadataChildren.add(editor)
+      editor.metadataOwner = self
+      editor.document.rendersRootFootnotes = false
+      updateSharedMetadata(in: editor)
+    }
+    return editor
+  }
+
+  /// The document's font and size for text the web sets in pixels beside
+  /// the content, such as a callout's title, following the reader's text size.
+  public func documentFont(webPixels pixels: CGFloat, weight: Int) -> UIFont {
+    typesetting.font(webPixels: pixels, weight: weight)
+  }
+  public func points(webPixels pixels: CGFloat) -> CGFloat { typesetting.points(webPixels: pixels) }
+  public var documentLanguage: String? { typesetting.language }
+  /// Around the text, and between it and the edge of the view. A nested
+  /// editor whose container pads it as the web does sets it to zero.
+  public var contentMargin: CGFloat {
+    get { layout.contentMargin }
+    set {
+      layout.contentMargin = newValue
+      setNeedsLayout()
+    }
+  }
+  /// Whether the last block keeps no space after it, for a nested editor
+  /// whose container ends where its text does, as the web's callout body.
+  public var dropsTrailingSpace: Bool {
+    get { layout.dropsTrailingSpace }
+    set {
+      layout.dropsTrailingSpace = newValue
+      setNeedsLayout()
+    }
+  }
+
+  /// The web's document header, which it keeps on the root's NodeState,
+  /// shown read-only above the content.
+  public var documentHeader: DocumentHeader? {
+    didSet {
+      guard documentHeader != oldValue else { return }
+      guard let header = documentHeader, !header.isEmpty else { layout.leading = nil; setNeedsLayout(); return }
+      if let view = layout.leading {
+        view.header = header
+      } else {
+        let view = DocumentHeaderView(
+          header: header, points: { [typesetting] in typesetting.points(webPixels: $0) },
+          font: { [typesetting] in typesetting.font(webPixels: $0, weight: $1) })
+        view.imageLoader = mediaImageLoader ?? { try await NativeMediaImages.load($0) }
+        view.onSelectHeading = { [weak self] in self?.layout.scrollToBlock($0) }
+        view.registerForTraitChanges([UITraitUserInterfaceStyle.self, UITraitPreferredContentSizeCategory.self]) {
+          [weak self] (view: DocumentHeaderView, _: UITraitCollection) in
+          view.refresh()
+          self?.layout.invalidateLeading()
+          self?.setNeedsLayout()
+        }
+        layout.leading = view
+      }
+      updateDocumentOutline()
+      layout.invalidateLeading()
+      setNeedsLayout()
+    }
+  }
+
+  /// The headings the header's contents list names: H2 and H3 at the root,
+  /// as the web's lists them.
+  private func updateDocumentOutline() {
+    guard let view = layout.leading, view.header.toc else { return }
+    let text = storage.string as NSString
+    let outline = (0..<document.blockCount).compactMap { index -> DocumentHeaderView.Heading? in
+      let type = document.type(ofBlock: index)
+      guard type == "h2" || type == "h3" else { return nil }
+      let heading = text.substring(with: document.range(ofBlock: index)).trimmingCharacters(in: .whitespacesAndNewlines)
+      return heading.isEmpty ? nil : .init(block: index, text: heading, subheading: type == "h3")
+    }
+    if outline != view.outline {
+      view.outline = outline
+      layout.invalidateLeading()
+    }
+  }
+
+  public func structuralNode(key: String) throws -> JSONValue {
+    try model.node(at: model.nodePath(for: key))
+  }
+
+  public func makeCaptionEditor(key: String, textSize: CGFloat? = nil) throws -> EditorView {
+    guard isEditable else { throw EditorError.unsupported("This document cannot be edited") }
+    let caption = try model.captionEditor(key: key)
+    let editor = makeNestedEditor(model: caption, isEditable: caption.isEditable, textSize: textSize, shareDocumentMetadata: true)
+    editor.captionFormattingOnly = true
+    editor.onChange = { [weak self, weak editor] in
+      guard let self else { return }
+      if editor?.lastChangeChangedParent == true {
+        self.refreshEmbeddedContent()
+      } else if let path = try? self.model.nodePath(for: key) {
+        self.render(ChangeSet(changed: [path]))
+      }
+      self.onChange?()
+    }
+    return editor
+  }
+
+  /// A structural body's editing surface shares this document's model, so
+  /// plugin operations that leave the body keep their true parent context.
+  public func makeStructuralEditor(key: String, childPath: [Int] = []) throws -> EditorView {
+    var path = try model.nodePath(for: key) + childPath
+    var value = try model.node(at: path)
+    while let children = value["children"]?.arrayValue, !children.isEmpty {
+      path.append(0)
+      value = children[0]
+    }
+    let editor = makeNestedEditor(model: model, isEditable: isEditable)
+    let point = Point(path: path, offset: 0, type: value["text"] != nil ? .text : .element)
+    editor.perform(.caret(point), fromInput: false)
+    editor.onChange = { [weak self] in
+      self?.render(nil)
+      self?.onChange?()
+    }
+    return editor
+  }
 
   /// The selection as UTF-16 offsets into the text; `focus` is the end that
   /// moves.
@@ -54,6 +237,88 @@ public final class EditorView: UIScrollView, UITextInput {
   /// When the model last heard from the view, for the time its history
   /// merges edits by.
   private var lastCommand = ProcessInfo.processInfo.systemUptime
+  private var inputTurnToken: Int?
+  /// A keyboard input turn kept open past its main callback, for input
+  /// UIKit delivers across callbacks to join it.
+  private struct HeldInputTurn {
+    enum Reason {
+      /// An accepted word replacement, joined by its trailing space.
+      case acceptedReplacement
+      /// A swiped word, joined by the next swiped word: QuickPath delivers
+      /// each word, with its automatic space, as one multi-character
+      /// `insertText`, which Lexical's history never merges (#236).
+      case swipedWord
+    }
+    let reason: Reason
+    let selection: Selection
+    let finishedAt: TimeInterval
+    let revision: Int
+  }
+  private var heldInputTurn: HeldInputTurn?
+  private func holdKeyboardInputTurn(_ reason: HeldInputTurn.Reason) {
+    guard let token = inputTurnToken, let history = model as? any KeyboardInputHistory,
+      history.isInputTurnActive(token), composition == nil,
+      let selection = modelSelection(), selection.isCollapsed else { return }
+    heldInputTurn = HeldInputTurn(reason: reason, selection: selection,
+      finishedAt: ProcessInfo.processInfo.systemUptime, revision: history.inputHistoryRevision)
+  }
+  /// What UIKit delivers for one swiped word. Tapped keys and emoji are one
+  /// character; Return goes through paragraph insertion.
+  private static func isSwipedWord(_ text: String) -> Bool {
+    text.count > 1 && !text.contains(where: \.isNewline)
+  }
+  private func beginKeyboardInputTurn() {
+    guard let history = model as? any KeyboardInputHistory else { return }
+    if let token = inputTurnToken, !history.isInputTurnActive(token) {
+      inputTurnToken = nil
+      heldInputTurn = nil
+    }
+    if inputTurnToken == nil { inputTurnToken = history.beginInputTurn() }
+    let token = inputTurnToken!
+    DispatchQueue.main.async { [weak self, history] in
+      guard let self else { history.endInputTurn(token); return }
+      guard self.inputTurnToken == token, self.heldInputTurn == nil else { return }
+      self.endKeyboardInputTurn()
+    }
+  }
+  private func endKeyboardInputTurn() {
+    heldInputTurn = nil
+    guard let token = inputTurnToken else { return }
+    inputTurnToken = nil
+    (model as? any KeyboardInputHistory)?.endInputTurn(token)
+  }
+  private func continueHeldInputTurn(with text: String) {
+    guard let heldInputTurn else { return }
+    guard let history = model as? any KeyboardInputHistory else { endKeyboardInputTurn(); return }
+    let (joins, pause) = switch heldInputTurn.reason {
+    case .acceptedReplacement: (text == " ", history.inputHistoryDelayMilliseconds)
+    // The pause runs from one word's lift to the next's, so it includes the
+    // time drawing the next word takes, which a tapped key's doesn't.
+    case .swipedWord: (Self.isSwipedWord(text), 2 * history.inputHistoryDelayMilliseconds)
+    }
+    let continues = joins && composition == nil && selected.length == 0
+      && modelSelection() == heldInputTurn.selection
+      && history.inputHistoryRevision == heldInputTurn.revision
+      && (ProcessInfo.processInfo.systemUptime - heldInputTurn.finishedAt) * 1000 < Double(pause)
+    if continues { self.heldInputTurn = nil }
+    else { endKeyboardInputTurn() }
+  }
+  private var lastChangeChangedParent = false
+
+  /// The space the editor keeps around its text on every side.
+  public static var defaultContentMargin: CGFloat { BlockLayout.margin }
+
+  /// The height that shows the whole document at `width` without scrolling,
+  /// for an editor nested in content that grows to fit it.
+  public func fittingHeight(width: CGFloat) -> CGFloat {
+    if bounds.width != width { frame.size.width = width }
+    layoutIfNeeded()
+    return layout.measuredHeight()
+  }
+  /// Called when the document's height changes, as when an image in it loads.
+  public var onContentHeightChange: (() -> Void)? {
+    didSet { layout.onHeightChange = onContentHeightChange }
+  }
 
   /// Called after each call a keyboard's input method makes.
   public var onInput: ((TextInputRecord) -> Void)?
@@ -61,8 +326,104 @@ public final class EditorView: UIScrollView, UITextInput {
   /// The owner can schedule autosave without exporting on every keystroke.
   public var onChange: (() -> Void)?
 
+  /// Native panels expose their controls when the document contains only panels.
+  public var accessibleEmbeddedTypes: Set<String> = [] {
+    didSet { updateEmbeddedAccessibility() }
+  }
+  /// Visible native panels can be listed beside this UITextInput by its host.
+  /// Listing them outside the text input retains UIKit's own editing accessibility.
+  public var visibleEmbeddedAccessibilityViews: [UIView] {
+    var result: [UIView] = []
+    func collect(_ view: UIView) {
+      guard !view.isHidden, view.alpha > 0 else { return }
+      if view is EmbeddedContentView || view is MediaView {
+        if view.convert(view.bounds, to: self).intersects(bounds) { result.append(view) }
+        return
+      }
+      for child in view.subviews { collect(child) }
+    }
+    collect(surface)
+    if let popup = typeahead?.accessibilityView { result.append(popup) }
+    return result
+  }
+  private var embeddedAccessibilityContainer = false
+  public override var isAccessibilityElement: Bool {
+    get { embeddedAccessibilityContainer ? false : super.isAccessibilityElement }
+    set { super.isAccessibilityElement = newValue }
+  }
+  public override var accessibilityElements: [Any]? {
+    get { embeddedAccessibilityContainer ? [surface] + (typeahead?.accessibilityView.map { [$0] } ?? []) : super.accessibilityElements }
+    set { super.accessibilityElements = newValue }
+  }
+
+  private func elementFormattingContexts(for key: String, childPath: [Int] = []) throws -> [JSONValue] {
+    var path = try model.nodePath(for: key)
+    var contexts = document.inheritedElementFormatting
+    for length in 0...path.count {
+      contexts.append(try model.elementFormatting(at: Array(path.prefix(length))))
+    }
+    for index in childPath {
+      path.append(index)
+      contexts.append(try model.elementFormatting(at: path))
+    }
+    let indent = contexts.reduce(0.0) { $0 + max(0, $1["indent"]?.numberValue ?? 0) }
+    guard indent.isFinite, indent < Double(Float.greatestFiniteMagnitude) / 80 else {
+      throw EditorError.unsupported("The parent indent cannot be represented natively (#133)")
+    }
+    return contexts
+  }
+
+  public func elementWritingDirection(for key: String) throws -> EditorCommand.WritingDirection {
+    let contexts = try elementFormattingContexts(for: key)
+    return contexts.reversed().compactMap { context in
+      context["direction"]?.stringValue.flatMap(EditorCommand.WritingDirection.init(rawValue:))
+    }.first ?? .auto
+  }
+
+  public func inheritElementFormatting(from owner: EditorView, key: String, childPath: [Int] = []) throws {
+    document.inheritedElementFormatting = try owner.elementFormattingContexts(for: key, childPath: childPath)
+    render(nil)
+  }
+
+  public var embeddedElementTypes: Set<String> = [] {
+    didSet {
+      document.embeddedElementTypes = embeddedElementTypes
+      render(nil)
+    }
+  }
+
+  public func convertArticle(key: String, expected: JSONValue, html: String) throws {
+    guard isEditable else { throw EditorError.unsupported("This document cannot be edited") }
+    let path = try model.nodePath(for: key)
+    guard try model.node(at: path) == expected else {
+      throw EditorError.invalidState("The article changed while its controls were open")
+    }
+    let change = try model.apply(.convertArticle(path: path, html: html))
+    render(change)
+    if !change.changed.isEmpty { onChange?() }
+  }
+
+  public func replaceEmbeddedNode(key: String, expected: JSONValue, replacement: JSONValue?) throws {
+    guard isEditable else { throw EditorError.unsupported("This document cannot be edited") }
+    let change = try model.replaceEmbeddedNode(key: key, expected: expected, replacement: replacement)
+    render(change)
+    if !change.changed.isEmpty { onChange?() }
+  }
+
+  public func updateStructuralFields(key: String, expected: JSONValue, fields: JSONValue) throws {
+    guard isEditable else { throw EditorError.unsupported("This document cannot be edited") }
+    let path = try model.nodePath(for: key)
+    guard try model.node(at: path) == expected else { throw EditorError.invalidState("The block changed while its editor was open") }
+    let change = try model.apply(.updateStructuralFields(path: path, fields: fields))
+    render(change)
+    if !change.changed.isEmpty { onChange?() }
+  }
+
   public var embeddedContent: ((String, JSONValue) -> EmbeddedContentView?)? {
-    didSet { layout.embeddedContent = embeddedContent; render(nil) }
+    didSet {
+      layout.embeddedContent = embeddedContent
+      render(nil)
+    }
   }
 
   public var inlineEmbeddedContent: ((String, JSONValue, CGFloat) -> NSTextAttachment?)? {
@@ -71,7 +432,11 @@ public final class EditorView: UIScrollView, UITextInput {
 
   /// Optional platform decoder/rasterizer; the built-in raster loader is the default.
   public var mediaImageLoader: MediaImageLoader? {
-    didSet { layout.mediaImageLoader = mediaImageLoader; configureInlineAttachments() }
+    didSet {
+      layout.mediaImageLoader = mediaImageLoader
+      layout.leading?.imageLoader = mediaImageLoader ?? { try await NativeMediaImages.load($0) }
+      configureInlineAttachments()
+    }
   }
 
   private func configureInlineAttachments() {
@@ -79,7 +444,7 @@ public final class EditorView: UIScrollView, UITextInput {
     else {
       document.nativeAttachment = { [weak self] node, path in
         guard let self, let key = nodeKey(at: path) else { return nil }
-        if let view = inlineEmbeddedContent?(key, node, max(bounds.width - BlockLayout.margin * 2, 1)) { return view }
+        if let view = inlineEmbeddedContent?(key, node, max(bounds.width - contentMargin * 2, 1)) { return view }
         guard let loader = mediaImageLoader, let payload = MediaPayload(node), ["image", "inline-image"].contains(payload.type) else { return nil }
         return MediaAttachment(payload, imageLoader: loader)
       }
@@ -87,17 +452,202 @@ public final class EditorView: UIScrollView, UITextInput {
     render(nil)
   }
   public var onEmbeddedTap: ((String, JSONValue) -> Bool)?
+  private var socialUserID: String?
+  private var socialAuthor = "Guest"
+  private var hasSocialProvider = false
+
+  public func configureSocialNodes(userID: String?, author: String) {
+    socialUserID = userID; socialAuthor = author
+    if !hasSocialProvider {
+      hasSocialProvider = true
+      let previous = embeddedContent
+      let previousTap = onEmbeddedTap
+      onEmbeddedTap = { [weak self] key, node in
+        if node["type"] == "footnote-reference", let label = node["label"]?.stringValue {
+          self?.showFootnote(label); return true
+        }
+        return previousTap?(key, node) == true
+      }
+      embeddedContent = { [weak self] key, node in
+        if let supplied = previous?(key, node) { return supplied }
+        guard let self, node["type"] == "poll" else { return nil }
+        return NativePollView(node, userID: socialUserID, editable: isEditable,
+          changed: { [weak self] replacement in try self?.replaceEmbeddedNode(key: key, expected: node, replacement: replacement) },
+          editOption: { [weak self] uid, text in self?.editPollOption(key: key, node: node, uid: uid, text: text) },
+          failed: { [weak self] error in self?.showSocialError(error) })
+      }
+    } else { refreshEmbeddedContent() }
+  }
+
+  private func footnoteDefinition(_ label: String) -> (index: Int, node: JSONValue, number: Int)? {
+    guard let keys = try? model.childKeys(at: []) else { return nil }
+    var labels = Set<String>()
+    for index in keys.indices {
+      guard let node = try? model.nodeForPresentation(at: [index]), node["type"] == "footnote-definition", let storedLabel = node["label"]?.stringValue else { continue }
+      labels.insert(storedLabel)
+      if storedLabel == label { return (index, node, labels.count) }
+    }
+    return nil
+  }
+
+  private func showFootnote(_ label: String) {
+    if let metadataOwner { metadataOwner.showFootnote(label); return }
+    let definition = footnoteDefinition(label)
+    let message: String
+    if let definition, let text = try? model.nodeTextContent(at: [definition.index]) {
+      message = JSRegExp(#"^\s+|\s+$"#, flags: "g").replacingMatches(in: text, with: "")
+    } else { message = "This footnote has no definition." }
+    let alert = UIAlertController(title: definition.map { "Footnote \($0.number)" } ?? "Footnote", message: message, preferredStyle: .alert)
+    alert.addAction(UIAlertAction(title: "Done", style: .cancel))
+    if definition != nil {
+      alert.addAction(UIAlertAction(title: "Go to note", style: .default) { [weak self] _ in
+        guard let self, let current = footnoteDefinition(label) else { return }
+        goToFootnotePoint(Point(path: [current.index], offset: 0, type: .element))
+      })
+    }
+    presenter?.present(alert, animated: true)
+  }
+
+  private func goToFootnotePoint(_ point: Point) {
+    _ = perform(.caret(point), fromInput: false)
+    scrollToCaret()
+  }
+
+  private func followFootnoteBacklink(_ label: String) {
+    func reference(_ node: JSONValue, at path: [Int]) -> Point? {
+      if node["type"] == "footnote-reference", node["label"] == .string(label), let index = path.last {
+        return Point(path: Array(path.dropLast()), offset: index, type: .element)
+      }
+      for (index, child) in (node["children"]?.arrayValue ?? []).enumerated() {
+        if let result = reference(child, at: path + [index]) { return result }
+      }
+      return nil
+    }
+    if let state = try? model.serializedState(), let root = state["root"], let point = reference(root, at: []) { goToFootnotePoint(point) }
+  }
+
+  @discardableResult public func insertPoll(question: String) -> Bool {
+    guard isEditable, JSRegExp(#"^\s*$"#, flags: "").firstMatch(in: question) == nil,
+      var node = try? JSONValue(parsing: WebPollStyle.insertionNodeJSON).objectValue,
+      let defaults = node["options"]?.arrayValue else { return false }
+    node["question"] = .string(question)
+    node["options"] = .array(defaults.map { option in
+      var fields = option.objectValue!; fields["uid"] = .string(UUID().uuidString)
+      return .object(fields)
+    })
+    let clipboard = Clipboard(plainText: "", lexical: LexicalClipboardPayload(namespace: MediaLinks.namespace, nodes: [.object(node)]))
+    return perform(.paste(clipboard), fromInput: false, tellsRefusal: true) != nil
+  }
+
+  public var socialInsertionActions: [UIMenuElement] {
+    [UIAction(title: "Comment", image: UIImage(systemName: "text.bubble")) { [weak self] _ in
+      self?.presentCommentComposer()
+    }, UIAction(title: "Comments", image: UIImage(systemName: "bubble.left.and.bubble.right")) { [weak self] _ in
+      self?.presentComments()
+    }, UIAction(title: "Poll", image: UIImage(systemName: "chart.bar")) { [weak self] _ in
+      guard let self, isEditable else { return }
+      let alert = UIAlertController(title: "Insert poll", message: "Question", preferredStyle: .alert)
+      alert.addTextField()
+      alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+      let insert = UIAlertAction(title: "Insert", style: .default) { [weak self, weak alert] _ in
+        guard let question = alert?.textFields?.first?.text else { return }
+        self?.insertPoll(question: question)
+      }
+      insert.isEnabled = false
+      alert.textFields?.first?.addAction(UIAction { [weak insert] action in
+        guard let field = action.sender as? UITextField else { return }
+        insert?.isEnabled = JSRegExp(#"^\s*$"#, flags: "").firstMatch(in: field.text ?? "") == nil
+      }, for: .editingChanged)
+      alert.addAction(insert)
+      presenter?.present(alert, animated: true)
+    }]
+  }
+
+  private func showSocialError(_ error: any Error, title: String = "Couldn’t update poll") {
+    let message: String
+    switch error {
+    case EditorError.unsupported(let reason), EditorError.invalidState(let reason): message = reason
+    default: message = error.localizedDescription
+    }
+    let alert = UIAlertController(title: title, message: message, preferredStyle: .alert)
+    alert.addAction(UIAlertAction(title: "OK", style: .default))
+    var owner = presenter
+    while let next = owner?.presentedViewController { owner = next }
+    owner?.present(alert, animated: true)
+  }
+
+  private func editPollOption(key: String, node: JSONValue, uid: String, text: String) {
+    guard isEditable else { return }
+    let alert = UIAlertController(title: "Edit option", message: nil, preferredStyle: .alert)
+    alert.addTextField { $0.text = text }
+    alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+    alert.addAction(UIAlertAction(title: "Save", style: .default) { [weak self, weak alert] _ in
+      guard let self, let text = alert?.textFields?.first?.text, var fields = node.objectValue,
+        var options = node["options"]?.arrayValue, let index = options.firstIndex(where: { $0["uid"] == .string(uid) }),
+        var option = options[index].objectValue else { return }
+      option["text"] = .string(text); options[index] = .object(option); fields["options"] = .array(options)
+      do { try replaceEmbeddedNode(key: key, expected: node, replacement: .object(fields)) }
+      catch { showSocialError(error) }
+    })
+    presenter?.present(alert, animated: true)
+  }
   private var inlineWidth: CGFloat = 0
-  public func refreshEmbeddedContent() { render(nil); setNeedsLayout() }
+  /// Floats retain their node in the text's selection tree, with their native
+  /// content positioned in document coordinates independently of block flow.
+  public var floatingEmbeddedTypes: Set<String> = [] {
+    didSet { updateFloatingTypes() }
+  }
+  public var floatingEmbeddedMinimumWidth: CGFloat = 0 { didSet { updateFloatingTypes() } }
+  private func updateFloatingTypes() {
+    let active: Set<String> = isEditable && bounds.width > floatingEmbeddedMinimumWidth ? floatingEmbeddedTypes : []
+    guard document.floatingEmbeddedTypes != active else { return }
+    document.floatingEmbeddedTypes = active
+    render(nil)
+  }
+  public var floatingEmbeddedFrame: ((JSONValue, CGFloat) -> CGRect?)? { didSet { setNeedsLayout() } }
+  private var floatingViews: [String: EmbeddedContentView] = [:]
+  private func layoutFloatingContent() {
+    guard let frame = floatingEmbeddedFrame, let provider = embeddedContent else { return }
+    var visible: Set<String> = []
+    let viewport = surface.convert(bounds, from: self).insetBy(dx: -192, dy: -192)
+    for floating in document.floatingNodes {
+      guard let rect = frame(floating.node, surface.bounds.width), rect.intersects(viewport) else { continue }
+      let content: EmbeddedContentView
+      if let existing = floatingViews[floating.key] {
+        content = existing
+      } else {
+        guard let supplied = provider(floating.key, floating.node) else { continue }
+        content = supplied
+        floatingViews[floating.key] = content
+        surface.addSubview(content)
+      }
+      content.show(floating.node)
+      var positioned = rect
+      positioned.size.height = max(rect.height, content.contentSize(fitting: rect.width).height)
+      content.frame = positioned
+      surface.bringSubviewToFront(content)
+      visible.insert(floating.key)
+    }
+    for key in Array(floatingViews.keys) where !visible.contains(key) {
+      floatingViews.removeValue(forKey: key)?.removeFromSuperview()
+    }
+  }
+
+  public func refreshEmbeddedContent() {
+    render(nil)
+    setNeedsLayout()
+  }
 
   private func nodeKey(at path: [Int]) -> String? {
-    guard let index = path.last, let keys = try? model.childKeys(at: Array(path.dropLast())), keys.indices.contains(index) else { return nil }
+    guard let index = path.last, let keys = try? model.childKeys(at: Array(path.dropLast())),
+      keys.indices.contains(index)
+    else { return nil }
     return keys[index]
   }
 
   /// Inserts a decorator through the existing clipboard command and opens
   /// only the new node, without mistaking an older drawing for it.
-  public func insertEmbeddedNode(_ node: JSONValue, namespace: String) {
+  public func insertEmbeddedNode(_ node: JSONValue, namespace: String, openAfterInsertion: Bool = true) {
     guard isEditable else { return }
     var before = Set<String>()
     var pending: [[Int]] = [[]]
@@ -110,12 +660,41 @@ public final class EditorView: UIScrollView, UITextInput {
     }
     let clipboard = Clipboard(plainText: "", lexical: LexicalClipboardPayload(namespace: namespace, nodes: [node]))
     guard let change = perform(.paste(clipboard), fromInput: false, tellsRefusal: true) else { return }
+    guard openAfterInsertion else { return }
     for path in change.changed.sorted(by: { $0.count > $1.count }) {
       guard let key = nodeKey(at: path), !before.contains(key),
         let inserted = try? model.nodeForPresentation(at: path), inserted["type"] == node["type"] else { continue }
       _ = onEmbeddedTap?(key, inserted)
       return
     }
+  }
+
+  @discardableResult private func openSelectedCodeSource() -> Bool {
+    guard let selection = modelSelection(), !selection.anchor.path.isEmpty else { return false }
+    var path = selection.anchor.path
+    while !path.isEmpty {
+      if let node = try? model.nodeForPresentation(at: path), node["type"] == "code", selection.focus.path.starts(with: path), let key = nodeKey(at: path) {
+        return onEmbeddedTap?(key, node) == true
+      }
+      path.removeLast()
+    }
+    return false
+  }
+
+  public func formatCode() {
+    if openSelectedCodeSource() { return }
+    unmarkText()
+    perform(.formatCode, fromInput: false, tellsRefusal: true)
+  }
+
+  public func replaceRenderedNode(key: String, expected: JSONValue, replacement: JSONValue) throws {
+    guard isEditable else { throw EditorError.unsupported("This document is read only") }
+    let change = try model.replaceRenderedNode(key: key, expected: expected, replacement: replacement)
+    inputDelegate?.textWillChange(self)
+    render(change)
+    inputDelegate?.textDidChange(self)
+    showModelSelection(fromInput: false)
+    if !change.changed.isEmpty { onChange?() }
   }
 
   /// Commits a drawing edit through the document's history and rendering.
@@ -131,6 +710,8 @@ public final class EditorView: UIScrollView, UITextInput {
 
   /// Provided by the account-backed document screen; absent in disposable harnesses.
   public var uploadImage: (@MainActor (Data) async throws -> URL)?
+  public var uploadVideo: (@MainActor (Data) async throws -> URL)?
+  private var videoPicker: NativeVideoPicker?
   private var imagePicker: NativeImagePicker?
 
   public weak var inputDelegate: (any UITextInputDelegate)?
@@ -138,9 +719,12 @@ public final class EditorView: UIScrollView, UITextInput {
   public private(set) lazy var tokenizer: any UITextInputTokenizer = UITextInputStringTokenizer(textInput: self)
 
   /// `style` sets the text's attributes in place of the web's typography.
-  public init(model: any EditorModel, style: DocumentText.Style? = nil, isEditable: Bool = true,
-    language: String? = nil, font: DocumentFont? = nil) {
+  public init(
+    model: any EditorModel, style: DocumentText.Style? = nil, isEditable: Bool = true,
+    language: String? = nil, font: DocumentFont? = nil
+  ) {
     self.model = model
+    suppliedStyle = style
     self.isEditable = isEditable
     let typesetting = Typesetting(.web)
     typesetting.language = language
@@ -148,8 +732,12 @@ public final class EditorView: UIScrollView, UITextInput {
     self.typesetting = typesetting
     document = DocumentText(
       model: model, style: style ?? { typesetting.attributes(StyledBlock($0), $1) }, standIn: BlockLayout.standIn)
+    document.footnoteSectionTitle = WebFootnoteStyle.titles[language?.lowercased().split(separator: "-").first.map(String.init) ?? ""] ?? WebFootnoteStyle.titles[""]!
     layout = BlockLayout(storage: storage, document: document, typesetting: typesetting)
     super.init(frame: .zero)
+    typeahead = EditorTypeaheadController(editor: self)
+    if model.mountedTypeaheadPlugins.contains("EmojiPickerPlugin") { typeaheadProviders.append(.emoji) }
+    if model.mountedTypeaheadPlugins.contains("MentionsPlugin") { typeaheadProviders.append(.mentions) }
     backgroundColor = .systemBackground
     alwaysBounceVertical = true
     keyboardDismissMode = .interactive
@@ -197,8 +785,20 @@ public final class EditorView: UIScrollView, UITextInput {
   /// without being told; anything else tells the input delegate. Returns
   /// what the command changed, where the model took it.
   @discardableResult
-  private func perform(_ command: EditorCommand, fromInput: Bool, tellsRefusal: Bool = false) -> ChangeSet? {
+  private func perform(_ command: EditorCommand, fromInput: Bool, tellsRefusal: Bool = false, preservingTypingAttributes: Bool = false, typeaheadSelection: (Point, Point)? = nil) -> ChangeSet? {
+    if !fromInput { endKeyboardInputTurn() }
     guard isEditable || !command.edits else { return nil }
+    switch command {
+    case .insertText, .commitComposition, .deleteCharacter, .deleteWord, .deleteLine, .insertParagraph, .insertLineBreak, .formatText, .tab:
+      if openSelectedCodeSource() { return nil }
+    default: break
+    }
+    let command: EditorCommand = {
+      if !isEditable, case .arrow(_, let extend, let native, _, _, _) = command {
+        return .setSelection(anchor: extend ? modelSelection()?.anchor ?? native : native, focus: native)
+      }
+      return command
+    }()
     // A model left with no selection takes the view's before an edit.
     if command.editsAtSelection, modelSelection() == nil { sendSelection() }
     let now = ProcessInfo.processInfo.systemUptime
@@ -209,7 +809,9 @@ public final class EditorView: UIScrollView, UITextInput {
     }
     let change: ChangeSet
     do {
-      change = try model.apply(command)
+      if let typeaheadSelection, case .paste(let clipboard) = command {
+        change = try model.applyTypeahead(clipboard, anchor: typeaheadSelection.0, focus: typeaheadSelection.1, preservingTypingAttributes: preservingTypingAttributes)
+      } else { change = try model.apply(command) }
     } catch EditorError.unsupported(let what) {
       Self.log.notice("The model can't \(command.name, privacy: .public) here yet: \(what, privacy: .public)")
       if tellsRefusal { tell(refusal: what) }
@@ -219,10 +821,12 @@ public final class EditorView: UIScrollView, UITextInput {
       return nil
     }
     if !fromInput { inputDelegate?.textWillChange(self) }
+    lastChangeChangedParent = change.parentChanged
     render(change)
     if !fromInput { inputDelegate?.textDidChange(self) }
     showModelSelection(fromInput: fromInput)
-    if command.edits && !change.changed.isEmpty { onChange?() }
+    if isEditable && (!change.changed.isEmpty || change.parentChanged) { onChange?() }
+    refreshTypeahead()
     return change
   }
 
@@ -249,7 +853,32 @@ public final class EditorView: UIScrollView, UITextInput {
         }
       }
     }
+    refreshSharedMetadata()
+    updateEmbeddedAccessibility()
+    updateDocumentOutline()
     setNeedsLayout()
+  }
+
+
+  private func updateSharedMetadata(in child: EditorView) {
+    child.document.externalResolvedCommentIDs = document.commentResolution
+    child.document.externalFootnoteNumbers = document.referenceNumbers
+    child.document.activeCommentIDs = document.activeCommentIDs
+    child.render(nil)
+  }
+
+  private func refreshSharedMetadata() {
+    let resolution = document.commentResolution, numbers = document.referenceNumbers, active = document.activeCommentIDs
+    guard resolution != sharedCommentResolution || numbers != sharedFootnoteNumbers || active != sharedActiveComments else { return }
+    sharedCommentResolution = resolution; sharedFootnoteNumbers = numbers; sharedActiveComments = active
+    for child in metadataChildren.allObjects { updateSharedMetadata(in: child) }
+  }
+
+  private func updateEmbeddedAccessibility() {
+    embeddedAccessibilityContainer = document.blockCount > 0 && (0..<document.blockCount).allSatisfy {
+      if case .embedded(let type) = document.kind(ofBlock: $0) { return accessibleEmbeddedTypes.contains(type) }
+      return false
+    }
   }
 
   /// A change to the text that is only the view's, as composition is.
@@ -341,6 +970,37 @@ public final class EditorView: UIScrollView, UITextInput {
       })
   }
 
+  func currentTypeaheadInput() -> EditorTypeaheadInput? {
+    guard isFirstResponder, window != nil, isEditable, model.isEditable, composition == nil, selected.length == 0,
+      let selection = modelSelection(), case .range(let point, let focus, _, _) = selection,
+      point == focus, point.type == .text,
+      let node = try? model.nodeForPresentation(at: point.path), node["type"]?.stringValue == "text",
+      node["mode"]?.stringValue == "normal", let text = node["text"]?.stringValue,
+      point.offset <= (text as NSString).length, let index = point.path.last,
+      let keys = try? model.childKeys(at: Array(point.path.dropLast())), index < keys.count
+    else { return nil }
+    let prefix = (text as NSString).substring(to: point.offset)
+    let previousType = index > 0
+      ? (try? model.nodeForPresentation(at: Array(point.path.dropLast()) + [index - 1]))?["type"]?.stringValue
+      : nil
+    return EditorTypeaheadInput(prefix: prefix, replacementBase: selected.location - prefix.utf16.count,
+      selectionOffset: selected.location, nodeKey: keys[index],
+      previousSiblingIsTextEntity: previousType.map(WebEmojiPicker.textEntityTypes.contains) ?? false)
+  }
+
+  private func refreshTypeahead() {
+    guard let input = currentTypeaheadInput() else { typeahead?.clear(); return }
+    typeahead?.update(input, providers: typeaheadProviders)
+  }
+
+  public func replaceTypeahead(range: NSRange, with clipboard: Clipboard, preservingTypingAttributes: Bool = false) {
+    guard isEditable, composition == nil, range.location >= 0, NSMaxRange(range) == selected.location else { return }
+    typeahead?.clear()
+    let queryAnchor = document.point(at: range.location)
+    let queryFocus = document.point(at: NSMaxRange(range))
+    perform(.paste(clipboard), fromInput: false, tellsRefusal: true, preservingTypingAttributes: preservingTypingAttributes, typeaheadSelection: (queryAnchor, queryFocus))
+  }
+
   /// Tells the model where the view's selection is, which it needs before
   /// any edit.
   private func sendSelection() {
@@ -373,15 +1033,21 @@ public final class EditorView: UIScrollView, UITextInput {
   public var hasText: Bool { storage.length > 1 }
 
   public func insertText(_ text: String) {
+    continueHeldInputTurn(with: text)
+    beginKeyboardInputTurn()
+    if text == "\n", typeahead?.choose() == true { return }
     if composition != nil {
       commit(text)
     } else {
       insert(text, fromInput: true)
+      if Self.isSwipedWord(text) { holdKeyboardInputTurn(.swipedWord) }
     }
     report(.insertText(text))
   }
 
   public func deleteBackward() {
+    if heldInputTurn != nil { endKeyboardInputTurn() }
+    beginKeyboardInputTurn()
     commitMarkedText()
     perform(.deleteCharacter(backward: true), fromInput: true)
     report(.deleteBackward)
@@ -391,6 +1057,18 @@ public final class EditorView: UIScrollView, UITextInput {
     onInput?(TextInputRecord(call: call, text: storage.string, marked: composition?.marked))
   }
 
+  public override func willMove(toSuperview newSuperview: UIView?) {
+    if newSuperview !== superview { endKeyboardInputTurn(); typeahead?.clear() }
+    super.willMove(toSuperview: newSuperview)
+  }
+
+  public override func resignFirstResponder() -> Bool {
+    endKeyboardInputTurn()
+    let resigned = super.resignFirstResponder()
+    if resigned { typeahead?.clear() }
+    return resigned
+  }
+
   public override var canBecomeFirstResponder: Bool { true }
 
   /// A model with no selection yet takes the view's, so typing has
@@ -398,6 +1076,7 @@ public final class EditorView: UIScrollView, UITextInput {
   public override func becomeFirstResponder() -> Bool {
     guard super.becomeFirstResponder() else { return false }
     if modelSelection() == nil { sendSelection() }
+    refreshTypeahead()
     return true
   }
 
@@ -414,6 +1093,7 @@ public final class EditorView: UIScrollView, UITextInput {
   public var markedTextRange: UITextRange? { composition.map { TextRange($0.marked) } }
 
   public func setMarkedText(_ markedText: String?, selectedRange: NSRange) {
+    endKeyboardInputTurn()
     let text = markedText ?? ""
     // Selected nodes have no caret to compose at, as a browser shows none.
     if isNodeSelection, composition == nil { return report(.setMarkedText(text, selectedRange: selectedRange)) }
@@ -434,6 +1114,8 @@ public final class EditorView: UIScrollView, UITextInput {
   }
 
   public func unmarkText() {
+    if heldInputTurn != nil { endKeyboardInputTurn() }
+    beginKeyboardInputTurn()
     commitMarkedText()
     report(.unmarkText)
   }
@@ -468,6 +1150,7 @@ public final class EditorView: UIScrollView, UITextInput {
       guard let range = newValue as? TextRange else { return }
       let snapped = wholeCharacters(range.range)
       guard composition != nil || snapped != selected || caretBeforeBlock != nil else { return }
+      endKeyboardInputTurn()
       caretBeforeBlock = nil
       anchor = snapped.location
       focus = NSMaxRange(snapped)
@@ -478,6 +1161,7 @@ public final class EditorView: UIScrollView, UITextInput {
 
   /// Moves the caret by keyboard, or extends the selection's moving end.
   private func move(to offset: Int, extending: Bool) {
+    endKeyboardInputTurn()
     caretBeforeBlock = nil
     inputDelegate?.selectionWillChange(self)
     focus = clamp(offset)
@@ -506,13 +1190,20 @@ public final class EditorView: UIScrollView, UITextInput {
 
   public func replace(_ range: UITextRange, withText text: String) {
     guard let range = range as? TextRange else { return }
-    commitMarkedText()
+    endKeyboardInputTurn()
+    beginKeyboardInputTurn()
     let replaced = wholeCharacters(range.range)
+    let replacingWord = composition == nil && selected.length == 0 && replaced.length > 0
+      && NSMaxRange(replaced) == selected.location && !text.isEmpty
+      && !text.contains(where: \.isWhitespace)
+      && !(storage.string as NSString).substring(with: replaced).contains(where: \.isWhitespace)
+    commitMarkedText()
     caretBeforeBlock = nil
     anchor = replaced.location
     focus = NSMaxRange(replaced)
     sendSelection()
     insert(text, fromInput: true)
+    if replacingWord { holdKeyboardInputTurn(.acceptedReplacement) }
   }
 
   public func textRange(from fromPosition: UITextPosition, to toPosition: UITextPosition) -> UITextRange? {
@@ -713,6 +1404,7 @@ public final class EditorView: UIScrollView, UITextInput {
       command.wantsPriorityOverSystemBehavior = true
       return command
     }
+    let suggestionKeys: [UIKeyCommand] = typeahead?.isVisible == true ? [command("\r", [], #selector(chooseTypeahead)), command(UIKeyCommand.inputEscape, [], #selector(dismissTypeahead))] : []
     let moves = [
       command(UIKeyCommand.inputLeftArrow, [], #selector(moveLeft)),
       command(UIKeyCommand.inputRightArrow, [], #selector(moveRight)),
@@ -728,7 +1420,7 @@ public final class EditorView: UIScrollView, UITextInput {
       command(UIKeyCommand.inputRightArrow, [.command, .shift], #selector(extendToLineEnd)),
     ]
     guard isEditable else { return moves }
-    return moves + [
+    return suggestionKeys + moves + [
       command("\r", .shift, #selector(insertLineBreak)),
       command(UIKeyCommand.inputDelete, .alternate, #selector(deleteWordBackward)),
       command(UIKeyCommand.inputDelete, .command, #selector(deleteLineBackward)),
@@ -737,6 +1429,9 @@ public final class EditorView: UIScrollView, UITextInput {
       command("\t", [], #selector(tab)),
       command("\t", .shift, #selector(tabBackward)),
     ] + webKeyboardShortcuts.compactMap { binding in
+      // The web mounts these on the parent editor, using the active child's
+      // toolbar state. They cannot safely run as child-local shortcuts.
+      guard !captionFormattingOnly else { return nil }
       guard binding.action.isImplemented else { return nil }
       let key = command(binding.input, binding.modifiers, #selector(performWebShortcut(_:)))
       key.allowsAutomaticMirroring = false
@@ -758,8 +1453,16 @@ public final class EditorView: UIScrollView, UITextInput {
     arrow(.right, extend: false, to: anchor == focus ? character(after: focus) : NSMaxRange(selected))
   }
 
-  @objc private func moveUp() { arrow(.up, extend: false, to: line(from: focus, .up) ?? 0) }
-  @objc private func moveDown() { arrow(.down, extend: false, to: line(from: focus, .down) ?? lastOffset) }
+  @objc private func chooseTypeahead() { _ = typeahead?.choose() }
+  @objc private func dismissTypeahead() { typeahead?.clear() }
+  @objc private func moveUp() {
+    if typeahead?.move(-1) == true { return }
+    arrow(.up, extend: false, to: line(from: focus, .up) ?? 0)
+  }
+  @objc private func moveDown() {
+    if typeahead?.move(1) == true { return }
+    arrow(.down, extend: false, to: line(from: focus, .down) ?? lastOffset)
+  }
   @objc private func extendLeft() { arrow(.left, extend: true, to: character(before: focus)) }
   @objc private func extendRight() { arrow(.right, extend: true, to: character(after: focus)) }
   @objc private func extendUp() { arrow(.up, extend: true, to: line(from: focus, .up) ?? 0) }
@@ -806,8 +1509,14 @@ public final class EditorView: UIScrollView, UITextInput {
   @objc private func deleteWordBackward() { perform(.deleteWord(backward: true), fromInput: false) }
   @objc private func deleteWordForward() { perform(.deleteWord(backward: false), fromInput: false) }
   @objc private func deleteForward() { perform(.deleteCharacter(backward: false), fromInput: false) }
-  @objc private func tab() { perform(.tab(backward: false), fromInput: false) }
-  @objc private func tabBackward() { perform(.tab(backward: true), fromInput: false) }
+  @objc private func tab() {
+    if typeahead?.choose() == true { return }
+    perform(.tab(backward: false), fromInput: false)
+  }
+  @objc private func tabBackward() {
+    if typeahead?.choose() == true { return }
+    perform(.tab(backward: true), fromInput: false)
+  }
 
   @objc private func deleteLineBackward() {
     guard let boundary = lineBoundary(backward: true) else { return }
@@ -863,21 +1572,22 @@ public final class EditorView: UIScrollView, UITextInput {
     while !path.isEmpty {
       if let node = try? model.node(at: path) {
         if node["type"] == "list" { selectedType = node["listType"]?.stringValue; break }
-        if let type = node["type"]?.stringValue, BlockType(rawValue: type) != nil {
+        if let type = node["type"]?.stringValue, type == "code" || BlockType(rawValue: type) != nil {
           selectedType = type
         } else if node["type"] == "heading" { selectedType = node["tag"]?.stringValue }
       }
       path.removeLast()
     }
-    let choices = webBlockChoices.map { choice in
-      let supported = BlockType(rawValue: choice.type) != nil || EditorCommand.ListType(rawValue: choice.type) != nil
+    let choices = webBlockChoices.filter { !captionFormattingOnly || $0.type == "paragraph" }.map { choice in
+      let supported = choice.type == "code" || BlockType(rawValue: choice.type) != nil || EditorCommand.ListType(rawValue: choice.type) != nil
       return UIAction(title: choice.label, attributes: supported ? [] : .disabled,
         state: choice.type == selectedType ? .on : .off) { [weak self] _ in
         guard let self else { return }
         unmarkText()
         if let list = EditorCommand.ListType(rawValue: choice.type) {
           if selectedType == choice.type { removeList() } else { insertList(list) }
-        } else if let block = BlockType(rawValue: choice.type) { setBlockType(block) }
+        } else if choice.type == "code" { formatCode() }
+        else if let block = BlockType(rawValue: choice.type) { setBlockType(block) }
       }
     }
     return (
@@ -906,7 +1616,7 @@ public final class EditorView: UIScrollView, UITextInput {
       UIMenu(title: "Lists", children: choices.filter { action in
         webBlockChoices.contains { $0.label == action.title && EditorCommand.ListType(rawValue: $0.type) != nil }
       }),
-      UIMenu(title: "Insert", children: [tableMenu()] + insertionActions))
+      UIMenu(title: "Insert", children: captionFormattingOnly ? [] : [tableMenu()] + insertionActions))
   }
 
   @objc private func performWebShortcut(_ key: UIKeyCommand) {
@@ -940,8 +1650,7 @@ public final class EditorView: UIScrollView, UITextInput {
     case .increaseFontSize: _ = perform(.changeFontSize(increase: true), fromInput: false, tellsRefusal: true)
     case .decreaseFontSize: _ = perform(.changeFontSize(increase: false), fromInput: false, tellsRefusal: true)
     case .clearFormatting: _ = perform(.clearFormatting, fromInput: false, tellsRefusal: true)
-    case .formatCode:
-      preconditionFailure("A shortcut offered before its #135/#132 command is ported")
+    case .formatCode: formatCode()
     }
   }
 
@@ -990,8 +1699,68 @@ public final class EditorView: UIScrollView, UITextInput {
   }
 
   /// Actions the native formatting bar can include in its insertion menu.
+  public var mediaOrigin: URL?
   public var imageInsertionActions: [UIMenuElement] {
-    isEditable && uploadImage != nil ? imageMenu().children : []
+    guard isEditable else { return [] }
+    return [imageMenu(),
+      UIAction(title: "Video from Photos…", image: UIImage(systemName: "video"), attributes: uploadVideo == nil ? .disabled : []) { [weak self] _ in self?.chooseVideo() },
+      UIAction(title: "Inline image from Photos…", image: UIImage(systemName: "photo.on.rectangle"), attributes: uploadImage == nil ? .disabled : []) { [weak self] _ in self?.chooseImage(camera: false, inline: true) },
+      UIAction(title: "GIF", image: UIImage(systemName: "film"), attributes: mediaOrigin == nil ? .disabled : []) { [weak self] _ in
+        guard let self, let origin = mediaOrigin, let source = URL(string: MediaInsertions.gifSource, relativeTo: origin)?.absoluteURL else { return }
+        insertMedia(Self.mediaNode("image", fields: ["src": .string(source.absoluteString), "altText": .string(MediaInsertions.gifAltText)]))
+      },
+      UIMenu(title: "Embeds", children: [("YouTube", "youtube"), ("Tweet", "tweet"), ("Figma", "figma")].map { title, type in
+        UIAction(title: title) { [weak self] _ in self?.askForMediaURL(type: type, title: title) }
+      })]
+  }
+
+  private static func mediaNode(_ type: String, fields: [String: JSONValue]) -> JSONValue {
+    guard let source = MediaInsertions.nodes[type], var node = try? JSONValue(parsing: source).objectValue else {
+      preconditionFailure("Generated media insertion factory is missing")
+    }
+    for (name, value) in fields { node[name] = value }
+    return .object(node)
+  }
+
+  private static func mediaURLFields(type: String, value: String) -> [String: JSONValue]? {
+    let pattern: String
+    let capture: Int
+    let field: String
+    switch type {
+    case "youtube": pattern = MediaInsertions.youtubePattern; capture = MediaInsertions.youtubeCapture; field = "videoID"
+    case "tweet": pattern = MediaInsertions.tweetPattern; capture = MediaInsertions.tweetCapture; field = "id"
+    case "figma": pattern = MediaInsertions.figmaPattern; capture = MediaInsertions.figmaCapture; field = "documentID"
+    default: preconditionFailure("Unknown media URL parser")
+    }
+    let regex = try! NSRegularExpression(pattern: pattern)
+    guard let match = regex.firstMatch(in: value, range: NSRange(location: 0, length: value.utf16.count)),
+      let range = Range(match.range(at: capture), in: value) else { return nil }
+    let id = String(value[range])
+    guard type != "youtube" || id.utf16.count == MediaInsertions.youtubeIDLength else { return nil }
+    return [field: .string(id)]
+  }
+
+  private func askForMediaURL(type: String, title: String) {
+    guard isEditable, let presenter else { return }
+    let alert = UIAlertController(title: "Insert \(title)", message: "Paste its URL.", preferredStyle: .alert)
+    var insert: UIAlertAction?
+    alert.addTextField { field in
+      field.accessibilityLabel = "\(title) URL"
+      field.keyboardType = .URL
+      field.autocapitalizationType = .none
+      field.autocorrectionType = .no
+      field.addAction(UIAction { [weak field] _ in
+        insert?.isEnabled = Self.mediaURLFields(type: type, value: field?.text ?? "") != nil
+      }, for: .editingChanged)
+    }
+    alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+    insert = UIAlertAction(title: "Insert", style: .default) { [weak self, weak alert] _ in
+      guard let fields = Self.mediaURLFields(type: type, value: alert?.textFields?.first?.text ?? "") else { return }
+      self?.insertMedia(Self.mediaNode(type, fields: fields))
+    }
+    insert!.isEnabled = false
+    alert.addAction(insert!)
+    presenter.present(alert, animated: true)
   }
 
   private func imageMenu() -> UIMenu {
@@ -1008,11 +1777,25 @@ public final class EditorView: UIScrollView, UITextInput {
     return perform(.paste(Clipboard(plainText: "", lexical: LexicalClipboardPayload(namespace: MediaLinks.namespace, nodes: [node]))), fromInput: false, tellsRefusal: true) != nil
   }
 
-  private func chooseImage(camera: Bool) {
+  private func chooseVideo() {
+    guard isEditable, let uploadVideo, let presenter else { return }
+    let picker = NativeVideoPicker(presenter: presenter, upload: uploadVideo) { [weak self] node in
+      self?.insertMedia(node)
+      self?.videoPicker = nil
+    }
+    videoPicker = picker
+    picker.present()
+  }
+
+  private func chooseImage(camera: Bool, inline: Bool = false) {
     guard isEditable, let uploadImage, let presenter else { return }
     let picker = NativeImagePicker(presenter: presenter, upload: uploadImage) { [weak self] node in
       guard let self else { return }
-      insertMedia(node)
+      if inline {
+        let inlineNode = Self.mediaNode("inline-image", fields: ["src": node["src"]!, "width": node["width"]!, "height": node["height"]!])
+        let options = NativeInlineImageOptions(node: inlineNode) { [weak self] in self?.insertMedia($0) }
+        presenter.present(UINavigationController(rootViewController: options), animated: true)
+      } else { insertMedia(node) }
       imagePicker = nil
     }
     imagePicker = picker
@@ -1268,10 +2051,21 @@ public final class EditorView: UIScrollView, UITextInput {
   private func copySelection(_ command: EditorCommand) {
     commitMarkedText()
     syncSelection()
+    let range = selected
+    let attributed = range.length > 0 && NSMaxRange(range) <= storage.length
+      ? storage.attributedSubstring(from: range) : nil
     guard let clipboard = perform(command, fromInput: false)?.clipboard else { return }
     var item: [String: Any] = [UTType.utf8PlainText.identifier: clipboard.plainText]
     if let lexical = clipboard.lexical, let data = try? JSONEncoder().encode(lexical) {
       item[LexicalClipboardPayload.mimeType] = data
+    }
+    // Foundation writes the displayed selection for apps that do not consume
+    // Lexical's structural clipboard. Lexical remains the internal source of truth.
+    if let attributed {
+      if let rtf = try? attributed.data(from: NSRange(location: 0, length: attributed.length),
+        documentAttributes: [.documentType: NSAttributedString.DocumentType.rtf]) {
+        item[UTType.rtf.identifier] = rtf
+      }
     }
     pasteboard.setItems([item])
   }
@@ -1446,6 +2240,19 @@ public final class EditorView: UIScrollView, UITextInput {
   /// offers to open or edit the link.
   @objc private func tapped(_ tap: UITapGestureRecognizer) {
     let point = tap.location(in: surface)
+    var hit = surface.hitTest(point, with: nil)
+    while let view = hit, view !== surface {
+      if view is MediaView { return }
+      hit = view.superview
+    }
+    if let label = layout.footnoteBacklink(at: point) { followFootnoteBacklink(label); return }
+    if let character = characterRange(at: point) as? TextRange, character.range.length > 0,
+      let ids = storage.attribute(.commentIDs, at: character.range.location, effectiveRange: nil) as? [String], !ids.isEmpty {
+      document.activeCommentIDs = Set(ids)
+      render(nil)
+      presentComments()
+      return
+    }
     if let offset = layout.offset(closestTo: point), let path = document.embeddedPath(at: offset),
       let key = nodeKey(at: path), let node = try? model.nodeForPresentation(at: path) {
       if onEmbeddedTap?(key, node) == true { return }
@@ -1458,10 +2265,19 @@ public final class EditorView: UIScrollView, UITextInput {
     linkMenu.presentEditMenu(with: UIEditMenuConfiguration(identifier: nil, sourcePoint: point))
   }
 
+  func handleMediaBodyTap(from media: UIView) -> Bool {
+    let point = surface.convert(CGPoint(x: 0, y: media.bounds.midY), from: media)
+    guard let offset = layout.offset(closestTo: point), let path = document.embeddedPath(at: offset),
+      let key = nodeKey(at: path), let node = try? model.nodeForPresentation(at: path) else { return false }
+    return onEmbeddedTap?(key, node) == true
+  }
+
   // MARK: Layout
 
   public override func layoutSubviews() {
     super.layoutSubviews()
+    typeahead?.layoutChanged()
+    updateFloatingTypes()
     if inlineEmbeddedContent != nil, inlineWidth != bounds.width {
       inlineWidth = bounds.width
       render(nil)
@@ -1472,6 +2288,7 @@ public final class EditorView: UIScrollView, UITextInput {
       if !paths.isEmpty { render(ChangeSet(changed: Set(paths))) }
     }
     typesetting.withFontMetrics { layout.layoutViewport(of: self) }
+    layoutFloatingContent()
   }
 }
 
@@ -1479,7 +2296,7 @@ extension EditorCommand {
   /// Whether the command acts at the selection, so the model needs one.
   fileprivate var editsAtSelection: Bool {
     switch self {
-    case .setSelection, .wait, .undo, .redo, .selectAll: false
+    case .setSelection, .wait, .undo, .redo, .selectAll, .appendComment, .saveCommentThread, .removeCommentAnnotations: false
     default: true
     }
   }
@@ -1488,7 +2305,7 @@ extension EditorCommand {
 extension WebShortcutAction {
   fileprivate var isImplemented: Bool {
     switch self {
-    case .formatCode: false
+    case .formatCode: true
     case .increaseFontSize, .decreaseFontSize, .clearFormatting: true
     case .centerAlign, .leftAlign, .rightAlign, .justifyAlign: true
     case .formatParagraph, .formatHeading, .formatBulletList, .formatNumberedList, .formatCheckList, .formatQuote,
@@ -1610,5 +2427,175 @@ private final class ModelHistory: UndoManager {
   override var canRedo: Bool { true }
   override func undo() { undoEdit() }
   override func redo() { redoEdit() }
+}
+#endif
+
+#if canImport(UIKit)
+extension EditorView {
+  private func storedComments() throws -> [JSONValue] {
+    var entries: [JSONValue] = []
+    var seen: Set<String> = []
+    func collect(_ node: JSONValue) {
+      let item = node["type"] == "thread" ? node["thread"] : node["type"] == "comment" ? node["comment"] : nil
+      if let item, let id = item["id"]?.stringValue, seen.insert(id).inserted {
+        entries.append(item)
+        for comment in item["comments"]?.arrayValue ?? [] {
+          if let id = comment["id"]?.stringValue { seen.insert(id) }
+        }
+      }
+      for child in node["children"]?.arrayValue ?? [] { collect(child) }
+    }
+    collect(try model.node(at: []))
+    return entries
+  }
+
+  @discardableResult public func deleteCommentReply(threadID: String, commentID: String) -> Bool {
+    guard isEditable, supportsRichText, model.isEditable else { return false }
+    do {
+      guard let stored = try storedComments().first(where: { $0["type"] == "thread" && $0["id"] == .string(threadID) }),
+        var comments = stored["comments"]?.arrayValue,
+        let index = comments.firstIndex(where: { $0["id"] == .string(commentID) }) else { return false }
+      comments.remove(at: index)
+      let thread: JSONValue = ["type": "thread", "id": .string(threadID), "quote": stored["quote"] ?? "", "comments": .array(comments)]
+      return perform(.saveCommentThread(id: threadID, thread: thread), fromInput: false, tellsRefusal: true) != nil
+    } catch { showSocialError(error, title: "Couldn’t delete reply"); return false }
+  }
+
+  @discardableResult public func setCommentThreadResolved(id: String, resolved: Bool) -> Bool {
+    guard isEditable, supportsRichText, model.isEditable else { return false }
+    do {
+      guard var thread = try storedComments().first(where: { $0["type"] == "thread" && $0["id"] == .string(id) })?.objectValue else { return false }
+      thread["resolved"] = .bool(resolved)
+      return perform(.saveCommentThread(id: id, thread: .object(thread)), fromInput: false, tellsRefusal: true) != nil
+    } catch { showSocialError(error, title: "Couldn’t update comment"); return false }
+  }
+
+  private func showCommentAnchor(id: String) {
+    func first(_ node: JSONValue, path: [Int]) -> Point {
+      if node["text"]?.stringValue != nil { return .text(path, 0) }
+      if let child = node["children"]?.arrayValue?.first { return first(child, path: path + [0]) }
+      return Point(path: path, offset: 0, type: .element)
+    }
+    func anchor(_ node: JSONValue, path: [Int]) -> Point? {
+      if node["type"] == "mark", node["ids"]?.arrayValue?.contains(.string(id)) == true { return first(node, path: path) }
+      for (index, child) in (node["children"]?.arrayValue ?? []).enumerated() {
+        if let point = anchor(child, path: path + [index]) { return point }
+      }
+      return nil
+    }
+    if let root = try? model.node(at: []), let point = anchor(root, path: []) { goToFootnotePoint(point) }
+  }
+
+  public func presentComments() {
+    if let metadataOwner {
+      metadataOwner.document.activeCommentIDs = document.activeCommentIDs
+      metadataOwner.render(nil)
+      metadataOwner.presentComments()
+      return
+    }
+    let panel = CommentPanelController(onClose: { [weak self] in
+      self?.document.activeCommentIDs = []
+      self?.render(nil)
+    }, show: { [weak self] id in self?.showCommentAnchor(id: id) },
+      entries: { [weak self] in (try? self?.storedComments()) ?? [] },
+      editable: { [weak self] in self?.isEditable == true && self?.model.isEditable == true },
+      reply: { [weak self] id in
+        guard let self else { return }
+        let composer = CommentComposerController(title: "Reply") { [weak self] in self?.replyToCommentThread(id: id, content: $0) ?? false }
+        var owner = self.presenter
+        while let next = owner?.presentedViewController { owner = next }
+        owner?.present(UINavigationController(rootViewController: composer), animated: true)
+      }, resolve: { [weak self] id, resolved in _ = self?.setCommentThreadResolved(id: id, resolved: resolved) },
+      removeReply: { [weak self] threadID, commentID in _ = self?.deleteCommentReply(threadID: threadID, commentID: commentID) },
+      remove: { [weak self] id in
+        guard let self else { return }
+        do {
+          guard let item = try self.storedComments().first(where: { $0["id"] == .string(id) }) else { return }
+          guard self.perform(.saveCommentThread(id: id, thread: nil), fromInput: false, tellsRefusal: true) != nil else { return }
+          if item["type"] == "thread" { _ = self.perform(.removeCommentAnnotations(id: id), fromInput: false, tellsRefusal: true) }
+        } catch { self.showSocialError(error, title: "Couldn’t delete comment") }
+      })
+    presenter?.present(UINavigationController(rootViewController: panel), animated: true)
+  }
+
+  public func presentCommentComposer() {
+    guard isEditable, supportsRichText, model.isEditable else { return }
+    do {
+      guard case .range(let anchor, let focus, _, _)? = try model.selection(), anchor != focus else {
+        throw EditorError.unsupported("Select the text you want to comment on.")
+      }
+      let snapshot = try model.serializedState()
+      let composer = CommentComposerController(title: "New comment") { [weak self] content in
+        guard let self else { return false }
+        do {
+          guard try self.model.serializedState() == snapshot else {
+            throw EditorError.unsupported("The document changed. Select the text again before adding a comment.")
+          }
+          return self.insertComment(content: content)
+        } catch { self.showSocialError(error, title: "Couldn’t add comment"); return false }
+      }
+      presenter?.present(UINavigationController(rootViewController: composer), animated: true)
+    } catch { showSocialError(error, title: "Couldn’t add comment") }
+  }
+
+  @discardableResult public func replyToCommentThread(id: String, content: String) -> Bool {
+    guard isEditable, supportsRichText, model.isEditable,
+      JSRegExp(#"^\s*$"#, flags: "").firstMatch(in: content) == nil else { return false }
+    do {
+      var pending = [try model.node(at: [])]
+      while let node = pending.popLast() {
+        if node["type"] == "thread", let stored = node["thread"]?.objectValue,
+          stored["id"] == .string(id) {
+          guard stored["resolved"] != .bool(true), let comments = stored["comments"]?.arrayValue else { return false }
+          var comment = try commentObject(WebCommentData.emptyCommentJSON)
+          comment["author"] = .string(socialAuthor); comment["content"] = .string(content)
+          comment["id"] = .string(UUID().uuidString)
+          comment["timeStamp"] = .number(Date().timeIntervalSince1970 * 1000)
+          // CommentStore.cloneThread retains these fields and omits resolution.
+          let thread: JSONValue = .object([
+            "type": .string("thread"), "id": .string(id),
+            "quote": stored["quote"] ?? .string(""), "comments": .array(comments + [.object(comment)])
+          ])
+          return perform(.saveCommentThread(id: id, thread: thread), fromInput: false, tellsRefusal: true) != nil
+        }
+        if let children = node["children"]?.arrayValue { pending.append(contentsOf: children.reversed()) }
+      }
+      return false
+    } catch { showSocialError(error, title: "Couldn’t update comment"); return false }
+  }
+
+  @discardableResult public func insertComment(content: String) -> Bool {
+    guard isEditable, supportsRichText, model.isEditable,
+      JSRegExp(#"^\s*$"#, flags: "").firstMatch(in: content) == nil else { return false }
+    do {
+      guard case .range(let anchor, let focus, _, _)? = try model.selection(), anchor != focus else { return false }
+      var quote = try model.apply(.copy).clipboard?.plainText ?? ""
+      if quote.utf16.count > WebCommentData.quoteLimit {
+        let units = Array(quote.utf16)
+        let prefix = Array(units.prefix(WebCommentData.quotePrefix))
+        if let last = prefix.last, (0xD800...0xDBFF).contains(last) {
+          throw EditorError.unsupported("This comment preview would split a character. Select a shorter range.")
+        }
+        quote = String(decoding: prefix, as: UTF16.self) + WebCommentData.quoteEllipsis
+      }
+      var comment = try commentObject(WebCommentData.emptyCommentJSON)
+      comment["author"] = .string(socialAuthor); comment["content"] = .string(content)
+      comment["id"] = .string(UUID().uuidString); comment["timeStamp"] = .number(Date().timeIntervalSince1970 * 1000)
+      var marker = try commentObject(WebCommentData.emptyThreadNodeJSON)
+      guard var thread = marker["thread"]?.objectValue else { preconditionFailure("Invalid generated thread") }
+      let id = UUID().uuidString
+      thread["id"] = .string(id); thread["quote"] = .string(quote); thread["comments"] = .array([.object(comment)])
+      marker["thread"] = .object(thread)
+      guard perform(.appendComment(.object(marker)), fromInput: false, tellsRefusal: true) != nil else { return false }
+      return perform(.annotateComment(id: id), fromInput: false, tellsRefusal: true) != nil
+    } catch { showSocialError(error, title: "Couldn’t update comment"); return false }
+  }
+}
+#endif
+
+#if canImport(UIKit)
+private func commentObject(_ json: String) throws -> JSONObject {
+  guard let value = try JSONValue(parsing: json).objectValue else { preconditionFailure("Invalid generated comment defaults") }
+  return value
 }
 #endif

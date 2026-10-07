@@ -1,0 +1,173 @@
+{
+  "changes" : [
+    {
+      "changed" : [
+
+      ]
+    },
+    {
+      "changed" : [
+        [
+
+        ],
+        [
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "changed" : [
+        [
+
+        ],
+        [
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "changed" : [
+        [
+          0,
+          0
+        ]
+      ]
+    }
+  ],
+  "commands" : [
+    {
+      "anchor" : {
+        "offset" : 0,
+        "path" : [
+          0,
+          1
+        ],
+        "type" : "text"
+      },
+      "focus" : {
+        "offset" : 0,
+        "path" : [
+          0,
+          1
+        ],
+        "type" : "text"
+      },
+      "type" : "setSelection"
+    },
+    {
+      "text" : "1",
+      "type" : "insertText"
+    },
+    {
+      "text" : ".",
+      "type" : "insertText"
+    },
+    {
+      "type" : "undo"
+    }
+  ],
+  "expected" : {
+    "selection" : {
+      "anchor" : {
+        "offset" : 1,
+        "path" : [
+          0,
+          0
+        ],
+        "type" : "text"
+      },
+      "focus" : {
+        "offset" : 1,
+        "path" : [
+          0,
+          0
+        ],
+        "type" : "text"
+      },
+      "format" : 3,
+      "style" : ""
+    },
+    "state" : {
+      "root" : {
+        "children" : [
+          {
+            "children" : [
+              {
+                "detail" : 0,
+                "format" : 3,
+                "mode" : "normal",
+                "style" : "",
+                "text" : "ナ",
+                "type" : "hashtag",
+                "version" : 1
+              },
+              {
+                "detail" : 0,
+                "format" : 8,
+                "mode" : "normal",
+                "style" : "",
+                "text" : "b",
+                "type" : "text",
+                "version" : 1
+              }
+            ],
+            "direction" : null,
+            "format" : "",
+            "indent" : 2,
+            "textFormat" : 3,
+            "textStyle" : "",
+            "type" : "paragraph",
+            "version" : 1
+          }
+        ],
+        "direction" : null,
+        "format" : "",
+        "indent" : 0,
+        "type" : "root",
+        "version" : 1
+      }
+    }
+  },
+  "start" : {
+    "root" : {
+      "children" : [
+        {
+          "children" : [
+            {
+              "detail" : 0,
+              "format" : 3,
+              "mode" : "normal",
+              "style" : "",
+              "text" : "ナ",
+              "type" : "hashtag",
+              "version" : 1
+            },
+            {
+              "detail" : 0,
+              "format" : 8,
+              "mode" : "normal",
+              "style" : "",
+              "text" : "b",
+              "type" : "text",
+              "version" : 1
+            }
+          ],
+          "direction" : null,
+          "format" : "",
+          "indent" : 2,
+          "textFormat" : 3,
+          "textStyle" : "",
+          "type" : "paragraph",
+          "version" : 1
+        }
+      ],
+      "direction" : null,
+      "format" : "",
+      "indent" : 0,
+      "type" : "root",
+      "version" : 1
+    }
+  }
+}

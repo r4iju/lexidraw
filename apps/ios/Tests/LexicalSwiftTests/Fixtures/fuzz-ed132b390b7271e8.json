@@ -1,0 +1,333 @@
+{
+  "changes": [
+    {
+      "changed": []
+    },
+    {
+      "changed": []
+    }
+  ],
+  "commands": [
+    {
+      "anchor": {
+        "offset": 0,
+        "path": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "type": "text"
+      },
+      "focus": {
+        "offset": 0,
+        "path": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "type": "text"
+      },
+      "type": "setSelection"
+    },
+    {
+      "atCellEdge": true,
+      "extend": true,
+      "key": "up",
+      "native": {
+        "offset": 3,
+        "path": [
+          0,
+          1,
+          0,
+          0,
+          0
+        ],
+        "type": "text"
+      },
+      "parentRTL": true,
+      "type": "arrow"
+    }
+  ],
+  "editorContext": "videoCaption",
+  "expected": {
+    "state": {
+      "root": {
+        "children": [
+          {
+            "children": [
+              {
+                "children": [
+                  {
+                    "children": [
+                      {
+                        "children": [
+                          {
+                            "children": [
+                              {
+                                "detail": 0,
+                                "format": 2,
+                                "mode": "normal",
+                                "style": "",
+                                "text": "o",
+                                "type": "text",
+                                "version": 1
+                              }
+                            ],
+                            "isUnlinked": false,
+                            "rel": null,
+                            "target": null,
+                            "title": null,
+                            "url": "mailto:me@b.io",
+                            "direction": null,
+                            "format": "",
+                            "indent": 0,
+                            "type": "autolink",
+                            "version": 1
+                          }
+                        ],
+                        "direction": null,
+                        "format": "",
+                        "indent": 2,
+                        "textFormat": 8,
+                        "textStyle": "",
+                        "type": "paragraph",
+                        "version": 1
+                      }
+                    ],
+                    "backgroundColor": null,
+                    "colSpan": 1,
+                    "headerState": 3,
+                    "rowSpan": 1,
+                    "direction": null,
+                    "format": "",
+                    "indent": 0,
+                    "type": "tablecell",
+                    "version": 1
+                  }
+                ],
+                "direction": null,
+                "format": "",
+                "indent": 0,
+                "type": "tablerow",
+                "version": 1
+              },
+              {
+                "children": [
+                  {
+                    "children": [
+                      {
+                        "children": [
+                          {
+                            "detail": 0,
+                            "format": 1,
+                            "mode": "normal",
+                            "style": "",
+                            "text": "本語=",
+                            "type": "text",
+                            "version": 1
+                          }
+                        ],
+                        "direction": null,
+                        "format": "",
+                        "indent": 0,
+                        "textFormat": 1,
+                        "textStyle": "",
+                        "type": "paragraph",
+                        "version": 1
+                      }
+                    ],
+                    "backgroundColor": "#eee",
+                    "colSpan": 1,
+                    "headerState": 2,
+                    "rowSpan": 1,
+                    "direction": null,
+                    "format": "",
+                    "indent": 0,
+                    "type": "tablecell",
+                    "version": 1
+                  }
+                ],
+                "direction": null,
+                "format": "",
+                "indent": 0,
+                "type": "tablerow",
+                "version": 1
+              }
+            ],
+            "colWidths": [
+              80,
+              120,
+              120
+            ],
+            "direction": null,
+            "format": "",
+            "indent": 0,
+            "type": "table",
+            "version": 1
+          }
+        ],
+        "direction": null,
+        "format": "",
+        "indent": 0,
+        "type": "root",
+        "version": 1
+      }
+    },
+    "selection": {
+      "anchor": {
+        "path": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "offset": 0,
+        "type": "text"
+      },
+      "focus": {
+        "path": [
+          0,
+          1,
+          0,
+          0,
+          0
+        ],
+        "offset": 3,
+        "type": "text"
+      },
+      "format": 0,
+      "style": ""
+    }
+  },
+  "start": {
+    "root": {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "backgroundColor": null,
+                  "children": [
+                    {
+                      "children": [
+                        {
+                          "children": [
+                            {
+                              "detail": 0,
+                              "format": 2,
+                              "mode": "normal",
+                              "style": "",
+                              "text": "o",
+                              "type": "text",
+                              "version": 1
+                            }
+                          ],
+                          "direction": null,
+                          "format": "",
+                          "indent": 0,
+                          "isUnlinked": false,
+                          "rel": null,
+                          "target": null,
+                          "title": null,
+                          "type": "autolink",
+                          "url": "mailto:me@b.io",
+                          "version": 1
+                        }
+                      ],
+                      "direction": null,
+                      "format": "",
+                      "indent": 2,
+                      "textFormat": 8,
+                      "textStyle": "",
+                      "type": "paragraph",
+                      "version": 1
+                    }
+                  ],
+                  "colSpan": 1,
+                  "direction": null,
+                  "format": "",
+                  "headerState": 3,
+                  "indent": 0,
+                  "rowSpan": 1,
+                  "type": "tablecell",
+                  "version": 1
+                }
+              ],
+              "direction": null,
+              "format": "",
+              "indent": 0,
+              "type": "tablerow",
+              "version": 1
+            },
+            {
+              "children": [
+                {
+                  "backgroundColor": "#eee",
+                  "children": [
+                    {
+                      "children": [
+                        {
+                          "detail": 0,
+                          "format": 1,
+                          "mode": "normal",
+                          "style": "",
+                          "text": "本語=",
+                          "type": "text",
+                          "version": 1
+                        }
+                      ],
+                      "direction": null,
+                      "format": "",
+                      "indent": 0,
+                      "textFormat": 1,
+                      "textStyle": "",
+                      "type": "paragraph",
+                      "version": 1
+                    }
+                  ],
+                  "colSpan": 1,
+                  "direction": null,
+                  "format": "",
+                  "headerState": 2,
+                  "indent": 0,
+                  "rowSpan": 1,
+                  "type": "tablecell",
+                  "version": 1
+                }
+              ],
+              "direction": null,
+              "format": "",
+              "indent": 0,
+              "type": "tablerow",
+              "version": 1
+            }
+          ],
+          "colWidths": [
+            80,
+            120,
+            120
+          ],
+          "direction": null,
+          "format": "",
+          "indent": 0,
+          "type": "table",
+          "version": 1
+        }
+      ],
+      "direction": null,
+      "format": "",
+      "indent": 0,
+      "type": "root",
+      "version": 1
+    }
+  }
+}

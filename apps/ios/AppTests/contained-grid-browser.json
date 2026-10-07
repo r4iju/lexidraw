@@ -1,0 +1,437 @@
+{
+  "provenance": {
+    "engine": "Actual Chromium DOM via T3 preview_evaluate, 2026-10-01",
+    "source": [
+      "apps/lexidraw/src/styles/document.css .document-column",
+      "apps/lexidraw/src/app/documents/[documentId]/themes/theme.ts layoutContainer/layoutItem"
+    ],
+    "columnStyle": "min-width:0;container-type:inline-size;padding:8px;border:1px dashed;box-sizing:border-box",
+    "text": "AnUnbreakableLongWordToProveContainment"
+  },
+  "cases": [
+    {
+      "frames": [
+        {
+          "width": 208,
+          "x": 0
+        },
+        {
+          "width": 158,
+          "x": 216
+        },
+        {
+          "width": 18,
+          "x": 382
+        }
+      ],
+      "gap": 8,
+      "template": "minmax(50px,300px) minmax(0,300px) 1fr",
+      "tracks": "208px 158px 18px",
+      "width": 400
+    },
+    {
+      "frames": [
+        {
+          "width": 221,
+          "x": 0
+        },
+        {
+          "width": 171,
+          "x": 229
+        },
+        {
+          "width": 221,
+          "x": 0
+        }
+      ],
+      "gap": 8,
+      "template": "minmax(50px,300px) minmax(0,300px)",
+      "tracks": "221px 171px",
+      "width": 400
+    },
+    {
+      "frames": [
+        {
+          "width": 317.203125,
+          "x": 0
+        },
+        {
+          "width": 74.796875,
+          "x": 325.203125
+        },
+        {
+          "width": 317.203125,
+          "x": 0
+        }
+      ],
+      "gap": 8,
+      "template": "minmax(0,auto) 0.2fr",
+      "tracks": "317.203px 74.7969px",
+      "width": 400
+    },
+    {
+      "frames": [
+        {
+          "width": 18,
+          "x": 0
+        },
+        {
+          "width": 374,
+          "x": 26
+        },
+        {
+          "width": 18,
+          "x": 0
+        }
+      ],
+      "gap": 8,
+      "template": "minmax(auto,10px) 1fr",
+      "tracks": "18px 374px",
+      "width": 400
+    },
+    {
+      "frames": [
+        {
+          "width": 18,
+          "x": 0
+        },
+        {
+          "width": 374,
+          "x": 26
+        },
+        {
+          "width": 18,
+          "x": 0
+        }
+      ],
+      "gap": 8,
+      "template": "minmax(0,max-content) 1fr",
+      "tracks": "18px 374px",
+      "width": 400
+    },
+    {
+      "frames": [
+        {
+          "width": 237,
+          "x": 0
+        },
+        {
+          "width": 155,
+          "x": 245
+        },
+        {
+          "width": 237,
+          "x": 0
+        }
+      ],
+      "gap": 8,
+      "template": "minmax(100px,auto) minmax(0,auto)",
+      "tracks": "237px 155px",
+      "width": 400
+    },
+    {
+      "frames": [
+        {
+          "width": 196,
+          "x": 0
+        },
+        {
+          "width": 196,
+          "x": 204
+        },
+        {
+          "width": 196,
+          "x": 0
+        }
+      ],
+      "gap": 8,
+      "template": "auto auto",
+      "tracks": "196px 196px",
+      "width": 400
+    },
+    {
+      "frames": [
+        {
+          "width": 18,
+          "x": 0
+        },
+        {
+          "width": 374,
+          "x": 26
+        },
+        {
+          "width": 18,
+          "x": 0
+        }
+      ],
+      "gap": 8,
+      "template": "fit-content(5px) 1fr",
+      "tracks": "18px 374px",
+      "width": 400
+    },
+    {
+      "frames": [
+        {
+          "width": 96,
+          "x": 0
+        },
+        {
+          "width": 96,
+          "x": 104
+        },
+        {
+          "width": 96,
+          "x": 208
+        }
+      ],
+      "gap": 8,
+      "template": "1in 72pt 2.54cm",
+      "tracks": "96px 96px 96px",
+      "width": 400
+    },
+    {
+      "frames": [
+        {
+          "width": 96,
+          "x": 0
+        },
+        {
+          "width": 96,
+          "x": 104
+        },
+        {
+          "width": 96,
+          "x": 208
+        }
+      ],
+      "gap": 8,
+      "template": "25.4mm 101.6q 6pc",
+      "tracks": "96px 96px 96px",
+      "width": 400
+    },
+    {
+      "frames": [
+        {
+          "width": 32,
+          "x": 0
+        },
+        {
+          "width": 360,
+          "x": 40
+        },
+        {
+          "width": 32,
+          "x": 0
+        }
+      ],
+      "gap": 8,
+      "template": "minmax(12pt,2pc) 1fr",
+      "tracks": "32px 360px",
+      "width": 400
+    },
+    {
+      "frames": [
+        {
+          "width": 107.421875,
+          "x": 0
+        },
+        {
+          "width": 107.4296875,
+          "x": 115.421875
+        }
+      ],
+      "gap": 8,
+      "template": "repeat(auto-fill,minmax(100px,1fr))",
+      "tracks": "107.422px 107.43px 107.43px 107.43px 107.43px 107.43px 107.43px",
+      "width": 800
+    },
+    {
+      "frames": [
+        {
+          "width": 396,
+          "x": 0
+        },
+        {
+          "width": 396,
+          "x": 404
+        }
+      ],
+      "gap": 8,
+      "template": "repeat(auto-fit,minmax(100px,1fr))",
+      "tracks": "396px 396px 0px 0px 0px 0px 0px",
+      "width": 800
+    },
+    {
+      "frames": [
+        {
+          "width": 50,
+          "x": 0
+        },
+        {
+          "width": 338,
+          "x": 58
+        },
+        {
+          "width": 338,
+          "x": 404
+        }
+      ],
+      "gap": 8,
+      "template": "50px repeat(auto-fit,minmax(100px,1fr)) 50px",
+      "tracks": "50px 338px 338px 0px 0px 0px 0px 50px",
+      "width": 800
+    },
+    {
+      "frames": [
+        {
+          "width": 200,
+          "x": 0
+        },
+        {
+          "width": 200,
+          "x": 208
+        }
+      ],
+      "gap": 8,
+      "template": "repeat(auto-fill,minmax(100px,200px))",
+      "tracks": "200px 200px 200px",
+      "width": 800
+    },
+    {
+      "frames": [
+        {
+          "width": 100,
+          "x": 0
+        },
+        {
+          "width": 100,
+          "x": 108
+        }
+      ],
+      "gap": 8,
+      "template": "repeat(auto-fit,25%)",
+      "tracks": "100px 100px 0px",
+      "width": 400
+    },
+    {
+      "frames": [
+        {
+          "width": 50,
+          "x": 0
+        },
+        {
+          "width": 100,
+          "x": 58
+        },
+        {
+          "width": 50,
+          "x": 166
+        }
+      ],
+      "gap": 8,
+      "template": "repeat(auto-fill,50px 100px)",
+      "tracks": "50px 100px 50px 100px 50px 100px 50px 100px",
+      "width": 800
+    },
+    {
+      "frames": [
+        {
+          "width": 50,
+          "x": 0
+        },
+        {
+          "width": 100,
+          "x": 58
+        },
+        {
+          "width": 50,
+          "x": 166
+        }
+      ],
+      "gap": 8,
+      "template": "repeat(auto-fit,50px 100px)",
+      "tracks": "50px 100px 50px 0px 0px 0px 0px 0px",
+      "width": 800
+    },
+    {
+      "frames": [
+        {
+          "width": 100,
+          "x": 0
+        },
+        {
+          "width": 100,
+          "x": 0
+        }
+      ],
+      "gap": 8,
+      "template": "repeat(auto-fit,minmax(100px,1fr))",
+      "tracks": "100px",
+      "width": 80
+    },
+    {
+      "frames": [
+        {
+          "width": 18,
+          "x": 0
+        },
+        {
+          "width": 100,
+          "x": 8
+        },
+        {
+          "width": 100,
+          "x": 116
+        },
+        {
+          "width": 100,
+          "x": 224
+        },
+        {
+          "width": 18,
+          "x": 332
+        }
+      ],
+      "gap": 8,
+      "template": "0px repeat(auto-fill,100px) 0px",
+      "tracks": "0px 100px 100px 100px 0px",
+      "width": 332
+    }
+  ],
+  "unsupportedCases": [
+    {
+      "count": 48,
+      "firstTrack": "0.5px",
+      "frames": [
+        {
+          "width": 18,
+          "x": 0
+        },
+        {
+          "width": 18,
+          "x": 8.5
+        }
+      ],
+      "gap": 8,
+      "template": "repeat(auto-fill,minmax(0,1fr))",
+      "width": 400
+    },
+    {
+      "count": 48,
+      "firstTrack": "0.0078125px",
+      "frames": [
+        {
+          "width": 18,
+          "x": 0
+        },
+        {
+          "width": 18,
+          "x": 8.0078125
+        }
+      ],
+      "gap": 8,
+      "template": "repeat(auto-fill,0.01px)",
+      "width": 400
+    }
+  ]
+}

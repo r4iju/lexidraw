@@ -121,10 +121,8 @@ private struct Breadcrumbs: View {
 
   var body: some View {
     Button("Home", systemImage: "house") { browser.show(.home) }
-    ForEach(Array(place.ancestors.enumerated()), id: \.element.id) { index, ancestor in
-      Button(ancestor.title, systemImage: "folder") {
-        browser.open(ancestor, below: Array(place.ancestors.prefix(index)))
-      }
+    ForEach(place.ancestors) { ancestor in
+      Button(ancestor.title, systemImage: "folder") { browser.back(to: ancestor) }
     }
   }
 }
@@ -262,7 +260,7 @@ private struct SearchResultsSection: View {
             ListenButton(file: result)
             if let folder = result.folder {
               Button("Show in \(folder.title)", systemImage: "folder") {
-                browser.open(folder, below: [])
+                browser.open(folder)
               }
             }
           }

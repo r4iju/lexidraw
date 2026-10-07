@@ -26,7 +26,7 @@ let package = Package(
       name: "LexidrawJSON",
       dependencies: [.product(name: "OrderedCollections", package: "swift-collections")]
     ),
-    .target(name: "EditorModelInterface", dependencies: ["LexidrawJSON"]),
+    .target(name: "EditorModelInterface", dependencies: ["LexidrawJSON", "CSSValues"]),
     .target(name: "CSSValues"),
     .target(
       name: "LexicalSwift",

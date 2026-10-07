@@ -20,6 +20,18 @@ import {
 import { SERIALIZED_NODES_PATH, swiftForNodeSchema } from "./swift";
 import { SHORTCUTS_PATH, swiftForShortcuts } from "./shortcuts";
 import {
+  ARTICLE_TEXT_PATH, swiftForArticlePlainText,
+  ARTICLE_DATA_PATH, swiftForArticleData,
+  FOOTNOTE_STYLE_PATH, swiftForFootnoteStyle,
+  COMMENT_DATA_PATH, swiftForCommentData,
+  EMOJI_ALIASES_PATH,
+  SOCIAL_STYLE_PATH,
+  swiftForSocialStyle,
+  POLL_STYLE_PATH,
+  swiftForEmojiAliases,
+  swiftForPollStyle,
+} from "./social";
+import {
   DOCUMENT_TYPOGRAPHY_PATH,
   readWebStyles,
   swiftForTypography,
@@ -47,6 +59,8 @@ await Bun.write(
 await Bun.write(LINKS_PATH, await swiftForLinks());
 await Bun.write(LINK_PROTOCOLS_PATH, swiftForLinkProtocols());
 await Bun.write(SHORTCUTS_PATH, swiftForShortcuts());
+await Bun.write(EMOJI_ALIASES_PATH, swiftForEmojiAliases());
+await Bun.write(POLL_STYLE_PATH, await swiftForPollStyle());
 
 const { HTML_IMPORT_PATH, swiftForHTMLImport } = await import("./html");
 await Bun.write(HTML_IMPORT_PATH, await swiftForHTMLImport());
@@ -108,3 +122,50 @@ await Bun.write(MEDIA_STYLE_PATH, await swiftForMediaStyle());
 
 const { MEDIA_IMAGES_PATH, swiftForMediaImages } = await import("./media");
 await Bun.write(MEDIA_IMAGES_PATH, swiftForMediaImages());
+const { RENDERED_EMBED_STYLE_PATH, swiftForRenderedEmbedStyle } = await import(
+  "./rendered-embeds"
+);
+await Bun.write(RENDERED_EMBED_STYLE_PATH, await swiftForRenderedEmbedStyle());
+
+await Bun.write(SOCIAL_STYLE_PATH, await swiftForSocialStyle());
+
+await Bun.write(FOOTNOTE_STYLE_PATH, await swiftForFootnoteStyle());
+
+const { STRUCTURAL_BLOCKS_PATH, swiftForStructuralBlocks } = await import(
+  "./structural-blocks"
+);
+await Bun.write(STRUCTURAL_BLOCKS_PATH, await swiftForStructuralBlocks());
+
+await Bun.write(COMMENT_DATA_PATH, await swiftForCommentData());
+const { MEDIA_INSERTIONS_PATH, swiftForMediaInsertions } = await import(
+  "./media"
+);
+await Bun.write(MEDIA_INSERTIONS_PATH, await swiftForMediaInsertions());
+
+const { MEDIA_VIDEOS_PATH, swiftForMediaVideos } = await import("./media");
+await Bun.write(MEDIA_VIDEOS_PATH, swiftForMediaVideos());
+
+await Bun.write(ARTICLE_DATA_PATH, await swiftForArticleData());
+
+await Bun.write(ARTICLE_TEXT_PATH, await swiftForArticlePlainText());
+
+const { CONTEXTS_PATH, swiftForEditorContexts } = await import("./editor-contexts");
+await Bun.write(CONTEXTS_PATH, await swiftForEditorContexts());
+const { TEXT_ENTITIES_PATH, swiftForTextEntities } = await import("./text-entities");
+await Bun.write(TEXT_ENTITIES_PATH, await swiftForTextEntities());
+const { webEditorContexts, webEditorRegistries } = await import("./editor-contexts");
+await Bun.write(new URL("../reference/generated-editor-contexts.ts", import.meta.url), `// Generated from actual mounted plugin sources.\nexport const editorContexts = ${JSON.stringify(await webEditorContexts())};\nexport const editorRegistries = ${JSON.stringify(await webEditorRegistries())};\n`);
+
+const { EMOJI_PICKER_PATH, swiftForEmojiPicker } = await import("./emoji-picker");
+await Bun.write(EMOJI_PICKER_PATH, await swiftForEmojiPicker());
+const { MENTIONS_PATH, swiftForMentions } = await import("./mentions");
+await Bun.write(MENTIONS_PATH, await swiftForMentions());
+
+const {
+  DOCUMENT_HEADER_STYLE_PATH,
+  swiftForDocumentHeaderStyle,
+  DOCUMENT_HEADER_SCRIPT_PATH,
+  swiftForDocumentHeaderScript,
+} = await import("./document-header");
+await Bun.write(DOCUMENT_HEADER_STYLE_PATH, await swiftForDocumentHeaderStyle());
+await Bun.write(DOCUMENT_HEADER_SCRIPT_PATH, await swiftForDocumentHeaderScript());

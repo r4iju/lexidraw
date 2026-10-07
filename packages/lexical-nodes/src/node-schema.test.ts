@@ -365,6 +365,7 @@ test("says which node types an editor nested in a field reads, as the node makes
     "keyword",
     "linebreak",
     "link",
+    "mention",
     "paragraph",
     "root",
     "tab",

@@ -272,6 +272,42 @@ public enum SerializedNode: Equatable, Sendable {
     case .opaque: self
     }
   }
+
+  /// Field-only setters must retain live unread properties; re-importing
+  /// them would restore the import default instead of the editor value.
+  public func preservingUnchangedUnreadFields(from previous: Self, before: JSONValue, after: JSONValue) -> Self {
+    switch (self, previous) {
+    case (.collapsibleContainer(var node), .collapsibleContainer(let old)):
+      if before["direction"] == after["direction"] { node.direction = old.direction }
+      if before["format"] == after["format"] { node.format = old.format }
+      if before["indent"] == after["indent"] { node.indent = old.indent }
+      if before["textFormat"] == after["textFormat"] { node.textFormat = old.textFormat }
+      if before["textStyle"] == after["textStyle"] { node.textStyle = old.textStyle }
+      return .collapsibleContainer(node)
+    case (.collapsibleContent(var node), .collapsibleContent(let old)):
+      if before["direction"] == after["direction"] { node.direction = old.direction }
+      if before["format"] == after["format"] { node.format = old.format }
+      if before["indent"] == after["indent"] { node.indent = old.indent }
+      if before["textFormat"] == after["textFormat"] { node.textFormat = old.textFormat }
+      if before["textStyle"] == after["textStyle"] { node.textStyle = old.textStyle }
+      return .collapsibleContent(node)
+    case (.collapsibleTitle(var node), .collapsibleTitle(let old)):
+      if before["direction"] == after["direction"] { node.direction = old.direction }
+      if before["format"] == after["format"] { node.format = old.format }
+      if before["indent"] == after["indent"] { node.indent = old.indent }
+      if before["textFormat"] == after["textFormat"] { node.textFormat = old.textFormat }
+      if before["textStyle"] == after["textStyle"] { node.textStyle = old.textStyle }
+      return .collapsibleTitle(node)
+    case (.layoutItem(var node), .layoutItem(let old)):
+      if before["direction"] == after["direction"] { node.direction = old.direction }
+      if before["format"] == after["format"] { node.format = old.format }
+      if before["indent"] == after["indent"] { node.indent = old.indent }
+      if before["textFormat"] == after["textFormat"] { node.textFormat = old.textFormat }
+      if before["textStyle"] == after["textStyle"] { node.textStyle = old.textStyle }
+      return .layoutItem(node)
+    default: return self
+    }
+  }
 }
 
 extension NodeTraits {
@@ -1142,7 +1178,7 @@ public struct NestedEditor: DeclaredObject {
   }
 
   private enum Schema {
-    static let editorState: FieldSchema<JSONValue> = .savedByEditor(of: ["artificial", "emoji", "hashtag", "keyword", "linebreak", "link", "paragraph", "root", "tab", "text"], .transform(.rawOr(["root": ["children": [], "direction": nil, "format": "", "indent": 0, "type": "root", "version": 1]]), Transforms.nestedEditorState, default: ["root": ["children": [], "direction": nil, "format": "", "indent": 0, "type": "root", "version": 1]]))
+    static let editorState: FieldSchema<JSONValue> = .savedByEditor(of: ["artificial", "emoji", "hashtag", "keyword", "linebreak", "link", "mention", "paragraph", "root", "tab", "text"], .transform(.rawOr(["root": ["children": [], "direction": nil, "format": "", "indent": 0, "type": "root", "version": 1]]), Transforms.nestedEditorState, default: ["root": ["children": [], "direction": nil, "format": "", "indent": 0, "type": "root", "version": 1]]))
   }
 }
 
@@ -2271,6 +2307,7 @@ public struct SerializedCommentNode: ParentNodePayload {
 
   public func asLoaded() -> Self {
     var node = self
+    node.children = []
     node.comment = Schema.comment.resolving(comment)
     node.direction = Schema.direction.resolving(direction)
     node.format = Schema.format.resolving(format)
@@ -4205,6 +4242,7 @@ public struct SerializedThreadNode: ParentNodePayload {
 
   public func asLoaded() -> Self {
     var node = self
+    node.children = []
     node.direction = Schema.direction.resolving(direction)
     node.format = Schema.format.resolving(format)
     node.indent = Schema.indent.resolving(indent)

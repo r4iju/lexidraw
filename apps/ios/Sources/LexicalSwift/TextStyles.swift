@@ -5,31 +5,36 @@ extension Update {
     let nodes = try nodes(in: selection)
     let extracted = try extract(selection)
     guard !selection.isCollapsed else { return }
-    try clearFormatting(nodes, extracted: extracted, anchorOffset: selection.anchor.offset, focusOffset: selection.focus.offset)
+    // The web operation reads live points: replacing an earlier block can move
+    // either point before the final text node is split.
+    try clearFormatting(nodes, extracted: extracted, anchor: selection.anchor, focus: selection.focus)
   }
 
   mutating func clearFormatting(_ selection: TableSelection) throws {
     let nodes = try nodes(in: selection)
     guard selection.anchor != selection.focus else { return }
-    try clearFormatting(nodes, extracted: nodes, anchorOffset: 0, focusOffset: 0)
+    try clearFormatting(nodes, extracted: nodes, anchor: nil, focus: nil)
   }
 
-  private mutating func clearFormatting(_ nodes: [NodeKey], extracted: [NodeKey], anchorOffset: Int, focusOffset: Int) throws {
+  private mutating func clearFormatting(_ nodes: [NodeKey], extracted: [NodeKey], anchor: SelectionPoint?, focus: SelectionPoint?) throws {
     for (index, original) in nodes.enumerated() {
       var node = original
       if state[node].isText {
+        // The toolbar retains Point objects, not copied offsets. Replacing
+        // a quote can mutate those points before restoring a cloned selection.
+        let anchorOffset = anchor?.offset ?? 0
         if index == 0 && anchorOffset != 0 {
           let split = try splitText(node, at: [anchorOffset])
           node = split.count > 1 ? split[1] : node
         }
         if index == nodes.count - 1 {
-          node = try splitText(node, at: [focusOffset]).first ?? node
+          node = try splitText(node, at: [focus?.offset ?? 0]).first ?? node
         }
         if nodes.count == 1, let first = extracted.first, state[first].isText { node = first }
         if !style(of: node).isEmpty { setStyle(node, "") }
         if !format(of: node).isEmpty {
           setFormat(node, [])
-          guard let block = findParent(from: node, where: isBlock), state[block].isElement else {
+          guard let block = findParent(from: node, where: { state[$0].isElement && !state[$0].isInline }) else {
             throw EditorError.invalidState("Formatting has no enclosing block")
           }
           modifyElement(block) { $0.format = .empty }
@@ -64,7 +69,7 @@ extension Update {
       let indices = partial.first { $0.origin == node }?.indices ?? 0..<state.textSize(of: node)
       guard !indices.isEmpty else { continue }
       let target: NodeKey
-      if indices.lowerBound == 0 && indices.upperBound == state.textSize(of: node) { target = node }
+      if isTokenOrSegmented(node) || (indices.lowerBound == 0 && indices.upperBound == state.textSize(of: node)) { target = node }
       else {
         let split = try splitText(node, at: [indices.lowerBound, indices.upperBound])
         target = split[indices.lowerBound == 0 ? 0 : 1]

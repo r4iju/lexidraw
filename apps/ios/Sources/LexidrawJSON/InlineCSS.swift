@@ -4,6 +4,7 @@ import OrderedCollections
 /// Lexical's getStyleObjectFromCSS: declarations retain source order and
 /// quoted strings, comments and function arguments do not split declarations.
 public struct InlineCSS: Sendable {
+  private static let whitespace: Set<UInt16> = [9, 10, 11, 12, 13, 32, 160, 5760, 8192, 8193, 8194, 8195, 8196, 8197, 8198, 8199, 8200, 8201, 8202, 8232, 8233, 8239, 8287, 12288, 65279]
   private var properties: OrderedDictionary<String, String> = [:]
 
   public init(_ css: String) {
@@ -12,10 +13,9 @@ public struct InlineCSS: Sendable {
     var quote: UInt16?, comment = false, escaped = false, parsingValue = false, depth = 0
     var index = 0
     func trimmed(_ units: [UInt16]) -> String {
-      let whitespace: Set<UInt16> = [9, 10, 11, 12, 13, 32, 160, 5760, 8192, 8193, 8194, 8195, 8196, 8197, 8198, 8199, 8200, 8201, 8202, 8232, 8233, 8239, 8287, 12288, 65279]
       var start = 0, end = units.count
-      while start < end && whitespace.contains(units[start]) { start += 1 }
-      while end > start && whitespace.contains(units[end - 1]) { end -= 1 }
+      while start < end && Self.whitespace.contains(units[start]) { start += 1 }
+      while end > start && Self.whitespace.contains(units[end - 1]) { end -= 1 }
       return String(decoding: units[start..<end], as: UTF16.self)
     }
     func finish() {
@@ -52,6 +52,8 @@ public struct InlineCSS: Sendable {
     get { properties[property] }
     set { properties[property] = newValue }
   }
+
+  public var propertyNames: [String] { Array(properties.keys) }
 
   public var serialized: String {
     // JavaScript object enumeration emits array-index keys before other keys.

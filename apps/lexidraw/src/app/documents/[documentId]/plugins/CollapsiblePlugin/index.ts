@@ -138,13 +138,14 @@ function $revealSelected(payload: Event | string | null) {
       closed.set(container.getKey(), container);
   if (!closed.size) return false;
   for (const container of closed.values()) container.setOpen(true);
-  if (payload instanceof Event) payload.preventDefault();
+  if (payload && typeof payload !== "string") payload.preventDefault();
   return true;
 }
 
 export default function CollapsiblePlugin(): null {
   const [editor] = useLexicalComposerContext();
 
+  // Lexical owns these command and node-transform registrations.
   useEffect(() => {
     if (
       !editor.hasNodes([

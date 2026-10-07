@@ -1,0 +1,450 @@
+{
+  "status": "submitted-awaiting-apple-review",
+  "issue": 142,
+  "privacyPolicyURL": "https://lexidraw.vercel.app/privacy-policy",
+  "appleReferences": [
+    "https://developer.apple.com/app-store/app-privacy-details/",
+    "https://developer.apple.com/help/app-store-connect/manage-app-information/manage-app-privacy",
+    "https://developer.apple.com/app-store/review/",
+    "https://developer.apple.com/documentation/bundleresources/app-privacy-configuration/nsprivacyaccessedapitypes/nsprivacyaccessedapitypereasons",
+    "https://developer.apple.com/documentation/bundleresources/app-privacy-configuration/nsprivacycollecteddatatypes/nsprivacycollecteddatatype"
+  ],
+  "processors": [
+    {
+      "name": "Vercel",
+      "features": [
+        "API hosting",
+        "image and audio storage",
+        "authentication website analytics"
+      ],
+      "source": "apps/lexidraw/src/app/privacy-policy/page.tsx"
+    },
+    {
+      "name": "Turso",
+      "features": [
+        "account, documents, sharing and settings persistence"
+      ],
+      "source": "apps/lexidraw/src/app/privacy-policy/page.tsx"
+    },
+    {
+      "name": "OpenAI and Google",
+      "features": [
+        "text sent for requested read-aloud generation"
+      ],
+      "source": "apps/lexidraw/src/server/tts/providers"
+    },
+    {
+      "name": "Apple and GitHub",
+      "features": [
+        "optional website authentication provider"
+      ],
+      "source": "apps/lexidraw/src/server/auth.ts"
+    },
+    {
+      "name": "Google Fonts",
+      "features": [
+        "document font downloads without the Lexidraw API token"
+      ],
+      "source": "apps/ios/Sources/LexidrawKit/DocumentFonts.swift"
+    },
+    {
+      "name": "Bright Data",
+      "features": [
+        "server-side extraction of user-saved web links"
+      ],
+      "source": "apps/lexidraw/src/server/extractors/article.ts"
+    },
+    {
+      "name": "Cloudflare",
+      "features": [
+        "protection of page extraction and audio services"
+      ],
+      "source": "apps/lexidraw/src/app/privacy-policy/page.tsx"
+    },
+    {
+      "name": "Unsplash",
+      "features": [
+        "image search where exposed by the integrated app"
+      ],
+      "source": "apps/lexidraw/src/server/unsplash.ts"
+    },
+    {
+      "name": "User-selected media and link hosts",
+      "features": [
+        "image/video loading",
+        "native link metadata previews"
+      ],
+      "source": "issue #131; audit after merge"
+    }
+  ],
+  "retentionQuestions": [
+    "Third-party operational request/log retention can change independently of this source; declarations include retained IP/visitor and request information without claiming short-term deletion."
+  ],
+  "reviewNotesDraft": "Lexidraw is a native document and drawing editor for iPhone and iPad. An account and internet connection are required for synchronization.\n\nTap Sign In to open the secure Lexidraw authentication website. Use the demo credentials supplied below; successful sign-in returns to the app. The review account has disposable sample documents covering rich text, callouts, sections, columns, diagrams, code and tables, plus a sample drawing. Open files from the file list to edit them. Changes save to the account.\n\nListen generates spoken audio from document text using a disclosed third-party service after the user's consent. It does not record microphone input. Existing generated audio can be played without generating new audio.\n\nAccount deletion is available in Settings. Users choose the files and links they upload, import and share. The terms prohibit copyright infringement and authorize processing user content to operate the service. Unsupported imported representations are preserved and shown explicitly rather than silently rewritten.",
+  "submissionPending": [
+    "Apple review and any review response"
+  ],
+  "serverURLSource": "apps/ios/project.yml:LEXIDRAW_SERVER_URL",
+  "appStoreRecord": {
+    "appId": "6816381053",
+    "version": "1.0",
+    "versionId": "dc2f83df-01fa-4185-acbd-ea4c0433d2d2",
+    "latestUploadedBuild": "9",
+    "apiAccessVerified": "2026-09-30",
+    "reviewDetailId": "7b45f62e-683a-4c2f-9840-5d3ca9efbd53",
+    "reviewContact": {
+      "status": "copied-and-verified",
+      "source": "Barbellry 1.0.41",
+      "verified": "2026-10-01"
+    },
+    "listingMetadata": {
+      "status": "saved-and-verified",
+      "locale": "en-US",
+      "fields": [
+        "description",
+        "keywords",
+        "supportUrl",
+        "subtitle",
+        "privacyPolicyUrl"
+      ],
+      "verified": "2026-10-01"
+    },
+    "category": {
+      "primary": "PRODUCTIVITY",
+      "status": "saved-and-verified"
+    },
+    "ageRating": {
+      "status": "saved-and-verified",
+      "minimumOverride": "THIRTEEN_PLUS",
+      "userGeneratedContent": true,
+      "messagingAndChat": true,
+      "basis": "Shared documents and comments; policy excludes children under 13. No embedded arbitrary-browser navigation, social feed, advertising, gambling or app-authored mature content.",
+      "reference": "https://developer.apple.com/help/app-store-connect/reference/app-information/age-ratings-values-and-definitions/"
+    },
+    "copyright": "2026 r4iju",
+    "screenshots": {
+      "status": "uploaded-and-processing-complete",
+      "sourceCommit": "b9f46b669385accdd6928285131e59cf6023a0a7",
+      "capture": "Actual shipping DocumentScreen and DrawingScreen; temporary authentication/entry selection only in an uncommitted artifact worktree. No overlays or fake UI.",
+      "images": [
+        {
+          "id": "32b09215-24e0-427f-8f1e-970a8086192e",
+          "setID": "e28939c6-b341-4184-9ebf-734b6d598c7d",
+          "fileName": "iphone-document.jpg",
+          "checksum": "1e1980e30a115ba36ddee317c693ef2f",
+          "bytes": 864246,
+          "width": 1320,
+          "height": 2868,
+          "state": "COMPLETE",
+          "processingErrorCodes": []
+        },
+        {
+          "id": "8f92b61c-b68b-4355-8ba0-c1e77a617ccb",
+          "setID": "e28939c6-b341-4184-9ebf-734b6d598c7d",
+          "fileName": "iphone-drawing.jpg",
+          "checksum": "c59faee17cf848ef6f8c640a047fe489",
+          "bytes": 267913,
+          "width": 1320,
+          "height": 2868,
+          "state": "COMPLETE",
+          "processingErrorCodes": []
+        },
+        {
+          "id": "cff4c631-48ea-4f4e-aef7-a68d61e2f68a",
+          "setID": "1997c060-3e45-4162-a6a4-7d15581cda52",
+          "fileName": "ipad-document.jpg",
+          "checksum": "ae820b7a6609d30ba560e4a51dae1993",
+          "bytes": 706741,
+          "width": 2064,
+          "height": 2752,
+          "state": "COMPLETE",
+          "processingErrorCodes": []
+        },
+        {
+          "id": "771eb083-c11b-4d5b-85b7-f1b71a8173ec",
+          "setID": "1997c060-3e45-4162-a6a4-7d15581cda52",
+          "fileName": "ipad-drawing.jpg",
+          "checksum": "41152b4bffb742f1062233173e3efb7b",
+          "bytes": 257287,
+          "width": 2064,
+          "height": 2752,
+          "state": "COMPLETE",
+          "processingErrorCodes": []
+        }
+      ]
+    },
+    "availability": {
+      "status": "saved-and-verified",
+      "availableTerritories": 175,
+      "availableInNewTerritories": true
+    },
+    "pricing": {
+      "status": "saved-and-verified",
+      "downloadPrice": "free",
+      "baseTerritory": "USA",
+      "automaticTerritories": 174,
+      "allAutomaticCustomerPricesZero": true,
+      "basis": "Free download explicitly confirmed by the maintainer on 2026-10-01; matches the current web app."
+    },
+    "euDigitalServicesAct": {
+      "status": "active",
+      "classification": "non-trader",
+      "basis": "Maintainer confirmed App Store publishing is purely personal and noncommercial hobby activity.",
+      "scope": "Apple account compliance, 27 EU countries or regions",
+      "verified": "2026-10-01",
+      "publicTraderContactRequired": false
+    }
+  },
+  "descriptionDraft": "Write, sketch and organize your ideas with Lexidraw. Work with documents, drawings and folders on iPhone and iPad, keep your files synchronized with your Lexidraw account, and share them with other people. Format text, edit tables, create drawings, and listen to your documents read aloud. A Lexidraw account and an internet connection are required for synchronization and read-aloud generation.",
+  "reviewAccount": {
+    "status": "created-and-sign-in-verified",
+    "credentialStorage": "Mac Keychain, service cli/lexidraw-app-review",
+    "seededDocuments": [
+      "ios-app-review-welcome-20260930",
+      "ios-review-ideas-20261001",
+      "ios-review-structure-20261001",
+      "ios-review-diagrams-20261001",
+      "ios-review-table-20261001"
+    ],
+    "remaining": "Apple review and any review response.",
+    "appStoreConnectCredentialStatus": "saved-and-verified",
+    "seededDrawings": [
+      "ios-review-sketch-20261001"
+    ],
+    "fixtureVerification": {
+      "sourceCommit": "6d8fcdb4e435833702e091a890078a091a5039c8",
+      "storedState": "Exact web headless export preserved; private authenticated reads returned200.",
+      "nativeRoundTrip": "Existing CorpusTests passed against the disposable account and actual web bundle."
+    }
+  },
+  "releaseCheckpoint": {
+    "buildNumber": "7",
+    "sourceCommit": "dcd39871646bf9aff93264b5f7ef799ed35e9573",
+    "archiveStatus": "succeeded",
+    "uploadStatus": "succeeded",
+    "method": "local-xcodebuild-no-CI",
+    "processingStatus": "VALID",
+    "buildId": "2748f865-45e8-41d3-88ec-7d23fecad1fc",
+    "internalTestFlightStatus": "build-listed-in-existing-internal-group"
+  },
+  "privacyAudit": [
+    {
+      "source": "https://vercel.com/docs/analytics/privacy-policy",
+      "verified": "2026-10-01",
+      "finding": "Vercel documents anonymous Web Analytics, no stored IP association, and visitor session identifiers discarded after 24 hours. Hosting/security logs are separate. Audit configured events and hosting settings before publishing disclosures."
+    },
+    {
+      "source": "https://developer.apple.com/app-store/app-privacy-details/",
+      "verified": "2026-10-01",
+      "finding": "Apple describes Audio Data as voice recordings and generic free-form text as Other User Content. Lexidraw read-aloud synthesizes audio from document text; it does not capture microphone input. Final classification must reflect the integrated features and stored generated content."
+    },
+    {
+      "source": "apps/lexidraw/src/proxy.ts; apps/lexidraw/src/lib/generate-visitor-id.ts; packages/drizzle/src/drizzle-schema.ts",
+      "verified": "2026-10-01",
+      "finding": "Separate from Vercel Web Analytics, the website proxy writes page/referrer, user agent, IP, city/region/country and a deterministic visitor hash to the Analytics table. No automatic deletion path was found in source. Authentication browser visits use this website. Final disclosures must include this custom collection; Vercel anonymous-analytics documentation does not describe it."
+    },
+    {
+      "source": "apps/lexidraw/src/proxy.ts:matcher",
+      "verified": "2026-10-01",
+      "finding": "The proxy matcher excludes /api routes. Custom Analytics covers authentication website page visits, not native REST API searches. Separate Vercel Runtime Logs retain request parameters, so main-app Search History is declared for operational App Functionality. The share extension does not issue native searches or open the authentication website."
+    },
+    {
+      "source": "https://vercel.com/docs/logs/runtime",
+      "verified": "2026-10-01",
+      "finding": "Runtime log details include User Agent and Search Params, browser requests can be filtered by IP and user agent, and logs have a retention window on all plans. Declare operational IP/user-agent collection for both targets and native GET searches for the main app; this is separate from custom website Analytics."
+    }
+  ],
+  "releaseIntegration": {
+    "embedMatrix": "8/8 authenticated production renders passed; all light/dark PNGs inspected",
+    "canonicalAppOrigin": "https://lexidraw.vercel.app",
+    "productionOriginConfiguration": "NEXTAUTH_URL configured explicitly to avoid protected deployment-hostname renderer timeouts",
+    "webDeploymentNote": "Use Linux-built app artifacts: the macOS prebuilt attempt lacked the Linux libsql driver. Current Linux-built deployment and APIs verified healthy."
+  },
+  "readAloudConsent": {
+    "status": "implemented-and-locally-verified",
+    "behavior": "Permission is requested only before new audio generation; existing audio plays without the prompt. Cancel sends no generation request. Each pending request has a cancellation identity guard. The disclosure names Google/OpenAI and links the privacy policy.",
+    "validation": "Two API regression tests observed red before implementation, then all eight RecordingTests passed. Production simulator app compiled. Fresh review cancellation race fixed with request identity guard.",
+    "reference": "https://developer.apple.com/app-store/review/guidelines/#data-use-and-sharing"
+  },
+  "disclosures": [
+    {
+      "dataType": "Name",
+      "purpose": "App Functionality",
+      "linkedToAccount": true,
+      "tracking": false
+    },
+    {
+      "dataType": "Email Address",
+      "purpose": "App Functionality",
+      "linkedToAccount": true,
+      "tracking": false
+    },
+    {
+      "dataType": "User ID",
+      "purpose": "App Functionality",
+      "linkedToAccount": true,
+      "tracking": false
+    },
+    {
+      "dataType": "Photos or Videos",
+      "purpose": "App Functionality",
+      "linkedToAccount": true,
+      "tracking": false
+    },
+    {
+      "dataType": "Other User Content",
+      "purpose": "App Functionality",
+      "linkedToAccount": true,
+      "tracking": false
+    },
+    {
+      "dataType": "Audio Data",
+      "purpose": "App Functionality",
+      "linkedToAccount": true,
+      "tracking": false
+    },
+    {
+      "dataType": "Coarse Location",
+      "purposes": [
+        "Analytics"
+      ],
+      "linkedToAccount": true,
+      "tracking": false,
+      "source": "Website proxy stores IP-derived city/region/country alongside visitor hash."
+    },
+    {
+      "dataType": "Product Interaction",
+      "purposes": [
+        "Analytics"
+      ],
+      "linkedToAccount": true,
+      "tracking": false,
+      "source": "Website proxy retains visited request URLs and referrers."
+    },
+    {
+      "dataType": "Browsing History",
+      "purposes": [
+        "App Functionality",
+        "Analytics"
+      ],
+      "linkedToAccount": true,
+      "tracking": false,
+      "source": "User-saved web links and external website referrers retained by the website proxy."
+    },
+    {
+      "dataType": "Other Data Types",
+      "purposes": [
+        "App Functionality",
+        "Analytics"
+      ],
+      "linkedToAccount": true,
+      "tracking": false,
+      "source": "IP address, user agent and deterministic visitor hash in website analytics; service security/request logs."
+    },
+    {
+      "dataType": "Device ID",
+      "purposes": [
+        "Analytics"
+      ],
+      "linkedToAccount": true,
+      "tracking": false,
+      "source": "The custom analytics visitor identifier derives from user agent and geolocation and is retained to associate visits."
+    },
+    {
+      "dataType": "Emails or Text Messages",
+      "purposes": [
+        "App Functionality"
+      ],
+      "linkedToAccount": true,
+      "tracking": false,
+      "source": "Comments and thread replies are account-associated conversations in shared documents."
+    },
+    {
+      "dataType": "Search History",
+      "purposes": [
+        "App Functionality"
+      ],
+      "linkedToAccount": true,
+      "tracking": false,
+      "source": "Native search queries use GET parameters. Vercel Runtime Logs retain request Search Params for operational troubleshooting/security; the custom website proxy excludes API routes."
+    }
+  ],
+  "privacyLabelPublication": {
+    "status": "published",
+    "browserStatus": "Published in App Store Connect via collaborative browser tab_g; publication confirmation observed",
+    "linkedClassification": "Declared linked where account or identifying IP/visitor information may associate records; no advertising tracking.",
+    "scope": "Includes the native authentication website; custom website Analytics excludes API paths. Share-extension collection is scoped independently.",
+    "publishedAt": "2026-10-01T03:01:58.444Z",
+    "appId": "6816381053",
+    "dataTypeCount": 13,
+    "tracking": false,
+    "evidence": "142-privacy-publication-evidence.json (local safe DOM confirmation and screenshot; no credentials)"
+  },
+  "requiredReasonAPIs": [
+    {
+      "category": "System Boot Time",
+      "reason": "35F9.1",
+      "source": "EditorView command grouping uses systemUptime only to measure elapsed time."
+    },
+    {
+      "category": "User Defaults",
+      "reason": "CA92.1",
+      "source": "Listening.swift persists app-only playback settings."
+    }
+  ],
+  "supportURL": "https://github.com/r4iju/lexidraw/issues",
+  "subtitleDraft": "Write, draw and organize",
+  "keywordsDraft": "notes,editor,documents,drawings,sketch,markdown,folders,writing,organization,rich text",
+  "contentRightsReview": {
+    "status": "maintainer-confirmed-saved-and-verified",
+    "model": "User-directed uploads, imports and sharing; no app-curated third-party article or media catalog.",
+    "termsURL": "https://lexidraw.vercel.app/terms-of-service",
+    "draftExplanation": "Lexidraw is a document and drawing editor. Users choose the files and web links they upload, import and share. The terms prohibit copyright infringement and authorize storing, processing and displaying user content to operate the service. This describes the permitted-use model; it does not guarantee that every user submission is lawful. Third-party integrations and app-provided materials are checked separately.",
+    "remaining": [],
+    "appleReference": "https://developer.apple.com/help/app-store-connect/reference/app-information/app-information/",
+    "declaration": "USES_THIRD_PARTY_CONTENT",
+    "confirmed": "2026-10-01",
+    "verification": "App Store Connect PATCH200 followed by GET confirmed USES_THIRD_PARTY_CONTENT."
+  },
+  "reviewNotesStatus": {
+    "status": "saved-and-verified",
+    "verified": "2026-10-01",
+    "verification": "PATCH200; safe GET confirms notes, demo credentials and contact are present."
+  },
+  "finalRelease": {
+    "marketingVersion": "1.0",
+    "buildNumber": "9",
+    "sourceCommit": "67c8ffe943432a296bc2eac97c4da28041fd9aae",
+    "archiveStatus": "succeeded",
+    "uploadStatus": "succeeded",
+    "processingStatus": "VALID",
+    "method": "local-xcodebuild-no-CI",
+    "physicalDeviceInstall": "Signed Debug 1.0 build 9 of the release source installed and launched on iPhone 14 Plus. Before the final build 9 install, the maintainer confirmed three-finger left Undo, grouping of continuous tapped letters, and whole-word swipe Undo during diagnostic runs. Right three-finger Redo, shake Undo and leave/reopen saving were explicitly deferred by the maintainer; not claimed passed.",
+    "corpus": "Release source 67c8ffe9 live-account corpus passed: four tests in two suites, including comparison regressions.",
+    "productionDeployments": {
+      "web": "dpl_FxaaUeXEKWXry6napgiWP6XBKXqR",
+      "renderer": "dpl_C1sfTVpeUvfpJUbog1pDFHdpKJoe",
+      "status": "READY",
+      "sourceBuild": "Clean archived repository source, built on Linux; no macOS prebuilt artifacts."
+    },
+    "buildId": "cd92b5db-a959-4028-bdce-887104b9695c",
+    "internalTestFlightStatus": "build-listed-in-existing-internal-group",
+    "appStoreVersionBuildSelection": "selected-and-verified",
+    "productionVerification": "Six article capability/image/cache/style checks and eight light/dark Mermaid/equation/chart/code renders returned200.",
+    "reviewSubmissionId": "1c0fea53-a386-47aa-895c-54168ec197a5",
+    "reviewSubmissionStatus": "WAITING_FOR_REVIEW",
+    "testFlightNotesStatus": "saved-en-US",
+    "submitted": true,
+    "submittedDate": "2026-10-01T10:00:29.39Z",
+    "deferredFollowUps": [
+      {
+        "issue": 135,
+        "scope": "Physical Redo, shake Undo and leave/reopen save acceptance checks; maintainer deferred to a later stage."
+      },
+      {
+        "issue": 236,
+        "scope": "Group multiple continuously swipe-typed words into bulk Undo; latest word currently undoes as a unit."
+      }
+    ]
+  }
+}

@@ -6,12 +6,23 @@ extension Node {
   /// Plain text Lexical merges with its neighbours: a `text` node in normal mode.
   var isSimpleText: Bool { textNode?.mode == .normal }
 
+  var textMode: TextMode? {
+    switch payload {
+    case .text(let node): node.mode
+    case .hashtag(let node): node.mode
+    case .keyword(let node): node.mode
+    case .emoji(let node): node.mode
+    case .mention(let node): node.mode
+    default: nil
+    }
+  }
+
   var isUnmergeable: Bool {
     payload.textFields.map { TextDetail(rawValue: Int($0.detail ?? 0)).contains(.unmergeable) } ?? false
   }
 
   /// A TabNode's text is a tab, whatever it was stored with.
-  var text: String { type == SerializedTabNode.type ? "\t" : textNode?.text ?? "" }
+  var text: String { type == SerializedTabNode.type ? "\t" : payload.textFields?.text ?? "" }
 }
 
 /// The bits Lexical keeps in a text node's `detail`.
@@ -67,10 +78,30 @@ extension Update {
       guard !(node.text ?? "").isIdentical(to: text) else { return }
       node.text = text
       modify(key) { $0.payload = .text(node) }
+    case .codeHighlight(var node):
+      guard !(node.text ?? "").isIdentical(to: text) else { return }
+      node.text = text
+      modify(key) { $0.payload = .codeHighlight(node) }
     case .tab(var node):
       guard node.text != "\t" else { return }
       node.text = "\t"
       modify(key) { $0.payload = .tab(node) }
+    case .hashtag(var node):
+      guard !(node.text ?? "").isIdentical(to: text) else { return }
+      node.text = text
+      modify(key) { $0.payload = .hashtag(node) }
+    case .keyword(var node):
+      guard !(node.text?.stringValue ?? "").isIdentical(to: text) else { return }
+      node.text = .string(text)
+      modify(key) { $0.payload = .keyword(node) }
+    case .emoji(var node):
+      guard !(node.text?.stringValue ?? "").isIdentical(to: text) else { return }
+      node.text = .string(text)
+      modify(key) { $0.payload = .emoji(node) }
+    case .mention(var node):
+      guard !(node.text?.stringValue ?? "").isIdentical(to: text) else { return }
+      node.text = .string(text)
+      modify(key) { $0.payload = .mention(node) }
     default:
       throw EditorError.unsupported("Setting the text of a \(self[key].type) node")
     }
@@ -88,17 +119,40 @@ extension Update {
       numberListItems(key)
     case SerializedListItemNode.type:
       try wrapInList(key)
-      if state.isAttached(key) { try syncListItemTextStyle(key) }
+      if editorContext == .document, state.isAttached(key) { try syncListItemTextStyle(key) }
+    case SerializedMarkNode.type where editorContext == .document:
+      try transformCommentMark(key)
     case SerializedLinkNode.type:
       try transformLink(key)
-    case SerializedTableCellNode.type:
+    case SerializedTableCellNode.type where hasEditorPlugin("TablePlugin"):
       try transformCell(key)
-    case SerializedTableRowNode.type:
+    case SerializedTableRowNode.type where hasEditorPlugin("TablePlugin"):
       try transformRow(key)
-    case SerializedTableNode.type:
+    case SerializedTableNode.type where hasEditorPlugin("TablePlugin"):
       try transformTable(key)
+    case SerializedCalloutNode.type where hasEditorPlugin("CalloutPlugin"):
+      if isEmpty(key) { try append(key, [create(SerializedParagraphNode.type)]) }
+    case SerializedLayoutItemNode.type where hasEditorPlugin("LayoutPlugin"):
+      if let parent = state.parent(of: key), state[parent].type != SerializedLayoutContainerNode.type {
+        try unwrapStructuralElement(key)
+      }
+    case SerializedLayoutContainerNode.type where hasEditorPlugin("LayoutPlugin"):
+      if state.children(of: key).contains(where: { state[$0].type != SerializedLayoutItemNode.type }) {
+        try unwrapStructuralElement(key)
+      }
+    case SerializedCollapsibleContentNode.type where hasEditorPlugin("CollapsiblePlugin"):
+      try repairToggleContent(key)
+    case SerializedCollapsibleTitleNode.type where hasEditorPlugin("CollapsiblePlugin"):
+      try repairToggleTitle(key)
+    case SerializedCollapsibleContainerNode.type where hasEditorPlugin("CollapsiblePlugin"):
+      try repairToggle(key)
     default: break
     }
+  }
+
+  mutating func unwrapStructuralElement(_ key: NodeKey) throws {
+    for child in Array(state.children(of: key)) { try insert(child, before: key) }
+    try remove(key)
   }
 
   /// ElementNode's transform: a root or shadow root holds blocks, so runs of
@@ -190,5 +244,33 @@ extension Update {
     try insertAtNearestRoot(
       list, state.rewind(.sibling(list, .next)), SplitOptions(splitsAtEdges: false, removesEmptyDestination: true))
     if isEmpty(parent), state.isAttached(parent) { try remove(parent) }
+  }
+}
+
+// CommentPlugin's registerNestedElementResolver(MarkNode) only resolves
+// a directly nested mark; its deeper-wrapper path intentionally does nothing.
+extension Update {
+  private mutating func transformCommentMark(_ key: NodeKey) throws {
+    guard !state.children(of: key).contains(where: { state[$0].type == SerializedMarkNode.type }) else { return }
+    guard let parent = state.parent(of: key), case .mark(let outer) = state[parent].payload,
+      case .mark(var inner) = state[key].payload else { return }
+    var ids = inner.ids ?? []
+    for id in outer.ids ?? [] where !ids.contains(id) { ids.append(id) }
+    inner.ids = ids
+    modify(key) { $0.payload = .mark(inner) }
+    let siblings = Array(state.children(of: parent))
+    let next = Array(siblings.dropFirst((state.index(of: key) ?? 0) + 1))
+    try insert(key, after: parent)
+    if !next.isEmpty {
+      let clone = create(SerializedMarkNode.type)
+      modify(clone) {
+        guard case .mark(var payload) = $0.payload else { return }
+        payload.ids = outer.ids
+        $0.payload = .mark(payload)
+      }
+      try insert(clone, after: key)
+      try append(clone, next)
+    }
+    if state.childCount(of: parent) == 0 { try remove(parent) }
   }
 }
