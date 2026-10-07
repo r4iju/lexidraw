@@ -27,14 +27,40 @@ function backoff(response: Response, attempt: number) {
   return 400 * 2 ** attempt + Math.random() * 200;
 }
 
+/**
+ * A block's saved-state preview, or why there is none: its own script failed
+ * (the author can fix it) or the renderer could not capture it (Run still works).
+ */
+export type BlockCapture =
+  | { status: "ready"; data: string; scale: number }
+  | { status: "failed"; reason: "script" | "unavailable"; message: string };
+
+const UNAVAILABLE = {
+  status: "failed",
+  reason: "unavailable",
+  message: "Saved-state preview unavailable. Run the block to use it.",
+} as const;
+
 export async function captureBlock(
+  block: SavedHTMLBlock,
+  view: BlockView,
+  options: { signal?: AbortSignal; worker?: string } = {},
+): Promise<BlockCapture> {
+  try {
+    return await ask(block, view, options);
+  } catch {
+    return UNAVAILABLE;
+  }
+}
+
+async function ask(
   block: SavedHTMLBlock,
   view: BlockView,
   {
     signal = AbortSignal.timeout(25000),
     worker = workerBase(),
-  }: { signal?: AbortSignal; worker?: string } = {},
-) {
+  }: { signal?: AbortSignal; worker?: string },
+): Promise<BlockCapture> {
   let response: Response;
   for (let attempt = 0; ; attempt++) {
     response = await askRenderWorker(
@@ -48,8 +74,6 @@ export async function captureBlock(
     );
     signal.throwIfAborted();
   }
-  if (response.status === 503)
-    throw new Error("Preview renderer is busy. Run the block to use it.");
   if (response.status === 422) {
     // The worker answers 422 only for the block's own markup or script.
     const reply: unknown = await response.json().catch(() => null);
@@ -57,18 +81,25 @@ export async function captureBlock(
       reply && typeof reply === "object" && "message" in reply
         ? String(reply.message).slice(0, 500)
         : "";
-    throw new Error(message || "The block's script failed");
+    return {
+      status: "failed",
+      reason: "script",
+      message: message || "The block's script failed",
+    };
   }
-  if (!response.ok)
-    throw new Error("Preview renderer is unavailable. Run the block to use it.");
-  const bytes = new Uint8Array(await response.arrayBuffer());
+  if (!response.ok) return UNAVAILABLE;
+  const bytes = Buffer.from(await response.arrayBuffer());
   if (
     bytes.byteLength > 4 * 1024 * 1024 ||
-    bytes.length < 8 ||
+    bytes.length < 24 ||
     ![137, 80, 78, 71, 13, 10, 26, 10].every(
       (byte, index) => bytes[index] === byte,
-    )
+    ) ||
+    bytes.toString("latin1", 12, 16) !== "IHDR"
   )
-    throw new Error("Invalid preview image");
-  return Buffer.from(bytes).toString("base64");
+    return UNAVAILABLE;
+  // The worker captures at a higher pixel density than layout pixels; clients size the image by the latter.
+  const scale = bytes.readUInt32BE(16) / view.width;
+  if (!Number.isInteger(scale) || scale < 1 || scale > 3) return UNAVAILABLE;
+  return { status: "ready", data: bytes.toString("base64"), scale };
 }

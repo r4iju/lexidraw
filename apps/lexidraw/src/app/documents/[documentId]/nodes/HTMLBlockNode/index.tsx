@@ -3,9 +3,12 @@ import {
   HTMLBlockNode as HeadlessHTMLBlockNode,
   SavedHTMLBlockSchema,
   snapshotDocument,
+  type HTMLBlockTheme,
   type SavedHTMLBlock,
 } from "@packages/lexical-nodes";
-import { useEffect, useRef, useState } from "react";
+import { keepPreviousData } from "@tanstack/react-query";
+import { useTheme } from "next-themes";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import { api } from "~/trpc/react";
 import { Button } from "~/components/ui/button";
@@ -26,17 +29,67 @@ function HTMLBlockView({ stored }: { stored: unknown }) {
     return <p role="status">HTML block content is unavailable.</p>;
   return <SavedBlock block={parsed.data} />;
 }
+/** The document theme the reader sees, once the theme provider has resolved it. */
+function useReaderTheme(): HTMLBlockTheme | undefined {
+  const { resolvedTheme, forcedTheme } = useTheme();
+  const theme = forcedTheme ?? resolvedTheme;
+  return theme === "dark" || theme === "light" ? theme : undefined;
+}
+/**
+ * The frame's width in layout pixels, within what the renderer captures. Later
+ * changes settle before they are reported, so resizing a window asks for one
+ * capture rather than one per frame.
+ */
+function useFrameWidth() {
+  const [element, setElement] = useState<HTMLDivElement | null>(null);
+  const [width, setWidth] = useState<number>();
+  // The frame's size is an external value only a ResizeObserver reports.
+  useEffect(() => {
+    if (!element) return;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let first = true;
+    const observer = new ResizeObserver(([entry]) => {
+      if (!entry) return;
+      const next = Math.min(
+        1280,
+        Math.max(240, Math.round(entry.contentRect.width)),
+      );
+      clearTimeout(timer);
+      timer = setTimeout(() => setWidth(next), first ? 0 : 300);
+      first = false;
+    });
+    observer.observe(element);
+    return () => {
+      clearTimeout(timer);
+      observer.disconnect();
+    };
+  }, [element]);
+  return [setElement, width] as const;
+}
 function SavedBlock({ block }: { block: SavedHTMLBlock }) {
   const params = useParams<{ documentId?: string; id?: string }>();
   const documentId = params.documentId ?? params.id ?? "";
   const supplied = useHTMLBlockPreviews();
+  const theme = useReaderTheme();
+  const [frame, width] = useFrameWidth();
   const preview = api.htmlBlocks.preview.useQuery(
-    { id: documentId, blockId: block.id, revision: block.revision, width: 800 },
     {
-      enabled: supplied === null && Boolean(documentId),
+      id: documentId,
+      blockId: block.id,
+      revision: block.revision,
+      width: width ?? 800,
+      theme: theme ?? "light",
+    },
+    {
+      enabled:
+        supplied === null &&
+        Boolean(documentId) &&
+        width !== undefined &&
+        theme !== undefined,
       retry: false,
       refetchOnWindowFocus: false,
       staleTime: Infinity,
+      placeholderData: keepPreviousData,
     },
   );
   const utils = api.useUtils();
@@ -88,32 +141,55 @@ function SavedBlock({ block }: { block: SavedHTMLBlock }) {
         });
     }
   }
+  const image =
+    matching?.status === "ready" ? (
+      <img
+        src={`data:image/png;base64,${matching.data}`}
+        alt={`${block.description}, saved starting state`}
+        width={matching.width}
+        height={matching.height}
+        className="block h-auto w-full"
+      />
+    ) : null;
   return (
     <section
       id={`html-block-${block.id}`}
       aria-label={block.description}
-      className="my-4 w-full overflow-hidden rounded-lg border border-border bg-background"
+      className="my-4 w-full overflow-hidden rounded-lg border border-border"
       contentEditable={false}
     >
-      {run.phase === "running" && !invalidated && supplied === null ? (
-        <RunningBlock key={run.attempt} block={block} />
-      ) : matching?.status === "ready" && matching.data ? (
-        <img
-          src={`data:image/png;base64,${matching.data}`}
-          alt={`${block.description} — saved starting state`}
-          width={matching.width}
-          height={matching.height}
-          className="block h-auto w-full"
-        />
-      ) : (
-        <div role="status" className="p-4">
-          {preview.isLoading
-            ? "Preparing saved-state preview…"
-            : matching?.status === "failed"
-              ? matching.message
-              : "Saved-state preview unavailable. You can still run the block."}
-        </div>
-      )}
+      <div
+        ref={frame}
+        className="relative overflow-hidden"
+        style={
+          // An exported preview was captured at paper width, so it keeps that shape in any column.
+          supplied === null
+            ? { height: block.height }
+            : { aspectRatio: `${snapshot?.width ?? 800} / ${block.height}` }
+        }
+      >
+        {run.phase === "running" && !invalidated && supplied === null ? (
+          <RunningBlock
+            key={`${run.attempt}:${theme}`}
+            block={block}
+            theme={theme ?? "light"}
+            backdrop={image}
+          />
+        ) : image ? (
+          image
+        ) : matching?.status === "failed" && matching.reason === "script" ? (
+          <ScriptError message={matching.message} />
+        ) : (
+          <p
+            role="status"
+            className="flex h-full items-center justify-center p-4 text-center text-sm text-muted-foreground"
+          >
+            {matching?.status === "failed" || preview.isError
+              ? "Saved-state preview unavailable. Run still works."
+              : "Preparing saved-state preview…"}
+          </p>
+        )}
+      </div>
       {supplied === null && (
         <div className="flex flex-wrap items-center gap-3 border-t p-3 print:hidden">
           <Button
@@ -141,7 +217,29 @@ function SavedBlock({ block }: { block: SavedHTMLBlock }) {
     </section>
   );
 }
-function RunningBlock({ block }: { block: SavedHTMLBlock }) {
+/** The block's own script failed: the author can act on its message, so it is shown in full. */
+function ScriptError({ message }: { message: string }) {
+  return (
+    <div role="status" className="flex h-full items-center justify-center p-4">
+      <div className="max-h-full max-w-full overflow-auto rounded-md border border-destructive/40 bg-destructive/5 px-4 py-3 text-sm">
+        <p className="font-medium text-destructive">Script error</p>
+        <p className="mt-1 whitespace-pre-wrap break-words font-mono text-foreground">
+          {message}
+        </p>
+      </div>
+    </div>
+  );
+}
+function RunningBlock({
+  block,
+  theme,
+  backdrop,
+}: {
+  block: SavedHTMLBlock;
+  theme: HTMLBlockTheme;
+  /** Shown until the block has started, so pressing Run does not flash an empty frame. */
+  backdrop: ReactNode;
+}) {
   const frame = useRef<HTMLIFrameElement>(null);
   const [state, setState] = useState<
     | { status: "loading" }
@@ -196,26 +294,31 @@ function RunningBlock({ block }: { block: SavedHTMLBlock }) {
     };
   }, [block]);
   return (
-    <div>
-      {state.status !== "ready" && (
-        <p role="status" className="p-3">
-          {state.status === "failed"
-            ? state.message
-            : "Loading interactive block…"}
-        </p>
+    <>
+      {state.status === "failed" ? (
+        <ScriptError message={state.message} />
+      ) : (
+        state.status === "loading" && (
+          <div className="absolute inset-0">
+            {backdrop}
+            <span role="status" className="sr-only">
+              Loading interactive block…
+            </span>
+          </div>
+        )
       )}
       <iframe
         ref={frame}
         title={block.description}
         sandbox="allow-same-origin"
         referrerPolicy="no-referrer"
-        srcDoc={snapshotDocument("", block.css)}
-        className="block w-full border-0"
+        srcDoc={snapshotDocument("", block.css, theme)}
+        className="block h-full w-full border-0"
         style={{
-          height: block.height,
-          display: state.status === "failed" ? "none" : undefined,
+          colorScheme: theme,
+          visibility: state.status === "ready" ? undefined : "hidden",
         }}
       />
-    </div>
+    </>
   );
 }

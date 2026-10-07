@@ -94,3 +94,17 @@ test.each([
   },
   30_000,
 );
+
+test("a capture is the block's displayed size at twice the pixel density", async () => {
+  const answer = await capture({ source: STATIC, width: 358, theme: "light" });
+
+  expect(answer.status).toBe(200);
+  const png = PNG.sync.read(Buffer.from(await answer.arrayBuffer()));
+  expect([png.width, png.height]).toEqual([716, 360]);
+}, 30_000);
+
+test("the narrowest phone column can be captured", async () => {
+  const answer = await capture({ source: STATIC, width: 240, theme: "dark" });
+
+  expect(answer.status).toBe(200);
+}, 30_000);

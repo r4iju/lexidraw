@@ -75,7 +75,7 @@ export async function POST(request: Request) {
     if (
       !HTML_BLOCK_THEMES.includes(input.theme) ||
       !Number.isInteger(input.width) ||
-      input.width < 320 ||
+      input.width < 240 ||
       input.width > 1280
     )
       throw new Error("Invalid width");
@@ -84,25 +84,40 @@ export async function POST(request: Request) {
       status: 400,
     });
   }
-  const release = await turn();
-  if (!release) return busy();
-  let browser: Awaited<ReturnType<typeof launchBrowser>> | undefined;
-  let interpreter: { dispose(): void } | undefined;
-  let timer: ReturnType<typeof setTimeout> | undefined;
+  let html: string;
   try {
     const { document } = parseHTML("<html><body></body></html>");
     prepareHTML(document.body, input.source.html);
-    interpreter = await startHTMLBlock(document.body, input.source);
-    const html = snapshotDocument(
-      document.body.innerHTML,
-      input.source.css,
-      input.theme,
+    const interpreter = await startHTMLBlock(document.body, input.source);
+    try {
+      html = snapshotDocument(
+        document.body.innerHTML,
+        input.source.css,
+        input.theme,
+      );
+    } finally {
+      interpreter.dispose();
+    }
+  } catch (error) {
+    // Only the block's own markup and script run above, so the author can act on this message.
+    return NextResponse.json(
+      {
+        message:
+          error instanceof Error ? error.message : "HTML block script failed",
+      },
+      { status: 422 },
     );
+  }
+  const release = await turn();
+  if (!release) return busy();
+  let browser: Awaited<ReturnType<typeof launchBrowser>> | undefined;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
     browser = await launchBrowser({
       viewport: {
         width: input.width,
         height: input.source.height,
-        deviceScaleFactor: 1,
+        deviceScaleFactor: 2,
       },
     });
     const launched = browser;
@@ -111,9 +126,6 @@ export async function POST(request: Request) {
     }, 15000);
     const page = await browser.newPage();
     await page.setJavaScriptEnabled(false);
-    await page.emulateMediaFeatures([
-      { name: "prefers-color-scheme", value: input.theme },
-    ]);
     await page.setRequestInterception(true);
     // This page has no navigated origin, cookies, extra headers or render tokens.
     page.on("request", (request) => {
@@ -135,12 +147,11 @@ export async function POST(request: Request) {
         message:
           error instanceof Error ? error.message : "Preview capture failed",
       },
-      { status: 422 },
+      { status: 502 },
     );
   } finally {
     if (timer) clearTimeout(timer);
     try {
-      interpreter?.dispose();
       await browser?.close();
     } finally {
       release();

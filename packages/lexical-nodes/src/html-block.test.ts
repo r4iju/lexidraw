@@ -17,6 +17,7 @@ test("snapshot wrapper cannot break CSP through source", () => {
   const page = snapshotDocument(
     "<p>Safe</p>",
     "</style><script>bad()</script>",
+    "light",
   );
   expect(page).not.toContain("<script>");
   expect(page).toContain("default-src 'none'");

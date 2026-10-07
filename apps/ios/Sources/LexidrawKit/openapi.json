@@ -5477,8 +5477,17 @@
             "schema": {
               "default": 800,
               "type": "integer",
-              "minimum": 320,
+              "minimum": 240,
               "maximum": 1280
+            }
+          },
+          {
+            "in": "query",
+            "name": "theme",
+            "schema": {
+              "default": "light",
+              "type": "string",
+              "enum": ["light", "dark"]
             }
           }
         ],
@@ -5507,6 +5516,11 @@
                         },
                         "height": {
                           "type": "number"
+                        },
+                        "scale": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 3
                         }
                       },
                       "required": [
@@ -5514,7 +5528,8 @@
                         "revision",
                         "data",
                         "width",
-                        "height"
+                        "height",
+                        "scale"
                       ],
                       "additionalProperties": false
                     },
@@ -5527,6 +5542,10 @@
                         },
                         "revision": {
                           "type": "string"
+                        },
+                        "reason": {
+                          "type": "string",
+                          "enum": ["script", "unavailable"]
                         },
                         "message": {
                           "type": "string"
@@ -5541,6 +5560,7 @@
                       "required": [
                         "status",
                         "revision",
+                        "reason",
                         "message",
                         "width",
                         "height"
