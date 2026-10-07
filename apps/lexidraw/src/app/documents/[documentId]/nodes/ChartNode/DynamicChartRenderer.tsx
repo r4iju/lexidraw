@@ -266,6 +266,7 @@ export default function DynamicChartRenderer({
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis
               tick={axisStyle}
+              scale="band"
               dataKey={xAxisDataKey}
               tickLine={false}
               tickMargin={10}

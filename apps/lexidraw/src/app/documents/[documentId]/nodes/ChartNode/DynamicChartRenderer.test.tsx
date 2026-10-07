@@ -8,13 +8,16 @@ const { default: DynamicChartRenderer } = await import(
   "./DynamicChartRenderer"
 );
 
-// jsdom has no layout: the chart's own container gets the frame's size and
-// everything inside it (legend, labels) takes no room.
+// jsdom has no layout: the chart's own container gets the frame's size, text
+// Recharts measures is 7px a character, and everything else takes no room.
 const frame = { width: 640, height: 320 };
-const sized = (element: Element) =>
-  element.classList.contains("recharts-responsive-container");
+const CHARACTER = 7;
 const size = (element: Element) =>
-  sized(element) ? frame : { width: 0, height: 0 };
+  element.classList.contains("recharts-responsive-container")
+    ? frame
+    : element.id === "recharts_measurement_span"
+      ? { width: (element.textContent ?? "").length * CHARACTER, height: 14 }
+      : { width: 0, height: 0 };
 Object.defineProperties(window.HTMLElement.prototype, {
   getBoundingClientRect: {
     configurable: true,
@@ -188,4 +191,52 @@ test("pie slices past the five chart colours still differ", async () => {
     (slice) => slice.getAttribute("fill"),
   );
   expect(new Set(fills).size).toBe(7);
+});
+
+test("a line chart keeps its end points and their labels inside the frame", async () => {
+  frame.width = 358;
+  const body = await draw({ chartType: "line" });
+  const dots = [...body.querySelectorAll(".recharts-line-dots circle")];
+  expect(dots.length).toBeGreaterThan(0);
+  for (const dot of dots) {
+    const cx = Number(dot.getAttribute("cx"));
+    const reach = Number(dot.getAttribute("r")) + 2;
+    expect(cx - reach).toBeGreaterThanOrEqual(0);
+    expect(cx + reach).toBeLessThanOrEqual(frame.width);
+  }
+  const lastDot = Number(dots.at(-1)?.getAttribute("cx"));
+  const fri = [...body.querySelectorAll(".recharts-xAxis-tick-labels text")].find(
+    (label) => label.textContent === "Fri",
+  );
+  expect(Number(fri?.getAttribute("x"))).toBeCloseTo(lastDot, 0);
+  // Room for half a short label on either side of its point.
+  expect(lastDot).toBeLessThanOrEqual(frame.width - 16);
+});
+
+test("long category labels on a phone all show, wrapped within their bar", async () => {
+  frame.width = 358;
+  const names = [
+    "A very long category name",
+    "Another long category label",
+    "東京都の長いカテゴリ名",
+  ];
+  const body = await draw({
+    chartType: "bar",
+    data: names.map((name, index) => ({ name, value: index + 3 })),
+    config: { value: { label: "Count", color: "chart-4" } },
+  });
+  const labels = [...body.querySelectorAll(".recharts-xAxis-tick-labels text")];
+  expect(labels).toHaveLength(3);
+  const band = Number(
+    body.querySelector(".recharts-bar-rectangle path")?.getAttribute("width"),
+  );
+  for (const label of labels) {
+    const lines = [...label.querySelectorAll("tspan")].map(
+      (line) => line.textContent ?? "",
+    );
+    expect(lines.length).toBeLessThanOrEqual(2);
+    for (const line of lines)
+      expect(line.length * CHARACTER).toBeLessThanOrEqual(band * 1.25);
+  }
+  expect(labels[0]?.textContent).toStartWith("A very long");
 });
