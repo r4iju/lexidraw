@@ -157,7 +157,7 @@ export async function checkMedia(
       );
 
       const media = await page.$$eval(
-        '.document-content iframe, .document-content video, .document-content img, .document-content .recharts-wrapper, .document-content [data-node-type="page-break"], .document-content .slide-view-outer-viewport',
+        '.document-content iframe, .document-content video, .document-content img, .document-content .recharts-wrapper, .document-content [data-node-type="page-break"], .document-content [data-node-type="slide-deck"]',
         (elements) =>
           elements.map((element) => {
             const rect = element.getBoundingClientRect();
@@ -209,11 +209,16 @@ export async function checkMedia(
         ),
         "Empty chart explains how to add data",
       );
-      assert(
-        await page.$eval(".document-content", (e) =>
-          e.textContent?.includes("Edit slides to add"),
+      assert.deepEqual(
+        await page.$$eval(
+          '.document-content [data-node-type="slide-deck"]',
+          (els) => els.map((e) => e.textContent),
         ),
-        "Empty slide deck explains how to add slides",
+        [
+          "Slide deck (no longer supported)Legacy slide text · 旧スライド",
+          "Slide deck (no longer supported)",
+        ],
+        "A stored slide deck shows a placeholder with its text",
       );
 
       const poll = await page.$eval("[data-poll]", (e) => ({
@@ -325,14 +330,7 @@ export async function checkMedia(
     (els) => els.filter((e) => getComputedStyle(e).display !== "none").length,
   );
   assert.equal(pollInputs, 0, "Printed polls show results rather than inputs");
-  assert(
-    await page.$eval(
-      ".slide-view-outer-viewport",
-      (e) => e.getBoundingClientRect().width > 200,
-    ),
-    "Printed slide retains its content width",
-  );
-  for (const selector of [".chart-component", ".slide-view-outer-viewport"]) {
+  for (const selector of [".chart-component", ".slide-deck-container"]) {
     assert.equal(
       await page.$eval(selector, (e) => getComputedStyle(e).breakInside),
       "avoid",

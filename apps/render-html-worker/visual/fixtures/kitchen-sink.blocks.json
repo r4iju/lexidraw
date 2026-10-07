@@ -290,6 +290,35 @@
               "height": 80,
               "url": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNDAiIGhlaWdodD0iODAiPjxyZWN0IHdpZHRoPSIyNDAiIGhlaWdodD0iODAiIGZpbGw9IiM3ZGQzZmMiLz48Y2lyY2xlIGN4PSI2MCIgY3k9IjQwIiByPSIyNCIgZmlsbD0iI2Y1OWUwYiIvPjwvc3ZnPg==",
               "zIndex": 0
+            },
+            {
+              "kind": "box",
+              "id": "fixture-slide-box",
+              "x": 20,
+              "y": 120,
+              "width": 300,
+              "height": 50,
+              "zIndex": 1,
+              "editorStateJSON": {
+                "root": {
+                  "type": "root",
+                  "version": 1,
+                  "children": [
+                    {
+                      "type": "paragraph",
+                      "version": 1,
+                      "children": [
+                        {
+                          "type": "text",
+                          "version": 1,
+                          "text": "Legacy slide text · 旧スライド",
+                          "format": 0
+                        }
+                      ]
+                    }
+                  ]
+                }
+              }
             }
           ]
         }
