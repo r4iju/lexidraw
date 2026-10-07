@@ -31,6 +31,17 @@ test("native mention styling follows the effective node DOM style", async () => 
   );
 });
 
+test("native hashtags and keywords take the colour and weight the document theme gives them", async () => {
+  const generated = await swiftForSocialStyle();
+  expect(generated).toContain(
+    '"hashtag": EntityTextStyle(color: WebSocialStyle.info, weight: nil)',
+  );
+  expect(generated).toContain(
+    '"keyword": EntityTextStyle(color: WebSocialStyle.primary, weight: 600)',
+  );
+  expect(await Bun.file(SOCIAL_STYLE_PATH).text()).toBe(generated);
+});
+
 test("native footnote dimensions follow actual document CSS", async () => {
   expect(await Bun.file(FOOTNOTE_STYLE_PATH).text()).toBe(await swiftForFootnoteStyle());
 });
