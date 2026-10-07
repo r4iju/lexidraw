@@ -9,7 +9,7 @@ import Testing
     }
   }
   @Test func nestedEditorTransformsFollowEachMountedWebContext() throws {
-    for context: EditorContext in [.imageCaption, .inlineImageCaption, .videoCaption, .slide] {
+    for context: EditorContext in [.imageCaption, .inlineImageCaption, .videoCaption] {
       let start = document(paragraph(text("Before ", format: .bold)))
       let commands: [EditorCommand] = [.caret(.text([0, 0], 7)), .insertText("#native congratulations :) "), .undo, .redo]
       let fixture = try Fixture.record(start: start, commands: commands, on: Support.referenceEditor(editorContext: context))

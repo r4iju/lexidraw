@@ -612,7 +612,7 @@ The main `document-editor.tsx` mounts `EmojiPickerPlugin` and markdown shortcuts
 but does not mount `MentionsPlugin`, `KeywordsPlugin`, `EmojisPlugin`, or
 `HashtagPlugin`. Native main-editor typing follows that effective behavior:
 it does not automatically turn mentions, hashtags, congratulations, or emoticons
-into nodes. Hashtag transforms belong to the caption and slide editors that
+into nodes. Hashtag transforms belong to the caption editors that
 actually mount that plugin. Stored normal-mode hashtags and keywords support native text
 editing boundaries and splitting. They have no extra effective web color:
 upstream `HashtagNode.createDOM` reads `theme.hashtag`, while the current theme
@@ -694,7 +694,7 @@ a separate blocked-private-image probe proved the public request guard stayed
 active while the article body remained readable.
 
 This checkpoint does not complete #134. Non-normal keyword payloads retain their
-explicit unported editing gate. Active caption/slide hashtag and keyword
+explicit unported editing gate. Active caption hashtag and keyword
 transforms and unsupported social caption contexts still need work.
 Stored social text generation opts in via `socialTextSubclasses`, preserving
 fault-injection seeds; the full differential run enables it.
@@ -711,15 +711,14 @@ uses PlainTextPlugin behavior: literal Markdown, line-break Enter, plain-text
 paste/copy and no automatic links. Color, drag and deletion commit to the parent
 history with the opened node as the conflict guard.
 
-Slide decks render native text, images and presentation-only chart nodes through
-the composed embed provider. Slide creation, deletion/reordering, element content,
-geometry, background and stacking changes preserve the remaining deck metadata.
-Slide text crosses the web's keyed-state boundary by stripping only live `key`
-fields on load and restoring the native editor's live keys on save. Unknown node
-fields and unported body nodes retain the existing explicit read-only/refusal path.
+Slide decks are no longer supported (#253). A stored `slide-deck` stays a typed
+node whose `data` is kept verbatim, so the document stays editable around it. Its
+panel is a read-only "Slide deck (no longer supported)" placeholder listing the
+text of the deck's boxes, a line per block, as the web placeholder does. It is
+selected and deleted like any other block, and the insert menu offers no deck.
 
 `codegen/structural-blocks.ts` records registered node factories, web insertion
-presets, CSS theme colors and canvas geometry. The reference builder reuses the
+presets, CSS theme colors and column/sticky geometry. The reference builder reuses the
 actual CalloutPlugin, CollapsiblePlugin and LayoutPlugin implementations; its
 bounded hook adapter supplies the active headless editor and runs registration
 once. New hook/import shapes fail the bundle build rather than being omitted.
@@ -745,35 +744,19 @@ items use the web's unread-field import rule: imported indent is retained in sto
 the effective field starts at zero; a mutation writes the effective value. A
 fractional effective value cannot be copied into integer-indented paragraph/list
 schemas and explicitly refuses under #133. Read-only sections expand
-locally without a document mutation; compact sticky notes cannot drag. Slide
-inherited dimensions follow the canvas and text boxes grow to their content. Slide images currently
-use HTTPS URLs and chart previews require the #132 composed provider. Geometry against the web's CSS and chart configuration/source UI still require
-device-level verification. Slide geometry supports a native dialog plus direct dragging and four-corner
-resizing. Gesture previews stay local and the completed gesture commits once
-through the opened-node guard and history. Selection follows the element ID across
-autosave rebuilds, so its resize handles remain active. The web’s numeric minimum
-sizes are generated; inherited dimensions stay inherited when resizing. These are not claimed as
-completed visual/performance gates.
+locally without a document mutation; compact sticky notes cannot drag.
 
 Pure structural-panel documents expose their native controls as accessibility
 containers. Mixed text/panel hosts preserve the original text input while exposing
-visible native panel controls beside it. The retained slide
-navigation UI regression was observed red against the original stored-ID behavior
-and green with editable autosave and read-only local navigation. Slide chart
-previews clear inherited root-node source callbacks and cached tap recognizers;
-the deck's element editor owns the actual mutation.
+visible native panel controls beside it.
 
 
 The document and structural body/caption editor host lists the original UIKit
 UITextInput beside its visible native panel containers for accessibility. Mixed
-text and slide controls are reachable without substituting a text-input proxy;
+text and panel controls are reachable without substituting a text-input proxy;
 the visible-view traversal does not serialize the document or scan its model.
-The mixed-document regression was observed red at the missing slide button and
-green after the host change. The gesture UI regression was observed red when an
-autosave rebuild lost resize selection (the second drag moved without increasing
-width), then green after retaining the selected element ID. These checks cover
-actual app document-screen controls; broader VoiceOver narration and every nested
-panel combination remain device verification work.
+These checks cover actual app document-screen controls; broader VoiceOver
+narration and every nested panel combination remain device verification work.
 
 
 Fractional tracks whose factors total less than one leave the remaining free
@@ -787,9 +770,8 @@ tracks allocated separately. Fixed-track overflow uses a native horizontal viewp
 
 The follow-up rebased with SVG/animated media passed all 11 document-screen UI
 tests, 93 Bun tests and TypeScript checks, and built the production app for the
-iOS Simulator. The UI checks include mixed text accessibility, slide drag/resize
-autosave, fixed/percentage tracks, partial fractional tracks and read-only slide
-navigation. CI was not invoked.
+iOS Simulator. The UI checks include mixed text accessibility, fixed/percentage
+tracks and partial fractional tracks. CI was not invoked.
 
 ### Sections, inline images and empty paragraphs (#238)
 
@@ -831,7 +813,7 @@ sources through codegen. JavaScript word/digit classes are emitted as ASCII
 ranges for Foundation regular expressions. GIF URLs resolve against the app's
 configured server origin. Cancel leaves the document untouched.
 
-Saving now claims owner-uploaded inline images and pictures in caption/slide
+Saving now claims owner-uploaded inline images and pictures in caption
 text editors through the existing signed-image validation and cleanup policy.
 Video selection uses the system Photos picker, converts the chosen asset to MP4,
 and inserts only after the signed transfer succeeds. The signing endpoint applies
@@ -1002,7 +984,7 @@ fuzz seed 133 agreed for 20,000 steps with zero divergence, 4,337 commands both
 refused, 14 sessions ended on an unported shortcut/node, and zero unreadable
 sessions (`133-final-fuzz-133.log`). Its differential commands cover document
 editing around decorators and inside callout/section/column bodies; randomized
-slide geometry, panel settings and native gesture events are not claimed as
+panel settings and native gesture events are not claimed as
 part of that fuzz run. Their native UI and stale-update/history tests provide
 separate coverage. Remaining imported grammar refusals and those fuzz scope
 limits remain explicit rather than being treated as completed acceptance.
@@ -1055,9 +1037,8 @@ The structural setter differential slice also executes the original LayoutPlugin
 selection when adding/removing columns, including undo/redo; its item count follows
 the source plugin's whitespace rule rather than the CSS track parser. The expanded
 structural fuzzer exercises callout kind/title, section open state, sticky palette
-and position, layout templates, and slide data (geometry/z-order, navigation,
-slide/element order, background, chart type/data/config, and stored text editor
-JSON). It records accepted feature counts separately from ordinary wrapper edits.
+and position, and layout templates. It records accepted feature counts
+separately from ordinary wrapper edits.
 Two 20,000-step seeds (133 and 134) agreed with the original source setters; the
 runs reported 3,533/3,627 shared refusals, 14/11 unported session endings, and 1/2
 unreadable-selection endings. Genuine minimized regressions remain as fixtures:
@@ -1158,36 +1139,9 @@ and probe failures were setup/assertion issues, not behavioral red evidence.
 Final scoped run: all four article accessibility/image/rich-selection hosted tests
 passed (`/tmp/134-rich-final.xcresult`); the production simulator app built
 successfully (`/tmp/134-rich-production.log`). No CI or account mutation ran.
-### Slide deck draft lifetime (#133)
-
-Native slide previews start at slide zero and navigate locally, matching `SlideView`.
-Edit slide deck opens a retained local deck draft; geometry, chart/configuration,
-background, ordering, additions/deletions, navigation and box text update that
-local draft. Cancel discards it. Save applies one stale-checked `setData` through
-the parent model and autosave. Box editors use the generated `.slide` context
-and retain their text, selection and local undo while the draft remains on the
-same slide. Done flushes keyed text only when the actual source keyless projection
-changes and increments the source-generated box version, including fractional
-versions. The text sheet requires Done so it cannot dismiss without flushing.
-Switching the active slide resets undo/redo only for box component identities
-that leave or enter the mounted slide, matching source HistoryPlugin remounts.
-Cached box text and selection survive navigation. Opening the deck and closing
-a box explicitly commit marked text and release keyboard focus before serialization.
-The navigation undo regression was observed red before this lifecycle correction
-and passes on the actual hosted editor. Japanese IME inside the slide modal has
-not been separately exercised; the existing UITextInput composition path is reused.
-
-Validation: genuine hosted UI reds preceded draft Save/Cancel, retained box Undo
-and saved REST box-version fixes. All 16 DocumentPreview UI tests pass, alongside
-20 StructuralBlock model tests, 97 Bun tests, five TypeScript projects and the
-existing generated-slide 20,000-command oracle run (3,124 matched refusals,
-12 unported, zero unreadable). The standalone command fuzzer does not model the
-React modal lifetime; the production hosted UI tests cover that separate boundary.
-
 ### Native emoji suggestions (#134)
 
-The source-mounted EmojiPickerPlugin is reachable through `:` in main documents
-and slide text. Its aliases/tags/order, first-ten limit, empty-query behavior and
+The source-mounted EmojiPickerPlugin is reachable through `:` in main documents. Its aliases/tags/order, first-ten limit, empty-query behavior and
 JavaScript trigger pattern are generated from the actual web picker/list and
 upstream hook. Selection inserts a source-created plain TextNode payload and
 removes the matched trigger through the source-attributed atomic model insertion transaction.
@@ -1207,7 +1161,7 @@ when typing `:smile` before implementation (`/tmp/134-emoji-red.xcresult`). It
 passes with the trigger replaced by `😀`, subsequent typing retained and the
 menu dismissed. No personal clipboard or corpus is used.
 
-The mounted image, inline-image and slide mention pickers now register the actual
+The mounted image and inline-image mention pickers now register the actual
 MentionNode their callback creates; each missing web registry had a retained
 headless source regression that failed before correction. Native suggestions use
 that same source matcher, Star Wars sample dataset, minimum query length,

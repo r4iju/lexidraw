@@ -324,13 +324,14 @@ import TextKitEditor
     XCTAssertLessThan(fixture.body.frame.height, caret.height * 2)
   }
 
-  private func slideBox(_ id: String, _ paragraphs: String...) -> JSONValue {
+  private func slideBox(_ id: String, stateAsString: Bool = false, _ paragraphs: String...) -> JSONValue {
     let children = paragraphs.map { text -> JSONValue in
       ["type": "paragraph", "version": 1, "children": [["type": "text", "version": 1, "text": .string(text)]]]
     }
+    let state: JSONValue = ["root": ["type": "root", "version": 1, "children": .array(children)]]
     return [
       "kind": "box", "id": .string(id), "x": 50, "y": 40, "width": 300, "height": "inherit", "zIndex": 0,
-      "editorStateJSON": ["root": ["type": "root", "version": 1, "children": .array(children)]],
+      "editorStateJSON": stateAsString ? .string(state.stringified) : state,
     ]
   }
 
@@ -340,7 +341,8 @@ import TextKitEditor
       "currentSlideId": "s1",
       "slides": [
         ["id": "s1", "backgroundColor": "#111827", "elements": [slideBox("b1", "Quarterly results", "Revenue grew 12%"), chart]],
-        ["id": "s2", "elements": [slideBox("b2", "Next steps")]],
+        // Some boxes were saved with their editor state as a JSON string.
+        ["id": "s2", "elements": [slideBox("b2", stateAsString: true, "Next steps")]],
       ],
     ]]
     let model = Editor()
@@ -352,7 +354,7 @@ import TextKitEditor
     let panel = try XCTUnwrap(owner.embeddedContent?(key, model.node(at: [0])))
     panel.frame = CGRect(origin: .zero, size: panel.contentSize(fitting: 400))
     panel.layoutIfNeeded()
-    func all(_ view: UIView) -> [UIView] { view.subviews + view.subviews.flatMap(all) }
+    func all(_ view: UIView) -> [UIView] { view.subviews.flatMap { [$0] + all($0) } }
     let views = all(panel)
     XCTAssertEqual(views.compactMap { ($0 as? UILabel)?.text }, ["Slide deck (no longer supported)", "Quarterly results", "Revenue grew 12%", "Next steps"])
     XCTAssertEqual(views.compactMap { $0 as? UIButton }.count, 0, "Nothing edits a stored deck any more")

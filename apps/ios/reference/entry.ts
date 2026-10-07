@@ -2,7 +2,7 @@ import { matchAtSignMention, selectMention, MENTION_MINIMUM_QUERY_LENGTH } from 
 import { registerPlainText } from "@lexical/plain-text";
 import { withDOM } from "@lexical/headless/dom";
 import { $generateNodesFromDOM } from "@lexical/html";
-import { htmlToPlainText, ArticleNode, CalloutNode, LayoutContainerNode, StickyNode, SlideNode, CollapsibleContainerNode, CollapsibleContentNode, CollapsibleTitleNode, CommentNode, ThreadNode } from "@packages/lexical-nodes";
+import { htmlToPlainText, ArticleNode, CalloutNode, LayoutContainerNode, StickyNode, CollapsibleContainerNode, CollapsibleContentNode, CollapsibleTitleNode, CommentNode, ThreadNode } from "@packages/lexical-nodes";
 import { $createMarkNode, $unwrapMarkNode, $wrapSelectionInMarkNode, MarkNode } from "@lexical/mark";
 import { $dfs, registerNestedElementResolver } from "@lexical/utils";
 import { $formatCode } from "@packages/lexical-nodes/code-format";
@@ -924,7 +924,7 @@ function run(
   }
   if (command.type === "updateStructuralFields") {
     const node = nodeAt(command.path), fields = command.node;
-    const allowed = node instanceof LayoutContainerNode ? ["templateColumns"] : node instanceof CalloutNode ? ["kind", "title"] : node instanceof CollapsibleContainerNode ? ["open"] : node instanceof StickyNode ? ["color", "xOffset", "yOffset", "caption"] : node instanceof SlideNode ? ["data"] : [];
+    const allowed = node instanceof LayoutContainerNode ? ["templateColumns"] : node instanceof CalloutNode ? ["kind", "title"] : node instanceof CollapsibleContainerNode ? ["open"] : node instanceof StickyNode ? ["color", "xOffset", "yOffset", "caption"] : [];
     if (!Object.keys(fields).length) throw new EditorError("invalidState", "No structural fields");
     if (Object.keys(fields).some(key => !allowed.includes(key))) throw new EditorError("unsupported", "Structural setter belongs to #133");
     if (node instanceof LayoutContainerNode) {
@@ -942,7 +942,7 @@ function run(
         do { node.toggleColor(); } while (node.getLatest().__color !== fields.color && node.getLatest().__color !== start);
         if (node.getLatest().__color !== fields.color) throw new EditorError("invalidState", "Unknown sticky color");
       }
-    } else if (node instanceof SlideNode) node.setData(fields.data as Parameters<SlideNode["setData"]>[0]);
+    }
     return;
   }
   if (command.type === "removeCommentAnnotations") {

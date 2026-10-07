@@ -51,10 +51,6 @@ const OBJECT_NAMES: Record<string, string> = {
   "thread.thread.comments[]": "Comment",
   "poll.options[]": "PollOption",
   natural: "NaturalSize",
-  "slide-deck.data": "SlideDeck",
-  "slide-deck.data.slides[]": "Slide",
-  theme: "DeckTheme",
-  fonts: "DeckFonts",
   distilled: "ArticleDistilled",
   snapshot: "ArticleSnapshot",
 };
@@ -68,7 +64,6 @@ const UNION_NAMES: Record<string, string> = {
   width: "Dimension",
   height: "Dimension",
   "article.data": "ArticleData",
-  "slide-deck.data.slides[].elements[]": "SlideElement",
 };
 
 /** Names a payload's own members take, which no field may reuse. */
