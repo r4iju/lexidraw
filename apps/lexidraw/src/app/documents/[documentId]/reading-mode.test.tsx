@@ -405,6 +405,12 @@ test("a poll without options says it has none, and an editor can add one", async
   ).toBe(1);
 });
 
+test("a reader's empty poll ends at the line saying it has no options", async () => {
+  await mount(<Document state={pollState([])} editable={false} />);
+  const poll = dom.window.document.querySelector("[data-poll]");
+  expect(poll?.lastElementChild?.textContent).toBe("No options yet");
+});
+
 // The empty line Lexical keeps after a paragraph's last block is hidden by
 // document.css unless the paragraph is marked, so the caret has a line there.
 test("the line after a paragraph's last poll or note shows only while the caret is on it", async () => {

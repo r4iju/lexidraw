@@ -314,29 +314,32 @@ export default function PollComponent({
           ))}
         </ul>
       )}
-      <div className="flex min-h-8 items-center justify-between gap-3 text-sm text-muted-foreground">
-        {!isEmpty && (
-          <span className="tabular-nums">
-            {totalVotes === 0
-              ? "No votes yet"
-              : `${totalVotes} ${totalVotes === 1 ? "vote" : "votes"} total`}
-          </span>
-        )}
-        {isEditable && (
-          <button
-            type="button"
-            onClick={addOption}
-            className={cn(
-              "-mx-2 flex items-center gap-1.5 rounded-sm px-2 py-1 hover:bg-accent hover:text-foreground",
-              "focus-visible:outline-2 focus-visible:outline-ring",
-              editControl(isFocused || isEmpty),
-            )}
-          >
-            <PlusIcon className="size-4" />
-            Add option
-          </button>
-        )}
-      </div>
+      {/* A reader's empty poll has no total and nothing to add. */}
+      {(!isEmpty || isEditable) && (
+        <div className="flex min-h-8 items-center justify-between gap-3 text-sm text-muted-foreground">
+          {!isEmpty && (
+            <span className="tabular-nums">
+              {totalVotes === 0
+                ? "No votes yet"
+                : `${totalVotes} ${totalVotes === 1 ? "vote" : "votes"} total`}
+            </span>
+          )}
+          {isEditable && (
+            <button
+              type="button"
+              onClick={addOption}
+              className={cn(
+                "-mx-2 flex items-center gap-1.5 rounded-sm px-2 py-1 hover:bg-accent hover:text-foreground",
+                "focus-visible:outline-2 focus-visible:outline-ring",
+                editControl(isFocused || isEmpty),
+              )}
+            >
+              <PlusIcon className="size-4" />
+              Add option
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }
