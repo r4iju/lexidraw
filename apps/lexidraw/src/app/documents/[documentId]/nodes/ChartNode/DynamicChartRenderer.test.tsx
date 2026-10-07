@@ -1,6 +1,6 @@
 /// <reference types="bun" />
 import { afterEach, expect, test } from "bun:test";
-import type { ComponentProps } from "react";
+import { act, type ComponentProps } from "react";
 import { installDom, render } from "~/test/dom";
 
 installDom();
@@ -91,6 +91,9 @@ async function draw(
     />,
   );
   unmount = view.unmount;
+  // Recharts settles over several effect passes; legend entries come last.
+  for (let pass = 0; pass < 5; pass++)
+    await act(() => new Promise((resolve) => setTimeout(resolve, 10)));
   return document.body;
 }
 
@@ -140,4 +143,49 @@ test("a composed chart draws the first series as bars and the rest as lines", as
     body.querySelectorAll(".recharts-bar .recharts-bar-rectangle"),
   ).toHaveLength(5);
   expect(body.querySelectorAll(".recharts-line")).toHaveLength(2);
+});
+
+const meals = [
+  { name: "Rice", value: 40 },
+  { name: "Soup", value: 25 },
+  { name: "Fish", value: 20 },
+  { name: "Tea", value: 15 },
+];
+
+test("a pie chart colours every slice differently", async () => {
+  const body = await draw({
+    chartType: "pie",
+    data: meals,
+    config: { value: { label: "Share", color: "chart-1" } },
+  });
+  const fills = [...body.querySelectorAll(".recharts-pie-sector path")].map(
+    (slice) => slice.getAttribute("fill"),
+  );
+  expect(fills).toHaveLength(4);
+  expect(new Set(fills).size).toBe(4);
+});
+
+test("a pie chart's legend names every slice with its share", async () => {
+  const body = await draw({
+    chartType: "pie",
+    data: meals,
+    config: { value: { label: "Share", color: "chart-1" } },
+  });
+  const legend = body.querySelector(".recharts-legend-wrapper");
+  expect(legend?.textContent).toBe("Rice40%Soup25%Fish20%Tea15%");
+});
+
+test("pie slices past the five chart colours still differ", async () => {
+  const body = await draw({
+    chartType: "pie",
+    data: ["N", "S", "E", "W", "C", "O", "X"].map((name) => ({
+      name,
+      value: 10,
+    })),
+    config: {},
+  });
+  const fills = [...body.querySelectorAll(".recharts-pie-sector path")].map(
+    (slice) => slice.getAttribute("fill"),
+  );
+  expect(new Set(fills).size).toBe(7);
 });

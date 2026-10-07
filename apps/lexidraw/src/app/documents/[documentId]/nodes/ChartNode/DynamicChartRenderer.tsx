@@ -18,6 +18,7 @@ import {
   ComposedChart,
   PieChart,
   Pie,
+  Cell,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -45,6 +46,49 @@ const DEFAULT_CHART_CONFIG: ChartConfig = {
     color: "chart-1",
   },
 };
+
+const PALETTE_SIZE = 5;
+
+/**
+ * The n-th category's colour: the chart palette, then lighter tints of it
+ * once the palette repeats, so slices stay distinguishable in both themes.
+ */
+function categoryColor(index: number) {
+  const base = `var(--chart-${(index % PALETTE_SIZE) + 1})`;
+  const round = Math.floor(index / PALETTE_SIZE);
+  if (round === 0) return base;
+  return `color-mix(in oklab, ${base} ${Math.max(30, 100 - round * 35)}%, var(--background))`;
+}
+
+/** Legend entries naming each pie slice with its rounded share. */
+function sliceLabels(
+  data: unknown[],
+  nameKey: string,
+  valueKey: string,
+): ChartConfig {
+  const rows = data as Record<string, unknown>[];
+  const value = (row: Record<string, unknown>) => Number(row[valueKey]) || 0;
+  const total = rows.reduce((sum, row) => sum + value(row), 0);
+  return Object.fromEntries(
+    rows.map((row) => {
+      const name = String(row[nameKey]);
+      const share = total ? Math.round((value(row) / total) * 100) : 0;
+      return [
+        name,
+        {
+          label: (
+            <>
+              {name}
+              <span className="ml-1 text-muted-foreground tabular-nums">
+                {share}%
+              </span>
+            </>
+          ),
+        },
+      ];
+    }),
+  );
+}
 
 const Placeholder = ({
   message,
@@ -149,6 +193,8 @@ export default function DynamicChartRenderer({
     series.length === 1 ? chartConfig[series[0] ?? ""]?.label : undefined;
   const axisStyle = { fontSize: 12, fill: "var(--muted-foreground)" };
   const containerHeight = "100%";
+  // A pie's first series holds each slice's value; its legend names slices.
+  const pieDataKey = series[0] ?? "value";
 
   const message = useMemo(() => {
     switch (true) {
@@ -403,25 +449,39 @@ export default function DynamicChartRenderer({
           </ComposedChart>
         );
       case "pie": {
-        // pie chart needs a 'value' key in data, and 'name' for labels
-        // we'll assume the first key in config is the dataKey for the Pie
-        const pieDataKey = Object.keys(chartConfig)[0] || "value";
+        const rows = data as Record<string, unknown>[];
         return (
           <PieChart>
-            <ShadcnChartTooltip content={<ChartTooltipContent />} />
+            <ShadcnChartTooltip
+              content={<ChartTooltipContent nameKey={xAxisDataKey} />}
+            />
             <Pie
               isAnimationActive={false}
               data={data}
               dataKey={pieDataKey}
-              nameKey={xAxisDataKey} // use detected xAxisDataKey for pie labels too
+              nameKey={xAxisDataKey}
               cx="50%"
               cy="50%"
               outerRadius={"80%"}
-              fill={`var(--color-${slugify(pieDataKey)})`}
+              stroke="var(--background)"
+              strokeWidth={2}
+            >
+              {rows.map((row, index) => (
+                <Cell
+                  key={String(row[xAxisDataKey])}
+                  fill={categoryColor(index)}
+                />
+              ))}
+            </Pie>
+            <ShadcnChartLegend
+              itemSorter={null}
+              content={
+                <ChartLegendContent
+                  nameKey={xAxisDataKey}
+                  className="flex-wrap gap-x-4 gap-y-1"
+                />
+              }
             />
-            {series.length > 1 && (
-              <ShadcnChartLegend content={<ChartLegendContent />} />
-            )}
           </PieChart>
         );
       }
@@ -437,7 +497,11 @@ export default function DynamicChartRenderer({
 
   return (
     <ChartContainer
-      config={chartConfig}
+      config={
+        chartType === "pie"
+          ? { ...chartConfig, ...sliceLabels(data, xAxisDataKey, pieDataKey) }
+          : chartConfig
+      }
       className="min-h-[50px] w-full" // min-h is important for responsiveness
       style={{
         position: "absolute",
