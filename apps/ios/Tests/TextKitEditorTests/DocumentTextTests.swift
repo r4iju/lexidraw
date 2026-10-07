@@ -168,6 +168,39 @@ import Testing
     #expect(abs(blue - 232.0 / 255) < 0.001 && abs(alpha - 0.2) < 0.001)
   }
 
+  #if canImport(UIKit)
+  @Test func hashtagsAndKeywordsTakeTheWebThemeColourAndWeight() throws {
+    let model = Editor()
+    let hashtag: JSONValue = ["type": "hashtag", "version": 1, "text": "#lexidraw", "mode": "normal", "detail": 0, "format": 0, "style": ""]
+    let keyword: JSONValue = ["type": "keyword", "version": 1, "text": "congrats", "mode": "normal", "detail": 0, "format": 0, "style": ""]
+    try model.load(LexicalJSON.document([LexicalJSON.paragraph([hashtag, LexicalJSON.text(" "), keyword])]))
+    let storage = NSMutableAttributedString()
+    try DocumentText(model: model, style: { _, format in
+      [.lexicalFormat: format.rawValue, .font: UIFont.systemFont(ofSize: 16)]
+    }).reload(storage)
+    func color(at index: Int, _ style: UIUserInterfaceStyle) throws -> [CGFloat] {
+      let color = try #require(storage.attribute(.foregroundColor, at: index, effectiveRange: nil) as? UIColor)
+      var red: CGFloat = 0, green: CGFloat = 0, blue: CGFloat = 0, alpha: CGFloat = 0
+      color.resolvedColor(with: UITraitCollection(userInterfaceStyle: style)).getRed(&red, green: &green, blue: &blue, alpha: &alpha)
+      return [red, green, blue, alpha]
+    }
+    func channels(_ rgba: RGBA) -> [CGFloat] { [rgba.red, rgba.green, rgba.blue, rgba.alpha] }
+    func weight(at index: Int) throws -> CGFloat {
+      let font = try #require(storage.attribute(.font, at: index, effectiveRange: nil) as? UIFont)
+      let traits = font.fontDescriptor.object(forKey: .traits) as? [UIFontDescriptor.TraitKey: Any]
+      return traits?[.weight] as? CGFloat ?? UIFont.Weight.regular.rawValue
+    }
+    func close(_ a: [CGFloat], _ b: [CGFloat]) -> Bool { zip(a, b).allSatisfy { abs($0 - $1) < 0.001 } }
+    #expect(close(try color(at: 0, .light), channels(WebSocialStyle.info.light)))
+    #expect(close(try color(at: 0, .dark), channels(WebSocialStyle.info.dark)))
+    #expect(try weight(at: 0) == UIFont.Weight.regular.rawValue)
+    #expect(storage.attribute(.foregroundColor, at: 9, effectiveRange: nil) == nil)
+    #expect(close(try color(at: 10, .light), channels(WebSocialStyle.primary.light)))
+    #expect(close(try color(at: 10, .dark), channels(WebSocialStyle.primary.dark)))
+    #expect(abs(try weight(at: 10) - UIFont.Weight.semibold.rawValue) < 0.01)
+  }
+  #endif
+
   @Test func textAndHighlightColorsReachNativeRuns() throws {
     let model = Editor()
     try model.load(LexicalJSON.document([LexicalJSON.paragraph([

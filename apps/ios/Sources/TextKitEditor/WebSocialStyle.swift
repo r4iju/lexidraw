@@ -1,9 +1,15 @@
-// Generated from web MentionNode.createDOM and the comment theme by apps/ios/codegen/social.ts.
+// Generated from web MentionNode.createDOM and the comment, hashtag and keyword theme by apps/ios/codegen/social.ts.
 
 enum WebSocialStyle {
   static let mentionCSS = "background-color: rgba(24, 119, 232, 0.2)"
   static let commentMark = ThemeColor(light: RGBA(0.8204, 0.9072, 0.9998, 0.6), dark: RGBA(0.1339, 0.2903, 0.4429, 0.6))
   static let commentBorder = ThemeColor(light: RGBA(0.1588, 0.4233, 0.6696, 1), dark: RGBA(0.3793, 0.6401, 0.9021, 1))
   static let commentMarkActive = ThemeColor(light: RGBA(0.6185, 0.8139, 1, 0.8), dark: RGBA(0.1321, 0.4, 0.6444, 0.8))
+  static let info = ThemeColor(light: RGBA(0, 0.3739, 0.6601, 1), dark: RGBA(0.4277, 0.6899, 0.9551, 1))
+  static let primary = ThemeColor(light: RGBA(0.4526, 0.2814, 0.8863, 1), dark: RGBA(0.6203, 0.5486, 0.9581, 1))
   static let commentBorderWidth: Double = 2
+  static let entityText: [String: EntityTextStyle] = [
+    "hashtag": EntityTextStyle(color: WebSocialStyle.info, weight: nil),
+    "keyword": EntityTextStyle(color: WebSocialStyle.primary, weight: 600),
+  ]
 }

@@ -853,7 +853,8 @@ public final class DocumentText {
         append("\u{2028}", format: [])
         kind = .character
       } else if let string = node["text"]?.stringValue {
-        append(string, format: TextFormat(rawValue: node["format"]?.intValue ?? 0), css: node["type"] == "mention" ? mentionCSS?(node, path) ?? WebSocialStyle.mentionCSS : node["style"]?.stringValue ?? "")
+        append(string, format: TextFormat(rawValue: node["format"]?.intValue ?? 0), css: node["type"] == "mention" ? mentionCSS?(node, path) ?? WebSocialStyle.mentionCSS : node["style"]?.stringValue ?? "",
+          entity: node["type"]?.stringValue)
         kind = .text
       } else {
         append("\u{FFFC}", format: [])
@@ -880,8 +881,21 @@ public final class DocumentText {
       node["children"] != nil && !inlineElements.contains(node["type"]?.stringValue ?? "")
     }
 
-    private mutating func append(_ string: String, format: TextFormat, css: String = "") {
+    /// `entity` comes before `css`, as a node's inline style outranks its
+    /// theme class on the web.
+    private mutating func append(_ string: String, format: TextFormat, css: String = "", entity type: String? = nil) {
       var attributes = style(blockType, format)
+      #if canImport(UIKit)
+      if let type, let entity = WebSocialStyle.entityText[type] {
+        attributes[.foregroundColor] = entityColors[type]
+        if let weight = entity.weight, let font = attributes[.font] as? UIFont,
+          !font.fontDescriptor.symbolicTraits.contains(.traitBold) {
+          attributes[.font] = UIFont(descriptor: font.fontDescriptor.addingAttributes([
+            .traits: [UIFontDescriptor.TraitKey.weight: Typesetting.weight(weight).rawValue]
+          ]), size: font.pointSize)
+        }
+      }
+      #endif
       if !css.isEmpty {
         let inline = InlineCSS(css)
         for (property, key) in [("color", NSAttributedString.Key.foregroundColor), ("background-color", .backgroundColor)] {
@@ -908,6 +922,19 @@ public final class DocumentText {
     }
   }
 }
+
+/// The colour and weight the web theme gives a text entity node, as
+/// WebSocialStyle reads them for hashtags and keywords.
+struct EntityTextStyle: Sendable {
+  var color: ThemeColor
+  var weight: Int?
+}
+
+#if canImport(UIKit)
+/// Made once: a dynamic colour equals only itself, and an edited run has to
+/// equal the one a fresh render gives.
+private let entityColors = WebSocialStyle.entityText.mapValues(\.color.color)
+#endif
 
 extension Range<Int> {
   /// The last index where `holds` does, for a test that holds up to some

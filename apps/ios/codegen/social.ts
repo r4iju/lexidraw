@@ -113,7 +113,7 @@ export async function swiftForSocialStyle(): Promise<string> {
   const entities = await entityTextStyles(theme, colors);
   const generatedColors = colors.used.map(([name, light, dark]) =>
     `  static let ${name} = ThemeColor(light: ${swiftRGBA(light)}, dark: ${swiftRGBA(dark)})`).join("\n");
-  return `// Generated from web MentionNode.createDOM and the comment theme by apps/ios/codegen/social.ts.\n\nenum WebSocialStyle {\n  static let mentionCSS = ${swiftString(styles[0][1])}\n${generatedColors}\n  static let commentBorderWidth: Double = ${Number(borderWidth)}\n  static let entityText: [String: EntityTextStyle] = [\n${entities.map(([type, color, weight]) => `    ${swiftString(type)}: EntityTextStyle(color: WebSocialStyle.${color}, weight: ${weight ?? "nil"}),`).join("\n")}\n  ]\n}\n`;
+  return `// Generated from web MentionNode.createDOM and the comment, hashtag and keyword theme by apps/ios/codegen/social.ts.\n\nenum WebSocialStyle {\n  static let mentionCSS = ${swiftString(styles[0][1])}\n${generatedColors}\n  static let commentBorderWidth: Double = ${Number(borderWidth)}\n  static let entityText: [String: EntityTextStyle] = [\n${entities.map(([type, color, weight]) => `    ${swiftString(type)}: EntityTextStyle(color: WebSocialStyle${color}, weight: ${weight ?? "nil"}),`).join("\n")}\n  ]\n}\n`;
 }
 
 const FONT_WEIGHTS: Record<string, number> = { "font-medium": 500, "font-semibold": 600, "font-bold": 700 };
@@ -124,7 +124,7 @@ const FONT_WEIGHTS: Record<string, number> = { "font-medium": 500, "font-semibol
  * KeywordNode's `theme.keyword`.
  */
 async function entityTextStyles(theme: string, colors: ThemeColors): Promise<[string, string, number | null][]> {
-  const hashtag = await Bun.file(Bun.resolveSync("@lexical/hashtag/src/LexicalHashtagNode.ts", import.meta.dir)).text();
+  const hashtag = await Bun.file(Bun.resolveSync("@lexical/hashtag", import.meta.dir).replace(/LexicalHashtag\.js$/, "LexicalHashtag.dev.js")).text();
   const keyword = await Bun.file(new URL("../../../packages/lexical-nodes/src/nodes/KeywordNode.ts", import.meta.url)).text();
   if (!hashtag.includes("addClassNamesToElement(element, config.theme.hashtag)")
     || !keyword.includes('addClassNamesToElement(dom, "keyword", config.theme.keyword)'))
