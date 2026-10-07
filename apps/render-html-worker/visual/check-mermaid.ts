@@ -49,7 +49,13 @@ type Drawn = {
   /** Mermaid diagrams drawn on the page itself rather than in a block's picture. */
   leaked: number;
   invalid: string;
-  pie: { slices: string[]; swatches: string[]; labels: string[] };
+  pie: {
+    slices: string[];
+    swatches: string[];
+    labels: string[];
+    /** The legend's names that lie past the block's visible edge. */
+    hiddenNames: string[];
+  };
   gantt: {
     bars: string[];
     inside: string[];
@@ -163,6 +169,24 @@ export async function checkMermaid(
             slices: fills(pie, ".pieCircle"),
             swatches: fills(pie, ".legend rect"),
             labels: fills(pie, "text.slice"),
+            hiddenNames: (() => {
+              const block = section("pie");
+              const shown = block.querySelector("img")?.getBoundingClientRect();
+              const drawing = pie.querySelector("svg")?.getBoundingClientRect();
+              if (!shown || !drawing) throw new Error("The pie did not draw");
+              const scale = shown.width / drawing.width;
+              const edge =
+                block.getBoundingClientRect().left + block.clientWidth + 1;
+              return [...pie.querySelectorAll(".legend text")]
+                .filter(
+                  (name) =>
+                    shown.left +
+                      (name.getBoundingClientRect().right - drawing.left) *
+                        scale >
+                    edge,
+                )
+                .map((name) => name.textContent ?? "");
+            })(),
           },
           gantt: {
             bars: fills(
@@ -221,6 +245,11 @@ export async function checkMermaid(
         `${where}: every pie slice has its own colour (${pie.slices.join(", ")})`,
       );
       readsOn(where, "pie slice", pie.slices, pie.labels, drawn.page);
+      assert.deepEqual(
+        pie.hiddenNames,
+        [],
+        `${where}: every name in the pie's legend is in view`,
+      );
       assert.deepEqual(
         [...pie.swatches].sort(),
         [...pie.slices].sort(),

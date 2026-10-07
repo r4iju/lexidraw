@@ -72,6 +72,9 @@ export function mermaidThemeVariables(
     lineColor: tokens.muted,
     secondaryColor: tokens.secondarySurface,
     tertiaryColor: page,
+    // Mermaid boxes edge labels in a darkened surface on a dark page.
+    edgeLabelBackground: page,
+    relationLabelBackground: page,
 
     // Pie: Mermaid numbers its slices from 1, and washes them out by default.
     ...Object.fromEntries(palette.map((colour, i) => [`pie${i + 1}`, colour])),

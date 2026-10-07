@@ -9,6 +9,7 @@ import {
   diagramStyle,
   FigureLoading,
 } from "../common/figure-box";
+import { DIAGRAM_TEXT, leastScale } from "./diagram-scale";
 import { ganttWidth } from "./gantt-width";
 import { useHiddenEdges } from "./use-hidden-edges";
 import {
@@ -33,9 +34,10 @@ interface Props {
   natural: NaturalSize | undefined;
   onMeasured?: (size: NaturalSize) => void;
   /**
-   * What a diagram wider than its block does: scroll inside it, keeping
-   * four fifths of its size, or shrink to fit, as a picture taken of it
-   * must (iOS shows the render worker's picture, which cannot scroll).
+   * What a diagram wider than its block does: shrink as far as its text
+   * stays legible and scroll past that, or shrink to fit, as a picture
+   * taken of it must (iOS shows the render worker's picture, which cannot
+   * scroll).
    */
   overflow?: "scroll" | "shrink";
   className?: string;
@@ -43,7 +45,14 @@ interface Props {
 type Diagram =
   | { status: "loading" }
   | { status: "error"; message: string }
-  | { status: "ready"; src: string; print: string; size: NaturalSize };
+  | {
+      status: "ready";
+      src: string;
+      print: string;
+      size: NaturalSize;
+      /** Mermaid's name for the kind of diagram, e.g. "pie". */
+      kind: string;
+    };
 // Mermaid's configuration is global, so initialize and render each diagram together.
 let renderQueue: Promise<unknown> = Promise.resolve();
 /** Mermaid's room beside a gantt's timeline, for its section names. */
@@ -147,7 +156,7 @@ export default function MermaidImage({
           themeVariables: {
             ...mermaidThemeVariables(tokens, { dark: !print && dark }),
             fontFamily: font,
-            fontSize: "14px",
+            fontSize: `${DIAGRAM_TEXT}px`,
           },
           themeCSS: mermaidThemeCSS(tokens),
         });
@@ -168,7 +177,7 @@ export default function MermaidImage({
         return {
           svg: new XMLSerializer().serializeToString(element),
           size: { width: box[2], height: box[3] },
-          gantt: element.getAttribute("aria-roledescription") === "gantt",
+          kind: element.getAttribute("aria-roledescription") ?? "",
           element,
         };
       };
@@ -185,7 +194,7 @@ export default function MermaidImage({
           try {
             let screen = await draw(false, layoutWidth);
             let drawnWidth = layoutWidth;
-            if (screen.gantt && layoutWidth) {
+            if (screen.kind === "gantt" && layoutWidth) {
               const needed = ganttWidth(
                 screen.element,
                 layoutWidth,
@@ -199,7 +208,7 @@ export default function MermaidImage({
             }
             const paper = await draw(true, drawnWidth);
             if (current !== generation) return;
-            ganttColumn = screen.gantt ? column : undefined;
+            ganttColumn = screen.kind === "gantt" ? column : undefined;
             const next = [screen, paper].map(({ svg }) =>
               URL.createObjectURL(new Blob([svg], { type: "image/svg+xml" })),
             );
@@ -207,7 +216,13 @@ export default function MermaidImage({
             urls = next;
             const [src, print] = next;
             if (src && print) {
-              setDiagram({ status: "ready", src, print, size: screen.size });
+              setDiagram({
+                status: "ready",
+                src,
+                print,
+                size: screen.size,
+                kind: screen.kind,
+              });
               measured(screen.size);
             }
           } catch (error) {
@@ -276,7 +291,10 @@ export default function MermaidImage({
               )}
               style={{
                 ...diagramStyle({ width, height, natural: diagram.size }),
-                ...(overflow === "shrink" && { minWidth: 0 }),
+                minWidth:
+                  overflow === "shrink"
+                    ? 0
+                    : diagram.size.width * leastScale(diagram.kind),
               }}
               onDoubleClick={(event) => {
                 event.stopPropagation();

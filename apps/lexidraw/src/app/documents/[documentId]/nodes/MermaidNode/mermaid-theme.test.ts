@@ -96,6 +96,14 @@ describe.each(THEMES)("on the %s theme", (_, tokens, dark) => {
     ).toBeGreaterThanOrEqual(4.5);
   });
 
+  test("edge and relation labels sit on the page, not on a box of their own", () => {
+    for (const background of [
+      theme.edgeLabelBackground,
+      theme.relationLabelBackground,
+    ])
+      expect(contrast(colour(background), tokens.page)).toBeLessThan(1.1);
+  });
+
   test("mindmap branches have distinct colours with legible labels", () => {
     const root = colour(theme.git0);
     const branches = Array.from({ length: 11 }, (_, i) =>
