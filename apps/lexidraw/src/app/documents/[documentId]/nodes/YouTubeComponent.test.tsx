@@ -57,6 +57,8 @@ test("a video is busy until its thumbnail arrives, then plays in place when aske
     "https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ",
   );
   expect(player?.src).toContain("autoplay=1");
+  // The player draws its own scheme, so the page's dark one must not reach it.
+  expect(player?.style.colorScheme).toBe("normal");
   await view.unmount();
 });
 

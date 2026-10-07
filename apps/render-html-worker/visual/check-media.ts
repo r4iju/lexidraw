@@ -186,14 +186,25 @@ export async function checkMedia(
         Math.abs(chart.width / chart.height - 2) < 0.02,
         "Default chart is 2:1",
       );
-      for (const selector of ["video", 'iframe[title="YouTube video"]']) {
-        const ratio = await page.$eval(
-          selector,
-          (e) =>
-            e.getBoundingClientRect().width / e.getBoundingClientRect().height,
-        );
-        assert(Math.abs(ratio - 16 / 9) < 0.02, `${selector} defaults to 16:9`);
-      }
+      const ratio = await page.$eval(
+        "video",
+        (e) =>
+          e.getBoundingClientRect().width / e.getBoundingClientRect().height,
+      );
+      assert(Math.abs(ratio - 16 / 9) < 0.02, "video defaults to 16:9");
+      // The fixture's ids name no video or file, so nothing loads from either.
+      assert(
+        await page.$$eval(".document-embed", (els) =>
+          els.some((e) => e.textContent?.includes("No video linked")),
+        ),
+        "A YouTube block without a video says so",
+      );
+      assert(
+        await page.$$eval(".document-embed", (els) =>
+          els.some((e) => e.textContent?.includes("No Figma file linked")),
+        ),
+        "A Figma block without a file says so",
+      );
       if (width === 375) {
         const columns = await page.$$eval(".document-column", (els) =>
           els.map((e) => e.getBoundingClientRect().toJSON()),
@@ -257,15 +268,6 @@ export async function checkMedia(
         theme === "dark",
         "Drawing follows screen theme",
       );
-      for (const selector of [
-        'iframe[title="Figma Embed"]',
-        'iframe[title="YouTube video"]',
-      ]) {
-        assert.equal(
-          await page.$eval(selector, (e) => getComputedStyle(e).colorScheme),
-          "normal",
-        );
-      }
     }
   }
 

@@ -49,6 +49,8 @@ test("a Figma file is framed through Figma's embed page for its file link", asyn
   expect(document.querySelector("iframe")?.getAttribute("src")).toBe(
     "https://www.figma.com/embed?embed_host=lexidraw&url=https%3A%2F%2Fwww.figma.com%2Ffile%2FLKQ4FJ4bTnCSjedbRpk931",
   );
+  // The frame draws its own scheme, so the page's dark one must not reach it.
+  expect(document.querySelector("iframe")?.style.colorScheme).toBe("normal");
   await view.unmount();
 });
 
