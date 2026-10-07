@@ -16,6 +16,7 @@ import { checkFirstPaint } from "./check-first-paint";
 import { BANNER, checkReservedSizes } from "./check-reserved-sizes";
 import { checkExcalidrawAssets, DRAWN_LABELS } from "./check-excalidraw-assets";
 import { checkMedia } from "./check-media";
+import { checkMermaid, mermaidBlocks } from "./check-mermaid";
 import { checkMotion } from "./check-motion";
 import { checkPage } from "./check-page";
 import { checkRenderReady, lazyBlockDocuments } from "./check-render-ready";
@@ -311,6 +312,27 @@ const drawing = await cli(
   "--file",
   shapesPath,
 );
+// A throwaway document with a diagram of each kind.
+const diagrams = await cli("doc", "create", "--title", "Visual suite · diagrams");
+const diagramsPath = resolve(output, "diagrams.json");
+await writeFile(
+  diagramsPath,
+  JSON.stringify({
+    elements: JSON.stringify({
+      root: { ...emptyRoot, children: mermaidBlocks() },
+    }),
+    appState: JSON.stringify({ defaultFontFamily: null, lang: null }),
+    ifUnmodifiedSince: (await cli("doc", "get", diagrams.id, "--format", "json"))
+      .updatedAt,
+  }),
+);
+await cli(
+  "api",
+  "PUT",
+  `/entities/${diagrams.id}`,
+  "--json",
+  await readFile(diagramsPath, "utf8"),
+);
 // A throwaway document for each block that loads its own code, alone.
 const lazy = [];
 for (const { name, elements } of lazyBlockDocuments(doc.content.root)) {
@@ -344,6 +366,7 @@ try {
   await checkRichBlocks(richPage, fixtureId, output);
   await richPage.close();
   await checkMedia(page, fixtureId, output);
+  await checkMermaid(page, diagrams.id, output);
   await checkTables(page, fixtureId);
   await checkTypography(page, fixtureId);
   await checkDocumentSettings(page, fixtureId);
@@ -376,6 +399,7 @@ try {
   await cli("doc", "delete", sized.id);
   await cli("doc", "delete", closed.id);
   await cli("doc", "delete", drawn.id);
+  await cli("doc", "delete", diagrams.id);
   await cli("drawing", "delete", drawing.id);
   for (const { id } of lazy) await cli("doc", "delete", id);
 }
