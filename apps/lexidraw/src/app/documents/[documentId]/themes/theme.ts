@@ -97,6 +97,8 @@ export const theme = {
     ],
   },
 
+  hashtag: "text-info",
+  keyword: "font-semibold text-primary",
   ltr: "text-left",
   paragraph: "relative",
   placeholder:
@@ -107,7 +109,6 @@ export const theme = {
     highlight: "bg-highlight text-foreground rounded-[2px]",
     code: "document-inline-code",
     bold: "font-bold text-foreground",
-    hashtag: "editor-text-hashtag text-info",
     italic: "italic text-foreground",
     overflowed: "editor-text-overflowed text-foreground",
     strikethrough: "line-through text-foreground",
