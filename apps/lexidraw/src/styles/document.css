@@ -1034,9 +1034,10 @@
   margin-block: var(--block-gap);
 }
 /* A note or a poll is a block inside the paragraph that holds it; the line
-   break Lexical keeps after a trailing decorator would add an empty line. */
+   break Lexical keeps after a trailing decorator would add an empty line.
+   It shows while the caret is on it (see nodes/use-caret-line.ts). */
 .document-content
-  p
+  p:not([data-caret-after])
   > [data-lexical-decorator]:has(> .sticky-note-container, > [data-poll])
   + br[data-lexical-managed-linebreak]:last-child {
   display: none;

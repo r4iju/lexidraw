@@ -405,6 +405,42 @@ test("a poll without options says it has none, and an editor can add one", async
   ).toBe(1);
 });
 
+// The empty line Lexical keeps after a paragraph's last block is hidden by
+// document.css unless the paragraph is marked, so the caret has a line there.
+test("the line after a paragraph's last poll or note shows only while the caret is on it", async () => {
+  const { $getRoot } = await import("lexical");
+  const [, poll, noteParagraph] = JSON.parse(BLOCKS).root.children;
+  const state = JSON.stringify({
+    root: {
+      ...EMPTY_ROOT,
+      children: [
+        { ...EMPTY_ROOT.children[0], children: [poll] },
+        noteParagraph,
+        EMPTY_ROOT.children[0],
+      ],
+    },
+  });
+  await mount(<Document state={state} editable />);
+  const editor = captured;
+  if (!editor) throw new Error("Editor not mounted");
+  const marked = () =>
+    [...dom.window.document.querySelectorAll("#content > p")].map((p) =>
+      p.hasAttribute("data-caret-after"),
+    );
+  for (const [index, expected] of [
+    [0, [true, false, false]],
+    [1, [false, true, false]],
+    [2, [false, false, false]],
+  ] as const) {
+    await act(async () =>
+      editor.update(() => $getRoot().getChildAtIndex(index)?.selectEnd(), {
+        discrete: true,
+      }),
+    );
+    expect(marked()).toEqual([...expected]);
+  }
+});
+
 for (const kind of ["chart", "mermaid"] as const) {
   test(`inserting ${kind} after the current paragraph creates a separate block`, async () => {
     const state = m.markdown.markdownToEditorState(

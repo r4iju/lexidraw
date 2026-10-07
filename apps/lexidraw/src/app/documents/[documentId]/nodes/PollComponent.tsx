@@ -1,5 +1,6 @@
 import type { Option, Options } from "./PollNode";
 import { PollNode } from "./PollNode";
+import { useCaretLine } from "./use-caret-line";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { useLexicalEditable } from "@lexical/react/useLexicalEditable";
 import { useLexicalNodeSelection } from "@lexical/react/useLexicalNodeSelection";
@@ -200,6 +201,7 @@ export default function PollComponent({
   const [editor] = useLexicalComposerContext();
   const isEditable = useLexicalEditable();
   const totalVotes = useMemo(() => getTotalVotes(options), [options]);
+  useCaretLine(nodeKey);
   const [isSelected, setSelected, clearSelection] =
     useLexicalNodeSelection(nodeKey);
   const [selection, setSelection] = useState<BaseSelection | null>(null);

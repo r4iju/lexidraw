@@ -9,6 +9,7 @@ import { PlainTextPlugin } from "@lexical/react/LexicalPlainTextPlugin";
 import { $getNodeByKey } from "lexical";
 
 import { StickyNode, type StickyNoteColor } from "./StickyNode";
+import { useCaretLine } from "./use-caret-line";
 import LexicalContentEditable from "~/components/ui/content-editable";
 import { Button } from "~/components/ui/button";
 import {
@@ -53,6 +54,7 @@ export default function StickyComponent({
 }): JSX.Element {
   const [editor] = useLexicalComposerContext();
   const isEditable = useLexicalEditable();
+  useCaretLine(nodeKey);
 
   const withNote = (change: (node: StickyNode) => void) => {
     editor.update(() => {
