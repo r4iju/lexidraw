@@ -28,21 +28,16 @@ const block = (type: string, children: Node[], extra: Node = {}): Node => ({
 const paragraph = (value: string) =>
   block("paragraph", value ? [text(value)] : []);
 const cell = (value: string | Node[], extra: Node = {}): Node =>
-  block(
-    "tablecell",
-    typeof value === "string" ? [paragraph(value)] : value,
-    {
-      headerState: 0,
-      colSpan: 1,
-      rowSpan: 1,
-      backgroundColor: null,
-      ...extra,
-    },
-  );
+  block("tablecell", typeof value === "string" ? [paragraph(value)] : value, {
+    headerState: 0,
+    colSpan: 1,
+    rowSpan: 1,
+    backgroundColor: null,
+    ...extra,
+  });
 const header = (value: string) => cell(value, { headerState: 1 });
 const row = (cells: Node[]) => block("tablerow", cells);
-const table = (rows: Node[], extra: Node = {}) =>
-  block("table", rows, extra);
+const table = (rows: Node[], extra: Node = {}) => block("table", rows, extra);
 const checklist = (items: [string, boolean][]) =>
   block(
     "list",
@@ -78,9 +73,11 @@ export const TABLE_PRESENTATION_ROOT = {
     people({ rowStriping: true }),
     people({}),
     table([
-      row([header("Merged across two"), header("C")].map((h, i) =>
-        i === 0 ? { ...h, colSpan: 2 } : h,
-      )),
+      row(
+        [header("Merged across two"), header("C")].map((h, i) =>
+          i === 0 ? { ...h, colSpan: 2 } : h,
+        ),
+      ),
       row([
         cell("Tall", { rowSpan: 2, backgroundColor: "#fef3c7" }),
         cell("Red", { backgroundColor: "#fee2e2" }),
@@ -147,8 +144,15 @@ const distance = (a: Rgb, b: Rgb) =>
 
 /** The colour the screen shows at a point of the viewport. */
 async function pixel(page: Page, x: number, y: number): Promise<Rgb> {
+  // A clip is measured from the document's start, not the viewport's.
+  const scroll = await page.evaluate(() => ({ x: scrollX, y: scrollY }));
   const shot = await page.screenshot({
-    clip: { x: Math.round(x), y: Math.round(y), width: 1, height: 1 },
+    clip: {
+      x: Math.round(x) + scroll.x,
+      y: Math.round(y) + scroll.y,
+      width: 1,
+      height: 1,
+    },
   });
   const { data } = PNG.sync.read(Buffer.from(shot));
   return [data[0] ?? 0, data[1] ?? 0, data[2] ?? 0];
@@ -190,14 +194,18 @@ async function checkStripes(page: Page, label: string) {
     ]
       .slice(0, 2)
       .map((table) =>
-        [...table.rows].map((row) =>
-          getComputedStyle(row.cells[1] as Element).backgroundColor,
+        [...table.rows].map(
+          (row) => getComputedStyle(row.cells[1] as Element).backgroundColor,
         ),
       ),
   );
   const [striped = [], plain = []] = fills;
   const [head, ...body] = striped;
-  assert.equal(new Set(plain.slice(1)).size, 1, `${label}: unstriped rows match`);
+  assert.equal(
+    new Set(plain.slice(1)).size,
+    1,
+    `${label}: unstriped rows match`,
+  );
   assert.equal(body[0], plain[1], `${label}: the first body row is plain`);
   assert.equal(body[2], body[0], `${label}: stripes alternate`);
   assert.equal(body[4], body[0], `${label}: stripes alternate`);
@@ -206,76 +214,24 @@ async function checkStripes(page: Page, label: string) {
   assert.notEqual(body[1], head, `${label}: a stripe is not the header's fill`);
 }
 
-/** The colour of the page behind the document. */
-const pageBackground = (page: Page) =>
-  page.evaluate(
-    () => getComputedStyle(document.body).backgroundColor,
-  ).then(parseRgb);
+/** Runs every step, so one failing presentation does not hide the next. */
+async function steps(list: [string, () => Promise<void>][]) {
+  const failures: string[] = [];
+  for (const [name, run] of list) {
+    try {
+      await run();
+      console.log(`ok   ${name}`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      failures.push(`${name}: ${message}`);
+      console.log(`FAIL ${name}: ${message}`);
+    }
+  }
+  assert.deepEqual(failures, [], "Table presentation");
+}
 
-export async function checkTablePresentation(page: Page, id: string) {
-  await signInToDev(page, appUrl);
-  await page.setViewport({ width: 1280, height: 900 });
-  await open(page, id, "light");
-  const background = await pageBackground(page);
-
-  await checkStripes(page, "light");
-
-  // A merged cell in the table's corner takes the table's rounded corner.
-  const merged = await tableAt(page, 2);
-  await pause(200);
-  assert(
-    distance(
-      await pixel(page, merged.left + 1, merged.bottom - 2),
-      background,
-    ) < 12,
-    "The corner cell of a merged table is rounded with the table",
-  );
-
-  // A wide table keeps its frozen column and hints at what scrolls, with
-  // no bar over its rows.
-  await tableAt(page, 3);
-  const wide = await page.evaluate(() => {
-    const table = document.querySelectorAll<HTMLTableElement>(
-      ".document-content table.document-table:not([data-print-table])",
-    )[3] as HTMLTableElement;
-    const region = table.parentElement as HTMLElement;
-    const first = table.rows[1]?.cells[0] as HTMLElement;
-    const before = first.getBoundingClientRect().left;
-    region.scrollLeft = 200;
-    const rows = [0, 2].map((index) => {
-      const rect = table.rows[index]?.cells[5]?.getBoundingClientRect();
-      return rect ? rect.top + rect.height / 2 : 0;
-    });
-    return {
-      before,
-      after: first.getBoundingClientRect().left,
-      right: region.getBoundingClientRect().right,
-      scrolls: region.scrollWidth > region.clientWidth,
-      header: rows[0] ?? 0,
-      body: rows[1] ?? 0,
-      headerFill: getComputedStyle(table.rows[0]?.cells[5] as Element)
-        .backgroundColor,
-    };
-  });
-  await pause(300);
-  assert(wide.scrolls, "The 12-column table scrolls at 1280px");
-  assert(
-    Math.abs(wide.before - wide.after) < 1,
-    "A frozen first column stays put as the table scrolls",
-  );
-  const edgeBody = await pixel(page, wide.right - 2, wide.body);
-  assert(
-    luminance(edgeBody) >= luminance(background) - 0.05,
-    `No dark bar where a table scrolls on: ${edgeBody} over ${background}`,
-  );
-  const edgeHeader = await pixel(page, wide.right - 2, wide.header);
-  assert(
-    distance(edgeHeader, background) <
-      distance(parseRgb(wide.headerFill), background),
-    "The edge a table scrolls towards fades its header too",
-  );
-
-  // The cell menu's trigger never covers the cell's text.
+/** The cell menu's trigger never covers the text of the cell it is for. */
+async function checkCellMenu(page: Page) {
   for (const value of ["1", "Lonely cell", "List", "one", "Tall"]) {
     const textBox = await page.evaluate((value) => {
       const cell = [
@@ -283,13 +239,13 @@ export async function checkTablePresentation(page: Page, id: string) {
           ".document-content td, .document-content th",
         ),
       ].find((cell) => cell.textContent?.trim().startsWith(value));
-      const span = [...(cell?.querySelectorAll("[data-lexical-text]") ?? [])].find(
-        (span) => span.textContent?.startsWith(value),
-      );
+      const span = [
+        ...(cell?.querySelectorAll("[data-lexical-text]") ?? []),
+      ].find((span) => span.textContent?.startsWith(value));
       if (!cell || !span) throw new Error(`Missing cell ${value}`);
       cell.scrollIntoView({ block: "center" });
-      const { left, top, height } = span.getBoundingClientRect();
-      return { x: left + 2, y: top + height / 2 };
+      const { right, top, height } = span.getBoundingClientRect();
+      return { x: right - 1, y: top + height / 2 };
     }, value);
     await page.mouse.click(textBox.x, textBox.y);
     await page.waitForSelector('button[aria-label="Table cell actions"]', {
@@ -329,11 +285,78 @@ export async function checkTablePresentation(page: Page, id: string) {
     assert.deepEqual(overlap, [], `The cell menu covers "${value}"`);
   }
   await page.keyboard.press("Escape");
+}
 
-  await checkCheckList(page, "1280");
+/** A merged cell in the table's corner takes the table's rounded corner. */
+async function checkMergedCorner(page: Page) {
+  const merged = await tableAt(page, 2);
+  await pause(200);
+  const outside = await pixel(page, merged.left + 1, merged.bottom + 6);
+  const corner = await pixel(page, merged.left + 1, merged.bottom - 2);
+  const fill = await pixel(page, merged.left + 6, merged.bottom - 8);
+  assert(
+    distance(corner, outside) < distance(fill, outside) / 2,
+    `The corner cell of a merged table is rounded with the table: ${corner} in ${fill} over ${outside}`,
+  );
+}
 
-  await open(page, id, "dark");
-  await checkStripes(page, "dark");
+/** A wide table keeps its frozen column and hints at what scrolls, with no
+ * bar over its rows. */
+async function checkWideTable(page: Page) {
+  await tableAt(page, 3);
+  const wide = await page.evaluate(() => {
+    const table = document.querySelectorAll<HTMLTableElement>(
+      ".document-content table.document-table:not([data-print-table])",
+    )[3] as HTMLTableElement;
+    const region = table.parentElement as HTMLElement;
+    const first = table.rows[1]?.cells[0] as HTMLElement;
+    region.scrollLeft = 0;
+    const before = first.getBoundingClientRect().left;
+    // Partway, so there is more to either side.
+    region.scrollLeft = (region.scrollWidth - region.clientWidth) / 2;
+    const rows = [0, 2].map((index) => {
+      const rect = table.rows[index]?.cells[5]?.getBoundingClientRect();
+      return rect ? rect.top + rect.height / 2 : 0;
+    });
+    const { right, bottom } = region.getBoundingClientRect();
+    return {
+      before,
+      after: first.getBoundingClientRect().left,
+      right,
+      bottom,
+      scrolls: region.scrollWidth > region.clientWidth,
+      header: rows[0] ?? 0,
+      body: rows[1] ?? 0,
+      headerFill: getComputedStyle(table.rows[0]?.cells[5] as Element)
+        .backgroundColor,
+    };
+  });
+  await pause(300);
+  assert(wide.scrolls, "The 12-column table scrolls");
+  const background = await pixel(page, wide.right - 2, wide.bottom + 6);
+  const edgeBody = await pixel(page, wide.right - 2, wide.body);
+  const edgeHeader = await pixel(page, wide.right - 2, wide.header);
+  const failures: string[] = [];
+  if (Math.abs(wide.before - wide.after) >= 1)
+    failures.push(
+      `A frozen first column stays put as the table scrolls: ${wide.before} then ${wide.after}`,
+    );
+  if (distance(edgeBody, background) > 12)
+    failures.push(
+      `No bar where a table scrolls on: ${edgeBody} over ${background}`,
+    );
+  if (
+    distance(edgeHeader, background) >=
+    distance(parseRgb(wide.headerFill), background) / 2
+  )
+    failures.push(
+      `The edge a table scrolls towards fades its header too: ${edgeHeader} over ${background}`,
+    );
+  assert.deepEqual(failures, []);
+}
+
+/** In the dark theme a cell's colour is a dark tint of it under light text. */
+async function checkDarkTints(page: Page) {
   await tableAt(page, 2);
   const tinted = await page.evaluate(() =>
     ["Tall", "Red", "Blue", "Green"].map((value) => {
@@ -342,12 +365,27 @@ export async function checkTablePresentation(page: Page, id: string) {
       ].find((cell) => cell.textContent?.trim() === value) as HTMLElement;
       const { left, top } = cell.getBoundingClientRect();
       const span = cell.querySelector("[data-lexical-text]") as Element;
-      return { value, x: left + 3, y: top + 3, color: getComputedStyle(span).color };
+      return {
+        value,
+        x: left + 3,
+        y: top + 3,
+        color: (() => {
+          // Computed colours come back in the theme's spaces, such as lab().
+          const canvas = document.createElement("canvas").getContext("2d");
+          if (!canvas) throw new Error("No canvas");
+          canvas.fillStyle = getComputedStyle(span).color;
+          canvas.fillRect(0, 0, 1, 1);
+          const [r, g, b] = canvas.getImageData(0, 0, 1, 1).data;
+          return `rgb(${r}, ${g}, ${b})`;
+        })(),
+      };
     }),
   );
   await pause(200);
+  const fills: Rgb[] = [];
   for (const { value, x, y, color } of tinted) {
     const fill = await pixel(page, x, y);
+    fills.push(fill);
     assert(
       luminance(fill) < 0.15,
       `In the dark theme the ${value} cell is a dark tint: ${fill}`,
@@ -357,23 +395,49 @@ export async function checkTablePresentation(page: Page, id: string) {
       `The ${value} cell's text reads over its tint: ${fill} under ${color}`,
     );
   }
-  const [red, blue] = [
-    await pixel(page, tinted[1]?.x ?? 0, tinted[1]?.y ?? 0),
-    await pixel(page, tinted[2]?.x ?? 0, tinted[2]?.y ?? 0),
-  ];
+  const [, red = [0, 0, 0], blue = [0, 0, 0]] = fills;
   assert(
-    (red?.[0] ?? 0) > (red?.[2] ?? 0) && (blue?.[2] ?? 0) > (blue?.[0] ?? 0),
+    red[0] > red[2] && blue[2] > blue[0],
     `A tint keeps its colour's hue: red ${red}, blue ${blue}`,
   );
+}
 
-  await page.setViewport({
-    width: 390,
-    height: 844,
-    hasTouch: true,
-    isMobile: true,
-  });
+export async function checkTablePresentation(page: Page, id: string) {
+  // A loaded machine paints slowly; this checks layout, not speed.
+  page.setDefaultTimeout(120_000);
+  await signInToDev(page, appUrl);
+  await page.setViewport({ width: 1280, height: 900 });
   await open(page, id, "light");
-  await checkCheckList(page, "390");
+  await steps([
+    ["light stripes", () => checkStripes(page, "light")],
+    ["merged corner", () => checkMergedCorner(page)],
+    ["wide table at 1280", () => checkWideTable(page)],
+    ["cell menu", () => checkCellMenu(page)],
+    ["check list at 1280", () => checkCheckList(page, "1280")],
+    [
+      "dark theme",
+      async () => {
+        await open(page, id, "dark");
+        await checkStripes(page, "dark");
+      },
+    ],
+    ["dark tints", () => checkDarkTints(page)],
+    ["dark wide table", () => checkWideTable(page)],
+    [
+      "check list at 390",
+      async () => {
+        await page.setViewport({
+          width: 390,
+          height: 844,
+          hasTouch: true,
+          isMobile: true,
+        });
+        await open(page, id, "light");
+        await checkCheckList(page, "390");
+      },
+    ],
+    ["wide table at 390", () => checkWideTable(page)],
+  ]);
   console.log(
     "Table presentation: stripes, dark tints, scroll edge, frozen column, cell menu, check lists",
   );

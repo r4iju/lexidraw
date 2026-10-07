@@ -157,9 +157,16 @@ struct DocumentTypography: Sendable {
     var headerWeight: Int
     /// Over a selected cell.
     var selection: ThemeColor
-    /// The shadows at an edge the table scrolls past.
-    var shadowWidth: Double
+    /// How far in from an edge the table scrolls towards what it holds
+    /// fades out.
+    var fadeWidth: Double
+    /// The shadow beside a pinned first column once the table scrolls.
     var shadowColor: ThemeColor
+    /// Every second body row of a striped table.
+    var stripe: ThemeColor
+    /// The colour whose luminosity a cell's own colour takes in the dark
+    /// theme, keeping its hue and saturation.
+    var darkFill: ThemeColor
     var pinned: Pinned
     /// A table more columns wide than this pins its first column on a
     /// narrow screen.

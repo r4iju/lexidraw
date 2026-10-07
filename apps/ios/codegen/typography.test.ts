@@ -294,7 +294,7 @@ test("reads a table as .document-table and the theme's selected cell set it", as
   const swift = swiftForTypography(await readWebStyles());
 
   expect(swift).toContain(
-    "table: Table(fontSize: 0.9375, lineHeight: 1.5, letterSpacing: 0, tabularFigures: true, margin: 1.75, paddingX: 12, paddingY: 8, border: 1, borderColor: .border, cornerRadius: 6, minimumWidth: 120, minimumViewportShare: 0.4, emptyWidth: 96, headerBackground: .muted, headerWeight: 600, selection: .primary.opacity(0.1), shadowWidth: 10, shadowColor: .mutedForeground, pinned: Pinned(width: 639, inset: 1, background: .card, headerBackground: .muted, shadowX: 6, shadowBlur: 8, shadowSpread: -6), unpinnedColumns: 3, shortColumns: 16, scrollingColumns: 5, number: ",
+    "table: Table(fontSize: 0.9375, lineHeight: 1.5, letterSpacing: 0, tabularFigures: true, margin: 1.75, paddingX: 12, paddingY: 8, border: 1, borderColor: .border, cornerRadius: 6, minimumWidth: 120, minimumViewportShare: 0.4, emptyWidth: 96, headerBackground: .muted, headerWeight: 600, selection: .primary.opacity(0.1), fadeWidth: 32, shadowColor: .mutedForeground, stripe: .tableStripe, darkFill: .muted, pinned: Pinned(width: 639, inset: 1, background: .background, headerBackground: .muted, shadowX: 6, shadowBlur: 8, shadowSpread: -6), unpinnedColumns: 3, shortColumns: 16, scrollingColumns: 5, number: ",
   );
 });
 

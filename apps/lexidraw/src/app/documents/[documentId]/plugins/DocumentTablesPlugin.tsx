@@ -27,13 +27,44 @@ function fitShortColumns(
   short: readonly number[],
 ) {
   for (const column of short) setWhole(table, column, true);
-  if ((table.rows[0]?.cells.length ?? 0) >= DOCUMENT_TABLE_LAYOUT.scrollingColumns) return;
+  if (
+    (table.rows[0]?.cells.length ?? 0) >= DOCUMENT_TABLE_LAYOUT.scrollingColumns
+  )
+    return;
   const whole = [...short];
   while (whole.length > 0 && table.offsetWidth > region.clientWidth) {
     const width = (column: number) =>
       table.rows[0]?.cells[column]?.offsetWidth ?? 0;
     whole.sort((a, b) => width(b) - width(a));
     setWhole(table, whole.shift() as number, false);
+  }
+}
+
+/** Marks the cells whose spans reach the table's last row or column, which
+ * `tr:last-child` and `:last-child` miss, so they draw no border against
+ * the table's own. */
+function markEdges(table: HTMLTableElement) {
+  const taken: boolean[][] = [];
+  const placed: { cell: HTMLTableCellElement; row: number; column: number }[] =
+    [];
+  [...table.rows].forEach((row, rowIndex) => {
+    let column = 0;
+    for (const cell of row.cells) {
+      while (taken[rowIndex]?.[column]) column++;
+      placed.push({ cell, row: rowIndex, column });
+      for (let r = rowIndex; r < rowIndex + cell.rowSpan; r++) {
+        const spanned = taken[r] ?? [];
+        for (let c = column; c < column + cell.colSpan; c++) spanned[c] = true;
+        taken[r] = spanned;
+      }
+      column += cell.colSpan;
+    }
+  });
+  const rows = table.rows.length;
+  const columns = Math.max(0, ...taken.map((row) => row.length));
+  for (const { cell, row, column } of placed) {
+    cell.toggleAttribute("data-row-end", row + cell.rowSpan >= rows);
+    cell.toggleAttribute("data-column-end", column + cell.colSpan >= columns);
   }
 }
 
@@ -63,9 +94,12 @@ export function DocumentTablesPlugin() {
         region.setAttribute("role", "region");
         region.setAttribute("aria-label", "Table");
         region.tabIndex = 0;
+        markEdges(table);
         const rows = [...table.rows];
         const columns = rows[0]?.cells.length ?? 0;
-        table.dataset.pinFirst = String(columns > DOCUMENT_TABLE_LAYOUT.unpinnedColumns);
+        table.dataset.pinFirst = String(
+          columns > DOCUMENT_TABLE_LAYOUT.unpinnedColumns,
+        );
         table.dataset.sized = String(
           Boolean(table.querySelector('col[style*="width"]')),
         );
@@ -84,7 +118,8 @@ export function DocumentTablesPlugin() {
               0.8;
           const isShort = cells.every(
             (cell) =>
-              columnsWide(cell.textContent?.trim() ?? "") <= DOCUMENT_TABLE_LAYOUT.shortColumns,
+              columnsWide(cell.textContent?.trim() ?? "") <=
+              DOCUMENT_TABLE_LAYOUT.shortColumns,
           );
           for (const cell of cells) {
             cell.toggleAttribute("data-numeric", numeric);

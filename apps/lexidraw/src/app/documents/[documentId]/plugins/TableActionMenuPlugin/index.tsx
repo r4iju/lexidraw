@@ -507,6 +507,8 @@ function TableCellActionMenuContainer({
   });
 
   // The selection lives in Lexical; its anchor moves with nested scroll regions.
+  // The trigger straddles the cell's top border, within the padding either
+  // side of it, so it never covers text and no cell keeps room for it.
   useEffect(() => {
     const position = () => {
       const menu = menuButtonRef.current;
@@ -522,7 +524,8 @@ function TableCellActionMenuContainer({
         region?.right ?? innerWidth,
         innerWidth - 8,
       );
-      const top = Math.max(rect.top, region?.top ?? 0) + 8;
+      const border = Math.max(rect.top, region?.top ?? 0) - 0.5;
+      const top = border - menu.offsetHeight / 2;
       menu.style.visibility =
         rect.bottom < 0 || top > innerHeight || right < 24
           ? "hidden"
@@ -562,9 +565,9 @@ function TableCellActionMenuContainer({
               aria-expanded={isMenuOpen}
               variant="outline"
               size="icon"
-              className="flex justify-center items-center border-0 size-6 pointer-coarse:size-11"
+              className="relative flex h-3.5 w-6 items-center justify-center rounded-full shadow-xs pointer-coarse:before:absolute pointer-coarse:before:-inset-x-2.5 pointer-coarse:before:-top-[30px] pointer-coarse:before:bottom-0 pointer-coarse:before:content-['']"
             >
-              <ChevronDown className="size-4" />
+              <ChevronDown className="size-3" />
               <span className="sr-only">Table cell actions</span>
             </Button>
           </DropdownMenuTrigger>

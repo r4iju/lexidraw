@@ -734,7 +734,8 @@ private final class TableBlock: LaidOutBlock {
   ) {
     self.kind = kind
     table = TableView(
-      cells: Self.cells(text, kind), columnWidths: Self.table(kind)?.columnWidths, width: width, style: style,
+      cells: Self.cells(text, kind), columnWidths: Self.table(kind)?.columnWidths, presentation: Self.presentation(kind),
+      width: width, style: style,
       selectedOutline: selectedOutline, textMeasurements: textMeasurements, prepareIncrementally: prepareIncrementally)
     table.onScroll = onScroll
     holder = TableHolder(table)
@@ -748,6 +749,12 @@ private final class TableBlock: LaidOutBlock {
   }
 
   private var rows: [[DocumentText.Table.Cell]] { Self.table(kind)?.rows ?? [] }
+
+  private static func presentation(_ kind: DocumentText.BlockKind) -> TableView.Presentation {
+    let table = table(kind)
+    return TableView.Presentation(
+      rowStriping: table?.rowStriping ?? false, freezesFirstColumn: table?.freezesFirstColumn ?? false)
+  }
 
   private static func cells(_ text: NSAttributedString, _ kind: DocumentText.BlockKind) -> [[TableView.Cell]] {
     (table(kind)?.rows ?? []).map { row in
@@ -767,7 +774,9 @@ private final class TableBlock: LaidOutBlock {
 
   func set(text: NSAttributedString, kind: DocumentText.BlockKind, width: CGFloat) {
     self.kind = kind
-    table.set(cells: Self.cells(text, kind), columnWidths: Self.table(kind)?.columnWidths, width: width)
+    table.set(
+      cells: Self.cells(text, kind), columnWidths: Self.table(kind)?.columnWidths, presentation: Self.presentation(kind),
+      width: width)
     showSelectedCharacters()
   }
 

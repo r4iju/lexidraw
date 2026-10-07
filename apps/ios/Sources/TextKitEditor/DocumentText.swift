@@ -88,6 +88,11 @@ public final class DocumentText {
     /// The widths the columns are set to, in CSS pixels, or nil where they
     /// fit their text.
     public var columnWidths: [Double]?
+    /// Every second body row is shaded, as `rowStriping` sets it.
+    public var rowStriping = false
+    /// The first column stays put as the table scrolls, as a
+    /// `frozenColumnCount` above 0 sets it on the web.
+    public var freezesFirstColumn = false
   }
 
   private struct MentionPresentation {
@@ -660,7 +665,9 @@ public final class DocumentText {
               }
             }
           },
-          columnWidths: node["colWidths"]?.arrayValue?.compactMap(\.numberValue)))
+          columnWidths: node["colWidths"]?.arrayValue?.compactMap(\.numberValue),
+          rowStriping: node["rowStriping"]?.boolValue ?? false,
+          freezesFirstColumn: (node["frozenColumnCount"]?.numberValue ?? 0) > 0))
     default: return .text
     }
   }
