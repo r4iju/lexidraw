@@ -26,7 +26,8 @@ export function swiftForMediaLinks(): string {
     .map(([type, base]) => `  static let ${type} = ${JSON.stringify(base)}`)
     .join("\n")}\n${Object.entries(MEDIA_ID_PATTERNS)
     .map(
-      ([type, pattern]) => `  static let ${type}ID = ${JSON.stringify(pattern)}`,
+      ([type, pattern]) =>
+        `  static let ${type}ID = ${JSON.stringify(pattern)}`,
     )
     .join("\n")}\n}\n`;
 }
