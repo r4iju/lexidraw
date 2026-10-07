@@ -22,6 +22,10 @@ test("native poll width follows the actual web card", async () => {
   expect(generated.includes("maximumWidth: Double = 520")).toBe(true);
   expect(generated.includes("static let emptyOptionJSON =")).toBe(true);
   expect(generated.includes("static let insertionNodeJSON =")).toBe(true);
+  // The card's bg-card: white in light, the first dark surface in dark.
+  expect(generated).toContain(
+    "static let background = ThemeColor(light: RGBA(1, 1, 1, 1), dark: RGBA(0.0888, 0.089, 0.1049, 1))",
+  );
   expect(await Bun.file(POLL_STYLE_PATH).text()).toBe(generated);
 });
 

@@ -27,6 +27,14 @@ export async function swiftForPollStyle(): Promise<string> {
   const minimum = source.match(/disabled=\{options\.length < (\d+)\}/);
   if (widths.length !== 1 || !minimum?.[1])
     throw new Error("Unknown poll card width or minimum-options shape");
+  const cardBackgrounds = [...source.matchAll(/"border border-border bg-([\w-]+) /g)];
+  if (cardBackgrounds.length !== 1 || !cardBackgrounds[0]?.[1])
+    throw new Error("Unknown poll card background shape");
+  const globals = await Bun.file(new URL("../../lexidraw/src/styles/globals.css", import.meta.url)).text();
+  const colors = new ThemeColors(postcss.parse(globals));
+  colors.name(`var(--${cardBackgrounds[0][1]})`);
+  const [, light, dark] = colors.used[0] ?? [];
+  if (!light || !dark) throw new Error("The poll card's background has no theme colour");
   const plugin = await Bun.file(
     new URL(
       "../../lexidraw/src/app/documents/[documentId]/plugins/PollPlugin/index.tsx",
@@ -65,7 +73,7 @@ export async function swiftForPollStyle(): Promise<string> {
     },
     { discrete: true },
   );
-  return `// Generated from the web PollComponent and PollNode by apps/ios/codegen/social.ts.\n\nenum WebPollStyle {\n  static let maximumWidth: Double = ${Number(widths[0]?.[1])}\n  static let minimumOptions = ${Number(minimum[1]) - 1}\n  static let emptyOptionJSON = ${swiftString(JSON.stringify(option))}\n  static let insertionNodeJSON = ${swiftString(insertionNodeJSON)}\n}\n`;
+  return `// Generated from the web PollComponent and PollNode by apps/ios/codegen/social.ts.\n\nenum WebPollStyle {\n  static let maximumWidth: Double = ${Number(widths[0]?.[1])}\n  static let minimumOptions = ${Number(minimum[1]) - 1}\n  static let emptyOptionJSON = ${swiftString(JSON.stringify(option))}\n  static let insertionNodeJSON = ${swiftString(insertionNodeJSON)}\n  static let background = ThemeColor(light: ${swiftRGBA(light)}, dark: ${swiftRGBA(dark)})\n}\n`;
 }
 
 export function swiftForEmojiAliases(): string {
