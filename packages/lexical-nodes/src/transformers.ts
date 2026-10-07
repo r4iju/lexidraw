@@ -20,6 +20,7 @@ import {
   HorizontalRuleNode,
 } from "@lexical/extension";
 import {
+  $computeTableMapSkipCellCheck,
   $createTableCellNode,
   $isTableCellNode,
   $isTableNode,
@@ -89,6 +90,11 @@ export const EMOJI: TextMatchTransformer = {
 };
 
 const TABLE_ROW_REG_EXP = /^(?:\|)(.+)(?:\|)\s?$/;
+/**
+ * A GFM row is one line, so a cell's own line breaks, between its blocks or
+ * inside one, are written as the HTML break GFM readers show as one.
+ */
+const CELL_LINE_BREAK = /<br\s*\/?>/gi;
 /** A GFM table's divider row, which makes the row above it the header. */
 export const TABLE_ROW_DIVIDER_REG_EXP = /^(\|\s*:?-{3,}:?\s*)+\|\s*$/;
 
@@ -98,8 +104,8 @@ export function createTableTransformer(
   const $createTableCell = (textContent: string): TableCellNode => {
     // The export pads every cell with a space on either side. Keeping that
     // padding as content would widen the cell by one space on each round
-    // trip, so it is stripped before the escaped newlines are restored.
-    textContent = textContent.trim().replace(/\\n/g, "\n");
+    // trip, so it is stripped before the line breaks are restored.
+    textContent = textContent.trim().replace(CELL_LINE_BREAK, "\n");
     const cell = $createTableCellNode(TableCellHeaderStates.NO_STATUS);
     $convertFromMarkdownString(textContent, transformers(), cell);
     return cell;
@@ -122,39 +128,39 @@ export function createTableTransformer(
         return null;
       }
 
-      const output: string[] = [];
-      for (const [index, row] of node.getChildren().entries()) {
-        if (!$isTableRowNode(row)) continue;
-        const cells = row.getChildren().filter($isTableCellNode);
-        output.push(
-          `| ${cells
-            .map((cell) =>
-              $convertToMarkdownString(transformers(), cell)
-                .replace(/\|/g, "\\|")
-                .replace(/\n/g, "\\n"),
-            )
-            .join(" | ")} |`,
-        );
-        if (index === 0) {
-          output.push(
-            `| ${cells
-              .map((cell) => {
-                switch (cell.getFormatType()) {
-                  case "left":
-                    return ":---";
-                  case "center":
-                    return ":---:";
-                  case "right":
-                    return "---:";
-                  default:
-                    return "---";
-                }
-              })
-              .join(" | ")} |`,
-          );
-        }
-      }
-
+      // GFM has no merged cells, so a merged cell's content takes the first
+      // place it covers and the rest stay empty, keeping every row as wide.
+      const [grid] = $computeTableMapSkipCellCheck(node, null, null);
+      const row = (cells: string[]) => `| ${cells.join(" | ")} |`;
+      const output = grid.map((places, r) =>
+        row(
+          places.map(({ cell, startRow, startColumn }, c) =>
+            startRow === r && startColumn === c
+              ? $convertToMarkdownString(transformers(), cell)
+                  .replace(/\|/g, "\\|")
+                  .replace(/\n/g, "<br>")
+              : "",
+          ),
+        ),
+      );
+      output.splice(
+        1,
+        0,
+        row(
+          (grid[0] ?? []).map(({ cell }) => {
+            switch (cell.getFormatType()) {
+              case "left":
+                return ":---";
+              case "center":
+                return ":---:";
+              case "right":
+                return "---:";
+              default:
+                return "---";
+            }
+          }),
+        ),
+      );
       return output.join("\n");
     },
     regExp: TABLE_ROW_REG_EXP,
