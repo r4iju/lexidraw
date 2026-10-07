@@ -18,8 +18,6 @@ export class StickyNode extends HeadlessStickyNode {
     return (
       <StickyComponent
         color={this.__color}
-        x={this.__x}
-        y={this.__y}
         nodeKey={this.getKey()}
         caption={this.__caption}
       />
