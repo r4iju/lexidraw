@@ -69,22 +69,6 @@ extension StructuralBlockTests {
     #expect(try editor.node(at: [0, 0])["type"] == "text")
     #expect(try editor.node(at: [0, 0])["text"] == "https://example.com ")
   }
-
-  @Test func slideBoxKeyedStatesCanBeEditedAndSavedWithLiveKeys() throws {
-    let deck = try JSONValue(parsing: #require(StructuralBlockConfiguration.insertionNodes["slide-deck"]))
-    let state = try #require(
-      deck["data"]?["slides"]?.arrayValue?.first?["elements"]?.arrayValue?.first?["editorStateJSON"])
-    let editor = Editor()
-    try editor.loadKeyed(state)
-    #expect(editor.isEditable)
-    try editor.apply(.caret(.init(path: [0], offset: 0, type: .element)))
-    try editor.apply(.insertText("Native slide text"))
-    let saved = try editor.serializedKeyedState()
-    #expect(saved["root"]?["key"] == "root")
-    #expect(
-      saved["root"]?["children"]?.arrayValue?.first?["children"]?.arrayValue?.first?["text"] == "Native slide text")
-    #expect(saved["root"]?["children"]?.arrayValue?.first?["children"]?.arrayValue?.first?["key"]?.stringValue != nil)
-  }
 }
 
 extension StructuralBlockTests {
@@ -154,13 +138,31 @@ extension StructuralBlockTests {
 }
 
 extension StructuralBlockTests {
-  @Test func slideDecksDoNotPreventEditingTheDocument() throws {
-    let deck: JSONValue = ["type": "slide-deck", "version": 1]
+  /// Stored decks hold whatever the slide editor saved, such as a box kept as
+  /// a JSON string and element kinds nothing reads any more (#253).
+  @Test func aStoredSlideDeckKeepsTheDocumentEditableAndIsDeletedLikeAnyBlock() throws {
+    let deck: JSONValue = ["type": "slide-deck", "version": 1, "data": [
+      "currentSlideId": "s1",
+      "deckMetadata": ["bigIdea": "Quarterly review"],
+      "slides": [["id": "s1", "elements": [
+        ["kind": "box", "id": "b1", "x": 0, "y": 0, "width": 300, "height": "inherit", "zIndex": 0,
+         "editorStateJSON": #"{"root":{"type":"root","version":1,"children":[]}}"#],
+        ["kind": "video", "id": "v1", "src": "https://example.com/a.mp4"],
+      ]]],
+    ]]
+    let start = document(deck, paragraph(text("ab")))
+    let editor = Editor()
+    try editor.load(start)
+    #expect(editor.isEditable)
+    #expect(try editor.snapshot().state["root"]?["children"]?.arrayValue?.first == deck)
+
     let fixture = try Fixture.record(
-      start: document(deck, paragraph(text("ab"))),
+      start: start,
       commands: [
-        .caret(.text([1, 0], 1)), .insertText("x"), .undo, .redo,
+        .caret(.text([1, 0], 1)), .insertText("x"), .caret(.text([1, 0], 0)), .deleteCharacter(backward: true),
+        .undo, .redo,
       ], on: try Support.referenceEditor())
+    #expect(fixture.recorded.snapshot.state["root"]?["children"]?.arrayValue?.map { $0["type"] } == ["paragraph"])
     #expect(try fixture.replay(on: Editor()) == fixture.recorded)
   }
 }

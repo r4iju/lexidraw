@@ -8,6 +8,5 @@ test("nested typing contexts come from mounted web plugins", async () => {
     expect(contexts[name]).toContain("KeywordsPlugin");
     expect(contexts[name]).not.toContain("MarkdownShortcutPlugin");
   }
-  expect(contexts.slide).toContain("MarkdownShortcutPlugin");
   expect(await Bun.file(CONTEXTS_PATH).text()).toBe(await swiftForEditorContexts());
 });

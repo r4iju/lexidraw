@@ -1,7 +1,6 @@
 import { parse } from "@babel/parser";
 import type { Node } from "@babel/types";
 import { createHeadlessEditor } from "@lexical/headless";
-import { CORE_NODES } from "@packages/lexical-nodes";
 import { SCHEMA_NODES } from "@packages/lexical-nodes/nodes";
 import { RootNode, TextNode, LineBreakNode, ParagraphNode } from "lexical";
 
@@ -20,9 +19,8 @@ const sources = {
   imageCaption: ["ImageNode/ImageComponent.tsx", "ImageCaption"],
   inlineImageCaption: ["InlineImageNode/InlineImageComponent.tsx", "ImageCaption"],
   videoCaption: ["VideoNode/VideoComponent.tsx", "ImageCaption"],
-  slide: ["SlideNode/SlideDeckEditor.tsx", "LexicalNestedComposer"],
 } as const;
-const knownPlugins = new Set("PlainTextPlugin MentionsPlugin LinkPlugin EmojisPlugin HashtagPlugin KeywordsPlugin HistoryPlugin TreeViewPlugin DisableChecklistSpacebarPlugin TabIndentationPlugin EmojiPickerPlugin ChartPlugin RichTextPlugin BlurPlugin AutocompletePlugin PageBreakPlugin MermaidPlugin MarkdownShortcutPlugin HorizontalRulePlugin EquationsPlugin AutoFocusPlugin TablePlugin TwitterPlugin YouTubePlugin ExcalidrawPlugin FigmaPlugin ImagePlugin InlineImagePlugin VideoPlugin LayoutPlugin CollapsiblePlugin CalloutPlugin PollPlugin TableActionMenuPlugin CodeActionMenuPlugin FloatingLinkEditorPlugin FloatingTextFormatToolbarPlugin".split(" "));
+const knownPlugins = new Set("PlainTextPlugin MentionsPlugin LinkPlugin EmojisPlugin HashtagPlugin KeywordsPlugin HistoryPlugin TreeViewPlugin".split(" "));
 
 export async function webEditorContexts(): Promise<Record<keyof typeof sources, string[]>> {
   const result = {} as Record<keyof typeof sources, string[]>;
@@ -89,17 +87,5 @@ export async function webEditorRegistries(): Promise<Record<keyof typeof sources
   walk(stickyConstructors[0]!, node => { if (node.type === "CallExpression" && node.callee.type === "Identifier" && node.callee.name === "createEditor") stickyEditors.push(node); });
   if (stickyEditors.length !== 1 || stickyEditors[0]?.type !== "CallExpression" || stickyEditors[0].arguments.length !== 0) throw new Error("Unknown sticky caption editor configuration");
   result.stickyCaption = null;
-  const slide = await Bun.file(new URL("../../lexidraw/src/app/documents/[documentId]/nodes/SlideNode/nested-editor-nodes.ts", import.meta.url)).text();
-  const slideAst = parse(slide, { sourceType: "module", plugins: ["typescript"] });
-  const exportNodes = slideAst.program.body.find(node => node.type === "ExportNamedDeclaration" && node.declaration?.type === "VariableDeclaration");
-  if (exportNodes?.type !== "ExportNamedDeclaration" || exportNodes.declaration?.type !== "VariableDeclaration") throw new Error("Unknown slide registry export");
-  const nodeList = exportNodes.declaration.declarations.find(node => node.id.type === "Identifier" && node.id.name === "NESTED_EDITOR_NODES")?.init;
-  if (nodeList?.type !== "ArrayExpression") throw new Error("Unknown slide node list");
-  const slideNodes = nodeList.elements.flatMap(node => {
-    if (node?.type === "SpreadElement" && node.argument.type === "Identifier" && node.argument.name === "CORE_NODES") return CORE_NODES;
-    if (node?.type !== "Identifier" || !classes.has(node.name)) throw new Error("Unknown slide node class");
-    return [classes.get(node.name)!];
-  });
-  result.slide = [...createHeadlessEditor({ nodes: slideNodes })._nodes.keys()].sort();
   return result;
 }

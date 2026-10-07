@@ -15,6 +15,9 @@ struct MediaPayload: Sendable {
   let width: Double?
   let height: Double?
   let maxWidth: Double?
+  /// The block's `format`: the side of the column an embed narrower than it sits at.
+  let alignment: Alignment
+  enum Alignment { case leading, center, trailing }
 
   /// `string` as a browser parses a URL from it: without the controls and
   /// spaces around it, nor any tab or newline within.
@@ -31,9 +34,9 @@ struct MediaPayload: Sendable {
     self.type = type
     let destination: String?
     switch type {
-    case "youtube": destination = node["videoID"]?.stringValue.map { MediaLinks.youtube + $0 }
-    case "tweet": destination = node["id"]?.stringValue.map { MediaLinks.tweet + $0 }
-    case "figma": destination = node["documentID"]?.stringValue.map { MediaLinks.figma + $0 }
+    case "youtube": destination = Self.link(MediaLinks.youtube, node["videoID"], MediaLinks.youtubeID)
+    case "tweet": destination = Self.link(MediaLinks.tweet, node["id"], MediaLinks.tweetID)
+    case "figma": destination = Self.link(MediaLinks.figma, node["documentID"], MediaLinks.figmaID)
     default: destination = node["src"]?.stringValue
     }
     source = destination.map(Self.browserURLString).flatMap(URL.init(string:)).flatMap {
@@ -47,6 +50,11 @@ struct MediaPayload: Sendable {
     width = Self.dimension(node["width"])
     height = Self.dimension(node["height"])
     maxWidth = Self.dimension(node["maxWidth"])
+    switch node["format"]?.stringValue {
+    case "left", "start": alignment = .leading
+    case "right", "end": alignment = .trailing
+    default: alignment = .center
+    }
     figurePlacement = node["$"]?["figure"]?["width"]?.stringValue.flatMap { width in
       if ["wide", "full"].contains(width) { return width }
       if width.hasSuffix("%"), (1...3).contains(width.dropLast().count), width.dropLast().allSatisfy({ $0.isASCII && $0.isNumber }), let number = Int(width.dropLast()), (10..<100).contains(number) { return "\(number)%" }
@@ -79,6 +87,34 @@ struct MediaPayload: Sendable {
       return min(available, max(column * percent / 100, least))
     case nil: return column
     }
+  }
+
+  /// Where a media body `width` wide starts in `available`: at its aligned
+  /// side of the column, or centred when it is as wide as the column or wider.
+  func mediaX(width: Double, fitting available: Double, em: Double) -> Double {
+    let centered = (available - width) / 2
+    let inset = max(0, (available - min(available, FigureStyle.columnRem * em)) / 2)
+    switch alignment {
+    case .leading: return min(inset, centered)
+    case .center: return centered
+    case .trailing: return max(available - inset - width, centered)
+    }
+  }
+
+  /// What an embed whose id links nowhere says instead.
+  var unlinkedMessage: String {
+    switch type {
+    case "youtube": "No video linked"
+    case "tweet": "No post linked"
+    case "figma": "No Figma file linked"
+    default: "\(label): source unavailable"
+    }
+  }
+
+  /// `base` and `id`, when `id` is one its provider can have something under.
+  private static func link(_ base: String, _ id: JSONValue?, _ pattern: String) -> String? {
+    guard let id = id?.stringValue, id.range(of: pattern, options: .regularExpression) != nil else { return nil }
+    return base + id
   }
 
   private static func dimension(_ value: JSONValue?) -> Double? {

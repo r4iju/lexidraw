@@ -1,6 +1,6 @@
 import postcss from "postcss";
 import { ThemeColors, srgbForOklch } from "./typography";
-import { EMPTY_CONTENT, CHART_TYPES } from "@packages/lexical-nodes";
+import { CHART_TYPES } from "@packages/lexical-nodes";
 import { createHeadlessEditor } from "@lexical/headless";
 import { $createHorizontalRuleNode } from "@lexical/extension";
 import { SCHEMA_NODES } from "@packages/lexical-nodes/nodes";
@@ -14,7 +14,6 @@ import {
   LayoutItemNode,
   PageBreakNode,
   StickyNode,
-  SlideNode,
 } from "@packages/lexical-nodes";
 import {
   $createParagraphNode,
@@ -232,26 +231,6 @@ export async function swiftForStructuralBlocks(): Promise<string> {
     chevronStrokeWidth: Number(chevronStroke),
     chevronPoints,
   };
-  const slideView = await Bun.file(
-    new URL(
-      "../../lexidraw/src/app/documents/[documentId]/nodes/SlideNode/SlideView.tsx",
-      import.meta.url,
-    ),
-  ).text();
-  const deckEditor = await Bun.file(
-    new URL(
-      "../../lexidraw/src/app/documents/[documentId]/nodes/SlideNode/SlideDeckEditor.tsx",
-      import.meta.url,
-    ),
-  ).text();
-  const previewInitialIndex = /const \[viewingSlideIndex, setViewingSlideIndex\] = useState\((\d+)\);/.exec(slideView)?.[1];
-  const versionIncrement = /version: \(el\.version \|\| 0\) \+ (\d+),/.exec(deckEditor)?.[1];
-  const transformations = await Bun.file(new URL("../../lexidraw/src/app/documents/[documentId]/context/editors-context.tsx", import.meta.url)).text();
-  const projection = /const \{ key: _key, children, \.\.\.lexicalProps \} = keyedNode;\s*const result = \{ \.\.\.lexicalProps \};\s*if \(children && children\.length > (\d+)\) \{\s*result\.children = children\.map\(\(child\) => transformRef\.current\(child\)\);\s*\}\s*return result as SerializedRootNode;/.exec(transformations);
-  if (previewInitialIndex === undefined || versionIncrement === undefined || !projection)
-    throw new Error("Slide draft/view/keyed projection changed shape");
-  const resizeMinimum = /const minW = (\d+),\s*minH = (\d+);/.exec(deckEditor);
-  if (!resizeMinimum) throw new Error("Slide resize minima changed shape");
   const stickySource = await Bun.file(
     new URL(
       "../../lexidraw/src/app/documents/[documentId]/nodes/StickyComponent.tsx",
@@ -278,63 +257,11 @@ export async function swiftForStructuralBlocks(): Promise<string> {
     !sticky.minimumHeight
   )
     throw new Error("Sticky geometry changed shape");
-  const slideElements: Record<string, unknown> = {};
-  for (const [kind, name] of [
-    ["box", "newBoxElement"],
-    ["chart", "newChartElement"],
-    ["image", "newImageElement"],
-  ] as const) {
-    const literal = new RegExp(
-      `const ${name}: SlideElementSpec = {([\\s\\S]*?)\\n    };`,
-    ).exec(deckEditor)?.[1];
-    if (!literal) throw new Error(`Slide ${kind} defaults changed shape`);
-    const fields: Record<string, unknown> = {};
-    for (const line of literal.trim().split("\n")) {
-      const pair = /^\s*(\w+): (.+?),\s*(?:\/\/.*)?$/.exec(line);
-      if (!pair) throw new Error(`Unexpected slide default property: ${line}`);
-      const key = pair[1];
-      const value = pair[2];
-      if (!key || !value) throw new Error("Empty slide property");
-      if (
-        key === "id" &&
-        value === `new${kind.charAt(0).toUpperCase() + kind.slice(1)}Id`
-      ) {
-        fields[key] = "__id__";
-        continue;
-      }
-      if (
-        key === "zIndex" &&
-        value === "getNextZIndex(currentSlide.elements)"
-      ) {
-        fields[key] = 0;
-        continue;
-      }
-      if (
-        key === "editorStateJSON" &&
-        value === "EMPTY_CONTENT_FOR_NEW_BOXES"
-      ) {
-        fields[key] = EMPTY_CONTENT;
-        continue;
-      }
-      if (key === "url" && value === "payload.src") {
-        fields[key] = "";
-        continue;
-      }
-      const fallback = /^(?:payload.width|payload.height) \|\| (\d+)$/.exec(
-        value,
-      )?.[1];
-      fields[key] = JSON.parse(fallback ?? value);
-    }
-    if (fields.kind !== kind) throw new Error("Slide default kind changed");
-    slideElements[kind] = fields;
-  }
-  const designWidth = /const DESIGN_WIDTH = (\d+);/.exec(slideView)?.[1];
-  const canvas = /w-\[(\d+)px\] h-\[(\d+)px\]/.exec(deckEditor);
   const stackWidth =
     /@container \(max-width: (\d+)px\) \{\s*\.document-content \[data-lexical-layout-container\]/.exec(
       document,
     )?.[1];
-  if (!designWidth || !canvas || designWidth !== canvas[1] || !stackWidth)
+  if (!stackWidth)
     throw new Error("The web structural geometry changed shape");
   const firstLayout = layouts[0];
   if (!firstLayout) throw new Error("No web column presets");
@@ -374,7 +301,6 @@ export async function swiftForStructuralBlocks(): Promise<string> {
         layout,
         PageBreakNode.$createPageBreakNode(),
         new StickyNode(),
-        SlideNode.$createSlideNode(),
       ]) {
         nodes[node.getType()] = node.exportJSON();
         if ($isDecoratorNode(node) && node.isIsolated())
@@ -395,13 +321,7 @@ export async function swiftForStructuralBlocks(): Promise<string> {
     { discrete: true },
   );
   const string = (value: string) => JSON.stringify(value);
-  return `// Generated from structural node factories, web presets and document CSS.\n// Run bun run codegen in apps/ios to update.\npublic enum StructuralBlockConfiguration {\n  public static let slidePreviewInitialIndex = ${previewInitialIndex}\n  public static let slideBoxVersionIncrement = ${versionIncrement}.0\n  public static let slideContentMinimumChildCount = ${projection[1]}\n  public static let columnGap = ${columnGap}.0\n  public static let columnBorderColors = ${JSON.stringify(columnBorderColors)}\n  public static let columnPadding = ${columnPadding}.0\n  public static let columnBorderWidth = ${columnBorderWidth}.0\n  public static let columnFramesShowAtRest = ${columnFramesShowAtRest}\n  public static let columnWhitespacePattern = ${JSON.stringify(columnWhitespace)}\n  public static let isolatedNodeTypes: Set<String> = [${isolated.map(string).join(", ")}]\n  public static let stickyRadius = ${sticky.radius}.0\n  public static let stickyPaddingY = ${sticky.padding[1]}.0\n  public static let stickyPaddingX = ${sticky.padding[2]}.0\n  public static let stickyMinimumHeight = ${sticky.minimumHeight}.0\n  public static let chartTypes: [String] = [${CHART_TYPES.map(string).join(", ")}]\n  public static let slideElements: [String:String] = [${Object.entries(
-    slideElements,
-  )
-    .map(([kind, fields]) => `${string(kind)}: #"${JSON.stringify(fields)}"#`)
-    .join(
-      ", ",
-    )} ]\n  public static let slideMinimumWidth = ${resizeMinimum[1]}.0\n  public static let slideMinimumHeight = ${resizeMinimum[2]}.0\n  public static let slideWidth = ${designWidth}.0\n  public static let slideHeight = ${canvas[2]}.0\n  public static let stackedColumnsWidth = ${stackWidth}.0\n  public static let calloutLabels: [String:String] = [${Object.entries(
+  return `// Generated from structural node factories, web presets and document CSS.\n// Run bun run codegen in apps/ios to update.\npublic enum StructuralBlockConfiguration {\n  public static let columnGap = ${columnGap}.0\n  public static let columnBorderColors = ${JSON.stringify(columnBorderColors)}\n  public static let columnPadding = ${columnPadding}.0\n  public static let columnBorderWidth = ${columnBorderWidth}.0\n  public static let columnFramesShowAtRest = ${columnFramesShowAtRest}\n  public static let columnWhitespacePattern = ${JSON.stringify(columnWhitespace)}\n  public static let isolatedNodeTypes: Set<String> = [${isolated.map(string).join(", ")}]\n  public static let stickyRadius = ${sticky.radius}.0\n  public static let stickyPaddingY = ${sticky.padding[1]}.0\n  public static let stickyPaddingX = ${sticky.padding[2]}.0\n  public static let stickyMinimumHeight = ${sticky.minimumHeight}.0\n  public static let chartTypes: [String] = [${CHART_TYPES.map(string).join(", ")}]\n  public static let stackedColumnsWidth = ${stackWidth}.0\n  public static let calloutLabels: [String:String] = [${Object.entries(
     CALLOUT_LABELS,
   )
     .map(([k, v]) => `${string(k)}: ${string(v)}`)

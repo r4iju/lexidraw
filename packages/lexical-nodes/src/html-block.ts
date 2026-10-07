@@ -50,6 +50,40 @@ export function parseHTMLBlockSource(value: unknown): HTMLBlockSourceValue {
   return source;
 }
 
-export function snapshotDocument(html: string, css: string): string {
-  return `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src data:; font-src 'none'; base-uri 'none'; form-action 'none'; script-src 'none'"><meta name="viewport" content="width=device-width, initial-scale=1"><style>body{margin:0;padding:16px;font:16px system-ui;overflow-wrap:anywhere}*,*:before,*:after{box-sizing:border-box}input,select,button{font:inherit;max-width:100%}${css.replace(/</g, "\\3c ")}</style></head><body>${html}</body></html>`;
+export const HTML_BLOCK_THEMES = ["light", "dark"] as const;
+export type HTMLBlockTheme = (typeof HTML_BLOCK_THEMES)[number];
+/**
+ * The document's --foreground and --font-sans (apps/lexidraw globals.css), so a
+ * block without its own colours reads as part of the page it sits on.
+ */
+const INK: Record<HTMLBlockTheme, string> = {
+  light: "oklch(0.23 0.01 285)",
+  dark: "oklch(0.92 0.005 285)",
+};
+const FONT =
+  'ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+
+/**
+ * Answers the block's `prefers-color-scheme` queries with the document theme.
+ * A browser answers them in an iframe with the system appearance, whatever the
+ * page around it shows, so each query becomes one that is always true or never.
+ */
+function followTheme(css: string, theme: HTMLBlockTheme) {
+  return css.replace(
+    /\(\s*prefers-color-scheme\s*:\s*(light|dark)\s*\)/gi,
+    (_, scheme: string) =>
+      scheme.toLowerCase() === theme ? "(min-width:0px)" : "(max-width:0px)",
+  );
+}
+
+/**
+ * The page a block runs and is captured in. Its surface stays transparent so
+ * the document shows through, unless the block's CSS paints its own.
+ */
+export function snapshotDocument(
+  html: string,
+  css: string,
+  theme: HTMLBlockTheme,
+): string {
+  return `<!doctype html><html data-theme="${theme}" style="color-scheme:${theme}"><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src data:; font-src 'none'; base-uri 'none'; form-action 'none'; script-src 'none'"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="color-scheme" content="${theme}"><style>html{background:transparent;color:${INK[theme]};font:16px/1.5 ${FONT}}body{margin:0;padding:16px;overflow-wrap:anywhere}*,*:before,*:after{box-sizing:border-box}input,select,button,textarea{font:inherit;max-width:100%}${followTheme(css, theme).replace(/</g, "\\3c ")}</style></head><body>${html}</body></html>`;
 }

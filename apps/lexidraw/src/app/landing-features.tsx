@@ -4,7 +4,7 @@ import { cn } from "~/lib/utils";
 const FEATURES = [
   {
     title: "Docs that do more",
-    benefit: "Headings, tables, embeds and slides, all in one page.",
+    benefit: "Headings, tables, embeds and diagrams, all in one page.",
     image: "document",
     dark: true,
     alt: "A Lexidraw document titled Launch plan, with a list of goals and a timeline table of weekly milestones and owners.",

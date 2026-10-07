@@ -22,7 +22,6 @@ import {
   PageBreakNode,
   PLACEHOLDER_NODE_TYPES,
   PollNode,
-  SlideNode,
   StickyNode,
   ThreadNode,
   VideoNode,
@@ -33,6 +32,7 @@ import {
   $createParagraphNode,
   $createTextNode,
   $getRoot,
+  $parseSerializedNode,
   type SerializedEditorState,
   type SerializedLexicalNode,
 } from "lexical";
@@ -108,10 +108,12 @@ const EVERY_KIND = stateOf(() => {
     PageBreakNode.$createPageBreakNode(),
     StickyNode.$createStickyNode(0, 0),
     $createParagraphNode().append(PollNode.$createPollNode("Lunch?", [])),
-    SlideNode.$createSlideNode({
-      slides: [{ id: "s1", elements: [] }],
-      currentSlideId: "s1",
-    }),
+    // A deck saved before slides were removed, which a write still keeps.
+    $parseSerializedNode({
+      type: "slide-deck",
+      version: 1,
+      data: { slides: [{ id: "s1", elements: [] }], currentSlideId: "s1" },
+    } as SerializedLexicalNode),
     $createParagraphNode().append(ExcalidrawNode.$createExcalidrawNode()),
     $createParagraphNode().append(
       MermaidNode.$createMermaidNode("flowchart LR\n  A --> B"),

@@ -673,7 +673,6 @@ export async function checkEditorControls(
     ['[data-media-type="excalidraw"]', "Edit drawing"],
     ['[data-media-type="mermaid"]', "Edit diagram"],
     ['[data-media-type="chart"]', "Edit chart"],
-    [".slide-deck-container", "Edit slides"],
   ] as const) {
     await tap(page, `${CONTENT} ${node}`);
     const button = await rectOf(

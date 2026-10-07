@@ -30,7 +30,7 @@ export type SerializedNodeWithKey = {
   detail?: number; // Typically 0 for normal text, or bitmasks for special states
 
   // To accommodate any other properties exported by specific nodes via their .exportJSON() method.
-  // This allows for custom node properties like 'url' for an ImageNode, 'data' for SlideNode, etc.
+  // This allows for custom node properties like 'url' for an ImageNode.
   [prop: string]: unknown;
 };
 

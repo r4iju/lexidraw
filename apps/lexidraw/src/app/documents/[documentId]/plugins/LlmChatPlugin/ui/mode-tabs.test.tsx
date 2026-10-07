@@ -40,7 +40,7 @@ async function tabs() {
 
 describe("AI assistant modes", () => {
   test("hide the Debug tab from people who are not developers", async () => {
-    expect(await tabs()).toEqual(["Chat", "Agent", "Slide agent"]);
+    expect(await tabs()).toEqual(["Chat", "Agent"]);
   });
 
   test("show the Debug tab once the developer flag is on", async () => {

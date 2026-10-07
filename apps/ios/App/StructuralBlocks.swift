@@ -8,7 +8,7 @@ import UIKit
 /// plugin escapes and repair transforms retain document history and autosave.
 @MainActor func configureStructuralBlocks(_ view: EditorView) {
   if view.isEditable && view.supportsRichText {
-    let entries: [(String, String)] = [(StructuralBlockConfiguration.dividerLabel, "horizontalrule"), ("Callout", "callout"), ("Collapsible section", "collapsible-container"), ("Columns", "layout-container"), ("Page break", "page-break"), ("Sticky note", "sticky"), ("Slide deck", "slide-deck")]
+    let entries: [(String, String)] = [(StructuralBlockConfiguration.dividerLabel, "horizontalrule"), ("Callout", "callout"), ("Collapsible section", "collapsible-container"), ("Columns", "layout-container"), ("Page break", "page-break"), ("Sticky note", "sticky")]
     view.insertionActions.append(UIMenu(title: "Structural blocks", children: entries.map { title, type in
       UIAction(title: title) { [weak view] _ in
         guard let template = StructuralBlockConfiguration.insertionNodes[type] else { preconditionFailure("No registered structural insertion template") }
@@ -41,20 +41,8 @@ import UIKit
   ]
   private weak var owner: EditorView?
   private let key: String
-  private let isSlideDraft: Bool
-  private var slideTextEditors: [String: (model: Editor, view: EditorView)] = [:]
   private var node: JSONValue = .null
   private var saving = false
-  private var viewingSlideOverride: Int?
-  private var viewingSlideIndex: Int {
-    get {
-      if let viewingSlideOverride { return viewingSlideOverride }
-      guard isSlideDraft else { return StructuralBlockConfiguration.slidePreviewInitialIndex }
-      let slides = node["data"]?["slides"]?.arrayValue ?? []
-      return slides.firstIndex { $0["id"] == node["data"]?["currentSlideId"] } ?? 0
-    }
-    set { viewingSlideOverride = newValue }
-  }
   private let stack = UIStackView()
   private var columns: NativeColumnsView?
   private var bodies: [EditorView] = []
@@ -69,13 +57,16 @@ import UIKit
   private var viewingSectionOpen: Bool?
   private var section: SectionView?
   private var borderColor: UIColor? { didSet { resolveBorderColor() } }
-  private func resolveBorderColor() { layer.borderColor = borderColor?.resolvedColor(with: traitCollection).cgColor }
-  private var selectedSlideElementID: String?
+  /// A dashed border, drawn where `layer`'s own border can only be solid.
+  private var outline: CAShapeLayer?
+  private func resolveBorderColor() {
+    let color = borderColor?.resolvedColor(with: traitCollection).cgColor
+    if let outline { outline.strokeColor = color } else { layer.borderColor = color }
+  }
 
-  init(owner: EditorView, key: String, isSlideDraft: Bool = false) {
+  init(owner: EditorView, key: String) {
     self.owner = owner
     self.key = key
-    self.isSlideDraft = isSlideDraft
     super.init(frame: .zero)
     stack.axis = .vertical
     stack.spacing = 8
@@ -88,10 +79,8 @@ import UIKit
 
   override func show(_ value: JSONValue) {
     guard value != node else { return }
-    if value["data"]?["currentSlideId"] != node["data"]?["currentSlideId"] { selectedSlideElementID = nil }
     node = value
     viewingSectionOpen = nil
-    viewingSlideOverride = nil
     guard !saving else { return }
     rebuild()
   }
@@ -101,40 +90,25 @@ import UIKit
     saving = true
     defer { saving = false }
     do {
-      let previouslyMounted = mountedSlideBoxes(in: node)
       try owner.replaceEmbeddedNode(key: key, expected: node, replacement: replacement)
       node = try owner.structuralNode(key: key)
-      if isSlideDraft {
-        let currentlyMounted = mountedSlideBoxes(in: node)
-        for id in previouslyMounted.symmetricDifference(currentlyMounted) {
-          try slideTextEditors[id]?.model.remountSlideHistory()
-        }
-      }
       if rebuild {
         self.rebuild()
         owner.refreshEmbeddedContent()
       }
     } catch { presentError(error) }
   }
-  private func mountedSlideBoxes(in node: JSONValue) -> Set<String> {
-    guard isSlideDraft, let slides = node["data"]?["slides"]?.arrayValue, !slides.isEmpty else { return [] }
-    let index = slides.firstIndex { $0["id"] == node["data"]?["currentSlideId"] } ?? 0
-    return Set((slides[index]["elements"]?.arrayValue ?? []).compactMap {
-      $0["kind"] == "box" ? $0["id"]?.stringValue : nil
-    })
-  }
-
   private func field(_ name: String, _ value: JSONValue, rebuild: Bool = false) {
     var fields = node.objectValue ?? [:]
     fields[name] = value
     save(.object(fields), rebuild: rebuild)
   }
-  @discardableResult private func button(_ title: String, viewing: Bool = false, action: @escaping () -> Void) -> UIButton {
+  @discardableResult private func button(_ title: String, action: @escaping () -> Void) -> UIButton {
     let button = UIButton(type: .system)
     button.setTitle(title, for: .normal)
     button.contentHorizontalAlignment = .leading
     button.addAction(UIAction { _ in action() }, for: .touchUpInside)
-    button.isEnabled = viewing || owner?.isEditable == true
+    button.isEnabled = owner?.isEditable == true
     stack.addArrangedSubview(button)
     return button
   }
@@ -145,8 +119,8 @@ import UIKit
     label.textColor = .secondaryLabel
     stack.addArrangedSubview(label)
   }
-  private func menu(_ title: String, viewing: Bool = false, entries: [(String, () -> Void)]) {
-    let button = button(title, viewing: viewing) {}
+  private func menu(_ title: String, entries: [(String, () -> Void)]) {
+    let button = button(title) {}
     button.showsMenuAsPrimaryAction = true
     button.menu = UIMenu(children: entries.map { name, action in UIAction(title: name) { _ in action() } })
   }
@@ -166,6 +140,8 @@ import UIKit
     insets = .zero
     layer.cornerRadius = 0
     layer.borderWidth = 0
+    outline?.removeFromSuperlayer()
+    outline = nil
     borderColor = nil
     backgroundColor = .clear
     accessibilityLabel = node["type"]?.stringValue
@@ -180,7 +156,7 @@ import UIKit
       line.heightAnchor.constraint(equalToConstant: 1).isActive = true
       stack.addArrangedSubview(line)
       label("Page break")
-    case "slide-deck": slides()
+    case "slide-deck": legacySlideDeck()
     default: label("Unsupported structural block (#133)")
     }
     setNeedsLayout()
@@ -540,389 +516,75 @@ import UIKit
     addSubview(control)
     stickyControl = control
   }
-  private func slides() {
-    if !isSlideDraft { slidePreview(); return }
-    let slides = node["data"]?["slides"]?.arrayValue ?? []
-    let index = min(viewingSlideIndex, max(slides.count - 1, 0))
-    button("Add slide") { [weak self] in self?.addSlide() }
-    guard slides.indices.contains(index) else {
-      label("Empty slide deck")
-      return
+  /// A deck saved before slides were removed (#253), drawn as the web draws
+  /// it: what it said, and no way to change it. The editor selects and
+  /// deletes it as any block.
+  private func legacySlideDeck() {
+    let title = "Slide deck (no longer supported)"
+    accessibilityLabel = title
+    insets = UIEdgeInsets(top: 12, left: 16, bottom: 12, right: 16)
+    layer.cornerRadius = 6
+    let outline = CAShapeLayer()
+    outline.fillColor = UIColor.clear.cgColor
+    outline.lineWidth = 1
+    outline.lineDashPattern = [3, 3]
+    layer.addSublayer(outline)
+    self.outline = outline
+    borderColor = .separator
+    func text(_ value: String, weight: Int) -> UILabel {
+      let label = UILabel()
+      label.text = value
+      label.numberOfLines = 0
+      label.textColor = .secondaryLabel
+      label.font = owner?.documentFont(webPixels: 14, weight: weight) ?? .systemFont(ofSize: 14, weight: weight == 500 ? .medium : .regular)
+      return label
     }
-    menu(
-      "Edit slide",
-      entries: [
-        ("Add text", { [weak self] in self?.addSlideElement(kind: "box", slide: index) }),
-        ("Add chart", { [weak self] in self?.addSlideElement(kind: "chart", slide: index) }),
-        (
-          "Add image",
-          { [weak self] in
-            self?.rename("Image URL", value: "") { self?.addSlideElement(kind: "image", slide: index, url: $0) }
-          }
-        ),
-        (
-          "Slide background",
-          { [weak self] in
-            self?.rename("Slide background (CSS color)", value: slides[index]["backgroundColor"]?.stringValue ?? "") {
-              self?.updateSlide(slide: index, field: "backgroundColor", value: .string($0))
-            }
-          }
-        ),
-        (
-          "Speaker notes",
-          { [weak self] in
-            self?.rename("Speaker notes", value: slides[index]["slideMetadata"]?["speakerNotes"]?.stringValue ?? "") {
-              notes in
-              var metadata = slides[index]["slideMetadata"]?.objectValue ?? [:]
-              metadata["speakerNotes"] = .string(notes)
-              self?.updateSlide(slide: index, field: "slideMetadata", value: .object(metadata))
-            }
-          }
-        ),
-        ("Move slide earlier", { [weak self] in self?.moveSlide(index, by: -1) }),
-        ("Move slide later", { [weak self] in self?.moveSlide(index, by: 1) }),
-        ("Delete slide", { [weak self] in self?.deleteSlide(index) }),
-      ])
-    menu(
-      "Slide \(index + 1) of \(slides.count)", viewing: true,
-      entries: slides.enumerated().map { offset, _ in
-        (
-          "Slide \(offset + 1)",
-          { [weak self] in
-            guard let self else { return }
-            if self.owner?.isEditable == true {
-              var data = self.node["data"]?.objectValue ?? [:]
-              data["currentSlideId"] = slides[offset]["id"]
-              self.field("data", .object(data), rebuild: true)
-            } else {
-              self.viewingSlideIndex = offset
-              self.rebuild()
-              self.owner?.refreshEmbeddedContent()
-            }
-          }
-        )
-      })
-    let canvas = SlideCanvas(
-      slide: slides[index],
-      makeEditor: { [weak owner] model in
-        owner?.makeNestedEditor(model: model, isEditable: false) ?? EditorView(model: model, isEditable: false)
-      },
-      imageLoader: owner?.mediaImageLoader,
-      provider: { [weak owner, key] node in
-        owner?.embeddedContent?("\(key)-slide-\(index)-\(node["id"]?.stringValue ?? "")", node)
-      })
-    canvas.onEdit = { [weak self] element in self?.editSlideElement(slide: index, element: element) }
-    let opened = node
-    canvas.onGeometryChange = { [weak self] element, updates in
-      guard let self, self.node == opened,
-        var fields = slides[index]["elements"]?.arrayValue?[element].objectValue else { return }
-      for (field, value) in updates { fields[field] = value }
-      self.replaceSlideElement(slide: index, element: element, value: .object(fields))
+    let icon = UIImageView(image: UIImage(systemName: "play.rectangle"))
+    icon.tintColor = .secondaryLabel
+    icon.setContentHuggingPriority(.required, for: .horizontal)
+    icon.isAccessibilityElement = false
+    let header = UIStackView(arrangedSubviews: [icon, text(title, weight: 500)])
+    header.spacing = 8
+    header.alignment = .center
+    stack.addArrangedSubview(header)
+    let lines = Self.slideDeckText(node["data"])
+    if !lines.isEmpty { stack.setCustomSpacing(8, after: header) }
+    for (index, line) in lines.enumerated() {
+      let label = text(line, weight: 400)
+      stack.addArrangedSubview(label)
+      if index < lines.count - 1 { stack.setCustomSpacing(4, after: label) }
     }
-    canvas.onSelection = { [weak self] element in
-      self?.selectedSlideElementID = element.flatMap { slides[index]["elements"]?.arrayValue?[$0]["id"]?.stringValue }
+  }
+  /// The text a stored deck's text boxes hold, a line per block, slide by
+  /// slide, as the web's `slideDeckText` reads it. A box stored as a JSON
+  /// string reads as its parsed state.
+  private static func slideDeckText(_ data: JSONValue?) -> [String] {
+    func list(_ value: JSONValue?, _ key: String) -> [JSONValue] { value?[key]?.arrayValue ?? [] }
+    func text(_ node: JSONValue) -> String {
+      if let text = node["text"]?.stringValue { return text }
+      if node["type"] == "linebreak" { return "\n" }
+      return list(node, "children").map(text).joined()
     }
-    canvas.isEditable = owner?.isEditable == true
-    if let selectedSlideElementID {
-      canvas.restoreSelection((slides[index]["elements"]?.arrayValue ?? []).firstIndex { $0["id"] == .string(selectedSlideElementID) })
+    func lines(_ node: JSONValue) -> [String] {
+      let children = list(node, "children")
+      let holdsText = children.isEmpty || children.contains {
+        $0["text"]?.stringValue != nil || $0["type"] == "linebreak"
+      }
+      return holdsText ? [text(node)] : children.flatMap(lines)
     }
-    stack.addArrangedSubview(canvas)
-    canvas.heightAnchor.constraint(
-      equalTo: canvas.widthAnchor,
-      multiplier: StructuralBlockConfiguration.slideHeight / StructuralBlockConfiguration.slideWidth
-    ).isActive = true
-    // A separate button preserves text-input accessibility inside the canvas.
-    for (element, value) in (slides[index]["elements"]?.arrayValue ?? []).enumerated() {
-      let description = "Slide element \(element + 1), \(value["kind"]?.stringValue ?? "unknown")"
-      if owner?.isEditable == true {
-        button("\(description) actions") { [weak self] in
-          self?.editSlideElement(slide: index, element: element)
+    return list(data, "slides").flatMap { slide in
+      list(slide, "elements").flatMap { element -> [String] in
+        guard element["kind"] == "box" else { return [] }
+        var state = element["editorStateJSON"]
+        if let source = state?.stringValue {
+          guard let parsed = try? JSONValue(parsing: source) else { return [] }
+          state = parsed
         }
-      } else {
-        label(description)
+        return list(state?["root"], "children").flatMap(lines)
+          .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+          .filter { !$0.isEmpty }
       }
     }
-  }
-
-  private func slidePreview() {
-    if owner?.isEditable == true {
-      button("Edit slide deck") { [weak self] in self?.openSlideDraft() }
-    }
-    let slides = node["data"]?["slides"]?.arrayValue ?? []
-    guard !slides.isEmpty else { label("Empty slide deck"); return }
-    let index = min(viewingSlideIndex, slides.count - 1)
-    menu("Slide \(index + 1) of \(slides.count)", viewing: true,
-      entries: slides.indices.map { offset in
-        ("Slide \(offset + 1)", { [weak self] in
-          self?.viewingSlideIndex = offset
-          self?.rebuild()
-          self?.owner?.refreshEmbeddedContent()
-        })
-      })
-    let canvas = SlideCanvas(slide: slides[index], makeEditor: { [weak owner] model in
-      owner?.makeNestedEditor(model: model, isEditable: false) ?? EditorView(model: model, isEditable: false)
-    }, imageLoader: owner?.mediaImageLoader, provider: { [weak owner, key] node in
-      owner?.embeddedContent?("\(key)-slide-\(index)-\(node["id"]?.stringValue ?? "")", node)
-    })
-    stack.addArrangedSubview(canvas)
-    for (index, element) in (slides[index]["elements"]?.arrayValue ?? []).enumerated() {
-      label("Slide element \(index + 1), \(element["kind"]?.stringValue ?? "unknown")")
-    }
-  }
-
-  private func openSlideDraft() {
-    guard let owner, let presenter = parentController() else { return }
-    do {
-      owner.unmarkText()
-      owner.resignFirstResponder()
-      let controller = try SlideDraftController(owner: owner, key: key, expected: node)
-      presenter.present(UINavigationController(rootViewController: controller), animated: true)
-    } catch { presentError(error) }
-  }
-
-  private func editSlideElement(slide: Int, element: Int) {
-    guard let value = node["data"]?["slides"]?.arrayValue?[slide]["elements"]?.arrayValue?[element] else { return }
-    let alert = UIAlertController(
-      title: "Edit \(value["kind"]?.stringValue ?? "element")", message: nil, preferredStyle: .actionSheet)
-    alert.addAction(
-      UIAlertAction(title: "Edit content", style: .default) { [weak self] _ in
-        self?.editSlideContent(slide: slide, element: element)
-      })
-    alert.addAction(
-      UIAlertAction(title: "Position and size", style: .default) { [weak self] _ in
-        self?.editSlideGeometry(slide: slide, element: element)
-      })
-    if value["kind"] == "box" {
-      alert.addAction(
-        UIAlertAction(title: "Background color", style: .default) { [weak self] _ in
-          self?.rename("Background (CSS color)", value: value["backgroundColor"]?.stringValue ?? "") {
-            self?.updateSlideElement(slide: slide, element: element, field: "backgroundColor", value: .string($0))
-          }
-        })
-    }
-    if value["kind"] == "chart" {
-      alert.addAction(
-        UIAlertAction(title: "Chart options", style: .default) { [weak self] _ in
-          self?.rename("Chart configuration", value: value["chartConfig"]?.stringValue ?? "") {
-            self?.updateSlideElement(slide: slide, element: element, field: "chartConfig", value: .string($0))
-          }
-        })
-      for kind in StructuralBlockConfiguration.chartTypes {
-        alert.addAction(
-          UIAlertAction(title: "Use \(kind) chart", style: .default) { [weak self] _ in
-            self?.updateSlideElement(slide: slide, element: element, field: "chartType", value: .string(kind))
-          })
-      }
-    }
-    alert.addAction(
-      UIAlertAction(title: "Bring to front", style: .default) { [weak self] _ in
-        guard let self else { return }
-        let elements = self.node["data"]?["slides"]?.arrayValue?[slide]["elements"]?.arrayValue ?? []
-        let next = (elements.compactMap { $0["zIndex"]?.numberValue }.max() ?? -1) + 1
-        self.updateSlideElement(slide: slide, element: element, field: "zIndex", value: .number(next))
-      })
-    alert.addAction(
-      UIAlertAction(title: "Delete element", style: .destructive) { [weak self] _ in
-        self?.deleteSlideElement(slide: slide, element: element)
-      })
-    alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
-    alert.popoverPresentationController?.sourceView = self
-    alert.popoverPresentationController?.sourceRect = bounds
-    parentController()?.present(alert, animated: true)
-  }
-  private func editSlideGeometry(slide: Int, element: Int) {
-    guard let value = node["data"]?["slides"]?.arrayValue?[slide]["elements"]?.arrayValue?[element] else { return }
-    let alert = UIAlertController(
-      title: "Position and size", message: "Values use slide design coordinates.", preferredStyle: .alert)
-    let names = ["x", "y", "width", "height"]
-    for name in names {
-      alert.addTextField { field in
-        field.placeholder = name.capitalized
-        field.text = value[name]?.numberValue.map { String($0) } ?? value[name]?.stringValue ?? ""
-        field.keyboardType = .numbersAndPunctuation
-      }
-    }
-    let opened = node
-    alert.addAction(
-      UIAlertAction(title: "Save", style: .default) { [weak self] _ in
-        guard let self, self.node == opened else { return }
-        var fields = value.objectValue ?? [:]
-        for (index, name) in names.enumerated() {
-          guard let text = alert.textFields?[index].text, let number = Double(text), number.isFinite,
-            index < 2 || number > 0
-          else {
-            self.presentError(EditorError.invalidState("Position and size must be finite; sizes must be positive"))
-            return
-          }
-          fields[name] = .number(number)
-        }
-        self.replaceSlideElement(slide: slide, element: element, value: .object(fields))
-      })
-    alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
-    parentController()?.present(alert, animated: true)
-  }
-  private func editSlideContent(slide: Int, element: Int) {
-    guard let value = node["data"]?["slides"]?.arrayValue?[slide]["elements"]?.arrayValue?[element] else { return }
-    switch value["kind"]?.stringValue {
-    case "box":
-      guard let id = value["id"]?.stringValue, !id.isEmpty else {
-        presentError(EditorError.invalidState("Slide box identity is missing")); return
-      }
-      presentBody(value["editorStateJSON"] ?? document([]), id: id, title: "Slide text") { [weak self] state in
-        guard let self else { return }
-        guard let current = self.node["data"]?["slides"]?.arrayValue?[slide]["elements"]?.arrayValue?[element],
-          current["id"] == value["id"], var fields = current.objectValue,
-          let retained = self.slideTextEditors[id] else {
-          throw EditorError.invalidState("Slide box changed while its editor was open")
-        }
-        if let stored = current["editorStateJSON"],
-          try retained.model.slideContentForComparison(stored).stringified
-            == retained.model.slideContentForComparison(state).stringified { return }
-        guard current["version"] == nil || current["version"]?.numberValue != nil else {
-          throw EditorError.unsupported("Slide box version is not numeric (#133)")
-        }
-        fields["editorStateJSON"] = state
-        fields["version"] = .number((current["version"]?.numberValue ?? 0) + StructuralBlockConfiguration.slideBoxVersionIncrement)
-        self.replaceSlideElement(slide: slide, element: element, value: .object(fields))
-      }
-    case "image":
-      rename("Image URL", value: value["url"]?.stringValue ?? "") { [weak self] url in
-        guard URL(string: url)?.scheme == "https" else {
-          self?.presentError(EditorError.invalidState("Images require an HTTPS URL"))
-          return
-        }
-        self?.updateSlideElement(slide: slide, element: element, field: "url", value: .string(url))
-      }
-    case "chart":
-      rename("Chart data", value: value["chartData"]?.stringValue ?? "") { [weak self] data in
-        self?.updateSlideElement(slide: slide, element: element, field: "chartData", value: .string(data))
-      }
-    default: presentError(EditorError.unsupported("Unknown slide element (#133)"))
-    }
-  }
-  private func addSlide() {
-    var data = node["data"]?.objectValue ?? [:]
-    var slides = data["slides"]?.arrayValue ?? []
-    let id = "slide-\(UUID().uuidString)"
-    let index = min(viewingSlideIndex + 1, slides.count)
-    slides.insert(["id": .string(id), "elements": []], at: index)
-    data["slides"] = .array(slides)
-    data["currentSlideId"] = .string(id)
-    viewingSlideIndex = index
-    field("data", .object(data), rebuild: true)
-  }
-  private func deleteSlide(_ index: Int) {
-    var data = node["data"]?.objectValue ?? [:]
-    var slides = data["slides"]?.arrayValue ?? []
-    guard slides.count > 1, slides.indices.contains(index) else {
-      presentError(EditorError.invalidState("A deck needs at least one slide"))
-      return
-    }
-    slides.remove(at: index)
-    viewingSlideIndex = min(index, slides.count - 1)
-    data["slides"] = .array(slides)
-    data["currentSlideId"] = slides[viewingSlideIndex]["id"]
-    field("data", .object(data), rebuild: true)
-  }
-  private func moveSlide(_ index: Int, by offset: Int) {
-    var data = node["data"]?.objectValue ?? [:]
-    var slides = data["slides"]?.arrayValue ?? []
-    guard slides.indices.contains(index), slides.indices.contains(index + offset) else { return }
-    slides.swapAt(index, index + offset)
-    viewingSlideIndex = index + offset
-    data["slides"] = .array(slides)
-    field("data", .object(data), rebuild: true)
-  }
-  private func updateSlide(slide: Int, field name: String, value: JSONValue) {
-    var data = node["data"]?.objectValue ?? [:]
-    var slides = data["slides"]?.arrayValue ?? []
-    guard slides.indices.contains(slide), var fields = slides[slide].objectValue else { return }
-    fields[name] = value
-    slides[slide] = .object(fields)
-    data["slides"] = .array(slides)
-    field("data", .object(data), rebuild: true)
-  }
-  private func addSlideElement(kind: String, slide: Int, url: String? = nil) {
-    do {
-      guard let template = StructuralBlockConfiguration.slideElements[kind],
-        var fields = try JSONValue(parsing: template).objectValue
-      else { throw EditorError.unsupported("Unknown slide element (#133)") }
-      var elements = node["data"]?["slides"]?.arrayValue?[slide]["elements"]?.arrayValue ?? []
-      if kind == "image" {
-        guard let url, URL(string: url)?.scheme == "https" else {
-          throw EditorError.invalidState("Images require an HTTPS URL")
-        }
-        fields["url"] = .string(url)
-      }
-      fields["id"] = .string("\(kind)-\(UUID().uuidString)")
-      fields["zIndex"] = .number((elements.compactMap { $0["zIndex"]?.numberValue }.max() ?? -1) + 1)
-      elements.append(.object(fields))
-      updateSlide(slide: slide, field: "elements", value: .array(elements))
-    } catch { presentError(error) }
-  }
-  private func deleteSlideElement(slide: Int, element: Int) {
-    var elements = node["data"]?["slides"]?.arrayValue?[slide]["elements"]?.arrayValue ?? []
-    guard elements.indices.contains(element) else { return }
-    elements.remove(at: element)
-    updateSlide(slide: slide, field: "elements", value: .array(elements))
-  }
-  private func replaceSlideElement(slide: Int, element: Int, value: JSONValue) {
-    var elements = node["data"]?["slides"]?.arrayValue?[slide]["elements"]?.arrayValue ?? []
-    guard elements.indices.contains(element) else { return }
-    elements[element] = value
-    updateSlide(slide: slide, field: "elements", value: .array(elements))
-  }
-  private func updateSlideElement(slide: Int, element: Int, field: String, value: JSONValue) {
-    var data = node["data"]?.objectValue ?? [:]
-    var slides = data["slides"]?.arrayValue ?? []
-    guard slides.indices.contains(slide) else { return }
-    var fields = slides[slide].objectValue ?? [:]
-    var elements = fields["elements"]?.arrayValue ?? []
-    guard elements.indices.contains(element) else { return }
-    var changed = elements[element].objectValue ?? [:]
-    changed[field] = value
-    elements[element] = .object(changed)
-    fields["elements"] = .array(elements)
-    slides[slide] = .object(fields)
-    data["slides"] = .array(slides)
-    self.field("data", .object(data), rebuild: true)
-  }
-  private func presentBody(_ state: JSONValue, id: String, title: String, changed: @escaping (JSONValue) throws -> Void) {
-    do {
-      let model: Editor
-      let editor: EditorView
-      if let retained = slideTextEditors[id] {
-        model = retained.model
-        editor = retained.view
-      } else {
-        model = Editor(editorContext: .slide)
-        try model.loadKeyed(state)
-        editor = owner?.makeNestedEditor(model: model, isEditable: owner?.isEditable == true && model.isEditable)
-          ?? EditorView(model: model, isEditable: false)
-        if owner?.configureNestedEmbeds == nil { configureEmbeddedDrawings(editor) }
-        editor.accessibilityIdentifier = "slide text editor"
-        slideTextEditors[id] = (model, editor)
-      }
-      let controller = UIViewController()
-      controller.title = title
-      controller.view = NativeEditorHost(editor: editor)
-      let navigation = UINavigationController(rootViewController: controller)
-      controller.navigationItem.rightBarButtonItem = UIBarButtonItem(
-        systemItem: .done, primaryAction: UIAction { [weak navigation, weak controller] _ in
-          do {
-            editor.unmarkText()
-            editor.resignFirstResponder()
-            try changed(model.serializedKeyedState())
-            navigation?.dismiss(animated: true)
-          } catch {
-            let alert = UIAlertController(title: "Cannot save slide text", message: error.localizedDescription, preferredStyle: .alert)
-            alert.addAction(UIAlertAction(title: "OK", style: .default))
-            controller?.present(alert, animated: true)
-          }
-        })
-      navigation.isModalInPresentation = true
-      parentController()?.present(navigation, animated: true)
-    } catch { presentError(error) }
   }
   private func editBody(path: [Int] = []) {
     do {
@@ -1009,6 +671,11 @@ import UIKit
     section?.frame = bounds
     let control = Self.stickyControlSize
     stickyControl?.frame = CGRect(x: bounds.maxX - control - 4, y: 4, width: control, height: control)
+    if let outline {
+      outline.frame = bounds
+      outline.path = UIBezierPath(roundedRect: bounds.insetBy(dx: 0.5, dy: 0.5), cornerRadius: layer.cornerRadius).cgPath
+      resolveBorderColor()
+    }
   }
 }
 
@@ -1137,302 +804,5 @@ import UIKit
       self.resizePending = false
       if abs(self.height(fitting: measured.width) - measured.height) > 0.5 { self.onHeightChange?() }
     }
-  }
-}
-
-@MainActor private final class SlideCanvas: UIView, UIGestureRecognizerDelegate {
-  var onEdit: ((Int) -> Void)?
-  var onGeometryChange: ((Int, JSONObject) -> Void)?
-  var onSelection: ((Int?) -> Void)?
-  var isEditable = false {
-    didSet {
-      for (view, _) in elements {
-        for gesture in view.gestureRecognizers ?? [] where gesture is UIPanGestureRecognizer { gesture.isEnabled = isEditable }
-      }
-      if !isEditable { selectedElement = nil; showHandles() }
-    }
-  }
-  private var selectedElement: Int?
-  private var handles: [(UIView, String)] = []
-  private var gestureStart: (index: Int, fields: JSONObject)?
-  private var preview: JSONObject?
-
-  private let slide: JSONValue
-  private let stage = UIView()
-  private var elements: [(UIView, JSONValue)] = []
-  private var downloads: [Task<Void, Never>] = []
-
-  init(slide: JSONValue, makeEditor: (any EditorModel) -> EditorView, imageLoader: MediaImageLoader?, provider: (JSONValue) -> EmbeddedContentView?) {
-    self.slide = slide
-    super.init(frame: .zero)
-    clipsToBounds = true
-    addSubview(stage)
-    let backgroundTap = UITapGestureRecognizer(target: self, action: #selector(deselectElement))
-    backgroundTap.delegate = self
-    addGestureRecognizer(backgroundTap)
-    stage.backgroundColor =
-      slide["backgroundColor"]?.stringValue.flatMap(CSSColor.init).map {
-        UIColor(red: $0.red, green: $0.green, blue: $0.blue, alpha: $0.alpha)
-      } ?? .systemBackground
-    let values = slide["elements"]?.arrayValue ?? []
-    for (index, value) in values.enumerated().sorted(by: {
-      ($0.element["zIndex"]?.numberValue ?? 0) < ($1.element["zIndex"]?.numberValue ?? 0)
-    }) {
-      let view: UIView
-      switch value["kind"]?.stringValue {
-      case "box":
-        do {
-          let model = Editor(editorContext: .slide)
-          try model.loadKeyed(value["editorStateJSON"] ?? ["root": ["type": "root", "version": 1, "children": []]])
-          let editor = makeEditor(model)
-          editor.isUserInteractionEnabled = false
-          editor.backgroundColor =
-            value["backgroundColor"]?.stringValue.flatMap(CSSColor.init).map {
-              UIColor(red: $0.red, green: $0.green, blue: $0.blue, alpha: $0.alpha)
-            } ?? .clear
-          view = editor
-        } catch {
-          let label = UILabel()
-          label.text = "Invalid slide text: \(error.localizedDescription)"
-          label.numberOfLines = 0
-          view = label
-        }
-      case "image":
-        let image = UIImageView()
-        image.contentMode = .scaleAspectFit
-        image.accessibilityLabel = "Slide image"
-        view = image
-        if let source = value["url"]?.stringValue, let url = URL(string: source), url.scheme == "https" {
-          downloads.append(
-            Task { [weak image] in
-              do {
-                let decoded = try await (imageLoader ?? NativeMediaImages.load)(url)
-                try Task.checkCancellation()
-                image?.image = decoded
-              } catch { image?.accessibilityLabel = "Slide image could not load" }
-            })
-        }
-      case "chart":
-        var fields = value.objectValue ?? [:]
-        fields["type"] = "chart"
-        fields["version"] = 1
-        if let chart = provider(.object(fields)) {
-          chart.show(.object(fields))
-          // The synthetic preview key is not a document node. The deck owns editing.
-          (chart as? RenderedEmbedView)?.open = nil
-          for gesture in chart.gestureRecognizers ?? [] where gesture is UITapGestureRecognizer {
-            chart.removeGestureRecognizer(gesture)
-          }
-          view = chart
-        } else {
-          let label = UILabel()
-          label.text = "Chart rendering requires #132"
-          label.numberOfLines = 0
-          view = label
-        }
-      default:
-        let label = UILabel()
-        label.text = "Unknown slide element (#133)"
-        label.numberOfLines = 0
-        view = label
-      }
-      // Cached chart previews may still carry the previous canvas's move recognizer.
-      for gesture in view.gestureRecognizers ?? [] where gesture.name == "native-slide-move" {
-        view.removeGestureRecognizer(gesture)
-      }
-      stage.addSubview(view)
-      elements.append((view, value))
-      let tap = UITapGestureRecognizer(target: self, action: #selector(edit(_:)))
-      view.isUserInteractionEnabled = true
-      view.tag = index
-      view.addGestureRecognizer(tap)
-      let pan = UIPanGestureRecognizer(target: self, action: #selector(moveElement(_:)))
-      pan.maximumNumberOfTouches = 1
-      pan.name = "native-slide-move"
-      pan.isEnabled = isEditable
-      view.addGestureRecognizer(pan)
-      tap.require(toFail: pan)
-    }
-  }
-  required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
-  deinit { downloads.forEach { $0.cancel() } }
-  @objc private func edit(_ recognizer: UITapGestureRecognizer) {
-    guard isEditable, let index = recognizer.view?.tag else { return }
-    if selectedElement != index {
-      selectedElement = index
-      onSelection?(index)
-      showHandles()
-      setNeedsLayout()
-    } else { onEdit?(index) }
-  }
-  func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
-    touch.view === self || touch.view === stage
-  }
-  @objc private func deselectElement() {
-    restoreSelection(nil)
-    onSelection?(nil)
-  }
-  func restoreSelection(_ index: Int?) {
-    selectedElement = index
-    showHandles()
-    setNeedsLayout()
-  }
-  private func showHandles() {
-    handles.forEach { $0.0.removeFromSuperview() }
-    handles = []
-    guard isEditable, let index = selectedElement else { return }
-    for corner in ["nw", "ne", "sw", "se"] {
-      let handle = UIView()
-      handle.backgroundColor = .systemBlue
-      handle.layer.cornerRadius = 6
-      handle.tag = index
-      handle.accessibilityLabel = "Resize slide element \(index + 1), \(corner)"
-      handle.addGestureRecognizer(UIPanGestureRecognizer(target: self, action: #selector(resize(_:))))
-      stage.addSubview(handle)
-      handles.append((handle, corner))
-    }
-  }
-  @objc private func moveElement(_ gesture: UIPanGestureRecognizer) { changeGeometry(gesture, corner: nil) }
-  @objc private func resize(_ gesture: UIPanGestureRecognizer) {
-    guard let corner = handles.first(where: { $0.0 === gesture.view })?.1 else { return }
-    changeGeometry(gesture, corner: corner)
-  }
-  private func changeGeometry(_ gesture: UIPanGestureRecognizer, corner: String?) {
-    guard isEditable, let index = gesture.view?.tag,
-      let value = slide["elements"]?.arrayValue?[index], let fields = value.objectValue else { return }
-    if gesture.state == .began {
-      selectedElement = index
-      onSelection?(index)
-      gestureStart = (index, fields)
-      if corner == nil { showHandles() }
-    }
-    guard let initial = gestureStart, initial.index == index else { return }
-    let delta = gesture.translation(in: stage)
-    var changed = initial.fields
-    let x = initial.fields["x"]?.numberValue ?? 0
-    let y = initial.fields["y"]?.numberValue ?? 0
-    if let corner {
-      if let width = initial.fields["width"]?.numberValue {
-        let resized = max(StructuralBlockConfiguration.slideMinimumWidth, width + (corner.contains("w") ? -delta.x : delta.x))
-        changed["width"] = .number(resized)
-        if corner.contains("w") { changed["x"] = .number(x + width - resized) }
-      }
-      if let height = initial.fields["height"]?.numberValue {
-        let resized = max(StructuralBlockConfiguration.slideMinimumHeight, height + (corner.contains("n") ? -delta.y : delta.y))
-        changed["height"] = .number(resized)
-        if corner.contains("n") { changed["y"] = .number(y + height - resized) }
-      }
-    } else {
-      changed["x"] = .number(x + delta.x)
-      changed["y"] = .number(y + delta.y)
-    }
-    preview = changed
-    setNeedsLayout()
-    if gesture.state == .ended {
-      let updates = JSONObject(changed.filter { initial.fields[$0.key] != $0.value })
-      gestureStart = nil
-      preview = nil
-      if !updates.isEmpty { onGeometryChange?(index, updates) }
-    } else if gesture.state == .cancelled || gesture.state == .failed {
-      gestureStart = nil
-      preview = nil
-    }
-  }
-  override func layoutSubviews() {
-    super.layoutSubviews()
-    let scale = bounds.width / StructuralBlockConfiguration.slideWidth
-    stage.transform = .identity
-    stage.frame = CGRect(
-      x: 0, y: 0, width: StructuralBlockConfiguration.slideWidth, height: StructuralBlockConfiguration.slideHeight)
-    for (view, stored) in elements {
-      let value = view.tag == gestureStart?.index ? preview.map(JSONValue.object) ?? stored : stored
-      let width = value["width"] == "inherit" ? StructuralBlockConfiguration.slideWidth : value["width"]?.numberValue ?? 0
-      let box = value["kind"] == "box"
-      let minimumHeight = value["height"]?.numberValue ?? (box ? 0 : StructuralBlockConfiguration.slideHeight)
-      view.frame = CGRect(x: value["x"]?.numberValue ?? 0, y: value["y"]?.numberValue ?? 0,
-        width: width, height: minimumHeight)
-      view.layoutIfNeeded()
-      // Web text boxes have auto height and the stored numeric height as a minimum.
-      if box, let editor = view as? EditorView { view.frame.size.height = max(minimumHeight, editor.contentSize.height) }
-    }
-    if let selected = selectedElement, let view = elements.first(where: { $0.0.tag == selected })?.0 {
-      for (handle, corner) in handles {
-        let point = CGPoint(x: corner.contains("w") ? view.frame.minX : view.frame.maxX,
-          y: corner.contains("n") ? view.frame.minY : view.frame.maxY)
-        let size = 24 / max(scale, 0.01)
-        handle.frame = CGRect(x: point.x - size / 2, y: point.y - size / 2, width: size, height: size)
-        stage.bringSubviewToFront(handle)
-      }
-    }
-    stage.transform = CGAffineTransform(scaleX: scale, y: scale)
-    stage.frame.origin = .zero
-  }
-}
-
-/// The web modal owns a deck draft; only its Save calls SlideNode.setData.
-@MainActor private final class SlideDraftController: UIViewController {
-  private let owner: EditorView
-  private let key: String
-  private let expected: JSONValue
-  private let model: Editor
-  private let draftOwner: EditorView
-  private let panel: StructuralPanel
-
-  init(owner: EditorView, key: String, expected: JSONValue) throws {
-    self.owner = owner
-    self.key = key
-    self.expected = expected
-    let model = Editor()
-    try model.load(["root": ["type": "root", "version": 1, "children": [expected]]])
-    self.model = model
-    draftOwner = owner.makeNestedEditor(model: model, isEditable: true, shareDocumentMetadata: true)
-    guard let draftKey = try model.childKeys(at: []).first else { throw EditorError.invalidState("Slide draft is missing") }
-    panel = StructuralPanel(owner: draftOwner, key: draftKey, isSlideDraft: true)
-    super.init(nibName: nil, bundle: nil)
-    panel.show(expected)
-    title = "Edit slide deck"
-    draftOwner.onChange = { [weak self] in self?.view.setNeedsLayout() }
-    navigationItem.leftBarButtonItem = UIBarButtonItem(title: "Cancel", primaryAction: UIAction { [weak self] _ in
-      self?.dismiss(animated: true)
-    })
-    navigationItem.rightBarButtonItem = UIBarButtonItem(title: "Save", primaryAction: UIAction { [weak self] _ in
-      self?.save()
-    })
-  }
-
-  required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
-  override func loadView() { view = SlideDraftHost(panel: panel) }
-
-  private func save() {
-    do {
-      let saved = try model.node(at: [0])
-      guard let data = saved["data"] else { throw EditorError.invalidState("Slide deck data is missing") }
-      try owner.updateStructuralFields(key: key, expected: expected, fields: ["data": data])
-      dismiss(animated: true)
-    } catch {
-      let alert = UIAlertController(title: "Cannot save slide deck", message: error.localizedDescription, preferredStyle: .alert)
-      alert.addAction(UIAlertAction(title: "OK", style: .default))
-      present(alert, animated: true)
-    }
-  }
-}
-
-@MainActor private final class SlideDraftHost: UIScrollView {
-  private let panel: EmbeddedContentView
-  init(panel: EmbeddedContentView) {
-    self.panel = panel
-    super.init(frame: .zero)
-    backgroundColor = .systemBackground
-    accessibilityIdentifier = "slide deck draft"
-    addSubview(panel)
-  }
-  required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
-  override func layoutSubviews() {
-    super.layoutSubviews()
-    let width = bounds.width - 32
-    guard width > 0 else { return }
-    let size = panel.contentSize(fitting: width)
-    panel.frame = CGRect(x: 16, y: 16, width: width, height: size.height)
-    contentSize = CGSize(width: bounds.width, height: size.height + 32)
   }
 }

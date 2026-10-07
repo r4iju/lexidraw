@@ -20,7 +20,6 @@ import {
   type LucideIcon,
   PencilRuler,
   Plus,
-  Presentation,
   SeparatorHorizontal,
   Sigma,
   SquareSplitVertical,
@@ -53,7 +52,6 @@ import InsertLayoutDialog from "../LayoutPlugin/InsertLayoutDialog";
 import { INSERT_MERMAID_COMMAND } from "../MermaidPlugin";
 import { INSERT_PAGE_BREAK } from "../PageBreakPlugin";
 import { InsertPollDialog } from "../PollPlugin";
-import { INSERT_SLIDEDECK_COMMAND } from "../SlidePlugin";
 import { InsertTableDialog } from "../TablePlugin";
 import { OPEN_INSERT_VIDEO_DIALOG_COMMAND } from "../VideoPlugin";
 import { ToolbarMenu } from "./toolbar";
@@ -230,12 +228,6 @@ export function InsertItems({
           insert: dialog("Insert equation", (onClose) => (
             <InsertEquationDialog activeEditor={editor} onClose={onClose} />
           )),
-        },
-        {
-          label: "Slide deck",
-          icon: icon(Presentation),
-          insert: () =>
-            editor.dispatchCommand(INSERT_SLIDEDECK_COMMAND, undefined),
         },
       ],
     ],

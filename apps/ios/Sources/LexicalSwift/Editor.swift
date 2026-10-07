@@ -53,16 +53,6 @@ public final class Editor: EditorModel, KeyboardInputHistory {
   /// runs a transformer LexicalSwift doesn't port yet.
   public private(set) var shortcutsDeclinedAsNotPorted = 0
 
-  /// Slide box editors outlive their mounted source HistoryPlugin. Remounting
-  /// that plugin starts fresh undo/redo stacks without replacing the editor state.
-  public func remountSlideHistory() throws {
-    guard editorContext == .slide else {
-      throw EditorError.unsupported("Only slide boxes have this history mount boundary (#133)")
-    }
-    endInputTurn()
-    history = History(state)
-  }
-
   public var supportsRichText: Bool { !plainText }
   private let plainText: Bool
   public var mountedTypeaheadPlugins: Set<String> {
@@ -208,7 +198,6 @@ public final class Editor: EditorModel, KeyboardInputHistory {
       case "callout": allowed = ["kind", "title"]
       case "collapsible-container": allowed = ["open"]
       case "sticky": allowed = ["color", "xOffset", "yOffset", "caption"]
-      case "slide-deck": allowed = ["data"]
       default: throw EditorError.unsupported("Structural setter belongs to #133")
       }
       guard changes.keys.allSatisfy(allowed.contains) else { throw EditorError.unsupported("Structural setter belongs to #133") }
@@ -655,7 +644,7 @@ extension Node {
     case .pageBreak(let node): node.unknownFields.isEmpty
     case .sticky(let node):
       node.unknownFields.isEmpty && node.caption?.unknownFields.isEmpty != false && node.color.hasTypedShape()
-    case .slide(let node): node.unknownFields.isEmpty && node.data.hasTypedShape()
+    case .slide(let node): node.unknownFields.isEmpty
     case .excalidraw(let node): node.unknownFields.isEmpty && (node.data == nil || node.data?.stringValue != nil)
     case .text(let node): node.unknownFields.isEmpty && node.mode == .normal && [0, 1].contains(node.detail ?? 0)
     case .hashtag(let node): node.unknownFields.isEmpty && node.mode == .normal && (node.detail ?? 0) == 0

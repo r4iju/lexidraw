@@ -136,9 +136,14 @@ targets:
         product: LexicalSwift
       - package: LexidrawIOS
         product: TextKitEditor
+      - package: LexidrawIOS
+        product: EditorModelInterface
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: $(APP_BUNDLE_IDENTIFIER).structural-preview-tests
+        # LexidrawJSON is no package product, but Xcode builds it as a
+        # framework the tests call directly.
+        OTHER_LDFLAGS: $(inherited) -framework LexidrawJSON
         TEST_HOST: $(BUILT_PRODUCTS_DIR)/EditorHarness.app/EditorHarness
         BUNDLE_LOADER: $(TEST_HOST)
   # The drawing editor on a bundled drawing with no server, for trying it

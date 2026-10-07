@@ -1,8 +1,10 @@
 import { expect, test } from "bun:test";
-import { parseHTML, Event } from "linkedom";
-import { startHTMLBlock, prepareHTML } from "./runtime";
-import { parseHTMLBlockSource } from "../html-block";
+import { parseHTML, Event as DOMEvent } from "linkedom";
+import { startHTMLBlock, prepareHTML } from "./runtime.js";
+import { parseHTMLBlockSource } from "../html-block.js";
 const mount = () => parseHTML("<html><body></body></html>").document.body;
+// linkedom types its own Event; the elements it makes take the DOM's.
+const Event = DOMEvent as unknown as typeof globalThis.Event;
 test("calculator starts with saved defaults and reacts locally", async () => {
   const root = mount();
   const source = parseHTMLBlockSource({

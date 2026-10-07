@@ -21,6 +21,21 @@ import Testing
     #expect(try width("50%", available: 500) == 500)
     #expect(try width("5%", available: 1200) == 704)
   }
+  @Test func alignedEmbedsSitAtTheirSideOfTheColumn() throws {
+    func x(_ format: String, width: Double) throws -> Double {
+      try #require(MediaPayload(["type": "youtube", "videoID": "dQw4w9WgXcQ", "format": .string(format)]))
+        .mediaX(width: width, fitting: 1200, em: 16)
+    }
+    // The 704pt column starts 248pt in.
+    #expect(try x("left", width: 400) == 248)
+    #expect(try x("start", width: 400) == 248)
+    #expect(try x("", width: 400) == 400)
+    #expect(try x("center", width: 400) == 400)
+    #expect(try x("right", width: 400) == 552)
+    #expect(try x("end", width: 400) == 552)
+    // Wider than the column, it stays centred.
+    #expect(try x("left", width: 1024) == 88)
+  }
 }
 
 #if canImport(UIKit)

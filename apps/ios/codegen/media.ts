@@ -11,7 +11,10 @@ import { swiftRawString } from "./links";
 import { IMAGE, VIDEO } from "../../lexidraw/src/lib/media-kinds";
 import { fileURLToPath } from "node:url";
 import { EDITOR_NAMESPACE } from "@packages/lexical-nodes/links";
-import { MEDIA_LINK_BASES } from "@packages/lexical-nodes/media-links";
+import {
+  MEDIA_ID_PATTERNS,
+  MEDIA_LINK_BASES,
+} from "@packages/lexical-nodes/media-links";
 
 export const MEDIA_LINKS_PATH = fileURLToPath(
   new URL("../Sources/TextKitEditor/MediaLinks.swift", import.meta.url),
@@ -21,6 +24,11 @@ export function swiftForMediaLinks(): string {
     MEDIA_LINK_BASES,
   )
     .map(([type, base]) => `  static let ${type} = ${JSON.stringify(base)}`)
+    .join("\n")}\n${Object.entries(MEDIA_ID_PATTERNS)
+    .map(
+      ([type, pattern]) =>
+        `  static let ${type}ID = ${JSON.stringify(pattern)}`,
+    )
     .join("\n")}\n}\n`;
 }
 

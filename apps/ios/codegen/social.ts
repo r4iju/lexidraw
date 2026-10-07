@@ -110,9 +110,37 @@ export async function swiftForSocialStyle(): Promise<string> {
   const globals = await Bun.file(new URL("../../lexidraw/src/styles/globals.css", import.meta.url)).text();
   const colors = new ThemeColors(postcss.parse(globals));
   for (const name of ["comment-mark", "comment-border", "comment-mark-active"]) colors.name(`var(--${name})`);
+  const entities = await entityTextStyles(theme, colors);
   const generatedColors = colors.used.map(([name, light, dark]) =>
     `  static let ${name} = ThemeColor(light: ${swiftRGBA(light)}, dark: ${swiftRGBA(dark)})`).join("\n");
-  return `// Generated from web MentionNode.createDOM and the comment theme by apps/ios/codegen/social.ts.\n\nenum WebSocialStyle {\n  static let mentionCSS = ${swiftString(styles[0][1])}\n${generatedColors}\n  static let commentBorderWidth: Double = ${Number(borderWidth)}\n}\n`;
+  return `// Generated from web MentionNode.createDOM and the comment, hashtag and keyword theme by apps/ios/codegen/social.ts.\n\nenum WebSocialStyle {\n  static let mentionCSS = ${swiftString(styles[0][1])}\n${generatedColors}\n  static let commentBorderWidth: Double = ${Number(borderWidth)}\n  static let entityText: [String: EntityTextStyle] = [\n${entities.map(([type, color, weight]) => `    ${swiftString(type)}: EntityTextStyle(color: WebSocialStyle${color}, weight: ${weight ?? "nil"}),`).join("\n")}\n  ]\n}\n`;
+}
+
+const FONT_WEIGHTS: Record<string, number> = { "font-medium": 500, "font-semibold": 600, "font-bold": 700 };
+
+/**
+ * The colour and weight the document theme gives the text entities whose
+ * createDOM reads a theme key: HashtagNode's `theme.hashtag` upstream, and
+ * KeywordNode's `theme.keyword`.
+ */
+async function entityTextStyles(theme: string, colors: ThemeColors): Promise<[string, string, number | null][]> {
+  const hashtag = await Bun.file(Bun.resolveSync("@lexical/hashtag", import.meta.dir).replace(/LexicalHashtag\.js$/, "LexicalHashtag.dev.js")).text();
+  const keyword = await Bun.file(new URL("../../../packages/lexical-nodes/src/nodes/KeywordNode.ts", import.meta.url)).text();
+  if (!hashtag.includes("addClassNamesToElement(element, config.theme.hashtag)")
+    || !keyword.includes('addClassNamesToElement(dom, "keyword", config.theme.keyword)'))
+    throw new Error("Unknown hashtag or keyword theme class shape");
+  return ["hashtag", "keyword"].map((type) => {
+    const classes = new RegExp(`^  ${type}: "([^"]+)",$`, "m").exec(theme)?.[1]?.split(" ") ?? [];
+    let color: string | undefined;
+    let weight: number | null = null;
+    for (const name of classes) {
+      if (name in FONT_WEIGHTS) weight = FONT_WEIGHTS[name] ?? null;
+      else if (name.startsWith("text-") && colors.has(`--${name.slice(5)}`)) color = colors.name(`var(--${name.slice(5)})`);
+      else throw new Error(`Unknown ${type} theme class ${name}`);
+    }
+    if (!color) throw new Error(`The theme gives ${type} no colour`);
+    return [type, color, weight];
+  });
 }
 
 export const FOOTNOTE_STYLE_PATH = new URL("../Sources/TextKitEditor/WebFootnoteStyle.swift", import.meta.url);

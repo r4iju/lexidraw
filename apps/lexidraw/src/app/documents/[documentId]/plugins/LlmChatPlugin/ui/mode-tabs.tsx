@@ -7,7 +7,6 @@ import type { ChatState } from "../llm-chat-context";
 const MODES: { mode: ChatState["mode"]; label: string }[] = [
   { mode: "chat", label: "Chat" },
   { mode: "agent", label: "Agent" },
-  { mode: "slide-agent", label: "Slide agent" },
 ];
 
 export const ModeTabs: React.FC = () => {

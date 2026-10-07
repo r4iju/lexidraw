@@ -1,5 +1,6 @@
 /// <reference types="bun" />
 import { describe, expect, test } from "bun:test";
+import { SCHEMA_NODES } from "@packages/lexical-nodes";
 import type { SerializedEditorState, SerializedLexicalNode } from "lexical";
 import {
   AmbiguousHeadingError,
@@ -21,6 +22,7 @@ import {
   unsupportedNodeTypes,
   withFrontmatter,
 } from "./markdown";
+import { replaceStateFromMarkdown } from "./replace";
 
 const SAMPLE = `# Heading one
 
@@ -70,6 +72,53 @@ const withNode = (type: string): SerializedEditorState =>
       ],
     },
   }) as SerializedEditorState;
+
+const textLeaf = (type: string, text: string, extra: object = {}) => ({
+  type,
+  version: 1,
+  text,
+  detail: 0,
+  format: 0,
+  mode: "normal",
+  style: "",
+  ...extra,
+});
+
+/** A paragraph of the text nodes caption plugins make, as stored. */
+const SOCIAL = {
+  root: {
+    type: "root",
+    version: 1,
+    format: "",
+    indent: 0,
+    direction: null,
+    children: [
+      {
+        type: "paragraph",
+        version: 1,
+        format: "",
+        indent: 0,
+        direction: null,
+        textFormat: 0,
+        textStyle: "",
+        children: [
+          textLeaf("text", "Mention "),
+          textLeaf("mention", "Ada Lovelace", {
+            mode: "segmented",
+            mentionName: "Ada Lovelace",
+          }),
+          textLeaf("text", ", emoji "),
+          textLeaf("emoji", "🙂", { className: "emoji happysmile" }),
+          textLeaf("text", ", hashtag "),
+          textLeaf("hashtag", "#lexidraw"),
+          textLeaf("text", " and keyword "),
+          textLeaf("keyword", "congrats"),
+          textLeaf("text", "."),
+        ],
+      },
+    ],
+  },
+} as unknown as SerializedEditorState;
 
 describe("editorStateToMarkdown", () => {
   test("rich text round-trips through the headless editor", () => {
@@ -125,6 +174,29 @@ describe("editorStateToMarkdown", () => {
     expect(() => editorStateToMarkdown(state)).toThrow(
       "Document contains node types without a markdown form yet: phantom, hologram",
     );
+  });
+
+  test("every node type a stored document can hold has a markdown form", () => {
+    const types = SCHEMA_NODES.map((node) => node.getType());
+    expect(
+      types.filter((type) =>
+        unsupportedNodeTypes(withNode(type)).includes(type),
+      ),
+    ).toEqual([]);
+  });
+
+  test("mentions, emoji, hashtags and keywords read as the text they show", () => {
+    expect(editorStateToMarkdown(SOCIAL)).toBe(
+      "Mention Ada Lovelace, emoji 🙂, hashtag #lexidraw and keyword congrats.",
+    );
+  });
+
+  test("a replace from that markdown keeps their text", () => {
+    const { state } = replaceStateFromMarkdown(
+      SOCIAL,
+      editorStateToMarkdown(SOCIAL),
+    );
+    expect(editorStateToMarkdown(state)).toBe(editorStateToMarkdown(SOCIAL));
   });
 
   test("rejects content that is not an editor state", () => {
@@ -825,6 +897,12 @@ describe("markdownLosses", () => {
       expect.stringContaining("table"),
     ]);
     expect(markdownLosses(markdownToEditorState("# Plain"))).toEqual([]);
+  });
+
+  test("the highlight of mentions, hashtags and keywords is a loss; an emoji is its glyph", () => {
+    expect(markdownLosses(SOCIAL)).toEqual([
+      "3 mentions, hashtags or keywords are highlighted, which markdown does not carry; a replace keeps their text and drops the highlight",
+    ]);
   });
 
   test("an image markdown wrote has no hand-set size to lose", () => {
