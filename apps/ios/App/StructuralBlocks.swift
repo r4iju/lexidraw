@@ -19,17 +19,6 @@ import UIKit
   }
   view.accessibleEmbeddedTypes.formUnion(StructuralPanel.types)
   let prior = view.embeddedContent
-  let priorFrame = view.floatingEmbeddedFrame
-  view.floatingEmbeddedMinimumWidth = StructuralBlockConfiguration.stackedColumnsWidth
-  view.floatingEmbeddedTypes.insert("sticky")
-  view.floatingEmbeddedFrame = { node, width in
-    guard node["type"] == "sticky" else { return priorFrame?(node, width) }
-    let x = CGFloat(node["xOffset"]?.numberValue ?? 0)
-    let y = CGFloat(node["yOffset"]?.numberValue ?? 0)
-    return CGRect(
-      x: max(0, min(x, width - StructuralBlockConfiguration.stickyWidth)), y: y,
-      width: StructuralBlockConfiguration.stickyWidth, height: StructuralBlockConfiguration.stickyHeight)
-  }
   let panels = NSCache<NSString, StructuralPanel>()
   panels.countLimit = 120
   view.embeddedElementTypes.formUnion(["callout", "collapsible-container", "layout-container"])
@@ -75,7 +64,8 @@ import UIKit
   private var fittedWidth: CGFloat?
   private var refitPending = false
   private var insets = UIEdgeInsets.zero
-  private var dragStart: CGPoint?
+  /// A sticky note's menu, in its corner beside the text.
+  private var stickyControl: UIButton?
   private var viewingSectionOpen: Bool?
   private var section: SectionView?
   private var borderColor: UIColor? { didSet { resolveBorderColor() } }
@@ -93,9 +83,6 @@ import UIKit
     registerForTraitChanges([UITraitUserInterfaceStyle.self]) { (self: Self, _) in
       self.resolveBorderColor()
     }
-    let drag = UIPanGestureRecognizer(target: self, action: #selector(dragSticky(_:)))
-    drag.delegate = self
-    addGestureRecognizer(drag)
   }
   required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
@@ -174,6 +161,8 @@ import UIKit
     columns = nil
     section?.removeFromSuperview()
     section = nil
+    stickyControl?.removeFromSuperview()
+    stickyControl = nil
     insets = .zero
     layer.cornerRadius = 0
     layer.borderWidth = 0
@@ -206,7 +195,7 @@ import UIKit
     let editor =
       owner?.makeNestedEditor(
         model: model, isEditable: editable && owner?.isEditable == true && model.isEditable,
-        textSize: node["type"] == "sticky" ? 24 : nil, textWeight: textWeight, textLineHeight: textLineHeight, shareDocumentMetadata: shareDocumentMetadata)
+        textWeight: textWeight, textLineHeight: textLineHeight, shareDocumentMetadata: shareDocumentMetadata)
       ?? EditorView(model: model, isEditable: false)
     if let contextPath, let owner {
       try editor.inheritElementFormatting(from: owner, key: key, childPath: contextPath)
@@ -220,7 +209,7 @@ import UIKit
   ) {
     do {
       let (model, editor) = try nestedEditor(state, editable: editable, contextPath: contextPath, shareDocumentMetadata: shareDocumentMetadata)
-      let height = editor.heightAnchor.constraint(equalToConstant: node["type"] == "sticky" ? 90 : 150)
+      let height = editor.heightAnchor.constraint(equalToConstant: 150)
       height.isActive = true
       var opened = node
       editor.onChange = { [weak self, weak editor] in
@@ -232,7 +221,7 @@ import UIKit
         do {
           changed(try model.serializedState())
           opened = self.node
-          let contentHeight = self.node["type"] == "sticky" ? 90 : max(80, min(editor.contentSize.height, 600))
+          let contentHeight = max(80, min(editor.contentSize.height, 600))
           if abs(height.constant - contentHeight) > 1 {
             height.constant = contentHeight
             self.owner?.refreshEmbeddedContent()
@@ -473,65 +462,71 @@ import UIKit
       owner?.setNeedsLayout()
     } catch { presentError(error) }
   }
-  @objc private func dragSticky(_ gesture: UIPanGestureRecognizer) {
-    guard node["type"] == "sticky", owner?.isEditable == true,
-      (owner?.bounds.width ?? 0) > StructuralBlockConfiguration.stackedColumnsWidth else { return }
-    switch gesture.state {
-    case .began: dragStart = CGPoint(x: node["xOffset"]?.numberValue ?? 0, y: node["yOffset"]?.numberValue ?? 0)
-    case .changed:
-      guard let start = dragStart else { return }
-      let delta = gesture.translation(in: superview)
-      frame.origin = CGPoint(
-        x: max(
-          0,
-          min(
-            start.x + delta.x,
-            (superview?.bounds.width ?? CGFloat(StructuralBlockConfiguration.stickyWidth))
-              - CGFloat(StructuralBlockConfiguration.stickyWidth))), y: start.y + delta.y)
-    case .ended:
-      guard let start = dragStart else { return }
-      let delta = gesture.translation(in: superview)
-      var fields = node.objectValue ?? [:]
-      fields["xOffset"] = .number(Double(start.x + delta.x))
-      fields["yOffset"] = .number(Double(start.y + delta.y))
-      dragStart = nil
-      do {
-        try owner?.updateStructuralFields(key: key, expected: node, fields: ["xOffset": fields["xOffset"]!, "yOffset": fields["yOffset"]!])
-        if let owner { node = try owner.structuralNode(key: key) }
-      } catch { presentError(error) }
-      owner?.setNeedsLayout()
-    case .cancelled, .failed:
-      dragStart = nil
-      owner?.setNeedsLayout()
-    default: break
-    }
-  }
+  /// As on the web, a note is a column-wide block in the flow in its colour,
+  /// its text in dark ink in both themes, and as tall as its text.
   private func sticky() {
     let color = node["color"]?.stringValue ?? ""
     do { backgroundColor = try themed(StructuralBlockConfiguration.stickyColors[color] ?? []) }
     catch { label("Cannot render this sticky (#133): \(structuralReason(error))"); return }
-    insets = UIEdgeInsets(top: 12, left: 12, bottom: 12, right: 12)
-    button("Delete sticky note") { [weak self] in
-      guard let self, let owner = self.owner else { return }
-      do { try owner.replaceEmbeddedNode(key: self.key, expected: self.node, replacement: nil) } catch {
-        self.presentError(error)
+    layer.cornerRadius = StructuralBlockConfiguration.stickyRadius
+    let editable = owner?.isEditable == true
+    insets = UIEdgeInsets(
+      top: StructuralBlockConfiguration.stickyPaddingY, left: StructuralBlockConfiguration.stickyPaddingX,
+      bottom: StructuralBlockConfiguration.stickyPaddingY,
+      right: editable ? Self.stickyControlSize + 8 : StructuralBlockConfiguration.stickyPaddingX)
+    let caption: EditorView
+    if let owner, editable {
+      do { caption = try owner.makeCaptionEditor(key: key) } catch {
+        label("Cannot open this caption: \(error.localizedDescription)")
+        return
       }
-    }
-    menu(
-      "Sticky color",
-      entries: StructuralBlockConfiguration.stickyColors.keys.sorted().map { color in
-        (color.capitalized, { [weak self] in self?.field("color", .string(color), rebuild: true) })
-      })
-    if let owner, owner.isEditable {
-      do {
-        let editor = try owner.makeCaptionEditor(key: key, textSize: 24)
-        editor.heightAnchor.constraint(equalToConstant: 90).isActive = true
-        bodies.append(editor)
-        stack.addArrangedSubview(editor)
-      } catch { label("Cannot open this caption: \(error.localizedDescription)") }
+      // Refitted to its text whenever the note is measured.
+      caption.heightAnchor.constraint(equalToConstant: 1).isActive = true
+      bodies.append(caption)
+      stack.addArrangedSubview(caption)
+      stickyMenu(color: color)
     } else {
       body(node["caption"]?["editorState"] ?? document([])) { _ in }
+      guard let last = bodies.last else { return }
+      caption = last
     }
+    caption.backgroundColor = .clear
+    caption.contentMargin = 0
+    caption.dropsTrailingSpace = true
+    caption.overrideUserInterfaceStyle = .light
+    if let height = caption.constraints.first(where: { $0.firstAttribute == .height && $0.secondItem == nil }) {
+      fittedBody = (caption, height)
+      caption.onContentHeightChange = { [weak self] in self?.bodyHeightChanged() }
+    }
+  }
+  private static let stickyControlSize: CGFloat = 36
+  /// The web's colour and delete controls, as one menu: a finger cannot
+  /// point at a note to reveal them.
+  private func stickyMenu(color: String) {
+    let control = UIButton(type: .system)
+    control.setImage(UIImage(systemName: "ellipsis"), for: .normal)
+    control.tintColor = .label
+    control.overrideUserInterfaceStyle = .light
+    control.accessibilityLabel = "Sticky note"
+    control.showsMenuAsPrimaryAction = true
+    control.menu = UIMenu(children: [
+      UIMenu(
+        title: "Colour", image: UIImage(systemName: "paintpalette"),
+        children: StructuralBlockConfiguration.stickyColorOrder.map { name in
+          UIAction(title: name.capitalized, state: name == color ? .on : .off) { [weak self] _ in
+            self?.field("color", .string(name), rebuild: true)
+          }
+        }),
+      UIAction(title: "Delete sticky note", image: UIImage(systemName: "trash"), attributes: .destructive) {
+        [weak self] _ in
+        guard let self, let owner = self.owner else { return }
+        do { try owner.replaceEmbeddedNode(key: self.key, expected: self.node, replacement: nil) } catch {
+          self.presentError(error)
+        }
+      },
+    ])
+    addSubview(control)
+    stickyControl = control
   }
   private func slides() {
     if !isSlideDraft { slidePreview(); return }
@@ -984,8 +979,7 @@ import UIKit
   }
   override func contentSize(fitting width: CGFloat) -> CGSize {
     if let section { return CGSize(width: width, height: section.height(fitting: width)) }
-    let actualWidth = node["type"] == "sticky" ? min(width, StructuralBlockConfiguration.stickyWidth) : width
-    let inner = max(1, actualWidth - insets.left - insets.right)
+    let inner = max(1, width - insets.left - insets.right)
     columns?.prepare(width: inner, stacked: width <= StructuralBlockConfiguration.stackedColumnsWidth)
     if let fittedBody {
       fittedBody.height.constant = fittedBody.editor.fittingHeight(width: inner)
@@ -994,16 +988,15 @@ import UIKit
     let size = stack.systemLayoutSizeFitting(
       CGSize(width: inner, height: UIView.layoutFittingCompressedSize.height), withHorizontalFittingPriority: .required,
       verticalFittingPriority: .fittingSizeLevel)
-    return CGSize(
-      width: node["type"] == "sticky" ? min(width, StructuralBlockConfiguration.stickyWidth) : width,
-      height: max(
-        node["type"] == "sticky" ? StructuralBlockConfiguration.stickyHeight : 1,
-        size.height + insets.top + insets.bottom))
+    let minimum: CGFloat = node["type"] == "sticky" ? StructuralBlockConfiguration.stickyMinimumHeight : 1
+    return CGSize(width: width, height: max(minimum, size.height + insets.top + insets.bottom))
   }
   override func layoutSubviews() {
     super.layoutSubviews()
     stack.frame = bounds.inset(by: insets)
     section?.frame = bounds
+    let control = Self.stickyControlSize
+    stickyControl?.frame = CGRect(x: bounds.maxX - control - 4, y: 4, width: control, height: control)
   }
 }
 
@@ -1361,14 +1354,6 @@ import UIKit
     }
     stage.transform = CGAffineTransform(scaleX: scale, y: scale)
     stage.frame.origin = .zero
-  }
-}
-
-@MainActor extension StructuralPanel: UIGestureRecognizerDelegate {
-  func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
-    node["type"] == "sticky" && owner?.isEditable == true
-      && (owner?.bounds.width ?? 0) > StructuralBlockConfiguration.stackedColumnsWidth
-      && (touch.view === self || touch.view === stack)
   }
 }
 

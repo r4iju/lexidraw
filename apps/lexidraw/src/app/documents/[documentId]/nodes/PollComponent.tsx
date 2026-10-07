@@ -138,27 +138,6 @@ function PollOptionComponent({
                 {votes} {votes === 1 ? "vote" : "votes"} · {percentage}%
               </span>
             )}
-            {isEditable && (
-              <button
-                type="button"
-                disabled={options.length < 3}
-                className={cn(
-                  "-my-0.5 flex size-6 shrink-0 items-center justify-center rounded-sm text-muted-foreground",
-                  "hover:bg-accent hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring",
-                  "disabled:invisible",
-                  editControl(revealed),
-                )}
-                aria-label={`Remove ${label}`}
-                title="Remove option"
-                onClick={() => {
-                  withPollNode((node) => {
-                    node.deleteOption(option);
-                  });
-                }}
-              >
-                <XIcon className="size-4" />
-              </button>
-            )}
           </div>
           <div
             data-poll-bar=""
@@ -183,6 +162,27 @@ function PollOptionComponent({
             />
           </div>
         </div>
+        {isEditable && (
+          <button
+            type="button"
+            disabled={options.length < 3}
+            className={cn(
+              "mt-px flex size-6 shrink-0 items-center justify-center rounded-sm text-muted-foreground",
+              "hover:bg-accent hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring",
+              "disabled:invisible",
+              editControl(revealed),
+            )}
+            aria-label={`Remove ${label}`}
+            title="Remove option"
+            onClick={() => {
+              withPollNode((node) => {
+                node.deleteOption(option);
+              });
+            }}
+          >
+            <XIcon className="size-4" />
+          </button>
+        )}
       </div>
     </li>
   );
@@ -284,7 +284,9 @@ export default function PollComponent({
   return (
     <div
       className={cn(
-        "group/poll w-full max-w-[520px] min-w-0 mx-auto select-none rounded-lg text-start",
+        // Stored polls often share a paragraph with other blocks; the margin
+        // keeps them apart, and collapses into the gap around a paragraph.
+        "group/poll w-full max-w-[520px] min-w-0 mx-auto my-[var(--block-gap)] select-none rounded-lg text-start",
         "border border-border bg-card px-4 pt-3 pb-2",
         { "outline-2 outline-ring": isFocused && isEditable },
       )}

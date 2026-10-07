@@ -1026,11 +1026,20 @@
   position: relative;
 }
 /* A sticky note is a block in the flow at every width, a callout in its own
-   colour; its decorator is display: contents, so it takes the gap itself. */
+   colour; its decorator is display: contents, so it takes the gap itself,
+   on both sides, as it often shares a paragraph with text. */
 .sticky-note-container {
   max-width: var(--doc-measure);
   margin-inline: auto;
-  margin-block: 0 var(--block-gap);
+  margin-block: var(--block-gap);
+}
+/* A note or a poll is a block inside the paragraph that holds it; the line
+   break Lexical keeps after a trailing decorator would add an empty line. */
+.document-content
+  p
+  > [data-lexical-decorator]:has(> .sticky-note-container, > [data-poll])
+  + br[data-lexical-managed-linebreak]:last-child {
+  display: none;
 }
 .sticky-note {
   position: relative;

@@ -257,6 +257,23 @@ export async function checkMedia(
           sticky.own.right <= sticky.column.right + 1,
         `Sticky note stays inside the text column at ${width}px`,
       );
+      // The fixture's poll shares a paragraph with the note before it and the
+      // drawing after it, as stored decorators do.
+      const pollGaps = await page.$eval("[data-poll]", (e) => {
+        const holder = e.closest("[data-lexical-decorator]");
+        const before = holder?.previousElementSibling?.firstElementChild;
+        const after = holder?.nextElementSibling;
+        if (!before || !after) throw new Error("Poll without neighbours");
+        const own = e.getBoundingClientRect();
+        return {
+          before: own.top - before.getBoundingClientRect().bottom,
+          after: after.getBoundingClientRect().top - own.bottom,
+        };
+      });
+      assert(
+        pollGaps.before >= 8 && pollGaps.after >= 8,
+        `A poll keeps a gap from the blocks beside it at ${width}px; got ${JSON.stringify(pollGaps)}`,
+      );
       const drawingFilter = await page.$eval(
         'img[alt="Excalidraw"]',
         (e) => getComputedStyle(e).filter,

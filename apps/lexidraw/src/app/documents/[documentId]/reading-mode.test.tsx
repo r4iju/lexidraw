@@ -13,6 +13,7 @@ import { JSDOM } from "jsdom";
 import type { Klass, LexicalEditor, LexicalNode } from "lexical";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
+import { setScreen } from "~/test/dom";
 
 const dom = new JSDOM("<!doctype html><html><body></body></html>", {
   url: "https://app.test/documents/1",
@@ -36,6 +37,12 @@ let shimmed: string[] = [];
 // what is under test.
 mock.module("next-auth/react", () => ({
   useSession: () => ({ data: null, status: "unauthenticated" }),
+}));
+// A sticky note's colour menu closes when the route changes; there is no
+// route here.
+mock.module("next/navigation", () => ({
+  usePathname: () => "/documents/1",
+  useRouter: () => ({ push() {}, replace() {}, refresh() {} }),
 }));
 
 type Modules = {
@@ -66,6 +73,8 @@ beforeAll(async () => {
     disconnect() {}
   };
   globals.IS_REACT_ACT_ENVIRONMENT = true;
+  // Block menus ask what kind of screen they open on.
+  setScreen({ width: 1280 });
   const { CORE_NODES } = await import("@packages/lexical-nodes");
   m = {
     LexicalComposer: (await import("@lexical/react/LexicalComposer"))
