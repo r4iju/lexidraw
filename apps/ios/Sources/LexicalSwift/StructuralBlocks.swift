@@ -3,13 +3,19 @@ import OrderedCollections
 /// The original structural plugins' command handlers and repair transforms.
 /// The reference bundle executes those unchanged plugins through its hook adapter.
 extension Update {
+  /// The structural plugins' DELETE_CHARACTER_COMMAND handlers, in the order
+  /// the web runs them.
+  mutating func structuralDelete(_ selection: RangeSelection, backward: Bool) throws -> Bool {
+    if hasEditorPlugin("CollapsiblePlugin"), try toggleDelete(selection, backward: backward) { return true }
+    return try hasEditorPlugin("CalloutPlugin") && calloutDelete(selection, backward: backward)
+  }
+
   /// CollapsiblePlugin's DELETE_CHARACTER_COMMAND handlers. Removing a
   /// selection that runs into folded content opens the toggles that fold it
   /// instead. Backspace at the start of a title turns the toggle back into
   /// its title's block followed by what it held, and at the start of a block
   /// after a closed toggle it opens the toggle.
-  mutating func structuralDelete(_ selection: RangeSelection, backward: Bool) throws -> Bool {
-    guard hasEditorPlugin("CollapsiblePlugin") else { return false }
+  private mutating func toggleDelete(_ selection: RangeSelection, backward: Bool) throws -> Bool {
     if try revealSelected(selection) { return true }
     guard backward, selection.isCollapsed else { return false }
     if let caret = titleCaret(selection) {

@@ -283,8 +283,14 @@ import UIKit
     let header = calloutHeader(
       kind: kind, title: title.isEmpty ? StructuralBlockConfiguration.calloutLabels[kind] ?? kind : title, color: accent)
     stack.addArrangedSubview(header)
+    let children = node["children"]?.arrayValue ?? []
+    // A title alone, as `> [!INFO] Title` imports, is just its header: the
+    // web keeps the empty line only to type into, and here the menu edits it.
+    if children.count == 1, children[0]["type"]?.stringValue == "paragraph",
+      children[0]["children"]?.arrayValue?.isEmpty != false
+    { return }
     stack.setCustomSpacing(StructuralBlockConfiguration.calloutHeaderAfter, after: header)
-    body(document(node["children"]?.arrayValue ?? []), contextPath: [], shareDocumentMetadata: true) { _ in }
+    body(document(children), contextPath: [], shareDocumentMetadata: true) { _ in }
     // The callout's tint shows through its body, its padding is the body's
     // only inset, and the body is as tall as its text, as on the web.
     guard let body = bodies.last else { return }
@@ -310,32 +316,38 @@ import UIKit
       UIImage(systemName: $0, withConfiguration: UIImage.SymbolConfiguration(pointSize: owner?.points(webPixels: StructuralBlockConfiguration.calloutIconSize) ?? 18, weight: .medium))
     }
     let gap = owner?.points(webPixels: StructuralBlockConfiguration.calloutHeaderGap) ?? 8
+    let label = UILabel()
+    label.attributedText = text
+    label.numberOfLines = 0
+    let row = UIStackView(arrangedSubviews: [label])
+    if let icon {
+      // As tall as a line of the title, so the icon sits beside its first.
+      let image = UIImageView(image: icon)
+      image.tintColor = color
+      image.contentMode = .center
+      image.setContentHuggingPriority(.required, for: .horizontal)
+      image.heightAnchor.constraint(equalToConstant: paragraph.minimumLineHeight).isActive = true
+      image.isAccessibilityElement = false
+      row.insertArrangedSubview(image, at: 0)
+    }
+    row.spacing = gap
+    row.alignment = .top
     guard owner?.isEditable == true else {
-      let label = UILabel()
-      label.attributedText = text
-      label.numberOfLines = 0
       label.accessibilityTraits.insert(.header)
-      let row = UIStackView(arrangedSubviews: [label])
-      if let icon {
-        let image = UIImageView(image: icon)
-        image.tintColor = color
-        image.setContentHuggingPriority(.required, for: .horizontal)
-        image.isAccessibilityElement = false
-        row.insertArrangedSubview(image, at: 0)
-      }
-      row.spacing = gap
-      row.alignment = .center
       return row
     }
-    var configuration = UIButton.Configuration.plain()
-    configuration.attributedTitle = try? AttributedString(text, including: \.uiKit)
-    configuration.image = icon
-    configuration.imagePadding = gap
-    configuration.baseForegroundColor = color
-    configuration.contentInsets = .zero
-    configuration.titleAlignment = .leading
-    let button = UIButton(configuration: configuration)
-    button.contentHorizontalAlignment = .leading
+    // A button's own image centres on a title that wraps, so it holds the row.
+    let button = UIButton(configuration: .plain())
+    row.isUserInteractionEnabled = false
+    row.translatesAutoresizingMaskIntoConstraints = false
+    button.addSubview(row)
+    NSLayoutConstraint.activate([
+      row.topAnchor.constraint(equalTo: button.topAnchor), row.bottomAnchor.constraint(equalTo: button.bottomAnchor),
+      row.leadingAnchor.constraint(equalTo: button.leadingAnchor),
+      row.trailingAnchor.constraint(lessThanOrEqualTo: button.trailingAnchor),
+    ])
+    button.configurationUpdateHandler = { button in row.alpha = button.isHighlighted ? 0.5 : 1 }
+    button.accessibilityLabel = title
     button.accessibilityHint = "Changes the callout’s kind, title or content"
     button.showsMenuAsPrimaryAction = true
     let kinds = StructuralBlockConfiguration.calloutLabels.sorted { $0.key < $1.key }.map { value, name in

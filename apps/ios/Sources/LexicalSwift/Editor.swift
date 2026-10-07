@@ -256,7 +256,7 @@ public final class Editor: EditorModel, KeyboardInputHistory {
           return
         }
         guard let selection = update.selection else { throw EditorError.noSelection }
-        try update.removeText(selection)
+        if try !update.structuralRemoveText(selection) { try update.removeText(selection) }
       }
       changes.clipboard = plainText ? copied.clipboard.map { Clipboard(plainText: $0.plainText) } : copied.clipboard
       return changes
@@ -810,7 +810,12 @@ extension Update {
       return
     }
     switch command {
-    case .insertText(let text), .commitComposition(let text): try insertText(selection, text)
+    case .insertText(let text), .commitComposition(let text):
+      if try structuralRemoveText(selection), let caret = self.selection {
+        try insertText(caret, text)
+      } else {
+        try insertText(selection, text)
+      }
     case .deleteCharacter(let backward):
       if hasEditorPlugin("TablePlugin"), try deleteCellHandler() { return }
       guard let grown = self.selection else { return }

@@ -21,6 +21,7 @@ import CommentPluginProvider, {
 import { LayoutPlugin } from "./plugins/LayoutPlugin/LayoutPlugin";
 import CollapsiblePlugin from "./plugins/CollapsiblePlugin";
 import CalloutPlugin from "./plugins/CalloutPlugin";
+import CalloutMenuPlugin from "./plugins/CalloutPlugin/CalloutMenuPlugin";
 import ShortcutsPlugin from "./plugins/ShortcutsPlugin";
 import MarkdownShortcutPlugin from "./plugins/MarkdownShortcutPlugin";
 import { HorizontalRulePlugin } from "@lexical/react/LexicalHorizontalRulePlugin";
@@ -652,6 +653,7 @@ function EditorHandler({
                               <PageBreakPlugin />
                               <CollapsiblePlugin />
                               <CalloutPlugin />
+                              <CalloutMenuPlugin />
                               <PollPlugin />
                               <CodeHighlightPlugin />
                               {isEditable && autocomplete && signedIn && (

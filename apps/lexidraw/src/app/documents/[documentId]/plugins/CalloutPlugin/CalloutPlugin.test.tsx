@@ -144,3 +144,161 @@ describe("inserting a callout", () => {
     await doc.unmount();
   });
 });
+
+/** Puts the caret `offset` characters into the text node that says `text`. */
+function $caretIn(text: string, offset: number) {
+  const node = m.lexical
+    .$getRoot()
+    .getAllTextNodes()
+    .find((each) => each.getTextContent() === text);
+  if (!node) throw new Error(`No text "${text}"`);
+  node.select(offset, offset);
+}
+
+const backspace = () =>
+  editor.dispatchCommand(m.lexical.DELETE_CHARACTER_COMMAND, true);
+
+const AROUND = "Before\n\n> [!TIP] Handy\n> First\n>\n> Second\n\nAfter";
+
+describe("Backspace at a callout's edges", () => {
+  test("at the start of a callout turns it back into its blocks", async () => {
+    const doc = await mount(AROUND);
+    await update(() => {
+      $caretIn("First", 0);
+      backspace();
+      m.lexical.$getSelection()?.insertText("X");
+    });
+
+    expect(markdownOf()).toBe("Before\n\nXFirst\n\nSecond\n\nAfter");
+    await doc.unmount();
+  });
+
+  test("at the start of the line after a callout joins it onto the callout's last line", async () => {
+    const doc = await mount(AROUND);
+    await update(() => {
+      $caretIn("After", 0);
+      backspace();
+      m.lexical.$getSelection()?.insertText("X");
+    });
+
+    expect(markdownOf()).toBe(
+      "Before\n\n> [!TIP] Handy\n> First\n>\n> SecondXAfter",
+    );
+    await doc.unmount();
+  });
+});
+
+const forwardDelete = () =>
+  editor.dispatchCommand(m.lexical.DELETE_CHARACTER_COMMAND, false);
+
+describe("Delete at a callout's edges", () => {
+  test("at the end of the line before a callout pulls the callout's first line up", async () => {
+    const doc = await mount(AROUND);
+    await update(() => {
+      $caretIn("Before", 6);
+      forwardDelete();
+      m.lexical.$getSelection()?.insertText("X");
+    });
+
+    expect(markdownOf()).toBe(
+      "BeforeXFirst\n\n> [!TIP] Handy\n> Second\n\nAfter",
+    );
+    await doc.unmount();
+  });
+
+  test("pulling up a callout's only line removes the callout", async () => {
+    const doc = await mount("Before\n\n> [!NOTE]\n> Only\n\nAfter");
+    await update(() => {
+      $caretIn("Before", 6);
+      forwardDelete();
+      m.lexical.$getSelection()?.insertText("X");
+    });
+
+    expect(markdownOf()).toBe("BeforeXOnly\n\nAfter");
+    await doc.unmount();
+  });
+
+  test("at the end of a callout's last line pulls the next line in", async () => {
+    const doc = await mount(AROUND);
+    await update(() => {
+      $caretIn("Second", 6);
+      forwardDelete();
+      m.lexical.$getSelection()?.insertText("X");
+    });
+
+    expect(markdownOf()).toBe(
+      "Before\n\n> [!TIP] Handy\n> First\n>\n> SecondXAfter",
+    );
+    await doc.unmount();
+  });
+});
+
+/** Selects from `offset` into `from` to `focusOffset` into `to`. */
+function $selectAcross(
+  from: string,
+  offset: number,
+  to: string,
+  focusOffset: number,
+) {
+  const texts = m.lexical.$getRoot().getAllTextNodes();
+  const find = (text: string) => {
+    const node = texts.find((each) => each.getTextContent() === text);
+    if (!node) throw new Error(`No text "${text}"`);
+    return node;
+  };
+  const selection = m.lexical.$createRangeSelection();
+  selection.anchor.set(find(from).getKey(), offset, "text");
+  selection.focus.set(find(to).getKey(), focusOffset, "text");
+  m.lexical.$setSelection(selection);
+}
+
+describe("a selection across a callout's edge", () => {
+  test("deleted from before a callout into it joins what is left", async () => {
+    const doc = await mount(AROUND);
+    await update(() => {
+      $selectAcross("Before", 3, "First", 2);
+      backspace();
+      m.lexical.$getSelection()?.insertText("X");
+    });
+
+    expect(markdownOf()).toBe("BefXrst\n\n> [!TIP] Handy\n> Second\n\nAfter");
+    await doc.unmount();
+  });
+
+  test("deleted from a callout to after it joins what is left inside the callout", async () => {
+    const doc = await mount(AROUND);
+    await update(() => {
+      $selectAcross("Second", 3, "After", 2);
+      forwardDelete();
+      m.lexical.$getSelection()?.insertText("X");
+    });
+
+    expect(markdownOf()).toBe(
+      "Before\n\n> [!TIP] Handy\n> First\n>\n> SecXter",
+    );
+    await doc.unmount();
+  });
+
+  test("typed over joins what is left", async () => {
+    const doc = await mount(AROUND);
+    await update(() => {
+      $selectAcross("First", 2, "After", 2);
+      editor.dispatchCommand(m.lexical.CONTROLLED_TEXT_INSERTION_COMMAND, "X");
+    });
+
+    expect(markdownOf()).toBe("Before\n\n> [!TIP] Handy\n> FiXter");
+    await doc.unmount();
+  });
+
+  test("removed as a cut or drag removes it joins what is left", async () => {
+    const doc = await mount(AROUND);
+    await update(() => {
+      $selectAcross("Before", 3, "Second", 2);
+      editor.dispatchCommand(m.lexical.REMOVE_TEXT_COMMAND, null);
+      m.lexical.$getSelection()?.insertText("X");
+    });
+
+    expect(markdownOf()).toBe("BefXcond\n\nAfter");
+    await doc.unmount();
+  });
+});

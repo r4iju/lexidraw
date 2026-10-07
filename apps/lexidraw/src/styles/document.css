@@ -1469,24 +1469,57 @@ div.editor-equation {
 }
 .callout-header {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 8px;
-  margin-bottom: 4px;
   color: var(--callout);
   font-weight: 600;
   line-height: 1.5;
   user-select: none;
+  width: fit-content;
+  cursor: default;
+}
+/* Editable, the icon and title open the callout's menu (CalloutMenuPlugin).
+   The hover tint fills an outline too, so it pads without moving the text. */
+.callout-header[role="button"] {
+  cursor: pointer;
+  border-radius: 4px;
+  outline: 4px solid transparent;
+  transition:
+    background-color var(--transition-duration-base),
+    outline-color var(--transition-duration-base);
+}
+.callout-header[role="button"]:hover,
+.callout-header[role="button"][aria-expanded="true"] {
+  --callout-hover: color-mix(in srgb, var(--callout) 14%, transparent);
+  background-color: var(--callout-hover);
+  outline-color: var(--callout-hover);
+}
+@media (prefers-reduced-motion: reduce) {
+  .callout-header[role="button"] {
+    transition: none;
+  }
 }
 .callout-icon {
   flex: none;
   width: 18px;
   height: 18px;
+  /* Beside the title's first line, however many it wraps onto. */
+  margin-top: calc((1.5em - 18px) / 2);
   background-color: currentColor;
   mask: var(--callout-icon) center / contain no-repeat;
 }
 .callout-body {
   color: var(--foreground);
   min-width: 0;
+  margin-top: 4px;
+}
+/* A callout with only a title keeps an empty line to type into while it can
+   be edited, and is just its header otherwise. */
+.callout-body:not([contenteditable="true"] *):has(
+  > p:only-child:empty,
+  > p:only-child > br:only-child
+) {
+  display: none;
 }
 .callout .callout-body > :last-child {
   margin-bottom: 0;

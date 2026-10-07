@@ -23,6 +23,7 @@ extension MarkdownTransformer {
     MarkdownTransformer(kind: .element, name: .hr, regExp: JSRegExp("^(---|\\*\\*\\*|___)\\s?$", flags: ""), makes: ["horizontalrule"]),
     MarkdownTransformer(kind: .textMatch, name: .emoji, regExp: JSRegExp(":([a-z0-9_]+):$", flags: ""), importRegExp: JSRegExp(":([a-z0-9_]+):", flags: ""), trigger: ":", makes: []),
     MarkdownTransformer(kind: .element, name: .checkList, regExp: JSRegExp("^(\\s*)(?:[-*+]\\s)?\\s?(\\[(\\s|x)?\\])\\s", flags: "i"), triggerOnEnter: true, makes: ["list", "listitem"]),
+    MarkdownTransformer(kind: .element, name: .calloutShortcut, regExp: JSRegExp("^\\[!([A-Za-z][\\w-]*)\\]\\s", flags: ""), makes: ["callout"]),
     MarkdownTransformer(kind: .element, name: .toggleShortcut, regExp: JSRegExp("^>>\\s", flags: ""), makes: ["collapsible-container", "collapsible-title", "collapsible-content"]),
     MarkdownTransformer(kind: .element, name: .heading, regExp: JSRegExp("^(#{1,6})\\s", flags: ""), triggerOnEnter: true, makes: ["heading"]),
     MarkdownTransformer(kind: .element, name: .quote, regExp: JSRegExp("^>\\s", flags: ""), triggerOnEnter: true, makes: ["quote"]),
@@ -62,6 +63,7 @@ extension MarkdownTransformer {
     case hr = "HR"
     case emoji = "EMOJI"
     case checkList = "CHECK_LIST"
+    case calloutShortcut = "CALLOUT_SHORTCUT"
     case toggleShortcut = "TOGGLE_SHORTCUT"
     case heading = "HEADING"
     case quote = "QUOTE"
@@ -97,4 +99,7 @@ extension MarkdownTransformer {
 
   /// `COLUMNS_CLOSE` in @packages/lexical-nodes.
   static let columnsClose = JSRegExp("^\\s*<\\/columns\\s*>\\s*$", flags: "i")
+
+  /// `CALLOUT_ALIASES` in @packages/lexical-nodes.
+  static let calloutAliases: [String: CalloutKind] = ["note": .note, "info": .note, "todo": .note, "abstract": .note, "summary": .note, "tldr": .note, "example": .note, "quote": .note, "cite": .note, "tip": .tip, "hint": .tip, "success": .tip, "check": .tip, "done": .tip, "important": .important, "question": .important, "help": .important, "faq": .important, "warning": .warning, "attention": .warning, "caution": .caution, "danger": .caution, "error": .caution, "failure": .caution, "fail": .caution, "missing": .caution, "bug": .caution]
 }

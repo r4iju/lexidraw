@@ -39,7 +39,7 @@ import {
 } from "~/components/ui/dropdown-menu";
 import { StickyNode } from "../../nodes/StickyNode";
 import { useEmbedConfigs } from "../AutoEmbedPlugin";
-import InsertCalloutDialog from "../CalloutPlugin/InsertCalloutDialog";
+import { INSERT_CALLOUT_COMMAND } from "../CalloutPlugin";
 import { INSERT_CHART_COMMAND } from "../ChartPlugin";
 import type { TOGGLE_LEVELS } from "@packages/types";
 import { INSERT_COLLAPSIBLE_COMMAND } from "../CollapsiblePlugin";
@@ -148,9 +148,11 @@ export function InsertItems({
         {
           label: "Callout",
           icon: icon(Info),
-          insert: dialog("Insert callout", (onClose) => (
-            <InsertCalloutDialog activeEditor={editor} onClose={onClose} />
-          )),
+          insert: () => {
+            editor.dispatchCommand(INSERT_CALLOUT_COMMAND, { kind: "note" });
+            // Once the menu has closed, so typing goes into the callout.
+            requestAnimationFrame(() => editor.focus());
+          },
         },
       ],
     ],

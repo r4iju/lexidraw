@@ -21,7 +21,7 @@ public enum StructuralBlockConfiguration {
   public static let slideHeight = 720.0
   public static let stackedColumnsWidth = 567.0
   public static let calloutLabels: [String:String] = ["note": "Note", "tip": "Tip", "important": "Important", "warning": "Warning", "caution": "Caution"]
-  public static let calloutColors: [String:[String]] = ["note": ["#0969da", "#4493f8"], "tip": ["#1a7f37", "#3fb950"], "important": ["#8250df", "#ab7df8"], "warning": ["#9a6700", "#d29922"], "caution": ["#cf222e", "#f85149"]]
+  public static let calloutColors: [String:[String]] = ["note": ["#0966d3", "#4493f8"], "tip": ["#197a35", "#3fb950"], "important": ["#7d4dd6", "#ab7df8"], "warning": ["#916100", "#d29922"], "caution": ["#cf222e", "#f85149"]]
   public static let calloutTint = [0.08, 0.14]
   public static let calloutRadius = 8.0
   public static let calloutPaddingY = 12.0

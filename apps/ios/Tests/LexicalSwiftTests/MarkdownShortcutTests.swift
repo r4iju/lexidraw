@@ -89,8 +89,9 @@ import Testing
       name: "a code shortcut in a quote stays text", start: document(quote(text("ab"))),
       commands: [.caret(.text([0, 0], 0))] + typing("``` "), expected: document(quote(text("``` ab")))),
     Script(
-      name: "an admonition typed stays text", start: emptyParagraph,
-      commands: [caretInEmptyParagraph] + typing("::: note "), expected: document(paragraph(text("::: note ")))),
+      name: "an admonition typed makes a callout", start: emptyParagraph,
+      commands: [caretInEmptyParagraph] + typing("::: note "),
+      expected: document(LexicalJSON.element("callout", [paragraph()], ["kind": "note", "title": ""]))),
     Script(
       name: "details typed stay text", start: emptyParagraph,
       commands: [caretInEmptyParagraph] + typing("<details> "), expected: document(paragraph(text("<details> ")))),

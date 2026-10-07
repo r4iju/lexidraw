@@ -13,6 +13,7 @@ import {
   swiftForLinks,
 } from "./links";
 import {
+  CALLOUT_ALIASES,
   MARKDOWN_PATTERNS,
   MARKDOWN_TRANSFORMERS_PATH,
   swiftForMarkdownTransformers,
@@ -50,7 +51,11 @@ await Bun.write(
 );
 await Bun.write(
   MARKDOWN_TRANSFORMERS_PATH,
-  swiftForMarkdownTransformers(createTransformers(), MARKDOWN_PATTERNS),
+  swiftForMarkdownTransformers(
+    createTransformers(),
+    MARKDOWN_PATTERNS,
+    CALLOUT_ALIASES,
+  ),
 );
 await Bun.write(
   DOCUMENT_TYPOGRAPHY_PATH,

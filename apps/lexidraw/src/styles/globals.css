@@ -285,11 +285,12 @@
   --chart-3: oklch(0.55 0.14 250);
   --chart-4: oklch(0.60 0.13 90);
   --chart-5: oklch(0.55 0.15 330);
-  /* GitHub's alert colours, so a callout reads as the kind it is on GitHub. */
-  --callout-note: #0969da;
-  --callout-tip: #1a7f37;
-  --callout-important: #8250df;
-  --callout-warning: #9a6700;
+  /* GitHub's alert colours, so a callout reads as the kind it is on GitHub,
+     a shade darker where a title needs it to read at AA on its tint (#241). */
+  --callout-note: #0966d3;
+  --callout-tip: #197a35;
+  --callout-important: #7d4dd6;
+  --callout-warning: #916100;
   --callout-caution: #cf222e;
   --callout-tint: 8%;
   /* Text and highlight colours a document can use; see the colour picker. */

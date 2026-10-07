@@ -2,7 +2,7 @@ import { matchAtSignMention, selectMention, MENTION_MINIMUM_QUERY_LENGTH } from 
 import { registerPlainText } from "@lexical/plain-text";
 import { withDOM } from "@lexical/headless/dom";
 import { $generateNodesFromDOM } from "@lexical/html";
-import { htmlToPlainText, ArticleNode, CalloutNode, LayoutContainerNode, StickyNode, SlideNode, CollapsibleContainerNode, CollapsibleContentNode, CollapsibleTitleNode, CommentNode, ThreadNode } from "@packages/lexical-nodes";
+import { $removeAcrossCallouts, htmlToPlainText, ArticleNode, CalloutNode, LayoutContainerNode, StickyNode, SlideNode, CollapsibleContainerNode, CollapsibleContentNode, CollapsibleTitleNode, CommentNode, ThreadNode } from "@packages/lexical-nodes";
 import { $createMarkNode, $unwrapMarkNode, $wrapSelectionInMarkNode, MarkNode } from "@lexical/mark";
 import { $dfs, registerNestedElementResolver } from "@lexical/utils";
 import { $formatCode } from "@packages/lexical-nodes/code-format";
@@ -597,8 +597,10 @@ function cut(): void {
   current().update(
     () => {
       const selection = selectionToCut();
-      if ($isRangeSelection(selection)) selection.removeText();
-      else for (const node of selection.getNodes()) node.remove();
+      // CalloutPlugin's CUT handler, which the web runs before rich text's.
+      if ($isRangeSelection(selection)) {
+        if (!(hasContextPlugin("CalloutPlugin") && $removeAcrossCallouts())) selection.removeText();
+      } else for (const node of selection.getNodes()) node.remove();
     },
     { discrete: true, tag: CUT_TAG },
   );
@@ -1011,6 +1013,9 @@ function run(
   switch (command.type) {
     case "insertText":
     case "commitComposition":
+      // CalloutPlugin's CONTROLLED_TEXT_INSERTION handler, which the web
+      // runs as text replaces a selection.
+      if (hasContextPlugin("CalloutPlugin")) $removeAcrossCallouts();
       selection.insertText(command.text);
       return;
     case "deleteCharacter": {

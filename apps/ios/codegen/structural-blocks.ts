@@ -149,9 +149,10 @@ export async function swiftForStructuralBlocks(): Promise<string> {
     throw new Error("The callout geometry changed shape");
   const calloutHeader = /\.callout-header \{([\s\S]*?)\}/.exec(document)?.[1] ?? "";
   const calloutIcon = /\.callout-icon \{([\s\S]*?)\}/.exec(document)?.[1] ?? "";
+  const calloutBody = /\.callout-body \{([\s\S]*?)\}/.exec(document)?.[1] ?? "";
   const header = {
     gap: /gap: (\d+)px/.exec(calloutHeader)?.[1],
-    after: /margin-bottom: (\d+)px/.exec(calloutHeader)?.[1],
+    after: /margin-top: (\d+)px/.exec(calloutBody)?.[1],
     weight: /font-weight: (\d+)/.exec(calloutHeader)?.[1],
     lineHeight: /line-height: ([\d.]+)/.exec(calloutHeader)?.[1],
     icon: /width: (\d+)px/.exec(calloutIcon)?.[1],
