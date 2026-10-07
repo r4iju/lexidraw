@@ -49,10 +49,10 @@ export function LanguagePicker({
           size="sm"
           aria-label="Code language"
           aria-expanded={open}
-          className="document-code-language"
+          className="h-7 gap-1 px-2 text-xs pointer-coarse:h-11"
         >
           {getCodeLanguageFriendlyName(language) || PLAIN_TEXT}
-          <ChevronDownIcon aria-hidden />
+          <ChevronDownIcon aria-hidden className="size-3.5" />
         </Button>
       </PopoverTrigger>
       <PopoverContent align="start" className="w-56 p-0">

@@ -3,6 +3,7 @@ import { $getNearestNodeFromDOMNode, type LexicalEditor } from "lexical";
 import { useState } from "react";
 import { Button } from "~/components/ui/button";
 import { useDebounce } from "~/lib/client-utils";
+import { getCodeLanguageFriendlyName } from "../code-language";
 
 const parsers = {
   css: { parser: "css", load: () => import("prettier/parser-postcss") },
@@ -74,12 +75,14 @@ export function PrettierButton({
     <Button
       variant="ghost"
       size="sm"
-      className="h-8"
+      className="h-7 px-2 text-xs pointer-coarse:h-11 aria-disabled:cursor-not-allowed aria-disabled:opacity-50 aria-disabled:hover:bg-transparent"
       aria-label="Format code"
-      disabled={!canFormat(lang)}
+      // Unlike `disabled`, this keeps the reason below reachable by pointer
+      // and keyboard.
+      aria-disabled={!canFormat(lang)}
       title={
         !canFormat(lang)
-          ? "Formatting is not available for this language"
+          ? `${getCodeLanguageFriendlyName(lang) || "Plain text"} cannot be formatted`
           : status.kind === "error"
             ? status.message
             : "Format code with Prettier"

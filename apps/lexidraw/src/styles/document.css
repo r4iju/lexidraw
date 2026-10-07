@@ -135,8 +135,7 @@
   border-top: 1px solid var(--border);
   margin-block: 2em;
 }
-.document-content
-  > :is(table, pre, code, .document-code, [data-lexical-decorator]:not(hr)) {
+.document-content > :is(table, pre, code, [data-lexical-decorator]:not(hr)) {
   max-width: var(--doc-wide);
 }
 .document-content > .document-full {
@@ -1107,48 +1106,58 @@
   overflow-wrap: anywhere;
 }
 .document-code {
+  position: relative;
   background: var(--code-background);
   color: var(--foreground);
   border: 1px solid var(--border-subtle);
   border-radius: 8px;
   overflow: hidden;
 }
+/* Renders without the controls (iOS images, read views) leave it empty. */
+.document-code-header:empty {
+  display: none;
+}
+/* On touch the controls are a slim row at the top, always there. */
 .document-code-header {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 4px;
-  min-height: 40px;
-  padding: 4px 16px;
+  justify-content: flex-end;
+  padding: 2px 4px 0;
   font: 12px / 1.4 var(--font-sans);
   color: var(--muted-foreground);
-  border-bottom: 1px solid var(--border);
 }
-.document-code-header select {
-  min-width: 0;
-  max-width: 120px;
-  background: var(--code-background);
-  color: var(--foreground);
+.document-code-header:not(:empty) + .document-code-body {
+  padding-block-start: 4px;
 }
-.document-code-actions {
+.document-code-controls {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 2px;
 }
-.document-code-actions label {
-  display: flex;
-  align-items: center;
-  gap: 4px;
+.document-code-language {
+  padding-inline: 8px;
 }
-.document-code-copy {
-  opacity: 0;
-}
-.document-code:is(:hover, :focus-within) .document-code-copy {
-  opacity: 1;
-}
-@media (hover: none), (pointer: coarse) {
-  .document-code-copy {
+/* With a mouse they float at the top right, hidden until the block is
+   hovered, holds the caret, or a control has focus or an open menu. */
+@media (hover: hover) and (pointer: fine) {
+  .document-code-header {
+    position: absolute;
+    inset: 4px 4px auto auto;
+    z-index: 1;
+    padding: 0;
+  }
+  .document-code-header:not(:empty) + .document-code-body {
+    padding-block-start: 14px;
+  }
+  .document-code-controls {
+    background: var(--code-background);
+    border-radius: 6px;
+    opacity: 0;
+    transition: opacity 120ms;
+  }
+  .document-code:hover .document-code-controls,
+  .document-code-controls:focus-within,
+  .document-code-controls:has([aria-expanded="true"]),
+  .document-content:focus-within .document-code-controls[data-active] {
     opacity: 1;
   }
 }

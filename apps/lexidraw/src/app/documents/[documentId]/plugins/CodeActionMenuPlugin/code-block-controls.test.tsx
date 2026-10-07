@@ -15,6 +15,7 @@ mock.module("next/navigation", () => ({
 }));
 
 const markdown = await import("@lexical/markdown");
+const lexical = await import("lexical");
 const nodes = await import("@packages/lexical-nodes");
 const { LexicalComposer } = await import("@lexical/react/LexicalComposer");
 const { RichTextPlugin } = await import("@lexical/react/LexicalRichTextPlugin");
@@ -99,10 +100,48 @@ describe("code block controls", () => {
       .blocks()
       .map(
         (block) =>
-          block.querySelector<HTMLButtonElement>('[aria-label="Format code"]')
-            ?.disabled,
+          block
+            .querySelector('[aria-label="Format code"]')
+            ?.getAttribute("aria-disabled") === "true",
       );
     expect(format).toEqual([false, true, true]);
+    await doc.unmount();
+  });
+
+  test("Format stays reachable where Prettier cannot format, and says why", async () => {
+    const doc = await mount("```python\nx  =  1\n```");
+    const format = doc
+      .blocks()[0]
+      ?.querySelector<HTMLButtonElement>('[aria-label="Format code"]');
+    expect(format?.disabled).toBe(false);
+    expect(format?.title).toBe("Python cannot be formatted");
+    await act(async () => format?.click());
+    expect(
+      editor
+        .getEditorState()
+        .read(() => markdown.$convertToMarkdownString(nodes.CORE_TRANSFORMERS)),
+    ).toBe("```python\nx  =  1\n```");
+    await doc.unmount();
+  });
+
+  test("the block holding the caret shows its controls", async () => {
+    const doc = await mount("```js\none();\n```\n\n```js\ntwo();\n```");
+    const shown = () =>
+      doc
+        .blocks()
+        .map((block) =>
+          block
+            .querySelector(".document-code-controls")
+            ?.hasAttribute("data-active"),
+        );
+    expect(shown()).toEqual([false, false]);
+    await act(async () => {
+      editor.update(() => {
+        const second = lexical.$getRoot().getChildren()[1];
+        if (lexical.$isElementNode(second)) second.selectEnd();
+      });
+    });
+    expect(shown()).toEqual([false, true]);
     await doc.unmount();
   });
 
