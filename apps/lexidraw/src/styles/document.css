@@ -1152,7 +1152,7 @@
     background: var(--code-background);
     border-radius: 6px;
     opacity: 0;
-    transition: opacity 120ms;
+    transition: opacity var(--transition-duration-fast);
   }
   .document-code:hover .document-code-controls,
   .document-code-controls:focus-within,
