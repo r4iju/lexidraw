@@ -12,10 +12,19 @@ import {
   CLOSED_SECTIONS_MARKDOWN,
   checkClosedSections,
 } from "./check-closed-sections";
+import {
+  CALLOUT_LAYOUT_MARKDOWN,
+  CALLOUTS_MARKDOWN,
+  checkCalloutLayout,
+  checkCallouts,
+} from "./check-callouts";
 import { checkFirstPaint } from "./check-first-paint";
 import { BANNER, checkReservedSizes } from "./check-reserved-sizes";
 import { checkExcalidrawAssets, DRAWN_LABELS } from "./check-excalidraw-assets";
+import { checkColumnLayout, checkColumns } from "./check-columns";
 import { checkMedia } from "./check-media";
+import { checkFigures, figuresDocument } from "./check-figures";
+import { checkMermaid, mermaidBlocks } from "./check-mermaid";
 import { checkMotion } from "./check-motion";
 import { checkPage } from "./check-page";
 import { checkRenderReady, lazyBlockDocuments } from "./check-render-ready";
@@ -111,6 +120,28 @@ const closed = await cli(
   "Visual suite · closed sections",
   "--file",
   closedPath,
+);
+// A throwaway document with a callout between two lines.
+const calloutsPath = resolve(output, "callouts.md");
+await writeFile(calloutsPath, CALLOUTS_MARKDOWN);
+const callouts = await cli(
+  "doc",
+  "create",
+  "--title",
+  "Visual suite · callouts",
+  "--file",
+  calloutsPath,
+);
+// And one with a wrapping callout title, and a callout of a title alone.
+const calloutLayoutPath = resolve(output, "callout-layout.md");
+await writeFile(calloutLayoutPath, CALLOUT_LAYOUT_MARKDOWN);
+const calloutLayout = await cli(
+  "doc",
+  "create",
+  "--title",
+  "Visual suite · callout layout",
+  "--file",
+  calloutLayoutPath,
 );
 // A throwaway document with a drawing, a photo and a diagram near the top,
 // none measured yet, as a document written through the API has them.
@@ -311,6 +342,52 @@ const drawing = await cli(
   "--file",
   shapesPath,
 );
+// A throwaway document with a diagram of each kind.
+const diagrams = await cli(
+  "doc",
+  "create",
+  "--title",
+  "Visual suite · diagrams",
+);
+const diagramsPath = resolve(output, "diagrams.json");
+await writeFile(
+  diagramsPath,
+  JSON.stringify({
+    elements: JSON.stringify({
+      root: { ...emptyRoot, children: mermaidBlocks() },
+    }),
+    appState: JSON.stringify({ defaultFontFamily: null, lang: null }),
+    ifUnmodifiedSince: (
+      await cli("doc", "get", diagrams.id, "--format", "json")
+    ).updatedAt,
+  }),
+);
+await cli(
+  "api",
+  "PUT",
+  `/entities/${diagrams.id}`,
+  "--json",
+  await readFile(diagramsPath, "utf8"),
+);
+// A throwaway document with images, inline images and drawings at each width.
+const figures = await cli("doc", "create", "--title", "Visual suite · figures");
+const figuresPath = resolve(output, "figures.json");
+await writeFile(
+  figuresPath,
+  JSON.stringify({
+    elements: JSON.stringify(figuresDocument()),
+    appState: JSON.stringify({ defaultFontFamily: null, lang: null }),
+    ifUnmodifiedSince: (await cli("doc", "get", figures.id, "--format", "json"))
+      .updatedAt,
+  }),
+);
+await cli(
+  "api",
+  "PUT",
+  `/entities/${figures.id}`,
+  "--json",
+  await readFile(figuresPath, "utf8"),
+);
 // A throwaway document for each block that loads its own code, alone.
 const lazy = [];
 for (const { name, elements } of lazyBlockDocuments(doc.content.root)) {
@@ -344,7 +421,14 @@ try {
   await checkRichBlocks(richPage, fixtureId, output);
   await richPage.close();
   await checkMedia(page, fixtureId, output);
+  await checkMermaid(page, diagrams.id, output);
+  // On its own page, as it leaves the viewport at the last width it checked.
+  const figuresPage = await browser.newPage();
+  await checkFigures(figuresPage, figures.id);
+  await figuresPage.close();
   await checkTables(page, fixtureId);
+  await checkColumnLayout(page);
+  await checkColumns(page);
   await checkTypography(page, fixtureId);
   await checkDocumentSettings(page, fixtureId);
   await checkPage(page, fixtureId, empty.id);
@@ -367,6 +451,8 @@ try {
     printedText: (id) => printedText(id, "closed-sections.pdf"),
     markdownOf: (id) => devCliText(appUrl)("doc", "get", id, "--format", "md"),
   });
+  await checkCalloutLayout(page, calloutLayout.id);
+  await checkCallouts(page, callouts.id);
   await checkExcalidrawAssets(page, drawn.id);
   await checkMotion(page, fixtureId);
   await checkRenderReady(page, lazy);
@@ -375,7 +461,11 @@ try {
   await cli("doc", "delete", empty.id);
   await cli("doc", "delete", sized.id);
   await cli("doc", "delete", closed.id);
+  await cli("doc", "delete", callouts.id);
+  await cli("doc", "delete", calloutLayout.id);
   await cli("doc", "delete", drawn.id);
+  await cli("doc", "delete", diagrams.id);
+  await cli("doc", "delete", figures.id);
   await cli("drawing", "delete", drawing.id);
   for (const { id } of lazy) await cli("doc", "delete", id);
 }

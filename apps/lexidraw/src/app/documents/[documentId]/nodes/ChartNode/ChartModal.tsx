@@ -21,12 +21,11 @@ import { Loader2 } from "lucide-react";
 import type React from "react";
 import { useEffect, useMemo, useState, Suspense, useId } from "react";
 import { useDebounceValue } from "~/lib/client-utils";
-import type { ChartType } from "./index"; // Assuming ChartNode is in the same directory
+import { CHART_TYPES } from "@packages/lexical-nodes";
+import type { ChartType } from "./index";
 import DynamicChartRenderer from "./DynamicChartRenderer";
 import type { ChartConfig } from "~/components/ui/chart";
 import { cn } from "~/lib/utils";
-
-const AVAILABLE_CHART_TYPES: ChartType[] = ["bar", "line", "pie"];
 
 type Dimension = number | "inherit";
 
@@ -168,7 +167,7 @@ export default function ChartModal({
                     <SelectValue placeholder="Select chart type" />
                   </SelectTrigger>
                   <SelectContent>
-                    {AVAILABLE_CHART_TYPES.map((type) => (
+                    {CHART_TYPES.map((type) => (
                       <SelectItem key={type} value={type}>
                         {type.charAt(0).toUpperCase() + type.slice(1)}
                       </SelectItem>

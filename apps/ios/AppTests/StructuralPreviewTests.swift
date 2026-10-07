@@ -13,7 +13,8 @@ import TextKitEditor
     let body: EditorView
   }
 
-  private func preview(_ callout: JSONValue, wrapper: ((JSONValue) -> JSONValue)? = nil, path: [Int] = [0], width: CGFloat = 400, editable: Bool = false) throws -> Preview {
+  /// The block's panel, laid out at `width`.
+  private func panel(_ callout: JSONValue, wrapper: ((JSONValue) -> JSONValue)? = nil, path: [Int] = [0], width: CGFloat = 400, editable: Bool = false) throws -> (model: Editor, owner: EditorView, panel: EmbeddedContentView) {
     let model = Editor()
     try model.load(["root": ["type": "root", "version": 1, "children": [wrapper?(callout) ?? callout]]])
     let owner = EditorView(model: model, isEditable: editable)
@@ -23,6 +24,11 @@ import TextKitEditor
     let panel = try XCTUnwrap(owner.embeddedContent?(key, model.node(at: path)))
     panel.frame = CGRect(origin: .zero, size: panel.contentSize(fitting: width))
     panel.layoutIfNeeded()
+    return (model, owner, panel)
+  }
+
+  private func preview(_ callout: JSONValue, wrapper: ((JSONValue) -> JSONValue)? = nil, path: [Int] = [0], width: CGFloat = 400, editable: Bool = false) throws -> Preview {
+    let (model, owner, panel) = try self.panel(callout, wrapper: wrapper, path: path, width: width, editable: editable)
     func body(in view: UIView) -> EditorView? {
       if let editor = view as? EditorView { return editor }
       return view.subviews.lazy.compactMap { body(in: $0) }.first
@@ -77,7 +83,7 @@ import TextKitEditor
 
   func testCalloutTintFollowsDarkTraitsAfterThePanelWasCreated() throws {
     let paragraph: JSONValue = ["type": "paragraph", "version": 1, "children": []]
-    let fixture = try preview(["type": "callout", "version": 1, "kind": "note", "title": "", "children": [paragraph]])
+    let fixture = try panel(["type": "callout", "version": 1, "kind": "note", "title": "", "children": [paragraph]])
     fixture.panel.overrideUserInterfaceStyle = .dark
     var red: CGFloat = 0, green: CGFloat = 0, blue: CGFloat = 0, alpha: CGFloat = 0
     try XCTUnwrap(fixture.panel.backgroundColor).resolvedColor(with: UITraitCollection(userInterfaceStyle: .dark)).getRed(&red, green: &green, blue: &blue, alpha: &alpha)
@@ -92,7 +98,10 @@ import TextKitEditor
     XCTAssertEqual(alpha, 1)
   }
 
-  func testEditableColumnBordersAreDashedAndReadersKeepTheirBoxTransparent() throws {
+  /// The web frames a row of columns only while it is hovered or selected
+  /// in (#252); native has neither, so its dashed frame keeps the box and
+  /// stays transparent, for an editor as for a reader.
+  func testColumnFramesKeepTheirBoxAndStayTransparentAtRest() throws {
     let item: JSONValue = ["type": "layout-item", "version": 1, "children": [["type": "paragraph", "version": 1, "children": []]]]
     let node: JSONValue = ["type": "layout-container", "version": 1, "templateColumns": "1fr 1fr", "children": [item, item]]
     func stroke(in fixture: Preview) throws -> CAShapeLayer {
@@ -109,7 +118,7 @@ import TextKitEditor
     let border = try stroke(in: editing), transparent = try stroke(in: reading)
     XCTAssertEqual(border.lineWidth, 1)
     XCTAssertFalse(try XCTUnwrap(border.lineDashPattern).isEmpty)
-    XCTAssertGreaterThan(try XCTUnwrap(border.strokeColor).alpha, 0)
+    XCTAssertEqual(try XCTUnwrap(border.strokeColor).alpha, 0)
     XCTAssertEqual(try XCTUnwrap(transparent.strokeColor).alpha, 0)
   }
 
@@ -322,5 +331,76 @@ import TextKitEditor
     // The body is as tall as its one line, its last margin dropped as the web's.
     XCTAssertGreaterThanOrEqual(fixture.body.frame.height + 1, caret.height)
     XCTAssertLessThan(fixture.body.frame.height, caret.height * 2)
+  }
+
+  /// #241: each kind's title reads at WCAG AA contrast on its tint over the
+  /// page, in light and dark.
+  func testReadOnlyCalloutTitlesReadAtAAContrastOnTheirTint() throws {
+    func components(_ color: UIColor) -> [CGFloat] {
+      var red: CGFloat = 0, green: CGFloat = 0, blue: CGFloat = 0, alpha: CGFloat = 0
+      color.getRed(&red, green: &green, blue: &blue, alpha: &alpha)
+      return [red, green, blue, alpha]
+    }
+    func luminance(_ rgb: [CGFloat]) -> CGFloat {
+      let linear = rgb.prefix(3).map { $0 <= 0.04045 ? $0 / 12.92 : pow(($0 + 0.055) / 1.055, 2.4) }
+      return 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2]
+    }
+    let paragraph: JSONValue = ["type": "paragraph", "version": 1, "children": [["type": "text", "version": 1, "text": "本資料"]]]
+    for kind in ["note", "tip", "important", "warning", "caution"] {
+      let fixture = try preview(["type": "callout", "version": 1, "kind": .string(kind), "title": "Title", "children": [paragraph]])
+      func all(_ view: UIView) -> [UIView] { view.subviews + view.subviews.flatMap(all) }
+      let title = try XCTUnwrap(all(fixture.panel).compactMap { $0 as? UILabel }.first { $0.text == "Title" })
+      for style in [UIUserInterfaceStyle.light, .dark] {
+        let traits = UITraitCollection(userInterfaceStyle: style)
+        let text = components(title.textColor.resolvedColor(with: traits))
+        let tint = components(try XCTUnwrap(fixture.panel.backgroundColor).resolvedColor(with: traits))
+        let page = components(try XCTUnwrap(fixture.owner.backgroundColor).resolvedColor(with: traits))
+        let background = (0..<3).map { tint[$0] * tint[3] + page[$0] * (1 - tint[3]) }
+        let (lighter, darker) = (max(luminance(text), luminance(background)), min(luminance(text), luminance(background)))
+        let contrast = (lighter + 0.05) / (darker + 0.05)
+        XCTAssertGreaterThanOrEqual(contrast, 4.5, "\(kind) in \(style == .dark ? "dark" : "light")")
+      }
+    }
+  }
+
+  /// The kitchen sink's long warning title: its icon sits beside the
+  /// title's first line, not halfway down the lines it wraps onto.
+  func testAWrappingCalloutTitleKeepsItsIconBesideItsFirstLine() throws {
+    let title = "A very long callout title that keeps going and going so it must wrap on a phone · 長いタイトル"
+    let paragraph: JSONValue = ["type": "paragraph", "version": 1, "children": [["type": "text", "version": 1, "text": "Body."]]]
+    for editable in [false, true] {
+      let fixture = try panel(
+        ["type": "callout", "version": 1, "kind": "warning", "title": .string(title), "children": [paragraph]],
+        width: 320, editable: editable)
+      func all(_ view: UIView) -> [UIView] { view.subviews + view.subviews.flatMap(all) }
+      let views = all(fixture.panel).filter { !($0 is EditorView) && !$0.isHidden }
+      let label = try XCTUnwrap(views.compactMap { $0 as? UILabel }.first { $0.text == title })
+      let icon = try XCTUnwrap(views.compactMap { $0 as? UIImageView }.first { $0.image != nil && !($0.superview is UILabel) })
+      let lineHeight = try XCTUnwrap(label.attributedText?.attribute(.paragraphStyle, at: 0, effectiveRange: nil) as? NSParagraphStyle).minimumLineHeight
+      let labelFrame = label.convert(label.bounds, to: fixture.panel)
+      XCTAssertGreaterThan(labelFrame.height, lineHeight * 1.5, "The title wraps (editable: \(editable))")
+      let iconMiddle = icon.convert(icon.bounds, to: fixture.panel).midY
+      XCTAssertEqual(iconMiddle, labelFrame.minY + lineHeight / 2, accuracy: 1, "editable: \(editable)")
+    }
+  }
+
+  /// `> [!INFO] Obsidian info alias`, a title with nothing under it, is just
+  /// its padded header: the body is edited from the header's menu, so it
+  /// needs no empty line to type into.
+  func testACalloutOfATitleAloneIsJustItsHeader() throws {
+    let empty: JSONValue = ["type": "paragraph", "version": 1, "children": []]
+    for editable in [false, true] {
+      let fixture = try panel(
+        ["type": "callout", "version": 1, "kind": "note", "title": "Obsidian info alias", "children": [empty]],
+        editable: editable)
+      func all(_ view: UIView) -> [UIView] { view.subviews + view.subviews.flatMap(all) }
+      XCTAssertFalse(all(fixture.panel).contains { $0 is EditorView && !$0.isHidden }, "No body (editable: \(editable))")
+      let label = try XCTUnwrap(all(fixture.panel).compactMap { $0 as? UILabel }.first { $0.text == "Obsidian info alias" })
+      let header = label.convert(label.bounds, to: fixture.panel)
+      XCTAssertEqual(header.minY, StructuralBlockConfiguration.calloutPaddingY, accuracy: 1, "editable: \(editable)")
+      XCTAssertEqual(
+        fixture.panel.bounds.height - header.maxY, StructuralBlockConfiguration.calloutPaddingY, accuracy: 1,
+        "Padded alike above and below (editable: \(editable))")
+    }
   }
 }

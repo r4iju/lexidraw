@@ -31,8 +31,10 @@ function useUpdateFigure(nodeKey: NodeKey) {
 }
 
 /**
- * The width choices and caption switch of a selected figure, above it so
- * they cover the text before it rather than the figure being placed.
+ * The width choices and caption switch of a selected figure, inside its
+ * top-left corner so they never cover the block before it. The edit button
+ * keeps the top-right corner. One row, scrolling sideways on a narrow figure,
+ * so it covers as little of the figure as it can. Its parent needs a position.
  */
 export function FigureToolbar({
   nodeKey,
@@ -48,12 +50,12 @@ export function FigureToolbar({
 }) {
   const updateFigure = useUpdateFigure(nodeKey);
   const button =
-    "h-7 rounded px-2 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground aria-pressed:bg-muted aria-pressed:text-foreground";
+    "h-7 shrink-0 rounded px-2 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground aria-pressed:bg-muted aria-pressed:text-foreground";
   return (
     <div
       role="toolbar"
       aria-label="Figure"
-      className="document-figure-toolbar absolute bottom-full left-0 z-20 mb-1 flex items-center gap-0.5 rounded-md border border-border bg-popover p-0.5 shadow-sm print:hidden"
+      className="document-figure-toolbar absolute top-1 left-1 z-20 flex w-max max-w-[calc(100%-4rem)] items-center overflow-x-auto [scrollbar-width:none] gap-0.5 rounded-md border border-border bg-popover p-0.5 shadow-sm print:hidden"
       onMouseDown={(event) => event.preventDefault()}
     >
       {WIDTHS.map((choice) => (
@@ -71,7 +73,7 @@ export function FigureToolbar({
       ))}
       {onToggleCaption && (
         <>
-          <span aria-hidden className="mx-0.5 h-4 w-px bg-border" />
+          <span aria-hidden className="mx-0.5 h-4 w-px shrink-0 bg-border" />
           <button
             type="button"
             className={button}

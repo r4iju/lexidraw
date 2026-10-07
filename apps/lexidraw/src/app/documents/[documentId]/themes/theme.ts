@@ -63,6 +63,7 @@ export const theme = {
   heading: { h1: "", h2: "", h3: "", h4: "", h5: "", h6: "" },
   hrSelected: "document-rule-selected",
   image: "editor-image",
+  inlineImage: "document-inline-image",
   embedBlock: {
     base: "document-embed-block",
     focus: "document-embed-selected",
@@ -115,8 +116,8 @@ export const theme = {
     underlineStrikethrough: "underline line-through text-foreground",
   },
   layoutContainer: "grid gap-2",
-  // The dashed outline shows an editor where a column ends; a reader and
-  // paper see the columns without it.
+  // The dashed outline shows an editor where a column ends while the row is
+  // hovered or selected in (document.css); a reader and paper never see it.
   layoutItem:
     "document-column border border-dashed border-muted p-2 [[aria-readonly=true]_&]:border-transparent print:border-transparent",
 } satisfies EditorThemeClasses;

@@ -78,12 +78,25 @@ function LazyImage({
         <ImageLoading altText={altText} natural={natural} {...box} />
       )}
       {status === "error" && (
-        <div role="img" aria-label={altText} className="media-placeholder">
-          <img src="/images/image-broken.svg" alt="" width={32} height={32} />
-          <span>
-            Image unavailable
-            {altText ? ` · ${altText}` : ""}
-          </span>
+        // In the place the picture would take, so the page keeps its layout
+        // and the figure's controls leave the message readable.
+        <div
+          role="img"
+          aria-label={altText}
+          className="document-image"
+          style={{
+            ...imageBoxStyle(box),
+            width:
+              box.fill || typeof box.width !== "number" ? "100%" : box.width,
+          }}
+        >
+          <div className="media-placeholder size-full flex-wrap text-center">
+            <img src="/images/image-broken.svg" alt="" width={32} height={32} />
+            <span>
+              Image unavailable
+              {altText ? ` · ${altText}` : ""}
+            </span>
+          </div>
         </div>
       )}
       {status !== "error" && (
@@ -144,6 +157,7 @@ export default function ImageComponent({
   const keepNaturalSize = useKeepNaturalSize(nodeKey);
   const captionJustShown = useCaptionJustShown(showCaption);
   const imageRef = useRef<HTMLImageElement>(null);
+  const mediaRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const [isSelected, setSelected, clearSelection] =
     useLexicalNodeSelection(nodeKey);
@@ -235,7 +249,7 @@ export default function ImageComponent({
       if (isResizing) {
         return true;
       }
-      if (event.target === imageRef.current) {
+      if (mediaRef.current?.contains(event.target as Node)) {
         if (event.shiftKey) {
           setSelected(!isSelected);
         } else {
@@ -400,47 +414,65 @@ export default function ImageComponent({
         })}
         draggable={draggable}
       >
-        <LazyImage
-          key={src}
-          focused={isFocused}
-          src={src}
-          altText={altText}
-          imageRef={imageRef}
-          width={currentDimensions.width}
-          height={currentDimensions.height}
-          fill={figureWidth !== undefined}
-          natural={natural}
-          onMeasured={keepNaturalSize}
-          onDoubleClick={(e) => {
-            // prevent double clicking from propagating to parent
-            e.stopPropagation();
-            setIsLightboxOpen(true);
-          }}
-        />
-
-        {isEditable && isSelected && $isNodeSelection(selection) && (
-          <FigureToolbar
-            nodeKey={nodeKey}
-            width={figureWidth}
-            captionShown={showCaption}
-            onToggleCaption={
-              !captionsEnabled
-                ? undefined
-                : showCaption
-                  ? handleHideCaption
-                  : setShowCaption
-            }
+        <div ref={mediaRef} className="relative">
+          <LazyImage
+            key={src}
+            focused={isFocused}
+            src={src}
+            altText={altText}
+            imageRef={imageRef}
+            width={currentDimensions.width}
+            height={currentDimensions.height}
+            fill={figureWidth !== undefined}
+            natural={natural}
+            onMeasured={keepNaturalSize}
+            onDoubleClick={(e) => {
+              // prevent double clicking from propagating to parent
+              e.stopPropagation();
+              setIsLightboxOpen(true);
+            }}
           />
-        )}
 
-        {isEditable && (
-          <NodeEditButton
-            ref={buttonRef}
-            label="Edit image"
-            visible={isFocused}
-            onClick={() => setIsDialogOpen(true)}
-          />
-        )}
+          {isEditable && isSelected && $isNodeSelection(selection) && (
+            <FigureToolbar
+              nodeKey={nodeKey}
+              width={figureWidth}
+              captionShown={showCaption}
+              onToggleCaption={
+                !captionsEnabled
+                  ? undefined
+                  : showCaption
+                    ? handleHideCaption
+                    : setShowCaption
+              }
+            />
+          )}
+
+          {isEditable && (
+            <NodeEditButton
+              ref={buttonRef}
+              label="Edit image"
+              visible={isFocused}
+              onClick={() => setIsDialogOpen(true)}
+            />
+          )}
+
+          {resizable && $isNodeSelection(selection) && isFocused && (
+            <ImageResizer
+              showCaption={showCaption}
+              setShowCaption={setShowCaption}
+              editor={editor}
+              buttonRef={buttonRef as React.RefObject<HTMLButtonElement>}
+              imageRef={imageRef as React.RefObject<HTMLImageElement>}
+              maxWidth={maxWidth}
+              onResizeStart={onResizeStart}
+              onResizeEnd={onResizeEnd}
+              // The figure toolbar offers the caption.
+              captionsEnabled={false}
+              onDimensionsChange={onDimensionsChange}
+            />
+          )}
+        </div>
 
         {showCaption && (
           <ImageCaption
@@ -458,22 +490,6 @@ export default function ImageComponent({
             <HistoryPlugin externalHistoryState={historyState} />
             {showNestedEditorTreeView && <TreeViewPlugin />}
           </ImageCaption>
-        )}
-
-        {resizable && $isNodeSelection(selection) && isFocused && (
-          <ImageResizer
-            showCaption={showCaption}
-            setShowCaption={setShowCaption}
-            editor={editor}
-            buttonRef={buttonRef as React.RefObject<HTMLButtonElement>}
-            imageRef={imageRef as React.RefObject<HTMLImageElement>}
-            maxWidth={maxWidth}
-            onResizeStart={onResizeStart}
-            onResizeEnd={onResizeEnd}
-            // The figure toolbar offers the caption.
-            captionsEnabled={false}
-            onDimensionsChange={onDimensionsChange}
-          />
         )}
       </div>
 

@@ -94,6 +94,7 @@ private struct EmbeddedScene {
       thumbnails.setObject(content, forKey: key as NSString)
     }
     content.open = { _ = open(key, node) }
+    content.isEditable = { [weak editor] in editor?.isEditable ?? false }
     content.overrideUserInterfaceStyle = editor?.traitCollection.userInterfaceStyle ?? .light
     content.show(node)
     return content
@@ -122,6 +123,9 @@ private struct EmbeddedScene {
   private let caption = UILabel()
   private var imageFrame: CGRect = .zero
   private var loadedNode: JSONValue?
+  private var isEmpty = false
+  /// Only a writer sees an empty drawing, as on the web.
+  fileprivate var isEditable: () -> Bool = { false }
   init(node: JSONValue, open: @escaping () -> Void) {
     self.node = node
     self.open = open
@@ -164,6 +168,8 @@ private struct EmbeddedScene {
   }
   private func prepare() {
     guard let data = node["data"]?.stringValue, let embedded = try? EmbeddedScene(data) else { return }
+    isEmpty = embedded.elements.isEmpty
+    accessibilityLabel = isEmpty ? "Empty drawing" : "Drawing"
     scene = PreparedScene(restoreElements(embedded.elements), theme: traitCollection.userInterfaceStyle == .dark ? .dark : .light,
       canvasBackgroundColor: embedded.background, images: images, measurer: FontLibrary.shared)
     setNeedsDisplay()
@@ -172,20 +178,15 @@ private struct EmbeddedScene {
     let padding = EmbeddedDrawingStyle.exportPadding
     let natural = scene?.exportPixelSize(padding: padding, scale: 1) ?? (width: 20, height: 20)
     let em = UIFont.preferredFont(forTextStyle: .body).pointSize
-    var column = min(width, EmbeddedDrawingStyle.columnRem * em)
-    if let figureWidth = node["$"]?["figure"]?["width"]?.stringValue {
-      switch figureWidth {
-      case "wide": column = min(width, EmbeddedDrawingStyle.wideRem * em)
-      case "full": column = width
-      default:
-        if figureWidth.hasSuffix("%"), let share = Double(figureWidth.dropLast()) {
-          let least = width <= EmbeddedDrawingStyle.phoneWidth ? width : min(width, EmbeddedDrawingStyle.minimumShareRem * em)
-          column = max(column * share / 100, least)
-        }
-      }
+    let fittedWidth = CGFloat(EmbeddedDrawingLayout.width(
+      figure: node["$"]?["figure"]?["width"]?.stringValue, requested: node["width"]?.numberValue,
+      naturalWidth: Double(natural.width), empty: isEmpty, available: Double(width), em: Double(em)))
+    if isEmpty {
+      caption.frame = .zero
+      let height = isEditable() ? CGFloat(EmbeddedDrawingLayout.emptyHeight(em: Double(em))) : 1
+      imageFrame = CGRect(x: 0, y: 0, width: fittedWidth, height: height)
+      return imageFrame.size
     }
-    let requestedWidth = CGFloat(node["width"]?.numberValue ?? Double(natural.width) * EmbeddedDrawingStyle.naturalScale)
-    let fittedWidth = min(max(requestedWidth, 1), column)
     let intrinsicHeight = fittedWidth * CGFloat(natural.height) / CGFloat(max(natural.width, 1))
     let heightLimit = CGFloat(node["height"]?.numberValue ?? Double(intrinsicHeight))
     let imageHeight = max(min(intrinsicHeight, heightLimit), 1)
@@ -204,6 +205,10 @@ private struct EmbeddedScene {
   }
 
   override func draw(_ rect: CGRect) {
+    if isEmpty {
+      if isEditable() { drawEmptyPlaceholder() }
+      return
+    }
     guard let scene, let context = UIGraphicsGetCurrentContext() else { return }
     let size = scene.exportPixelSize(padding: EmbeddedDrawingStyle.exportPadding, scale: 1)
     context.saveGState()
@@ -212,6 +217,21 @@ private struct EmbeddedScene {
     context.scaleBy(x: scale, y: scale)
     scene.export(on: CGCanvas(context: context, fonts: FontLibrary.shared), padding: EmbeddedDrawingStyle.exportPadding, scale: 1, background: nil)
     context.restoreGState()
+  }
+
+  /// A dashed box saying the drawing is empty, so that it can be found and tapped.
+  private func drawEmptyPlaceholder() {
+    let box = UIBezierPath(roundedRect: imageFrame.insetBy(dx: 0.5, dy: 0.5), cornerRadius: 6)
+    UIColor.secondarySystemFill.setFill()
+    box.fill()
+    box.setLineDash([4, 3], count: 2, phase: 0)
+    UIColor.separator.setStroke()
+    box.stroke()
+    let label = NSAttributedString(string: "Empty drawing", attributes: [
+      .font: UIFont.preferredFont(forTextStyle: .subheadline), .foregroundColor: UIColor.secondaryLabel,
+    ])
+    let size = label.size()
+    label.draw(at: CGPoint(x: imageFrame.midX - size.width / 2, y: imageFrame.midY - size.height / 2))
   }
 }
 

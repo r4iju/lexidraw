@@ -5,14 +5,16 @@ import {
   type MultilineElementTransformer,
   type Transformer,
 } from "@lexical/markdown";
-import type { HeadingTagType } from "@lexical/rich-text";
+import { $isQuoteNode, type HeadingTagType } from "@lexical/rich-text";
 import {
   $createParagraphNode,
   $isElementNode,
+  $isParagraphNode,
   $isTextNode,
   type ElementNode,
   type LexicalNode,
 } from "lexical";
+import { $replaceWithCallout } from "./callout.js";
 import { $getFigure, $setFigure } from "./figure.js";
 import { reportMarkdownNote } from "./markdown-notes.js";
 import {
@@ -40,7 +42,7 @@ export type TransformerSource = () => Transformer[];
  * nearest in meaning. Where Obsidian and GitHub disagree on a word, GitHub's
  * reading wins: `important` is its own kind and `caution` is the red one.
  */
-const CALLOUT_ALIASES: Record<string, CalloutKind> = {
+export const CALLOUT_ALIASES: Record<string, CalloutKind> = {
   note: "note",
   info: "note",
   todo: "note",
@@ -208,8 +210,8 @@ export const ADMONITION_END = /^:{3,}\s*$/;
 
 /**
  * Docusaurus admonitions, `:::tip[Title]` down to a bare `:::`. They import
- * as callouts and are written back in the GitHub form, so only import is
- * here.
+ * as callouts and are written back in the GitHub form. Typed at the start of
+ * a paragraph and finished by a space or Enter, one makes a callout.
  */
 export function createAdmonitionTransformer(
   transformers: TransformerSource,
@@ -251,7 +253,17 @@ export function createAdmonitionTransformer(
       return [true, end];
     },
     regExpStart: ADMONITION_START,
-    replace: noShortcut,
+    // Import asks too, for an admonition left open, which stays text.
+    replace: (block, children, match, _end, _lines, isImport) => {
+      if (isImport || !children || !$isParagraphNode(block)) return false;
+      const [, , marker = "", bracketed, trailing] = match;
+      const { kind, title } = resolveCallout(
+        marker,
+        (bracketed ?? trailing ?? "").trim(),
+        `:::${marker}`,
+      );
+      $replaceWithCallout(block, children, kind, title);
+    },
     type: "multiline-element",
   };
 }
@@ -468,6 +480,28 @@ export function createColumnsTransformer(
     type: "multiline-element",
   };
 }
+
+/**
+ * `[!tip] ` at the start of a quote makes it a callout, as `> [!TIP]` reads
+ * on GitHub; the words import accepts resolve as they do there. Typing only:
+ * import reads the whole `> [!TIP]` block.
+ */
+export const CALLOUT_SHORTCUT: ElementTransformer = {
+  dependencies: [CalloutNode],
+  export: () => null,
+  regExp: /^\[!([A-Za-z][\w-]*)\]\s/,
+  replace: (block, children, match, isImport) => {
+    // Import strips the match before asking, so a declined line gets it back.
+    const [first] = children;
+    if (isImport && $isTextNode(first))
+      first.setTextContent(match[0] + first.getTextContent());
+    if (isImport || !$isQuoteNode(block)) return false;
+    const [, marker = ""] = match;
+    const { kind, title } = resolveCallout(marker, "", `[!${marker}]`);
+    $replaceWithCallout(block, children, kind, title);
+  },
+  type: "element",
+};
 
 /**
  * `>> ` at the start of a line makes it a toggle's title, as Notion's `> `

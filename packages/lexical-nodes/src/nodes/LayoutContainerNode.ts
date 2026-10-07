@@ -22,19 +22,23 @@ import {
 } from "../stored-fields.js";
 import { writtenElementFields } from "./stored-element.js";
 
+/**
+ * Columns as the editor writes them to HTML: the template from the inline
+ * style, which a pasted fragment has without being laid out, or else an
+ * equal share for each column.
+ */
 function $convertLayoutContainerElement(
   domNode: HTMLElement,
-): DOMConversionOutput | null {
-  const styleAttributes = window.getComputedStyle(domNode);
-  const templateColumns = styleAttributes.getPropertyValue(
-    "grid-template-columns",
-  );
-  if (templateColumns) {
-    const node =
-      LayoutContainerNode.$createLayoutContainerNode(templateColumns);
-    return { node };
-  }
-  return null;
+): DOMConversionOutput {
+  const columns = Array.from(domNode.children).filter((child) =>
+    child.hasAttribute("data-lexical-layout-item"),
+  ).length;
+  const templateColumns =
+    domNode.style.gridTemplateColumns.trim() ||
+    Array.from({ length: Math.max(columns, 2) }, () => "1fr").join(" ");
+  return {
+    node: LayoutContainerNode.$createLayoutContainerNode(templateColumns),
+  };
 }
 
 const { fields: layoutContainerFields, json: layoutContainerJSON } =

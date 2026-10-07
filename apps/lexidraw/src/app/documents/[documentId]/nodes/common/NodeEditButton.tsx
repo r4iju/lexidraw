@@ -16,6 +16,7 @@ export function NodeEditButton({
   onClick,
   ref,
   className,
+  iconOnly,
 }: {
   /** What the button edits, as in "Edit drawing". */
   label: string;
@@ -23,6 +24,8 @@ export function NodeEditButton({
   onClick: () => void;
   ref?: Ref<HTMLButtonElement>;
   className?: string;
+  /** A 24px square without its word, for media too small for one. */
+  iconOnly?: boolean;
 }) {
   return (
     <Button
@@ -35,7 +38,8 @@ export function NodeEditButton({
         onClick();
       }}
       className={cn(
-        "absolute top-1 right-1 z-10 gap-1.5 bg-media-overlay/65 text-media-overlay-foreground backdrop-blur-xs transition-opacity hover:bg-media-overlay/80 hover:text-media-overlay-foreground focus-visible:opacity-100 pointer-coarse:size-11 pointer-coarse:p-0 print:hidden",
+        "absolute top-1 right-1 z-10 h-6 gap-1 px-2 text-xs [&_svg]:size-3.5 bg-media-overlay/65 text-media-overlay-foreground backdrop-blur-xs transition-opacity hover:bg-media-overlay/80 hover:text-media-overlay-foreground focus-visible:opacity-100 pointer-coarse:size-11 pointer-coarse:p-0 print:hidden",
+        iconOnly && "w-6 px-0",
         visible
           ? "opacity-100"
           : "pointer-events-none opacity-0 pointer-fine:group-hover/node:pointer-events-auto pointer-fine:group-hover/node:opacity-100",
@@ -43,7 +47,9 @@ export function NodeEditButton({
       )}
     >
       <Pencil />
-      <span className="pointer-coarse:sr-only">Edit</span>
+      <span className={iconOnly ? "sr-only" : "pointer-coarse:sr-only"}>
+        Edit
+      </span>
     </Button>
   );
 }

@@ -172,9 +172,6 @@
   }
 
   .document-content .sticky-note-container {
-    position: static;
-    width: fit-content;
-    margin-inline: auto;
     break-inside: avoid;
   }
 

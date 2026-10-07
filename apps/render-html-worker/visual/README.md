@@ -81,6 +81,20 @@ between its words), labelled keyboard scroll regions, the pinned
 phone column and cell-menu bounds/header toggles. The fixture explicitly clears saved
 column widths so every capture exercises a document before manual resizing.
 
+Column checks write a throwaway document of two columns between two lines and
+check, in the browser, that Up and Down from a column's edge line leave the
+columns where the browser would move into the column beside, that select all
+in a column selects the column first, that HTML of columns pastes as columns,
+and the split between two columns: over the gap, labelled with its value,
+dragged as one undo step, moved by the arrow keys, made equal by a
+double-click, and absent on paper, on a phone where the columns stack, and in a
+read-only document. A second throwaway document, an open toggle followed by
+columns whose first column starts with a heading, checks the layout: the
+columns' text is in line with the text column, the heading is level with the
+next column's first line, a column's blocks are inset evenly, the text is
+spaced from the toggle and the paragraph after as blocks are, and the frames
+show only while the row is hovered or holds the selection.
+
 Media cases include a 2000px portrait image, a missing image with alt text,
 columns in the text column and written wide, unsized diagrams/video/charts,
 voted polls, and empty charts and slides. Browser checks cover 375×812, 768×1024 and 1280×900 in both themes,

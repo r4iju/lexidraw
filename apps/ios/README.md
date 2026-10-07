@@ -729,6 +729,30 @@ content a line; Backspace at a title's start unwrapping the toggle, and after
 a closed toggle opening it; deletion into folded content opening the toggles
 instead; Enter in a title; and the arrows' lines around a toggle at the
 document's edges. `ToggleTests` record each against the reference.
+LexicalSwift ports the columns of #252 in `Columns.swift`: Backspace at a
+column's start removing an empty column, joining one onto the column before
+or, in the first, turning the row into its blocks; Delete at a column's end
+pulling the next column in; Up and Down leaving the row where the platform's
+line move lands outside the column, and Left and Right at its outer edges
+making a line; select all taking the column first; and the repairs that keep a
+row to two or more columns and nothing else, and keep columns out of columns.
+A removed column takes its track with it, so the others keep their widths.
+`ColumnTests` record each against the reference, whose own Up and Down
+handler gives the plugin's helper the platform's landing in place of the DOM
+probe. The columns markdown transformer stays not ported: it only matters to
+a GFM table cell's import, which has no multiline blocks yet. The web shows a
+row's dashed column frames only while it is hovered or holds the selection;
+codegen reads that rule from `document.css` as `columnFramesShowAtRest`, and
+since native has neither hover nor an inline column selection, its frames keep
+their box and stay transparent.
+
+With the generator's toggle titles fixed to the one paragraph #250 repairs
+them to, structural fuzz seeds 133 to 142 diverge on a caret left in a closed
+toggle's hidden content, which the web's `keepCaretInSight` moves to the title
+(#260), except seed 136, which found select all in a column starting with a
+line break, now a `ColumnTests` case. With toggles left out of the generator
+for a local run, seeds 134 to 136 agreed for 20,000 steps each, and seed 133
+diverged on Enter after a rule in a callout, outside the columns.
 
 Opt in to structural documents in the existing differential fuzzer with
 `FUZZ_STRUCTURAL=1 FUZZ_SEED=133 FUZZ_STEPS=20000 swift test --filter

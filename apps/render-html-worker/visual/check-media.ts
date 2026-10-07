@@ -205,9 +205,9 @@ export async function checkMedia(
       }
       assert(
         await page.$eval(".document-content", (e) =>
-          e.textContent?.includes("Edit chart to add data"),
+          e.textContent?.includes("Edit the chart to add data"),
         ),
-        "Empty chart explains how to add data",
+        "Empty chart asks its editor to add data",
       );
       assert(
         await page.$eval(".document-content", (e) =>
@@ -232,17 +232,48 @@ export async function checkMedia(
         poll.text?.includes("2 votes · 67%") &&
           poll.text.includes("3 votes total"),
       );
-      const sticky = await page.$eval(".sticky-note-container", (e) => ({
-        inDocument: Boolean(e.closest(".document-content")),
-        position: getComputedStyle(e).position,
-      }));
-      assert(sticky.inDocument, "Sticky note belongs to the document flow");
-      if (width === 375)
-        assert.equal(
-          sticky.position,
-          "static",
-          "Compact sticky cannot cover text",
-        );
+      const sticky = await page.$eval(".sticky-note-container", (e) => {
+        const block = e.closest(".document-content > *");
+        const column = e.closest(".document-content");
+        if (!block || !column)
+          throw new Error("Sticky note outside the document");
+        const own = e.getBoundingClientRect();
+        return {
+          own: own.toJSON(),
+          column: column.getBoundingClientRect().toJSON(),
+          before: block.previousElementSibling?.getBoundingClientRect().bottom,
+          after: block.nextElementSibling?.getBoundingClientRect().top,
+        };
+      });
+      assert(
+        sticky.before !== undefined &&
+          sticky.after !== undefined &&
+          sticky.own.top >= sticky.before &&
+          sticky.own.bottom <= sticky.after,
+        `Sticky note sits between its neighbouring blocks at ${width}px, never over them`,
+      );
+      assert(
+        sticky.own.left >= sticky.column.left - 1 &&
+          sticky.own.right <= sticky.column.right + 1,
+        `Sticky note stays inside the text column at ${width}px`,
+      );
+      // The fixture's poll shares a paragraph with the note before it and the
+      // drawing after it, as stored decorators do.
+      const pollGaps = await page.$eval("[data-poll]", (e) => {
+        const holder = e.closest("[data-lexical-decorator]");
+        const before = holder?.previousElementSibling?.firstElementChild;
+        const after = holder?.nextElementSibling;
+        if (!before || !after) throw new Error("Poll without neighbours");
+        const own = e.getBoundingClientRect();
+        return {
+          before: own.top - before.getBoundingClientRect().bottom,
+          after: after.getBoundingClientRect().top - own.bottom,
+        };
+      });
+      assert(
+        pollGaps.before >= 8 && pollGaps.after >= 8,
+        `A poll keeps a gap from the blocks beside it at ${width}px; got ${JSON.stringify(pollGaps)}`,
+      );
       const drawingFilter = await page.$eval(
         'img[alt="Excalidraw"]',
         (e) => getComputedStyle(e).filter,

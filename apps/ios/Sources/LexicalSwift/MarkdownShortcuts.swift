@@ -36,7 +36,7 @@ struct MarkdownTransformer: Sendable {
   static let notPortedYet: [Name: Int] = [
     .tweet: 131, .image: 131,
     .equation: 132, .code: 132, .blockEquation: 132, .blockEquationFence: 132,
-    .callout: 133, .admonition: 133, .details: 133, .columns: 133, .toggleShortcut: 133,
+    .details: 133, .columns: 133, .toggleShortcut: 133,
 
   ]
 
@@ -232,8 +232,10 @@ extension Update {
     case .unorderedList, .orderedList, .checkList:
       return type == SerializedQuoteNode.type || type == SerializedHeadingNode.type
     case .table: return state.parent(of: parent).map(isCell) ?? false
+    case .calloutShortcut: return type != SerializedQuoteNode.type
+    case .admonition: return type != SerializedParagraphNode.type
     // They make something only of imported markdown.
-    case .callout, .admonition, .details, .columns, .blockEquation, .blockEquationFence, .article,
+    case .callout, .details, .columns, .blockEquation, .blockEquationFence, .article,
       .placeholderBlock, .footnoteDefinition:
       return true
     default: return false
@@ -265,6 +267,10 @@ extension Update {
       }
       selectNext(line)
     case .table: try replaceWithTable(parent, groups)
+    case .calloutShortcut: try replaceWithCallout(parent, children, marker: groups[1] ?? "", title: "")
+    case .admonition:
+      let title = MarkdownImport.trimmed((groups[3] ?? groups[4] ?? "").utf16)
+      try replaceWithCallout(parent, children, marker: groups[2] ?? "", title: MarkdownImport.string(title))
     default:
       throw EditorError.unsupported("The markdown shortcut \(transformer.name.rawValue)")
     }
@@ -613,7 +619,7 @@ extension MarkdownTransformer.Name {
     case .checkList: .check
     case .callout, .admonition, .details, .columns, .blockEquationFence, .tweet, .article, .placeholderBlock,
       .blockEquation, .image, .equation, .literalDollar, .placeholderInline, .footnoteDefinition, .footnoteReference,
-      .table, .hr, .emoji, .heading, .quote, .code, .toggleShortcut, .inlineCode, .boldItalicStar,
+      .table, .hr, .emoji, .heading, .quote, .code, .calloutShortcut, .toggleShortcut, .inlineCode, .boldItalicStar,
       .boldItalicUnderscore, .boldStar, .boldUnderscore, .highlight, .italicStar, .italicUnderscore, .strikethrough,
       .link:
       nil

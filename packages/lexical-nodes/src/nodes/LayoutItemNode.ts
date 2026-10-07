@@ -33,7 +33,17 @@ export class LayoutItemNode extends ElementNode {
   }
 
   static importDOM(): DOMConversionMap | null {
-    return {};
+    return {
+      div: (domNode: HTMLElement) =>
+        domNode.hasAttribute("data-lexical-layout-item")
+          ? {
+              conversion: () => ({
+                node: LayoutItemNode.$createLayoutItemNode(),
+              }),
+              priority: 2,
+            }
+          : null,
+    };
   }
 
   isShadowRoot(): boolean {

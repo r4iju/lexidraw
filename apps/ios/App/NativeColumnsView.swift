@@ -340,7 +340,9 @@ indirect enum NativeColumnTrack {
   }
 }
 
-/// The web's column outline guides editing; readers retain a transparent border.
+/// The web's column outline guides editing while a row is hovered or selected
+/// in; native has neither, so unless the web shows it at rest the border keeps
+/// its box and stays transparent, as it does for readers.
 @MainActor final class NativeColumnBox: UIStackView {
   private let outline = CAShapeLayer()
   private let borderColor: UIColor
@@ -350,7 +352,7 @@ indirect enum NativeColumnTrack {
     guard values.count == 2, let light = CSSColor(values[0]), let dark = CSSColor(values[1]) else {
       throw EditorError.unsupported("The column border color cannot be represented natively (#133)")
     }
-    borderColor = editable ? UIColor { traits in
+    borderColor = editable && StructuralBlockConfiguration.columnFramesShowAtRest ? UIColor { traits in
       let color = traits.userInterfaceStyle == .dark ? dark : light
       return UIColor(red: color.red, green: color.green, blue: color.blue, alpha: color.alpha)
     } : .clear

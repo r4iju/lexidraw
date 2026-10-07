@@ -47,5 +47,92 @@ import UIKit
     try model.apply(.undo)
     #expect(try model.node(at: [0, 0])["options"]?.arrayValue?[1]["votes"] == [])
   }
+
+  private func poll(_ options: [JSONValue]) -> JSONValue {
+    ["type": "poll", "version": 1, "question": "Choose", "options": .array(options)]
+  }
+  private func option(_ text: String, votes: [JSONValue] = []) -> JSONValue {
+    ["text": .string(text), "uid": .string(text.lowercased()), "votes": .array(votes)]
+  }
+  /// What the poll shows in words: its labels and its buttons' titles.
+  private func texts(in view: UIView) -> [String] {
+    [(view as? UILabel)?.text, (view as? UIButton)?.currentTitle].compactMap { $0 }
+      + view.subviews.flatMap { texts(in: $0) }
+  }
+  private func laidOut(_ view: NativePollView) -> NativePollView {
+    view.frame.size = view.contentSize(fitting: 390)
+    view.layoutIfNeeded()
+    return view
+  }
+
+  @Test func eachOptionShowsItsShareAsABarAndNoTextButtons() throws {
+    let view = laidOut(NativePollView(
+      poll([option("Pen", votes: ["a", "b"]), option("Pencil", votes: ["reader"])]), userID: "reader", editable: true))
+    let shown = texts(in: view)
+    #expect(shown.contains("2 votes · 67%"))
+    #expect(shown.contains("1 vote · 33%"))
+    #expect(shown.contains("3 votes total"))
+    #expect(!shown.contains { ["Vote", "Remove vote", "Edit", "Remove"].contains($0) })
+    func bars(_ view: UIView) -> [UIProgressView] {
+      ((view as? UIProgressView).map { [$0] } ?? []) + view.subviews.flatMap(bars)
+    }
+    #expect(bars(view).map(\.progress) == [Float(2) / 3, Float(1) / 3])
+  }
+
+  @Test func aPollWithoutVotesSaysSoAndAnEmptyOneSaysItHasNoOptions() throws {
+    let unvoted = texts(in: laidOut(NativePollView(poll([option("Pen"), option("Pencil")]))))
+    #expect(unvoted.contains("No votes yet"))
+    #expect(!unvoted.contains { $0.contains("0 votes") })
+    let empty = texts(in: laidOut(NativePollView(poll([]), userID: "reader", editable: true)))
+    #expect(empty.contains("No options yet"))
+    #expect(empty.contains("Add option"))
+  }
+
+  @Test func everyLineOfThePollGetsTheRoomItsTextNeeds() throws {
+    // Hosted as a document hosts it: in a window, framed at the size it asks for.
+    let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 900))
+    window.isHidden = false
+    defer { window.isHidden = true }
+    let view = NativePollView(
+      ["type": "poll", "version": 1, "question": "Which pen do you sketch with?", "options": [
+        option("Pen", votes: ["a", "b"]), option("Pencil", votes: ["reader"]), ["text": "", "uid": "blank", "votes": []],
+      ]], userID: "reader", editable: true)
+    view.frame = CGRect(origin: CGPoint(x: 16, y: 16), size: view.contentSize(fitting: 358))
+    window.addSubview(view)
+    view.layoutIfNeeded()
+    func labels(_ view: UIView) -> [UILabel] { ((view as? UILabel).map { [$0] } ?? []) + view.subviews.flatMap(labels) }
+    func bars(_ view: UIView) -> [UIProgressView] { ((view as? UIProgressView).map { [$0] } ?? []) + view.subviews.flatMap(bars) }
+    let frame = { (child: UIView) in child.convert(child.bounds, to: view) }
+    for label in labels(view) {
+      let needed = label.sizeThatFits(CGSize(width: label.bounds.width, height: .greatestFiniteMagnitude)).height
+      #expect(label.bounds.width > 0 && label.bounds.height + 0.5 >= needed, "\(label.text ?? "") is \(label.bounds.size), needs \(needed)")
+      #expect(view.bounds.contains(frame(label)), "\(label.text ?? "") lies outside the card")
+    }
+    let shown = Dictionary(labels(view).map { ($0.text ?? "", frame($0)) }, uniquingKeysWith: { first, _ in first })
+    let barTops = bars(view).map { frame($0).minY }
+    #expect(bars(view).map(\.bounds.height) == [6, 6, 6], "Bars are the web's 6pt")
+    let question = try #require(shown["Which pen do you sketch with?"])
+    let firstBar = try #require(barTops.first)
+    #expect(question.maxY <= firstBar - 20, "The question runs into the first option")
+    for (name, top) in zip(["Pen", "Pencil", "Option 3"], barTops) {
+      let title = try #require(shown[name])
+      #expect(title.maxY <= top, "\(name) runs into its bar")
+    }
+  }
+
+  @Test func anOptionIsRemovedThroughItsActionsAboveTheMinimum() throws {
+    var saved: JSONValue?
+    let view = laidOut(NativePollView(
+      poll([option("Pen"), option("Pencil"), option("Brush")]), userID: "reader", editable: true,
+      changed: { saved = $0 }))
+    func actions(_ view: UIView) -> [UIAccessibilityCustomAction] {
+      (view.accessibilityCustomActions ?? []) + view.subviews.flatMap(actions)
+    }
+    let remove = try #require(actions(view).first { $0.name == "Remove Pencil" })
+    #expect(remove.actionHandler?(remove) == true)
+    #expect(saved?["options"]?.arrayValue?.compactMap { $0["text"]?.stringValue } == ["Pen", "Brush"])
+    let minimal = laidOut(NativePollView(poll([option("Pen"), option("Pencil")]), userID: "reader", editable: true))
+    #expect(!actions(minimal).contains { $0.name.hasPrefix("Remove") })
+  }
 }
 #endif

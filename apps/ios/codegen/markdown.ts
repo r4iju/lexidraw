@@ -47,15 +47,21 @@ export const MARKDOWN_PATTERNS = {
   COLUMNS_CLOSE: blockTransformers.COLUMNS_CLOSE,
 };
 
+/** The kind each word a callout marker may name reads as. */
+export const CALLOUT_ALIASES: Record<string, string> =
+  blockTransformers.CALLOUT_ALIASES;
+
 /**
  * The web editor's markdown transformers in Swift, in the order they run, for
  * LexicalSwift's shortcuts to run as `registerMarkdownShortcuts` does, and
  * `patterns` by the names they're exported by. JavaScriptCore evaluates their
- * regular expressions, so they match as the web's do.
+ * regular expressions, so they match as the web's do. `calloutAliases` is
+ * how a typed callout shortcut reads its word, as import does.
  */
 export function swiftForMarkdownTransformers(
   transformers: Transformer[],
   patterns: Record<string, RegExp> = {},
+  calloutAliases: Record<string, string> = {},
 ): string {
   const names = new Set<string>();
   const entries = transformers.map((transformer) => {
@@ -82,6 +88,17 @@ export function swiftForMarkdownTransformers(
       `  /// \`${name}\` in @packages/lexical-nodes.`,
       `  static let ${camelCase(name)} = ${swiftForPattern(regExp)}`,
     ]),
+    ...(Object.keys(calloutAliases).length
+      ? [
+          "",
+          "  /// `CALLOUT_ALIASES` in @packages/lexical-nodes.",
+          `  static let calloutAliases: [String: CalloutKind] = [${Object.entries(
+            calloutAliases,
+          )
+            .map(([word, kind]) => `${swiftString(word)}: .${kind}`)
+            .join(", ")}]`,
+        ]
+      : []),
     "}",
   ];
   return `${lines.join("\n")}\n`;

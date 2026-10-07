@@ -55,15 +55,15 @@ enum MarkdownImport {
     }
   }
 
-  /// `$importMultiline`: no multiline element transformer is ported, so one
-  /// that takes the line at `index` throws.
+  /// `$importMultiline`: no multiline element transformer's import is
+  /// ported, though some of their shortcuts are, so one that takes the line
+  /// at `index` throws.
   private static func importMultiline(_ lines: [String], _ index: Int) throws {
     for transformer in MarkdownTransformer.multilineElement {
       guard let start = transformer.regExp?.firstMatch(in: lines[index]),
         takes(transformer, lines, index, startIndex: start.index)
       else { continue }
-      try requirePorted(transformer.name)
-      throw EditorError.unsupported("Importing the markdown \(transformer.name.rawValue)")
+      throw NotPortedYet()
     }
   }
 
@@ -144,7 +144,7 @@ enum MarkdownImport {
         text.text = matched
         continue transformers
       // Typed only: the line is text as it was.
-      case .toggleShortcut:
+      case .calloutShortcut, .toggleShortcut:
         text.text = line
         continue transformers
       case .hr: block = .horizontalRule

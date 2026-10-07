@@ -895,8 +895,7 @@
       iframe,
       video,
       .document-embed,
-      .chart-component,
-      .sticky-note-container
+      .chart-component
     )
   ) {
   width: 100%;
@@ -938,7 +937,7 @@
 /* A share of the column, but never narrower than a phone's column allows:
    on a phone it is the whole column. */
 .document-content {
-  --figure-least: min(100%, 20rem);
+  --figure-least: min(100%, 10rem);
 }
 .document-content > [data-lexical-decorator][data-figure-width="share"] {
   max-width: max(
@@ -994,8 +993,8 @@
   width: 100%;
 }
 /* Columns sit in the text column with their text in line with it; the frame
-   an editor sees stands out into the margin. `<columns wide>` uses the wide
-   column. */
+   an editor sees while hovering or selecting stands out into the margin.
+   `<columns wide>` uses the wide column. */
 .document-content > [data-lexical-layout-container] {
   --column-inset: calc(0.5rem + 1px);
   --column-measure: var(--doc-measure);
@@ -1011,10 +1010,78 @@
 .document-content > [data-lexical-layout-container][data-figure-width="wide"] {
   --column-measure: var(--doc-wide);
 }
+/* As Notion's, a row of columns shows its frames only while hovered or
+   while the selection is in it. */
+.document-content
+  [data-lexical-layout-container]:not(:hover, [data-columns-selected])
+  > [data-lexical-layout-item] {
+  border-color: transparent;
+}
+/* A column's blocks start level with the next column's and end clear of
+   its frame, as far from it as they start. */
+.document-content [data-lexical-layout-item] > :first-child {
+  margin-block-start: 0;
+}
+.document-content [data-lexical-layout-item] > :last-child {
+  margin-block-end: 0;
+}
 @container (max-width: 567px) {
   .document-content [data-lexical-layout-container] {
     /* The node stores a template for desktop; compact columns always stack. */
     grid-template-columns: minmax(0, 1fr) !important;
+  }
+}
+/* The split between two columns an editor drags: a line over the gap that
+   shows on hover, while dragging, and on keyboard focus. Their layer is
+   clipped to the page's width, so a split not yet moved after the window
+   narrows never widens the page. */
+.column-splits {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  overflow-x: clip;
+  pointer-events: none;
+}
+.column-split {
+  pointer-events: auto;
+  position: absolute;
+  z-index: 20;
+  width: 12px;
+  translate: -50% 0;
+  cursor: col-resize;
+  touch-action: none;
+  outline: none;
+}
+.column-split::after {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  left: calc(50% - 1px);
+  width: 2px;
+  border-radius: 1px;
+  background-color: var(--primary);
+  opacity: 0;
+  transition: opacity var(--transition-duration-fast);
+}
+.column-split:hover::after,
+.column-split:active::after,
+.column-split:focus-visible::after {
+  opacity: 1;
+}
+.column-split:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+@media (pointer: coarse) {
+  .column-split {
+    width: 24px;
+  }
+}
+@media print {
+  .column-split {
+    display: none;
   }
 }
 
@@ -1026,23 +1093,30 @@
 .document-content {
   position: relative;
 }
-.document-content[contenteditable="false"] .sticky-note-container {
-  position: static;
-  width: fit-content;
+/* A sticky note is a block in the flow at every width, a callout in its own
+   colour; its decorator is display: contents, so it takes the gap itself,
+   on both sides, as it often shares a paragraph with text. */
+.sticky-note-container {
+  max-width: var(--doc-measure);
   margin-inline: auto;
+  margin-block: var(--block-gap);
 }
-.sticky-note-container > div {
-  max-width: 100%;
-  min-height: 192px;
-  height: auto;
+/* A note or a poll is a block inside the paragraph that holds it; the line
+   break Lexical keeps after a trailing decorator would add an empty line.
+   It shows while the caret is on it (see nodes/use-caret-line.ts). */
+.document-content
+  p:not([data-caret-after])
+  > [data-lexical-decorator]:has(> .sticky-note-container, > [data-poll])
+  + br[data-lexical-managed-linebreak]:last-child {
+  display: none;
+}
+.sticky-note {
+  position: relative;
+  min-height: 48px;
+  border-radius: 8px;
+  padding: 12px 16px;
+  color: var(--paper-ink);
   text-align: start;
-}
-@container (max-width: 567px) {
-  .document-content .sticky-note-container {
-    position: static;
-    width: fit-content;
-    margin-inline: auto;
-  }
 }
 
 @media screen {
@@ -1469,24 +1543,57 @@ div.editor-equation {
 }
 .callout-header {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 8px;
-  margin-bottom: 4px;
   color: var(--callout);
   font-weight: 600;
   line-height: 1.5;
   user-select: none;
+  width: fit-content;
+  cursor: default;
+}
+/* Editable, the icon and title open the callout's menu (CalloutMenuPlugin).
+   The hover tint fills an outline too, so it pads without moving the text. */
+.callout-header[role="button"] {
+  cursor: pointer;
+  border-radius: 4px;
+  outline: 4px solid transparent;
+  transition:
+    background-color var(--transition-duration-base),
+    outline-color var(--transition-duration-base);
+}
+.callout-header[role="button"]:hover,
+.callout-header[role="button"][aria-expanded="true"] {
+  --callout-hover: color-mix(in srgb, var(--callout) 14%, transparent);
+  background-color: var(--callout-hover);
+  outline-color: var(--callout-hover);
+}
+@media (prefers-reduced-motion: reduce) {
+  .callout-header[role="button"] {
+    transition: none;
+  }
 }
 .callout-icon {
   flex: none;
   width: 18px;
   height: 18px;
+  /* Beside the title's first line, however many it wraps onto. */
+  margin-top: calc((1.5em - 18px) / 2);
   background-color: currentColor;
   mask: var(--callout-icon) center / contain no-repeat;
 }
 .callout-body {
   color: var(--foreground);
   min-width: 0;
+  margin-top: 4px;
+}
+/* A callout with only a title keeps an empty line to type into while it can
+   be edited, and is just its header otherwise. */
+.callout-body:not([contenteditable="true"] *):has(
+  > p:only-child:empty,
+  > p:only-child > br:only-child
+) {
+  display: none;
 }
 .callout .callout-body > :last-child {
   margin-bottom: 0;

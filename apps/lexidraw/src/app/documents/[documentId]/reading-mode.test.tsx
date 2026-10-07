@@ -13,6 +13,7 @@ import { JSDOM } from "jsdom";
 import type { Klass, LexicalEditor, LexicalNode } from "lexical";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
+import { setScreen } from "~/test/dom";
 
 const dom = new JSDOM("<!doctype html><html><body></body></html>", {
   url: "https://app.test/documents/1",
@@ -36,6 +37,12 @@ let shimmed: string[] = [];
 // what is under test.
 mock.module("next-auth/react", () => ({
   useSession: () => ({ data: null, status: "unauthenticated" }),
+}));
+// A sticky note's colour menu closes when the route changes; there is no
+// route here.
+mock.module("next/navigation", () => ({
+  usePathname: () => "/documents/1",
+  useRouter: () => ({ push() {}, replace() {}, refresh() {} }),
 }));
 
 type Modules = {
@@ -66,6 +73,8 @@ beforeAll(async () => {
     disconnect() {}
   };
   globals.IS_REACT_ACT_ENVIRONMENT = true;
+  // Block menus ask what kind of screen they open on.
+  setScreen({ width: 1280 });
   const { CORE_NODES } = await import("@packages/lexical-nodes");
   m = {
     LexicalComposer: (await import("@lexical/react/LexicalComposer"))
@@ -284,7 +293,7 @@ describe("a document opened for reading", () => {
     expect(text).toContain("Ramen");
     expect(text).toContain("Soba");
     expect(text).not.toMatch(/PAGE\s*BREAK/);
-    expect(text).not.toContain("Add Option");
+    expect(text).not.toContain("Add option");
     expect(controls().map((element) => element.outerHTML)).toEqual([]);
   });
 });
@@ -293,7 +302,7 @@ describe("a document opened for editing", () => {
   test("offers its blocks' editing controls", async () => {
     await mount(<Document state={BLOCKS} editable />);
     expect(contentEditable()).toBe("true");
-    expect(dom.window.document.body.textContent).toContain("Add Option");
+    expect(dom.window.document.body.textContent).toContain("Add option");
     expect(controls().length).toBeGreaterThan(0);
   });
 
@@ -354,6 +363,88 @@ test("reading a poll shows counts, percentages and total, including zero votes",
   expect(text).toContain("1 vote · 100%");
   expect(text).toContain("1 vote total");
   expect(dom.window.document.querySelectorAll("meter").length).toBe(2);
+});
+
+/** A document of one poll with `options`. */
+function pollState(options: { text: string; uid: string; votes: string[] }[]) {
+  return JSON.stringify({
+    root: {
+      ...EMPTY_ROOT,
+      children: [{ type: "poll", version: 1, question: "Lunch?", options }],
+    },
+  });
+}
+
+test("a poll nobody has voted in says so instead of listing zero counts", async () => {
+  await mount(
+    <Document
+      state={pollState([
+        { text: "Ramen", uid: "a", votes: [] },
+        { text: "Soba", uid: "b", votes: [] },
+      ])}
+      editable={false}
+    />,
+  );
+  const text = dom.window.document.body.textContent;
+  expect(text).toContain("No votes yet");
+  expect(text).not.toContain("0 votes");
+});
+
+test("a poll without options says it has none, and an editor can add one", async () => {
+  await mount(<Document state={pollState([])} editable />);
+  const poll = dom.window.document.querySelector("[data-poll]");
+  expect(poll?.textContent).toContain("No options yet");
+  expect(poll?.textContent).not.toContain("votes total");
+  const add = [...(poll?.querySelectorAll("button") ?? [])].find(
+    (button) => button.textContent?.trim() === "Add option",
+  );
+  if (!add) throw new Error("Missing add option button");
+  await act(async () => add.click());
+  expect(
+    dom.window.document.querySelectorAll("[data-poll] textarea").length,
+  ).toBe(1);
+});
+
+test("a reader's empty poll ends at the line saying it has no options", async () => {
+  await mount(<Document state={pollState([])} editable={false} />);
+  const poll = dom.window.document.querySelector("[data-poll]");
+  expect(poll?.lastElementChild?.textContent).toBe("No options yet");
+});
+
+// The empty line Lexical keeps after a paragraph's last block is hidden by
+// document.css unless the paragraph is marked, so the caret has a line there.
+test("the line after a paragraph's last poll or note shows only while the caret is on it", async () => {
+  const { $getRoot } = await import("lexical");
+  const [, poll, noteParagraph] = JSON.parse(BLOCKS).root.children;
+  const state = JSON.stringify({
+    root: {
+      ...EMPTY_ROOT,
+      children: [
+        { ...EMPTY_ROOT.children[0], children: [poll] },
+        noteParagraph,
+        EMPTY_ROOT.children[0],
+      ],
+    },
+  });
+  await mount(<Document state={state} editable />);
+  const editor = captured;
+  if (!editor) throw new Error("Editor not mounted");
+  const marked = () =>
+    [...dom.window.document.querySelectorAll("#content > p")].map((p) =>
+      p.hasAttribute("data-caret-after"),
+    );
+  for (const [index, expected] of [
+    [0, [true, false, false]],
+    [1, [false, true, false]],
+    [2, [false, false, false]],
+  ] as const) {
+    await act(async () =>
+      editor.update(() => $getRoot().getChildAtIndex(index)?.selectEnd(), {
+        discrete: true,
+      }),
+    );
+    expect(marked()).toEqual([...expected]);
+  }
 });
 
 for (const kind of ["chart", "mermaid"] as const) {

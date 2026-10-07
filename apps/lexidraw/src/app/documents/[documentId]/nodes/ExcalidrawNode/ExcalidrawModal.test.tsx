@@ -15,6 +15,9 @@ mock.module("@excalidraw/excalidraw", () => ({
   ),
   CaptureUpdateAction: {},
   getCommonBounds: () => [0, 0, 0, 0],
+  // ExcalidrawComponent.test draws with this mock too when both run at once.
+  exportToSvg: async () =>
+    document.createElementNS("http://www.w3.org/2000/svg", "svg"),
 }));
 mock.module("@excalidraw/excalidraw/index.css", () => ({}));
 mock.module("./ExcalidrawMenu", () => ({ DrawingBoardMenu: () => null }));

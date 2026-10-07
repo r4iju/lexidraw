@@ -46,6 +46,7 @@ import {
   createCalloutTransformer,
   createColumnsTransformer,
   createDetailsTransformer,
+  CALLOUT_SHORTCUT,
   TOGGLE_SHORTCUT,
   type TransformerSource,
 } from "./block-transformers.js";
@@ -340,6 +341,7 @@ export function createTransformers(extra: Transformer[] = []): Transformer[] {
     HR,
     EMOJI,
     CHECK_LIST,
+    CALLOUT_SHORTCUT,
     TOGGLE_SHORTCUT,
     ...ELEMENT_TRANSFORMERS,
     ...MULTILINE_ELEMENT_TRANSFORMERS.map((transformer) =>

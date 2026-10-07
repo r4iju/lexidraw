@@ -432,7 +432,8 @@ struct Generator {
     case "collapsible-container":
       var children = fields["children"]!.arrayValue!
       var title = children[0].objectValue!
-      title["children"] = .array([LexicalJSON.text(text(1...6))])
+      // A title holds one paragraph, as CollapsiblePlugin repairs it to (#249).
+      title["children"] = .array([LexicalJSON.paragraph([LexicalJSON.text(text(1...6))])])
       children[0] = .object(title)
       var content = children[1].objectValue!
       content["children"] = .array([paragraph(), paragraph()])

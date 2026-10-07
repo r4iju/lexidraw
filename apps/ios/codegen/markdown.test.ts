@@ -3,6 +3,7 @@ import { HEADING, LINK, type Transformer } from "@lexical/markdown";
 import { BLOCK_EQUATION_FENCE } from "@packages/lexical-nodes/decorator-transformers";
 import { createTransformers } from "@packages/lexical-nodes/transformers";
 import {
+  CALLOUT_ALIASES,
   MARKDOWN_PATTERNS,
   MARKDOWN_TRANSFORMERS_PATH,
   swiftForMarkdownTransformers,
@@ -11,7 +12,25 @@ import {
 test("the committed markdown transformers are a fresh codegen of the web editor's", async () => {
   const committed = await Bun.file(MARKDOWN_TRANSFORMERS_PATH).text();
   expect(committed).toBe(
-    swiftForMarkdownTransformers(createTransformers(), MARKDOWN_PATTERNS),
+    swiftForMarkdownTransformers(
+      createTransformers(),
+      MARKDOWN_PATTERNS,
+      CALLOUT_ALIASES,
+    ),
+  );
+});
+
+test("gives the kind each word a callout marker may name reads as", () => {
+  const swift = swiftForMarkdownTransformers(
+    [],
+    {},
+    {
+      danger: "caution",
+      hint: "tip",
+    },
+  );
+  expect(swift).toContain(
+    'static let calloutAliases: [String: CalloutKind] = ["danger": .caution, "hint": .tip]',
   );
 });
 

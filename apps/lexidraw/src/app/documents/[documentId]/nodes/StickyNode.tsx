@@ -1,4 +1,7 @@
-import { StickyNode as HeadlessStickyNode } from "@packages/lexical-nodes";
+import {
+  StickyNode as HeadlessStickyNode,
+  type StickyNoteColor,
+} from "@packages/lexical-nodes";
 import type { EditorConfig, LexicalEditor } from "lexical";
 import type * as React from "react";
 import StickyComponent from "./StickyComponent";
@@ -14,12 +17,14 @@ export class StickyNode extends HeadlessStickyNode {
     return this.config("sticky", { extends: HeadlessStickyNode });
   }
 
+  setColor(color: StickyNoteColor): void {
+    this.getWritable().__color = color;
+  }
+
   decorate(_editor: LexicalEditor, _config: EditorConfig): React.JSX.Element {
     return (
       <StickyComponent
         color={this.__color}
-        x={this.__x}
-        y={this.__y}
         nodeKey={this.getKey()}
         caption={this.__caption}
       />
