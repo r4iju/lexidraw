@@ -7,6 +7,15 @@ import {
   Bar,
   LineChart,
   Line,
+  AreaChart,
+  Area,
+  RadarChart,
+  Radar,
+  PolarGrid,
+  PolarAngleAxis,
+  ScatterChart,
+  Scatter,
+  ComposedChart,
   PieChart,
   Pie,
   XAxis,
@@ -263,6 +272,135 @@ export default function DynamicChartRenderer({
               />
             ))}
           </LineChart>
+        );
+      case "area":
+        return (
+          <AreaChart data={data}>
+            <CartesianGrid vertical={false} />
+            <XAxis
+              tick={axisStyle}
+              dataKey={xAxisDataKey}
+              tickLine={false}
+              tickMargin={10}
+              axisLine={false}
+            />
+            <YAxis tick={axisStyle} tickLine={false} axisLine={false} />
+            <ShadcnChartTooltip content={<ChartTooltipContent />} />
+            {series.length > 1 && (
+              <ShadcnChartLegend content={<ChartLegendContent />} />
+            )}
+            {series.map((key) => (
+              <Area
+                isAnimationActive={false}
+                key={key}
+                type="monotone"
+                dataKey={key}
+                stroke={`var(--color-${slugify(key)})`}
+                fill={`var(--color-${slugify(key)})`}
+                fillOpacity={0.2}
+                strokeWidth={2}
+              />
+            ))}
+          </AreaChart>
+        );
+      case "radar":
+        return (
+          <RadarChart data={data} outerRadius="70%">
+            <PolarGrid />
+            <PolarAngleAxis dataKey={xAxisDataKey} tick={axisStyle} />
+            <ShadcnChartTooltip content={<ChartTooltipContent />} />
+            {series.length > 1 && (
+              <ShadcnChartLegend content={<ChartLegendContent />} />
+            )}
+            {series.map((key) => (
+              <Radar
+                isAnimationActive={false}
+                key={key}
+                dataKey={key}
+                stroke={`var(--color-${slugify(key)})`}
+                fill={`var(--color-${slugify(key)})`}
+                fillOpacity={0.2}
+                strokeWidth={2}
+              />
+            ))}
+          </RadarChart>
+        );
+      case "scatter": {
+        const numericX = data.every(
+          (row) =>
+            typeof (row as Record<string, unknown>)[xAxisDataKey] === "number",
+        );
+        return (
+          <ScatterChart>
+            <CartesianGrid />
+            <XAxis
+              tick={axisStyle}
+              dataKey={xAxisDataKey}
+              type={numericX ? "number" : "category"}
+              allowDuplicatedCategory={false}
+              tickLine={false}
+              tickMargin={10}
+              axisLine={false}
+            />
+            <YAxis
+              tick={axisStyle}
+              type="number"
+              tickLine={false}
+              axisLine={false}
+            />
+            <ShadcnChartTooltip content={<ChartTooltipContent />} />
+            {series.length > 1 && (
+              <ShadcnChartLegend content={<ChartLegendContent />} />
+            )}
+            {series.map((key) => (
+              <Scatter
+                isAnimationActive={false}
+                key={key}
+                data={data}
+                dataKey={key}
+                fill={`var(--color-${slugify(key)})`}
+              />
+            ))}
+          </ScatterChart>
+        );
+      }
+      case "composed":
+        return (
+          <ComposedChart data={data}>
+            <CartesianGrid vertical={false} />
+            <XAxis
+              tick={axisStyle}
+              dataKey={xAxisDataKey}
+              tickLine={false}
+              tickMargin={10}
+              axisLine={false}
+            />
+            <YAxis tick={axisStyle} tickLine={false} axisLine={false} />
+            <ShadcnChartTooltip content={<ChartTooltipContent />} />
+            {series.length > 1 && (
+              <ShadcnChartLegend content={<ChartLegendContent />} />
+            )}
+            {series.map((key, index) =>
+              index === 0 ? (
+                <Bar
+                  isAnimationActive={false}
+                  key={key}
+                  dataKey={key}
+                  fill={`var(--color-${slugify(key)})`}
+                  radius={4}
+                />
+              ) : (
+                <Line
+                  isAnimationActive={false}
+                  key={key}
+                  type="monotone"
+                  dataKey={key}
+                  stroke={`var(--color-${slugify(key)})`}
+                  strokeWidth={2}
+                />
+              ),
+            )}
+          </ComposedChart>
         );
       case "pie": {
         // pie chart needs a 'value' key in data, and 'name' for labels
