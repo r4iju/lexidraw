@@ -336,8 +336,10 @@ function swiftForTable(
     throw new Error("A table's figures aren't tabular, which isn't read yet");
   }
   const letterSpacing = value(table, "letter-spacing");
-  const [shadowWidth] = pair(value(region, "background-size"));
-  const shadow = declarations(css, ".document-table-region[data-scroll-left]");
+  const stripe = declarations(
+    css,
+    ".document-table[data-lexical-row-striping] > tr:nth-child(even of :has(> td))",
+  );
   const fields = [
     `fontSize: ${points(value(table, "font-size")) / points(value(content, "font-size"))}`,
     `lineHeight: ${number(value(table, "line-height"))}`,
@@ -355,8 +357,10 @@ function swiftForTable(
     `headerBackground: ${colors.name(value(header, "background"))}`,
     `headerWeight: ${number(value(header, "font-weight"))}`,
     `selection: ${swiftForBackgroundClass(tableCellSelectedClass, colors)}`,
-    `shadowWidth: ${points(shadowWidth)}`,
-    `shadowColor: ${colors.name(value(shadow, "--table-shadow-left"))}`,
+    `fadeWidth: ${points(value(region, "--table-fade"))}`,
+    `shadowColor: ${colors.name(pinnedShadow(css)[4])}`,
+    `stripe: ${colors.name(value(stripe, "--table-row-fill"))}`,
+    `darkFill: ${swiftForDarkCellFill(css, colors)}`,
     `pinned: ${swiftForPinnedColumn(css, colors)}`,
     `unpinnedColumns: ${tableLayout.unpinnedColumns}`,
     `shortColumns: ${tableLayout.shortColumns}`,
@@ -365,6 +369,62 @@ function swiftForTable(
     `wide: ${swiftForRegExp(tablePatterns.wide)}`,
   ];
   return `Table(${fields.join(", ")})`;
+}
+
+/**
+ * The shadow beside a frozen first column once its table scrolls, as
+ * `x 0 blur spread colour`.
+ */
+function pinnedShadow(
+  css: postcss.Root,
+): [string, string, string, string, string] {
+  const shadow = /^(-?\d+px) 0 (\d+px) (-?\d+px) (.+)$/.exec(
+    value(
+      declarations(
+        css,
+        ".document-table-region[data-scroll-left] .document-table[data-lexical-frozen-column] tr > :first-child",
+      ),
+      "box-shadow",
+    ),
+  );
+  if (!shadow?.[1] || !shadow[2] || !shadow[3] || !shadow[4]) {
+    throw new Error("The pinned column's shadow isn't x 0 blur spread colour");
+  }
+  return [shadow[0], shadow[1], shadow[2], shadow[3], shadow[4]];
+}
+
+/**
+ * The theme colour whose luminosity a cell's own colour takes in the dark
+ * theme, where `background-blend-mode: luminosity` lays it over the cell's
+ * colour, keeping that colour's hue and saturation.
+ */
+function swiftForDarkCellFill(css: postcss.Root, colors: ThemeColors): string {
+  const selector =
+    '.dark .document-table :is(td, th)[style*="background-color"]';
+  const screens = (css.nodes ?? []).filter(
+    (node): node is postcss.AtRule =>
+      node.type === "atrule" &&
+      node.name === "media" &&
+      node.params === "screen" &&
+      has(node, selector),
+  );
+  const [screen] = screens;
+  if (screens.length !== 1 || !screen) {
+    throw new Error(`${selector} isn't under one @media screen`);
+  }
+  const fill = declarations(screen, selector);
+  if (value(fill, "background-blend-mode") !== "luminosity") {
+    throw new Error(
+      "A dark cell's colour isn't blended by luminosity, which isn't read yet",
+    );
+  }
+  const layer = /^linear-gradient\((var\(--[\w-]+\)), \1\)$/.exec(
+    value(fill, "background-image"),
+  );
+  if (!layer?.[1]) {
+    throw new Error("A dark cell's colour isn't under one solid theme colour");
+  }
+  return colors.name(layer[1]);
 }
 
 /**
@@ -427,28 +487,17 @@ function swiftForPinnedColumn(css: postcss.Root, colors: ThemeColors): string {
   };
   const column = within(`${pinned} > :first-child`);
   const header = within(`${pinned} > th:first-child`);
-  const shadow = /^(-?\d+px) 0 (\d+px) (-?\d+px) (.+)$/.exec(
+  const shadow = pinnedShadow(css);
+  if (
     value(
       within(
         `.document-table-region[data-scroll-left] ${pinned} > :first-child`,
       ),
       "box-shadow",
-    ),
-  );
-  if (!shadow?.[1] || !shadow[2] || !shadow[3] || !shadow[4]) {
-    throw new Error("The pinned column's shadow isn't x 0 blur spread colour");
-  }
-  if (
-    colors.name(shadow[4]) !==
-    colors.name(
-      value(
-        declarations(css, ".document-table-region[data-scroll-left]"),
-        "--table-shadow-left",
-      ),
-    )
+    ) !== shadow[0]
   ) {
     throw new Error(
-      "The pinned column's shadow isn't the scroll shadows' colour",
+      "A phone's pinned column casts another shadow than a frozen column",
     );
   }
   const fields = [

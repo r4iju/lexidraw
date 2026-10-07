@@ -82,7 +82,7 @@ export async function checkTypography(page: Page, fixtureId: string) {
     "14px",
   ]);
   assert.equal(measurements.firstHeadingGap, "0px");
-  assert.equal(measurements.codeWidth, 1024);
+  assert.equal(measurements.codeWidth, 704);
   assert(
     !measurements.loadedFonts.some((font) =>
       /Inter|M PLUS|Yusei|Kosugi|Sawarabi/.test(font),

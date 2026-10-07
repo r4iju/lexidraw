@@ -20,6 +20,7 @@ import {
   HorizontalRuleNode,
 } from "@lexical/extension";
 import {
+  $computeTableMapSkipCellCheck,
   $createTableCellNode,
   $isTableCellNode,
   $isTableNode,
@@ -30,11 +31,22 @@ import {
   TableRowNode,
 } from "@lexical/table";
 import {
+  $createListItemNode,
+  $createListNode,
+  $isListItemNode,
+  $isListNode,
+  ListItemNode,
+  ListNode,
+  type ListType,
+} from "@lexical/list";
+import {
   $createTextNode,
   $isParagraphNode,
+  $isRootOrShadowRoot,
   $isTextNode,
   type LexicalNode,
 } from "lexical";
+import { $toggleOfTitle } from "./toggle.js";
 import { DECORATOR_TRANSFORMERS } from "./decorator-transformers.js";
 import {
   FOOTNOTE_DEFINITION,
@@ -72,6 +84,93 @@ export const HR: ElementTransformer = {
   type: "element",
 };
 
+/**
+ * `---` on a line of its own, made a divider the moment the third dash is
+ * typed, as Notion does. `HR` alone would wait for a space after it. The
+ * caret stays on the line, which is left empty after the divider.
+ */
+export const HR_TYPED: TextMatchTransformer = {
+  dependencies: [HorizontalRuleNode],
+  export: () => null,
+  regExp: /^---$/,
+  replace: (textNode) => {
+    const line = textNode.getParent();
+    if (
+      !$isParagraphNode(line) ||
+      line.getTextContent() !== "---" ||
+      !$isRootOrShadowRoot(line.getParent()) ||
+      $toggleOfTitle(line)
+    )
+      return;
+    textNode.remove();
+    line.insertBefore($createHorizontalRuleNode());
+    line.select();
+  },
+  trigger: "-",
+  type: "text-match",
+};
+
+/**
+ * `[ ] ` or `[x] ` at the start of a bullet makes it a check item, so that
+ * `- [ ] ` gives one: `CHECK_LIST` only reads a line that is not yet a list,
+ * and `- ` has already made a bullet of it.
+ */
+export const CHECK_ITEM_IN_BULLET: TextMatchTransformer = {
+  dependencies: [ListNode, ListItemNode],
+  export: () => null,
+  regExp: /^\[(\s|x)?\]\s$/i,
+  replace: (textNode, match) => {
+    const item = textNode.getParent();
+    const list = item?.getParent();
+    if (
+      !$isListItemNode(item) ||
+      !$isListNode(list) ||
+      list.getListType() !== "bullet" ||
+      item.getFirstChild() !== textNode
+    )
+      return;
+    textNode.remove();
+    $retypeListItem(item, "check");
+    item.setChecked(/^x$/i.test(match[1] ?? ""));
+    item.selectStart();
+  },
+  trigger: " ",
+  type: "text-match",
+};
+
+/**
+ * Moves `item` into a list of `type` of its own, in place, splitting the
+ * list it was in around it, and joins that to a list of `type` beside it.
+ */
+function $retypeListItem(item: ListItemNode, type: ListType) {
+  const list = item.getParent();
+  if (!$isListNode(list)) return;
+  // A sublist lives in an item of its own, so its pieces go in one each.
+  const nested = $isListItemNode(list.getParent());
+  const place = (after: LexicalNode, piece: ListNode) =>
+    nested
+      ? after.insertAfter($createListItemNode().append(piece))
+      : after.insertAfter(piece);
+  const holder: LexicalNode = nested ? list.getParentOrThrow() : list;
+  const later = item.getNextSiblings();
+  const retyped = $createListNode(type);
+  const placed = place(holder, retyped);
+  if (later.length > 0) {
+    const rest = $createListNode(list.getListType());
+    rest.append(...later);
+    place(placed, rest);
+  }
+  // `append` moves the item without moving the caret out of it.
+  retyped.append(item);
+  if (list.isEmpty()) holder.remove();
+  if (nested) return;
+  const before = retyped.getPreviousSibling();
+  if ($isListNode(before) && before.getListType() === type) {
+    before.append(...retyped.getChildren());
+    retyped.remove();
+  }
+}
+
 export const EMOJI: TextMatchTransformer = {
   dependencies: [],
   export: () => null,
@@ -90,6 +189,11 @@ export const EMOJI: TextMatchTransformer = {
 };
 
 const TABLE_ROW_REG_EXP = /^(?:\|)(.+)(?:\|)\s?$/;
+/**
+ * A GFM row is one line, so a cell's own line breaks, between its blocks or
+ * inside one, are written as the HTML break GFM readers show as one.
+ */
+const CELL_LINE_BREAK = /<br\s*\/?>/gi;
 /** A GFM table's divider row, which makes the row above it the header. */
 export const TABLE_ROW_DIVIDER_REG_EXP = /^(\|\s*:?-{3,}:?\s*)+\|\s*$/;
 
@@ -99,8 +203,8 @@ export function createTableTransformer(
   const $createTableCell = (textContent: string): TableCellNode => {
     // The export pads every cell with a space on either side. Keeping that
     // padding as content would widen the cell by one space on each round
-    // trip, so it is stripped before the escaped newlines are restored.
-    textContent = textContent.trim().replace(/\\n/g, "\n");
+    // trip, so it is stripped before the line breaks are restored.
+    textContent = textContent.trim().replace(CELL_LINE_BREAK, "\n");
     const cell = $createTableCellNode(TableCellHeaderStates.NO_STATUS);
     $convertFromMarkdownString(textContent, transformers(), cell);
     return cell;
@@ -123,39 +227,39 @@ export function createTableTransformer(
         return null;
       }
 
-      const output: string[] = [];
-      for (const [index, row] of node.getChildren().entries()) {
-        if (!$isTableRowNode(row)) continue;
-        const cells = row.getChildren().filter($isTableCellNode);
-        output.push(
-          `| ${cells
-            .map((cell) =>
-              $convertToMarkdownString(transformers(), cell)
-                .replace(/\|/g, "\\|")
-                .replace(/\n/g, "\\n"),
-            )
-            .join(" | ")} |`,
-        );
-        if (index === 0) {
-          output.push(
-            `| ${cells
-              .map((cell) => {
-                switch (cell.getFormatType()) {
-                  case "left":
-                    return ":---";
-                  case "center":
-                    return ":---:";
-                  case "right":
-                    return "---:";
-                  default:
-                    return "---";
-                }
-              })
-              .join(" | ")} |`,
-          );
-        }
-      }
-
+      // GFM has no merged cells, so a merged cell's content takes the first
+      // place it covers and the rest stay empty, keeping every row as wide.
+      const [grid] = $computeTableMapSkipCellCheck(node, null, null);
+      const row = (cells: string[]) => `| ${cells.join(" | ")} |`;
+      const output = grid.map((places, r) =>
+        row(
+          places.map(({ cell, startRow, startColumn }, c) =>
+            startRow === r && startColumn === c
+              ? $convertToMarkdownString(transformers(), cell)
+                  .replace(/\|/g, "\\|")
+                  .replace(/\n/g, "<br>")
+              : "",
+          ),
+        ),
+      );
+      output.splice(
+        1,
+        0,
+        row(
+          (grid[0] ?? []).map(({ cell }) => {
+            switch (cell.getFormatType()) {
+              case "left":
+                return ":---";
+              case "center":
+                return ":---:";
+              case "right":
+                return "---:";
+              default:
+                return "---";
+            }
+          }),
+        ),
+      );
       return output.join("\n");
     },
     regExp: TABLE_ROW_REG_EXP,
@@ -339,9 +443,11 @@ export function createTransformers(extra: Transformer[] = []): Transformer[] {
     ...extra,
     createTableTransformer(source),
     HR,
+    HR_TYPED,
     EMOJI,
     CHECK_LIST,
     CALLOUT_SHORTCUT,
+    CHECK_ITEM_IN_BULLET,
     TOGGLE_SHORTCUT,
     ...ELEMENT_TRANSFORMERS,
     ...MULTILINE_ELEMENT_TRANSFORMERS.map((transformer) =>

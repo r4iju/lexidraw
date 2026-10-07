@@ -80,6 +80,9 @@ import Testing
       commands: [caretInEmptyParagraph, .insertText("***"), .insertText(" "), .insertText("y")],
       expected: document(LexicalJSON.horizontalRule, paragraph(text("yx")))),
     Script(
+      name: "--- makes a rule as its third - is typed, with the caret on the line after it", start: emptyParagraph,
+      commands: [caretInEmptyParagraph] + typing("---a"), expected: document(LexicalJSON.horizontalRule, paragraph(text("a")))),
+    Script(
       name: "___ and a space make a rule", start: emptyParagraph,
       commands: [caretInEmptyParagraph] + typing("___ "), expected: document(LexicalJSON.horizontalRule, paragraph())),
     Script(
@@ -136,6 +139,16 @@ import Testing
     Script(
       name: "[ ] makes a checklist", start: emptyParagraph,
       commands: [caretInEmptyParagraph] + typing("[ ] "), expected: document(list(.check, [.item([])]))),
+    Script(
+      name: "- [ ] makes a checklist, though - has made a bulleted list", start: emptyParagraph,
+      commands: [caretInEmptyParagraph] + typing("- [ ] "), expected: document(list(.check, [.item([])]))),
+    Script(
+      name: "[x] at the start of a bullet between others makes just that one a checked item",
+      start: document(list(.bullet, [.item([text("a")]), .item([]), .item([text("c")])])),
+      commands: [.caret(Point(path: [0, 1], offset: 0, type: .element))] + typing("[x] "),
+      expected: document(
+        list(.bullet, [.item([text("a")])]), list(.check, [.item([], checked: true)]),
+        list(.bullet, [.item([text("c")])]))),
     Script(
       name: "[X] makes a checked item", start: emptyParagraph,
       commands: [caretInEmptyParagraph] + typing("[X] "), expected: document(list(.check, [.item([], checked: true)]))),

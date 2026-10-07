@@ -105,11 +105,12 @@ import Testing
   /// What a cell imports, typed as a row of its own.
   static let cells: [Script] = [
     ("formats", "**b** _i_ `c` ~~s~~ ==h==", "table[p(b{1} i{2} c{16} s{4} h{128})]"),
-    ("\\n breaks the line, and blocks follow it", #"a\nb  \nc\n# d\n> e\n> f\n---\ng"#,
+    ("<br> breaks the line, and blocks follow it", #"a<br>b  <br>c<BR/># d<br />> e<br>> f<br>---<br>g"#,
      "table[p(a⏎b⏎  c),h1(d),q(e⏎f),hr,p(g)]"),
-    ("empty lines go", #"a\n\n \nb"#, "table[p(a),p(b)]"),
+    ("empty lines go", #"a<br><br> <br>b"#, "table[p(a),p(b)]"),
+    ("a backslash and n stay text", #"a\nb"#, #"table[p(a\nb)]"#),
     ("a lone empty cell keeps its paragraph", "   ", "table[p()]"),
-    ("a line ending in a backslash breaks hard", #"a\\nb"#, "table[p(a⏎\\b)]"),
+    ("a line ending in a backslash breaks hard", #"a\<br>b"#, "table[p(a⏎\\b)]"),
     ("a tab is a tab node", "a\tb", "table[p(a⇥b)]"),
     ("an escape is taken out", ##"\*a\* \# b"##, "table[p(*a* # b)]"),
     ("a character reference is its character", "&#65;&#128077;", "table[p(A👍)]"),
@@ -118,20 +119,20 @@ import Testing
     ("a placeholder stays text, whatever it holds", "<!-- lexidraw:poll#1 ![a](b) -->", "table[p(<!-- lexidraw:poll#1 ![a](b) -->)]"),
     ("a divider inside a cell stays text", #"\|---\|"#, "table[p(|---|)]"),
     ("a row inside a cell stays text", #"\|a\|"#, "table[p(|a|)]"),
-    ("lines of a list make one list", #"- a\n- b"#, "table[ul[li(a),li(b)]]"),
-    ("items with other markers make one list, keeping the last marker", #"* a\n+ b"#, "table[ul[li(a),li(b)]+]"),
-    ("a numbered list starts where it says", #"3. a\n4. b"#, "table[ol3[li(a),li(b)]]"),
-    ("a checklist is checked as it says", #"- [ ] a\n- [x] b"#, "table[cl[li(a),li(b)✓]]"),
-    ("an item indented under another nests in it", #"1. a\n   - b"#, "table[ol1[li(a),li(ul[li(b)])]]"),
-    ("a line under an item joins it", #"- a\nb"#, "table[ul[li(a⏎b)]]"),
-    ("an empty line between items keeps them in one list", #"- a\n\n- b"#, "table[ul[li(a),li(b)]]"),
+    ("lines of a list make one list", #"- a<br>- b"#, "table[ul[li(a),li(b)]]"),
+    ("items with other markers make one list, keeping the last marker", #"* a<br>+ b"#, "table[ul[li(a),li(b)]+]"),
+    ("a numbered list starts where it says", #"3. a<br>4. b"#, "table[ol3[li(a),li(b)]]"),
+    ("a checklist is checked as it says", #"- [ ] a<br>- [x] b"#, "table[cl[li(a),li(b)✓]]"),
+    ("an item indented under another nests in it", #"1. a<br>   - b"#, "table[ol1[li(a),li(ul[li(b)])]]"),
+    ("a line under an item joins it", #"- a<br>b"#, "table[ul[li(a⏎b)]]"),
+    ("an empty line between items keeps them in one list", #"- a<br><br>- b"#, "table[ul[li(a),li(b)]]"),
     ("an item's text imports its formats", #"- **a**"#, "table[ul[li(a{1})]]"),
     ("an equation fence that isn't closed is text", "$$", "table[p($$)]"),
     ("an admonition that isn't closed is text", ":::note", "table[p(:::note)]"),
-    ("an admonition closed inside a fence isn't closed", #":::note\n~~~\n:::"#, "table[p(:::note⏎~~~⏎:::)]"),
+    ("an admonition closed inside a fence isn't closed", #":::note<br>~~~<br>:::"#, "table[p(:::note⏎~~~⏎:::)]"),
     ("details that aren't closed are text", "<details>", "table[p(<details>)]"),
     ("columns that aren't closed are text", "<columns>", "table[p(<columns>)]"),
-    ("columns with nothing in them are text", #"<columns>\n</columns>"#, "table[p(<columns>⏎</columns>)]"),
+    ("columns with nothing in them are text", #"<columns><br></columns>"#, "table[p(<columns>⏎</columns>)]"),
     ("a link is a link", "x [a](b) y", "table[p(x [a](b) y)]"),
     ("a link's text imports its formats", "[**a** c](b)", "table[p([a{1} c](b))]"),
     ("a link takes a title, and its URL loses its escapes", #"[a](<b\>c> "t")"#, #"table[p([a](b>c "t"))]"#),
@@ -200,7 +201,7 @@ import Testing
 
   /// A hard break a cell imported keeps its marker in the line break, and a
   /// document holding one opens to edit.
-  @Test(arguments: [#"a\\nb"#, #"a  \nb"#])
+  @Test(arguments: [#"a\<br>b"#, #"a  <br>b"#])
   func aDocumentWithAHardBreakMarkerEdits(_ markdown: String) throws {
     let reference = try Support.referenceEditor()
     try reference.load(Self.emptyParagraph)
@@ -219,8 +220,8 @@ import Testing
   /// imports as something else, and the row stays as typed instead.
   static let notPortedYet: [Script] = [
     "```", "``` a", "$x$", "$$x$$", "![a](b)",
-    #"<tweet id="1" />"#, "> [!note]", #"$$\nx\n$$"#, #":::note\na\n:::"#, "<details></details>",
-    #"<details>\na\n</details>"#, #"<columns>\na\n</columns>"#,
+    #"<tweet id="1" />"#, "> [!note]", "$$<br>x<br>$$", ":::note<br>a<br>:::", "<details></details>",
+    "<details><br>a<br></details>", "<columns><br>a<br></columns>",
   ].map { markdown in
     Script(name: markdown, start: emptyParagraph, commands: row("|\(markdown)|"), expected: "p(|\(markdown)| )")
   }

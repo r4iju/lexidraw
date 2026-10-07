@@ -14,6 +14,19 @@ import { useEffect } from "react";
 import type { BundledLanguage, Highlighter } from "shiki";
 import { holdCapture } from "~/lib/capture-hold";
 
+/**
+ * github-light's red, orange, green and grey fall under 4.5:1 on the light
+ * code background; these are GitHub's own darker shades of the same hues.
+ */
+const LIGHT_CONTRAST = {
+  "github-light": {
+    "#d73a49": "#cf222e",
+    "#e36209": "#bc4c00",
+    "#22863a": "#1a7f37",
+    "#6a737d": "#636c76",
+  },
+};
+
 export default function CodeHighlightPlugin(): null {
   const [editor] = useLexicalComposerContext();
   // Shiki owns tokenization; Lexical retains selection while replacing token nodes.
@@ -100,6 +113,7 @@ export default function CodeHighlightPlugin(): null {
                 ? supported
                 : "text",
             themes: { light: "github-light", dark: "github-dark-default" },
+            colorReplacements: LIGHT_CONTRAST,
             defaultColor: false,
           }).tokens;
           const nodes: LexicalNode[] = [];

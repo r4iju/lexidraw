@@ -7,7 +7,8 @@ import UIKit
 /// `DocumentTablesPlugin` keeps whole): columns as wide as their text asks,
 /// within the text's width where that fits, or at the widths the table is
 /// set to; wider than its frame, it scrolls sideways, and on a narrow
-/// screen a table of many columns pins its first as it does. Cell geometry
+/// screen a table of many columns pins its first as it does, as any width
+/// does a table that freezes its first column. Cell geometry
 /// is in the table's own frame, where it is seen, rather than in its
 /// scrolled content.
 ///
@@ -27,6 +28,12 @@ import UIKit
     var verticalAlign = DocumentText.Table.VerticalAlign.top
   }
 
+  /// What a table's node sets on how it is drawn, beside its cells.
+  struct Presentation: Equatable {
+    var rowStriping = false
+    var freezesFirstColumn = false
+  }
+
   private var boxes: [[TextBox]] = []
   override func didMoveToWindow() {
     super.didMoveToWindow()
@@ -41,8 +48,13 @@ import UIKit
   private var tableSize: CGSize = .zero
   private let grid = GridView()
   private let pinned = PinnedView()
-  private let shadows = ScrollEdgeView(.shadows)
-  private let scrollingFrame = ScrollEdgeView(.frame)
+  private let scrollingFrame = ScrollingFrameView()
+  /// The web's mask over an edge the table scrolls towards, for its holder.
+  fileprivate let fade = CAGradientLayer()
+  private var presentation = Presentation()
+  /// The rows a striped table shades: every second of those with a cell
+  /// that isn't a header, as `:nth-child(even of :has(> td))` counts them.
+  private var stripedRows: Set<Int> = []
   /// Whether the cell first in each row stays at the table's start as the
   /// table scrolls.
   private var pinsFirstCells = false
@@ -76,7 +88,8 @@ import UIKit
   private var border: CGFloat { style.border }
 
   init(
-    cells: [[Cell]], columnWidths: [Double]?, width: CGFloat, style: DocumentTypography.Table,
+    cells: [[Cell]], columnWidths: [Double]?, presentation: Presentation = Presentation(), width: CGFloat,
+    style: DocumentTypography.Table,
     selectedOutline: DocumentTypography.Outline, textMeasurements: TextMeasurements? = nil, prepareIncrementally: Bool = false
   ) {
     self.style = style
@@ -89,17 +102,17 @@ import UIKit
     addSubview(pinned)
     grid.table = self
     pinned.table = self
-    shadows.table = self
     scrollingFrame.table = self
+    fade.startPoint = CGPoint(x: 0, y: 0.5)
+    fade.endPoint = CGPoint(x: 1, y: 0.5)
+    fade.colors = [UIColor.clear, .black, .black, .clear].map(\.cgColor)
+    self.presentation = presentation
     beginPreparation(cells: cells, columnWidths: columnWidths, width: width)
     if !prepareIncrementally { finishPreparation() }
   }
 
   required init?(coder: NSCoder) { fatalError("TableView is made in code") }
 
-  /// What goes behind the table where it is drawn, as the web's region's
-  /// background: the scroll shadows, which stay put as it scrolls.
-  var underlay: UIView { shadows }
   /// What goes over it, as the region's outline: the frame of a table that
   /// scrolls.
   var overlay: UIView { scrollingFrame }
@@ -133,7 +146,8 @@ import UIKit
   }
   private var preparation: Preparation?
 
-  func set(cells: [[Cell]], columnWidths: [Double]?, width: CGFloat) {
+  func set(cells: [[Cell]], columnWidths: [Double]?, presentation: Presentation = Presentation(), width: CGFloat) {
+    self.presentation = presentation
     beginPreparation(cells: cells, columnWidths: columnWidths, width: width)
     finishPreparation()
   }
@@ -141,6 +155,8 @@ import UIKit
   private func beginPreparation(cells: [[Cell]], columnWidths: [Double]?, width: CGFloat) {
     self.cells = cells
     boxes = cells.map { _ in [] }
+    let body = cells.indices.filter { row in cells[row].contains { !$0.isHeader } }
+    stripedRows = presentation.rowStriping ? Set(body.enumerated().filter { $0.offset % 2 == 1 }.map(\.element)) : []
     preparation = Preparation(cells, columnWidths: columnWidths, width: width)
   }
 
@@ -241,13 +257,14 @@ import UIKit
     }
     tableSize = CGSize(width: (lefts.last ?? 0) + border, height: (rowTops.last ?? 0) + border)
     pinsFirstCells =
-      viewportWidth(width) <= style.pinned.width && (cells.first?.count ?? 0) > style.unpinnedColumns
+      presentation.freezesFirstColumn
+      || viewportWidth(width) <= style.pinned.width && (cells.first?.count ?? 0) > style.unpinnedColumns
     grid.frame = CGRect(origin: .zero, size: tableSize)
     contentSize = tableSize
     frame.size = CGSize(width: width, height: tableSize.height)
-    shadows.frame = CGRect(x: 0, y: 0, width: min(width, tableSize.width), height: tableSize.height)
-    scrollingFrame.frame = shadows.frame
+    scrollingFrame.frame = CGRect(x: 0, y: 0, width: min(width, tableSize.width), height: tableSize.height)
     placePinnedCells()
+    (superview as? TableHolder)?.setNeedsLayout()
     redraw()
   }
 
@@ -485,8 +502,18 @@ import UIKit
   func redraw() {
     grid.setNeedsDisplay()
     pinned.setNeedsDisplay()
-    shadows.setNeedsDisplay()
     scrollingFrame.setNeedsDisplay()
+  }
+
+  /// Where the holder's mask fades what the table shows, in `width`: an
+  /// edge it scrolls towards, but not a pinned column's, or nil while the
+  /// table shows all it holds.
+  fileprivate func fadeLocations(in width: CGFloat) -> [NSNumber]? {
+    let x = contentOffset.x
+    let start = x > 1 && !pinsFirstCells ? style.fadeWidth : 0
+    let end = x + bounds.width < contentSize.width - 1 ? style.fadeWidth : 0
+    guard start > 0 || end > 0, width > 0 else { return nil }
+    return [0, start / width, 1 - end / width, 1].map { NSNumber(value: Double($0)) }
   }
 
   /// Scrolls sideways as little as shows `cell`, clear of the pinned cells.
@@ -512,8 +539,8 @@ import UIKit
     if contentOffset.x != shownX {
       let scrolledLeft = shownX > 1
       shownX = contentOffset.x
-      shadows.setNeedsDisplay()
-    scrollingFrame.setNeedsDisplay()
+      scrollingFrame.setNeedsDisplay()
+      (superview as? TableHolder)?.setNeedsLayout()
       placePinnedCells()
       if scrollsLeft != scrolledLeft || pinnedCells.contains(where: { cellFrames[$0.row][$0.index].minX > border }) {
         pinned.setNeedsDisplay()
@@ -651,9 +678,11 @@ import UIKit
     let cell = cells[index.row][index.index]
     let pinned = isPinned(index)
     let header = pinned ? style.pinned.headerBackground : style.headerBackground
+    let stripe = !cell.isHeader && stripedRows.contains(index.row) ? style.stripe.color : nil
     let fill =
-      cell.background ?? (cell.isHeader ? header.color : nil) ?? (pinned ? style.pinned.background.color : nil)
-      ?? (selectedCells.contains(index) ? style.selection.color : nil)
+      cell.background.map(inTheme) ?? (cell.isHeader ? header.color : nil)
+      ?? (pinned ? stripe ?? style.pinned.background.color : nil)
+      ?? (selectedCells.contains(index) ? style.selection.color : nil) ?? stripe
     if let fill {
       fill.setFill()
       UIRectFill(frame)
@@ -675,6 +704,40 @@ import UIKit
       selectedOutline.color.color.setStroke()
       outline.stroke()
     }
+  }
+
+  /// A cell's own colour as the theme shows it: as set in the light theme;
+  /// in the dark one, at `darkFill`'s luminosity with the colour's hue and
+  /// saturation, as `background-blend-mode: luminosity` mixes them.
+  private func inTheme(_ color: UIColor) -> UIColor {
+    let luminosity = Self.luminosity(style.darkFill.dark)
+    return UIColor { traits in
+      guard traits.userInterfaceStyle == .dark else { return color }
+      var (red, green, blue, alpha): (CGFloat, CGFloat, CGFloat, CGFloat) = (0, 0, 0, 0)
+      color.resolvedColor(with: traits).getRed(&red, green: &green, blue: &blue, alpha: &alpha)
+      let shift = luminosity - Self.luminosity(RGBA(red, green, blue, alpha))
+      let (r, g, b) = Self.clipped(red + shift, green + shift, blue + shift)
+      return UIColor(red: r, green: g, blue: b, alpha: alpha)
+    }
+  }
+
+  /// The compositing spec's `Lum`.
+  private static func luminosity(_ color: RGBA) -> CGFloat {
+    0.3 * color.red + 0.59 * color.green + 0.11 * color.blue
+  }
+
+  /// The compositing spec's `ClipColor`: back within 0 to 1 at the same
+  /// luminosity and hue.
+  private static func clipped(_ red: CGFloat, _ green: CGFloat, _ blue: CGFloat) -> (CGFloat, CGFloat, CGFloat) {
+    let l = luminosity(RGBA(red, green, blue, 1))
+    let (low, high) = (min(red, green, blue), max(red, green, blue))
+    func clip(_ c: CGFloat) -> CGFloat {
+      var c = c
+      if low < 0 { c = l + (c - l) * l / (l - low) }
+      if high > 1 { c = l + (c - l) * (1 - l) / (high - l) }
+      return c
+    }
+    return (clip(red), clip(green), clip(blue))
   }
 
   /// The table's rounded frame, drawn inside `bounds`.
@@ -750,44 +813,25 @@ import UIKit
     }
   }
 
-  /// The web's `data-scroll-left` and `data-scroll-right`: a shadow at an
-  /// edge the table scrolls past, or a frame while it scrolls either way.
-  private final class ScrollEdgeView: UIView {
-    enum Part { case shadows, frame }
-
+  /// The web's frame on the region of a table that scrolls either way.
+  private final class ScrollingFrameView: UIView {
     weak var table: TableView?
-    let part: Part
 
-    init(_ part: Part) {
-      self.part = part
-      super.init(frame: .zero)
+    override init(frame: CGRect) {
+      super.init(frame: frame)
       backgroundColor = .clear
       isOpaque = false
       isUserInteractionEnabled = false
       contentMode = .redraw
     }
 
-    required init?(coder: NSCoder) { fatalError("ScrollEdgeView is made in code") }
+    required init?(coder: NSCoder) { fatalError("ScrollingFrameView is made in code") }
 
     override func draw(_ rect: CGRect) {
-      guard let table, let context = UIGraphicsGetCurrentContext() else { return }
+      guard let table else { return }
       let x = table.contentOffset.x
-      let scrollsLeft = x > 1
-      let scrollsRight = x + table.bounds.width < table.contentSize.width - 1
-      guard scrollsLeft || scrollsRight else { return }
-      guard part == .shadows else { return table.strokeFrame(in: bounds) }
-      let shadow = table.style.shadowColor.color
-      let colors = [shadow.cgColor, shadow.withAlphaComponent(0).cgColor] as CFArray
-      guard let gradient = CGGradient(colorsSpace: nil, colors: colors, locations: [0, 1]) else { return }
-      if scrollsLeft {
-        context.drawLinearGradient(
-          gradient, start: .zero, end: CGPoint(x: table.style.shadowWidth, y: 0), options: [])
-      }
-      if scrollsRight {
-        context.drawLinearGradient(
-          gradient, start: CGPoint(x: bounds.maxX, y: 0), end: CGPoint(x: bounds.maxX - table.style.shadowWidth, y: 0),
-          options: [])
-      }
+      guard x > 1 || x + table.bounds.width < table.contentSize.width - 1 else { return }
+      table.strokeFrame(in: bounds)
     }
   }
 }
@@ -801,9 +845,25 @@ import UIKit
   init(_ table: TableView) {
     self.table = table
     super.init(frame: .zero)
-    addSubview(table.underlay)
     addSubview(table)
     addSubview(table.overlay)
+  }
+
+  /// Fades what lies past an edge the table scrolls towards, its frame
+  /// included, as the web masks the table's region.
+  override func layoutSubviews() {
+    super.layoutSubviews()
+    let width = table.overlay.frame.width
+    guard let locations = table.fadeLocations(in: width) else {
+      layer.mask = nil
+      return
+    }
+    CATransaction.begin()
+    CATransaction.setDisableActions(true)
+    table.fade.frame = CGRect(x: 0, y: 0, width: width, height: bounds.height)
+    table.fade.locations = locations
+    CATransaction.commit()
+    layer.mask = table.fade
   }
 
   required init?(coder: NSCoder) { fatalError("TableHolder is made in code") }

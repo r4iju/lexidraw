@@ -29,6 +29,7 @@ import { HorizontalRulePlugin } from "@lexical/react/LexicalHorizontalRulePlugin
 import { DocumentTablesPlugin } from "./plugins/DocumentTablesPlugin";
 import { ClickableLinkPlugin } from "@lexical/react/LexicalClickableLinkPlugin";
 import CodeHighlightPlugin from "./plugins/code-highlight-plugin";
+import CodeLineNumbersPlugin from "./plugins/code-line-numbers-plugin";
 import AutocompletePlugin from "./plugins/AutocompletePlugin";
 import CodeActionMenuPlugin from "./plugins/CodeActionMenuPlugin";
 import { AutoFocusPlugin } from "@lexical/react/LexicalAutoFocusPlugin";
@@ -79,6 +80,7 @@ import DocumentEditingPlugin from "./plugins/DocumentEditingPlugin";
 import PageBreakPlugin from "./plugins/PageBreakPlugin";
 import PollPlugin from "./plugins/PollPlugin";
 import EmojiPickerPlugin from "./plugins/EmojiPickerPlugin";
+import SlashMenuPlugin from "./plugins/SlashMenuPlugin";
 import TreeViewPlugin from "./plugins/TreeViewPlugin";
 import { useDeveloperFlag } from "~/lib/developer-flag";
 import { DisableChecklistSpacebarPlugin } from "./plugins/list-spacebar-plugin";
@@ -644,6 +646,7 @@ function EditorHandler({
                             <div className="min-w-0 flex-1 self-stretch flex flex-col">
                               <DisableChecklistSpacebarPlugin />
                               <EmojiPickerPlugin />
+                              <SlashMenuPlugin />
                               <LayoutPlugin />
                               {onScreen && <LLMWidget />}
                               <DocumentEditingPlugin />
@@ -655,6 +658,7 @@ function EditorHandler({
                               <CalloutMenuPlugin />
                               <PollPlugin />
                               <CodeHighlightPlugin />
+                              <CodeLineNumbersPlugin />
                               {isEditable && autocomplete && signedIn && (
                                 <AutocompletePlugin title={entity.title} />
                               )}

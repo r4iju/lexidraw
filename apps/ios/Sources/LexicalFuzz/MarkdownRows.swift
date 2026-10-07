@@ -1,6 +1,6 @@
 /// GFM table rows, one to three cells of what @lexical/markdown's import
 /// reads: emphasis and code delimiters, links, URLs, escapes, character
-/// references, block starts and ends, and `\n` for a new line.
+/// references, block starts and ends, and `<br>` for a new line.
 public struct MarkdownRows {
   private var random: SplitMix64
 
@@ -19,7 +19,7 @@ public struct MarkdownRows {
 
   private static let pieces = [
     "a", "b", "é", "👍", " ", " ", ".", "!", "*", "*", "**", "***", "_", "_", "__", "~", "~~", "=", "==", "`", "``",
-    #"\"#, #"\*"#, #"\_"#, #"\`"#, #"\\"#, #"\|"#, #"\n"#, #"\n"#, "&#65;", "&#42;", "\t", "# ", "> ", "- ", "1. ",
+    #"\"#, #"\*"#, #"\_"#, #"\`"#, #"\\"#, #"\|"#, #"\n"#, "<br>", "<BR/>", "&#65;", "&#42;", "\t", "# ", "> ", "- ", "1. ",
     "- [x] ", "---", "  ", "$$", ":::note", ":::", "~~~", "<details>", "</details>", "<columns>", "</columns>",
     "[", "]", "(", ")", "](", "[a](b)", "[a](<b c> \"t\")", " 't'", "https://x.io", "a@b.io",
   ]

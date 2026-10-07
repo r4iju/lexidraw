@@ -25,7 +25,7 @@ extension DocumentTypography {
     quote: Quote(borderWidth: 3, borderColor: .border, paddingStart: 1),
     rule: Rule(width: 1, color: .border, margin: 2, selected: Outline(width: 2, color: .primary, offset: 3)),
     link: Link(color: .primary, underlineThickness: 1, underlineOffset: 0.2, underlineOpacity: 0.4),
-    table: Table(fontSize: 0.9375, lineHeight: 1.5, letterSpacing: 0, tabularFigures: true, margin: 1.75, paddingX: 12, paddingY: 8, border: 1, borderColor: .border, cornerRadius: 6, minimumWidth: 120, minimumViewportShare: 0.4, emptyWidth: 96, headerBackground: .muted, headerWeight: 600, selection: .primary.opacity(0.1), shadowWidth: 10, shadowColor: .mutedForeground, pinned: Pinned(width: 639, inset: 1, background: .card, headerBackground: .muted, shadowX: 6, shadowBlur: 8, shadowSpread: -6), unpinnedColumns: 3, shortColumns: 16, scrollingColumns: 5, number: JSRegExp("^(?:[+-]?\\s*(?:[$\\u20AC\\u00A3\\u00A5\\uFFE5]|[A-Z]{3}\\s)?\\s*\\d[\\d,]*(?:\\.\\d+)?\\s*(?:%|\\u5186)?|\\(\\s*[$\\u20AC\\u00A3\\u00A5\\uFFE5]?\\d[\\d,]*(?:\\.\\d+)?\\s*\\))$", flags: "u"), wide: JSRegExp("[\\p{Script=Han}\\p{Script=Hiragana}\\p{Script=Katakana}\\p{Script=Hangul}\\u3000-\\u303f\\uff00-\\uffef]", flags: "u")))
+    table: Table(fontSize: 0.9375, lineHeight: 1.5, letterSpacing: 0, tabularFigures: true, margin: 1.75, paddingX: 12, paddingY: 8, border: 1, borderColor: .border, cornerRadius: 6, minimumWidth: 120, minimumViewportShare: 0.4, emptyWidth: 96, headerBackground: .muted, headerWeight: 600, selection: .primary.opacity(0.1), fadeWidth: 32, shadowColor: .mutedForeground, stripe: .tableStripe, darkFill: .muted, pinned: Pinned(width: 639, inset: 1, background: .background, headerBackground: .muted, shadowX: 6, shadowBlur: 8, shadowSpread: -6), unpinnedColumns: 3, shortColumns: 16, scrollingColumns: 5, number: JSRegExp("^(?:[+-]?\\s*(?:[$\\u20AC\\u00A3\\u00A5\\uFFE5]|[A-Z]{3}\\s)?\\s*\\d[\\d,]*(?:\\.\\d+)?\\s*(?:%|\\u5186)?|\\(\\s*[$\\u20AC\\u00A3\\u00A5\\uFFE5]?\\d[\\d,]*(?:\\.\\d+)?\\s*\\))$", flags: "u"), wide: JSRegExp("[\\p{Script=Han}\\p{Script=Hiragana}\\p{Script=Katakana}\\p{Script=Hangul}\\u3000-\\u303f\\uff00-\\uffef]", flags: "u")))
 }
 
 extension ThemeColor {
@@ -36,5 +36,6 @@ extension ThemeColor {
   static let foreground = ThemeColor(light: RGBA(0.1108, 0.111, 0.1315, 1), dark: RGBA(0.8939, 0.8943, 0.9089, 1))
   static let border = ThemeColor(light: RGBA(0.881, 0.8814, 0.8959, 1), dark: RGBA(0.187, 0.1874, 0.2051, 1))
   static let muted = ThemeColor(light: RGBA(0.9331, 0.9335, 0.9452, 1), dark: RGBA(0.1666, 0.167, 0.193, 1))
-  static let card = ThemeColor(light: RGBA(1, 1, 1, 1), dark: RGBA(0.0888, 0.089, 0.1049, 1))
+  static let tableStripe = ThemeColor(light: RGBA(0.9465, 0.9468, 0.9556, 1), dark: RGBA(0.111, 0.1113, 0.1297, 1))
+  static let background = ThemeColor(light: RGBA(0.9796, 0.9797, 0.9857, 1), dark: RGBA(0.0589, 0.0591, 0.0705, 1))
 }

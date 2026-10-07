@@ -125,7 +125,7 @@ import Testing
     let candidate = NotesIndentsAtTheCap()
     var fuzzer = Fuzzer(seed: 1, reference: try Support.referenceEditor(), candidate: candidate)
 
-    #expect(try fuzzer.run(steps: 3_000)?.fixture == nil)
+    #expect(try fuzzer.run(steps: 6_000)?.fixture == nil)
     #expect(candidate.indentsAtTheCap > 0)
   }
 

@@ -3,6 +3,7 @@ import { $getNearestNodeFromDOMNode, type LexicalEditor } from "lexical";
 import { useState } from "react";
 import { Button } from "~/components/ui/button";
 import { useDebounce } from "~/lib/client-utils";
+import { getCodeLanguageFriendlyName } from "../code-language";
 
 const parsers = {
   css: { parser: "css", load: () => import("prettier/parser-postcss") },
@@ -17,6 +18,10 @@ const parsers = {
     load: () => import("prettier/parser-typescript"),
   },
 };
+/** Whether Prettier can format code in `lang`, a normalized language ID. */
+export function canFormat(lang: string) {
+  return Object.hasOwn(parsers, lang);
+}
 type Status = { kind: "idle" | "success" } | { kind: "error"; message: string };
 export function PrettierButton({
   lang,
@@ -34,7 +39,7 @@ export function PrettierButton({
   );
   async function formatCode() {
     const dom = getCodeDOMNode();
-    if (!dom || !Object.hasOwn(parsers, lang)) return;
+    if (!dom || !canFormat(lang)) return;
     // The membership check above restricts the language to a supported parser.
     const parser = parsers[lang as keyof typeof parsers];
     const content = editor.read("latest", () => {
@@ -70,10 +75,17 @@ export function PrettierButton({
     <Button
       variant="ghost"
       size="sm"
-      className="h-8"
+      className="h-7 px-2 text-xs pointer-coarse:h-11 aria-disabled:cursor-not-allowed aria-disabled:opacity-50 aria-disabled:hover:bg-transparent"
       aria-label="Format code"
+      // Unlike `disabled`, this keeps the reason below reachable by pointer
+      // and keyboard.
+      aria-disabled={!canFormat(lang)}
       title={
-        status.kind === "error" ? status.message : "Format code with Prettier"
+        !canFormat(lang)
+          ? `${getCodeLanguageFriendlyName(lang) || "Plain text"} cannot be formatted`
+          : status.kind === "error"
+            ? status.message
+            : "Format code with Prettier"
       }
       onClick={formatCode}
     >
