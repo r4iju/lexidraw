@@ -334,6 +334,12 @@ const plural = (count: number, one: string, many = `${one}s`) =>
   `${count} ${count === 1 ? one : many}`;
 
 /**
+ * Text nodes markdown writes as the text they show. An emoji is its glyph, so
+ * it loses nothing.
+ */
+const HIGHLIGHTED_TEXT = new Set(["mention", "hashtag", "keyword"]);
+
+/**
  * What the markdown form of `state` leaves out, so a reader knows what a
  * replace from that markdown keeps, and what it drops.
  */
@@ -343,6 +349,7 @@ export function markdownLosses(state: SerializedEditorState): string[] {
   let images = 0;
   let styledText = 0;
   let marks = 0;
+  let highlighted = 0;
   for (const node of walk(state.root as Walked)) {
     const fields = node as Walked & Record<string, unknown>;
     if (
@@ -369,6 +376,7 @@ export function markdownLosses(state: SerializedEditorState): string[] {
       styledText++;
     }
     if (node.type === "mark") marks++;
+    if (HIGHLIGHTED_TEXT.has(node.type)) highlighted++;
   }
   const losses: string[] = [];
   if (layouts > 0) {
@@ -394,6 +402,11 @@ export function markdownLosses(state: SerializedEditorState): string[] {
   if (marks > 0) {
     losses.push(
       `${plural(marks, "comment highlight")} ${marks === 1 ? "is" : "are"} not in markdown; a replace removes the highlight, not the comment`,
+    );
+  }
+  if (highlighted > 0) {
+    losses.push(
+      `${plural(highlighted, "mention, hashtag or keyword", "mentions, hashtags or keywords")} ${highlighted === 1 ? "is" : "are"} highlighted, which markdown does not carry; a replace keeps ${highlighted === 1 ? "its" : "their"} text and drops the highlight`,
     );
   }
   return losses;

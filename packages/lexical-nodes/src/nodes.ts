@@ -46,9 +46,7 @@ import { YouTubeNode } from "./nodes/YouTubeNode.js";
  * editor registers exactly these, so a document is readable as markdown iff
  * every node type it stores is in this list (or a Lexical built-in). The
  * browser editor registers these and then its React subclasses of the
- * decorator nodes, which take over their types. Nodes the editor does not
- * register (emoji, keyword, mention) are exported by the package but
- * deliberately absent here.
+ * decorator nodes, which take over their types.
  */
 export const CORE_NODES: Klass<LexicalNode>[] = [
   HeadingNode,
@@ -91,17 +89,16 @@ export const CORE_NODES: Klass<LexicalNode>[] = [
   ThreadNode,
   FootnoteReferenceNode,
   FootnoteDefinitionNode,
-];
-
-/**
- * Every node class whose JSON a stored document can hold, and so the node
- * schema's contract: the document editor's, the text nodes caption and slide
- * editors add, and the package's mention node.
- */
-export const SCHEMA_NODES: Klass<LexicalNode>[] = [
-  ...CORE_NODES,
+  // Text the caption and slide plugins make. The body has no plugin making
+  // them, but a stored document can hold them anywhere.
   EmojiNode,
   KeywordNode,
   HashtagNode,
   MentionNode,
 ];
+
+/**
+ * Every node class whose JSON a stored document can hold, and so the node
+ * schema's contract. The editor registers all of them, so it is CORE_NODES.
+ */
+export const SCHEMA_NODES: Klass<LexicalNode>[] = CORE_NODES;
