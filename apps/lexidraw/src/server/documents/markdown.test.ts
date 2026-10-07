@@ -827,6 +827,29 @@ describe("markdownLosses", () => {
     expect(markdownLosses(markdownToEditorState("# Plain"))).toEqual([]);
   });
 
+  test("names what a table holds that markdown has no form for", () => {
+    const md = "| a | b |\n| --- | --- |\n| 1 | 2 |";
+    const state = markdownToEditorState(`${md}\n\n${md}\n\n${md}`);
+    expect(markdownLosses(state)).toEqual([]);
+    const [merged, striped] = state.root.children as (Node & {
+      children: (Node & { children: Node[] })[];
+    })[];
+    const cells = (table: typeof merged) =>
+      table?.children.flatMap((row) => row.children) ?? [];
+    const [first, , third, fourth] = cells(merged);
+    Object.assign(first as Node, { colSpan: 2 });
+    Object.assign(third as Node, { backgroundColor: "#fee2e2" });
+    Object.assign(fourth as Node, { verticalAlign: "bottom" });
+    expect(markdownLosses(state)).toEqual([
+      "A table has merged cells, cell colours and vertical alignment, which markdown does not carry; a replace drops them",
+    ]);
+    Object.assign(striped as Node, { rowStriping: true, frozenColumnCount: 1 });
+    Object.assign(cells(striped)[2] as Node, { headerState: 2 });
+    expect(markdownLosses(state)).toEqual([
+      "2 tables have merged cells, cell colours, vertical alignment, a header column, row stripes and frozen rows or columns, which markdown does not carry; a replace drops them",
+    ]);
+  });
+
   test("an image markdown wrote has no hand-set size to lose", () => {
     const state = markdownToEditorState("![Alt](https://example.com/a.png)");
     expect(markdownLosses(state)).toEqual([]);
