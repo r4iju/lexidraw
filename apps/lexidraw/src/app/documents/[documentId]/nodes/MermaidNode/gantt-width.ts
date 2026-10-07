@@ -1,5 +1,5 @@
-/** The room between two axis labels. */
-const GAP = 12;
+/** The room between two axis labels: about 0.8em at their 10px. */
+const GAP = 8;
 
 /**
  * The width a gantt drawn at `width` needs for its axis labels not to
