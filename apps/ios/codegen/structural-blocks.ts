@@ -255,8 +255,11 @@ export async function swiftForStructuralBlocks(): Promise<string> {
     ),
   ).text();
   // The colour menu's order, as the web lists it.
-  const STICKY_COLORS = [...stickySource.matchAll(/^ {2}(\w+): \{ label: "/gm)].map((m) => m[1]);
-  if (STICKY_COLORS.length === 0) throw new Error("Sticky colour menu changed shape");
+  const STICKY_COLORS = [
+    ...stickySource.matchAll(/^ {2}(\w+): \{ label: "/gm),
+  ].map(([, name]) => String(name));
+  if (STICKY_COLORS.length === 0)
+    throw new Error("Sticky colour menu changed shape");
   // A note is a column-wide block in the flow, drawn by document.css.
   const stickyRule = /\.sticky-note \{([\s\S]*?)\}/.exec(document)?.[1] ?? "";
   const sticky = {
