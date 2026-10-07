@@ -12,7 +12,7 @@ const source = readFileSync(
   "utf8",
 ).replace("export function", "function");
 const js = new Bun.Transpiler({ loader: "ts" }).transformSync(
-  source + "\nextractArticleInteractions();",
+  `${source}\nextractArticleInteractions();`,
 );
 const browser = await puppeteer.launch({ headless: true });
 try {
@@ -45,13 +45,16 @@ try {
     text.textContent = "Later overlapping text";
     const rect = image.getBoundingClientRect();
     text.style.cssText = `position:absolute;left:${rect.x}px;top:${rect.y}px`;
-    image.parentElement!.append(text);
+    image.parentElement?.append(text);
   });
   const overlapping = await page.evaluate(
     `(()=>{${js.replace(/extractArticleInteractions\(\);\s*$/, "return extractArticleInteractions(true, true);")}})()`,
   );
-  assert.equal(overlapping.articleImages[0].overlay, false,
-    "Later positioned text must retain raster stacking");
+  assert.equal(
+    overlapping.articleImages[0].overlay,
+    false,
+    "Later positioned text must retain raster stacking",
+  );
   const legacy = await page.evaluate(
     `(()=>{${js.replace(/extractArticleInteractions\(\);\s*$/, "return extractArticleInteractions(true);")}})()`,
   );

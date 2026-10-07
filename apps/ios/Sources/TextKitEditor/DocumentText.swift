@@ -88,6 +88,11 @@ public final class DocumentText {
     /// The widths the columns are set to, in CSS pixels, or nil where they
     /// fit their text.
     public var columnWidths: [Double]?
+    /// Every second body row is shaded, as `rowStriping` sets it.
+    public var rowStriping = false
+    /// The first column stays put as the table scrolls, as a
+    /// `frozenColumnCount` above 0 sets it on the web.
+    public var freezesFirstColumn = false
   }
 
   private struct MentionPresentation {
@@ -660,7 +665,9 @@ public final class DocumentText {
               }
             }
           },
-          columnWidths: node["colWidths"]?.arrayValue?.compactMap(\.numberValue)))
+          columnWidths: node["colWidths"]?.arrayValue?.compactMap(\.numberValue),
+          rowStriping: node["rowStriping"]?.boolValue ?? false,
+          freezesFirstColumn: (node["frozenColumnCount"]?.numberValue ?? 0) > 0))
     default: return .text
     }
   }
@@ -853,7 +860,8 @@ public final class DocumentText {
         append("\u{2028}", format: [])
         kind = .character
       } else if let string = node["text"]?.stringValue {
-        append(string, format: TextFormat(rawValue: node["format"]?.intValue ?? 0), css: node["type"] == "mention" ? mentionCSS?(node, path) ?? WebSocialStyle.mentionCSS : node["style"]?.stringValue ?? "")
+        append(string, format: TextFormat(rawValue: node["format"]?.intValue ?? 0), css: node["type"] == "mention" ? mentionCSS?(node, path) ?? WebSocialStyle.mentionCSS : node["style"]?.stringValue ?? "",
+          entity: node["type"]?.stringValue)
         kind = .text
       } else {
         append("\u{FFFC}", format: [])
@@ -880,8 +888,21 @@ public final class DocumentText {
       node["children"] != nil && !inlineElements.contains(node["type"]?.stringValue ?? "")
     }
 
-    private mutating func append(_ string: String, format: TextFormat, css: String = "") {
+    /// `entity` comes before `css`, as a node's inline style outranks its
+    /// theme class on the web.
+    private mutating func append(_ string: String, format: TextFormat, css: String = "", entity type: String? = nil) {
       var attributes = style(blockType, format)
+      #if canImport(UIKit)
+      if let type, let entity = WebSocialStyle.entityText[type] {
+        attributes[.foregroundColor] = entityColors[type]
+        if let weight = entity.weight, let font = attributes[.font] as? UIFont,
+          !font.fontDescriptor.symbolicTraits.contains(.traitBold) {
+          attributes[.font] = UIFont(descriptor: font.fontDescriptor.addingAttributes([
+            .traits: [UIFontDescriptor.TraitKey.weight: Typesetting.weight(weight).rawValue]
+          ]), size: font.pointSize)
+        }
+      }
+      #endif
       if !css.isEmpty {
         let inline = InlineCSS(css)
         for (property, key) in [("color", NSAttributedString.Key.foregroundColor), ("background-color", .backgroundColor)] {
@@ -908,6 +929,19 @@ public final class DocumentText {
     }
   }
 }
+
+/// The colour and weight the web theme gives a text entity node, as
+/// WebSocialStyle reads them for hashtags and keywords.
+struct EntityTextStyle: Sendable {
+  var color: ThemeColor
+  var weight: Int?
+}
+
+#if canImport(UIKit)
+/// Made once: a dynamic colour equals only itself, and an edited run has to
+/// equal the one a fresh render gives.
+private let entityColors = WebSocialStyle.entityText.mapValues(\.color.color)
+#endif
 
 extension Range<Int> {
   /// The last index where `holds` does, for a test that holds up to some

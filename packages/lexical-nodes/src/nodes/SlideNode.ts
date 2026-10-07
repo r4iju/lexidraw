@@ -1,5 +1,4 @@
 import {
-  $create,
   $createParagraphNode,
   DecoratorNode,
   type EditorConfig,
@@ -12,128 +11,20 @@ import {
   type Spread,
   withField,
 } from "lexical";
-import { z } from "zod";
-import {
-  EMPTY_CONTENT,
-  type KeyedSerializedEditorState,
-} from "../keyed-editor-state.js";
-import { rawValueOr, type SchemaJSON, shapedAs } from "../schema-values.js";
+import { EMPTY_CONTENT } from "../keyed-editor-state.js";
+import { rawValueOr, type SchemaJSON } from "../schema-values.js";
 import {
   type ImportJSON,
   storedFields,
   withStoredJSON,
   written,
 } from "../stored-fields.js";
-import { shapeFromZod } from "../zod-shape.js";
-import { CHART_TYPES } from "./ChartNode.js";
 
-export const ThemeSettingsSchema = z.object({
-  templateName: z.string().optional(),
-  colorPalette: z
-    .object({
-      primary: z.string().optional(),
-      secondary: z.string().optional(),
-      accent: z.string().optional(),
-      slideBackground: z.string().optional(),
-      textHeader: z.string().optional(),
-      textBody: z.string().optional(),
-    })
-    .optional(),
-  fonts: z
-    .object({
-      heading: z.string().optional(),
-      body: z.string().optional(),
-      caption: z.string().optional(),
-    })
-    .optional(),
-  logoUrl: z.string().optional(),
-  customTokens: z.string().optional(),
-});
-
-export const DeckStrategicMetadataSchema = z.object({
-  bigIdea: z.string().optional(),
-  audiencePersonaSummary: z.string().optional(),
-  overallObjective: z.string().optional(),
-  recommendedTone: z.string().optional(),
-  originalUserPrompt: z.string().optional(),
-  targetSlideCount: z.number().optional(),
-  targetDurationMinutes: z.number().optional(),
-  theme: ThemeSettingsSchema.optional(),
-});
-
-export const SlideStrategicMetadataSchema = z.object({
-  purpose: z.string().optional(),
-  storyboardTitle: z.string().optional(),
-  keyMessage: z.string().optional(),
-  keyVisualHint: z.string().optional(),
-  takeAwayMessage: z.string().optional(),
-  layoutTemplateHint: z.string().optional(),
-  speakerNotes: z.string().optional(),
-  sourceMaterialRefs: z.array(z.string()).optional(),
-});
-
-const SizeSchema = z.union([z.number(), z.literal("inherit")]);
-
-const elementFields = {
-  id: z.string(),
-  x: z.number(),
-  y: z.number(),
-  width: SizeSchema,
-  height: SizeSchema,
-  version: z.number().optional(),
-  zIndex: z.number(),
-};
-
-export const SlideElementSchema = z.discriminatedUnion("kind", [
-  z.object({
-    kind: z.literal("box"),
-    ...elementFields,
-    editorStateJSON: z.custom<KeyedSerializedEditorState>(),
-    backgroundColor: z.string().optional(),
-  }),
-  z.object({
-    kind: z.literal("image"),
-    ...elementFields,
-    url: z.string(),
-  }),
-  z.object({
-    kind: z.literal("chart"),
-    ...elementFields,
-    chartType: z.enum(CHART_TYPES),
-    chartData: z.string(),
-    chartConfig: z.string(),
-  }),
-]);
-
-export const SlideSchema = z.object({
-  id: z.string(),
-  elements: z.array(SlideElementSchema),
-  backgroundColor: z.string().optional(),
-  slideMetadata: SlideStrategicMetadataSchema.optional(),
-});
-
-export const SlideDeckSchema = z.object({
-  slides: z.array(SlideSchema),
-  currentSlideId: z.string().nullable(),
-  deckMetadata: DeckStrategicMetadataSchema.optional(),
-});
-
-export type ThemeSettings = z.infer<typeof ThemeSettingsSchema>;
-
-export type DeckStrategicMetadata = z.infer<typeof DeckStrategicMetadataSchema>;
-
-export type SlideStrategicMetadata = z.infer<
-  typeof SlideStrategicMetadataSchema
->;
-
-export type SlideElementSpec = z.infer<typeof SlideElementSchema>;
-
-export type SlideData = z.infer<typeof SlideSchema>;
-
-export type SlideDeckData = z.infer<typeof SlideDeckSchema>;
-
-/** What a deck made without data, or stored without any, holds. */
-const DEFAULT_DECK: SlideDeckData = {
+/**
+ * What a deck stored without data reads as: the deck the slide editor made,
+ * so such a deck still saves back as it did.
+ */
+const DEFAULT_DECK = {
   slides: [
     {
       id: "default-slide-1",
@@ -157,13 +48,9 @@ const DEFAULT_DECK: SlideDeckData = {
 const { fields: slideFields, json: slideJSON } = storedFields({
   type: written,
   version: written,
-  data: withField(
-    shapedAs(
-      shapeFromZod(SlideDeckSchema),
-      rawValueOr(DEFAULT_DECK, { nullAsAbsent: true }),
-    ),
-    { field: "__data" },
-  ),
+  data: withField(rawValueOr<unknown>(DEFAULT_DECK, { nullAsAbsent: true }), {
+    field: "__data",
+  }),
 });
 
 export type SerializedSlideDeckNode = Spread<
@@ -174,11 +61,13 @@ export type SerializedSlideDeckNode = Spread<
 const slideSchema = nodeSchema<SlideNode>()(slideFields);
 
 /**
- * Serialization half of the slide deck block; see ImageNode for the split.
+ * A slide deck saved before slides were removed (#253). Nothing makes one any
+ * more. A stored deck keeps its data exactly as stored, so a document saves
+ * it back unchanged, and editors show it as a placeholder with its text.
  */
 export class SlideNode extends DecoratorNode<unknown> {
   declare static importJSON: ImportJSON<SlideNode>;
-  __data: SlideDeckData;
+  __data: unknown;
 
   $config() {
     return this.config("slide-deck", {
@@ -188,7 +77,7 @@ export class SlideNode extends DecoratorNode<unknown> {
   }
 
   constructor(
-    data: SlideDeckData = { slides: [], currentSlideId: null },
+    data: unknown = { slides: [], currentSlideId: null },
     key?: NodeKey,
   ) {
     super(key);
@@ -205,12 +94,7 @@ export class SlideNode extends DecoratorNode<unknown> {
     return false;
   }
 
-  setData(data: SlideDeckData): void {
-    const writable = this.getWritable();
-    writable.__data = data;
-  }
-
-  getData(): SlideDeckData {
+  getData(): unknown {
     return this.__data;
   }
 
@@ -228,15 +112,6 @@ export class SlideNode extends DecoratorNode<unknown> {
     return false;
   }
 
-  static $createSlideNode<T extends SlideNode>(
-    this: Klass<T>,
-    data?: SlideDeckData,
-  ): T {
-    const node = $create(this);
-    node.__data = data ?? DEFAULT_DECK;
-    return node;
-  }
-
   static $isSlideDeckNode<T extends SlideNode>(
     this: Klass<T>,
     node: LexicalNode | null | undefined,
@@ -246,3 +121,68 @@ export class SlideNode extends DecoratorNode<unknown> {
 }
 
 withStoredJSON(SlideNode);
+
+type Stored = Record<string, unknown>;
+
+const isStored = (value: unknown): value is Stored =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+const listAt = (value: unknown, key: string): unknown[] => {
+  const list = isStored(value) ? value[key] : undefined;
+  return Array.isArray(list) ? list : [];
+};
+
+/** The slides a stored deck holds, whatever else its data holds. */
+export const storedSlides = (data: unknown): unknown[] =>
+  listAt(data, "slides");
+
+/** A slide's title from its storyboard, if it had one. */
+export function storedSlideTitle(slide: unknown): string | undefined {
+  const metadata = isStored(slide) ? slide.slideMetadata : undefined;
+  const title = isStored(metadata) ? metadata.storyboardTitle : undefined;
+  return typeof title === "string" && title !== "" ? title : undefined;
+}
+
+const textOf = (node: unknown): string =>
+  isStored(node) && typeof node.text === "string"
+    ? node.text
+    : isStored(node) && node.type === "linebreak"
+      ? "\n"
+      : listAt(node, "children").map(textOf).join("");
+
+/** A block's lines: its own text, or each of its blocks' when it holds blocks. */
+function linesOf(node: unknown): string[] {
+  const children = listAt(node, "children");
+  const holdsText =
+    children.length === 0 ||
+    children.some(
+      (child) =>
+        isStored(child) &&
+        (typeof child.text === "string" || child.type === "linebreak"),
+    );
+  return holdsText ? [textOf(node)] : children.flatMap(linesOf);
+}
+
+/**
+ * The text a stored deck's text boxes hold, a line per block, slide by slide.
+ * A box stored as a JSON string, as some were, reads as its parsed state.
+ */
+export function slideDeckText(data: unknown): string[] {
+  return storedSlides(data).flatMap((slide) =>
+    listAt(slide, "elements").flatMap((element) => {
+      if (!isStored(element) || element.kind !== "box") return [];
+      let state = element.editorStateJSON;
+      if (typeof state === "string") {
+        try {
+          state = JSON.parse(state);
+        } catch {
+          return [];
+        }
+      }
+      return listAt(isStored(state) ? state.root : undefined, "children")
+        .flatMap(linesOf)
+        .map((line) => line.trim())
+        .filter((line) => line !== "");
+    }),
+  );
+}

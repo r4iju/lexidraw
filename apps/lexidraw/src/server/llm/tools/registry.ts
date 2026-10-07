@@ -26,15 +26,6 @@ import {
   InsertTweetNodeSchema,
   InsertYouTubeNodeSchema,
   InsertFigmaNodeSchema,
-  // Slides
-  InsertSlideDeckNodeSchema,
-  AddSlidePageSchema,
-  RemoveSlidePageSchema,
-  ReorderSlidePageSchema,
-  SetSlidePageBackgroundSchema,
-  AddBoxToSlidePageSchema,
-  AddImageToSlidePageSchema,
-  AddChartToSlidePageSchema,
   // Comments
   FindAndSelectTextForCommentSchema,
   AddCommentThreadSchema,
@@ -46,10 +37,6 @@ import {
   GenerateAndInsertImageSchema,
   // Content extraction
   ExtractWebpageContentSchema,
-  // Updates & saves
-  UpdateElementPropertiesSchema,
-  SaveStoryboardOutputSchema,
-  SaveSlideContentAndMetadataSchema,
   // Code execution
   ExecuteCodeSchema,
   ExecuteCodeClientSchema,
@@ -187,48 +174,6 @@ const TOOL_SPECS: Record<string, ToolSpec> = {
     group: "client",
   },
 
-  // Slides
-  insertSlideDeckNode: {
-    description: "Insert a new slide deck container node.",
-    inputSchema: InsertSlideDeckNodeSchema,
-    group: "client",
-  },
-  addSlidePage: {
-    description: "Add a slide page to a slide deck.",
-    inputSchema: AddSlidePageSchema,
-    group: "client",
-  },
-  removeSlidePage: {
-    description: "Remove a slide page from a slide deck by ID.",
-    inputSchema: RemoveSlidePageSchema,
-    group: "client",
-  },
-  reorderSlidePage: {
-    description: "Reorder a slide page to a new index.",
-    inputSchema: ReorderSlidePageSchema,
-    group: "client",
-  },
-  setSlidePageBackground: {
-    description: "Set the background color for a slide page.",
-    inputSchema: SetSlidePageBackgroundSchema,
-    group: "client",
-  },
-  addBoxToSlidePage: {
-    description: "Add a box element to a slide page.",
-    inputSchema: AddBoxToSlidePageSchema,
-    group: "client",
-  },
-  addImageToSlidePage: {
-    description: "Add an image element to a slide page.",
-    inputSchema: AddImageToSlidePageSchema,
-    group: "client",
-  },
-  addChartToSlidePage: {
-    description: "Add a chart to a slide page with data and config.",
-    inputSchema: AddChartToSlidePageSchema,
-    group: "client",
-  },
-
   // Comments
   findAndSelectTextForComment: {
     description: "Find and select text for creating a comment thread.",
@@ -270,23 +215,6 @@ const TOOL_SPECS: Record<string, ToolSpec> = {
   extractWebpageContent: {
     description: "Extract main article content from a web page URL.",
     inputSchema: ExtractWebpageContentSchema,
-    group: "client",
-  },
-
-  // Updates & saves
-  updateElementProperties: {
-    description: "Update properties of a slide element (box/image/chart).",
-    inputSchema: UpdateElementPropertiesSchema,
-    group: "client",
-  },
-  saveStoryboardOutput: {
-    description: "Save storyboard slides with key messages and notes.",
-    inputSchema: SaveStoryboardOutputSchema,
-    group: "client",
-  },
-  saveSlideContentAndMetadata: {
-    description: "Save slide page body content and refined speaker notes.",
-    inputSchema: SaveSlideContentAndMetadataSchema,
     group: "client",
   },
 

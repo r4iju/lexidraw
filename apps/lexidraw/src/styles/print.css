@@ -128,7 +128,6 @@
       div.editor-equation,
       [data-poll],
       .chart-component,
-      .slide-view-outer-viewport,
       .slide-deck-container
     ),
   .document-content p:has(.document-figure, div.editor-equation) {
@@ -151,15 +150,8 @@
     break-after: avoid;
   }
 
-  .document-content
-    :is(.chart-component[data-empty="true"], .slide-empty-state) {
+  .document-content .chart-component[data-empty="true"] {
     min-height: 48px !important;
-  }
-  .document-content .slide-view-outer-viewport {
-    max-height: 115mm;
-  }
-  .document-content .slide-view-scaling-container {
-    position: absolute !important;
   }
   /* Recharts measures inside a zero-size overflow wrapper on screen. */
   .document-content .recharts-responsive-container > div,

@@ -1,3 +1,4 @@
+import { addClassNamesToElement } from "@lexical/utils";
 import {
   type EditorConfig,
   type LexicalNode,
@@ -38,7 +39,7 @@ export class KeywordNode extends TextNode {
   createDOM(config: EditorConfig): HTMLElement {
     const dom = super.createDOM(config);
     dom.style.cursor = "default";
-    dom.className = "keyword";
+    addClassNamesToElement(dom, "keyword", config.theme.keyword);
     return dom;
   }
 

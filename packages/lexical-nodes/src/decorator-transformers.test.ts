@@ -10,6 +10,7 @@ import {
   $createTextNode,
   $getRoot,
   $isParagraphNode,
+  $parseSerializedNode,
   type LexicalEditor,
 } from "lexical";
 import {
@@ -43,6 +44,10 @@ function editorWithCoreNodes(): LexicalEditor {
     },
   });
 }
+
+/** A deck as the slide editor saved one, before slides were removed. */
+const $storedDeck = (data: object) =>
+  $parseSerializedNode({ type: "slide-deck", version: 1, data } as never);
 
 function toMarkdown(editor: LexicalEditor): string {
   return editor
@@ -134,7 +139,7 @@ describe("decorator node markdown", () => {
     editor.update(
       () => {
         $getRoot().append(
-          SlideNode.$createSlideNode({
+          $storedDeck({
             slides: [
               { id: "s1", elements: [] },
               {
@@ -150,7 +155,7 @@ describe("decorator node markdown", () => {
             ],
             currentSlideId: "s1",
           }),
-          SlideNode.$createSlideNode({ slides: [], currentSlideId: null }),
+          $storedDeck({ slides: [], currentSlideId: null }),
           $createParagraphNode().append(
             MermaidNode.$createMermaidNode("\n\nflowchart LR\n  A --> B"),
           ),

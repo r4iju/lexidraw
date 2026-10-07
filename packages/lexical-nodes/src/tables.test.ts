@@ -418,3 +418,89 @@ test("a divider typed under a table makes its last row the header, with the care
     expect(selection.anchor.offset).toBe(1);
   });
 });
+
+/** `md` imported, then exported again. */
+function roundTrip(md: string) {
+  const e = editor();
+  e.update(() => $convertFromMarkdownString(md, CORE_TRANSFORMERS), {
+    discrete: true,
+  });
+  return e
+    .getEditorState()
+    .read(() => $convertToMarkdownString(CORE_TRANSFORMERS));
+}
+
+test("a cell of several blocks writes GFM line breaks and reads them back", () => {
+  const e = editor();
+  e.update(
+    () => {
+      const table = $createDocumentTable(2, 2);
+      $getRoot().append(table);
+      const [header, body] = table.getChildren<TableRowNode>();
+      header?.getChildren<TableCellNode>().forEach((cell, index) => {
+        cell
+          .getFirstChildOrThrow<ParagraphNode>()
+          .append($createTextNode(["Notes", "Steps"][index] ?? ""));
+      });
+      const [notes, steps] = body?.getChildren<TableCellNode>() ?? [];
+      notes
+        ?.clear()
+        .append(
+          $createParagraphNode().append($createTextNode("First.")),
+          $createParagraphNode().append($createTextNode("Second.")),
+        );
+      steps?.clear();
+      if (steps)
+        $convertFromMarkdownString(
+          "- [x] one\n- [ ] two",
+          CORE_TRANSFORMERS,
+          steps,
+        );
+    },
+    { discrete: true },
+  );
+  const md =
+    "| Notes | Steps |\n| --- | --- |\n| First.<br><br>Second. | - [x] one<br>- [ ] two |";
+  expect(
+    e.getEditorState().read(() => $convertToMarkdownString(CORE_TRANSFORMERS)),
+  ).toBe(md);
+  expect(roundTrip(md)).toBe(md);
+});
+
+test("a backslash and n in a cell stay text through a round trip", () => {
+  const md = '| Call | Path |\n| --- | --- |\n| `printf("a\\n")` | C:\\\\new |';
+  expect(roundTrip(md)).toBe(md);
+});
+
+test("merged cells write a rectangular grid, the content in the first place each covers", () => {
+  const e = editor();
+  e.update(
+    () => {
+      const table = $createDocumentTable(3, 3);
+      $getRoot().append(table);
+      const text = [
+        ["Merged across two", "", "C"],
+        ["Tall", "Red", "Blue"],
+        ["", "Green", "Long"],
+      ];
+      table.getChildren<TableRowNode>().forEach((row, r) => {
+        row.getChildren<TableCellNode>().forEach((cell, c) => {
+          cell
+            .getFirstChildOrThrow<ParagraphNode>()
+            .append($createTextNode(text[r]?.[c] || "x"));
+        });
+      });
+      $cell(0, 0).setColSpan(2);
+      $cell(0, 1).remove();
+      $cell(1, 0).setRowSpan(2);
+      $cell(2, 0).remove();
+    },
+    { discrete: true },
+  );
+  const md =
+    "| Merged across two |  | C |\n| --- | --- | --- |\n| Tall | Red | Blue |\n|  | Green | Long |";
+  expect(
+    e.getEditorState().read(() => $convertToMarkdownString(CORE_TRANSFORMERS)),
+  ).toBe(md);
+  expect(roundTrip(md)).toBe(md);
+});

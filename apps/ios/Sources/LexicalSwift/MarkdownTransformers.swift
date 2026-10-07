@@ -21,9 +21,11 @@ extension MarkdownTransformer {
     MarkdownTransformer(kind: .textMatch, name: .footnoteReference, regExp: JSRegExp("\\[\\^([^\\]\\s]+)\\]$", flags: ""), importRegExp: JSRegExp("\\[\\^([^\\]\\s]+)\\](?!:)", flags: ""), makes: ["footnote-reference"]),
     MarkdownTransformer(kind: .element, name: .table, regExp: JSRegExp("^(?:\\|)(.+)(?:\\|)\\s?$", flags: ""), makes: ["table", "tablerow", "tablecell"]),
     MarkdownTransformer(kind: .element, name: .hr, regExp: JSRegExp("^(---|\\*\\*\\*|___)\\s?$", flags: ""), makes: ["horizontalrule"]),
+    MarkdownTransformer(kind: .textMatch, name: .hrTyped, regExp: JSRegExp("^---$", flags: ""), trigger: "-", makes: ["horizontalrule"]),
     MarkdownTransformer(kind: .textMatch, name: .emoji, regExp: JSRegExp(":([a-z0-9_]+):$", flags: ""), importRegExp: JSRegExp(":([a-z0-9_]+):", flags: ""), trigger: ":", makes: []),
     MarkdownTransformer(kind: .element, name: .checkList, regExp: JSRegExp("^(\\s*)(?:[-*+]\\s)?\\s?(\\[(\\s|x)?\\])\\s", flags: "i"), triggerOnEnter: true, makes: ["list", "listitem"]),
     MarkdownTransformer(kind: .element, name: .calloutShortcut, regExp: JSRegExp("^\\[!([A-Za-z][\\w-]*)\\]\\s", flags: ""), makes: ["callout"]),
+    MarkdownTransformer(kind: .textMatch, name: .checkItemInBullet, regExp: JSRegExp("^\\[(\\s|x)?\\]\\s$", flags: "i"), trigger: " ", makes: ["list", "listitem"]),
     MarkdownTransformer(kind: .element, name: .toggleShortcut, regExp: JSRegExp("^>>\\s", flags: ""), makes: ["collapsible-container", "collapsible-title", "collapsible-content"]),
     MarkdownTransformer(kind: .element, name: .heading, regExp: JSRegExp("^(#{1,6})\\s", flags: ""), triggerOnEnter: true, makes: ["heading"]),
     MarkdownTransformer(kind: .element, name: .quote, regExp: JSRegExp("^>\\s", flags: ""), triggerOnEnter: true, makes: ["quote"]),
@@ -61,9 +63,11 @@ extension MarkdownTransformer {
     case footnoteReference = "FOOTNOTE_REFERENCE"
     case table = "TABLE"
     case hr = "HR"
+    case hrTyped = "HR_TYPED"
     case emoji = "EMOJI"
     case checkList = "CHECK_LIST"
     case calloutShortcut = "CALLOUT_SHORTCUT"
+    case checkItemInBullet = "CHECK_ITEM_IN_BULLET"
     case toggleShortcut = "TOGGLE_SHORTCUT"
     case heading = "HEADING"
     case quote = "QUOTE"

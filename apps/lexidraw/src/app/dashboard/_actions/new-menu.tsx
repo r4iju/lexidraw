@@ -16,7 +16,7 @@ export type NewKind = "document" | "drawing" | "directory" | "url";
 const KINDS: { type: NewKind; description: string }[] = [
   {
     type: "document",
-    description: "Write with headings, tables, embeds and slides.",
+    description: "Write with headings, tables, embeds and diagrams.",
   },
   {
     type: "drawing",

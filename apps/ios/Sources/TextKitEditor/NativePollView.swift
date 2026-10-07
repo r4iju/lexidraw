@@ -35,7 +35,7 @@ import UIKit
     self.node = node; self.userID = userID; self.editable = editable
     self.changed = changed; self.editOption = editOption; self.failed = failed
     super.init(frame: .zero)
-    backgroundColor = ThemeColor.card.color
+    backgroundColor = WebPollStyle.background.color
     layer.cornerRadius = 8
     layer.borderWidth = 1
     drawBorder()

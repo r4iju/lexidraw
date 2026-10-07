@@ -135,8 +135,7 @@
   border-top: 1px solid var(--border);
   margin-block: 2em;
 }
-.document-content
-  > :is(table, pre, code, .document-code, [data-lexical-decorator]:not(hr)) {
+.document-content > :is(table, pre, code, [data-lexical-decorator]:not(hr)) {
   max-width: var(--doc-wide);
 }
 .document-content > .document-full {
@@ -687,21 +686,24 @@
   border-radius: 6px;
   isolation: isolate;
   overscroll-behavior-inline: contain;
-  background-image:
-    linear-gradient(
-      to right,
-      var(--table-shadow-left, transparent),
-      transparent
-    ),
-    linear-gradient(
-      to left,
-      var(--table-shadow-right, transparent),
-      transparent
-    );
-  background-position: left, right;
-  background-size: 10px 100%;
-  background-repeat: no-repeat;
-  background-attachment: scroll;
+  --table-fade: 32px;
+}
+/* What lies past an edge the table scrolls towards fades out there, cells,
+   headers and colours alike. A mask reads only the alpha of its colours. */
+.document-table-region:is([data-scroll-left], [data-scroll-right]) {
+  mask-image: linear-gradient(
+    to right,
+    transparent,
+    var(--foreground) var(--table-fade-start, 0px),
+    var(--foreground) calc(100% - var(--table-fade-end, 0px)),
+    transparent
+  );
+}
+.document-table-region[data-scroll-left] {
+  --table-fade-start: var(--table-fade);
+}
+.document-table-region[data-scroll-right] {
+  --table-fade-end: var(--table-fade);
 }
 /* A table that fits shows the keyboard focus on itself, not the region's
    empty stretch of the wide column. */
@@ -731,6 +733,9 @@
   table-layout: auto;
   border: 1px solid var(--border);
   border-radius: 6px;
+  /* Rounds whichever cells reach a corner, merged or not, without making
+     the table a scroller its sticky header and column would stick to. */
+  overflow: clip;
   border-collapse: separate;
   border-spacing: 0;
   font-size: 15px;
@@ -758,22 +763,12 @@
 :is(td, th):not(:has([data-lexical-text], [data-lexical-decorator])) {
   min-width: 6rem;
 }
-.document-table > tr:first-child > :first-child {
-  border-start-start-radius: 5px;
-}
-.document-table > tr:first-child > :last-child {
-  border-start-end-radius: 5px;
-}
-.document-table > tr:last-child > :first-child {
-  border-end-start-radius: 5px;
-}
-.document-table > tr:last-child > :last-child {
-  border-end-end-radius: 5px;
-}
-.document-table tr > :last-child {
+.document-table tr > :last-child,
+.document-table [data-column-end] {
   border-inline-end: 0;
 }
-.document-table tr:last-child > * {
+.document-table tr:last-child > *,
+.document-table [data-row-end] {
   border-block-end: 0;
 }
 .document-table th {
@@ -799,54 +794,97 @@
 .document-table[data-print-table] {
   display: none;
 }
+/* Striped rows count body rows only, so a header row is never one. */
+.document-table[data-lexical-row-striping] > tr:nth-child(even of :has(> td)) {
+  --table-row-fill: var(--table-stripe);
+}
+/* Under the theme's utilities, so a selected cell's tint still shows. */
+@layer base {
+  .document-table td {
+    background-color: var(--table-row-fill, transparent);
+  }
+}
 @media screen {
   .document-table tr:hover > td {
     background-color: var(--accent);
   }
-}
-/* The cell menu's trigger sits in the top end corner; text wraps around it
-   there rather than every cell being wider to leave it room. A phone keeps
-   the menu in its editing bar instead. */
-@media screen and (width >= 40rem) {
-  .document-content[contenteditable="true"]
-    .document-table
-    :is(td, th)::before {
-    content: "";
-    float: inline-end;
-    width: 20px;
-    height: 24px;
+  /* A colour picked in the light theme keeps its hue in the dark one, at
+     the header's lightness, under the theme's light text. */
+  .dark .document-table :is(td, th)[style*="background-color"] {
+    background-image: linear-gradient(var(--muted), var(--muted));
+    background-blend-mode: luminosity;
   }
-  @media (pointer: coarse) {
-    .document-content[contenteditable="true"]
-      .document-table
-      :is(td, th)::before {
-      width: 40px;
-      height: 44px;
-    }
+}
+/* Lists in a narrow column keep their room for text. */
+.document-content .document-table :is(td, th) :is(ul, ol) {
+  padding-inline-start: 1.25em;
+}
+.document-content .document-table :is(td, th) ul:has(> li.document-task) {
+  padding-inline-start: 0;
+}
+.document-content .document-table :is(td, th) li.document-task {
+  padding-inline-start: 1.5em;
+}
+/* A frozen first column stays at any width; a phone also pins the first
+   column of a table of many. Both sit inside the table's own border, where
+   they were before the scroll began. */
+.document-table[data-lexical-frozen-column] tr > :first-child {
+  position: sticky;
+  left: 1px;
+  z-index: 1;
+  background-color: var(--table-row-fill, var(--background));
+}
+.document-table[data-lexical-frozen-column] tr > th:first-child {
+  z-index: 3;
+  background-color: var(--muted);
+}
+.document-table-region:has(> .document-table[data-lexical-frozen-column]) {
+  --table-fade-start: 0px;
+}
+.document-table-region[data-scroll-left]
+  .document-table[data-lexical-frozen-column]
+  tr
+  > :first-child {
+  box-shadow: 6px 0 8px -6px var(--muted-foreground);
+}
+/* The table's start border scrolls away under a pinned column, and the
+   region's frame paints beneath it; the column draws the line itself. */
+.document-table-region[data-scroll-left]
+  .document-table:is([data-lexical-frozen-column], [data-pin-first="true"])
+  tr
+  > :first-child::after {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: -1px;
+  width: 1px;
+  background: var(--border);
+}
+@media screen and (min-width: 640px) {
+  .document-table-region[data-scroll-left]
+    .document-table:not([data-lexical-frozen-column])
+    tr
+    > :first-child::after {
+    content: none;
   }
 }
 @media screen and (max-width: 639px) {
-  /* Inside the table's own border, where it was before the scroll began. */
   .document-table[data-pin-first="true"] tr > :first-child {
     position: sticky;
     left: 1px;
     z-index: 1;
-    background-color: var(--card);
+    background-color: var(--background);
+  }
+  .document-table[data-pin-first="true"] tr > td:first-child {
+    background-color: var(--table-row-fill, var(--background));
   }
   .document-table[data-pin-first="true"] tr > th:first-child {
     z-index: 3;
     background-color: var(--muted);
   }
-}
-
-.document-table-region[data-scroll-left] {
-  --table-shadow-left: var(--muted-foreground);
-}
-.document-table-region[data-scroll-right] {
-  --table-shadow-right: var(--muted-foreground);
-}
-
-@media screen and (max-width: 639px) {
+  .document-table-region:has(> .document-table[data-pin-first="true"]) {
+    --table-fade-start: 0px;
+  }
   .document-table-region[data-scroll-left]
     .document-table[data-pin-first="true"]
     tr
@@ -944,6 +982,14 @@
     calc(min(var(--doc-measure), 100%) * var(--figure-share)),
     var(--figure-least)
   );
+}
+/* A figure at a share of the column sits at the side its embed is aligned to. */
+.document-content > [data-figure-width="share"]:has([data-embed-align="left"]) {
+  margin-inline: max(0px, calc((100% - var(--doc-measure)) / 2)) auto;
+}
+.document-content
+  > [data-figure-width="share"]:has([data-embed-align="right"]) {
+  margin-inline: auto max(0px, calc((100% - var(--doc-measure)) / 2));
 }
 .document-content > p > [data-figure-width] {
   display: block;
@@ -1181,48 +1227,58 @@
   overflow-wrap: anywhere;
 }
 .document-code {
+  position: relative;
   background: var(--code-background);
   color: var(--foreground);
   border: 1px solid var(--border-subtle);
   border-radius: 8px;
   overflow: hidden;
 }
+/* Renders without the controls (iOS images, read views) leave it empty. */
+.document-code-header:empty {
+  display: none;
+}
+/* On touch the controls are a slim row at the top, always there. */
 .document-code-header {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 4px;
-  min-height: 40px;
-  padding: 4px 16px;
+  justify-content: flex-end;
+  padding: 2px 4px 0;
   font: 12px / 1.4 var(--font-sans);
   color: var(--muted-foreground);
-  border-bottom: 1px solid var(--border);
 }
-.document-code-header select {
-  min-width: 0;
-  max-width: 120px;
-  background: var(--code-background);
-  color: var(--foreground);
+.document-code-header:not(:empty) + .document-code-body {
+  padding-block-start: 4px;
 }
-.document-code-actions {
+.document-code-controls {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 2px;
 }
-.document-code-actions label {
-  display: flex;
-  align-items: center;
-  gap: 4px;
+.document-code-language {
+  padding-inline: 8px;
 }
-.document-code-copy {
-  opacity: 0;
-}
-.document-code:is(:hover, :focus-within) .document-code-copy {
-  opacity: 1;
-}
-@media (hover: none), (pointer: coarse) {
-  .document-code-copy {
+/* With a mouse they float at the top right, hidden until the block is
+   hovered, holds the caret, or a control has focus or an open menu. */
+@media (hover: hover) and (pointer: fine) {
+  .document-code-header {
+    position: absolute;
+    inset: 4px 4px auto auto;
+    z-index: 1;
+    padding: 0;
+  }
+  .document-code-header:not(:empty) + .document-code-body {
+    padding-block-start: 14px;
+  }
+  .document-code-controls {
+    background: var(--code-background);
+    border-radius: 6px;
+    opacity: 0;
+    transition: opacity var(--transition-duration-fast);
+  }
+  .document-code:hover .document-code-controls,
+  .document-code-controls:focus-within,
+  .document-code-controls:has([aria-expanded="true"]),
+  .document-content:focus-within .document-code-controls[data-active] {
     opacity: 1;
   }
 }

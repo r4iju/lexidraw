@@ -1,21 +1,11 @@
 import { z } from "zod";
 import {
-  InsertSlideDeckNodeSchema,
-  AddSlidePageSchema,
-  RemoveSlidePageSchema,
-  ReorderSlidePageSchema,
-  SetSlidePageBackgroundSchema,
-  AddImageToSlidePageSchema,
-  AddChartToSlidePageSchema,
-  AddBoxToSlidePageSchema,
   InsertMarkdownSchema,
-  SaveSlideContentAndMetadataSchema,
   InsertHeadingNodeSchema,
   InsertTextNodeSchema,
   InsertCollapsibleSectionSchema,
   InsertListNodeSchema,
   ExtractWebpageContentSchema,
-  SearchAndAddImageToSlidePageSchema,
   ExecuteCodeSchema,
   ExecuteCodeClientSchema,
 } from "./tool-schemas.js";
@@ -51,59 +41,11 @@ export const TOOL_CONTRACTS: Record<string, Contract> = {
       "Reports the final summary of actions taken. Provide summaryText.",
     schema: z.object({ summaryText: z.string() }),
   },
-  insertSlideDeckNode: {
-    name: "insertSlideDeckNode",
-    description:
-      "Insert a new SlideDeck node at a position defined by relation+anchor.",
-    schema: InsertSlideDeckNodeSchema,
-  },
-  addSlidePage: {
-    name: "addSlidePage",
-    description: "Add a slide page to an existing deck.",
-    schema: AddSlidePageSchema,
-  },
-  removeSlidePage: {
-    name: "removeSlidePage",
-    description: "Remove a slide page from a deck.",
-    schema: RemoveSlidePageSchema,
-  },
-  reorderSlidePage: {
-    name: "reorderSlidePage",
-    description: "Reorder a slide page.",
-    schema: ReorderSlidePageSchema,
-  },
-  setSlidePageBackground: {
-    name: "setSlidePageBackground",
-    description: "Set background color for a slide page.",
-    schema: SetSlidePageBackgroundSchema,
-  },
-  addImageToSlidePage: {
-    name: "addImageToSlidePage",
-    description: "Add an image element to a slide page.",
-    schema: AddImageToSlidePageSchema,
-  },
-  addChartToSlidePage: {
-    name: "addChartToSlidePage",
-    description: "Add a chart element to a slide page.",
-    schema: AddChartToSlidePageSchema,
-  },
-  addBoxToSlidePage: {
-    name: "addBoxToSlidePage",
-    description:
-      "Add a box element to a slide page within an existing SlideDeckNode.",
-    schema: AddBoxToSlidePageSchema,
-  },
   insertMarkdown: {
     name: "insertMarkdown",
     description:
       "Insert content parsed from a Markdown string at relation+anchor.",
     schema: InsertMarkdownSchema,
-  },
-  saveSlideContentAndMetadata: {
-    name: "saveSlideContentAndMetadata",
-    description:
-      "Save body content blocks and refined speaker notes for a slide page.",
-    schema: SaveSlideContentAndMetadataSchema,
   },
   // ——— Added contracts to align server and client tool schemas ——
   insertHeadingNode: {
@@ -135,12 +77,6 @@ export const TOOL_CONTRACTS: Record<string, Contract> = {
     description:
       "Fetch a web page server-side and extract a readable text summary.",
     schema: ExtractWebpageContentSchema,
-  },
-  searchAndAddImageToSlidePage: {
-    name: "searchAndAddImageToSlidePage",
-    description:
-      "Search Unsplash and add the image to a specific slide page in a deck.",
-    schema: SearchAndAddImageToSlidePageSchema,
   },
   executeCode: {
     name: "executeCode",

@@ -2,6 +2,8 @@ import "server-only";
 import { blocksIn, savedBlock } from "./content";
 import { captureBlock } from "./preview";
 import type { BlockPreview } from "~/app/documents/[documentId]/nodes/HTMLBlockPreviews";
+/** Exports are printed or shared as images, so blocks are captured as on light paper. */
+const PAPER = { width: 800, theme: "light" } as const;
 /** Called only after the enclosing document's render access was checked. */
 export async function exportBlockPreviews(
   elements: string,
@@ -11,9 +13,10 @@ export async function exportBlockPreviews(
   for (const block of blocks)
     previews[block.id] = {
       status: "failed",
+      reason: "unavailable",
       revision: block.revision,
       message: "Saved-state preview unavailable",
-      width: 800,
+      width: PAPER.width,
       height: block.height,
     };
   const signal = AbortSignal.timeout(20000);
@@ -25,12 +28,11 @@ export async function exportBlockPreviews(
         if (!block) continue;
         try {
           if (savedBlock(block, block.id).revision !== block.revision) continue;
-          const data = await captureBlock(block, 800, signal);
+          const capture = await captureBlock(block, PAPER, { signal });
           previews[block.id] = {
-            status: "ready",
+            ...capture,
             revision: block.revision,
-            data,
-            width: 800,
+            width: PAPER.width,
             height: block.height,
           };
         } catch {

@@ -5,19 +5,19 @@ const root = resolve(import.meta.dir, "../src");
 const palette =
   /\b(?:bg|text|border|ring|outline|fill|stroke|accent|caret|from|via|to)-(?:slate|gray|zinc|neutral|stone|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose)(?:-\d{2,3})\b|\b(?:bg|text|border|ring|outline|fill|stroke)-(?:white|black)\b/;
 const literalColour = /#[\da-f]{3,8}\b|\b(?:rgb|rgba|hsl|hsla|oklch)\(/i;
-// These values describe authored media, colour-picker data, or third-party SVG selectors.
-// They are not app chrome. Class names are still checked in these files.
+// These values describe authored media, colour-picker data, third-party SVG selectors,
+// or a third-party syntax theme's colours. They are not app chrome. Class names are
+// still checked in these files.
 const colourData = [
+  "app/documents/[documentId]/plugins/code-highlight-plugin.ts",
   "components/colorful/",
   "components/ui/color-picker.tsx",
   "components/ui/chart.tsx",
   "app/documents/[documentId]/context/toolbar-context.tsx",
-  "app/documents/[documentId]/nodes/SlideNode/SlideDeckEditor.tsx",
   "app/documents/[documentId]/plugins/LlmChatPlugin/tools/",
   "app/documents/[documentId]/plugins/export-webp.ts",
   "app/drawings/[drawingId]/board-view.tsx",
   "server/",
-  "lib/schemas.ts",
   "app/screenshot/",
   "app/layout.tsx",
   "app/opengraph-image.tsx",

@@ -2,6 +2,7 @@ import type { OpenApiMeta } from "trpc-to-openapi";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import {
+  HTML_BLOCK_THEMES,
   HTMLBlockSource,
   SavedHTMLBlockSchema,
   type SavedHTMLBlock,
@@ -201,7 +202,9 @@ export const htmlBlocksRouter = createTRPCRouter({
     .input(
       address.extend({
         revision: z.string(),
-        width: z.number().int().min(320).max(1280).default(800),
+        // The reader's block width in layout pixels and the document theme, so the capture matches the running block.
+        width: z.number().int().min(240).max(1280).default(800),
+        theme: z.enum(HTML_BLOCK_THEMES).default("light"),
       }),
     )
     .output(
@@ -212,10 +215,12 @@ export const htmlBlocksRouter = createTRPCRouter({
           data: z.string(),
           width: z.number(),
           height: z.number(),
+          scale: z.number().int().min(1).max(3),
         }),
         z.object({
           status: z.literal("failed"),
           revision: z.string(),
+          reason: z.enum(["script", "unavailable"]),
           message: z.string(),
           width: z.number(),
           height: z.number(),
@@ -230,19 +235,13 @@ export const htmlBlocksRouter = createTRPCRouter({
           code: "CONFLICT",
           message: "HTML block changed; re-read its saved revision",
         });
-      let data: string;
-      try {
-        data = await captureBlock(block, input.width);
-      } catch (error) {
-        return {
-          status: "failed" as const,
-          revision: block.revision,
-          message:
-            error instanceof Error ? error.message : "Preview unavailable",
-          width: input.width,
-          height: block.height,
-        };
-      }
+      const capture = await captureBlock(block, {
+        width: input.width,
+        theme: input.theme,
+      });
+      const size = { width: input.width, height: block.height };
+      if (capture.status === "failed")
+        return { ...capture, revision: block.revision, ...size };
       // Re-check permissions and source after capture; a slow result never becomes the latest revision.
       const current = identified(
         (await readable(ctx, input.id)).elements,
@@ -254,12 +253,6 @@ export const htmlBlocksRouter = createTRPCRouter({
           message:
             "HTML block changed during capture; retry against the new revision",
         });
-      return {
-        status: "ready" as const,
-        revision: block.revision,
-        data,
-        width: input.width,
-        height: block.height,
-      };
+      return { ...capture, revision: block.revision, ...size };
     }),
 });

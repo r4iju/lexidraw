@@ -157,7 +157,7 @@ export async function checkMedia(
       );
 
       const media = await page.$$eval(
-        '.document-content iframe, .document-content video, .document-content img, .document-content .recharts-wrapper, .document-content [data-node-type="page-break"], .document-content .slide-view-outer-viewport',
+        '.document-content iframe, .document-content video, .document-content img, .document-content .recharts-wrapper, .document-content [data-node-type="page-break"], .document-content [data-node-type="slide-deck"]',
         (elements) =>
           elements.map((element) => {
             const rect = element.getBoundingClientRect();
@@ -186,14 +186,25 @@ export async function checkMedia(
         Math.abs(chart.width / chart.height - 2) < 0.02,
         "Default chart is 2:1",
       );
-      for (const selector of ["video", 'iframe[title="YouTube video"]']) {
-        const ratio = await page.$eval(
-          selector,
-          (e) =>
-            e.getBoundingClientRect().width / e.getBoundingClientRect().height,
-        );
-        assert(Math.abs(ratio - 16 / 9) < 0.02, `${selector} defaults to 16:9`);
-      }
+      const ratio = await page.$eval(
+        "video",
+        (e) =>
+          e.getBoundingClientRect().width / e.getBoundingClientRect().height,
+      );
+      assert(Math.abs(ratio - 16 / 9) < 0.02, "video defaults to 16:9");
+      // The fixture's ids name no video or file, so nothing loads from either.
+      assert(
+        await page.$$eval(".document-embed", (els) =>
+          els.some((e) => e.textContent?.includes("No video linked")),
+        ),
+        "A YouTube block without a video says so",
+      );
+      assert(
+        await page.$$eval(".document-embed", (els) =>
+          els.some((e) => e.textContent?.includes("No Figma file linked")),
+        ),
+        "A Figma block without a file says so",
+      );
       if (width === 375) {
         const columns = await page.$$eval(".document-column", (els) =>
           els.map((e) => e.getBoundingClientRect().toJSON()),
@@ -209,11 +220,16 @@ export async function checkMedia(
         ),
         "Empty chart asks its editor to add data",
       );
-      assert(
-        await page.$eval(".document-content", (e) =>
-          e.textContent?.includes("Edit slides to add"),
+      assert.deepEqual(
+        await page.$$eval(
+          '.document-content [data-node-type="slide-deck"]',
+          (els) => els.map((e) => e.textContent),
         ),
-        "Empty slide deck explains how to add slides",
+        [
+          "Slide deck (no longer supported)Legacy slide text · 旧スライド",
+          "Slide deck (no longer supported)",
+        ],
+        "A stored slide deck shows a placeholder with its text",
       );
 
       const poll = await page.$eval("[data-poll]", (e) => ({
@@ -283,15 +299,6 @@ export async function checkMedia(
         theme === "dark",
         "Drawing follows screen theme",
       );
-      for (const selector of [
-        'iframe[title="Figma Embed"]',
-        'iframe[title="YouTube video"]',
-      ]) {
-        assert.equal(
-          await page.$eval(selector, (e) => getComputedStyle(e).colorScheme),
-          "normal",
-        );
-      }
     }
   }
 
@@ -356,14 +363,7 @@ export async function checkMedia(
     (els) => els.filter((e) => getComputedStyle(e).display !== "none").length,
   );
   assert.equal(pollInputs, 0, "Printed polls show results rather than inputs");
-  assert(
-    await page.$eval(
-      ".slide-view-outer-viewport",
-      (e) => e.getBoundingClientRect().width > 200,
-    ),
-    "Printed slide retains its content width",
-  );
-  for (const selector of [".chart-component", ".slide-view-outer-viewport"]) {
+  for (const selector of [".chart-component", ".slide-deck-container"]) {
     assert.equal(
       await page.$eval(selector, (e) => getComputedStyle(e).breakInside),
       "avoid",

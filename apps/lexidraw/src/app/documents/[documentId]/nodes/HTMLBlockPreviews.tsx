@@ -1,20 +1,7 @@
 "use client";
 import { createContext, useContext } from "react";
-export type BlockPreview =
-  | {
-      status: "ready";
-      revision: string;
-      data: string;
-      width: number;
-      height: number;
-    }
-  | {
-      status: "failed";
-      revision: string;
-      message: string;
-      width: number;
-      height: number;
-    };
+import type { RouterOutputs } from "~/trpc/shared";
+export type BlockPreview = RouterOutputs["htmlBlocks"]["preview"];
 export const HTMLBlockPreviews = createContext<Record<
   string,
   BlockPreview

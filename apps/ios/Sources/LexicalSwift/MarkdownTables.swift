@@ -87,7 +87,7 @@ extension Update {
 
   /// `mapToTableCells` and `$createTableCell` up to where they make nodes:
   /// a row's cells, split at each pipe not escaped, each trimmed, with
-  /// `\|` a pipe and `\n` a new line, and read as markdown. Nil where the
+  /// `\|` a pipe and `<br>` a new line, and read as markdown. Nil where the
   /// text isn't a row.
   private static func tableCells(_ text: String) throws -> [[MarkdownImport.Line]]? {
     guard let row = tableRow.firstMatch(in: text)?.groups[1] else { return nil }
@@ -101,8 +101,8 @@ extension Update {
     }
     return try cells.map { cell in
       let pipes = replacing([MarkdownImport.backslash, pipe], with: [pipe], in: cell)
-      let lines = replacing([MarkdownImport.backslash, letterN], with: [MarkdownImport.newline], in: MarkdownImport.trimmed(pipes))
-      return try MarkdownImport.lines(MarkdownImport.string(lines))
+      let lines = lineBreak.replacingMatches(in: MarkdownImport.string(MarkdownImport.trimmed(pipes)), with: "\n")
+      return try MarkdownImport.lines(lines)
     }
   }
 
@@ -129,5 +129,6 @@ extension Update {
   private static let tableRowDivider = MarkdownTransformer.tableRowDividerRegExp
   private static let pipe = "|".utf16.first!
   private static let colon = ":".utf16.first!
-  private static let letterN = "n".utf16.first!
+  /// `CELL_LINE_BREAK` in @packages/lexical-nodes.
+  private static let lineBreak = JSRegExp("<br\\s*\\/?>", flags: "gi")
 }

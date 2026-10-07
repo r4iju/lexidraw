@@ -20,7 +20,7 @@ import {
 } from "../stored-fields.js";
 import { type Size, zeroAsInheritSize } from "./stored-size.js";
 
-/** Every chart a chart node or slide can draw. */
+/** Every chart a chart node can draw. */
 export const CHART_TYPES = [
   "bar",
   "line",

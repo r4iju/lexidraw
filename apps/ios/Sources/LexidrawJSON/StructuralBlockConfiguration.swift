@@ -1,9 +1,6 @@
 // Generated from structural node factories, web presets and document CSS.
 // Run bun run codegen in apps/ios to update.
 public enum StructuralBlockConfiguration {
-  public static let slidePreviewInitialIndex = 0
-  public static let slideBoxVersionIncrement = 1.0
-  public static let slideContentMinimumChildCount = 0
   public static let columnGap = 8.0
   public static let columnBorderColors = ["rgba(237.94559999999998, 238.03179, 241.030845, 1)","rgba(42.491415, 42.58245, 49.221375, 1)"]
   public static let columnPadding = 8.0
@@ -16,11 +13,6 @@ public enum StructuralBlockConfiguration {
   public static let stickyPaddingX = 16.0
   public static let stickyMinimumHeight = 48.0
   public static let chartTypes: [String] = ["bar", "line", "area", "pie", "radar", "scatter", "composed"]
-  public static let slideElements: [String:String] = ["box": #"{"kind":"box","id":"__id__","x":20,"y":20,"width":200,"height":100,"editorStateJSON":{"root":{"children":[{"key":"1","type":"paragraph","version":1,"direction":"ltr","format":"","indent":0,"textFormat":0,"textStyle":"","children":[{"detail":0,"format":0,"mode":"normal","style":"","text":"","type":"text","version":1,"key":"initial-text-content-node"}]}],"direction":"ltr","format":"","indent":0,"type":"root","version":1,"key":"root"}},"zIndex":0}"#, "chart": #"{"kind":"chart","id":"__id__","x":40,"y":40,"width":400,"height":300,"chartType":"bar","chartData":"[]","chartConfig":"{}","zIndex":0}"#, "image": #"{"kind":"image","id":"__id__","x":30,"y":30,"width":250,"height":50,"url":"","zIndex":0}"# ]
-  public static let slideMinimumWidth = 40.0
-  public static let slideMinimumHeight = 20.0
-  public static let slideWidth = 1280.0
-  public static let slideHeight = 720.0
   public static let stackedColumnsWidth = 567.0
   public static let calloutLabels: [String:String] = ["note": "Note", "tip": "Tip", "important": "Important", "warning": "Warning", "caution": "Caution"]
   public static let calloutColors: [String:[String]] = ["note": ["#0966d3", "#4493f8"], "tip": ["#197a35", "#3fb950"], "important": ["#7d4dd6", "#ab7df8"], "warning": ["#916100", "#d29922"], "caution": ["#cf222e", "#f85149"]]
@@ -58,6 +50,5 @@ public enum StructuralBlockConfiguration {
     "collapsible-container": #"{"children":[{"children":[{"children":[],"direction":null,"format":"","indent":0,"textFormat":0,"textStyle":"","type":"paragraph","version":1}],"direction":null,"format":"","indent":0,"type":"collapsible-title","version":1},{"children":[{"children":[],"direction":null,"format":"","indent":0,"textFormat":0,"textStyle":"","type":"paragraph","version":1}],"direction":null,"format":"","indent":0,"type":"collapsible-content","version":1}],"direction":null,"format":"","indent":0,"type":"collapsible-container","version":1,"open":false}"#,
     "layout-container": #"{"children":[{"children":[{"children":[],"direction":null,"format":"","indent":0,"textFormat":0,"textStyle":"","type":"paragraph","version":1}],"direction":null,"format":"","indent":0,"type":"layout-item","version":1},{"children":[{"children":[],"direction":null,"format":"","indent":0,"textFormat":0,"textStyle":"","type":"paragraph","version":1}],"direction":null,"format":"","indent":0,"type":"layout-item","version":1}],"direction":null,"format":"","indent":0,"type":"layout-container","version":1,"templateColumns":"1fr 1fr"}"#,
     "page-break": #"{"type":"page-break","version":1}"#,
-    "sticky": #"{"caption":{"editorState":{"root":{"children":[],"direction":null,"format":"","indent":0,"type":"root","version":1}}},"color":"yellow","type":"sticky","version":1,"xOffset":0,"yOffset":0}"#,
-    "slide-deck": #"{"type":"slide-deck","version":1,"data":{"slides":[{"id":"default-slide-1","elements":[{"kind":"box","id":"default-box-1","x":50,"y":50,"width":300,"height":50,"editorStateJSON":{"root":{"children":[{"key":"1","type":"paragraph","version":1,"direction":"ltr","format":"","indent":0,"textFormat":0,"textStyle":"","children":[{"detail":0,"format":0,"mode":"normal","style":"","text":"","type":"text","version":1,"key":"initial-text-content-node"}]}],"direction":"ltr","format":"","indent":0,"type":"root","version":1,"key":"root"}},"zIndex":0}]}],"currentSlideId":"default-slide-1"}}"#]
+    "sticky": #"{"caption":{"editorState":{"root":{"children":[],"direction":null,"format":"","indent":0,"type":"root","version":1}}},"color":"yellow","type":"sticky","version":1,"xOffset":0,"yOffset":0}"#]
 }

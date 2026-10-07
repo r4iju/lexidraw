@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { parseHTMLBlockSource, snapshotDocument } from "./html-block";
+import { parseHTMLBlockSource, snapshotDocument } from "./html-block.js";
 test("bounds source and keeps saved data/defaults", () => {
   const source = parseHTMLBlockSource({
     html: '<input id="x">',
@@ -17,6 +17,7 @@ test("snapshot wrapper cannot break CSP through source", () => {
   const page = snapshotDocument(
     "<p>Safe</p>",
     "</style><script>bad()</script>",
+    "light",
   );
   expect(page).not.toContain("<script>");
   expect(page).toContain("default-src 'none'");

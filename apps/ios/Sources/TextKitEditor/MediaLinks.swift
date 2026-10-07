@@ -6,4 +6,7 @@ enum MediaLinks {
   static let youtube = "https://www.youtube.com/watch?v="
   static let tweet = "https://x.com/i/web/status/"
   static let figma = "https://www.figma.com/file/"
+  static let youtubeID = "^[A-Za-z0-9_-]{11}$"
+  static let tweetID = "^[0-9]{1,20}$"
+  static let figmaID = "^[0-9A-Za-z]{22,128}$"
 }

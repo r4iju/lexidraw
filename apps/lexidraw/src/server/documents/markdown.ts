@@ -333,6 +333,84 @@ function layoutNotes(state: SerializedEditorState): string[] {
 const plural = (count: number, one: string, many = `${one}s`) =>
   `${count} ${count === 1 ? one : many}`;
 
+const listed = (items: string[]) =>
+  items.length > 1
+    ? `${items.slice(0, -1).join(", ")} and ${items.at(-1)}`
+    : (items[0] ?? "");
+
+/** What a table can hold that a GFM table has no form for, as a note names it. */
+const TABLE_LOSSES: [string, (table: Walked, cells: Walked[]) => boolean][] = [
+  [
+    "merged cells",
+    (_, cells) =>
+      cells.some((cell) =>
+        [field(cell, "colSpan"), field(cell, "rowSpan")].some(
+          (span) => typeof span === "number" && span > 1,
+        ),
+      ),
+  ],
+  [
+    "cell colours",
+    (_, cells) =>
+      cells.some((cell) => {
+        const colour = field(cell, "backgroundColor");
+        return typeof colour === "string" && colour !== "";
+      }),
+  ],
+  [
+    "vertical alignment",
+    (_, cells) =>
+      cells.some((cell) =>
+        ["middle", "bottom"].includes(String(field(cell, "verticalAlign"))),
+      ),
+  ],
+  [
+    "a header column",
+    (_, cells) =>
+      cells.some((cell) => {
+        const state = field(cell, "headerState");
+        return typeof state === "number" && (state & 2) !== 0;
+      }),
+  ],
+  ["row stripes", (table) => field(table, "rowStriping") === true],
+  [
+    "frozen rows or columns",
+    (table) =>
+      [field(table, "frozenRowCount"), field(table, "frozenColumnCount")].some(
+        (count) => typeof count === "number" && count > 0,
+      ),
+  ],
+];
+
+const field = (node: Walked, name: string): unknown =>
+  (node as Walked & Record<string, unknown>)[name];
+
+function tableLosses(state: SerializedEditorState): string[] {
+  const kept = new Set<string>();
+  let tables = 0;
+  for (const table of walk(state.root as Walked)) {
+    if (table.type !== "table") continue;
+    const cells = [...walk(table)].filter((node) => node.type === "tablecell");
+    const lost = TABLE_LOSSES.filter(([, holds]) => holds(table, cells));
+    if (lost.length === 0) continue;
+    tables++;
+    for (const [name] of lost) kept.add(name);
+  }
+  if (tables === 0) return [];
+  const names = TABLE_LOSSES.map(([name]) => name).filter((name) =>
+    kept.has(name),
+  );
+  return [
+    `${tables === 1 ? "A table has" : `${tables} tables have`} ${listed(names)}, which markdown does not carry; a replace drops them`,
+  ];
+}
+
+/**
+ * Text nodes markdown writes as the text they show. An emoji is its glyph, so
+ * it loses nothing.
+ */
+const HIGHLIGHTED_TEXT = new Set(["mention", "hashtag", "keyword"]);
+
 /**
  * What the markdown form of `state` leaves out, so a reader knows what a
  * replace from that markdown keeps, and what it drops.
@@ -343,6 +421,7 @@ export function markdownLosses(state: SerializedEditorState): string[] {
   let images = 0;
   let styledText = 0;
   let marks = 0;
+  let highlighted = 0;
   for (const node of walk(state.root as Walked)) {
     const fields = node as Walked & Record<string, unknown>;
     if (
@@ -369,6 +448,7 @@ export function markdownLosses(state: SerializedEditorState): string[] {
       styledText++;
     }
     if (node.type === "mark") marks++;
+    if (HIGHLIGHTED_TEXT.has(node.type)) highlighted++;
   }
   const losses: string[] = [];
   if (layouts > 0) {
@@ -391,9 +471,15 @@ export function markdownLosses(state: SerializedEditorState): string[] {
       `${plural(styledText, "run")} of text ${styledText === 1 ? "has" : "have"} a colour, font or size, which markdown does not carry; a replace drops it`,
     );
   }
+  losses.push(...tableLosses(state));
   if (marks > 0) {
     losses.push(
       `${plural(marks, "comment highlight")} ${marks === 1 ? "is" : "are"} not in markdown; a replace removes the highlight, not the comment`,
+    );
+  }
+  if (highlighted > 0) {
+    losses.push(
+      `${plural(highlighted, "mention, hashtag or keyword", "mentions, hashtags or keywords")} ${highlighted === 1 ? "is" : "are"} highlighted, which markdown does not carry; a replace keeps ${highlighted === 1 ? "its" : "their"} text and drops the highlight`,
     );
   }
   return losses;

@@ -22,6 +22,10 @@ test("native poll width follows the actual web card", async () => {
   expect(generated.includes("maximumWidth: Double = 520")).toBe(true);
   expect(generated.includes("static let emptyOptionJSON =")).toBe(true);
   expect(generated.includes("static let insertionNodeJSON =")).toBe(true);
+  // The card's bg-card: white in light, the first dark surface in dark.
+  expect(generated).toContain(
+    "static let background = ThemeColor(light: RGBA(1, 1, 1, 1), dark: RGBA(0.0888, 0.089, 0.1049, 1))",
+  );
   expect(await Bun.file(POLL_STYLE_PATH).text()).toBe(generated);
 });
 
@@ -29,6 +33,17 @@ test("native mention styling follows the effective node DOM style", async () => 
   expect(await Bun.file(SOCIAL_STYLE_PATH).text()).toBe(
     await swiftForSocialStyle(),
   );
+});
+
+test("native hashtags and keywords take the colour and weight the document theme gives them", async () => {
+  const generated = await swiftForSocialStyle();
+  expect(generated).toContain(
+    '"hashtag": EntityTextStyle(color: WebSocialStyle.info, weight: nil)',
+  );
+  expect(generated).toContain(
+    '"keyword": EntityTextStyle(color: WebSocialStyle.primary, weight: 600)',
+  );
+  expect(await Bun.file(SOCIAL_STYLE_PATH).text()).toBe(generated);
 });
 
 test("native footnote dimensions follow actual document CSS", async () => {

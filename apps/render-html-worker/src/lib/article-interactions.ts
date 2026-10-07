@@ -219,28 +219,43 @@ export function extractArticleInteractions(
         // rather than changing the browser's paint order.
         if (supported) {
           const overlaps = (other: DOMRect) =>
-            other.width > 0 && other.height > 0 &&
-            other.left < rect.right && other.right > rect.left &&
-            other.top < rect.bottom && other.bottom > rect.top;
-          const walker = document.createTreeWalker(article, NodeFilter.SHOW_TEXT);
+            other.width > 0 &&
+            other.height > 0 &&
+            other.left < rect.right &&
+            other.right > rect.left &&
+            other.top < rect.bottom &&
+            other.bottom > rect.top;
+          const walker = document.createTreeWalker(
+            article,
+            NodeFilter.SHOW_TEXT,
+          );
           let inspected = 0;
           for (let text = walker.nextNode(); text; text = walker.nextNode()) {
-            if (++inspected > 4096) { supported = false; break; }
+            if (++inspected > 4096) {
+              supported = false;
+              break;
+            }
             if (!text.textContent?.trim()) continue;
             const range = document.createRange();
             range.selectNodeContents(text);
             if (Array.from(range.getClientRects()).some(overlaps)) {
-              supported = false; break;
+              supported = false;
+              break;
             }
           }
           const others = article.querySelectorAll("*");
           if (others.length > 4096) supported = false;
-          else for (const other of others) {
-            if (other !== element && !other.contains(element) &&
-              overlaps(other.getBoundingClientRect())) {
-              supported = false; break;
+          else
+            for (const other of others) {
+              if (
+                other !== element &&
+                !other.contains(element) &&
+                overlaps(other.getBoundingClientRect())
+              ) {
+                supported = false;
+                break;
+              }
             }
-          }
         }
         articleImages.push({
           source: element.currentSrc || element.src,

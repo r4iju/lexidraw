@@ -52,9 +52,9 @@ export function CopyButton({ editor, getCodeDOMNode }: Props) {
 
   return (
     <Button
-      variant="outline"
+      variant="ghost"
       size="icon"
-      className="document-code-copy size-8 pointer-coarse:size-11"
+      className="size-7 pointer-coarse:size-11"
       onClick={handleClick}
       aria-label={isCopyCompleted ? "Copied code" : "Copy code"}
     >

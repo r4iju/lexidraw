@@ -16,8 +16,16 @@ import {
 } from "lexical";
 import type * as React from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { mediaLink } from "@packages/lexical-nodes/media-links";
+import YoutubeIcon from "~/components/icons/youtube";
 import ImageResizer from "~/components/ui/image-resizer";
 import { cn } from "~/lib/utils";
+import {
+  ALIGN_MARGINS,
+  EmbedFallback,
+  EmbedLoading,
+  embedAlign,
+} from "./common/embed";
 import { PrintedLink } from "./common/PrintedLink";
 import { YouTubeNode } from "./YouTubeNode";
 type YouTubeComponentProps = Readonly<{
@@ -49,6 +57,10 @@ export default function YouTubeComponent({
     useLexicalNodeSelection(nodeKey);
   const [isHovered, setIsHovered] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
+  /** Where the facade is: its thumbnail coming, shown, missing, or the player in its place. */
+  const [facade, setFacade] = useState<
+    "loading" | "ready" | "unavailable" | "playing"
+  >("loading");
   const [currentDimensions, setCurrentDimensions] = useState({
     width,
     height,
@@ -157,52 +169,118 @@ export default function YouTubeComponent({
     aspectRatio: `${ratio}`,
   };
 
+  const align = embedAlign(format);
+  const href = mediaLink("youtube", videoID);
+
+  if (!href)
+    return (
+      <BlockWithAlignableContents
+        className={className}
+        format={format}
+        nodeKey={nodeKey}
+      >
+        <EmbedFallback icon={<YoutubeIcon />} message="No video linked" />
+      </BlockWithAlignableContents>
+    );
+  const source = { href, label: "Open on YouTube" };
+
   return (
     <BlockWithAlignableContents
       className={className}
       format={format}
       nodeKey={nodeKey}
     >
-      {/** biome-ignore lint/a11y/noStaticElementInteractions: youtube component is interactive */}
-      <div
-        ref={containerRef}
-        style={containerStyles}
-        className={cn("document-embed mx-auto print:hidden", {
-          "ring-primary ring-1": isEditable && (isSelected || isResizing),
-        })}
-        onMouseEnter={() => setIsHovered(true)}
-        onMouseLeave={() => setIsHovered(false)}
-      >
-        <iframe
-          style={{ width: "100%", height: "100%", colorScheme: "normal" }}
-          src={`https://www.youtube-nocookie.com/embed/${videoID}`}
-          frameBorder="0"
-          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-          allowFullScreen
-          title="YouTube video"
-          data-lexical-youtube-node-key={nodeKey}
+      {facade === "unavailable" ? (
+        <EmbedFallback
+          icon={<YoutubeIcon />}
+          message="This video is unavailable"
+          source={source}
         />
-
-        {isEditable && (isHovered || isResizing) && (
-          <ImageResizer
-            editor={editor}
-            imageRef={
-              containerRef as React.RefObject<HTMLImageElement | HTMLDivElement>
+      ) : (
+        /* biome-ignore lint/a11y/noStaticElementInteractions: hovering shows the resize handles */
+        <div
+          ref={containerRef}
+          style={containerStyles}
+          data-embed-align={align}
+          aria-busy={facade === "loading" || undefined}
+          className={cn("document-embed print:hidden", ALIGN_MARGINS[align], {
+            "ring-primary ring-1": isEditable && (isSelected || isResizing),
+          })}
+          onMouseEnter={() => setIsHovered(true)}
+          onMouseLeave={() => setIsHovered(false)}
+        >
+          <img
+            src={`https://i.ytimg.com/vi/${videoID}/hqdefault.jpg`}
+            alt=""
+            className="absolute inset-0 size-full object-cover"
+            onLoad={(event) =>
+              setFacade(
+                // YouTube answers an id it has no video for with a 120px placeholder.
+                event.currentTarget.naturalWidth <= 120
+                  ? "unavailable"
+                  : "ready",
+              )
             }
-            buttonRef={buttonRef as React.RefObject<HTMLButtonElement>}
-            // maxWidth={560}
-            onResizeStart={onResizeStart}
-            onResizeEnd={onResizeEnd}
-            onDimensionsChange={handleDimensionsChange}
-            showCaption={false}
-            captionsEnabled={false}
+            onError={() => setFacade("unavailable")}
           />
-        )}
+          {facade === "loading" && <EmbedLoading />}
+          {facade === "ready" && (
+            <button
+              type="button"
+              aria-label="Play video"
+              className="group/play absolute inset-0 flex items-center justify-center bg-media-overlay/0 transition-colors hover:bg-media-overlay/10"
+              onClick={() => setFacade("playing")}
+            >
+              <svg
+                aria-hidden
+                viewBox="0 0 68 48"
+                className="h-12 w-[68px] drop-shadow-md"
+              >
+                <path
+                  d="M66.5 7.7a8.6 8.6 0 0 0-6-6C55.2.3 34 .3 34 .3s-21.2 0-26.5 1.4a8.6 8.6 0 0 0-6 6C.1 13 .1 24 .1 24s0 11 1.4 16.3a8.6 8.6 0 0 0 6 6C12.8 47.7 34 47.7 34 47.7s21.2 0 26.5-1.4a8.6 8.6 0 0 0 6-6C67.9 35 67.9 24 67.9 24s0-11-1.4-16.3Z"
+                  className="fill-media-overlay/80 transition-colors group-hover/play:fill-destructive"
+                />
+                <path
+                  d="M45 24 27 14v20"
+                  className="fill-media-overlay-foreground"
+                />
+              </svg>
+            </button>
+          )}
+          {facade === "playing" && (
+            <iframe
+              className="absolute inset-0 size-full"
+              style={{ colorScheme: "normal" }}
+              src={`https://www.youtube-nocookie.com/embed/${videoID}?autoplay=1`}
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              allowFullScreen
+              title="YouTube video"
+              data-lexical-youtube-node-key={nodeKey}
+            />
+          )}
 
-        {/* Hidden button used by ImageResizer to position Add Caption button (unused here) */}
-        <button type="button" ref={buttonRef} style={{ display: "none" }} />
-      </div>
-      <PrintedLink href={`https://www.youtube.com/watch?v=${videoID}`} />
+          {isEditable && (isHovered || isResizing) && (
+            <ImageResizer
+              editor={editor}
+              imageRef={
+                containerRef as React.RefObject<
+                  HTMLImageElement | HTMLDivElement
+                >
+              }
+              buttonRef={buttonRef as React.RefObject<HTMLButtonElement>}
+              onResizeStart={onResizeStart}
+              onResizeEnd={onResizeEnd}
+              onDimensionsChange={handleDimensionsChange}
+              showCaption={false}
+              captionsEnabled={false}
+            />
+          )}
+
+          {/* Hidden button used by ImageResizer to position Add Caption button (unused here) */}
+          <button type="button" ref={buttonRef} style={{ display: "none" }} />
+        </div>
+      )}
+      <PrintedLink href={source.href} />
     </BlockWithAlignableContents>
   );
 }

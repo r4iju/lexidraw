@@ -146,7 +146,7 @@ export const MessageList: React.FC<{ className?: string }> = ({
     const messageListElement = messageListDivRef.current;
     let scrollableContainer: HTMLElement = messageListElement;
 
-    if (mode === "agent" || mode === "slide-agent") {
+    if (mode === "agent") {
       const viewport = messageListElement.closest<HTMLElement>(
         "[data-radix-scroll-area-viewport]",
       );

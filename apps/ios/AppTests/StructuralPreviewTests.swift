@@ -403,4 +403,52 @@ import TextKitEditor
         "Padded alike above and below (editable: \(editable))")
     }
   }
+
+  private func slideBox(_ id: String, stateAsString: Bool = false, _ paragraphs: String...) -> JSONValue {
+    let children = paragraphs.map { text -> JSONValue in
+      ["type": "paragraph", "version": 1, "children": [["type": "text", "version": 1, "text": .string(text)]]]
+    }
+    let state: JSONValue = ["root": ["type": "root", "version": 1, "children": .array(children)]]
+    return [
+      "kind": "box", "id": .string(id), "x": 50, "y": 40, "width": 300, "height": "inherit", "zIndex": 0,
+      "editorStateJSON": stateAsString ? .string(state.stringified) : state,
+    ]
+  }
+
+  func testAStoredSlideDeckShowsAReadOnlyPlaceholderWithItsText() throws {
+    let chart: JSONValue = ["kind": "chart", "id": "c1", "x": 0, "y": 0, "width": 200, "height": 200, "zIndex": 1, "chartType": "pie", "chartData": "[]", "chartConfig": "{}"]
+    let deck: JSONValue = ["type": "slide-deck", "version": 1, "data": [
+      "currentSlideId": "s1",
+      "slides": [
+        ["id": "s1", "backgroundColor": "#111827", "elements": [slideBox("b1", "Quarterly results", "Revenue grew 12%"), chart]],
+        // Some boxes were saved with their editor state as a JSON string.
+        ["id": "s2", "elements": [slideBox("b2", stateAsString: true, "Next steps")]],
+      ],
+    ]]
+    let model = Editor()
+    try model.load(["root": ["type": "root", "version": 1, "children": [deck]]])
+    let owner = EditorView(model: model, isEditable: true)
+    owner.frame = CGRect(x: 0, y: 0, width: 400, height: 600)
+    configureStructuralBlocks(owner)
+    let key = try XCTUnwrap(model.childKeys(at: []).first)
+    let panel = try XCTUnwrap(owner.embeddedContent?(key, model.node(at: [0])))
+    panel.frame = CGRect(origin: .zero, size: panel.contentSize(fitting: 400))
+    panel.layoutIfNeeded()
+    func all(_ view: UIView) -> [UIView] { view.subviews.flatMap { [$0] + all($0) } }
+    let views = all(panel)
+    XCTAssertEqual(views.compactMap { ($0 as? UILabel)?.text }, ["Slide deck (no longer supported)", "Quarterly results", "Revenue grew 12%", "Next steps"])
+    XCTAssertEqual(views.compactMap { $0 as? UIButton }.count, 0, "Nothing edits a stored deck any more")
+    XCTAssertEqual(try model.node(at: [0]), deck, "The deck is kept as stored")
+  }
+
+  func testTheInsertMenuOffersNoSlideDeck() throws {
+    let model = Editor()
+    try model.load(["root": ["type": "root", "version": 1, "children": [["type": "paragraph", "version": 1, "children": []]]]])
+    let owner = EditorView(model: model, isEditable: true)
+    configureStructuralBlocks(owner)
+    let structural = try XCTUnwrap(owner.insertionActions.compactMap { $0 as? UIMenu }.first { $0.title == "Structural blocks" })
+    let titles = structural.children.map(\.title)
+    XCTAssertTrue(titles.contains("Callout"))
+    XCTAssertEqual(titles.filter { $0.localizedCaseInsensitiveContains("slide") }, [])
+  }
 }

@@ -18,6 +18,8 @@ import { useSharedHistoryContext } from "../../context/shared-history-context";
 import { useSettings } from "../../context/settings-context";
 import VideoEditModal from "./VideoEditModal";
 import { Button } from "~/components/ui/button";
+import { VideoOff } from "lucide-react";
+import { EmbedFallback } from "../common/embed";
 
 import {
   $getNodeByKey,
@@ -82,10 +84,6 @@ export default function VideoComponent({
 
   const currentShowCaption = initialShowCaption;
   const captionJustShown = useCaptionJustShown(currentShowCaption);
-
-  console.log(
-    `[VideoComponent ${nodeKey}] isSelected: ${isSelected}, isResizing: ${isResizing}`,
-  );
 
   const $onDelete = useCallback(
     (payload: KeyboardEvent) => {
@@ -302,7 +300,15 @@ export default function VideoComponent({
           </Button>
         )}
         {isLoadError ? (
-          <p className="text-destructive">Error loading video.</p>
+          <EmbedFallback
+            icon={<VideoOff />}
+            message="This video can't be played"
+            source={
+              /^https?:\/\//i.test(src)
+                ? { href: src, label: "Open video" }
+                : undefined
+            }
+          />
         ) : (
           // biome-ignore lint/a11y/useMediaCaption: dont have it
           <video

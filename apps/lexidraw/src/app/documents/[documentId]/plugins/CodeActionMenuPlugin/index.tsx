@@ -1,20 +1,23 @@
 import { DocumentCodeNode } from "@packages/lexical-nodes";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { useLexicalEditable } from "@lexical/react/useLexicalEditable";
+import { $findMatchingParent } from "@lexical/utils";
 import {
   $getNodeByKey,
+  $getSelection,
   $nodesOfType,
-  $isLineBreakNode,
   type NodeKey,
 } from "lexical";
+import { ListOrderedIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
+import { Toggle } from "~/components/ui/toggle";
 import {
-  CODE_LANGUAGE_OPTIONS,
   getCodeLanguageFriendlyName,
   normalizeCodeLanguage,
 } from "../code-language";
 import { CopyButton } from "./copy-button";
+import { LanguagePicker } from "./language-picker";
 import { PrettierButton } from "./prettier-button";
 
 type Header = {
@@ -29,7 +32,8 @@ export default function CodeActionMenuPlugin() {
   const [editor] = useLexicalComposerContext();
   const editable = useLexicalEditable();
   const [headers, setHeaders] = useState<Header[]>([]);
-  // Lexical owns the code DOM and notifies us when its header or line markers change.
+  const [caretIn, setCaretIn] = useState<NodeKey | null>(null);
+  // Lexical owns the code DOM and notifies us when a block's header changes.
   useEffect(
     () =>
       editor.registerMutationListener(
@@ -45,19 +49,6 @@ export default function CodeActionMenuPlugin() {
                 ".document-code-header",
               );
               if (!code || !element) return;
-              let line = 1;
-              let first = true;
-              for (const child of node.getChildren()) {
-                const dom = editor.getElementByKey(child.getKey());
-                if (dom) {
-                  dom.removeAttribute("data-line-number");
-                  if (first) dom.dataset.lineNumber = String(line);
-                }
-                if ($isLineBreakNode(child)) {
-                  line++;
-                  first = true;
-                } else first = false;
-              }
               next.push({
                 key: node.getKey(),
                 element,
@@ -73,70 +64,73 @@ export default function CodeActionMenuPlugin() {
       ),
     [editor],
   );
+  // Lexical's selection: the block holding the caret shows its controls, so
+  // they appear for keyboard editing as they do for a hovering pointer.
+  useEffect(
+    () =>
+      editor.registerUpdateListener(({ editorState }) => {
+        editorState.read(() => {
+          const anchor = $getSelection()?.getNodes()[0];
+          const block = anchor
+            ? $findMatchingParent(
+                anchor,
+                (node) => node instanceof DocumentCodeNode,
+              )
+            : null;
+          setCaretIn(block?.getKey() ?? null);
+        });
+      }),
+    [editor],
+  );
 
   return headers.map(({ key, element, code, language, numbers }) =>
     createPortal(
-      <>
+      <div
+        className="document-code-controls"
+        data-active={key === caretIn ? "" : undefined}
+      >
         {editable ? (
-          <select
-            aria-label="Code language"
-            value={language}
-            onChange={(event) => {
-              const value = event.target.value;
+          <LanguagePicker
+            language={language}
+            onChange={(value) => {
               editor.update(() => {
                 const node = $getNodeByKey(key);
                 if (node instanceof DocumentCodeNode) node.setLanguage(value);
               });
             }}
-          >
-            <option value="">Plain text</option>
-            {language &&
-              !CODE_LANGUAGE_OPTIONS.some(([value]) => value === language) && (
-                <option value={language}>
-                  {getCodeLanguageFriendlyName(language)}
-                </option>
-              )}
-            {CODE_LANGUAGE_OPTIONS.map(([value, label]) => (
-              <option key={value} value={value}>
-                {label}
-              </option>
-            ))}
-          </select>
+          />
         ) : (
-          <span>{getCodeLanguageFriendlyName(language) || "Plain text"}</span>
+          <span className="document-code-language">
+            {getCodeLanguageFriendlyName(language) || "Plain text"}
+          </span>
         )}
-        <div className="document-code-actions">
-          {editable && (
-            <label title="Show line numbers">
-              <input
-                type="checkbox"
-                aria-label="Show line numbers"
-                checked={numbers}
-                onChange={(event) => {
-                  const checked = event.target.checked;
-                  editor.update(() => {
-                    const node = $getNodeByKey(key);
-                    if (node instanceof DocumentCodeNode)
-                      node.setShowLineNumbers(checked);
-                  });
-                }}
-              />{" "}
-              Lines
-            </label>
-          )}
-          <CopyButton editor={editor} getCodeDOMNode={() => code} />
-          {editable &&
-            ["css", "html", "javascript", "markdown", "typescript"].includes(
-              normalizeCodeLanguage(language),
-            ) && (
-              <PrettierButton
-                editor={editor}
-                getCodeDOMNode={() => code}
-                lang={normalizeCodeLanguage(language)}
-              />
-            )}
-        </div>
-      </>,
+        {editable && (
+          <Toggle
+            size="sm"
+            aria-label="Show line numbers"
+            title={numbers ? "Hide line numbers" : "Show line numbers"}
+            className="size-7 p-0 pointer-coarse:size-11"
+            pressed={numbers}
+            onPressedChange={(pressed) => {
+              editor.update(() => {
+                const node = $getNodeByKey(key);
+                if (node instanceof DocumentCodeNode)
+                  node.setShowLineNumbers(pressed);
+              });
+            }}
+          >
+            <ListOrderedIcon className="size-4" />
+          </Toggle>
+        )}
+        {editable && (
+          <PrettierButton
+            editor={editor}
+            getCodeDOMNode={() => code}
+            lang={normalizeCodeLanguage(language)}
+          />
+        )}
+        <CopyButton editor={editor} getCodeDOMNode={() => code} />
+      </div>,
       element,
       key,
     ),

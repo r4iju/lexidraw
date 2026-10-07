@@ -26,7 +26,6 @@ export class TweetNode extends HeadlessTweetNode {
         <TweetComponent
           className={className}
           format={this.__format}
-          loadingComponent="Loading..."
           nodeKey={this.getKey()}
           tweetID={this.__id}
         />

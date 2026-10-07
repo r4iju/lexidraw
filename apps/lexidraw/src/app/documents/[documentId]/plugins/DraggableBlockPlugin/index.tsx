@@ -35,6 +35,7 @@ import { useFinePointer, useLayoutClass } from "~/hooks/use-media-query";
 import { Point } from "../../utils/point";
 import { Rect } from "../../utils/rect";
 import { $blockTypeOf, BlockActionItems } from "../ToolbarPlugin/block-actions";
+import { OPEN_SLASH_MENU_COMMAND } from "../SlashMenuPlugin/SlashMenu";
 import { insertBlockBelow } from "../ToolbarPlugin/block-commands";
 import type { BlockType } from "../ToolbarPlugin/block-format";
 
@@ -503,7 +504,12 @@ function useDraggableBlockMenu(
               className="flex size-6 items-center justify-center rounded-sm hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
               onClick={() => {
                 const key = blockKey();
-                if (key) insertBlockBelow(editor, key);
+                if (!key) return;
+                // The slash menu's blocks, as Notion's + offers; a plain new
+                // line where that menu isn't mounted.
+                if (editor.dispatchCommand(OPEN_SLASH_MENU_COMMAND, key))
+                  editor.focus();
+                else insertBlockBelow(editor, key);
               }}
             >
               <Plus className="size-4" />
