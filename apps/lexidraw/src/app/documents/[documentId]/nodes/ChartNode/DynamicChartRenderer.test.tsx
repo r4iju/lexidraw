@@ -7,6 +7,10 @@ installDom();
 const { default: DynamicChartRenderer } = await import(
   "./DynamicChartRenderer"
 );
+// Recharts decides once, when first loaded, whether it runs on a server, and
+// then measures no text. Another file in the same `bun test` process may load
+// it before any document exists, so tell it this file has one.
+(await import("recharts")).Global.isSsr = false;
 
 // jsdom has no layout: the chart's own container gets the frame's size, text
 // Recharts measures is 7px a character, and everything else takes no room.
