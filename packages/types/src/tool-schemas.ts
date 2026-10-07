@@ -71,6 +71,8 @@ export const InsertMarkdownSchema = z.object({
 // Collapsible
 export const InsertCollapsibleSectionSchema = z.object({
   titleText: z.string(),
+  /** The title's block: a paragraph, or a heading for a toggle heading. */
+  titleLevel: z.enum(["paragraph", "h1", "h2", "h3"]).optional(),
   initialContentMarkdown: z.string().optional(),
   initiallyOpen: z.boolean().optional().default(false),
   relation: InsertionRelationSchema,

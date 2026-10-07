@@ -12,14 +12,26 @@ import {
 } from "@lexical/rich-text";
 import { $patchStyleText, $setBlocksType } from "@lexical/selection";
 import { $isTableSelection } from "@lexical/table";
-import { $getNearestBlockElementAncestorOrThrow } from "@lexical/utils";
+import {
+  $findMatchingParent,
+  $getNearestBlockElementAncestorOrThrow,
+} from "@lexical/utils";
 import { $setBlockType } from "@packages/lexical-nodes/block-type";
+import {
+  $setToggleLevel,
+  $toggleOfTitle,
+  $unwrapToggle,
+  $wrapInToggle,
+  type ToggleLevel,
+} from "@packages/lexical-nodes";
 import {
   $createParagraphNode,
   $getSelection,
   $isRangeSelection,
+  $isRootOrShadowRoot,
   $isTextNode,
   type LexicalEditor,
+  type LexicalNode,
 } from "lexical";
 
 import {
@@ -225,6 +237,42 @@ export const useToolbarUtils = () => {
     }
   };
 
+  /**
+   * Makes the selected blocks a toggle whose title is a block of `level`,
+   * or, in a toggle's title already, makes the title that level.
+   */
+  const formatToggle = (editor: LexicalEditor, level: ToggleLevel) => {
+    editor.update(() => {
+      const selection = $getSelection();
+      if (!$isRangeSelection(selection)) return;
+      const toggle = $toggleOfTitle(selection.anchor.getNode());
+      if (toggle) return $setToggleLevel(toggle, level);
+      const blocks: LexicalNode[] = [];
+      for (const node of selection.getNodes()) {
+        const block = $findMatchingParent(node, (each) => {
+          const parent = each.getParent();
+          return parent !== null && $isRootOrShadowRoot(parent);
+        });
+        if (block && !blocks.some((each) => each.is(block))) blocks.push(block);
+      }
+      // Only blocks side by side fold into one toggle.
+      const parent = blocks[0]?.getParent();
+      $wrapInToggle(
+        blocks.filter((block) => block.getParent()?.is(parent) ?? false),
+        level,
+      );
+    });
+  };
+
+  /** Turns the toggle whose title holds the selection back into blocks. */
+  const unwrapToggle = () => {
+    const selection = $getSelection();
+    const toggle =
+      $isRangeSelection(selection) &&
+      $toggleOfTitle(selection.anchor.getNode());
+    if (toggle) $unwrapToggle(toggle);
+  };
+
   const clearFormatting = (editor: LexicalEditor) => {
     editor.update(() => {
       const selection = $getSelection();
@@ -291,6 +339,8 @@ export const useToolbarUtils = () => {
     formatNumberedList,
     formatQuote,
     formatCode,
+    formatToggle,
+    unwrapToggle,
     clearFormatting,
   };
 };

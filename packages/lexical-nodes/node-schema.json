@@ -4501,7 +4501,7 @@
     "collapsible-title": {
       "kind": "element",
       "inline": false,
-      "shadowRoot": false,
+      "shadowRoot": true,
       "canBeEmpty": true
     },
     "comment": {

@@ -23,6 +23,7 @@ extension MarkdownTransformer {
     MarkdownTransformer(kind: .element, name: .hr, regExp: JSRegExp("^(---|\\*\\*\\*|___)\\s?$", flags: ""), makes: ["horizontalrule"]),
     MarkdownTransformer(kind: .textMatch, name: .emoji, regExp: JSRegExp(":([a-z0-9_]+):$", flags: ""), importRegExp: JSRegExp(":([a-z0-9_]+):", flags: ""), trigger: ":", makes: []),
     MarkdownTransformer(kind: .element, name: .checkList, regExp: JSRegExp("^(\\s*)(?:[-*+]\\s)?\\s?(\\[(\\s|x)?\\])\\s", flags: "i"), triggerOnEnter: true, makes: ["list", "listitem"]),
+    MarkdownTransformer(kind: .element, name: .toggleShortcut, regExp: JSRegExp("^>>\\s", flags: ""), makes: ["collapsible-container", "collapsible-title", "collapsible-content"]),
     MarkdownTransformer(kind: .element, name: .heading, regExp: JSRegExp("^(#{1,6})\\s", flags: ""), triggerOnEnter: true, makes: ["heading"]),
     MarkdownTransformer(kind: .element, name: .quote, regExp: JSRegExp("^>\\s", flags: ""), triggerOnEnter: true, makes: ["quote"]),
     MarkdownTransformer(kind: .element, name: .unorderedList, regExp: JSRegExp("^(\\s*)[-*+]\\s", flags: ""), triggerOnEnter: true, makes: ["list", "listitem"]),
@@ -61,6 +62,7 @@ extension MarkdownTransformer {
     case hr = "HR"
     case emoji = "EMOJI"
     case checkList = "CHECK_LIST"
+    case toggleShortcut = "TOGGLE_SHORTCUT"
     case heading = "HEADING"
     case quote = "QUOTE"
     case unorderedList = "UNORDERED_LIST"

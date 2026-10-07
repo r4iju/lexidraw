@@ -13,6 +13,9 @@ import {
   Image,
   ImagePlus,
   Info,
+  Heading1,
+  Heading2,
+  Heading3,
   ListCollapse,
   type LucideIcon,
   PencilRuler,
@@ -118,11 +121,23 @@ export function InsertItems({
           )),
         },
         {
-          label: "Collapsible",
+          label: "Toggle",
           icon: icon(ListCollapse),
           insert: () =>
-            editor.dispatchCommand(INSERT_COLLAPSIBLE_COMMAND, undefined),
+            editor.dispatchCommand(INSERT_COLLAPSIBLE_COMMAND, "paragraph"),
         },
+        ...(
+          [
+            ["1", Heading1],
+            ["2", Heading2],
+            ["3", Heading3],
+          ] as const
+        ).map(([level, Icon]) => ({
+          label: `Toggle heading ${level}`,
+          icon: icon(Icon),
+          insert: () =>
+            editor.dispatchCommand(INSERT_COLLAPSIBLE_COMMAND, `h${level}`),
+        })),
         {
           label: "Callout",
           icon: icon(Info),

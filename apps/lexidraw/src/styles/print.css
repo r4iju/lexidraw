@@ -230,21 +230,18 @@
 
   [data-slot="accordion-item"] {
     break-inside: auto;
-    margin-bottom: 0.5rem;
   }
 
   [data-slot="accordion-trigger"] {
     break-after: avoid;
-    gap: 0 !important;
   }
 
   /* The chevron opens and closes a section; paper shows every section open. */
-  [data-slot="accordion-trigger"] svg {
-    display: none !important;
+  [data-slot="accordion-chevron"] {
+    visibility: hidden !important;
   }
 
-  [data-slot="accordion-content"],
-  [data-slot="accordion-content"][data-state="closed"] {
+  [data-slot="accordion-content"] {
     display: block !important;
     height: auto !important;
     overflow: visible !important;

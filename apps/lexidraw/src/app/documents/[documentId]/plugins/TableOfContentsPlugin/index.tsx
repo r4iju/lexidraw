@@ -1,5 +1,9 @@
 import type { TableOfContentsEntry } from "@lexical/react/LexicalTableOfContentsPlugin";
-import type { NodeKey } from "lexical";
+import { $getNodeByKey, type NodeKey } from "lexical";
+import {
+  CollapsibleContainerNode,
+  CollapsibleContentNode,
+} from "@packages/lexical-nodes";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { TableOfContentsPlugin as LexicalTableOfContentsPlugin } from "@lexical/react/LexicalTableOfContentsPlugin";
 import {
@@ -42,6 +46,31 @@ function TableOfContentsList({
   );
 
   const jump = (key: NodeKey) => {
+    // Every toggle the heading is folded in opens at once, with no motion,
+    // so the scroll lands where the heading ends up.
+    const opened: NodeKey[] = [];
+    editor.update(
+      () => {
+        for (
+          let at = $getNodeByKey(key)?.getParent();
+          at;
+          at = at.getParent()
+        ) {
+          const container = at.getParent();
+          if (
+            CollapsibleContentNode.$isCollapsibleContentNode(at) &&
+            CollapsibleContainerNode.$isCollapsibleContainerNode(container) &&
+            !container.getOpen()
+          ) {
+            container.setOpen(true);
+            opened.push(container.getKey());
+          }
+        }
+      },
+      { discrete: true },
+    );
+    for (const container of opened)
+      editor.getElementByKey(container)?.removeAttribute("data-motion");
     const heading = editor.getElementByKey(key);
     if (!heading) return;
     pinned.current = key;

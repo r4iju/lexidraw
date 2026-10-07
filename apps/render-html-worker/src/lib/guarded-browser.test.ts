@@ -102,7 +102,7 @@ test("a page from an allowed origin opens a socket to it", async () => {
       if (server.upgrade(request)) return;
       return new Response(
         `<script>
-          const socket = new WebSocket("ws://localhost:${app.port}/socket");
+          const socket = new WebSocket("ws://localhost:${server.port}/socket");
           socket.onopen = () => (document.title = "open");
           socket.onerror = () => (document.title = "refused");
         </script>`,

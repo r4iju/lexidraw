@@ -1,30 +1,27 @@
 import {
   type DOMConversionMap,
   type DOMConversionOutput,
+  type DOMExportOutput,
   type EditorConfig,
   ElementNode,
-  type LexicalEditor,
   type LexicalNode,
   nodeSchema,
-  type RangeSelection,
 } from "lexical";
 import { type ImportJSON, withStoredJSON } from "../stored-fields.js";
-import { CollapsibleContainerNode } from "./CollapsibleContainerNode.js";
+import { toggleIds } from "./CollapsibleContainerNode.js";
 import { unreadElementOnlyFields } from "./stored-element.js";
 
-// lucide-react's ChevronRight rendered to static markup, inlined so this
-// module has no React or icon dependency and loads outside the browser.
-const CHEVRON_RIGHT_SVG =
-  '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-right text-muted-foreground pointer-events-none size-4 shrink-0 translate-y-0 transition-transform" aria-hidden="true"><path d="m9 18 6-6-6-6"></path></svg>';
-
 export function $convertAccordionTriggerElement(
-  domNode: HTMLElement,
+  _domNode: HTMLElement,
 ): DOMConversionOutput | null {
-  return domNode.dataset.slot === "accordion-trigger"
-    ? { node: CollapsibleTitleNode.$createCollapsibleTitleNode() }
-    : null;
+  return { node: CollapsibleTitleNode.$createCollapsibleTitleNode() };
 }
 
+/**
+ * A toggle's title: one paragraph or heading, edited like any other. It is
+ * a shadow root so that block shortcuts and the block menu make it a
+ * heading in place; the toggle plugin keeps it to that one block.
+ */
 export class CollapsibleTitleNode extends ElementNode {
   declare static importJSON: ImportJSON<CollapsibleTitleNode>;
 
@@ -35,44 +32,12 @@ export class CollapsibleTitleNode extends ElementNode {
     });
   }
 
-  createDOM(_config: EditorConfig, editor: LexicalEditor): HTMLElement {
-    let isOpen = false; // Default to closed to avoid visual mismatch
-    editor.getEditorState().read(() => {
-      const parent = this.getParentOrThrow();
-      if (CollapsibleContainerNode.$isCollapsibleContainerNode(parent)) {
-        isOpen = parent.getOpen();
-      }
-    });
-
-    const button = document.createElement("button");
-    button.dataset.placeholder = "Section title";
-    button.dataset.slot = "accordion-trigger";
-    button.dataset.state = isOpen ? "open" : "closed";
-    button.className = [
-      "flex flex-1 flex-row items-center gap-2 w-full py-1 min-h-10",
-      "text-left text-base font-medium",
-      "transition-all ease-in-out",
-      "outline-none cursor-pointer",
-      "disabled:pointer-events-none disabled:opacity-50",
-      "[&[data-state=open]>svg]:rotate-90",
-    ].join(" ");
-
-    button.innerHTML = CHEVRON_RIGHT_SVG;
-
-    button.addEventListener("click", (e) => {
-      e.preventDefault();
-      editor.update(() => {
-        const container = this.getLatest().getParentOrThrow();
-        if (!CollapsibleContainerNode.$isCollapsibleContainerNode(container))
-          return;
-
-        container.toggleOpen();
-        // move caret to end of title
-        this.getLatest().selectEnd();
-      });
-    });
-
-    return button;
+  createDOM(_config: EditorConfig): HTMLElement {
+    const element = document.createElement("div");
+    element.dataset.slot = "accordion-trigger";
+    const parent = this.getParent();
+    if (parent) element.id = toggleIds(parent.getKey()).title;
+    return element;
   }
 
   updateDOM() {
@@ -80,18 +45,27 @@ export class CollapsibleTitleNode extends ElementNode {
   }
 
   static importDOM(): DOMConversionMap | null {
+    const trigger = (domNode: HTMLElement) =>
+      domNode.dataset.slot === "accordion-trigger"
+        ? { conversion: $convertAccordionTriggerElement, priority: 1 as const }
+        : null;
     return {
-      button: (domNode: HTMLElement) => {
-        // Changed from summary to button
-        if (domNode.dataset.slot === "accordion-trigger") {
-          return {
-            conversion: $convertAccordionTriggerElement,
-            priority: 1,
-          };
-        }
-        return null;
-      },
+      summary: () => ({
+        conversion: $convertAccordionTriggerElement,
+        priority: 1,
+      }),
+      // Sections copied before titles were text, and since.
+      button: trigger,
+      div: trigger,
     };
+  }
+
+  exportDOM(): DOMExportOutput {
+    return { element: document.createElement("summary") };
+  }
+
+  isShadowRoot(): boolean {
+    return true;
   }
 
   static $isCollapsibleTitleNode(
@@ -102,11 +76,6 @@ export class CollapsibleTitleNode extends ElementNode {
 
   static $createCollapsibleTitleNode(): CollapsibleTitleNode {
     return new CollapsibleTitleNode();
-  }
-
-  collapseAtStart(_selection: RangeSelection): boolean {
-    this.getParentOrThrow().insertBefore(this);
-    return true;
   }
 }
 
