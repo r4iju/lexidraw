@@ -8,6 +8,7 @@ public enum StructuralBlockConfiguration {
   public static let columnBorderColors = ["rgba(237.94559999999998, 238.03179, 241.030845, 1)","rgba(42.491415, 42.58245, 49.221375, 1)"]
   public static let columnPadding = 8.0
   public static let columnBorderWidth = 1.0
+  public static let columnFramesShowAtRest = false
   public static let columnWhitespacePattern = "\\s+"
   public static let isolatedNodeTypes: Set<String> = ["sticky"]
   public static let stickyWidth = 192.0

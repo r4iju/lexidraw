@@ -18,6 +18,7 @@ import CommentPluginProvider, {
   CommentUI,
   useCommentPlugin,
 } from "./plugins/CommentPlugin";
+import ColumnResizer from "./plugins/LayoutPlugin/ColumnResizer";
 import { LayoutPlugin } from "./plugins/LayoutPlugin/LayoutPlugin";
 import CollapsiblePlugin from "./plugins/CollapsiblePlugin";
 import CalloutPlugin from "./plugins/CalloutPlugin";
@@ -664,6 +665,7 @@ function EditorHandler({
                               <HorizontalRulePlugin />
                               <DocumentTablesPlugin />
                               {isEditable && <TableCellResizer />}
+                              {isEditable && <ColumnResizer />}
                               <ImagePlugin />
                               <InlineImagePlugin />
                               <VideoPlugin />

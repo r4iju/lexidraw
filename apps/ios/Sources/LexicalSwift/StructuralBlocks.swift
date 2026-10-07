@@ -6,6 +6,8 @@ extension Update {
   /// The structural plugins' DELETE_CHARACTER_COMMAND handlers, in the order
   /// the web runs them.
   mutating func structuralDelete(_ selection: RangeSelection, backward: Bool) throws -> Bool {
+    if hasEditorPlugin("CollapsiblePlugin"), try revealSelected(selection) { return true }
+    if hasEditorPlugin("LayoutPlugin"), try columnDelete(selection, backward: backward) { return true }
     if hasEditorPlugin("CollapsiblePlugin"), try toggleDelete(selection, backward: backward) { return true }
     return try hasEditorPlugin("CalloutPlugin") && calloutDelete(selection, backward: backward)
   }
@@ -16,7 +18,6 @@ extension Update {
   /// its title's block followed by what it held, and at the start of a block
   /// after a closed toggle it opens the toggle.
   private mutating func toggleDelete(_ selection: RangeSelection, backward: Bool) throws -> Bool {
-    if try revealSelected(selection) { return true }
     guard backward, selection.isCollapsed else { return false }
     if let caret = titleCaret(selection) {
       guard atStart(selection, caret.block) else { return false }
@@ -85,15 +86,6 @@ extension Update {
     guard let selection, selection.isCollapsed else { return }
     let anchor = selection.anchor
     let before = key == .up || key == .left
-    if hasEditorPlugin("LayoutPlugin"), anchor.offset == 0,
-      let layout = findParent(from: anchor.key, where: { state[$0].type == "layout-container" }),
-      let parent = state.parent(of: layout),
-      (before ? state.firstChild(of: parent) : state.lastChild(of: parent)) == layout,
-      (before ? firstDescendant(of: layout) : lastDescendant(of: layout)) == anchor.key
-    {
-      let paragraph = create(SerializedParagraphNode.type)
-      if before { try insert(paragraph, before: layout) } else { try insert(paragraph, after: layout) }
-    }
     // CollapsiblePlugin's arrow handlers: a toggle last in the document
     // always has a line after it to move on to, and one first in it a line
     // before it.

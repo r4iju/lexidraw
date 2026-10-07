@@ -84,6 +84,9 @@ export async function swiftForStructuralBlocks(): Promise<string> {
   if (!paddingClass || !spacingRem || !itemClasses?.includes("border") ||
     !itemContainment?.includes("min-width: 0;") || !itemContainment.includes("container-type: inline-size;"))
     throw new Error("Column box/containment CSS changed shape");
+  // The web shows a row's column frames only while it is hovered or selected
+  // in (#252); native has neither, so its frames stay transparent at rest.
+  const columnFramesShowAtRest = !/\.document-content\s+\[data-lexical-layout-container\]:not\(:hover, \[data-columns-selected\]\)\s*>\s*\[data-lexical-layout-item\]\s*\{\s*border-color: transparent;\s*\}/.test(document);
   // Tailwind's rem utilities use the browser's 16px root, as existing native structural utilities do.
   const columnPadding = Number(paddingClass.slice(2)) * Number(spacingRem) * 16;
   const tailwind = await import(Bun.resolveSync("tailwindcss", new URL("../../lexidraw/", import.meta.url).pathname));
@@ -380,7 +383,7 @@ export async function swiftForStructuralBlocks(): Promise<string> {
     { discrete: true },
   );
   const string = (value: string) => JSON.stringify(value);
-  return `// Generated from structural node factories, web presets and document CSS.\n// Run bun run codegen in apps/ios to update.\npublic enum StructuralBlockConfiguration {\n  public static let slidePreviewInitialIndex = ${previewInitialIndex}\n  public static let slideBoxVersionIncrement = ${versionIncrement}.0\n  public static let slideContentMinimumChildCount = ${projection[1]}\n  public static let columnGap = ${columnGap}.0\n  public static let columnBorderColors = ${JSON.stringify(columnBorderColors)}\n  public static let columnPadding = ${columnPadding}.0\n  public static let columnBorderWidth = ${columnBorderWidth}.0\n  public static let columnWhitespacePattern = ${JSON.stringify(columnWhitespace)}\n  public static let isolatedNodeTypes: Set<String> = [${isolated.map(string).join(", ")}]\n  public static let stickyWidth = ${stickyWidth}.0\n  public static let stickyHeight = ${Number(stickyClasses[2]) * 4}.0\n  public static let stickyPadding = ${Number(stickyClasses[3]) * 4}.0\n  public static let chartTypes: [String] = [${CHART_TYPES.map(string).join(", ")}]\n  public static let slideElements: [String:String] = [${Object.entries(
+  return `// Generated from structural node factories, web presets and document CSS.\n// Run bun run codegen in apps/ios to update.\npublic enum StructuralBlockConfiguration {\n  public static let slidePreviewInitialIndex = ${previewInitialIndex}\n  public static let slideBoxVersionIncrement = ${versionIncrement}.0\n  public static let slideContentMinimumChildCount = ${projection[1]}\n  public static let columnGap = ${columnGap}.0\n  public static let columnBorderColors = ${JSON.stringify(columnBorderColors)}\n  public static let columnPadding = ${columnPadding}.0\n  public static let columnBorderWidth = ${columnBorderWidth}.0\n  public static let columnFramesShowAtRest = ${columnFramesShowAtRest}\n  public static let columnWhitespacePattern = ${JSON.stringify(columnWhitespace)}\n  public static let isolatedNodeTypes: Set<String> = [${isolated.map(string).join(", ")}]\n  public static let stickyWidth = ${stickyWidth}.0\n  public static let stickyHeight = ${Number(stickyClasses[2]) * 4}.0\n  public static let stickyPadding = ${Number(stickyClasses[3]) * 4}.0\n  public static let chartTypes: [String] = [${CHART_TYPES.map(string).join(", ")}]\n  public static let slideElements: [String:String] = [${Object.entries(
     slideElements,
   )
     .map(([kind, fields]) => `${string(kind)}: #"${JSON.stringify(fields)}"#`)

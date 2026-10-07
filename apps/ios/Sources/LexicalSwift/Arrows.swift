@@ -40,6 +40,7 @@ extension Update {
         if handled { break }
       }
     }
+    if !handled { handled = try columnArrow(&event, key) }
     if !handled {
       try structuralArrow(key)
       handled = try richTextArrow(&event, key)

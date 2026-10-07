@@ -137,9 +137,7 @@ extension Update {
         try unwrapStructuralElement(key)
       }
     case SerializedLayoutContainerNode.type where hasEditorPlugin("LayoutPlugin"):
-      if state.children(of: key).contains(where: { state[$0].type != SerializedLayoutItemNode.type }) {
-        try unwrapStructuralElement(key)
-      }
+      try repairColumns(key)
     case SerializedCollapsibleContentNode.type where hasEditorPlugin("CollapsiblePlugin"):
       try repairToggleContent(key)
     case SerializedCollapsibleTitleNode.type where hasEditorPlugin("CollapsiblePlugin"):
