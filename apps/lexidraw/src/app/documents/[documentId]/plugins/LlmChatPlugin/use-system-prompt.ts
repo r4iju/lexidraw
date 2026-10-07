@@ -18,14 +18,8 @@ import { useRuntimeTools } from "./runtime-tools-provider";
  * ─ agent mode ────────────────────────────────────────────────────────────
  *   • uses runtime tools to mutate the document.
  *   • filters tools to those relevant to the current node set.
- *
- * ─ slide agent mode ────────────────────────────────────────────────────
- *  • orchestrates a multi-step slide generation workflow.
- *  • may use specialized tools for research, media generation, etc.
  */
-export function useSystemPrompt(
-  mode: "chat" | "agent" | "debug" | "slide-agent",
-) {
+export function useSystemPrompt(mode: "chat" | "agent" | "debug") {
   const [editor] = useLexicalComposerContext();
   const tools = useRuntimeTools();
   const { runtimeSpec } = useRuntimeSpec();
@@ -107,26 +101,6 @@ export function useSystemPrompt(
         `This mode is for testing individual tools. Interaction is through the UI elements.
 ` +
         `No direct chat interaction is expected in this mode.`
-      ).trim();
-    }
-
-    // ────────────────────────────────────────────────────────────────
-    // slide agent mode prompt
-    // ────────────────────────────────────────────────────────────────
-    if (mode === "slide-agent") {
-      // the system prompt for individual steps within the slide-agent workflow
-      // will be defined within useSlideCreationWorkflow.ts for each step's specific agent.
-      // this top-level system prompt for the "slide-agent" mode itself might be more general,
-      // or explain that it's in a workflow state if general chat is also allowed here.
-      return (
-        `You are currently in **Slide Agent Mode**.\n\n` +
-        `This mode is dedicated to a multi-step process for generating slide presentations.
-` +
-        `User interactions in this mode will typically initiate or provide input to this workflow.
-` +
-        `Follow the instructions from the workflow orchestrator.
-` +
-        `If a user provides general chat outside the workflow, respond concisely and guide them back to the slide generation task or suggest switching modes.`
       ).trim();
     }
 

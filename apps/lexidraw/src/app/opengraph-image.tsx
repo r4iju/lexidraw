@@ -32,7 +32,7 @@ export default function OpengraphImage() {
         Write documents and sketch diagrams in one place.
       </span>
       <span style={{ fontSize: 30, color: "#6b6b76" }}>
-        Rich text, slides and hand-drawn diagrams, shared with a link.
+        Rich text and hand-drawn diagrams, shared with a link.
       </span>
     </div>,
     size,

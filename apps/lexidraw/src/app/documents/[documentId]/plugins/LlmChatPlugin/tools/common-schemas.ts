@@ -3,7 +3,7 @@ import { z } from "zod";
 export const EditorKeySchema = z
   .string()
   .describe(
-    "Key to target a nested editor, e.g., 'deckNodeKey/slideId/boxId'. Defaults to the main editor.",
+    "Key of a registered editor to target. Defaults to the main editor.",
   );
 
 export const InsertionRelationSchema = z

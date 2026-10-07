@@ -95,8 +95,8 @@ export const CORE_NODES: Klass<LexicalNode>[] = [
 
 /**
  * Every node class whose JSON a stored document can hold, and so the node
- * schema's contract: the document editor's, the text nodes caption and slide
- * editors add, and the package's mention node.
+ * schema's contract: the document editor's, the text nodes caption editors
+ * add, and the package's mention node.
  */
 export const SCHEMA_NODES: Klass<LexicalNode>[] = [
   ...CORE_NODES,
