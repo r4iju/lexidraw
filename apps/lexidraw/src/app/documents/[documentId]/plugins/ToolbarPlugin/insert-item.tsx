@@ -1,89 +1,17 @@
-import { INSERT_EMBED_COMMAND } from "@lexical/react/LexicalAutoEmbedPlugin";
-import { INSERT_HORIZONTAL_RULE_COMMAND } from "@lexical/react/LexicalHorizontalRuleNode";
-import {
-  $getRoot,
-  $getSelection,
-  $isRangeSelection,
-  type LexicalEditor,
-} from "lexical";
-import {
-  ChartColumn,
-  Columns3,
-  Film,
-  Image,
-  ImagePlus,
-  Info,
-  Heading1,
-  Heading2,
-  Heading3,
-  ListCollapse,
-  type LucideIcon,
-  PencilRuler,
-  Plus,
-  Presentation,
-  SeparatorHorizontal,
-  Sigma,
-  SquareSplitVertical,
-  StickyNote,
-  Table,
-  VideoIcon,
-  Vote,
-  Workflow,
-} from "lucide-react";
-import { Fragment, type JSX, type ReactNode } from "react";
+import type { LexicalEditor } from "lexical";
+import { Plus } from "lucide-react";
+import { Fragment } from "react";
 import {
   DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
 } from "~/components/ui/dropdown-menu";
-import { StickyNode } from "../../nodes/StickyNode";
-import { useEmbedConfigs } from "../AutoEmbedPlugin";
-import InsertCalloutDialog from "../CalloutPlugin/InsertCalloutDialog";
-import { INSERT_CHART_COMMAND } from "../ChartPlugin";
-import type { TOGGLE_LEVELS } from "@packages/types";
-import { INSERT_COLLAPSIBLE_COMMAND } from "../CollapsiblePlugin";
-import { BLOCK_TYPES } from "./block-format";
-import { InsertEquationDialog } from "../EquationsPlugin";
-import { INSERT_EXCALIDRAW_COMMAND } from "../ExcalidrawPlugin";
-import { InsertImageDialog } from "../ImagePlugin";
-import { INSERT_IMAGE_COMMAND } from "../ImagePlugin/commands";
-import { InsertInlineImageDialog } from "../InlineImagePlugin";
-import InsertLayoutDialog from "../LayoutPlugin/InsertLayoutDialog";
-import { INSERT_MERMAID_COMMAND } from "../MermaidPlugin";
-import { INSERT_PAGE_BREAK } from "../PageBreakPlugin";
-import { InsertPollDialog } from "../PollPlugin";
-import { INSERT_SLIDEDECK_COMMAND } from "../SlidePlugin";
-import { InsertTableDialog } from "../TablePlugin";
-import { OPEN_INSERT_VIDEO_DIALOG_COMMAND } from "../VideoPlugin";
+import { type ShowModal, useInsertEntries } from "../block-catalog";
+import { type BlockEntry, searchEntries } from "../block-search";
 import { ToolbarMenu } from "./toolbar";
 
-export type ShowModal = (
-  title: string,
-  content: (onClose: () => void) => JSX.Element,
-) => void;
-
-type Insertable = { label: string; icon: ReactNode; insert: () => void };
-
-const EMBED_LABELS: Record<string, string> = {
-  "youtube-video": "YouTube",
-  tweet: "Tweet",
-  figma: "Figma",
-  article: "Article",
-};
-const EMBED_ORDER = Object.keys(EMBED_LABELS);
-
-/** Each toggle's own, as no two insert items share an icon. */
-const TOGGLE_ICONS = {
-  paragraph: ListCollapse,
-  h1: Heading1,
-  h2: Heading2,
-  h3: Heading3,
-} satisfies Record<(typeof TOGGLE_LEVELS)[number], LucideIcon>;
-
-function icon(Icon: LucideIcon) {
-  return <Icon className="size-4" />;
-}
+export type { ShowModal } from "../block-catalog";
 
 /** Everything that can be inserted, in labelled groups. */
 export function InsertItems({
@@ -93,220 +21,34 @@ export function InsertItems({
 }: {
   editor: LexicalEditor;
   showModal: ShowModal;
-  /** Leaves out what doesn't match. */
+  /** Leaves out what doesn't match, as the slash menu does. */
   query?: string;
 }) {
-  const embeds = useEmbedConfigs();
-  const dialog =
-    (title: string, render: (onClose: () => void) => JSX.Element) => () =>
-      showModal(title, render);
-
-  const groups: [string, Insertable[]][] = [
-    [
-      "Basic",
-      [
-        {
-          label: "Divider",
-          icon: icon(SeparatorHorizontal),
-          insert: () =>
-            editor.dispatchCommand(INSERT_HORIZONTAL_RULE_COMMAND, undefined),
-        },
-        {
-          label: "Page break",
-          icon: icon(SquareSplitVertical),
-          insert: () => editor.dispatchCommand(INSERT_PAGE_BREAK, undefined),
-        },
-        {
-          label: "Table",
-          icon: icon(Table),
-          insert: dialog("Insert table", (onClose) => (
-            <InsertTableDialog activeEditor={editor} onClose={onClose} />
-          )),
-        },
-        {
-          label: "Columns",
-          icon: icon(Columns3),
-          insert: dialog("Insert columns", (onClose) => (
-            <InsertLayoutDialog activeEditor={editor} onClose={onClose} />
-          )),
-        },
-        ...BLOCK_TYPES.flatMap((option) =>
-          "toggle" in option
-            ? [
-                {
-                  label: option.label,
-                  icon: icon(TOGGLE_ICONS[option.toggle]),
-                  insert: () =>
-                    editor.dispatchCommand(
-                      INSERT_COLLAPSIBLE_COMMAND,
-                      option.toggle,
-                    ),
-                },
-              ]
-            : [],
-        ),
-        {
-          label: "Callout",
-          icon: icon(Info),
-          insert: dialog("Insert callout", (onClose) => (
-            <InsertCalloutDialog activeEditor={editor} onClose={onClose} />
-          )),
-        },
-      ],
-    ],
-    [
-      "Media",
-      [
-        {
-          label: "Image",
-          icon: icon(Image),
-          insert: dialog("Insert image", (onClose) => (
-            <InsertImageDialog
-              activeEditor={editor}
-              onClose={onClose}
-              onInsert={(payload) => {
-                editor.dispatchCommand(INSERT_IMAGE_COMMAND, payload);
-                onClose();
-              }}
-            />
-          )),
-        },
-        {
-          label: "Inline image",
-          icon: icon(ImagePlus),
-          insert: dialog("Insert inline image", (onClose) => (
-            <InsertInlineImageDialog activeEditor={editor} onClose={onClose} />
-          )),
-        },
-        {
-          label: "GIF",
-          icon: icon(Film),
-          insert: () =>
-            editor.dispatchCommand(INSERT_IMAGE_COMMAND, {
-              altText: "Cat typing on a laptop",
-              src: "/images/cat-typing.gif",
-            }),
-        },
-        {
-          label: "Video",
-          icon: icon(VideoIcon),
-          insert: () =>
-            editor.dispatchCommand(OPEN_INSERT_VIDEO_DIALOG_COMMAND, undefined),
-        },
-      ],
-    ],
-    [
-      "Diagrams and data",
-      [
-        {
-          label: "Excalidraw",
-          icon: icon(PencilRuler),
-          insert: () =>
-            editor.dispatchCommand(INSERT_EXCALIDRAW_COMMAND, undefined),
-        },
-        {
-          label: "Mermaid",
-          icon: icon(Workflow),
-          insert: () =>
-            editor.dispatchCommand(INSERT_MERMAID_COMMAND, undefined),
-        },
-        {
-          label: "Chart",
-          icon: icon(ChartColumn),
-          insert: () =>
-            editor.dispatchCommand(INSERT_CHART_COMMAND, {
-              type: "bar",
-              data: "[]",
-              config: "{}",
-              width: "inherit",
-              height: "inherit",
-            }),
-        },
-        {
-          label: "Equation",
-          icon: icon(Sigma),
-          insert: dialog("Insert equation", (onClose) => (
-            <InsertEquationDialog activeEditor={editor} onClose={onClose} />
-          )),
-        },
-        {
-          label: "Slide deck",
-          icon: icon(Presentation),
-          insert: () =>
-            editor.dispatchCommand(INSERT_SLIDEDECK_COMMAND, undefined),
-        },
-      ],
-    ],
-    [
-      "Embeds",
-      embeds
-        .filter((embed) => embed.type in EMBED_LABELS)
-        .sort(
-          (a, b) => EMBED_ORDER.indexOf(a.type) - EMBED_ORDER.indexOf(b.type),
-        )
-        .map((embed) => ({
-          label: EMBED_LABELS[embed.type] ?? embed.contentName,
-          icon: embed.icon,
-          insert: () =>
-            editor.dispatchCommand(INSERT_EMBED_COMMAND, embed.type),
-        })),
-    ],
-    [
-      "Interactive",
-      [
-        {
-          label: "Poll",
-          icon: icon(Vote),
-          insert: dialog("Insert poll", (onClose) => (
-            <InsertPollDialog activeEditor={editor} onClose={onClose} />
-          )),
-        },
-        {
-          label: "Sticky note",
-          icon: icon(StickyNote),
-          insert: () =>
-            editor.update(() => {
-              const selection = $getSelection();
-              const sticky = StickyNode.$createStickyNode(0, 0);
-              if ($isRangeSelection(selection)) selection.insertNodes([sticky]);
-              else $getRoot().append(sticky);
-            }),
-        },
-      ],
-    ],
-  ];
-
-  const wanted = query.trim().toLowerCase();
-  const shown = groups
-    .map(
-      ([label, items]) =>
-        [
-          label,
-          items.filter((item) => item.label.toLowerCase().includes(wanted)),
-        ] as const,
-    )
-    .filter(([, items]) => items.length > 0);
-  if (shown.length === 0)
+  const entries = useInsertEntries(editor, showModal);
+  const groups = new Map<string, BlockEntry[]>();
+  for (const entry of searchEntries(entries, query))
+    groups.set(entry.group, [...(groups.get(entry.group) ?? []), entry]);
+  if (groups.size === 0)
     return (
       <p className="px-2 py-3 text-sm text-muted-foreground">
         Nothing to insert matches “{query.trim()}”.
       </p>
     );
-  return shown.map(([label, items], index) => (
+  return [...groups].map(([label, entries], index) => (
     <Fragment key={label}>
       {index > 0 && <DropdownMenuSeparator />}
       <DropdownMenuGroup aria-label={label}>
         <DropdownMenuLabel className="text-xs text-muted-foreground">
           {label}
         </DropdownMenuLabel>
-        {items.map((item) => (
+        {entries.map((entry) => (
           <DropdownMenuItem
-            key={item.label}
+            key={entry.id}
             className="gap-2"
-            onSelect={item.insert}
+            onSelect={entry.run}
           >
-            {item.icon}
-            {item.label}
+            {entry.icon}
+            {entry.label}
           </DropdownMenuItem>
         ))}
       </DropdownMenuGroup>

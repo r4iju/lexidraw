@@ -78,6 +78,7 @@ import DocumentEditingPlugin from "./plugins/DocumentEditingPlugin";
 import PageBreakPlugin from "./plugins/PageBreakPlugin";
 import PollPlugin from "./plugins/PollPlugin";
 import EmojiPickerPlugin from "./plugins/EmojiPickerPlugin";
+import SlashMenuPlugin from "./plugins/SlashMenuPlugin";
 import TreeViewPlugin from "./plugins/TreeViewPlugin";
 import { useDeveloperFlag } from "~/lib/developer-flag";
 import { SlidePlugin } from "./plugins/SlidePlugin";
@@ -645,6 +646,7 @@ function EditorHandler({
                             <div className="min-w-0 flex-1 self-stretch flex flex-col">
                               <DisableChecklistSpacebarPlugin />
                               <EmojiPickerPlugin />
+                              <SlashMenuPlugin />
                               <LayoutPlugin />
                               {onScreen && <LLMWidget />}
                               <DocumentEditingPlugin />
