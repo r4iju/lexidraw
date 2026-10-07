@@ -27,12 +27,18 @@ beforeAll(async () => {
     clearRect() {},
     getImageData: () => ({ data: [0, 0, 0, 255] }),
   })) as never;
+  // Nor does it lay anything out, so nothing ever resizes.
+  globals.ResizeObserver = class {
+    observe() {}
+    disconnect() {}
+  };
   MermaidImage = (await import("./MermaidImage")).default;
 });
 afterAll(() => {
   for (const key of shimmed) delete globals[key];
   for (const [key, value] of saved) globals[key] = value;
   delete globals.IS_REACT_ACT_ENVIRONMENT;
+  delete globals.ResizeObserver;
 });
 
 test("an invalid diagram shows Mermaid's message in its block and leaves nothing outside it", async () => {

@@ -115,12 +115,16 @@ export function mermaidThemeVariables(
 /**
  * Overrides for what the theme variables cannot reach: Mermaid draws an
  * active task's label in its in-bar colour even when the label sits beside
- * the bar, on the page.
+ * the bar, on the page; a gantt's grid lines in black whatever its
+ * `gridColor`; and every other section band at a fifth of its colour, which
+ * darkens the muted grey more than a quiet stripe needs.
  */
 export function mermaidThemeCSS(tokens: DiagramTokens) {
   return [
     ".node rect, .node polygon, .node circle { filter: none !important; }",
     `text.taskTextOutsideLeft, text.taskTextOutsideRight { fill: ${tokens.foreground} !important; }`,
+    `.grid .tick line { stroke: ${tokens.border}; }`,
+    ".section1, .section3 { opacity: 0.1; }",
   ].join("\n");
 }
 
