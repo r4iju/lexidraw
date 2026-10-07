@@ -946,6 +946,14 @@
     var(--figure-least)
   );
 }
+/* A figure at a share of the column sits at the side its embed is aligned to. */
+.document-content > [data-figure-width="share"]:has([data-embed-align="left"]) {
+  margin-inline: max(0px, calc((100% - var(--doc-measure)) / 2)) auto;
+}
+.document-content
+  > [data-figure-width="share"]:has([data-embed-align="right"]) {
+  margin-inline: auto max(0px, calc((100% - var(--doc-measure)) / 2));
+}
 .document-content > p > [data-figure-width] {
   display: block;
   margin-inline: auto;

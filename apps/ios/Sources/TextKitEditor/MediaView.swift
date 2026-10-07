@@ -83,7 +83,7 @@ enum MediaImageError: Error, LocalizedError, Equatable {
     clipsToBounds = true
     picture.contentMode = .scaleAspectFit
     addSubview(picture)
-    message.text = payload.source == nil ? "\(payload.label): source unavailable" : "Loading \(payload.label)…"
+    message.text = payload.source == nil ? payload.unlinkedMessage : "Loading \(payload.label)…"
     message.textAlignment = .center
     message.numberOfLines = 0
     message.font = .preferredFont(forTextStyle: .body)
@@ -137,7 +137,8 @@ enum MediaImageError: Error, LocalizedError, Equatable {
     let mediaWidth = size.width
     let captionHeight = caption.fittingHeight(mediaWidth)
     let bodyHeight = size.height
-    let mediaFrame = CGRect(x: (bounds.width - mediaWidth) / 2, y: 0, width: mediaWidth, height: bodyHeight)
+    let em = UIFont.preferredFont(forTextStyle: .body).pointSize
+    let mediaFrame = CGRect(x: payload.mediaX(width: mediaWidth, fitting: bounds.width, em: em), y: 0, width: mediaWidth, height: bodyHeight)
     bodyAccessibility.accessibilityFrameInContainerSpace = mediaFrame
     picture.frame = mediaFrame
     videoLayer?.frame = mediaFrame
@@ -169,7 +170,11 @@ enum MediaImageError: Error, LocalizedError, Equatable {
           picture.isAccessibilityElement = true
           message.isHidden = true
         case "video":
-          let player = AVPlayer(url: source)
+          // A file that cannot be played says so here, not only once played.
+          let asset = AVURLAsset(url: source)
+          guard try await asset.load(.isPlayable) else { throw URLError(.cannotDecodeContentData) }
+          try Task.checkCancellation()
+          let player = AVPlayer(playerItem: AVPlayerItem(asset: asset))
           self.player = player
           let layer = AVPlayerLayer(player: player)
           layer.videoGravity = .resizeAspect
@@ -220,7 +225,7 @@ enum MediaImageError: Error, LocalizedError, Equatable {
       owner = view.superview
     }
     guard let source = payload.source else { return false }
-    if payload.type == "video" {
+    if payload.type == "video", !unavailable {
       var responder: UIResponder? = self
       while let current = responder {
         if let controller = current as? UIViewController {
