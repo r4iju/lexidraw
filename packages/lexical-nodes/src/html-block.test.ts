@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { parseHTMLBlockSource, snapshotDocument } from "./html-block";
+import { parseHTMLBlockSource, snapshotDocument } from "./html-block.js";
 test("bounds source and keeps saved data/defaults", () => {
   const source = parseHTMLBlockSource({
     html: '<input id="x">',
