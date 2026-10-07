@@ -3,11 +3,13 @@ import {
   $isHeadingNode,
   type HeadingTagType,
 } from "@lexical/rich-text";
+import { $findMatchingParent } from "@lexical/utils";
 import {
   $createParagraphNode,
   $isDecoratorNode,
   $isElementNode,
   $isParagraphNode,
+  $isRootOrShadowRoot,
   type ElementNode,
   type LexicalNode,
 } from "lexical";
@@ -15,7 +17,11 @@ import { CollapsibleContainerNode } from "./nodes/CollapsibleContainerNode.js";
 import { CollapsibleContentNode } from "./nodes/CollapsibleContentNode.js";
 import { CollapsibleTitleNode } from "./nodes/CollapsibleTitleNode.js";
 
-/** What a toggle's title is: a paragraph, or a heading of some level. */
+/**
+ * What a toggle's title is: a paragraph, or a heading of any level, as a
+ * heading shortcut typed in a title makes it. The menus and the agent
+ * offer `TOGGLE_LEVELS`, from @packages/types.
+ */
 export type ToggleLevel = "paragraph" | HeadingTagType;
 
 const { $isCollapsibleContainerNode } = CollapsibleContainerNode;
@@ -39,6 +45,31 @@ function $isBlock(node: LexicalNode) {
     !node.isInline() &&
     !node.isParentRequired()
   );
+}
+
+/** The block a caret or node is in: the nearest under a root or shadow root. */
+export function $topBlockOf(node: LexicalNode): LexicalNode | null {
+  return $findMatchingParent(node, (each) => {
+    const parent = each.getParent();
+    return parent !== null && $isRootOrShadowRoot(parent);
+  });
+}
+
+/** The closed toggles whose content holds `node`, innermost first. */
+export function $closedTogglesAround(
+  node: LexicalNode,
+): CollapsibleContainerNode[] {
+  const closed: CollapsibleContainerNode[] = [];
+  for (let at = node.getParent(); at; at = at.getParent()) {
+    const container = at.getParent();
+    if (
+      $isCollapsibleContentNode(at) &&
+      $isCollapsibleContainerNode(container) &&
+      !container.getOpen()
+    )
+      closed.push(container);
+  }
+  return closed;
 }
 
 /** The title's block: the paragraph or heading the title holds. */
@@ -74,11 +105,18 @@ export function $toggleOfTitle(
   return null;
 }
 
-/** A closed, empty toggle whose title is a block of `level`. */
-export function $createToggle(level: ToggleLevel = "paragraph", open = false) {
+/**
+ * A toggle whose title is an empty block of `level`, holding `blocks`: by
+ * default the empty line a new toggle is written in.
+ */
+export function $createToggle(
+  level: ToggleLevel = "paragraph",
+  open = false,
+  blocks: LexicalNode[] = [$createParagraphNode()],
+) {
   const titleBlock = $createTitleBlock(level);
   const content = CollapsibleContentNode.$createCollapsibleContentNode().append(
-    $createParagraphNode(),
+    ...blocks,
   );
   const container = CollapsibleContainerNode.$createCollapsibleContainerNode(
     open,
@@ -109,17 +147,17 @@ export function $wrapInToggle(
 ): CollapsibleContainerNode | null {
   const [first, ...rest] = blocks;
   if (!first) return null;
-  const { container, titleBlock, content } = $createToggle(level, true);
+  const titled = $isTitleBlock(first) && $isElementNode(first);
+  const held = titled ? rest : blocks;
+  const { container, titleBlock } = $createToggle(
+    level,
+    true,
+    held.length ? held : undefined,
+  );
   first.insertBefore(container);
-  if ($isTitleBlock(first) && $isElementNode(first)) {
+  if (titled) {
     titleBlock.append(...first.getChildren());
     first.remove();
-  } else {
-    rest.unshift(first);
-  }
-  if (rest.length) {
-    content.clear();
-    content.append(...rest);
   }
   return container;
 }
@@ -157,13 +195,10 @@ function $inlineOf(node: ElementNode): LexicalNode[] {
  * and what sits beside them goes into the content.
  */
 export function $repairToggle(container: CollapsibleContainerNode) {
-  let title = container.getChildren().find($isCollapsibleTitleNode);
-  if (!title) {
-    title = CollapsibleTitleNode.$createCollapsibleTitleNode();
-    container.splice(0, 0, [title]);
-  } else if (container.getFirstChild() !== title) {
-    container.splice(0, 0, [title]);
-  }
+  const title =
+    container.getChildren().find($isCollapsibleTitleNode) ??
+    CollapsibleTitleNode.$createCollapsibleTitleNode();
+  if (container.getFirstChild() !== title) container.splice(0, 0, [title]);
   const contents = container.getChildren().filter($isCollapsibleContentNode);
   const content =
     contents[0] ?? CollapsibleContentNode.$createCollapsibleContentNode();

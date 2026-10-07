@@ -1,9 +1,6 @@
 import type { TableOfContentsEntry } from "@lexical/react/LexicalTableOfContentsPlugin";
 import { $getNodeByKey, type NodeKey } from "lexical";
-import {
-  CollapsibleContainerNode,
-  CollapsibleContentNode,
-} from "@packages/lexical-nodes";
+import { $closedTogglesAround, settleToggles } from "@packages/lexical-nodes";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { TableOfContentsPlugin as LexicalTableOfContentsPlugin } from "@lexical/react/LexicalTableOfContentsPlugin";
 import {
@@ -51,26 +48,15 @@ function TableOfContentsList({
     const opened: NodeKey[] = [];
     editor.update(
       () => {
-        for (
-          let at = $getNodeByKey(key)?.getParent();
-          at;
-          at = at.getParent()
-        ) {
-          const container = at.getParent();
-          if (
-            CollapsibleContentNode.$isCollapsibleContentNode(at) &&
-            CollapsibleContainerNode.$isCollapsibleContainerNode(container) &&
-            !container.getOpen()
-          ) {
-            container.setOpen(true);
-            opened.push(container.getKey());
-          }
+        const node = $getNodeByKey(key);
+        for (const container of node ? $closedTogglesAround(node) : []) {
+          container.setOpen(true);
+          opened.push(container.getKey());
         }
       },
       { discrete: true },
     );
-    for (const container of opened)
-      editor.getElementByKey(container)?.removeAttribute("data-motion");
+    settleToggles(editor, opened);
     const heading = editor.getElementByKey(key);
     if (!heading) return;
     pinned.current = key;

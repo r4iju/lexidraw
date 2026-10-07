@@ -15,7 +15,12 @@ import {
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
 } from "~/components/ui/dropdown-menu";
-import { BLOCK_TYPES, type BlockType, BlockTypeItems } from "./block-format";
+import {
+  BLOCK_TYPES,
+  type BlockType,
+  BlockTypeItems,
+  toggleTypeOf,
+} from "./block-format";
 import {
   deleteBlock,
   duplicateBlock,
@@ -31,13 +36,7 @@ export function $blockTypeOf(node: LexicalNode | null): BlockType | null {
   const toggle = $isCollapsibleContainerNode(node)
     ? node
     : $toggleOfTitle(node);
-  if (toggle) {
-    const level = $toggleLevel(toggle);
-    const type = level === "paragraph" ? "toggle" : `toggle-${level}`;
-    return BLOCK_TYPES.some((option) => option.type === type)
-      ? (type as BlockType)
-      : null;
-  }
+  if (toggle) return toggleTypeOf($toggleLevel(toggle));
   if ($isListNode(node)) return node.getListType();
   if ($isListItemNode(node)) {
     const list = node.getParent();
@@ -50,9 +49,7 @@ export function $blockTypeOf(node: LexicalNode | null): BlockType | null {
       : $isCodeNode(node)
         ? "code"
         : node.getType();
-  return BLOCK_TYPES.some((option) => option.type === type)
-    ? (type as BlockType)
-    : null;
+  return BLOCK_TYPES.find((option) => option.type === type)?.type ?? null;
 }
 
 /**

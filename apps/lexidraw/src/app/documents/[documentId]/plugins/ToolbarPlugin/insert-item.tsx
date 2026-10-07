@@ -41,7 +41,9 @@ import { StickyNode } from "../../nodes/StickyNode";
 import { useEmbedConfigs } from "../AutoEmbedPlugin";
 import InsertCalloutDialog from "../CalloutPlugin/InsertCalloutDialog";
 import { INSERT_CHART_COMMAND } from "../ChartPlugin";
+import type { TOGGLE_LEVELS } from "@packages/types";
 import { INSERT_COLLAPSIBLE_COMMAND } from "../CollapsiblePlugin";
+import { BLOCK_TYPES } from "./block-format";
 import { InsertEquationDialog } from "../EquationsPlugin";
 import { INSERT_EXCALIDRAW_COMMAND } from "../ExcalidrawPlugin";
 import { InsertImageDialog } from "../ImagePlugin";
@@ -70,6 +72,14 @@ const EMBED_LABELS: Record<string, string> = {
   article: "Article",
 };
 const EMBED_ORDER = Object.keys(EMBED_LABELS);
+
+/** Each toggle's own, as no two insert items share an icon. */
+const TOGGLE_ICONS = {
+  paragraph: ListCollapse,
+  h1: Heading1,
+  h2: Heading2,
+  h3: Heading3,
+} satisfies Record<(typeof TOGGLE_LEVELS)[number], LucideIcon>;
 
 function icon(Icon: LucideIcon) {
   return <Icon className="size-4" />;
@@ -120,24 +130,21 @@ export function InsertItems({
             <InsertLayoutDialog activeEditor={editor} onClose={onClose} />
           )),
         },
-        {
-          label: "Toggle",
-          icon: icon(ListCollapse),
-          insert: () =>
-            editor.dispatchCommand(INSERT_COLLAPSIBLE_COMMAND, "paragraph"),
-        },
-        ...(
-          [
-            ["1", Heading1],
-            ["2", Heading2],
-            ["3", Heading3],
-          ] as const
-        ).map(([level, Icon]) => ({
-          label: `Toggle heading ${level}`,
-          icon: icon(Icon),
-          insert: () =>
-            editor.dispatchCommand(INSERT_COLLAPSIBLE_COMMAND, `h${level}`),
-        })),
+        ...BLOCK_TYPES.flatMap((option) =>
+          "toggle" in option
+            ? [
+                {
+                  label: option.label,
+                  icon: icon(TOGGLE_ICONS[option.toggle]),
+                  insert: () =>
+                    editor.dispatchCommand(
+                      INSERT_COLLAPSIBLE_COMMAND,
+                      option.toggle,
+                    ),
+                },
+              ]
+            : [],
+        ),
         {
           label: "Callout",
           icon: icon(Info),

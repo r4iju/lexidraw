@@ -1,14 +1,17 @@
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
-import { $findMatchingParent, mergeRegister } from "@lexical/utils";
+import { mergeRegister } from "@lexical/utils";
 import {
+  $createNodeSelection,
   $createParagraphNode,
   $getSelection,
+  $isDecoratorNode,
   $isElementNode,
   $isParagraphNode,
   $isRangeSelection,
-  $isRootOrShadowRoot,
   COMMAND_PRIORITY_HIGH,
   COMMAND_PRIORITY_LOW,
+  CONTROLLED_TEXT_INSERTION_COMMAND,
+  CUT_COMMAND,
   createCommand,
   DELETE_CHARACTER_COMMAND,
   type EditorState,
@@ -20,10 +23,13 @@ import {
   KEY_ENTER_COMMAND,
   type LexicalNode,
   type RangeSelection,
+  REMOVE_TEXT_COMMAND,
+  $setSelection,
 } from "lexical";
 import { useEffect } from "react";
 
 import {
+  $closedTogglesAround,
   $createToggle,
   $repairToggle,
   $repairToggleContent,
@@ -32,6 +38,7 @@ import {
   $toggleLevel,
   $toggleOfTitle,
   $toggleTitleBlock,
+  $topBlockOf,
   $unwrapToggle,
   CollapsibleContainerNode,
   CollapsibleContentNode,
@@ -40,9 +47,7 @@ import {
 } from "@packages/lexical-nodes";
 
 /** Inserts a toggle, its title a block of the level given (a paragraph). */
-export const INSERT_COLLAPSIBLE_COMMAND = createCommand<
-  ToggleLevel | undefined
->();
+export const INSERT_COLLAPSIBLE_COMMAND = createCommand<ToggleLevel>();
 
 const { $isCollapsibleContainerNode } = CollapsibleContainerNode;
 
@@ -54,12 +59,8 @@ function $caret(): RangeSelection | null {
     : null;
 }
 
-/** The block holding the caret, the nearest under a root or shadow root. */
 function $caretBlock(selection: RangeSelection): ElementNode | null {
-  const block = $findMatchingParent(selection.anchor.getNode(), (node) => {
-    const parent = node.getParent();
-    return parent !== null && $isRootOrShadowRoot(parent);
-  });
+  const block = $topBlockOf(selection.anchor.getNode());
   return $isElementNode(block) ? block : null;
 }
 
@@ -92,24 +93,18 @@ function $titleCaret() {
 
 /** The outermost closed toggle whose content holds `node`. */
 function $closedToggleAround(node: LexicalNode) {
-  let closed: CollapsibleContainerNode | null = null;
-  for (let at = node.getParent(); at; at = at.getParent()) {
-    if (
-      CollapsibleContentNode.$isCollapsibleContentNode(at) &&
-      $isCollapsibleContainerNode(at.getParent())
-    ) {
-      const container = at.getParent() as CollapsibleContainerNode;
-      if (!container.getOpen()) closed = container;
-    }
-  }
-  return closed;
+  return $closedTogglesAround(node).at(-1) ?? null;
 }
 
 /** Puts the caret at the start of what follows `container`, making a line. */
 function $selectAfter(container: CollapsibleContainerNode) {
   const next = container.getNextSibling();
   if ($isElementNode(next)) next.selectStart();
-  else {
+  else if ($isDecoratorNode(next)) {
+    const selection = $createNodeSelection();
+    selection.add(next.getKey());
+    $setSelection(selection);
+  } else {
     const paragraph = $createParagraphNode();
     container.insertAfter(paragraph);
     paragraph.select();
@@ -128,6 +123,23 @@ function $selectContentStart(container: CollapsibleContainerNode) {
     else content.append(paragraph);
     paragraph.select();
   }
+}
+
+/**
+ * Removing a selection that runs into folded content opens the toggles that
+ * fold it instead, so nothing goes unseen; the next press removes it.
+ */
+function $revealSelected(payload: Event | string | null) {
+  const selection = $getSelection();
+  if (!$isRangeSelection(selection) || selection.isCollapsed()) return false;
+  const closed = new Map<string, CollapsibleContainerNode>();
+  for (const node of selection.getNodes())
+    for (const container of $closedTogglesAround(node))
+      closed.set(container.getKey(), container);
+  if (!closed.size) return false;
+  for (const container of closed.values()) container.setOpen(true);
+  if (payload instanceof Event) payload.preventDefault();
+  return true;
 }
 
 export default function CollapsiblePlugin(): null {
@@ -186,6 +198,26 @@ export default function CollapsiblePlugin(): null {
         $repairToggleContent,
       ),
       editor.registerUpdateListener(keepCaretInSight),
+      editor.registerCommand(
+        DELETE_CHARACTER_COMMAND,
+        () => $revealSelected(null),
+        COMMAND_PRIORITY_HIGH,
+      ),
+      editor.registerCommand(
+        REMOVE_TEXT_COMMAND,
+        $revealSelected,
+        COMMAND_PRIORITY_HIGH,
+      ),
+      editor.registerCommand(
+        CUT_COMMAND,
+        $revealSelected,
+        COMMAND_PRIORITY_HIGH,
+      ),
+      editor.registerCommand(
+        CONTROLLED_TEXT_INSERTION_COMMAND,
+        $revealSelected,
+        COMMAND_PRIORITY_HIGH,
+      ),
 
       // Cmd/Ctrl+Enter in a title opens or closes its toggle.
       editor.registerCommand(
@@ -223,11 +255,7 @@ export default function CollapsiblePlugin(): null {
           if (!$atEnd(selection, block)) {
             return false;
           }
-          if (
-            !container.getOpen() &&
-            content &&
-            content.getTextContent().trim() !== ""
-          ) {
+          if (!container.getOpen() && content && !$holdsNothing(content)) {
             const next = $createToggle($toggleLevel(container));
             container.insertAfter(next.container);
             next.titleBlock.select();
@@ -331,6 +359,16 @@ function $atToggleEnd(selection: RangeSelection) {
     return last?.is(block) ? container : null;
   }
   return null;
+}
+
+/** Content that is the empty line a new toggle starts with, or less. */
+function $holdsNothing(content: ElementNode) {
+  const children = content.getChildren();
+  const [only] = children;
+  return (
+    children.length === 0 ||
+    (children.length === 1 && $isParagraphNode(only) && only.isEmpty())
+  );
 }
 
 function $escapeDown() {

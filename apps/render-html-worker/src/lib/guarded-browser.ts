@@ -85,10 +85,8 @@ async function startGuardProxy(check: Check) {
     const url = reachable(`https://${request.url}`);
     const plain = reachable(`http://${request.url}`);
     const address =
-      url &&
-      plain &&
-      ((await check(url).catch(() => undefined)) ??
-        (await check(plain).catch(() => undefined)));
+      (url && (await check(url).catch(() => undefined))) ??
+      (plain && (await check(plain).catch(() => undefined)));
     if (!url || !address) {
       client.end("HTTP/1.1 403 Forbidden\r\n\r\n");
       return;

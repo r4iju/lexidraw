@@ -69,10 +69,16 @@ export const InsertMarkdownSchema = z.object({
 });
 
 // Collapsible
+/**
+ * The levels a toggle is made at, by the menus and the agent: a title that
+ * is a paragraph, or a toggle heading 1 to 3.
+ */
+export const TOGGLE_LEVELS = ["paragraph", "h1", "h2", "h3"] as const;
+export const ToggleLevelSchema = z.enum(TOGGLE_LEVELS);
+
 export const InsertCollapsibleSectionSchema = z.object({
   titleText: z.string(),
-  /** The title's block: a paragraph, or a heading for a toggle heading. */
-  titleLevel: z.enum(["paragraph", "h1", "h2", "h3"]).optional(),
+  titleLevel: ToggleLevelSchema.optional(),
   initialContentMarkdown: z.string().optional(),
   initiallyOpen: z.boolean().optional().default(false),
   relation: InsertionRelationSchema,

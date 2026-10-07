@@ -1245,23 +1245,23 @@ div.editor-equation {
   grid-template-columns: var(--toggle-gutter) minmax(0, 1fr);
 }
 .document-content [data-slot="accordion-content"] [data-slot="accordion-item"] {
-  margin-block: 0 var(--block-gap);
+  margin-block-end: var(--block-gap);
 }
 /* A toggle heading is spaced as its heading is, by that heading's em. */
 .document-content
-> [data-slot="accordion-item"]:where(
+[data-slot="accordion-item"]:where(
   :has(> [data-slot="accordion-trigger"] > h1)
 ) {
   margin-block-start: 3em;
 }
 .document-content
-  > [data-slot="accordion-item"]:where(
+  [data-slot="accordion-item"]:where(
     :has(> [data-slot="accordion-trigger"] > h2)
   ) {
   margin-block-start: 2.4em;
 }
 .document-content
-  > [data-slot="accordion-item"]:where(
+  [data-slot="accordion-item"]:where(
     :has(> [data-slot="accordion-trigger"] > h3)
   ) {
   margin-block-start: 1.875em;

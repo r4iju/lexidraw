@@ -12,14 +12,12 @@ import {
 } from "@lexical/rich-text";
 import { $patchStyleText, $setBlocksType } from "@lexical/selection";
 import { $isTableSelection } from "@lexical/table";
-import {
-  $findMatchingParent,
-  $getNearestBlockElementAncestorOrThrow,
-} from "@lexical/utils";
+import { $getNearestBlockElementAncestorOrThrow } from "@lexical/utils";
 import { $setBlockType } from "@packages/lexical-nodes/block-type";
 import {
   $setToggleLevel,
   $toggleOfTitle,
+  $topBlockOf,
   $unwrapToggle,
   $wrapInToggle,
   type ToggleLevel,
@@ -28,7 +26,6 @@ import {
   $createParagraphNode,
   $getSelection,
   $isRangeSelection,
-  $isRootOrShadowRoot,
   $isTextNode,
   type LexicalEditor,
   type LexicalNode,
@@ -249,12 +246,19 @@ export const useToolbarUtils = () => {
       if (toggle) return $setToggleLevel(toggle, level);
       const blocks: LexicalNode[] = [];
       for (const node of selection.getNodes()) {
-        const block = $findMatchingParent(node, (each) => {
-          const parent = each.getParent();
-          return parent !== null && $isRootOrShadowRoot(parent);
-        });
+        const block = $topBlockOf(node);
         if (block && !blocks.some((each) => each.is(block))) blocks.push(block);
       }
+      // A selection ending at the very start of a block, as a triple click
+      // leaves it, doesn't take that block.
+      const end = selection.isBackward() ? selection.anchor : selection.focus;
+      const last = blocks.at(-1);
+      if (
+        blocks.length > 1 &&
+        end.offset === 0 &&
+        last?.is($topBlockOf(end.getNode()))
+      )
+        blocks.pop();
       // Only blocks side by side fold into one toggle.
       const parent = blocks[0]?.getParent();
       $wrapInToggle(

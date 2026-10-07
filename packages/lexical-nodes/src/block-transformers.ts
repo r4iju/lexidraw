@@ -9,6 +9,7 @@ import type { HeadingTagType } from "@lexical/rich-text";
 import {
   $createParagraphNode,
   $isElementNode,
+  $isTextNode,
   type ElementNode,
   type LexicalNode,
 } from "lexical";
@@ -349,12 +350,13 @@ export function createDetailsTransformer(
         );
       }
       const { container, titleBlock, content } = $createToggle(
+        // SUMMARY_HEADING matches h1 to h6 alone.
         (heading?.[1]?.toLowerCase() as HeadingTagType | undefined) ??
           "paragraph",
         /\bopen\b/i.test(startMatch[0]),
+        [],
       );
       $fillInline(titleBlock, title, transformers);
-      content.clear();
       $fill(content, trimBlankLines(body.split("\n")).join("\n"), transformers);
       rootNode.append(container);
       return [true, end];
@@ -479,7 +481,11 @@ export const TOGGLE_SHORTCUT: ElementTransformer = {
   ],
   export: () => null,
   regExp: /^>>\s/,
-  replace: (parentNode, children, _match, isImport) => {
+  replace: (parentNode, children, match, isImport) => {
+    // Import strips the match before asking, so a declined line gets it back.
+    const [first] = children;
+    if (isImport && $isTextNode(first))
+      first.setTextContent(match[0] + first.getTextContent());
     if (isImport || $toggleOfTitle(parentNode)) return false;
     const { container, titleBlock } = $createToggle("paragraph", true);
     titleBlock.append(...children);

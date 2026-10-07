@@ -6,6 +6,7 @@ import { $createTextNode } from "lexical";
 import { $convertFromMarkdownString } from "@lexical/markdown";
 import { PLAYGROUND_TRANSFORMERS } from "../../MarkdownTransformers";
 import { InsertCollapsibleSectionSchema } from "@packages/types";
+import type { z } from "zod";
 
 export const useCollapsibleTools = () => {
   const {
@@ -33,27 +34,26 @@ export const useCollapsibleTools = () => {
             titleLevel,
             initialContentMarkdown,
             initiallyOpen,
-          } = specificOptions as {
-            titleText: string;
-            titleLevel?: "paragraph" | "h1" | "h2" | "h3";
-            initialContentMarkdown?: string;
-            initiallyOpen?: boolean;
-          };
-
+          } = specificOptions as z.infer<typeof InsertCollapsibleSectionSchema>;
+          const markdown = initialContentMarkdown?.trim()
+            ? initialContentMarkdown
+            : null;
           const {
             container: containerNode,
             titleBlock,
             content,
-          } = $createToggle(titleLevel, initiallyOpen ?? false);
+          } = $createToggle(
+            titleLevel,
+            initiallyOpen,
+            markdown ? [] : undefined,
+          );
           titleBlock.append($createTextNode(titleText));
-          if (initialContentMarkdown && initialContentMarkdown.trim() !== "") {
-            content.clear();
+          if (markdown)
             $convertFromMarkdownString(
-              initialContentMarkdown,
+              markdown,
               PLAYGROUND_TRANSFORMERS,
               content,
             );
-          }
 
           $insertNodeAtResolvedPoint(resolution, containerNode);
 

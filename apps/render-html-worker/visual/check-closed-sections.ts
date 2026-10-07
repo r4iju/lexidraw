@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import type { ElementHandle, Page } from "puppeteer";
+import type { Page } from "puppeteer";
 import { appUrl } from "./app-url";
 import { signInToDev } from "@packages/dev-stack";
 
@@ -114,8 +114,14 @@ export async function checkClosedSections(
     markdownOf: (id: string) => Promise<string>;
   },
 ) {
-  // A heading's level survives the trip through the editor and back.
+  // A toggle's level and open state survive the trip into the document and
+  // back out as markdown.
   const markdown = await markdownOf(closedId);
+  assert(
+    markdown.includes("<details open>\n<summary>Open section</summary>") &&
+      markdown.includes("<details>\n<summary>Closed section 1</summary>"),
+    "A toggle is written back open or closed as it was",
+  );
   for (const level of [1, 2, 3])
     assert(
       markdown.includes(
@@ -213,9 +219,11 @@ function characterAt(tab: Page, index: number, at: number) {
   return tab.$$eval(
     TRIGGER,
     (triggers, index, at) => {
-      const title = triggers[index] as HTMLElement;
-      const walker = document.createTreeWalker(title, NodeFilter.SHOW_TEXT);
-      const text = walker.nextNode() as Text;
+      const title = triggers[index];
+      const text =
+        title &&
+        document.createTreeWalker(title, NodeFilter.SHOW_TEXT).nextNode();
+      if (!text) throw new Error(`Section ${index} has no title text`);
       const range = document.createRange();
       range.setStart(text, at);
       range.setEnd(text, at + 1);
@@ -400,6 +408,33 @@ async function checkTitles(page: Page, path: string) {
     `${modifier}+Enter closes`,
   );
 
+  // Deleting a selection that runs across a closed toggle first opens it,
+  // so what it holds is in sight before anything of it goes.
+  const from4 = await characterAt(tab, 4, 2);
+  const to5 = await characterAt(tab, 5, 2);
+  await tab.mouse.click(from4.x, from4.y);
+  await tab.keyboard.down("Shift");
+  await tab.mouse.click(to5.x, to5.y);
+  await tab.keyboard.up("Shift");
+  await pause(300);
+  await tab.keyboard.press("Backspace");
+  await pause(400);
+  const revealed = await tab.evaluate(
+    () =>
+      [
+        ...document.querySelectorAll<HTMLElement>(
+          "[data-slot='accordion-item']",
+        ),
+      ]
+        .find((item) => item.textContent?.includes("Closed section 4"))
+        ?.querySelector<HTMLElement>("[data-slot='accordion-content']")
+        ?.getBoundingClientRect().height ?? 0,
+  );
+  assert(
+    revealed > 0,
+    "Deleting across a closed toggle shows what it holds instead",
+  );
+
   // ">> " at the start of a line makes a toggle, open, and its empty
   // content says what goes there.
   await tab.evaluate(() => {
@@ -457,7 +492,7 @@ async function checkTitles(page: Page, path: string) {
       { timeout: 5000 },
       label,
     );
-    await (item as ElementHandle<Element>).click();
+    await item.asElement()?.click();
     await pause(400);
   };
   const typedBlock = () =>

@@ -54,7 +54,7 @@ export class CollapsibleTitleNode extends ElementNode {
         conversion: $convertAccordionTriggerElement,
         priority: 1,
       }),
-      // Sections copied before titles were text, and since.
+      // A copied toggle's title: a button before titles were blocks, a div since.
       button: trigger,
       div: trigger,
     };

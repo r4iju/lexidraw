@@ -78,6 +78,10 @@ let webBlockChoices: [WebBlockChoice] = [
   WebBlockChoice(type: #"bullet"#, label: #"Bulleted list"#),
   WebBlockChoice(type: #"number"#, label: #"Numbered list"#),
   WebBlockChoice(type: #"check"#, label: #"Check list"#),
+  WebBlockChoice(type: #"toggle"#, label: #"Toggle"#),
+  WebBlockChoice(type: #"toggle-h1"#, label: #"Toggle heading 1"#),
+  WebBlockChoice(type: #"toggle-h2"#, label: #"Toggle heading 2"#),
+  WebBlockChoice(type: #"toggle-h3"#, label: #"Toggle heading 3"#),
   WebBlockChoice(type: #"quote"#, label: #"Quote"#),
   WebBlockChoice(type: #"code"#, label: #"Code block"#),
 ]

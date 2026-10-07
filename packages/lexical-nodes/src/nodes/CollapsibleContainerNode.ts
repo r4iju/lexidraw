@@ -33,6 +33,15 @@ export function toggleIds(key: NodeKey) {
   return { title: `toggle-title-${key}`, content: `toggle-content-${key}` };
 }
 
+/**
+ * Gives toggles just opened or closed their new height at once, without the
+ * fold, for a reader taken straight to what they hold.
+ */
+export function settleToggles(editor: LexicalEditor, keys: NodeKey[]) {
+  for (const key of keys)
+    editor.getElementByKey(key)?.removeAttribute("data-motion");
+}
+
 export function $convertAccordionItemElement(
   domNode: HTMLElement,
 ): DOMConversionOutput | null {

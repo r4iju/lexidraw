@@ -13,6 +13,7 @@ import {
   TextQuote,
 } from "lucide-react";
 import type { ToggleLevel } from "@packages/lexical-nodes";
+import type { TOGGLE_LEVELS } from "@packages/types";
 import type { LexicalEditor } from "lexical";
 import type { JSX } from "react";
 import {
@@ -43,10 +44,25 @@ export const BLOCK_TYPES = [
     icon: ListChecks,
     shortcut: "Mod+Alt+6",
   },
-  { type: "toggle", label: "Toggle", icon: ListCollapse },
-  { type: "toggle-h1", label: "Toggle heading 1", icon: ListCollapse },
-  { type: "toggle-h2", label: "Toggle heading 2", icon: ListCollapse },
-  { type: "toggle-h3", label: "Toggle heading 3", icon: ListCollapse },
+  { type: "toggle", label: "Toggle", icon: ListCollapse, toggle: "paragraph" },
+  {
+    type: "toggle-h1",
+    label: "Toggle heading 1",
+    icon: ListCollapse,
+    toggle: "h1",
+  },
+  {
+    type: "toggle-h2",
+    label: "Toggle heading 2",
+    icon: ListCollapse,
+    toggle: "h2",
+  },
+  {
+    type: "toggle-h3",
+    label: "Toggle heading 3",
+    icon: ListCollapse,
+    toggle: "h3",
+  },
   { type: "quote", label: "Quote", icon: TextQuote, shortcut: "Mod+Alt+Q" },
   { type: "code", label: "Code block", icon: Code, shortcut: "Mod+Alt+C" },
 ] as const satisfies readonly {
@@ -54,16 +70,24 @@ export const BLOCK_TYPES = [
   label: string;
   icon: LucideIcon;
   shortcut?: string;
+  /** The level of the toggle's title, for a toggle. */
+  toggle?: (typeof TOGGLE_LEVELS)[number];
 }[];
 
 export type BlockType = (typeof BLOCK_TYPES)[number]["type"];
 
 /** The level of a toggle's title a block type makes, for toggle types. */
 export function toggleLevelOf(type: BlockType | null): ToggleLevel | null {
-  if (type === "toggle") return "paragraph";
-  return type?.startsWith("toggle-")
-    ? (type.slice("toggle-".length) as ToggleLevel)
-    : null;
+  const option = BLOCK_TYPES.find((each) => each.type === type);
+  return option && "toggle" in option ? option.toggle : null;
+}
+
+/** The block type of a toggle whose title is of `level`, if offered. */
+export function toggleTypeOf(level: ToggleLevel): BlockType | null {
+  return (
+    BLOCK_TYPES.find((each) => "toggle" in each && each.toggle === level)
+      ?.type ?? null
+  );
 }
 
 export function useSetBlockType(editor: LexicalEditor, blockType: BlockType) {

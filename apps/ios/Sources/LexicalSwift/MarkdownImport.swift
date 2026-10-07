@@ -139,10 +139,13 @@ enum MarkdownImport {
         break transformers
       }
       switch transformer.name {
-      // Each gives the line back and declines: a table in a cell, a toggle
-      // typed rather than imported.
-      case .article, .placeholderBlock, .table, .toggleShortcut:
+      // Each gives the line back and declines, a table in a cell.
+      case .article, .placeholderBlock, .table:
         text.text = matched
+        continue transformers
+      // Typed only: the line is text as it was.
+      case .toggleShortcut:
+        text.text = line
         continue transformers
       case .hr: block = .horizontalRule
       case .heading:
