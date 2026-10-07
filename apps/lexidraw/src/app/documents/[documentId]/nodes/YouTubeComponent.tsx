@@ -228,7 +228,7 @@ export default function YouTubeComponent({
             <button
               type="button"
               aria-label="Play video"
-              className="group/play absolute inset-0 flex items-center justify-center bg-black/0 transition-colors hover:bg-black/10"
+              className="group/play absolute inset-0 flex items-center justify-center bg-media-overlay/0 transition-colors hover:bg-media-overlay/10"
               onClick={() => setFacade("playing")}
             >
               <svg
@@ -238,9 +238,12 @@ export default function YouTubeComponent({
               >
                 <path
                   d="M66.5 7.7a8.6 8.6 0 0 0-6-6C55.2.3 34 .3 34 .3s-21.2 0-26.5 1.4a8.6 8.6 0 0 0-6 6C.1 13 .1 24 .1 24s0 11 1.4 16.3a8.6 8.6 0 0 0 6 6C12.8 47.7 34 47.7 34 47.7s21.2 0 26.5-1.4a8.6 8.6 0 0 0 6-6C67.9 35 67.9 24 67.9 24s0-11-1.4-16.3Z"
-                  className="fill-[#212121]/80 transition-colors group-hover/play:fill-[#f00]"
+                  className="fill-media-overlay/80 transition-colors group-hover/play:fill-destructive"
                 />
-                <path d="M45 24 27 14v20" fill="#fff" />
+                <path
+                  d="M45 24 27 14v20"
+                  className="fill-media-overlay-foreground"
+                />
               </svg>
             </button>
           )}

@@ -191,7 +191,7 @@ function SavedBlock({ block }: { block: SavedHTMLBlock }) {
         )}
       </div>
       {supplied === null && (
-        <div className="flex flex-wrap items-center gap-3 border-t p-3 print:hidden">
+        <div className="flex flex-wrap items-center gap-3 border-t border-border p-3 print:hidden">
           <Button
             type="button"
             variant="outline"
