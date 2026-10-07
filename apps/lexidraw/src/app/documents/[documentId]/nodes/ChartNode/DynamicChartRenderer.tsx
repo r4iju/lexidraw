@@ -22,6 +22,10 @@ import {
   XAxis,
   YAxis,
   CartesianGrid,
+  Text,
+  type XAxisProps,
+  type XAxisTickContentProps,
+  type YAxisProps,
 } from "recharts";
 import {
   ChartContainer,
@@ -87,6 +91,62 @@ function sliceLabels(
         },
       ];
     }),
+  );
+}
+
+/**
+ * Room for the widest category label on one line, at most a slot past which
+ * long labels wrap and truncate instead of thinning the axis further. Widths
+ * are estimated at the 12px axis font: wide (CJK) characters about 12px,
+ * others about 7px.
+ */
+function labelSlot(labels: string[]) {
+  const width = (label: string) =>
+    [...label].reduce(
+      (sum, character) => sum + (/[\u2E80-\uFFEF]/.test(character) ? 12 : 7),
+      0,
+    );
+  return Math.min(80, Math.max(32, ...labels.map(width)) + 8);
+}
+
+/**
+ * A category label that wraps to two lines within its slot and ends in an
+ * ellipsis past that, given the slot it needs from `labelSlot`. Recharts would instead drop labels it measures as
+ * overlapping at full length, so the axis shows every tick and this tick
+ * thins itself: on a crowded axis every n-th label gets n slots, and a label
+ * whose slot would reach past the plot's end is left out.
+ */
+function CategoryTick({
+  x,
+  y,
+  payload,
+  index,
+  visibleTicksCount,
+  width,
+  fill,
+  minSlot,
+}: XAxisTickContentProps & { minSlot: number }) {
+  const band = Number(width) / visibleTicksCount;
+  const stride = Math.ceil(minSlot / band);
+  if (index % stride !== 0 || index + stride / 2 > visibleTicksCount - 0.5)
+    return null;
+  const label = String(payload.value);
+  return (
+    <Text
+      x={x}
+      y={y}
+      width={band * stride - 4}
+      maxLines={2}
+      // Text without spaces (Japanese, Chinese) can only wrap between characters.
+      breakAll={!/\s/.test(label)}
+      textAnchor="middle"
+      verticalAnchor="start"
+      fill={fill}
+      fontSize={12}
+      className="recharts-cartesian-axis-tick-value"
+    >
+      {label}
+    </Text>
   );
 }
 
@@ -189,9 +249,49 @@ export default function DynamicChartRenderer({
 
   const chartConfig = getGeneratedChartConfig();
   const series = Object.keys(chartConfig);
-  const singleSeries =
-    series.length === 1 ? chartConfig[series[0] ?? ""]?.label : undefined;
   const axisStyle = { fontSize: 12, fill: "var(--muted-foreground)" };
+  const minSlot = labelSlot(
+    data.map((row) => String((row as Record<string, unknown>)[xAxisDataKey])),
+  );
+  // Bands put half a category of room before the first point and after the
+  // last, so line and area ends and their labels stay inside the frame.
+  const categoryAxis: XAxisProps = {
+    dataKey: xAxisDataKey,
+    scale: "band",
+    tick: (props: XAxisTickContentProps) => (
+      <CategoryTick {...props} minSlot={minSlot} />
+    ),
+    interval: 0,
+    height: 40,
+    tickLine: false,
+    tickMargin: 8,
+    axisLine: false,
+  };
+  const firstLabel = chartConfig[series[0] ?? ""]?.label;
+  // One series gets no legend, so the value axis names it.
+  const valueAxis: YAxisProps = {
+    tick: axisStyle,
+    // The default 5px gap makes Recharts drop a tick on a phone-height
+    // chart, leaving uneven steps; ticks 12px tall still clear each other.
+    minTickGap: 0,
+    tickLine: false,
+    axisLine: false,
+    label:
+      series.length === 1
+        ? {
+            value:
+              typeof firstLabel === "string" || typeof firstLabel === "number"
+                ? firstLabel
+                : series[0],
+            angle: -90,
+            position: "insideLeft",
+            ...axisStyle,
+          }
+        : undefined,
+  };
+  // Past a dozen points, markers on a phone-width line touch; the line and
+  // the hover dot carry the values instead.
+  const pointMarkers = data.length <= 12 && { r: 4, strokeWidth: 2 };
   const containerHeight = "100%";
   // A pie's first series holds each slice's value; its legend names slices.
   const pieDataKey = series[0] ?? "value";
@@ -219,32 +319,8 @@ export default function DynamicChartRenderer({
         return (
           <BarChart data={data} layout="horizontal">
             <CartesianGrid vertical={false} />
-            <XAxis
-              tick={axisStyle}
-              dataKey={xAxisDataKey}
-              tickLine={false}
-              tickMargin={10}
-              axisLine={false}
-            />
-            <YAxis
-              tick={axisStyle}
-              tickLine={false}
-              axisLine={false}
-              label={
-                singleSeries
-                  ? {
-                      value:
-                        typeof singleSeries === "string" ||
-                        typeof singleSeries === "number"
-                          ? singleSeries
-                          : series[0],
-                      angle: -90,
-                      position: "insideLeft",
-                      ...axisStyle,
-                    }
-                  : undefined
-              }
-            />
+            <XAxis {...categoryAxis} />
+            <YAxis {...valueAxis} />
             <ShadcnChartTooltip content={<ChartTooltipContent />} />
             {series.length > 1 && (
               <ShadcnChartLegend content={<ChartLegendContent />} />
@@ -263,34 +339,9 @@ export default function DynamicChartRenderer({
       case "line":
         return (
           <LineChart data={data}>
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis
-              tick={axisStyle}
-              scale="band"
-              dataKey={xAxisDataKey}
-              tickLine={false}
-              tickMargin={10}
-              axisLine={false}
-            />
-            <YAxis
-              tick={axisStyle}
-              tickLine={false}
-              axisLine={false}
-              label={
-                singleSeries
-                  ? {
-                      value:
-                        typeof singleSeries === "string" ||
-                        typeof singleSeries === "number"
-                          ? singleSeries
-                          : series[0],
-                      angle: -90,
-                      position: "insideLeft",
-                      ...axisStyle,
-                    }
-                  : undefined
-              }
-            />
+            <CartesianGrid vertical={false} />
+            <XAxis {...categoryAxis} />
+            <YAxis {...valueAxis} />
             <ShadcnChartTooltip content={<ChartTooltipContent />} />
             {series.length > 1 && (
               <ShadcnChartLegend content={<ChartLegendContent />} />
@@ -302,20 +353,9 @@ export default function DynamicChartRenderer({
                 type="monotone"
                 dataKey={key}
                 stroke={`var(--color-${slugify(key)})`}
-                strokeWidth={4}
-                dot={{
-                  // Style for the dots on the line
-                  r: 5, // Radius of the dot
-                  strokeWidth: 2,
-                  // fill: `var(--color-${slugify(key)})` // Dot will inherit line color by default
-                }}
-                activeDot={{
-                  // Style for the dot when hovered/active
-                  r: 5, // Larger radius for active dot
-                  strokeWidth: 2,
-                  // fill: `var(--color-${slugify(key)})`, // Can also be a different color e.g. white with line color stroke
-                  // stroke: `var(--color-${slugify(key)})`
-                }}
+                strokeWidth={2}
+                dot={pointMarkers}
+                activeDot={{ r: 5, strokeWidth: 2 }}
               />
             ))}
           </LineChart>
@@ -324,14 +364,8 @@ export default function DynamicChartRenderer({
         return (
           <AreaChart data={data}>
             <CartesianGrid vertical={false} />
-            <XAxis
-              tick={axisStyle}
-              dataKey={xAxisDataKey}
-              tickLine={false}
-              tickMargin={10}
-              axisLine={false}
-            />
-            <YAxis tick={axisStyle} tickLine={false} axisLine={false} />
+            <XAxis {...categoryAxis} />
+            <YAxis {...valueAxis} />
             <ShadcnChartTooltip content={<ChartTooltipContent />} />
             {series.length > 1 && (
               <ShadcnChartLegend content={<ChartLegendContent />} />
@@ -389,12 +423,7 @@ export default function DynamicChartRenderer({
               tickMargin={10}
               axisLine={false}
             />
-            <YAxis
-              tick={axisStyle}
-              type="number"
-              tickLine={false}
-              axisLine={false}
-            />
+            <YAxis {...valueAxis} type="number" />
             <ShadcnChartTooltip content={<ChartTooltipContent />} />
             {series.length > 1 && (
               <ShadcnChartLegend content={<ChartLegendContent />} />
@@ -415,14 +444,8 @@ export default function DynamicChartRenderer({
         return (
           <ComposedChart data={data}>
             <CartesianGrid vertical={false} />
-            <XAxis
-              tick={axisStyle}
-              dataKey={xAxisDataKey}
-              tickLine={false}
-              tickMargin={10}
-              axisLine={false}
-            />
-            <YAxis tick={axisStyle} tickLine={false} axisLine={false} />
+            <XAxis {...categoryAxis} />
+            <YAxis {...valueAxis} />
             <ShadcnChartTooltip content={<ChartTooltipContent />} />
             {series.length > 1 && (
               <ShadcnChartLegend content={<ChartLegendContent />} />
@@ -444,6 +467,8 @@ export default function DynamicChartRenderer({
                   dataKey={key}
                   stroke={`var(--color-${slugify(key)})`}
                   strokeWidth={2}
+                  dot={pointMarkers}
+                  activeDot={{ r: 5, strokeWidth: 2 }}
                 />
               ),
             )}

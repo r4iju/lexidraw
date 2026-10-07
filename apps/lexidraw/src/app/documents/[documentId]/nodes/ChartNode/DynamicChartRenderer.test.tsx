@@ -205,9 +205,9 @@ test("a line chart keeps its end points and their labels inside the frame", asyn
     expect(cx + reach).toBeLessThanOrEqual(frame.width);
   }
   const lastDot = Number(dots.at(-1)?.getAttribute("cx"));
-  const fri = [...body.querySelectorAll(".recharts-xAxis-tick-labels text")].find(
-    (label) => label.textContent === "Fri",
-  );
+  const fri = [
+    ...body.querySelectorAll(".recharts-xAxis-tick-labels text"),
+  ].find((label) => label.textContent === "Fri");
   expect(Number(fri?.getAttribute("x"))).toBeCloseTo(lastDot, 0);
   // Room for half a short label on either side of its point.
   expect(lastDot).toBeLessThanOrEqual(frame.width - 16);
@@ -239,4 +239,118 @@ test("long category labels on a phone all show, wrapped within their bar", async
       expect(line.length * CHARACTER).toBeLessThanOrEqual(band * 1.25);
   }
   expect(labels[0]?.textContent).toStartWith("A very long");
+});
+
+test("an area chart leaves room for its first and last points and labels", async () => {
+  frame.width = 358;
+  const body = await draw({ chartType: "area" });
+  const curve = body.querySelector(".recharts-area-curve")?.getAttribute("d");
+  const numbers = (curve ?? "").match(/-?\d+(\.\d+)?/g)?.map(Number) ?? [];
+  const [firstX = 0] = numbers;
+  const lastX = numbers.at(-2) ?? frame.width;
+  const labels = [...body.querySelectorAll(".recharts-xAxis-tick-labels text")];
+  const x = (day: string) =>
+    Number(
+      labels.find((label) => label.textContent === day)?.getAttribute("x"),
+    );
+  expect(x("Mon")).toBeCloseTo(firstX, 0);
+  expect(x("Fri")).toBeCloseTo(lastX, 0);
+  // Room for half a short label past either end point.
+  expect(lastX).toBeLessThanOrEqual(frame.width - 16);
+});
+
+test("a long series on a phone thins its labels so none overlap or clip", async () => {
+  frame.width = 358;
+  const body = await draw({
+    chartType: "line",
+    data: Array.from({ length: 30 }, (_, day) => ({
+      date: `Sep ${day + 1}`,
+      visits: 40 + day,
+    })),
+    config: { visits: { label: "Visits", color: "chart-3" } },
+  });
+  const labels = [
+    ...body.querySelectorAll(".recharts-xAxis-tick-labels text"),
+  ].map((label) => ({
+    x: Number(label.getAttribute("x")),
+    half: ((label.textContent ?? "").length * CHARACTER) / 2,
+  }));
+  expect(labels.length).toBeGreaterThan(2);
+  expect(labels[0]?.x).toBeLessThan(frame.width / 4);
+  for (const [index, label] of labels.entries()) {
+    const next = labels[index + 1];
+    if (next) expect(label.x + label.half).toBeLessThan(next.x - next.half);
+  }
+  const last = labels.at(-1);
+  expect((last?.x ?? 0) + (last?.half ?? 0)).toBeLessThanOrEqual(frame.width);
+});
+
+test("a long line series on a phone draws no markers that run into each other", async () => {
+  frame.width = 358;
+  const body = await draw({
+    chartType: "line",
+    data: Array.from({ length: 30 }, (_, day) => ({
+      date: `Sep ${day + 1}`,
+      visits: 40 + day,
+    })),
+    config: { visits: { label: "Visits", color: "chart-3" } },
+  });
+  expect(body.querySelector(".recharts-line-curve")).not.toBeNull();
+  const dots = [...body.querySelectorAll(".recharts-line-dots circle")].map(
+    (dot) => ({
+      cx: Number(dot.getAttribute("cx")),
+      reach:
+        Number(dot.getAttribute("r")) +
+        Number(dot.getAttribute("stroke-width") ?? 0),
+    }),
+  );
+  for (const [index, dot] of dots.entries()) {
+    const next = dots[index + 1];
+    if (next) expect(next.cx - dot.cx).toBeGreaterThan(dot.reach + next.reach);
+  }
+});
+
+test.each(["bar", "line", "area", "scatter", "composed"] as const)(
+  "a single-series %s chart names its series on the y axis",
+  async (chartType) => {
+    const body = await draw({
+      chartType,
+      data: week.map(({ name, a }) => ({ name, a })),
+      config: { a: { label: "Alpha", color: "chart-1" } },
+    });
+    const upright = body.querySelector(
+      '.recharts-label[transform^="rotate(-90"]',
+    );
+    expect(upright?.textContent).toBe("Alpha");
+  },
+);
+
+test("a phone-sized chart keeps its value axis evenly stepped", async () => {
+  // A phone's 2:1 frame less the legend, which takes no room here.
+  Object.assign(frame, { width: 358, height: 130 });
+  const body = await draw({ chartType: "bar" });
+  const values = [
+    ...body.querySelectorAll(".recharts-yAxis-tick-labels text"),
+  ].map((tick) => Number(tick.textContent));
+  expect(values.length).toBeGreaterThan(2);
+  const steps = new Set(
+    values.slice(1).map((value, i) => value - (values[i] ?? 0)),
+  );
+  expect(steps.size).toBe(1);
+});
+
+test("a thinned axis gives each label room for a single line", async () => {
+  const body = await draw({
+    chartType: "area",
+    data: Array.from({ length: 30 }, (_, day) => ({
+      date: `2026-09-${String(day + 1).padStart(2, "0")}`,
+      visits: 40 + day,
+    })),
+    config: { visits: { label: "Visits", color: "chart-3" } },
+  });
+  const labels = [...body.querySelectorAll(".recharts-xAxis-tick-labels text")];
+  expect(labels.length).toBeGreaterThan(2);
+  for (const label of labels)
+    expect(label.querySelectorAll("tspan")).toHaveLength(1);
+  expect(labels[0]?.textContent).toBe("2026-09-01");
 });
