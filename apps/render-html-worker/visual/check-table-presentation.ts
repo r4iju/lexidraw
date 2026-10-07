@@ -4,8 +4,6 @@ import type { Page } from "puppeteer";
 import { signInToDev } from "@packages/dev-stack";
 import { appUrl } from "./app-url";
 
-const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-
 type Node = Record<string, unknown>;
 const text = (value: string): Node => ({
   type: "text",
@@ -125,6 +123,27 @@ export const TABLE_PRESENTATION_ROOT = {
   ],
 };
 
+/** Writes the presentation tables into a new throwaway document, for the
+ * caller to delete, and returns its id. */
+export async function createTablePresentationDocument(
+  cli: (...args: string[]) => Promise<{ id: string; updatedAt?: string }>,
+) {
+  const { id } = await cli("doc", "create", "--title", "Visual check · tables");
+  const { updatedAt } = await cli("doc", "get", id, "--format", "json");
+  await cli(
+    "api",
+    "PUT",
+    `/entities/${id}`,
+    "--json",
+    JSON.stringify({
+      elements: JSON.stringify({ root: TABLE_PRESENTATION_ROOT }),
+      appState: JSON.stringify({ defaultFontFamily: null, lang: null }),
+      ifUnmodifiedSince: updatedAt,
+    }),
+  );
+  return id;
+}
+
 type Rgb = [number, number, number];
 
 /** WCAG relative luminance. */
@@ -163,25 +182,92 @@ const parseRgb = (css: string): Rgb => {
   return [r, g, b];
 };
 
+/**
+ * Waits for the fonts, then for the page to hold still: the scroll, every
+ * table and region and the cell menu in place, and no finite transition
+ * running, for several frames in a row. A cold load keeps moving well after
+ * its first paint, and a fixed pause is either too short or too slow.
+ */
+async function settle(page: Page) {
+  await page.evaluate(async () => {
+    await document.fonts.ready;
+    const shape = () =>
+      JSON.stringify([
+        scrollX,
+        scrollY,
+        ...[
+          ...document.querySelectorAll<HTMLElement>(
+            '.document-content :is(table, .document-table-region), button[aria-label="Table cell actions"]',
+          ),
+        ].map((element) => {
+          const { x, y, width, height } = element.getBoundingClientRect();
+          return [x, y, width, height, element.scrollLeft];
+        }),
+      ]);
+    const moving = () =>
+      document
+        .getAnimations()
+        .some(
+          (animation) =>
+            animation.playState === "running" &&
+            animation.effect?.getTiming().iterations !==
+              Number.POSITIVE_INFINITY,
+        );
+    let last = shape();
+    for (let still = 0, frames = 0; still < 5; frames++) {
+      if (frames > 1200) throw new Error("The page never held still");
+      await new Promise(requestAnimationFrame);
+      const next = shape();
+      still = next === last && !moving() ? still + 1 : 0;
+      last = next;
+    }
+  });
+}
+
+const TABLES = ".document-content table.document-table:not([data-print-table])";
+
 /** The document's tables, in order, scrolled into view one at a time. */
-const tableAt = (page: Page, index: number) =>
-  page.evaluate((index) => {
-    const table = document.querySelectorAll<HTMLTableElement>(
-      ".document-content table.document-table:not([data-print-table])",
-    )[index];
-    if (!table) throw new Error(`Missing table ${index}`);
-    table.scrollIntoView({ block: "center" });
-    const { left, right, top, bottom } = table.getBoundingClientRect();
-    return { left, right, top, bottom };
-  }, index);
+async function tableAt(page: Page, index: number) {
+  await page.evaluate(
+    (tables, index) => {
+      const table = document.querySelectorAll(tables)[index];
+      if (!table) throw new Error(`Missing table ${index}`);
+      table.scrollIntoView({ block: "center" });
+    },
+    TABLES,
+    index,
+  );
+  await settle(page);
+  return page.evaluate(
+    (tables, index) => {
+      const { left, right, top, bottom } = (
+        document.querySelectorAll(tables)[index] as Element
+      ).getBoundingClientRect();
+      return { left, right, top, bottom };
+    },
+    TABLES,
+    index,
+  );
+}
 
 async function open(page: Page, id: string, theme: "light" | "dark") {
   await page.evaluate((theme) => localStorage.setItem("theme", theme), theme);
-  await page.goto(`${appUrl}/documents/${id}`, { waitUntil: "networkidle2" });
-  await page.waitForSelector(".document-content table");
+  await page.goto(`${appUrl}/documents/${id}`, { waitUntil: "load" });
+  // Editable, with every table measured and marked by its plugin.
+  await page.waitForFunction(() => {
+    const tables = document.querySelectorAll(
+      '[contenteditable="true"] table.document-table:not([data-print-table])',
+    );
+    return (
+      tables.length === 6 &&
+      [...tables].every(
+        (table) => table.parentElement?.getAttribute("role") === "region",
+      )
+    );
+  });
   await page.addStyleTag({ content: "nextjs-portal { display: none; }" });
   await page.mouse.move(0, 0);
-  await pause(800);
+  await settle(page);
 }
 
 /** Every second body row is shaded, apart from the header and the rest. */
@@ -230,6 +316,24 @@ async function steps(list: [string, () => Promise<void>][]) {
   assert.deepEqual(failures, [], "Table presentation");
 }
 
+/** Clicks into a cell until its menu's trigger shows. A click that lands
+ * while the editor is still taking focus selects nothing. */
+async function openCellMenu(page: Page, at: { x: number; y: number }) {
+  for (let attempt = 1; ; attempt++) {
+    await page.mouse.click(at.x, at.y);
+    try {
+      await page.waitForSelector('button[aria-label="Table cell actions"]', {
+        visible: true,
+        timeout: 10_000,
+      });
+      break;
+    } catch (error) {
+      if (attempt === 5) throw error;
+    }
+  }
+  await settle(page);
+}
+
 /** The cell menu's trigger never covers the text of the cell it is for. */
 async function checkCellMenu(page: Page) {
   for (const value of ["1", "Lonely cell", "List", "one", "Tall"]) {
@@ -247,11 +351,7 @@ async function checkCellMenu(page: Page) {
       const { right, top, height } = span.getBoundingClientRect();
       return { x: right - 1, y: top + height / 2 };
     }, value);
-    await page.mouse.click(textBox.x, textBox.y);
-    await page.waitForSelector('button[aria-label="Table cell actions"]', {
-      visible: true,
-    });
-    await pause(200);
+    await openCellMenu(page, textBox);
     const overlap = await page.evaluate((value) => {
       const trigger = document
         .querySelector('button[aria-label="Table cell actions"]')
@@ -290,7 +390,6 @@ async function checkCellMenu(page: Page) {
 /** A merged cell in the table's corner takes the table's rounded corner. */
 async function checkMergedCorner(page: Page) {
   const merged = await tableAt(page, 2);
-  await pause(200);
   const outside = await pixel(page, merged.left + 1, merged.bottom + 6);
   const corner = await pixel(page, merged.left + 1, merged.bottom - 2);
   const fill = await pixel(page, merged.left + 6, merged.bottom - 8);
@@ -304,23 +403,39 @@ async function checkMergedCorner(page: Page) {
  * bar over its rows. */
 async function checkWideTable(page: Page) {
   await tableAt(page, 3);
-  const wide = await page.evaluate(() => {
+  const firstLeft = () =>
+    page.evaluate((tables) => {
+      const table = document.querySelectorAll<HTMLTableElement>(tables)[3];
+      return table?.rows[1]?.cells[0]?.getBoundingClientRect().left ?? 0;
+    }, TABLES);
+  // From the start, then partway, so there is more to either side.
+  const scrollTo = async (part: number) => {
+    await page.evaluate(
+      (tables, part) => {
+        const region = document.querySelectorAll(tables)[3]
+          ?.parentElement as HTMLElement;
+        region.scrollLeft = (region.scrollWidth - region.clientWidth) * part;
+      },
+      TABLES,
+      part,
+    );
+    await settle(page);
+  };
+  await scrollTo(0);
+  const before = await firstLeft();
+  await scrollTo(0.5);
+  const wide = await page.evaluate((tables) => {
     const table = document.querySelectorAll<HTMLTableElement>(
-      ".document-content table.document-table:not([data-print-table])",
+      tables,
     )[3] as HTMLTableElement;
     const region = table.parentElement as HTMLElement;
     const first = table.rows[1]?.cells[0] as HTMLElement;
-    region.scrollLeft = 0;
-    const before = first.getBoundingClientRect().left;
-    // Partway, so there is more to either side.
-    region.scrollLeft = (region.scrollWidth - region.clientWidth) / 2;
     const rows = [0, 2].map((index) => {
       const rect = table.rows[index]?.cells[5]?.getBoundingClientRect();
       return rect ? rect.top + rect.height / 2 : 0;
     });
     const { right, bottom } = region.getBoundingClientRect();
     return {
-      before,
       after: first.getBoundingClientRect().left,
       right,
       bottom,
@@ -330,16 +445,15 @@ async function checkWideTable(page: Page) {
       headerFill: getComputedStyle(table.rows[0]?.cells[5] as Element)
         .backgroundColor,
     };
-  });
-  await pause(300);
+  }, TABLES);
   assert(wide.scrolls, "The 12-column table scrolls");
   const background = await pixel(page, wide.right - 2, wide.bottom + 6);
   const edgeBody = await pixel(page, wide.right - 2, wide.body);
   const edgeHeader = await pixel(page, wide.right - 2, wide.header);
   const failures: string[] = [];
-  if (Math.abs(wide.before - wide.after) >= 1)
+  if (Math.abs(before - wide.after) >= 1)
     failures.push(
-      `A frozen first column stays put as the table scrolls: ${wide.before} then ${wide.after}`,
+      `A frozen first column stays put as the table scrolls: ${before} then ${wide.after}`,
     );
   if (distance(edgeBody, background) > 12)
     failures.push(
@@ -381,7 +495,6 @@ async function checkDarkTints(page: Page) {
       };
     }),
   );
-  await pause(200);
   const fills: Rgb[] = [];
   for (const { value, x, y, color } of tinted) {
     const fill = await pixel(page, x, y);
@@ -404,43 +517,51 @@ async function checkDarkTints(page: Page) {
 
 export async function checkTablePresentation(page: Page, id: string) {
   // A loaded machine paints slowly; this checks layout, not speed.
+  const timeout = page.getDefaultTimeout();
   page.setDefaultTimeout(120_000);
-  await signInToDev(page, appUrl);
-  await page.setViewport({ width: 1280, height: 900 });
-  await open(page, id, "light");
-  await steps([
-    ["light stripes", () => checkStripes(page, "light")],
-    ["merged corner", () => checkMergedCorner(page)],
-    ["wide table at 1280", () => checkWideTable(page)],
-    ["cell menu", () => checkCellMenu(page)],
-    ["check list at 1280", () => checkCheckList(page, "1280")],
-    [
-      "dark theme",
-      async () => {
-        await open(page, id, "dark");
-        await checkStripes(page, "dark");
-      },
-    ],
-    ["dark tints", () => checkDarkTints(page)],
-    ["dark wide table", () => checkWideTable(page)],
-    [
-      "check list at 390",
-      async () => {
-        await page.setViewport({
-          width: 390,
-          height: 844,
-          hasTouch: true,
-          isMobile: true,
-        });
-        await open(page, id, "light");
-        await checkCheckList(page, "390");
-      },
-    ],
-    ["wide table at 390", () => checkWideTable(page)],
-  ]);
-  console.log(
-    "Table presentation: stripes, dark tints, scroll edge, frozen column, cell menu, check lists",
-  );
+  try {
+    // A tab in the background draws no frames, so nothing that waits on one,
+    // such as the cell menu, would ever move.
+    await page.bringToFront();
+    await signInToDev(page, appUrl);
+    await page.setViewport({ width: 1280, height: 900 });
+    await open(page, id, "light");
+    await steps([
+      ["light stripes", () => checkStripes(page, "light")],
+      ["merged corner", () => checkMergedCorner(page)],
+      ["wide table at 1280", () => checkWideTable(page)],
+      ["cell menu", () => checkCellMenu(page)],
+      ["check list at 1280", () => checkCheckList(page, "1280")],
+      [
+        "dark theme",
+        async () => {
+          await open(page, id, "dark");
+          await checkStripes(page, "dark");
+        },
+      ],
+      ["dark tints", () => checkDarkTints(page)],
+      ["dark wide table", () => checkWideTable(page)],
+      [
+        "check list at 390",
+        async () => {
+          await page.setViewport({
+            width: 390,
+            height: 844,
+            hasTouch: true,
+            isMobile: true,
+          });
+          await open(page, id, "light");
+          await checkCheckList(page, "390");
+        },
+      ],
+      ["wide table at 390", () => checkWideTable(page)],
+    ]);
+    console.log(
+      "Table presentation: stripes, dark tints, scroll edge, frozen column, cell menu, check lists",
+    );
+  } finally {
+    page.setDefaultTimeout(timeout);
+  }
 }
 
 /** A check item's text starts on its checkbox's line, beside it. */

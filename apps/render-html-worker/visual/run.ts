@@ -20,6 +20,10 @@ import { checkMotion } from "./check-motion";
 import { checkPage } from "./check-page";
 import { checkRenderReady, lazyBlockDocuments } from "./check-render-ready";
 import { checkTables } from "./check-tables";
+import {
+  checkTablePresentation,
+  createTablePresentationDocument,
+} from "./check-table-presentation";
 import { checkEditorControls } from "./check-editor-controls";
 import { checkOverlays } from "./check-overlays";
 import { checkTokens } from "./check-tokens";
@@ -311,6 +315,8 @@ const drawing = await cli(
   "--file",
   shapesPath,
 );
+// A throwaway document of table looks markdown cannot write.
+const tablesId = await createTablePresentationDocument(cli);
 // A throwaway document for each block that loads its own code, alone.
 const lazy = [];
 for (const { name, elements } of lazyBlockDocuments(doc.content.root)) {
@@ -345,6 +351,7 @@ try {
   await richPage.close();
   await checkMedia(page, fixtureId, output);
   await checkTables(page, fixtureId);
+  await checkTablePresentation(page, tablesId);
   await checkTypography(page, fixtureId);
   await checkDocumentSettings(page, fixtureId);
   await checkPage(page, fixtureId, empty.id);
@@ -376,6 +383,7 @@ try {
   await cli("doc", "delete", sized.id);
   await cli("doc", "delete", closed.id);
   await cli("doc", "delete", drawn.id);
+  await cli("doc", "delete", tablesId);
   await cli("drawing", "delete", drawing.id);
   for (const { id } of lazy) await cli("doc", "delete", id);
 }
