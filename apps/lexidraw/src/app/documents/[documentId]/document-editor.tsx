@@ -27,6 +27,7 @@ import { HorizontalRulePlugin } from "@lexical/react/LexicalHorizontalRulePlugin
 import { DocumentTablesPlugin } from "./plugins/DocumentTablesPlugin";
 import { ClickableLinkPlugin } from "@lexical/react/LexicalClickableLinkPlugin";
 import CodeHighlightPlugin from "./plugins/code-highlight-plugin";
+import CodeLineNumbersPlugin from "./plugins/code-line-numbers-plugin";
 import AutocompletePlugin from "./plugins/AutocompletePlugin";
 import CodeActionMenuPlugin from "./plugins/CodeActionMenuPlugin";
 import { AutoFocusPlugin } from "@lexical/react/LexicalAutoFocusPlugin";
@@ -654,6 +655,7 @@ function EditorHandler({
                               <CalloutPlugin />
                               <PollPlugin />
                               <CodeHighlightPlugin />
+                              <CodeLineNumbersPlugin />
                               {isEditable && autocomplete && signedIn && (
                                 <AutocompletePlugin title={entity.title} />
                               )}

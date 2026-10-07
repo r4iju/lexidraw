@@ -12,6 +12,7 @@ import MermaidImage from "../documents/[documentId]/nodes/MermaidNode/MermaidIma
 import DynamicChartRenderer from "../documents/[documentId]/nodes/ChartNode/DynamicChartRenderer";
 import KatexRenderer from "~/components/ui/katex-renderer";
 import CodeHighlightPlugin from "../documents/[documentId]/plugins/code-highlight-plugin";
+import CodeLineNumbersPlugin from "../documents/[documentId]/plugins/code-line-numbers-plugin";
 import { theme } from "../documents/[documentId]/themes/theme";
 import { captureHeld } from "~/lib/capture-hold";
 import {
@@ -162,6 +163,7 @@ export default function NativeRenderer() {
               ErrorBoundary={LexicalErrorBoundary}
             />
             <CodeHighlightPlugin />
+            <CodeLineNumbersPlugin />
           </LexicalComposer>
         )}
       </Suspense>
