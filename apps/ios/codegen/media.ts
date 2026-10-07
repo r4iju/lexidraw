@@ -187,13 +187,13 @@ export async function swiftForMediaInsertions(): Promise<string> {
     }
     patterns[type] = nativePattern;
   }
-  const toolbar = await Bun.file(
+  const catalog = await Bun.file(
     new URL(
-      "../../lexidraw/src/app/documents/[documentId]/plugins/ToolbarPlugin/insert-item.tsx",
+      "../../lexidraw/src/app/documents/[documentId]/plugins/block-catalog.tsx",
       import.meta.url,
     ),
   ).text();
-  const gif = toolbar.match(
+  const gif = catalog.match(
     /altText: ("[^"\n]*"),\s*src: ("[^"\n]*cat-typing\.gif")/,
   );
   if (!gif) throw new Error("Unknown toolbar GIF insertion shape");

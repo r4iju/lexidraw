@@ -30,12 +30,12 @@ export const STRUCTURAL_BLOCKS_PATH = new URL(
 export async function swiftForStructuralBlocks(): Promise<string> {
   const insertMenu = await Bun.file(
     new URL(
-      "../../lexidraw/src/app/documents/[documentId]/plugins/ToolbarPlugin/insert-item.tsx",
+      "../../lexidraw/src/app/documents/[documentId]/plugins/block-catalog.tsx",
       import.meta.url,
     ),
   ).text();
   const dividerLabel =
-    /label: "([^"]+)",\s*icon: icon\(SeparatorHorizontal\),\s*insert: \(\) =>\s*editor\.dispatchCommand\(INSERT_HORIZONTAL_RULE_COMMAND, undefined\)/.exec(
+    /label: "([^"]+)",\s*group: "[^"]+",\s*keywords: \[[^\]]*\],\s*icon: icon\(SeparatorHorizontal\),\s*run: \(\) =>\s*editor\.dispatchCommand\(INSERT_HORIZONTAL_RULE_COMMAND, undefined\)/.exec(
       insertMenu,
     )?.[1];
   if (!dividerLabel) throw new Error("Web divider insertion changed shape");

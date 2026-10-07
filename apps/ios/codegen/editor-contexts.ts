@@ -22,7 +22,7 @@ const sources = {
   videoCaption: ["VideoNode/VideoComponent.tsx", "ImageCaption"],
   slide: ["SlideNode/SlideDeckEditor.tsx", "LexicalNestedComposer"],
 } as const;
-const knownPlugins = new Set("PlainTextPlugin MentionsPlugin LinkPlugin EmojisPlugin HashtagPlugin KeywordsPlugin HistoryPlugin TreeViewPlugin DisableChecklistSpacebarPlugin TabIndentationPlugin EmojiPickerPlugin ChartPlugin RichTextPlugin BlurPlugin AutocompletePlugin PageBreakPlugin MermaidPlugin MarkdownShortcutPlugin HorizontalRulePlugin EquationsPlugin AutoFocusPlugin TablePlugin TwitterPlugin YouTubePlugin ExcalidrawPlugin FigmaPlugin ImagePlugin InlineImagePlugin VideoPlugin LayoutPlugin CollapsiblePlugin CalloutPlugin PollPlugin TableActionMenuPlugin CodeActionMenuPlugin FloatingLinkEditorPlugin FloatingTextFormatToolbarPlugin".split(" "));
+const knownPlugins = new Set("PlainTextPlugin MentionsPlugin LinkPlugin EmojisPlugin HashtagPlugin KeywordsPlugin HistoryPlugin TreeViewPlugin DisableChecklistSpacebarPlugin TabIndentationPlugin EmojiPickerPlugin ChartPlugin RichTextPlugin BlurPlugin AutocompletePlugin PageBreakPlugin MermaidPlugin MarkdownShortcutPlugin HorizontalRulePlugin EquationsPlugin AutoFocusPlugin TablePlugin TwitterPlugin YouTubePlugin ExcalidrawPlugin FigmaPlugin ImagePlugin InlineImagePlugin VideoPlugin LayoutPlugin CollapsiblePlugin CalloutPlugin PollPlugin TableActionMenuPlugin CodeActionMenuPlugin CodeLineNumbersPlugin FloatingLinkEditorPlugin FloatingTextFormatToolbarPlugin".split(" "));
 
 export async function webEditorContexts(): Promise<Record<keyof typeof sources, string[]>> {
   const result = {} as Record<keyof typeof sources, string[]>;
