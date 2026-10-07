@@ -144,6 +144,9 @@ export function figuresDocument() {
     paragraph("Before the captioned image."),
     paragraph(image("Captioned", [600, 300], { showCaption: true })),
     paragraph(image("Portrait", [400, 1000])),
+    paragraph(
+      image("Broken", [600, 300], { src: "https://localhost:1/missing.png" }),
+    ),
     paragraph("Left: ", inlineImage("left"), PROSE),
     paragraph("Right: ", inlineImage("right"), PROSE),
     paragraph(
@@ -408,6 +411,52 @@ export async function checkSelectedImage(page: Page, id: string) {
 }
 
 /** An image placed at no width keeps to a screenful's share of height. */
+/**
+ * An image that fails to load keeps its place at its size, and selected,
+ * its message stays readable beside the controls.
+ */
+export async function checkBrokenImage(page: Page, id: string) {
+  await open(page, id, 1280);
+  const selector = '[role="img"][aria-label="Broken"]';
+  await page.waitForSelector(selector);
+  await page.$eval(selector, (placeholder) =>
+    placeholder.scrollIntoView({ block: "center" }),
+  );
+  await page.click(selector);
+  await page.waitForSelector('[role="toolbar"][aria-label="Figure"]');
+  const placed = await page.$eval(selector, (placeholder) => {
+    const rect = (element: Element | null | undefined) => {
+      if (!element) return null;
+      const { x, y, width, height } = element.getBoundingClientRect();
+      return { x, y, width, height };
+    };
+    const figure = placeholder.closest(".document-figure");
+    return {
+      placeholder: rect(placeholder),
+      message: rect(placeholder.querySelector("span")),
+      controls: [
+        rect(figure?.querySelector('[role="toolbar"]')),
+        rect(figure?.querySelector('button[aria-label="Edit image"]')),
+      ],
+    };
+  });
+  const { placeholder, message } = placed;
+  assert(placeholder && message, "A broken image shows its placeholder");
+  assert(
+    near(placeholder.width, 600) && near(placeholder.height, 300),
+    `A broken 600x300 image keeps its 600x300 place; got ${placeholder.width}x${placeholder.height}`,
+  );
+  for (const control of placed.controls)
+    assert(
+      control &&
+        (control.y + control.height <= message.y ||
+          control.x + control.width <= message.x ||
+          control.x >= message.x + message.width ||
+          control.y >= message.y + message.height),
+      "The selected broken image's controls leave its message readable",
+    );
+}
+
 export async function checkImageHeightCap(page: Page, id: string) {
   await open(page, id, 1280);
   const portrait = await box(page, 'img[alt="Portrait"]');
@@ -480,5 +529,6 @@ export async function checkFigures(page: Page, id: string) {
   await checkInlineImagePositions(page, id);
   await checkSelectedImage(page, id);
   await checkImageHeightCap(page, id);
+  await checkBrokenImage(page, id);
   await checkDrawings(page, id);
 }
