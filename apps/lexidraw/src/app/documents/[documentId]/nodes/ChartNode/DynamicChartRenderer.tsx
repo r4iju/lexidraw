@@ -580,7 +580,9 @@ export default function DynamicChartRenderer({
           ? { ...chartConfig, ...sliceLabels(data, xAxisDataKey, pieDataKey) }
           : chartConfig
       }
-      className="min-h-[50px] w-full" // min-h is important for responsiveness
+      // Recharts makes the plot focusable for arrow-key tooltips; a click
+      // should select the block without drawing a focus ring inside it.
+      className="min-h-[50px] w-full [&_g:focus:not(:focus-visible)]:outline-none"
       style={{
         position: "absolute",
         inset: 0,
