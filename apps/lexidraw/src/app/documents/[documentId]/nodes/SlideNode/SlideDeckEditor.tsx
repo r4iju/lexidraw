@@ -79,6 +79,7 @@ import {
 import { cn } from "~/lib/utils";
 import FloatingLinkEditorPlugin from "../../plugins/FloatingTextFormatToolbarPlugin/FloatingLinkEditorPlugin";
 import CodeActionMenuPlugin from "../../plugins/CodeActionMenuPlugin";
+import CodeLineNumbersPlugin from "../../plugins/code-line-numbers-plugin";
 import FloatingTextFormatToolbarPlugin from "../../plugins/FloatingTextFormatToolbarPlugin";
 import { DisableChecklistSpacebarPlugin } from "../../plugins/list-spacebar-plugin";
 import { TabIndentationPlugin } from "@lexical/react/LexicalTabIndentationPlugin";
@@ -505,6 +506,7 @@ const DraggableBoxWrapper: React.FC<DraggableBoxWrapperProps> = ({
                   cellMerge={true}
                 />
                 <CodeActionMenuPlugin />
+                <CodeLineNumbersPlugin />
                 <FloatingLinkEditorPlugin
                   anchorElem={floatingAnchorElem}
                   isLinkEditMode={isLinkEditMode}

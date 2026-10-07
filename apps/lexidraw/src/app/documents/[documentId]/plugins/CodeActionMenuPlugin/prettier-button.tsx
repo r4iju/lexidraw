@@ -17,6 +17,10 @@ const parsers = {
     load: () => import("prettier/parser-typescript"),
   },
 };
+/** Whether Prettier can format code in `lang`, a normalized language ID. */
+export function canFormat(lang: string) {
+  return Object.hasOwn(parsers, lang);
+}
 type Status = { kind: "idle" | "success" } | { kind: "error"; message: string };
 export function PrettierButton({
   lang,
@@ -34,7 +38,7 @@ export function PrettierButton({
   );
   async function formatCode() {
     const dom = getCodeDOMNode();
-    if (!dom || !Object.hasOwn(parsers, lang)) return;
+    if (!dom || !canFormat(lang)) return;
     // The membership check above restricts the language to a supported parser.
     const parser = parsers[lang as keyof typeof parsers];
     const content = editor.read("latest", () => {
@@ -72,8 +76,13 @@ export function PrettierButton({
       size="sm"
       className="h-8"
       aria-label="Format code"
+      disabled={!canFormat(lang)}
       title={
-        status.kind === "error" ? status.message : "Format code with Prettier"
+        !canFormat(lang)
+          ? "Formatting is not available for this language"
+          : status.kind === "error"
+            ? status.message
+            : "Format code with Prettier"
       }
       onClick={formatCode}
     >
