@@ -435,6 +435,8 @@ extension Update {
   /// A text match transformer's `replace`.
   private mutating func replaceText(_ transformer: MarkdownTransformer, _ matched: NodeKey, _ groups: [String?]) throws {
     switch transformer.name {
+    case .hrTyped: try replaceTypedRule(matched)
+    case .checkItemInBullet: try checkBulletItem(matched, groups)
     case .emoji:
       guard let name = groups[1], let emoji = WebEmojiAliases.values[name] else { return }
       try replace(matched, with: createText(emoji))
@@ -613,7 +615,7 @@ extension MarkdownTransformer.Name {
     case .checkList: .check
     case .callout, .admonition, .details, .columns, .blockEquationFence, .tweet, .article, .placeholderBlock,
       .blockEquation, .image, .equation, .literalDollar, .placeholderInline, .footnoteDefinition, .footnoteReference,
-      .table, .hr, .emoji, .heading, .quote, .code, .toggleShortcut, .inlineCode, .boldItalicStar,
+      .table, .hr, .hrTyped, .emoji, .checkItemInBullet, .heading, .quote, .code, .toggleShortcut, .inlineCode, .boldItalicStar,
       .boldItalicUnderscore, .boldStar, .boldUnderscore, .highlight, .italicStar, .italicUnderscore, .strikethrough,
       .link:
       nil
