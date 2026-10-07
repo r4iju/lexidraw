@@ -88,6 +88,38 @@ import UIKit
     #expect(empty.contains("Add option"))
   }
 
+  @Test func everyLineOfThePollGetsTheRoomItsTextNeeds() throws {
+    // Hosted as a document hosts it: in a window, framed at the size it asks for.
+    let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 900))
+    window.isHidden = false
+    defer { window.isHidden = true }
+    let view = NativePollView(
+      ["type": "poll", "version": 1, "question": "Which pen do you sketch with?", "options": [
+        option("Pen", votes: ["a", "b"]), option("Pencil", votes: ["reader"]), ["text": "", "uid": "blank", "votes": []],
+      ]], userID: "reader", editable: true)
+    view.frame = CGRect(origin: CGPoint(x: 16, y: 16), size: view.contentSize(fitting: 358))
+    window.addSubview(view)
+    view.layoutIfNeeded()
+    func labels(_ view: UIView) -> [UILabel] { ((view as? UILabel).map { [$0] } ?? []) + view.subviews.flatMap(labels) }
+    func bars(_ view: UIView) -> [UIProgressView] { ((view as? UIProgressView).map { [$0] } ?? []) + view.subviews.flatMap(bars) }
+    let frame = { (child: UIView) in child.convert(child.bounds, to: view) }
+    for label in labels(view) {
+      let needed = label.sizeThatFits(CGSize(width: label.bounds.width, height: .greatestFiniteMagnitude)).height
+      #expect(label.bounds.width > 0 && label.bounds.height + 0.5 >= needed, "\(label.text ?? "") is \(label.bounds.size), needs \(needed)")
+      #expect(view.bounds.contains(frame(label)), "\(label.text ?? "") lies outside the card")
+    }
+    let shown = Dictionary(labels(view).map { ($0.text ?? "", frame($0)) }, uniquingKeysWith: { first, _ in first })
+    let barTops = bars(view).map { frame($0).minY }
+    #expect(bars(view).map(\.bounds.height) == [6, 6, 6], "Bars are the web's 6pt")
+    let question = try #require(shown["Which pen do you sketch with?"])
+    let firstBar = try #require(barTops.first)
+    #expect(question.maxY <= firstBar - 20, "The question runs into the first option")
+    for (name, top) in zip(["Pen", "Pencil", "Option 3"], barTops) {
+      let title = try #require(shown[name])
+      #expect(title.maxY <= top, "\(name) runs into its bar")
+    }
+  }
+
   @Test func anOptionIsRemovedThroughItsActionsAboveTheMinimum() throws {
     var saved: JSONValue?
     let view = laidOut(NativePollView(
