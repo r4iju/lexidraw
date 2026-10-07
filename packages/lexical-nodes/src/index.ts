@@ -29,6 +29,7 @@ export * from "./nodes/VideoNode.js";
 export * from "./nodes/YouTubeNode.js";
 export * from "./nodes.js";
 export * from "./toggle.js";
+export * from "./columns.js";
 export * from "./transformers.js";
 export * from "./decorator-transformers.js";
 export * from "./footnote-transformers.js";

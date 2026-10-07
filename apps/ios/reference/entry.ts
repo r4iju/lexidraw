@@ -33,6 +33,7 @@ import {
   $toggleDocumentTableColumnHeader,
   $setDocumentTableCellBackground,
   $insertDocumentTableRows,
+  $leaveColumnsByLine,
 } from "@packages/lexical-nodes";
 /**
  * The editor-model interface over headless Lexical, for ReferenceEditor.swift
@@ -116,6 +117,7 @@ import {
   createEditor,
   COMMAND_PRIORITY_EDITOR,
   COMMAND_PRIORITY_LOW,
+  COMMAND_PRIORITY_NORMAL,
   CUT_TAG,
   DELETE_CHARACTER_COMMAND,
   FORMAT_ELEMENT_COMMAND,
@@ -312,6 +314,8 @@ function configureEditor(next: LexicalEditor, stateJSON?: string): void {
     if (!plugins || plugins.includes("CollapsiblePlugin")) CollapsiblePlugin();
     if (!plugins || plugins.includes("CalloutPlugin")) CalloutPlugin();
   });
+  if (!plugins || plugins.includes("LayoutPlugin"))
+    registerColumnLineMoves(next);
   lastError = null;
   const parsed = stateJSON === undefined ? null : next.parseEditorState(stateJSON);
   // Parsing reports a bad node through onError and returns an empty state.
@@ -1268,6 +1272,42 @@ function registerLineMoveOntoBlockDecorators(next: LexicalEditor): void {
         return true;
       },
       COMMAND_PRIORITY_EDITOR,
+    );
+  }
+}
+
+/**
+ * The rest of LayoutPlugin's Up and Down, which ask the DOM's selection
+ * where a line move from a column lands; the platform's line move is
+ * `native`. Registered after the plugin, so it runs where the plugin, with
+ * no DOM, gave the key up.
+ */
+function registerColumnLineMoves(next: LexicalEditor): void {
+  for (const [command, isBackward] of [
+    [KEY_ARROW_UP_COMMAND, true],
+    [KEY_ARROW_DOWN_COMMAND, false],
+  ] as const) {
+    next.registerCommand(
+      command,
+      (keyEvent) => {
+        const event = keyEvent as unknown as LineMoveEvent;
+        if (event.shiftKey) return false;
+        const left = $leaveColumnsByLine(isBackward, () => {
+          const selection = $getSelection();
+          const at = $isRangeSelection(selection)
+            ? pathPoint(selection.focus)
+            : null;
+          const stayed =
+            at !== null &&
+            event.native.offset === at.offset &&
+            event.native.type === at.type &&
+            event.native.path.join() === at.path.join();
+          return stayed ? "stayed" : pointNode(event.native);
+        });
+        if (left) event.preventDefault();
+        return left;
+      },
+      COMMAND_PRIORITY_NORMAL,
     );
   }
 }

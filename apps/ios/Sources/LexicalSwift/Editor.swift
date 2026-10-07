@@ -778,6 +778,7 @@ extension Update {
     }
     if command == .selectAll {
       // Rich text answers what the table's handler leaves.
+      if try selectColumn() { return }
       if try !hasEditorPlugin("TablePlugin") || !selectAllCells() { selectAll() }
       return
     }

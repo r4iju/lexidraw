@@ -994,8 +994,8 @@
   width: 100%;
 }
 /* Columns sit in the text column with their text in line with it; the frame
-   an editor sees stands out into the margin. `<columns wide>` uses the wide
-   column. */
+   an editor sees while hovering or selecting stands out into the margin.
+   `<columns wide>` uses the wide column. */
 .document-content > [data-lexical-layout-container] {
   --column-inset: calc(0.5rem + 1px);
   --column-measure: var(--doc-measure);
@@ -1011,10 +1011,78 @@
 .document-content > [data-lexical-layout-container][data-figure-width="wide"] {
   --column-measure: var(--doc-wide);
 }
+/* As Notion's, a row of columns shows its frames only while hovered or
+   while the selection is in it. */
+.document-content
+  [data-lexical-layout-container]:not(:hover, [data-columns-selected])
+  > [data-lexical-layout-item] {
+  border-color: transparent;
+}
+/* A column's blocks start level with the next column's and end clear of
+   its frame, as far from it as they start. */
+.document-content [data-lexical-layout-item] > :first-child {
+  margin-block-start: 0;
+}
+.document-content [data-lexical-layout-item] > :last-child {
+  margin-block-end: 0;
+}
 @container (max-width: 567px) {
   .document-content [data-lexical-layout-container] {
     /* The node stores a template for desktop; compact columns always stack. */
     grid-template-columns: minmax(0, 1fr) !important;
+  }
+}
+/* The split between two columns an editor drags: a line over the gap that
+   shows on hover, while dragging, and on keyboard focus. Their layer is
+   clipped to the page's width, so a split not yet moved after the window
+   narrows never widens the page. */
+.column-splits {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  overflow-x: clip;
+  pointer-events: none;
+}
+.column-split {
+  pointer-events: auto;
+  position: absolute;
+  z-index: 20;
+  width: 12px;
+  translate: -50% 0;
+  cursor: col-resize;
+  touch-action: none;
+  outline: none;
+}
+.column-split::after {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  left: calc(50% - 1px);
+  width: 2px;
+  border-radius: 1px;
+  background-color: var(--primary);
+  opacity: 0;
+  transition: opacity var(--transition-duration-fast);
+}
+.column-split:hover::after,
+.column-split:active::after,
+.column-split:focus-visible::after {
+  opacity: 1;
+}
+.column-split:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+@media (pointer: coarse) {
+  .column-split {
+    width: 24px;
+  }
+}
+@media print {
+  .column-split {
+    display: none;
   }
 }
 

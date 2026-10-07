@@ -92,7 +92,10 @@ import TextKitEditor
     XCTAssertEqual(alpha, 1)
   }
 
-  func testEditableColumnBordersAreDashedAndReadersKeepTheirBoxTransparent() throws {
+  /// The web frames a row of columns only while it is hovered or selected
+  /// in (#252); native has neither, so its dashed frame keeps the box and
+  /// stays transparent, for an editor as for a reader.
+  func testColumnFramesKeepTheirBoxAndStayTransparentAtRest() throws {
     let item: JSONValue = ["type": "layout-item", "version": 1, "children": [["type": "paragraph", "version": 1, "children": []]]]
     let node: JSONValue = ["type": "layout-container", "version": 1, "templateColumns": "1fr 1fr", "children": [item, item]]
     func stroke(in fixture: Preview) throws -> CAShapeLayer {
@@ -109,7 +112,7 @@ import TextKitEditor
     let border = try stroke(in: editing), transparent = try stroke(in: reading)
     XCTAssertEqual(border.lineWidth, 1)
     XCTAssertFalse(try XCTUnwrap(border.lineDashPattern).isEmpty)
-    XCTAssertGreaterThan(try XCTUnwrap(border.strokeColor).alpha, 0)
+    XCTAssertEqual(try XCTUnwrap(border.strokeColor).alpha, 0)
     XCTAssertEqual(try XCTUnwrap(transparent.strokeColor).alpha, 0)
   }
 

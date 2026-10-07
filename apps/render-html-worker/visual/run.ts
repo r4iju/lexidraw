@@ -15,6 +15,7 @@ import {
 import { checkFirstPaint } from "./check-first-paint";
 import { BANNER, checkReservedSizes } from "./check-reserved-sizes";
 import { checkExcalidrawAssets, DRAWN_LABELS } from "./check-excalidraw-assets";
+import { checkColumnLayout, checkColumns } from "./check-columns";
 import { checkMedia } from "./check-media";
 import { checkMotion } from "./check-motion";
 import { checkPage } from "./check-page";
@@ -345,6 +346,8 @@ try {
   await richPage.close();
   await checkMedia(page, fixtureId, output);
   await checkTables(page, fixtureId);
+  await checkColumnLayout(page);
+  await checkColumns(page);
   await checkTypography(page, fixtureId);
   await checkDocumentSettings(page, fixtureId);
   await checkPage(page, fixtureId, empty.id);
