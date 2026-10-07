@@ -9,19 +9,22 @@ export type ImageBox = {
   fill: boolean;
 };
 
-/** Where an image sits, whether its pixels have arrived or not. */
+/**
+ * Where an image sits, whether its pixels have arrived or not: no wider than
+ * it was given, in the shape it was given, so that the document's height cap
+ * for an image placed at no width still applies.
+ */
 export function imageBoxStyle({
   width,
   height,
   fill,
 }: ImageBox): React.CSSProperties {
+  if (fill) return { width: "100%", maxWidth: "100%" };
   return {
-    width: fill ? "100%" : undefined,
-    maxWidth:
-      typeof width === "number" && !fill ? `min(100%, ${width}px)` : "100%",
-    maxHeight:
-      typeof height === "number" && !fill
-        ? `min(80vh, ${height}px)`
+    maxWidth: typeof width === "number" ? `min(100%, ${width}px)` : "100%",
+    aspectRatio:
+      typeof width === "number" && typeof height === "number"
+        ? `${width} / ${height}`
         : undefined,
   };
 }

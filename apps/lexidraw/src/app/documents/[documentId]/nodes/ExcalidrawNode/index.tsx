@@ -5,6 +5,7 @@ import {
 } from "@packages/lexical-nodes";
 import * as React from "react";
 import { Suspense } from "react";
+import { cn } from "~/lib/utils";
 import { FigureFrame } from "../common/Figure";
 import {
   drawingStyle,
@@ -24,17 +25,25 @@ export class ExcalidrawNode extends HeadlessExcalidrawNode {
 
   decorate(): React.JSX.Element {
     const natural = $getNaturalSize(this);
+    const figure = $getFigure(this);
+    const fill = figure.width !== undefined;
     return (
-      <FigureFrame nodeKey={this.getKey()} figure={$getFigure(this)}>
+      <FigureFrame nodeKey={this.getKey()} figure={figure}>
         <Suspense
           fallback={
-            <div className={FIGURE_FRAME}>
-              <div className="relative inline-block max-w-full">
+            <div className={cn(FIGURE_FRAME, fill && "block w-full")}>
+              <div
+                className={cn(
+                  "relative inline-block max-w-full",
+                  fill && "block w-full",
+                )}
+              >
                 <FigureLoading
                   place={drawingStyle}
                   width={this.__width}
                   height={this.__height}
                   natural={natural}
+                  fill={fill}
                 />
               </div>
             </div>
@@ -47,6 +56,7 @@ export class ExcalidrawNode extends HeadlessExcalidrawNode {
             width={this.__width}
             height={this.__height}
             natural={natural}
+            fill={fill}
           />
         </Suspense>
       </FigureFrame>

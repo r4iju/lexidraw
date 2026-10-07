@@ -1,9 +1,11 @@
 import {
   InlineImageNode as HeadlessInlineImageNode,
   parseNaturalSize,
+  type Position,
 } from "@packages/lexical-nodes";
 import * as React from "react";
 import { Suspense } from "react";
+import { cn } from "~/lib/utils";
 import { BlockLoading } from "../common/BlockLoading";
 
 export type {
@@ -12,6 +14,23 @@ export type {
   SerializedInlineImageNode,
   UpdateInlineImagePayload,
 } from "@packages/lexical-nodes";
+
+/**
+ * Where an inline image sits in its paragraph. Left and right float at most
+ * half the column wide with the text wrapping beside them, and the paragraph
+ * grows to hold them so the next block starts below; full is a block the
+ * column's width. Unplaced, it sits on the line with its caption below it.
+ */
+export function inlineImagePlacement(position: Position) {
+  return cn(
+    "group/node",
+    position === "left" && "float-left mr-4 mb-2 flex max-w-1/2 flex-col",
+    position === "right" && "float-right ml-4 mb-2 flex max-w-1/2 flex-col",
+    (position === "left" || position === "right") && "[p:has(&)]:flow-root",
+    position === "full" && "my-2 flex w-full flex-col",
+    position === undefined && "inline-flex max-w-full flex-col align-baseline",
+  );
+}
 
 const InlineImageComponent = React.lazy(() => import("./InlineImageComponent"));
 
@@ -30,7 +49,16 @@ export class InlineImageNode extends HeadlessInlineImageNode {
       <Suspense
         fallback={
           size ? (
-            <BlockLoading size={size} className="inline-block align-middle" />
+            <div
+              data-position={this.__position}
+              className={inlineImagePlacement(this.__position)}
+            >
+              <BlockLoading
+                size={size}
+                className="m-0 group-data-[position=full]/node:w-full"
+                style={{ width: size.width }}
+              />
+            </div>
           ) : (
             <span aria-busy="true" />
           )

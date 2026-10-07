@@ -937,7 +937,7 @@
 /* A share of the column, but never narrower than a phone's column allows:
    on a phone it is the whole column. */
 .document-content {
-  --figure-least: min(100%, 20rem);
+  --figure-least: min(100%, 10rem);
 }
 .document-content > [data-lexical-decorator][data-figure-width="share"] {
   max-width: max(

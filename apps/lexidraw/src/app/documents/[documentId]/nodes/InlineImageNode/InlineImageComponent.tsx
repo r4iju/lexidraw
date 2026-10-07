@@ -36,7 +36,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "~/components/ui/dialog";
-import { InlineImageNode } from "./InlineImageNode";
+import { InlineImageNode, inlineImagePlacement } from "./InlineImageNode";
+import { NodeEditButton } from "../common/NodeEditButton";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
@@ -49,7 +50,6 @@ import {
   SelectValue,
 } from "~/components/ui/select";
 import { cn } from "~/lib/utils";
-import { ErrorBoundary } from "react-error-boundary";
 import ImageResizer from "~/components/ui/image-resizer";
 import { Switch } from "~/components/ui/switch";
 import { SwitchThumb } from "@radix-ui/react-switch";
@@ -63,68 +63,47 @@ import TreeViewPlugin from "../../plugins/TreeViewPlugin";
 import { useSharedHistoryContext } from "../../context/shared-history-context";
 import { useSettings } from "../../context/settings-context";
 
-type ResizableImageProps = {
-  src: string;
-  altText: string;
-  width: number | "inherit";
-  height: number | "inherit";
-  position: string | undefined;
-  className?: string;
-  nodeKey: NodeKey;
-  containerRef: React.RefObject<HTMLDivElement>;
-  onDoubleClick?: (e: React.MouseEvent) => void;
-};
-
-function ResizableImage({
+/**
+ * The picture of an inline image: the size it was given, scaled down to fit
+ * where it sits, or the column's width when it is placed full.
+ */
+function InlineImagePicture({
   src,
   altText,
   width,
   height,
-  position,
+  full,
   className,
-  nodeKey,
-  containerRef,
   onDoubleClick,
-}: ResizableImageProps): React.JSX.Element {
+}: {
+  src: string;
+  altText: string;
+  width: number | "inherit";
+  height: number | "inherit";
+  /** Placed full, it takes the column's width whatever size it was given. */
+  full: boolean;
+  className?: string;
+  onDoubleClick: (event: React.MouseEvent) => void;
+}): React.JSX.Element {
   return (
-    <div
-      ref={containerRef}
+    <img
+      src={src}
+      alt={altText}
+      draggable={false}
       style={{
-        width: typeof width === "number" ? width : undefined,
-        height: typeof height === "number" ? height : undefined,
+        width: typeof width === "number" && !full ? width : undefined,
+        aspectRatio:
+          typeof width === "number" && typeof height === "number"
+            ? `${width} / ${height}`
+            : undefined,
       }}
-      data-position={position}
-      data-lexical-node-key={nodeKey}
-      className={cn("inline-block relative")}
-    >
-      <ErrorBoundary
-        FallbackComponent={() => (
-          <img
-            src={src}
-            alt={altText}
-            draggable={false}
-            className="object-contain"
-            onDoubleClick={onDoubleClick}
-          />
-        )}
-      >
-        <img
-          src={src}
-          alt={altText}
-          draggable={false}
-          style={{
-            width: typeof width === "number" ? `${width}px` : "auto",
-            height: typeof height === "number" ? `${height}px` : "auto",
-            objectFit: "contain",
-          }}
-          onDoubleClick={onDoubleClick}
-          className={cn(
-            "block object-contain rounded-xs align-bottom",
-            className,
-          )}
-        />
-      </ErrorBoundary>
-    </div>
+      onDoubleClick={onDoubleClick}
+      className={cn(
+        "block h-auto max-w-full rounded-xs object-contain",
+        full && "w-full",
+        className,
+      )}
+    />
   );
 }
 
@@ -316,7 +295,7 @@ export default function InlineImageComponent({
     useLexicalNodeSelection(nodeKey);
 
   const activeEditorRef = useRef<LexicalEditor | null>(null);
-  const containerRef = useRef<HTMLImageElement>(null);
+  const pictureRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const nestedEditorContainerRef = useRef<HTMLDivElement>(null);
 
@@ -402,13 +381,7 @@ export default function InlineImageComponent({
       editor.registerCommand<MouseEvent>(
         CLICK_COMMAND,
         (event) => {
-          const target = event.target as HTMLElement;
-          const clickedNodeKey = target
-            .closest("[data-position]")
-            ?.getAttribute("data-lexical-node-key");
-
-          // If you clicked on THIS image's container
-          if (clickedNodeKey === nodeKey) {
+          if (pictureRef.current?.contains(event.target as Node)) {
             if (event.shiftKey) {
               setSelected(!isSelected);
             } else {
@@ -424,8 +397,7 @@ export default function InlineImageComponent({
       editor.registerCommand(
         DRAGSTART_COMMAND,
         (event) => {
-          const target = event.target as HTMLElement;
-          if (target.closest("[data-position]")) {
+          if (pictureRef.current?.contains(event.target as Node)) {
             event.preventDefault();
             return true;
           }
@@ -457,7 +429,6 @@ export default function InlineImageComponent({
   }, [
     clearSelection,
     editor,
-    nodeKey,
     $onDelete,
     $onEnter,
     $onEscape,
@@ -497,50 +468,43 @@ export default function InlineImageComponent({
 
   return (
     <Suspense fallback={null}>
-      {/* 
-          Use inline-flex div for vertical stacking while maintaining inline flow.
-         */}
       <div
         draggable={draggable}
-        className="inline-flex flex-col relative align-bottom"
+        data-inline-image=""
+        data-position={position}
+        className={inlineImagePlacement(position)}
       >
-        {/* Container for Image, Edit button, and Resizer */}
-        <div className="relative">
-          <ResizableImage
-            className={isFocused ? "ring-1 ring-muted-foreground" : ""}
+        <div ref={pictureRef} className="relative">
+          <InlineImagePicture
+            className={isFocused ? "ring-1 ring-muted-foreground" : undefined}
             src={src}
             altText={altText}
             width={currentDimensions.width}
             height={currentDimensions.height}
-            position={position}
-            nodeKey={nodeKey}
-            containerRef={containerRef as React.RefObject<HTMLDivElement>}
+            full={position === "full"}
             onDoubleClick={(e) => {
               e.stopPropagation();
               setIsLightboxOpen(true);
             }}
           />
           {isEditable && (
-            <Button
+            <NodeEditButton
               ref={buttonRef}
-              variant="ghost"
-              className="absolute top-0 right-0 mt-1 mr-1 z-10 bg-muted/60 hover:bg-muted/80 backdrop-blur-xs print:hidden"
+              label="Edit inline image"
+              iconOnly
+              visible={isFocused}
               onClick={() => setIsDialogOpen(true)}
-            >
-              Edit
-            </Button>
+            />
           )}
-
           {isEditable && isSelected && (
             <ImageResizer
-              imageRef={containerRef as React.RefObject<HTMLImageElement>}
+              imageRef={pictureRef as React.RefObject<HTMLImageElement>}
               editor={editor}
               buttonRef={buttonRef as React.RefObject<HTMLButtonElement>}
               showCaption={showCaption}
               setShowCaption={updateShowCaption}
-              captionsEnabled={captionsEnabled}
-              // ugly hack to offset the bottom-right resizer
-              bottomOffset
+              // The edit dialog offers the caption.
+              captionsEnabled={false}
               onResizeEnd={(newWidth, newHeight) => {
                 editor.update(() => {
                   const node = $getNodeByKey(nodeKey);
@@ -552,9 +516,10 @@ export default function InlineImageComponent({
               onDimensionsChange={onDimensionsChange}
             />
           )}
-
-          {/* Caption rendered inside the relative container */}
-          {showCaption && captionsEnabled && (
+        </div>
+        {showCaption && captionsEnabled && (
+          // A block of its own, so the caption takes the picture's width.
+          <div>
             <ImageCaption
               containerRef={nestedEditorContainerRef}
               caption={caption}
@@ -570,8 +535,8 @@ export default function InlineImageComponent({
               <HistoryPlugin externalHistoryState={historyState} />
               {showNestedEditorTreeView && <TreeViewPlugin />}
             </ImageCaption>
-          )}
-        </div>
+          </div>
+        )}
       </div>
 
       {/* The "Update Inline Image" dialog */}

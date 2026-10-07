@@ -36,6 +36,7 @@ export default function ExcalidrawComponent({
   width,
   height,
   natural,
+  fill,
 }: {
   data: string;
   nodeKey: NodeKey;
@@ -43,6 +44,8 @@ export default function ExcalidrawComponent({
   width: number | "inherit";
   height: number | "inherit";
   natural: NaturalSize | undefined;
+  /** Placed at a figure width, the drawing fills it. */
+  fill: boolean;
 }): JSX.Element {
   const keepNaturalSize = useKeepNaturalSize(nodeKey);
   const [editor] = useLexicalComposerContext();
@@ -250,7 +253,7 @@ export default function ExcalidrawComponent({
       {elements.length > 0 && (
         <div
           ref={frameRef}
-          className={cn(FIGURE_FRAME, {
+          className={cn(FIGURE_FRAME, fill && "block w-full", {
             selected: isEditable && isSelected,
           })}
         >
@@ -269,6 +272,7 @@ export default function ExcalidrawComponent({
             width={width}
             height={height}
             natural={natural}
+            fill={fill}
             onMeasured={keepNaturalSize}
           >
             {((isEditable && isSelected) || isResizing) && (

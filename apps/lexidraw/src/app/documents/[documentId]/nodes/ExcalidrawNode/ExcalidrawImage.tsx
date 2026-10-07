@@ -36,6 +36,8 @@ type Props = {
   height?: number | null | "inherit";
   /** The size it was exported at last time, which it keeps while it exports. */
   natural?: NaturalSize;
+  /** Placed at a figure width, the drawing fills it. */
+  fill?: boolean;
   onMeasured?: (size: NaturalSize) => void;
   children?: React.ReactNode;
 };
@@ -52,6 +54,7 @@ export default function ExcalidrawImage({
   width,
   height,
   natural,
+  fill = false,
   onMeasured,
   rootClassName = null,
   children,
@@ -99,17 +102,19 @@ export default function ExcalidrawImage({
     width: typeof width === "number" ? width : "inherit",
     height: typeof height === "number" ? height : "inherit",
     natural: measured ?? natural,
+    fill,
   } as const;
+  const frame = cn("relative inline-block max-w-full", fill && "block w-full");
 
   if (url === undefined)
     return (
-      <div className="relative inline-block max-w-full">
+      <div className={frame}>
         <FigureLoading place={drawingStyle} {...box} />
       </div>
     );
 
   return (
-    <div className="relative inline-block max-w-full">
+    <div className={frame}>
       <img
         src={url}
         onLoad={(event) => {

@@ -36,9 +36,9 @@ function saved(elements: unknown[]) {
   const writer = createHeadlessEditor({ nodes: [HeadlessExcalidrawNode] });
   writer.update(
     () => {
-      const drawing = HeadlessExcalidrawNode.$createExcalidrawNode(
-        JSON.stringify({ elements, appState: {}, files: {} }),
-      );
+      // Saved earlier, so it does not open its editor on load.
+      const drawing = HeadlessExcalidrawNode.$createExcalidrawNode(false);
+      drawing.setData(JSON.stringify({ elements, appState: {}, files: {} }));
       $getRoot().append(drawing);
     },
     { discrete: true },
@@ -88,6 +88,9 @@ const selected = () =>
 
 test("an empty drawing shows a writer a placeholder to select and open", async () => {
   const view = await mountDrawing({ editable: true });
+  expect(
+    document.querySelector('[role="dialog"][aria-label="Drawing editor"]'),
+  ).toBeNull();
   const placeholder = [
     ...document.querySelectorAll<HTMLElement>("[data-lexical-decorator] *"),
   ].find((element) => element.textContent === "Empty drawing");
