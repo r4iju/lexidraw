@@ -1,7 +1,8 @@
 "use client";
 
-import type { ChartType } from "@packages/lexical-nodes";
-import { useMemo } from "react";
+import { CHART_TYPES, type ChartType } from "@packages/lexical-nodes";
+import { ChartColumn } from "lucide-react";
+import { type ReactNode, useId } from "react";
 import {
   BarChart,
   Bar,
@@ -34,7 +35,8 @@ import {
   ChartLegend as ShadcnChartLegend,
   ChartLegendContent,
   type ChartConfig,
-} from "~/components/ui/chart"; // Assuming shadcn chart components are here
+} from "~/components/ui/chart";
+import { cn } from "~/lib/utils";
 
 interface DynamicChartRendererProps {
   chartType: ChartType;
@@ -42,6 +44,8 @@ interface DynamicChartRendererProps {
   config: ChartConfig;
   width: number | "inherit";
   height: number | "inherit";
+  /** Whether the reader can open the chart's editor, for the empty state. */
+  editable?: boolean;
 }
 
 const DEFAULT_CHART_CONFIG: ChartConfig = {
@@ -150,20 +154,32 @@ function CategoryTick({
   );
 }
 
-const Placeholder = ({
-  message,
-  height,
+// Legends wrap on narrow charts and read as quietly as the axes.
+const LEGEND_CLASS = "flex-wrap gap-x-4 gap-y-1 text-muted-foreground";
+
+const isChartType = (type: string): type is ChartType =>
+  (CHART_TYPES as readonly string[]).includes(type);
+
+/** A quiet stand-in, with a chart icon, for a chart with nothing to draw. */
+function ChartNotice({
+  children,
+  className,
 }: {
-  message: string;
-  height: number | string;
-}) => (
-  <div
-    className="flex items-center justify-center bg-muted/20 text-muted-foreground text-xs p-2 rounded"
-    style={{ height, width: "100%" }}
-  >
-    {message}
-  </div>
-);
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <div
+      className={cn(
+        "flex size-full min-h-24 flex-col items-center justify-center gap-1.5 rounded-md border border-border border-dashed p-4 text-center text-muted-foreground text-sm",
+        className,
+      )}
+    >
+      <ChartColumn aria-hidden className="size-5 shrink-0" />
+      <p className="m-0">{children}</p>
+    </div>
+  );
+}
 
 export default function DynamicChartRenderer({
   chartType,
@@ -171,7 +187,24 @@ export default function DynamicChartRenderer({
   config: rawConfig,
   width: _width, // unused
   height: _height,
+  editable = false,
 }: DynamicChartRendererProps) {
+  const gradientId = `area-${useId().replace(/:/g, "")}`;
+  if (!isChartType(chartType))
+    return (
+      <ChartNotice className="absolute inset-0">
+        This chart type ({chartType}) can't be shown.
+      </ChartNotice>
+    );
+  if (!Array.isArray(data) || data.length === 0)
+    return (
+      <ChartNotice>
+        {editable
+          ? "Edit the chart to add data."
+          : "This chart has no data yet."}
+      </ChartNotice>
+    );
+
   // attempt to find a suitable key for XAxis
   const getXAxisDataKey = () => {
     if (data.length === 0) return "name"; // Default if no data
@@ -292,26 +325,8 @@ export default function DynamicChartRenderer({
   // Past a dozen points, markers on a phone-width line touch; the line and
   // the hover dot carry the values instead.
   const pointMarkers = data.length <= 12 && { r: 4, strokeWidth: 2 };
-  const containerHeight = "100%";
   // A pie's first series holds each slice's value; its legend names slices.
   const pieDataKey = series[0] ?? "value";
-
-  const message = useMemo(() => {
-    switch (true) {
-      case data === undefined || data === null:
-        return "No data provided";
-      case !Array.isArray(data):
-        return "Data is not an array";
-      case data.length === 0:
-        return "Edit chart to add data.";
-      default:
-        return "Unsupported chart data";
-    }
-  }, [data]);
-
-  if (!data || data.length === 0 || !Array.isArray(data)) {
-    return <Placeholder message={message} height={containerHeight} />;
-  }
 
   const renderChart = () => {
     switch (chartType) {
@@ -323,7 +338,9 @@ export default function DynamicChartRenderer({
             <YAxis {...valueAxis} />
             <ShadcnChartTooltip content={<ChartTooltipContent />} />
             {series.length > 1 && (
-              <ShadcnChartLegend content={<ChartLegendContent />} />
+              <ShadcnChartLegend
+                content={<ChartLegendContent className={LEGEND_CLASS} />}
+              />
             )}
             {Object.keys(chartConfig).map((key) => (
               <Bar
@@ -344,7 +361,9 @@ export default function DynamicChartRenderer({
             <YAxis {...valueAxis} />
             <ShadcnChartTooltip content={<ChartTooltipContent />} />
             {series.length > 1 && (
-              <ShadcnChartLegend content={<ChartLegendContent />} />
+              <ShadcnChartLegend
+                content={<ChartLegendContent className={LEGEND_CLASS} />}
+              />
             )}
             {Object.keys(chartConfig).map((key) => (
               <Line
@@ -368,8 +387,34 @@ export default function DynamicChartRenderer({
             <YAxis {...valueAxis} />
             <ShadcnChartTooltip content={<ChartTooltipContent />} />
             {series.length > 1 && (
-              <ShadcnChartLegend content={<ChartLegendContent />} />
+              <ShadcnChartLegend
+                content={<ChartLegendContent className={LEGEND_CLASS} />}
+              />
             )}
+            <defs>
+              {series.map((key) => (
+                // Fading to nothing keeps overlapping areas from muddying.
+                <linearGradient
+                  key={key}
+                  id={`${gradientId}-${slugify(key)}`}
+                  x1="0"
+                  y1="0"
+                  x2="0"
+                  y2="1"
+                >
+                  <stop
+                    offset="0%"
+                    stopColor={`var(--color-${slugify(key)})`}
+                    stopOpacity={0.3}
+                  />
+                  <stop
+                    offset="100%"
+                    stopColor={`var(--color-${slugify(key)})`}
+                    stopOpacity={0.02}
+                  />
+                </linearGradient>
+              ))}
+            </defs>
             {series.map((key) => (
               <Area
                 isAnimationActive={false}
@@ -377,8 +422,7 @@ export default function DynamicChartRenderer({
                 type="monotone"
                 dataKey={key}
                 stroke={`var(--color-${slugify(key)})`}
-                fill={`var(--color-${slugify(key)})`}
-                fillOpacity={0.2}
+                fill={`url(#${gradientId}-${slugify(key)})`}
                 strokeWidth={2}
               />
             ))}
@@ -391,7 +435,9 @@ export default function DynamicChartRenderer({
             <PolarAngleAxis dataKey={xAxisDataKey} tick={axisStyle} />
             <ShadcnChartTooltip content={<ChartTooltipContent />} />
             {series.length > 1 && (
-              <ShadcnChartLegend content={<ChartLegendContent />} />
+              <ShadcnChartLegend
+                content={<ChartLegendContent className={LEGEND_CLASS} />}
+              />
             )}
             {series.map((key) => (
               <Radar
@@ -414,19 +460,28 @@ export default function DynamicChartRenderer({
         return (
           <ScatterChart>
             <CartesianGrid />
-            <XAxis
-              tick={axisStyle}
-              dataKey={xAxisDataKey}
-              type={numericX ? "number" : "category"}
-              allowDuplicatedCategory={false}
-              tickLine={false}
-              tickMargin={10}
-              axisLine={false}
-            />
+            {numericX ? (
+              <XAxis
+                tick={axisStyle}
+                dataKey={xAxisDataKey}
+                type="number"
+                // Recharts starts number axes at zero; points start anywhere,
+                // and need room for their markers at either end.
+                domain={["auto", "auto"]}
+                padding={{ left: 12, right: 12 }}
+                tickLine={false}
+                tickMargin={8}
+                axisLine={false}
+              />
+            ) : (
+              <XAxis {...categoryAxis} allowDuplicatedCategory={false} />
+            )}
             <YAxis {...valueAxis} type="number" />
             <ShadcnChartTooltip content={<ChartTooltipContent />} />
             {series.length > 1 && (
-              <ShadcnChartLegend content={<ChartLegendContent />} />
+              <ShadcnChartLegend
+                content={<ChartLegendContent className={LEGEND_CLASS} />}
+              />
             )}
             {series.map((key) => (
               <Scatter
@@ -448,7 +503,9 @@ export default function DynamicChartRenderer({
             <YAxis {...valueAxis} />
             <ShadcnChartTooltip content={<ChartTooltipContent />} />
             {series.length > 1 && (
-              <ShadcnChartLegend content={<ChartLegendContent />} />
+              <ShadcnChartLegend
+                content={<ChartLegendContent className={LEGEND_CLASS} />}
+              />
             )}
             {series.map((key, index) =>
               index === 0 ? (
@@ -504,7 +561,7 @@ export default function DynamicChartRenderer({
               content={
                 <ChartLegendContent
                   nameKey={xAxisDataKey}
-                  className="flex-wrap gap-x-4 gap-y-1"
+                  className={LEGEND_CLASS}
                 />
               }
             />
@@ -512,12 +569,7 @@ export default function DynamicChartRenderer({
         );
       }
       default:
-        return (
-          <Placeholder
-            message={`Unsupported chart type: ${chartType}`}
-            height={containerHeight}
-          />
-        );
+        return chartType satisfies never;
     }
   };
 

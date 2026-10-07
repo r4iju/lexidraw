@@ -354,3 +354,62 @@ test("a thinned axis gives each label room for a single line", async () => {
     expect(label.querySelectorAll("tspan")).toHaveLength(1);
   expect(labels[0]?.textContent).toBe("2026-09-01");
 });
+
+test("an unknown stored chart type says so across the whole frame", async () => {
+  const body = await draw({ chartType: "donut" as never });
+  const message = [...body.querySelectorAll("p, div")].find(
+    (element) =>
+      element.textContent === "This chart type (donut) can't be shown.",
+  );
+  expect(message).toBeDefined();
+  // Recharts would squeeze anything inside its own container into a corner.
+  expect(message?.closest(".recharts-responsive-container")).toBeNull();
+});
+
+test("an empty chart tells a reader it has no data, with a chart icon", async () => {
+  const body = await draw({ chartType: "line", data: [] });
+  expect(body.querySelector("p")?.textContent).toBe(
+    "This chart has no data yet.",
+  );
+  expect(body.querySelector("svg")).not.toBeNull();
+});
+
+test("an empty chart asks someone who can edit it to add data", async () => {
+  const body = await draw({ chartType: "line", data: [], editable: true });
+  expect(body.querySelector("p")?.textContent).toBe(
+    "Edit the chart to add data.",
+  );
+});
+
+test("a scatter chart's x axis spans its points without a wide empty margin", async () => {
+  const body = await draw({
+    chartType: "scatter",
+    data: [1, 2, 3, 4, 5].map((x) => ({ x, y: x * 2 })),
+    config: { y: { label: "Y", color: "chart-3" } },
+  });
+  const ticks = [
+    ...body.querySelectorAll(".recharts-xAxis-tick-labels text"),
+  ].map((tick) => Number(tick.textContent));
+  expect(Math.max(...ticks)).toBeLessThanOrEqual(6);
+});
+
+test("scatter points at the ends of the range stay whole inside the frame", async () => {
+  frame.width = 358;
+  const body = await draw({
+    chartType: "scatter",
+    data: [1, 2, 3, 4, 5].map((x) => ({ x, y: x * 2 })),
+    config: { y: { label: "Y", color: "chart-3" } },
+  });
+  const xs = [...body.querySelectorAll(".recharts-scatter-symbol path")].map(
+    (point) => Number(point.getAttribute("cx")),
+  );
+  expect(xs).toHaveLength(5);
+  // Markers are about 9px across: keep their centres a radius and a gap in.
+  expect(Math.max(...xs)).toBeLessThanOrEqual(frame.width - 5 - 8);
+  const plotLeft = Number(
+    body
+      .querySelector(".recharts-cartesian-grid-horizontal line")
+      ?.getAttribute("x1"),
+  );
+  expect(Math.min(...xs) - plotLeft).toBeGreaterThanOrEqual(8);
+});

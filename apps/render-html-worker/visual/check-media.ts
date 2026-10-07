@@ -205,9 +205,9 @@ export async function checkMedia(
       }
       assert(
         await page.$eval(".document-content", (e) =>
-          e.textContent?.includes("Edit chart to add data"),
+          e.textContent?.includes("Edit the chart to add data"),
         ),
-        "Empty chart explains how to add data",
+        "Empty chart asks its editor to add data",
       );
       assert(
         await page.$eval(".document-content", (e) =>
