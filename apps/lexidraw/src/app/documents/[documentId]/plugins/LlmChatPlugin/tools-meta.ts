@@ -32,25 +32,6 @@ export const GLOBAL_TOOL_LABELS: Record<string, string | undefined> = {
   insertMermaidDiagram: "Insert Mermaid diagram",
   insertHashtag: "Insert hashtag",
 
-  // Slide tools
-  insertSlideDeckNode: "Insert slide deck",
-  addSlidePage: "Add slide page",
-  removeSlidePage: "Remove slide page",
-  reorderSlidePage: "Reorder slide pages",
-  addBoxToSlidePage: "Add box to slide",
-  setSlidePageBackground: "Set slide background",
-  addImageToSlidePage: "Add image to slide",
-  generateAndAddImageToSlidePage: "Generate image for slide",
-  searchAndAddImageToSlidePage: "Search image for slide",
-  addChartToSlidePage: "Add chart to slide",
-  setDeckMetadata: "Update deck metadata",
-  setSlideMetadata: "Update slide metadata",
-  saveStoryboardOutput: "Save storyboard",
-  saveSlideContentAndMetadata: "Save slide content",
-  saveDeckTheme: "Save deck theme",
-  saveAudienceDataTool: "Save audience data",
-  updateElementProperties: "Update element properties",
-
   // Document editing
   patchNodeByJSON: "Patch node",
   removeNode: "Remove node",
@@ -64,7 +45,7 @@ export const GLOBAL_TOOL_LABELS: Record<string, string | undefined> = {
   removeCommentFromThread: "Remove comment",
   removeCommentThread: "Remove comment thread",
 
-  // Images/search (if not covered by slide-specific tools)
+  // Images/search
   searchAndInsertImage: "Search image",
   generateAndInsertImage: "Generate image",
 };

@@ -48,8 +48,8 @@ export default function LandingPage() {
             Write documents and sketch diagrams in one place.
           </h1>
           <p className="max-w-xl text-lg text-balance text-muted-foreground md:text-xl">
-            Rich text, slides and hand-drawn diagrams, shared with a link. Saved
-            as you go.
+            Rich text and hand-drawn diagrams, shared with a link. Saved as you
+            go.
           </p>
           <Suspense fallback={<div aria-hidden="true" className="h-11" />}>
             <CallToAction />

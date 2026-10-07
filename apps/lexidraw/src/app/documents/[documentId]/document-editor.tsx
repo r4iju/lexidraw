@@ -79,7 +79,6 @@ import PollPlugin from "./plugins/PollPlugin";
 import EmojiPickerPlugin from "./plugins/EmojiPickerPlugin";
 import TreeViewPlugin from "./plugins/TreeViewPlugin";
 import { useDeveloperFlag } from "~/lib/developer-flag";
-import { SlidePlugin } from "./plugins/SlidePlugin";
 import { DisableChecklistSpacebarPlugin } from "./plugins/list-spacebar-plugin";
 import {
   UnsavedChangesProvider,
@@ -525,7 +524,6 @@ function EditorHandler({
                     <CommentPluginProvider>
                       <DocumentFontsPlugin lang={detectedLanguage} />
                       <TextLanguagePlugin lang={detectedLanguage} />
-                      <SlidePlugin />
                       <EditabilityPlugin editable={editing} />
                       {!onScreen && <RenderReadyPlugin />}
                       <ListenWhenSignedIn signedIn={signedIn}>

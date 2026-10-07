@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { entityTypeLabel } from "~/lib/entity-types";
 
 const SITE_DESCRIPTION =
-  "Write documents and sketch diagrams in one place. Rich text, slides and hand-drawn diagrams, shared with a link.";
+  "Write documents and sketch diagrams in one place. Rich text and hand-drawn diagrams, shared with a link.";
 
 /** What a link to any Lexidraw page shows when it is pasted somewhere. */
 export const SITE_PREVIEW = {

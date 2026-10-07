@@ -33,7 +33,7 @@ Japanese prose, inline formatting, links, nested/ordered/check lists, quotes,
 code, aligned tables, equations, the five GitHub callouts, an open
 `<details>` collapsible, three `<columns>`, a rule, wide and half-column
 figures with captions, two footnotes, image and caption, inline image, Mermaid
-(wide, with a caption), chart, poll, drawing (at 75%), slides, article,
+(wide, with a caption), chart, poll, drawing (at 75%), stored slide decks, article,
 page break, video, YouTube, tweet, Figma, sticky note, marked text, comment and
 thread. Comments/threads are intentionally invisible outside their panel.
 Autocomplete is transient editor state, not a document block.
@@ -83,7 +83,7 @@ column widths so every capture exercises a document before manual resizing.
 
 Media cases include a 2000px portrait image, a missing image with alt text,
 columns in the text column and written wide, unsized diagrams/video/charts,
-voted polls, and empty charts and slides. Browser checks cover 375×812, 768×1024 and 1280×900 in both themes,
+voted polls, empty charts, and the placeholder for stored slide decks. Browser checks cover 375×812, 768×1024 and 1280×900 in both themes,
 plus a narrowed desktop container. They check media bounds and aspect ratios,
 centering, theme treatment (photos dimmed a little and unframed in dark), half-column
 figures filling a phone, footnote markers and the way back after a wrapped

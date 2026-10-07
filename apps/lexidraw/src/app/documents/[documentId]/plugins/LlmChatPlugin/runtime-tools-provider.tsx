@@ -3,7 +3,6 @@ import { useChatDispatch } from "./llm-chat-context";
 import type { RuntimeToolMap } from "../../context/llm-context";
 import { useChatTools } from "./tools/agent-helpers";
 import { useDocumentEditorTools } from "./tools/document-editor";
-import { useSlideTools } from "./tools/slides";
 import { useHeadingTools } from "./tools/heading";
 import { useTextTools } from "./tools/text";
 import { useMarkdownTools } from "./tools/markdown";
@@ -61,25 +60,6 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
 
   const { patchNodeByJSON, removeNode, moveNode } = useDocumentEditorTools();
 
-  const {
-    insertSlideDeckNode,
-    setDeckMetadata,
-    setSlideMetadata,
-    addSlidePage,
-    addBoxToSlidePage,
-    removeSlidePage,
-    reorderSlidePage,
-    setSlidePageBackground,
-    updateElementProperties,
-    addImageToSlidePage,
-    addChartToSlidePage,
-    saveStoryboardOutput,
-    saveSlideContentAndMetadata,
-    saveDeckTheme,
-    saveAudienceDataTool,
-    generateAndAddImageToSlidePage,
-    searchAndAddImageToSlidePage,
-  } = useSlideTools();
   const { insertLayout } = useLayoutTools();
   const { insertCollapsibleSection } = useCollapsibleTools();
   const { insertHeadingNode } = useHeadingTools();
@@ -123,14 +103,6 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
     ...(insertPollNode && { insertPollNode }),
     ...(insertTweetNode && { insertTweetNode }),
     ...(insertYouTubeNode && { insertYouTubeNode }),
-    ...(insertSlideDeckNode && { insertSlideDeckNode }),
-    ...(addSlidePage && { addSlidePage }),
-    ...(removeSlidePage && { removeSlidePage }),
-    ...(reorderSlidePage && { reorderSlidePage }),
-    ...(addBoxToSlidePage && { addBoxToSlidePage }),
-    ...(setSlidePageBackground && { setSlidePageBackground }),
-    ...(addImageToSlidePage && { addImageToSlidePage }),
-    ...(addChartToSlidePage && { addChartToSlidePage }),
     ...(insertListNode && { insertListNode }),
     ...(insertListItemNode && { insertListItemNode }),
     ...(insertCodeBlock && { insertCodeBlock }),
@@ -155,18 +127,6 @@ export function RuntimeToolsProvider({ children }: PropsWithChildren) {
     ...(findAndSelectTextForComment && { findAndSelectTextForComment }),
     ...(removeCommentFromThread && { removeCommentFromThread }),
     ...(removeCommentThread && { removeCommentThread }),
-    ...(setDeckMetadata && { setDeckMetadata }),
-    ...(setSlideMetadata && { setSlideMetadata }),
-    ...(saveStoryboardOutput && { saveStoryboardOutput }),
-    ...(updateElementProperties && { updateElementProperties }),
-    ...(addImageToSlidePage && { addImageToSlidePage }),
-    ...(addChartToSlidePage && { addChartToSlidePage }),
-    ...(generateAndAddImageToSlidePage && { generateAndAddImageToSlidePage }),
-    ...(searchAndAddImageToSlidePage && { searchAndAddImageToSlidePage }),
-    ...(saveStoryboardOutput && { saveStoryboardOutput }),
-    ...(saveSlideContentAndMetadata && { saveSlideContentAndMetadata }),
-    ...(saveDeckTheme && { saveDeckTheme }),
-    ...(saveAudienceDataTool && { saveAudienceDataTool }),
   } as unknown as RuntimeToolMap;
 
   // Attach standardized logging to each tool's execute to trace duplicates

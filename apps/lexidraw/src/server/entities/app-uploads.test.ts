@@ -38,25 +38,3 @@ test("claims inline and nested caption pictures uploaded by their owner", () => 
   ]);
   expect(appUploadsIn(elements, "someone-else")).toEqual([]);
 });
-
-test("claims pictures in a slide text editor", () => {
-  const owner = "native-slide-owner";
-  const pathname = `${owner}-00000000-0000-0000-0000-000000000003.jpg`;
-  const src = `${env.VERCEL_BLOB_STORAGE_HOST}/${pathname}`;
-  const editorStateJSON = {
-    root: {
-      children: [{ type: "paragraph", children: [{ type: "image", src }] }],
-    },
-  };
-  const elements = JSON.stringify({
-    root: {
-      children: [
-        {
-          type: "slide-deck",
-          data: { slides: [{ elements: [{ kind: "box", editorStateJSON }] }] },
-        },
-      ],
-    },
-  });
-  expect(appUploadsIn(elements, owner)).toEqual([{ url: src, pathname }]);
-});

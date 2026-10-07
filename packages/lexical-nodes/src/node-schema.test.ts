@@ -202,10 +202,9 @@ test("describes a value kept as stored: its default, null read as absent, its sh
     default: "[]",
     nullAsAbsent: true,
   });
-  expect(node("slide-deck")?.fields.data).toMatchObject({
+  expect(node("thread")?.fields.thread).toMatchObject({
     kind: "raw",
-    nullAsAbsent: true,
-    shape: { kind: "object", fields: { slides: { kind: "array" } } },
+    shape: { kind: "object", fields: { comments: { kind: "array" } } },
   });
 });
 
@@ -286,7 +285,6 @@ test("says which nodes keep the NodeState they were read with, by placing it", (
   expect(node("paragraph")?.order).toContain("$");
   expect(node("image")?.order).toContain("$");
   expect(node("emoji")?.order).not.toContain("$");
-  expect(node("slide-deck")?.order).not.toContain("$");
 });
 
 test("lists an object's fields in the order Lexical writes them", () => {

@@ -25,7 +25,11 @@ import { InlineImageNode } from "./nodes/InlineImageNode.js";
 import { MermaidNode } from "./nodes/MermaidNode.js";
 import { PageBreakNode } from "./nodes/PageBreakNode.js";
 import { PollNode } from "./nodes/PollNode.js";
-import { SlideNode } from "./nodes/SlideNode.js";
+import {
+  SlideNode,
+  storedSlides,
+  storedSlideTitle,
+} from "./nodes/SlideNode.js";
 import { StickyNode } from "./nodes/StickyNode.js";
 import { ThreadNode } from "./nodes/ThreadNode.js";
 import { TweetNode } from "./nodes/TweetNode.js";
@@ -315,10 +319,10 @@ const PLACEHOLDER_SUMMARIES: ReadonlyArray<
   [
     (node) => SlideNode.$isSlideDeckNode(node),
     (node) => {
-      const { slides } = (node as SlideNode).getData();
+      const slides = storedSlides((node as SlideNode).getData());
       const titles = slides
-        .map((slide) => slide.slideMetadata?.storyboardTitle)
-        .filter((title): title is string => Boolean(title));
+        .map(storedSlideTitle)
+        .filter((title): title is string => title !== undefined);
       const suffix = titles.length > 0 ? `: ${titles.join(" / ")}` : "";
       return `${slides.length} slides${suffix}`;
     },

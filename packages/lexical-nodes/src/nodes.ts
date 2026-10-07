@@ -89,8 +89,8 @@ export const CORE_NODES: Klass<LexicalNode>[] = [
   ThreadNode,
   FootnoteReferenceNode,
   FootnoteDefinitionNode,
-  // Text the caption and slide plugins make. The body has no plugin making
-  // them, but a stored document can hold them anywhere.
+  // Text the caption plugins make. The body has no plugin making them, but
+  // a stored document can hold them anywhere.
   EmojiNode,
   KeywordNode,
   HashtagNode,

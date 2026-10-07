@@ -1,50 +1,13 @@
-import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { useLexicalEditable } from "@lexical/react/useLexicalEditable";
+import { useLexicalNodeSelection } from "@lexical/react/useLexicalNodeSelection";
 import {
   SlideNode as HeadlessSlideNode,
-  type SlideDeckData,
+  slideDeckText,
 } from "@packages/lexical-nodes";
-import {
-  $createNodeSelection,
-  $getNodeByKey,
-  $getSelection,
-  $isNodeSelection,
-  $setSelection,
-  type NodeKey,
-} from "lexical";
-import React, {
-  type JSX,
-  Suspense,
-  useCallback,
-  useEffect,
-  useState,
-} from "react";
+import type { NodeKey } from "lexical";
+import { PresentationIcon } from "lucide-react";
+import type { JSX } from "react";
 import { cn } from "~/lib/utils";
-import { NodeEditButton } from "../common/NodeEditButton";
-import { MetadataModalProvider } from "./MetadataModalContext";
-
-export type {
-  DeckStrategicMetadata,
-  SerializedSlideDeckNode,
-  SlideData,
-  SlideDeckData,
-  SlideElementSpec,
-  SlideStrategicMetadata,
-  ThemeSettings,
-} from "@packages/lexical-nodes";
-export {
-  DeckStrategicMetadataSchema,
-  SlideStrategicMetadataSchema,
-  ThemeSettingsSchema,
-} from "@packages/lexical-nodes";
-import { BlockLoading } from "../common/BlockLoading";
-
-const SlideView = React.lazy(() => import("./SlideView"));
-// SlideModal reaches SlideDeckEditor, which uses next/font at module scope;
-// loading it lazily keeps this node module importable without Next.
-const SlideModal = React.lazy(() =>
-  import("./SlideModal").then((mod) => ({ default: mod.SlideModal })),
-);
 
 /** React half of the package's SlideNode; see ImageNode. */
 export class SlideNode extends HeadlessSlideNode {
@@ -54,123 +17,63 @@ export class SlideNode extends HeadlessSlideNode {
 
   decorate(): JSX.Element {
     return (
-      <Suspense fallback={<BlockLoading />}>
-        <SlideNodeInner nodeKey={this.getKey()} initialData={this.__data} />
-      </Suspense>
+      <LegacySlideDeck
+        nodeKey={this.getKey()}
+        lines={slideDeckText(this.__data)}
+      />
     );
   }
 }
 
-function SlideNodeInner({
+/**
+ * A deck saved before slides were removed, kept as stored: what it said, and
+ * no way to change it. Selecting it lets the editor delete it as any block.
+ */
+function LegacySlideDeck({
   nodeKey,
-  initialData,
+  lines,
 }: {
   nodeKey: NodeKey;
-  initialData: SlideDeckData;
+  lines: string[];
 }) {
-  const [editor] = useLexicalComposerContext();
   const isEditable = useLexicalEditable();
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [showSelectionUI, setShowSelectionUI] = useState(false);
-
-  useEffect(() => {
-    return editor.registerUpdateListener(({ editorState }) => {
-      editorState.read(() => {
-        const selection = $getSelection();
-        if ($isNodeSelection(selection)) {
-          const selectedNodes = selection.getNodes();
-          if (
-            selectedNodes.length === 1 &&
-            selectedNodes[0] &&
-            selectedNodes[0].getKey() === nodeKey
-          ) {
-            setShowSelectionUI(true);
-            return;
-          }
-        }
-        setShowSelectionUI(false);
-      });
-    });
-  }, [editor, nodeKey]);
-
-  const handleOpenModal = useCallback(() => {
-    setIsModalOpen(true);
-  }, []);
-
-  const handleSelect = useCallback(
-    (event: React.MouseEvent) => {
-      event.stopPropagation();
-      editor.update(() => {
-        editor.focus();
-        const selection = $getSelection();
-        if (
-          !$isNodeSelection(selection) ||
-          !selection.getNodes().find((node) => node.getKey() === nodeKey)
-        ) {
-          const nodeSelection = $createNodeSelection();
-          nodeSelection.add(nodeKey);
-          $setSelection(nodeSelection);
-        }
-      });
-    },
-    [editor, nodeKey],
-  );
-
-  const handleSaveModal = useCallback(
-    (updatedData: SlideDeckData) => {
-      editor.update(() => {
-        const node = $getNodeByKey<SlideNode>(nodeKey);
-        if (node) {
-          try {
-            node.setData(updatedData);
-          } catch (e) {
-            console.error("[SlideNodeInner] Error saving slide data:", e);
-          }
-        }
-      });
-      setIsModalOpen(false);
-    },
-    [editor, nodeKey],
-  );
+  const [isSelected, setSelected, clearSelection] =
+    useLexicalNodeSelection(nodeKey);
 
   return (
-    <>
-      {/** biome-ignore lint/a11y/noStaticElementInteractions: slide node is interactive */}
-      {/** biome-ignore lint/a11y/useKeyWithClickEvents: slide node is interactive */}
-      <div
-        onDoubleClick={isEditable ? handleOpenModal : undefined}
-        onClick={isEditable ? handleSelect : undefined}
-        className={cn("group/node relative", {
-          "cursor-pointer": isEditable,
-          "ring-1 ring-primary box-content": isEditable && showSelectionUI,
-        })}
-      >
-        <SlideView initialData={initialData} editor={editor} />
-        {isEditable && (
-          <NodeEditButton
-            label="Edit slides"
-            visible={showSelectionUI}
-            onClick={handleOpenModal}
-          />
-        )}
-      </div>
-      {isEditable && showSelectionUI && (
-        <p className="mt-2 text-caption text-muted-foreground print:hidden">
-          To change the slides, use Edit or double-click the deck.
-        </p>
+    // biome-ignore lint/a11y/noStaticElementInteractions: selection is the editor's, by pointer or arrow keys
+    // biome-ignore lint/a11y/useKeyWithClickEvents: the editor moves selection onto a block from the keyboard
+    <div
+      data-node-type="slide-deck"
+      onClick={
+        isEditable
+          ? (event) => {
+              if (!event.shiftKey) clearSelection();
+              setSelected(true);
+            }
+          : undefined
+      }
+      className={cn(
+        "rounded-md border border-dashed border-border px-4 py-3 text-muted-foreground",
+        isEditable && "cursor-default",
+        isSelected && "ring-1 ring-primary",
       )}
-      {isEditable && isModalOpen && (
-        <MetadataModalProvider>
-          <SlideModal
-            nodeKey={nodeKey}
-            initialData={initialData}
-            editor={editor}
-            onSave={handleSaveModal}
-            onOpenChange={setIsModalOpen}
-            isOpen={isModalOpen}
-          />
-        </MetadataModalProvider>
+    >
+      <p className="flex items-center gap-2 text-sm font-medium">
+        <PresentationIcon aria-hidden className="size-4 shrink-0" />
+        Slide deck (no longer supported)
+      </p>
+      {lines.length > 0 && (
+        <ul className="mt-2 space-y-1 text-sm">
+          {lines.map((line, index) => (
+            // The lines never reorder, and two can read the same.
+            // biome-ignore lint/suspicious/noArrayIndexKey: see above
+            <li key={index} className="whitespace-pre-wrap">
+              {line}
+            </li>
+          ))}
+        </ul>
       )}
-    </>
+    </div>
   );
 }
