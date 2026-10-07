@@ -895,8 +895,7 @@
       iframe,
       video,
       .document-embed,
-      .chart-component,
-      .sticky-note-container
+      .chart-component
     )
   ) {
   width: 100%;
@@ -938,7 +937,7 @@
 /* A share of the column, but never narrower than a phone's column allows:
    on a phone it is the whole column. */
 .document-content {
-  --figure-least: min(100%, 20rem);
+  --figure-least: min(100%, 10rem);
 }
 .document-content > [data-lexical-decorator][data-figure-width="share"] {
   max-width: max(
@@ -1094,23 +1093,30 @@
 .document-content {
   position: relative;
 }
-.document-content[contenteditable="false"] .sticky-note-container {
-  position: static;
-  width: fit-content;
+/* A sticky note is a block in the flow at every width, a callout in its own
+   colour; its decorator is display: contents, so it takes the gap itself,
+   on both sides, as it often shares a paragraph with text. */
+.sticky-note-container {
+  max-width: var(--doc-measure);
   margin-inline: auto;
+  margin-block: var(--block-gap);
 }
-.sticky-note-container > div {
-  max-width: 100%;
-  min-height: 192px;
-  height: auto;
+/* A note or a poll is a block inside the paragraph that holds it; the line
+   break Lexical keeps after a trailing decorator would add an empty line.
+   It shows while the caret is on it (see nodes/use-caret-line.ts). */
+.document-content
+  p:not([data-caret-after])
+  > [data-lexical-decorator]:has(> .sticky-note-container, > [data-poll])
+  + br[data-lexical-managed-linebreak]:last-child {
+  display: none;
+}
+.sticky-note {
+  position: relative;
+  min-height: 48px;
+  border-radius: 8px;
+  padding: 12px 16px;
+  color: var(--paper-ink);
   text-align: start;
-}
-@container (max-width: 567px) {
-  .document-content .sticky-note-container {
-    position: static;
-    width: fit-content;
-    margin-inline: auto;
-  }
 }
 
 @media screen {

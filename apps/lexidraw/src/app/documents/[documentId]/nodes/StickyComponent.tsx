@@ -6,238 +6,108 @@ import { LexicalErrorBoundary } from "@lexical/react/LexicalErrorBoundary";
 import { LexicalNestedComposer } from "@lexical/react/LexicalNestedComposer";
 import { useLexicalEditable } from "@lexical/react/useLexicalEditable";
 import { PlainTextPlugin } from "@lexical/react/LexicalPlainTextPlugin";
-import { calculateZoomLevel } from "@lexical/utils";
 import { $getNodeByKey } from "lexical";
-import { useCallback, useEffect, useLayoutEffect, useRef } from "react";
 
-import { StickyNode } from "./StickyNode";
+import { StickyNode, type StickyNoteColor } from "./StickyNode";
+import { useCaretLine } from "./use-caret-line";
 import LexicalContentEditable from "~/components/ui/content-editable";
 import { Button } from "~/components/ui/button";
-import { PaintbrushIcon, TrashIcon } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from "~/components/ui/dropdown-menu";
+import { cn } from "~/lib/utils";
+import { PaletteIcon, TrashIcon } from "lucide-react";
 
-type Positioning = {
-  isDragging: boolean;
-  offsetX: number;
-  offsetY: number;
-  rootElementRect: null | ClientRect;
-  x: number;
-  y: number;
-};
+/** The palette in menu order, each colour with its name and fill. */
+const COLORS = {
+  pink: { label: "Pink", fill: "bg-sticky-pink" },
+  yellow: { label: "Yellow", fill: "bg-sticky-yellow" },
+  green: { label: "Green", fill: "bg-sticky-green" },
+  blue: { label: "Blue", fill: "bg-sticky-blue" },
+  red: { label: "Red", fill: "bg-sticky-red" },
+  orange: { label: "Orange", fill: "bg-sticky-orange" },
+  purple: { label: "Purple", fill: "bg-sticky-purple" },
+  gray: { label: "Gray", fill: "bg-sticky-gray" },
+} as const satisfies Record<StickyNoteColor, { label: string; fill: string }>;
+
+const isColor = (value: string): value is StickyNoteColor => value in COLORS;
+
+/**
+ * A note's controls stay out of the text's way until the note is pointed at
+ * or holds focus; an open menu keeps its trigger shown.
+ */
+const control =
+  "size-7 text-paper-ink opacity-0 transition-opacity duration-fast hover:bg-paper-ink/10 hover:text-paper-ink focus-visible:opacity-100 group-hover/sticky:opacity-100 group-focus-within/sticky:opacity-100 data-[state=open]:opacity-100";
 
 export default function StickyComponent({
-  x: propX,
-  y: propY,
   nodeKey,
   color,
   caption,
 }: {
   caption: LexicalEditor;
-  color:
-    | "pink"
-    | "yellow"
-    | "green"
-    | "blue"
-    | "red"
-    | "orange"
-    | "purple"
-    | "gray";
+  color: StickyNoteColor;
   nodeKey: NodeKey;
-  x: number;
-  y: number;
 }): JSX.Element {
   const [editor] = useLexicalComposerContext();
   const isEditable = useLexicalEditable();
-  const stickyContainerRef = useRef<null | HTMLDivElement>(null);
-  const positioningRef = useRef<Positioning>({
-    isDragging: false,
-    offsetX: 0,
-    offsetY: 0,
-    rootElementRect: null,
-    x: 0,
-    y: 0,
-  });
+  useCaretLine(nodeKey);
 
-  const positionSticky = useCallback((): void => {
-    if (stickyContainerRef.current) {
-      const available =
-        stickyContainerRef.current.closest(".document-content")?.clientWidth ??
-        192;
-      stickyContainerRef.current.style.top = `${positioningRef.current.y}px`;
-      stickyContainerRef.current.style.left = `${Math.max(0, Math.min(positioningRef.current.x, available - 192))}px`;
-    }
-  }, []);
-
-  useEffect(() => {
-    const xLocal = propX;
-    const yLocal = propY;
-
-    const position = positioningRef.current;
-    position.x = xLocal;
-    position.y = yLocal;
-
-    const stickyContainer = stickyContainerRef.current;
-    if (stickyContainer !== null) {
-      positionSticky();
-    }
-  }, [propX, propY, positionSticky]);
-
-  useLayoutEffect(() => {
-    const position = positioningRef.current;
-    const resizeObserver = new ResizeObserver((entries) => {
-      for (const entry of entries) {
-        const { target } = entry;
-        position.rootElementRect = target.getBoundingClientRect();
-        const stickyContainer = stickyContainerRef.current;
-        if (stickyContainer !== null) {
-          positionSticky();
-        }
-      }
-    });
-
-    const removeRootListener = editor.registerRootListener(
-      (nextRootElem, prevRootElem) => {
-        if (prevRootElem !== null) {
-          resizeObserver.unobserve(prevRootElem);
-        }
-        if (nextRootElem !== null) {
-          resizeObserver.observe(nextRootElem);
-        }
-      },
-    );
-
-    const handleWindowResize = () => {
-      const rootElement = editor.getRootElement();
-      const stickyContainer = stickyContainerRef.current;
-      if (rootElement !== null && stickyContainer !== null) {
-        position.rootElementRect = rootElement.getBoundingClientRect();
-        positionSticky();
-      }
-    };
-
-    window.addEventListener("resize", handleWindowResize);
-
-    return () => {
-      window.removeEventListener("resize", handleWindowResize);
-      removeRootListener();
-    };
-  }, [editor, positionSticky]);
-
-  const handlePointerMove = (event: PointerEvent) => {
-    const stickyContainer = stickyContainerRef.current;
-    const positioning = positioningRef.current;
-    const rootElementRect = positioning.rootElementRect;
-    const zoom = calculateZoomLevel(stickyContainer);
-    if (
-      stickyContainer !== null &&
-      positioning.isDragging &&
-      rootElementRect !== null
-    ) {
-      positioning.x =
-        event.pageX / zoom - positioning.offsetX - rootElementRect.left;
-      positioning.y =
-        event.pageY / zoom - positioning.offsetY - rootElementRect.top;
-      positionSticky();
-    }
-  };
-
-  const handlePointerUp = () => {
-    const stickyContainer = stickyContainerRef.current;
-    const positioning = positioningRef.current;
-    if (stickyContainer !== null) {
-      positioning.isDragging = false;
-      stickyContainer.classList.remove("dragging");
-      editor.update(() => {
-        const node = $getNodeByKey(nodeKey);
-        if (StickyNode.$isStickyNode(node)) {
-          node.setPosition(positioning.x, positioning.y);
-        }
-      });
-    }
-    document.removeEventListener("pointermove", handlePointerMove);
-    document.removeEventListener("pointerup", handlePointerUp);
-  };
-
-  const handleDelete = () => {
+  const withNote = (change: (node: StickyNode) => void) => {
     editor.update(() => {
       const node = $getNodeByKey(nodeKey);
-      if (StickyNode.$isStickyNode(node)) {
-        node.remove();
-      }
+      if (StickyNode.$isStickyNode(node)) change(node);
     });
   };
-
-  const handleColorChange = () => {
-    editor.update(() => {
-      const node = $getNodeByKey(nodeKey);
-      if (StickyNode.$isStickyNode(node)) {
-        node.toggleColor();
-      }
-    });
-  };
-
-  const colorClasses = {
-    pink: "bg-sticky-pink",
-    yellow: "bg-sticky-yellow",
-    green: "bg-sticky-green",
-    blue: "bg-sticky-blue",
-    red: "bg-sticky-red",
-    orange: "bg-sticky-orange",
-    purple: "bg-sticky-purple",
-    gray: "bg-sticky-gray",
-  } as const;
-
-  const contentEditableTwClasses =
-    "min-h-[20px] border-0 resize-none cursor-text text-2xl caret-paper-ink block relative outline-none p-0 select-text whitespace-pre-wrap break-words w-full box-border";
-  const placeholderTwClasses =
-    "text-2xl text-paper-ink/60 overflow-hidden absolute text-ellipsis top-[30px] left-[20px] w-[120px] select-none whitespace-nowrap inline-block pointer-events-none";
 
   return (
-    <div ref={stickyContainerRef} className="sticky-note-container absolute">
-      <div
-        className={`block w-48 h-48 p-1 border border-border shadow-lg text-paper-ink relative ${colorClasses[color]}`}
-        onPointerDown={(event) => {
-          const stickyContainer = stickyContainerRef.current;
-          if (
-            !isEditable ||
-            (stickyContainer &&
-              getComputedStyle(stickyContainer).position === "static") ||
-            stickyContainer == null ||
-            event.button === 2 ||
-            event.target !== stickyContainer.firstChild
-          ) {
-            // Right click or click on editor should not work
-            return;
-          }
-          const stickContainer = stickyContainer;
-          const positioning = positioningRef.current;
-          if (stickContainer !== null) {
-            const { top, left } = stickContainer.getBoundingClientRect();
-            const zoom = calculateZoomLevel(stickContainer);
-            positioning.offsetX = event.clientX / zoom - left;
-            positioning.offsetY = event.clientY / zoom - top;
-            positioning.isDragging = true;
-            stickContainer.classList.add("dragging");
-            document.addEventListener("pointermove", handlePointerMove);
-            document.addEventListener("pointerup", handlePointerUp);
-            event.preventDefault();
-          }
-        }}
-      >
+    <div className="sticky-note-container">
+      <div className={cn("sticky-note group/sticky", COLORS[color].fill)}>
         {isEditable && (
-          <div className="flex items-center justify-between gap-2 p-0 print:hidden">
+          <div className="absolute top-1.5 right-1.5 z-10 flex gap-0.5 print:hidden">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className={control}
+                  aria-label="Sticky note colour"
+                  title="Colour"
+                >
+                  <PaletteIcon className="size-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuRadioGroup
+                  value={color}
+                  onValueChange={(value) => {
+                    if (isColor(value))
+                      withNote((node) => node.setColor(value));
+                  }}
+                >
+                  {Object.entries(COLORS).map(([value, { label, fill }]) => (
+                    <DropdownMenuRadioItem key={value} value={value}>
+                      <span
+                        aria-hidden="true"
+                        className={cn(
+                          "size-3.5 rounded-full border border-paper-ink/15",
+                          fill,
+                        )}
+                      />
+                      {label}
+                    </DropdownMenuRadioItem>
+                  ))}
+                </DropdownMenuRadioGroup>
+              </DropdownMenuContent>
+            </DropdownMenu>
             <Button
-              onClick={handleColorChange}
-              variant="ghost"
-              size="icon"
-              aria-label="Change sticky note color"
-              title="Color"
-            >
-              <PaintbrushIcon className="size-4" />
-            </Button>
-            <Button
-              onClick={handleDelete}
+              onClick={() => withNote((node) => node.remove())}
               size="icon"
               variant="ghost"
+              className={control}
               aria-label="Delete sticky note"
               title="Delete"
             >
@@ -245,20 +115,22 @@ export default function StickyComponent({
             </Button>
           </div>
         )}
-        <div className="px-2">
-          <LexicalNestedComposer initialEditor={caption}>
-            <PlainTextPlugin
-              contentEditable={
-                <LexicalContentEditable
-                  placeholder="What's up?"
-                  placeholderClassName={placeholderTwClasses}
-                  className={contentEditableTwClasses}
-                />
-              }
-              ErrorBoundary={LexicalErrorBoundary}
-            />
-          </LexicalNestedComposer>
-        </div>
+        <LexicalNestedComposer initialEditor={caption}>
+          <PlainTextPlugin
+            contentEditable={
+              <LexicalContentEditable
+                placeholder="Write a note…"
+                placeholderClassName="top-0 left-0 translate-y-0 text-paper-ink/60 select-none whitespace-nowrap"
+                className={cn(
+                  "block w-full p-0 font-normal whitespace-pre-wrap break-words caret-paper-ink select-text",
+                  // Room for the controls, so they never sit on the text.
+                  isEditable && "pe-12",
+                )}
+              />
+            }
+            ErrorBoundary={LexicalErrorBoundary}
+          />
+        </LexicalNestedComposer>
       </div>
     </div>
   );

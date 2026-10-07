@@ -63,6 +63,7 @@ export const theme = {
   heading: { h1: "", h2: "", h3: "", h4: "", h5: "", h6: "" },
   hrSelected: "document-rule-selected",
   image: "editor-image",
+  inlineImage: "document-inline-image",
   embedBlock: {
     base: "document-embed-block",
     focus: "document-embed-selected",

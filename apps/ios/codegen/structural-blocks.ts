@@ -258,12 +258,24 @@ export async function swiftForStructuralBlocks(): Promise<string> {
       import.meta.url,
     ),
   ).text();
-  const stickyWidth = /available - (\d+)/.exec(stickySource)?.[1];
-  const stickyClasses = /w-(\d+) h-(\d+) p-(\d+)/.exec(stickySource);
+  // The colour menu's order, as the web lists it.
+  const STICKY_COLORS = [
+    ...stickySource.matchAll(/^ {2}(\w+): \{ label: "/gm),
+  ].map(([, name]) => String(name));
+  if (STICKY_COLORS.length === 0)
+    throw new Error("Sticky colour menu changed shape");
+  // A note is a column-wide block in the flow, drawn by document.css.
+  const stickyRule = /\.sticky-note \{([\s\S]*?)\}/.exec(document)?.[1] ?? "";
+  const sticky = {
+    radius: /border-radius: (\d+)px/.exec(stickyRule)?.[1],
+    padding: /padding: (\d+)px (\d+)px/.exec(stickyRule),
+    minimumHeight: /min-height: (\d+)px/.exec(stickyRule)?.[1],
+  };
   if (
-    !stickyWidth ||
-    !stickyClasses ||
-    Number(stickyClasses[1]) * 4 !== Number(stickyWidth)
+    !/className=\{cn\("sticky-note[ "]/.test(stickySource) ||
+    !sticky.radius ||
+    !sticky.padding ||
+    !sticky.minimumHeight
   )
     throw new Error("Sticky geometry changed shape");
   const slideElements: Record<string, unknown> = {};
@@ -383,7 +395,7 @@ export async function swiftForStructuralBlocks(): Promise<string> {
     { discrete: true },
   );
   const string = (value: string) => JSON.stringify(value);
-  return `// Generated from structural node factories, web presets and document CSS.\n// Run bun run codegen in apps/ios to update.\npublic enum StructuralBlockConfiguration {\n  public static let slidePreviewInitialIndex = ${previewInitialIndex}\n  public static let slideBoxVersionIncrement = ${versionIncrement}.0\n  public static let slideContentMinimumChildCount = ${projection[1]}\n  public static let columnGap = ${columnGap}.0\n  public static let columnBorderColors = ${JSON.stringify(columnBorderColors)}\n  public static let columnPadding = ${columnPadding}.0\n  public static let columnBorderWidth = ${columnBorderWidth}.0\n  public static let columnFramesShowAtRest = ${columnFramesShowAtRest}\n  public static let columnWhitespacePattern = ${JSON.stringify(columnWhitespace)}\n  public static let isolatedNodeTypes: Set<String> = [${isolated.map(string).join(", ")}]\n  public static let stickyWidth = ${stickyWidth}.0\n  public static let stickyHeight = ${Number(stickyClasses[2]) * 4}.0\n  public static let stickyPadding = ${Number(stickyClasses[3]) * 4}.0\n  public static let chartTypes: [String] = [${CHART_TYPES.map(string).join(", ")}]\n  public static let slideElements: [String:String] = [${Object.entries(
+  return `// Generated from structural node factories, web presets and document CSS.\n// Run bun run codegen in apps/ios to update.\npublic enum StructuralBlockConfiguration {\n  public static let slidePreviewInitialIndex = ${previewInitialIndex}\n  public static let slideBoxVersionIncrement = ${versionIncrement}.0\n  public static let slideContentMinimumChildCount = ${projection[1]}\n  public static let columnGap = ${columnGap}.0\n  public static let columnBorderColors = ${JSON.stringify(columnBorderColors)}\n  public static let columnPadding = ${columnPadding}.0\n  public static let columnBorderWidth = ${columnBorderWidth}.0\n  public static let columnFramesShowAtRest = ${columnFramesShowAtRest}\n  public static let columnWhitespacePattern = ${JSON.stringify(columnWhitespace)}\n  public static let isolatedNodeTypes: Set<String> = [${isolated.map(string).join(", ")}]\n  public static let stickyRadius = ${sticky.radius}.0\n  public static let stickyPaddingY = ${sticky.padding[1]}.0\n  public static let stickyPaddingX = ${sticky.padding[2]}.0\n  public static let stickyMinimumHeight = ${sticky.minimumHeight}.0\n  public static let chartTypes: [String] = [${CHART_TYPES.map(string).join(", ")}]\n  public static let slideElements: [String:String] = [${Object.entries(
     slideElements,
   )
     .map(([kind, fields]) => `${string(kind)}: #"${JSON.stringify(fields)}"#`)
@@ -405,7 +417,7 @@ export async function swiftForStructuralBlocks(): Promise<string> {
     .map((v) => Number.parseFloat(v) / 100)
     .join(
       ", ",
-    )}]\n  public static let calloutRadius = ${radius}.0\n  public static let calloutPaddingY = ${padding[1]}.0\n  public static let calloutPaddingX = ${padding[2]}.0\n  public static let calloutHeaderGap = ${header.gap}.0\n  public static let calloutHeaderAfter = ${header.after}.0\n  public static let calloutHeaderWeight = ${header.weight}.0\n  public static let calloutHeaderLineHeight = ${header.lineHeight}\n  public static let calloutIconSize = ${header.icon}.0\n  /// Lucide icon names by kind.\n  public static let calloutIcons: [String:String] = [${calloutIcons.map(([k, v]) => `${string(k)}: ${string(v)}`).join(", ")}]\n  /// A toggle's chevron column, in ems of the document's text.\n  public static let sectionGutter = ${section.gutter}\n  /// The chevron's box: ems of its line's text plus ems of the document's, inset by the latter.\n  public static let sectionChevronEm = ${section.chevronEm}\n  public static let sectionChevronRem = ${section.chevronRem}\n  public static let sectionChevronInset = ${section.chevronInset}\n  public static let sectionContentGap = ${section.contentGap}\n  /// A title's text size and leading by its block, in ems of the document's text.\n  public static let sectionLevels: [String: (fontSize: Double, lineHeight: Double)] = [${section.levels.map(([tag, size, leading]) => `${string(tag)}: (${size}, ${leading})`).join(", ")}]\n  public static let sectionChevronColors = ${JSON.stringify(rgbaColors("muted-foreground"))}\n  public static let sectionChevronViewBox = ${section.chevronViewBox}.0\n  public static let sectionChevronStrokeWidth = ${section.chevronStrokeWidth}.0\n  public static let sectionChevronPoints: [(x: Double, y: Double)] = [${section.chevronPoints.map(([x, y]) => `(${x}.0, ${y}.0)`).join(", ")}]\n  public static let layouts: [(label: String, value: String)] = [${layouts.map((v) => `(${string(v.label)}, ${string(v.value)})`).join(", ")}]\n  public static let stickyColors: [String:[String]] = [${["pink", "yellow", "green", "blue", "red", "orange", "purple", "gray"].map((k) => `${string(k)}: [${stickyPalette(k).map(string).join(", ")}]`).join(", ")}]\n  public static let dividerLabel = ${string(dividerLabel)}\n  public static let insertionNodes: [String:String] = [${Object.entries(
+    )}]\n  public static let calloutRadius = ${radius}.0\n  public static let calloutPaddingY = ${padding[1]}.0\n  public static let calloutPaddingX = ${padding[2]}.0\n  public static let calloutHeaderGap = ${header.gap}.0\n  public static let calloutHeaderAfter = ${header.after}.0\n  public static let calloutHeaderWeight = ${header.weight}.0\n  public static let calloutHeaderLineHeight = ${header.lineHeight}\n  public static let calloutIconSize = ${header.icon}.0\n  /// Lucide icon names by kind.\n  public static let calloutIcons: [String:String] = [${calloutIcons.map(([k, v]) => `${string(k)}: ${string(v)}`).join(", ")}]\n  /// A toggle's chevron column, in ems of the document's text.\n  public static let sectionGutter = ${section.gutter}\n  /// The chevron's box: ems of its line's text plus ems of the document's, inset by the latter.\n  public static let sectionChevronEm = ${section.chevronEm}\n  public static let sectionChevronRem = ${section.chevronRem}\n  public static let sectionChevronInset = ${section.chevronInset}\n  public static let sectionContentGap = ${section.contentGap}\n  /// A title's text size and leading by its block, in ems of the document's text.\n  public static let sectionLevels: [String: (fontSize: Double, lineHeight: Double)] = [${section.levels.map(([tag, size, leading]) => `${string(tag)}: (${size}, ${leading})`).join(", ")}]\n  public static let sectionChevronColors = ${JSON.stringify(rgbaColors("muted-foreground"))}\n  public static let sectionChevronViewBox = ${section.chevronViewBox}.0\n  public static let sectionChevronStrokeWidth = ${section.chevronStrokeWidth}.0\n  public static let sectionChevronPoints: [(x: Double, y: Double)] = [${section.chevronPoints.map(([x, y]) => `(${x}.0, ${y}.0)`).join(", ")}]\n  public static let layouts: [(label: String, value: String)] = [${layouts.map((v) => `(${string(v.label)}, ${string(v.value)})`).join(", ")}]\n  /// The web's colour menu order.\n  public static let stickyColorOrder = ${JSON.stringify(STICKY_COLORS)}\n  public static let stickyColors: [String:[String]] = [${STICKY_COLORS.map((k) => `${string(k)}: [${stickyPalette(k).map(string).join(", ")}]`).join(", ")}]\n  public static let dividerLabel = ${string(dividerLabel)}\n  public static let insertionNodes: [String:String] = [${Object.entries(
     nodes,
   )
     .map(([k, v]) => `${string(k)}: #"${JSON.stringify(v)}"#`)

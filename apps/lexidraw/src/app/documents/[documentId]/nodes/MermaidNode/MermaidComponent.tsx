@@ -165,6 +165,7 @@ export default function MermaidComponent({
           height={height}
           natural={natural}
           onMeasured={keepNaturalSize}
+          overflow="scroll"
           className={cn(
             typeof width === "number" && "w-full",
             typeof height === "number" && "h-full",

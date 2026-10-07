@@ -197,6 +197,7 @@ export default function ChartComponent({
           config={parsedChartConfig}
           width={width}
           height={height}
+          editable={isEditable}
         />
 
         {isEditable && (

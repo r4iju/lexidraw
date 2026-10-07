@@ -12,6 +12,8 @@ export type FigureBox = {
   width: Dimension;
   height: Dimension;
   natural: NaturalSize | undefined;
+  /** Placed at a figure width, the figure fills it whatever size it was given. */
+  fill?: boolean;
 };
 
 /** The frame a drawing or a diagram sits in. */
@@ -19,16 +21,18 @@ export const FIGURE_FRAME = "group/node relative inline-block max-w-full";
 
 /**
  * Where a drawing sits: the width it was given, or a quarter wider than it
- * exports at, and never past the column.
+ * exports at, never past the column; placed at a figure width, that width.
  */
 export function drawingStyle({
   width,
   height,
   natural,
+  fill,
 }: FigureBox): React.CSSProperties {
   return {
-    width:
-      typeof width === "number"
+    width: fill
+      ? "100%"
+      : typeof width === "number"
         ? width
         : natural
           ? natural.width * 1.25
@@ -36,7 +40,7 @@ export function drawingStyle({
     height: "auto",
     aspectRatio: natural && `auto ${natural.width} / ${natural.height}`,
     maxWidth: "100%",
-    maxHeight: typeof height === "number" ? height : undefined,
+    maxHeight: typeof height === "number" && !fill ? height : undefined,
     objectFit: "contain",
   };
 }

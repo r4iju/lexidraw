@@ -16,7 +16,8 @@ import Testing
     #expect(try width("wide", available: 1200) == 1024)
     #expect(try width("full", available: 1200) == 1200)
     #expect(try width("50%", available: 1200) == 352)
-    #expect(try width("10%", available: 1200) == 320)
+    #expect(try width("25%", available: 1200) == 176)
+    #expect(try width("10%", available: 1200) == 160)
     #expect(try width("50%", available: 500) == 500)
     #expect(try width("5%", available: 1200) == 704)
   }
