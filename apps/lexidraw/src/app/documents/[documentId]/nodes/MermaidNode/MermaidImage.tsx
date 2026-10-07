@@ -9,6 +9,19 @@ import {
   diagramStyle,
   FigureLoading,
 } from "../common/figure-box";
+import {
+  type DiagramTokens,
+  mermaidThemeCSS,
+  mermaidThemeVariables,
+} from "./mermaid-theme";
+
+const CHART_TOKENS = [
+  "--chart-1",
+  "--chart-2",
+  "--chart-3",
+  "--chart-4",
+  "--chart-5",
+];
 
 interface Props {
   schema: string;
@@ -21,7 +34,7 @@ interface Props {
 }
 type Diagram =
   | { status: "loading" }
-  | { status: "error" }
+  | { status: "error"; message: string }
   | { status: "ready"; src: string; print: string; size: NaturalSize };
 // Mermaid's configuration is global, so initialize and render each diagram together.
 let renderQueue: Promise<unknown> = Promise.resolve();
@@ -64,35 +77,39 @@ export default function MermaidImage({
           .map((value) => value.toString(16).padStart(2, "0"))
           .join("")}`;
       };
-      const colours = {
-        primaryColor: token("--surface-1"),
-        primaryTextColor: token("--foreground"),
-        primaryBorderColor: token("--border"),
-        lineColor: token("--muted-foreground"),
-        secondaryColor: token("--surface-2"),
-        tertiaryColor: token("--background"),
+      const screen: DiagramTokens = {
+        page: token("--background"),
+        surface: token("--surface-1"),
+        secondarySurface: token("--surface-2"),
+        foreground: token("--foreground"),
+        border: token("--border"),
+        muted: token("--muted-foreground"),
+        destructive: token("--destructive"),
+        chart: CHART_TOKENS.map(token),
+      };
+      // Paper keeps the screen's chart hues; the theme sets their lightness.
+      const paper: DiagramTokens = {
+        ...screen,
+        page: token("--diagram-paper-background"),
+        surface: token("--diagram-paper-surface"),
+        secondarySurface: token("--diagram-paper-surface"),
+        foreground: token("--diagram-paper-foreground"),
+        border: token("--diagram-paper-border"),
+        muted: token("--diagram-paper-muted"),
       };
       const draw = async (print: boolean) => {
+        const tokens = print ? paper : screen;
         mermaid.initialize({
           startOnLoad: false,
+          // Mermaid would otherwise leave its error graphic on <body>.
+          suppressErrorRendering: true,
           theme: "base",
           themeVariables: {
-            darkMode: !print && dark,
+            ...mermaidThemeVariables(tokens, { dark: !print && dark }),
             fontFamily: font,
             fontSize: "14px",
-            ...(print
-              ? {
-                  primaryColor: token("--diagram-paper-surface"),
-                  primaryTextColor: token("--diagram-paper-foreground"),
-                  primaryBorderColor: token("--diagram-paper-border"),
-                  lineColor: token("--diagram-paper-muted"),
-                  secondaryColor: token("--diagram-paper-surface"),
-                  tertiaryColor: token("--diagram-paper-background"),
-                }
-              : colours),
           },
-          themeCSS:
-            ".node rect, .node polygon, .node circle { filter: none !important; }",
+          themeCSS: mermaidThemeCSS(tokens),
         });
         const { svg } = await mermaid.render(
           `m${Math.random().toString(36).slice(2)}`,
@@ -131,8 +148,12 @@ export default function MermaidImage({
               setDiagram({ status: "ready", src, print, size: screen.size });
               measured(screen.size);
             }
-          } catch {
-            if (current === generation) setDiagram({ status: "error" });
+          } catch (error) {
+            if (current === generation)
+              setDiagram({
+                status: "error",
+                message: error instanceof Error ? error.message : String(error),
+              });
           }
         });
     };
@@ -206,8 +227,14 @@ export default function MermaidImage({
           natural={natural}
         />
       ) : (
-        <div className="bg-muted/20 text-muted-foreground text-xs p-2 rounded">
-          Failed to render diagram
+        // As wide as the column: an inline-block frame sizes to its content.
+        <div className="w-screen max-w-full rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-left">
+          <p className="font-medium text-destructive text-sm">
+            Could not draw this diagram
+          </p>
+          <pre className="mt-1 whitespace-pre-wrap break-words font-mono text-muted-foreground text-xs">
+            {diagram.message}
+          </pre>
         </div>
       )}
     </section>
