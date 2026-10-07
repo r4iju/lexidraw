@@ -232,17 +232,31 @@ export async function checkMedia(
         poll.text?.includes("2 votes · 67%") &&
           poll.text.includes("3 votes total"),
       );
-      const sticky = await page.$eval(".sticky-note-container", (e) => ({
-        inDocument: Boolean(e.closest(".document-content")),
-        position: getComputedStyle(e).position,
-      }));
-      assert(sticky.inDocument, "Sticky note belongs to the document flow");
-      if (width === 375)
-        assert.equal(
-          sticky.position,
-          "static",
-          "Compact sticky cannot cover text",
-        );
+      const sticky = await page.$eval(".sticky-note-container", (e) => {
+        const block = e.closest(".document-content > *");
+        const column = e.closest(".document-content");
+        if (!block || !column)
+          throw new Error("Sticky note outside the document");
+        const own = e.getBoundingClientRect();
+        return {
+          own: own.toJSON(),
+          column: column.getBoundingClientRect().toJSON(),
+          before: block.previousElementSibling?.getBoundingClientRect().bottom,
+          after: block.nextElementSibling?.getBoundingClientRect().top,
+        };
+      });
+      assert(
+        sticky.before !== undefined &&
+          sticky.after !== undefined &&
+          sticky.own.top >= sticky.before &&
+          sticky.own.bottom <= sticky.after,
+        `Sticky note sits between its neighbouring blocks at ${width}px, never over them`,
+      );
+      assert(
+        sticky.own.left >= sticky.column.left - 1 &&
+          sticky.own.right <= sticky.column.right + 1,
+        `Sticky note stays inside the text column at ${width}px`,
+      );
       const drawingFilter = await page.$eval(
         'img[alt="Excalidraw"]',
         (e) => getComputedStyle(e).filter,

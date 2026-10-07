@@ -284,7 +284,7 @@ describe("a document opened for reading", () => {
     expect(text).toContain("Ramen");
     expect(text).toContain("Soba");
     expect(text).not.toMatch(/PAGE\s*BREAK/);
-    expect(text).not.toContain("Add Option");
+    expect(text).not.toContain("Add option");
     expect(controls().map((element) => element.outerHTML)).toEqual([]);
   });
 });
@@ -293,7 +293,7 @@ describe("a document opened for editing", () => {
   test("offers its blocks' editing controls", async () => {
     await mount(<Document state={BLOCKS} editable />);
     expect(contentEditable()).toBe("true");
-    expect(dom.window.document.body.textContent).toContain("Add Option");
+    expect(dom.window.document.body.textContent).toContain("Add option");
     expect(controls().length).toBeGreaterThan(0);
   });
 
@@ -354,6 +354,46 @@ test("reading a poll shows counts, percentages and total, including zero votes",
   expect(text).toContain("1 vote · 100%");
   expect(text).toContain("1 vote total");
   expect(dom.window.document.querySelectorAll("meter").length).toBe(2);
+});
+
+/** A document of one poll with `options`. */
+function pollState(options: { text: string; uid: string; votes: string[] }[]) {
+  return JSON.stringify({
+    root: {
+      ...EMPTY_ROOT,
+      children: [{ type: "poll", version: 1, question: "Lunch?", options }],
+    },
+  });
+}
+
+test("a poll nobody has voted in says so instead of listing zero counts", async () => {
+  await mount(
+    <Document
+      state={pollState([
+        { text: "Ramen", uid: "a", votes: [] },
+        { text: "Soba", uid: "b", votes: [] },
+      ])}
+      editable={false}
+    />,
+  );
+  const text = dom.window.document.body.textContent;
+  expect(text).toContain("No votes yet");
+  expect(text).not.toContain("0 votes");
+});
+
+test("a poll without options says it has none, and an editor can add one", async () => {
+  await mount(<Document state={pollState([])} editable />);
+  const poll = dom.window.document.querySelector("[data-poll]");
+  expect(poll?.textContent).toContain("No options yet");
+  expect(poll?.textContent).not.toContain("votes total");
+  const add = [...(poll?.querySelectorAll("button") ?? [])].find(
+    (button) => button.textContent?.trim() === "Add option",
+  );
+  if (!add) throw new Error("Missing add option button");
+  await act(async () => add.click());
+  expect(
+    dom.window.document.querySelectorAll("[data-poll] textarea").length,
+  ).toBe(1);
 });
 
 for (const kind of ["chart", "mermaid"] as const) {

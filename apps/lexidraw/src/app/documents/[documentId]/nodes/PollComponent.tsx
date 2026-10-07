@@ -16,12 +16,17 @@ import {
   type NodeKey,
 } from "lexical";
 import type * as React from "react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Button } from "~/components/ui/button";
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { Checkbox } from "~/components/ui/checkbox";
-import { Input } from "~/components/ui/input";
 import { cn } from "~/lib/utils";
-import { TrashIcon } from "lucide-react";
+import { PlusIcon, XIcon } from "lucide-react";
 import { useUserIdOrGuestId } from "~/hooks/use-user-id-or-guest-id";
 
 function getTotalVotes(options: Options): number {
@@ -30,12 +35,25 @@ function getTotalVotes(options: Options): number {
   }, 0);
 }
 
+/**
+ * Edit controls stay out of the way until the poll is pointed at, holds
+ * focus, or is selected as a block.
+ */
+const editControl = (revealed: boolean) =>
+  cn(
+    "transition-opacity duration-fast print:hidden",
+    revealed
+      ? "opacity-100"
+      : "opacity-0 group-hover/poll:opacity-100 group-focus-within/poll:opacity-100 focus-visible:opacity-100",
+  );
+
 function PollOptionComponent({
   option,
   index,
   options,
   totalVotes,
   nodeKey,
+  revealed,
   withPollNode,
 }: {
   index: number;
@@ -43,6 +61,7 @@ function PollOptionComponent({
   options: Options;
   totalVotes: number;
   nodeKey: NodeKey;
+  revealed: boolean;
   withPollNode: (
     cb: (pollNode: PollNode) => void,
     onSelect?: () => void,
@@ -51,97 +70,121 @@ function PollOptionComponent({
   const userId = useUserIdOrGuestId();
   const [editor] = useLexicalComposerContext();
   const isEditable = useLexicalEditable();
-  const checkboxRef = useRef(null);
+  const labelId = useId();
   const votesArray = option.votes;
-  const checkedIndex = votesArray.indexOf(userId);
-  const checked = checkedIndex !== -1;
+  const checked = votesArray.includes(userId);
   const votes = votesArray.length;
   const text = option.text;
+  const percentage = totalVotes ? Math.round((votes / totalVotes) * 100) : 0;
+  const label = text || `Option ${index + 1}`;
 
   return (
-    <div className="flex items-center mb-2">
-      {isEditable && (
-        <Checkbox
-          ref={checkboxRef}
-          onCheckedChange={() => {
-            withPollNode((node) => {
-              node.toggleVote(option, userId);
-            });
-          }}
-          className="mr-2 size-6 print:hidden"
-          checked={checked}
-        />
-      )}
-
-      <div className="relative flex flex-col min-w-0 flex-grow rounded-md border border-primary overflow-hidden">
-        <meter
-          aria-label={text}
-          min={0}
-          max={100}
-          value={totalVotes ? Math.round((votes / totalVotes) * 100) : 0}
-          className="sr-only"
-        />
-        <div
-          aria-hidden="true"
-          className="absolute inset-0 origin-left bg-primary/10 transition-transform duration-slow"
-          style={{
-            transform: `scaleX(${votes === 0 ? 0 : votes / totalVotes})`,
-          }}
-        />
-        {isEditable ? (
-          <Input
+    <li className="py-1.5">
+      <div className="flex items-start gap-3">
+        {isEditable && (
+          <Checkbox
+            onCheckedChange={() => {
+              withPollNode((node) => {
+                node.toggleVote(option, userId);
+              });
+            }}
+            aria-labelledby={labelId}
             className={cn(
-              "relative z-10 min-w-0 flex-1 border-0 bg-transparent p-2 font-semibold print:hidden",
-              "text-primary placeholder:text-muted-foreground placeholder:font-normal",
-              "focus-visible:ring-0",
+              "mt-[3px] size-[18px] rounded-[5px] print:hidden",
+              "data-[state=checked]:border-foreground data-[state=checked]:bg-foreground data-[state=checked]:text-background",
+              "dark:data-[state=checked]:bg-foreground",
             )}
-            type="text"
-            value={text}
-            onKeyDownCapture={(e) => e.stopPropagation()}
-            onChange={(e) =>
-              editor.update(() => {
-                const n = $getNodeByKey(nodeKey);
-                if (PollNode.$isPollNode(n)) {
-                  n.setOptionText(option, e.target.value);
-                }
-              })
-            }
-            placeholder={`Option ${index + 1}`}
+            checked={checked}
           />
-        ) : null}
-        <span
-          className={cn(
-            "relative z-10 p-2 font-semibold text-primary",
-            isEditable && "hidden print:block",
-          )}
-        >
-          {text}
-        </span>
-        <span className="relative z-10 px-2 pb-2 text-xs text-primary">
-          {votes} {votes === 1 ? "vote" : "votes"} ·{" "}
-          {totalVotes ? Math.round((votes / totalVotes) * 100) : 0}%
-        </span>
+        )}
+        <div className="min-w-0 flex-1">
+          <div className="flex items-start gap-3">
+            {isEditable ? (
+              <textarea
+                id={labelId}
+                aria-label={label}
+                rows={1}
+                className={cn(
+                  "min-w-0 flex-1 resize-none bg-transparent p-0 text-foreground outline-none [field-sizing:content]",
+                  "placeholder:text-muted-foreground print:hidden",
+                )}
+                value={text}
+                onKeyDownCapture={(e) => {
+                  e.stopPropagation();
+                  if (e.key === "Enter") e.preventDefault();
+                }}
+                onChange={(e) =>
+                  editor.update(() => {
+                    const n = $getNodeByKey(nodeKey);
+                    if (PollNode.$isPollNode(n)) {
+                      n.setOptionText(option, e.target.value);
+                    }
+                  })
+                }
+                placeholder={`Option ${index + 1}`}
+              />
+            ) : null}
+            <span
+              id={isEditable ? undefined : labelId}
+              className={cn(
+                "min-w-0 flex-1 text-foreground",
+                isEditable && "hidden print:block",
+              )}
+            >
+              {text}
+            </span>
+            {totalVotes > 0 && (
+              <span className="shrink-0 pt-px text-sm tabular-nums text-muted-foreground">
+                {votes} {votes === 1 ? "vote" : "votes"} · {percentage}%
+              </span>
+            )}
+            {isEditable && (
+              <button
+                type="button"
+                disabled={options.length < 3}
+                className={cn(
+                  "-my-0.5 flex size-6 shrink-0 items-center justify-center rounded-sm text-muted-foreground",
+                  "hover:bg-accent hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring",
+                  "disabled:invisible",
+                  editControl(revealed),
+                )}
+                aria-label={`Remove ${label}`}
+                title="Remove option"
+                onClick={() => {
+                  withPollNode((node) => {
+                    node.deleteOption(option);
+                  });
+                }}
+              >
+                <XIcon className="size-4" />
+              </button>
+            )}
+          </div>
+          <div
+            data-poll-bar=""
+            className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-muted"
+          >
+            <meter
+              aria-label={label}
+              min={0}
+              max={100}
+              value={percentage}
+              className="sr-only"
+            />
+            <div
+              aria-hidden="true"
+              className={cn(
+                "h-full origin-left rounded-full transition-transform duration-slow",
+                checked ? "bg-foreground/80" : "bg-foreground/35",
+              )}
+              style={{
+                transform: `scaleX(${votes === 0 ? 0 : votes / totalVotes})`,
+              }}
+            />
+          </div>
+        </div>
       </div>
-      {isEditable && (
-        <Button
-          disabled={options.length < 3}
-          size="icon"
-          className={cn(
-            "ml-2 size-7 shrink-0 rounded-sm print:hidden",
-            "opacity-30 hover:opacity-100",
-            "disabled:pointer-events-none disabled:opacity-30",
-          )}
-          aria-label="Remove"
-          onClick={() => {
-            withPollNode((node) => {
-              node.deleteOption(option);
-            });
-          }}
-        >
-          <TrashIcon className="size-4" />
-        </Button>
-      )}
-    </div>
+    </li>
   );
 }
 
@@ -178,6 +221,7 @@ export default function PollComponent({
     [isSelected, nodeKey],
   );
 
+  // Lexical's selection and commands.
   useEffect(() => {
     return mergeRegister(
       editor.registerUpdateListener(({ editorState }) => {
@@ -235,44 +279,60 @@ export default function PollComponent({
   };
 
   const isFocused = $isNodeSelection(selection) && isSelected;
+  const isEmpty = options.length === 0;
 
   return (
     <div
       className={cn(
-        "w-full max-w-[520px] min-w-0 mx-auto select-none rounded-lg",
-        "border border-border bg-card p-6",
+        "group/poll w-full max-w-[520px] min-w-0 mx-auto select-none rounded-lg text-start",
+        "border border-border bg-card px-4 pt-3 pb-2",
         { "outline-2 outline-ring": isFocused && isEditable },
       )}
       data-poll=""
       ref={ref}
     >
-      <h2 className="mb-4 text-center text-lg font-medium text-foreground">
-        {question}
-      </h2>
-      {options.map((option, index) => {
-        const key = option.uid;
-        return (
-          <PollOptionComponent
-            key={key}
-            nodeKey={nodeKey}
-            withPollNode={withPollNode}
-            option={option}
-            index={index}
-            options={options}
-            totalVotes={totalVotes}
-          />
-        );
-      })}
-      <p className="text-sm text-muted-foreground">
-        {totalVotes} {totalVotes === 1 ? "vote" : "votes"} total
-      </p>
-      {isEditable && (
-        <div className="flex justify-center print:hidden">
-          <Button onClick={addOption} size="sm">
-            Add Option
-          </Button>
-        </div>
+      <p className="mb-1 font-semibold text-foreground">{question}</p>
+      {isEmpty ? (
+        <p className="py-1.5 text-sm text-muted-foreground">No options yet</p>
+      ) : (
+        <ul>
+          {options.map((option, index) => (
+            <PollOptionComponent
+              key={option.uid}
+              nodeKey={nodeKey}
+              withPollNode={withPollNode}
+              option={option}
+              index={index}
+              options={options}
+              totalVotes={totalVotes}
+              revealed={isFocused}
+            />
+          ))}
+        </ul>
       )}
+      <div className="flex min-h-8 items-center justify-between gap-3 text-sm text-muted-foreground">
+        {!isEmpty && (
+          <span className="tabular-nums">
+            {totalVotes === 0
+              ? "No votes yet"
+              : `${totalVotes} ${totalVotes === 1 ? "vote" : "votes"} total`}
+          </span>
+        )}
+        {isEditable && (
+          <button
+            type="button"
+            onClick={addOption}
+            className={cn(
+              "-mx-2 flex items-center gap-1.5 rounded-sm px-2 py-1 hover:bg-accent hover:text-foreground",
+              "focus-visible:outline-2 focus-visible:outline-ring",
+              editControl(isFocused || isEmpty),
+            )}
+          >
+            <PlusIcon className="size-4" />
+            Add option
+          </button>
+        )}
+      </div>
     </div>
   );
 }
