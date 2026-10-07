@@ -6,11 +6,14 @@ import {
   Heading4,
   List,
   ListChecks,
+  ListCollapse,
   ListOrdered,
   type LucideIcon,
   Pilcrow,
   TextQuote,
 } from "lucide-react";
+import type { ToggleLevel } from "@packages/lexical-nodes";
+import type { TOGGLE_LEVELS } from "@packages/types";
 import type { LexicalEditor } from "lexical";
 import type { JSX } from "react";
 import {
@@ -41,6 +44,25 @@ export const BLOCK_TYPES = [
     icon: ListChecks,
     shortcut: "Mod+Alt+6",
   },
+  { type: "toggle", label: "Toggle", icon: ListCollapse, toggle: "paragraph" },
+  {
+    type: "toggle-h1",
+    label: "Toggle heading 1",
+    icon: ListCollapse,
+    toggle: "h1",
+  },
+  {
+    type: "toggle-h2",
+    label: "Toggle heading 2",
+    icon: ListCollapse,
+    toggle: "h2",
+  },
+  {
+    type: "toggle-h3",
+    label: "Toggle heading 3",
+    icon: ListCollapse,
+    toggle: "h3",
+  },
   { type: "quote", label: "Quote", icon: TextQuote, shortcut: "Mod+Alt+Q" },
   { type: "code", label: "Code block", icon: Code, shortcut: "Mod+Alt+C" },
 ] as const satisfies readonly {
@@ -48,9 +70,25 @@ export const BLOCK_TYPES = [
   label: string;
   icon: LucideIcon;
   shortcut?: string;
+  /** The level of the toggle's title, for a toggle. */
+  toggle?: (typeof TOGGLE_LEVELS)[number];
 }[];
 
 export type BlockType = (typeof BLOCK_TYPES)[number]["type"];
+
+/** The level of a toggle's title a block type makes, for toggle types. */
+export function toggleLevelOf(type: BlockType | null): ToggleLevel | null {
+  const option = BLOCK_TYPES.find((each) => each.type === type);
+  return option && "toggle" in option ? option.toggle : null;
+}
+
+/** The block type of a toggle whose title is of `level`, if offered. */
+export function toggleTypeOf(level: ToggleLevel): BlockType | null {
+  return (
+    BLOCK_TYPES.find((each) => "toggle" in each && each.toggle === level)
+      ?.type ?? null
+  );
+}
 
 export function useSetBlockType(editor: LexicalEditor, blockType: BlockType) {
   const {
@@ -61,8 +99,10 @@ export function useSetBlockType(editor: LexicalEditor, blockType: BlockType) {
     formatCheckList,
     formatQuote,
     formatCode,
+    formatToggle,
+    unwrapToggle,
   } = useToolbarUtils();
-  return (type: BlockType) => {
+  const setBlockType = (type: BlockType) => {
     switch (type) {
       case "paragraph":
         return formatParagraph(editor);
@@ -81,7 +121,22 @@ export function useSetBlockType(editor: LexicalEditor, blockType: BlockType) {
         return formatQuote(editor, blockType);
       case "code":
         return formatCode(editor, blockType);
+      case "toggle":
+      case "toggle-h1":
+      case "toggle-h2":
+      case "toggle-h3":
+        return formatToggle(editor, toggleLevelOf(type) ?? "paragraph");
     }
+  };
+  return (type: BlockType) => {
+    // A toggle turned into another kind of block is its title's block first,
+    // in the same update, so one undo puts the toggle back.
+    if (toggleLevelOf(blockType) && !toggleLevelOf(type))
+      editor.update(() => {
+        unwrapToggle();
+        setBlockType(type);
+      });
+    else setBlockType(type);
   };
 }
 

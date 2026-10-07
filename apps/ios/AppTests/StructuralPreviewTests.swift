@@ -200,12 +200,14 @@ import TextKitEditor
       plain.body.caretRect(for: plain.body.beginningOfDocument).minX + 200)
   }
 
-  private func section(open: Bool, title: String = "Adidas Checked Wide Pants / JF5016", lines: Int = 1) -> JSONValue {
+  private func section(open: Bool, title: String = "Adidas Checked Wide Pants / JF5016", heading: String? = nil, lines: Int = 1) -> JSONValue {
     func paragraph(_ text: String) -> JSONValue {
       ["type": "paragraph", "version": 1, "children": [["type": "text", "version": 1, "text": .string(text)]]]
     }
+    var titleBlock = paragraph(title)
+    if let heading { titleBlock = ["type": "heading", "version": 1, "tag": .string(heading), "children": titleBlock["children"]!] }
     return ["type": "collapsible-container", "version": 1, "open": .bool(open), "children": [
-      ["type": "collapsible-title", "version": 1, "children": [paragraph(title)]],
+      ["type": "collapsible-title", "version": 1, "children": [titleBlock]],
       ["type": "collapsible-content", "version": 1, "children": .array((0..<lines).map { paragraph("Line \($0)") })],
     ]]
   }
@@ -214,17 +216,16 @@ import TextKitEditor
     return view.subviews.lazy.compactMap { self.disclosure(in: $0) }.first
   }
 
-  // "Shopping - Clothing" at 704px: a closed item is a 46px bordered row, its
-  // title after a 16px chevron, and no other controls. Text is in ems of the
-  // body font, 16px on the web: the title's 1.5em line and 0.75em margin.
-  private var sectionRow: CGFloat { 2 * 4 + 2.25 * UIFont.preferredFont(forTextStyle: .body).pointSize }
-  func testAClosedSectionIsTheWebsBorderedDisclosureRow() throws {
+  // A closed toggle is its title's line, unboxed, the title after a 1.625em
+  // gutter that holds the chevron. Text is in ems of the body font, 16px on
+  // the web: a paragraph's line is 1.6em.
+  private var em: CGFloat { UIFont.preferredFont(forTextStyle: .body).pointSize }
+  func testAClosedToggleIsItsTitleLineAfterTheChevronGutter() throws {
     let fixture = try preview(section(open: false), width: 704)
-    XCTAssertEqual(fixture.panel.frame.height, 2 + sectionRow, accuracy: 1)
-    XCTAssertEqual(fixture.panel.layer.borderWidth, 1)
-    XCTAssertEqual(fixture.panel.layer.cornerRadius, 10)
+    XCTAssertEqual(fixture.panel.frame.height, 1.6 * em, accuracy: 1)
+    XCTAssertEqual(fixture.panel.layer.borderWidth, 0)
     let title = fixture.body.textInputView.convert(fixture.body.caretRect(for: fixture.body.beginningOfDocument), to: fixture.panel)
-    XCTAssertEqual(title.minX, 41, accuracy: 1)
+    XCTAssertEqual(title.minX, 1.625 * em, accuracy: 1)
     let visibleButtons = fixture.panel.subviews.flatMap { [$0] + $0.subviews }.compactMap { $0 as? UIButton }.filter { !$0.isHidden }
     XCTAssertEqual(visibleButtons.compactMap { $0.title(for: .normal) }, [])
     let control = try XCTUnwrap(disclosure(in: fixture.panel))
@@ -232,7 +233,13 @@ import TextKitEditor
     XCTAssertEqual(control.accessibilityValue, "Collapsed")
   }
 
-  func testAnOpenSectionShowsAllOfItsContentBelowTheRow() throws {
+  // A toggle heading's title is the heading: an h2 is 1.5em, led at 1.3.
+  func testAToggleHeadingsTitleIsItsHeading() throws {
+    let fixture = try preview(section(open: false, heading: "h2"), width: 704)
+    XCTAssertEqual(fixture.panel.frame.height, 1.5 * 1.3 * em, accuracy: 1.5)
+  }
+
+  func testAnOpenToggleShowsAllOfItsContentUnderItsTitle() throws {
     let fixture = try preview(section(open: true, lines: 40), width: 704)
     func editors(in view: UIView) -> [EditorView] {
       if let editor = view as? EditorView { return [editor] }
@@ -243,13 +250,13 @@ import TextKitEditor
     XCTAssertGreaterThanOrEqual(content.frame.height, content.contentSize.height - 1)
     XCTAssertGreaterThan(fixture.panel.frame.height, 40 * 20)
     let first = content.textInputView.convert(content.caretRect(for: content.beginningOfDocument), to: fixture.panel)
-    XCTAssertEqual(first.minX, 17, accuracy: 1)
-    XCTAssertEqual(first.minY, 1 + sectionRow, accuracy: 4)
+    XCTAssertEqual(first.minX, 1.625 * em, accuracy: 1)
+    XCTAssertEqual(first.minY, (1.6 + 0.25) * em, accuracy: 4)
   }
 
-  // Between two items the web keeps the item's 0.75em block margin and the
+  // Between two toggles the web keeps the block's 0.75em margin and the
   // empty paragraph the document stores there, a 1.6em line and its 0.75em.
-  func testSectionsKeepTheWebsSpacingAroundTheEmptyParagraphBetweenThem() throws {
+  func testTogglesKeepTheWebsSpacingAroundTheEmptyParagraphBetweenThem() throws {
     let model = Editor()
     try model.load(["root": ["type": "root", "version": 1, "children": [
       section(open: false), ["type": "paragraph", "version": 1, "children": []], section(open: false, title: "Second"),
@@ -262,14 +269,13 @@ import TextKitEditor
     window.addSubview(owner)
     window.makeKeyAndVisible()
     owner.layoutIfNeeded()
-    func panels(in view: UIView) -> [UIView] {
-      if view.layer.borderWidth > 0, view !== owner { return [view] }
-      return view.subviews.flatMap(panels)
+    func rows(in view: UIView) -> [UIView] {
+      if let control = disclosure(in: view), view === control { return [view] }
+      return view.subviews.flatMap(rows)
     }
-    let boxes = panels(in: owner).map { $0.convert($0.bounds, to: owner) }.sorted { $0.minY < $1.minY }
+    let boxes = rows(in: owner).map { $0.convert($0.bounds, to: owner) }.sorted { $0.minY < $1.minY }
     XCTAssertEqual(boxes.count, 2)
     guard boxes.count == 2 else { return }
-    let em = UIFont.preferredFont(forTextStyle: .body).pointSize
     XCTAssertEqual(boxes[1].minY - boxes[0].maxY, (0.75 + 1.6 + 0.75) * em, accuracy: 1.5)
   }
 
@@ -279,7 +285,7 @@ import TextKitEditor
     let control = try XCTUnwrap(disclosure(in: fixture.panel))
     control.sendActions(for: .primaryActionTriggered)
     XCTAssertEqual(disclosure(in: fixture.panel)?.accessibilityValue, "Expanded")
-    XCTAssertGreaterThan(fixture.panel.contentSize(fitting: 704).height, 60)
+    XCTAssertEqual(fixture.panel.contentSize(fitting: 704).height, (1.6 + 0.25 + 1.6) * em, accuracy: 1.5)
     XCTAssertEqual(try fixture.model.node(at: [0]), node)
   }
 

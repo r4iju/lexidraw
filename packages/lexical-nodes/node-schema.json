@@ -1590,6 +1590,7 @@
                 "keyword",
                 "linebreak",
                 "link",
+                "mention",
                 "paragraph",
                 "root",
                 "tab",
@@ -1760,6 +1761,7 @@
                 "keyword",
                 "linebreak",
                 "link",
+                "mention",
                 "paragraph",
                 "root",
                 "tab",
@@ -4501,7 +4503,7 @@
     "collapsible-title": {
       "kind": "element",
       "inline": false,
-      "shadowRoot": false,
+      "shadowRoot": true,
       "canBeEmpty": true
     },
     "comment": {

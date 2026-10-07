@@ -141,28 +141,16 @@ extension Update {
         try unwrapStructuralElement(key)
       }
     case SerializedCollapsibleContentNode.type where hasEditorPlugin("CollapsiblePlugin"):
-      if let parent = state.parent(of: key), state[parent].type != SerializedCollapsibleContainerNode.type {
-        try unwrapStructuralElement(key)
-      }
+      try repairToggleContent(key)
     case SerializedCollapsibleTitleNode.type where hasEditorPlugin("CollapsiblePlugin"):
-      if let parent = state.parent(of: key), state[parent].type != SerializedCollapsibleContainerNode.type {
-        // The plugin moves children first so a text caret stays on its child.
-        let paragraph = create(SerializedParagraphNode.type)
-        try append(paragraph, Array(state.children(of: key)))
-        try replace(key, with: paragraph)
-      }
+      try repairToggleTitle(key)
     case SerializedCollapsibleContainerNode.type where hasEditorPlugin("CollapsiblePlugin"):
-      let children = Array(state.children(of: key))
-      if children.count != 2 || state[children[0]].type != SerializedCollapsibleTitleNode.type
-        || state[children[1]].type != SerializedCollapsibleContentNode.type
-      {
-        try unwrapStructuralElement(key)
-      }
+      try repairToggle(key)
     default: break
     }
   }
 
-  private mutating func unwrapStructuralElement(_ key: NodeKey) throws {
+  mutating func unwrapStructuralElement(_ key: NodeKey) throws {
     for child in Array(state.children(of: key)) { try insert(child, before: key) }
     try remove(key)
   }

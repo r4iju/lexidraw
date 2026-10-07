@@ -127,7 +127,7 @@ export const TOOL_CONTRACTS: Record<string, Contract> = {
   insertCollapsibleSection: {
     name: "insertCollapsibleSection",
     description:
-      "Insert a collapsible section with title and optional initial content.",
+      "Insert a toggle (collapsible section) whose title is a paragraph or a heading (titleLevel), with optional initial content.",
     schema: InsertCollapsibleSectionSchema,
   },
   extractWebpageContent: {

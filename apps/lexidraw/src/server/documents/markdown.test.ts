@@ -625,6 +625,12 @@ describe("collapsibles", () => {
     ]);
     expect(roundTrip(markdown)).toBe(markdown);
   });
+
+  test('a line starting ">> " imports as the text it is', () => {
+    const [line] = blocksOf(">> quoted twice");
+    expect(line?.type).toBe("paragraph");
+    expect(textOf(line as Node)).toBe(">> quoted twice");
+  });
 });
 
 describe("columns", () => {

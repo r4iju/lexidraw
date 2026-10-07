@@ -1,19 +1,13 @@
 {
   "changes" : [
     {
-      "changed" : [
-
-      ]
+      "refused" : "invalidState"
     },
     {
-      "changed" : [
-
-      ]
+      "refused" : "noSelection"
     },
     {
-      "changed" : [
-
-      ]
+      "refused" : "noSelection"
     }
   ],
   "commands" : [
@@ -47,26 +41,6 @@
     }
   ],
   "expected" : {
-    "selection" : {
-      "anchor" : {
-        "offset" : 0,
-        "path" : [
-          0,
-          1
-        ],
-        "type" : "element"
-      },
-      "focus" : {
-        "offset" : 0,
-        "path" : [
-          0,
-          1
-        ],
-        "type" : "element"
-      },
-      "format" : 0,
-      "style" : ""
-    },
     "state" : {
       "root" : {
         "children" : [
@@ -75,12 +49,23 @@
               {
                 "children" : [
                   {
-                    "detail" : 0,
-                    "format" : 0,
-                    "mode" : "normal",
-                    "style" : "",
-                    "text" : "\\",
-                    "type" : "text",
+                    "children" : [
+                      {
+                        "detail" : 0,
+                        "format" : 0,
+                        "mode" : "normal",
+                        "style" : "",
+                        "text" : "\\",
+                        "type" : "text",
+                        "version" : 1
+                      }
+                    ],
+                    "direction" : null,
+                    "format" : "",
+                    "indent" : 0,
+                    "textFormat" : 0,
+                    "textStyle" : "",
+                    "type" : "paragraph",
                     "version" : 1
                   }
                 ],
@@ -92,7 +77,18 @@
               },
               {
                 "children" : [
+                  {
+                    "children" : [
 
+                    ],
+                    "direction" : null,
+                    "format" : "",
+                    "indent" : 0,
+                    "textFormat" : 0,
+                    "textStyle" : "",
+                    "type" : "paragraph",
+                    "version" : 1
+                  }
                 ],
                 "direction" : null,
                 "format" : "",

@@ -285,6 +285,7 @@ describe("the MCP endpoint", () => {
     expect(value).toEqual({
       userId: OWNER,
       email: "owner@example.test",
+      name: "Owner",
       authKind: "token",
       scope: "read",
     });

@@ -1,6 +1,11 @@
 import { $isCodeNode } from "@lexical/code";
 import { $isListItemNode, $isListNode } from "@lexical/list";
 import { $isHeadingNode, $isQuoteNode } from "@lexical/rich-text";
+import {
+  $toggleLevel,
+  $toggleOfTitle,
+  CollapsibleContainerNode,
+} from "@packages/lexical-nodes";
 import type { LexicalEditor, LexicalNode, NodeKey } from "lexical";
 import { ArrowDown, ArrowUp, CopyPlus, Repeat2, Trash2 } from "lucide-react";
 import {
@@ -10,7 +15,12 @@ import {
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
 } from "~/components/ui/dropdown-menu";
-import { BLOCK_TYPES, type BlockType, BlockTypeItems } from "./block-format";
+import {
+  BLOCK_TYPES,
+  type BlockType,
+  BlockTypeItems,
+  toggleTypeOf,
+} from "./block-format";
 import {
   deleteBlock,
   duplicateBlock,
@@ -18,8 +28,15 @@ import {
   selectBlock,
 } from "./block-commands";
 
+const { $isCollapsibleContainerNode } = CollapsibleContainerNode;
+
 export function $blockTypeOf(node: LexicalNode | null): BlockType | null {
   if (!node) return null;
+  // A toggle, or its title's block, is a toggle of its title's level.
+  const toggle = $isCollapsibleContainerNode(node)
+    ? node
+    : $toggleOfTitle(node);
+  if (toggle) return toggleTypeOf($toggleLevel(toggle));
   if ($isListNode(node)) return node.getListType();
   if ($isListItemNode(node)) {
     const list = node.getParent();
@@ -32,9 +49,7 @@ export function $blockTypeOf(node: LexicalNode | null): BlockType | null {
       : $isCodeNode(node)
         ? "code"
         : node.getType();
-  return BLOCK_TYPES.some((option) => option.type === type)
-    ? (type as BlockType)
-    : null;
+  return BLOCK_TYPES.find((option) => option.type === type)?.type ?? null;
 }
 
 /**

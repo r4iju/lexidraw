@@ -4,12 +4,11 @@ import {
   type DOMExportOutput,
   type EditorConfig,
   ElementNode,
-  type LexicalEditor,
   type LexicalNode,
   nodeSchema,
 } from "lexical";
 import { type ImportJSON, withStoredJSON } from "../stored-fields.js";
-import { CollapsibleContainerNode } from "./CollapsibleContainerNode.js";
+import { toggleIds } from "./CollapsibleContainerNode.js";
 import { unreadElementOnlyFields } from "./stored-element.js";
 
 export function $convertAccordionContentElement(
@@ -20,6 +19,10 @@ export function $convertAccordionContentElement(
     : null;
 }
 
+/**
+ * What a toggle folds away. Whether it shows is its container's state, which
+ * the document's styles read; it holds no state of its own.
+ */
 export class CollapsibleContentNode extends ElementNode {
   declare static importJSON: ImportJSON<CollapsibleContentNode>;
 
@@ -30,60 +33,34 @@ export class CollapsibleContentNode extends ElementNode {
     });
   }
 
-  createDOM(_config: EditorConfig, editor: LexicalEditor): HTMLElement {
-    let isOpen = false; // Default to closed to avoid visual mismatch
-    editor.getEditorState().read(() => {
-      const parent = this.getParentOrThrow();
-      if (CollapsibleContainerNode.$isCollapsibleContainerNode(parent)) {
-        isOpen = parent.getOpen();
-      }
-    });
-
-    const outer = document.createElement("div");
-    outer.dataset.slot = "accordion-content";
-    outer.dataset.state = isOpen ? "open" : "closed"; // Initial state
-    // Drawn in its state; it animates once toggled, see `SECTION_MOTION`.
-    outer.className = "overflow-hidden text-base";
-
-    // If closed, set height to 0 immediately to prevent visual expansion
-    if (!isOpen) {
-      outer.style.height = "0";
+  createDOM(_config: EditorConfig): HTMLElement {
+    const element = document.createElement("div");
+    element.dataset.slot = "accordion-content";
+    element.setAttribute("role", "region");
+    const parent = this.getParent();
+    if (parent) {
+      const ids = toggleIds(parent.getKey());
+      element.id = ids.content;
+      element.setAttribute("aria-labelledby", ids.title);
     }
-
-    return outer;
+    return element;
   }
 
-  updateDOM(
-    _prevNode: CollapsibleContentNode,
-    _dom: HTMLElement,
-    _config: EditorConfig,
-  ): boolean {
+  updateDOM(): boolean {
     return false;
   }
 
   static importDOM(): DOMConversionMap | null {
     return {
-      div: (domNode: HTMLElement) => {
-        if (domNode.dataset.slot === "accordion-content") {
-          return {
-            conversion: $convertAccordionContentElement,
-            priority: 1,
-          };
-        }
-        return null;
-      },
+      div: (domNode: HTMLElement) =>
+        domNode.dataset.slot === "accordion-content"
+          ? { conversion: $convertAccordionContentElement, priority: 1 }
+          : null,
     };
   }
 
   exportDOM(): DOMExportOutput {
-    const element = document.createElement("div");
-    element.dataset.slot = "accordion-content";
-    // The parent CollapsibleContainerNode is responsible for the data-state attribute that drives animation.
-    // This node just needs its base classes.
-    element.className = "overflow-hidden text-base pt-0 pb-4";
-    // The animate-accordion-down/up classes are applied based on data-state, set by parent container.
-    // So we don't need to explicitly add them here if state is unknown.
-    return { element };
+    return { element: document.createElement("div") };
   }
 
   isShadowRoot(): boolean {

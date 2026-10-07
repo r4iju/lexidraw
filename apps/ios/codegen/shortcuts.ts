@@ -40,7 +40,7 @@ export function blockTypes(): { type: string; label: string }[] {
   const choices: { type: string; label: string }[] = [];
   for (const entry of source[1].matchAll(/\{([^{}]*)\}/g)) {
     const match = entry[1]?.match(
-      /^\s*type:\s*("(?:[^"\\]|\\.)*"),\s*label:\s*("(?:[^"\\]|\\.)*"),\s*icon:\s*\w+,?\s*(?:shortcut:\s*"[^"]*",?\s*)?$/,
+      /^\s*type:\s*("(?:[^"\\]|\\.)*"),\s*label:\s*("(?:[^"\\]|\\.)*"),\s*icon:\s*\w+,?\s*(?:shortcut:\s*"[^"]*",?\s*)?(?:toggle:\s*"[^"]*",?\s*)?$/,
     );
     if (!match?.[1] || !match[2]) throw new Error("Unknown block choice shape");
     choices.push({ type: JSON.parse(match[1]), label: JSON.parse(match[2]) });

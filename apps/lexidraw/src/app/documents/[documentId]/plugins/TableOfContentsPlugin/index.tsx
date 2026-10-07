@@ -1,5 +1,6 @@
 import type { TableOfContentsEntry } from "@lexical/react/LexicalTableOfContentsPlugin";
-import type { NodeKey } from "lexical";
+import { $getNodeByKey, type NodeKey } from "lexical";
+import { $closedTogglesAround, settleToggles } from "@packages/lexical-nodes";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { TableOfContentsPlugin as LexicalTableOfContentsPlugin } from "@lexical/react/LexicalTableOfContentsPlugin";
 import {
@@ -42,6 +43,20 @@ function TableOfContentsList({
   );
 
   const jump = (key: NodeKey) => {
+    // Every toggle the heading is folded in opens at once, with no motion,
+    // so the scroll lands where the heading ends up.
+    const opened: NodeKey[] = [];
+    editor.update(
+      () => {
+        const node = $getNodeByKey(key);
+        for (const container of node ? $closedTogglesAround(node) : []) {
+          container.setOpen(true);
+          opened.push(container.getKey());
+        }
+      },
+      { discrete: true },
+    );
+    settleToggles(editor, opened);
     const heading = editor.getElementByKey(key);
     if (!heading) return;
     pinned.current = key;

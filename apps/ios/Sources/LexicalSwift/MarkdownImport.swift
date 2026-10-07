@@ -143,6 +143,10 @@ enum MarkdownImport {
       case .article, .placeholderBlock, .table:
         text.text = matched
         continue transformers
+      // Typed only: the line is text as it was.
+      case .toggleShortcut:
+        text.text = line
+        continue transformers
       case .hr: block = .horizontalRule
       case .heading:
         guard let tag = HeadingTag(rawValue: "h\(match.groups[1]?.utf16.count ?? 0)") else {

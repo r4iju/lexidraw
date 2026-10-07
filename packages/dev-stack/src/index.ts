@@ -60,13 +60,9 @@ export async function signInToDev(page: Page, appUrl: string) {
   await page.waitForFunction(() => location.pathname === "/dashboard");
 }
 
-/**
- * The CLI with its dev profile, against the dev app at `appUrl`: it runs
- * with the given arguments and gives back the JSON it prints, or null for
- * nothing.
- */
-export function devCli(appUrl: string) {
-  return async (...args: string[]): Promise<unknown> => {
+/** The CLI with its dev profile against the dev app at `appUrl`: what it prints. */
+export function devCliText(appUrl: string) {
+  return async (...args: string[]): Promise<string> => {
     const child = Bun.spawn(
       ["bun", `${root}apps/cli/src/main.ts`, "--profile", "dev", ...args],
       {
@@ -87,6 +83,15 @@ export function devCli(appUrl: string) {
       child.exited,
     ]);
     if (status) throw new Error(stderr);
+    return stdout;
+  };
+}
+
+/** `devCliText`, giving back the JSON it prints, or null for nothing. */
+export function devCli(appUrl: string) {
+  const cli = devCliText(appUrl);
+  return async (...args: string[]): Promise<unknown> => {
+    const stdout = await cli(...args);
     return stdout.trim() ? JSON.parse(stdout) : null;
   };
 }

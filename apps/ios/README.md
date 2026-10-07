@@ -723,8 +723,12 @@ presets, CSS theme colors and canvas geometry. The reference builder reuses the
 actual CalloutPlugin, CollapsiblePlugin and LayoutPlugin implementations; its
 bounded hook adapter supplies the active headless editor and runs registration
 once. New hook/import shapes fail the bundle build rather than being omitted.
-The web collapsible deletion handler now consumes deletion only when the previous
-sibling is a section; it previously swallowed unrelated deletion at offset zero.
+LexicalSwift ports the toggle plugin of #249: the repairs that keep a title to
+one paragraph or heading (wrapping a title stored as text) and give empty
+content a line; Backspace at a title's start unwrapping the toggle, and after
+a closed toggle opening it; deletion into folded content opening the toggles
+instead; Enter in a title; and the arrows' lines around a toggle at the
+document's edges. `ToggleTests` record each against the reference.
 
 Opt in to structural documents in the existing differential fuzzer with
 `FUZZ_STRUCTURAL=1 FUZZ_SEED=133 FUZZ_STEPS=20000 swift test --filter
@@ -789,14 +793,15 @@ navigation. CI was not invoked.
 
 ### Sections, inline images and empty paragraphs (#238)
 
-"Shopping - Clothing" is 17 sections of photo paragraphs. A section is now the
-web's accordion item: a bordered, rounded row with the lucide chevron and the
-title in medium weight, the whole row toggling it, and the content below sized
-to fit and re-measured as its images load. Editors get the title and content
-editing in a section menu. The border, radius, padding, row height, gap,
-chevron path and stroke, title weight and line height are generated from the
-collapsible node classes and theme. Text keeps its ems of the Dynamic Type body
-size, so a closed row is the web's 46px at 16px text and 48.25pt at 17pt.
+"Shopping - Clothing" is 17 sections of photo paragraphs. A section is the
+web's toggle (#249): unboxed, the lucide chevron in a 1.625em gutter centred
+on the title's first line, the title its own paragraph or heading, the whole
+title line toggling it, and the content under the title sized to fit and
+re-measured as its images load. Editors get the title and content editing in
+a section menu. The gutter, chevron box and path, content gap and each title
+level's size and leading are generated from document.css and the collapsible
+container node. Text keeps its ems of the Dynamic Type body size, so a closed
+paragraph toggle is one 1.6em line.
 
 An image `src` is parsed as a browser parses one, without the controls and
 spaces around it or tabs and newlines within: 17 of the document's 80 photos

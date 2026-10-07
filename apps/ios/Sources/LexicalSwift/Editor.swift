@@ -814,7 +814,7 @@ extension Update {
     case .deleteCharacter(let backward):
       if hasEditorPlugin("TablePlugin"), try deleteCellHandler() { return }
       guard let grown = self.selection else { return }
-      if backward { try backspace(grown) } else if !structuralDelete(grown) { try deleteCharacter(grown, backward: false) }
+      if backward { try backspace(grown) } else if try !structuralDelete(grown, backward: false) { try deleteCharacter(grown, backward: false) }
     case .deleteWord(let backward): try deleteWord(selection, backward: backward)
     case .deleteLine(let backward, let lineBoundary):
       let boundary = try pointNode(lineBoundary)

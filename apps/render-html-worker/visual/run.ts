@@ -4,7 +4,7 @@ import { resolve } from "node:path";
 import { PNG } from "pngjs";
 import pixelmatch from "pixelmatch";
 import puppeteer from "puppeteer";
-import { devCli } from "@packages/dev-stack";
+import { devCli, devCliText } from "@packages/dev-stack";
 import { appUrl } from "./app-url";
 import { checkRichBlocks } from "./check-rich-blocks";
 import { checkFrame, checkHomeToolbar } from "./check-frame";
@@ -365,6 +365,7 @@ try {
   await checkClosedSections(page, {
     closedId: closed.id,
     printedText: (id) => printedText(id, "closed-sections.pdf"),
+    markdownOf: (id) => devCliText(appUrl)("doc", "get", id, "--format", "md"),
   });
   await checkExcalidrawAssets(page, drawn.id);
   await checkMotion(page, fixtureId);

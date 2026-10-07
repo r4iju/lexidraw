@@ -33,20 +33,19 @@ public enum StructuralBlockConfiguration {
   public static let calloutIconSize = 18.0
   /// Lucide icon names by kind.
   public static let calloutIcons: [String:String] = ["note": "info", "tip": "lightbulb", "important": "message-square-warning", "warning": "triangle-alert", "caution": "octagon-alert"]
-  public static let sectionBorderWidth = 1.0
-  public static let sectionBorderColors = ["rgba(224.655, 224.75955000000002, 228.466995, 1)","rgba(47.69469, 47.785725, 52.297439999999995, 1)"]
-  public static let sectionRadius = 10.0
-  public static let sectionPadding = 16.0
-  public static let sectionTriggerPadding = 4.0
-  public static let sectionTriggerMinimumHeight = 40.0
-  public static let sectionTriggerGap = 8.0
-  public static let sectionChevronSize = 16.0
+  /// A toggle's chevron column, in ems of the document's text.
+  public static let sectionGutter = 1.625
+  /// The chevron's box: ems of its line's text plus ems of the document's, inset by the latter.
+  public static let sectionChevronEm = 0.5
+  public static let sectionChevronRem = 0.5
+  public static let sectionChevronInset = 0.125
+  public static let sectionContentGap = 0.25
+  /// A title's text size and leading by its block, in ems of the document's text.
+  public static let sectionLevels: [String: (fontSize: Double, lineHeight: Double)] = ["paragraph": (1, 1.6), "h1": (1.875, 1.25), "h2": (1.5, 1.3), "h3": (1.25, 1.4), "h4": (1.0625, 1.5), "h5": (1, 1.5), "h6": (0.875, 1.5)]
   public static let sectionChevronColors = ["rgba(95.406975, 95.5638, 103.153875, 1)","rgba(163.60238999999999, 163.776045, 170.75539500000002, 1)"]
   public static let sectionChevronViewBox = 24.0
   public static let sectionChevronStrokeWidth = 2.0
   public static let sectionChevronPoints: [(x: Double, y: Double)] = [(9.0, 18.0), (15.0, 12.0), (9.0, 6.0)]
-  public static let sectionTitleWeight = 500.0
-  public static let sectionLineHeight = 1.5
   public static let layouts: [(label: String, value: String)] = [("2 columns (equal width)", "1fr 1fr"), ("2 columns (25% - 75%)", "1fr 3fr"), ("3 columns (equal width)", "1fr 1fr 1fr"), ("3 columns (25% - 50% - 25%)", "1fr 2fr 1fr"), ("4 columns (equal width)", "1fr 1fr 1fr 1fr")]
   public static let stickyColors: [String:[String]] = ["pink": ["rgba(255, 191.56160999999997, 223.80891, 1)", "rgba(218.839215, 165.506475, 189.6333, 1)"], "yellow": ["rgba(255, 227.800935, 121.398105, 1)", "rgba(216.23031, 195.79971, 118.711935, 1)"], "green": ["rgba(173.09349, 232.804545, 184.38259499999998, 1)", "rgba(151.85709, 196.531815, 160.00153500000002, 1)"], "blue": ["rgba(164.014725, 214.08219, 255, 1)", "rgba(143.535165, 181.07091, 220.482435, 1)"], "red": ["rgba(255, 183.53472000000002, 175.94541, 1)", "rgba(223.615365, 157.57878, 151.491675, 1)"], "orange": ["rgba(255, 200.55087, 136.35411000000002, 1)", "rgba(223.72118999999998, 171.71139, 121.26856500000001, 1)"], "purple": ["rgba(217.693245, 196.12407, 255, 1)", "rgba(183.54849000000002, 167.509245, 215.60658, 1)"], "gray": ["rgba(208.35336, 208.456125, 212.11104, 1)", "rgba(176.467905, 176.56633499999998, 180.10956000000002, 1)"]]
   public static let dividerLabel = "Divider"

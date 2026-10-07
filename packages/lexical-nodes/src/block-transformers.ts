@@ -1,12 +1,15 @@
 import {
   $convertFromMarkdownString,
   $convertToMarkdownString,
+  type ElementTransformer,
   type MultilineElementTransformer,
   type Transformer,
 } from "@lexical/markdown";
+import type { HeadingTagType } from "@lexical/rich-text";
 import {
   $createParagraphNode,
   $isElementNode,
+  $isTextNode,
   type ElementNode,
   type LexicalNode,
 } from "lexical";
@@ -22,6 +25,12 @@ import { CollapsibleContentNode } from "./nodes/CollapsibleContentNode.js";
 import { CollapsibleTitleNode } from "./nodes/CollapsibleTitleNode.js";
 import { LayoutContainerNode } from "./nodes/LayoutContainerNode.js";
 import { LayoutItemNode } from "./nodes/LayoutItemNode.js";
+import {
+  $createToggle,
+  $toggleLevel,
+  $toggleOfTitle,
+  $toggleTitleBlock,
+} from "./toggle.js";
 
 /** Resolves the complete transformer list a nested conversion should use. */
 export type TransformerSource = () => Transformer[];
@@ -250,6 +259,8 @@ export function createAdmonitionTransformer(
 export const DETAILS_OPEN = /<details(?:\s[^>]*)?>/gi;
 export const DETAILS_CLOSE = /<\/details\s*>/gi;
 const SUMMARY = /^\s*<summary>(.*?)<\/summary>\s*/is;
+/** A heading in a summary, as a toggle heading writes its title. */
+const SUMMARY_HEADING = /^<(h[1-6])>(.*)<\/\1>$/is;
 const count = (pattern: RegExp) => (line: string) =>
   line.match(pattern)?.length ?? 0;
 
@@ -291,9 +302,13 @@ export function createDetailsTransformer(
         .getChildren()
         .find(CollapsibleContentNode.$isCollapsibleContentNode);
       const body = content ? exportBlocks(transformers, content) : "";
+      // Older titles hold their text directly, without a block.
+      const source = $toggleTitleBlock(node) ?? title;
+      const text = source ? exportChildren(source).replace(/\n/g, " ") : "";
+      const level = $toggleLevel(node);
       return [
         node.getOpen() ? "<details open>" : "<details>",
-        `<summary>${title ? exportChildren(title).replace(/\n/g, " ") : ""}</summary>`,
+        `<summary>${level === "paragraph" ? text : `<${level}>${text}</${level}>`}</summary>`,
         ...padded(body),
         "</details>",
       ].join("\n");
@@ -325,22 +340,24 @@ export function createDetailsTransformer(
             ];
       const text = inner.join("\n");
       const summary = SUMMARY.exec(text);
-      const title = summary?.[1]?.trim() ?? "";
+      const summaryText = summary?.[1]?.trim() ?? "";
+      const heading = SUMMARY_HEADING.exec(summaryText);
+      const title = heading?.[2]?.trim() ?? summaryText;
       const body = summary ? text.slice(summary[0].length) : text;
       if (!summary) {
         reportMarkdownNote(
           "A <details> block has no <summary>, so its collapsible has no title",
         );
       }
-      const container =
-        CollapsibleContainerNode.$createCollapsibleContainerNode(
-          /\bopen\b/i.test(startMatch[0]),
-        );
-      const titleNode = CollapsibleTitleNode.$createCollapsibleTitleNode();
-      $fillInline(titleNode, title, transformers);
-      const content = CollapsibleContentNode.$createCollapsibleContentNode();
+      const { container, titleBlock, content } = $createToggle(
+        // SUMMARY_HEADING matches h1 to h6 alone.
+        (heading?.[1]?.toLowerCase() as HeadingTagType | undefined) ??
+          "paragraph",
+        /\bopen\b/i.test(startMatch[0]),
+        [],
+      );
+      $fillInline(titleBlock, title, transformers);
       $fill(content, trimBlankLines(body.split("\n")).join("\n"), transformers);
-      container.append(titleNode, content);
       rootNode.append(container);
       return [true, end];
     },
@@ -451,3 +468,29 @@ export function createColumnsTransformer(
     type: "multiline-element",
   };
 }
+
+/**
+ * `>> ` at the start of a line makes it a toggle's title, as Notion's `> `
+ * does; `> ` stays a quote. Typing only: in Markdown `>>` nests a quote.
+ */
+export const TOGGLE_SHORTCUT: ElementTransformer = {
+  dependencies: [
+    CollapsibleContainerNode,
+    CollapsibleTitleNode,
+    CollapsibleContentNode,
+  ],
+  export: () => null,
+  regExp: /^>>\s/,
+  replace: (parentNode, children, match, isImport) => {
+    // Import strips the match before asking, so a declined line gets it back.
+    const [first] = children;
+    if (isImport && $isTextNode(first))
+      first.setTextContent(match[0] + first.getTextContent());
+    if (isImport || $toggleOfTitle(parentNode)) return false;
+    const { container, titleBlock } = $createToggle("paragraph", true);
+    titleBlock.append(...children);
+    parentNode.replace(container);
+    titleBlock.selectStart();
+  },
+  type: "element",
+};

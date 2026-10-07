@@ -378,34 +378,30 @@ import UIKit
       label("Invalid collapsible structure (#133)")
       return
     }
-    let border: UIColor, chevron: UIColor
-    do {
-      border = try themed(StructuralBlockConfiguration.sectionBorderColors)
-      chevron = try themed(StructuralBlockConfiguration.sectionChevronColors)
-    } catch { label("Cannot render this section (#133): \(structuralReason(error))"); return }
+    let chevron: UIColor
+    do { chevron = try themed(StructuralBlockConfiguration.sectionChevronColors) }
+    catch { label("Cannot render this section (#133): \(structuralReason(error))"); return }
+    // The title is one paragraph or heading; a title stored before titles
+    // were blocks holds its text directly.
+    let titleChildren = children[0]["children"]?.arrayValue ?? []
+    let titleBlock = titleChildren.first.flatMap { ["paragraph", "heading"].contains($0["type"]?.stringValue) ? $0 : nil }
+    let level = titleBlock?["type"] == "heading" ? titleBlock?["tag"]?.stringValue ?? "paragraph" : "paragraph"
     let title: EditorView, content: EditorView?
     do {
       title = try nestedEditor(
-        document([paragraph(children[0]["children"]?.arrayValue ?? [])]),
-        textWeight: StructuralBlockConfiguration.sectionTitleWeight, textLineHeight: StructuralBlockConfiguration.sectionLineHeight,
-        contextPath: [0], shareDocumentMetadata: true
+        document(titleBlock == nil ? [paragraph(titleChildren)] : titleChildren), contextPath: [0], shareDocumentMetadata: true
       ).view
       content = open
-        ? try nestedEditor(
-          document(children[1]["children"]?.arrayValue ?? []), textLineHeight: StructuralBlockConfiguration.sectionLineHeight,
-          contextPath: [1], shareDocumentMetadata: true
-        ).view : nil
+        ? try nestedEditor(document(children[1]["children"]?.arrayValue ?? []), contextPath: [1], shareDocumentMetadata: true).view
+        : nil
     } catch { label("Cannot open this block: \(error.localizedDescription)"); return }
-    layer.borderWidth = StructuralBlockConfiguration.sectionBorderWidth
-    layer.cornerRadius = StructuralBlockConfiguration.sectionRadius
-    borderColor = border
     func text(_ node: JSONValue) -> String { node["text"]?.stringValue ?? (node["children"]?.arrayValue ?? []).map(text).joined() }
     let actions = owner?.isEditable == true ? [
       UIAction(title: "Edit section title") { [weak self] _ in self?.editBody(path: [0]) },
       UIAction(title: "Edit section content") { [weak self] _ in self?.editBody(path: [1]) },
     ] : []
     let section = SectionView(
-      title: title, content: content, open: open, label: text(children[0]).trimmingCharacters(in: .whitespaces),
+      title: title, content: content, open: open, level: level, label: text(children[0]).trimmingCharacters(in: .whitespaces),
       chevronColor: chevron, actions: actions)
     section.onToggle = { [weak self] in
       guard let self else { return }
@@ -1011,10 +1007,10 @@ import UIKit
   }
 }
 
-/// A collapsible section as the web draws its accordion item: a row with a
-/// chevron and the title that opens and closes it, then the content when open.
-/// Nested editors keep their margin, so each is placed that far outside the
-/// box its text has on the web.
+/// A collapsible section as the web draws its toggle: the chevron in a gutter
+/// of its own, centred on the title's first line, the title beside it and the
+/// content under the title when open. Nested editors keep their margin, so
+/// each is placed that far outside the box its text has on the web.
 @MainActor private final class SectionView: UIView {
   private typealias Style = StructuralBlockConfiguration
   var onToggle: (() -> Void)?
@@ -1024,27 +1020,33 @@ import UIKit
   private let chevron = UIView()
   private let trigger = UIButton(type: .custom)
   private let actionsButton: UIButton?
+  /// The title's text size and leading, in ems of the document's text.
+  private let level: (fontSize: Double, lineHeight: Double)
   private var lastMeasurement: (width: CGFloat, height: CGFloat)?
   private var resizePending = false
 
-  init(title: EditorView, content: EditorView?, open: Bool, label: String, chevronColor: UIColor, actions: [UIAction]) {
+  init(title: EditorView, content: EditorView?, open: Bool, level: String, label: String, chevronColor: UIColor, actions: [UIAction]) {
     self.title = title
+    self.level = Style.sectionLevels[level] ?? Style.sectionLevels["paragraph"] ?? (1, 1.6)
     self.content = content
     actionsButton = actions.isEmpty ? nil : UIButton(type: .system)
     super.init(frame: .zero)
     for editor in [content, title].compactMap(\.self) {
+      // The web drops the title's margins and the content's last one.
+      editor.dropsTrailingSpace = true
       editor.backgroundColor = .clear
       editor.isScrollEnabled = false
       editor.onContentHeightChange = { [weak self] in self?.contentHeightChanged() }
       addSubview(editor)
     }
-    // The whole row is the web's trigger button, title included.
+    // The whole title line opens and closes a read-only section.
     title.isUserInteractionEnabled = false
     title.accessibilityElementsHidden = true
-    let size = Style.sectionChevronSize, scale = size / Style.sectionChevronViewBox
+    let size = chevronSize, inset = Style.sectionChevronInset * Self.em
+    let scale = (size - 2 * inset) / Style.sectionChevronViewBox
     let path = UIBezierPath()
     for (index, point) in Style.sectionChevronPoints.enumerated() {
-      let point = CGPoint(x: point.x * scale, y: point.y * scale)
+      let point = CGPoint(x: inset + point.x * scale, y: inset + point.y * scale)
       if index == 0 { path.move(to: point) } else { path.addLine(to: point) }
     }
     let stroke = CAShapeLayer()
@@ -1083,22 +1085,25 @@ import UIKit
     var title, trigger, actions, content: CGRect
     var chevronCenter: CGPoint
   }
+  /// The document's text size, the web's 16px.
+  private static var em: CGFloat { UIFont.preferredFont(forTextStyle: .body).pointSize }
+  private var chevronSize: CGFloat { (Style.sectionChevronEm * level.fontSize + Style.sectionChevronRem) * Self.em }
   private func layout(_ width: CGFloat) -> Layout {
-    let margin = EditorView.defaultContentMargin, border = Style.sectionBorderWidth, inset = border + Style.sectionPadding
-    let actionsWidth = actionsButton == nil ? 0 : Style.sectionTriggerMinimumHeight
-    let titleX = inset + Style.sectionChevronSize + Style.sectionTriggerGap - margin
-    let titleWidth = max(1, width - titleX - inset - actionsWidth + margin)
+    let margin = EditorView.defaultContentMargin, em = Self.em
+    let line = level.fontSize * level.lineHeight * em, gutter = Style.sectionGutter * em
+    let actionsWidth = actionsButton == nil ? 0 : line
+    let titleWidth = max(1, width - gutter - actionsWidth + 2 * margin)
     let titleHeight = max(0, title.fittingHeight(width: titleWidth) - 2 * margin)
-    let contentWidth = max(1, width - 2 * inset + 2 * margin)
+    let contentWidth = max(1, width - gutter + 2 * margin)
     let contentHeight = content.map { max(0, $0.fittingHeight(width: contentWidth) - 2 * margin) } ?? 0
-    let row = max(Style.sectionTriggerMinimumHeight, titleHeight + 2 * Style.sectionTriggerPadding)
+    let contentY = titleHeight + (content == nil ? 0 : Style.sectionContentGap * em)
     return Layout(
-      height: 2 * border + row + contentHeight,
-      title: CGRect(x: titleX, y: border + (row - titleHeight) / 2 - margin, width: titleWidth, height: titleHeight + 2 * margin),
-      trigger: CGRect(x: 0, y: 0, width: width - actionsWidth, height: border + row),
-      actions: CGRect(x: width - border - actionsWidth, y: border, width: actionsWidth, height: row),
-      content: CGRect(x: inset - margin, y: border + row - margin, width: contentWidth, height: contentHeight + 2 * margin),
-      chevronCenter: CGPoint(x: inset + Style.sectionChevronSize / 2, y: border + row / 2))
+      height: contentY + contentHeight,
+      title: CGRect(x: gutter - margin, y: -margin, width: titleWidth, height: titleHeight + 2 * margin),
+      trigger: CGRect(x: 0, y: 0, width: width - actionsWidth, height: titleHeight),
+      actions: CGRect(x: width - actionsWidth, y: 0, width: actionsWidth, height: line),
+      content: CGRect(x: gutter - margin, y: contentY - margin, width: contentWidth, height: contentHeight + 2 * margin),
+      chevronCenter: CGPoint(x: chevronSize / 2, y: line / 2))
   }
 
   func height(fitting width: CGFloat) -> CGFloat {

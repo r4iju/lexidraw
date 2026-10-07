@@ -519,7 +519,7 @@ extension Update {
   mutating func backspace(_ selection: RangeSelection) throws {
     if editorContext == .document, try collapseListItemAtStartOfSelection(selection) { return }
     if try isCollapsedAtFrontOfIndentedBlock(selection) { return try outdentContent() }
-    if structuralDelete(selection) { return }
+    if try structuralDelete(selection, backward: true) { return }
     try deleteCharacter(selection, backward: true)
   }
 

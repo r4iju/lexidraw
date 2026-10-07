@@ -1,15 +1,12 @@
 import { tool } from "ai";
 import { useCommonUtilities } from "./common";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
-import {
-  CollapsibleContainerNode,
-  CollapsibleTitleNode,
-  CollapsibleContentNode,
-} from "@packages/lexical-nodes";
-import { $createParagraphNode, $createTextNode } from "lexical";
+import { $createToggle } from "@packages/lexical-nodes";
+import { $createTextNode } from "lexical";
 import { $convertFromMarkdownString } from "@lexical/markdown";
 import { PLAYGROUND_TRANSFORMERS } from "../../MarkdownTransformers";
 import { InsertCollapsibleSectionSchema } from "@packages/types";
+import type { z } from "zod";
 
 export const useCollapsibleTools = () => {
   const {
@@ -24,7 +21,7 @@ export const useCollapsibleTools = () => {
    * --------------------------------------------------------------*/
   const insertCollapsibleSection = tool({
     description:
-      "Inserts a new collapsible section (container, title, and content). Uses relation ('before', 'after', 'appendRoot') and anchor (key or text) to determine position.",
+      "Inserts a new toggle (collapsible section): a title, a paragraph or a heading per titleLevel, over content that folds away. Uses relation ('before', 'after', 'appendRoot') and anchor (key or text) to determine position.",
     inputSchema: InsertCollapsibleSectionSchema,
     execute: async (options) => {
       return insertionExecutor(
@@ -32,38 +29,31 @@ export const useCollapsibleTools = () => {
         editor,
         options,
         (resolution, specificOptions, _currentTargetEditor) => {
-          const { titleText, initialContentMarkdown, initiallyOpen } =
-            specificOptions as {
-              titleText: string;
-              initialContentMarkdown?: string;
-              initiallyOpen?: boolean;
-            };
-
-          const containerNode =
-            CollapsibleContainerNode.$createCollapsibleContainerNode(
-              initiallyOpen ?? false,
-            );
-          const titleNode = CollapsibleTitleNode.$createCollapsibleTitleNode();
-          const titleParagraph = $createParagraphNode().append(
-            $createTextNode(titleText),
+          const {
+            titleText,
+            titleLevel,
+            initialContentMarkdown,
+            initiallyOpen,
+          } = specificOptions as z.infer<typeof InsertCollapsibleSectionSchema>;
+          const markdown = initialContentMarkdown?.trim()
+            ? initialContentMarkdown
+            : null;
+          const {
+            container: containerNode,
+            titleBlock,
+            content,
+          } = $createToggle(
+            titleLevel,
+            initiallyOpen,
+            markdown ? [] : undefined,
           );
-          titleNode.append(titleParagraph);
-
-          const contentNode =
-            CollapsibleContentNode.$createCollapsibleContentNode();
-          if (initialContentMarkdown && initialContentMarkdown.trim() !== "") {
+          titleBlock.append($createTextNode(titleText));
+          if (markdown)
             $convertFromMarkdownString(
-              initialContentMarkdown,
+              markdown,
               PLAYGROUND_TRANSFORMERS,
-              contentNode,
+              content,
             );
-          }
-          if (contentNode.isEmpty()) {
-            // Ensure content is not empty
-            contentNode.append($createParagraphNode());
-          }
-
-          containerNode.append(titleNode, contentNode);
 
           $insertNodeAtResolvedPoint(resolution, containerNode);
 

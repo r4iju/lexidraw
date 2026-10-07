@@ -36,7 +36,7 @@ struct MarkdownTransformer: Sendable {
   static let notPortedYet: [Name: Int] = [
     .tweet: 131, .image: 131,
     .equation: 132, .code: 132, .blockEquation: 132, .blockEquationFence: 132,
-    .callout: 133, .admonition: 133, .details: 133, .columns: 133,
+    .callout: 133, .admonition: 133, .details: 133, .columns: 133, .toggleShortcut: 133,
 
   ]
 
@@ -613,8 +613,9 @@ extension MarkdownTransformer.Name {
     case .checkList: .check
     case .callout, .admonition, .details, .columns, .blockEquationFence, .tweet, .article, .placeholderBlock,
       .blockEquation, .image, .equation, .literalDollar, .placeholderInline, .footnoteDefinition, .footnoteReference,
-      .table, .hr, .emoji, .heading, .quote, .code, .inlineCode, .boldItalicStar, .boldItalicUnderscore, .boldStar,
-      .boldUnderscore, .highlight, .italicStar, .italicUnderscore, .strikethrough, .link:
+      .table, .hr, .emoji, .heading, .quote, .code, .toggleShortcut, .inlineCode, .boldItalicStar,
+      .boldItalicUnderscore, .boldStar, .boldUnderscore, .highlight, .italicStar, .italicUnderscore, .strikethrough,
+      .link:
       nil
     }
   }

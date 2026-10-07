@@ -80,8 +80,13 @@ async function startGuardProxy(check: Check) {
     tunnels.add(client);
     client.on("close", () => tunnels.delete(client));
     client.on("error", () => client.destroy());
+    // A tunnel names no scheme: it carries HTTPS, or a WebSocket to an http
+    // origin such as the app's own in development.
     const url = reachable(`https://${request.url}`);
-    const address = url && (await check(url).catch(() => undefined));
+    const plain = reachable(`http://${request.url}`);
+    const address =
+      (url && (await check(url).catch(() => undefined))) ??
+      (plain && (await check(plain).catch(() => undefined)));
     if (!url || !address) {
       client.end("HTTP/1.1 403 Forbidden\r\n\r\n");
       return;

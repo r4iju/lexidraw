@@ -172,31 +172,35 @@ export async function swiftForStructuralBlocks(): Promise<string> {
   });
   const nodeSource = (name: string) =>
     Bun.file(new URL(`../../../packages/lexical-nodes/src/nodes/${name}.ts`, import.meta.url)).text();
-  const itemClass = /root\.className = "([^"]+)";/.exec(await nodeSource("CollapsibleContainerNode"))?.[1]?.split(" ");
-  const titleSource = await nodeSource("CollapsibleTitleNode");
-  const triggerClass = /button\.className = \[([\s\S]*?)\]\.join\(" "\);/.exec(titleSource)?.[1]
-    ?.match(/"([^"]+)"/g)?.flatMap((part) => part.slice(1, -1).split(" "));
-  const chevronClass = /class="([^"]+)"/.exec(titleSource)?.[1]?.split(" ");
-  const contentClass = /outer\.className = "([^"]+)";/.exec(await nodeSource("CollapsibleContentNode"))?.[1];
-  const sectionPadding = itemClass?.find((value) => /^px-\d+$/.test(value));
-  const triggerPadding = triggerClass?.find((value) => /^py-\d+$/.test(value));
-  const triggerMinimum = triggerClass?.find((value) => /^min-h-\d+$/.test(value));
-  const triggerGap = triggerClass?.find((value) => /^gap-\d+$/.test(value));
-  const chevronSize = chevronClass?.find((value) => /^size-\d+$/.test(value));
-  if (!sectionPadding || itemClass?.join(" ") !== `border border-border rounded-md ${sectionPadding}` || !triggerPadding || !triggerMinimum ||
-    !triggerGap || !triggerClass?.includes("font-medium") || !triggerClass.includes("text-base") || !triggerClass.includes("items-center") ||
-    !triggerClass.includes("[&[data-state=open]>svg]:rotate-90") || !chevronSize ||
-    !chevronClass?.includes("lucide-chevron-right") || !chevronClass.includes("text-muted-foreground") ||
-    contentClass !== "overflow-hidden text-base")
-    throw new Error("Collapsible section utilities changed shape");
-  const radiusMd = [...globals.matchAll(/--radius-md: ([\d.]+)rem;/g)].map((m) => m[1]);
-  const fontWeightMedium = /--font-weight-medium: (\d+);/.exec(spacingCSS)?.[1];
-  const textBase = /--text-base: 1rem;\s*--text-base--line-height: calc\(([\d.]+) \/ 1\);/.exec(spacingCSS)?.[1];
-  const sectionCompiler = await tailwind.compile(
-    `@theme { --spacing: ${spacingRem}rem; --radius-md: ${radiusMd[0]}rem; --font-weight-medium: ${fontWeightMedium}; } @tailwind utilities;`);
-  const sectionCSS: string = sectionCompiler.build(["border", "rounded-md", "font-medium", sectionPadding, triggerPadding, triggerMinimum, triggerGap, chevronSize]);
-  const sectionBorder = /\.border \{[^}]*border-width: (\d+)px;/.exec(sectionCSS)?.[1];
-  const chevronSVG = /<svg ([^>]*)><path d="([^"]+)"><\/path><\/svg>/.exec(titleSource);
+  const containerSource = await Bun.file(
+    new URL("../../../packages/lexical-nodes/src/nodes/CollapsibleContainerNode.ts", import.meta.url),
+  ).text();
+  const toggleRule = (selector: string) => {
+    const rule = new RegExp(`\\.document-content ${selector.replace(/[[\]().*]/g, "\\$&")} \\{([^}]*)\\}`).exec(document)?.[1];
+    if (!rule) throw new Error(`The toggle's ${selector} rule changed shape`);
+    return rule;
+  };
+  const gutter = /--toggle-gutter: ([\d.]+)em;/.exec(toggleRule(`[data-slot="accordion-item"]`))?.[1];
+  const chevronBox = /width: calc\(([\d.]+)em \+ ([\d.]+)rem\);\s*height: calc\(\1em \+ \2rem\);\s*padding: ([\d.]+)rem;/
+    .exec(toggleRule(`[data-slot="accordion-chevron"] svg`));
+  const contentGap = /margin-block-start: ([\d.]+)em;/.exec(toggleRule(`[data-slot="accordion-content"] > :first-child`))?.[1];
+  if (!gutter || !chevronBox || !contentGap || !/height: 1lh;/.test(toggleRule(`[data-slot="accordion-chevron"]`)) ||
+    !/color: var\(--muted-foreground\);/.test(toggleRule(`[data-slot="accordion-chevron"]`)) ||
+    !/rotate: 90deg;/.test(toggleRule(`[data-state="open"] > [data-slot="accordion-chevron"] svg`)))
+    throw new Error("The toggle's geometry changed shape");
+  // A toggle heading's chevron takes the heading's size and leading, as a
+  // paragraph's takes the document's.
+  const documentLineHeight = /\.document-header \{[^}]*line-height: ([\d.]+);/.exec(document)?.[1];
+  if (!documentLineHeight) throw new Error("The document's line height changed shape");
+  const levels: [string, number, number][] = [["paragraph", 1, Number(documentLineHeight)]];
+  for (const tag of ["h1", "h2", "h3", "h4", "h5", "h6"]) {
+    const rule = new RegExp(
+      `> \\[data-slot="accordion-trigger"\\] > ${tag}\\)\\s*> \\[data-slot="accordion-chevron"\\] \\{\\s*font-size: ([\\d.]+)em;\\s*line-height: ([\\d.]+);`,
+    ).exec(document);
+    if (!rule) throw new Error(`The ${tag} toggle's chevron changed shape`);
+    levels.push([tag, Number(rule[1]), Number(rule[2])]);
+  }
+  const chevronSVG = /<svg ([^>]*)><path d="([^"]+)"><\/path><\/svg>/.exec(containerSource);
   const chevronViewBox = /viewBox="0 0 (\d+) (\d+)"/.exec(chevronSVG?.[1] ?? "");
   const chevronStroke = /stroke-width="([\d.]+)"/.exec(chevronSVG?.[1] ?? "")?.[1];
   const chevronOffsets = /^m([\d.\s-]+)$/.exec(chevronSVG?.[2] ?? "")?.[1]?.match(/-?[\d.]+/g)?.map(Number);
@@ -213,26 +217,16 @@ export async function swiftForStructuralBlocks(): Promise<string> {
     if (dx === undefined || dy === undefined) throw new Error("Collapsible chevron coordinates changed shape");
     chevronPoints.push([x + dx, y + dy]);
   }
-  if (!sectionBorder || radiusMd.length !== 1 || !fontWeightMedium || !textBase || !sectionCSS.includes("border-radius: var(--radius-md);") ||
-    !sectionCSS.includes("font-weight: var(--font-weight-medium);") ||
-    !sectionCSS.includes(`padding-inline: calc(var(--spacing) * ${sectionPadding.slice(3)});`) ||
-    !sectionCSS.includes(`min-height: calc(var(--spacing) * ${triggerMinimum.slice(6)});`) ||
-    !sectionCSS.includes(`gap: calc(var(--spacing) * ${triggerGap.slice(4)});`))
-    throw new Error("Tailwind collapsible section utilities changed shape");
-  const spacing = (utility: string) => Number(utility.slice(utility.lastIndexOf("-") + 1)) * Number(spacingRem) * 16;
   const section = {
-    radius: Number(radiusMd[0]) * 16,
-    padding: spacing(sectionPadding),
-    triggerPadding: spacing(triggerPadding),
-    triggerMinimumHeight: spacing(triggerMinimum),
-    triggerGap: spacing(triggerGap),
-    borderWidth: Number(sectionBorder),
-    chevronSize: spacing(chevronSize),
+    gutter: Number(gutter),
+    chevronEm: Number(chevronBox[1]),
+    chevronRem: Number(chevronBox[2]),
+    chevronInset: Number(chevronBox[3]),
+    contentGap: Number(contentGap),
+    levels,
     chevronViewBox: Number(chevronViewBox[1]),
     chevronStrokeWidth: Number(chevronStroke),
     chevronPoints,
-    titleWeight: Number(fontWeightMedium),
-    lineHeight: Number(textBase),
   };
   const slideView = await Bun.file(
     new URL(
@@ -407,7 +401,7 @@ export async function swiftForStructuralBlocks(): Promise<string> {
     .map((v) => Number.parseFloat(v) / 100)
     .join(
       ", ",
-    )}]\n  public static let calloutRadius = ${radius}.0\n  public static let calloutPaddingY = ${padding[1]}.0\n  public static let calloutPaddingX = ${padding[2]}.0\n  public static let calloutHeaderGap = ${header.gap}.0\n  public static let calloutHeaderAfter = ${header.after}.0\n  public static let calloutHeaderWeight = ${header.weight}.0\n  public static let calloutHeaderLineHeight = ${header.lineHeight}\n  public static let calloutIconSize = ${header.icon}.0\n  /// Lucide icon names by kind.\n  public static let calloutIcons: [String:String] = [${calloutIcons.map(([k, v]) => `${string(k)}: ${string(v)}`).join(", ")}]\n  public static let sectionBorderWidth = ${section.borderWidth}.0\n  public static let sectionBorderColors = ${JSON.stringify(rgbaColors("border"))}\n  public static let sectionRadius = ${section.radius}.0\n  public static let sectionPadding = ${section.padding}.0\n  public static let sectionTriggerPadding = ${section.triggerPadding}.0\n  public static let sectionTriggerMinimumHeight = ${section.triggerMinimumHeight}.0\n  public static let sectionTriggerGap = ${section.triggerGap}.0\n  public static let sectionChevronSize = ${section.chevronSize}.0\n  public static let sectionChevronColors = ${JSON.stringify(rgbaColors("muted-foreground"))}\n  public static let sectionChevronViewBox = ${section.chevronViewBox}.0\n  public static let sectionChevronStrokeWidth = ${section.chevronStrokeWidth}.0\n  public static let sectionChevronPoints: [(x: Double, y: Double)] = [${section.chevronPoints.map(([x, y]) => `(${x}.0, ${y}.0)`).join(", ")}]\n  public static let sectionTitleWeight = ${section.titleWeight}.0\n  public static let sectionLineHeight = ${section.lineHeight}\n  public static let layouts: [(label: String, value: String)] = [${layouts.map((v) => `(${string(v.label)}, ${string(v.value)})`).join(", ")}]\n  public static let stickyColors: [String:[String]] = [${["pink", "yellow", "green", "blue", "red", "orange", "purple", "gray"].map((k) => `${string(k)}: [${stickyPalette(k).map(string).join(", ")}]`).join(", ")}]\n  public static let dividerLabel = ${string(dividerLabel)}\n  public static let insertionNodes: [String:String] = [${Object.entries(
+    )}]\n  public static let calloutRadius = ${radius}.0\n  public static let calloutPaddingY = ${padding[1]}.0\n  public static let calloutPaddingX = ${padding[2]}.0\n  public static let calloutHeaderGap = ${header.gap}.0\n  public static let calloutHeaderAfter = ${header.after}.0\n  public static let calloutHeaderWeight = ${header.weight}.0\n  public static let calloutHeaderLineHeight = ${header.lineHeight}\n  public static let calloutIconSize = ${header.icon}.0\n  /// Lucide icon names by kind.\n  public static let calloutIcons: [String:String] = [${calloutIcons.map(([k, v]) => `${string(k)}: ${string(v)}`).join(", ")}]\n  /// A toggle's chevron column, in ems of the document's text.\n  public static let sectionGutter = ${section.gutter}\n  /// The chevron's box: ems of its line's text plus ems of the document's, inset by the latter.\n  public static let sectionChevronEm = ${section.chevronEm}\n  public static let sectionChevronRem = ${section.chevronRem}\n  public static let sectionChevronInset = ${section.chevronInset}\n  public static let sectionContentGap = ${section.contentGap}\n  /// A title's text size and leading by its block, in ems of the document's text.\n  public static let sectionLevels: [String: (fontSize: Double, lineHeight: Double)] = [${section.levels.map(([tag, size, leading]) => `${string(tag)}: (${size}, ${leading})`).join(", ")}]\n  public static let sectionChevronColors = ${JSON.stringify(rgbaColors("muted-foreground"))}\n  public static let sectionChevronViewBox = ${section.chevronViewBox}.0\n  public static let sectionChevronStrokeWidth = ${section.chevronStrokeWidth}.0\n  public static let sectionChevronPoints: [(x: Double, y: Double)] = [${section.chevronPoints.map(([x, y]) => `(${x}.0, ${y}.0)`).join(", ")}]\n  public static let layouts: [(label: String, value: String)] = [${layouts.map((v) => `(${string(v.label)}, ${string(v.value)})`).join(", ")}]\n  public static let stickyColors: [String:[String]] = [${["pink", "yellow", "green", "blue", "red", "orange", "purple", "gray"].map((k) => `${string(k)}: [${stickyPalette(k).map(string).join(", ")}]`).join(", ")}]\n  public static let dividerLabel = ${string(dividerLabel)}\n  public static let insertionNodes: [String:String] = [${Object.entries(
     nodes,
   )
     .map(([k, v]) => `${string(k)}: #"${JSON.stringify(v)}"#`)

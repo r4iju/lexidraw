@@ -322,7 +322,7 @@ extension NodeTraits {
     "code-highlight": NodeTraits(kind: .text, inline: .fixed(true), shadowRoot: .fixed(false), canBeEmpty: .fixed(false)),
     "collapsible-container": NodeTraits(kind: .element, inline: .fixed(false), shadowRoot: .fixed(false), canBeEmpty: .fixed(true)),
     "collapsible-content": NodeTraits(kind: .element, inline: .fixed(false), shadowRoot: .fixed(true), canBeEmpty: .fixed(true)),
-    "collapsible-title": NodeTraits(kind: .element, inline: .fixed(false), shadowRoot: .fixed(false), canBeEmpty: .fixed(true)),
+    "collapsible-title": NodeTraits(kind: .element, inline: .fixed(false), shadowRoot: .fixed(true), canBeEmpty: .fixed(true)),
     "comment": NodeTraits(kind: .decorator, inline: .fixed(true), shadowRoot: .fixed(false), canBeEmpty: .fixed(false)),
     "emoji": NodeTraits(kind: .text, inline: .fixed(true), shadowRoot: .fixed(false), canBeEmpty: .fixed(false)),
     "equation": NodeTraits(kind: .decorator, inline: .field("inline"), shadowRoot: .fixed(false), canBeEmpty: .fixed(false)),
@@ -1178,7 +1178,7 @@ public struct NestedEditor: DeclaredObject {
   }
 
   private enum Schema {
-    static let editorState: FieldSchema<JSONValue> = .savedByEditor(of: ["artificial", "emoji", "hashtag", "keyword", "linebreak", "link", "paragraph", "root", "tab", "text"], .transform(.rawOr(["root": ["children": [], "direction": nil, "format": "", "indent": 0, "type": "root", "version": 1]]), Transforms.nestedEditorState, default: ["root": ["children": [], "direction": nil, "format": "", "indent": 0, "type": "root", "version": 1]]))
+    static let editorState: FieldSchema<JSONValue> = .savedByEditor(of: ["artificial", "emoji", "hashtag", "keyword", "linebreak", "link", "mention", "paragraph", "root", "tab", "text"], .transform(.rawOr(["root": ["children": [], "direction": nil, "format": "", "indent": 0, "type": "root", "version": 1]]), Transforms.nestedEditorState, default: ["root": ["children": [], "direction": nil, "format": "", "indent": 0, "type": "root", "version": 1]]))
   }
 }
 

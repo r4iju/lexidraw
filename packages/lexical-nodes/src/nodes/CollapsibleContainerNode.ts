@@ -1,8 +1,10 @@
 import {
+  $getNodeByKey,
   type DOMConversionMap,
   type DOMConversionOutput,
   type DOMExportOutput,
   type EditorConfig,
+  type ElementDOMSlot,
   ElementNode,
   type LexicalEditor,
   type LexicalNode,
@@ -19,26 +21,36 @@ import {
 } from "../stored-fields.js";
 import { unreadElementFields } from "./stored-element.js";
 
+// lucide-react's ChevronRight rendered to static markup, inlined so this
+// module has no React or icon dependency and loads outside the browser.
+const CHEVRON_RIGHT_SVG =
+  '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"></path></svg>';
+
+const CHEVRON = "[data-slot='accordion-chevron']";
+
+/** The ids a toggle's chevron, title and content name each other by. */
+export function toggleIds(key: NodeKey) {
+  return { title: `toggle-title-${key}`, content: `toggle-content-${key}` };
+}
+
 /**
- * How a section's content folds and unfolds. It is added the first time the
- * section is opened or closed by hand: on a section drawn for the first time,
- * the closing animation would play from its full height (and the opening one
- * from none), painting a closed section open and then folding it, which moves
- * everything below it.
+ * Gives toggles just opened or closed their new height at once, without the
+ * fold, for a reader taken straight to what they hold.
  */
-const SECTION_MOTION = [
-  "data-[state=open]:animate-accordion-down",
-  "data-[state=closed]:animate-accordion-up",
-];
+export function settleToggles(editor: LexicalEditor, keys: NodeKey[]) {
+  for (const key of keys)
+    editor.getElementByKey(key)?.removeAttribute("data-motion");
+}
 
 export function $convertAccordionItemElement(
   domNode: HTMLElement,
 ): DOMConversionOutput | null {
-  if (domNode.dataset.slot !== "accordion-item") return null;
-  const isOpen = domNode.dataset.state !== "closed";
-  const node = CollapsibleContainerNode.$createCollapsibleContainerNode(isOpen);
+  const isOpen =
+    domNode instanceof HTMLDetailsElement
+      ? domNode.open
+      : domNode.dataset.state !== "closed";
   return {
-    node,
+    node: CollapsibleContainerNode.$createCollapsibleContainerNode(isOpen),
   };
 }
 
@@ -54,6 +66,11 @@ const collapsibleContainerSchema = nodeSchema<CollapsibleContainerNode>()(
   collapsibleContainerFields,
 );
 
+/**
+ * A toggle: a title, always shown, and content that folds away under it.
+ * The chevron that opens and closes it is the container's own, ahead of
+ * the children Lexical manages, so editing the title never toggles it.
+ */
 export class CollapsibleContainerNode extends ElementNode {
   declare static importJSON: ImportJSON<CollapsibleContainerNode>;
   __open: boolean;
@@ -76,78 +93,77 @@ export class CollapsibleContainerNode extends ElementNode {
     return node instanceof CollapsibleContainerNode;
   }
 
-  createDOM(_config: EditorConfig, _editor: LexicalEditor): HTMLElement {
-    const root = document.createElement("div"); // <Accordion.Item>
+  createDOM(_config: EditorConfig, editor: LexicalEditor): HTMLElement {
+    const key = this.__key;
+    const ids = toggleIds(key);
+    const root = document.createElement("div");
     root.dataset.slot = "accordion-item";
     root.dataset.state = this.__open ? "open" : "closed";
-    root.className = "border border-border rounded-md px-4";
-    // Children (summary, content) will be appended by Lexical reconciliation
-    // We will call syncChildState in updateDOM and after initial append if needed.
+
+    const chevron = document.createElement("button");
+    chevron.type = "button";
+    chevron.contentEditable = "false";
+    chevron.dataset.slot = "accordion-chevron";
+    // Cmd/Ctrl+Enter toggles from the keyboard; Tab stays the editor's.
+    chevron.tabIndex = -1;
+    chevron.setAttribute("aria-expanded", String(this.__open));
+    chevron.setAttribute("aria-controls", ids.content);
+    chevron.setAttribute("aria-labelledby", ids.title);
+    chevron.innerHTML = CHEVRON_RIGHT_SVG;
+    // Keeps the caret, and the editor's focus, where they were.
+    chevron.addEventListener("mousedown", (event) => event.preventDefault());
+    chevron.addEventListener("click", (event) => {
+      event.preventDefault();
+      editor.update(() => {
+        const node = $getNodeByKey(key);
+        if (CollapsibleContainerNode.$isCollapsibleContainerNode(node))
+          node.toggleOpen();
+      });
+    });
+    root.append(chevron);
     return root;
   }
 
-  /**
-   * Keeps the trigger and content in step with `__open`. A section `toggled`
-   * by hand folds or unfolds; one showing for the first time is drawn in its
-   * state, with nothing to animate from.
-   */
-  private syncChildState(dom: HTMLElement, toggled: boolean) {
-    const trigger = dom.querySelector<HTMLElement>(
-      "[data-slot='accordion-trigger']",
-    );
-    const content = dom.querySelector<HTMLElement>(
-      "[data-slot='accordion-content']",
-    );
-    const stateStr = this.__open ? "open" : "closed";
-
-    if (trigger) trigger.dataset.state = stateStr;
-    if (!content) return;
-
-    // Always set the CSS var first for proper animation support
-    const fullHeight = content.scrollHeight;
-    content.style.setProperty(
-      "--radix-accordion-content-height",
-      `${fullHeight}px`,
-    );
-
-    if (this.__open) {
-      // remove the inline height that was added when we closed last time
-      content.style.removeProperty("height");
-    } else {
-      // Set height to 0 immediately for closed state (before animation)
-      content.style.height = "0";
-    }
-
-    if (toggled) content.classList.add(...SECTION_MOTION);
-    // Set data-state after height is configured to ensure proper animation
-    content.dataset.state = stateStr;
+  getDOMSlot(element: HTMLElement): ElementDOMSlot<HTMLElement> {
+    return super
+      .getDOMSlot(element)
+      .withAfter(element.querySelector(`:scope > ${CHEVRON}`));
   }
 
   updateDOM(prev: this, dom: HTMLElement) {
     if (prev.__open !== this.__open) {
-      dom.dataset.state = this.__open ? "open" : "closed";
-      this.syncChildState(dom, true);
+      const state = this.__open ? "open" : "closed";
+      dom
+        .querySelector(`:scope > ${CHEVRON}`)
+        ?.setAttribute("aria-expanded", String(this.__open));
+      const content = dom.querySelector<HTMLElement>(
+        ":scope > [data-slot='accordion-content']",
+      );
+      // Folding runs between none and the content's full height, measured
+      // before the state changes. A toggle drawn for the first time has no
+      // motion: it is painted in its state, so nothing below it moves.
+      if (content) {
+        dom.style.setProperty(
+          "--toggle-content-height",
+          `${content.scrollHeight}px`,
+        );
+        dom.dataset.motion = "";
+      }
+      dom.dataset.state = state;
     }
-    // Ensure child state is synced after children are first mounted by Lexical
-    // This might be better handled after initial render if children are not immediately available
-    if (dom.dataset.lexicalInitialRender === undefined) {
-      this.syncChildState(dom, false);
-      dom.dataset.lexicalInitialRender = "done"; // Mark to avoid re-running excessively
-    }
-    return false; // DOM skeleton itself never changes
+    return false;
   }
 
   static importDOM(): DOMConversionMap<HTMLElement> | null {
     return {
-      div: (domNode: HTMLElement) => {
-        if (domNode.dataset.slot === "accordion-item") {
-          return {
-            conversion: $convertAccordionItemElement,
-            priority: 1,
-          };
-        }
-        return null;
-      },
+      details: () => ({
+        conversion: $convertAccordionItemElement,
+        priority: 1,
+      }),
+      div: (domNode: HTMLElement) =>
+        domNode.dataset.slot === "accordion-item"
+          ? { conversion: $convertAccordionItemElement, priority: 1 }
+          : null,
     };
   }
 
@@ -158,10 +174,8 @@ export class CollapsibleContainerNode extends ElementNode {
   }
 
   exportDOM(): DOMExportOutput {
-    const element = document.createElement("div");
-    element.dataset.slot = "accordion-item";
-    element.dataset.state = this.__open ? "open" : "closed";
-    element.className = "border border-border";
+    const element = document.createElement("details");
+    element.open = this.__open;
     return { element };
   }
 
