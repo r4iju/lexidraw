@@ -25,6 +25,7 @@ final class FileActions {
   var title = ""
   /// Said at the foot of the screen for a moment once an action is done.
   var done: String?
+  private(set) var restoring: Set<String> = []
 
   init(session: Session, browser: Browser) {
     self.session = session
@@ -82,12 +83,14 @@ final class FileActions {
     try await session.folders(in: folder?.id)
   }
 
+  private var homeTitle: String { UIDevice.current.userInterfaceIdiom == .phone ? "Library" : "Home" }
+
   /// Into `folder`, or to the top of Home when it is nil.
   func move(_ entry: Entry, to folder: Entry?) async {
     step = nil
     do {
       try await session.move(entry.id, to: folder?.id)
-      finish("Moved “\(entry.title)” to \(folder.map { "“\($0.title)”" } ?? "Home").")
+      finish("Moved “\(entry.title)” to \(folder.map { "“\($0.title)”" } ?? homeTitle).")
     } catch {
       fail("Couldn’t move “\(entry.title)”. Try again.", error)
     }
@@ -103,10 +106,12 @@ final class FileActions {
   }
 
   func restore(_ entry: TrashedEntry) async {
+    guard restoring.insert(entry.id).inserted else { return }
+    defer { restoring.remove(entry.id) }
     do {
       switch try await session.restore(entry.id) {
       case .itsFolder: finish("Restored “\(entry.title)” to its folder.")
-      case .home: finish("Restored “\(entry.title)” to Home.")
+      case .home: finish("Restored “\(entry.title)” to \(homeTitle).")
       }
     } catch {
       fail("Couldn’t restore “\(entry.title)”. Try again.", error)
@@ -125,7 +130,7 @@ final class FileActions {
 
 extension View {
   /// What may be done to `entry`, by the caller's access to it, from a swipe
-  /// or a long press.
+  /// or a long press, and through a visible menu.
   func fileActions(for entry: Entry) -> some View {
     modifier(FileActionMenu(entry: entry))
   }
@@ -142,26 +147,23 @@ private struct FileActionMenu: ViewModifier {
   @Environment(FileActions.self) private var actions
 
   func body(content: Content) -> some View {
-    content
-      .contextMenu {
-        ListenButton(file: entry)
-        // Anyone who can see a file may send its address; the web decides
-        // who it opens for.
-        ShareLink(item: actions.session.link(to: entry), subject: Text(entry.title)) {
-          Label("Share Link…", systemImage: "square.and.arrow.up")
-        }
-        Divider()
-        if entry.access.may(.rename) {
-          Button("Rename…", systemImage: "pencil") { actions.startRenaming(entry) }
-        }
-        if entry.access.may(.move) {
-          Button("Move…", systemImage: "folder") { actions.step = .moving(entry) }
-        }
-        if entry.access.may(.delete) {
-          Divider()
-          Button("Delete…", systemImage: "trash", role: .destructive) { actions.step = .deleting(entry) }
-        }
+    HStack(spacing: 8) {
+      content
+        .buttonStyle(.plain)
+        .frame(maxWidth: .infinity, alignment: .leading)
+      Menu {
+        FileMenuContents(entry: entry)
+      } label: {
+        Image(systemName: "ellipsis")
+          .font(.body.weight(.semibold))
+          .frame(width: 44, height: 44)
+          .contentShape(.rect)
       }
+      .buttonStyle(.borderless)
+      .accessibilityLabel("Actions for \(entry.title)")
+      .accessibilityHint("Share or organize this \(entry.kind.label.lowercased())")
+    }
+      .contextMenu { FileMenuContents(entry: entry) }
       .swipeActions(edge: .leading) {
         if entry.access.may(.rename) {
           Button("Rename", systemImage: "pencil") { actions.startRenaming(entry) }
@@ -196,18 +198,37 @@ private struct FileActionMenu: ViewModifier {
   }
 }
 
+private struct FileMenuContents: View {
+  let entry: Entry
+  @Environment(FileActions.self) private var actions
+
+  var body: some View {
+    ListenButton(file: entry)
+    ShareLink(item: actions.session.link(to: entry), subject: Text(entry.title)) {
+      Label("Share Link…", systemImage: "square.and.arrow.up")
+    }
+    if entry.access.may(.rename) {
+      Divider()
+      Button("Rename…", systemImage: "pencil") { actions.startRenaming(entry) }
+    }
+    if entry.access.may(.move) {
+      Button("Move…", systemImage: "folder") { actions.step = .moving(entry) }
+    }
+    if entry.access.may(.delete) {
+      Divider()
+      Button("Delete…", systemImage: "trash", role: .destructive) { actions.step = .deleting(entry) }
+    }
+  }
+}
+
 private struct FileActionPresenters: ViewModifier {
   @Bindable var actions: FileActions
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
   func body(content: Content) -> some View {
     content
-      .alert("Rename", isPresented: actions.presenting(\.renaming), presenting: actions.renaming) { entry in
-        TextField("Title", text: $actions.title)
-        Button("Cancel", role: .cancel) {}
-        Button("Rename") {
-          let title = actions.title
-          Task { await actions.rename(entry, to: title) }
-        }
+      .sheet(item: actions.item(\.renaming)) { entry in
+        RenameSheet(entry: entry, actions: actions)
       }
       .sheet(item: actions.item(\.moving)) { entry in
         MoveSheet(entry: entry)
@@ -235,7 +256,55 @@ private struct FileActionPresenters: ViewModifier {
             }
         }
       }
-      .animation(.default, value: actions.done)
+      .animation(reduceMotion ? nil : .default, value: actions.done)
+  }
+}
+
+private struct RenameSheet: View {
+  let entry: Entry
+  @Bindable var actions: FileActions
+  @FocusState private var naming: Bool
+
+  private var valid: Bool {
+    let title = actions.title.trimmingCharacters(in: .whitespacesAndNewlines)
+    return !title.isEmpty && title != entry.title
+  }
+
+  var body: some View {
+    NavigationStack {
+      Form {
+        Section {
+          FileRow(entry: entry)
+        }
+        Section("File name") {
+          TextField("Title", text: $actions.title)
+            .accessibilityLabel("Title")
+            .autocorrectionDisabled()
+            .focused($naming)
+            .submitLabel(.done)
+            .onSubmit(submit)
+        }
+      }
+      .navigationTitle("Rename")
+      .navigationBarTitleDisplayMode(.inline)
+      .toolbar {
+        ToolbarItem(placement: .cancellationAction) {
+          Button("Cancel") { actions.step = nil }
+        }
+        ToolbarItem(placement: .confirmationAction) {
+          Button("Rename", action: submit).disabled(!valid)
+        }
+      }
+      .onAppear { naming = true }
+    }
+    .presentationDetents([.medium, .large])
+  }
+
+  private func submit() {
+    guard valid, actions.renaming?.id == entry.id else { return }
+    let title = actions.title
+    actions.step = nil
+    Task { await actions.rename(entry, to: title) }
   }
 }
 
@@ -263,6 +332,9 @@ private struct Destinations: View {
 
   var body: some View {
     List {
+      Section("Moving") {
+        FileRow(entry: entry)
+      }
       Section {
         ForEach(folders.value ?? []) { candidate in
           // A folder cannot go inside itself, so its own contents are no destination.
@@ -275,6 +347,8 @@ private struct Destinations: View {
             }
           }
         }
+      } header: {
+        Text("Choose a destination")
       } footer: {
         if let note {
           Text(note)
@@ -282,15 +356,9 @@ private struct Destinations: View {
       }
     }
     .overlay(for: folders, what: "the folders", retry: load)
-    .navigationTitle(folder?.title ?? "Home")
+    .navigationTitle(folder?.title ?? homeTitle)
     .navigationBarTitleDisplayMode(.inline)
     .toolbar {
-      ToolbarItem(placement: .principal) {
-        VStack {
-          Text(folder?.title ?? "Home").font(.headline)
-          Text("Move “\(entry.title)”").font(.caption).foregroundStyle(.secondary)
-        }
-      }
       ToolbarItem(placement: .cancellationAction) {
         Button("Cancel") { actions.step = nil }
       }
@@ -302,12 +370,14 @@ private struct Destinations: View {
     .task { await load() }
   }
 
+  private var homeTitle: String { UIDevice.current.userInterfaceIdiom == .phone ? "Library" : "Home" }
+
   /// Why this folder can't take the file, and what to do instead.
   private var note: String? {
     guard let folder, !entry.mayMove(into: folder) else { return nil }
     return entry.access == .owner
       ? "You can only view “\(folder.title)”, so nothing can move into it."
-      : "Someone else owns “\(entry.title)”, so it can go into a folder only where they can edit too. Move it to Home, or ask them to move it."
+      : "Someone else owns “\(entry.title)”, so it can go into a folder only where they can edit too. Move it to \(homeTitle), or ask them to move it."
   }
 
   private func load() async {

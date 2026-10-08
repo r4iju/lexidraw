@@ -27,9 +27,6 @@ struct FolderView: View {
       } else {
         List {
           if let listing = shown.value?.listing {
-            if !browser.tags.isEmpty {
-              FilterHint()
-            }
             ListingSections(listing: listing)
           }
         }
@@ -38,15 +35,32 @@ struct FolderView: View {
           isEmpty: { $0.listing.folders.isEmpty && $0.listing.files.isEmpty }
         ) {
           if browser.tags.isEmpty {
-            ContentUnavailableView(
-              "Nothing here yet", systemImage: folder == nil ? "doc" : "folder",
-              description: Text("Files you make here or on the web show up here."))
+            ContentUnavailableView {
+              Label("Nothing here yet", systemImage: folder == nil ? "doc.badge.plus" : "folder")
+            } description: {
+              Text(mayCreate
+                ? "Start with a document, a drawing, or a folder. Everything you create stays here."
+                : "You can view this folder. Files added by its editors will appear here.")
+            } actions: {
+              if mayCreate {
+                NewMenu(folder: folder, title: "Create your first file")
+                  .buttonStyle(.borderedProminent)
+              }
+            }
           } else {
             ContentUnavailableView(
               "No files tagged \(browser.tags.sorted().formatted(.list(type: .and)))",
               systemImage: "tag")
           }
         }
+      }
+    }
+    .safeAreaInset(edge: .top, spacing: 0) {
+      if !browser.tags.isEmpty, results == nil {
+        FilterHint()
+          .padding(.horizontal, 20)
+          .padding(.vertical, 12)
+          .background(Color(uiColor: .systemGroupedBackground))
       }
     }
     .phoneAccountControl()
@@ -103,6 +117,7 @@ struct FolderView: View {
   }
 
   private func load() async {
+    if shown.value == nil { shown = .loading }
     let loaded = await Loaded.from {
       async let listing = session.listing(of: folder?.id, taggedWith: browser.tags.sorted())
       async let tags = session.tags()
@@ -132,7 +147,7 @@ private struct Breadcrumbs: View {
   @Environment(Browser.self) private var browser
 
   var body: some View {
-    Button("Home", systemImage: "house") { browser.show(.home) }
+    Button(UIDevice.current.userInterfaceIdiom == .phone ? "Library" : "Home", systemImage: "house") { browser.show(.home) }
     ForEach(place.ancestors) { ancestor in
       Button(ancestor.title, systemImage: "folder") { browser.back(to: ancestor) }
     }
@@ -146,28 +161,20 @@ private struct ListingSections: View {
   var body: some View {
     if !listing.folders.isEmpty {
       Section("Folders") {
-        LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), spacing: 8)], spacing: 8) {
-          ForEach(listing.folders) { folder in
-            // A NavigationLink here would make the whole row one link, opening the
-            // last tile whichever was tapped; borderless buttons each keep their tap.
-            Button {
-              browser.path.append(Place.Folder(id: folder.id, title: folder.title))
-            } label: {
-              Label(folder.title, systemImage: "folder")
-                .lineLimit(1)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(10)
-                .background(.fill.tertiary, in: .rect(cornerRadius: 10))
-                .contentShape(.rect)
-            }
-            .buttonStyle(.borderless)
-            .tint(.primary)
-            .fileActions(for: folder)
+        ForEach(listing.folders) { folder in
+          Button {
+            browser.path.append(Place.Folder(id: folder.id, title: folder.title))
+          } label: {
+            FileRow(entry: folder)
+              .contentShape(.rect)
           }
+          .buttonStyle(.borderless)
+          .tint(.primary)
+          .accessibilityLabel(folder.title)
+          .accessibilityHint("Opens this folder")
+          .fileActions(for: folder)
         }
       }
-      .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
-      .listRowBackground(Color.clear)
     }
     if !listing.files.isEmpty {
       Section("Files") {
@@ -182,6 +189,7 @@ private struct ListingSections: View {
 
 private struct NewMenu: View {
   let folder: Place.Folder?
+  var title = "New"
   @Environment(FileActions.self) private var actions
 
   var body: some View {
@@ -192,7 +200,7 @@ private struct NewMenu: View {
         }
       }
     } label: {
-      Label("New", systemImage: "plus")
+      Label(title, systemImage: "plus")
     }
   }
 }
@@ -208,7 +216,7 @@ private struct FilterHint: View {
         "Tagged \(browser.tags.sorted().formatted(.list(type: .and)))",
         systemImage: "line.3.horizontal.decrease.circle")
       Spacer()
-      Button("Clear") { browser.tags = [] }
+      Button("Clear filters") { browser.tags = [] }
         .buttonStyle(.borderless)
     }
     .font(.subheadline)

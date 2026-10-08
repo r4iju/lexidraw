@@ -85,3 +85,36 @@ No custom glass effect or fixed navigation background is introduced. Native
 labels, SF Symbols, system type and semantic content colors allow the shell to
 adapt to dark mode, larger text and reduced transparency/motion. Visual audit
 is evidence for this shell, not a claim that all parent-spec journeys are done.
+
+## Library and organization, #269
+
+Library, folders, Shared and Trash now share a readable row hierarchy: a larger
+preview (or a centered type symbol on a quiet semantic accent), a medium-weight
+title, explicit type, and update/access/tag metadata. Standard titles can occupy
+two lines; accessibility sizes expand without a line cap. Folders use the same
+rows, including the actual subfolder count when available, instead of compact
+single-line tiles. Color supplements the written type, so identification does
+not depend on color or a successful image request.
+
+Every listing row has a separate, labeled ellipsis menu alongside its native
+opening action. The same permission-gated actions remain available through
+swipes and context menus. Link sharing uses the system ShareLink presentation;
+read-aloud retains its consent step. Rename uses a native form sheet with the
+current file preview and explicit Cancel/Rename controls. Move puts the moving
+file in the scrollable content, leaving the native navigation title and toolbar
+available for the destination and confirmation even with long names.
+
+An empty permitted location offers creation directly. Read-only folders explain
+why they offer no creation. Active tags occupy a persistent content inset, so an
+empty result never covers the clear action. Shared explains parent-independent
+access and each row shows its own access. Loading is named; list failures retain
+retry; Trash offers a visible Restore button, a busy value for accessibility,
+and guards duplicate restores. At accessibility sizes, restore controls flow
+below the file rather than squeezing its title. Completion announcements remain,
+and their custom movement respects Reduce Motion. iPhone root references use
+Library; iPad retains Home and its existing sidebar/navigation model.
+
+Verification and native screenshots for this slice are recorded in
+`/tmp/lexidraw-267/269-notes.md`. Dedicated Search, document interaction,
+sign-in/account redesign and the iPad navigation adaptation remain owned by
+subsequent tickets. No service/API/schema expansion accompanies this slice.

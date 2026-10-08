@@ -17,27 +17,43 @@ struct FileRow: View {
   let file: any FileItem
   let caption: String
   @Environment(\.colorScheme) private var colorScheme
+  @Environment(\.dynamicTypeSize) private var typeSize
 
   var body: some View {
     HStack(spacing: 12) {
       ThumbnailView(url: file.thumbnail(dark: colorScheme == .dark), kind: file.kind)
-      VStack(alignment: .leading, spacing: 2) {
-        Text(file.title).lineLimit(1)
+      VStack(alignment: .leading, spacing: 5) {
+        Text(file.title)
+          .font(.body.weight(.medium))
+          .foregroundStyle(.primary)
+          .lineLimit(typeSize.isAccessibilitySize ? nil : 2)
+          .fixedSize(horizontal: false, vertical: true)
+        Text(file.kind.label)
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(file.kind.accent)
         Text(caption)
           .font(.caption)
           .foregroundStyle(.secondary)
-          .lineLimit(1)
+          .lineLimit(typeSize.isAccessibilitySize ? nil : 2)
       }
     }
+    .padding(.vertical, 6)
   }
 }
 
 extension FileRow {
   /// When it last changed, and the caller's own tags on it.
   init(entry: Entry) {
-    let changed = entry.updatedAt.formatted(.relative(presentation: .named))
+    let changed = "Updated \(entry.updatedAt.formatted(.relative(presentation: .named)))"
+    let access: String = switch entry.access {
+    case .owner: ""
+    case .edit: "Can edit · "
+    case .read: "Read only · "
+    }
+    let folders = entry.kind == .folder && entry.folderCount > 0
+      ? "\(entry.folderCount) \(entry.folderCount == 1 ? "folder" : "folders") · " : ""
     self.init(
-      file: entry, caption: entry.tags.isEmpty ? changed : "\(changed) · \(entry.tags.joined(separator: ", "))")
+      file: entry, caption: access + folders + (entry.tags.isEmpty ? changed : "\(changed) · \(entry.tags.joined(separator: ", "))"))
   }
 }
 
@@ -77,7 +93,7 @@ struct ThumbnailView: View {
 
   var body: some View {
     ZStack {
-      Rectangle().fill(.fill.tertiary)
+      RoundedRectangle(cornerRadius: 12).fill(kind.accent.opacity(0.09))
       if let url {
         AsyncImage(url: url) { phase in
           if let image = phase.image {
@@ -90,13 +106,15 @@ struct ThumbnailView: View {
         icon
       }
     }
-    .frame(width: 44, height: 44, alignment: .topLeading)
-    .clipShape(.rect(cornerRadius: 8))
+    .frame(width: 56, height: 64)
+    .clipShape(.rect(cornerRadius: 12))
     .accessibilityHidden(true)
   }
 
   private var icon: some View {
-    Image(systemName: kind.systemImage).foregroundStyle(.secondary)
+    Image(systemName: kind.systemImage)
+      .font(.system(size: 25, weight: .regular))
+      .foregroundStyle(kind.accent)
   }
 }
 
@@ -114,6 +132,15 @@ struct NotYet: View {
 }
 
 extension Entry.Kind {
+  var accent: Color {
+    switch self {
+    case .folder: .blue
+    case .document: .indigo
+    case .drawing: .purple
+    case .url: .teal
+    }
+  }
+
   var systemImage: String {
     switch self {
     case .folder: "folder"

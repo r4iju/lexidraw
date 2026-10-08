@@ -10,9 +10,17 @@ struct SharedView: View {
 
   var body: some View {
     List {
-      ForEach(shared.value ?? []) { entry in
-        OpenLink(file: entry) { FileRow(entry: entry) }
-          .fileActions(for: entry)
+      if let entries = shared.value, !entries.isEmpty {
+        Section {
+          ForEach(entries) { entry in
+            OpenLink(file: entry) { FileRow(entry: entry) }
+              .fileActions(for: entry)
+          }
+        } header: {
+          Text("Shared files")
+        } footer: {
+          Text("Available here even when you can’t open their folders. Each file’s access determines what you can change.")
+        }
       }
     }
     .overlay(for: shared, what: "what’s shared with you", retry: load, isEmpty: \.isEmpty) {
@@ -27,6 +35,7 @@ struct SharedView: View {
   }
 
   private func load() async {
+    if shared.value == nil { shared = .loading }
     if let loaded = await Loaded.from({ try await session.sharedWithMe() }) { shared = loaded }
   }
 }

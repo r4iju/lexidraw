@@ -44,7 +44,8 @@ extension View {
     overlay {
       switch loaded {
       case .loading:
-        ProgressView()
+        ProgressView("Loading \(what)…")
+          .accessibilityLabel("Loading \(what)")
       case .failed(let message):
         ContentUnavailableView {
           Label("Couldn’t load \(what)", systemImage: "wifi.exclamationmark")
