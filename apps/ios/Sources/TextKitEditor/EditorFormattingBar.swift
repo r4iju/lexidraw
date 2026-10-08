@@ -13,6 +13,7 @@ import UIKit
   init(
     format: @escaping (TextFormatType) -> Void, link: @escaping () -> Void,
     undo: @escaping () -> Void, redo: @escaping () -> Void,
+    hideKeyboard: @escaping () -> Void,
     menus: @escaping () -> (block: UIMenu, lists: UIMenu, insert: UIMenu)
   ) {
     block = Self.button("Block type", symbol: "textformat.size")
@@ -24,6 +25,10 @@ import UIKit
     scroll.showsHorizontalScrollIndicator = false
     scroll.translatesAutoresizingMaskIntoConstraints = false
     addSubview(scroll)
+    let hide = Self.button("Hide keyboard", symbol: "keyboard.chevron.compact.down")
+    hide.translatesAutoresizingMaskIntoConstraints = false
+    hide.addAction(UIAction { _ in hideKeyboard() }, for: .touchUpInside)
+    addSubview(hide)
     stack.axis = .horizontal
     stack.spacing = 2
     stack.alignment = .center
@@ -31,7 +36,11 @@ import UIKit
     scroll.addSubview(stack)
     NSLayoutConstraint.activate([
       scroll.leadingAnchor.constraint(equalTo: leadingAnchor),
-      scroll.trailingAnchor.constraint(equalTo: trailingAnchor),
+      scroll.trailingAnchor.constraint(equalTo: hide.leadingAnchor, constant: -4),
+      hide.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -4),
+      hide.centerYAnchor.constraint(equalTo: centerYAnchor),
+      hide.widthAnchor.constraint(equalToConstant: 44),
+      hide.heightAnchor.constraint(equalToConstant: 44),
       scroll.topAnchor.constraint(equalTo: topAnchor),
       scroll.bottomAnchor.constraint(equalTo: bottomAnchor),
       stack.leadingAnchor.constraint(equalTo: scroll.contentLayoutGuide.leadingAnchor, constant: 8),

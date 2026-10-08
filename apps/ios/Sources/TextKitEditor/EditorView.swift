@@ -39,6 +39,7 @@ public final class EditorView: UIScrollView, UITextInput {
     link: { [weak self] in self?.addLink() },
     undo: { [weak self] in self?.history.undo() },
     redo: { [weak self] in self?.history.redo() },
+    hideKeyboard: { [weak self] in self?.resignFirstResponder() },
     menus: { [unowned self] in formattingMenus() })
 
   public override var inputAccessoryView: UIView? { isEditable && model.isEditable && model.supportsRichText ? formattingBar : nil }

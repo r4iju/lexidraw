@@ -10,6 +10,25 @@ final class DocumentPreviewUITests: XCTestCase {
     continueAfterFailure = false
   }
 
+  func testHideKeyboardKeepsTheDocumentOpenAndCanResumeEditing() {
+    let app = open(access: "EDIT")
+    XCTAssertTrue(app.staticTexts["Saved"].waitForExistence(timeout: 10))
+    let editor = app.textViews.firstMatch
+    editor.tap()
+    XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5))
+    let before = editor.value as? String
+    let hide = app.buttons["editor hide keyboard"]
+    XCTAssertTrue(hide.waitForExistence(timeout: 3))
+    XCTAssertTrue(hide.isHittable)
+    hide.tap()
+    expectation(for: NSPredicate(format: "exists == false"), evaluatedWith: app.keyboards.firstMatch)
+    waitForExpectations(timeout: 5)
+    XCTAssertTrue(editor.exists)
+    XCTAssertEqual(editor.value as? String, before)
+    editor.tap()
+    XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5))
+  }
+
   func testRealDocumentPredictionAcceptanceUndoesOneReplacement() throws {
     let original = LexicalJSON.document([LexicalJSON.paragraph([LexicalJSON.text("prefix ")])])
     let app = open(access: "EDIT", document: original)

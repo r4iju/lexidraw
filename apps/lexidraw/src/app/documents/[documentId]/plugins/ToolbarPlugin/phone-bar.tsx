@@ -134,11 +134,23 @@ export function PhoneBar(props: PhoneBarProps) {
       }}
       className="fixed inset-x-0 bottom-(--keyboard-inset) z-30 border-t border-border bg-card pb-[env(safe-area-inset-bottom)] print:hidden"
     >
-      <div className="flex h-11 items-center gap-0.5 overflow-x-auto overscroll-x-contain px-2 [scrollbar-width:none] [mask-image:linear-gradient(to_right,transparent,black_12px,black_calc(100%-12px),transparent)]">
-        {mode === "selection" && <SelectionItems {...props} />}
-        {mode === "table" && <TableBarItems />}
-        {mode === "block" && <BlockItems {...props} />}
-        {mode === "default" && <DefaultItems {...props} />}
+      <div className="flex h-11 items-center">
+        <div className="flex min-w-0 flex-1 h-11 items-center gap-0.5 overflow-x-auto overscroll-x-contain px-2 [scrollbar-width:none] [mask-image:linear-gradient(to_right,transparent,black_12px,black_calc(100%-12px),transparent)]">
+          {mode === "selection" && <SelectionItems {...props} />}
+          {mode === "table" && <TableBarItems />}
+          {mode === "block" && <BlockItems {...props} />}
+          {mode === "default" && <DefaultItems {...props} />}
+        </div>
+        <div className="shrink-0 border-l border-border px-1">
+          <ToolbarButton
+            label="Hide keyboard"
+            icon={Keyboard}
+            onClick={() => {
+              editor.blur();
+              (document.activeElement as HTMLElement | null)?.blur();
+            }}
+          />
+        </div>
       </div>
     </div>,
     document.body,
@@ -235,14 +247,6 @@ function DefaultItems(props: PhoneBarProps) {
         icon={Redo}
         disabled={!canRedo}
         onClick={() => editor.dispatchCommand(REDO_COMMAND, undefined)}
-      />
-      <ToolbarButton
-        label="Hide keyboard"
-        icon={Keyboard}
-        onClick={() => {
-          editor.blur();
-          (document.activeElement as HTMLElement | null)?.blur();
-        }}
       />
     </>
   );
