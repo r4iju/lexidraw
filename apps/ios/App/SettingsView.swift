@@ -25,34 +25,125 @@ struct SettingsButton: View {
 private struct SettingsView: View {
   @Environment(AppModel.self) private var model
   @Environment(\.dismiss) private var dismiss
+  @Environment(\.dynamicTypeSize) private var dynamicTypeSize
   @State private var signOutFailure: String?
+  @State private var signingOut = false
+  @State private var deletingAccount = false
+  private enum Identity {
+    case loading
+    case loaded(AccountIdentity)
+    case failed
+  }
+  @State private var identity = Identity.loading
 
   var body: some View {
     NavigationStack {
       Form {
         Section {
-          Button("Sign Out") { Task { await signOut() } }
+          HStack(alignment: .top, spacing: 16) {
+            if !dynamicTypeSize.isAccessibilitySize {
+              Image(systemName: "person.crop.circle.fill")
+                .font(.largeTitle)
+                .foregroundStyle(.tint)
+                .accessibilityHidden(true)
+            }
+            VStack(alignment: .leading, spacing: 4) {
+              Text(accountName)
+                .font(.title3.weight(.semibold))
+              if case .loaded(let details) = identity, let email = details.email, !email.isEmpty {
+                Text(email)
+                  .font(.subheadline)
+                  .foregroundStyle(.secondary)
+                  .textSelection(.enabled)
+              }
+              Text("Signed in on this \(UIDevice.current.model)")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+            }
+          }
+          .padding(.vertical, 8)
+          switch identity {
+          case .loading:
+            ProgressView("Loading account details…")
+          case .failed:
+            VStack(alignment: .leading, spacing: 8) {
+              Text("Couldn’t load account details")
+                .foregroundStyle(.secondary)
+              Button("Try Again") { Task { await loadIdentity() } }
+            }
+          case .loaded: EmptyView()
+          }
+          Button {
+            Task { await signOut() }
+          } label: {
+            if signingOut {
+              ProgressView("Signing out…")
+            } else {
+              Label("Sign Out", systemImage: "rectangle.portrait.and.arrow.right")
+            }
+          }
+        } header: {
+          Text("Account")
+        } footer: {
+          Text("Sign out of this device. Your files and your sign-ins on other devices stay in your account.")
+        }
+        Section("Listening") {
+          NavigationLink {
+            ReadAloudInformationView()
+          } label: {
+            Label("Read Aloud", systemImage: "headphones")
+          }
         }
         Section {
-          NavigationLink("Delete Account") { DeleteAccountView() }
-            .foregroundStyle(.red)
+          NavigationLink {
+            DeleteAccountView(deletingAccount: $deletingAccount)
+          } label: {
+            Label("Delete Account", systemImage: "person.crop.circle.badge.minus")
+              .foregroundStyle(.red)
+          }
+        } header: {
+          Text("Delete account permanently")
         } footer: {
-          Text("Remove your account and everything that is yours, for good.")
+          Text("Remove your account and all the files you own. This cannot be undone.")
         }
       }
+      .disabled(signingOut || deletingAccount)
       .navigationTitle("Settings")
       .navigationBarTitleDisplayMode(.inline)
       .toolbar {
         ToolbarItem(placement: .confirmationAction) {
           Button("Done") { dismiss() }
+            .disabled(signingOut || deletingAccount)
         }
       }
       .alert("Couldn’t sign out", message: $signOutFailure)
+      .task { await loadIdentity() }
+    }
+    .interactiveDismissDisabled(signingOut || deletingAccount)
+  }
+
+  private var accountName: String {
+    if case .loaded(let details) = identity, let name = details.name, !name.isEmpty { name }
+    else { "Your account" }
+  }
+
+  private func loadIdentity() async {
+    guard case .signedIn(let session) = model.state else { return }
+    identity = .loading
+    do {
+      let details = try await session.accountIdentity()
+      try Task.checkCancellation()
+      identity = .loaded(details)
+    } catch is CancellationError {
+    } catch {
+      identity = .failed
     }
   }
 
   private func signOut() async {
-    guard case .signedIn(let session) = model.state else { return }
+    guard !signingOut, case .signedIn(let session) = model.state else { return }
+    signingOut = true
+    defer { signingOut = false }
     do {
       if try await session.signOut() == .stillValidOnServer {
         model.notice =
@@ -60,7 +151,7 @@ private struct SettingsView: View {
       }
       model.state = .signedOut
     } catch {
-      signOutFailure = "The token couldn’t be removed from this \(UIDevice.current.model): \(error.localizedDescription)"
+      signOutFailure = "Your sign-in couldn’t be removed from this \(UIDevice.current.model). You’re still signed in here. Please try again.\n\n\(error.localizedDescription)"
     }
   }
 }
@@ -80,6 +171,8 @@ private struct DeleteAccountView: View {
   @Environment(AppModel.self) private var model
   @State private var phase = Phase.asking
   @State private var typed = ""
+  @FocusState private var confirmationFocused: Bool
+  @Binding var deletingAccount: Bool
 
   var body: some View {
     Form {
@@ -100,16 +193,24 @@ private struct DeleteAccountView: View {
       }
       switch phase {
       case .asking:
-        ProgressView().frame(maxWidth: .infinity)
+        Section {
+          ProgressView("Checking confirmation…")
+        }
       case .unanswered(let reason):
         Section {
+          Label("Couldn’t load confirmation", systemImage: "exclamationmark.circle")
+            .font(.headline)
+          Text(reason).foregroundStyle(.secondary)
           Button("Try Again") { Task { await load() } }
         } footer: {
-          Text("Couldn’t ask the server what confirms it: \(reason)")
+          Text("Your account has not been deleted. Connect and try again to continue.")
         }
       case .confirming(let confirmation), .deleting(let confirmation), .refused(let confirmation, _):
         Section {
-          TextField("Confirmation", text: $typed)
+          TextField("Confirmation", text: $typed, axis: .vertical)
+            .focused($confirmationFocused)
+            .submitLabel(.done)
+            .onSubmit { confirmationFocused = false }
             .textInputAutocapitalization(.never)
             .autocorrectionDisabled()
             .textContentType(.none)
@@ -123,14 +224,32 @@ private struct DeleteAccountView: View {
           )
         }
         Section {
-          Button("Delete Account", role: .destructive) { Task { await delete(confirmation) } }
-            .disabled(!confirmation.isConfirmed(by: typed) || isDeleting)
+          Button(role: .destructive) {
+            Task { await delete(confirmation) }
+          } label: {
+            if isDeleting {
+              ProgressView("Deleting account…")
+            } else {
+              Label("Delete Account", systemImage: "person.crop.circle.badge.minus")
+            }
+          }
+          .disabled(!confirmation.isConfirmed(by: typed) || isDeleting)
         }
       }
     }
+    .disabled(isDeleting)
     .navigationTitle("Delete Account")
     .navigationBarTitleDisplayMode(.inline)
-    .alert("Couldn’t delete your account. Try again.", message: refusal)
+    .navigationBarBackButtonHidden(isDeleting)
+    .toolbar {
+      ToolbarItemGroup(placement: .keyboard) {
+        Spacer()
+        Button("Hide keyboard", systemImage: "keyboard.chevron.compact.down") {
+          confirmationFocused = false
+        }
+      }
+    }
+    .alert("Couldn’t delete your account", message: refusal)
     .task { await load() }
   }
 
@@ -150,7 +269,9 @@ private struct DeleteAccountView: View {
     guard case .signedIn(let session) = model.state else { return }
     phase = .asking
     do {
-      phase = .confirming(try await session.deletionConfirmation())
+      let confirmation = try await session.deletionConfirmation()
+      try Task.checkCancellation()
+      phase = .confirming(confirmation)
     } catch is CancellationError {
       return
     } catch {
@@ -159,7 +280,10 @@ private struct DeleteAccountView: View {
   }
 
   private func delete(_ confirmation: DeletionConfirmation) async {
-    guard case .signedIn(let session) = model.state else { return }
+    guard !isDeleting, confirmation.isConfirmed(by: typed), case .signedIn(let session) = model.state else { return }
+    confirmationFocused = false
+    deletingAccount = true
+    defer { deletingAccount = false }
     phase = .deleting(confirmation)
     do {
       try await session.deleteAccount(confirmation: typed)
@@ -168,5 +292,24 @@ private struct DeleteAccountView: View {
     } catch {
       phase = .refused(confirmation, error.localizedDescription)
     }
+  }
+}
+
+private struct ReadAloudInformationView: View {
+  var body: some View {
+    Form {
+      Section {
+        Label("Read aloud with AI", systemImage: "waveform")
+          .font(.headline)
+        Text(ReadAloudDisclosure.explanation)
+      } footer: {
+        Text("Before generating audio, Lexidraw asks for your permission. Allowing it applies to the current browsing session. Opening this page does not grant permission.")
+      }
+      Section {
+        Text("Choose Listen from a document or link’s actions menu. Existing audio can play without generating a new recording.")
+      }
+    }
+    .navigationTitle("Read Aloud")
+    .navigationBarTitleDisplayMode(.inline)
   }
 }

@@ -1,6 +1,10 @@
 import LexidrawKit
 import SwiftUI
 
+@MainActor enum ReadAloudDisclosure {
+  static let explanation: LocalizedStringKey = "When you choose Listen, Lexidraw sends the file’s text to Google or OpenAI to generate spoken audio. The audio is saved with your Lexidraw account. Your microphone is not used."
+}
+
 /// Listen, in a file's menu, for the files the web reads aloud.
 struct ListenButton: View {
   let file: any FileItem
@@ -30,19 +34,32 @@ extension View {
       if request == nil { listener.cancelGeneration() }
     })) { file in
       NavigationStack {
-        VStack(alignment: .leading, spacing: 20) {
-          Text("Read aloud with AI").font(.title2.bold())
-          Text("When you choose Listen, Lexidraw sends the file’s text to Google or OpenAI to generate spoken audio. The audio is saved with your Lexidraw account. Your microphone is not used.")
-          Text(file.title).font(.headline)
-          if let server = Bundle.main.object(forInfoDictionaryKey: "LexidrawServerURL") as? String,
-             let origin = URL(string: server) {
-            Link("Privacy Policy", destination: origin.appending(path: "privacy-policy"))
-          }
-          Button("Allow Read Aloud", action: listener.allowGeneration)
+        ScrollView {
+          VStack(alignment: .leading, spacing: 20) {
+            Text("Read aloud with AI")
+              .font(.title2.bold())
+              .fixedSize(horizontal: false, vertical: true)
+            Text(ReadAloudDisclosure.explanation)
+              .fixedSize(horizontal: false, vertical: true)
+            Text(file.title)
+              .font(.headline)
+              .fixedSize(horizontal: false, vertical: true)
+            if let server = Bundle.main.object(forInfoDictionaryKey: "LexidrawServerURL") as? String,
+               let origin = URL(string: server) {
+              Link("Privacy Policy", destination: origin.appending(path: "privacy-policy"))
+            }
+            Button(action: listener.allowGeneration) {
+              Text("Allow Read Aloud")
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity)
+            }
             .buttonStyle(.borderedProminent)
-          Spacer(minLength: 0)
+            .controlSize(.large)
+          }
+          .frame(maxWidth: .infinity, alignment: .leading)
+          .padding()
         }
-        .padding()
         .toolbar {
           ToolbarItem(placement: .cancellationAction) {
             Button("Cancel", action: listener.cancelGeneration)

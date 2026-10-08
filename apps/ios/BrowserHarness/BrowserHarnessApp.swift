@@ -3,21 +3,26 @@ import HTTPTypes
 import LexidrawKit
 import OpenAPIRuntime
 import SwiftUI
+import Synchronization
 
 /// The production browser against an external service fixture for navigation,
 /// organization, permissions and recovery journeys.
 @main
 struct BrowserHarnessApp: App {
+  private let signInBrowser = SignInBrowserFixture()
   @State private var model = AppModel(
     account: Account(
-      origin: URL(string: "https://harness.invalid")!, store: HarnessToken(), transport: HarnessServer()))
+      origin: ProcessInfo.processInfo.environment["BROWSER_SCENARIO"] == "sign-in" ? SignInBrowserFixture.origin : URL(string: "https://harness.invalid")!, store: AccountHarnessToken(), transport: HarnessServer()))
 
   var body: some Scene {
     WindowGroup {
-      if case .signedIn(let session) = model.state {
-        BrowserView(session: session)
-          .environment(model)
+      Group {
+        switch model.state {
+        case .signedIn(let session): BrowserView(session: session)
+        case .signedOut: NavigationStack { SignInView() }
+        }
       }
+      .environment(model)
     }
   }
 }
@@ -93,6 +98,40 @@ actor HarnessServer: ClientTransport {
     }
     let answer: Any
     switch operationID {
+    case "nativeSignIn-exchange":
+      guard json["code"] as? String == "fixture-code", json["redirectUri"] as? String == Account.callback.absoluteString,
+            let verifier = json["codeVerifier"] as? String, !verifier.isEmpty else {
+        return try response(["message": "Invalid sign-in exchange.", "code": "BAD_REQUEST"], status: .badRequest)
+      }
+      try await Task.sleep(for: .seconds(4))
+      if failures.insert(operationID).inserted {
+        return try response(["message": "The sign-in code expired.", "code": "BAD_REQUEST"], status: .badRequest)
+      }
+      answer = ["token": "fixture-token", "name": "iPhone", "scope": "write"]
+    case "auth-deletionConfirmation":
+      if scenario == "deletion-confirmation-failure", failures.insert(operationID).inserted {
+        try await Task.sleep(for: .seconds(3))
+        return try response(["message": "Connection interrupted.", "code": "INTERNAL_SERVER_ERROR"], status: .internalServerError)
+      }
+      answer = ["confirmation": "reader@example.test"]
+    case "auth-deleteAccount":
+      guard (json["confirmation"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == "reader@example.test" else {
+        return try response(["message": "The confirmation does not match this account.", "code": "BAD_REQUEST"], status: .badRequest)
+      }
+      try await Task.sleep(for: .seconds(4))
+      if scenario == "deletion-failure", failures.insert(operationID).inserted {
+        return try response(["message": "Deletion is temporarily unavailable. Please try again.", "code": "INTERNAL_SERVER_ERROR"], status: .internalServerError)
+      }
+      answer = ["id": "reader"]
+    case "tokens-revokeCurrent":
+      if scenario == "signout-local-failure" { try await Task.sleep(for: .seconds(4)) }
+      if scenario == "signout-server-failure" { throw URLError(.notConnectedToInternet) }
+      answer = ["id": "fixture-token"]
+    case "auth-me":
+      if scenario == "identity-failure", failures.insert(operationID).inserted {
+        return try response(["message": "Connection interrupted.", "code": "INTERNAL_SERVER_ERROR"], status: .internalServerError)
+      }
+      answer = ["userId": "reader", "name": "Native Reader", "email": "reader@example.test", "authKind": "token", "scope": "write"]
     case "entities-list":
       let parent = query.first { $0.name == "parentId" }?.value
       let types = query.filter { $0.name == "entityTypes" }.compactMap(\.value)
@@ -236,5 +275,26 @@ actor HarnessServer: ClientTransport {
 
   private func forbidden() throws -> (HTTPResponse, HTTPBody?) {
     try response(["message": "You don’t have permission to change this file.", "code": "FORBIDDEN"], status: .forbidden)
+  }
+}
+
+/// The external secure-storage boundary, reset for each fixture launch.
+final class AccountHarnessToken: TokenStore {
+  private struct Stored {
+    var token: String? = ["signed-out", "sign-in"].contains(ProcessInfo.processInfo.environment["BROWSER_SCENARIO"] ?? "") ? nil : "harness"
+    var removals = 0
+  }
+  private let stored = Mutex(Stored())
+
+  func load() throws -> String? { stored.withLock { $0.token } }
+  func save(_ token: String) throws { stored.withLock { $0.token = token } }
+  func delete() throws {
+    try stored.withLock {
+      $0.removals += 1
+      if ProcessInfo.processInfo.environment["BROWSER_SCENARIO"] == "signout-local-failure", $0.removals == 1 {
+        throw NSError(domain: "FixtureSecureStorage", code: 1, userInfo: [NSLocalizedDescriptionKey: "Secure storage is temporarily unavailable."])
+      }
+      $0.token = nil
+    }
   }
 }

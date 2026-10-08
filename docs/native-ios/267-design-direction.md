@@ -184,3 +184,33 @@ and unsupported-content notices remain explicit, and the latter also names the
 unsupported parts and explains that source is preserved. No service permission,
 revision precondition, serialization or HTML-block source/runtime contract is
 expanded. Evidence and verification limits are in `/tmp/lexidraw-267/271-notes.md`.
+
+## Account entry and settings, #272
+
+Signed-out entry uses a calm, scrollable introduction and a persistent native
+Sign In control. The existing shared system authentication session, custom-scheme
+callback, PKCE exchange and secure token storage remain the authentication path.
+Progress disables repeated submission. Cancellation returns to ready without an
+error; failure offers retry and scrolls into view at accessibility text sizes.
+Routine entry does not expose tokens, transport errors or an invented profile.
+
+Settings remains the consistent account sheet in the primary destinations and
+folders. Its native form groups actual account name/email from the existing
+`/me` response, sign-out, listening information and permanent account deletion.
+Absent identity stays neutral; failed identity loading retains the actions and
+retry. At accessibility sizes, identity text uses the full row width. Sign-out
+explains its device scope and preserves local secure-storage failure recovery
+and the distinct warning when server revocation cannot be confirmed.
+
+Deletion retains every existing consequence, server-supplied typed confirmation
+and server validation. Loading, retry, independent keyboard dismissal, deletion
+progress and retained confirmation after refusal keep recovery explicit. During
+an account mutation, repeated submission and sheet dismissal are blocked; Back
+is unavailable during deletion. No production deletion is used for verification.
+
+Read Aloud information is reachable from Settings without granting permission.
+It shares the exact provider/audio-storage/microphone disclosure with the real
+consent sheet. The sheet scrolls through the complete disclosure and wraps the
+Allow action at large text sizes, preserving Cancel and the existing browsing
+session authorization scope. Consent is never replaced with a fake preference.
+Native screenshots and test-first evidence are in `/tmp/lexidraw-267/272-notes.md`.
