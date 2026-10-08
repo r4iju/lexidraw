@@ -214,3 +214,48 @@ consent sheet. The sheet scrolls through the complete disclosure and wraps the
 Allow action at large text sizes, preserving Cancel and the existing browsing
 session authorization scope. Consent is never replaced with a fake preference.
 Native screenshots and test-first evidence are in `/tmp/lexidraw-267/272-notes.md`.
+
+## iPad adaptation and accessible recovery, #273
+
+iPad uses the same retained Library, Shared, and Search contexts in a native
+three-column split view: destination/folder sidebar, contextual listing, and
+independent file detail. Opening a file leaves its listing available beside it.
+Command-1/2/3 select the primary destinations. Trash is secondary sidebar
+navigation; returning preserves the originating Library folder. Settings is also a secondary sidebar action with Command-comma; the account
+control stays in each listing toolbar. Narrow windows show the listing and file
+with the native sidebar toggle; wide windows show all three columns. Closing or replacing an editable detail waits for the existing
+document/drawing save boundary; failures and conflicts keep the file open.
+
+At accessibility text sizes, rows give their space to complete titles, type
+and metadata. The sidebar widens and omits decorative folder icons at these
+sizes, while content continues to scroll. Shared access and Search scope explanations
+scroll after their files rather than pinning over metadata. Search and service recovery use
+intrinsic, scrolling copy/actions rather than a fixed unavailable-view layout.
+Search has a persistent native navigation search field. Keyboard entry yields
+the phone destination bar; submission and keyboard dismissal preserve the query.
+The field’s native clear action remains reachable even with maximum text. Document
+identity/status uses its intrinsic height, capped to a bounded, independently
+scrolling portion of the viewport, leaving actual document content reachable
+in compact landscape. Editing hides the phone destination bar to prevent its
+glass controls from overlapping the native formatting accessory. Done restores
+primary navigation. Read-aloud controls retain explicit labels, generous hit
+regions, independent sheet dismissal, and reduced-motion transitions. The iPad
+player reserves space beneath the split view so drawing tools remain usable
+in their system bottom toolbar above it.
+
+System materials remain confined to native navigation, drawing tools, and the read-aloud control
+layer. Enabled dark appearance, maximum text, increased contrast, reduced
+transparency and reduced motion are inspected on the pooled devices. Native
+audit findings and simulator limitations are retained in
+`/tmp/lexidraw-267/273-notes.md`; independent whole-app review remains separate.
+
+At accessibility text sizes, small saved images retain their natural geometry while
+captions use the document column so words remain readable. Shared uses the same
+concise destination title in the sidebar and navigation bar, and its access
+explanation scrolls with the files instead of obscuring permission metadata.
+
+Ordinary single-character UIKit input callbacks retain separate input turns even
+when UIKit delivers several before the queued turn-end callback. This preserves
+the existing model's typing-burst undo grouping without changing history or
+composition contracts; prediction, QuickPath and Japanese marked text remain
+independently verified against the native input seam and saved web goldens.

@@ -1067,6 +1067,11 @@ public final class EditorView: UIScrollView, UITextInput {
   public var hasText: Bool { storage.length > 1 }
 
   public func insertText(_ text: String) {
+    // UIKit can deliver several tapped characters before the queued turn end.
+    // Record each ordinary character so history can merge the typing burst,
+    // rather than treating its first batch as a replacement and splitting the
+    // final character. Prediction/QuickPath and composition keep their turns.
+    if text.count == 1, composition == nil, heldInputTurn == nil { endKeyboardInputTurn() }
     continueHeldInputTurn(with: text)
     beginKeyboardInputTurn()
     if text == "\n", typeahead?.choose() == true { return }

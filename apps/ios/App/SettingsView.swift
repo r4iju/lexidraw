@@ -4,11 +4,9 @@ import SwiftUI
 extension View {
   /// Each pushed screen owns its toolbar items; a stack-level item is not
   /// inherited by its destinations.
-  func phoneAccountControl() -> some View {
+  func accountControl() -> some View {
     toolbar {
-      if UIDevice.current.userInterfaceIdiom == .phone {
-        ToolbarItem(placement: .topBarTrailing) { SettingsButton() }
-      }
+      ToolbarItem(placement: .topBarTrailing) { SettingsButton() }
     }
   }
 }

@@ -116,17 +116,30 @@ private struct DocumentContent: View {
   @Bindable var editing: DocumentEditing
   @State private var editorReference = DocumentEditorReference()
   @State private var isEditing = false
+  @State private var noticeHeight: CGFloat = 44
   let reload: () async -> Void
   @Environment(\.scenePhase) private var scenePhase
   @Environment(\.dismiss) private var dismiss
   @State private var leaving = false
+  @Environment(\.fileNavigation) private var fileNavigation
 
   var body: some View {
-    DocumentEditor(editing: editing, reference: editorReference, isEditing: isEditing)
-      .safeAreaInset(edge: .top, spacing: 0) { notice }
+    GeometryReader { geometry in
+      DocumentEditor(editing: editing, reference: editorReference, isEditing: isEditing)
+        .safeAreaInset(edge: .top, spacing: 0) {
+          ScrollView {
+            notice
+              .fixedSize(horizontal: false, vertical: true)
+              .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { noticeHeight = $0 }
+          }
+          .scrollBounceBehavior(.basedOnSize)
+          .frame(height: min(noticeHeight, max(44, geometry.size.height * (isEditing ? 0.25 : 0.4))))
+        }
+    }
+      .toolbar(isEditing ? .hidden : .visible, for: .tabBar)
       .navigationBarBackButtonHidden(isEditing || editing.status != .saved || editing.conflict)
       .toolbar {
-        if isEditing || editing.status != .saved || editing.conflict {
+        if fileNavigation == nil && (isEditing || editing.status != .saved || editing.conflict) {
           ToolbarItem(placement: .topBarLeading) {
             Button("Back", systemImage: "chevron.left") {
               guard !leaving else { return }
@@ -159,8 +172,17 @@ private struct DocumentContent: View {
           Button("Comments", systemImage: "bubble.left.and.bubble.right") { editorReference.view?.presentComments() }
         }
       }
+      .onAppear {
+        fileNavigation?.register(editing) {
+          editorReference.view?.setEditingEnabled(false)
+          isEditing = false
+          await editing.saveNow()
+          return editing.status == .saved && !editing.conflict
+        }
+      }
       .task { await editing.followSaving() }
       .onDisappear {
+        fileNavigation?.unregister(editing)
         editorReference.view?.setEditingEnabled(false)
         isEditing = false
         Task { await editing.saveNow() }
@@ -179,10 +201,17 @@ private struct DocumentContent: View {
           .fixedSize(horizontal: false, vertical: true)
           .accessibilityAddTraits(.isHeader)
       }
-      HStack(spacing: 8) {
-        Label("Document", systemImage: "doc.text")
-        Text("·").accessibilityHidden(true)
-        Text(isEditing ? "Editing" : "Reading")
+      ViewThatFits(in: .horizontal) {
+        HStack(spacing: 8) {
+          Label("Document", systemImage: "doc.text")
+          Text("·").accessibilityHidden(true)
+          Text(isEditing ? "Editing" : "Reading")
+        }
+        .fixedSize()
+        VStack(alignment: .leading, spacing: 4) {
+          Label("Document", systemImage: "doc.text")
+          Text(isEditing ? "Editing" : "Reading")
+        }
       }
       .foregroundStyle(.secondary)
       switch editing.mode {

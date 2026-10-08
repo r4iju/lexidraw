@@ -58,7 +58,7 @@ final class AccountJourneysUITests: XCTestCase {
     if proceed.waitForExistence(timeout: 2) { proceed.tap() }
     else {
       let systemContinue = XCUIApplication(bundleIdentifier: "com.apple.springboard").buttons["Continue"]
-      if systemContinue.exists { systemContinue.tap() }
+      if systemContinue.waitForExistence(timeout: 5) { systemContinue.tap() }
     }
     XCTAssertTrue(app.webViews.links["Return to Lexidraw"].waitForExistence(timeout: 8))
   }

@@ -22,7 +22,7 @@ struct HarnessApp: App {
   var body: some Scene {
     WindowGroup {
       NavigationStack {
-        if let access = ProcessInfo.processInfo.environment["EDITOR_PREVIEW_ACCESS"] {
+        if let access = PreviewScenario.value("EDITOR_PREVIEW_ACCESS") {
           DocumentPreview(access: access)
         } else {
           HarnessView()

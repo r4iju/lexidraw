@@ -16,10 +16,8 @@ final class Browser {
     case home, shared, trash, search
   }
 
-  /// A section, or a folder gone to directly. It is the sidebar's selection,
-  /// and the split view empties the detail stack whenever its selection
-  /// changes, so only going somewhere new changes it; opening a folder from a
-  /// listing pushes onto `path` instead.
+  /// A destination root, or a folder selected from the sidebar. Listing
+  /// navigation pushes onto `path`; each destination retains its own context.
   enum Root: Hashable {
     case section(Section)
     case folder(Place.Folder)
@@ -34,11 +32,13 @@ final class Browser {
   }
 
   enum Route: Hashable {
+    case trash
     case folder(Place.Folder)
     case searchFile(SearchResult)
   }
 
   var path: [Route] = []
+  var file: FileReference?
   /// Kept while moving between folders, as the web keeps its query string.
   var tags: Set<String> = []
   /// Bumped to have every screen load again, as when the app comes back.
@@ -84,9 +84,13 @@ struct BrowserView: View {
   @State private var destination = Destination.library
   @State private var actions: FileActions
   @State private var listener: Listener
-  @State private var column = NavigationSplitViewColumn.detail
+  @State private var column = NavigationSplitViewColumn.content
+  @State private var columns = NavigationSplitViewVisibility.all
+  @State private var fileNavigation = FileNavigation()
+  @State private var navigationEpoch = 0
   @State private var away = false
   @Environment(\.scenePhase) private var scenePhase
+  @Environment(\.dynamicTypeSize) private var typeSize
 
   init(session: Session) {
     self.session = session
@@ -104,15 +108,44 @@ struct BrowserView: View {
       if UIDevice.current.userInterfaceIdiom == .phone {
         phoneNavigation
       } else {
-        NavigationSplitView(preferredCompactColumn: $column) {
-          Sidebar(session: session, searching: searching)
-        } detail: {
+        NavigationSplitView(columnVisibility: $columns, preferredCompactColumn: $column) {
+          Sidebar(session: session, destination: destination, select: select, openFolder: openFolder, openTrash: openTrash)
+            .navigationSplitViewColumnWidth(min: typeSize.isAccessibilitySize ? 300 : 220, ideal: typeSize.isAccessibilitySize ? 340 : 250, max: 400)
+        } content: {
           if destination == .search {
             searchStack
           } else {
-            stack(for: browser)
+            stack(for: activeBrowser)
+              .navigationSplitViewColumnWidth(min: 320, ideal: 380, max: 460)
+          }
+        } detail: {
+          NavigationStack {
+            if let file = activeBrowser.file {
+              FileDestination(file: file)
+                .id(file.id)
+                .toolbar {
+                  ToolbarItem(placement: .topBarLeading) {
+                    Button("Close file", systemImage: "xmark") {
+                      fileNavigation.perform { activeBrowser.file = nil; column = .content }
+                    }
+                  }
+                }
+            } else {
+              ContentUnavailableView("Choose a file", systemImage: "doc.text.magnifyingglass",
+                description: Text("Browse Library, Shared, or Search to open a file here."))
+            }
           }
         }
+        .navigationSplitViewStyle(.balanced)
+        .onGeometryChange(for: Bool.self) { $0.size.width >= 1100 } action: { wide in
+          // Narrow tablet windows give their space to the listing and file;
+          // the native sidebar toggle keeps destinations and folders available.
+          columns = wide ? .all : .doubleColumn
+        }
+        .environment(\.fileNavigation, fileNavigation)
+        .environment(\.openFile, { file in
+          fileNavigation.perform { activeBrowser.file = FileReference(file); column = .detail }
+        })
       }
     }
     .fileActionPresenters(actions)
@@ -134,17 +167,52 @@ struct BrowserView: View {
     }
   }
 
-  private enum Destination: Hashable {
+  fileprivate enum Destination: Hashable {
     case library, shared, search
   }
 
-  private func select(_ destination: Destination) {
+  private func activate(_ destination: Destination) {
+    navigationEpoch += 1
     search.select(active: destination == .search)
     self.destination = destination
+    column = activeBrowser.file == nil ? .content : .detail
   }
 
-  private var searching: Binding<Bool> {
-    Binding { destination == .search } set: { select($0 ? .search : .library) }
+  private func select(_ destination: Destination) {
+    let change = {
+      if UIDevice.current.userInterfaceIdiom == .pad, self.destination == destination, destination == .library {
+        browser.show(.home)
+      }
+      activate(destination)
+    }
+    if UIDevice.current.userInterfaceIdiom == .pad { fileNavigation.perform(change) }
+    else { change() }
+  }
+
+  private var activeBrowser: Browser {
+    switch destination {
+    case .library: browser
+    case .shared: sharedBrowser
+    case .search: search.browser
+    }
+  }
+
+  private func openTrash() {
+    fileNavigation.perform {
+      activate(.library)
+      if browser.path.last != .trash { browser.path.append(.trash) }
+      column = .content
+    }
+  }
+
+  private func openFolder(_ folder: Place.Folder) {
+    fileNavigation.perform {
+      navigationEpoch += 1
+      search.select(active: false)
+      destination = .library
+      browser.open(folder)
+      column = .content
+    }
   }
 
   private var phoneNavigation: some View {
@@ -155,7 +223,7 @@ struct BrowserView: View {
       Tab("Shared", systemImage: "person.2", value: .shared) {
         stack(for: sharedBrowser)
       }
-      Tab("Search", systemImage: "magnifyingglass", value: .search, role: .search) {
+      Tab("Search", systemImage: "magnifyingglass", value: .search) {
         searchStack
       }
     }
@@ -163,31 +231,38 @@ struct BrowserView: View {
 
   private var searchStack: some View {
     SearchStack(session: session, search: search) { result in
-      if let folder = result.folder {
-        browser.tags = []
-        browser.show(.home)
-        browser.path = [.folder(folder)]
-        select(.library)
+      let location: Destination
+      if result.folder != nil {
+        location = .library
       } else {
-        // The API conceals unreadable parents. Resolve the accessible listing
-        // instead of claiming every nil parent means the Library root.
+        // A private parent and the root both arrive as nil. Resolve only the
+        // accessible listings, without disclosing private folder metadata.
         let root = try await session.listing(of: nil)
         if (root.files + root.folders).contains(where: { $0.id == result.id }) {
-          browser.tags = []
-          browser.show(.home)
-          select(.library)
+          location = .library
         } else {
           let shared = try await session.sharedWithMe()
-          guard shared.contains(where: { $0.id == result.id }) else {
-            throw RevealUnavailable()
-          }
-          sharedBrowser.tags = []
-          sharedBrowser.show(.shared)
-          if UIDevice.current.userInterfaceIdiom == .pad { browser.show(.shared) }
-          select(.shared)
+          guard shared.contains(where: { $0.id == result.id }) else { throw RevealUnavailable() }
+          location = .shared
         }
       }
+      let change = {
+        let context = location == .library ? browser : sharedBrowser
+        context.tags = []
+        context.show(location == .library ? .home : .shared)
+        if let folder = result.folder { context.path = [.folder(folder)] }
+        activate(location)
+      }
+      if UIDevice.current.userInterfaceIdiom == .pad {
+        guard await fileNavigation.navigate(change) else {
+          throw SaveBeforeReveal()
+        }
+      } else { change() }
     }
+  }
+
+  private struct SaveBeforeReveal: LocalizedError {
+    var errorDescription: String? { "Finish saving the open file or resolve its conflict, then reveal this result again." }
   }
 
   private struct RevealUnavailable: LocalizedError {
@@ -198,7 +273,12 @@ struct BrowserView: View {
 
   private func stack(for context: Browser) -> some View {
     @Bindable var context = context
-    return NavigationStack(path: $context.path) {
+    let epoch = navigationEpoch
+    let path = Binding { context.path } set: { path in
+      guard UIDevice.current.userInterfaceIdiom == .phone || (activeBrowser === context && epoch == navigationEpoch) else { return }
+      context.path = path
+    }
+    return NavigationStack(path: path) {
       Group {
         switch context.root {
         case .section(.home): FolderView(session: session, folder: nil)
@@ -211,6 +291,7 @@ struct BrowserView: View {
       .id(context.root)
       .navigationDestination(for: Browser.Route.self) { route in
         switch route {
+        case .trash: TrashView(session: session)
         case .folder(let folder):
           FolderView(session: session, folder: folder).id(folder.id)
         case .searchFile(let result):
@@ -225,48 +306,56 @@ struct BrowserView: View {
 /// The sections, and the folder tree.
 private struct Sidebar: View {
   let session: Session
-  @Binding var searching: Bool
+  let destination: BrowserView.Destination
+  let select: (BrowserView.Destination) -> Void
+  let openFolder: (Place.Folder) -> Void
+  let openTrash: () -> Void
   @Environment(Browser.self) private var browser
   @State private var folders = FolderList()
 
   var body: some View {
-    List(selection: selection) {
-      Label("Home", systemImage: "house").tag(Browser.Root.section(.home))
-      Label("Shared with Me", systemImage: "person.2").tag(Browser.Root.section(.shared))
-      Label("Search", systemImage: "magnifyingglass").tag(Browser.Root.section(.search))
-      Label("Trash", systemImage: "trash").tag(Browser.Root.section(.trash))
+    List {
+      Section {
+        destinationButton("Library", symbol: "books.vertical", destination: .library)
+        destinationButton("Shared", symbol: "person.2", destination: .shared)
+        destinationButton("Search", symbol: "magnifyingglass", destination: .search)
+      }
       Section("Folders") {
-        FolderRows(list: folders, session: session, searching: $searching)
+        FolderRows(list: folders, session: session, openFolder: openFolder)
+      }
+      Section {
+        Button("Trash", systemImage: "trash", action: openTrash)
+        SettingsButton().keyboardShortcut(",", modifiers: .command)
       }
     }
+    .listStyle(.sidebar)
+    .accessibilityIdentifier("Sidebar")
     .navigationTitle("Lexidraw")
     .task(id: [browser.reloads, folders.attempts]) {
       await folders.load { try await session.folders(in: nil) }
     }
   }
 
-  private var selection: Binding<Browser.Root?> {
-    Binding {
-      searching ? .section(.search) : browser.root
-    } set: { root in
-      guard let root else { return }
-      if root == .section(.search) {
-        searching = true
-      } else {
-        searching = false
-        browser.go(to: root)
-      }
+  private func destinationButton(_ title: String, symbol: String, destination: BrowserView.Destination) -> some View {
+    Button { select(destination) } label: {
+      Label(title, systemImage: symbol)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.vertical, 4)
     }
+    .listRowBackground(self.destination == destination ? Color.accentColor.opacity(0.15) : nil)
+    .accessibilityAddTraits(self.destination == destination ? .isSelected : [])
+    .keyboardShortcut(destination == .library ? "1" : destination == .shared ? "2" : "3", modifiers: .command)
   }
 
   /// A folder in the tree, whose own folders load when it is expanded.
   fileprivate struct FolderNode: View {
     let session: Session
     let folder: Entry
-    @Binding var searching: Bool
+    let openFolder: (Place.Folder) -> Void
     @Environment(Browser.self) private var browser
     @State private var expanded = false
     @State private var children = FolderList()
+    @Environment(\.dynamicTypeSize) private var typeSize
 
     private var place: Place.Folder { Place.Folder(id: folder.id, title: folder.title) }
 
@@ -275,7 +364,7 @@ private struct Sidebar: View {
         row
       } else {
         DisclosureGroup(isExpanded: $expanded) {
-          FolderRows(list: children, session: session, searching: $searching)
+          FolderRows(list: children, session: session, openFolder: openFolder)
         } label: {
           row.task(id: [expanded ? 1 : 0, browser.reloads, children.attempts]) {
             guard expanded else { return }
@@ -289,10 +378,10 @@ private struct Sidebar: View {
     /// when pressed.
     private var row: some View {
       Button {
-        searching = false
-        browser.open(place)
+        openFolder(place)
       } label: {
-        Label(folder.title, systemImage: "folder")
+        if typeSize.isAccessibilitySize { Text(folder.title) }
+        else { Label(folder.title, systemImage: "folder") }
       }
       .tag(Browser.Root.folder(place))
     }
@@ -317,7 +406,7 @@ private final class FolderList {
 private struct FolderRows: View {
   let list: FolderList
   let session: Session
-  @Binding var searching: Bool
+  let openFolder: (Place.Folder) -> Void
 
   var body: some View {
     switch list.loaded {
@@ -325,7 +414,7 @@ private struct FolderRows: View {
       EmptyView()
     case .loaded(let folders):
       ForEach(folders) { folder in
-        Sidebar.FolderNode(session: session, folder: folder, searching: $searching)
+        Sidebar.FolderNode(session: session, folder: folder, openFolder: openFolder)
       }
     case .failed, .unreadable:
       Button("Couldn’t load folders. Try Again", systemImage: "exclamationmark.arrow.circlepath") { list.retry() }

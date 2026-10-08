@@ -5,14 +5,21 @@ import OpenAPIRuntime
 import SwiftUI
 import Synchronization
 
-/// The production browser against an external service fixture for navigation,
-/// organization, permissions and recovery journeys.
+/// Environment for XCTest, native launch arguments for hands-on fixture review.
+private enum BrowserScenario {
+  static var name: String? {
+    ProcessInfo.processInfo.environment["BROWSER_SCENARIO"]
+      ?? UserDefaults.standard.string(forKey: "BROWSER_SCENARIO")
+  }
+}
+
+/// The production browser against external service fixtures for complete journeys.
 @main
 struct BrowserHarnessApp: App {
   private let signInBrowser = SignInBrowserFixture()
   @State private var model = AppModel(
     account: Account(
-      origin: ProcessInfo.processInfo.environment["BROWSER_SCENARIO"] == "sign-in" ? SignInBrowserFixture.origin : URL(string: "https://harness.invalid")!, store: AccountHarnessToken(), transport: HarnessServer()))
+      origin: BrowserScenario.name == "sign-in" ? SignInBrowserFixture.origin : URL(string: "https://harness.invalid")!, store: AccountHarnessToken(), transport: HarnessServer()))
 
   var body: some Scene {
     WindowGroup {
@@ -50,7 +57,7 @@ actor HarnessServer: ClientTransport {
   private var saves = 0
 
   init() {
-    scenario = ProcessInfo.processInfo.environment["BROWSER_SCENARIO"] ?? "basic"
+    scenario = BrowserScenario.name ?? "basic"
     items = [
       Item(id: "projects", title: "Projects", type: "directory", parent: nil),
       Item(id: "recipes", title: "Recipes", type: "directory", parent: nil),
@@ -73,6 +80,26 @@ actor HarnessServer: ClientTransport {
     if ["restore-failure", "restore-delayed"].contains(scenario) {
       items.append(Item(id: "deleted", title: "Recovered notes", type: "document", parent: "missing-folder", deleted: true))
     }
+  }
+
+  private static func silentAudio() throws -> URL {
+    let url = FileManager.default.temporaryDirectory.appending(path: "273-read-aloud.wav")
+    guard !FileManager.default.fileExists(atPath: url.path) else { return url }
+    let byteCount: UInt32 = 8_000 * 120 * 2
+    var data = Data()
+    func append(_ value: UInt32) {
+      var little = value.littleEndian
+      withUnsafeBytes(of: &little) { data.append(contentsOf: $0) }
+    }
+    data.append(Data("RIFF".utf8)); append(36 + byteCount)
+    data.append(Data("WAVEfmt ".utf8)); append(16)
+    data.append(contentsOf: [1, 0, 1, 0])
+    append(8_000); append(16_000)
+    data.append(contentsOf: [2, 0, 16, 0])
+    data.append(Data("data".utf8)); append(byteCount)
+    data.append(Data(repeating: 0, count: Int(byteCount)))
+    try data.write(to: url)
+    return url
   }
 
   func send(_ request: HTTPRequest, body: HTTPBody?, baseURL: URL, operationID: String) async throws
@@ -211,8 +238,11 @@ actor HarnessServer: ClientTransport {
       if operationID == "entities-restore" { answer = summary(items[index]) }
       else { answer = ["id": items[index].id] }
     case "entities-save":
-      guard let id, let item = items.first(where: { $0.id == id && !$0.deleted }), item.type == "document" else { return try missing() }
+      guard let id, let item = items.first(where: { $0.id == id && !$0.deleted }), ["document", "drawing"].contains(item.type) else { return try missing() }
       guard item.access != "read" else { return try forbidden() }
+      if scenario == "drawing-save-failure" {
+        return try response(["message": "Connection interrupted. Please try again.", "code": "INTERNAL_SERVER_ERROR"], status: .internalServerError)
+      }
       guard json["ifUnmodifiedSince"] as? String == (revisions[id] ?? Self.date) else {
         return try response(["message": "Newer edits", "code": "CONFLICT"], status: .conflict)
       }
@@ -234,7 +264,12 @@ actor HarnessServer: ClientTransport {
       answer = ["id": item.id, "title": item.title, "entityType": item.type, "appState": NSNull(),
         "elements": documents[item.id] ?? elements, "publicAccess": "PRIVATE", "shared": item.shared,
         "accessLevel": item.access == "read" ? "READ" : "EDIT", "updatedAt": revisions[item.id] ?? Self.date]
-    case "tts-listening": answer = ["status": "none", "segments": [Any]()]
+    case "tts-listening":
+      if scenario == "listening" {
+        answer = ["status": "ready", "segmentCount": 1, "plannedCount": 1,
+          "segments": [["index": 0, "text": "A thoughtful plan starts here. This is a native read-aloud fixture.",
+            "audioUrl": try Self.silentAudio().absoluteString, "sectionTitle": "A thoughtful plan"]]]
+      } else { answer = ["status": "none", "segments": [Any]()] }
     case "drawings-files": answer = ["files": [Any]()]
     default: return try missing()
     }
@@ -281,7 +316,7 @@ actor HarnessServer: ClientTransport {
 /// The external secure-storage boundary, reset for each fixture launch.
 final class AccountHarnessToken: TokenStore {
   private struct Stored {
-    var token: String? = ["signed-out", "sign-in"].contains(ProcessInfo.processInfo.environment["BROWSER_SCENARIO"] ?? "") ? nil : "harness"
+    var token: String? = ["signed-out", "sign-in"].contains(BrowserScenario.name ?? "") ? nil : "harness"
     var removals = 0
   }
   private let stored = Mutex(Stored())
@@ -291,7 +326,7 @@ final class AccountHarnessToken: TokenStore {
   func delete() throws {
     try stored.withLock {
       $0.removals += 1
-      if ProcessInfo.processInfo.environment["BROWSER_SCENARIO"] == "signout-local-failure", $0.removals == 1 {
+      if BrowserScenario.name == "signout-local-failure", $0.removals == 1 {
         throw NSError(domain: "FixtureSecureStorage", code: 1, userInfo: [NSLocalizedDescriptionKey: "Secure storage is temporarily unavailable."])
       }
       $0.token = nil

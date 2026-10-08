@@ -73,6 +73,7 @@ struct SearchStack: View {
       SearchView(search: search, reveal: reveal)
         .navigationDestination(for: Browser.Route.self) { route in
           switch route {
+          case .trash: TrashView(session: session)
           case .folder(let folder):
             FolderView(session: session, folder: folder).id(folder.id)
           case .searchFile(let result):
@@ -87,19 +88,33 @@ struct SearchStack: View {
 private struct SearchView: View {
   @Bindable var search: FileSearch
   let reveal: (SearchResult) async throws -> Void
+  @Environment(\.openFile) private var openFile
+  @FocusState private var enteringQuery: Bool
   @State private var revealing: String?
   @State private var revealFailure: String?
 
   var body: some View {
     List {
+
       if case .results(let results) = search.state {
+        clearButton
+          .font(.subheadline)
+          .frame(maxWidth: .infinity, alignment: .trailing)
         Section {
           ForEach(results) { result in
             VStack(alignment: .leading, spacing: 10) {
-              NavigationLink(value: result.kind == .folder
-                ? Browser.Route.folder(Place.Folder(id: result.id, title: result.title))
-                : .searchFile(result)) {
-                FileRow(file: result, caption: "Updated \(result.updatedAt.formatted(.relative(presentation: .named)))")
+              if result.kind != .folder, let openFile {
+                Button { openFile(result) } label: {
+                  FileRow(file: result, caption: "Updated \(result.updatedAt.formatted(.relative(presentation: .named)))")
+                }
+                .buttonStyle(.borderless)
+                .tint(.primary)
+              } else {
+                NavigationLink(value: result.kind == .folder
+                  ? Browser.Route.folder(Place.Folder(id: result.id, title: result.title))
+                  : .searchFile(result)) {
+                  FileRow(file: result, caption: "Updated \(result.updatedAt.formatted(.relative(presentation: .named)))")
+                }
               }
               Label("In \(result.folder?.title ?? "Library or Shared")", systemImage: "folder")
                 .font(.subheadline)
@@ -126,70 +141,90 @@ private struct SearchView: View {
           }
         } header: {
           Text(results.count == 1 ? "1 matching title" : "\(results.count) matching titles")
-        } footer: {
-          Text("Search titles across all files you can access. Document contents aren’t searched.")
         }
+        Text("Search titles across all files you can access. Document contents aren’t searched.")
+          .font(.footnote)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+          .listRowSeparator(.hidden)
+          .listRowBackground(Color.clear)
       }
     }
     .overlay {
-      switch search.state {
-      case .idle:
-        ContentUnavailableView {
-          Label("Find a file", systemImage: "magnifyingglass")
-        } description: {
-          Text("Search titles across all files you can access. Document contents aren’t searched.")
+      if case .results = search.state { EmptyView() } else {
+        GeometryReader { geometry in
+          ScrollView {
+            VStack {
+              if !search.query.isEmpty {
+                clearButton
+                  .font(.subheadline)
+                  .frame(maxWidth: .infinity, alignment: .trailing)
+                  .padding(.horizontal, 24)
+              }
+              switch search.state {
+              case .idle:
+                ContentMessage(title: "Find a file", symbol: "magnifyingglass",
+                  description: "Search titles across all files you can access. Document contents aren’t searched.") { EmptyView() }
+              case .loading:
+                ProgressView("Searching titles…")
+                  .accessibilityLabel("Searching titles")
+              case .empty:
+                ContentMessage(title: "No matching titles", symbol: "magnifyingglass",
+                  description: "No accessible file titles match “\(search.query)”. Try a shorter title or a different word.") { EmptyView() }
+              case .failed(let message):
+                ContentMessage(title: "Couldn’t search", symbol: "wifi.exclamationmark", description: message) {
+                  Button("Try Again") { search.run() }
+                    .buttonStyle(.borderedProminent)
+                    .frame(minHeight: 44)
+                }
+              case .results: EmptyView()
+              }
+            }
+            .frame(maxWidth: .infinity, minHeight: geometry.size.height)
+          }
+          .scrollDismissesKeyboard(.interactively)
         }
-      case .loading:
-        ProgressView("Searching titles…")
-          .accessibilityLabel("Searching titles")
-      case .empty:
-        ContentUnavailableView {
-          Label("No matching titles", systemImage: "magnifyingglass")
-        } description: {
-          Text("No accessible file titles match “\(search.query)”. Try a shorter title or a different word.")
-        }
-      case .failed(let message):
-        ContentUnavailableView {
-          Label("Couldn’t search", systemImage: "wifi.exclamationmark")
-        } description: { Text(message) } actions: {
-          Button("Try Again") { search.run() }
-        }
-      case .results: EmptyView()
       }
     }
-    .safeAreaInset(edge: .top, spacing: 0) {
-      if !search.query.isEmpty {
-        HStack(alignment: .firstTextBaseline) {
-          Text("All accessible file titles")
-            .font(.subheadline)
-            .foregroundStyle(.secondary)
-          Spacer()
-          clearButton
-            .font(.subheadline)
-        }
-        .padding(.horizontal, 20)
-        .padding(.vertical, 12)
-        .background(Color(uiColor: .systemGroupedBackground))
-      }
-    }
+    .scrollDismissesKeyboard(.interactively)
     .alert("Couldn’t reveal file", message: $revealFailure)
     .navigationTitle("Search")
-    .phoneAccountControl()
-    .searchable(text: $search.query, prompt: "Search all file titles")
+    .accountControl()
+    .searchable(text: $search.query, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search all file titles")
+    .searchFocused($enteringQuery)
+    // A pushed editor owns tab-bar visibility; ending search focus must yield to it.
+    .modifier(PhoneSearchDestinations(hidden: enteringQuery && search.browser.path.isEmpty))
+    .onSubmit(of: .search) { enteringQuery = false }
     .autocorrectionDisabled()
     .textInputAutocapitalization(.never)
     .toolbar {
-      if UIDevice.current.userInterfaceIdiom == .pad {
-        ToolbarItem { SettingsButton() }
+      ToolbarItem(placement: .keyboard) {
+        Button("Hide keyboard", systemImage: "keyboard.chevron.compact.down") {
+          enteringQuery = false
+          UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+        }
       }
     }
   }
 
   private var clearButton: some View {
-    Button { search.query = "" } label: {
+    Button { search.query = ""; enteringQuery = false } label: {
       Label("Clear query", systemImage: "xmark.circle")
         .frame(minHeight: 44)
         .contentShape(.rect)
+    }
+  }
+}
+
+/// A tablet split view has no phone destination bar to hide.
+private struct PhoneSearchDestinations: ViewModifier {
+  let hidden: Bool
+
+  @ViewBuilder func body(content: Content) -> some View {
+    if UIDevice.current.userInterfaceIdiom == .phone {
+      content.toolbar(hidden ? .hidden : .automatic, for: .tabBar)
+    } else {
+      content
     }
   }
 }

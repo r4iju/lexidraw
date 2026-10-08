@@ -130,11 +130,13 @@ import SwiftUI
     }
   }
 
-  func saveNow() {
-    Task { [sending, saver] in
-      await sending?.value
-      await saver.saveNow()
-    }
+  func saveNow() { Task { await finishSaving() } }
+
+  func finishSaving() async -> Bool {
+    await sending?.value
+    await saver.saveNow()
+    status = await saver.status
+    return status == .saved && unsent.isEmpty
   }
 
   func keepMine() {
@@ -152,6 +154,7 @@ struct DrawingEditorScreen: View {
   @State private var photosShown = false
   @State private var filesShown = false
   @Environment(\.scenePhase) private var scenePhase
+  @Environment(\.fileNavigation) private var fileNavigation
 
   init(session: Session, drawing: StoredDrawing, theme: DrawingTheme, reload: @escaping () async -> Void) {
     self.drawing = drawing
@@ -228,7 +231,11 @@ struct DrawingEditorScreen: View {
       }
       .task { await editing.loadImages() }
       .task { await editing.followSaving() }
-      .onDisappear { editing.saveNow() }
+      .onAppear { fileNavigation?.register(editing) { await editing.finishSaving() } }
+      .onDisappear {
+        fileNavigation?.unregister(editing)
+        editing.saveNow()
+      }
       .onChange(of: scenePhase) { if scenePhase != .active { editing.saveNow() } }
   }
 

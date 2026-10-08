@@ -166,7 +166,7 @@ final class LibraryJourneysUITests: XCTestCase {
     app.buttons["Try Again"].tap()
     XCTAssertTrue(app.staticTexts["Readme"].waitForExistence(timeout: 5))
     app.tabBars.buttons["Shared"].tap()
-    XCTAssertTrue(app.staticTexts["Couldn’t load what’s shared with you"].waitForExistence(timeout: 5))
+    XCTAssertTrue(app.staticTexts["Couldn’t load Shared"].waitForExistence(timeout: 5))
     app.buttons["Try Again"].tap()
     XCTAssertTrue(app.staticTexts["Private team brief"].waitForExistence(timeout: 5))
     app.tabBars.buttons["Library"].tap()

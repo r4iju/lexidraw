@@ -54,16 +54,26 @@ struct FolderView: View {
           .background(Color(uiColor: .systemGroupedBackground))
       }
     }
-    .phoneAccountControl()
+    .accountControl()
     .navigationTitle(title)
     // A large title hides the breadcrumbs' menu until the list scrolls.
     .navigationBarTitleDisplayMode(folder == nil ? .automatic : .inline)
-    .toolbarTitleMenu {
-      if let place = shown.value?.place {
-        Breadcrumbs(place: place)
-      }
-    }
+    .modifier(PhoneFolderTitleMenu(place: shown.value?.place))
     .toolbar {
+      if UIDevice.current.userInterfaceIdiom == .pad, let place = shown.value?.place {
+        ToolbarItem(placement: .principal) {
+          Menu {
+            Breadcrumbs(place: place)
+          } label: {
+            HStack(spacing: 6) {
+              Text(title).font(.headline).lineLimit(1)
+              Image(systemName: "chevron.down").font(.caption)
+            }
+            .frame(minHeight: 44)
+          }
+          .accessibilityLabel("Folder location: \(title)")
+        }
+      }
       ToolbarItem {
         TagFilter(ownTags: shown.value?.ownTags ?? [])
       }
@@ -72,17 +82,13 @@ struct FolderView: View {
           NewMenu(folder: folder)
         }
       }
-      if folder == nil {
-        if UIDevice.current.userInterfaceIdiom == .phone {
-          ToolbarItem(placement: .topBarLeading) {
-            NavigationLink {
-              TrashView(session: session)
-            } label: {
-              Label("Trash", systemImage: "trash")
-            }
+      if folder == nil && UIDevice.current.userInterfaceIdiom == .phone {
+        ToolbarItem(placement: .topBarLeading) {
+          NavigationLink {
+            TrashView(session: session)
+          } label: {
+            Label("Trash", systemImage: "trash")
           }
-        } else {
-          ToolbarItem { SettingsButton() }
         }
       }
     }
@@ -92,7 +98,7 @@ struct FolderView: View {
 
   private var title: String {
     shown.value?.place?.title ?? folder?.title
-      ?? (UIDevice.current.userInterfaceIdiom == .phone ? "Library" : "Home")
+      ?? "Library"
   }
 
   /// Anyone may make files at Home; in a folder, only who may edit it.
@@ -120,12 +126,24 @@ struct FolderView: View {
 
 /// The folders above this one that the caller may open, from Home down; the
 /// server leaves out the rest.
+private struct PhoneFolderTitleMenu: ViewModifier {
+  let place: Place?
+
+  @ViewBuilder func body(content: Content) -> some View {
+    if UIDevice.current.userInterfaceIdiom == .phone {
+      content.toolbarTitleMenu {
+        if let place { Breadcrumbs(place: place) }
+      }
+    } else { content }
+  }
+}
+
 private struct Breadcrumbs: View {
   let place: Place
   @Environment(Browser.self) private var browser
 
   var body: some View {
-    Button(browser.root == .section(.search) ? "Search results" : (UIDevice.current.userInterfaceIdiom == .phone ? "Library" : "Home"),
+    Button(browser.root == .section(.search) ? "Search results" : "Library",
       systemImage: browser.root == .section(.search) ? "magnifyingglass" : "house") {
       browser.show(browser.root == .section(.search) ? .search : .home)
     }
@@ -141,7 +159,7 @@ private struct ListingSections: View {
 
   var body: some View {
     if !listing.folders.isEmpty {
-      Section("Folders") {
+      Section {
         ForEach(listing.folders) { folder in
           Button {
             browser.path.append(.folder(Place.Folder(id: folder.id, title: folder.title)))
@@ -152,18 +170,19 @@ private struct ListingSections: View {
           .buttonStyle(.borderless)
           .tint(.primary)
           .accessibilityLabel(folder.title)
+          .accessibilityValue(folder.access == .read ? "Read only folder" : "Folder")
           .accessibilityHint("Opens this folder")
           .fileActions(for: folder)
         }
-      }
+      } header: { Text("Folders").foregroundStyle(Color.primary) }
     }
     if !listing.files.isEmpty {
-      Section("Files") {
+      Section {
         ForEach(listing.files) { file in
           OpenLink(file: file) { FileRow(entry: file) }
             .fileActions(for: file)
         }
-      }
+      } header: { Text("Files").foregroundStyle(Color.primary) }
     }
   }
 }

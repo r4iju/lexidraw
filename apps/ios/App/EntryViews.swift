@@ -21,7 +21,9 @@ struct FileRow: View {
 
   var body: some View {
     HStack(spacing: 12) {
-      ThumbnailView(url: file.thumbnail(dark: colorScheme == .dark), kind: file.kind)
+      if !typeSize.isAccessibilitySize {
+        ThumbnailView(url: file.thumbnail(dark: colorScheme == .dark), kind: file.kind)
+      }
       VStack(alignment: .leading, spacing: 5) {
         Text(file.title)
           .font(.body.weight(.medium))
@@ -30,13 +32,14 @@ struct FileRow: View {
           .fixedSize(horizontal: false, vertical: true)
         Text(file.kind.label)
           .font(.caption.weight(.semibold))
-          .foregroundStyle(file.kind.accent)
+          .foregroundStyle(.primary)
         Text(caption)
           .font(.caption)
-          .foregroundStyle(.secondary)
+          .foregroundStyle(.primary)
           .lineLimit(typeSize.isAccessibilitySize ? nil : 2)
       }
     }
+    .multilineTextAlignment(.leading)
     .padding(.vertical, 6)
   }
 }
@@ -62,13 +65,41 @@ extension EnvironmentValues {
   @Entry var session: Session?
 }
 
+/// Immutable navigation identity, independent of listing refreshes.
+struct FileReference: FileItem {
+  let id: String
+  let title: String
+  let kind: Entry.Kind
+  let lightThumbnail: URL?
+  let darkThumbnail: URL?
+
+  init(_ file: any FileItem) {
+    id = file.id
+    title = file.title
+    kind = file.kind
+    lightThumbnail = file.thumbnail(dark: false)
+    darkThumbnail = file.thumbnail(dark: true)
+  }
+  func thumbnail(dark: Bool) -> URL? { dark ? darkThumbnail : lightThumbnail }
+}
+
+extension EnvironmentValues {
+  @Entry var openFile: ((any FileItem) -> Void)?
+}
+
 /// Opens a folder in the browser, and a file where the app will open it.
 struct OpenLink<Label: View>: View {
   let file: any FileItem
   @ViewBuilder let label: Label
+  @Environment(\.openFile) private var openFile
   var body: some View {
     if file.kind == .folder {
       NavigationLink(value: Browser.Route.folder(Place.Folder(id: file.id, title: file.title))) { label }
+    } else if let openFile {
+      Button { openFile(file) } label: { label }
+        .buttonStyle(.borderless)
+        .tint(.primary)
+        .accessibilityHint("Opens this file beside the listing")
     } else {
       NavigationLink { FileDestination(file: file) } label: { label }
     }

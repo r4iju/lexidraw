@@ -18,18 +18,22 @@ struct SharedView: View {
           }
         } header: {
           Text("Shared files")
-        } footer: {
-          Text("Available here even when you can’t open their folders. Each file’s access determines what you can change.")
         }
+        Text("Available here even when you can’t open their folders. Each file’s access determines what you can change.")
+          .font(.footnote)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+          .listRowSeparator(.hidden)
+          .listRowBackground(Color.clear)
       }
     }
-    .overlay(for: shared, what: "what’s shared with you", retry: load, isEmpty: \.isEmpty) {
+    .overlay(for: shared, what: "Shared", retry: load, isEmpty: \.isEmpty) {
       ContentUnavailableView(
         "Nothing shared with you", systemImage: "person.2",
         description: Text("Files others share with you show up here."))
     }
-    .phoneAccountControl()
-    .navigationTitle("Shared with Me")
+    .accountControl()
+    .navigationTitle("Shared")
     .task(id: browser.reloads) { await load() }
     .refreshable { await load() }
   }

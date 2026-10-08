@@ -22,11 +22,22 @@ struct ListenButton: View {
 extension View {
   /// The listen under way, at the foot of the screen above the content.
   func nowPlayingBar(_ listener: Listener) -> some View {
-    safeAreaInset(edge: .bottom) {
-      if listener.file != nil {
-        NowPlayingBar()
-          .padding(.horizontal)
-          .padding(.bottom, 8)
+    Group {
+      if UIDevice.current.userInterfaceIdiom == .pad {
+        // Split-view columns do not inherit an outer bottom inset reliably.
+        // Give the player its own space so every column keeps usable controls.
+        VStack(spacing: 0) {
+          self
+          if listener.file != nil {
+            NowPlayingBar().padding(.horizontal).padding(.bottom, 8)
+          }
+        }
+      } else {
+        safeAreaInset(edge: .bottom) {
+          if listener.file != nil {
+            NowPlayingBar().padding(.horizontal).padding(.bottom, 8)
+          }
+        }
       }
     }
     .environment(listener)
@@ -88,7 +99,12 @@ private struct NowPlayingBar: View {
         .contentShape(.rect)
       }
       .buttonStyle(.plain)
+      .frame(minHeight: 44)
       .disabled(listener.recording == nil)
+      .accessibilityElement(children: .ignore)
+      .accessibilityAddTraits(.isButton)
+      .accessibilityLabel("Read aloud: \(listener.file?.title ?? "")")
+      .accessibilityValue(status)
       .accessibilityHint("Shows the controls")
       switch listener.state {
       case .preparing(_, let progress):
@@ -108,6 +124,7 @@ private struct NowPlayingBar: View {
       }
       Button("Stop Listening", systemImage: "xmark") { listener.stop() }
         .labelStyle(.iconOnly)
+        .frame(width: 44, height: 44)
         .foregroundStyle(.secondary)
     }
     .font(.title3)
@@ -133,6 +150,7 @@ private struct NowPlayingBar: View {
 
 private struct PlayPauseButton: View {
   @Environment(Listener.self) private var listener
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
   var body: some View {
     Button(
@@ -141,13 +159,15 @@ private struct PlayPauseButton: View {
       action: listener.togglePlaying
     )
     .labelStyle(.iconOnly)
-    .contentTransition(.symbolEffect(.replace))
+    .frame(minWidth: 44, minHeight: 44)
+    .contentTransition(reduceMotion ? .identity : .symbolEffect(.replace))
   }
 }
 
 /// The whole of the listen: what is being read, and every control.
 private struct NowPlayingSheet: View {
   @Environment(Listener.self) private var listener
+  @Environment(\.dismiss) private var dismiss
 
   var body: some View {
     NavigationStack {
@@ -161,6 +181,7 @@ private struct NowPlayingSheet: View {
       .navigationTitle(listener.file?.title ?? "")
       .navigationBarTitleDisplayMode(.inline)
       .toolbar {
+        ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
         if let recording = listener.recording {
           ToolbarItem(placement: .principal) {
             VStack {

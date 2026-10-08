@@ -10,6 +10,48 @@ final class DocumentPreviewUITests: XCTestCase {
     continueAfterFailure = false
   }
 
+  func testSmallSavedImageCaptionRemainsReadableAtLargestText() throws {
+    XCUIDevice.shared.orientation = .portrait
+    let photo = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+      .appending(path: "../Tests/DrawingKitTests/Fixtures/Drawings/images/files/photo.png")
+    let image: JSONValue = ["type": "image", "version": 1,
+      "src": .string("data:image/png;base64," + (try Data(contentsOf: photo)).base64EncodedString()),
+      "width": 240, "height": 180, "altText": "Disposable media fixture photograph",
+      "$": ["figure": ["caption": "Saved image caption"]]]
+    let app = XCUIApplication()
+    app.launchArguments = ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
+    app.launchEnvironment["EDITOR_PREVIEW_ACCESS"] = "READ"
+    app.launchEnvironment["EDITOR_DOCUMENT"] = LexicalJSON.document([
+      LexicalJSON.paragraph([image]), LexicalJSON.paragraph([LexicalJSON.text("After the media")]),
+    ]).stringified
+    app.launch()
+    let caption = app.staticTexts["Saved image caption"]
+    XCTAssertTrue(caption.waitForExistence(timeout: 10))
+    XCTAssertGreaterThanOrEqual(caption.frame.width, min(200, app.textViews.firstMatch.frame.width / 2),
+      "A small image must not squeeze enlarged caption words into individual letters")
+    XCTAssertLessThan(caption.frame.height, 180, "The short caption must leave the following document reachable")
+    XCTAssertFalse(app.buttons["Edit"].exists)
+    XCTAssertFalse(app.keyboards.firstMatch.exists)
+  }
+
+  func testLongReadingIdentityLeavesContentReachableAtLargestTextInLandscape() {
+    XCUIDevice.shared.orientation = .landscapeLeft
+    defer { XCUIDevice.shared.orientation = .portrait }
+    let app = XCUIApplication()
+    app.launchArguments = ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
+    app.launchEnvironment["EDITOR_PREVIEW_ACCESS"] = "EDIT"
+    app.launchEnvironment["EDITOR_PREVIEW_TITLE"] = "A thoughtful document with a wonderfully long title for our next adventure together, preserving everything that matters"
+    app.launch()
+    let editor = app.textViews.firstMatch
+    XCTAssertTrue(app.buttons["Edit"].waitForExistence(timeout: 10))
+    XCTAssertTrue(editor.isHittable)
+    XCTAssertGreaterThan(editor.frame.height, 80, "The reading identity must leave room to read and select document content")
+    app.buttons["Edit"].tap()
+    XCTAssertTrue(app.buttons["Done"].exists)
+    app.buttons["editor hide keyboard"].tap()
+    XCTAssertTrue(editor.isHittable)
+  }
+
   func testOpeningAnEditableDocumentIsReadingUntilExplicitEdit() {
     let app = open(access: "EDIT")
     XCTAssertTrue(app.staticTexts["Saved"].waitForExistence(timeout: 10))

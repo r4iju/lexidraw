@@ -20,7 +20,7 @@ final class IPhoneNavigationUITests: XCTestCase {
     app.buttons["Q3"].tap()
     XCTAssertTrue(app.staticTexts["Q3 notes"].waitForExistence(timeout: 5))
     tabs.buttons["Shared"].tap()
-    XCTAssertTrue(app.navigationBars["Shared with Me"].waitForExistence(timeout: 5))
+    XCTAssertTrue(app.navigationBars["Shared"].waitForExistence(timeout: 5))
     app.buttons["Settings"].tap()
     XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 5))
     app.buttons["Done"].tap()

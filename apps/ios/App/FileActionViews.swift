@@ -145,9 +145,10 @@ extension View {
 private struct FileActionMenu: ViewModifier {
   let entry: Entry
   @Environment(FileActions.self) private var actions
+  @Environment(\.dynamicTypeSize) private var typeSize
 
   func body(content: Content) -> some View {
-    HStack(spacing: 8) {
+    HStack(alignment: typeSize.isAccessibilitySize ? .top : .center, spacing: 8) {
       content
         .buttonStyle(.plain)
         .frame(maxWidth: .infinity, alignment: .leading)
