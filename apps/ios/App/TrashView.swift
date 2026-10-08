@@ -30,6 +30,7 @@ struct TrashView: View {
         "The Trash is empty", systemImage: "trash",
         description: Text("Files you delete wait here until you restore them."))
     }
+    .phoneAccountControl()
     .navigationTitle("Trash")
     .task(id: browser.reloads) { await load() }
     .refreshable { await load() }

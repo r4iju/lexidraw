@@ -4,7 +4,10 @@ import XCTest
 final class FolderNavigationUITests: XCTestCase {
   private var app: XCUIApplication!
 
-  override func setUp() {
+  override func setUpWithError() throws {
+    guard UIDevice.current.userInterfaceIdiom == .pad else {
+      throw XCTSkip("Sidebar journeys apply to iPad; iPhone uses destination tabs.")
+    }
     continueAfterFailure = false
     XCUIDevice.shared.orientation = .landscapeLeft
     app = XCUIApplication()

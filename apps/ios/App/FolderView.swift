@@ -49,6 +49,7 @@ struct FolderView: View {
         }
       }
     }
+    .phoneAccountControl()
     .navigationTitle(title)
     // A large title hides the breadcrumbs' menu until the list scrolls.
     .navigationBarTitleDisplayMode(folder == nil ? .automatic : .inline)
@@ -68,8 +69,16 @@ struct FolderView: View {
         }
       }
       if folder == nil {
-        ToolbarItem {
-          SettingsButton()
+        if UIDevice.current.userInterfaceIdiom == .phone {
+          ToolbarItem(placement: .topBarLeading) {
+            NavigationLink {
+              TrashView(session: session)
+            } label: {
+              Label("Trash", systemImage: "trash")
+            }
+          }
+        } else {
+          ToolbarItem { SettingsButton() }
         }
       }
     }
@@ -78,7 +87,10 @@ struct FolderView: View {
     .refreshable { await load() }
   }
 
-  private var title: String { shown.value?.place?.title ?? folder?.title ?? "Home" }
+  private var title: String {
+    shown.value?.place?.title ?? folder?.title
+      ?? (UIDevice.current.userInterfaceIdiom == .phone ? "Library" : "Home")
+  }
 
   /// Anyone may make files at Home; in a folder, only who may edit it.
   private var mayCreate: Bool {

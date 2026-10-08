@@ -1,9 +1,15 @@
 import LexidrawKit
 import SwiftUI
 
-/// Where the signed-in app is: the place the detail column starts from, the
-/// folders opened beyond it, and what narrows the listings, shared by every
-/// screen so the sidebar, breadcrumbs and listings agree.
+/// File mutations and foreground refresh invalidate every destination without
+/// sharing its navigation path or filters.
+@MainActor @Observable
+final class BrowserUpdates {
+  var revision = 0
+}
+
+/// One destination’s root, folder path and filters. Its screens share this
+/// context so the sidebar, breadcrumbs and listings agree.
 @MainActor @Observable
 final class Browser {
   enum Section: Hashable {
@@ -19,14 +25,21 @@ final class Browser {
     case folder(Place.Folder)
   }
 
-  private(set) var root = Root.section(.home)
+  private(set) var root: Root
+  private let updates: BrowserUpdates
+
+  init(root: Root = .section(.home), updates: BrowserUpdates = BrowserUpdates()) {
+    self.root = root
+    self.updates = updates
+  }
+
   var path: [Place.Folder] = []
   /// Kept while moving between folders, as the web keeps its query string.
   var tags: Set<String> = []
   /// Bumped to have every screen load again, as when the app comes back.
-  private(set) var reloads = 0
+  var reloads: Int { updates.revision }
 
-  func reload() { reloads += 1 }
+  func reload() { updates.revision += 1 }
 
   func show(_ section: Section) {
     go(to: .section(section))
@@ -57,6 +70,8 @@ final class Browser {
 struct BrowserView: View {
   let session: Session
   @State private var browser: Browser
+  @State private var sharedBrowser: Browser
+  @State private var destination = Destination.library
   @State private var actions: FileActions
   @State private var listener: Listener
   @State private var column = NavigationSplitViewColumn.detail
@@ -65,29 +80,23 @@ struct BrowserView: View {
 
   init(session: Session) {
     self.session = session
-    let browser = Browser()
+    let updates = BrowserUpdates()
+    let browser = Browser(updates: updates)
     _browser = State(initialValue: browser)
+    _sharedBrowser = State(initialValue: Browser(root: .section(.shared), updates: updates))
     _actions = State(initialValue: FileActions(session: session, browser: browser))
     _listener = State(initialValue: Listener(session: session))
   }
 
   var body: some View {
-    @Bindable var browser = browser
-    NavigationSplitView(preferredCompactColumn: $column) {
-      Sidebar(session: session)
-    } detail: {
-      NavigationStack(path: $browser.path) {
-        Group {
-          switch browser.root {
-          case .section(.home): FolderView(session: session, folder: nil)
-          case .section(.shared): SharedView(session: session)
-          case .section(.trash): TrashView(session: session)
-          case .folder(let folder): FolderView(session: session, folder: folder)
-          }
-        }
-        .id(browser.root)
-        .navigationDestination(for: Place.Folder.self) { folder in
-          FolderView(session: session, folder: folder)
+    Group {
+      if UIDevice.current.userInterfaceIdiom == .phone {
+        phoneNavigation
+      } else {
+        NavigationSplitView(preferredCompactColumn: $column) {
+          Sidebar(session: session)
+        } detail: {
+          stack(for: browser)
         }
       }
     }
@@ -107,6 +116,54 @@ struct BrowserView: View {
       default: break
       }
     }
+  }
+
+  private enum Destination: Hashable {
+    case library, shared, search
+  }
+
+  private var phoneNavigation: some View {
+    TabView(selection: $destination) {
+      Tab("Library", systemImage: "books.vertical", value: .library) {
+        stack(for: browser)
+      }
+      Tab("Shared", systemImage: "person.2", value: .shared) {
+        stack(for: sharedBrowser)
+      }
+      Tab("Search", systemImage: "magnifyingglass", value: .search, role: .search) {
+        NavigationStack {
+          ContentUnavailableView {
+            Label("Search by title in Library", systemImage: "magnifyingglass")
+          } description: {
+            Text("For now, use Search titles in Library or any folder to find files you can access across Lexidraw. Search matches titles, not document contents.")
+          } actions: {
+            Button("Go to Library") { destination = .library }
+              .buttonStyle(.borderedProminent)
+          }
+          .navigationTitle("Search")
+          .phoneAccountControl()
+        }
+      }
+    }
+  }
+
+  private func stack(for context: Browser) -> some View {
+    @Bindable var context = context
+    return NavigationStack(path: $context.path) {
+      Group {
+        switch context.root {
+        case .section(.home): FolderView(session: session, folder: nil)
+        case .section(.shared): SharedView(session: session)
+        case .section(.trash): TrashView(session: session)
+        case .folder(let folder): FolderView(session: session, folder: folder)
+        }
+      }
+      .id(context.root)
+      .navigationDestination(for: Place.Folder.self) { folder in
+        FolderView(session: session, folder: folder)
+      }
+    }
+    .environment(context)
   }
 }
 

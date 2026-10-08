@@ -20,6 +20,7 @@ struct SharedView: View {
         "Nothing shared with you", systemImage: "person.2",
         description: Text("Files others share with you show up here."))
     }
+    .phoneAccountControl()
     .navigationTitle("Shared with Me")
     .task(id: browser.reloads) { await load() }
     .refreshable { await load() }
