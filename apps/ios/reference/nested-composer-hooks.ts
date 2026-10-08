@@ -26,12 +26,15 @@ export function withNestedParent<T>(
 export function useContext<T>(context: Context<T>): T {
   if (!parent)
     throw new Error("Nested composer hook outside parent registration");
+  // Context identity determines T, which TypeScript cannot narrow generically.
   if ((context as unknown) === LexicalComposerContext) {
     return [
       parent,
       createLexicalComposerContext(null, parent._config.theme),
+      // The identity check above selects the composer context’s tuple type.
     ] as unknown as T;
   }
+  // Context identity determines the collaboration value’s generic type.
   if ((context as unknown) === CollaborationContext)
     return { isCollabActive: false, yjsDocMap: new Map() } as unknown as T;
   throw new Error("Unknown nested composer context");
@@ -47,5 +50,6 @@ export function useEffect(register: () => unknown, _dependencies: unknown[]) {
   if (cleanup !== undefined && typeof cleanup !== "function")
     throw new Error("Unsupported nested composer effect result");
   if (typeof cleanup === "function")
+    // React effects return a zero-argument cleanup, narrowed to Function above.
     effectCleanups?.push(cleanup as () => void);
 }

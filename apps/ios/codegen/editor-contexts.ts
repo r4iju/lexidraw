@@ -16,6 +16,7 @@ function walk(node: Node, visit: (node: Node) => void): void {
       "type" in value &&
       typeof value.type === "string"
     )
+      // Babel AST child objects with a node type come from the parsed tree.
       walk(value as Node, visit);
   }
 }
@@ -116,6 +117,7 @@ export async function swiftForEditorContexts(): Promise<string> {
     .filter(([, types]) => types !== null)
     .map(
       ([name, types]) =>
+        // The preceding filter removes registries without a type list.
         `  private static let ${name}Registry: Set<String> = [${types!.map(swiftString).join(", ")}]`,
     )
     .join("\n")}\n}\n`;

@@ -45,6 +45,7 @@ export async function webEntityPatterns() {
   )
     throw new Error("Unknown upstream hashtag match shape");
   const code = functions
+    // Babel supplies source offsets for these parsed function declarations.
     .map((node) => hashtagSource.slice(node.start!, node.end!))
     .join("\n");
   const hashtag: RegExp = new Function(

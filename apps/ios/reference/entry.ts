@@ -564,6 +564,7 @@ function onParent<T>(run: () => T): T {
 }
 
 function setCaptionVisibility(argument: string): void {
+  // The runtime boolean check below validates this bridge argument.
   const show = JSON.parse(argument) as boolean;
   if (typeof show !== "boolean" || !parentCaptionOwnerKey)
     throw new EditorError(
@@ -574,6 +575,7 @@ function setCaptionVisibility(argument: string): void {
     lastError = null;
     current().update(
       () => {
+        // onParent runs synchronously after the owner-key guard above.
         const node = $getNodeByKey(parentCaptionOwnerKey!);
         if (
           !node ||
@@ -584,6 +586,7 @@ function setCaptionVisibility(argument: string): void {
             "Caption owner no longer exists",
           );
         }
+        // The accepted media node types all expose setShowCaption.
         (
           node as LexicalNode & { setShowCaption(show: boolean): void }
         ).setShowCaption(show);
@@ -598,6 +601,7 @@ function captionOwnerSnapshot(): string {
   if (!parentEditor || !parentCaptionOwnerKey)
     throw new EditorError("invalidState", "No caption owner loaded");
   const owned = parentEditor.read(() => {
+    // The guarded owner key is stable during read; media nodes own optional captions.
     const node = $getNodeByKey(parentCaptionOwnerKey!) as
       | (LexicalNode & { __caption?: LexicalEditor })
       | null;
@@ -618,6 +622,7 @@ function remountCaption(): void {
   if (!parentEditor || !parentCaptionOwnerKey)
     throw new EditorError("invalidState", "No caption owner loaded");
   const next = parentEditor.read(() => {
+    // The guarded owner key is stable during read; media nodes own optional captions.
     const owner = $getNodeByKey(parentCaptionOwnerKey!) as
       | (LexicalNode & { __caption?: LexicalEditor })
       | null;
@@ -1149,22 +1154,29 @@ function run(
     if (node instanceof LayoutContainerNode) {
       editor.dispatchCommand(UPDATE_LAYOUT_COMMAND, {
         nodeKey: node.getKey(),
+        // The native layout command carries the serialized template string.
         template: fields.templateColumns as string,
       });
     } else if (node instanceof CalloutNode) {
+      // The native callout command carries the node’s serialized kind.
       if ("kind" in fields)
         node.setKind(fields.kind as Parameters<CalloutNode["setKind"]>[0]);
+      // The native callout command carries its serialized title string.
       if ("title" in fields) node.setTitle(fields.title as string);
     } else if (node instanceof CollapsibleContainerNode) {
+      // The native collapsible command carries its serialized open boolean.
       if ("open" in fields) node.setOpen(fields.open as boolean);
     } else if (node instanceof StickyNode) {
       if ("xOffset" in fields || "yOffset" in fields)
         node.setPosition(
+          // Native sticky offsets and existing node offsets are numeric.
           (fields.xOffset ?? node.__x) as number,
+          // Native sticky offsets and existing node offsets are numeric.
           (fields.yOffset ?? node.__y) as number,
         );
       if ("caption" in fields)
         node.setCaptionJSON(
+          // The native sticky command carries the node’s serialized caption.
           fields.caption as Parameters<StickyNode["setCaptionJSON"]>[0],
         );
       if ("color" in fields) {
@@ -1216,8 +1228,10 @@ function run(
     return;
   }
   if (command.type === "appendComment") {
+    // The marker discriminant selects the serialized CommentNode import shape.
     if (command.node.type === "comment")
       $getRoot().append(CommentNode.importJSON(command.node as never));
+    // The marker discriminant selects the serialized ThreadNode import shape.
     else if (command.node.type === "thread")
       $getRoot().append(ThreadNode.importJSON(command.node as never));
     else throw new EditorError("invalidState", "Not a comment marker");
