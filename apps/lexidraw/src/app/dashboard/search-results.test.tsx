@@ -1,6 +1,7 @@
 /// <reference types="bun" />
 import { describe, expect, mock, test } from "bun:test";
 import type { ComponentProps } from "react";
+import { act } from "react";
 import { button, click, installDom, render } from "~/test/dom";
 
 installDom();
@@ -40,6 +41,33 @@ const rows = () =>
   }));
 
 describe("search results", () => {
+  test("opening a result in another tab leaves the current search in place", async () => {
+    const onOpen = mock(() => {});
+    const view = await render(
+      <SearchResults {...props({ results: [result({})], onOpen })} />,
+    );
+    try {
+      const title = document.querySelector("[data-search-title]");
+      if (!title) throw new Error("search result title missing");
+      // jsdom cannot open another tab. A hash keeps its default action local.
+      title.closest("a")?.setAttribute("href", "#result");
+      for (const modifier of ["metaKey", "ctrlKey", "shiftKey", "altKey"]) {
+        const event = new window.MouseEvent("click", {
+          bubbles: true,
+          cancelable: true,
+          [modifier]: true,
+        });
+        await act(async () => {
+          title.dispatchEvent(event);
+        });
+        expect(event.defaultPrevented).toBe(false);
+        expect(onOpen).toHaveBeenCalledTimes(0);
+      }
+    } finally {
+      await view.unmount();
+    }
+  });
+
   test("show each file's title, folder and, for a content hit, the text that matched", async () => {
     const view = await render(
       <SearchResults

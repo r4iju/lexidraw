@@ -35,7 +35,7 @@ type Props = {
   results: SearchResult[];
   loading: boolean;
   onClearSearch: () => void;
-  /** Opens a result chosen from the keyboard. */
+  /** Opens a result in this tab, after settling any unsaved changes. */
   onOpen?: (href: string) => void;
   className?: string;
 };
@@ -77,7 +77,24 @@ export function SearchResults({
             {results.map((result) => {
               const href = entityHref(result.entityType, result.id);
               return (
-                <Link key={result.id} href={href} className="block">
+                <Link
+                  key={result.id}
+                  href={href}
+                  className="block"
+                  onClickCapture={(event) => {
+                    if (!onOpen) return;
+                    if (
+                      event.metaKey ||
+                      event.ctrlKey ||
+                      event.shiftKey ||
+                      event.altKey
+                    ) {
+                      // Keep the browser's new-tab/window action without
+                      // also selecting the command in the current tab.
+                      event.stopPropagation();
+                    }
+                  }}
+                >
                   <CommandItem
                     value={result.id}
                     onSelect={() => onOpen?.(href)}
