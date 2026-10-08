@@ -197,4 +197,46 @@ final class SearchJourneysUITests: XCTestCase {
     XCTAssertEqual(app.searchFields.firstMatch.value as? String, "notes")
   }
 
+  func testDelayedRevealCannotReplaceAFolderOpenedInAnotherDestination() {
+    launch("reveal-delayed")
+    search("Readme")
+    XCTAssertTrue(app.buttons["Reveal Readme in Library or Shared"].waitForExistence(timeout: 5))
+    submit()
+    app.buttons["Reveal Readme in Library or Shared"].tap()
+    XCTAssertEqual(app.buttons["Reveal Readme in Library or Shared"].value as? String, "Finding location")
+    app.tabBars.buttons["Library"].tap()
+    app.buttons["Projects"].tap()
+    app.buttons["Q3"].tap()
+    XCTAssertTrue(app.buttons["Actions for Q3 notes"].waitForExistence(timeout: 5))
+    let reset = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == true"), object: app.navigationBars["Library"])
+    reset.isInverted = true
+    wait(for: [reset], timeout: 12)
+    XCTAssertTrue(app.buttons["Actions for Q3 notes"].exists)
+    app.tabBars.buttons["Search"].tap()
+    let reveal = app.buttons["Reveal Readme in Library or Shared"]
+    XCTAssertTrue(reveal.isEnabled, "An obsolete reveal releases its loading state")
+    XCTAssertEqual(app.searchFields.firstMatch.value as? String, "Readme")
+    reveal.tap()
+    XCTAssertTrue(app.buttons["Actions for Readme"].waitForExistence(timeout: 5), "A fresh reveal remains useful")
+  }
+
+  func testChangingTheQueryMakesADelayedRevealObsolete() {
+    launch("reveal-delayed")
+    search("Readme")
+    XCTAssertTrue(app.buttons["Reveal Readme in Library or Shared"].waitForExistence(timeout: 5))
+    submit()
+    app.buttons["Reveal Readme in Library or Shared"].tap()
+    search("notes")
+    XCTAssertTrue(app.buttons["Reveal Q3 notes in Q3"].waitForExistence(timeout: 5))
+    submit()
+    let departed = XCTNSPredicateExpectation(predicate: NSPredicate(format: "selected == true"), object: app.tabBars.buttons["Library"])
+    departed.isInverted = true
+    wait(for: [departed], timeout: 12)
+    XCTAssertEqual(app.searchFields.firstMatch.value as? String, "notes")
+    let reveal = app.buttons["Reveal Q3 notes in Q3"]
+    XCTAssertTrue(reveal.isEnabled)
+    reveal.tap()
+    XCTAssertTrue(app.buttons["Actions for Q3 notes"].waitForExistence(timeout: 5))
+  }
+
 }

@@ -82,6 +82,7 @@ struct BrowserView: View {
   @State private var sharedBrowser: Browser
   @State private var search: FileSearch
   @State private var destination = Destination.library
+  @State private var phoneSelection = Destination.library
   @State private var actions: FileActions
   @State private var listener: Listener
   @State private var column = NavigationSplitViewColumn.content
@@ -175,6 +176,7 @@ struct BrowserView: View {
     navigationEpoch += 1
     search.select(active: destination == .search)
     self.destination = destination
+    phoneSelection = destination
     column = activeBrowser.file == nil ? .content : .detail
   }
 
@@ -185,8 +187,7 @@ struct BrowserView: View {
       }
       activate(destination)
     }
-    if UIDevice.current.userInterfaceIdiom == .pad { fileNavigation.perform(change) }
-    else { change() }
+    fileNavigation.perform(change)
   }
 
   private var activeBrowser: Browser {
@@ -216,7 +217,12 @@ struct BrowserView: View {
   }
 
   private var phoneNavigation: some View {
-    TabView(selection: Binding(get: { destination }, set: select)) {
+    TabView(selection: Binding(get: { phoneSelection }, set: { requested in
+      // SwiftUI updates its selected tab before an awaited save can finish.
+      // Keep its binding explicit so failure restores the still-mounted editor.
+      fileNavigation.perform({ activate(requested) }, completed: { _ in phoneSelection = destination })
+      phoneSelection = requested
+    })) {
       Tab("Library", systemImage: "books.vertical", value: .library) {
         stack(for: browser)
       }
@@ -227,10 +233,19 @@ struct BrowserView: View {
         searchStack
       }
     }
+    .environment(\.phoneDrawingNavigation, fileNavigation)
   }
 
   private var searchStack: some View {
     SearchStack(session: session, search: search) { result in
+      let interaction = search.interactionID
+      let path = search.browser.path
+      let file = search.browser.file?.id
+      let epoch = navigationEpoch
+      let isCurrent = {
+        search.active && search.interactionID == interaction && search.browser.path == path
+          && search.browser.file?.id == file && navigationEpoch == epoch && !Task.isCancelled
+      }
       let location: Destination
       if result.folder != nil {
         location = .library
@@ -246,7 +261,12 @@ struct BrowserView: View {
           location = .shared
         }
       }
+      guard isCurrent() else { throw CancellationError() }
+      var revealed = false
       let change = {
+        // Saving can suspend after location resolution, so validate again at commit.
+        guard isCurrent() else { return }
+        revealed = true
         let context = location == .library ? browser : sharedBrowser
         context.tags = []
         context.show(location == .library ? .home : .shared)
@@ -254,10 +274,11 @@ struct BrowserView: View {
         activate(location)
       }
       if UIDevice.current.userInterfaceIdiom == .pad {
-        guard await fileNavigation.navigate(change) else {
-          throw SaveBeforeReveal()
-        }
+        let saved = await fileNavigation.navigate(change)
+        guard revealed || isCurrent() else { throw CancellationError() }
+        guard saved else { throw SaveBeforeReveal() }
       } else { change() }
+      guard revealed else { throw CancellationError() }
     }
   }
 

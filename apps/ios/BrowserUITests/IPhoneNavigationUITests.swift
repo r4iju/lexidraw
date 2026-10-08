@@ -64,4 +64,39 @@ final class IPhoneNavigationUITests: XCTestCase {
     app.tabBars.buttons["Library"].tap()
     XCTAssertTrue(app.staticTexts["Projects plan"].waitForExistence(timeout: 5))
   }
+
+  func testDrawingSaveFailureKeepsBackGestureAndDestinationRecoveryOnScreen() throws {
+    guard UIDevice.current.userInterfaceIdiom == .phone else { throw XCTSkip("Phone drawing exits") }
+    continueAfterFailure = false
+    XCUIDevice.shared.orientation = .portrait
+    let app = XCUIApplication()
+    app.launchArguments = ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryL"]
+    app.launchEnvironment["BROWSER_SCENARIO"] = "drawing-save-failure"
+    app.launch()
+    XCTAssertTrue(app.buttons["Projects"].waitForExistence(timeout: 5))
+    app.buttons["Projects"].tap()
+    app.staticTexts["A drawing with a wonderfully long title for our next adventure together"].tap()
+    XCTAssertTrue(app.buttons["Insert Image"].waitForExistence(timeout: 5))
+    for tool in ["Select", "Rectangle", "Diamond", "Ellipse", "Arrow", "Line", "Draw", "Text"] {
+      XCTAssertTrue(app.segmentedControls.buttons[tool].isHittable, "Every drawing tool remains reachable above destinations: \(tool)")
+    }
+    let rectangle = app.segmentedControls.buttons["Rectangle"]
+    XCTAssertTrue(rectangle.isHittable)
+    rectangle.tap()
+    let window = app.windows.firstMatch
+    window.coordinate(withNormalizedOffset: CGVector(dx: 0.3, dy: 0.3))
+      .press(forDuration: 0.1, thenDragTo: window.coordinate(withNormalizedOffset: CGVector(dx: 0.7, dy: 0.5)))
+    XCTAssertTrue(app.buttons["Try Saving Again"].waitForExistence(timeout: 5), "A canvas edit reaches the failed save boundary")
+    app.navigationBars.firstMatch.buttons.matching(NSPredicate(format: "label == 'Back' OR identifier == 'BackButton'")).firstMatch.tap()
+    XCTAssertTrue(app.buttons["Try Saving Again"].waitForExistence(timeout: 5), "Failed Back must retain save recovery")
+    window.coordinate(withNormalizedOffset: CGVector(dx: 0.01, dy: 0.5))
+      .press(forDuration: 0.1, thenDragTo: window.coordinate(withNormalizedOffset: CGVector(dx: 0.8, dy: 0.5)))
+    XCTAssertTrue(rectangle.exists, "An edge exit cannot discard failed edits")
+    app.tabBars.buttons["Shared"].tap()
+    XCTAssertTrue(app.tabBars.buttons["Library"].isSelected, "A failed destination exit retains the drawing")
+    XCTAssertTrue(app.buttons["Try Saving Again"].exists)
+    app.buttons["Try Saving Again"].tap()
+    XCTAssertTrue(rectangle.exists, "Retry retains the edited canvas")
+  }
+
 }

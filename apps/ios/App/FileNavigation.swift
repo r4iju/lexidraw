@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// All tablet file replacement waits for the current editor's save boundary.
+/// File replacement waits for the current editor’s save boundary.
 @MainActor @Observable
 final class FileNavigation {
   private var prepareToLeave: (() async -> Bool)?
@@ -18,16 +18,21 @@ final class FileNavigation {
   }
   private(set) var changing = false
 
-  func perform(_ change: @escaping () -> Void) {
-    Task { await navigate(change) }
+  func perform(_ change: @escaping () -> Void, completed: @escaping (Bool) -> Void = { _ in }) {
+    let prepare = prepareToLeave
+    Task { completed(await navigate(prepare: prepare, change)) }
   }
 
   @discardableResult
   func navigate(_ change: () -> Void) async -> Bool {
+    await navigate(prepare: prepareToLeave, change)
+  }
+
+  private func navigate(prepare: (() async -> Bool)?, _ change: () -> Void) async -> Bool {
     guard !changing else { return false }
     changing = true
     defer { changing = false }
-    guard await prepareToLeave?() ?? true else { return false }
+    guard await prepare?() ?? true else { return false }
     change()
     return true
   }
@@ -35,4 +40,5 @@ final class FileNavigation {
 
 extension EnvironmentValues {
   @Entry var fileNavigation: FileNavigation?
+  @Entry var phoneDrawingNavigation: FileNavigation?
 }

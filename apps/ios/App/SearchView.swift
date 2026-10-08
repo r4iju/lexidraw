@@ -15,9 +15,11 @@ final class FileSearch {
   let browser: Browser
   private(set) var active = false
   private(set) var navigationEpoch = 0
+  private(set) var interactionID = UUID()
 
   func select(active: Bool) {
     navigationEpoch += 1
+    interactionID = UUID()
     self.active = active
   }
   private let session: Session
@@ -33,6 +35,7 @@ final class FileSearch {
   isolated deinit { request?.cancel() }
 
   func run() {
+    interactionID = UUID()
     generation += 1
     let current = generation
     request?.cancel()
@@ -92,6 +95,8 @@ private struct SearchView: View {
   @FocusState private var enteringQuery: Bool
   @State private var revealing: String?
   @State private var revealFailure: String?
+  @State private var revealRequest: Task<Void, Never>?
+  @State private var revealAttempt: UUID?
 
   var body: some View {
     List {
@@ -121,11 +126,18 @@ private struct SearchView: View {
                 .foregroundStyle(.secondary)
               Button {
                 guard revealing == nil else { return }
+                let attempt = UUID()
+                revealAttempt = attempt
                 revealing = result.id
-                Task {
-                  defer { revealing = nil }
+                revealRequest = Task {
+                  defer {
+                    if revealAttempt == attempt { revealing = nil; revealAttempt = nil; revealRequest = nil }
+                  }
                   do { try await reveal(result) }
-                  catch { revealFailure = error.localizedDescription }
+                  catch is CancellationError { }
+                  catch {
+                    if revealAttempt == attempt { revealFailure = error.localizedDescription }
+                  }
                 }
               } label: {
                 Label("Reveal in \(result.folder?.title ?? "Library or Shared")", systemImage: "folder.badge.magnifyingglass")
@@ -188,6 +200,9 @@ private struct SearchView: View {
     }
     .scrollDismissesKeyboard(.interactively)
     .alert("Couldn’t reveal file", message: $revealFailure)
+    .onChange(of: search.interactionID) { invalidateReveal() }
+    .onChange(of: search.browser.path) { invalidateReveal() }
+    .onChange(of: search.browser.file?.id) { invalidateReveal() }
     .navigationTitle("Search")
     .accountControl()
     .searchable(text: $search.query, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search all file titles")
@@ -205,6 +220,14 @@ private struct SearchView: View {
         }
       }
     }
+  }
+
+  private func invalidateReveal() {
+    revealRequest?.cancel()
+    revealRequest = nil
+    revealAttempt = nil
+    revealing = nil
+    revealFailure = nil
   }
 
   private var clearButton: some View {

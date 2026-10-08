@@ -55,6 +55,7 @@ actor HarnessServer: ClientTransport {
   private var documents: [String: String] = [:]
   private var revisions: [String: String] = [:]
   private var saves = 0
+  private var searched = false
 
   init() {
     scenario = BrowserScenario.name ?? "basic"
@@ -161,10 +162,16 @@ actor HarnessServer: ClientTransport {
       answer = ["userId": "reader", "name": "Native Reader", "email": "reader@example.test", "authKind": "token", "scope": "write"]
     case "entities-list":
       let parent = query.first { $0.name == "parentId" }?.value
+      if scenario == "reveal-delayed", searched, parent == nil,
+        failures.insert("delayed-reveal").inserted {
+        // The obsolete reveal transport deliberately ignores cancellation.
+        await Task.detached { try? await Task.sleep(for: .seconds(10)) }.value
+      }
       let types = query.filter { $0.name == "entityTypes" }.compactMap(\.value)
       let tags = query.filter { $0.name == "tagNames" }.compactMap(\.value)
       answer = items.filter { !$0.deleted && $0.parent == parent && (types.isEmpty || types.contains($0.type)) && tags.allSatisfy($0.tags.contains) }.map(listed)
     case "entities-search":
+      searched = true
       let text = query.first { $0.name == "query" }?.value ?? ""
       if scenario == "search-retry" {
         try await Task.sleep(for: .seconds(4))
@@ -242,6 +249,9 @@ actor HarnessServer: ClientTransport {
       guard item.access != "read" else { return try forbidden() }
       if scenario == "drawing-save-failure" {
         return try response(["message": "Connection interrupted. Please try again.", "code": "INTERNAL_SERVER_ERROR"], status: .internalServerError)
+      }
+      if scenario == "reveal-save-delayed" {
+        await Task.detached { try? await Task.sleep(for: .seconds(20)) }.value
       }
       guard json["ifUnmodifiedSince"] as? String == (revisions[id] ?? Self.date) else {
         return try response(["message": "Newer edits", "code": "CONFLICT"], status: .conflict)
