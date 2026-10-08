@@ -597,18 +597,23 @@ function setCaptionVisibility(argument: string): void {
   });
 }
 
-function captionOwnerSnapshot(): string {
-  if (!parentEditor || !parentCaptionOwnerKey)
+function captionEditorForOwner(): LexicalEditor {
+  const ownerKey = parentCaptionOwnerKey;
+  if (!parentEditor || !ownerKey)
     throw new EditorError("invalidState", "No caption owner loaded");
-  const owned = parentEditor.read(() => {
-    // The guarded owner key is stable during read; media nodes own optional captions.
-    const node = $getNodeByKey(parentCaptionOwnerKey!) as
+  return parentEditor.read(() => {
+    // Media nodes own optional captions; capture the guarded key for this read.
+    const node = $getNodeByKey(ownerKey) as
       | (LexicalNode & { __caption?: LexicalEditor })
       | null;
     if (!node?.__caption)
       throw new EditorError("invalidState", "Caption owner no longer exists");
     return node.__caption;
   });
+}
+
+function captionOwnerSnapshot(): string {
+  const owned = captionEditorForOwner();
   const mounted = editor;
   editor = owned;
   try {
@@ -621,15 +626,7 @@ function captionOwnerSnapshot(): string {
 function remountCaption(): void {
   if (!parentEditor || !parentCaptionOwnerKey)
     throw new EditorError("invalidState", "No caption owner loaded");
-  const next = parentEditor.read(() => {
-    // The guarded owner key is stable during read; media nodes own optional captions.
-    const owner = $getNodeByKey(parentCaptionOwnerKey!) as
-      | (LexicalNode & { __caption?: LexicalEditor })
-      | null;
-    if (!owner?.__caption)
-      throw new EditorError("invalidState", "Caption owner no longer exists");
-    return owner.__caption;
-  });
+  const next = captionEditorForOwner();
   for (const cleanup of mountedRegistrations.get(current()) ?? []) cleanup();
   mountedRegistrations.delete(current());
   const effects: (() => void)[] = [];
@@ -1167,11 +1164,10 @@ function run(
       // The native collapsible command carries its serialized open boolean.
       if ("open" in fields) node.setOpen(fields.open as boolean);
     } else if (node instanceof StickyNode) {
+      // Native sticky offsets and existing node offsets are numeric.
       if ("xOffset" in fields || "yOffset" in fields)
         node.setPosition(
-          // Native sticky offsets and existing node offsets are numeric.
           (fields.xOffset ?? node.__x) as number,
-          // Native sticky offsets and existing node offsets are numeric.
           (fields.yOffset ?? node.__y) as number,
         );
       if ("caption" in fields)

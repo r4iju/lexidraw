@@ -132,11 +132,11 @@ export async function webEditorRegistries(): Promise<
     ),
   );
   const result = {} as Record<keyof typeof sources, string[] | null>;
-  for (const [name, path] of Object.entries({
-    imageCaption: "ImageNode",
-    inlineImageCaption: "InlineImageNode",
-    videoCaption: "VideoNode",
-  })) {
+  for (const [name, path] of [
+    ["imageCaption", "ImageNode"],
+    ["inlineImageCaption", "InlineImageNode"],
+    ["videoCaption", "VideoNode"],
+  ] as const) {
     const source = await Bun.file(
       new URL(
         `../../../packages/lexical-nodes/src/nodes/${path}.ts`,
@@ -166,7 +166,7 @@ export async function webEditorRegistries(): Promise<
       throw new Error(`Unknown ${name} editor construction shape`);
     const args = constructors[0].arguments;
     if (args.length === 0) {
-      result[name as keyof typeof sources] = null;
+      result[name] = null;
       continue;
     }
     const config = args[0];
@@ -188,7 +188,7 @@ export async function webEditorRegistries(): Promise<
         throw new Error(`Unknown ${name} registered node`);
       return classes.get(node.name)!;
     });
-    result[name as keyof typeof sources] = [
+    result[name] = [
       ...createHeadlessEditor({ nodes: registered })._nodes.keys(),
     ].sort();
   }
