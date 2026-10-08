@@ -154,3 +154,33 @@ own destination leaves Settings, tags and creation visible in folder toolbars.
 Listener, file actions, permissions and the shared revision stay at the browser
 boundary. Native evidence and red/green commands are in
 `/tmp/lexidraw-267/270-notes.md`.
+
+## Document reading and writing, #271
+
+Documents open in a deliberate reading state, including documents the service
+permits editing. A calm content header gives the full title, document identity,
+reading/editing state and save or access status. Native navigation retains the
+file title, Comments and the explicit Edit/Done action. The reading title wraps;
+editing removes that duplicate title to leave more room for text and the keyboard.
+Authored typography, headings, media, structural previews and the native content
+surface retain their existing rendering. Glass stays in the system controls.
+
+Edit changes input policy on the mounted EditorView. Its model, history,
+selection and document settings remain intact. The native selection interaction
+switches between selectable reading and editable text. Done commits marked
+composition while writing is still permitted, closes input, returns to reading
+and flushes autosave. Hide keyboard remains independent of Done and navigation;
+tapping text resumes input while editing. A compact native Format menu groups
+character styles and Link, leaving Block, Lists, Insert, Undo/Redo and Hide
+keyboard visible in the phone accessory. Formatting also retains native
+selection menus, with Comments available in both states. Passive structural previews remain passive; sticky captions retain their
+shared editor after it has been mounted for writing.
+
+Back while writing or holding unsaved work ends input and attempts the save
+before leaving. Failure or conflict keeps the document and recovery actions on
+screen. Retry retains the current content. Conflict offers the existing Reload
+Theirs or Keep Mine as a Copy contract, with adaptive native buttons. Read-only
+and unsupported-content notices remain explicit, and the latter also names the
+unsupported parts and explains that source is preserved. No service permission,
+revision precondition, serialization or HTML-block source/runtime contract is
+expanded. Evidence and verification limits are in `/tmp/lexidraw-267/271-notes.md`.

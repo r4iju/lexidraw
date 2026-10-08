@@ -83,8 +83,32 @@ final class SearchJourneysUITests: XCTestCase {
   }
 
   private func submit() {
-    let button = app.keyboards.buttons["Search"]
-    if button.exists { button.tap() }
+    app.searchFields.firstMatch.typeText("\n")
+  }
+
+  func testDocumentReadingEditingAndReturnKeepTheSearchQueryAndSavedContent() {
+    search("notes")
+    XCTAssertTrue(app.staticTexts["Q3 notes"].waitForExistence(timeout: 5))
+    submit()
+    app.staticTexts["Q3 notes"].tap()
+    XCTAssertTrue(app.staticTexts["Reading"].waitForExistence(timeout: 10))
+    let editor = app.textViews.firstMatch
+    editor.tap()
+    XCTAssertFalse(app.keyboards.firstMatch.waitForExistence(timeout: 2))
+    app.buttons["Edit"].tap()
+    editor.typeKey(XCUIKeyboardKey.shift.rawValue, modifierFlags: [])
+    editor.typeKey(XCUIKeyboardKey.F13.rawValue, modifierFlags: .shift)
+    editor.typeKey("a", modifierFlags: .command)
+    editor.typeText("A saved search journey")
+    app.buttons["Done"].tap()
+    XCTAssertTrue(app.staticTexts["Saved"].waitForExistence(timeout: 10))
+    app.navigationBars["Q3 notes"].buttons["BackButton"].tap()
+    XCTAssertTrue(app.staticTexts["Q3 notes"].waitForExistence(timeout: 5))
+    XCTAssertEqual(app.searchFields.firstMatch.value as? String, "notes")
+    app.staticTexts["Q3 notes"].tap()
+    XCTAssertTrue(app.staticTexts["Reading"].waitForExistence(timeout: 10))
+    XCTAssertEqual(app.textViews.firstMatch.value as? String, "A saved search journey\n")
+    XCTAssertFalse(app.keyboards.firstMatch.exists)
   }
 
   func testOpenBackAndDestinationSwitchingRetainSearchThenRevealClearsLibraryFilters() {

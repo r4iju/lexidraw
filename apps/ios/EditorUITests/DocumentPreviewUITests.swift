@@ -10,9 +10,164 @@ final class DocumentPreviewUITests: XCTestCase {
     continueAfterFailure = false
   }
 
+  func testOpeningAnEditableDocumentIsReadingUntilExplicitEdit() {
+    let app = open(access: "EDIT")
+    XCTAssertTrue(app.staticTexts["Saved"].waitForExistence(timeout: 10))
+    let editor = app.textViews.firstMatch
+    let original = editor.value as? String
+    XCTAssertFalse(offersKeyboard(app), "Reading taps must not begin writing")
+    editor.press(forDuration: 1)
+    XCTAssertTrue(app.menuItems["Copy"].waitForExistence(timeout: 5))
+    XCTAssertFalse(app.menuItems["Cut"].exists)
+    app.buttons["Edit"].tap()
+    XCTAssertTrue(app.buttons["Done"].waitForExistence(timeout: 5))
+    XCTAssertEqual(editor.value as? String, original)
+    XCTAssertEqual(requests(in: app), "entities-load")
+    editor.tap()
+    XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5))
+    app.buttons["Done"].tap()
+    expectation(for: NSPredicate(format: "exists == false"), evaluatedWith: app.keyboards.firstMatch)
+    waitForExpectations(timeout: 5)
+    XCTAssertTrue(app.buttons["Edit"].exists)
+    XCTAssertFalse(offersKeyboard(app))
+    XCTAssertEqual(editor.value as? String, original)
+    XCTAssertEqual(requests(in: app), "entities-load")
+  }
+
+  func testDocumentIdentityAndModeStayClearWhileEditsRetainUndoAcrossDone() {
+    let original = LexicalJSON.document([LexicalJSON.paragraph([LexicalJSON.text("Original text")])])
+    let app = open(access: "EDIT", document: original)
+    XCTAssertTrue(app.staticTexts["Reading"].waitForExistence(timeout: 10))
+    XCTAssertTrue(app.staticTexts["Tracer"].exists)
+    app.buttons["Edit"].tap()
+    XCTAssertTrue(app.staticTexts["Editing"].exists)
+    let editor = app.textViews.firstMatch
+    editor.typeKey(XCUIKeyboardKey.shift.rawValue, modifierFlags: [])
+    editor.typeKey(XCUIKeyboardKey.F13.rawValue, modifierFlags: .shift)
+    editor.typeKey("a", modifierFlags: .command)
+    editor.typeText("R")
+    app.buttons["Done"].tap()
+    XCTAssertTrue(app.staticTexts["Reading"].exists)
+    XCTAssertEqual(editor.value as? String, "R\n")
+    XCTAssertTrue(app.staticTexts["Saved"].waitForExistence(timeout: 10))
+    app.buttons["Edit"].tap()
+    editor.typeKey(XCUIKeyboardKey.shift.rawValue, modifierFlags: [])
+    editor.typeKey(XCUIKeyboardKey.F13.rawValue, modifierFlags: .shift)
+    editor.typeKey("z", modifierFlags: .command)
+    XCTAssertEqual(editor.value as? String, "Original text\n")
+    editor.typeKey("z", modifierFlags: [.command, .shift])
+    XCTAssertEqual(editor.value as? String, "R\n")
+    app.buttons["editor hide keyboard"].tap()
+    XCTAssertTrue(app.staticTexts["Editing"].exists)
+    XCTAssertTrue(app.buttons["Done"].exists)
+    editor.tap()
+    XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5))
+  }
+
+  func testSaveFailureRetainsWorkAndPreventsLeavingUntilRetrySucceeds() {
+    let app = open(access: "EDIT", environment: ["EDITOR_SAVE_FAILURES": "2"])
+    XCTAssertTrue(app.buttons["Edit"].waitForExistence(timeout: 10))
+    app.buttons["Edit"].tap()
+    let editor = app.textViews.firstMatch
+    editor.typeText("Recover my work")
+    app.buttons["Done"].tap()
+    XCTAssertTrue(app.buttons["Try Again"].waitForExistence(timeout: 10))
+    let revised = editor.value as? String
+    app.buttons["document back"].tap()
+    XCTAssertTrue(app.buttons["Try Again"].waitForExistence(timeout: 10))
+    XCTAssertEqual(editor.value as? String, revised)
+    app.buttons["Try Again"].tap()
+    XCTAssertTrue(app.staticTexts["Saved"].waitForExistence(timeout: 10))
+    app.buttons["Away"].tap()
+    app.navigationBars.buttons.element(boundBy: 0).tap()
+    XCTAssertTrue(app.staticTexts["Saved"].waitForExistence(timeout: 10))
+    XCTAssertEqual(app.textViews.firstMatch.value as? String, revised)
+  }
+
+  func testConflictKeepsEditsAsACopyWithoutReplacingTheOriginal() {
+    let app = open(access: "EDIT", environment: ["EDITOR_SAVE_CONFLICT": "1"])
+    XCTAssertTrue(app.buttons["Edit"].waitForExistence(timeout: 10))
+    app.buttons["Edit"].tap()
+    app.textViews.firstMatch.typeText("My conflicting work")
+    app.buttons["Done"].tap()
+    XCTAssertTrue(app.staticTexts["Newer edits available"].waitForExistence(timeout: 10))
+    let mine = app.textViews.firstMatch.value as? String
+    XCTAssertTrue(app.buttons["Reload Theirs"].exists)
+    app.buttons["Keep Mine as a Copy"].tap()
+    XCTAssertTrue(app.staticTexts["Tracer (copy)"].waitForExistence(timeout: 10))
+    XCTAssertTrue(app.staticTexts["Saved"].waitForExistence(timeout: 10))
+    XCTAssertEqual(app.textViews.firstMatch.value as? String, mine)
+    XCTAssertFalse(app.buttons["Reload Theirs"].exists)
+    app.buttons["Away"].tap()
+    app.navigationBars.buttons.element(boundBy: 0).tap()
+    XCTAssertTrue(app.staticTexts["Saved"].waitForExistence(timeout: 10))
+    XCTAssertFalse((app.textViews.firstMatch.value as? String)?.contains("My conflicting work") == true)
+  }
+
+  func testConflictReloadReturnsToReadingAndUsesTheServerVersion() {
+    let app = open(access: "EDIT", environment: ["EDITOR_SAVE_CONFLICT": "1"])
+    XCTAssertTrue(app.buttons["Edit"].waitForExistence(timeout: 10))
+    let original = app.textViews.firstMatch.value as? String
+    app.buttons["Edit"].tap()
+    app.textViews.firstMatch.typeText("Unsaved conflict")
+    app.buttons["Done"].tap()
+    XCTAssertTrue(app.staticTexts["Newer edits available"].waitForExistence(timeout: 10))
+    app.buttons["Reload Theirs"].tap()
+    XCTAssertTrue(app.staticTexts["Saved"].waitForExistence(timeout: 10))
+    XCTAssertEqual(app.textViews.firstMatch.value as? String, original)
+    XCTAssertTrue(app.staticTexts["Reading"].exists)
+    XCTAssertFalse(offersKeyboard(app))
+  }
+
+  func testCopyRecoveryShowsProgressAndRejectsRepeatedSubmission() {
+    let app = open(access: "EDIT", environment: ["EDITOR_SAVE_CONFLICT": "1", "EDITOR_COPY_DELAY": "4"])
+    XCTAssertTrue(app.buttons["Edit"].waitForExistence(timeout: 10))
+    app.buttons["Edit"].tap()
+    app.textViews.firstMatch.typeText("Retain this copy")
+    app.buttons["Done"].tap()
+    let copy = app.buttons["Keep Mine as a Copy"]
+    XCTAssertTrue(copy.waitForExistence(timeout: 10))
+    copy.tap()
+    XCTAssertTrue(app.descendants(matching: .any)["Saving a copy…"].firstMatch.waitForExistence(timeout: 2))
+    XCTAssertFalse(copy.isEnabled)
+    XCTAssertFalse(app.buttons["Reload Theirs"].isEnabled)
+    XCTAssertTrue(app.staticTexts["Tracer (copy)"].waitForExistence(timeout: 10))
+    XCTAssertTrue(app.staticTexts["Saved"].waitForExistence(timeout: 10))
+    XCTAssertTrue((app.textViews.firstMatch.value as? String)?.contains("Retain this copy") == true)
+  }
+
+  func testFocusedFormattingAndInsertionStayVisibleAndSaveAuthoredText() throws {
+    let original = LexicalJSON.document([LexicalJSON.paragraph([])])
+    let app = open(access: "EDIT", document: original)
+    XCTAssertTrue(app.buttons["Edit"].waitForExistence(timeout: 10))
+    app.buttons["Edit"].tap()
+    XCTAssertTrue(app.buttons["Format"].waitForExistence(timeout: 3))
+    XCTAssertTrue(app.buttons["Format"].isHittable)
+    XCTAssertTrue(app.buttons["Insert"].isHittable)
+    XCTAssertTrue(app.buttons["Block type"].isHittable)
+    app.buttons["Format"].tap()
+    app.buttons["Bold"].tap()
+    app.textViews.firstMatch.typeText("A deliberate paragraph")
+    app.buttons["Done"].tap()
+    XCTAssertTrue(app.staticTexts["Saved"].waitForExistence(timeout: 10))
+    app.buttons["Away"].tap()
+    app.navigationBars.buttons.element(boundBy: 0).tap()
+    XCTAssertTrue(app.buttons["Edit"].waitForExistence(timeout: 10))
+    XCTAssertEqual(app.textViews.firstMatch.value as? String, "A deliberate paragraph\n")
+    app.buttons["Edit"].tap()
+    let editor = app.textViews.firstMatch
+    editor.typeKey(XCUIKeyboardKey.shift.rawValue, modifierFlags: [])
+    editor.typeKey(XCUIKeyboardKey.F13.rawValue, modifierFlags: .shift)
+    editor.typeKey("a", modifierFlags: .command)
+    app.buttons["Format"].tap()
+    XCTAssertTrue(app.buttons["Bold"].isSelected)
+  }
+
+
   func testHideKeyboardKeepsTheDocumentOpenAndCanResumeEditing() {
     let app = open(access: "EDIT")
     XCTAssertTrue(app.staticTexts["Saved"].waitForExistence(timeout: 10))
+    app.buttons["Edit"].tap()
     let editor = app.textViews.firstMatch
     editor.tap()
     XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5))
@@ -33,6 +188,7 @@ final class DocumentPreviewUITests: XCTestCase {
     let original = LexicalJSON.document([LexicalJSON.paragraph([LexicalJSON.text("prefix ")])])
     let app = open(access: "EDIT", document: original)
     XCTAssertTrue(app.staticTexts["Saved"].waitForExistence(timeout: 10))
+    app.buttons["Edit"].tap()
     let editor = app.textViews.firstMatch
     editor.tap()
     XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5))
@@ -63,6 +219,7 @@ final class DocumentPreviewUITests: XCTestCase {
     let original = LexicalJSON.document([LexicalJSON.paragraph([LexicalJSON.text("Say ")])])
     let app = open(access: "EDIT", document: original)
     XCTAssertTrue(app.staticTexts["Saved"].waitForExistence(timeout: 10))
+    app.buttons["Edit"].tap()
     let editor = app.textViews.firstMatch
     editor.tap()
     XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5))
@@ -93,6 +250,8 @@ final class DocumentPreviewUITests: XCTestCase {
     let app = open(access: "EDIT")
     let notice = app.staticTexts["Saved"]
     XCTAssertTrue(notice.waitForExistence(timeout: 10))
+
+    app.buttons["Edit"].tap()
 
     XCTAssertTrue(offersKeyboard(app))
     app.textViews.firstMatch.typeText("Typed in the document")
@@ -170,6 +329,8 @@ final class DocumentPreviewUITests: XCTestCase {
     let document = LexicalJSON.document([["type": "layout-container", "version": 1,
       "templateColumns": "0.25fr 0.25fr", "children": [item, item]]])
     let app = open(access: "EDIT", document: document)
+    XCTAssertTrue(app.buttons["Edit"].waitForExistence(timeout: 10))
+    app.buttons["Edit"].tap()
     let column = app.buttons["Edit column 1"]
     XCTAssertTrue(column.waitForExistence(timeout: 10))
     XCTAssertGreaterThan(app.frame.width, 600)
@@ -185,6 +346,8 @@ final class DocumentPreviewUITests: XCTestCase {
     let document = LexicalJSON.document([["type": "layout-container", "version": 1,
       "templateColumns": "repeat(2, minmax(100px, 1fr))", "children": [item, item, item, item]]])
     let app = open(access: "EDIT", document: document)
+    XCTAssertTrue(app.buttons["Edit"].waitForExistence(timeout: 10))
+    app.buttons["Edit"].tap()
     let first = app.buttons["Edit column 1"]
     XCTAssertTrue(first.waitForExistence(timeout: 10))
     let second = app.buttons["Edit column 2"]
@@ -204,6 +367,8 @@ final class DocumentPreviewUITests: XCTestCase {
     let document = LexicalJSON.document([["type": "layout-container", "version": 1,
       "templateColumns": "100px 25% 0.5fr", "children": [item, item, item]]])
     let app = open(access: "EDIT", document: document)
+    XCTAssertTrue(app.buttons["Edit"].waitForExistence(timeout: 10))
+    app.buttons["Edit"].tap()
     let first = app.buttons["Edit column 1"]
     XCTAssertTrue(first.waitForExistence(timeout: 10))
     XCTAssertGreaterThan(app.frame.width, 600)
@@ -214,9 +379,10 @@ final class DocumentPreviewUITests: XCTestCase {
     XCTAssertTrue(app.buttons["Edit column 3"].exists)
   }
 
-  private func open(access: String, document: JSONValue? = nil) -> XCUIApplication {
+  private func open(access: String, document: JSONValue? = nil, environment: [String: String] = [:]) -> XCUIApplication {
     let app = XCUIApplication()
     app.launchEnvironment["EDITOR_PREVIEW_ACCESS"] = access
+    for (key, value) in environment { app.launchEnvironment[key] = value }
     if let document {
       app.launchEnvironment["EDITOR_DOCUMENT"] = String(
         decoding: try! JSONEncoder().encode(document), as: UTF8.self)

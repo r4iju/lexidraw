@@ -40,6 +40,9 @@ actor HarnessServer: ClientTransport {
   private var items: [Item]
   private let scenario: String
   private var failures: Set<String> = []
+  private var documents: [String: String] = [:]
+  private var revisions: [String: String] = [:]
+  private var saves = 0
 
   init() {
     scenario = ProcessInfo.processInfo.environment["BROWSER_SCENARIO"] ?? "basic"
@@ -168,6 +171,18 @@ actor HarnessServer: ClientTransport {
       }
       if operationID == "entities-restore" { answer = summary(items[index]) }
       else { answer = ["id": items[index].id] }
+    case "entities-save":
+      guard let id, let item = items.first(where: { $0.id == id && !$0.deleted }), item.type == "document" else { return try missing() }
+      guard item.access != "read" else { return try forbidden() }
+      guard json["ifUnmodifiedSince"] as? String == (revisions[id] ?? Self.date) else {
+        return try response(["message": "Newer edits", "code": "CONFLICT"], status: .conflict)
+      }
+      guard let elements = json["elements"] as? String else { return try missing() }
+      documents[id] = elements
+      saves += 1
+      let revision = "2026-09-25T09:31:\(String(format: "%02d", saves)).000Z"
+      revisions[id] = revision
+      answer = ["id": id, "updatedAt": revision]
     case "entities-load":
       guard let item = items.first(where: { $0.id == id && !$0.deleted }) else { return try missing() }
       let elements: String
@@ -178,8 +193,8 @@ actor HarnessServer: ClientTransport {
       default: elements = "[]"
       }
       answer = ["id": item.id, "title": item.title, "entityType": item.type, "appState": NSNull(),
-        "elements": elements, "publicAccess": "PRIVATE", "shared": item.shared,
-        "accessLevel": item.access == "read" ? "READ" : "EDIT", "updatedAt": Self.date]
+        "elements": documents[item.id] ?? elements, "publicAccess": "PRIVATE", "shared": item.shared,
+        "accessLevel": item.access == "read" ? "READ" : "EDIT", "updatedAt": revisions[item.id] ?? Self.date]
     case "tts-listening": answer = ["status": "none", "segments": [Any]()]
     case "drawings-files": answer = ["files": [Any]()]
     default: return try missing()

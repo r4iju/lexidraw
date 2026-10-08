@@ -21,7 +21,7 @@ final class SearchSidebarUITests: XCTestCase {
     field.tap()
     field.typeText("notes")
     XCTAssertTrue(app.staticTexts["Q3 notes"].waitForExistence(timeout: 5))
-    if app.keyboards.buttons["Search"].exists { app.keyboards.buttons["Search"].tap() }
+    field.typeText("\n")
     app.staticTexts["Q3 notes"].tap()
     XCTAssertTrue(app.navigationBars["Q3 notes"].waitForExistence(timeout: 5))
     sidebar.staticTexts["Shared with Me"].tap()

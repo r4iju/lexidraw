@@ -58,6 +58,7 @@ private actor PreviewServer: ClientTransport {
   private var saved: [String: String] = [:]
   private var loads = 0
   private var saves = 0
+  private var saveAttempts = 0
 
   init(access: [String], log: ServerLog) {
     self.access = access
@@ -70,6 +71,10 @@ private actor PreviewServer: ClientTransport {
     await MainActor.run { log.operations.append(operationID) }
     let id = request.path?.split(separator: "/").last.map(String.init) ?? Self.documentId
     if operationID == "entities-save" || operationID == "entities-create" {
+      if operationID == "entities-create",
+        let delay = Double(ProcessInfo.processInfo.environment["EDITOR_COPY_DELAY"] ?? "") {
+        try await Task.sleep(for: .seconds(delay))
+      }
       let payload: Data?
       if let body {
         payload = try await Data(collecting: body, upTo: 2 << 20)
@@ -78,6 +83,13 @@ private actor PreviewServer: ClientTransport {
       }
       let object =
         try payload.map { try JSONSerialization.jsonObject(with: $0) as? [String: Any] } ?? nil
+      if operationID == "entities-save" {
+        saveAttempts += 1
+        let failures = Int(ProcessInfo.processInfo.environment["EDITOR_SAVE_FAILURES"] ?? "0") ?? 0
+        if saveAttempts <= failures {
+          return try response(["message": "Connection interrupted"], status: .internalServerError)
+        }
+      }
       if operationID == "entities-save", id == Self.documentId,
         ProcessInfo.processInfo.environment["EDITOR_SAVE_CONFLICT"] == "1"
       {
@@ -110,7 +122,7 @@ private actor PreviewServer: ClientTransport {
       ?? String(
         contentsOf: Bundle.main.url(forResource: "tracer", withExtension: "json")!, encoding: .utf8)
     let loaded: [String: Any] = [
-      "id": Self.documentId, "title": "Tracer", "entityType": "document", "appState": NSNull(),
+      "id": Self.documentId, "title": ProcessInfo.processInfo.environment["EDITOR_PREVIEW_TITLE"] ?? "Tracer", "entityType": "document", "appState": NSNull(),
       "elements": elements, "publicAccess": "PRIVATE",
       "shared": false, "accessLevel": access[min(loads, access.count) - 1],
       "updatedAt": "2026-09-25T09:30:00.000Z",

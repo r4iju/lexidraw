@@ -9,6 +9,25 @@ import UIKit
 /// Delete or Forward Delete from XCUITest's `typeKey` to the app. These run
 /// each key's command as UIKit would on the key.
 @MainActor @Suite struct EditorViewTests {
+  @Test func readingRejectsLateMarkedInputAndDoneCommitsCompositionWithHistoryIntact() throws {
+    let (view, model) = try editing(LexicalJSON.paragraph([LexicalJSON.text("hello")]))
+    select(view, 0, 5)
+    view.setEditingEnabled(false)
+    view.setMarkedText("late input", selectedRange: NSRange(location: 10, length: 0))
+    #expect(view.markedTextRange == nil)
+    #expect(view.text(in: view.textRange(from: view.beginningOfDocument, to: view.endOfDocument)!) == "hello")
+    view.setEditingEnabled(true)
+    view.setMarkedText("日本語", selectedRange: NSRange(location: 3, length: 0))
+    view.setEditingEnabled(false)
+    #expect(view.markedTextRange == nil)
+    #expect(try model.node(at: [0, 0])["text"] == "日本語")
+    view.setEditingEnabled(true)
+    view.undoManager?.undo()
+    #expect(try model.node(at: [0, 0])["text"] == "hello")
+    view.undoManager?.redo()
+    #expect(try model.node(at: [0, 0])["text"] == "日本語")
+  }
+
   @Test func fontSizeShortcutUsesTheWebStep() throws {
     let (view, model) = try editing(LexicalJSON.paragraph([LexicalJSON.text("hello")]))
     select(view, 0, 5)
@@ -126,8 +145,10 @@ import UIKit
     func buttons(in view: UIView) -> [UIButton] {
       (view as? UIButton).map { [$0] } ?? view.subviews.flatMap { buttons(in: $0) }
     }
-    let bold = try #require(buttons(in: bar).first { $0.accessibilityLabel == "Bold" })
-    bold.sendActions(for: .touchUpInside)
+    let format = try #require(buttons(in: bar).first { $0.accessibilityLabel == "Format" })
+    let styles = try #require(format.menu?.children.first as? UIMenu)
+    let bold = try #require(styles.children.compactMap { $0 as? UIAction }.first { $0.title == "Bold" })
+    format.sendAction(bold)
     let paragraph = try model.node(at: [0])
     let nodes = try #require(paragraph["children"]?.arrayValue)
     #expect(nodes.map { $0["text"]?.stringValue } == ["hello", " world"])
