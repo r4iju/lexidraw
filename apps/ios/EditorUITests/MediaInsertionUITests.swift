@@ -19,9 +19,7 @@ import XCTest
     let photos = app.buttons["Choose from Photos…"]
     XCTAssertTrue(photos.waitForExistence(timeout: 3))
     photos.tap()
-    let firstPhoto = app.images.matching(identifier: "PXGGridLayout-Info").firstMatch
-    XCTAssertTrue(firstPhoto.waitForExistence(timeout: 10), "Seed a disposable picture in this simulator before running the photo-selection gate")
-    firstPhoto.tap()
+    selectFirstAsset(in: app, kind: "Photo")
     let add = app.buttons["Add"]
     if add.waitForExistence(timeout: 2) { add.tap() }
     XCTAssertTrue(editor.waitForExistence(timeout: 10))
@@ -53,9 +51,7 @@ import XCTest
     let photos = app.buttons["Inline image from Photos…"]
     XCTAssertTrue(photos.waitForExistence(timeout: 3))
     photos.tap()
-    let firstPhoto = app.images.matching(identifier: "PXGGridLayout-Info").firstMatch
-    XCTAssertTrue(firstPhoto.waitForExistence(timeout: 10), "Seed a disposable picture in this simulator before running the photo-selection gate")
-    firstPhoto.tap()
+    selectFirstAsset(in: app, kind: "Photo")
     let add = app.buttons["Add"]
     if add.waitForExistence(timeout: 2) { add.tap() }
     XCTAssertTrue(editor.waitForExistence(timeout: 10))
@@ -97,9 +93,7 @@ import XCTest
     let video = app.buttons["Video from Photos…"]
     XCTAssertTrue(video.waitForExistence(timeout: 3))
     video.tap()
-    let asset = app.images.matching(identifier: "PXGGridLayout-Info").firstMatch
-    XCTAssertTrue(asset.waitForExistence(timeout: 10))
-    asset.tap()
+    selectFirstAsset(in: app, kind: "Video")
     let add = app.buttons["Add"]
     if add.waitForExistence(timeout: 2) { add.tap() }
     XCTAssertTrue(editor.waitForExistence(timeout: 20))
@@ -117,6 +111,29 @@ import XCTest
       pending += node["children"]?.arrayValue ?? []
     }
     XCTAssertEqual(inserted?["src"], "https://example.com/disposable-picked.mp4")
+  }
+
+  private func selectFirstAsset(in app: XCUIApplication, kind: String) {
+    let photos = app.scrollViews["photosView_content_scroll_view"]
+    XCTAssertTrue(photos.waitForExistence(timeout: 10), "The system Photos picker must be presented")
+    let asset = photos.images.matching(NSPredicate(
+      format: "identifier == %@ AND label BEGINSWITH %@", "PXGGridLayout-Info", "\(kind),"
+    )).firstMatch
+    XCTAssertTrue(asset.waitForExistence(timeout: 10), "Import the disposable \(kind) fixture before running this gate")
+    if asset.isHittable {
+      asset.tap()
+    } else {
+      // The iOS 26 picker can expose thumbnail information as noninteractive image nodes.
+      // Tap its measured center through the actual, hittable Photos scroll view.
+      XCTAssertTrue(photos.isHittable)
+      let frame = asset.frame
+      XCTAssertGreaterThan(frame.width, 0)
+      XCTAssertGreaterThan(frame.height, 0)
+      XCTAssertTrue(photos.frame.contains(frame))
+      photos.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(
+        dx: frame.midX - photos.frame.minX, dy: frame.midY - photos.frame.minY
+      )).tap()
+    }
   }
 
 }
