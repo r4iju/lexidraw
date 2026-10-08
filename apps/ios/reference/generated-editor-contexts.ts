@@ -1,3 +1,61 @@
 // Generated from actual mounted plugin sources.
-export const editorContexts = {"stickyCaption":["PlainTextPlugin"],"imageCaption":["MentionsPlugin","LinkPlugin","EmojisPlugin","HashtagPlugin","KeywordsPlugin","HistoryPlugin","TreeViewPlugin"],"inlineImageCaption":["MentionsPlugin","LinkPlugin","EmojisPlugin","HashtagPlugin","KeywordsPlugin","HistoryPlugin","TreeViewPlugin"],"videoCaption":["MentionsPlugin","LinkPlugin","EmojisPlugin","HashtagPlugin","KeywordsPlugin","HistoryPlugin","TreeViewPlugin"]};
-export const editorRegistries = {"imageCaption":["artificial","emoji","hashtag","keyword","linebreak","link","mention","paragraph","root","tab","text"],"inlineImageCaption":["artificial","emoji","hashtag","keyword","linebreak","link","mention","paragraph","root","tab","text"],"videoCaption":null,"stickyCaption":null};
+export const editorContexts = {
+  stickyCaption: ["PlainTextPlugin"],
+  imageCaption: [
+    "MentionsPlugin",
+    "LinkPlugin",
+    "EmojisPlugin",
+    "HashtagPlugin",
+    "KeywordsPlugin",
+    "HistoryPlugin",
+    "TreeViewPlugin",
+  ],
+  inlineImageCaption: [
+    "MentionsPlugin",
+    "LinkPlugin",
+    "EmojisPlugin",
+    "HashtagPlugin",
+    "KeywordsPlugin",
+    "HistoryPlugin",
+    "TreeViewPlugin",
+  ],
+  videoCaption: [
+    "MentionsPlugin",
+    "LinkPlugin",
+    "EmojisPlugin",
+    "HashtagPlugin",
+    "KeywordsPlugin",
+    "HistoryPlugin",
+    "TreeViewPlugin",
+  ],
+};
+export const editorRegistries = {
+  imageCaption: [
+    "artificial",
+    "emoji",
+    "hashtag",
+    "keyword",
+    "linebreak",
+    "link",
+    "mention",
+    "paragraph",
+    "root",
+    "tab",
+    "text",
+  ],
+  inlineImageCaption: [
+    "artificial",
+    "emoji",
+    "hashtag",
+    "keyword",
+    "linebreak",
+    "link",
+    "mention",
+    "paragraph",
+    "root",
+    "tab",
+    "text",
+  ],
+  videoCaption: null,
+  stickyCaption: null,
+};

@@ -34,7 +34,14 @@ export function useMemo<T>(create: () => T, _dependencies: unknown[]): T {
   if (!registering) throw new Error("Memo outside plugin registration");
   return create();
 }
-export function useLexicalTextEntity(...args: Parameters<typeof registerLexicalTextEntity> extends [LexicalEditor, ...infer Rest] ? Rest : never) {
+export function useLexicalTextEntity(
+  ...args: Parameters<typeof registerLexicalTextEntity> extends [
+    LexicalEditor,
+    ...infer Rest,
+  ]
+    ? Rest
+    : never
+) {
   if (!registering) throw new Error("Text entity outside plugin registration");
   registerLexicalTextEntity(registering, ...args);
 }

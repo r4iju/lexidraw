@@ -2,7 +2,12 @@ import postcss from "postcss";
 import { ThemeColors, swiftRGBA } from "./typography";
 import { createHeadlessEditor } from "@lexical/headless";
 import emojiList from "../../../packages/lexical-nodes/src/emoji-list";
-import { ArticleNode, PollNode, CommentNode, ThreadNode } from "@packages/lexical-nodes";
+import {
+  ArticleNode,
+  PollNode,
+  CommentNode,
+  ThreadNode,
+} from "@packages/lexical-nodes";
 import { CommentStore } from "../../lexidraw/src/app/documents/[documentId]/commenting";
 import { swiftString } from "./swift";
 
@@ -27,14 +32,19 @@ export async function swiftForPollStyle(): Promise<string> {
   const minimum = source.match(/disabled=\{options\.length < (\d+)\}/);
   if (widths.length !== 1 || !minimum?.[1])
     throw new Error("Unknown poll card width or minimum-options shape");
-  const cardBackgrounds = [...source.matchAll(/"border border-border bg-([\w-]+) /g)];
+  const cardBackgrounds = [
+    ...source.matchAll(/"border border-border bg-([\w-]+) /g),
+  ];
   if (cardBackgrounds.length !== 1 || !cardBackgrounds[0]?.[1])
     throw new Error("Unknown poll card background shape");
-  const globals = await Bun.file(new URL("../../lexidraw/src/styles/globals.css", import.meta.url)).text();
+  const globals = await Bun.file(
+    new URL("../../lexidraw/src/styles/globals.css", import.meta.url),
+  ).text();
   const colors = new ThemeColors(postcss.parse(globals));
   colors.name(`var(--${cardBackgrounds[0][1]})`);
   const [, light, dark] = colors.used[0] ?? [];
-  if (!light || !dark) throw new Error("The poll card's background has no theme colour");
+  if (!light || !dark)
+    throw new Error("The poll card's background has no theme colour");
   const plugin = await Bun.file(
     new URL(
       "../../lexidraw/src/app/documents/[documentId]/plugins/PollPlugin/index.tsx",
@@ -109,41 +119,84 @@ export async function swiftForSocialStyle(): Promise<string> {
     !source.includes("dom.style.cssText = mentionStyle;")
   )
     throw new Error("Unknown mention DOM style shape");
-  const theme = await Bun.file(new URL("../../lexidraw/src/app/documents/[documentId]/themes/theme.ts", import.meta.url)).text();
+  const theme = await Bun.file(
+    new URL(
+      "../../lexidraw/src/app/documents/[documentId]/themes/theme.ts",
+      import.meta.url,
+    ),
+  ).text();
   const mark = /mark:\s*"([^"]+)"/.exec(theme)?.[1] ?? "";
   const borderWidth = /(?:^| )border-b-(\d+)(?: |$)/.exec(mark)?.[1];
-  if (!borderWidth || !mark.includes("bg-comment-mark") || !mark.includes("data-[comment=active]:bg-comment-mark-active")
-    || !mark.includes("data-[comment=resolved]:bg-transparent") || !mark.includes("data-[comment=resolved]:border-transparent"))
+  if (
+    !borderWidth ||
+    !mark.includes("bg-comment-mark") ||
+    !mark.includes("data-[comment=active]:bg-comment-mark-active") ||
+    !mark.includes("data-[comment=resolved]:bg-transparent") ||
+    !mark.includes("data-[comment=resolved]:border-transparent")
+  )
     throw new Error("Unknown effective comment mark theme shape");
-  const globals = await Bun.file(new URL("../../lexidraw/src/styles/globals.css", import.meta.url)).text();
+  const globals = await Bun.file(
+    new URL("../../lexidraw/src/styles/globals.css", import.meta.url),
+  ).text();
   const colors = new ThemeColors(postcss.parse(globals));
-  for (const name of ["comment-mark", "comment-border", "comment-mark-active"]) colors.name(`var(--${name})`);
+  for (const name of ["comment-mark", "comment-border", "comment-mark-active"])
+    colors.name(`var(--${name})`);
   const entities = await entityTextStyles(theme, colors);
-  const generatedColors = colors.used.map(([name, light, dark]) =>
-    `  static let ${name} = ThemeColor(light: ${swiftRGBA(light)}, dark: ${swiftRGBA(dark)})`).join("\n");
+  const generatedColors = colors.used
+    .map(
+      ([name, light, dark]) =>
+        `  static let ${name} = ThemeColor(light: ${swiftRGBA(light)}, dark: ${swiftRGBA(dark)})`,
+    )
+    .join("\n");
   return `// Generated from web MentionNode.createDOM and the comment, hashtag and keyword theme by apps/ios/codegen/social.ts.\n\nenum WebSocialStyle {\n  static let mentionCSS = ${swiftString(styles[0][1])}\n${generatedColors}\n  static let commentBorderWidth: Double = ${Number(borderWidth)}\n  static let entityText: [String: EntityTextStyle] = [\n${entities.map(([type, color, weight]) => `    ${swiftString(type)}: EntityTextStyle(color: WebSocialStyle${color}, weight: ${weight ?? "nil"}),`).join("\n")}\n  ]\n}\n`;
 }
 
-const FONT_WEIGHTS: Record<string, number> = { "font-medium": 500, "font-semibold": 600, "font-bold": 700 };
+const FONT_WEIGHTS: Record<string, number> = {
+  "font-medium": 500,
+  "font-semibold": 600,
+  "font-bold": 700,
+};
 
 /**
  * The colour and weight the document theme gives the text entities whose
  * createDOM reads a theme key: HashtagNode's `theme.hashtag` upstream, and
  * KeywordNode's `theme.keyword`.
  */
-async function entityTextStyles(theme: string, colors: ThemeColors): Promise<[string, string, number | null][]> {
-  const hashtag = await Bun.file(Bun.resolveSync("@lexical/hashtag", import.meta.dir).replace(/LexicalHashtag\.js$/, "LexicalHashtag.dev.js")).text();
-  const keyword = await Bun.file(new URL("../../../packages/lexical-nodes/src/nodes/KeywordNode.ts", import.meta.url)).text();
-  if (!hashtag.includes("addClassNamesToElement(element, config.theme.hashtag)")
-    || !keyword.includes('addClassNamesToElement(dom, "keyword", config.theme.keyword)'))
+async function entityTextStyles(
+  theme: string,
+  colors: ThemeColors,
+): Promise<[string, string, number | null][]> {
+  const hashtag = await Bun.file(
+    Bun.resolveSync("@lexical/hashtag", import.meta.dir).replace(
+      /LexicalHashtag\.js$/,
+      "LexicalHashtag.dev.js",
+    ),
+  ).text();
+  const keyword = await Bun.file(
+    new URL(
+      "../../../packages/lexical-nodes/src/nodes/KeywordNode.ts",
+      import.meta.url,
+    ),
+  ).text();
+  if (
+    !hashtag.includes(
+      "addClassNamesToElement(element, config.theme.hashtag)",
+    ) ||
+    !keyword.includes(
+      'addClassNamesToElement(dom, "keyword", config.theme.keyword)',
+    )
+  )
     throw new Error("Unknown hashtag or keyword theme class shape");
   return ["hashtag", "keyword"].map((type) => {
-    const classes = new RegExp(`^  ${type}: "([^"]+)",$`, "m").exec(theme)?.[1]?.split(" ") ?? [];
+    const classes =
+      new RegExp(`^  ${type}: "([^"]+)",$`, "m").exec(theme)?.[1]?.split(" ") ??
+      [];
     let color: string | undefined;
     let weight: number | null = null;
     for (const name of classes) {
       if (name in FONT_WEIGHTS) weight = FONT_WEIGHTS[name] ?? null;
-      else if (name.startsWith("text-") && colors.has(`--${name.slice(5)}`)) color = colors.name(`var(--${name.slice(5)})`);
+      else if (name.startsWith("text-") && colors.has(`--${name.slice(5)}`))
+        color = colors.name(`var(--${name.slice(5)})`);
       else throw new Error(`Unknown ${type} theme class ${name}`);
     }
     if (!color) throw new Error(`The theme gives ${type} no colour`);
@@ -151,13 +204,26 @@ async function entityTextStyles(theme: string, colors: ThemeColors): Promise<[st
   });
 }
 
-export const FOOTNOTE_STYLE_PATH = new URL("../Sources/TextKitEditor/WebFootnoteStyle.swift", import.meta.url);
+export const FOOTNOTE_STYLE_PATH = new URL(
+  "../Sources/TextKitEditor/WebFootnoteStyle.swift",
+  import.meta.url,
+);
 export async function swiftForFootnoteStyle(): Promise<string> {
-  const css = await Bun.file(new URL("../../lexidraw/src/styles/document.css", import.meta.url)).text();
-  const block = /\.document-content > \.footnote \{([^}]+)\}/.exec(css)?.[1] ?? "";
-  const section = /\.document-content > :not\(\.footnote\) \+ \.footnote \{([^}]+)\}/.exec(css)?.[1] ?? "";
-  const header = /\.document-content > :not\(\.footnote\) \+ \.footnote::before \{([^}]+)\}/.exec(css)?.[1] ?? "";
-  const reference = /\.document-content sup\.footnote-ref \{([^}]+)\}/.exec(css)?.[1] ?? "";
+  const css = await Bun.file(
+    new URL("../../lexidraw/src/styles/document.css", import.meta.url),
+  ).text();
+  const block =
+    /\.document-content > \.footnote \{([^}]+)\}/.exec(css)?.[1] ?? "";
+  const section =
+    /\.document-content > :not\(\.footnote\) \+ \.footnote \{([^}]+)\}/.exec(
+      css,
+    )?.[1] ?? "";
+  const header =
+    /\.document-content > :not\(\.footnote\) \+ \.footnote::before \{([^}]+)\}/.exec(
+      css,
+    )?.[1] ?? "";
+  const reference =
+    /\.document-content sup\.footnote-ref \{([^}]+)\}/.exec(css)?.[1] ?? "";
   const values = {
     sectionMargin: /margin-block-start:\s*([\d.]+)em/.exec(section)?.[1],
     sectionPadding: /padding-block-start:\s*([\d.]+)em/.exec(section)?.[1],
@@ -166,57 +232,127 @@ export async function swiftForFootnoteStyle(): Promise<string> {
     headerTop: /inset-block-start:\s*([\d.]+)em/.exec(header)?.[1],
     headerFontScale: /font-size:\s*([\d.]+)rem/.exec(header)?.[1],
     definitionAfter: /margin-block:\s*0\s+([\d.]+)em/.exec(block)?.[1],
-    followingMargin: /\.document-content > \.footnote \+ :not\(\.footnote\) \{[^}]*margin-block-start:\s*([\d.]+)em/.exec(css)?.[1],
+    followingMargin:
+      /\.document-content > \.footnote \+ :not\(\.footnote\) \{[^}]*margin-block-start:\s*([\d.]+)em/.exec(
+        css,
+      )?.[1],
     definitionFontScale: /font-size:\s*([\d.]+)em/.exec(block)?.[1],
     definitionLineHeight: /line-height:\s*([\d.]+)/.exec(block)?.[1],
     definitionIndent: /padding-inline-start:\s*([\d.]+)em/.exec(block)?.[1],
     referenceFontScale: /font-size:\s*([\d.]+)em/.exec(reference)?.[1],
-    referenceWeight: /\.footnote-ref-link \{[^}]*font-weight:\s*(\d+)/.exec(css)?.[1],
-    backrefMargin: /\.footnote-backref \{[^}]*margin-inline-start:\s*([\d.]+)em/.exec(css)?.[1],
+    referenceWeight: /\.footnote-ref-link \{[^}]*font-weight:\s*(\d+)/.exec(
+      css,
+    )?.[1],
+    backrefMargin:
+      /\.footnote-backref \{[^}]*margin-inline-start:\s*([\d.]+)em/.exec(
+        css,
+      )?.[1],
   };
   const heading = /content:\s*"([^"]+)"/.exec(header)?.[1];
   const titles = new Map<string, string>([["", heading ?? ""]]);
-  for (const match of css.matchAll(/\.document-content:lang\(([^)]+)\) > :not\(\.footnote\) \+ \.footnote::before \{\s*content:\s*"([^"]+)";/g)) {
+  for (const match of css.matchAll(
+    /\.document-content:lang\(([^)]+)\) > :not\(\.footnote\) \+ \.footnote::before \{\s*content:\s*"([^"]+)";/g,
+  )) {
     if (match[1] && match[2]) titles.set(match[1], match[2]);
   }
-  if (!heading || Object.values(values).some(value => value === undefined)) throw new Error("Unknown footnote CSS shape");
-  return `// Generated from document.css by apps/ios/codegen/social.ts.\n\nenum WebFootnoteStyle {\n${Object.entries(values).map(([key,value])=>`  static let ${key}: Double = ${value}`).join("\n")}\n  static let titles: [String: String] = [${[...titles].map(([key, value]) => `${swiftString(key)}: ${swiftString(value)}`).join(", ")}]\n}\n`;
+  if (!heading || Object.values(values).some((value) => value === undefined))
+    throw new Error("Unknown footnote CSS shape");
+  return `// Generated from document.css by apps/ios/codegen/social.ts.\n\nenum WebFootnoteStyle {\n${Object.entries(
+    values,
+  )
+    .map(([key, value]) => `  static let ${key}: Double = ${value}`)
+    .join(
+      "\n",
+    )}\n  static let titles: [String: String] = [${[...titles].map(([key, value]) => `${swiftString(key)}: ${swiftString(value)}`).join(", ")}]\n}\n`;
 }
 
-export const COMMENT_DATA_PATH = new URL("../Sources/TextKitEditor/WebCommentData.swift", import.meta.url);
+export const COMMENT_DATA_PATH = new URL(
+  "../Sources/TextKitEditor/WebCommentData.swift",
+  import.meta.url,
+);
 export async function swiftForCommentData(): Promise<string> {
-  const plugin = await Bun.file(new URL("../../lexidraw/src/app/documents/[documentId]/plugins/CommentPlugin/index.tsx", import.meta.url)).text();
+  const plugin = await Bun.file(
+    new URL(
+      "../../lexidraw/src/app/documents/[documentId]/plugins/CommentPlugin/index.tsx",
+      import.meta.url,
+    ),
+  ).text();
   const limit = /quote\.length\s*>\s*(\d+)/.exec(plugin)?.[1];
   const truncation = /\$\{quote\.slice\(0,\s*(\d+)\)\}([^`]*)/.exec(plugin);
-  if (!limit || !truncation?.[1] || truncation[2] === undefined || Number(truncation[1]) >= Number(limit))
+  if (
+    !limit ||
+    !truncation?.[1] ||
+    truncation[2] === undefined ||
+    Number(truncation[1]) >= Number(limit)
+  )
     throw new Error("Unknown comment quote truncation shape");
   const comment = CommentStore.createComment("", "", "", 0);
   const thread = CommentStore.createThread("", [], "");
-  let commentJSON = "", threadJSON = "";
-  const editor = createHeadlessEditor({ nodes: [CommentNode, ThreadNode], onError(error) { throw error; } });
-  editor.update(() => {
-    commentJSON = JSON.stringify(new CommentNode(comment).exportJSON());
-    threadJSON = JSON.stringify(new ThreadNode(thread).exportJSON());
-  }, { discrete: true });
+  let commentJSON = "",
+    threadJSON = "";
+  const editor = createHeadlessEditor({
+    nodes: [CommentNode, ThreadNode],
+    onError(error) {
+      throw error;
+    },
+  });
+  editor.update(
+    () => {
+      commentJSON = JSON.stringify(new CommentNode(comment).exportJSON());
+      threadJSON = JSON.stringify(new ThreadNode(thread).exportJSON());
+    },
+    { discrete: true },
+  );
   return `// Generated from web CommentStore and marker constructors by apps/ios/codegen/social.ts.\n\nenum WebCommentData {\n  static let quoteLimit = ${Number(limit)}\n  static let quotePrefix = ${Number(truncation[1])}\n  static let quoteEllipsis = ${swiftString(truncation[2])}\n  static let emptyCommentJSON = ${swiftString(JSON.stringify(comment))}\n  static let emptyCommentNodeJSON = ${swiftString(commentJSON)}\n  static let emptyThreadNodeJSON = ${swiftString(threadJSON)}\n}\n`;
 }
 
-export const ARTICLE_DATA_PATH = new URL("../Sources/LexidrawKit/WebArticleData.swift", import.meta.url);
+export const ARTICLE_DATA_PATH = new URL(
+  "../Sources/LexidrawKit/WebArticleData.swift",
+  import.meta.url,
+);
 export async function swiftForArticleData(): Promise<string> {
-  const source = await Bun.file(new URL("../../lexidraw/src/app/documents/[documentId]/nodes/ArticleNode/ArticleBlock.tsx", import.meta.url)).text();
+  const source = await Bun.file(
+    new URL(
+      "../../lexidraw/src/app/documents/[documentId]/nodes/ArticleNode/ArticleBlock.tsx",
+      import.meta.url,
+    ),
+  ).text();
   const route = source.match(/href=\{`([^$`]+)\$\{data\.entityId\}/)?.[1];
   if (!route) throw new Error("Unknown article route shape");
   let json = "";
-  const editor = createHeadlessEditor({ nodes: [ArticleNode], onError(error) { throw error; } });
-  editor.update(() => { json = JSON.stringify(new ArticleNode().exportJSON()); }, { discrete: true });
+  const editor = createHeadlessEditor({
+    nodes: [ArticleNode],
+    onError(error) {
+      throw error;
+    },
+  });
+  editor.update(
+    () => {
+      json = JSON.stringify(new ArticleNode().exportJSON());
+    },
+    { discrete: true },
+  );
   return `// Generated from the web ArticleNode constructor.\npublic enum WebArticleData {\n  public static let routePrefix = ${swiftString(route)}\n  public static let insertionNodeJSON = ${swiftString(json)}\n}\n`;
 }
 
-export const ARTICLE_TEXT_PATH = new URL("../Sources/LexicalSwift/WebArticlePlainText.swift", import.meta.url);
+export const ARTICLE_TEXT_PATH = new URL(
+  "../Sources/LexicalSwift/WebArticlePlainText.swift",
+  import.meta.url,
+);
 export async function swiftForArticlePlainText(): Promise<string> {
-  const source = await Bun.file(new URL("../../../packages/lexical-nodes/src/html-to-text.ts", import.meta.url)).text();
-  const matches = [...source.matchAll(/\.replace\((\/(?:[^\/\n]|\\.)+\/[a-z]*),\s*("(?:[^"\\]|\\.)*")\)/g)];
-  if (matches.length !== 7 || !source.includes(".trim()")) throw new Error("Unknown article plain-text converter shape");
+  const source = await Bun.file(
+    new URL(
+      "../../../packages/lexical-nodes/src/html-to-text.ts",
+      import.meta.url,
+    ),
+  ).text();
+  const matches = [
+    ...source.matchAll(
+      /\.replace\((\/(?:[^\/\n]|\\.)+\/[a-z]*),\s*("(?:[^"\\]|\\.)*")\)/g,
+    ),
+  ];
+  if (matches.length !== 7 || !source.includes(".trim()"))
+    throw new Error("Unknown article plain-text converter shape");
   const rules = matches.map(([, expression, replacement]) => {
     const regex = Function(`return (${expression})`)() as RegExp;
     return `    (JSRegExp(${swiftString(regex.source)}, flags: ${swiftString(regex.flags)}), ${swiftString(JSON.parse(replacement!))}),`;

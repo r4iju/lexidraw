@@ -227,7 +227,9 @@ export async function checkMotion(page: Page, fixtureId: string) {
           const runs: { property: string; ms: number }[] = [];
           (window as unknown as { runs: typeof runs }).runs = runs;
           document.addEventListener("transitionrun", (event) => {
-            if (!(event.target as Element).closest("[data-poll] [data-poll-bar]"))
+            if (
+              !(event.target as Element).closest("[data-poll] [data-poll-bar]")
+            )
               return;
             const style = getComputedStyle(event.target as Element);
             const index = style.transitionProperty

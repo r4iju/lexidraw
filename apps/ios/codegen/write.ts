@@ -21,10 +21,14 @@ import {
 import { SERIALIZED_NODES_PATH, swiftForNodeSchema } from "./swift";
 import { SHORTCUTS_PATH, swiftForShortcuts } from "./shortcuts";
 import {
-  ARTICLE_TEXT_PATH, swiftForArticlePlainText,
-  ARTICLE_DATA_PATH, swiftForArticleData,
-  FOOTNOTE_STYLE_PATH, swiftForFootnoteStyle,
-  COMMENT_DATA_PATH, swiftForCommentData,
+  ARTICLE_TEXT_PATH,
+  swiftForArticlePlainText,
+  ARTICLE_DATA_PATH,
+  swiftForArticleData,
+  FOOTNOTE_STYLE_PATH,
+  swiftForFootnoteStyle,
+  COMMENT_DATA_PATH,
+  swiftForCommentData,
   EMOJI_ALIASES_PATH,
   SOCIAL_STYLE_PATH,
   swiftForSocialStyle,
@@ -104,22 +108,6 @@ await Bun.write(
   referenceClearFormatting(),
 );
 
-const { fileURLToPath } = await import("node:url");
-const formatting = Bun.spawn({
-  cmd: [
-    process.execPath,
-    "x",
-    "@biomejs/biome",
-    "format",
-    "--write",
-    fileURLToPath(new URL("../reference/font-sizing.ts", import.meta.url)),
-    fileURLToPath(new URL("../reference/clear-formatting.ts", import.meta.url)),
-  ],
-  stdout: "ignore",
-  stderr: "inherit",
-});
-if ((await formatting.exited) !== 0)
-  throw new Error("Reference helper formatting failed");
 const { MEDIA_LINKS_PATH, swiftForMediaLinks } = await import("./media");
 await Bun.write(MEDIA_LINKS_PATH, swiftForMediaLinks());
 const { MEDIA_STYLE_PATH, swiftForMediaStyle } = await import("./media");
@@ -154,14 +142,25 @@ await Bun.write(ARTICLE_DATA_PATH, await swiftForArticleData());
 
 await Bun.write(ARTICLE_TEXT_PATH, await swiftForArticlePlainText());
 
-const { CONTEXTS_PATH, swiftForEditorContexts } = await import("./editor-contexts");
+const { CONTEXTS_PATH, swiftForEditorContexts } = await import(
+  "./editor-contexts"
+);
 await Bun.write(CONTEXTS_PATH, await swiftForEditorContexts());
-const { TEXT_ENTITIES_PATH, swiftForTextEntities } = await import("./text-entities");
+const { TEXT_ENTITIES_PATH, swiftForTextEntities } = await import(
+  "./text-entities"
+);
 await Bun.write(TEXT_ENTITIES_PATH, await swiftForTextEntities());
-const { webEditorContexts, webEditorRegistries } = await import("./editor-contexts");
-await Bun.write(new URL("../reference/generated-editor-contexts.ts", import.meta.url), `// Generated from actual mounted plugin sources.\nexport const editorContexts = ${JSON.stringify(await webEditorContexts())};\nexport const editorRegistries = ${JSON.stringify(await webEditorRegistries())};\n`);
+const { webEditorContexts, webEditorRegistries } = await import(
+  "./editor-contexts"
+);
+await Bun.write(
+  new URL("../reference/generated-editor-contexts.ts", import.meta.url),
+  `// Generated from actual mounted plugin sources.\nexport const editorContexts = ${JSON.stringify(await webEditorContexts())};\nexport const editorRegistries = ${JSON.stringify(await webEditorRegistries())};\n`,
+);
 
-const { EMOJI_PICKER_PATH, swiftForEmojiPicker } = await import("./emoji-picker");
+const { EMOJI_PICKER_PATH, swiftForEmojiPicker } = await import(
+  "./emoji-picker"
+);
 await Bun.write(EMOJI_PICKER_PATH, await swiftForEmojiPicker());
 const { MENTIONS_PATH, swiftForMentions } = await import("./mentions");
 await Bun.write(MENTIONS_PATH, await swiftForMentions());
@@ -172,5 +171,31 @@ const {
   DOCUMENT_HEADER_SCRIPT_PATH,
   swiftForDocumentHeaderScript,
 } = await import("./document-header");
-await Bun.write(DOCUMENT_HEADER_STYLE_PATH, await swiftForDocumentHeaderStyle());
-await Bun.write(DOCUMENT_HEADER_SCRIPT_PATH, await swiftForDocumentHeaderScript());
+await Bun.write(
+  DOCUMENT_HEADER_STYLE_PATH,
+  await swiftForDocumentHeaderStyle(),
+);
+await Bun.write(
+  DOCUMENT_HEADER_SCRIPT_PATH,
+  await swiftForDocumentHeaderScript(),
+);
+
+const { fileURLToPath } = await import("node:url");
+const formatting = Bun.spawn({
+  cmd: [
+    process.execPath,
+    "x",
+    "@biomejs/biome",
+    "format",
+    "--write",
+    fileURLToPath(new URL("../reference/font-sizing.ts", import.meta.url)),
+    fileURLToPath(new URL("../reference/clear-formatting.ts", import.meta.url)),
+    fileURLToPath(
+      new URL("../reference/generated-editor-contexts.ts", import.meta.url),
+    ),
+  ],
+  stdout: "ignore",
+  stderr: "inherit",
+});
+if ((await formatting.exited) !== 0)
+  throw new Error("Reference helper formatting failed");

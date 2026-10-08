@@ -95,7 +95,11 @@ function pickLargestTextContainer(document: Document): Element | null {
   return best?.el ?? null;
 }
 
-export function sanitizeArticleContent(contentHtml: string, baseUrl: string, eagerImages = false): string {
+export function sanitizeArticleContent(
+  contentHtml: string,
+  baseUrl: string,
+  eagerImages = false,
+): string {
   const options: IOptions = {
     allowedTags: [
       "article",
@@ -691,7 +695,10 @@ export async function extractAndSanitizeArticle({
               cls ? `.${cls.split(/\s+/).slice(0, 2).join(".")}` : ""
             }`;
           })();
-          const fallbackSanitized = sanitizeArticleContent(container.innerHTML, url);
+          const fallbackSanitized = sanitizeArticleContent(
+            container.innerHTML,
+            url,
+          );
           const fallbackCount = computeWordCount(fallbackSanitized);
           if (
             fallbackSanitized.length > selectedContentHtml.length ||

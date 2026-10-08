@@ -4,7 +4,9 @@ import type { Resolve } from "@packages/lib/public-address";
 import type { Hop } from "~/server/net/public-fetch";
 
 mock.module("server-only", () => ({}));
-const { extractAndSanitizeArticle, sanitizeArticleContent } = await import("./article");
+const { extractAndSanitizeArticle, sanitizeArticleContent } = await import(
+  "./article"
+);
 
 const resolve: Resolve = async (host) => [
   {
@@ -31,7 +33,11 @@ const short = (head: string) =>
   `<html><head>${head}</head><body><p>Subscribe.</p></body></html>`;
 
 test("native article body sanitizes active HTML and loads the full page's images", () => {
-  const html = sanitizeArticleContent('<h2>Heading</h2><p onclick="steal()">Body<script>steal()</script></p><img src="/image.png" loading="lazy"><a href="/other">Other</a>', "https://example.test/article", true);
+  const html = sanitizeArticleContent(
+    '<h2>Heading</h2><p onclick="steal()">Body<script>steal()</script></p><img src="/image.png" loading="lazy"><a href="/other">Other</a>',
+    "https://example.test/article",
+    true,
+  );
   expect(html).toContain("<h2>Heading</h2>");
   expect(html).not.toContain("steal");
   expect(html).toContain('src="https://example.test/image.png"');
