@@ -95,6 +95,25 @@ actor HarnessServer: ClientTransport {
       let types = query.filter { $0.name == "entityTypes" }.compactMap(\.value)
       let tags = query.filter { $0.name == "tagNames" }.compactMap(\.value)
       answer = items.filter { !$0.deleted && $0.parent == parent && (types.isEmpty || types.contains($0.type)) && tags.allSatisfy($0.tags.contains) }.map(listed)
+    case "entities-search":
+      let text = query.first { $0.name == "query" }?.value ?? ""
+      if scenario == "search-retry" {
+        try await Task.sleep(for: .seconds(4))
+        if !failures.contains(operationID) {
+          failures.insert(operationID)
+          return try response(["message": "Connection interrupted. Please try again.", "code": "INTERNAL_SERVER_ERROR"], status: .internalServerError)
+        }
+      }
+      if scenario == "search-obsolete", text == "Projects" {
+        // This external transport deliberately finishes despite cancellation.
+        await Task.detached { try? await Task.sleep(for: .seconds(10)) }.value
+      }
+      answer = items.filter { !$0.deleted && $0.title.localizedCaseInsensitiveContains(text) }.map { item in
+        let parent = items.first { $0.id == item.parent && !$0.deleted }
+        return ["id": item.id, "title": item.title, "entityType": item.type,
+          "updatedAt": Self.date, "screenShotLight": item.preview, "screenShotDark": item.preview,
+          "snippet": NSNull(), "parentId": parent?.id as Any? ?? NSNull(), "folderTitle": parent?.title as Any? ?? NSNull()]
+      }
     case "entities-getMetadata":
       guard let item = items.first(where: { $0.id == id && !$0.deleted }) else { return try missing() }
       answer = ["id": item.id, "title": item.title, "entityType": item.type, "publicAccess": "PRIVATE",

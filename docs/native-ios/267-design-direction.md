@@ -118,3 +118,39 @@ Verification and native screenshots for this slice are recorded in
 `/tmp/lexidraw-267/269-notes.md`. Dedicated Search, document interaction,
 sign-in/account redesign and the iPad navigation adaptation remain owned by
 subsequent tickets. No service/API/schema expansion accompanies this slice.
+
+## Dedicated title Search, #270
+
+Search now owns its query, response state and explicit navigation routes. The
+system Search tab and searchable field provide native keyboard behavior;
+iPad exposes the same destination in its sidebar without changing the existing
+folder tree. Idle invites finding a file and explains global accessible titles,
+with document contents excluded. Loading, failed/retry and no matching titles
+have distinct native presentations. Clear query stays in the content while
+native search hides the normal toolbar. Results reuse Library's file identity,
+then separate the location and a visible, full-height reveal action.
+
+A query change, clear, retry or shared mutation/foreground revision cancels the
+previous request and assigns a new generation. Success and failure both verify
+that generation and cancellation before publishing. Navigation routes also
+reject writes from departed stacks: NavigationSplitView can otherwise clear a
+retained route while replacing its detail. Folder destinations use folder IDs
+so revealing a different folder at the same depth cannot reuse its old contents.
+
+Opening a file or folder and switching destinations retains Search's query and
+results. Revealing an accessible folder selects Library, resets its root to
+Library/Home, clears tags and opens that folder with a route back to the root.
+The API conceals inaccessible parents and uses the same null location for root
+files. Those results honestly say “Library or Shared”; reveal resolves the
+accessible listing, using Shared when the containing folder is private, and
+shows recovery feedback if the location is unavailable. No private folder
+names or new service contract are assumed.
+
+Folder-local duplicate search has been removed. The stable Search tab or
+sidebar destination replaces it, retaining the browsing folder and filters
+while offering global titles. Folders opened inside Search return to their
+query through Back or the Search results breadcrumb. Keeping search in its
+own destination leaves Settings, tags and creation visible in folder toolbars.
+Listener, file actions, permissions and the shared revision stay at the browser
+boundary. Native evidence and red/green commands are in
+`/tmp/lexidraw-267/270-notes.md`.

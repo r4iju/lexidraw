@@ -26,7 +26,7 @@ final class IPhoneNavigationUITests: XCTestCase {
     app.buttons["Done"].tap()
     tabs.buttons["Search"].tap()
     XCTAssertTrue(app.navigationBars["Search"].waitForExistence(timeout: 5))
-    XCTAssertTrue(app.staticTexts["Search by title in Library"].exists)
+    XCTAssertTrue(app.staticTexts["Find a file"].exists)
     tabs.buttons["Library"].tap()
     XCTAssertTrue(app.staticTexts["Q3 notes"].waitForExistence(timeout: 5))
     app.navigationBars["Q3"].buttons["BackButton"].tap()
@@ -61,7 +61,7 @@ final class IPhoneNavigationUITests: XCTestCase {
     app.buttons["Done"].tap()
     app.tabBars.buttons["Search"].tap()
     XCTAssertTrue(app.buttons["Settings"].exists)
-    app.buttons["Go to Library"].tap()
+    app.tabBars.buttons["Library"].tap()
     XCTAssertTrue(app.staticTexts["Projects plan"].waitForExistence(timeout: 5))
   }
 }

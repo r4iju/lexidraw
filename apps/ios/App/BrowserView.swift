@@ -13,7 +13,7 @@ final class BrowserUpdates {
 @MainActor @Observable
 final class Browser {
   enum Section: Hashable {
-    case home, shared, trash
+    case home, shared, trash, search
   }
 
   /// A section, or a folder gone to directly. It is the sidebar's selection,
@@ -33,7 +33,12 @@ final class Browser {
     self.updates = updates
   }
 
-  var path: [Place.Folder] = []
+  enum Route: Hashable {
+    case folder(Place.Folder)
+    case searchFile(SearchResult)
+  }
+
+  var path: [Route] = []
   /// Kept while moving between folders, as the web keeps its query string.
   var tags: Set<String> = []
   /// Bumped to have every screen load again, as when the app comes back.
@@ -57,10 +62,14 @@ final class Browser {
   /// Back to `folder` when it is on the way here, keeping the way back to
   /// it, or straight to it when not.
   func back(to folder: Place.Folder) {
-    if let index = path.firstIndex(where: { $0.id == folder.id }) {
+    if let index = path.firstIndex(where: {
+      if case .folder(let place) = $0 { place.id == folder.id } else { false }
+    }) {
       path.removeSubrange((index + 1)...)
     } else if case .folder(let start) = root, start.id == folder.id {
       path = []
+    } else if root == .section(.search) {
+      path = [.folder(folder)]
     } else {
       open(folder)
     }
@@ -71,6 +80,7 @@ struct BrowserView: View {
   let session: Session
   @State private var browser: Browser
   @State private var sharedBrowser: Browser
+  @State private var search: FileSearch
   @State private var destination = Destination.library
   @State private var actions: FileActions
   @State private var listener: Listener
@@ -83,6 +93,7 @@ struct BrowserView: View {
     let updates = BrowserUpdates()
     let browser = Browser(updates: updates)
     _browser = State(initialValue: browser)
+    _search = State(initialValue: FileSearch(session: session, updates: updates))
     _sharedBrowser = State(initialValue: Browser(root: .section(.shared), updates: updates))
     _actions = State(initialValue: FileActions(session: session, browser: browser))
     _listener = State(initialValue: Listener(session: session))
@@ -94,9 +105,13 @@ struct BrowserView: View {
         phoneNavigation
       } else {
         NavigationSplitView(preferredCompactColumn: $column) {
-          Sidebar(session: session)
+          Sidebar(session: session, searching: searching)
         } detail: {
-          stack(for: browser)
+          if destination == .search {
+            searchStack
+          } else {
+            stack(for: browser)
+          }
         }
       }
     }
@@ -104,6 +119,7 @@ struct BrowserView: View {
     .nowPlayingBar(listener)
     .onDisappear { listener.stop() }
     .environment(browser)
+    .onChange(of: browser.reloads) { search.run() }
     .environment(actions)
     .environment(\.session, session)
     // Changes made on the web while the app was away show on return.
@@ -122,8 +138,17 @@ struct BrowserView: View {
     case library, shared, search
   }
 
+  private func select(_ destination: Destination) {
+    search.select(active: destination == .search)
+    self.destination = destination
+  }
+
+  private var searching: Binding<Bool> {
+    Binding { destination == .search } set: { select($0 ? .search : .library) }
+  }
+
   private var phoneNavigation: some View {
-    TabView(selection: $destination) {
+    TabView(selection: Binding(get: { destination }, set: select)) {
       Tab("Library", systemImage: "books.vertical", value: .library) {
         stack(for: browser)
       }
@@ -131,19 +156,43 @@ struct BrowserView: View {
         stack(for: sharedBrowser)
       }
       Tab("Search", systemImage: "magnifyingglass", value: .search, role: .search) {
-        NavigationStack {
-          ContentUnavailableView {
-            Label("Search by title in Library", systemImage: "magnifyingglass")
-          } description: {
-            Text("For now, use Search titles in Library or any folder to find files you can access across Lexidraw. Search matches titles, not document contents.")
-          } actions: {
-            Button("Go to Library") { destination = .library }
-              .buttonStyle(.borderedProminent)
+        searchStack
+      }
+    }
+  }
+
+  private var searchStack: some View {
+    SearchStack(session: session, search: search) { result in
+      if let folder = result.folder {
+        browser.tags = []
+        browser.show(.home)
+        browser.path = [.folder(folder)]
+        select(.library)
+      } else {
+        // The API conceals unreadable parents. Resolve the accessible listing
+        // instead of claiming every nil parent means the Library root.
+        let root = try await session.listing(of: nil)
+        if (root.files + root.folders).contains(where: { $0.id == result.id }) {
+          browser.tags = []
+          browser.show(.home)
+          select(.library)
+        } else {
+          let shared = try await session.sharedWithMe()
+          guard shared.contains(where: { $0.id == result.id }) else {
+            throw RevealUnavailable()
           }
-          .navigationTitle("Search")
-          .phoneAccountControl()
+          sharedBrowser.tags = []
+          sharedBrowser.show(.shared)
+          if UIDevice.current.userInterfaceIdiom == .pad { browser.show(.shared) }
+          select(.shared)
         }
       }
+    }
+  }
+
+  private struct RevealUnavailable: LocalizedError {
+    var errorDescription: String? {
+      "This file’s location is no longer available. Search again to refresh its location."
     }
   }
 
@@ -155,12 +204,18 @@ struct BrowserView: View {
         case .section(.home): FolderView(session: session, folder: nil)
         case .section(.shared): SharedView(session: session)
         case .section(.trash): TrashView(session: session)
+        case .section(.search): EmptyView()
         case .folder(let folder): FolderView(session: session, folder: folder)
         }
       }
       .id(context.root)
-      .navigationDestination(for: Place.Folder.self) { folder in
-        FolderView(session: session, folder: folder)
+      .navigationDestination(for: Browser.Route.self) { route in
+        switch route {
+        case .folder(let folder):
+          FolderView(session: session, folder: folder).id(folder.id)
+        case .searchFile(let result):
+          FileDestination(file: result)
+        }
       }
     }
     .environment(context)
@@ -170,6 +225,7 @@ struct BrowserView: View {
 /// The sections, and the folder tree.
 private struct Sidebar: View {
   let session: Session
+  @Binding var searching: Bool
   @Environment(Browser.self) private var browser
   @State private var folders = FolderList()
 
@@ -177,9 +233,10 @@ private struct Sidebar: View {
     List(selection: selection) {
       Label("Home", systemImage: "house").tag(Browser.Root.section(.home))
       Label("Shared with Me", systemImage: "person.2").tag(Browser.Root.section(.shared))
+      Label("Search", systemImage: "magnifyingglass").tag(Browser.Root.section(.search))
       Label("Trash", systemImage: "trash").tag(Browser.Root.section(.trash))
       Section("Folders") {
-        FolderRows(list: folders, session: session)
+        FolderRows(list: folders, session: session, searching: $searching)
       }
     }
     .navigationTitle("Lexidraw")
@@ -190,9 +247,15 @@ private struct Sidebar: View {
 
   private var selection: Binding<Browser.Root?> {
     Binding {
-      browser.root
+      searching ? .section(.search) : browser.root
     } set: { root in
-      if let root { browser.go(to: root) }
+      guard let root else { return }
+      if root == .section(.search) {
+        searching = true
+      } else {
+        searching = false
+        browser.go(to: root)
+      }
     }
   }
 
@@ -200,6 +263,7 @@ private struct Sidebar: View {
   fileprivate struct FolderNode: View {
     let session: Session
     let folder: Entry
+    @Binding var searching: Bool
     @Environment(Browser.self) private var browser
     @State private var expanded = false
     @State private var children = FolderList()
@@ -211,7 +275,7 @@ private struct Sidebar: View {
         row
       } else {
         DisclosureGroup(isExpanded: $expanded) {
-          FolderRows(list: children, session: session)
+          FolderRows(list: children, session: session, searching: $searching)
         } label: {
           row.task(id: [expanded ? 1 : 0, browser.reloads, children.attempts]) {
             guard expanded else { return }
@@ -225,6 +289,7 @@ private struct Sidebar: View {
     /// when pressed.
     private var row: some View {
       Button {
+        searching = false
         browser.open(place)
       } label: {
         Label(folder.title, systemImage: "folder")
@@ -252,6 +317,7 @@ private final class FolderList {
 private struct FolderRows: View {
   let list: FolderList
   let session: Session
+  @Binding var searching: Bool
 
   var body: some View {
     switch list.loaded {
@@ -259,7 +325,7 @@ private struct FolderRows: View {
       EmptyView()
     case .loaded(let folders):
       ForEach(folders) { folder in
-        Sidebar.FolderNode(session: session, folder: folder)
+        Sidebar.FolderNode(session: session, folder: folder, searching: $searching)
       }
     case .failed, .unreadable:
       Button("Couldn’t load folders. Try Again", systemImage: "exclamationmark.arrow.circlepath") { list.retry() }

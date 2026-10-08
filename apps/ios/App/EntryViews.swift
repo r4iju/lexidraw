@@ -66,17 +66,22 @@ extension EnvironmentValues {
 struct OpenLink<Label: View>: View {
   let file: any FileItem
   @ViewBuilder let label: Label
-  @Environment(\.session) private var session
-
   var body: some View {
     if file.kind == .folder {
-      NavigationLink(value: Place.Folder(id: file.id, title: file.title)) { label }
+      NavigationLink(value: Browser.Route.folder(Place.Folder(id: file.id, title: file.title))) { label }
     } else {
-      NavigationLink { screen } label: { label }
+      NavigationLink { FileDestination(file: file) } label: { label }
     }
   }
 
-  @ViewBuilder private var screen: some View {
+}
+
+/// The same file screen whether reached from a listing or a retained search route.
+struct FileDestination: View {
+  let file: any FileItem
+  @Environment(\.session) private var session
+
+  @ViewBuilder var body: some View {
     switch (file.kind, session) {
     case (.drawing, let session?): DrawingScreen(session: session, id: file.id, title: file.title)
     case (.document, let session?): DocumentScreen(session: session, id: file.id, title: file.title)
