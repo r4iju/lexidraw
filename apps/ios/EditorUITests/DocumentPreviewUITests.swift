@@ -266,20 +266,37 @@ final class DocumentPreviewUITests: XCTestCase {
     editor.tap()
     XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5))
     if app.buttons["Continue"].waitForExistence(timeout: 2) { app.buttons["Continue"].tap() }
-    func swipe(_ from: String, _ to: String) {
-      func key(_ name: String) -> XCUICoordinate {
-        let lower = app.keyboards.keys[name]
-        return (lower.exists ? lower : app.keyboards.keys[name.uppercased()])
-          .coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
-      }
-      key(from).press(forDuration: 0.05, thenDragTo: key(to), withVelocity: 300, thenHoldForDuration: 0.05)
+    func keyCenter(_ name: String) -> CGPoint {
+      let lower = app.keyboards.keys[name]
+      let key = lower.exists ? lower : app.keyboards.keys[name.uppercased()]
+      XCTAssertTrue(key.isHittable)
+      return CGPoint(x: key.frame.midX, y: key.frame.midY)
     }
-    swipe("t", "o")
+    func swipe(_ from: CGPoint, _ to: CGPoint) {
+      let origin = app.coordinate(withNormalizedOffset: .zero)
+      origin.withOffset(CGVector(dx: from.x, dy: from.y)).press(
+        forDuration: 0.05, thenDragTo: origin.withOffset(CGVector(dx: to.x, dy: to.y)),
+        withVelocity: 300, thenHoldForDuration: 0.05)
+    }
+    swipe(keyCenter("t"), keyCenter("o"))
+    // Accept the keyboard's real correction before capturing the first-word
+    // boundary. Otherwise QuickPath can revise "To" to "Too" on the next swipe.
+    let correction = app.descendants(matching: .any).matching(
+      NSPredicate(format: "label ==[c] %@", "Too")).firstMatch
+    XCTAssertTrue(correction.waitForExistence(timeout: 3), "\(app.debugDescription)")
+    XCTAssertTrue(correction.isHittable)
+    correction.tap()
     let afterFirstWord = try XCTUnwrap(editor.value as? String)
-    swipe("w", "e")
-    swipe("t", "o")
+    XCTAssertEqual(afterFirstWord.split(whereSeparator: \.isWhitespace).map(String.init), ["Say", "Too"])
+    // Resolve the real keyboard geometry before the run. Repeated accessibility
+    // lookups between gestures can exceed the editor's two-second swipe window
+    // on CI, turning the intended burst into separate user input turns.
+    let w = keyCenter("w"), e = keyCenter("e"), t = keyCenter("t"), o = keyCenter("o")
+    swipe(w, e)
+    swipe(t, o)
     let swiped = try XCTUnwrap(editor.value as? String)
-    XCTAssertEqual(swiped.split(separator: " ").count, afterFirstWord.split(separator: " ").count + 2)
+    XCTAssertEqual(swiped.split(whereSeparator: \.isWhitespace).count, afterFirstWord.split(whereSeparator: \.isWhitespace).count + 2)
+    XCTAssertTrue(swiped.hasPrefix(afterFirstWord.trimmingCharacters(in: .newlines)))
     editor.typeKey(XCUIKeyboardKey.shift.rawValue, modifierFlags: [])
     editor.typeKey(XCUIKeyboardKey.F13.rawValue, modifierFlags: .shift)
     editor.typeKey("z", modifierFlags: .command)
