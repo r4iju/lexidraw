@@ -130,11 +130,13 @@ import SwiftUI
     }
   }
 
-  func saveNow() {
-    Task { [sending, saver] in
-      await sending?.value
-      await saver.saveNow()
-    }
+  func saveNow() { Task { await finishSaving() } }
+
+  func finishSaving() async -> Bool {
+    await sending?.value
+    await saver.saveNow()
+    status = await saver.status
+    return status == .saved && unsent.isEmpty
   }
 
   func keepMine() {
@@ -152,6 +154,12 @@ struct DrawingEditorScreen: View {
   @State private var photosShown = false
   @State private var filesShown = false
   @Environment(\.scenePhase) private var scenePhase
+  @Environment(\.fileNavigation) private var tabletNavigation
+  @Environment(\.phoneDrawingNavigation) private var phoneNavigation
+  @Environment(\.dismiss) private var dismiss
+  @State private var leaving = false
+
+  private var fileNavigation: FileNavigation? { tabletNavigation ?? phoneNavigation }
 
   init(session: Session, drawing: StoredDrawing, theme: DrawingTheme, reload: @escaping () async -> Void) {
     self.drawing = drawing
@@ -164,6 +172,24 @@ struct DrawingEditorScreen: View {
     EditorCanvas(editing: editing, background: drawing.background, theme: theme)
       .ignoresSafeArea(edges: .bottom)
       .navigationSubtitle(status)
+      .navigationBarBackButtonHidden(UIDevice.current.userInterfaceIdiom == .phone)
+      .toolbar {
+        if UIDevice.current.userInterfaceIdiom == .phone {
+          ToolbarItem(placement: .topBarLeading) {
+            Button("Back", systemImage: "chevron.left") {
+              guard !leaving else { return }
+              leaving = true
+              Task {
+                defer { leaving = false }
+                if let fileNavigation {
+                  await fileNavigation.navigate { dismiss() }
+                } else if await prepareToLeave() { dismiss() }
+              }
+            }
+            .disabled(leaving || fileNavigation?.changing == true)
+          }
+        }
+      }
       .toolbar {
         ToolbarItemGroup(placement: .topBarTrailing) {
           if case .failed = editing.status {
@@ -181,14 +207,13 @@ struct DrawingEditorScreen: View {
                 .presentationCompactAdaptation(.popover)
             }
         }
-        ToolbarItemGroup(placement: .bottomBar) {
-          Picker("Tool", selection: Binding(get: { editing.tool }, set: { editing.select($0) })) {
-            ForEach(DrawingTool.allCases, id: \.self) { tool in
-              Label(tool.name, systemImage: tool.systemImage).accessibilityLabel(tool.name).tag(tool)
-            }
-          }
-          .pickerStyle(.segmented)
-          .fixedSize()
+        if UIDevice.current.userInterfaceIdiom != .phone {
+          ToolbarItemGroup(placement: .bottomBar) { toolPicker }
+        }
+      }
+      .safeAreaInset(edge: .bottom) {
+        if UIDevice.current.userInterfaceIdiom == .phone {
+          toolPicker.padding(8).background(.bar)
         }
       }
       .alert("Someone else changed this drawing", isPresented: .constant(editing.status == .conflict)) {
@@ -228,8 +253,28 @@ struct DrawingEditorScreen: View {
       }
       .task { await editing.loadImages() }
       .task { await editing.followSaving() }
-      .onDisappear { editing.saveNow() }
+      .onAppear { fileNavigation?.register(editing) { await prepareToLeave() } }
+      .onDisappear {
+        fileNavigation?.unregister(editing)
+        editing.saveNow()
+      }
       .onChange(of: scenePhase) { if scenePhase != .active { editing.saveNow() } }
+  }
+
+  private func prepareToLeave() async -> Bool {
+    UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+    return await editing.finishSaving()
+  }
+
+  private var toolPicker: some View {
+    Picker("Tool", selection: Binding(get: { editing.tool }, set: { editing.select($0) })) {
+      ForEach(DrawingTool.allCases, id: \.self) { tool in
+        Label(tool.name, systemImage: tool.systemImage).accessibilityLabel(tool.name).tag(tool)
+      }
+    }
+    .pickerStyle(.segmented)
+    .labelStyle(.iconOnly)
+    .fixedSize()
   }
 
   private func buttons(_ buttons: [EditorButton]) -> some View {

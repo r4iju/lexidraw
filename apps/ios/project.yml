@@ -66,6 +66,7 @@ targets:
     platform: iOS
     sources:
       - EditorHarness
+      - App/FileNavigation.swift
       - App/MessageAlert.swift
       - App/DocumentView.swift
       - App/MediaCaptionEditor.swift
@@ -107,6 +108,8 @@ targets:
         INFOPLIST_KEY_CFBundleDisplayName: Editor Harness
         INFOPLIST_KEY_UILaunchScreen_Generation: true
         INFOPLIST_KEY_UIApplicationSceneManifest_Generation: true
+        INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone: UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight
+        INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad: UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight
   EditorUITests:
     type: bundle.ui-testing
     platform: iOS
@@ -153,6 +156,7 @@ targets:
     platform: iOS
     sources:
       - DrawingHarness
+      - App/FileNavigation.swift
       - HarnessSupport
       - App/DrawingEditorView.swift
       - App/EditorCanvas.swift
@@ -169,6 +173,8 @@ targets:
         INFOPLIST_KEY_CFBundleDisplayName: Drawing Harness
         INFOPLIST_KEY_UILaunchScreen_Generation: true
         INFOPLIST_KEY_UIApplicationSceneManifest_Generation: true
+        INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone: UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight
+        INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad: UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight
   DrawingUITests:
     type: bundle.ui-testing
     platform: iOS
@@ -206,6 +212,8 @@ targets:
         INFOPLIST_KEY_CFBundleDisplayName: Browser Harness
         INFOPLIST_KEY_UILaunchScreen_Generation: true
         INFOPLIST_KEY_UIApplicationSceneManifest_Generation: true
+        INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone: UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight
+        INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad: UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight
   BrowserUITests:
     type: bundle.ui-testing
     platform: iOS

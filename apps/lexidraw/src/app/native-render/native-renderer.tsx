@@ -57,7 +57,9 @@ export default function NativeRenderer() {
     window.nativeEmbedReady = () =>
       !captureHeld() &&
       !!document.getElementById("native-embed") &&
-      !Array.from(document.querySelectorAll('[aria-busy="true"]')).some((element) => !element.closest("[data-native-article]"));
+      !Array.from(document.querySelectorAll('[aria-busy="true"]')).some(
+        (element) => !element.closest("[data-native-article]"),
+      );
     return () => {
       delete window.renderNativeEmbed;
       delete window.nativeEmbedReady;
@@ -133,8 +135,18 @@ export default function NativeRenderer() {
             />
           </div>
         ) : node.type === "article" ? (
-          <div data-native-article style={{ textAlign: node.format || undefined }}>
-            <ArticleContent html={(node.data.mode === "url" ? node.data.distilled : node.data.snapshot)?.contentHtml ?? ""} />
+          <div
+            data-native-article
+            style={{ textAlign: node.format || undefined }}
+          >
+            <ArticleContent
+              html={
+                (node.data.mode === "url"
+                  ? node.data.distilled
+                  : node.data.snapshot
+                )?.contentHtml ?? ""
+              }
+            />
           </div>
         ) : (
           <LexicalComposer

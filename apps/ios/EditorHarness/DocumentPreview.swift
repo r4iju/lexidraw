@@ -58,6 +58,7 @@ private actor PreviewServer: ClientTransport {
   private var saved: [String: String] = [:]
   private var loads = 0
   private var saves = 0
+  private var saveAttempts = 0
 
   init(access: [String], log: ServerLog) {
     self.access = access
@@ -70,6 +71,10 @@ private actor PreviewServer: ClientTransport {
     await MainActor.run { log.operations.append(operationID) }
     let id = request.path?.split(separator: "/").last.map(String.init) ?? Self.documentId
     if operationID == "entities-save" || operationID == "entities-create" {
+      if operationID == "entities-create",
+        let delay = Double(PreviewScenario.value("EDITOR_COPY_DELAY") ?? "") {
+        try await Task.sleep(for: .seconds(delay))
+      }
       let payload: Data?
       if let body {
         payload = try await Data(collecting: body, upTo: 2 << 20)
@@ -78,14 +83,21 @@ private actor PreviewServer: ClientTransport {
       }
       let object =
         try payload.map { try JSONSerialization.jsonObject(with: $0) as? [String: Any] } ?? nil
+      if operationID == "entities-save" {
+        saveAttempts += 1
+        let failures = Int(PreviewScenario.value("EDITOR_SAVE_FAILURES") ?? "0") ?? 0
+        if saveAttempts <= failures {
+          return try response(["message": "Connection interrupted"], status: .internalServerError)
+        }
+      }
       if operationID == "entities-save", id == Self.documentId,
-        ProcessInfo.processInfo.environment["EDITOR_SAVE_CONFLICT"] == "1"
+        PreviewScenario.value("EDITOR_SAVE_CONFLICT") == "1"
       {
         return try response(["message": "Newer edits"], status: .conflict)
       }
       let target = object?["id"] as? String ?? id
       saved[target] = object?["elements"] as? String
-      if let path = ProcessInfo.processInfo.environment["EDITOR_SAVE_PATH"], let elements = saved[target] {
+      if let path = PreviewScenario.value("EDITOR_SAVE_PATH"), let elements = saved[target] {
         try Data(elements.utf8).write(to: URL(fileURLWithPath: path), options: .atomic)
       }
       saves += 1
@@ -98,7 +110,7 @@ private actor PreviewServer: ClientTransport {
       }
       return try response(["id": target, "updatedAt": revision])
     }
-    if operationID == "htmlBlocks-preview", let preview = ProcessInfo.processInfo.environment["EDITOR_HTML_BLOCK_PREVIEW"] {
+    if operationID == "htmlBlocks-preview", let preview = PreviewScenario.value("EDITOR_HTML_BLOCK_PREVIEW") {
       var response = HTTPResponse(status: .ok)
       response.headerFields[.contentType] = "application/json"
       return (response, HTTPBody(preview))
@@ -106,11 +118,11 @@ private actor PreviewServer: ClientTransport {
     guard operationID == "entities-load" else { return (HTTPResponse(status: .notFound), nil) }
     loads += 1
     let elements =
-      try saved[id] ?? ProcessInfo.processInfo.environment["EDITOR_DOCUMENT"]
+      try saved[id] ?? PreviewScenario.value("EDITOR_DOCUMENT")
       ?? String(
         contentsOf: Bundle.main.url(forResource: "tracer", withExtension: "json")!, encoding: .utf8)
     let loaded: [String: Any] = [
-      "id": Self.documentId, "title": "Tracer", "entityType": "document", "appState": NSNull(),
+      "id": Self.documentId, "title": PreviewScenario.value("EDITOR_PREVIEW_TITLE") ?? "Tracer", "entityType": "document", "appState": NSNull(),
       "elements": elements, "publicAccess": "PRIVATE",
       "shared": false, "accessLevel": access[min(loads, access.count) - 1],
       "updatedAt": "2026-09-25T09:30:00.000Z",
@@ -132,4 +144,18 @@ private struct PreviewToken: TokenStore {
   func load() throws -> String? { "harness" }
   func save(_ token: String) throws {}
   func delete() throws {}
+}
+
+/// Launch arguments expose the same service fixtures to device-panel inspection.
+enum PreviewScenario {
+  static func value(_ key: String) -> String? {
+    let process = ProcessInfo.processInfo
+    if let value = process.environment[key] { return value }
+    // Defaults can interpret a JSON launch value as a property list. The HTTP
+    // fixture needs the original serialized document, including its source data.
+    if let index = process.arguments.firstIndex(of: "-" + key), process.arguments.indices.contains(index + 1) {
+      return process.arguments[index + 1]
+    }
+    return UserDefaults.standard.string(forKey: key)
+  }
 }

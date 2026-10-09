@@ -38,7 +38,8 @@ class EditorUITests: XCTestCase {
   func testEmojiSelectionRetainsSourceTypingFormat() throws {
     guard Self.model == .lexicalSwift else { return }
     open(LexicalJSON.document([LexicalJSON.paragraph([])]))
-    app.buttons["editor bold"].tap()
+    app.buttons["Format"].tap()
+    app.buttons["Bold"].tap()
     editor.typeText(":smile")
     let choice = app.buttons["emoji-option-grinning"]
     XCTAssertTrue(choice.waitForExistence(timeout: 5))
@@ -420,7 +421,8 @@ class EditorUITests: XCTestCase {
   }
 
   /// Romaji to kana to kanji on the Japanese keyboard. The keyboard's calls
-  /// are what `web-composition.json` recorded from iOS, the view shows the
+  /// match `web-composition.json` after validating the neutral notification
+  /// iOS can send before the bold shortcut. The view shows the
   /// composition where the caret was, and the harness saves what the web
   /// editor saved for the same calls (`recording/composition.ts`).
   func testJapaneseCompositionSavesWhatTheWebEditorSaves() throws {
@@ -431,18 +433,32 @@ class EditorUITests: XCTestCase {
       try XCTContext.runActivity(named: script.name) { _ in
         open(script.start)
         for shortcut in script.shortcuts { keyboard.press(shortcut.key, shortcut.modifiers) }
-        XCTAssertTrue(app.keys["ー"].waitForExistence(timeout: 5), "The Japanese keyboard isn't up; scripts/test-ui.sh puts it first")
+        XCTAssertTrue(app.keys["ー"].waitForExistence(timeout: 5), "Enable Japanese Romaji on the leased simulator")
         for key in script.keys { app.keys[key].tap() }
         for candidate in script.candidates { tapCandidate(candidate) }
         if script.confirms { app.buttons["Return"].tap() }
 
         let saved = try saved()
         let input = try inputs()
+        let rawInput = XCTAttachment(data: try JSONEncoder().encode(input), uniformTypeIdentifier: "public.json")
+        rawInput.name = "japanese-\(Self.model)-\(script.name)-raw-input"
+        rawInput.lifetime = .keepAlways
+        add(rawInput)
         script.expectShowsComposition(input)
         recorded.append(.init(name: script.name, start: script.start, shortcuts: script.shortcuts, input: input.map(\.call)))
         guard let fixture else { return }
         let web = try XCTUnwrap(fixture.cases.first { $0.name == script.name }, "Record \(script.name)")
-        XCTAssertEqual(input.map(\.call), web.input, "iOS sends other calls than were recorded")
+        var composition = input[...]
+        if script.shortcuts == [.bold], input.count == web.input.count + 1,
+          input.first?.call == .unmarkText {
+          // iOS 27 ends an inactive composition before handling the shortcut.
+          // Validate that callback too; only the subsequent composition calls
+          // should match the recording made without that keyboard notification.
+          XCTAssertEqual(input[0].text, script.before + script.after + "\n")
+          XCTAssertNil(input[0].marked)
+          composition = input.dropFirst()
+        }
+        XCTAssertEqual(composition.map(\.call), web.input, "iOS sends other composition calls than were recorded")
         XCTAssertEqual(saved, try XCTUnwrap(web.saved, "Record what the web saves"))
       }
     }
@@ -474,19 +490,35 @@ class EditorUITests: XCTestCase {
   /// come after the whole reading's.
   private func tapCandidate(_ candidate: String) {
     let cell = app.cells[candidate]
-    if !cell.waitForExistence(timeout: 2) {
-      app.buttons["More suggestions"].tap()
+    if !cell.waitForExistence(timeout: 2) || !cell.isHittable {
+      let first = app.cells.firstMatch
+      let existing = app.collectionViews.containing(.cell, identifier: first.identifier).firstMatch
+      if !existing.exists || existing.frame.height <= first.frame.height * 2 {
+        app.buttons["More suggestions"].tap()
+      }
       var shown: [String] = []
-      while !cell.waitForExistence(timeout: 1) {
+      for _ in 0..<20 {
         let cells = app.cells.allElementsBoundByIndex
-        guard cells.map(\.identifier) != shown, let top = cells.first?.frame else { break }
-        shown = cells.map(\.identifier)
-        let screen = app.coordinate(withNormalizedOffset: .zero)
-        screen.withOffset(CGVector(dx: top.maxX, dy: top.minY + 4 * top.height))
-          .press(forDuration: 0.1, thenDragTo: screen.withOffset(CGVector(dx: top.maxX, dy: top.minY)))
+        guard let first = cells.first else { break }
+        let list = app.collectionViews.containing(.cell, identifier: first.identifier).firstMatch
+        guard list.exists else { break }
+        if cell.exists, cell.isHittable, list.frame.contains(cell.frame) { break }
+        let positions = cells.map { "\($0.identifier):\($0.frame.minY)" }
+        guard positions != shown else { break }
+        shown = positions
+        // Cell edges can hit an adjacent candidate. Stay inside the actual
+        // expanded native list, including when its first row is clipped.
+        let upward = !cell.exists || cell.frame.minY >= list.frame.minY
+        list.coordinate(withNormalizedOffset: CGVector(dx: 0.45, dy: upward ? 0.8 : 0.2))
+          .press(forDuration: 0.1, thenDragTo: list.coordinate(withNormalizedOffset:
+            CGVector(dx: 0.45, dy: upward ? 0.2 : 0.8)), withVelocity: .slow, thenHoldForDuration: 0.1)
+        _ = cell.waitForExistence(timeout: 1)
       }
     }
     XCTAssertTrue(cell.waitForExistence(timeout: 5), "No \(candidate) candidate")
+    XCTAssertTrue(cell.isHittable, "The \(candidate) candidate must be visible before selection")
+    let list = app.collectionViews.containing(.cell, identifier: candidate).firstMatch
+    XCTAssertTrue(list.frame.contains(cell.frame), "The whole \(candidate) candidate must be visible")
     cell.tap()
   }
 
@@ -592,11 +624,19 @@ class EditorUITests: XCTestCase {
       }
       XCTAssertTrue(item.waitForExistence(timeout: 5), "No \(title) in the edit menu: \(app.debugDescription)")
       // The list's last items can be under the keyboard until it scrolls.
-      for _ in 0..<3 where !item.isHittable {
-        let screen = app.coordinate(withNormalizedOffset: .zero)
-        let visibleBottom = app.keyboards.firstMatch.exists ? app.keyboards.firstMatch.frame.minY : app.frame.maxY
-        let list = CGVector(dx: item.frame.midX, dy: min(item.frame.minY - 60, visibleBottom - 100))
-        screen.withOffset(list).press(forDuration: 0.1, thenDragTo: screen.withOffset(CGVector(dx: list.dx, dy: list.dy - 150)))
+      for _ in 0..<6 where !item.isHittable {
+        let menu = app.collectionViews.containing(.any, identifier: title).firstMatch
+        let actions = menu.exists
+          ? menu.descendants(matching: .button).allElementsBoundByIndex
+          : app.menuItems.allElementsBoundByIndex
+        let visible = actions.filter { $0.isHittable }
+          .sorted { $0.frame.minY < $1.frame.minY }
+        guard !visible.isEmpty else { XCTFail("No visible table menu action to scroll: \(app.debugDescription)"); return }
+        // Keyboard-relative guesses can start outside the menu and dismiss it.
+        // A visible native action supplies a point inside the actual menu.
+        let start = visible[visible.count / 2].coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+        start.press(forDuration: 0.1, thenDragTo: start.withOffset(CGVector(dx: 0, dy: -130)),
+          withVelocity: .slow, thenHoldForDuration: 0.1)
       }
       item.tap()
     }

@@ -105,7 +105,7 @@ enum MediaImageError: Error, LocalizedError, Equatable {
   static func height(_ payload: MediaPayload, width: CGFloat) -> CGFloat {
     let size = geometry(payload, width: width, ratio: payload.aspectRatio, naturalWidth: payload.naturalWidth, viewport: UIScreen.main.bounds.height)
     let caption = MediaCaptionView(payload)
-    let captionHeight = caption.fittingHeight(size.width)
+    let captionHeight = caption.fittingHeight(captionWidth(media: size.width, available: width))
     return size.height + (captionHeight > 0 ? captionHeight + FigureStyle.captionGap : 0)
   }
   private static func geometry(_ payload: MediaPayload, width: CGFloat, ratio: Double, naturalWidth: Double?, viewport: CGFloat) -> CGSize {
@@ -126,16 +126,22 @@ enum MediaImageError: Error, LocalizedError, Equatable {
     let size = Self.geometry(payload, width: width, ratio: loadedAspectRatio ?? payload.aspectRatio, naturalWidth: loadedNaturalWidth ?? payload.naturalWidth, viewport: window?.bounds.height ?? UIScreen.main.bounds.height)
     return unavailable ? CGSize(width: min(width, max(180, size.width)), height: max(96, size.height)) : size
   }
+  private static func captionWidth(media: CGFloat, available: CGFloat) -> CGFloat {
+    // Enlarged words need the document column even when the image's original
+    // pixels are small. Keep the image geometry and ordinary caption layout.
+    UIApplication.shared.preferredContentSizeCategory.isAccessibilityCategory ? available : media
+  }
   func fittingHeight(_ width: CGFloat) -> CGFloat {
     let size = mediaSize(width)
-    let captionHeight = caption.fittingHeight(size.width)
+    let captionHeight = caption.fittingHeight(Self.captionWidth(media: size.width, available: width))
     return size.height + (captionHeight > 0 ? captionHeight + FigureStyle.captionGap : 0)
   }
   override func layoutSubviews() {
     super.layoutSubviews()
     let size = mediaSize(bounds.width)
     let mediaWidth = size.width
-    let captionHeight = caption.fittingHeight(mediaWidth)
+    let captionWidth = Self.captionWidth(media: mediaWidth, available: bounds.width)
+    let captionHeight = caption.fittingHeight(captionWidth)
     let bodyHeight = size.height
     let em = UIFont.preferredFont(forTextStyle: .body).pointSize
     let mediaFrame = CGRect(x: payload.mediaX(width: mediaWidth, fitting: bounds.width, em: em), y: 0, width: mediaWidth, height: bodyHeight)
@@ -144,7 +150,7 @@ enum MediaImageError: Error, LocalizedError, Equatable {
     videoLayer?.frame = mediaFrame
     message.frame = mediaFrame.insetBy(dx: 12, dy: 4)
     preview?.frame = mediaFrame
-    caption.frame = CGRect(x: mediaFrame.minX, y: bodyHeight + FigureStyle.captionGap, width: mediaWidth, height: captionHeight)
+    caption.frame = CGRect(x: payload.mediaX(width: captionWidth, fitting: bounds.width, em: em), y: bodyHeight + FigureStyle.captionGap, width: captionWidth, height: captionHeight)
   }
   override func didMoveToWindow() {
     super.didMoveToWindow()

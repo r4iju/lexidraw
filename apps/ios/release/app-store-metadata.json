@@ -21,59 +21,42 @@
     },
     {
       "name": "Turso",
-      "features": [
-        "account, documents, sharing and settings persistence"
-      ],
+      "features": ["account, documents, sharing and settings persistence"],
       "source": "apps/lexidraw/src/app/privacy-policy/page.tsx"
     },
     {
       "name": "OpenAI and Google",
-      "features": [
-        "text sent for requested read-aloud generation"
-      ],
+      "features": ["text sent for requested read-aloud generation"],
       "source": "apps/lexidraw/src/server/tts/providers"
     },
     {
       "name": "Apple and GitHub",
-      "features": [
-        "optional website authentication provider"
-      ],
+      "features": ["optional website authentication provider"],
       "source": "apps/lexidraw/src/server/auth.ts"
     },
     {
       "name": "Google Fonts",
-      "features": [
-        "document font downloads without the Lexidraw API token"
-      ],
+      "features": ["document font downloads without the Lexidraw API token"],
       "source": "apps/ios/Sources/LexidrawKit/DocumentFonts.swift"
     },
     {
       "name": "Bright Data",
-      "features": [
-        "server-side extraction of user-saved web links"
-      ],
+      "features": ["server-side extraction of user-saved web links"],
       "source": "apps/lexidraw/src/server/extractors/article.ts"
     },
     {
       "name": "Cloudflare",
-      "features": [
-        "protection of page extraction and audio services"
-      ],
+      "features": ["protection of page extraction and audio services"],
       "source": "apps/lexidraw/src/app/privacy-policy/page.tsx"
     },
     {
       "name": "Unsplash",
-      "features": [
-        "image search where exposed by the integrated app"
-      ],
+      "features": ["image search where exposed by the integrated app"],
       "source": "apps/lexidraw/src/server/unsplash.ts"
     },
     {
       "name": "User-selected media and link hosts",
-      "features": [
-        "image/video loading",
-        "native link metadata previews"
-      ],
+      "features": ["image/video loading", "native link metadata previews"],
       "source": "issue #131; audit after merge"
     }
   ],
@@ -81,9 +64,7 @@
     "Third-party operational request/log retention can change independently of this source; declarations include retained IP/visitor and request information without claiming short-term deletion."
   ],
   "reviewNotesDraft": "Lexidraw is a native document and drawing editor for iPhone and iPad. An account and internet connection are required for synchronization.\n\nTap Sign In to open the secure Lexidraw authentication website. Use the demo credentials supplied below; successful sign-in returns to the app. The review account has disposable sample documents covering rich text, callouts, sections, columns, diagrams, code and tables, plus a sample drawing. Open files from the file list to edit them. Changes save to the account.\n\nListen generates spoken audio from document text using a disclosed third-party service after the user's consent. It does not record microphone input. Existing generated audio can be played without generating new audio.\n\nAccount deletion is available in Settings. Users choose the files and links they upload, import and share. The terms prohibit copyright infringement and authorize processing user content to operate the service. Unsupported imported representations are preserved and shown explicitly rather than silently rewritten.",
-  "submissionPending": [
-    "Apple review and any review response"
-  ],
+  "submissionPending": ["Apple review and any review response"],
   "serverURLSource": "apps/ios/project.yml:LEXIDRAW_SERVER_URL",
   "appStoreRecord": {
     "appId": "6816381053",
@@ -208,9 +189,7 @@
     ],
     "remaining": "Apple review and any review response.",
     "appStoreConnectCredentialStatus": "saved-and-verified",
-    "seededDrawings": [
-      "ios-review-sketch-20261001"
-    ],
+    "seededDrawings": ["ios-review-sketch-20261001"],
     "fixtureVerification": {
       "sourceCommit": "6d8fcdb4e435833702e091a890078a091a5039c8",
       "storedState": "Exact web headless export preserved; private authenticated reads returned200.",
@@ -305,65 +284,49 @@
     },
     {
       "dataType": "Coarse Location",
-      "purposes": [
-        "Analytics"
-      ],
+      "purposes": ["Analytics"],
       "linkedToAccount": true,
       "tracking": false,
       "source": "Website proxy stores IP-derived city/region/country alongside visitor hash."
     },
     {
       "dataType": "Product Interaction",
-      "purposes": [
-        "Analytics"
-      ],
+      "purposes": ["Analytics"],
       "linkedToAccount": true,
       "tracking": false,
       "source": "Website proxy retains visited request URLs and referrers."
     },
     {
       "dataType": "Browsing History",
-      "purposes": [
-        "App Functionality",
-        "Analytics"
-      ],
+      "purposes": ["App Functionality", "Analytics"],
       "linkedToAccount": true,
       "tracking": false,
       "source": "User-saved web links and external website referrers retained by the website proxy."
     },
     {
       "dataType": "Other Data Types",
-      "purposes": [
-        "App Functionality",
-        "Analytics"
-      ],
+      "purposes": ["App Functionality", "Analytics"],
       "linkedToAccount": true,
       "tracking": false,
       "source": "IP address, user agent and deterministic visitor hash in website analytics; service security/request logs."
     },
     {
       "dataType": "Device ID",
-      "purposes": [
-        "Analytics"
-      ],
+      "purposes": ["Analytics"],
       "linkedToAccount": true,
       "tracking": false,
       "source": "The custom analytics visitor identifier derives from user agent and geolocation and is retained to associate visits."
     },
     {
       "dataType": "Emails or Text Messages",
-      "purposes": [
-        "App Functionality"
-      ],
+      "purposes": ["App Functionality"],
       "linkedToAccount": true,
       "tracking": false,
       "source": "Comments and thread replies are account-associated conversations in shared documents."
     },
     {
       "dataType": "Search History",
-      "purposes": [
-        "App Functionality"
-      ],
+      "purposes": ["App Functionality"],
       "linkedToAccount": true,
       "tracking": false,
       "source": "Native search queries use GET parameters. Vercel Runtime Logs retain request Search Params for operational troubleshooting/security; the custom website proxy excludes API routes."

@@ -39,30 +39,62 @@ extension View {
     what: String,
     retry: @escaping () async -> Void,
     isEmpty: @escaping (Value) -> Bool = { _ in false },
-    @ViewBuilder empty: () -> Empty = { EmptyView() }
+    @ViewBuilder empty: @escaping () -> Empty = { EmptyView() }
   ) -> some View {
     overlay {
-      switch loaded {
-      case .loading:
-        ProgressView()
-      case .failed(let message):
-        ContentUnavailableView {
-          Label("Couldn’t load \(what)", systemImage: "wifi.exclamationmark")
-        } description: {
-          Text(message)
-        } actions: {
-          Button("Try Again") { Task { await retry() } }
+      GeometryReader { geometry in
+        ScrollView {
+          VStack {
+            switch loaded {
+            case .loading:
+              ProgressView("Loading \(what)…")
+                .accessibilityLabel("Loading \(what)")
+            case .failed(let message):
+              ContentMessage(title: "Couldn’t load \(what)", symbol: "wifi.exclamationmark", description: message) {
+                Button("Try Again") { Task { await retry() } }
+              }
+            case .unreadable:
+              ContentMessage(title: "Can’t open \(what)", symbol: "exclamationmark.triangle",
+                description: "The app can’t read what it holds.") { EmptyView() }
+            case .loaded(let value) where isEmpty(value):
+              empty()
+            case .loaded:
+              EmptyView()
+            }
+          }
+          .frame(maxWidth: .infinity, minHeight: geometry.size.height)
         }
-      case .unreadable:
-        ContentUnavailableView(
-          "Can’t open \(what)", systemImage: "exclamationmark.triangle",
-          description: Text("The app can’t read what it holds."))
-      case .loaded(let value) where isEmpty(value):
-        empty()
-      case .loaded:
-        EmptyView()
+        .allowsHitTesting(loaded.value.map(isEmpty) ?? true)
       }
     }
+  }
+}
+
+/// Intrinsic content height lets recovery copy and actions scroll even when the
+/// native search field and keyboard leave only a small content viewport.
+struct ContentMessage<Actions: View>: View {
+  let title: String
+  let symbol: String
+  let description: String
+  @ViewBuilder var actions: Actions
+
+  var body: some View {
+    VStack(spacing: 16) {
+      Image(systemName: symbol)
+        .font(.largeTitle)
+        .foregroundStyle(.secondary)
+        .accessibilityHidden(true)
+      Text(title)
+        .font(.title2.bold())
+        .accessibilityAddTraits(.isHeader)
+      Text(description)
+        .foregroundStyle(.secondary)
+      actions
+    }
+    .multilineTextAlignment(.center)
+    .fixedSize(horizontal: false, vertical: true)
+    .frame(maxWidth: .infinity)
+    .padding(24)
   }
 }
 

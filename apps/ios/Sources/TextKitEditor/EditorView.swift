@@ -29,7 +29,42 @@ public final class EditorView: UIScrollView, UITextInput {
   /// becomes first responder, for its text to be selected and copied, but
   /// UIKit shows no keyboard for it, as `UITextInput.isEditable` asks, and
   /// it sends the model nothing that edits.
-  public let isEditable: Bool
+  public private(set) var isEditable: Bool
+  private var textInteraction: UITextInteraction?
+  private var checkboxTap: CheckboxTap?
+  private let editingChildren = NSHashTable<EditorView>.weakObjects()
+
+  /// Switch input on the mounted view, retaining model, selection and history.
+  /// Finish marked input while edits are still allowed, before closing input.
+  public func setEditingEnabled(_ enabled: Bool) {
+    guard enabled != isEditable else { return }
+    if !enabled {
+      commitMarkedText()
+      endKeyboardInputTurn()
+      resignFirstResponder()
+    } else {
+      resignFirstResponder()
+    }
+    isEditable = enabled
+    typeahead?.clear()
+    installTextInteraction()
+    for child in editingChildren.allObjects { child.setEditingEnabled(enabled) }
+    updateFloatingTypes()
+    refreshEmbeddedContent()
+    reloadInputViews()
+  }
+
+  private func installTextInteraction() {
+    if let textInteraction { surface.removeInteraction(textInteraction) }
+    let interaction = UITextInteraction(for: isEditable ? .editable : .nonEditable)
+    interaction.textInput = self
+    surface.addInteraction(interaction)
+    textInteraction = interaction
+    if let checkboxTap {
+      for gesture in interaction.gesturesForFailureRequirements { gesture.require(toFail: checkboxTap) }
+    }
+    for gesture in interaction.gesturesForFailureRequirements { gesture.require(toFail: tableSelectionPress) }
+  }
   /// App-owned insert actions for nodes whose views or uploaders live outside TextKit.
   public var insertionActions: [UIMenuElement] = [] {
     didSet { if isEditable, model.isEditable { formattingBar.update(format: modelSelection()?.format ?? []) } }
@@ -39,6 +74,7 @@ public final class EditorView: UIScrollView, UITextInput {
     link: { [weak self] in self?.addLink() },
     undo: { [weak self] in self?.history.undo() },
     redo: { [weak self] in self?.history.redo() },
+    hideKeyboard: { [weak self] in self?.resignFirstResponder() },
     menus: { [unowned self] in formattingMenus() })
 
   public override var inputAccessoryView: UIView? { isEditable && model.isEditable && model.supportsRichText ? formattingBar : nil }
@@ -99,6 +135,7 @@ public final class EditorView: UIScrollView, UITextInput {
     let editor = EditorView(
       model: model, style: style, isEditable: isEditable,
       language: typesetting.language, font: typesetting.documentFont)
+    if isEditable { editingChildren.add(editor) }
     editor.configureNestedEmbeds = configureNestedEmbeds
     editor.uploadImage = uploadImage
     editor.uploadVideo = uploadVideo
@@ -743,16 +780,13 @@ public final class EditorView: UIScrollView, UITextInput {
     keyboardDismissMode = .interactive
     addSubview(surface)
 
-    let interaction = UITextInteraction(for: isEditable ? .editable : .nonEditable)
-    interaction.textInput = self
-    surface.addInteraction(interaction)
     // A tap on a checklist item's box toggles it and leaves the caret be.
     let checkboxTap = CheckboxTap(target: self, action: #selector(toggleChecked(_:)))
+    self.checkboxTap = checkboxTap
     checkboxTap.isOnCheckbox = { [unowned self] in layout.checklistItem(at: $0) != nil }
     surface.addGestureRecognizer(checkboxTap)
-    for gesture in interaction.gesturesForFailureRequirements { gesture.require(toFail: checkboxTap) }
     surface.addGestureRecognizer(tableSelectionPress)
-    for gesture in interaction.gesturesForFailureRequirements { gesture.require(toFail: tableSelectionPress) }
+    installTextInteraction()
     surface.addInteraction(linkMenu)
     let tap = UITapGestureRecognizer(target: self, action: #selector(tapped(_:)))
     tap.delegate = self
@@ -1033,6 +1067,11 @@ public final class EditorView: UIScrollView, UITextInput {
   public var hasText: Bool { storage.length > 1 }
 
   public func insertText(_ text: String) {
+    // UIKit can deliver several tapped characters before the queued turn end.
+    // Record each ordinary character so history can merge the typing burst,
+    // rather than treating its first batch as a replacement and splitting the
+    // final character. Prediction/QuickPath and composition keep their turns.
+    if text.count == 1, composition == nil, heldInputTurn == nil { endKeyboardInputTurn() }
     continueHeldInputTurn(with: text)
     beginKeyboardInputTurn()
     if text == "\n", typeahead?.choose() == true { return }
@@ -1093,6 +1132,7 @@ public final class EditorView: UIScrollView, UITextInput {
   public var markedTextRange: UITextRange? { composition.map { TextRange($0.marked) } }
 
   public func setMarkedText(_ markedText: String?, selectedRange: NSRange) {
+    guard isEditable, model.isEditable else { return }
     endKeyboardInputTurn()
     let text = markedText ?? ""
     // Selected nodes have no caret to compose at, as a browser shows none.

@@ -1,16 +1,13 @@
 import LexidrawKit
 import SwiftUI
 
-/// Home, or a folder: its folders as a compact group above its files, with
-/// search over everything the caller can open.
+/// Library, or a folder, with a shortcut to the global Search destination.
 struct FolderView: View {
   let session: Session
   /// Nil for Home.
   let folder: Place.Folder?
   @Environment(Browser.self) private var browser
   @State private var shown: Loaded<Shown> = .loading
-  @State private var query = ""
-  @State private var results: [SearchResult]?
 
   /// A folder's contents, where it is, and the tags that could narrow it.
   private struct Shown {
@@ -21,44 +18,62 @@ struct FolderView: View {
   }
 
   var body: some View {
-    Group {
-      if let results {
-        List { SearchResultsSection(query: query, results: results) }
-      } else {
-        List {
-          if let listing = shown.value?.listing {
-            if !browser.tags.isEmpty {
-              FilterHint()
-            }
-            ListingSections(listing: listing)
-          }
-        }
-        .overlay(
-          for: shown, what: title, retry: load,
-          isEmpty: { $0.listing.folders.isEmpty && $0.listing.files.isEmpty }
-        ) {
-          if browser.tags.isEmpty {
-            ContentUnavailableView(
-              "Nothing here yet", systemImage: folder == nil ? "doc" : "folder",
-              description: Text("Files you make here or on the web show up here."))
-          } else {
-            ContentUnavailableView(
-              "No files tagged \(browser.tags.sorted().formatted(.list(type: .and)))",
-              systemImage: "tag")
-          }
-        }
+    List {
+      if let listing = shown.value?.listing {
+        ListingSections(listing: listing)
       }
     }
+    .overlay(
+      for: shown, what: title, retry: load,
+      isEmpty: { $0.listing.folders.isEmpty && $0.listing.files.isEmpty }
+    ) {
+      if browser.tags.isEmpty {
+        ContentUnavailableView {
+          Label("Nothing here yet", systemImage: folder == nil ? "doc.badge.plus" : "folder")
+        } description: {
+          Text(mayCreate
+            ? "Start with a document, a drawing, or a folder. Everything you create stays here."
+            : "You can view this folder. Files added by its editors will appear here.")
+        } actions: {
+          if mayCreate {
+            NewMenu(folder: folder, title: "Create your first file")
+              .buttonStyle(.borderedProminent)
+          }
+        }
+      } else {
+        ContentUnavailableView(
+          "No files tagged \(browser.tags.sorted().formatted(.list(type: .and)))",
+          systemImage: "tag")
+      }
+    }
+    .safeAreaInset(edge: .top, spacing: 0) {
+      if !browser.tags.isEmpty {
+        FilterHint()
+          .padding(.horizontal, 20)
+          .padding(.vertical, 12)
+          .background(Color(uiColor: .systemGroupedBackground))
+      }
+    }
+    .accountControl()
     .navigationTitle(title)
     // A large title hides the breadcrumbs' menu until the list scrolls.
     .navigationBarTitleDisplayMode(folder == nil ? .automatic : .inline)
-    .toolbarTitleMenu {
-      if let place = shown.value?.place {
-        Breadcrumbs(place: place)
-      }
-    }
-    .searchable(text: $query, prompt: "Search titles")
+    .modifier(PhoneFolderTitleMenu(place: shown.value?.place))
     .toolbar {
+      if UIDevice.current.userInterfaceIdiom == .pad, let place = shown.value?.place {
+        ToolbarItem(placement: .principal) {
+          Menu {
+            Breadcrumbs(place: place)
+          } label: {
+            HStack(spacing: 6) {
+              Text(title).font(.headline).lineLimit(1)
+              Image(systemName: "chevron.down").font(.caption)
+            }
+            .frame(minHeight: 44)
+          }
+          .accessibilityLabel("Folder location: \(title)")
+        }
+      }
       ToolbarItem {
         TagFilter(ownTags: shown.value?.ownTags ?? [])
       }
@@ -67,18 +82,24 @@ struct FolderView: View {
           NewMenu(folder: folder)
         }
       }
-      if folder == nil {
-        ToolbarItem {
-          SettingsButton()
+      if folder == nil && UIDevice.current.userInterfaceIdiom == .phone {
+        ToolbarItem(placement: .topBarLeading) {
+          NavigationLink {
+            TrashView(session: session)
+          } label: {
+            Label("Trash", systemImage: "trash")
+          }
         }
       }
     }
     .task(id: LoadKey(reloads: browser.reloads, tags: browser.tags)) { await load() }
-    .task(id: query) { await search() }
     .refreshable { await load() }
   }
 
-  private var title: String { shown.value?.place?.title ?? folder?.title ?? "Home" }
+  private var title: String {
+    shown.value?.place?.title ?? folder?.title
+      ?? "Library"
+  }
 
   /// Anyone may make files at Home; in a folder, only who may edit it.
   private var mayCreate: Bool {
@@ -91,6 +112,7 @@ struct FolderView: View {
   }
 
   private func load() async {
+    if shown.value == nil { shown = .loading }
     let loaded = await Loaded.from {
       async let listing = session.listing(of: folder?.id, taggedWith: browser.tags.sorted())
       async let tags = session.tags()
@@ -100,27 +122,31 @@ struct FolderView: View {
     if let loaded { shown = loaded }
   }
 
-  private func search() async {
-    let text = query.trimmingCharacters(in: .whitespaces)
-    guard !text.isEmpty else {
-      results = nil
-      return
-    }
-    // Each keystroke restarts this task, so only a pause searches.
-    try? await Task.sleep(for: .milliseconds(250))
-    guard !Task.isCancelled else { return }
-    if let found = try? await session.search(text) { results = found }
-  }
 }
 
 /// The folders above this one that the caller may open, from Home down; the
 /// server leaves out the rest.
+private struct PhoneFolderTitleMenu: ViewModifier {
+  let place: Place?
+
+  @ViewBuilder func body(content: Content) -> some View {
+    if UIDevice.current.userInterfaceIdiom == .phone {
+      content.toolbarTitleMenu {
+        if let place { Breadcrumbs(place: place) }
+      }
+    } else { content }
+  }
+}
+
 private struct Breadcrumbs: View {
   let place: Place
   @Environment(Browser.self) private var browser
 
   var body: some View {
-    Button("Home", systemImage: "house") { browser.show(.home) }
+    Button(browser.root == .section(.search) ? "Search results" : "Library",
+      systemImage: browser.root == .section(.search) ? "magnifyingglass" : "house") {
+      browser.show(browser.root == .section(.search) ? .search : .home)
+    }
     ForEach(place.ancestors) { ancestor in
       Button(ancestor.title, systemImage: "folder") { browser.back(to: ancestor) }
     }
@@ -133,43 +159,37 @@ private struct ListingSections: View {
 
   var body: some View {
     if !listing.folders.isEmpty {
-      Section("Folders") {
-        LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), spacing: 8)], spacing: 8) {
-          ForEach(listing.folders) { folder in
-            // A NavigationLink here would make the whole row one link, opening the
-            // last tile whichever was tapped; borderless buttons each keep their tap.
-            Button {
-              browser.path.append(Place.Folder(id: folder.id, title: folder.title))
-            } label: {
-              Label(folder.title, systemImage: "folder")
-                .lineLimit(1)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(10)
-                .background(.fill.tertiary, in: .rect(cornerRadius: 10))
-                .contentShape(.rect)
-            }
-            .buttonStyle(.borderless)
-            .tint(.primary)
-            .fileActions(for: folder)
+      Section {
+        ForEach(listing.folders) { folder in
+          Button {
+            browser.path.append(.folder(Place.Folder(id: folder.id, title: folder.title)))
+          } label: {
+            FileRow(entry: folder)
+              .contentShape(.rect)
           }
+          .buttonStyle(.borderless)
+          .tint(.primary)
+          .accessibilityLabel(folder.title)
+          .accessibilityValue(folder.access == .read ? "Read only folder" : "Folder")
+          .accessibilityHint("Opens this folder")
+          .fileActions(for: folder)
         }
-      }
-      .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
-      .listRowBackground(Color.clear)
+      } header: { Text("Folders").foregroundStyle(Color.primary) }
     }
     if !listing.files.isEmpty {
-      Section("Files") {
+      Section {
         ForEach(listing.files) { file in
           OpenLink(file: file) { FileRow(entry: file) }
             .fileActions(for: file)
         }
-      }
+      } header: { Text("Files").foregroundStyle(Color.primary) }
     }
   }
 }
 
 private struct NewMenu: View {
   let folder: Place.Folder?
+  var title = "New"
   @Environment(FileActions.self) private var actions
 
   var body: some View {
@@ -180,7 +200,7 @@ private struct NewMenu: View {
         }
       }
     } label: {
-      Label("New", systemImage: "plus")
+      Label(title, systemImage: "plus")
     }
   }
 }
@@ -196,7 +216,7 @@ private struct FilterHint: View {
         "Tagged \(browser.tags.sorted().formatted(.list(type: .and)))",
         systemImage: "line.3.horizontal.decrease.circle")
       Spacer()
-      Button("Clear") { browser.tags = [] }
+      Button("Clear filters") { browser.tags = [] }
         .buttonStyle(.borderless)
     }
     .font(.subheadline)
@@ -236,36 +256,6 @@ private struct TagFilter: View {
       browser.tags.contains(tag)
     } set: { on in
       if on { browser.tags.insert(tag) } else { browser.tags.remove(tag) }
-    }
-  }
-}
-
-private struct SearchResultsSection: View {
-  let query: String
-  let results: [SearchResult]
-  @Environment(Browser.self) private var browser
-
-  var body: some View {
-    if results.isEmpty {
-      ContentUnavailableView.search(text: query)
-    } else {
-      Section(results.count == 1 ? "1 file" : "\(results.count) files") {
-        ForEach(results) { result in
-          OpenLink(file: result) {
-            FileRow(
-              file: result,
-              caption: "\(result.location) · \(result.updatedAt.formatted(.relative(presentation: .named)))")
-          }
-          .contextMenu {
-            ListenButton(file: result)
-            if let folder = result.folder {
-              Button("Show in \(folder.title)", systemImage: "folder") {
-                browser.open(folder)
-              }
-            }
-          }
-        }
-      }
     }
   }
 }

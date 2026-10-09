@@ -42,6 +42,7 @@ import UIKit
   private weak var owner: EditorView?
   private let key: String
   private var node: JSONValue = .null
+  private var editable = false
   private var saving = false
   private let stack = UIStackView()
   private var columns: NativeColumnsView?
@@ -54,6 +55,7 @@ import UIKit
   private var insets = UIEdgeInsets.zero
   /// A sticky note's menu, in its corner beside the text.
   private var stickyControl: UIButton?
+  private var sharedStickyCaption = false
   private var viewingSectionOpen: Bool?
   private var section: SectionView?
   private var borderColor: UIColor? { didSet { resolveBorderColor() } }
@@ -78,7 +80,16 @@ import UIKit
   required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
   override func show(_ value: JSONValue) {
-    guard value != node else { return }
+    let editable = owner?.isEditable == true
+    guard value != node || editable != self.editable else { return }
+    self.editable = editable
+    if value == node, sharedStickyCaption {
+      bodies.first?.setEditingEnabled(editable)
+      stickyControl?.isHidden = !editable
+      insets.right = editable ? Self.stickyControlSize + 8 : StructuralBlockConfiguration.stickyPaddingX
+      setNeedsLayout()
+      return
+    }
     node = value
     viewingSectionOpen = nil
     guard !saving else { return }
@@ -137,6 +148,7 @@ import UIKit
     section = nil
     stickyControl?.removeFromSuperview()
     stickyControl = nil
+    sharedStickyCaption = false
     insets = .zero
     layer.cornerRadius = 0
     layer.borderWidth = 0
@@ -468,6 +480,7 @@ import UIKit
         label("Cannot open this caption: \(error.localizedDescription)")
         return
       }
+      sharedStickyCaption = true
       // Refitted to its text whenever the note is measured.
       caption.heightAnchor.constraint(equalToConstant: 1).isActive = true
       bodies.append(caption)

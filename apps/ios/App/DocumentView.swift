@@ -40,6 +40,7 @@ struct DocumentScreen: View {
   private(set) var status = DocumentSaver.Status.saved
   var conflict = false
   var copyProblem: String?
+  private(set) var copying = false
 
   init(session: Session, stored: StoredDocument, settings: DocumentSettings, font: DocumentFont)
     throws
@@ -61,6 +62,7 @@ struct DocumentScreen: View {
 
   func changed() {
     guard mode == .editing else { return }
+    if !conflict { status = .unsaved }
     sending = Task { [sending, saver, weak self] in
       await sending?.value
       await saver.changed { @MainActor [weak self] in
@@ -82,9 +84,14 @@ struct DocumentScreen: View {
   func saveNow() async {
     await sending?.value
     await saver.saveNow()
+    status = await saver.status
+    if status == .conflict { conflict = true }
   }
 
   func keepMineAsCopy() async {
+    guard !copying else { return }
+    copying = true
+    defer { copying = false }
     await sending?.value
     do {
       let copy = try await saver.keepMineAsCopy(title: title, appState: appState)
@@ -108,67 +115,161 @@ private final class DocumentEditorReference {
 private struct DocumentContent: View {
   @Bindable var editing: DocumentEditing
   @State private var editorReference = DocumentEditorReference()
+  @State private var isEditing = false
+  @State private var noticeHeight: CGFloat = 44
   let reload: () async -> Void
   @Environment(\.scenePhase) private var scenePhase
+  @Environment(\.dismiss) private var dismiss
+  @State private var leaving = false
+  @Environment(\.fileNavigation) private var fileNavigation
 
   var body: some View {
-    DocumentEditor(editing: editing, reference: editorReference)
-      .ignoresSafeArea(.container, edges: .bottom)
-      .safeAreaInset(edge: .top, spacing: 0) { notice }
+    GeometryReader { geometry in
+      DocumentEditor(editing: editing, reference: editorReference, isEditing: isEditing)
+        .safeAreaInset(edge: .top, spacing: 0) {
+          ScrollView {
+            notice
+              .fixedSize(horizontal: false, vertical: true)
+              .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { noticeHeight = $0 }
+          }
+          .scrollBounceBehavior(.basedOnSize)
+          .frame(height: min(noticeHeight, max(44, geometry.size.height * (isEditing ? 0.25 : 0.4))))
+        }
+    }
+      .toolbar(isEditing ? .hidden : .visible, for: .tabBar)
+      .navigationBarBackButtonHidden(isEditing || editing.status != .saved || editing.conflict)
       .toolbar {
+        if fileNavigation == nil && (isEditing || editing.status != .saved || editing.conflict) {
+          ToolbarItem(placement: .topBarLeading) {
+            Button("Back", systemImage: "chevron.left") {
+              guard !leaving else { return }
+              leaving = true
+              editorReference.view?.setEditingEnabled(false)
+              isEditing = false
+              Task {
+                await editing.saveNow()
+                leaving = false
+                if editing.status == .saved && !editing.conflict { dismiss() }
+              }
+            }
+            .accessibilityIdentifier("document back")
+            .disabled(leaving)
+          }
+        }
+        if editing.mode == .editing {
+          ToolbarItem(placement: .topBarTrailing) {
+            Button(isEditing ? "Done" : "Edit") {
+              let enabled = !isEditing
+              editorReference.view?.setEditingEnabled(enabled)
+              isEditing = enabled
+              if enabled { editorReference.view?.becomeFirstResponder() }
+              else { Task { await editing.saveNow() } }
+            }
+            .fontWeight(.semibold)
+          }
+        }
         ToolbarItem(placement: .topBarTrailing) {
           Button("Comments", systemImage: "bubble.left.and.bubble.right") { editorReference.view?.presentComments() }
         }
       }
+      .onAppear {
+        fileNavigation?.register(editing) {
+          editorReference.view?.setEditingEnabled(false)
+          isEditing = false
+          await editing.saveNow()
+          return editing.status == .saved && !editing.conflict
+        }
+      }
       .task { await editing.followSaving() }
-      .onDisappear { Task { await editing.saveNow() } }
+      .onDisappear {
+        fileNavigation?.unregister(editing)
+        editorReference.view?.setEditingEnabled(false)
+        isEditing = false
+        Task { await editing.saveNow() }
+      }
       .onChange(of: scenePhase) { _, phase in
         if phase != .active { Task { await editing.saveNow() } }
       }
   }
 
   private var notice: some View {
-    VStack(spacing: 6) {
+    VStack(alignment: .leading, spacing: 10) {
+      if !isEditing {
+        Text(editing.title)
+          .font(.title2.weight(.semibold))
+          .foregroundStyle(.primary)
+          .fixedSize(horizontal: false, vertical: true)
+          .accessibilityAddTraits(.isHeader)
+      }
+      ViewThatFits(in: .horizontal) {
+        HStack(spacing: 8) {
+          Label("Document", systemImage: "doc.text")
+          Text("·").accessibilityHidden(true)
+          Text(isEditing ? "Editing" : "Reading")
+        }
+        .fixedSize()
+        VStack(alignment: .leading, spacing: 4) {
+          Label("Document", systemImage: "doc.text")
+          Text(isEditing ? "Editing" : "Reading")
+        }
+      }
+      .foregroundStyle(.secondary)
       switch editing.mode {
       case .readOnly: Label("Read only", systemImage: "eye")
       case .notYetEditable:
         Label(
-          "Read only: the app can’t edit \(ListFormatter.localizedString(byJoining: editing.model.uneditableParts)) yet",
+          "Read only: this document has parts the app can’t edit yet",
           systemImage: "eye")
+        Text("Unsupported: \(ListFormatter.localizedString(byJoining: editing.model.uneditableParts)). The original content is preserved.")
+          .foregroundStyle(.secondary)
       case .editing:
         if editing.conflict {
+          Label("Newer edits available", systemImage: "exclamationmark.arrow.trianglehead.2.clockwise.rotate.90")
+            .fontWeight(.semibold)
           Text(
             "“\(editing.title)” has newer edits. Reload theirs or keep your edits as a separate copy."
           )
-          HStack {
-            Button("Reload Theirs") { Task { await reload() } }
-            Button("Keep Mine as a Copy") { Task { await editing.keepMineAsCopy() } }
+          ViewThatFits(in: .horizontal) {
+            HStack {
+              Button("Reload Theirs") { Task { await reload() } }
+              Button("Keep Mine as a Copy") { Task { await editing.keepMineAsCopy() } }
+            }
+            VStack(alignment: .leading, spacing: 8) {
+              Button("Reload Theirs") { Task { await reload() } }
+              Button("Keep Mine as a Copy") { Task { await editing.keepMineAsCopy() } }
+            }
           }
+          .buttonStyle(.bordered)
+          .disabled(editing.copying)
+          if editing.copying { ProgressView("Saving a copy…") }
           if let problem = editing.copyProblem { Text(problem) }
         } else {
           switch editing.status {
-          case .saved: Text("Saved")
-          case .unsaved: Text("Unsaved changes")
+          case .saved: Label("Saved", systemImage: "checkmark.circle")
+          case .unsaved: Label("Unsaved changes", systemImage: "clock")
           case .saving: ProgressView("Saving…")
           case .conflict: EmptyView()
           case .failed(let message):
             Text("Couldn’t save “\(editing.title)”. Try again. \(message)")
             Button("Try Again") { Task { await editing.saveNow() } }
+              .buttonStyle(.bordered)
           }
         }
       }
     }
     .font(.footnote)
-    .frame(maxWidth: .infinity)
+    .frame(maxWidth: .infinity, alignment: .leading)
     .padding(.horizontal)
-    .padding(.vertical, 8)
-    .background(.bar)
+    .padding(.vertical, 12)
+    .background(Color(uiColor: .systemBackground))
+    .overlay(alignment: .bottom) { Divider() }
   }
 }
 
 private struct DocumentEditor: UIViewRepresentable {
   let editing: DocumentEditing
   let reference: DocumentEditorReference
+  let isEditing: Bool
 
   func makeUIView(context: Context) -> NativeEditorHost {
     let view = EditorView(
@@ -205,11 +306,14 @@ private struct DocumentEditor: UIViewRepresentable {
       }
     }
     view.configureNestedEmbeds?(view)
+    view.setEditingEnabled(isEditing && editing.mode == .editing)
     reference.view = view
     return NativeEditorHost(editor: view)
   }
 
-  func updateUIView(_ view: NativeEditorHost, context: Context) {}
+  func updateUIView(_ view: NativeEditorHost, context: Context) {
+    reference.view?.setEditingEnabled(isEditing && editing.mode == .editing)
+  }
 }
 
 

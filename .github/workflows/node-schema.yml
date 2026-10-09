@@ -10,7 +10,8 @@ on:
 
 jobs:
   generated:
-    runs-on: ubuntu-latest
+    # Codegen parity compiles the native mention matcher against JavaScriptCore.
+    runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2

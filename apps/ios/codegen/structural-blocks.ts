@@ -50,22 +50,51 @@ export async function swiftForStructuralBlocks(): Promise<string> {
       import.meta.url,
     ),
   ).text();
-  const theme = await Bun.file(new URL("../../lexidraw/src/app/documents/[documentId]/themes/theme.ts", import.meta.url)).text();
+  const theme = await Bun.file(
+    new URL(
+      "../../lexidraw/src/app/documents/[documentId]/themes/theme.ts",
+      import.meta.url,
+    ),
+  ).text();
   const itemClasses = /layoutItem:\s*"([^"]+)"/.exec(theme)?.[1]?.split(/\s+/);
   const paddingClass = itemClasses?.find((value) => /^p-\d+$/.test(value));
-  const knownItemClasses = new Set(["document-column", "border", "border-dashed", "border-muted", paddingClass,
-    "[[aria-readonly=true]_&]:border-transparent", "print:border-transparent"]);
-  if (!itemClasses || !paddingClass || itemClasses.length !== knownItemClasses.size ||
-    itemClasses.some((value) => !knownItemClasses.has(value)))
+  const knownItemClasses = new Set([
+    "document-column",
+    "border",
+    "border-dashed",
+    "border-muted",
+    paddingClass,
+    "[[aria-readonly=true]_&]:border-transparent",
+    "print:border-transparent",
+  ]);
+  if (
+    !itemClasses ||
+    !paddingClass ||
+    itemClasses.length !== knownItemClasses.size ||
+    itemClasses.some((value) => !knownItemClasses.has(value))
+  )
     throw new Error("Column item utilities changed shape");
-  const containerClasses = /layoutContainer:\s*"([^"]+)"/.exec(theme)?.[1]?.split(/\s+/);
+  const containerClasses = /layoutContainer:\s*"([^"]+)"/
+    .exec(theme)?.[1]
+    ?.split(/\s+/);
   const gapClass = containerClasses?.find((value) => /^gap-\d+$/.test(value));
   const mutedAlias = /--muted:\s*var\((--[\w-]+)\);/.exec(globals)?.[1];
-  const mutedValues = mutedAlias ? [...globals.matchAll(new RegExp(`${mutedAlias}: ([^;]+);`, "g"))].map((m) => m[1]) : [];
-  if (!gapClass || containerClasses?.length !== 2 || !containerClasses.includes("grid") ||
-    !itemClasses?.includes("border-dashed") || !itemClasses.includes("border-muted") ||
-    !itemClasses.includes("[[aria-readonly=true]_&]:border-transparent") || itemClasses.some((value) => value.includes("rounded")) ||
-    mutedValues.length !== 3 || mutedValues[1] !== mutedValues[2])
+  const mutedValues = mutedAlias
+    ? [...globals.matchAll(new RegExp(`${mutedAlias}: ([^;]+);`, "g"))].map(
+        (m) => m[1],
+      )
+    : [];
+  if (
+    !gapClass ||
+    containerClasses?.length !== 2 ||
+    !containerClasses.includes("grid") ||
+    !itemClasses?.includes("border-dashed") ||
+    !itemClasses.includes("border-muted") ||
+    !itemClasses.includes("[[aria-readonly=true]_&]:border-transparent") ||
+    itemClasses.some((value) => value.includes("rounded")) ||
+    mutedValues.length !== 3 ||
+    mutedValues[1] !== mutedValues[2]
+  )
     throw new Error("Column gap/border theme changed shape");
   const themeColors = new ThemeColors(postcss.parse(globals));
   const rgbaColors = (name: string) => {
@@ -77,31 +106,67 @@ export async function swiftForStructuralBlocks(): Promise<string> {
     });
   };
   const columnBorderColors = rgbaColors("muted");
-  const spacingCSS = await Bun.file(new URL("../../lexidraw/node_modules/tailwindcss/theme.css", import.meta.url)).text();
+  const spacingCSS = await Bun.file(
+    new URL(
+      "../../lexidraw/node_modules/tailwindcss/theme.css",
+      import.meta.url,
+    ),
+  ).text();
   const spacingRem = /--spacing:\s*([\d.]+)rem;/.exec(spacingCSS)?.[1];
-  const itemContainment = /\.document-content :is\(\[data-lexical-layout-item\], \.document-column\) \{([^}]+)\}/.exec(document)?.[1];
-  if (!paddingClass || !spacingRem || !itemClasses?.includes("border") ||
-    !itemContainment?.includes("min-width: 0;") || !itemContainment.includes("container-type: inline-size;"))
+  const itemContainment =
+    /\.document-content :is\(\[data-lexical-layout-item\], \.document-column\) \{([^}]+)\}/.exec(
+      document,
+    )?.[1];
+  if (
+    !paddingClass ||
+    !spacingRem ||
+    !itemClasses?.includes("border") ||
+    !itemContainment?.includes("min-width: 0;") ||
+    !itemContainment.includes("container-type: inline-size;")
+  )
     throw new Error("Column box/containment CSS changed shape");
   // The web shows a row's column frames only while it is hovered or selected
   // in (#252); native has neither, so its frames stay transparent at rest.
-  const columnFramesShowAtRest = !/\.document-content\s+\[data-lexical-layout-container\]:not\(:hover, \[data-columns-selected\]\)\s*>\s*\[data-lexical-layout-item\]\s*\{\s*border-color: transparent;\s*\}/.test(document);
+  const columnFramesShowAtRest =
+    !/\.document-content\s+\[data-lexical-layout-container\]:not\(:hover, \[data-columns-selected\]\)\s*>\s*\[data-lexical-layout-item\]\s*\{\s*border-color: transparent;\s*\}/.test(
+      document,
+    );
   // Tailwind's rem utilities use the browser's 16px root, as existing native structural utilities do.
   const columnPadding = Number(paddingClass.slice(2)) * Number(spacingRem) * 16;
-  const tailwind = await import(Bun.resolveSync("tailwindcss", new URL("../../lexidraw/", import.meta.url).pathname));
-  if (typeof tailwind.compile !== "function") throw new Error("Tailwind compiler API changed shape");
-  const compiler = await tailwind.compile(`@theme { --spacing: ${spacingRem}rem; } @tailwind utilities;`);
+  const tailwind = await import(
+    Bun.resolveSync(
+      "tailwindcss",
+      new URL("../../lexidraw/", import.meta.url).pathname,
+    )
+  );
+  if (typeof tailwind.compile !== "function")
+    throw new Error("Tailwind compiler API changed shape");
+  const compiler = await tailwind.compile(
+    `@theme { --spacing: ${spacingRem}rem; } @tailwind utilities;`,
+  );
   const boxCSS: string = compiler.build(["border", paddingClass, gapClass]);
   const border = /\.border \{[^}]*border-width: ([\d.]+)px;/.exec(boxCSS)?.[1];
-  if (!border || !boxCSS.includes(`padding: calc(var(--spacing) * ${paddingClass.slice(2)});`))
+  if (
+    !border ||
+    !boxCSS.includes(
+      `padding: calc(var(--spacing) * ${paddingClass.slice(2)});`,
+    )
+  )
     throw new Error("Tailwind column box utilities changed shape");
   if (!boxCSS.includes(`gap: calc(var(--spacing) * ${gapClass.slice(4)});`))
     throw new Error("Tailwind column gap utility changed shape");
   const columnGap = Number(gapClass.slice(4)) * Number(spacingRem) * 16;
   const columnBorderWidth = Number(border);
-  const layoutPlugin = await Bun.file(new URL("../../lexidraw/src/app/documents/[documentId]/plugins/LayoutPlugin/LayoutPlugin.tsx", import.meta.url)).text();
-  const columnWhitespace = /template\.trim\(\)\.split\(\/([^/]+)\/\)\.length/.exec(layoutPlugin)?.[1];
-  if (!columnWhitespace) throw new Error("Layout column counting changed shape");
+  const layoutPlugin = await Bun.file(
+    new URL(
+      "../../lexidraw/src/app/documents/[documentId]/plugins/LayoutPlugin/LayoutPlugin.tsx",
+      import.meta.url,
+    ),
+  ).text();
+  const columnWhitespace =
+    /template\.trim\(\)\.split\(\/([^/]+)\/\)\.length/.exec(layoutPlugin)?.[1];
+  if (!columnWhitespace)
+    throw new Error("Layout column counting changed shape");
   const layouts = [
     ...dialog.matchAll(/\{ label: "([^"]+)", value: "([^"]+)" \}/g),
   ].map((m) => {
@@ -125,31 +190,53 @@ export async function swiftForStructuralBlocks(): Promise<string> {
     return values;
   };
   const cssRoot = postcss.parse(globals);
-  const stickyDefaults = cssRoot.nodes.find((node) => node.type === "atrule" && node.name === "theme" && node.params === "");
+  const stickyDefaults = cssRoot.nodes.find(
+    (node) =>
+      node.type === "atrule" && node.name === "theme" && node.params === "",
+  );
   let stickyDark: postcss.Rule | undefined;
   cssRoot.walkRules(".dark .sticky-note-container", (rule) => {
-    if (stickyDark || rule.parent?.type !== "atrule" || rule.parent.name !== "media" || rule.parent.params !== "screen")
+    if (
+      stickyDark ||
+      rule.parent?.type !== "atrule" ||
+      rule.parent.name !== "media" ||
+      rule.parent.params !== "screen"
+    )
       throw new Error("Sticky dark palette scope changed shape");
     stickyDark = rule;
   });
-  if (!stickyDefaults || stickyDefaults.type !== "atrule" || !stickyDark) throw new Error("Sticky palette scopes changed shape");
-  const stickyPalette = (name: string) => [stickyDefaults, stickyDark].map((scope) => {
-    const literals: string[] = [];
-    scope?.walkDecls(`--color-sticky-${name}`, (declaration) => { literals.push(declaration.value); });
-    if (literals.length !== 1) throw new Error(`Sticky ${name} palette changed shape`);
-    const match = /^oklch\(([\d.]+) ([\d.]+) ([\d.]+)(?: \/ ([\d.]+))?\)$/.exec(literals[0] ?? "");
-    if (!match) throw new Error(`Unsupported sticky ${name} color: ${literals[0]}`);
-    const l = Number(match[1]), c = Number(match[2]), h = Number(match[3]), alpha = Number(match[4] ?? 1);
-    if (![l, c, h, alpha].every(Number.isFinite)) throw new Error(`Invalid sticky ${name} channels`);
-    const [r, g, b] = srgbForOklch(l, c, h);
-    return `rgba(${r * 255}, ${g * 255}, ${b * 255}, ${Math.max(0, Math.min(1, alpha))})`;
-  });
+  if (!stickyDefaults || stickyDefaults.type !== "atrule" || !stickyDark)
+    throw new Error("Sticky palette scopes changed shape");
+  const stickyPalette = (name: string) =>
+    [stickyDefaults, stickyDark].map((scope) => {
+      const literals: string[] = [];
+      scope?.walkDecls(`--color-sticky-${name}`, (declaration) => {
+        literals.push(declaration.value);
+      });
+      if (literals.length !== 1)
+        throw new Error(`Sticky ${name} palette changed shape`);
+      const match =
+        /^oklch\(([\d.]+) ([\d.]+) ([\d.]+)(?: \/ ([\d.]+))?\)$/.exec(
+          literals[0] ?? "",
+        );
+      if (!match)
+        throw new Error(`Unsupported sticky ${name} color: ${literals[0]}`);
+      const l = Number(match[1]),
+        c = Number(match[2]),
+        h = Number(match[3]),
+        alpha = Number(match[4] ?? 1);
+      if (![l, c, h, alpha].every(Number.isFinite))
+        throw new Error(`Invalid sticky ${name} channels`);
+      const [r, g, b] = srgbForOklch(l, c, h);
+      return `rgba(${r * 255}, ${g * 255}, ${b * 255}, ${Math.max(0, Math.min(1, alpha))})`;
+    });
   const callout = /\.callout \{([\s\S]*?)\}/.exec(document)?.[1] ?? "";
   const radius = /border-radius: (\d+)px/.exec(callout)?.[1];
   const padding = /padding: (\d+)px (\d+)px/.exec(callout);
   if (!radius || !padding)
     throw new Error("The callout geometry changed shape");
-  const calloutHeader = /\.callout-header \{([\s\S]*?)\}/.exec(document)?.[1] ?? "";
+  const calloutHeader =
+    /\.callout-header \{([\s\S]*?)\}/.exec(document)?.[1] ?? "";
   const calloutIcon = /\.callout-icon \{([\s\S]*?)\}/.exec(document)?.[1] ?? "";
   const calloutBody = /\.callout-body \{([\s\S]*?)\}/.exec(document)?.[1] ?? "";
   const header = {
@@ -174,28 +261,57 @@ export async function swiftForStructuralBlocks(): Promise<string> {
     return [kind, name] as const;
   });
   const nodeSource = (name: string) =>
-    Bun.file(new URL(`../../../packages/lexical-nodes/src/nodes/${name}.ts`, import.meta.url)).text();
+    Bun.file(
+      new URL(
+        `../../../packages/lexical-nodes/src/nodes/${name}.ts`,
+        import.meta.url,
+      ),
+    ).text();
   const containerSource = await Bun.file(
-    new URL("../../../packages/lexical-nodes/src/nodes/CollapsibleContainerNode.ts", import.meta.url),
+    new URL(
+      "../../../packages/lexical-nodes/src/nodes/CollapsibleContainerNode.ts",
+      import.meta.url,
+    ),
   ).text();
   const toggleRule = (selector: string) => {
-    const rule = new RegExp(`\\.document-content ${selector.replace(/[[\]().*]/g, "\\$&")} \\{([^}]*)\\}`).exec(document)?.[1];
+    const rule = new RegExp(
+      `\\.document-content ${selector.replace(/[[\]().*]/g, "\\$&")} \\{([^}]*)\\}`,
+    ).exec(document)?.[1];
     if (!rule) throw new Error(`The toggle's ${selector} rule changed shape`);
     return rule;
   };
-  const gutter = /--toggle-gutter: ([\d.]+)em;/.exec(toggleRule(`[data-slot="accordion-item"]`))?.[1];
-  const chevronBox = /width: calc\(([\d.]+)em \+ ([\d.]+)rem\);\s*height: calc\(\1em \+ \2rem\);\s*padding: ([\d.]+)rem;/
-    .exec(toggleRule(`[data-slot="accordion-chevron"] svg`));
-  const contentGap = /margin-block-start: ([\d.]+)em;/.exec(toggleRule(`[data-slot="accordion-content"] > :first-child`))?.[1];
-  if (!gutter || !chevronBox || !contentGap || !/height: 1lh;/.test(toggleRule(`[data-slot="accordion-chevron"]`)) ||
-    !/color: var\(--muted-foreground\);/.test(toggleRule(`[data-slot="accordion-chevron"]`)) ||
-    !/rotate: 90deg;/.test(toggleRule(`[data-state="open"] > [data-slot="accordion-chevron"] svg`)))
+  const gutter = /--toggle-gutter: ([\d.]+)em;/.exec(
+    toggleRule(`[data-slot="accordion-item"]`),
+  )?.[1];
+  const chevronBox =
+    /width: calc\(([\d.]+)em \+ ([\d.]+)rem\);\s*height: calc\(\1em \+ \2rem\);\s*padding: ([\d.]+)rem;/.exec(
+      toggleRule(`[data-slot="accordion-chevron"] svg`),
+    );
+  const contentGap = /margin-block-start: ([\d.]+)em;/.exec(
+    toggleRule(`[data-slot="accordion-content"] > :first-child`),
+  )?.[1];
+  if (
+    !gutter ||
+    !chevronBox ||
+    !contentGap ||
+    !/height: 1lh;/.test(toggleRule(`[data-slot="accordion-chevron"]`)) ||
+    !/color: var\(--muted-foreground\);/.test(
+      toggleRule(`[data-slot="accordion-chevron"]`),
+    ) ||
+    !/rotate: 90deg;/.test(
+      toggleRule(`[data-state="open"] > [data-slot="accordion-chevron"] svg`),
+    )
+  )
     throw new Error("The toggle's geometry changed shape");
   // A toggle heading's chevron takes the heading's size and leading, as a
   // paragraph's takes the document's.
-  const documentLineHeight = /\.document-header \{[^}]*line-height: ([\d.]+);/.exec(document)?.[1];
-  if (!documentLineHeight) throw new Error("The document's line height changed shape");
-  const levels: [string, number, number][] = [["paragraph", 1, Number(documentLineHeight)]];
+  const documentLineHeight =
+    /\.document-header \{[^}]*line-height: ([\d.]+);/.exec(document)?.[1];
+  if (!documentLineHeight)
+    throw new Error("The document's line height changed shape");
+  const levels: [string, number, number][] = [
+    ["paragraph", 1, Number(documentLineHeight)],
+  ];
   for (const tag of ["h1", "h2", "h3", "h4", "h5", "h6"]) {
     const rule = new RegExp(
       `> \\[data-slot="accordion-trigger"\\] > ${tag}\\)\\s*> \\[data-slot="accordion-chevron"\\] \\{\\s*font-size: ([\\d.]+)em;\\s*line-height: ([\\d.]+);`,
@@ -203,13 +319,29 @@ export async function swiftForStructuralBlocks(): Promise<string> {
     if (!rule) throw new Error(`The ${tag} toggle's chevron changed shape`);
     levels.push([tag, Number(rule[1]), Number(rule[2])]);
   }
-  const chevronSVG = /<svg ([^>]*)><path d="([^"]+)"><\/path><\/svg>/.exec(containerSource);
-  const chevronViewBox = /viewBox="0 0 (\d+) (\d+)"/.exec(chevronSVG?.[1] ?? "");
-  const chevronStroke = /stroke-width="([\d.]+)"/.exec(chevronSVG?.[1] ?? "")?.[1];
-  const chevronOffsets = /^m([\d.\s-]+)$/.exec(chevronSVG?.[2] ?? "")?.[1]?.match(/-?[\d.]+/g)?.map(Number);
-  if (!chevronViewBox || chevronViewBox[1] !== chevronViewBox[2] || !chevronStroke || !chevronOffsets ||
-    chevronOffsets.length < 4 || chevronOffsets.length % 2 !== 0 ||
-    !chevronSVG?.[1]?.includes('stroke-linecap="round"') || !chevronSVG[1]?.includes('stroke-linejoin="round"'))
+  const chevronSVG = /<svg ([^>]*)><path d="([^"]+)"><\/path><\/svg>/.exec(
+    containerSource,
+  );
+  const chevronViewBox = /viewBox="0 0 (\d+) (\d+)"/.exec(
+    chevronSVG?.[1] ?? "",
+  );
+  const chevronStroke = /stroke-width="([\d.]+)"/.exec(
+    chevronSVG?.[1] ?? "",
+  )?.[1];
+  const chevronOffsets = /^m([\d.\s-]+)$/
+    .exec(chevronSVG?.[2] ?? "")?.[1]
+    ?.match(/-?[\d.]+/g)
+    ?.map(Number);
+  if (
+    !chevronViewBox ||
+    chevronViewBox[1] !== chevronViewBox[2] ||
+    !chevronStroke ||
+    !chevronOffsets ||
+    chevronOffsets.length < 4 ||
+    chevronOffsets.length % 2 !== 0 ||
+    !chevronSVG?.[1]?.includes('stroke-linecap="round"') ||
+    !chevronSVG[1]?.includes('stroke-linejoin="round"')
+  )
     throw new Error("Collapsible chevron icon changed shape");
   // A relative moveto's further pairs are relative linetos.
   const chevronPoints: [number, number][] = [];
@@ -217,7 +349,8 @@ export async function swiftForStructuralBlocks(): Promise<string> {
     const [x, y] = chevronPoints.at(-1) ?? [0, 0];
     const dx = chevronOffsets[index];
     const dy = chevronOffsets[index + 1];
-    if (dx === undefined || dy === undefined) throw new Error("Collapsible chevron coordinates changed shape");
+    if (dx === undefined || dy === undefined)
+      throw new Error("Collapsible chevron coordinates changed shape");
     chevronPoints.push([x + dx, y + dy]);
   }
   const section = {
@@ -261,8 +394,7 @@ export async function swiftForStructuralBlocks(): Promise<string> {
     /@container \(max-width: (\d+)px\) \{\s*\.document-content \[data-lexical-layout-container\]/.exec(
       document,
     )?.[1];
-  if (!stackWidth)
-    throw new Error("The web structural geometry changed shape");
+  if (!stackWidth) throw new Error("The web structural geometry changed shape");
   const firstLayout = layouts[0];
   if (!firstLayout) throw new Error("No web column presets");
   const nodes: Record<string, unknown> = {};

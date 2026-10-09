@@ -43,7 +43,9 @@ editor.update(
     result = {
       prior,
       after: { format: selection.format, style: selection.style },
-      inserted: $getRoot().getAllTextNodes().map(node => node.exportJSON()),
+      inserted: $getRoot()
+        .getAllTextNodes()
+        .map((node) => node.exportJSON()),
     };
     selection.insertText("!");
   },

@@ -2,7 +2,9 @@ import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const hooks = fileURLToPath(new URL("./structural-hooks.ts", import.meta.url));
-const nestedHooks = fileURLToPath(new URL("./nested-composer-hooks.ts", import.meta.url));
+const nestedHooks = fileURLToPath(
+  new URL("./nested-composer-hooks.ts", import.meta.url),
+);
 const output = await Bun.build({
   entrypoints: [fileURLToPath(new URL("./entry.ts", import.meta.url))],
   target: "browser",
@@ -13,12 +15,19 @@ const output = await Bun.build({
     {
       name: "original-structural-plugin-hooks",
       setup(build) {
-        build.onLoad({ filter: /LexicalNestedComposer\.dev\.js$/ }, async ({ path }) => {
-          const original = await Bun.file(path).text();
-          const contents = original.replace("from 'react';", `from ${JSON.stringify(nestedHooks)};`);
-          if (contents === original || /from 'react'/.test(contents)) throw new Error("Nested composer hooks changed shape");
-          return { contents, loader: "js", resolveDir: dirname(path) };
-        });
+        build.onLoad(
+          { filter: /LexicalNestedComposer\.dev\.js$/ },
+          async ({ path }) => {
+            const original = await Bun.file(path).text();
+            const contents = original.replace(
+              "from 'react';",
+              `from ${JSON.stringify(nestedHooks)};`,
+            );
+            if (contents === original || /from 'react'/.test(contents))
+              throw new Error("Nested composer hooks changed shape");
+            return { contents, loader: "js", resolveDir: dirname(path) };
+          },
+        );
         build.onLoad(
           {
             filter:
@@ -32,7 +41,10 @@ const output = await Bun.build({
                 `from ${JSON.stringify(hooks)}`,
               )
               .replace('from "react"', `from ${JSON.stringify(hooks)}`);
-            const adapted = contents.replace('from "@lexical/react/useLexicalTextEntity"', `from ${JSON.stringify(hooks)}`);
+            const adapted = contents.replace(
+              'from "@lexical/react/useLexicalTextEntity"',
+              `from ${JSON.stringify(hooks)}`,
+            );
             if (
               contents === original ||
               /from "react"|from "@lexical\/react\//.test(adapted)

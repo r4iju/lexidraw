@@ -4,7 +4,10 @@ import XCTest
 final class FolderNavigationUITests: XCTestCase {
   private var app: XCUIApplication!
 
-  override func setUp() {
+  override func setUpWithError() throws {
+    guard UIDevice.current.userInterfaceIdiom == .pad else {
+      throw XCTSkip("Sidebar journeys apply to iPad; iPhone uses destination tabs.")
+    }
     continueAfterFailure = false
     XCUIDevice.shared.orientation = .landscapeLeft
     app = XCUIApplication()
@@ -18,7 +21,7 @@ final class FolderNavigationUITests: XCTestCase {
 
   private var sidebar: XCUIElement { app.collectionViews["Sidebar"] }
   private var listing: XCUIElement {
-    app.collectionViews.matching(NSPredicate(format: "label != %@", "Sidebar")).firstMatch
+    app.collectionViews.matching(NSPredicate(format: "identifier != %@", "Sidebar")).firstMatch
   }
 
   func testAFolderInTheListingOpensAndSoDoesOneInsideIt() {
@@ -26,7 +29,7 @@ final class FolderNavigationUITests: XCTestCase {
     XCTAssertTrue(shows("Projects plan"))
     listing.buttons["Q3"].tap()
     XCTAssertTrue(shows("Q3 notes"))
-    sidebar.staticTexts["Home"].tap()
+    sidebar.staticTexts["Library"].tap()
     XCTAssertTrue(shows("Readme"))
   }
 
@@ -34,8 +37,8 @@ final class FolderNavigationUITests: XCTestCase {
     listing.buttons["Projects"].tap()
     listing.buttons["Q3"].tap()
     XCTAssertTrue(shows("Q3 notes"))
-    app.navigationBars["Q3"].descendants(matching: .any)["Q3"].firstMatch.tap()
-    app.collectionViews.matching(NSPredicate(format: "label != %@", "Sidebar")).buttons["Projects"]
+    app.descendants(matching: .any)["Folder location: Q3"].firstMatch.tap()
+    app.collectionViews.matching(NSPredicate(format: "identifier != %@", "Sidebar")).buttons["Projects"]
       .firstMatch.tap()
     XCTAssertTrue(shows("Projects plan"))
     app.navigationBars["Projects"].buttons["BackButton"].tap()
@@ -48,8 +51,8 @@ final class FolderNavigationUITests: XCTestCase {
   }
 
   func testAFolderInTheSidebarOpensFromAnotherSection() {
-    sidebar.staticTexts["Shared with Me"].tap()
-    XCTAssertTrue(app.navigationBars["Shared with Me"].waitForExistence(timeout: 5))
+    sidebar.staticTexts["Shared"].tap()
+    XCTAssertTrue(app.navigationBars["Shared"].waitForExistence(timeout: 5))
     sidebar.staticTexts["Recipes"].tap()
     XCTAssertTrue(shows("Pasta"))
   }

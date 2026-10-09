@@ -1,7 +1,9 @@
 import { expect, test } from "bun:test";
 import {
-  FOOTNOTE_STYLE_PATH, swiftForFootnoteStyle,
-  COMMENT_DATA_PATH, swiftForCommentData,
+  FOOTNOTE_STYLE_PATH,
+  swiftForFootnoteStyle,
+  COMMENT_DATA_PATH,
+  swiftForCommentData,
   EMOJI_ALIASES_PATH,
   POLL_STYLE_PATH,
   swiftForEmojiAliases,
@@ -47,14 +49,20 @@ test("native hashtags and keywords take the colour and weight the document theme
 });
 
 test("native footnote dimensions follow actual document CSS", async () => {
-  expect(await Bun.file(FOOTNOTE_STYLE_PATH).text()).toBe(await swiftForFootnoteStyle());
+  expect(await Bun.file(FOOTNOTE_STYLE_PATH).text()).toBe(
+    await swiftForFootnoteStyle(),
+  );
 });
 
 test("native annotation colors follow the web comment theme", async () => {
   const generated = await swiftForSocialStyle();
   expect(generated.includes("static let commentMark = ThemeColor(")).toBe(true);
-  expect(generated.includes("static let commentBorder = ThemeColor(")).toBe(true);
-  expect(generated.includes("static let commentMarkActive = ThemeColor(")).toBe(true);
+  expect(generated.includes("static let commentBorder = ThemeColor(")).toBe(
+    true,
+  );
+  expect(generated.includes("static let commentMarkActive = ThemeColor(")).toBe(
+    true,
+  );
   expect(await Bun.file(SOCIAL_STYLE_PATH).text()).toBe(generated);
 });
 

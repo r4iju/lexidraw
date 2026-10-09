@@ -30,7 +30,9 @@ jobs:
       - name: Editor UI scripts
         run: bun run test:ui CODE_SIGNING_ALLOWED=NO
         working-directory: apps/ios
-        timeout-minutes: 45
+        # CI measured 6m build + 8m document launch/tests + 28m editor/reference,
+        # then starts the remaining TextKit suite. Keep all gates with headroom.
+        timeout-minutes: 60
       - name: Drawing UI tests
         run: bun run test:drawing-ui CODE_SIGNING_ALLOWED=NO
         working-directory: apps/ios

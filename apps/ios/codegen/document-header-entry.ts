@@ -3,7 +3,12 @@ import { propertyValueParts } from "../../lexidraw/src/lib/document-properties";
 
 /** The header as the web's DocumentHeader shows it, read-only. */
 function present(header: unknown, lang: string | null) {
-  const { subtitle, cover, properties = [], toc } = normalizeDocumentHeader(header);
+  const {
+    subtitle,
+    cover,
+    properties = [],
+    toc,
+  } = normalizeDocumentHeader(header);
   return {
     subtitle: subtitle ?? null,
     cover: cover ?? null,
@@ -13,7 +18,11 @@ function present(header: unknown, lang: string | null) {
       parts: propertyValueParts(key, value).map((part) => {
         switch (part.kind) {
           case "status":
-            return { kind: part.kind, text: part.text, status: part.text.toLowerCase() };
+            return {
+              kind: part.kind,
+              text: part.text,
+              status: part.text.toLowerCase(),
+            };
           case "mention":
             return { kind: part.kind, text: `@${part.name}` };
           case "link":
