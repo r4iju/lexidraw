@@ -87,6 +87,8 @@ struct BrowserView: View {
   @State private var listener: Listener
   @State private var column = NavigationSplitViewColumn.content
   @State private var columns = NavigationSplitViewVisibility.all
+  @State private var browsingColumns = NavigationSplitViewVisibility.all
+  @State private var browsingColumn = NavigationSplitViewColumn.detail
   @State private var fileNavigation = FileNavigation()
   @State private var navigationEpoch = 0
   @State private var away = false
@@ -109,43 +111,51 @@ struct BrowserView: View {
       if UIDevice.current.userInterfaceIdiom == .phone {
         phoneNavigation
       } else {
-        NavigationSplitView(columnVisibility: $columns, preferredCompactColumn: $column) {
-          Sidebar(session: session, destination: destination, select: select, openFolder: openFolder, openTrash: openTrash)
-            .navigationSplitViewColumnWidth(min: typeSize.isAccessibilitySize ? 300 : 220, ideal: typeSize.isAccessibilitySize ? 340 : 250, max: 400)
-        } content: {
-          if destination == .search {
-            searchStack
+        Group {
+          if activeBrowser.file == nil {
+            NavigationSplitView(columnVisibility: $browsingColumns, preferredCompactColumn: $browsingColumn) {
+              sidebar
+            } detail: {
+              listing
+            }
           } else {
-            stack(for: activeBrowser)
-              .navigationSplitViewColumnWidth(min: 320, ideal: 380, max: 460)
-          }
-        } detail: {
-          NavigationStack {
-            if let file = activeBrowser.file {
-              FileDestination(file: file)
-                .id(file.id)
-                .toolbar {
-                  ToolbarItem(placement: .topBarLeading) {
-                    Button("Close file", systemImage: "xmark") {
-                      fileNavigation.perform { activeBrowser.file = nil; column = .content }
+            NavigationSplitView(columnVisibility: $columns, preferredCompactColumn: $column) {
+              sidebar
+            } content: {
+              listing
+                .navigationSplitViewColumnWidth(min: 320, ideal: 380, max: 460)
+            } detail: {
+              NavigationStack {
+                if let file = activeBrowser.file {
+                  FileDestination(file: file)
+                    .id(file.id)
+                    .toolbar {
+                      ToolbarItem(placement: .topBarLeading) {
+                        Button("Close file", systemImage: "xmark") {
+                          fileNavigation.perform {
+                            invalidateListingNavigation()
+                            activeBrowser.file = nil
+                            browsingColumn = .detail
+                          }
+                        }
+                      }
                     }
-                  }
                 }
-            } else {
-              ContentUnavailableView("Choose a file", systemImage: "doc.text.magnifyingglass",
-                description: Text("Browse Library, Shared, or Search to open a file here."))
+              }
+            }
+            .onGeometryChange(for: Bool.self) { $0.size.width >= 1100 } action: { wide in
+              columns = wide ? .all : .doubleColumn
             }
           }
         }
         .navigationSplitViewStyle(.balanced)
-        .onGeometryChange(for: Bool.self) { $0.size.width >= 1100 } action: { wide in
-          // Narrow tablet windows give their space to the listing and file;
-          // the native sidebar toggle keeps destinations and folders available.
-          columns = wide ? .all : .doubleColumn
-        }
         .environment(\.fileNavigation, fileNavigation)
         .environment(\.openFile, { file in
-          fileNavigation.perform { activeBrowser.file = FileReference(file); column = .detail }
+          fileNavigation.perform {
+            if activeBrowser.file == nil { invalidateListingNavigation() }
+            activeBrowser.file = FileReference(file)
+            column = .detail
+          }
         })
       }
     }
@@ -168,8 +178,26 @@ struct BrowserView: View {
     }
   }
 
+  private var sidebar: some View {
+    Sidebar(session: session, destination: destination, select: select, openFolder: openFolder, openTrash: openTrash)
+      .navigationSplitViewColumnWidth(min: typeSize.isAccessibilitySize ? 300 : 220,
+        ideal: typeSize.isAccessibilitySize ? 340 : 250, max: 400)
+  }
+
+  @ViewBuilder
+  private var listing: some View {
+    if destination == .search { searchStack }
+    else { stack(for: activeBrowser) }
+  }
+
   fileprivate enum Destination: Hashable {
     case library, shared, search
+  }
+
+  private func invalidateListingNavigation() {
+    // Replacing the split view must not let its departing stacks clear retained paths.
+    navigationEpoch += 1
+    search.select(active: destination == .search)
   }
 
   private func activate(_ destination: Destination) {
@@ -178,6 +206,7 @@ struct BrowserView: View {
     self.destination = destination
     phoneSelection = destination
     column = activeBrowser.file == nil ? .content : .detail
+    browsingColumn = .detail
   }
 
   private func select(_ destination: Destination) {
@@ -203,6 +232,7 @@ struct BrowserView: View {
       activate(.library)
       if browser.path.last != .trash { browser.path.append(.trash) }
       column = .content
+      browsingColumn = .detail
     }
   }
 
@@ -213,6 +243,7 @@ struct BrowserView: View {
       destination = .library
       browser.open(folder)
       column = .content
+      browsingColumn = .detail
     }
   }
 

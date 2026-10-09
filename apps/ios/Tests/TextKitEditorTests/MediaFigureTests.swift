@@ -75,6 +75,34 @@ import UIKit
 import ImageIO
 
 @MainActor @Suite struct UnsupportedMediaFormatTests {
+  @Test func pngMetadataMentioningSVGDoesNotUseTheSVGRasterizer() async throws {
+    let photo = UIGraphicsImageRenderer(size: CGSize(width: 20, height: 10)).image { context in
+      UIColor.blue.setFill()
+      context.fill(CGRect(x: 0, y: 0, width: 20, height: 10))
+    }
+    var png = try #require(photo.pngData())
+    let metadata = Data("Description\0Provenance icon: <svg></svg>".utf8)
+    var chunk = Data("tEXt".utf8) + metadata
+    var crc: UInt32 = 0xffffffff
+    for byte in chunk {
+      crc ^= UInt32(byte)
+      for _ in 0..<8 { crc = (crc >> 1) ^ (crc & 1 == 1 ? 0xedb88320 : 0) }
+    }
+    var length = UInt32(metadata.count).bigEndian
+    var checksum = (crc ^ 0xffffffff).bigEndian
+    chunk.insert(contentsOf: withUnsafeBytes(of: &length) { Array($0) }, at: 0)
+    chunk.append(contentsOf: withUnsafeBytes(of: &checksum) { Array($0) })
+    png.insert(contentsOf: chunk, at: 33)
+    var rasterizations = 0
+    let decoded = try await NativeMediaImages.load(URL(string: "data:image/png;base64," + png.base64EncodedString())!) { _ in
+      rasterizations += 1
+      throw URLError(.cannotDecodeContentData)
+    }
+    #expect(rasterizations == 0)
+    #expect(decoded.cgImage?.width == photo.cgImage?.width)
+    #expect(decoded.cgImage?.height == photo.cgImage?.height)
+  }
+
   @Test func svgUsesAnExplicitRasterPreviewWithoutReplacingOriginalSource() async throws {
     let svg = Data("<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"20\" height=\"10\"><rect width=\"20\" height=\"10\" fill=\"blue\"/></svg>".utf8)
     let source = try #require(URL(string: "data:image/svg+xml;base64," + svg.base64EncodedString()))

@@ -262,7 +262,7 @@ public final class DocumentText {
     if children.allSatisfy({ $0["type"] == "comment" || $0["type"] == "thread" }) { return children[0] }
     guard children.count == 1,
       let type = children[0]["type"]?.stringValue,
-      type == "comment" || type == "thread" || type == "excalidraw" || type == "poll" || type == "sticky" || type == "mermaid" || type == "chart" || (type == "equation" && children[0]["inline"] != true) || (type != "inline-image" && MediaPayload(children[0]) != nil) else { return nil }
+      type == "comment" || type == "thread" || type == "excalidraw" || type == "poll" || type == "sticky" || type == "mermaid" || type == "chart" || (type == "equation" && children[0]["inline"] != true) || MediaPayload(children[0]) != nil else { return nil }
     return children[0]
   }
 

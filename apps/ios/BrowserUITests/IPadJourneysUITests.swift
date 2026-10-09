@@ -2,6 +2,30 @@ import XCTest
 
 @MainActor
 final class IPadJourneysUITests: XCTestCase {
+  func testBrowsingUsesAvailableWidthBeforeOpeningAndAfterClosingAFile() throws {
+    guard UIDevice.current.userInterfaceIdiom == .pad else { throw XCTSkip("iPad browser layout") }
+    continueAfterFailure = false
+    XCUIDevice.shared.orientation = .landscapeLeft
+    let app = XCUIApplication()
+    app.launch()
+    XCTAssertTrue(app.buttons["Actions for Readme"].waitForExistence(timeout: 5))
+    let listing = app.collectionViews.matching(NSPredicate(format: "identifier != %@", "Sidebar")).firstMatch
+    let availableWidth = app.windows.firstMatch.frame.width - app.collectionViews["Sidebar"].frame.maxX
+    XCTAssertGreaterThan(listing.frame.width, availableWidth * 0.8)
+    XCTAssertFalse(app.staticTexts["Choose a file"].exists)
+    app.buttons["Projects"].firstMatch.tap()
+    app.buttons["Q3"].firstMatch.tap()
+    XCTAssertTrue(app.buttons["Actions for Q3 notes"].waitForExistence(timeout: 5))
+    app.staticTexts["Q3 notes"].firstMatch.tap()
+    XCTAssertTrue(app.buttons["Close file"].waitForExistence(timeout: 5))
+    XCTAssertTrue(app.buttons["Actions for Q3 notes"].exists)
+    XCTAssertLessThan(listing.frame.width, availableWidth * 0.8)
+    app.buttons["Close file"].tap()
+    XCTAssertTrue(app.buttons["Actions for Q3 notes"].waitForExistence(timeout: 5))
+    XCTAssertGreaterThan(listing.frame.width, availableWidth * 0.8)
+    XCTAssertFalse(app.staticTexts["Choose a file"].exists)
+  }
+
   func testReadAloudControlsSurviveDestinationChangesAndCanStop() throws {
     guard UIDevice.current.userInterfaceIdiom == .pad else { throw XCTSkip("iPad listening journey") }
     continueAfterFailure = false

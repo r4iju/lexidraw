@@ -6,6 +6,26 @@ import XCTest
 /// serves with the access each test gives.
 @MainActor
 final class DocumentPreviewUITests: XCTestCase {
+  func testStandalonePortraitInlineImageFitsTheReadingColumn() throws {
+    XCUIDevice.shared.orientation = .portrait
+    let source = UIGraphicsImageRenderer(size: CGSize(width: 1055, height: 1491)).image { context in
+      UIColor.blue.setFill()
+      context.fill(CGRect(x: 0, y: 0, width: 1055, height: 1491))
+    }
+    let image: JSONValue = ["type": "inline-image", "version": 1,
+      "src": .string("data:image/png;base64," + source.pngData()!.base64EncodedString()),
+      "width": 0, "height": 0, "altText": "Portrait image", "showCaption": false]
+    let app = XCUIApplication()
+    app.launchEnvironment["EDITOR_PREVIEW_ACCESS"] = "READ"
+    app.launchEnvironment["EDITOR_DOCUMENT"] = LexicalJSON.document([LexicalJSON.paragraph([image])]).stringified
+    app.launch()
+    let picture = app.buttons["Portrait image"]
+    XCTAssertTrue(picture.waitForExistence(timeout: 10))
+    XCTAssertGreaterThan(picture.frame.height, 100)
+    XCTAssertLessThanOrEqual(picture.frame.width, app.textViews.firstMatch.frame.width)
+    XCTAssertLessThanOrEqual(picture.frame.height, app.windows.firstMatch.frame.height * 0.7)
+  }
+
   override func setUp() {
     continueAfterFailure = false
   }
