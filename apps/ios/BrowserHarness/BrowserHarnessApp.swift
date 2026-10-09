@@ -264,12 +264,29 @@ actor HarnessServer: ClientTransport {
       answer = ["id": id, "updatedAt": revision]
     case "entities-load":
       guard let item = items.first(where: { $0.id == id && !$0.deleted }) else { return try missing() }
-      let elements: String
+      var elements: String
       switch item.type {
       case "document":
         elements = #"{"root":{"type":"root","version":1,"format":"","indent":0,"direction":null,"children":[{"type":"paragraph","version":1,"format":"","indent":0,"direction":null,"children":[{"type":"text","version":1,"text":"A thoughtful plan starts here.","format":0,"style":"","mode":"normal","detail":0}]}]}}"#
       case "url": elements = #"{"url":"https://example.com/design"}"#
       default: elements = "[]"
+      }
+      if scenario == "wide-table", item.type == "document" {
+        func node(_ type: String, _ children: [[String: Any]]) -> [String: Any] {
+          ["type": type, "version": 1, "format": "", "indent": 0,
+            "direction": NSNull(), "children": children]
+        }
+        let rows = (0..<3).map { row in
+          node("tablerow", (0..<4).map { column in
+            var cell = node("tablecell", [node("paragraph", [["type": "text", "version": 1,
+              "text": "Row \(row) column \(column)", "format": 0, "style": "", "mode": "normal", "detail": 0]])])
+            cell.merge(["colSpan": 1, "rowSpan": 1, "headerState": 0, "width": 240]) { _, new in new }
+            return cell
+          })
+        }
+        var table = node("table", rows)
+        table["colWidths"] = [240, 240, 240, 240]
+        elements = String(decoding: try JSONSerialization.data(withJSONObject: ["root": node("root", [table])]), as: UTF8.self)
       }
       answer = ["id": item.id, "title": item.title, "entityType": item.type, "appState": NSNull(),
         "elements": documents[item.id] ?? elements, "publicAccess": "PRIVATE", "shared": item.shared,

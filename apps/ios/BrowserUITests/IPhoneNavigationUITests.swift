@@ -2,6 +2,33 @@ import XCTest
 
 /// The signed-in iPhone journey uses the real browser with fixture-backed services.
 final class IPhoneNavigationUITests: XCTestCase {
+  func testHorizontalTableScrollingDoesNotSwipeBackOutOfTheDocument() throws {
+    guard UIDevice.current.userInterfaceIdiom == .phone else { throw XCTSkip("Phone back swipe") }
+    continueAfterFailure = false
+    XCUIDevice.shared.orientation = .portrait
+    let app = XCUIApplication()
+    app.launchEnvironment["BROWSER_SCENARIO"] = "wide-table"
+    app.launch()
+    XCTAssertTrue(app.staticTexts["Readme"].waitForExistence(timeout: 5))
+    app.staticTexts["Readme"].tap()
+    XCTAssertTrue(app.buttons["Edit"].waitForExistence(timeout: 5))
+    let editor = app.textViews.firstMatch
+    XCTAssertTrue(app.staticTexts["Saved"].waitForExistence(timeout: 5))
+    let origin = app.windows.firstMatch.coordinate(withNormalizedOffset: .zero)
+    let tableY = app.staticTexts["Saved"].frame.maxY + 45
+    let left = origin.withOffset(CGVector(dx: editor.frame.minX + 2, dy: tableY))
+    let right = origin.withOffset(CGVector(dx: editor.frame.maxX - 40, dy: tableY))
+    for _ in 0..<3 {
+      left.press(forDuration: 0.05, thenDragTo: right)
+      XCTAssertTrue(app.buttons["Edit"].exists, "Dragging at the table's leading boundary must stay in the document")
+    }
+    right.press(forDuration: 0.05, thenDragTo: left)
+    left.press(forDuration: 0.05, thenDragTo: right)
+    XCTAssertTrue(app.buttons["Edit"].exists, "A rightward table drag must not pop the document")
+    app.navigationBars["Readme"].buttons["BackButton"].tap()
+    XCTAssertTrue(app.buttons["Actions for Readme"].waitForExistence(timeout: 5))
+  }
+
   func testSwitchingDestinationsKeepsTheFolderAndSecondaryDestinationsReachable() throws {
     continueAfterFailure = false
     guard UIDevice.current.userInterfaceIdiom == .phone else {

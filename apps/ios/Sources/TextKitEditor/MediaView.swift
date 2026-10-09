@@ -112,9 +112,10 @@ enum MediaImageError: Error, LocalizedError, Equatable {
     let em = UIFont.preferredFont(forTextStyle: .body).pointSize
     let figure = payload.figureWidth(fitting: width, em: em)
     var mediaWidth = payload.figurePlacement == nil ? min(figure, payload.width ?? figure) : figure
-    if payload.type == "image", payload.figurePlacement == nil { mediaWidth = min(mediaWidth, naturalWidth ?? mediaWidth) }
+    let isImage = payload.type == "image" || payload.type == "inline-image"
+    if isImage, payload.figurePlacement == nil { mediaWidth = min(mediaWidth, naturalWidth ?? mediaWidth) }
     var height = mediaWidth / ratio
-    if payload.type == "image" {
+    if isImage {
       let limit = payload.figurePlacement == nil
         ? min(viewport * MediaStyle.unplacedViewportShare, em * MediaStyle.unplacedMaximumRem, payload.height ?? .greatestFiniteMagnitude)
         : viewport * MediaStyle.imageViewportShare
@@ -290,7 +291,7 @@ enum MediaImageError: Error, LocalizedError, Equatable {
       data = try Data(contentsOf: file)
       isSVG = isSVG || response.mimeType == "image/svg+xml"
     }
-    isSVG = isSVG || String(decoding: data.prefix(512), as: UTF8.self).contains("<svg")
+    isSVG = isSVG || isSVGDocument(data)
     if isSVG {
       guard data.count <= 8_000_000 else { throw URLError(.dataLengthExceedsMaximum) }
       guard let rasterizeSVG else { throw MediaImageError.unsupportedFormat("SVG images") }
@@ -301,7 +302,7 @@ enum MediaImageError: Error, LocalizedError, Equatable {
     }
     let (image, loopCount) = try await Task.detached(priority: .utility) {
       guard let source = CGImageSourceCreateWithData(data as CFData, nil) else {
-        if url.pathExtension.lowercased() == "svg" || String(decoding: data.prefix(512), as: UTF8.self).contains("<svg") { throw MediaImageError.unsupportedFormat("SVG images") }
+        if url.pathExtension.lowercased() == "svg" || isSVGDocument(data) { throw MediaImageError.unsupportedFormat("SVG images") }
         throw URLError(.cannotDecodeContentData)
       }
       let count = CGImageSourceGetCount(source)
@@ -377,6 +378,13 @@ enum MediaImageError: Error, LocalizedError, Equatable {
     let cost = NativeMediaImages.decodedCost(image)
     images.setObject(image, forKey: cacheKey, cost: cost)
     return image
+  }
+
+  private nonisolated static func isSVGDocument(_ data: Data) -> Bool {
+    let prefix = String(decoding: data.prefix(512), as: UTF8.self)
+      .trimmingCharacters(in: .whitespacesAndNewlines.union(CharacterSet(charactersIn: "\u{FEFF}")))
+    // Raster metadata can contain SVG markup, including PNG provenance icons.
+    return prefix.hasPrefix("<") && prefix.contains("<svg")
   }
 }
 

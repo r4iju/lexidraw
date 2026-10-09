@@ -38,6 +38,16 @@ import UIKit
   override func didMoveToWindow() {
     super.didMoveToWindow()
     for box in boxes.joined() { box.setAnimationVisible(window != nil) }
+    guard window != nil else { return }
+    var responder = next
+    while let current = responder {
+      if let navigation = (current as? UIViewController)?.navigationController {
+        navigation.interactivePopGestureRecognizer?.require(toFail: panGestureRecognizer)
+        navigation.interactiveContentPopGestureRecognizer?.require(toFail: panGestureRecognizer)
+        break
+      }
+      responder = current.next
+    }
   }
   /// Each cell's box, borders included, by row and by its index in the row,
   /// in the content.
@@ -530,7 +540,16 @@ import UIKit
   override func gestureRecognizerShouldBegin(_ recognizer: UIGestureRecognizer) -> Bool {
     guard recognizer === panGestureRecognizer else { return super.gestureRecognizerShouldBegin(recognizer) }
     let velocity = panGestureRecognizer.velocity(in: self)
-    return contentSize.width > bounds.width && bounds.contains(recognizer.location(in: self))
+    let location = recognizer.location(in: self)
+    let inTableRow: Bool
+    if let host = panGestureRecognizer.view {
+      // Include the document's side gutters so an imprecise table drag cannot become Back.
+      inTableRow = location.y >= bounds.minY && location.y <= bounds.maxY
+        && host.bounds.contains(recognizer.location(in: host))
+    } else {
+      inTableRow = bounds.contains(location)
+    }
+    return contentSize.width > bounds.width && inTableRow
       && abs(velocity.x) > abs(velocity.y) && super.gestureRecognizerShouldBegin(recognizer)
   }
 
@@ -836,9 +855,8 @@ import UIKit
   }
 }
 
-/// A table with the room below it, which gives the table's pan to the view
-/// it is put in: a view that takes no touches, as a block's doesn't, holds
-/// a table that can't be dragged.
+/// A table with the room below it. Its pan belongs to the document scroll view
+/// so touches in the side gutters reach the same gesture as touches in cells.
 @MainActor final class TableHolder: UIView {
   let table: TableView
 
@@ -871,9 +889,9 @@ import UIKit
   override func willMove(toSuperview newSuperview: UIView?) {
     super.willMove(toSuperview: newSuperview)
     if let newSuperview {
-      newSuperview.addGestureRecognizer(table.panGestureRecognizer)
+      (newSuperview.superview ?? newSuperview).addGestureRecognizer(table.panGestureRecognizer)
     } else {
-      superview?.removeGestureRecognizer(table.panGestureRecognizer)
+      table.panGestureRecognizer.view?.removeGestureRecognizer(table.panGestureRecognizer)
     }
   }
 }

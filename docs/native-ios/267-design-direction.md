@@ -218,11 +218,12 @@ Native screenshots and test-first evidence are in `/tmp/lexidraw-267/272-notes.m
 ## iPad adaptation and accessible recovery, #273
 
 iPad uses the same retained Library, Shared, and Search contexts in a native
-three-column split view: destination/folder sidebar, contextual listing, and
-independent file detail. Opening a file leaves its listing available beside it.
+two-column split view while browsing: destination/folder sidebar and a listing
+that fills the remaining width. Opening a file adds an independent detail column
+and narrows the adjacent listing. Closing the file restores the expanded listing.
 Command-1/2/3 select the primary destinations. Trash is secondary sidebar
 navigation; returning preserves the originating Library folder. Settings is also a secondary sidebar action with Command-comma; the account
-control stays in each listing toolbar. Narrow windows show the listing and file
+control stays in each listing toolbar. With a file open, narrow windows show the listing and file
 with the native sidebar toggle; wide windows show all three columns. Closing or replacing an editable detail waits for the existing
 document/drawing save boundary; failures and conflicts keep the file open.
 
@@ -259,3 +260,12 @@ when UIKit delivers several before the queued turn-end callback. This preserves
 the existing model's typing-burst undo grouping without changing history or
 composition contracts; prediction, QuickPath and Japanese marked text remain
 independently verified against the native input seam and saved web goldens.
+
+Scrollable document tables own horizontal drags across their row area, including
+the side gutters, before either native Back gesture can begin. At the table’s
+leading boundary a drag stays with the table; edge swipes outside table rows and
+the navigation Back button remain available.
+
+An image alone in a paragraph uses the fitted media layout, including legacy
+inline-image nodes with automatic dimensions. Images within text keep inline
+attachments. Presentation never rewrites the saved node type or dimensions.
