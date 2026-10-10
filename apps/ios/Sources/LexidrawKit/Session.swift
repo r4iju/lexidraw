@@ -1,4 +1,5 @@
 import Foundation
+import OpenAPIRuntime
 
 /// What a signed-in app can do. Only an ``Account`` makes one, from a token it
 /// holds.
@@ -7,6 +8,7 @@ public struct Session: Sendable {
   let origin: URL
   let connection: Connection
   let store: any TokenStore
+  let savedImageTransport: any ClientTransport
   let aiHandle: NativeAIHandle
   let providerKeyStore: (@Sendable (String) -> any TokenStore)?
   let providerConfiguration: @Sendable () -> URLSessionConfiguration

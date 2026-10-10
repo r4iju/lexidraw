@@ -40,6 +40,9 @@ struct MediaPayload: Sendable {
     default: destination = node["src"]?.stringValue
     }
     source = destination.map(Self.browserURLString).flatMap(URL.init(string:)).flatMap {
+      if ["image", "inline-image"].contains(type), $0.absoluteString.range(
+        of: #"^/api/generated-images/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"#,
+        options: .regularExpression) != nil { return $0 }
       if ["https", "http"].contains($0.scheme?.lowercased() ?? ""), $0.host != nil { return $0 }
       if ["image", "inline-image"].contains(type), $0.scheme == "data",
         ["data:image/png;base64,", "data:image/jpeg;base64,", "data:image/gif;base64,", "data:image/webp;base64,"].contains(where: $0.absoluteString.hasPrefix) { return $0 }

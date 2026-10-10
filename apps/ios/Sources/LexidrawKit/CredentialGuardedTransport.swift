@@ -43,7 +43,7 @@ struct CredentialGuardedTransport: ClientTransport {
     // Preserve lazy HTTPBody consumption. Scan the complete body on first
     // consumption so encoded values split across chunks cannot escape.
     let checked = answer.map {
-      HTTPBody(CheckedResponseBody(body: $0), length: $0.length, iterationBehavior: $0.iterationBehavior)
+      HTTPBody(CheckedResponseBody(body: $0, limit: operationID == "generatedImage.read" ? 2 << 20 : Int.max), length: $0.length, iterationBehavior: $0.iterationBehavior)
     }
     return (response, checked)
   }
@@ -59,13 +59,15 @@ extension Optional where Wrapped == HTTPBody {
 private struct CheckedResponseBody: AsyncSequence, Sendable {
   typealias Element = ArraySlice<UInt8>
   let body: HTTPBody
+  let limit: Int
   struct AsyncIterator: AsyncIteratorProtocol {
     var body: HTTPBody?
+    let limit: Int
     mutating func next() async throws -> Element? {
       guard let current = body else { return nil }
       body = nil
       do {
-        let bytes = try await Data(collecting: current, upTo: Int.max)
+        let bytes = try await Data(collecting: current, upTo: limit)
         try NativeCredentialGuard.shared.check(bytes)
         return ArraySlice(bytes)
       } catch {
@@ -74,5 +76,5 @@ private struct CheckedResponseBody: AsyncSequence, Sendable {
       }
     }
   }
-  func makeAsyncIterator() -> AsyncIterator { .init(body: body) }
+  func makeAsyncIterator() -> AsyncIterator { .init(body: body, limit: limit) }
 }

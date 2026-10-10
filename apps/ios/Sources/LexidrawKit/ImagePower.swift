@@ -20,8 +20,34 @@ extension Session {
     struct Input: Encodable { let idempotencyKey: String; let entityId: String; let image: NativeImageArtifact }
     struct Saved: Decodable { let id: String; let url: String }
     let result = try await imageRPC("imagePower.save", input: Input(idempotencyKey: id, entityId: document, image: image.validated()), as: Saved.self)
-    guard let url = URL(string: result.url), url.scheme == "https" else { throw NativeImageError.invalid }
+    guard let source = URL(string: result.url) else { throw NativeImageError.invalid }
+    return try generatedImageURL(source)
+  }
+  private func generatedImageURL(_ source: URL) throws -> URL {
+    guard let base = URLComponents(url: origin, resolvingAgainstBaseURL: false),
+      base.scheme == "https", base.host != nil, base.user == nil, base.password == nil,
+      base.query == nil, base.fragment == nil, ["", "/"].contains(base.path),
+      let parts = URLComponents(url: source, resolvingAgainstBaseURL: false),
+      parts.user == nil, parts.password == nil, parts.query == nil, parts.fragment == nil,
+      parts.percentEncodedPath.range(of: #"^/api/generated-images/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"#, options: .regularExpression) != nil,
+      (parts.scheme == nil && parts.host == nil) || (parts.scheme == base.scheme && parts.host == base.host && parts.port == base.port),
+      let url = URL(string: source.absoluteString, relativeTo: origin)?.absoluteURL
+    else { throw NativeImageError.invalid }
     return url
+  }
+  @MainActor public func savedGeneratedImage(_ source: URL) async throws -> Data {
+    let url = try generatedImageURL(source)
+    guard let token = try store.load() else { throw NativeImageError.invalid }
+    var request = HTTPRequest(method: .get, scheme: nil, authority: nil, path: url.path)
+    request.headerFields[.authorization] = "Bearer " + token
+    request.headerFields[.cacheControl] = "no-store"
+    let (response, body) = try await savedImageTransport.send(request, body: nil, baseURL: origin, operationID: "generatedImage.read")
+    guard response.status.code == 200, response.headerFields[.contentType] == "image/png",
+      let length = response.headerFields[.contentLength].flatMap(Int.init), length > 0, length <= 2 << 20,
+      let body else { throw NativeImageError.invalid }
+    let bytes = try await Data(collecting: body, upTo: 2 << 20)
+    guard bytes.count == length else { throw NativeImageError.invalid }
+    return try NativeImageArtifact(base64: bytes.base64EncodedString()).bytes
   }
   @MainActor public func imageFlow(document: String) async throws -> NativeImageFlow {
     let byok = try await nativeAI()

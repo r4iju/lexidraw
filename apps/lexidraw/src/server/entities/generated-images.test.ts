@@ -48,7 +48,7 @@ test("artifact upload is access checked, bounded, key-free, idempotent and retry
     );
     failed = false;
     const saved = await images.save("alice", request);
-    expect(saved.url).toMatch(/^https:\/\/storage.test\//);
+    expect(saved.url).toBe(`/api/generated-images/${saved.id}`);
     expect(await images.save("alice", request)).toEqual(saved);
     expect(writes).toBe(2);
     const session = createByokSession(async () => {

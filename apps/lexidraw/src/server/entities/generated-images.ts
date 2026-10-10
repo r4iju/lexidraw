@@ -18,6 +18,7 @@ const Row = z.object({
   url: z.string().nullable(),
   expires_at: z.number(),
   lease_until: z.number(),
+  size: z.number().int().positive().max(2097152),
 });
 export class GeneratedImages {
   constructor(
@@ -25,9 +26,11 @@ export class GeneratedImages {
     readonly deps: {
       now: () => number;
       canEdit: (account: string, entity: string) => Promise<boolean>;
+      canRead?: (account: string, entity: string) => Promise<boolean>;
       store: {
         put: (path: string, bytes: Uint8Array) => Promise<string>;
         remove: (path: string) => Promise<void>;
+        read?: (path: string) => Promise<Uint8Array | null>;
       };
     },
   ) {}
@@ -58,7 +61,7 @@ export class GeneratedImages {
           throw new Error("Artifact idempotency conflict");
         if (row.state === "registered" && row.url) {
           await tx.commit();
-          return { id: row.id, url: row.url };
+          return { id: row.id, url: this.url(row.id) };
         }
         if (row.expires_at <= this.deps.now() || row.state === "abandoned")
           throw new Error(
@@ -115,9 +118,8 @@ export class GeneratedImages {
       tx.close();
     }
     try {
-      const url = await this.deps.store.put(row.pathname, bytes);
-      if (new URL(url).protocol !== "https:")
-        throw new Error("Invalid storage result");
+      await this.deps.store.put(row.pathname, bytes);
+      const url = this.url(row.id);
       if (!(await this.deps.canEdit(account, input.entityId)))
         throw new Error("Edit access required");
       const registered = await this.client.execute({
@@ -134,7 +136,7 @@ export class GeneratedImages {
           ).rows[0],
         );
         if (prior.state === "registered" && prior.url)
-          return { id: prior.id, url: prior.url };
+          return { id: prior.id, url: this.url(prior.id) };
         await this.deps.store.remove(row.pathname);
         throw new Error("Upload expired");
       }
@@ -148,6 +150,45 @@ export class GeneratedImages {
         "Image sync failed. The completed device image can be uploaded again without regeneration.",
       );
     }
+  }
+  private url(id: string) {
+    return `/api/generated-images/${id}`;
+  }
+  async read(account: string, id: string): Promise<Uint8Array | null> {
+    if (!account || !z.uuid().safeParse(id).success) return null;
+    const value = (
+      await this.client.execute({
+        sql: "SELECT * FROM generated_images WHERE id=? AND state='registered'",
+        args: [id],
+      })
+    ).rows[0];
+    if (!value) return null;
+    const row = Row.parse(value);
+    if (
+      !this.deps.canRead ||
+      !(await this.deps.canRead(account, row.entity_id))
+    )
+      return null;
+    const bytes = await this.deps.store.read?.(row.pathname);
+    if (!bytes) return null;
+    if (
+      bytes.length !== row.size ||
+      createHash("sha256").update(bytes).digest("hex") !== row.content_hash
+    )
+      throw new Error("Invalid stored image");
+    validateImage({
+      mimeType: "image/png",
+      width: 1024,
+      height: 1024,
+      base64: Buffer.from(bytes).toString("base64"),
+    });
+    validateImagePixels(bytes);
+    if (!(await this.deps.canRead(account, row.entity_id))) return null;
+    const live = await this.client.execute({
+      sql: "SELECT id FROM generated_images WHERE id=? AND state='registered'",
+      args: [id],
+    });
+    return live.rows.length ? bytes : null;
   }
   async cleanup() {
     const expired = await this.client.execute({

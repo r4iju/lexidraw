@@ -28,11 +28,13 @@ public struct Account: Sendable {
   let origin: URL
   let store: any TokenStore
   let transport: any ClientTransport
+  let savedImageTransport: any ClientTransport
   let providerKeyStore: (@Sendable (String) -> any TokenStore)?
   let providerConfiguration: @Sendable () -> URLSessionConfiguration
 
   public init(
     origin: URL, store: any TokenStore, transport: any ClientTransport = URLSessionTransport(),
+    savedImageTransport: (any ClientTransport)? = nil,
     providerKeyStore: (@Sendable (String) -> any TokenStore)? = nil,
     providerConfiguration: @escaping @Sendable () -> URLSessionConfiguration = { .ephemeral }
   ) {
@@ -41,6 +43,7 @@ public struct Account: Sendable {
     self.origin = origin
     self.store = store
     self.transport = CredentialGuardedTransport(underlying: transport)
+    self.savedImageTransport = CredentialGuardedTransport(underlying: savedImageTransport ?? privateImageTransport())
   }
 
   /// The server and the Keychain item that `bundle`'s Info.plist names, so
@@ -123,6 +126,7 @@ public struct Account: Sendable {
     }
     return Session(
       origin: origin, connection: connection(token: token), store: store,
+      savedImageTransport: savedImageTransport,
       aiHandle: NativeAIHandle(
         defaultStore: providerKeyStore == nil
           ? KeychainProviderStore(accountID: "api-session-" + scope, origin: origin) : nil,

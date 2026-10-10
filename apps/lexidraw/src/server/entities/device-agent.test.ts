@@ -155,7 +155,7 @@ test("synthetic image tool uses the existing bounded upload before an idempotent
   expect(
     (await client.execute("SELECT elements FROM Entities WHERE id='doc'"))
       .rows[0]?.elements,
-  ).toContain("https://fixture.invalid/bounded.png");
+  ).toContain("/api/generated-images/");
   expect(
     (
       await new ProLedger(client, {

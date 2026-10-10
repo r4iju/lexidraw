@@ -67,7 +67,8 @@ export class DeviceAgentDocuments {
       if (!this.images) throw new Error("Image storage unavailable");
       url = await this.images(account, input);
       guard.assertSafe(url);
-      if (!/^https:\/\//.test(url)) throw new Error("Invalid image URL");
+      if (!/^\/api\/generated-images\/[0-9a-f-]{36}$/.test(url))
+        throw new Error("Invalid image URL");
     }
     const tx = await this.client.transaction("write");
     let committed = false;

@@ -5,8 +5,8 @@ mock.module("server-only", () => ({}));
 mock.module("./runtime", () => ({ proLedger: () => ({ client: {} }) }));
 mock.module("@packages/env", () => ({ default: {} }));
 const { generatedImages } = await import("./image-runtime");
-test("production generated images cannot publish private document content to a public blob store", () => {
+test("production generated images require a dedicated private store configuration", () => {
   expect(() => generatedImages()).toThrow(
-    "Private image storage is unavailable",
+    "Private image storage is not configured",
   );
 });

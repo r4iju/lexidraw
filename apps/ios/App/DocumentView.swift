@@ -387,7 +387,12 @@ private struct DocumentEditor: UIViewRepresentable {
 
 @MainActor func nativeMediaImageLoader(session: Session) -> MediaImageLoader {
   { source in
-    try await NativeMediaImages.load(source, rasterizeSVG: { svg in
+    if source.path.hasPrefix("/api/generated-images/") {
+      let bytes = try await session.savedGeneratedImage(source)
+      guard let image = UIImage(data: bytes) else { throw URLError(.cannotDecodeContentData) }
+      return image
+    }
+    return try await NativeMediaImages.load(source, rasterizeSVG: { svg in
       let preview = try await session.rasterizeSVG(svg)
       guard let image = UIImage(data: preview.png), let bitmap = image.cgImage else { throw URLError(.cannotDecodeContentData) }
       let scale = Double(max(bitmap.width, bitmap.height)) / max(preview.width, preview.height)
