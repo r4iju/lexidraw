@@ -412,3 +412,40 @@ durability, Stripe/Apple Sandbox, physical audio, migration and release proofs.
 No push, merge, PR edit, cloud CI/build/preview/deploy, production/provider/payment/
 bucket call, remote migration or release preparation occurred. PR292 and the
 read-only pinned review checkouts remain untouched.
+
+### V4 local UI fixes, pending independent review
+
+Starting from `42dbd1b4e9c17723610b5a5ddd5d51dee99dc1f1`, the sole-writer
+follow-up addresses Standards V4-S10, Spec V4-SPEC1, and Spec V4-S1:
+
+- Narration query mapping retains cached progress, quotes, and saved audio while
+  exposing each active failed read. Read retries refetch only their query;
+  cancellation and playback remain usable. Unknown or failed capability and
+  failed active reads block new generation and quote acceptance.
+- The private text form derives its maximum and available-balance admission from
+  the validated status pricebook for the durable entitlement period. Unknown
+  periods/bounds disable admission. The status policy already derives text and
+  autocomplete disclosures from that period; image and agent customer maxima
+  come from router capability/quote outputs. No client accounting authority or
+  server reservation/settlement contract changed.
+- Owned agent reports and cancellation take precedence over pending, failed, or
+  unavailable generation capability. Capability retry is read-only; new quote
+  and accept handlers remain gated. Account checks reject foreign cached
+  operations, detail IDs must match, and account/document keys reset event-owned
+  action state without retaining a second copy of query data.
+
+RED-first production React component render/click tests and query-mapping tests
+cover these changes, including doubled/lower period rates, an unknown period,
+capability failures, and account/document switches. Focused fresh-process Bun
+regressions, explicit web type checking, and formatting results are recorded in
+`/tmp/lexidraw-276-implementation/291-ui-fixes-v4.json`. These are local production
+component renders with injected API ports, not actual-service or hosted proofs.
+
+#291 and #276 remain incomplete. V4 Standards coverage is 63/354 files and does
+not constitute full approval. The parent will schedule bounded independent
+review slices after this local commit. Full review and previously recorded
+provider/model/quality/CORS/invoice, private storage/hosted durability,
+Stripe/Apple Sandbox, physical audio, migration, and release proofs remain
+pending. Prior fixes/manifests and pinned V4 review inputs remain intact. No
+push, merge, PR edit, cloud CI/build/preview/deploy, production/provider/payment/
+bucket API, remote migration, release preparation, or master integration ran.

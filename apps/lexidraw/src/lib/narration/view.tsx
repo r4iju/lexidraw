@@ -34,7 +34,7 @@ export function NarrationView({
             {Math.ceil(screen.quote.maxSeconds / 60)} minutes.
           </p>
           <p>{screen.quote.policy}</p>
-          <Button onClick={onAccept}>
+          <Button onClick={onAccept} disabled={screen.generationBlocked}>
             Accept maximum {(screen.quote.maximum / 1_000_000).toFixed(3)}{" "}
             credits
           </Button>
@@ -75,7 +75,9 @@ export function NarrationView({
             </Button>
           )}
           {["refunded", "cancelled"].includes(screen.job.state) && (
-            <Button onClick={onQuote}>Review retry quote</Button>
+            <Button onClick={onQuote} disabled={screen.generationBlocked}>
+              Review retry quote
+            </Button>
           )}
         </>
       )}
@@ -88,7 +90,11 @@ export function NarrationView({
             screen.kind === "error" ||
             (screen.kind === "job" &&
               ["saved", "settled"].includes(screen.job.state))) && (
-            <Button variant="outline" onClick={onQuote}>
+            <Button
+              variant="outline"
+              onClick={onQuote}
+              disabled={screen.generationBlocked}
+            >
               Review narration quote
             </Button>
           )}

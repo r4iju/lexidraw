@@ -10,11 +10,12 @@ import { ProBillingSection } from "./pro-billing";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
-import type { ProLedger } from "~/server/pro/ledger";
+import type { RouterOutputs } from "~/trpc/shared";
+import { TextBook, textMaximum } from "~/server/pro/contracts";
 import { queryAccess } from "~/lib/generation/query-access";
 import { QueryNotice } from "~/lib/generation/query-notice";
 import { api } from "~/trpc/react";
-export type ProStatus = Awaited<ReturnType<ProLedger["status"]>>;
+export type ProStatus = RouterOutputs["pro"]["status"];
 export function credits(value: number) {
   return (value / 1_000_000).toLocaleString("en-US", {
     useGrouping: false,
@@ -107,6 +108,11 @@ export function ProTrialSection({
       ]);
     },
   });
+  const periodBook = TextBook.safeParse(status.data.pricebook);
+  const maximum =
+    status.data.entitlementPeriodId && periodBook.success
+      ? textMaximum(periodBook.data)
+      : null;
   const current = operation.data ?? generate.data;
   const working =
     generate.isPending ||
@@ -157,19 +163,28 @@ export function ProTrialSection({
             onSubmit={(e) => {
               e.preventDefault();
               const text = new FormData(e.currentTarget).get("text");
-              if (typeof text === "string")
+              if (
+                maximum !== null &&
+                status.data.availableSubcredits >= maximum &&
+                typeof text === "string"
+              )
                 generate.mutate({ idempotencyKey: crypto.randomUUID(), text });
             }}
           >
             <Label htmlFor="pro-text">Text to continue</Label>
             <Input id="pro-text" name="text" required maxLength={1500} />
             <p className="text-sm">
-              Maximum reservation: 1.792 credits. Final usage may be lower.
-              Cancel stops new paid steps; completed work is charged and
-              uncertain outcomes stay reserved.
+              Maximum reservation:{" "}
+              {maximum === null ? "unavailable" : `${credits(maximum)} credits`}
+              . Final usage may be lower. Cancel stops new paid steps; completed
+              work is charged and uncertain outcomes stay reserved.
             </p>
             <Button
-              disabled={working || status.data.availableSubcredits < 1_792_000}
+              disabled={
+                working ||
+                maximum === null ||
+                status.data.availableSubcredits < maximum
+              }
             >
               Generate with private Pro
             </Button>
@@ -205,7 +220,8 @@ export function ProTrialSection({
           {generate.variables &&
             access.kind === "ready" &&
             access.data.available &&
-            !status.isError && (
+            !status.isError &&
+            maximum !== null && (
               <Button
                 variant="outline"
                 onClick={() => {

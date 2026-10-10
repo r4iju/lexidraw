@@ -2,6 +2,7 @@
 import { DeviceAgentPanel } from "~/lib/agent/device-panel";
 import { Button } from "~/components/ui/button";
 import { useState } from "react";
+import { useSession } from "next-auth/react";
 import { api } from "~/trpc/react";
 import { AgentActionView, type AgentViewState } from "~/lib/agent/action-view";
 import { AgentInput } from "~/lib/agent/contracts";
@@ -16,16 +17,31 @@ type Activity =
   | { kind: "result"; result: Result }
   | { kind: "error"; reason: string };
 export function DocumentAgent({ documentId }: { documentId: string }) {
+  const session = useSession();
   const power = api.auth.getPowerPreference.useQuery();
+  if (session.status !== "authenticated")
+    return <p>Checking account access...</p>;
   if (power.isPending) return <p>Checking AI power...</p>;
   if (power.isError) return <p>Could not check AI power.</p>;
   if (power.data.mode === "byok")
     return <DeviceAgentPanel documentId={documentId} />;
   if (power.data.mode !== "pro")
     return <p>Document actions are unavailable with built-in local AI.</p>;
-  return <ProDocumentAgent documentId={documentId} />;
+  return (
+    <ProDocumentAgent
+      key={JSON.stringify([session.data.user.id, documentId])}
+      accountId={session.data.user.id}
+      documentId={documentId}
+    />
+  );
 }
-function ProDocumentAgent({ documentId }: { documentId: string }) {
+function ProDocumentAgent({
+  documentId,
+  accountId,
+}: {
+  documentId: string;
+  accountId: string;
+}) {
   const utils = api.useUtils();
   const [activity, setActivity] = useState<Activity>({
     kind: "ready",
@@ -44,18 +60,17 @@ function ProDocumentAgent({ documentId }: { documentId: string }) {
   const current = api.agentPower.current.useQuery(
     { documentId },
     {
-      enabled:
-        activity.kind === "ready" &&
-        activity.restore &&
-        capability.data?.available === true,
+      enabled: activity.kind === "ready" && activity.restore,
     },
   );
-  const result =
+  const candidate =
     activity.kind === "result"
       ? activity.result
       : activity.kind === "ready" && activity.restore
         ? current.data
         : null;
+  const result =
+    candidate?.operation.account_id === accountId ? candidate : null;
   const operation = api.agentPower.operation.useQuery(
     { id: result?.operation.id ?? "" },
     {
@@ -68,16 +83,30 @@ function ProDocumentAgent({ documentId }: { documentId: string }) {
           : false,
     },
   );
-  const state: AgentViewState = capability.isPending
-    ? { kind: "busy" }
-    : capability.isError
-      ? { kind: "error", reason: "Could not check document actions." }
-      : !capability.data.available
-        ? { kind: "unavailable", reason: capability.data.reason }
-        : activity.kind === "quote"
-          ? { kind: "quote", maximum: activity.input.acceptedMaximum }
-          : result
-            ? { kind: "result", ...(operation.data ?? result) }
+  const detail =
+    operation.data?.operation.account_id === accountId &&
+    operation.data.operation.id === result?.operation.id
+      ? operation.data
+      : null;
+  const generationAllowed =
+    !capability.isPending &&
+    !capability.isError &&
+    capability.data?.available === true;
+  const state: AgentViewState = result
+    ? { kind: "result", ...(detail ?? result) }
+    : capability.isPending
+      ? { kind: "busy" }
+      : capability.isError
+        ? { kind: "error", reason: "Could not check document actions." }
+        : !capability.data?.available
+          ? {
+              kind: "unavailable",
+              reason:
+                capability.data?.reason ??
+                "Document action capability is unknown.",
+            }
+          : activity.kind === "quote"
+            ? { kind: "quote", maximum: activity.input.acceptedMaximum }
             : activity.kind === "ready" && activity.restore && current.isPending
               ? { kind: "busy" }
               : activity.kind === "ready" && activity.restore && current.isError
@@ -89,6 +118,7 @@ function ProDocumentAgent({ documentId }: { documentId: string }) {
                   ? activity
                   : { kind: "ready" };
   async function submit(prompt: string) {
+    if (!generationAllowed) return;
     setActivity({ kind: "busy" });
     try {
       const result = await quote.mutateAsync({ documentId, prompt });
@@ -111,7 +141,7 @@ function ProDocumentAgent({ documentId }: { documentId: string }) {
     }
   }
   async function accept() {
-    if (activity.kind !== "quote") return;
+    if (!generationAllowed || activity.kind !== "quote") return;
     const input = activity.input;
     setActivity({ kind: "busy" });
     try {
@@ -133,6 +163,30 @@ function ProDocumentAgent({ documentId }: { documentId: string }) {
   }
   return (
     <>
+      {!generationAllowed && (
+        <div
+          className="space-y-2 p-4"
+          role={capability.isError ? "alert" : "status"}
+        >
+          <p>
+            {capability.isError
+              ? "Could not check document actions. Generation availability is unknown; retained progress is shown below."
+              : capability.isPending
+                ? "Checking document action capability. Retained progress is shown below."
+                : (capability.data?.reason ??
+                  "Document action capability is unknown.")}
+          </p>
+          {capability.isError && (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => void capability.refetch()}
+            >
+              Retry capability
+            </Button>
+          )}
+        </div>
+      )}
       {state.kind === "result" && operation.isError && (
         <div className="space-y-2 p-4">
           <p role="alert">

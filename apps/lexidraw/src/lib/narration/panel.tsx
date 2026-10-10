@@ -1,4 +1,5 @@
 "use client";
+import { Button } from "~/components/ui/button";
 import { useState } from "react";
 import { api } from "~/trpc/react";
 import { NarrationView } from "./view";
@@ -67,14 +68,35 @@ export function ProNarrationPanel({ documentId }: { documentId: string }) {
           {generate.error.message} Retry acceptance to recover the same action.
         </p>
       )}
+      {screen.readErrors?.map((notice) => (
+        <div key={notice.query} role="alert">
+          <p>{notice.message}</p>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() =>
+              void { capability, quote, latest, operation, saved }[
+                notice.query
+              ].refetch()
+            }
+          >
+            Retry {notice.query === "operation" ? "progress" : notice.query}
+          </Button>
+        </div>
+      ))}
       <NarrationView
         screen={screen}
         onQuote={() => {
+          if (screen.generationBlocked) return;
           setActivity({ kind: "quote", key: crypto.randomUUID() });
           void utils.narration.quote.invalidate({ documentId });
         }}
         onAccept={() => {
-          if (activity.kind === "quote" && quote.data)
+          if (
+            !screen.generationBlocked &&
+            activity.kind === "quote" &&
+            quote.data
+          )
             generate.mutate({
               documentId,
               idempotencyKey: activity.key,

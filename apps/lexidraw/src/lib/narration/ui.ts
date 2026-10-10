@@ -1,10 +1,20 @@
 import type { NarrationSnapshot } from "./contracts";
 import type { RouterOutputs } from "~/trpc/shared";
 export type NarrationQuote = RouterOutputs["narration"]["quote"];
-export type NarrationScreen =
+export type NarrationRead =
+  | "capability"
+  | "quote"
+  | "latest"
+  | "operation"
+  | "saved";
+export type NarrationScreen = (
   | { kind: "idle" }
   | { kind: "busy" }
   | { kind: "unavailable"; message: string }
   | { kind: "error"; message: string }
   | { kind: "quote"; quote: NarrationQuote }
-  | { kind: "job"; job: NarrationSnapshot };
+  | { kind: "job"; job: NarrationSnapshot }
+) & {
+  readErrors?: { query: NarrationRead; message: string }[];
+  generationBlocked?: true;
+};

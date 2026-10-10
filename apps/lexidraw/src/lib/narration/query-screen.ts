@@ -1,6 +1,6 @@
 import type { UseQueryResult } from "@tanstack/react-query";
 import type { RouterOutputs } from "~/trpc/shared";
-import type { NarrationScreen } from "./ui";
+import type { NarrationRead, NarrationScreen } from "./ui";
 export type NarrationActivity =
   | { kind: "idle" }
   | { kind: "quote"; key: string }
@@ -32,16 +32,16 @@ export function narrationScreen({
   let screen: NarrationScreen;
   if (mutating) screen = { kind: "busy" };
   else if (activity.kind === "quote")
-    screen = quote.error
-      ? { kind: "error", message: quote.error.message }
-      : quote.data
-        ? { kind: "quote", quote: quote.data }
+    screen = quote.data
+      ? { kind: "quote", quote: quote.data }
+      : quote.error
+        ? { kind: "error", message: quote.error.message }
         : { kind: "busy" };
   else if (activity.kind === "saved")
-    screen = saved.error
-      ? { kind: "error", message: saved.error.message }
-      : saved.data
-        ? { kind: "job", job: saved.data }
+    screen = saved.data
+      ? { kind: "job", job: saved.data }
+      : saved.error
+        ? { kind: "error", message: saved.error.message }
         : { kind: "busy" };
   else if (operation.data) screen = { kind: "job", job: operation.data };
   else if (operation.error)
@@ -56,5 +56,70 @@ export function narrationScreen({
   else if (capability.data?.available === false)
     screen = { kind: "unavailable", message: capability.data.reason };
   else screen = { kind: "idle" };
-  return screen;
+  const reads: {
+    query: NarrationRead;
+    enabled: boolean;
+    error: Query<unknown>["error"];
+    cached: boolean;
+    label: string;
+    retained: string;
+  }[] = [
+    {
+      query: "capability",
+      enabled: true,
+      error: capability.error,
+      cached: !!capability.data,
+      label: "narration capability",
+      retained: "Generation availability is unknown.",
+    },
+    {
+      query: "latest",
+      enabled: true,
+      error: latest.error,
+      cached: latest.data !== undefined,
+      label: "the latest narration",
+      retained: "Showing the last known recording and progress.",
+    },
+    {
+      query: "operation",
+      enabled: operationEnabled,
+      error: operation.error,
+      cached: !!operation.data,
+      label: "narration progress",
+      retained: "Showing the last known progress.",
+    },
+    {
+      query: "quote",
+      enabled: activity.kind === "quote",
+      error: quote.error,
+      cached: !!quote.data,
+      label: "the narration quote",
+      retained: "Showing the last quote. Refresh before accepting.",
+    },
+    {
+      query: "saved",
+      enabled: activity.kind === "saved",
+      error: saved.error,
+      cached: !!saved.data,
+      label: "saved narration",
+      retained: "Showing the last saved recording.",
+    },
+  ];
+  const readErrors = reads
+    .filter((read) => read.enabled && read.error)
+    .map((read) => ({
+      query: read.query,
+      message: `Could not ${read.cached ? "refresh" : "load"} ${read.label}. ${read.cached ? read.retained : "Retry the read before starting a new action."}`,
+    }));
+  // Cached capability data is useful for display, never permission to spend after a failed read.
+  const generationBlocked =
+    !!capability.error ||
+    capability.isPending ||
+    capability.data?.available !== true ||
+    readErrors.length > 0;
+  return {
+    ...screen,
+    ...(readErrors.length ? { readErrors } : {}),
+    ...(generationBlocked ? { generationBlocked: true as const } : {}),
+  };
 }

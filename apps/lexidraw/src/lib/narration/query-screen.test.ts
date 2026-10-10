@@ -18,29 +18,29 @@ const ready = {
 test("initial narration query failures and pending recovery never look ready", () => {
   expect(
     narrationScreen({ ...ready, capability: { ...empty, isPending: true } }),
-  ).toEqual({ kind: "busy" });
+  ).toMatchObject({ kind: "busy" });
   expect(
     narrationScreen({ ...ready, latest: { ...empty, isPending: true } }),
-  ).toEqual({ kind: "busy" });
+  ).toMatchObject({ kind: "busy" });
   expect(
     narrationScreen({
       ...ready,
       capability: { ...empty, error: new Error("Capability failed") },
     }),
-  ).toEqual({ kind: "error", message: "Capability failed" });
+  ).toMatchObject({ kind: "error", message: "Capability failed" });
   expect(
     narrationScreen({
       ...ready,
       latest: { ...empty, error: new Error("Recovery failed") },
     }),
-  ).toEqual({ kind: "error", message: "Recovery failed" });
+  ).toMatchObject({ kind: "error", message: "Recovery failed" });
   expect(
     narrationScreen({
       ...ready,
       operationEnabled: true,
       operation: { ...empty, isPending: true },
     }),
-  ).toEqual({ kind: "busy" });
+  ).toMatchObject({ kind: "busy" });
   expect(narrationScreen(ready)).toEqual({ kind: "idle" });
 });
 test("generation unavailability does not hide a recovered job or saved recording", () => {
@@ -71,12 +71,63 @@ test("generation unavailability does not hide a recovered job or saved recording
       operationEnabled: true,
       operation: { ...empty, data: job },
     }),
-  ).toEqual({ kind: "job", job });
+  ).toMatchObject({ kind: "job", job });
   expect(
     narrationScreen({
       ...unavailable,
       activity: { kind: "saved" },
       saved: { ...empty, data: { ...job, state: "saved" } },
     }),
-  ).toEqual({ kind: "job", job: { ...job, state: "saved" } });
+  ).toMatchObject({ kind: "job", job: { ...job, state: "saved" } });
 });
+
+test.each(["operation", "saved", "latest", "capability", "quote"] as const)(
+  "cached %s failure remains explicit in query mapping without discarding retained content",
+  (query) => {
+    const job: RouterOutputs["narration"]["operation"] = {
+      id: "op",
+      state: "running",
+      charged: 0,
+      quote: 1,
+      made: 1,
+      planned: 2,
+      parts: [
+        { id: "part", text: "Retained audio", audio: "AA==", seconds: 1 },
+      ],
+      policy: "Stop future steps",
+    };
+    const quote = {
+      periodId: "p",
+      maximum: 1000000,
+      missing: 1,
+      cached: 1,
+      maxSeconds: 240,
+      revision: "r",
+      version: "private-narration-2026-10-v1",
+      policy: "Trial",
+    };
+    const input = {
+      ...ready,
+      operationEnabled: true,
+      operation: { ...empty, data: job },
+      saved: { ...empty, data: { ...job, state: "saved" as const } },
+      quote: { ...empty, data: quote },
+    };
+    const screen = narrationScreen({
+      ...input,
+      activity:
+        query === "quote"
+          ? { kind: "quote", key: "key" }
+          : query === "saved"
+            ? { kind: "saved" }
+            : { kind: "idle" },
+      [query]: { ...input[query], error: new Error("Refresh failed") },
+    });
+    expect(screen.kind).toBe(query === "quote" ? "quote" : "job");
+    expect(screen).toHaveProperty(
+      "readErrors",
+      expect.arrayContaining([expect.objectContaining({ query })]),
+    );
+    expect(screen).toHaveProperty("generationBlocked", true);
+  },
+);

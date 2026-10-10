@@ -18,9 +18,12 @@ afterAll(() => {
   globalThis.fetch = savedFetch;
 });
 
-const retained: Omit<Extract<AgentViewState, { kind: "result" }>, "kind"> = {
+const retained: Omit<Extract<AgentViewState, { kind: "result" }>, "kind"> & {
+  operation: { account_id: string };
+} = {
   operation: {
     id: "synthetic-action",
+    account_id: "owned-account",
     state: "running",
     charged: 0,
     quote: 10,
@@ -37,7 +40,20 @@ let detail: {
   isFetching: boolean;
   isError: boolean;
 } = { data: undefined, isPending: false, isFetching: false, isError: true };
+let accountId = "owned-account";
+let capability = {
+  isPending: false,
+  isError: false,
+  data: { available: true, reason: "Unavailable" },
+};
+const capabilityRefetch = mock(async () => {});
 const refetch = mock(async () => {});
+mock.module("next-auth/react", () => ({
+  useSession: () => ({
+    status: "authenticated",
+    data: { user: { id: accountId } },
+  }),
+}));
 const quote = mock(async () => {
   throw new Error("Retry must not quote a new action");
 });
@@ -67,14 +83,14 @@ mock.module("~/trpc/react", () => ({
     }),
     agentPower: {
       capability: {
-        useQuery: () => ({
-          isPending: false,
-          isError: false,
-          data: { available: true },
-        }),
+        useQuery: () => ({ ...capability, refetch: capabilityRefetch }),
       },
       current: {
-        useQuery: () => ({ data: retained, isPending: false, isError: false }),
+        useQuery: ({ documentId }: { documentId: string }) => ({
+          data: documentId === "synthetic-document" ? retained : null,
+          isPending: false,
+          isError: false,
+        }),
       },
       operation: { useQuery: () => ({ ...detail, refetch }) },
       quote: { useMutation: () => ({ mutateAsync: quote }) },
@@ -139,6 +155,90 @@ test("initial detail read and cached detail refresh are explicit while retained 
       "Refreshing document action progress",
     );
     expect(document.querySelector('[role="alert"]')).toBeNull();
+  } finally {
+    await view.unmount();
+  }
+});
+
+test.each(["error", "pending", "unavailable"] as const)(
+  "a %s generation capability read keeps owned agent edits and cancellation visible and retries only capability",
+  async (kind) => {
+    capability = {
+      isPending: kind === "pending",
+      isError: kind === "error",
+      data: { available: kind !== "unavailable", reason: "Unavailable" },
+    };
+    detail = {
+      data: retained,
+      isPending: false,
+      isFetching: false,
+      isError: false,
+    };
+    const view = await render(
+      <DocumentAgent documentId="synthetic-document" />,
+    );
+    try {
+      expect(document.body.textContent).toContain("Saved paragraph");
+      expect(document.body.textContent).toContain("Pending edit");
+      expect(button("Stop further work")).toBeDefined();
+      expect(button("Review maximum")).toBeUndefined();
+      expect(button("Accept maximum")).toBeUndefined();
+      if (kind === "error") {
+        expect(document.querySelector('[role="alert"]')?.textContent).toContain(
+          "Could not check document actions",
+        );
+        await click(button("Retry capability"));
+        expect(capabilityRefetch).toHaveBeenCalledTimes(1);
+        expect(quote).not.toHaveBeenCalled();
+        expect(start).not.toHaveBeenCalled();
+      } else
+        expect(
+          document.querySelector('[role="status"]')?.textContent,
+        ).toContain(
+          kind === "pending"
+            ? "Checking document action capability"
+            : "Unavailable",
+        );
+      await click(button("Stop further work"));
+      expect(cancel).toHaveBeenLastCalledWith({ id: "synthetic-action" });
+    } finally {
+      await view.unmount();
+    }
+  },
+);
+
+test("account changes never display or cancel another account's cached action", async () => {
+  capability = {
+    isPending: false,
+    isError: true,
+    data: { available: true, reason: "Unavailable" },
+  };
+  const view = await render(<DocumentAgent documentId="synthetic-document" />);
+  try {
+    expect(document.body.textContent).toContain("Saved paragraph");
+    accountId = "other-account";
+    await view.rerender(<DocumentAgent documentId="synthetic-document" />);
+    expect(document.body.textContent).not.toContain("Saved paragraph");
+    expect(document.body.textContent).not.toContain("Pending edit");
+    expect(button("Stop further work")).toBeUndefined();
+  } finally {
+    accountId = "owned-account";
+    await view.unmount();
+  }
+});
+test("switching documents clears event-owned action data even when its operation detail remains cached", async () => {
+  capability = {
+    isPending: false,
+    isError: true,
+    data: { available: true, reason: "Unavailable" },
+  };
+  const view = await render(<DocumentAgent documentId="synthetic-document" />);
+  try {
+    await click(button("Stop further work"));
+    expect(document.body.textContent).toContain("Saved paragraph");
+    await view.rerender(<DocumentAgent documentId="another-document" />);
+    expect(document.body.textContent).not.toContain("Saved paragraph");
+    expect(button("Stop further work")).toBeUndefined();
   } finally {
     await view.unmount();
   }
