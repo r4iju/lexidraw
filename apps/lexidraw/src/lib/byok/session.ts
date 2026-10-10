@@ -1,3 +1,10 @@
+import { validateImagePixels } from "../images/pixels";
+import { imageRequest } from "../images/format";
+import {
+  validateImage,
+  IMAGE_MAX_PROMPT_BYTES,
+  IMAGE_UNAVAILABLE,
+} from "../images/contracts";
 import { z } from "zod";
 import { sha256 } from "@noble/hashes/sha2.js";
 import { bytesToHex } from "@noble/hashes/utils.js";
@@ -22,7 +29,11 @@ const unavailable = () =>
     "Direct provider access unavailable. Check your key, permissions, or browser connection.",
   );
 
-export function createByokSession(network: Network, origin: string) {
+export function createByokSession(
+  network: Network,
+  origin: string,
+  options: { imageFixture?: true } = {},
+) {
   let active: { reference: CredentialReference; key: string } | undefined;
   const known = new Map<string, { prefix: string; length: number }>();
   const fingerprint = (text: string) =>
@@ -178,6 +189,87 @@ export function createByokSession(network: Network, origin: string) {
       throw unavailable();
     }
   }
+  async function image(reference: CredentialReference, prompt: string) {
+    if (!options.imageFixture) throw new Error(IMAGE_UNAVAILABLE);
+    if (
+      active?.reference !== reference ||
+      new TextEncoder().encode(prompt).length > IMAGE_MAX_PROMPT_BYTES
+    )
+      throw unavailable();
+    assertSafe(prompt);
+    const request = new Request("https://openrouter.ai/api/v1/images", {
+      method: "POST",
+      redirect: "error",
+      credentials: "omit",
+      signal: AbortSignal.timeout(30_000),
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${active.key}`,
+      },
+      // This synthetic model is used only by injected transports. It cannot be enabled in production.
+      body: JSON.stringify(imageRequest(prompt)),
+    });
+    try {
+      const response = await network(request);
+      if (!response.ok || response.redirected) throw unavailable();
+      const reader = response.body?.getReader();
+      if (!reader) throw unavailable();
+      const chunks: Uint8Array[] = [];
+      let size = 0;
+      try {
+        for (;;) {
+          const next = await reader.read();
+          if (next.done) break;
+          size += next.value.byteLength;
+          if (size > 3 * 1024 * 1024 || active?.reference !== reference) {
+            await reader.cancel();
+            throw unavailable();
+          }
+          chunks.push(next.value);
+        }
+      } finally {
+        reader.releaseLock();
+      }
+      const bytes = new Uint8Array(size);
+      let offset = 0;
+      for (const chunk of chunks) {
+        bytes.set(chunk, offset);
+        offset += chunk.length;
+      }
+      const text = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+      if (active?.reference !== reference) throw unavailable();
+      assertSafe(text);
+      const parsed = z
+        .object({
+          data: z
+            .array(
+              z.object({
+                b64_json: z.string(),
+                media_type: z.literal("image/png"),
+              }),
+            )
+            .length(1),
+        })
+        .parse(JSON.parse(text));
+      const item = parsed.data[0];
+      if (!item) throw unavailable();
+      const validated = validateImage(
+        {
+          base64: item.b64_json,
+          mimeType: item.media_type,
+          width: 1024,
+          height: 1024,
+        },
+        assertSafe,
+      );
+      await validateImagePixels(validated.bytes);
+      return validated.image;
+    } catch {
+      throw new Error(
+        "Image provider unavailable. No automatic regeneration was performed.",
+      );
+    }
+  }
   async function autocomplete(
     reference: CredentialReference,
     before: string,
@@ -250,6 +342,7 @@ export function createByokSession(network: Network, origin: string) {
     text: (reference: CredentialReference, prompt: string) =>
       requestText(reference, prompt),
     autocomplete,
+    image,
     assertSafe,
     assertEgress,
   };

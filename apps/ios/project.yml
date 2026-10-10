@@ -70,6 +70,7 @@ targets:
       - App/MessageAlert.swift
       - App/DocumentView.swift
       - App/DocumentSuggestions.swift
+      - App/DocumentImages.swift
       - App/MediaCaptionEditor.swift
       - App/DocumentTypography.swift
       - App/Loaded.swift

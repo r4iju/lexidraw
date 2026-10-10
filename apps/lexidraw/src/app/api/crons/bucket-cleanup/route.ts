@@ -1,3 +1,4 @@
+import { generatedImages } from "~/server/pro/image-runtime";
 import { NextResponse } from "next/server";
 import { canRunCron } from "../cron-middleware";
 import { start } from "workflow/api";
@@ -29,6 +30,12 @@ export async function GET() {
     console.error("[Vercel Blob Cleanup] Room signal purge failed", {
       error: errorCode(error),
     });
+  }
+
+  try {
+    await generatedImages().cleanup();
+  } catch {
+    console.error("[Vercel Blob Cleanup] Generated image cleanup failed");
   }
 
   try {

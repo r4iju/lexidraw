@@ -40,7 +40,11 @@ const ThumbnailModal = ({ entity, isOpen, onOpenChange }: Props) => {
   const { mutate: updateEntity } = api.entities.update.useMutation();
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [generateQuery, setGenerateQuery] = useState<string>("");
-  const { generateImageData, isLoading: isGenerating } = useImageGeneration();
+  const {
+    generateImageData,
+    uploadImageData,
+    isLoading: isGenerating,
+  } = useImageGeneration();
   const { searchImage, isLoading: isSearching } = useUnsplashImage();
   const [isUploading, setIsUploading] = useState(false);
   const router = useRouter();
@@ -60,13 +64,12 @@ const ThumbnailModal = ({ entity, isOpen, onOpenChange }: Props) => {
       toast.error("Couldn’t generate an image. Try again.");
       return;
     }
-    // create a blob from the image data
-    const bytes = new Uint8Array(image.imageData);
-    const blob = new Blob([bytes], { type: image.mimeType });
-    // create a url from the blob
-    const url = URL.createObjectURL(blob);
-    // set the selected thumbnail to the url
-    setSelectedThumbnail(url);
+    const url = await uploadImageData(
+      image.imageData,
+      image.mimeType,
+      generateQuery,
+    );
+    if (url) setSelectedThumbnail(url);
   };
 
   const handleSelectFile = (e: React.ChangeEvent<HTMLInputElement>) => {

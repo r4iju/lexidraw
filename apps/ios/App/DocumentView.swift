@@ -122,6 +122,7 @@ private struct DocumentContent: View {
   @Environment(\.scenePhase) private var scenePhase
   @Environment(\.dismiss) private var dismiss
   @State private var leaving = false
+  @State private var imageComposer = false
   @Environment(\.fileNavigation) private var fileNavigation
 
   var body: some View {
@@ -169,8 +170,19 @@ private struct DocumentContent: View {
             .fontWeight(.semibold)
           }
         }
+        if editing.mode == .editing {
+          ToolbarItem(placement: .topBarTrailing) {
+            Button("Generate image", systemImage: "photo.badge.plus") { imageComposer = true }
+          }
+        }
         ToolbarItem(placement: .topBarTrailing) {
           Button("Comments", systemImage: "bubble.left.and.bubble.right") { editorReference.view?.presentComments() }
+        }
+      }
+      .sheet(isPresented: $imageComposer) {
+        DocumentImageComposer(session: editing.session, document: editing.id) { url, prompt in
+          editorReference.view?.insertGeneratedImage(url, altText: prompt)
+          Task { await editing.saveNow() }
         }
       }
       .onAppear {

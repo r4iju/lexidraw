@@ -158,3 +158,34 @@ export const proBillingEvents = sqliteTable(
     check("pro_billing_environment", sql`environment IN ('test','sandbox')`),
   ],
 );
+
+export const generatedImages = sqliteTable(
+  "generated_images",
+  {
+    id: text("id").primaryKey().notNull(),
+    accountId: text("account_id").notNull(),
+    entityId: text("entity_id").notNull(),
+    idempotencyKey: text("idempotency_key").notNull(),
+    contentHash: text("content_hash").notNull(),
+    size: integer("size").notNull(),
+    pathname: text("pathname").notNull().unique(),
+    state: text("state").notNull(),
+    url: text("url"),
+    expiresAt: integer("expires_at").notNull(),
+    leaseUntil: integer("lease_until").notNull().default(0),
+    createdAt: integer("created_at").notNull(),
+  },
+  (t) => [
+    uniqueIndex("generated_images_account_key").on(
+      t.accountId,
+      t.idempotencyKey,
+    ),
+    index("generated_images_account").on(t.accountId, t.state),
+    index("generated_images_expiry").on(t.state, t.expiresAt),
+    check("generated_image_size", sql`size BETWEEN 1 AND 2097152`),
+    check(
+      "generated_image_state",
+      sql`state IN ('pending','registered','abandoned')`,
+    ),
+  ],
+);

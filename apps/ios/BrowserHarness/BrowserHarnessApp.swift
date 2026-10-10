@@ -39,7 +39,9 @@ struct BrowserHarnessApp: App {
     WindowGroup {
       Group {
         switch model.state {
-        case .signedIn(let session): BrowserView(session: session)
+        case .signedIn(let session):
+          if BrowserScenario.name == "image" { ImageFixtureScreen(session: session) }
+          else { BrowserView(session: session) }
         case .signedOut: NavigationStack { SignInView() }
         }
       }
@@ -132,6 +134,16 @@ actor HarnessServer: ClientTransport {
   func send(_ request: HTTPRequest, body: HTTPBody?, baseURL: URL, operationID: String) async throws
     -> (HTTPResponse, HTTPBody?)
   {
+    if scenario == "image", ["imagePower.capability", "imagePower.generate", "imagePower.save", "auth.getPowerPreference", "auth.setPowerPreference", "pro.status"].contains(operationID) {
+      var forwarded = URLRequest(url: URL(string: "http://127.0.0.1:3084/api/trpc" + (request.path ?? ""))!)
+      forwarded.httpMethod = request.method.rawValue
+      forwarded.setValue("application/json", forHTTPHeaderField: "Content-Type")
+      if let body { forwarded.httpBody = try await Data(collecting: body, upTo: 3 << 20) }
+      try NativeCredentialGuard.shared.check(forwarded, body: forwarded.httpBody ?? Data())
+      let (data, response) = try await URLSession.shared.data(for: forwarded)
+      guard let response = response as? HTTPURLResponse else { throw NativeImageError.unavailable }
+      return (HTTPResponse(status: .init(code: response.statusCode)), HTTPBody(data))
+    }
     let components = URLComponents(string: request.path ?? "")
     let query = components?.queryItems ?? []
     let segments = (components?.path ?? "").split(separator: "/").map(String.init)

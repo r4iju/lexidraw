@@ -369,18 +369,10 @@ export function InsertImageDialog({
     isLoading: isGenerating,
     isConfigured: isGenerationConfigured,
   } = useLexicalImageGeneration();
-  const { data: aiStatus } = api.image.getAiGenerationStatus.useQuery();
-
+  const { data: aiStatus } = api.imagePower.capability.useQuery();
   const disabledReason =
-    aiStatus && aiStatus.isConfigured === false
-      ? !aiStatus.hasPolicy
-        ? "Create an Image policy in Admin → LLM → Policies (Image) and click Save."
-        : aiStatus.policy?.provider === "google" && !aiStatus.hasGoogleApiKey
-          ? "Missing GOOGLE_API_KEY."
-          : aiStatus.policy?.provider === "openai" && !aiStatus.hasOpenAiApiKey
-            ? "Missing OPENAI_API_KEY."
-            : "Check Image policy provider/modelId and allowedModels."
-      : undefined;
+    aiStatus?.reason ??
+    "Image generation is unavailable for the selected power source.";
 
   const handleUnsplashImageSelect = useCallback(
     (image: UnsplashImageResult) => {
@@ -442,6 +434,7 @@ export function InsertImageDialog({
           >
             Generate (AI)
           </Button>
+          {!isGenerationConfigured && <p>{disabledReason}</p>}
         </div>
       )}
       {mode === "url" && (

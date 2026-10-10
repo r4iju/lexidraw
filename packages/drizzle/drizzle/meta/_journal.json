@@ -106,6 +106,13 @@
       "when": 1791623928723,
       "tag": "0016_pro_billing_events",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "6",
+      "when": 1791640800000,
+      "tag": "0024_generated_images",
+      "breakpoints": true
     }
   ]
 }

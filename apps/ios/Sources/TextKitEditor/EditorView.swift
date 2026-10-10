@@ -1779,6 +1779,11 @@ public final class EditorView: UIScrollView, UITextInput {
       })]
   }
 
+  @discardableResult public func insertGeneratedImage(_ url: URL, altText: String) -> Bool {
+    guard url.scheme == "https", isEditable else { return false }
+    return insertMedia(Self.mediaNode("image", fields: ["src": .string(url.absoluteString), "altText": .string(altText)]))
+  }
+
   private static func mediaNode(_ type: String, fields: [String: JSONValue]) -> JSONValue {
     guard let source = MediaInsertions.nodes[type], var node = try? JSONValue(parsing: source).objectValue else {
       preconditionFailure("Generated media insertion factory is missing")

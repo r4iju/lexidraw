@@ -1,3 +1,4 @@
+import { imagePowerRouter } from "~/server/pro/image-runtime";
 import { proRouter } from "~/server/pro/router";
 import { htmlBlocksRouter } from "./routers/html-blocks";
 import { createTRPCRouter } from "~/server/api/trpc";
@@ -29,6 +30,7 @@ import { embedRouter } from "./routers/embeds";
 
 export const appRouter = createTRPCRouter({
   pro: proRouter,
+  imagePower: imagePowerRouter,
   embeds: embedRouter,
   auth: authRouter,
   crons: cronRouter,

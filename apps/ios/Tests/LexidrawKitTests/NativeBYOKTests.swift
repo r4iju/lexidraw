@@ -403,4 +403,32 @@ private final class DeviceKey: TokenStore, @unchecked Sendable {
     #expect(server.requests.count == 0)
   }
 
+@Test @MainActor func nativeImageKeepsKeyOutsideSharedRuntimeAndRetainsSafeCompletedFile() async throws {
+  let bytes = try Data(contentsOf: Bundle.module.url(forResource: "generated-image", withExtension: "png", subdirectory: "Fixtures")!)
+  ProviderProbe.requests = []
+  ProviderProbe.status = 200
+  ProviderProbe.response = "{\"data\":[{\"media_type\":\"image/png\",\"b64_json\":\"\(bytes.base64EncodedString())\"}]}"
+  let config = URLSessionConfiguration.ephemeral
+  config.protocolClasses = [ProviderProbe.self]
+  let byok = NativeBYOK(store: DeviceKey(), configuration: config, imageFixture: true)
+  try byok.replaceKey("sk-or-v1-image-native-fixture-secret")
+  let image = try await byok.generateImage(prompt: "tree")
+  #expect(image.bytes == bytes)
+  #expect(ProviderProbe.requests.count == 1)
+  let request = try #require(ProviderProbe.requests.first)
+  #expect(request.url?.absoluteString == "https://openrouter.ai/api/v1/images")
+  #expect(request.value(forHTTPHeaderField: "Authorization") == "Bearer sk-or-v1-image-native-fixture-secret")
+  #expect(!String(decoding: request.httpBody ?? Data(), as: UTF8.self).contains("fixture-secret"))
+  let directory = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+  defer { try? FileManager.default.removeItem(at: directory) }
+  let retained = NativeImageFileStore(directory: directory)
+  try retained.save(image)
+  try byok.removeKey()
+  #expect(try retained.load()?.bytes == bytes)
+  let production = NativeBYOK(store: DeviceKey(), configuration: config)
+  try production.replaceKey("sk-or-v1-image-native-unverified")
+  do { _ = try await production.generateImage(prompt: "tree"); Issue.record("Unverified production capability ran") } catch {}
+  #expect(ProviderProbe.requests.count == 1)
+}
+
 }

@@ -10,11 +10,16 @@ const Identity = z.strictObject({
   accountId: z.string().min(1).max(100),
   reason: z.string().min(1).max(500),
 });
+import { ImageCompletion } from "~/lib/images/contracts";
 const Outcome = z.discriminatedUnion("kind", [
   z.strictObject({
     kind: z.literal("completed"),
     text: z.string().min(1).max(16000),
     usage: Usage,
+  }),
+  z.strictObject({
+    kind: z.literal("image_completed"),
+    completion: ImageCompletion,
   }),
   z.strictObject({ kind: z.literal("technical_failure") }),
   z.strictObject({ kind: z.literal("cancelled") }),

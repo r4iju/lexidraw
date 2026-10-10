@@ -37,11 +37,13 @@ private final class NoProviderRedirects: NSObject, URLSessionTaskDelegate, Senda
   private let configuration: URLSessionConfiguration
   private var generation = UUID()
   private var sessions: [UUID: URLSession] = [:]
+  private let imageFixture: Bool
   private var ended = false
   public private(set) var hasKey = false
 
   public init(store: any TokenStore, configuration: URLSessionConfiguration = .ephemeral,
-    files: NativeTextFileStore? = nil) {
+    files: NativeTextFileStore? = nil, imageFixture: Bool = false) {
+    self.imageFixture = imageFixture
     self.files = files
     self.store = store
     self.configuration = configuration
@@ -150,12 +152,27 @@ private final class NoProviderRedirects: NSObject, URLSessionTaskDelegate, Senda
     return output
   }
 
+  public func generateImage(prompt: String) async throws -> NativeImageArtifact {
+    guard imageFixture else { throw NativeImageError.unavailable }
+    try NativeCredentialGuard.shared.check(Data(prompt.utf8))
+    guard let context = JSContext() else { throw NativeImageError.unavailable }
+    context.evaluateScript(nativeGenerationScript)
+    guard let prepared = context.objectForKeyedSubscript("nativeImageRequest")?.call(withArguments: [prompt])?.toString(), context.exception == nil else { throw NativeImageError.invalid }
+    let data = try await request(path: "/api/v1/images", body: Data(prepared.utf8), reference: credentialReference())
+    struct Envelope: Decodable {
+      struct Image: Decodable { let b64_json: String; let media_type: String }
+      let data: [Image]
+    }
+    guard let result = try? JSONDecoder().decode(Envelope.self, from: data), result.data.count == 1, result.data[0].media_type == "image/png" else { throw NativeImageError.invalid }
+    return try NativeImageArtifact(base64: result.data[0].b64_json)
+  }
+
   private func request(path: String, body: Data?, reference: NativeCredentialReference) async throws
     -> Data
   {
     guard !ended, reference.generation == generation else { throw NativeAIError.expired }
     guard let key = try store.load(), hasKey else { throw NativeAIError.missingKey }
-    guard ["/api/v1/key", "/api/v1/chat/completions"].contains(path),
+    guard (["/api/v1/key", "/api/v1/chat/completions"].contains(path) || (imageFixture && path == "/api/v1/images")),
       let url = URL(string: "https://openrouter.ai" + path)
     else { throw NativeAIError.unavailable }
     if let body { try NativeCredentialGuard.shared.check(body) }
@@ -187,7 +204,7 @@ private final class NoProviderRedirects: NSObject, URLSessionTaskDelegate, Senda
       guard http.url == url, (200..<300).contains(http.statusCode) else {
         throw NativeAIError.provider(http.statusCode)
       }
-      guard data.count <= 1 << 20 else { throw NativeAIError.unavailable }
+      guard data.count <= (path == "/api/v1/images" ? 3 << 20 : 1 << 20) else { throw NativeAIError.unavailable }
       try NativeCredentialGuard.shared.check(data)
       return data
     } catch let error as NativeAIError { throw error } catch is CancellationError {

@@ -1,3 +1,10 @@
+import { validateImagePixels } from "~/server/entities/image-raster";
+import {
+  ImageCompletion,
+  ImagePricebook,
+  imageCharge,
+  validateImage,
+} from "~/lib/images/contracts";
 import { z } from "zod";
 import type { Client, InArgs, Transaction } from "@libsql/client";
 import {
@@ -335,9 +342,14 @@ export class ProLedger {
     account: string,
     key: string,
     inputHash: string,
-    feature: "text" | "autocomplete" = "text",
+    feature: "text" | "autocomplete" | "image" = "text",
+    imageSnapshot?: unknown,
   ) {
-    const quote = feature === "autocomplete" ? AUTOCOMPLETE_QUOTE : TEXT_QUOTE;
+    const imageBook =
+      feature === "image" ? ImagePricebook.parse(imageSnapshot) : undefined;
+    const quote =
+      imageBook?.quote ??
+      (feature === "autocomplete" ? AUTOCOMPLETE_QUOTE : TEXT_QUOTE);
     return this.write(async (tx) => {
       const access = await tx.execute({
         sql: "SELECT active FROM pro_eligibility WHERE account_id=?",
@@ -362,6 +374,16 @@ export class ProLedger {
         })
       ).rows[0];
       if (!period) throw new ProError("Private entitlement required");
+      if (imageBook) {
+        const pinned = (
+          await tx.execute({
+            sql: "SELECT pricebook FROM pro_operations WHERE period_id=? AND feature='image' ORDER BY created_at,id LIMIT 1",
+            args: [period.id ?? ""],
+          })
+        ).rows[0];
+        if (pinned && String(pinned.pricebook) !== JSON.stringify(imageBook))
+          throw new ProError("Image rate snapshot is pinned for this period");
+      }
       const counts = (
         await tx.execute({
           sql: "SELECT SUM(CASE WHEN state IN ('reserved','running','unknown') THEN 1 ELSE 0 END) AS active, SUM(CASE WHEN created_at>? THEN 1 ELSE 0 END) AS recent FROM pro_operations WHERE account_id=?",
@@ -397,7 +419,7 @@ export class ProLedger {
           inputHash,
           feature,
           quote,
-          String(period.pricebook),
+          imageBook ? JSON.stringify(imageBook) : String(period.pricebook),
           TRIAL_POLICY.version,
           this.config.now(),
         ],
@@ -451,6 +473,7 @@ export class ProLedger {
     id: string,
     outcome:
       | { kind: "completed"; text: string; usage: Usage }
+      | { kind: "image_completed"; completion: ImageCompletion }
       | { kind: "technical_failure" | "cancelled" },
     reconciled = false,
   ) {
@@ -480,23 +503,36 @@ export class ProLedger {
       // Durable completion outranks a losing executor's failure/cancellation verdict.
       // Read it under the settlement write lock so no refund can race its commit.
       const completion = completed
-        ? Completion.parse(JSON.parse(String(completed.result)))
+        ? (op.feature === "image" ? ImageCompletion : Completion).parse(
+            JSON.parse(String(completed.result)),
+          )
         : undefined;
       const resolved = completion
-        ? {
-            kind: "completed" as const,
-            text: completion.text,
-            usage: completion.usage,
-          }
+        ? "kind" in completion
+          ? { kind: "image_completed" as const, completion }
+          : {
+              kind: "completed" as const,
+              text: completion.text,
+              usage: completion.usage,
+            }
         : outcome;
+      if (
+        (resolved.kind === "image_completed") !== (op.feature === "image") &&
+        ["completed", "image_completed"].includes(resolved.kind)
+      )
+        throw new ProError("Completion modality mismatch");
+      if (resolved.kind === "image_completed")
+        validateImagePixels(validateImage(resolved.completion.image).bytes);
       const charge =
-        resolved.kind === "completed"
-          ? referenceCharge(resolved.usage, JSON.parse(op.pricebook))
-          : 0;
+        resolved.kind === "image_completed"
+          ? imageCharge(resolved.completion.usage, JSON.parse(op.pricebook))
+          : resolved.kind === "completed"
+            ? referenceCharge(resolved.usage, JSON.parse(op.pricebook))
+            : 0;
       if (charge > op.quote)
         throw new ProError("Settlement exceeds accepted quote");
       const state =
-        resolved.kind === "completed"
+        resolved.kind === "completed" || resolved.kind === "image_completed"
           ? "settled"
           : resolved.kind === "technical_failure"
             ? "refunded"
@@ -514,7 +550,11 @@ export class ProLedger {
         args: [
           state,
           charge,
-          resolved.kind === "completed" ? resolved.text : null,
+          resolved.kind === "image_completed"
+            ? JSON.stringify(resolved.completion.image)
+            : resolved.kind === "completed"
+              ? resolved.text
+              : null,
           id,
         ],
       });
@@ -587,6 +627,11 @@ export class ProLedger {
           })
         ).rows[0],
       );
+      const imageBook =
+        op.feature === "image"
+          ? ImagePricebook.parse(JSON.parse(op.pricebook))
+          : undefined;
+      const exposure = imageBook?.maximumNanoUsd ?? MAX_ATTEMPT_NANO_USD;
       const access = (
         await tx.execute({
           sql: "SELECT active FROM pro_eligibility WHERE account_id=?",
@@ -597,7 +642,8 @@ export class ProLedger {
         op.state !== "running" ||
         op.cancel_requested ||
         access?.active !== 1 ||
-        this.config.now() - op.created_at >= PRICEBOOK.maxElapsedMs
+        this.config.now() - op.created_at >=
+          (imageBook?.maxElapsedMs ?? PRICEBOOK.maxElapsedMs)
       )
         throw new ProError("Paid steps stopped");
       const attempts = (
@@ -608,7 +654,8 @@ export class ProLedger {
       ).rows;
       if (
         attempts.length >=
-          (op.feature === "autocomplete" ? 1 : PRICEBOOK.maxAttempts) ||
+          (imageBook?.maxAttempts ??
+            (op.feature === "autocomplete" ? 1 : PRICEBOOK.maxAttempts)) ||
         attempts.some((a) => a.state !== "failed")
       )
         throw new ProError("Attempt limit or unresolved outcome");
@@ -637,11 +684,11 @@ export class ProLedger {
         })
       ).rows[0];
       if (
-        Number(failureSpend?.spend ?? 0) + MAX_ATTEMPT_NANO_USD >
+        Number(failureSpend?.spend ?? 0) + exposure >
           PRICEBOOK.accountFailureSpendNanoUsd ||
-        Number(accountSpend?.spend ?? 0) + MAX_ATTEMPT_NANO_USD >
+        Number(accountSpend?.spend ?? 0) + exposure >
           PRICEBOOK.accountSpendNanoUsd ||
-        Number(globalSpend?.spend ?? 0) + MAX_ATTEMPT_NANO_USD >
+        Number(globalSpend?.spend ?? 0) + exposure >
           PRICEBOOK.globalDailySpendNanoUsd ||
         Number(failures?.failures ?? 0) >= 5
       )
@@ -649,13 +696,7 @@ export class ProLedger {
       const attempt = crypto.randomUUID();
       await tx.execute({
         sql: "INSERT INTO pro_attempts(id,operation_id,number,state,exposure_nano_usd,created_at) VALUES (?,?,?,'started',?,?)",
-        args: [
-          attempt,
-          id,
-          attempts.length + 1,
-          MAX_ATTEMPT_NANO_USD,
-          this.config.now(),
-        ],
+        args: [attempt, id, attempts.length + 1, exposure, this.config.now()],
       });
       return attempt;
     });
@@ -663,7 +704,7 @@ export class ProLedger {
   async finishAttempt(
     id: string,
     outcome:
-      | { kind: "completed"; completion: Completion }
+      | { kind: "completed"; completion: Completion | ImageCompletion }
       | { kind: "failed" | "unknown"; actualCostNanoUsd?: number },
   ) {
     await this.write(async (tx) => {
@@ -674,16 +715,31 @@ export class ProLedger {
         })
       ).rows[0];
       if (attempt?.state !== "started") return;
+      const [operation] = (
+        await tx.execute({
+          sql: "SELECT feature,pricebook FROM pro_operations WHERE id=?",
+          args: [attempt.operation_id ?? ""],
+        })
+      ).rows;
       const completed =
         outcome.kind === "completed"
-          ? Completion.parse(outcome.completion)
+          ? (operation?.feature === "image"
+              ? ImageCompletion
+              : Completion
+            ).parse(outcome.completion)
           : undefined;
+      if (completed && "kind" in completed) {
+        validateImage(completed.image);
+        imageCharge(completed.usage, JSON.parse(String(operation?.pricebook)));
+      }
       const cost =
         completed?.actualCostNanoUsd ??
         (outcome.kind !== "completed" ? outcome.actualCostNanoUsd : undefined);
       if (
         cost !== undefined &&
-        (!Number.isSafeInteger(cost) || cost < 0 || cost > MAX_ATTEMPT_NANO_USD)
+        (!Number.isSafeInteger(cost) ||
+          cost < 0 ||
+          cost > Number(attempt.exposure_nano_usd))
       )
         throw new ProError("Invalid attempt cost");
       await tx.execute({

@@ -8,6 +8,16 @@ async function handle(req: NextRequest, pathSegsParam?: string[]) {
     return new Response("Unauthorized", { status: 401 });
   }
 
+  if ((pathSegsParam ?? []).some((part) => /image|imagen/i.test(part)))
+    return new Response(
+      "Image generation is unavailable; use the selected account power source",
+      { status: 410 },
+    );
+  // Arbitrary completion/tools bodies can invoke images too; legacy writes are closed.
+  if (req.method !== "GET" && req.method !== "HEAD")
+    return new Response("Legacy generation proxy is unavailable", {
+      status: 410,
+    });
   const apiKey = env.OPENAI_API_KEY;
   if (!apiKey) {
     return new Response("Server missing OPENAI_API_KEY", { status: 500 });
