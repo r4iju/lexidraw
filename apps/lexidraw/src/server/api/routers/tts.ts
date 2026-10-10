@@ -152,11 +152,19 @@ function snapshotOf(row: TtsJob): TtsJobSnapshot {
 }
 
 /** The job last started or updated for `entityId`, in anyone's voice. */
-async function latestJob(entityId: string): Promise<TtsJob | undefined> {
+async function latestJob(
+  entityId: string,
+  account: string,
+): Promise<TtsJob | undefined> {
   const rows = await drizzle
     .select()
     .from(schema.ttsJobs)
-    .where(eq(schema.ttsJobs.entityId, entityId))
+    .where(
+      and(
+        eq(schema.ttsJobs.entityId, entityId),
+        eq(schema.ttsJobs.userId, account),
+      ),
+    )
     .orderBy(desc(schema.ttsJobs.updatedAt), desc(schema.ttsJobs.createdAt))
     .limit(1)
     .execute();
@@ -409,9 +417,9 @@ async function listeningOf(
 }
 
 /** Whatever of `entityId`'s audio there is, and its job, so it is made anew. */
-async function deleteAudioOf(entityId: string, from: string) {
+async function deleteAudioOf(entityId: string, from: string, account: string) {
   const row = await drizzle.query.ttsJobs.findFirst({
-    where: (t) => eq(t.entityId, entityId),
+    where: (t) => and(eq(t.entityId, entityId), eq(t.userId, account)),
   });
   if (!row) return { deleted: false };
 
@@ -480,7 +488,7 @@ export const ttsRouter = createTRPCRouter({
         ctx.session?.user?.id,
         input.documentId,
       );
-      const row = await latestJob(input.documentId);
+      const row = await latestJob(input.documentId, ctx.session.user.id);
       return row ? snapshotOf(row) : null;
     }),
 
@@ -491,7 +499,7 @@ export const ttsRouter = createTRPCRouter({
         ctx.session?.user?.id,
         input.documentId,
       );
-      return manifestOf(await latestJob(input.documentId));
+      return manifestOf(await latestJob(input.documentId, ctx.session.user.id));
     }),
 
   deleteDocumentTts: protectedProcedure
@@ -501,7 +509,11 @@ export const ttsRouter = createTRPCRouter({
         ctx.session.user.id,
         input.documentId,
       );
-      return deleteAudioOf(input.documentId, "deleteDocumentTts");
+      return deleteAudioOf(
+        input.documentId,
+        "deleteDocumentTts",
+        ctx.session.user.id,
+      );
     }),
 
   startArticleTts: protectedProcedure
@@ -531,7 +543,7 @@ export const ttsRouter = createTRPCRouter({
         ctx.session?.user?.id,
         input.articleId,
       );
-      const row = await latestJob(input.articleId);
+      const row = await latestJob(input.articleId, ctx.session.user.id);
       return row ? snapshotOf(row) : null;
     }),
 
@@ -542,14 +554,18 @@ export const ttsRouter = createTRPCRouter({
         ctx.session?.user?.id,
         input.articleId,
       );
-      return manifestOf(await latestJob(input.articleId));
+      return manifestOf(await latestJob(input.articleId, ctx.session.user.id));
     }),
 
   deleteArticleTts: protectedProcedure
     .input(z.object({ articleId: z.string() }))
     .mutation(async ({ input, ctx }) => {
       await assertCanAccessArticleOrThrow(ctx.session.user.id, input.articleId);
-      return deleteAudioOf(input.articleId, "deleteArticleTts");
+      return deleteAudioOf(
+        input.articleId,
+        "deleteArticleTts",
+        ctx.session.user.id,
+      );
     }),
 
   listen: protectedProcedure
@@ -568,10 +584,8 @@ export const ttsRouter = createTRPCRouter({
     .output(Listening)
     .mutation(async ({ input, ctx }) => {
       const userId = ctx.session.user.id;
-      const listenable = await listenableOrNotFound(input.id, userId);
-      const job = await drizzle.query.ttsJobs.findFirst({
-        where: (t) => and(eq(t.id, listenable.key), eq(t.entityId, input.id)),
-      });
+      await listenableOrNotFound(input.id, userId);
+      const job = await latestJob(input.id, ctx.session.user.id);
       if (job?.status !== "ready")
         throw new TRPCError({
           code: "PRECONDITION_FAILED",
@@ -595,10 +609,8 @@ export const ttsRouter = createTRPCRouter({
     .input(z.object({ id: z.string() }))
     .output(Listening)
     .query(async ({ input, ctx }) => {
-      const { key } = await listenableOrNotFound(input.id, ctx.session.user.id);
-      const job = await drizzle.query.ttsJobs.findFirst({
-        where: (t) => and(eq(t.id, key), eq(t.entityId, input.id)),
-      });
+      await listenableOrNotFound(input.id, ctx.session.user.id);
+      const job = await latestJob(input.id, ctx.session.user.id);
       return listeningOf(job);
     }),
 

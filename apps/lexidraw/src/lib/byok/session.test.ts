@@ -26,6 +26,7 @@ for (const secret of [
   key,
   "sk-ant-distinctive-browser-secret",
   "sk-proj-distinctive-browser-secret",
+  "opaque-audit-key-without-provider-prefix-291",
 ]) {
   test("blocks known credentials and recoverable representations across egress", async () => {
     let dispatches = 0;

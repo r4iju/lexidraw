@@ -63,6 +63,7 @@ describe("Settings", () => {
     ).toEqual([
       "Account",
       "Editor",
+      "AI power",
       "AI",
       "Read aloud",
       "Sign-in methods",
@@ -108,101 +109,40 @@ describe("Settings", () => {
     await view.unmount();
   });
 
-  test("an unset model shows the default as the select's value", async () => {
+  test("AI settings expose one power boundary and never render legacy model or voice service controls", async () => {
     const view = await render(<SettingsForm {...props()} />);
-    const chat = document.querySelector("[aria-label='Chat model']");
-    expect(chat?.textContent).toBe("Default (Gemini 3 Pro)");
-    await view.unmount();
-  });
-
-  test("sliders rest on the default, and advanced options start collapsed", async () => {
-    const view = await render(<SettingsForm {...props()} />);
-    const advanced = document.querySelector<HTMLDetailsElement>(
-      "#settings-ai details",
+    for (const label of ["Chat model", "Agent model", "Voice service", "Voice"])
+      expect(document.querySelector(`[aria-label='${label}']`)).toBeNull();
+    expect(document.querySelector("#settings-ai")?.textContent).toContain(
+      "AI Power",
     );
-    expect(advanced?.open).toBe(false);
-    const temperature =
-      advanced?.querySelector<HTMLInputElement>("input[type=range]");
-    expect(temperature?.value).toBe("0.5");
+    expect(
+      document.querySelector("#settings-read-aloud")?.textContent,
+    ).toContain("Saved recordings");
     await view.unmount();
   });
-
-  test("a voice saved for a service that is gone shows the default service and voice", async () => {
+  test("ordinary profile edits send only profile, opt-in and playback data, preserving stored legacy configuration", async () => {
+    const saved: unknown[] = [];
     const view = await render(
       <SettingsForm
         {...props({
-          user: {
-            ...props().user,
-            // Saved before macOS `say` was removed; the type no longer has it.
-            config: { tts: { provider: "apple_say", voiceId: "Alva" } },
-          } as unknown as Props["user"],
+          onSave: async (value) => {
+            saved.push(value);
+          },
         })}
       />,
     );
-    const service = document.querySelector("[aria-label='Voice service']");
-    const voice = document.querySelector("[aria-label='Voice']");
-    expect({
-      service: service?.textContent,
-      voice: voice?.textContent,
-    }).toEqual({
-      service: "Default (Google Gemini)",
-      voice: "Default (Kore)",
+    const name = document.querySelector<HTMLInputElement>("input[name=name]");
+    if (!name) throw Error("Missing profile field");
+    await type(name, "Ada Changed");
+    await click(button("Save changes"));
+    expect(saved[0]).toEqual({
+      name: "Ada Changed",
+      email: "ada@example.test",
+      autoSave: true,
+      autocomplete: { enabled: false },
+      tts: { speed: null },
     });
-    await view.unmount();
-  });
-
-  test("an unset voice shows the default voice of the service chosen", async () => {
-    const view = await render(
-      <SettingsForm
-        {...props({
-          user: {
-            ...props().user,
-            config: { tts: { provider: "openai" } },
-          } as Props["user"],
-        })}
-      />,
-    );
-    const voice = document.querySelector<HTMLInputElement>(
-      "input[name='tts.voiceId']",
-    );
-    expect(voice?.placeholder).toBe("Default (alloy)");
-    await view.unmount();
-  });
-
-  test("a language is asked for only by Kokoro, the one service that needs it", async () => {
-    const language = () =>
-      document.querySelector("input[name='tts.languageCode']");
-    const gemini = await render(<SettingsForm {...props()} />);
-    expect(language()).toBeNull();
-    await gemini.unmount();
-
-    const kokoro = await render(
-      <SettingsForm
-        {...props({
-          user: {
-            ...props().user,
-            config: { tts: { provider: "kokoro" } },
-          } as Props["user"],
-        })}
-      />,
-    );
-    expect(language()).not.toBeNull();
-    await kokoro.unmount();
-  });
-
-  test("a Gemini voice shows by its name and character", async () => {
-    const view = await render(
-      <SettingsForm
-        {...props({
-          user: {
-            ...props().user,
-            config: { tts: { voiceId: "en-US-Chirp3-HD-Puck" } },
-          } as Props["user"],
-        })}
-      />,
-    );
-    const voice = document.querySelector("[aria-label='Voice']");
-    expect(voice?.textContent).toBe("Puck — Upbeat");
     await view.unmount();
   });
 });

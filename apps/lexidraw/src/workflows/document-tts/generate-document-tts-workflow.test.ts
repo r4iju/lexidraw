@@ -17,8 +17,7 @@ import { installServerRuntime } from "~/test/server-runtime";
 const db = await installServerRuntime();
 const { default: env } = await import("@packages/env");
 const HOST = new URL(env.VERCEL_BLOB_STORAGE_HOST).origin;
-// A part not made before is asked of OpenAI, which the fake store answers.
-Object.assign(env, { OPENAI_API_KEY: env.OPENAI_API_KEY || "sk-test" });
+// Uncached legacy synthesis stays closed; existing cached parts remain reusable.
 
 // `.env.test` carries a real store token, so nothing here may reach the store.
 const realBlob = await import("@vercel/blob");
@@ -160,7 +159,7 @@ describe("a read-aloud run", () => {
     expect(await jobOf()).toBeUndefined();
   });
 
-  test("with a part that can't be made ends in error, and the next run makes only that part", async () => {
+  test("with an uncached part refuses legacy synthesis without making a provider request", async () => {
     // The sixth part asked after is the one never made.
     let missing: string | undefined;
     store.madeBefore = (pathname) => {
@@ -171,11 +170,11 @@ describe("a read-aloud run", () => {
 
     await expect(
       generateDocumentTtsWorkflow(DOC, MARKDOWN, VOICE, "run-1"),
-    ).rejects.toThrow("OpenAI TTS error: 400");
+    ).rejects.toThrow("Pro narration is Coming soon");
 
     const failed = await jobOf();
     expect(failed).toMatchObject({ status: "error" });
-    expect(failed?.error).toContain("OpenAI TTS error: 400");
+    expect(failed?.error).toContain("Pro narration is Coming soon");
 
     store.paidFor.length = 0;
     store.speech = () => new Response(new Uint8Array([1, 2, 3]));
@@ -184,9 +183,10 @@ describe("a read-aloud run", () => {
       .set({ status: "queued", runId: "run-2", error: null })
       .where(eq(schema.ttsJobs.id, KEY));
 
-    await generateDocumentTtsWorkflow(DOC, MARKDOWN, VOICE, "run-2");
-
-    expect(store.paidFor).toHaveLength(1);
-    expect(await jobOf()).toMatchObject({ status: "ready" });
+    await expect(
+      generateDocumentTtsWorkflow(DOC, MARKDOWN, VOICE, "run-2"),
+    ).rejects.toThrow("Pro narration is Coming soon");
+    expect(store.paidFor).toHaveLength(0);
+    expect(await jobOf()).toMatchObject({ status: "error" });
   });
 });

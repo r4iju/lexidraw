@@ -74,6 +74,7 @@ export function ProTrialSection({
     initialData: initialStatus,
     refetchInterval: 2000,
   });
+  const capability = api.pro.textCapability.useQuery();
   const utils = api.useUtils();
   const generate = api.pro.text.useMutation({
     onSuccess: () => utils.pro.status.invalidate(),
@@ -106,8 +107,8 @@ export function ProTrialSection({
         Pro, coming soon
       </h3>
       <p className="text-sm">
-        Public purchases are unavailable. Private access enables this text trial
-        only. Other cloud AI features are not enabled by this trial.
+        Public purchases are unavailable. Private eligibility and an allowance
+        are required. Provider capabilities remain unavailable until verified.
       </p>
       {status.isError ? (
         <p role="alert">
@@ -123,6 +124,13 @@ export function ProTrialSection({
         <ProUsageDetails balance={status.data} />
       )}
       <ProBillingSection status={status.data} />
+      {capability.data?.available !== true && (
+        <p role="status">
+          Pro text is Coming soon until provider access, quality and output
+          bounds are verified. Use device-key text or built-in local
+          capabilities where supported.
+        </p>
+      )}
       {status.data.eligible && (
         <p className="text-sm">
           {status.data.entitled
@@ -130,7 +138,7 @@ export function ProTrialSection({
             : "Private eligibility is approved, but no active allowance is granted."}
         </p>
       )}
-      {status.data.entitled && (
+      {status.data.entitled && capability.data?.available && (
         <form
           className="flex flex-col gap-3"
           onSubmit={(e) => {

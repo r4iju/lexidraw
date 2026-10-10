@@ -7,7 +7,7 @@ import { DEFAULT_GEMINI_VOICE, geminiVoice } from "~/lib/gemini-voices";
  * default again", so a field someone cleared stops pinning an old value.
  */
 const LlmOverride = z
-  .object({
+  .strictObject({
     provider: z.string().nullable(),
     modelId: z.string().nullable(),
     temperature: z.number().min(0).max(1).nullable(),
@@ -24,7 +24,7 @@ const AutocompleteOverride = LlmOverride.extend({
 export const TTS_PROVIDERS = ["google", "openai", "kokoro"] as const;
 
 const TtsOverride = z
-  .object({
+  .strictObject({
     provider: z.enum(TTS_PROVIDERS).nullable(),
     voiceId: z.string().nullable(),
     speed: z.number().min(0.25).max(4).nullable(),
@@ -32,15 +32,30 @@ const TtsOverride = z
   })
   .partial();
 
-export const SettingsSchema = z.object({
-  name: z.string().trim().min(1, "Enter your name."),
-  email: z.email("Enter your email address."),
-  autoSave: z.boolean().optional(),
-  chat: LlmOverride.optional(),
-  agent: LlmOverride.optional(),
-  autocomplete: AutocompleteOverride.optional(),
-  tts: TtsOverride.optional(),
-});
+export const SettingsSchema = z
+  .strictObject({
+    name: z.string().trim().min(1, "Enter your name."),
+    email: z.email("Enter your email address."),
+    autoSave: z.boolean().optional(),
+    chat: LlmOverride.optional(),
+    agent: LlmOverride.optional(),
+    autocomplete: AutocompleteOverride.optional(),
+    tts: TtsOverride.optional(),
+  })
+  .superRefine((value, ctx) => {
+    if (
+      value.chat ||
+      value.agent ||
+      Object.keys(value.autocomplete ?? {}).some((key) => key !== "enabled") ||
+      Object.keys(value.tts ?? {}).some((key) => key !== "speed")
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        message:
+          "Use AI Power. Legacy model and provider settings are unavailable.",
+      });
+    }
+  });
 
 export type SettingsInput = z.infer<typeof SettingsSchema>;
 

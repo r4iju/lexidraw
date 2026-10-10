@@ -5,6 +5,7 @@ const { createProProviderTransport } = await import("./provider");
 test("approved Pro adapter uses the tuned bounded provider request and measured cached/reasoning usage through injected HTTP only", async () => {
   let dispatched = 0;
   const transport = createProProviderTransport({
+    authorize: async () => {},
     resolveServerKey: () => "fake-server-fixture-only",
     fetch: async (url, options) => {
       dispatched++;
@@ -49,6 +50,7 @@ test("approved Pro adapter uses the tuned bounded provider request and measured 
   expect(
     await transport("hello", new AbortController().signal, {
       attemptId: "attempt-fixture",
+      accountId: "alice",
       operationId: "operation-fixture",
     }),
   ).toEqual({
@@ -65,6 +67,7 @@ test("approved Pro adapter uses the tuned bounded provider request and measured 
 
 test("confirmed provider rejection is a technical failure with no generated result, while network uncertainty is never guessed free", async () => {
   const refused = createProProviderTransport({
+    authorize: async () => {},
     resolveServerKey: () => "fixture-only",
     fetch: async () =>
       Response.json(
@@ -81,6 +84,7 @@ test("confirmed provider rejection is a technical failure with no generated resu
   expect(
     await refused("text", new AbortController().signal, {
       attemptId: "attempt-fixture",
+      accountId: "alice",
       operationId: "operation-fixture",
     }),
   ).toEqual({
@@ -89,6 +93,7 @@ test("confirmed provider rejection is a technical failure with no generated resu
     actualCostNanoUsd: 0,
   });
   const uncertain = createProProviderTransport({
+    authorize: async () => {},
     resolveServerKey: () => "fixture-only",
     fetch: async () => {
       throw Error("network interrupted");
@@ -97,6 +102,7 @@ test("confirmed provider rejection is a technical failure with no generated resu
   expect(
     await uncertain("text", new AbortController().signal, {
       attemptId: "attempt-fixture",
+      accountId: "alice",
       operationId: "operation-fixture",
     }),
   ).toEqual({
@@ -107,6 +113,7 @@ test("confirmed provider rejection is a technical failure with no generated resu
 test("trusted autocomplete dispatches only the pinned server provider with its shorter output ceiling", async () => {
   let dispatched = 0;
   const transport = createProProviderTransport({
+    authorize: async () => {},
     resolveServerKey: () => "isolated-autocomplete-fixture-key",
     fetch: async (url, options) => {
       dispatched++;
@@ -153,6 +160,7 @@ test("trusted autocomplete dispatches only the pinned server provider with its s
       new AbortController().signal,
       {
         feature: "autocomplete",
+        accountId: "alice",
         operationId: "autocomplete-operation",
         attemptId: "autocomplete-attempt",
       },
@@ -162,4 +170,28 @@ test("trusted autocomplete dispatches only the pinned server provider with its s
     completion: { text: " world.", actualCostNanoUsd: 93000 },
   });
   expect(dispatched).toBe(1);
+});
+
+test("text provider refuses forged dispatch before resolving any app-owned key", async () => {
+  let keys = 0;
+  const transport = createProProviderTransport({
+    authorize: async () => {
+      throw new Error("Parent authorization required");
+    },
+    resolveServerKey: () => {
+      keys++;
+      return "fixture-only";
+    },
+    fetch: async () => {
+      throw Error("No external calls");
+    },
+  });
+  await expect(
+    transport("hello", new AbortController().signal, {
+      accountId: "alice",
+      attemptId: "forged",
+      operationId: "forged",
+    }),
+  ).rejects.toThrow("authorization");
+  expect(keys).toBe(0);
 });

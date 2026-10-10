@@ -93,53 +93,83 @@ describe("saving settings", () => {
       | undefined;
   };
 
-  test("keeps the agent model, and a cleared field goes back to the default", async () => {
+  test("profile edits preserve existing legacy AI metadata and deny obsolete model changes", async () => {
+    const config = {
+      llm: {
+        chat: {
+          provider: "openai",
+          modelId: "gpt-5-mini",
+          temperature: 0.9,
+          maxOutputTokens: 100,
+        },
+        agent: { provider: "openai", modelId: "gpt-5-mini" },
+      },
+    };
     await db
-      .insert(schema.llmPolicies)
-      .values(
-        (["chat", "agent", "autocomplete"] as const).map((mode) => ({
-          mode,
-          provider: "google",
-          modelId: "gemini-3-pro-preview",
-          temperature: 0.5,
-          maxOutputTokens: 8000,
-          allowedModels: [
-            { provider: "google", modelId: "gemini-3-pro-preview" },
-            { provider: "openai", modelId: "gpt-5-mini" },
-          ],
-          enforcedCaps: {
-            maxOutputTokensByProvider: { openai: 32768, google: 65535 },
-          },
-        })),
-      )
-      .onConflictDoNothing();
-    await db.insert(schema.users).values({ id: SETTINGS_USER, ...account });
-
+      .insert(schema.users)
+      .values({ id: SETTINGS_USER, ...account, config });
+    await expect(
+      settings.updateProfile({ ...account, chat: { temperature: null } }),
+    ).rejects.toThrow("AI Power");
+    await settings.updateProfile({ ...account, name: "Renamed" });
+    expect((await stored())?.llm).toEqual(config.llm);
+  });
+  test("only writing opt-in is saved by profile settings, preserving legacy preferences without using them", async () => {
     await settings.updateProfile({
       ...account,
-      chat: { provider: "openai", modelId: "gpt-5-mini", temperature: 0.9 },
-      agent: { provider: "openai", modelId: "gpt-5-mini" },
+      autocomplete: { enabled: false },
     });
-    expect((await stored())?.llm?.agent).toEqual({
-      provider: "openai",
-      modelId: "gpt-5-mini",
-    });
-
-    await settings.updateProfile({ ...account, chat: { temperature: null } });
-    expect((await stored())?.llm?.chat).toEqual({
-      provider: "openai",
-      modelId: "gpt-5-mini",
-    });
+    expect((await stored())?.autocomplete).toMatchObject({ enabled: false });
+    await expect(
+      settings.updateProfile({
+        ...account,
+        autocomplete: { verbosity: "high" },
+      }),
+    ).rejects.toThrow("AI Power");
   });
 
-  test("autocomplete settings go where autocomplete reads them", async () => {
-    await settings.updateProfile({
-      ...account,
-      autocomplete: { enabled: false, verbosity: "high" },
-    });
-    expect((await stored())?.autocomplete).toMatchObject({
-      enabled: false,
-      verbosity: "high",
+  test("ordinary listening speed controls update saved playback without changing the source", async () => {
+    await settings.updateProfile({ ...account, tts: { speed: 1.25 } });
+    const [row] = await db
+      .select()
+      .from(schema.users)
+      .where(eq(schema.users.id, SETTINGS_USER));
+    expect(row?.config?.audio?.preferredPlaybackRate).toBe(1.25);
+    await settings.updateProfile({ ...account, tts: { speed: null } });
+    const [reset] = await db
+      .select()
+      .from(schema.users)
+      .where(eq(schema.users.id, SETTINGS_USER));
+    expect(reset?.config?.audio?.preferredPlaybackRate).toBeUndefined();
+  });
+
+  test("a stale ordinary settings snapshot cannot overwrite a concurrent account source preference", async () => {
+    await db
+      .update(schema.users)
+      .set({ config: { aiPower: { mode: "byok", provider: "openrouter" } } })
+      .where(eq(schema.users.id, SETTINGS_USER));
+    const stale = authRouter.createCaller({
+      drizzle: {
+        select: () => ({
+          from: () => ({
+            where: () => ({
+              limit: async () => [{ config: { aiPower: { mode: "local" } } }],
+            }),
+          }),
+        }),
+        update: db.update.bind(db),
+      },
+      session: { user: { id: SETTINGS_USER } },
+      headers: new Headers(),
+    } as never);
+    await stale.updateProfile({ ...account, name: "Concurrent profile edit" });
+    const [row] = await db
+      .select()
+      .from(schema.users)
+      .where(eq(schema.users.id, SETTINGS_USER));
+    expect(row?.config?.aiPower).toEqual({
+      mode: "byok",
+      provider: "openrouter",
     });
   });
 

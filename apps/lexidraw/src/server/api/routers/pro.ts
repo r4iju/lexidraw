@@ -28,6 +28,7 @@ const Outcome = z.discriminatedUnion("kind", [
 ]);
 export function createProRouter(deps: {
   ledger: () => ProLedger;
+  textAvailable?: boolean;
   billing?: () => SandboxBilling;
   appleBilling?: () => AppleSandboxBilling;
   dispatch: (id: string, text: string, account: string) => Promise<unknown>;
@@ -47,7 +48,13 @@ export function createProRouter(deps: {
       throw error;
     }
   });
+  const textCapability = () => ({
+    available: deps.textAvailable !== false,
+    reason:
+      "Pro text is Coming soon until provider access, quality and output bounds are verified. Local and device-key alternatives remain available.",
+  });
   return createTRPCRouter({
+    textCapability: procedure.query(textCapability),
     appleSandboxGate: procedure.query(async ({ ctx }) => {
       if (
         !deps.appleBilling ||
@@ -85,6 +92,14 @@ export function createProRouter(deps: {
       deps.ledger().status(ctx.session.user.id),
     ),
     text: procedure.input(TextInput).mutation(async ({ ctx, input }) => {
+      if (!textCapability().available)
+        throw new ProError(textCapability().reason);
+      const [user] = await ctx.drizzle
+        .select({ config: schema.users.config })
+        .from(schema.users)
+        .where(eq(schema.users.id, ctx.session.user.id));
+      if (user?.config?.aiPower?.mode !== "pro")
+        throw new ProError("Select Pro in AI Power");
       const request = inputIdentity(input);
       const ledger = deps.ledger();
       const operation = await ledger.reserve(
@@ -99,6 +114,8 @@ export function createProRouter(deps: {
     autocomplete: procedure
       .input(AutocompleteInput)
       .mutation(async ({ ctx, input }) => {
+        if (!textCapability().available)
+          throw new ProError(textCapability().reason);
         if (
           /\b(?:sk-(?:or-v1-|ant-)?[A-Za-z0-9_-]{12,}|AIza[A-Za-z0-9_-]{20,})/.test(
             JSON.stringify(input),

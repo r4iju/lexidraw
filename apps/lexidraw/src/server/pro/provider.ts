@@ -1,5 +1,4 @@
 import "server-only";
-import env from "@packages/env";
 import { createOpenAI } from "@ai-sdk/openai";
 import { APICallError, generateText } from "ai";
 import { prepareAutocomplete } from "~/lib/generation/autocomplete";
@@ -16,12 +15,14 @@ type SdkFetch = NonNullable<
 type ProviderFetch = (...args: Parameters<SdkFetch>) => ReturnType<SdkFetch>;
 /** This adapter alone resolves the app-owned key, after the persisted attempt fence. */
 export function createProProviderTransport(deps: {
+  authorize: (context: Parameters<ProTransport>[2]) => Promise<void>;
   resolveServerKey: () => string | undefined;
   fetch?: ProviderFetch;
 }): ProTransport {
   if (process.env.NODE_ENV === "test" && !deps.fetch)
     throw new Error("Tests must inject Pro transport");
   return async (text, signal, context) => {
+    await deps.authorize(context);
     if (new TextEncoder().encode(text).length > PRICEBOOK.maxInputBytes)
       return { kind: "failed", retryable: false, actualCostNanoUsd: 0 };
     const key = deps.resolveServerKey();
@@ -52,9 +53,19 @@ export function createProProviderTransport(deps: {
       const result = await generateText({
         model: createOpenAI({
           apiKey: key,
-          fetch: deps.fetch
-            ? Object.assign(deps.fetch, { preconnect: () => {} })
-            : undefined,
+          fetch: Object.assign(
+            async (...args: Parameters<SdkFetch>) => {
+              await deps.authorize(context);
+              const [url, init] = args;
+              if (String(url) !== "https://api.openai.com/v1/responses")
+                throw new Error("Provider path rejected");
+              return (deps.fetch ?? globalThis.fetch)(url, {
+                ...init,
+                redirect: "error",
+              });
+            },
+            { preconnect: () => {} },
+          ),
         }).responses(PRICEBOOK.model),
         system: prepared.system,
         prompt: prepared.prompt,
@@ -101,9 +112,3 @@ export function createProProviderTransport(deps: {
     }
   };
 }
-export const serverProText: ProTransport = (text, signal, context) =>
-  createProProviderTransport({ resolveServerKey: () => env.OPENAI_API_KEY })(
-    text,
-    signal,
-    context,
-  );

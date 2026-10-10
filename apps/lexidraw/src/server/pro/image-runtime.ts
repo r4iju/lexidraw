@@ -1,31 +1,12 @@
 import "server-only";
-import { put, del } from "@vercel/blob";
 import { drizzle, schema, eq } from "@packages/drizzle";
-import { findEntityWith } from "~/server/entities/readable";
-import { GeneratedImages } from "~/server/entities/generated-images";
+import type { GeneratedImages } from "~/server/entities/generated-images";
 import { createImagePowerRouter } from "~/server/api/routers/image-power";
-import { proLedger } from "./runtime";
-export function generatedImages() {
-  return new GeneratedImages(proLedger().client, {
-    now: Date.now,
-    canEdit: async (account, entity) =>
-      !!(await findEntityWith(drizzle, entity, account, "edit")),
-    store: {
-      async put(path, bytes) {
-        return (
-          await put(path, Buffer.from(bytes), {
-            contentType: "image/png",
-            access: "public",
-            addRandomSuffix: false,
-            allowOverwrite: true,
-          })
-        ).url;
-      },
-      async remove(path) {
-        await del(path);
-      },
-    },
-  });
+import { ProError } from "./ledger";
+export function generatedImages(): GeneratedImages {
+  throw new ProError(
+    "Private image storage is unavailable until authenticated delivery and storage configuration are verified. Keep the completed image on this device.",
+  );
 }
 // No environment switch, arbitrary model, or server credential can activate image generation.
 export const imagePowerRouter = createImagePowerRouter({

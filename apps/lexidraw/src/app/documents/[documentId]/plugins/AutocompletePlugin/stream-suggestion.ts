@@ -18,12 +18,24 @@ export type ProSuggestions = {
   cancel(id: string): Promise<unknown>;
 };
 function clipBytes(text: string, max: number, tail = false) {
-  const chars = Array.from(text);
-  while (new TextEncoder().encode(chars.join("")).length > max) {
-    if (tail) chars.shift();
-    else chars.pop();
+  // UTF-8 needs at least one byte per UTF-16 unit. Examine only a bounded
+  // window, and advance by whole code points so clipping cannot split a pair.
+  const window = tail ? text.slice(-max * 2) : text.slice(0, max * 2);
+  const chars = Array.from(window);
+  let bytes = 0;
+  let count = 0;
+  for (let i = 0; i < chars.length; i++) {
+    const char = chars[tail ? chars.length - 1 - i : i];
+    if (!char) break;
+    const code = char.codePointAt(0) ?? 0;
+    const size = code <= 0x7f ? 1 : code <= 0x7ff ? 2 : code <= 0xffff ? 3 : 4;
+    if (bytes + size > max) break;
+    bytes += size;
+    count++;
   }
-  return chars.join("");
+  return (
+    tail ? chars.slice(chars.length - count) : chars.slice(0, count)
+  ).join("");
 }
 export function createSuggestionSource(
   preference: PowerPreference,

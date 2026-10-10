@@ -154,6 +154,8 @@ export class AppleSandboxBilling {
           (t) => t.originalTransactionId === purchased.originalTransactionId,
         );
       if (matches.length !== 1 || !matches[0]) throw new Error();
+      // Freshness comes from a new authenticated status read. Apple's signedDate
+      // identifies when payload data was signed, not when this read occurred.
       const current = matches[0];
       const t = await this.transaction(current.signedTransactionInfo);
       const renewal = Renewal.parse(
@@ -167,9 +169,7 @@ export class AppleSandboxBilling {
         renewal.originalTransactionId !== t.originalTransactionId ||
         renewal.productId !== this.config.productId ||
         renewal.autoRenewProductId !== this.config.productId ||
-        renewal.signedDate > this.now() + 60000 ||
-        this.now() - renewal.signedDate > 300000 ||
-        this.now() - t.signedDate > 300000
+        renewal.signedDate > this.now() + 60000
       )
         throw new Error();
       foundRevocation = purchased.revocationDate !== undefined;

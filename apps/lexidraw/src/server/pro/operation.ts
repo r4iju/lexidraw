@@ -9,7 +9,12 @@ export type ProviderOutcome =
 export type ProTransport = (
   text: string,
   signal: AbortSignal,
-  context: { attemptId: string; operationId: string; feature?: string },
+  context: {
+    accountId: string;
+    attemptId: string;
+    operationId: string;
+    feature?: string;
+  },
 ) => Promise<ProviderOutcome>;
 export function inputIdentity(input: unknown) {
   const parsed = TextInput.parse(input);
@@ -68,6 +73,7 @@ export class ProTextOperation {
       try {
         outcome = await Promise.race([
           this.transport(text, controller.signal, {
+            accountId: account,
             attemptId: attempt,
             operationId: id,
             feature: op.feature,

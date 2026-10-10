@@ -2,11 +2,13 @@
 
 Verified against official public documentation on **2026-10-10**. USD, standard synchronous API rates. These are provider list prices, not measurements of Lexidraw production spend. Recommendations and examples below are assumptions, not approved commercial terms.
 
-## Existing implementation
+## Historical implementation before #276
 
 `apps/lexidraw/src/lib/llm-models.ts` defaults OpenAI chat/agent to `gpt-5.2`, autocomplete to `gpt-5.4-nano`, and planning to `gpt-5-nano`. Google chat/agent uses `gemini-3-pro-preview`. These constants do not establish production usage or account availability.
 
 Document narration selects Google in production by default (`server/tts/choose-provider.ts`). `workflows/document-tts/ensure-chunk-synthesized-step.ts` passes server credentials explicitly. Providers support an optional key argument, but that is not evidence of a complete user-key workflow. Google synthesis uses `gemini-3.8-flash-lite-tts`; OpenAI uses `gpt-4o-mini-tts`. Cached chunks return before synthesis.
+
+The final local implementation closes those legacy synthesis/forwarding paths. See [the integration audit](ai-power-modes-integration-audit.md) for current dispatch gates. List prices below are dated research, not proof of account access or enforceable billing bounds.
 
 ## Verified OpenAI rates
 

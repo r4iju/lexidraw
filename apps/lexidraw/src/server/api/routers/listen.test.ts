@@ -142,34 +142,29 @@ afterAll(() => {
 });
 
 describe("listening to a file", () => {
-  test("reads a document from what it stores, as the web reads it from the editor", async () => {
+  test("a document without saved audio reports the staged cloud transition without starting a legacy worker", async () => {
     started.length = 0;
-
-    const listening = await callerOf(OWNER).listen({ id: DOC });
-
-    expect(listening).toEqual({ status: "queued", segments: [] });
-    const [documentId, markdown] = started[0] ?? [];
-    expect(documentId).toBe(DOC);
-    expect(markdown).toBe("Quarterly numbers went up.");
+    await expect(callerOf(OWNER).listen({ id: DOC })).rejects.toThrow(
+      "Coming soon",
+    );
+    expect(started).toEqual([]);
   });
-
-  test("reads an article from its page's text", async () => {
-    started.length = 0;
-
-    await callerOf(OWNER).listen({ id: ARTICLE });
-
-    const [articleId, plainText, html] = started[0] ?? [];
-    expect(articleId).toBe(ARTICLE);
-    expect(plainText).toBe("The page, as it was read.");
-    expect(html).toBe("<p>The page, as it was read.</p>");
+  test("an article without saved audio cannot trigger unmetered cloud synthesis", async () => {
+    await expect(callerOf(OWNER).listen({ id: ARTICLE })).rejects.toThrow(
+      "Coming soon",
+    );
+    expect(started).toEqual([]);
   });
 
   test("answers audio already made rather than making it again", async () => {
-    await callerOf(OWNER).listen({ id: DOC });
-    await db
-      .update(schema.ttsJobs)
-      .set({ status: "ready", manifestUrl: MANIFEST, segmentCount: 2 })
-      .where(eq(schema.ttsJobs.entityId, DOC));
+    await db.insert(schema.ttsJobs).values({
+      id: "preserved-old-voice-key",
+      entityId: DOC,
+      userId: OWNER,
+      status: "ready",
+      manifestUrl: MANIFEST,
+      segmentCount: 2,
+    });
     started.length = 0;
 
     const listening = await callerOf(OWNER).listen({ id: DOC });
@@ -254,26 +249,27 @@ describe("listening to a file", () => {
   });
 
   /** The web's Listen asks in these too, so both play one copy. */
-  test("is made in the caller's own read-aloud settings, Ogg included", async () => {
+  test("legacy per-voice creation is unavailable without a saved recording", async () => {
     started.length = 0;
-
-    await callerOf(OGG_LISTENER).listen({ id: OGG_DOC });
-
-    const [, , config] = started[0] ?? [];
-    expect(config).toMatchObject({ voiceId: "nova", format: "ogg" });
+    await expect(
+      callerOf(OGG_LISTENER).listen({ id: OGG_DOC }),
+    ).rejects.toThrow("Coming soon");
+    expect(started).toEqual([]);
   });
 
   test("of a document with nothing in it is refused, saying so", async () => {
     await expect(callerOf(OWNER).listen({ id: EMPTY })).rejects.toMatchObject({
-      code: "BAD_REQUEST",
-      message: "There is nothing in this document to read aloud",
+      code: "PRECONDITION_FAILED",
+      message:
+        "Pro narration is Coming soon. Provider account access and an enforceable audio output bound have not been verified. Saved recordings remain free to play.",
     });
   });
 
   test("of a link whose page was never read is refused, saying so", async () => {
     await expect(callerOf(OWNER).listen({ id: UNREAD })).rejects.toMatchObject({
-      code: "BAD_REQUEST",
-      message: "This link's page hasn't been read yet",
+      code: "PRECONDITION_FAILED",
+      message:
+        "Pro narration is Coming soon. Provider account access and an enforceable audio output bound have not been verified. Saved recordings remain free to play.",
     });
   });
 
@@ -304,7 +300,12 @@ describe("how far a file's audio is", () => {
   });
 
   test("says how many parts are made while it is being made", async () => {
-    await callerOf(OWNER).listen({ id: ARTICLE });
+    await db.insert(schema.ttsJobs).values({
+      id: "legacy-article-job",
+      entityId: ARTICLE,
+      userId: OWNER,
+      status: "queued",
+    });
     await db
       .update(schema.ttsJobs)
       .set({ status: "processing", plannedCount: 4, segmentCount: 1 })
@@ -318,7 +319,7 @@ describe("how far a file's audio is", () => {
     });
   });
 
-  test("is of the caller's voice, whatever others made since", async () => {
+  test("is account-owned regardless of another account's later job", async () => {
     await db.insert(schema.ttsJobs).values({
       id: "lsn_another_voice",
       entityId: ARTICLE,

@@ -475,3 +475,58 @@ test("reopening a document discovers its account-scoped durable action without t
     f.client.close();
   }
 });
+
+test("revocation between paid fence and actual agent dispatch prevents resolving a system key", async () => {
+  const { authorizeAgentAttempt, createAgentProvider } = await import(
+    "./agent-provider"
+  );
+  const { createHash } = await import("node:crypto");
+  const f = await fixture();
+  try {
+    await grant(f);
+    const op = await f.executor.reserve("alice", input);
+    await f.ledger.claim(op.id);
+    const request = { phase: "plan" as const, prompt: "write", context: "doc" };
+    const attempt = await f.ledger.startAttempt(
+      op.id,
+      JSON.stringify({
+        key: "plan",
+        phase: "plan",
+        hash: createHash("sha256")
+          .update(JSON.stringify(request))
+          .digest("hex"),
+      }),
+    );
+    // A completed eligibility mutation must win even if cancellation metadata has
+    // not propagated to this operation (for example a restored durable row).
+    await f.ledger.query(
+      "UPDATE pro_eligibility SET active=0 WHERE account_id=?",
+      ["alice"],
+    );
+    let keys = 0;
+    const transport = createAgentProvider({
+      authorize: authorizeAgentAttempt(f.ledger),
+      resolveKey: () => {
+        keys++;
+        return "fixture-only";
+      },
+      resolveSearchEngine: () => "fixture",
+      fetch: Object.assign(
+        async () => {
+          throw Error("Unexpected external request");
+        },
+        { preconnect() {} },
+      ),
+    });
+    await expect(
+      transport(request, new AbortController().signal, {
+        accountId: "alice",
+        operationId: op.id,
+        attemptId: attempt,
+      }),
+    ).rejects.toThrow("authorization");
+    expect(keys).toBe(0);
+  } finally {
+    f.client.close();
+  }
+});

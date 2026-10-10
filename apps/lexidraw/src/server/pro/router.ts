@@ -6,6 +6,7 @@ import { sandboxBilling } from "./billing-runtime";
 import { appleSandboxBilling } from "./apple-runtime";
 export const proRouter = createProRouter({
   ledger: proLedger,
+  textAvailable: false,
   billing: sandboxBilling,
   appleBilling: appleSandboxBilling,
   dispatch: async (id, text, account) => {

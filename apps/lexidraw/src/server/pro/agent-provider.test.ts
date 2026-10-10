@@ -115,3 +115,33 @@ test("supplier rejection does not fabricate an actual zero invoice cost", async 
     ),
   ).toEqual({ kind: "failed" });
 });
+
+test("eligibility is checked again at actual SDK dispatch after credential resolution", async () => {
+  let eligible = true,
+    calls = 0;
+  const provider = createAgentProvider({
+    authorize: async () => {
+      if (!eligible) throw Error("Revoked");
+    },
+    resolveKey: () => {
+      eligible = false;
+      return "fixture-only";
+    },
+    resolveSearchEngine: () => "fixture",
+    fetch: Object.assign(
+      async () => {
+        calls++;
+        return new Response("{}");
+      },
+      { preconnect() {} },
+    ),
+  });
+  expect(
+    await provider(
+      { phase: "plan", prompt: "write", context: "doc" },
+      new AbortController().signal,
+      { accountId: "alice", operationId: "parent", attemptId: "fenced" },
+    ),
+  ).toEqual({ kind: "unknown" });
+  expect(calls).toBe(0);
+});

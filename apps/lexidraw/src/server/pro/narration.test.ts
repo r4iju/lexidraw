@@ -82,12 +82,14 @@ async function fixture(transport?: import("./narration").NarrationTransport) {
   );
   let mode = "pro";
   let text = "A calm reading.";
+  let documentAccess = true;
   const router = createNarrationRouter({
     ledger: () => ledger,
     executor,
     source: async () => mode,
     read: async (_a: string, id: string) => {
-      if (id !== "doc") throw new Error("Document unavailable");
+      if (!documentAccess || id !== "doc")
+        throw new Error("Document unavailable");
       return text;
     },
     dispatch: (account, id) => executor.execute(account, id),
@@ -107,6 +109,7 @@ async function fixture(transport?: import("./narration").NarrationTransport) {
     caller,
     grant,
     calls: () => calls,
+    setAccess: (x: boolean) => (documentAccess = x),
     setMode: (x: string) => (mode = x),
     setText: (x: string) => (text = x),
     setNow: (x: number) => (now = x),
@@ -468,6 +471,30 @@ test("a confirmed late output from the original executor resolves a stale uncert
       charged: 103_334,
     });
     expect(calls).toBe(1);
+  } finally {
+    f.client.close();
+  }
+});
+
+test("revoked document access denies narration operation output even to its account owner", async () => {
+  const f = await fixture();
+  try {
+    await f.grant("alice");
+    const q = await f.caller("alice").quote({ documentId: "doc" });
+    const op = await f.caller("alice").generate({
+      documentId: "doc",
+      idempotencyKey: "access-check",
+      acceptedMaximum: q.maximum,
+      acceptedRevision: q.revision,
+      acceptedPeriod: q.periodId,
+    });
+    expect(
+      (await f.caller("alice").operation({ id: required(op.id) })).state,
+    ).toBe("settled");
+    f.setAccess(false);
+    await expect(
+      f.caller("alice").operation({ id: required(op.id) }),
+    ).rejects.toThrow("Document unavailable");
   } finally {
     f.client.close();
   }

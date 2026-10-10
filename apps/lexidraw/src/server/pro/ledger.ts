@@ -1464,6 +1464,23 @@ export class ProLedger {
         ).rowsAffected === 1,
     );
   }
+  async authorizeDispatch(id: string, attemptId: string, account: string) {
+    const now = this.config.now();
+    const rows = await this.query(
+      `SELECT o.id FROM pro_operations o
+       JOIN pro_attempts a ON a.operation_id=o.id
+       JOIN pro_eligibility e ON e.account_id=o.account_id
+       WHERE o.id=? AND o.account_id=? AND a.id=? AND a.state='started'
+       AND o.state='running' AND o.cancel_requested=0 AND e.active=1
+       AND NOT EXISTS (SELECT 1 FROM pro_period_blocks b WHERE b.period_id=o.period_id)
+       AND EXISTS (SELECT 1 FROM pro_periods p WHERE p.account_id=o.account_id
+         AND p.starts_at<=? AND p.ends_at>?
+         AND NOT EXISTS (SELECT 1 FROM pro_period_blocks b WHERE b.period_id=p.id))`,
+      [id, account, attemptId, now, now],
+    );
+    if (rows.length !== 1)
+      throw new ProError("Parent paid-step authorization required");
+  }
   async startAttempt(id: string, chunkHash?: string) {
     return this.write(async (tx) => {
       const op = Operation.parse(

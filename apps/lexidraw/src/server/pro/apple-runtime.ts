@@ -1,8 +1,8 @@
 import "server-only";
 import {
-  AppStoreServerAPIClient,
-  Environment,
-} from "@apple/app-store-server-library";
+  appleSandboxToken,
+  createAppleSandboxStatusAPI,
+} from "./apple-transport";
 import { AppleSandboxBilling } from "./apple-billing";
 import {
   APPLE_BUNDLE,
@@ -16,13 +16,6 @@ export function appleSandboxBilling() {
   const config = appleSandboxConfig(process.env);
   if (!config) throw new ProError("Apple sandbox billing unavailable");
   try {
-    const client = new AppStoreServerAPIClient(
-      config.APPLE_SANDBOX_KEY,
-      config.APPLE_SANDBOX_KEY_ID,
-      config.APPLE_SANDBOX_ISSUER_ID,
-      APPLE_BUNDLE,
-      Environment.SANDBOX,
-    );
     // Expose only reads. No API mutations or production-environment fallback.
     return new AppleSandboxBilling(
       proLedger(),
@@ -32,11 +25,16 @@ export function appleSandboxBilling() {
         subscriptionGroupId: config.APPLE_SANDBOX_SUBSCRIPTION_GROUP_ID,
       },
       productionAppleVerifier(),
-      {
-        getTransactionInfo: (id) => client.getTransactionInfo(id),
-        getAllSubscriptionStatuses: (id) =>
-          client.getAllSubscriptionStatuses(id),
-      },
+      createAppleSandboxStatusAPI({
+        token: () =>
+          appleSandboxToken({
+            key: config.APPLE_SANDBOX_KEY,
+            keyId: config.APPLE_SANDBOX_KEY_ID,
+            issuerId: config.APPLE_SANDBOX_ISSUER_ID,
+            bundleId: APPLE_BUNDLE,
+          }),
+        fetch: globalThis.fetch,
+      }),
     );
   } catch {
     throw new ProError("Apple sandbox billing unavailable");

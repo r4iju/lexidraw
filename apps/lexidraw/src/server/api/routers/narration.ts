@@ -86,9 +86,12 @@ export function createNarrationRouter(deps: {
     }),
     operation: procedure
       .input(z.strictObject({ id: z.string() }))
-      .query(({ ctx, input }) =>
-        executor().recover(ctx.session.user.id, input.id),
-      ),
+      .query(async ({ ctx, input }) => {
+        const account = ctx.session.user.id;
+        const job = await deps.ledger().narrationPlan(account, input.id);
+        await deps.read(account, job.documentId);
+        return executor().recover(account, input.id);
+      }),
     reconcilePart: procedure
       .input(
         z.strictObject({

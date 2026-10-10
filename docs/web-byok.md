@@ -1,10 +1,9 @@
 # Web BYOK text tracer
 
 Settings → AI power enables an independent direct-device connection and text
-continuation tracer. It stores one account preference (`local`, or `byok` with
-`openrouter`) through a strict schema. Pro cannot be selected through this
-contract. This tracer does not submit an app AI operation or debit Pro credits.
-Existing feature-specific AI paths are migrated by subsequent power-mode tickets;
+continuation tracer. It stores one account preference (`local`, `byok` with
+`openrouter`, or owner-approved private `pro`) through a strict schema. Private Pro selection requires audited eligibility; provider capability gates remain independent. This tracer does not submit an app AI operation or debit Pro credits.
+Legacy chat and provider routes are now closed, with explicit unavailable messaging;
 this connection check does not enable images, narration, agents, or paid search.
 
 The password input has no form name, so native submission before hydration cannot

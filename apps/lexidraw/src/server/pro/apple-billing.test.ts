@@ -318,3 +318,23 @@ test("concurrent Apple restores and another channel map to one bounded grant; or
     f.client.close();
   }
 });
+
+test("fresh server status reads may contain older signed transaction and renewal data within an active period", async () => {
+  const f = await fixture();
+  try {
+    f.signed.transaction.appAccountToken = (
+      await f.billing.gate("alice")
+    ).appAccountToken;
+    f.signed.transaction.expiresDate =
+      f.signed.transaction.purchaseDate + 30 * 86400000;
+    const presented = f.signed.sign(f.signed.transaction);
+    f.advance(600000);
+    await f.billing.claim("alice", presented);
+    expect((await f.ledger.status("alice")).entitled).toBe(true);
+    expect(
+      (await f.ledger.entries("alice")).filter((e) => e.kind === "grant"),
+    ).toHaveLength(1);
+  } finally {
+    f.client.close();
+  }
+});

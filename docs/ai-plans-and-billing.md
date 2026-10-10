@@ -2,6 +2,8 @@
 
 Status: agreed product scope, revised for device-side BYOK; proposed commercial values pending private-trial validation. Public Pro remains Coming soon. Written 2026-10-10. This document does not enable billing or change existing account access.
 
+Current local implementation and unmet acceptance criteria are tracked in [the integration audit](ai-power-modes-integration-audit.md). This proposal is not a launch acceptance record.
+
 ## Agreed product contract
 
 - One tuned experience. No model picker, Fast/Intelligent switch, or per-feature provider setup.

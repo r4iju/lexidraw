@@ -3,7 +3,7 @@ import { useEntityId } from "~/hooks/use-entity-id";
 import type React from "react";
 import { ModeTabs } from "./mode-tabs";
 import { MessageList } from "./message-list";
-import { MessageInput } from "./message-input";
+import { LEGACY_CHAT_UNAVAILABLE } from "../../../context/llm-context";
 import { Reset } from "./reset";
 import { useChatState } from "../llm-chat-context";
 import { DebugPanel } from "./debug-panel";
@@ -25,18 +25,25 @@ export const Sidebar: React.FC = () => {
       {mode === "agent" && (
         <div className="space-y-3 p-4">
           <p>
-            Pro uses a bounded server document action. Save your document before
-            opening it. Images and sandbox tools are unavailable.
+            Document actions use your selected AI Power source. Save your
+            document before opening it. Images and sandbox tools are
+            unavailable.
           </p>
           <Link href={`/documents/${encodeURIComponent(documentId)}/agent`}>
-            Open Pro document action
+            Open document action
           </Link>
         </div>
       )}
       {mode === "chat" && (
         <>
           <MessageList />
-          <MessageInput />
+          <div className="space-y-3 p-4" role="status">
+            <p>{LEGACY_CHAT_UNAVAILABLE}</p>
+            <Link href="/settings#settings-ai-power">Manage AI Power</Link>
+            <Link href={`/documents/${encodeURIComponent(documentId)}/agent`}>
+              Open document action
+            </Link>
+          </div>
         </>
       )}
     </div>

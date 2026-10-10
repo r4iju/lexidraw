@@ -42,9 +42,11 @@ struct BrowserHarnessApp: App {
       Group {
         switch model.state {
         case .signedIn(let session):
-          if BrowserScenario.name == "device-agent" {
+          if BrowserScenario.name == "recording-integration-291" {
+            SavedRecordingIntegrationScreen(session: session)
+          } else if BrowserScenario.name == "device-agent" {
             DeviceAgentFixtureScreen(session: session)
-          } else if BrowserScenario.name == "agent" {
+          } else if ["agent", "agent-integration-291"].contains(BrowserScenario.name ?? "") {
             AgentFixtureScreen(session: session)
           } else if BrowserScenario.name == "device-narration" {
             DeviceNarrationFixtureScreen(session: session)
@@ -177,7 +179,7 @@ actor HarnessServer: ClientTransport {
       guard let response = response as? HTTPURLResponse else { throw NativeAIError.unavailable }
       return (HTTPResponse(status: .init(code: response.statusCode)), HTTPBody(data))
     }
-    if scenario == "agent", operationID.hasPrefix("agentPower.") || operationID == "pro.status" {
+    if ["agent", "agent-integration-291", "recording-integration-291"].contains(scenario), operationID.hasPrefix("agentPower.") || operationID == "pro.status" || (scenario != "agent" && (operationID.hasPrefix("auth.") || operationID.hasPrefix("deviceNarration."))) {
       var forwarded=URLRequest(url:URL(string:"http://127.0.0.1:3087/api/trpc"+(request.path ?? ""))!)
       forwarded.httpMethod=request.method.rawValue
       forwarded.setValue("application/json",forHTTPHeaderField:"Content-Type")
@@ -792,4 +794,22 @@ private final class NarrationHarnessKey: TokenStore, @unchecked Sendable {
   func load() throws -> String? { value.withLock { $0 } }
   func save(_ token: String) throws { value.withLock { $0 = token } }
   func delete() throws { value.withLock { $0 = nil } }
+}
+
+/// Production composer/player with the #291 persistent authenticated fixture host.
+private struct SavedRecordingIntegrationScreen: View {
+  let session: Session
+  @State private var listener: Listener
+  init(session: Session) {
+    self.session = session
+    _listener = State(initialValue: Listener(session: session))
+  }
+  var body: some View {
+    VStack {
+      Text("291 keyless saved artifact fixture. Synthetic silent audio, no provider call.")
+      DeviceNarrationComposer(session: session, document: "doc") { job in
+        listener.playProNarration(job, to: .init(id: "doc", title: "291 synthetic recording"))
+      }
+    }.nowPlayingBar(listener)
+  }
 }

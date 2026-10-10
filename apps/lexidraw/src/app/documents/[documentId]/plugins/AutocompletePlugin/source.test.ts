@@ -106,3 +106,50 @@ test("Pro unknown completion shows reconciliation without repeating paid work", 
   expect(starts).toBe(1);
   expect(states).toEqual(["unknown"]);
 });
+
+test("long multilingual paragraphs retain bounded cursor context with linear encoding work", async () => {
+  const Original = globalThis.TextEncoder;
+  let encoded = 0;
+  globalThis.TextEncoder = class extends Original {
+    encode(text = "") {
+      encoded += text.length;
+      return super.encode(text);
+    }
+  };
+  try {
+    const session = createByokSession(async () => {
+      throw Error("No network");
+    }, "http://localhost");
+    let context: unknown;
+    const source = createSuggestionSource({ mode: "pro" }, session, {
+      start: async (request) => {
+        context = request;
+        return { id: "done", state: "settled", result: "next" };
+      },
+      read: async () => {
+        throw Error("No poll");
+      },
+      cancel: async () => {
+        throw Error("No cancel");
+      },
+    });
+    expect(
+      await source(
+        {
+          title: "😀".repeat(100),
+          before: "古".repeat(10000) + "😀".repeat(225),
+          after: "😀".repeat(1000),
+        },
+        new AbortController().signal,
+      ),
+    ).toBe("next");
+    expect(context).toMatchObject({
+      title: "😀".repeat(25),
+      before: "😀".repeat(225),
+      after: "😀".repeat(37),
+    });
+    expect(encoded).toBeLessThan(100000);
+  } finally {
+    globalThis.TextEncoder = Original;
+  }
+});

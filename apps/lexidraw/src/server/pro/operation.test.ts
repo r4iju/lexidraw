@@ -15,6 +15,19 @@ mock.module("@packages/env", () => ({
   ),
 }));
 const db = await installServerRuntime();
+const schema = await import("@packages/drizzle/drizzle-schema");
+await db
+  .insert(schema.users)
+  .values({
+    id: "alice",
+    name: "Alice",
+    email: "alice-291@example.test",
+    config: { aiPower: { mode: "pro" } },
+  })
+  .onConflictDoUpdate({
+    target: schema.users.id,
+    set: { config: { aiPower: { mode: "pro" } } },
+  });
 const { createProRouter } = await import("../api/routers/pro");
 const { ProTextOperation } = await import("./operation");
 

@@ -49,7 +49,7 @@ struct AIPowerView: View {
           Text("Pro · Coming soon")
             .foregroundStyle(.secondary)
           Text(
-            "Built-in local narration is free in a document’s Listen menu, using Apple voices available on this device. It does not create a synced recording. Apple Intelligence text has separate device, model and language requirements. OpenRouter text runs directly on this device. Images, narration and paid tools are unavailable through this key."
+            "Built-in local narration is free in a document’s Listen menu, using Apple voices available on this device. It does not create a synced recording. Apple Intelligence text has separate device, model and language requirements. OpenRouter text runs directly on this device. Image and narration access require separate verified capabilities. Unsupported paid tools remain unavailable."
           )
           .font(.footnote)
         }
@@ -73,7 +73,7 @@ struct AIPowerView: View {
         }
         Section("Pro allowance, shared with web") {
           Text(allowance.entitled ? "Private trial active" : "No active private allowance")
-          Text("Private-trial text generation is available in web settings. This screen shares the same account allowance and history.").font(.footnote)
+          Text("This screen shares the account allowance and history. Pro text is Coming soon until provider access, quality and output bounds are verified.").font(.footnote)
           LabeledContent("Available credits", value: credits(allowance.availableSubcredits))
           LabeledContent("Reserved credits", value: credits(allowance.reservedSubcredits))
           if let prior = allowance.previousPeriodReservedSubcredits, prior > 0 {

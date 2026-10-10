@@ -54,3 +54,39 @@ test("legacy direct planner/generation/search do not accept operation IDs as sys
     globalThis.fetch = prior;
   }
 });
+
+test("legacy model settings cannot bypass tuned account power selection", async () => {
+  const { configRouter } = await import("../api/routers/config");
+  await expect(
+    configRouter.createCaller(ctx as never).updateLlmConfig({
+      chat: { provider: "openai", modelId: "arbitrary", temperature: 1 },
+    }),
+  ).rejects.toThrow("AI Power");
+});
+
+test("legacy voice settings and discovery cannot use app upstream credentials", async () => {
+  const { configRouter } = await import("../api/routers/config");
+  const caller = configRouter.createCaller(ctx as never);
+  await expect(
+    caller.updateTtsConfig(
+      JSON.parse('{"provider":"kokoro","voiceId":"custom"}'),
+    ),
+  ).rejects.toThrow();
+  const original = globalThis.fetch;
+  let calls = 0;
+  globalThis.fetch = Object.assign(
+    async () => {
+      calls++;
+      throw new Error("synthetic-private-upstream-error");
+    },
+    { preconnect() {} },
+  );
+  try {
+    const result = await caller.getTtsOptions({ provider: "kokoro" });
+    expect(result.diagnostics?.message).toContain("unavailable");
+    expect(calls).toBe(0);
+    expect((await caller.getTtsCatalog()).providers).toEqual([]);
+  } finally {
+    globalThis.fetch = original;
+  }
+});

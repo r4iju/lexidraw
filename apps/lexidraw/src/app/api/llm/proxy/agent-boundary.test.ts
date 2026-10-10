@@ -20,3 +20,18 @@ test("legacy reads cannot retrieve unowned agent provider state or honor a suppl
     expect(response.status).toBe(410);
   }
 });
+
+test("all legacy proxy methods including model reads are closed without resolving upstream credentials", async () => {
+  for (const name of ["openai", "google"]) {
+    const route = await import(`./${name}/[...path]/route`);
+    for (const method of ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE"]) {
+      const handler = route[method];
+      expect(typeof handler).toBe("function");
+      const response = await handler(
+        new Request("http://localhost/api/llm/proxy", { method }),
+        { params: Promise.resolve({ path: ["models"] }) },
+      );
+      expect(response.status).toBe(410);
+    }
+  }
+});

@@ -12,6 +12,11 @@ export function authorizeAgentAttempt(ledger: ProLedger) {
     scope: Parameters<AgentTransport>[2],
     request: AgentRequest,
   ) => {
+    await ledger.authorizeDispatch(
+      scope.operationId,
+      scope.attemptId,
+      scope.accountId,
+    );
     const op = await ledger.operation(scope.accountId, scope.operationId);
     const a = (await ledger.attempts(scope.accountId, op.id)).find(
       (a) => a.id === scope.attemptId,
@@ -95,6 +100,7 @@ export function createAgentProvider(deps: {
           fields: "items(title,link,snippet)",
           prettyPrint: "false",
         }).toString();
+        await deps.authorize(scope, request);
         const response = await deps.fetch(url, {
           method: "GET",
           redirect: "error",
@@ -142,9 +148,18 @@ export function createAgentProvider(deps: {
       if (new TextEncoder().encode(system + prompt).length + 256 > 4096)
         return { kind: "failed", actualCostNanoUsd: 0 };
       const result = await generateText({
-        model: createOpenAI({ apiKey: key, fetch: deps.fetch }).responses(
-          AGENT_BOOK.model,
-        ),
+        model: createOpenAI({
+          apiKey: key,
+          fetch: Object.assign(
+            async (url: RequestInfo | URL, init?: RequestInit) => {
+              await deps.authorize(scope, request);
+              if (String(url) !== "https://api.openai.com/v1/responses")
+                throw new Error("Provider path rejected");
+              return deps.fetch(url, { ...init, redirect: "error" });
+            },
+            { preconnect() {} },
+          ),
+        }).responses(AGENT_BOOK.model),
         system,
         prompt,
         maxOutputTokens: 512,

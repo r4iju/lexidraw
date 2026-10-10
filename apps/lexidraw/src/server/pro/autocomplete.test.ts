@@ -11,6 +11,7 @@ const { createProRouter } = await import("../api/routers/pro");
 
 async function fixture(
   transport: ConstructorParameters<typeof ProTextOperation>[1],
+  textAvailable = true,
 ) {
   const client = createClient({ url: ":memory:" });
   for (const migration of [
@@ -41,6 +42,7 @@ async function fixture(
   const executor = new ProTextOperation(ledger, transport);
   const router = createProRouter({
     ledger: () => ledger,
+    textAvailable,
     dispatch: (id, text, account) => executor.execute(account, id, text),
   });
   await db
@@ -221,6 +223,52 @@ test("autocomplete cancellation before the provider fence releases and credit de
         after: "",
       }),
     ).rejects.toThrow();
+    expect((await f.ledger.status("alice")).reservedSubcredits).toBe(0);
+  } finally {
+    f.client.close();
+  }
+});
+
+test("stale Pro text requests cannot spend after the account selected a device source", async () => {
+  let paid = 0;
+  const f = await fixture(async () => {
+    paid++;
+    return { kind: "unknown" };
+  });
+  try {
+    await db
+      .update(schema.users)
+      .set({ config: { aiPower: { mode: "local" } } })
+      .where(eq(schema.users.id, "alice"));
+    await expect(
+      f.caller.text({ idempotencyKey: "stale", text: "hello" }),
+    ).rejects.toThrow("Select Pro");
+    expect(paid).toBe(0);
+    expect((await f.ledger.status("alice")).reservedSubcredits).toBe(0);
+  } finally {
+    f.client.close();
+  }
+});
+
+test("unverified production text capability refuses requests before reservations or provider dispatch", async () => {
+  let paid = 0;
+  const f = await fixture(async () => {
+    paid++;
+    return { kind: "unknown" };
+  }, false);
+  try {
+    await expect(
+      f.caller.text({ idempotencyKey: "closed", text: "hello" }),
+    ).rejects.toThrow("Coming soon");
+    await expect(
+      f.caller.autocomplete({
+        idempotencyKey: "closed-suggestion",
+        title: "",
+        before: "hello",
+        after: "",
+      }),
+    ).rejects.toThrow("Coming soon");
+    expect(paid).toBe(0);
     expect((await f.ledger.status("alice")).reservedSubcredits).toBe(0);
   } finally {
     f.client.close();
