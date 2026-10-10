@@ -2,6 +2,7 @@ import { expect, test, mock } from "bun:test";
 import { createClient } from "@libsql/client";
 import { installServerRuntime } from "~/test/server-runtime";
 import { ProLedger } from "./ledger";
+import { NARRATION_BOOK, NarrationBook } from "~/lib/narration/contracts";
 mock.module("@packages/env", () => ({ default: { NODE_ENV: "test" } }));
 const db = await installServerRuntime();
 const { createNarrationRouter } = await import("../api/routers/narration");
@@ -42,9 +43,11 @@ async function fixture(transport?: import("./narration").NarrationTransport) {
       ).replaceAll("--> statement-breakpoint", ""),
     );
   let now = 1000;
+  let ratebook = NarrationBook.parse(NARRATION_BOOK);
   const ledger = new ProLedger(client, {
     ownerAccountIds: ["owner"],
     now: () => now,
+    narrationBook: () => ratebook,
   });
   const grant = async (
     account: string,
@@ -83,7 +86,7 @@ async function fixture(transport?: import("./narration").NarrationTransport) {
   let mode = "pro";
   let text = "A calm reading.";
   let documentAccess = true;
-  const router = createNarrationRouter({
+  const routerDeps = {
     ledger: () => ledger,
     executor,
     source: async () => mode,
@@ -92,7 +95,12 @@ async function fixture(transport?: import("./narration").NarrationTransport) {
         throw new Error("Document unavailable");
       return text;
     },
-    dispatch: (account, id) => executor.execute(account, id),
+    dispatch: (account: string, id: string) => executor.execute(account, id),
+  };
+  const router = createNarrationRouter(routerDeps);
+  const readerRouter = createNarrationRouter({
+    ...routerDeps,
+    executor: undefined,
   });
   const caller = (id: string | null) =>
     router.createCaller({
@@ -108,11 +116,26 @@ async function fixture(transport?: import("./narration").NarrationTransport) {
     executor,
     caller,
     grant,
+    reader: (id: string | null) =>
+      readerRouter.createCaller({
+        drizzle: db,
+        schema: {},
+        session: id ? { user: { id, role: "admin" } } : null,
+        auth: { kind: "session" },
+        headers: new Headers(),
+      } as never),
     calls: () => calls,
     setAccess: (x: boolean) => (documentAccess = x),
     setMode: (x: string) => (mode = x),
     setText: (x: string) => (text = x),
     setNow: (x: number) => (now = x),
+    updateRates: () =>
+      (ratebook = {
+        ...ratebook,
+        version: "synthetic-narration-v2",
+        inputNanoUsd: 2000,
+        audioNanoUsd: 24000,
+      }),
   };
 }
 test("authenticated selected Pro narration accepts a quote before paying; durable result wins losing refunds and free replay needs no entitlement", async () => {
@@ -495,6 +518,313 @@ test("revoked document access denies narration operation output even to its acco
     await expect(
       f.caller("alice").operation({ id: required(op.id) }),
     ).rejects.toThrow("Document unavailable");
+  } finally {
+    f.client.close();
+  }
+});
+
+test("saved job restore survives edited text, unavailable generation and revoked Pro while current document access still governs delivery", async () => {
+  const f = await fixture();
+  try {
+    await f.grant("alice", 1000, 2000, 12_950_000);
+    const q = await f.caller("alice").quote({ documentId: "doc" });
+    const done = await f.caller("alice").generate({
+      documentId: "doc",
+      idempotencyKey: "saved",
+      acceptedMaximum: q.maximum,
+      acceptedRevision: q.revision,
+      acceptedPeriod: q.periodId,
+    });
+    f.setText("Edited document after recording.");
+    const exhausted = await f.caller("alice").quote({ documentId: "doc" });
+    await expect(
+      f.caller("alice").generate({
+        documentId: "doc",
+        idempotencyKey: "exhausted",
+        acceptedMaximum: exhausted.maximum,
+        acceptedRevision: exhausted.revision,
+        acceptedPeriod: exhausted.periodId,
+      }),
+    ).rejects.toThrow("Insufficient credits");
+    await f.ledger.revoke("owner", "alice", "saved playback without Pro");
+    f.setMode("local");
+    const before = await f.ledger.entries("alice");
+    const latest = required(
+      await f.reader("alice").latest({ documentId: "doc" }),
+    );
+    expect(latest.id).toBe(required(done.id));
+    const restored = await f.reader("alice").operation({ id: latest.id });
+    expect(restored).toMatchObject({
+      state: "settled",
+      made: 1,
+      charged: 103_334,
+    });
+    expect(restored.parts[0]).toMatchObject({
+      text: "A calm reading.",
+      audio: wav(),
+    });
+    expect(await f.reader("alice").saved({ documentId: "doc" })).toEqual(
+      restored,
+    );
+    expect(await f.ledger.entries("alice")).toEqual(before);
+    expect(f.calls()).toBe(1);
+    await expect(
+      f.reader("bob").operation({ id: latest.id }),
+    ).rejects.toThrow();
+    await expect(f.reader(null).operation({ id: latest.id })).rejects.toThrow();
+    f.setAccess(false);
+    await expect(
+      f.reader("alice").operation({ id: latest.id }),
+    ).rejects.toThrow("Document unavailable");
+    await expect(
+      f.reader("alice").saved({ documentId: "doc" }),
+    ).rejects.toThrow("Document unavailable");
+  } finally {
+    f.client.close();
+  }
+});
+
+test("period creation pins narration customer rates through updates, renewal quotes new rates and durable old work settles its accepted book", async () => {
+  const f = await fixture(async () => ({ kind: "unknown" }));
+  try {
+    const period = await f.grant("alice");
+    f.updateRates();
+    const q = await f.caller("alice").quote({ documentId: "doc" });
+    expect(q).toMatchObject({
+      periodId: period,
+      version: "private-narration-2026-10-v1",
+      maximum: 12_950_000,
+    });
+    const old = await f.caller("alice").generate({
+      documentId: "doc",
+      idempotencyKey: "historical",
+      acceptedMaximum: q.maximum,
+      acceptedRevision: q.revision,
+      acceptedPeriod: q.periodId,
+    });
+    expect(old.state).toBe("unknown");
+    f.setNow(2000);
+    const renewal = await f.grant("alice", 2000, 3000);
+    const renewed = await f.caller("alice").quote({ documentId: "doc" });
+    expect(renewed).toMatchObject({
+      periodId: renewal,
+      version: "synthetic-narration-v2",
+      maximum: 25_900_000,
+    });
+    const attempt = required(
+      (await f.ledger.attempts("alice", required(old.id)))[0],
+    );
+    await f.ledger.reconcileNarrationPart(
+      "owner",
+      required(old.id),
+      String(attempt.id),
+      {
+        kind: "narration_part",
+        audio: wav(),
+        usage: { input: 10, audio: 25 },
+        actualCostNanoUsd: 155_000,
+      },
+      "historical durable response",
+    );
+    const restarted = new ProNarration(
+      new ProLedger(f.client, f.ledger.config),
+      async () => {
+        throw new Error("No paid replay");
+      },
+    );
+    expect(await restarted.recover("alice", required(old.id))).toMatchObject({
+      state: "settled",
+      charged: 103_334,
+      quote: 12_950_000,
+    });
+    expect(await f.ledger.status("alice")).toMatchObject({
+      availableSubcredits: 1_000_000_000,
+      previousPeriodReservedSubcredits: 0,
+      providerCosts: { knownNanoUsd: 155_000, unknownExposureNanoUsd: 0 },
+    });
+    f.setText("A new reading.");
+    const fresh = await f.caller("alice").quote({ documentId: "doc" });
+    await expect(
+      f.caller("alice").generate({
+        documentId: "doc",
+        idempotencyKey: "stale-maximum",
+        acceptedMaximum: 12_950_000,
+        acceptedRevision: fresh.revision,
+        acceptedPeriod: fresh.periodId,
+      }),
+    ).rejects.toThrow("Accept");
+    const next = await f.caller("alice").generate({
+      documentId: "doc",
+      idempotencyKey: "new-rate",
+      acceptedMaximum: fresh.maximum,
+      acceptedRevision: fresh.revision,
+      acceptedPeriod: fresh.periodId,
+    });
+    expect(await f.ledger.status("alice")).toMatchObject({
+      reservedSubcredits: 25_900_000,
+      availableSubcredits: 974_100_000,
+    });
+    const nextAttempt = required(
+      (await f.ledger.attempts("alice", required(next.id)))[0],
+    );
+    await f.ledger.reconcileNarrationPart(
+      "owner",
+      required(next.id),
+      String(nextAttempt.id),
+      {
+        kind: "narration_part",
+        audio: wav(),
+        usage: { input: 10, audio: 25 },
+        actualCostNanoUsd: 155_000,
+      },
+      "new-rate confirmed response",
+    );
+    expect(await restarted.recover("alice", required(next.id))).toMatchObject({
+      state: "settled",
+      charged: 206_667,
+      quote: 25_900_000,
+    });
+    expect(await f.ledger.status("alice")).toMatchObject({
+      availableSubcredits: 999_793_333,
+      providerCosts: { knownNanoUsd: 310_000 },
+    });
+  } finally {
+    f.client.close();
+  }
+});
+
+test("historical saved parts remain readable when an edited document exceeds generation bounds", async () => {
+  let calls = 0;
+  const f = await fixture(async () =>
+    ++calls === 2
+      ? { kind: "failed", actualCostNanoUsd: 10 }
+      : {
+          kind: "completed",
+          completion: {
+            kind: "narration_part",
+            audio: wav(),
+            usage: { input: 10, audio: 25 },
+            actualCostNanoUsd: 155_000,
+          },
+        },
+  );
+  try {
+    await f.grant("alice");
+    f.setText(`${"a".repeat(500)}b`);
+    const q = await f.caller("alice").quote({ documentId: "doc" });
+    const partial = await f.caller("alice").generate({
+      documentId: "doc",
+      idempotencyKey: "parts",
+      acceptedMaximum: q.maximum,
+      acceptedRevision: q.revision,
+      acceptedPeriod: q.periodId,
+    });
+    f.setText("edited".repeat(2000));
+    const before = await f.ledger.entries("alice");
+    const read = await f.reader("alice").saved({ documentId: "doc" });
+    expect(read).toMatchObject({
+      id: partial.id,
+      state: "refunded",
+      made: 1,
+      charged: 0,
+    });
+    expect(read.parts[0]?.audio).toBe(wav());
+    expect(await f.ledger.entries("alice")).toEqual(before);
+    expect(calls).toBe(2);
+  } finally {
+    f.client.close();
+  }
+});
+
+test("a later empty failed job cannot hide a previously completed saved recording after edits", async () => {
+  let calls = 0;
+  const f = await fixture(async () =>
+    ++calls === 1
+      ? {
+          kind: "completed",
+          completion: {
+            kind: "narration_part",
+            audio: wav(),
+            usage: { input: 10, audio: 25 },
+            actualCostNanoUsd: 155_000,
+          },
+        }
+      : { kind: "failed", actualCostNanoUsd: 10 },
+  );
+  try {
+    await f.grant("alice");
+    const generate = async (key: string) => {
+      const q = await f.caller("alice").quote({ documentId: "doc" });
+      return f.caller("alice").generate({
+        documentId: "doc",
+        idempotencyKey: key,
+        acceptedMaximum: q.maximum,
+        acceptedRevision: q.revision,
+        acceptedPeriod: q.periodId,
+      });
+    };
+    const done = await generate("complete");
+    f.setText("Later new reading.");
+    expect(await generate("failed")).toMatchObject({
+      state: "refunded",
+      made: 0,
+    });
+    f.setText("Final edited text.");
+    expect(await f.reader("alice").saved({ documentId: "doc" })).toMatchObject({
+      id: done.id,
+      state: "settled",
+      made: 1,
+    });
+    expect(calls).toBe(2);
+  } finally {
+    f.client.close();
+  }
+});
+
+test("useful cached later parts are delivered even when the earlier missing part fails", async () => {
+  let calls = 0;
+  const f = await fixture(async () =>
+    ++calls === 1
+      ? {
+          kind: "completed",
+          completion: {
+            kind: "narration_part",
+            audio: wav(),
+            usage: { input: 10, audio: 25 },
+            actualCostNanoUsd: 155_000,
+          },
+        }
+      : { kind: "failed", actualCostNanoUsd: 10 },
+  );
+  try {
+    await f.grant("alice");
+    f.setText("b");
+    const generate = async (key: string) => {
+      const q = await f.caller("alice").quote({ documentId: "doc" });
+      return f.caller("alice").generate({
+        documentId: "doc",
+        idempotencyKey: key,
+        acceptedMaximum: q.maximum,
+        acceptedRevision: q.revision,
+        acceptedPeriod: q.periodId,
+      });
+    };
+    await generate("cache-last");
+    f.setText(`${"a".repeat(500)}b`);
+    const failed = await generate("missing-first");
+    expect(failed).toMatchObject({
+      state: "refunded",
+      made: 1,
+      planned: 2,
+      charged: 0,
+    });
+    expect(failed.parts[0]).toMatchObject({ text: "b", audio: wav() });
+    f.setText("Edited again.");
+    expect(await f.reader("alice").saved({ documentId: "doc" })).toMatchObject({
+      id: failed.id,
+      made: 1,
+    });
+    expect(calls).toBe(2);
   } finally {
     f.client.close();
   }

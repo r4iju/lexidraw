@@ -1,5 +1,11 @@
 import { createHash } from "node:crypto";
-import { Completion, PRICEBOOK, TextInput, type Operation } from "./contracts";
+import {
+  Completion,
+  PRICEBOOK,
+  TextBook,
+  TextInput,
+  type Operation,
+} from "./contracts";
 import { ProError, type ProLedger } from "./ledger";
 
 export type ProviderOutcome =
@@ -34,10 +40,11 @@ export class ProTextOperation {
   ) {}
   async execute(account: string, id: string, text: string): Promise<Operation> {
     const op = await this.ledger.operation(account, id);
+    const book = TextBook.parse(JSON.parse(op.pricebook));
     if (!(await this.ledger.claim(id))) return this.recover(account, id);
     for (
       let index = 0;
-      index < (op.feature === "autocomplete" ? 1 : PRICEBOOK.maxAttempts);
+      index < (op.feature === "autocomplete" ? 1 : book.maxAttempts);
       index++
     ) {
       let attempt: string;
@@ -52,7 +59,7 @@ export class ProTextOperation {
       const controller = new AbortController();
       const remainingMs = Math.max(
         1,
-        PRICEBOOK.maxElapsedMs - (this.ledger.config.now() - op.created_at),
+        book.maxElapsedMs - (this.ledger.config.now() - op.created_at),
       );
       let timer: ReturnType<typeof setTimeout> | undefined;
       const stop = new Promise<ProviderOutcome>((resolve) => {
@@ -111,8 +118,7 @@ export class ProTextOperation {
       if (
         !outcome.retryable ||
         current.cancel_requested ||
-        index + 1 ===
-          (op.feature === "autocomplete" ? 1 : PRICEBOOK.maxAttempts)
+        index + 1 === (op.feature === "autocomplete" ? 1 : book.maxAttempts)
       )
         return this.ledger.settle(id, {
           kind: current.cancel_requested ? "cancelled" : "technical_failure",

@@ -36,3 +36,31 @@ import Testing
     #expect(server.requests.count == 1)
   }
 }
+
+
+@Suite("Period-pinned saved narration") struct SavedProNarrationTests {
+  @Test @MainActor func restoreHistoricalBookWithoutGenerationOrEligibility() async throws {
+    let audio = Data("RIFF".utf8) + Data(repeating: 0, count: 44)
+    let server = FakeServer { request in
+      if request.url.path.hasSuffix("narration.latest") {
+        return (200, #"{"result":{"data":{"json":{"id":"historical"}}}}"#)
+      }
+      #expect(request.url.path.hasSuffix("narration.operation"))
+      let job: [String: Any] = ["id": "historical", "state": "settled", "charged": 206668,
+        "quote": 207200000, "made": 1, "planned": 8,
+        "parts": [["text": "Text before document edit", "audio": audio.base64EncodedString(), "seconds": 1]], "policy": "Replay is free."]
+      let data = try JSONSerialization.data(withJSONObject: ["result": ["data": ["json": job]]])
+      return (200, String(decoding: data, as: UTF8.self))
+    }
+    let flow = NativeNarrationFlow(session: try TestServer.session(server), document: "edited-doc")
+    await flow.restore()
+    guard case .job(let job) = flow.state else { Issue.record("Expected historical playable recording"); return }
+    #expect(job.parts.first?.text == "Text before document edit")
+    let files = ProNarrationFiles()
+    let recording = try files.recording(job)
+    #expect(recording.parts.count == 1)
+    files.clear()
+    #expect(server.requests.count == 2)
+    #expect(server.requests.allSatisfy { $0.authorization == "Bearer lxd_kept" })
+  }
+}

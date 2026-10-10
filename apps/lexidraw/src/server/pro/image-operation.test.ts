@@ -161,3 +161,53 @@ test("image customer rate snapshot cannot change inside an entitlement period", 
     client.close();
   }
 });
+
+test("a changed image adapter continues serving the period's accepted customer book", async () => {
+  const { client, ledger } = await fixture();
+  const transport = async () => ({
+    kind: "failed" as const,
+    actualCostNanoUsd: 7,
+  });
+  try {
+    const initial = new ProImageOperation(
+      ledger,
+      IMAGE_FIXTURE_PRICEBOOK,
+      transport,
+    );
+    await initial.start("alice", {
+      idempotencyKey: "pin",
+      prompt: "tree",
+      acceptedMaximum: 60_000_000,
+    });
+    const updated = new ProImageOperation(
+      ledger,
+      {
+        ...IMAGE_FIXTURE_PRICEBOOK,
+        version: "fixture-image-v2",
+        creditNanoUsd: 1_500_000,
+        quote: 120_000_000,
+      },
+      transport,
+    );
+    expect(
+      await updated.start("alice", {
+        idempotencyKey: "after-update",
+        prompt: "tree",
+        acceptedMaximum: 60_000_000,
+      }),
+    ).toMatchObject({ quote: 60_000_000, state: "refunded" });
+    expect(
+      await updated.start("alice", {
+        idempotencyKey: "pin",
+        prompt: "tree",
+        acceptedMaximum: 60_000_000,
+      }),
+    ).toMatchObject({ state: "refunded" });
+    expect(await ledger.status("alice")).toMatchObject({
+      availableSubcredits: 1_000_000_000,
+      providerCosts: { knownNanoUsd: 14 },
+    });
+  } finally {
+    client.close();
+  }
+});

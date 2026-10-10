@@ -1,3 +1,4 @@
+import { PeriodRates, decodePeriodRates } from "./period-rates";
 import {
   AgentBook,
   AgentInput,
@@ -9,7 +10,8 @@ import {
 import { audioSeconds } from "./narration-audio";
 import {
   NARRATION_BOOK,
-  CHUNK_MAXIMUM,
+  NarrationBook,
+  NARRATION_MAX_ATTEMPT_NANO_USD,
   NarrationReservation,
   NarrationPlan,
   NarrationPart,
@@ -26,9 +28,10 @@ import { z } from "zod";
 import type { Client, InArgs, Transaction } from "@libsql/client";
 import {
   PRICEBOOK,
+  TextBook,
+  textMaximum,
   TRIAL_POLICY,
-  TEXT_QUOTE,
-  AUTOCOMPLETE_QUOTE,
+  trialPolicy,
   Operation,
   referenceCharge,
   type Usage,
@@ -45,6 +48,8 @@ export class ProLedger {
       now: () => number;
       sandboxBillingAvailable?: boolean;
       appleSandboxAvailable?: boolean;
+      narrationBook?: () => unknown;
+      textBook?: () => unknown;
     },
   ) {}
   owner(actor: string) {
@@ -261,7 +266,15 @@ export class ProLedger {
           input.startsAt,
           input.endsAt,
           input.environment,
-          JSON.stringify(PRICEBOOK),
+          JSON.stringify(
+            PeriodRates.parse({
+              version: "period-rates-v1",
+              text: this.config.textBook?.() ?? PRICEBOOK,
+              narration: this.config.narrationBook?.() ?? NARRATION_BOOK,
+              image: null,
+              agent: null,
+            }),
+          ),
           input.subcredits,
           input.subcredits,
         ],
@@ -661,9 +674,67 @@ export class ProLedger {
         absorbedNanoUsd: Number(costs[0]?.absorbed ?? 0),
         unknownExposureNanoUsd: Number(costs[0]?.unknown ?? 0),
       },
-      policy: TRIAL_POLICY,
-      pricebook: PRICEBOOK,
+      policy: trialPolicy(
+        period ? decodePeriodRates(String(period.pricebook)).text : PRICEBOOK,
+      ),
+      pricebook: period
+        ? decodePeriodRates(String(period.pricebook)).text
+        : TextBook.parse(PRICEBOOK),
     };
+  }
+  async periodRates(account: string) {
+    const [period] = await this.query(
+      "SELECT id,pricebook FROM pro_periods WHERE account_id=? AND starts_at<=? AND ends_at>? ORDER BY starts_at DESC LIMIT 1",
+      [account, this.config.now(), this.config.now()],
+    );
+    return period
+      ? {
+          id: String(period.id),
+          rates: decodePeriodRates(String(period.pricebook)),
+        }
+      : null;
+  }
+  private async pinFeature(
+    tx: Transaction,
+    periodId: string,
+    rates: PeriodRates,
+    feature: "image" | "agent",
+    candidate?: unknown,
+  ) {
+    if (rates[feature]) return;
+    const [prior] = (
+      await tx.execute({
+        sql: "SELECT pricebook FROM pro_operations WHERE period_id=? AND feature=? ORDER BY created_at,rowid LIMIT 1",
+        args: [periodId, feature],
+      })
+    ).rows;
+    const value = prior ? JSON.parse(String(prior.pricebook)) : candidate;
+    if (value === undefined) return;
+    if (feature === "image") rates.image = ImagePricebook.parse(value);
+    else rates.agent = AgentBook.parse(value);
+  }
+  async featureBook(
+    account: string,
+    feature: "image" | "agent",
+    candidate: unknown,
+  ) {
+    return this.write(async (tx) => {
+      const [period] = (
+        await tx.execute({
+          sql: "SELECT * FROM pro_periods WHERE account_id=? AND starts_at<=? AND ends_at>? AND EXISTS (SELECT 1 FROM pro_eligibility WHERE account_id=pro_periods.account_id AND active=1) AND NOT EXISTS (SELECT 1 FROM pro_period_blocks WHERE period_id=pro_periods.id) ORDER BY starts_at DESC LIMIT 1",
+          args: [account, this.config.now(), this.config.now()],
+        })
+      ).rows;
+      if (!period) throw new ProError("Private entitlement required");
+      const rates = decodePeriodRates(String(period.pricebook));
+      if (rates[feature]) return rates[feature];
+      await this.pinFeature(tx, String(period.id), rates, feature, candidate);
+      await tx.execute({
+        sql: "UPDATE pro_periods SET pricebook=? WHERE id=?",
+        args: [JSON.stringify(rates), String(period.id)],
+      });
+      return rates[feature];
+    });
   }
   async audit(actor: string) {
     this.owner(actor);
@@ -688,11 +759,7 @@ export class ProLedger {
         : undefined;
     const imageBook =
       feature === "image" ? ImagePricebook.parse(imageSnapshot) : undefined;
-    const quote =
-      agent?.book.quote ??
-      narration?.quote ??
-      imageBook?.quote ??
-      (feature === "autocomplete" ? AUTOCOMPLETE_QUOTE : TEXT_QUOTE);
+
     return this.write(async (tx) => {
       const access = await tx.execute({
         sql: "SELECT active FROM pro_eligibility WHERE account_id=?",
@@ -717,15 +784,35 @@ export class ProLedger {
         })
       ).rows[0];
       if (!period) throw new ProError("Private entitlement required");
+      const rates = decodePeriodRates(String(period.pricebook));
+      for (const feature of ["image", "agent"] as const) {
+        if (rates[feature]) continue;
+        await this.pinFeature(
+          tx,
+          String(period.id),
+          rates,
+          feature,
+          feature === "image" ? imageBook : agent?.book,
+        );
+      }
+      const equal = (a: unknown, b: unknown) =>
+        JSON.stringify(a) === JSON.stringify(b);
+      if (narration && !equal(narration.book, rates.narration))
+        throw new ProError("Narration rate snapshot is pinned for this period");
+      if (imageBook && !equal(imageBook, rates.image))
+        throw new ProError("Image rate snapshot is pinned for this period");
+      if (agent && !equal(agent.book, rates.agent))
+        throw new ProError("Agent rate snapshot is pinned for this period");
+      const quote =
+        agent?.book.quote ??
+        narration?.quote ??
+        imageBook?.quote ??
+        textMaximum(rates.text, feature === "autocomplete");
+      await tx.execute({
+        sql: "UPDATE pro_periods SET pricebook=? WHERE id=?",
+        args: [JSON.stringify(rates), String(period.id)],
+      });
       if (agent) {
-        const pinned = (
-          await tx.execute({
-            sql: "SELECT pricebook FROM pro_operations WHERE period_id=? AND feature='agent' LIMIT 1",
-            args: [period.id ?? ""],
-          })
-        ).rows[0];
-        if (pinned && String(pinned.pricebook) !== JSON.stringify(agent.book))
-          throw new ProError("Agent rate snapshot is pinned for this period");
         const active = (
           await tx.execute({
             sql: "SELECT id FROM pro_operations WHERE account_id=? AND feature='agent' AND state IN ('reserved','running','unknown')",
@@ -734,16 +821,6 @@ export class ProLedger {
         ).rows;
         if (active.length)
           throw new ProError("Agent is still running or reconciling");
-      }
-      if (imageBook) {
-        const pinned = (
-          await tx.execute({
-            sql: "SELECT pricebook FROM pro_operations WHERE period_id=? AND feature='image' ORDER BY created_at,id LIMIT 1",
-            args: [period.id ?? ""],
-          })
-        ).rows[0];
-        if (pinned && String(pinned.pricebook) !== JSON.stringify(imageBook))
-          throw new ProError("Image rate snapshot is pinned for this period");
       }
       if (narration) {
         if (narration.periodId !== String(period.id))
@@ -758,7 +835,7 @@ export class ProLedger {
           sql: "SELECT COUNT(*) AS n FROM pro_operations WHERE account_id=? AND period_id=? AND input_hash=? AND feature='narration'",
           args: [account, period.id ?? "", inputHash],
         });
-        if (Number(retries.rows[0]?.n ?? 0) >= NARRATION_BOOK.maxRetries + 1)
+        if (Number(retries.rows[0]?.n ?? 0) >= rates.narration.maxRetries + 1)
           throw new ProError("Narration retry limit reached");
         for (const part of narration.plan)
           if (part.cachedAttempt) {
@@ -811,7 +888,7 @@ export class ProLedger {
               ? JSON.stringify(narration.book)
               : imageBook
                 ? JSON.stringify(imageBook)
-                : String(period.pricebook),
+                : JSON.stringify(rates.text),
           TRIAL_POLICY.version,
           this.config.now(),
         ],
@@ -1516,6 +1593,13 @@ export class ProLedger {
         ? AgentAttemptDescriptor.parse(JSON.parse(chunkHash ?? "null"))
         : undefined;
       const isNarration = op.feature === "narration";
+      const narrationBook = isNarration
+        ? NarrationBook.parse(JSON.parse(op.pricebook))
+        : undefined;
+      const textBook =
+        !isNarration && !agentBook && !imageBook
+          ? TextBook.parse(JSON.parse(op.pricebook))
+          : undefined;
       const exposure =
         agentBook && agentStep
           ? agentStep.phase === "image"
@@ -1524,7 +1608,7 @@ export class ProLedger {
               ? agentBook.searchMaximumNanoUsd
               : agentBook.textMaximumNanoUsd
           : isNarration
-            ? CHUNK_MAXIMUM * 3
+            ? NARRATION_MAX_ATTEMPT_NANO_USD
             : (imageBook?.maximumNanoUsd ?? MAX_ATTEMPT_NANO_USD);
       if (isNarration) {
         const plan = NarrationPlan.parse(
@@ -1567,8 +1651,10 @@ export class ProLedger {
         this.config.now() - op.created_at >=
           (agentBook?.maxElapsedMs ??
             (isNarration
-              ? NARRATION_BOOK.maxElapsedMs
-              : (imageBook?.maxElapsedMs ?? PRICEBOOK.maxElapsedMs)))
+              ? (narrationBook ?? NARRATION_BOOK).maxElapsedMs
+              : (imageBook?.maxElapsedMs ??
+                textBook?.maxElapsedMs ??
+                PRICEBOOK.maxElapsedMs)))
       )
         throw new ProError("Paid steps stopped");
       const attempts = (
@@ -1581,11 +1667,11 @@ export class ProLedger {
         attempts.length >=
           (agentBook?.maxAttempts ??
             (isNarration
-              ? NARRATION_BOOK.maxAttempts
+              ? (narrationBook ?? NARRATION_BOOK).maxAttempts
               : (imageBook?.maxAttempts ??
                 (op.feature === "autocomplete"
                   ? 1
-                  : PRICEBOOK.maxAttempts)))) ||
+                  : (textBook?.maxAttempts ?? PRICEBOOK.maxAttempts))))) ||
         (agentBook
           ? attempts.some(
               (a) => a.state !== "completed" || a.chunk_hash === chunkHash,

@@ -4,7 +4,8 @@ import { createHash } from "node:crypto";
 import {
   NARRATION_BOOK,
   NARRATION_POLICY,
-  CHUNK_MAXIMUM,
+  NarrationBook,
+  narrationMaximum,
   type NarrationPart,
   NarrationPlan,
   NarrationSnapshot,
@@ -26,8 +27,11 @@ export type NarrationTransport = (
   },
 ) => Promise<NarrationOutcome>;
 const hash = (text: string) => createHash("sha256").update(text).digest("hex");
-export function narrationIdentity(text: string) {
-  if (!text.trim() || Buffer.byteLength(text) > NARRATION_BOOK.maxDocumentBytes)
+export function narrationIdentity(
+  text: string,
+  book: NarrationBook = NarrationBook.parse(NARRATION_BOOK),
+) {
+  if (!text.trim() || Buffer.byteLength(text) > book.maxDocumentBytes)
     throw new ProError("Document exceeds narration bounds");
   const chunks: NarrationPlan = [];
   const texts = narrationTexts(text);
@@ -37,9 +41,9 @@ export function narrationIdentity(text: string) {
       hash: hash(
         JSON.stringify({
           text,
-          model: NARRATION_BOOK.model,
-          voice: NARRATION_BOOK.voice,
-          style: NARRATION_BOOK.style,
+          model: book.model,
+          voice: book.voice,
+          style: book.style,
         }),
       ),
     });
@@ -52,7 +56,9 @@ export class ProNarration {
     readonly transport: NarrationTransport,
   ) {}
   async quote(account: string, text: string) {
-    const identity = narrationIdentity(text);
+    const period = await this.ledger.periodRates(account);
+    const book = period?.rates.narration ?? NarrationBook.parse(NARRATION_BOOK);
+    const identity = narrationIdentity(text, book);
     const plan: NarrationPlan = await Promise.all(
       identity.plan.map(async (p) => {
         const a = await this.ledger.narrationCache(account, p.hash);
@@ -65,15 +71,18 @@ export class ProNarration {
     const status = await this.ledger.status(account);
     if (missing && !status.entitled)
       throw new ProError("Private entitlement required");
+    if (missing && status.entitlementPeriodId !== period?.id)
+      throw new ProError("Entitlement period changed. Review a new quote.");
     return {
-      periodId: status.entitlementPeriodId,
-      maximum: missing * CHUNK_MAXIMUM,
+      periodId: period?.id ?? null,
+      maximum: missing * narrationMaximum(book),
       missing,
       cached: plan.length - missing,
       maxSeconds: plan.length * 120,
       revision: identity.hash,
-      version: NARRATION_BOOK.version,
+      version: book.version,
       policy: NARRATION_POLICY,
+      book,
       plan,
       hash: identity.hash,
     };
@@ -121,7 +130,7 @@ export class ProNarration {
       identity.hash,
       "narration",
       {
-        book: NARRATION_BOOK,
+        book: q.book,
         quote: q.maximum,
         documentId,
         periodId: q.periodId,
@@ -134,6 +143,7 @@ export class ProNarration {
     let { operation: op, plan } = await this.ledger.narrationPlan(account, id);
     if (["settled", "refunded", "cancelled", "unknown"].includes(op.state))
       return this.snapshot(account, id);
+    const book = NarrationBook.parse(JSON.parse(op.pricebook));
     // A resumed step reads committed parts; the next paid request is fenced atomically.
     await this.ledger.claim(id);
     for (const chunk of plan) {
@@ -172,8 +182,7 @@ export class ProNarration {
             1,
             Math.min(
               180_000,
-              NARRATION_BOOK.maxElapsedMs -
-                (this.ledger.config.now() - op.created_at),
+              book.maxElapsedMs - (this.ledger.config.now() - op.created_at),
             ),
           ),
         );
@@ -237,6 +246,61 @@ export class ProNarration {
     }
     return this.snapshot(account, id);
   }
+  snapshot(account: string, id: string) {
+    return new SavedNarrationReader(this.ledger).snapshot(account, id);
+  }
+  savedPlan(account: string, plan: NarrationPlan) {
+    return new SavedNarrationReader(this.ledger).savedPlan(account, plan);
+  }
+}
+
+/** Account-owned persisted audio only. This reader cannot generate, recover or debit. */
+export class SavedNarrationReader {
+  constructor(
+    readonly ledger: Pick<
+      ProLedger,
+      | "query"
+      | "narrationPlan"
+      | "attempts"
+      | "narrationPart"
+      | "narrationCache"
+    >,
+  ) {}
+  async latest(account: string, documentId: string) {
+    const row = (
+      await this.ledger.query(
+        "SELECT o.id FROM pro_operations o JOIN pro_narration_jobs j ON j.operation_id=o.id WHERE o.account_id=? AND j.document_id=? ORDER BY o.created_at DESC,o.rowid DESC LIMIT 1",
+        [account, documentId],
+      )
+    )[0];
+    return row ? { id: String(row.id) } : null;
+  }
+  async saved(account: string, documentId: string, text: string) {
+    // Prefer a complete current recording, then preserve the latest historical job/parts.
+    let identity: ReturnType<typeof narrationIdentity> | undefined;
+    try {
+      identity = narrationIdentity(text);
+    } catch (error) {
+      if (!(error instanceof ProError)) throw error;
+      // Generation bounds do not limit access to historical saved content.
+    }
+    if (identity) {
+      const plan = await Promise.all(
+        identity.plan.map(async (p) => {
+          const cached = await this.ledger.narrationCache(account, p.hash);
+          return cached ? { ...p, cachedAttempt: String(cached.id) } : p;
+        }),
+      );
+      if (plan.every((p) => p.cachedAttempt))
+        return this.savedPlan(account, plan);
+    }
+    const [saved] = await this.ledger.query(
+      "SELECT o.id FROM pro_operations o JOIN pro_narration_jobs j ON j.operation_id=o.id WHERE o.account_id=? AND j.document_id=? AND (EXISTS (SELECT 1 FROM pro_attempts a WHERE a.operation_id=o.id AND a.state='completed') OR EXISTS (SELECT 1 FROM json_each(j.plan) p WHERE json_extract(p.value,'$.cachedAttempt') IS NOT NULL)) ORDER BY o.created_at DESC,o.rowid DESC LIMIT 1",
+      [account, documentId],
+    );
+    if (!saved) throw new ProError("No saved narration for this document");
+    return this.snapshot(account, String(saved.id));
+  }
   async snapshot(account: string, id: string) {
     const { operation: op, plan } = await this.ledger.narrationPlan(
       account,
@@ -249,7 +313,7 @@ export class ProNarration {
         p.cachedAttempt ??
         attempts.find((a) => a.chunk_hash === p.hash && a.state === "completed")
           ?.id;
-      if (!attempt) break;
+      if (!attempt) continue;
       const part = await this.ledger.narrationPart(account, String(attempt));
       parts.push({
         id: `${p.hash}:${parts.length}`,

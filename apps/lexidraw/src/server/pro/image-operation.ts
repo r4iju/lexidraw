@@ -26,21 +26,35 @@ export class ProImageOperation {
   ) {
     this.book = ImagePricebook.parse(snapshot);
   }
+  async periodBook(account: string) {
+    return ImagePricebook.parse(
+      await this.ledger.featureBook(account, "image", this.book),
+    );
+  }
   async start(account: string, value: unknown): Promise<Operation> {
     const input = ImageInput.parse(value);
-    if (input.acceptedMaximum !== this.book.quote)
+    const [prior] = await this.ledger.query(
+      "SELECT id FROM pro_operations WHERE account_id=? AND idempotency_key=?",
+      [account, input.idempotencyKey],
+    );
+    const book = prior
+      ? ImagePricebook.parse(
+          JSON.parse(
+            (await this.ledger.operation(account, String(prior.id))).pricebook,
+          ),
+        )
+      : await this.periodBook(account);
+    if (input.acceptedMaximum !== book.quote)
       throw new ProError("Accept the maximum image quote before generation");
     const hash = createHash("sha256")
-      .update(
-        JSON.stringify({ prompt: input.prompt, version: this.book.version }),
-      )
+      .update(JSON.stringify({ prompt: input.prompt, version: book.version }))
       .digest("hex");
     const op = await this.ledger.reserve(
       account,
       input.idempotencyKey,
       hash,
       "image",
-      this.book,
+      book,
     );
     if (!(await this.ledger.claim(op.id))) return this.recover(account, op.id);
     let attempt: string;
@@ -50,7 +64,7 @@ export class ProImageOperation {
       return this.ledger.settle(op.id, { kind: "technical_failure" });
     }
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), this.book.maxElapsedMs);
+    const timer = setTimeout(() => controller.abort(), book.maxElapsedMs);
     const monitor = setInterval(() => {
       void this.ledger
         .operation(account, op.id)

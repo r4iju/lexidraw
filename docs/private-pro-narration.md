@@ -42,6 +42,24 @@ temporary lower rate as a promotional allowance. Measured usage settles against
 the operation's stored snapshot; actual provider cost is recorded separately.
 Changing future books must not rewrite old operation snapshots or periods.
 
+New periods persist a `period-rates-v1` envelope in the existing SQL price-book
+column, with complete text and narration snapshots. Image and agent integrations
+have no verified production configuration yet; their first period quote pins the
+complete validated adapter book atomically. Later quotes and operations resolve
+that pin, including after an adapter update, rather than refusing an older book.
+This first-quote rule also covers paid agent tools. Text/autocomplete maximums and
+published trial disclosures derive from the period text book. Operation acceptance
+retains the final maximum and narration period/revision identity, and durable paid
+steps and settlement read the operation's original book. Supplier-attempt cost
+remains separate from customer credit conversion.
+
+Existing text-only `private-text-2026-10-v1` periods map deterministically to the
+archived original narration v1 book. Existing image/agent operations supply their
+earlier first-use pins. A later reservation materializes the envelope under the
+same write lock without changing the grant, available credits, reservations, or
+old operation snapshots. No remote migration was performed; this uses the
+existing text column and local decoding code.
+
 Quotes cover only unique text/config hashes that still require synthesis. Source
 revision, accepted maximum, entitlement period, document, account, and action key
 are checked again before reservation. Cached audio is authorized by account and
@@ -79,7 +97,16 @@ Old jobs continue settling against their original entitlement period after renew
 
 Audio is private bounded data in account-owned attempts, delivered only through
 authenticated reads. Saved replay requires document access and cache ownership,
-but no eligibility, entitlement, current credit balance, or provider. Native
+but no eligibility, entitlement, current credit balance, or provider.
+`SavedNarrationReader` only reads account-owned plans and attempts. The router
+checks current document access before `latest`, `operation`, or `saved` delivery.
+Operation reads do not recover jobs, reconcile attempts, settle, or debit; those
+mutations belong to generation/workflow/owner actions. Web and native restore use
+`latest` followed by this provider-free operation snapshot. Saved reads prefer a
+complete current cache, then the most recent historical job containing audio.
+Edits beyond generation bounds and later empty failures cannot hide that audio;
+partial cached parts remain playable even after a missing chunk. Revoked or deleted
+document access still denies delivery, including for the job's account owner. Native
 playback files are temporary and cleared when the listener stops. This bounded
 fixture storage/delivery path is not proof of production media throughput or
 storage capacity.

@@ -52,7 +52,10 @@ export function createAgentRouter(deps: {
           throw new ProError("Private entitlement required");
         const action = executor();
         const doc = await action.documents.read(account, input.documentId);
-        return { maximum: action.book.quote, revision: doc.revision };
+        return {
+          maximum: (await action.periodBook(account)).quote,
+          revision: doc.revision,
+        };
       }),
     start: procedure.input(AgentInput).mutation(async ({ ctx, input }) => {
       const account = ctx.session.user.id;

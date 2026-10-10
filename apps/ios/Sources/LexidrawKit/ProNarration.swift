@@ -32,7 +32,7 @@ public struct ProNarrationJob: Decodable, Sendable {
   public func validated() throws -> Self {
     guard
       ["saved", "reserved", "running", "unknown", "settled", "refunded", "cancelled"].contains(
-        state), quote >= 0, quote <= 103_600_000, charged >= 0, charged <= quote,
+        state), quote >= 0, quote <= 9_007_199_254_740_991, charged >= 0, charged <= quote,
       (1...8).contains(planned), made == parts.count, made <= planned,
       parts.allSatisfy({ $0.seconds > 0 && $0.seconds <= 120 && $0.audio.utf8.count <= 7_680_060 })
     else { throw NativeAIError.unavailable }
@@ -52,7 +52,7 @@ extension Session {
     struct Input: Encodable { let documentId: String }
     let result = try await narrationRPC(
       "narration.quote", method: .get, input: Input(documentId: document), as: NarrationQuote.self)
-    guard result.maximum >= 0, result.maximum <= 103_600_000, (0...8).contains(result.missing),
+    guard result.maximum >= 0, result.maximum <= 9_007_199_254_740_991, (0...8).contains(result.missing),
       (0...8).contains(result.cached), result.maxSeconds <= 960, result.revision.count == 64
     else { throw NativeAIError.unavailable }
     return result
@@ -196,7 +196,7 @@ extension Session {
     state = .loading
     do { state = .job(try await session.savedNarration(document: document)) } catch {
       state = .failed(
-        "No saved Pro narration for this revision. Existing saved recordings remain available in Play Saved Recording."
+        "No saved Pro narration for this document. Existing saved recordings remain available in Play Saved Recording."
       )
     }
   }

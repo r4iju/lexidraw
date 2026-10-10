@@ -13,9 +13,13 @@ export function createImagePowerRouter(deps: {
   source: (account: string) => Promise<string>;
 }) {
   return createTRPCRouter({
-    capability: protectedProcedure.query(() => ({
+    capability: protectedProcedure.query(async ({ ctx }) => ({
       available: !!deps.executor,
-      maximum: deps.executor?.book.quote ?? 0,
+      maximum: deps.executor
+        ? (await deps.executor.ledger.status(ctx.session.user.id)).entitled
+          ? (await deps.executor.periodBook(ctx.session.user.id)).quote
+          : deps.executor.book.quote
+        : 0,
       fixture: !!deps.executor,
       reason: deps.executor
         ? "Injected private image fixture; no actual service verification."

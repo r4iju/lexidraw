@@ -590,3 +590,87 @@ test("authenticated replay releases cancellation after claim but before a paid a
     f.client.close();
   }
 });
+
+test("published text and autocomplete maxima match the period book across an update and renewal", async () => {
+  const { PRICEBOOK } = await import("./contracts");
+  const client = createClient({ url: ":memory:" });
+  for (const name of [
+    "0015_private_pro",
+    "0016_pro_billing_events",
+    "0029_sandbox_billing",
+    "0030_apple_sandbox",
+  ])
+    await client.executeMultiple(
+      (
+        await Bun.file(`../../packages/drizzle/drizzle/${name}.sql`).text()
+      ).replaceAll("--> statement-breakpoint", ""),
+    );
+  let now = 1000;
+  let book = {
+    ...PRICEBOOK,
+    version: String(PRICEBOOK.version),
+    creditNanoUsd: Number(PRICEBOOK.creditNanoUsd),
+  };
+  const ledger = new ProLedger(client, {
+    ownerAccountIds: ["owner"],
+    now: () => now,
+    textBook: () => book,
+  });
+  const action = new ProTextOperation(ledger, async () => ({
+    kind: "completed",
+    completion: {
+      text: "done",
+      usage: { input: 1, cachedInput: 0, output: 1 },
+      actualCostNanoUsd: 5250,
+    },
+  }));
+  const caller = createProRouter({
+    ledger: () => ledger,
+    dispatch: (id, text, account) => action.execute(account, id, text),
+  }).createCaller({
+    drizzle: db,
+    schema: {},
+    session: { user: { id: "alice" } },
+    auth: { kind: "session" },
+    headers: new Headers(),
+  } as never);
+  const grant = (start: number) =>
+    ledger.grantPeriod("owner", {
+      accountId: "alice",
+      eventId: `text-${start}`,
+      startsAt: start,
+      endsAt: start + 1000,
+      subcredits: 1_000_000_000,
+      reason: "fixture",
+      environment: "test",
+    });
+  try {
+    await ledger.grantEligibility("owner", "alice", "tester");
+    await grant(1000);
+    book = { ...book, version: "synthetic-text-v2", creditNanoUsd: 1_500_000 };
+    expect((await caller.status()).policy.disclosure).toContain(
+      "Text reserves at most 1.792 credits",
+    );
+    expect(
+      await caller.text({ idempotencyKey: "old-period", text: "hello" }),
+    ).toMatchObject({ quote: 1_792_000, charged: 1750 });
+    now = 2000;
+    await grant(2000);
+    const status = await caller.status();
+    expect(status.policy.disclosure).toContain(
+      "Text reserves at most 3.584 credits",
+    );
+    expect(status.policy.disclosure).toContain(
+      "suggestion reserves at most 2.240 credits",
+    );
+    expect(
+      await caller.text({ idempotencyKey: "new-period", text: "hello" }),
+    ).toMatchObject({ quote: 3_584_000, charged: 3500 });
+    expect(await caller.status()).toMatchObject({
+      availableSubcredits: 999_996_500,
+      providerCosts: { knownNanoUsd: 10500 },
+    });
+  } finally {
+    client.close();
+  }
+});

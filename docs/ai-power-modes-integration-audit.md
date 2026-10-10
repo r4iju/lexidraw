@@ -13,7 +13,7 @@ Local branch `feat/276-ai-power-modes`, audited from `36e8174bbea5d5b3536d85fec7
 | `image` legacy route; `imagePower` generation/upload; dashboard cover/drawing image callers | Legacy generation closed. Pro/BYOK image generation stays unavailable. Generated images now register in a dedicated private Blob store and use an authenticated, bounded app delivery route. Saving/read access is independent of generation eligibility; actual private-store configuration remains unverified. Existing images/drawings stay untouched. |
 | `pro.text`, `pro.autocomplete`, pro-text workflow | Production capability is explicitly false. UI shows Coming soon, rejects before reservation, and old durable production text jobs cannot resolve a system key. Injected bounded text adapter requires attempt/account authorization again at actual HTTP dispatch. |
 | `agentPower.quote/start/current/operation/cancel`, pro-agent workflow | Production executor absent. Injected whole-action path uses one reservation and account budget for planning, decisions, generation and search. Actual dispatch requires active eligibility, current dated entitlement, original-period fence, operation ownership and started attempt. Search and SDK fetch recheck after key resolution; cancellation stops further steps. |
-| `narration.quote/start/operation/saved`, pro-narration workflow | Production executor absent. Injected bounded narration uses the common ledger. Operation recovery rechecks current document access before returning output. Saved playback requires document access, no generation allowance. |
+| `narration.quote/start/operation/saved`, pro-narration workflow | Production executor absent. Injected bounded narration uses period customer-rate snapshots and the common ledger. Provider-free operation/saved reads check current document access and return historical account-owned audio after edits, with no generation allowance or ledger mutations. |
 | `deviceAgent` source/edit commit, web/native portable agent adapters | Device execution is disabled until actual provider/tool bounds are verified. Authenticated, versioned document commits persist generated edits without keys. No server inference or paid fallback. |
 | `deviceNarration` source/save/saved; private GeneratedRecordings | Generation capability false, native/browser adapters remain gated. Bounded private finalized audio persists through authenticated document access and quotas. Sync and keyless replay use no Pro credits. |
 | Browser BYOK text/autocomplete; native NativeBYOK/JS bridge | One OpenRouter key, fixed endpoint/model/settings, no app proxy, redirects rejected, no retry/fallback. Browser session memory; native device-only Keychain. Retired-key fingerprints guard late output after removal. Unsupported image/audio/agent modalities remain closed. |
@@ -103,7 +103,7 @@ The sole-writer local follow-up addresses Standards S1-S6 and the shared-documen
 
 Access reads, block construction and revision compare-and-swap are shared between Device and Pro writers. Receipt transactions remain distinct: Device scopes identity to account/document and enforces credential/quota checks; Pro scopes identity to an operation and updates its report atomically under eligibility/cancellation fences. The extraction preserves those contracts and image-dimension policies.
 
-Evidence is `/tmp/lexidraw-276-implementation/291-standards-fixes-v1.json`, with actual red/green boundary logs, fresh-process local suites, web/native shared-core typechecks, JavaScriptCore checkpoint verification, Swift credential-guard verification and T3 loopback control interaction evidence. The old ListenPlayer query fixture also failed at the pinned baseline; its fixture is updated and its five playback/focus checks pass. No release or external acceptance is claimed. S2 private image delivery now has local implementation and evidence below. S3 chat migration, S4 period-pinned narration rates and S5 saved-job read-only recovery remain unfinished and are the parent’s next sequential scope. No scope revision or spec completion is claimed. Actual provider/payment, physical audio and deployment criteria remain open, and #276 is incomplete.
+Evidence is `/tmp/lexidraw-276-implementation/291-standards-fixes-v1.json`, with actual red/green boundary logs, fresh-process local suites, web/native shared-core typechecks, JavaScriptCore checkpoint verification, Swift credential-guard verification and T3 loopback control interaction evidence. The old ListenPlayer query fixture also failed at the pinned baseline; its fixture is updated and its five playback/focus checks pass. No release or external acceptance is claimed. S2 private image delivery now has local implementation and evidence below. S4 period-pinned narration rates and S5 saved-job read-only delivery now have local implementation and evidence below. S3 chat migration remains unfinished and is the parent’s next sequential scope. No scope revision or spec completion is claimed. Actual provider/payment, physical audio and deployment criteria remain open, and #276 is incomplete.
 
 
 ## S2 authenticated private images, local follow-up
@@ -115,3 +115,47 @@ The app delivery route requires web cookie or native API-token authentication, c
 Web image insertion already uses the authenticated save mutation and ordinary same-origin image rendering. Device document-agent upload now uses that private registration, and the Pro document adapter factory shares the same store. The provider executors remain gated. Native save resolves only a validated app image path; the document loader reads it with the current app token using an isolated transport that rejects redirects, has no cookies/cache and bounds body consumption. Private images bypass the global public-image cache. The native media parser admits exactly the relative private-image app path, so web/agent saved document nodes reach that authenticated loader. Other relative sources stay rejected.
 
 Evidence: `/tmp/lexidraw-276-implementation/291-private-images-v1.json` and `291-private-images-evidence/`. Red/green cycles cover stable saved URLs/current permissions, private adapter request/type/stream bounds, the actual delivery route, native credential origin/read behavior, agent insertion and partial-upload retries/cleanup. Sixty relevant web tests pass in sixteen fresh env-free, network-closed processes. Web and native shared TypeScript checks pass. Twenty-eight relevant Swift tests and the local generic iOS Simulator application build pass. T3 preview mounts the production image provider/editor and delivery handler against synthetic in-memory SQLite/storage/provider responses: one generation saves and renders a 1024×1024 image; keyless reload renders it again; document deletion returns 404 and the existing unavailable placeholder; anonymous read returns 401. This is synthetic local evidence, not provider quality, physical-device or actual Blob-service verification. No bucket calls, cloud writes, deployment or release work occurred.
+
+
+## Narration spec follow-up (local S4/S5)
+
+The sole-writer follow-up from `2870a5e7909b691a298e98790187070dd2310a37`
+adds a durable period rate envelope in the existing SQL text column. Text and
+narration books are copied at period creation. Gated image/agent books follow one
+explicit first-period-quote pin, under the same write lock; updates resolve that
+book for subsequent quotes and actions. Text/autocomplete maxima and disclosures
+use the period book, and agent charges use its credit conversion. Historical
+operation books remain valid for reservation/recovery/settlement. Text-only legacy
+v1 periods deterministically map to the archived narration v1 book; first prior
+image/agent operations retain their pins. Lazy envelope materialization changes
+no grant or credit counters. No remote schema or data migration occurred.
+
+Narration quotation, consent and reservations use the same period book, final
+maximum and period/revision identity. Paid retries retain operation caps and
+supplier cost remains separate. A provider-free `SavedNarrationReader` supplies
+account-owned snapshots and cached/historical audio after current document-access
+checks. Reads never execute or recover generation, resolve provider keys, reserve,
+reconcile or debit. Edited/oversized documents, missing generation, revoked Pro,
+and later empty failures preserve saved recordings and useful parts. Current
+document deletion/revocation and cross-account operation IDs still deny delivery.
+
+Evidence is `/tmp/lexidraw-276-implementation/291-narration-spec-fixes-v1.json`
+and its `291-narration-spec-evidence/` logs. Actual red/green cycles cover saved
+job reads without an executor, rate update/renewal and historical recovery,
+image/agent adapter updates, agent credit conversion, published text maximums,
+oversized edits, hidden older recordings, retained later cached parts and native
+historical-quote restore. Fresh env-free, network-closed Bun fixtures exercise
+authenticated operation boundaries and real SQLite accounting. Explicit web and
+native shared TypeScript checks and focused Swift contracts are recorded in the
+manifest. A synthetic loopback UI host mounts the production web panel and native
+composer/player: both restore prior audio after edits with generation absent and
+eligibility revoked, native playback and browser media time advance, and current
+access revocation removes audio delivery. No new ledger entry or provider call is
+caused by saved playback. Silent fixtures prove media plumbing only.
+
+S3 chat migration is the next sequential task. #291 and #276 remain incomplete.
+Actual provider/account/model/quality/metering, payment/store verification, hosted
+workflow/media durability, physical audio/lock-screen/interruption and release
+criteria remain unverified. No push, merge, PR edit, cloud CI/build/preview/deploy,
+production API/payment write, real private-store call, release preparation or
+remote migration was performed. Existing draft PR292 remains untouched.

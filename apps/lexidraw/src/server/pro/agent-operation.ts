@@ -64,10 +64,13 @@ export class ProAgentOperation {
   ) {
     this.book = AgentBook.parse(book);
   }
+  async periodBook(account: string) {
+    return AgentBook.parse(
+      await this.ledger.featureBook(account, "agent", this.book),
+    );
+  }
   async reserve(account: string, value: unknown) {
     const input = AgentInput.parse(value);
-    if (input.acceptedMaximum !== this.book.quote)
-      throw new ProError("Accept the complete action maximum");
     // Replays must still prove document access, but their original revision can have advanced through their own edits.
     const document = await this.documents.read(account, input.documentId);
     const prior = (
@@ -76,6 +79,15 @@ export class ProAgentOperation {
         [account, input.idempotencyKey],
       )
     )[0];
+    const book = prior
+      ? AgentBook.parse(
+          JSON.parse(
+            (await this.ledger.operation(account, String(prior.id))).pricebook,
+          ),
+        )
+      : await this.periodBook(account);
+    if (input.acceptedMaximum !== book.quote)
+      throw new ProError("Accept the complete action maximum");
     if (!prior && document.revision !== input.revision)
       throw new ProError("Document changed. Read it again before accepting.");
     return this.ledger.reserve(
@@ -83,7 +95,7 @@ export class ProAgentOperation {
       input.idempotencyKey,
       hash(input),
       "agent",
-      { book: this.book, input },
+      { book, input },
     );
   }
   async view(account: string, id: string) {
@@ -95,6 +107,7 @@ export class ProAgentOperation {
   }
   async execute(account: string, id: string) {
     const job = await this.ledger.agentJob(account, id);
+    const book = AgentBook.parse(JSON.parse(job.operation.pricebook));
     if (
       !["reserved", "running"].includes(job.operation.state) ||
       !(await this.ledger.agentLease(account, id))
@@ -114,7 +127,7 @@ export class ProAgentOperation {
       const op = await this.ledger.operation(account, id);
       if (op.cancel_requested)
         throw new Stop("cancelled", "Cancelled. Saved edits remain.");
-      if (this.ledger.config.now() - op.created_at >= this.book.maxElapsedMs)
+      if (this.ledger.config.now() - op.created_at >= book.maxElapsedMs)
         throw new Stop("cap_exhausted", "Action time limit reached.");
       const doc = await this.documents.read(account, job.input.documentId);
       if (doc.revision !== revision)
@@ -143,7 +156,7 @@ export class ProAgentOperation {
       };
       if (
         new TextEncoder().encode(JSON.stringify(request)).length + 1024 >
-        this.book.maxInputTokens
+        book.maxInputTokens
       )
         throw new Stop("cap_exhausted", "Paid input limit reached.");
       const descriptor = JSON.stringify({ key, phase, hash: hash(request) });
@@ -177,7 +190,7 @@ export class ProAgentOperation {
       let timeout: ReturnType<typeof setTimeout> | undefined;
       const remaining = Math.max(
         1,
-        this.book.maxElapsedMs -
+        book.maxElapsedMs -
           (this.ledger.config.now() - job.operation.created_at),
       );
       const stop = new Promise<{ kind: "unknown" }>((resolve) => {
@@ -252,7 +265,7 @@ export class ProAgentOperation {
       planned = Plan.parse(await paid("plan", "plan", doc.text)).edits;
       report.incomplete = planned;
       let context = doc.text;
-      for (let cycle = 0; cycle < this.book.maxCycles; cycle++) {
+      for (let cycle = 0; cycle < book.maxCycles; cycle++) {
         const decision = Decision.parse(
           await paid(`decision:${cycle}`, "decision", context),
         );
@@ -268,7 +281,7 @@ export class ProAgentOperation {
           await this.ledger.settle(id, { kind: "agent_completed" });
           return this.view(account, id);
         }
-        if (++tools > this.book.maxTools)
+        if (++tools > book.maxTools)
           throw new Stop("cap_exhausted", "Tool cap reached.");
         if (decision.kind === "search") {
           const result = Search.parse(
@@ -278,7 +291,7 @@ export class ProAgentOperation {
           continue;
         }
         if (decision.kind === "image") {
-          if (!this.book.image)
+          if (!book.image)
             throw new Stop(
               "partial",
               "Image tool is unavailable. No image was generated.",

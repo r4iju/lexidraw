@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { PRICEBOOK, Usage, SUBCREDITS } from "~/server/pro/contracts";
+import { Usage, SUBCREDITS } from "~/server/pro/contracts";
 import { ImageCompletion, ImagePricebook } from "~/lib/images/contracts";
 export const AGENT_BOOK = {
   version: "private-agent-2026-10-v1",
@@ -30,10 +30,10 @@ export const AgentBook = z
     version: z.string(),
     provider: z.literal("openai"),
     model: z.literal("gpt-5.4-mini"),
-    inputNanoUsd: z.literal(750),
-    cachedInputNanoUsd: z.literal(75),
-    outputNanoUsd: z.literal(4500),
-    creditNanoUsd: z.literal(3_000_000),
+    inputNanoUsd: z.number().int().nonnegative().max(1_000_000),
+    cachedInputNanoUsd: z.number().int().nonnegative().max(1_000_000),
+    outputNanoUsd: z.number().int().nonnegative().max(1_000_000),
+    creditNanoUsd: z.number().int().positive(),
     maxInputTokens: z.literal(4096),
     maxOutputTokens: z.literal(512),
     maxInputBytes: z.literal(1500),
@@ -44,8 +44,8 @@ export const AgentBook = z
     maxSearchSteps: z.literal(2),
     maxImageSteps: z.union([z.literal(0), z.literal(1)]),
     maxAttempts: z.union([z.literal(15), z.literal(16)]),
-    textMaximumNanoUsd: z.literal(5376000),
-    searchMaximumNanoUsd: z.literal(5000000),
+    textMaximumNanoUsd: z.number().int().positive(),
+    searchMaximumNanoUsd: z.number().int().positive(),
     maximumNanoUsd: z.number().int().positive(),
     quote: z.number().int().positive(),
     provenance: z.enum([
@@ -55,8 +55,15 @@ export const AgentBook = z
     image: ImagePricebook.optional(),
   })
   .superRefine((x, ctx) => {
-    const maximum = 79_888_000 + (x.image?.maximumNanoUsd ?? 0);
+    const textMaximum =
+      x.maxInputTokens * x.inputNanoUsd + x.maxOutputTokens * x.outputNanoUsd;
+    const maximum =
+      x.maxTextSteps * x.textMaximumNanoUsd +
+      x.maxSearchSteps * x.searchMaximumNanoUsd +
+      (x.image?.maximumNanoUsd ?? 0);
     if (
+      x.textMaximumNanoUsd !== textMaximum ||
+      !Number.isSafeInteger(maximum * SUBCREDITS) ||
       x.maximumNanoUsd !== maximum ||
       x.quote !== Math.ceil((maximum * SUBCREDITS) / x.creditNanoUsd) ||
       x.maxImageSteps !== (x.image ? 1 : 0) ||
@@ -189,5 +196,5 @@ export function agentCharge(c: AgentCompletion, book: AgentBook) {
       : (c.usage.input - c.usage.cachedInput) * book.inputNanoUsd +
         c.usage.cachedInput * book.cachedInputNanoUsd +
         c.usage.output * book.outputNanoUsd;
-  return (cost * SUBCREDITS) / PRICEBOOK.creditNanoUsd;
+  return (cost * SUBCREDITS) / book.creditNanoUsd;
 }

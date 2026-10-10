@@ -1,6 +1,6 @@
 import { z } from "zod";
 // Reference rates already include Google's published January 2027 increase.
-export const NARRATION_BOOK = {
+export const NARRATION_BOOK_V1 = {
   version: "private-narration-2026-10-v1",
   provider: "google",
   model: "gemini-3.8-flash-lite-tts",
@@ -22,6 +22,49 @@ export const NARRATION_BOOK = {
     { from: "2027-01-01", inputNanoUsd: 1000, audioNanoUsd: 12000 },
   ],
 } as const;
+// Retain the original book for deterministic legacy-period mapping.
+export const NARRATION_BOOK = NARRATION_BOOK_V1;
+export const NarrationBook = z
+  .strictObject({
+    version: z.string().min(1),
+    provider: z.literal("google"),
+    model: z.string().min(1),
+    voice: z.string().min(1),
+    style: z.string(),
+    inputNanoUsd: z.number().int().nonnegative().max(1_000_000),
+    audioNanoUsd: z.number().int().nonnegative().max(1_000_000),
+    creditNanoUsd: z.number().int().positive(),
+    maxChunkInputTokens: z.literal(2850),
+    maxChunkAudioTokens: z.literal(3000),
+    maxChunkSeconds: z.literal(120),
+    maxChunks: z.literal(8),
+    maxDocumentBytes: z.literal(6000),
+    maxElapsedMs: z.literal(1_200_000),
+    maxAttempts: z.literal(8),
+    maxRetries: z.literal(2),
+    schedule: z.array(
+      z.strictObject({
+        from: z.string(),
+        inputNanoUsd: z.number().int().nonnegative(),
+        audioNanoUsd: z.number().int().nonnegative(),
+      }),
+    ),
+  })
+  .refine(
+    (b) => Number.isSafeInteger(narrationMaximum(b) * b.maxChunks),
+    "Unsafe credit bound",
+  );
+export type NarrationBook = z.infer<typeof NarrationBook>;
+export function narrationMaximum(book: {
+  inputNanoUsd: number;
+  audioNanoUsd: number;
+  creditNanoUsd: number;
+}) {
+  return Math.ceil(
+    ((2850 * book.inputNanoUsd + 3000 * book.audioNanoUsd) * 1_000_000) /
+      book.creditNanoUsd,
+  );
+}
 export const NARRATION_UNAVAILABLE =
   "Pro narration is Coming soon. Provider account access and an enforceable audio output bound have not been verified. Saved recordings remain free to play.";
 export const NARRATION_POLICY =
@@ -30,11 +73,16 @@ export const NarrationUsage = z.strictObject({
   input: z.number().int().min(0).max(2850),
   audio: z.number().int().min(0).max(3000),
 });
+export const NARRATION_MAX_ATTEMPT_NANO_USD = 38_850_000;
 export const NarrationPart = z.strictObject({
   kind: z.literal("narration_part"),
   audio: z.string().min(1).max(7_680_060),
   usage: NarrationUsage,
-  actualCostNanoUsd: z.number().int().nonnegative().max(38_850_000),
+  actualCostNanoUsd: z
+    .number()
+    .int()
+    .nonnegative()
+    .max(NARRATION_MAX_ATTEMPT_NANO_USD),
   providerResponseId: z.string().max(200).optional(),
 });
 export type NarrationPart = z.infer<typeof NarrationPart>;
@@ -70,14 +118,8 @@ export const NarrationPlan = z
 export type NarrationPlan = z.infer<typeof NarrationPlan>;
 export const NarrationReservation = z
   .strictObject({
-    book: z.custom<typeof NARRATION_BOOK>(
-      (value) => JSON.stringify(value) === JSON.stringify(NARRATION_BOOK),
-    ),
-    quote: z
-      .number()
-      .int()
-      .positive()
-      .max(CHUNK_MAXIMUM * 8),
+    book: NarrationBook,
+    quote: z.number().int().positive().max(Number.MAX_SAFE_INTEGER),
     documentId: z.string().min(1).max(100),
     periodId: z.string().min(1),
     plan: NarrationPlan,
@@ -86,7 +128,7 @@ export const NarrationReservation = z
     (x) =>
       x.quote ===
       new Set(x.plan.filter((p) => !p.cachedAttempt).map((p) => p.hash)).size *
-        CHUNK_MAXIMUM,
+        narrationMaximum(x.book),
   );
 export const NarrationRequest = z.strictObject({
   documentId: z.string().min(1).max(100),
@@ -95,11 +137,7 @@ export const NarrationGenerate = NarrationRequest.extend({
   idempotencyKey: z.string().min(1).max(100),
   acceptedRevision: z.string().length(64),
   acceptedPeriod: z.string().nullable(),
-  acceptedMaximum: z
-    .number()
-    .int()
-    .nonnegative()
-    .max(CHUNK_MAXIMUM * 8),
+  acceptedMaximum: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),
 });
 export const NarrationSnapshot = z.object({
   id: z.string().nullable(),

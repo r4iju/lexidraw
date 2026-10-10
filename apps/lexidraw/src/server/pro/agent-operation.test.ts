@@ -24,9 +24,10 @@ export async function fixture(
         await Bun.file(`../../packages/drizzle/drizzle/${name}.sql`).text()
       ).replaceAll("--> statement-breakpoint", ""),
     );
+  let now = 1000;
   const ledger = new ProLedger(client, {
     ownerAccountIds: ["owner"],
-    now: () => 1000,
+    now: () => now,
   });
   const document = { revision: 1, text: "Original" };
   const edits = new Map<string, { revision: number; description: string }>();
@@ -117,7 +118,17 @@ export async function fixture(
       headers: new Headers(),
       session: { user: { id: account, role: "admin" }, expires: "2099-01-01" },
     } as never);
-  return { client, ledger, document, executor, caller, calls: () => paid };
+  return {
+    client,
+    ledger,
+    document,
+    executor,
+    caller,
+    calls: () => paid,
+    setNow: (value: number) => {
+      now = value;
+    },
+  };
 }
 export const input = {
   documentId: "doc",
@@ -580,5 +591,96 @@ test("corrupt persisted action descriptors fail closed before another paid step 
     } finally {
       f.client.close();
     }
+  }
+});
+
+test("agent adapter updates retain the first accepted period book and original durable input", async () => {
+  const f = await fixture(async () => ({
+    kind: "failed",
+    actualCostNanoUsd: 7,
+  }));
+  try {
+    await grant(f);
+    const first = await f.caller("alice").start(input);
+    const updated = new ProAgentOperation(
+      f.ledger,
+      { ...AGENT_BOOK, version: "agent-fixture-v2" },
+      f.executor.documents,
+      f.executor.transport,
+    );
+    expect(
+      await updated.reserve("alice", {
+        ...input,
+        idempotencyKey: "after-update",
+      }),
+    ).toMatchObject({ quote: 26_629_334 });
+    expect((await updated.reserve("alice", input)).id).toBe(first.operation.id);
+  } finally {
+    f.client.close();
+  }
+});
+
+test("agent renewal uses its new credit conversion while original period operations retain historical charges", async () => {
+  const f = await fixture(async () => ({
+    kind: "failed",
+    actualCostNanoUsd: 7,
+  }));
+  try {
+    await grant(f);
+    await f.caller("alice").start(input);
+    let decisions = 0;
+    const updated = new ProAgentOperation(
+      f.ledger,
+      {
+        ...AGENT_BOOK,
+        version: "agent-rate-v2",
+        creditNanoUsd: 1_500_000,
+        quote: 53_258_667,
+      },
+      f.executor.documents,
+      async (request) => ({
+        kind: "completed",
+        completion: {
+          kind: "agent",
+          phase: request.phase,
+          output:
+            request.phase === "plan"
+              ? { edits: ["Add text"] }
+              : request.phase === "decision"
+                ? { kind: ++decisions === 1 ? "append" : "done" }
+                : { text: "New text" },
+          usage: { input: 100, cachedInput: 0, output: 10 },
+          actualCostNanoUsd: 120_000,
+        },
+      }),
+    );
+    expect((await updated.periodBook("alice")).quote).toBe(26_629_334);
+    f.setNow(2000);
+    await f.ledger.grantPeriod("owner", {
+      accountId: "alice",
+      eventId: "renewal",
+      startsAt: 2000,
+      endsAt: 3000,
+      subcredits: 1_000_000_000,
+      reason: "fixture renewal",
+      environment: "test",
+    });
+    const op = await updated.reserve("alice", {
+      ...input,
+      idempotencyKey: "renewed-action",
+      acceptedMaximum: 53_258_667,
+    });
+    const done = await updated.execute("alice", op.id);
+    expect(done.operation).toMatchObject({
+      quote: 53_258_667,
+      charged: 320_000,
+      state: "settled",
+    });
+    expect(await f.ledger.status("alice")).toMatchObject({
+      availableSubcredits: 999_680_000,
+      providerCosts: { knownNanoUsd: 480_007 },
+    });
+  } finally {
+    f.client.close();
   }
 });

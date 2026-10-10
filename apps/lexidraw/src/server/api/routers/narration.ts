@@ -6,7 +6,10 @@ import {
   NarrationGenerate,
   NARRATION_UNAVAILABLE,
 } from "~/lib/narration/contracts";
-import type { ProNarration } from "~/server/pro/narration";
+import {
+  SavedNarrationReader,
+  type ProNarration,
+} from "~/server/pro/narration";
 import { ProError, type ProLedger } from "~/server/pro/ledger";
 import { createTRPCRouter, protectedProcedure } from "../trpc";
 export function createNarrationRouter(deps: {
@@ -48,7 +51,7 @@ export function createNarrationRouter(deps: {
         ctx.session.user.id,
         await deps.read(ctx.session.user.id, input.documentId),
       );
-      const { plan: _plan, hash: _hash, ...publicQuote } = q;
+      const { plan: _plan, hash: _hash, book: _book, ...publicQuote } = q;
       return publicQuote;
     }),
     generate: procedure
@@ -74,15 +77,10 @@ export function createNarrationRouter(deps: {
       }),
     latest: procedure.input(NarrationRequest).query(async ({ ctx, input }) => {
       await deps.read(ctx.session.user.id, input.documentId);
-      const row = (
-        await deps
-          .ledger()
-          .query(
-            "SELECT o.id FROM pro_operations o JOIN pro_narration_jobs j ON j.operation_id=o.id WHERE o.account_id=? AND j.document_id=? ORDER BY o.created_at DESC,o.rowid DESC LIMIT 1",
-            [ctx.session.user.id, input.documentId],
-          )
-      )[0];
-      return row ? { id: String(row.id) } : null;
+      return new SavedNarrationReader(deps.ledger()).latest(
+        ctx.session.user.id,
+        input.documentId,
+      );
     }),
     operation: procedure
       .input(z.strictObject({ id: z.string() }))
@@ -90,7 +88,10 @@ export function createNarrationRouter(deps: {
         const account = ctx.session.user.id;
         const job = await deps.ledger().narrationPlan(account, input.id);
         await deps.read(account, job.documentId);
-        return executor().recover(account, input.id);
+        return new SavedNarrationReader(deps.ledger()).snapshot(
+          account,
+          input.id,
+        );
       }),
     reconcilePart: procedure
       .input(
@@ -123,22 +124,13 @@ export function createNarrationRouter(deps: {
         return executor().recover(ctx.session.user.id, input.id);
       }),
     saved: procedure.input(NarrationRequest).query(async ({ ctx, input }) => {
-      // Playback never requires eligibility, entitlement, available credits, or a provider.
-      const e =
-        deps.executor ??
-        new (await import("~/server/pro/narration")).ProNarration(
-          deps.ledger(),
-          async () => ({ kind: "unknown" }),
-        );
-      const q = await e
-        .quote(
-          ctx.session.user.id,
-          await deps.read(ctx.session.user.id, input.documentId),
-        )
-        .catch(() => {
-          throw new ProError("No saved narration for this revision");
-        });
-      return e.savedPlan(ctx.session.user.id, q.plan);
+      const account = ctx.session.user.id;
+      const text = await deps.read(account, input.documentId);
+      return new SavedNarrationReader(deps.ledger()).saved(
+        account,
+        input.documentId,
+        text,
+      );
     }),
   });
 }

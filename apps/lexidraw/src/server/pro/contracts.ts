@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 export const SUBCREDITS = 1_000_000;
-export const PRICEBOOK = {
+export const PRICEBOOK_V1 = {
   version: "private-text-2026-10-v1",
   monthlyUsd: 12,
   monthlyCredits: 1000,
@@ -22,13 +22,59 @@ export const PRICEBOOK = {
   accountFailureSpendNanoUsd: 1_000_000_000,
   globalDailySpendNanoUsd: 10_000_000_000,
 } as const;
+export const PRICEBOOK = PRICEBOOK_V1;
+export const TextBook = z
+  .strictObject({
+    version: z.string().min(1),
+    monthlyUsd: z.literal(12),
+    monthlyCredits: z.literal(1000),
+    provider: z.literal("openai"),
+    model: z.string().min(1),
+    inputNanoUsd: z.number().int().nonnegative().max(1_000_000),
+    cachedInputNanoUsd: z.number().int().nonnegative().max(1_000_000),
+    outputNanoUsd: z.number().int().nonnegative().max(1_000_000),
+    creditNanoUsd: z.number().int().positive(),
+    maxInputTokens: z.literal(4096),
+    maxOutputTokens: z.literal(512),
+    maxInputBytes: z.literal(1500),
+    maxAttempts: z.literal(2),
+    maxElapsedMs: z.literal(30000),
+    maxConcurrent: z.literal(2),
+    maxRequestsPerMinute: z.literal(10),
+    accountSpendNanoUsd: z.literal(4_000_000_000),
+    accountFailureSpendNanoUsd: z.literal(1_000_000_000),
+    globalDailySpendNanoUsd: z.literal(10_000_000_000),
+  })
+  .refine(
+    (b) =>
+      Number.isSafeInteger(
+        Math.ceil(
+          ((b.maxInputTokens * b.inputNanoUsd +
+            b.maxOutputTokens * b.outputNanoUsd) *
+            SUBCREDITS) /
+            b.creditNanoUsd,
+        ),
+      ),
+    "Unsafe credit bound",
+  );
+export function textMaximum(book: unknown, autocomplete = false) {
+  const b = TextBook.parse(book);
+  return Math.ceil(
+    ((b.maxInputTokens * b.inputNanoUsd +
+      (autocomplete ? 64 : b.maxOutputTokens) * b.outputNanoUsd) *
+      SUBCREDITS) /
+      b.creditNanoUsd,
+  );
+}
 export const MAX_ATTEMPT_NANO_USD = 5_376_000;
 export const TEXT_QUOTE = 1_792_000;
-export const TRIAL_POLICY: { version: string; disclosure: string } = {
-  version: "private-cancellation-v1",
-  disclosure:
-    "Private trial: $12/month and 1,000 credits are test values, not a live purchase. Text reserves at most 1.792 credits; an opt-in writing suggestion reserves at most 1.120 credits and usage is shown in aggregate. Final charges use measured input and output (including reasoning); internal retries are our cost. Technical failures return the reservation. Cancel stops new paid steps. Completed results are charged even after cancellation or disconnect; confirmed cancellation without completion is released. Uncertain provider outcomes remain reserved for owner reconciliation. Credits expire at renewal, with no rollover or top-ups. Public cancellation terms are undecided before launch.",
-} as const;
+export function trialPolicy(book: unknown = PRICEBOOK) {
+  return {
+    version: "private-cancellation-v1",
+    disclosure: `Private trial: $12/month and 1,000 credits are test values, not a live purchase. Text reserves at most ${(textMaximum(book) / SUBCREDITS).toFixed(3)} credits; an opt-in writing suggestion reserves at most ${(textMaximum(book, true) / SUBCREDITS).toFixed(3)} credits and usage is shown in aggregate. Final charges use measured input and output (including reasoning); internal retries are our cost. Technical failures return the reservation. Cancel stops new paid steps. Completed results are charged even after cancellation or disconnect; confirmed cancellation without completion is released. Uncertain provider outcomes remain reserved for owner reconciliation. Credits expire at renewal, with no rollover or top-ups. Public cancellation terms are undecided before launch.`,
+  };
+}
+export const TRIAL_POLICY = trialPolicy();
 export const TextInput = z.strictObject({
   idempotencyKey: z.string().min(1).max(100),
   text: z.string().min(1).max(3000),
