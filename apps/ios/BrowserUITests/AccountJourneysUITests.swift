@@ -28,6 +28,65 @@ final class AccountJourneysUITests: XCTestCase {
     XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 5))
   }
 
+  func testAIPowerExplainsDeviceSetupAndKeepsProUnavailable() {
+    launch("account")
+    XCTAssertTrue(app.buttons["Settings"].waitForExistence(timeout: 5))
+    settings()
+    app.buttons["AI Power"].tap()
+    XCTAssertTrue(app.navigationBars["AI Power"].waitForExistence(timeout: 5))
+    XCTAssertTrue(app.staticTexts["Pro · Coming soon"].exists)
+    XCTAssertTrue(app.staticTexts["No key on this device"].waitForExistence(timeout: 5))
+    XCTAssertTrue(
+      app.staticTexts[
+        "Your key stays in this device’s Keychain. Set it up separately on each device. Signing out removes this device’s configured key."
+      ].exists)
+    XCTAssertTrue(app.buttons["Save Key"].exists)
+    XCTAssertFalse(app.buttons["Save Key"].isEnabled)
+    capture("279-device-setup")
+  }
+
+  func testAIPowerCanSaveReplaceRemoveAndCancelDeviceWork() {
+    launch("ai-power")
+    XCTAssertTrue(app.buttons["Settings"].waitForExistence(timeout: 5))
+    settings()
+    app.buttons["AI Power"].tap()
+    XCTAssertTrue(app.staticTexts["No key on this device"].waitForExistence(timeout: 5))
+    let key = app.secureTextFields["OpenRouter key"]
+    key.tap()
+    key.typeText("sk-or-v1-ui-distinctive-fake-credential")
+    app.buttons["Save Key"].tap()
+    XCTAssertTrue(app.buttons["Validate Key"].waitForExistence(timeout: 5))
+    app.buttons["Validate Key"].tap()
+    XCTAssertTrue(
+      app.staticTexts["Key accepted by OpenRouter. Text access is checked when you generate."]
+        .waitForExistence(timeout: 5))
+    key.tap()
+    key.typeText("sk-or-v1-ui-distinctive-replaced-credential")
+    app.buttons["Replace Key"].tap()
+    XCTAssertTrue(
+      app.staticTexts["Key saved. Validate it directly with OpenRouter."].waitForExistence(
+        timeout: 5))
+    app.buttons["ai-power-source"].tap()
+    app.buttons["My OpenRouter key"].tap()
+    let before = app.textFields["Text to continue"]
+    XCTAssertTrue(before.waitForExistence(timeout: 5))
+    before.tap()
+    before.typeText("A short ")
+    app.buttons["Try Text"].tap()
+    let cancel = app.buttons["Cancel"]
+    XCTAssertTrue(cancel.waitForExistence(timeout: 5))
+    cancel.tap()
+    XCTAssertTrue(
+      app.staticTexts["Generation stopped. An issued provider request may still be billed."]
+        .waitForExistence(timeout: 5))
+    app.buttons["Try Text"].tap()
+    XCTAssertTrue(app.staticTexts["Text completed on this device."].waitForExistence(timeout: 12))
+    app.buttons["Remove Key"].tap()
+    XCTAssertTrue(app.staticTexts["No key on this device"].waitForExistence(timeout: 5))
+    XCTAssertFalse(app.buttons["Try Text"].isEnabled)
+    capture("279-key-lifecycle")
+  }
+
   func testReadAloudConsentStaysReadableAndCanCancelAtAccessibilityTextSize() {
     app.launchArguments = ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
     launch()

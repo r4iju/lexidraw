@@ -19,7 +19,20 @@ struct BrowserHarnessApp: App {
   private let signInBrowser = SignInBrowserFixture()
   @State private var model = AppModel(
     account: Account(
-      origin: BrowserScenario.name == "sign-in" ? SignInBrowserFixture.origin : URL(string: "https://harness.invalid")!, store: AccountHarnessToken(), transport: HarnessServer()))
+      origin: BrowserScenario.name == "sign-in"
+        ? SignInBrowserFixture.origin : URL(string: "https://harness.invalid")!,
+      store: AccountHarnessToken(), transport: HarnessServer(),
+      providerKeyStore: { id in
+        let store = KeychainProviderStore(
+          accountID: id, origin: URL(string: "https://harness.invalid")!)
+        try? store.delete()
+        return store
+      },
+      providerConfiguration: {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [NativeAIProviderFixture.self]
+        return configuration
+      }))
 
   var body: some Scene {
     WindowGroup {
@@ -56,6 +69,7 @@ actor HarnessServer: ClientTransport {
   private var revisions: [String: String] = [:]
   private var saves = 0
   private var searched = false
+  private var powerPreference = ["mode": "local"]
 
   init() {
     scenario = BrowserScenario.name ?? "basic"
@@ -155,6 +169,11 @@ actor HarnessServer: ClientTransport {
       if scenario == "signout-local-failure" { try await Task.sleep(for: .seconds(4)) }
       if scenario == "signout-server-failure" { throw URLError(.notConnectedToInternet) }
       answer = ["id": "fixture-token"]
+    case "auth.getPowerPreference":
+      answer = ["result": ["data": ["json": powerPreference]]]
+    case "auth.setPowerPreference":
+      if let value = json["json"] as? [String: String] { powerPreference = value }
+      answer = ["result": ["data": ["json": NSNull()]]]
     case "auth-me":
       if scenario == "identity-failure", failures.insert(operationID).inserted {
         return try response(["message": "Connection interrupted.", "code": "INTERNAL_SERVER_ERROR"], status: .internalServerError)

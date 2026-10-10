@@ -124,6 +124,7 @@ extension Session {
   /// signed out even when this device won't let go of it.
   public func deleteAccount(confirmation: String) async throws {
     _ = try await ask { try await $0.authDeleteAccount(body: .json(.init(confirmation: confirmation))) }.ok
+    try? await aiHandle.endSession()
     try? store.delete()
   }
 }

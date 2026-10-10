@@ -85,6 +85,15 @@ private struct SettingsView: View {
         } footer: {
           Text("Sign out of this device. Your files and your sign-ins on other devices stay in your account.")
         }
+        if case .signedIn(let session) = model.state {
+          Section("AI") {
+            NavigationLink {
+              AIPowerView(session: session)
+            } label: {
+              Label("AI Power", systemImage: "sparkles")
+            }
+          }
+        }
         Section("Listening") {
           NavigationLink {
             ReadAloudInformationView()

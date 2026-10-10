@@ -23,13 +23,17 @@ export function stripFragment(
       head += chunk;
       if (head.length < fragment.length && fragment.startsWith(head)) return;
       decided = true;
-      controller.enqueue(
-        head.startsWith(fragment) ? head.slice(fragment.length) : head,
-      );
+      controller.enqueue(finishFragment(fragment, head));
     },
     flush(controller) {
       // The model repeated at most the fragment, and so suggested nothing.
       if (!decided && !fragment.startsWith(head)) controller.enqueue(head);
     },
   });
+}
+
+/** Native adapters collect one bounded provider response before presenting it. */
+export function finishFragment(fragment: string, output: string): string {
+  if (fragment.startsWith(output)) return "";
+  return output.startsWith(fragment) ? output.slice(fragment.length) : output;
 }

@@ -7,6 +7,9 @@ public struct Session: Sendable {
   let origin: URL
   let connection: Connection
   let store: any TokenStore
+  let aiHandle: NativeAIHandle
+  let providerKeyStore: (@Sendable (String) -> any TokenStore)?
+  let providerConfiguration: @Sendable () -> URLSessionConfiguration
 
   /// Asks the server through the generated client; an answer that isn't a
   /// success comes back as the ``Refusal`` it is.
@@ -105,6 +108,7 @@ public struct Session: Sendable {
   /// Revokes the token on the server, then forgets it here whatever the
   /// server said, so a failed request never leaves the app signed in.
   public func signOut() async throws -> SignOut {
+    try await aiHandle.endSession()
     let outcome: SignOut
     do {
       _ = try await ask { try await $0.tokensRevokeCurrent(body: .json(.init())) }.ok

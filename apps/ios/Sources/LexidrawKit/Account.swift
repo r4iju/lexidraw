@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 import HTTPTypes
 import OpenAPIRuntime
@@ -27,11 +28,19 @@ public struct Account: Sendable {
   let origin: URL
   let store: any TokenStore
   let transport: any ClientTransport
+  let providerKeyStore: (@Sendable (String) -> any TokenStore)?
+  let providerConfiguration: @Sendable () -> URLSessionConfiguration
 
-  public init(origin: URL, store: any TokenStore, transport: any ClientTransport = URLSessionTransport()) {
+  public init(
+    origin: URL, store: any TokenStore, transport: any ClientTransport = URLSessionTransport(),
+    providerKeyStore: (@Sendable (String) -> any TokenStore)? = nil,
+    providerConfiguration: @escaping @Sendable () -> URLSessionConfiguration = { .ephemeral }
+  ) {
+    self.providerConfiguration = providerConfiguration
+    self.providerKeyStore = providerKeyStore
     self.origin = origin
     self.store = store
-    self.transport = transport
+    self.transport = CredentialGuardedTransport(underlying: transport)
   }
 
   /// The server and the Keychain item that `bundle`'s Info.plist names, so
@@ -102,7 +111,15 @@ public struct Account: Sendable {
   }
 
   private func session(token: String) -> Session {
-    Session(origin: origin, connection: connection(token: token), store: store)
+    let scope = SHA256.hash(data: Data((origin.absoluteString + "\n" + token).utf8)).map { String(format: "%02x", $0) }.joined()
+    let files = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first.map {
+      NativeTextFileStore(directory: $0.appending(path: "lexidraw/byok-text/" + scope))
+    }
+    return Session(
+      origin: origin, connection: connection(token: token), store: store,
+      aiHandle: NativeAIHandle(defaultStore: providerKeyStore == nil
+        ? KeychainProviderStore(accountID: "api-session-" + scope, origin: origin) : nil, files: files),
+      providerKeyStore: providerKeyStore, providerConfiguration: providerConfiguration)
   }
 
   private func connection(token: String?) -> Connection {
@@ -138,6 +155,13 @@ struct Connection: Sendable {
 
   /// Sends a JSON body through the middlewares, as the client would.
   func send(_ request: HTTPRequest, json: Data, operationID: String) async throws {
+    _ = try await exchange(request, json: json, operationID: operationID)
+  }
+
+  func exchange(_ request: HTTPRequest, json: Data?, operationID: String, baseURL: URL? = nil)
+    async throws
+    -> (HTTPResponse, HTTPBody?)
+  {
     var request = request
     request.headerFields[.contentType] = "application/json"
     let transport = transport
@@ -146,9 +170,12 @@ struct Connection: Sendable {
     }
     for middleware in middlewares.reversed() {
       let inner = next
-      next = { try await middleware.intercept($0, body: $1, baseURL: $2, operationID: operationID, next: inner) }
+      next = {
+        try await middleware.intercept(
+          $0, body: $1, baseURL: $2, operationID: operationID, next: inner)
+      }
     }
-    _ = try await next(request, HTTPBody(json), serverURL)
+    return try await next(request, json.map { HTTPBody($0) }, baseURL ?? serverURL)
   }
 
   /// Sends `data` somewhere other than the server, so past the middlewares:

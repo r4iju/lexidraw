@@ -63,6 +63,21 @@ export function generateAutocomplete(
     persistence: TextPersistence;
   },
 ): ReadableStream<string> {
+  const prepared = prepareAutocomplete(job);
+  return adapters.execution
+    .run((signal) =>
+      adapters.transport.stream(
+        { ...prepared, credential: job.credential },
+        signal,
+        adapters.persistence,
+      ),
+    )
+    .pipeThrough(stripFragment(fragmentAt(job.before)));
+}
+
+export function prepareAutocomplete(
+  job: Omit<AutocompleteJob, "credential">,
+): Omit<TextGenerationRequest, "credential"> {
   const config: TextModelConfig = {
     provider: job.config.provider,
     modelId: job.config.modelId,
@@ -72,21 +87,12 @@ export function generateAutocomplete(
       MAX_SUGGESTION_TOKENS,
     ),
   };
-  return adapters.execution
-    .run((signal) =>
-      adapters.transport.stream(
-        {
-          config,
-          credential: job.credential,
-          system: AUTOCOMPLETE_SYSTEM,
-          prompt: autocompletePrompt(job),
-          // A retried suggestion arrives after the user has typed past it.
-          maxRetries: 0,
-          providerOptions: lowestReasoning(config.provider, config.modelId),
-        },
-        signal,
-        adapters.persistence,
-      ),
-    )
-    .pipeThrough(stripFragment(fragmentAt(job.before)));
+  return {
+    config,
+    system: AUTOCOMPLETE_SYSTEM,
+    prompt: autocompletePrompt(job),
+    // A retried suggestion arrives after the user has typed past it.
+    maxRetries: 0,
+    providerOptions: lowestReasoning(config.provider, config.modelId),
+  };
 }

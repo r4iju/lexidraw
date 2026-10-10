@@ -27,6 +27,7 @@ extension Session {
   func uploadImage(_ jpeg: Data, in document: String,
     send: @Sendable (URLRequest, Data) async throws -> Int
   ) async throws -> URL {
+    try NativeCredentialGuard.shared.check(jpeg)
     guard !jpeg.isEmpty, jpeg.count <= MediaImages.maximumBytes else { throw ImageUploadError.invalidImage }
     guard try await self.document(document).access == .edit else { throw ImageUploadError.readOnly }
     let signed = try await ask {
@@ -37,7 +38,13 @@ extension Session {
     var request = URLRequest(url: destination)
     request.httpMethod = signed.upload.method.rawValue
     request.allHTTPHeaderFields = signed.upload.headers.additionalProperties
-    let status = try await send(request, jpeg)
+    try NativeCredentialGuard.shared.check(request, body: jpeg)
+    let status: Int
+    do { status = try await send(request, jpeg) }
+    catch {
+      try NativeCredentialGuard.shared.check(error: error)
+      throw error
+    }
     guard (200..<300).contains(status) else { throw ImageUploadError.failed(status) }
     return source
   }
