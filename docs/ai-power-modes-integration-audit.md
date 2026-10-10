@@ -449,3 +449,58 @@ Stripe/Apple Sandbox, physical audio, migration, and release proofs remain
 pending. Prior fixes/manifests and pinned V4 review inputs remain intact. No
 push, merge, PR edit, cloud CI/build/preview/deploy, production/provider/payment/
 bucket API, remote migration, release preparation, or master integration ran.
+
+## V5 native batch01/batch02 bounded fixes — local verification
+
+Starting from `cc12ac2feb49773227279bd49b588b3337588a04`, the native sole-writer
+follow-up addresses B01-N1/N2/N3, V5-B01-S2/S3, B02-N1/N2/N3, and
+V5-B02-S1. V5-B01-S1/S4/S5 and V5-B02-S2 share the corresponding fixes;
+B02-J1 now uses the shared native OperationState.
+
+- Existing agent reports load independently of generation capability. New quote
+  and acceptance remain gated. Agent and narration flows retain useful owned
+  snapshots after transport failures, disclose stale reads and unconfirmed
+  cancellation, offer read-only recovery, and clear sensitive state when access
+  is denied. Composer lifetimes reset with sign-in/document identity. Reading an
+  agent report or requesting its durable cancellation no longer requires a
+  generation executor; authenticated account/document checks remain in force.
+  Reads do not recover, dispatch, debit, or settle uncertain paid operations.
+- Native autocomplete admission uses validated server maxima derived by shared
+  math from the active durable period. Missing/invalid periods or maxima block
+  new requests visibly. Settled text remains publishable when a subsequent
+  allowance read fails or returns zero; that read gates only future requests.
+  The initial submission retains its input/key and uses bounded same-key replay
+  or authenticated lookup to recover uncertain acceptance. It never silently
+  allocates a fresh paid identity for uncertain work.
+- Saved playback carries a typed Pro/device source into both composer and
+  generic Listen entrypoints, preserving the same source-specific resume key.
+  Stopping a device action during its initial document read prevents checkpoint
+  persistence and dispatch. Ordinary account transport bodies have finite
+  endpoint budgets during collection before credential scanning. Typed raw PCM
+  and exact canonical WAV adapters permit incidental gzip/ZIP sample bytes while
+  preserving credential-echo detection and malformed/compressed envelope refusal.
+
+Meaningful RED-first production flow tests and actual editor/Listener XCTest
+cases cover these corrections. Final local verification passed 56 Swift tests,
+six editor XCTest cases, 34 Bun tests, explicit web and native shared TypeScript
+checks, project regeneration, and cached Lexidraw/BrowserHarness simulator
+builds. The deterministic recovery harness uses the production action/narration
+views, but interactive driving was blocked by device automation session ownership
+conflicts; its runtime UI acceptance is not claimed. No actual provider or
+physical audio/device proof was performed. The manifest contains exact logs,
+commands, failure/setup distinctions, overlap mapping, and queued responses:
+`/tmp/lexidraw-276-implementation/291-native-batch01-fixes.json`.
+
+#291 and #276 remain incomplete. B03-N1/N2/N3 remain queued (direct-provider
+receive bounds, cleanup failure isolation, and fingerprint admission/checkpoint
+contract); V5-B03-S1 duplicates B03-N1. V5-B03-S2 (one credential generation per
+explicit narration resume) remains queued separately. V5-B03-S3/S4 storage scope
+and durable image-upload identity, and V5-B02-S3 authenticated production-router/
+ledger autocomplete acceptance, are parent-queued sole-writer follow-ups. These
+are unresolved findings, not met requirements. Full independent review and all
+previously recorded hosted/provider/storage/payment/migration/release proof gaps
+remain open. Prior manifests and pinned read-only review batches remain intact;
+unrelated workflow, README, package, Vercel, environment and release files are
+excluded. No push, merge, PR edit, cloud CI/build/preview/deploy, production API,
+paid provider, payment/bucket call, remote migration, release preparation, secret
+environment read, or master integration ran.

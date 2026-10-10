@@ -42,6 +42,14 @@ public final class NativeCredentialGuard: @unchecked Sendable {
     lock.unlock()
   }
   public func check(_ data: Data) throws {
+    try scan(data, audioSamples: NativeAudioFormat.isCanonicalWAV(data))
+  }
+  // Only the declared raw PCM provider adapter may use this boundary. JSON/outbound callers use check.
+  func checkPCM(_ data: Data) throws {
+    guard !data.isEmpty, data.count <= 5_760_000, data.count % 2 == 0 else { throw NativeAIError.rejected }
+    try scan(data, audioSamples: true)
+  }
+  private func scan(_ data: Data, audioSamples: Bool) throws {
     lock.lock()
     let known = fingerprints
     lock.unlock()
@@ -62,10 +70,10 @@ public final class NativeCredentialGuard: @unchecked Sendable {
         }
       }
     }
-    if data.range(of: Data([0x1f, 0x8b, 0x08])) != nil
+    if !audioSamples && (data.range(of: Data([0x1f, 0x8b, 0x08])) != nil
       || data.range(of: Data([0x50, 0x4b, 0x03, 0x04])) != nil
       || (data.first == 0x78 && data.count > 1
-        && [0x01, 0x9c, 0xda].contains(data[data.startIndex + 1]))
+        && [0x01, 0x9c, 0xda].contains(data[data.startIndex + 1])))
     {
       throw NativeAIError.rejected
     }
@@ -73,15 +81,15 @@ public final class NativeCredentialGuard: @unchecked Sendable {
     let initial = String(decoding: data, as: UTF8.self)
     // Each decoding step shrinks its input. No node cap rejects legitimate
     // large artifacts merely because they contain many encoded safe fields.
-    var pending = [initial]
+    var pending = [(initial, audioSamples)]
     var seen = Set<Data>()
     let minimum = known.map(\.length).min() ?? 16
-    while let text = pending.popLast() {
+    while let (text, audioSamples) = pending.popLast() {
       guard seen.insert(Data(SHA256.hash(data: Data(text.utf8)))).inserted else { continue }
       try checkBytes(Data(text.utf8))
-      if text.range(
+      if (!audioSamples && text.range(
         of: #"(?:^\x{78}[\x{01}\x{9c}\x{da}]|\x{1f}\x{8b}\x{08}|PK\x{03}\x{04})"#,
-        options: .regularExpression) != nil
+        options: .regularExpression) != nil)
         || text.range(
           of:
             #""(?:apiKey|baseURL|providerOptions|rawResponse|providerConfig|requestBody|providerMetadata)"\s*:"#,
@@ -95,8 +103,8 @@ public final class NativeCredentialGuard: @unchecked Sendable {
         throw NativeAIError.rejected
       }
       guard !known.isEmpty else { continue }
-      func enqueue(_ decoded: String) {
-        if decoded.utf8.count < text.utf8.count { pending.append(decoded) }
+      func enqueue(_ decoded: String, samples: Bool? = nil) {
+        if decoded.utf8.count < text.utf8.count { pending.append((decoded, samples ?? audioSamples)) }
       }
       enqueue(
         Self.replace(text, pattern: #"(?:%[a-fA-F0-9]{2})+"#) { match in
@@ -140,7 +148,8 @@ public final class NativeCredentialGuard: @unchecked Sendable {
           of: "_", with: "/")
         base64 += String(repeating: "=", count: (4 - base64.count % 4) % 4)
         if let bytes = Data(base64Encoded: base64) {
-          enqueue(String(decoding: bytes, as: UTF8.self))
+          try checkBytes(bytes)
+          enqueue(String(decoding: bytes, as: UTF8.self), samples: audioSamples || NativeAudioFormat.isCanonicalWAV(bytes))
         }
       }
       if let json = try? JSONSerialization.jsonObject(

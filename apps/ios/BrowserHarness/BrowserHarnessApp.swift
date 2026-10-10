@@ -42,7 +42,9 @@ struct BrowserHarnessApp: App {
       Group {
         switch model.state {
         case .signedIn(let session):
-          if BrowserScenario.name == "chat-migration" {
+          if BrowserScenario.name == "native-pro-recovery" {
+            NativeProRecoveryFixtureScreen()
+          } else if BrowserScenario.name == "chat-migration" {
             NativeChatFixtureScreen()
           } else if BrowserScenario.name == "recording-integration-291" {
             SavedRecordingIntegrationScreen(session: session)
@@ -736,7 +738,7 @@ private struct NarrationFixtureScreen: View {
     VStack {
       Text("Injected silent audio fixture. No actual provider generation.").font(.caption)
       ProNarrationComposer(flow: flow) { job in
-        listener.playProNarration(job, to: .init(id: "doc", title: "Private narration fixture"))
+        listener.playNarration(job, to: .init(id: "doc", title: "Private narration fixture"))
       }
     }.nowPlayingBar(listener)
   }
@@ -768,7 +770,7 @@ private struct DeviceNarrationFixtureScreen: View {
       Text("Fixture key: \(runtime?.hasKey == true ? "connected" : "absent") (\(revision))")
       if let flow {
         DeviceNarrationComposer(session: session, document: "doc", flow: flow) { job in
-          listener.playProNarration(job, to: .init(id: "doc", title: "Device narration fixture"))
+          listener.playNarration(job, to: .init(id: "doc", title: "Device narration fixture"))
         }
       }
     }.nowPlayingBar(listener).task {
@@ -810,7 +812,7 @@ private struct SavedRecordingIntegrationScreen: View {
     VStack {
       Text("291 keyless saved artifact fixture. Synthetic silent audio, no provider call.")
       DeviceNarrationComposer(session: session, document: "doc") { job in
-        listener.playProNarration(job, to: .init(id: "doc", title: "291 synthetic recording"))
+        listener.playNarration(job, to: .init(id: "doc", title: "291 synthetic recording"))
       }
     }.nowPlayingBar(listener)
   }

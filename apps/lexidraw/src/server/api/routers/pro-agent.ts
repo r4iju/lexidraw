@@ -3,10 +3,15 @@ import { TRPCError } from "@trpc/server";
 import { AgentInput, AgentCompletion } from "~/lib/agent/contracts";
 import { createTRPCRouter, protectedProcedure } from "../trpc";
 import { ProError, type ProLedger } from "~/server/pro/ledger";
-import type { ProAgentOperation } from "~/server/pro/agent-operation";
+import {
+  SavedAgentReader,
+  type AgentDocuments,
+  type ProAgentOperation,
+} from "~/server/pro/agent-operation";
 export function createAgentRouter(deps: {
   ledger: () => ProLedger;
   executor: () => ProAgentOperation | undefined;
+  documents?: () => Pick<AgentDocuments, "read">;
   selected: (account: string) => Promise<boolean>;
   dispatch: (account: string, id: string) => Promise<unknown>;
 }) {
@@ -26,6 +31,11 @@ export function createAgentRouter(deps: {
         "Pro document actions are unavailable pending verified provider access and paid bounds",
       );
     return value;
+  };
+  const reader = () => {
+    const documents = deps.documents?.() ?? deps.executor()?.documents;
+    if (!documents) throw new ProError("Document reads are unavailable");
+    return new SavedAgentReader(deps.ledger(), documents);
   };
   const identity = z.strictObject({ id: z.string().min(1).max(100) });
   return createTRPCRouter({
@@ -69,14 +79,12 @@ export function createAgentRouter(deps: {
     }),
     operation: procedure
       .input(identity)
-      .query(({ ctx, input }) =>
-        executor().view(ctx.session.user.id, input.id),
-      ),
+      .query(({ ctx, input }) => reader().view(ctx.session.user.id, input.id)),
     current: procedure
       .input(z.strictObject({ documentId: z.string().min(1).max(100) }))
       .query(async ({ ctx, input }) => {
         const account = ctx.session.user.id;
-        const action = executor();
+        const action = reader();
         await action.documents.read(account, input.documentId);
         const [row] = await deps
           .ledger()
@@ -108,9 +116,9 @@ export function createAgentRouter(deps: {
         return deps.ledger().ownerOperation(ctx.session.user.id, input.id);
       }),
     cancel: procedure.input(identity).mutation(async ({ ctx, input }) => {
-      await executor().view(ctx.session.user.id, input.id);
+      await reader().view(ctx.session.user.id, input.id);
       await deps.ledger().cancel(ctx.session.user.id, input.id);
-      return executor().view(ctx.session.user.id, input.id);
+      return reader().view(ctx.session.user.id, input.id);
     }),
   });
 }

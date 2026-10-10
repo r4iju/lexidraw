@@ -4,6 +4,8 @@ import OpenAPIRuntime
 /// What a signed-in app can do. Only an ``Account`` makes one, from a token it
 /// holds.
 public struct Session: Sendable {
+  /// A view lifetime belongs to this sign-in, even if another account opens the same document.
+  public var scopeID: ObjectIdentifier { ObjectIdentifier(aiHandle) }
   /// Where the web is, for addresses that open a file in it.
   let origin: URL
   let connection: Connection

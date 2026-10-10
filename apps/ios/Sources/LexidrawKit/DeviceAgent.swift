@@ -44,6 +44,7 @@ private struct AgentFile: Codable { let state: String; let fingerprints: Data; l
  private var busy = false
  private var stopped = false
  private var starting = false
+ private var intent = UUID()
  public var keyAvailable: Bool { runtime.hasKey }
  public init(account: String, document: String, runtime: NativeBYOK, directory: URL, available: Bool = false, images: Bool = false, read: @escaping () async throws -> NativeDeviceDocument, apply: @escaping (NativeDeviceMutation) async throws -> NativeDeviceReceipt) {
   self.account = account; self.document = document; self.runtime = runtime; self.directory = directory; self.available = available; self.images = images; self.read = read; self.apply = apply
@@ -81,11 +82,15 @@ private struct AgentFile: Codable { let state: String; let fingerprints: Data; l
  }
  public func start(prompt: String) async throws {
   try active(); guard !busy, !starting, state == nil, available, runtime.hasKey else { return }
-  starting = true; defer { starting = false }
+  try Task.checkCancellation()
+  starting = true; stopped = false
+  intent = UUID(); let run = intent
+  defer { starting = false }
   try NativeCredentialGuard.shared.check(Data(prompt.utf8))
   let reference = try runtime.credentialReference()
   let source = try JSONEncoder().encode(await read()); try active()
-  guard state == nil, runtime.isCurrent(reference) else { return }
+  try Task.checkCancellation()
+  guard intent == run, !stopped, state == nil, runtime.isCurrent(reference) else { return }
   try persist(nativeAgentCall("nativeAgentStart", [account, document, UUID().uuidString, Date().timeIntervalSince1970 * 1000, prompt, String(decoding: source, as: UTF8.self)]))
   try await resume()
  }
@@ -134,7 +139,7 @@ private struct AgentFile: Codable { let state: String; let fingerprints: Data; l
    } catch { try active(); try persist(nativeAgentCall("nativeAgentRestore", [fenced])); return }
   }
  }
- public func stop() { stopped = true }
+ public func stop() { stopped = true; intent = UUID() }
 }
 extension Session {
  @MainActor public func deviceAgentFlow(document: String) async throws -> NativeDeviceAgentFlow {

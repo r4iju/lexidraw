@@ -16,6 +16,7 @@ export function serverProAgent(): ProAgentOperation | undefined {
 export const agentPowerRouter = createAgentRouter({
   ledger: proLedger,
   executor: serverProAgent,
+  documents: serverProAgentDocuments,
   selected: async (account) => {
     const [user] = await drizzle
       .select({ config: schema.users.config })

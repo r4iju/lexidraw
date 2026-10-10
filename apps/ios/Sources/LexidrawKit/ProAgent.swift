@@ -51,21 +51,82 @@ extension Session {
 }
 @MainActor @Observable public final class NativeAgentFlow {
  public enum State {case loading,ready,unavailable(String),quoting,quote(String,ProAgentQuote,String),running(String),result(ProAgentResult),error(String)}
+ public private(set) var readState: ProReadState = .current
+ public private(set) var cancellationUnconfirmed = false
+ public enum Capability { case loading, available, unavailable(String), failed }
+ public private(set) var capability: Capability = .loading
  public private(set) var state:State = .loading
+ public var canStart: Bool {
+  guard case .available = capability, readState == .current else { return false }
+  switch state { case .ready, .quote, .error: return true; case .result(let result): return !["reserved","running","unknown"].contains(result.operation.state); default: return false }
+ }
  private let session:Session
  private let document:String
  public init(session:Session,document:String){self.session=session;self.document=document}
- public func load() async {do{let capability=try await session.proAgentCapability();if capability.available {if let current=try await session.currentProAgent(document:document){state = .result(current)}else{state = .ready}}else{state = .unavailable(capability.reason)}}catch{state = .unavailable("Pro document actions are unavailable.")}}
- public func quote(_ prompt:String) async {state = .quoting;do{state = .quote(prompt,try await session.quoteProAgent(document:document,prompt:prompt),UUID().uuidString)}catch{state = .error("Could not quote this document action. Check Pro access and save the document first.")}}
- public func decline(){state = .ready}
+ public func load() async {
+  // Existing account/document-owned work is readable without a generation capability.
+  readState = .loading
+  do {
+   _ = try session.aiHandle.existing()
+   if let current = try await session.currentProAgent(document: document) { state = .result(current) }
+   else { state = .ready }
+   _ = try session.aiHandle.existing()
+   readState = .current
+  } catch { failedRead(error, message: "Action status could not be loaded. Retry status before starting new work.") }
+  await retryCapability()
+ }
+ public func retryCapability() async {
+  capability = .loading
+  do {
+   let value = try await session.proAgentCapability()
+   capability = value.available ? .available : .unavailable(value.reason)
+  } catch { capability = .failed }
+ }
+ public func quote(_ prompt:String) async {guard canStart else{return};state = .quoting;do{state = .quote(prompt,try await session.quoteProAgent(document:document,prompt:prompt),UUID().uuidString)}catch{state = .error("Could not quote this document action. Check Pro access and save the document first.")}}
+ public func decline(){
+  if case .result(let result) = state, ["reserved","running","unknown"].contains(result.operation.state) { return }
+  state = .ready
+ }
  public func accept() async {
-  guard case .quote(let prompt,let quote,let id)=state else{return}
+  guard canStart, case .quote(let prompt,let quote,let id)=state else{return}
   state = .running(id)
   do{let result=try await session.startProAgent(document:document,revision:quote.revision,prompt:prompt,id:id,maximum:quote.maximum);state = .result(result)}catch{state = .quote(prompt,quote,id)}
  }
  public func refresh() async {
-  guard case .result(let result)=state, ["reserved","running","unknown"].contains(result.operation.state) else{return}
-  if let result=try? await session.proAgentOperation(result.operation.id){state = .result(result)}
+  guard case .result(let result) = state else { await load(); return }
+  readState = .loading
+  do {
+   _ = try session.aiHandle.existing()
+   let updated = try await session.proAgentOperation(result.operation.id)
+   _ = try session.aiHandle.existing()
+   guard updated.operation.id == result.operation.id else { throw NativeAIError.unavailable }
+   state = .result(updated)
+   readState = .current
+   if !["reserved","running","unknown"].contains(updated.operation.state) { cancellationUnconfirmed = false }
+  } catch { failedRead(error, message: "Action status could not be refreshed. Displayed progress may be out of date.") }
  }
- public func cancel() async {guard case .result(let result)=state else{return};if let stopped=try? await session.stopProAgent(result.operation.id){state = .result(stopped)}}
+ public func cancel() async {
+  guard case .result(let result) = state else { return }
+  cancellationUnconfirmed = true
+  do {
+   _ = try session.aiHandle.existing()
+   let stopped = try await session.stopProAgent(result.operation.id)
+   _ = try session.aiHandle.existing()
+   guard stopped.operation.id == result.operation.id else { throw NativeAIError.unavailable }
+   state = .result(stopped)
+   readState = .current
+   cancellationUnconfirmed = ["reserved","running","unknown"].contains(stopped.operation.state)
+  } catch { failedRead(error, message: "Cancellation could not be confirmed. Refresh status before assuming further work stopped.") }
+ }
+ private func failedRead(_ error: any Error, message: String) {
+  if proAccessDenied(error) {
+   state = .error("Access to this action is no longer available.")
+   readState = .denied
+   capability = .failed
+   cancellationUnconfirmed = false
+  } else {
+   readState = .stale(message)
+   if case .loading = state { state = .error(message) }
+  }
+ }
 }

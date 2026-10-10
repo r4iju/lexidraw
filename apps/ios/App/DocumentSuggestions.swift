@@ -15,9 +15,14 @@ import TextKitEditor
   private var title = ""
   private var locale = Locale.autoupdatingCurrent
   private var revision = UUID()
+  private var admissionNotice: String?
 
   func load(session: Session, editor: EditorView?, title: String, language: String) async {
     stop()
+    allowance = nil
+    byok = nil
+    enabled = false
+    admissionNotice = nil
     let revision = revision
     self.session = session
     self.editor = editor
@@ -83,13 +88,20 @@ import TextKitEditor
         message = "Pro Coming soon. Private allowance required."
         return
       }
-      guard (allowance?.availableSubcredits ?? 0) >= 1_120_000 else {
+      guard let maximum = allowance?.verifiedAutocompleteMaximum else {
+        message = "Pro suggestion rates could not be verified for the active period. Reload AI Power."
+        return
+      }
+      guard (allowance?.availableSubcredits ?? 0) >= maximum else {
         message = "Not enough allowance for another suggestion."
         return
       }
       message = "On · Pro suggestions metered in aggregate"
     }
-    editor?.onWritingSuggestionStatus = { [weak self] status in self?.message = status }
+    editor?.onWritingSuggestionStatus = { [weak self] status in
+      guard let self else { return }
+      message = admissionNotice ?? status
+    }
     editor?.setWritingSuggestions { [weak self] input in
       guard let self, let session else { throw CancellationError() }
       switch mode {
@@ -104,20 +116,35 @@ import TextKitEditor
           Task { @MainActor in byok.cancel() }
         }
       case .pro:
-        do {
-          let text = try await session.autocompletePro(
-            title: title, before: input.before, after: input.after)
-          allowance = try? await session.proAllowance()
-          if (allowance?.availableSubcredits ?? 0) == 0 {
-            message = "Allowance exhausted."
-            return ""
-          }
-          return text
-        } catch {
-          allowance = try? await session.proAllowance()
+        guard let maximum = allowance?.verifiedAutocompleteMaximum,
+          (allowance?.availableSubcredits ?? 0) >= maximum else {
+          throw AutocompleteProError.unavailable
+        }
+        let requestRevision = revision
+        let text: String
+        do { text = try await session.autocompletePro(title: title, before: input.before, after: input.after) }
+        catch {
+          await refreshAllowance(session: session, revision: requestRevision)
           throw error
         }
+        // Settlement owns this output. Status refresh only controls the next request.
+        await refreshAllowance(session: session, revision: requestRevision)
+        guard revision == requestRevision else { throw CancellationError() }
+        return text
       }
     }
+  }
+  private func refreshAllowance(session: Session, revision: UUID) async {
+    let value: ProAllowance?
+    do { value = try await session.proAllowance() } catch { value = nil }
+    guard self.revision == revision else { return }
+    allowance = value
+    if let value, let maximum = value.verifiedAutocompleteMaximum {
+      admissionNotice = value.availableSubcredits < maximum
+        ? "Allowance exhausted for new suggestions. Completed text is retained." : nil
+    } else {
+      admissionNotice = "Allowance could not be refreshed. New suggestions are blocked. Reload AI Power."
+    }
+    if let admissionNotice { message = admissionNotice }
   }
 }

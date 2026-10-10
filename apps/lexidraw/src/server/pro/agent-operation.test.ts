@@ -417,6 +417,7 @@ test("a crashed paid fence becomes explicit reconciliation after the action leas
       JSON.stringify({ key: "plan", phase: "plan", hash: "a".repeat(64) }),
     );
     f.ledger.config.now = () => 127000;
+    await f.ledger.recoverAgent("alice", op.id);
     const recovered = await f.caller("alice").operation({ id: op.id });
     expect(recovered.operation.state).toBe("unknown");
     expect(recovered.report.status).toBe("reconciling");
@@ -891,6 +892,64 @@ test("legacy periods recover accepted action prices and do not introduce a confi
     expect((await f.ledger.status("alice")).availableSubcredits).toBe(
       1000000000,
     );
+  } finally {
+    f.client.close();
+  }
+});
+
+test("owned action reads and cancellation survive removed executor without paid recovery or leaked documents", async () => {
+  const f = await fixture();
+  try {
+    await grant(f);
+    const op = await f.executor.reserve("alice", input);
+    await f.ledger.agentLease("alice", op.id);
+    await f.ledger.claim(op.id);
+    await f.ledger.startAttempt(
+      op.id,
+      JSON.stringify({ key: "plan", phase: "plan", hash: "a".repeat(64) }),
+    );
+    let revoked = false;
+    const router = createAgentRouter({
+      ledger: () => f.ledger,
+      executor: () => undefined,
+      documents: () => ({
+        read: async (account: string, document: string) => {
+          if (revoked) throw new Error("Document not found");
+          return f.executor.documents.read(account, document);
+        },
+      }),
+      selected: async () => false,
+      dispatch: async () => {
+        throw new Error("Must not dispatch");
+      },
+    });
+    const caller = (account: string) =>
+      router.createCaller({
+        drizzle: db,
+        headers: new Headers(),
+        session: { user: { id: account } },
+      } as never);
+    const before = await f.ledger.operation("alice", op.id);
+    expect(
+      (await caller("alice").current({ documentId: "doc" }))?.operation.id,
+    ).toBe(op.id);
+    expect((await caller("alice").operation({ id: op.id })).operation).toEqual(
+      before,
+    );
+    expect(await f.ledger.operation("alice", op.id)).toEqual(before);
+    const stopped = await caller("alice").cancel({ id: op.id });
+    expect(stopped.operation.cancel_requested).toBe(1);
+    expect(stopped.operation.state).toBe("running");
+    expect(stopped.operation.charged).toBe(0);
+    expect(stopped.operation.quote).toBe(before.quote);
+    expect(f.calls()).toBe(0);
+    await expect(caller("bob").operation({ id: op.id })).rejects.toThrow();
+    revoked = true;
+    await expect(
+      caller("alice").current({ documentId: "doc" }),
+    ).rejects.toThrow();
+    await expect(caller("alice").operation({ id: op.id })).rejects.toThrow();
+    await expect(caller("alice").cancel({ id: op.id })).rejects.toThrow();
   } finally {
     f.client.close();
   }

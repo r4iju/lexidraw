@@ -31,6 +31,8 @@ const initialStatus: RouterOutputs["pro"]["status"] = {
     appleAvailable: false,
   },
   entitlementPeriodId: "fixture",
+  textMaximumSubcredits: 1792000,
+  autocompleteMaximumSubcredits: 1120000,
   pricebook: PRICEBOOK,
   providerCosts: {
     knownNanoUsd: 0,

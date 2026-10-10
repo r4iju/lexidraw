@@ -3,6 +3,15 @@ import HTTPTypes
 import OpenAPIRuntime
 
 public struct ProAllowance: Decodable, Sendable {
+  public let entitlementPeriodId: String?
+  public let textMaximumSubcredits: Int64?
+  public let autocompleteMaximumSubcredits: Int64?
+  public var verifiedAutocompleteMaximum: Int64? {
+    guard entitled, let period = entitlementPeriodId, !period.isEmpty,
+      let maximum = autocompleteMaximumSubcredits, maximum > 0,
+      maximum <= 9_007_199_254_740_991 else { return nil }
+    return maximum
+  }
   public let eligible: Bool
   public let entitled: Bool
   public let availableSubcredits: Int64

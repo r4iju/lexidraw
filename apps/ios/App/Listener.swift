@@ -109,7 +109,7 @@ final class Listener {
           let files = ProNarrationFiles()
           recording = try files.recording(job)
           proFiles = files
-          positionKey = "device.\(job.id ?? file.id)"
+          positionKey = NarrationPlayback(job: job, source: .device).resumeID(file: file.id)
           voiceDescription = "Saved device recording. Replay is free without a key."
         case .saved(let saved):
           recording = saved
@@ -137,13 +137,14 @@ final class Listener {
     NativeNarrationFlow(session: session, document: document)
   }
 
-  func playProNarration(_ job: ProNarrationJob, to file: File) {
+  func playNarration(_ playback: NarrationPlayback, to file: File) {
+    let job = playback.job
     stop()
     let files = ProNarrationFiles()
     do {
       let recording = try files.recording(job)
       proFiles = files
-      positionKey = "pro.\(job.id ?? file.id)"
+      positionKey = playback.resumeID(file: file.id)
       voiceDescription = job.policy
       state = .loaded(file, recording)
       queue(

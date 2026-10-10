@@ -58,6 +58,19 @@ class Stop extends Error {
     super(message);
   }
 }
+// Recovery reads never lease, dispatch, settle or debit. Uncertain attempts remain held.
+export class SavedAgentReader {
+  constructor(
+    readonly ledger: ProLedger,
+    readonly documents: Pick<AgentDocuments, "read">,
+  ) {}
+  async view(account: string, id: string) {
+    const job = await this.ledger.agentJob(account, id);
+    await this.documents.read(account, job.input.documentId);
+    return { operation: job.operation, report: job.report };
+  }
+}
+
 export class ProAgentOperation {
   readonly book: AgentBook;
   constructor(

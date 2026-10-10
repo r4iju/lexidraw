@@ -129,7 +129,19 @@ extension Session {
     return try JSONDecoder().decode(NarrationEnvelope<Value>.self, from: result).result.data.json
   }
 }
+func proAccessDenied(_ error: any Error) -> Bool {
+  if let refusal = error as? Refusal { return [401, 403, 404].contains(refusal.status) }
+  if case NativeAIError.expired = error { return true }
+  return false
+}
+
+public enum ProReadState: Equatable, Sendable {
+  case current, loading, stale(String), denied
+}
+
 @MainActor @Observable public final class NativeNarrationFlow {
+  public private(set) var readState: ProReadState = .current
+  public private(set) var cancellationUnconfirmed = false
   public enum State {
     case idle, loading
     case quote(NarrationQuote, String)
@@ -146,6 +158,7 @@ extension Session {
     self.document = document
   }
   public func review() async {
+    guard readState == .current else { return }
     if case .job(let job) = state, job.pending || job.state == "unknown" { return }
     if case .acceptanceUncertain = state { return }
     state = .loading
@@ -159,6 +172,7 @@ extension Session {
   }
   public func decline() { if case .quote = state { state = .idle } }
   public func accept() async {
+    guard readState == .current else { return }
     let quote: NarrationQuote
     let key: String
     switch state {
@@ -173,32 +187,68 @@ extension Session {
     } catch { state = .acceptanceUncertain(quote, key) }
   }
   public func refresh() async {
-    guard case .job(let job) = state, let id = job.id else { return }
-    do { state = .job(try await session.narrationOperation(id: id)) } catch
-    { /* Keep durable identity and retained audio through a transport outage. */  }
+    guard case .job(let job) = state, let id = job.id else { await restore(); return }
+    readState = .loading
+    do {
+      _ = try session.aiHandle.existing()
+      let updated = try await session.narrationOperation(id: id)
+      _ = try session.aiHandle.existing()
+      guard updated.id == id else { throw NativeAIError.unavailable }
+      state = .job(updated)
+      readState = .current
+      if !updated.pending && updated.state != "unknown" { cancellationUnconfirmed = false }
+    } catch { failedRead(error, message: "Narration status could not be refreshed. Displayed progress may be out of date.") }
   }
   public func restore() async {
+    readState = .loading
     do {
+      _ = try session.aiHandle.existing()
       if let id = try await session.latestNarration(document: document) {
-        state = .job(try await session.narrationOperation(id: id))
-      }
-    } catch {
-      state = .failed(
-        "Narration status could not be loaded. Retry status before starting new work.")
-    }
+        let job = try await session.narrationOperation(id: id)
+        _ = try session.aiHandle.existing()
+        guard job.id == id else { throw NativeAIError.unavailable }
+        state = .job(job)
+      } else if case .job = state { state = .idle }
+      readState = .current
+    } catch { failedRead(error, message: "Narration status could not be loaded. Retry status before starting new work.") }
   }
   public func cancel() async {
     guard case .job(let job) = state, let id = job.id else { return }
-    do { state = .job(try await session.cancelNarration(id: id)) } catch
-    { /* A lost cancellation response cannot prove that spending stopped. */  }
+    cancellationUnconfirmed = true
+    do {
+      _ = try session.aiHandle.existing()
+      let updated = try await session.cancelNarration(id: id)
+      _ = try session.aiHandle.existing()
+      guard updated.id == id else { throw NativeAIError.unavailable }
+      state = .job(updated)
+      readState = .current
+      cancellationUnconfirmed = updated.pending || updated.state == "unknown"
+    } catch { failedRead(error, message: "Cancellation could not be confirmed. Refresh status before assuming further work stopped.") }
+  }
+  private func failedRead(_ error: any Error, message: String) {
+    if proAccessDenied(error) {
+      state = .failed("Access to this narration is no longer available.")
+      readState = .denied
+      cancellationUnconfirmed = false
+    } else {
+      readState = .stale(message)
+      if case .job = state { return }
+      if case .acceptanceUncertain = state { return }
+      state = .failed(message)
+    }
   }
   public func saved() async {
-    state = .loading
-    do { state = .job(try await session.savedNarration(document: document)) } catch {
-      state = .failed(
-        "No saved Pro narration for this document. Existing saved recordings remain available in Play Saved Recording."
-      )
-    }
+    if case .job(let job) = state, job.pending || job.state == "unknown" { await refresh(); return }
+    if case .acceptanceUncertain = state { return }
+    if case .job = state {} else { state = .loading }
+    readState = .loading
+    do {
+      _ = try session.aiHandle.existing()
+      let job = try await session.savedNarration(document: document)
+      _ = try session.aiHandle.existing()
+      state = .job(job)
+      readState = .current
+    } catch { failedRead(error, message: "Saved narration could not be loaded. Retry the read without regenerating.") }
   }
 }
 /// An authenticated downloaded recording, retained only while the listener owns it.
@@ -221,4 +271,15 @@ extension Session {
     return Recording(parts: parts)
   }
   public func clear() { try? FileManager.default.removeItem(at: directory) }
+}
+
+public struct NarrationPlayback: Sendable {
+  public enum Source: Sendable { case pro, device }
+  public let job: ProNarrationJob
+  public let source: Source
+  public func resumeID(file: String) -> String {
+    let prefix = switch source { case .pro: "pro"; case .device: "device" }
+    return "\(prefix).\(job.id ?? file)"
+  }
+  public init(job: ProNarrationJob, source: Source) { self.job = job; self.source = source }
 }

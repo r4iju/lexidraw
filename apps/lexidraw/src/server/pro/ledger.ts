@@ -703,6 +703,14 @@ export class ProLedger {
       policy: trialPolicy(
         period ? decodePeriodRates(String(period.pricebook)).text : PRICEBOOK,
       ),
+      textMaximumSubcredits:
+        period && period.blocked !== 1
+          ? textMaximum(decodePeriodRates(String(period.pricebook)).text)
+          : null,
+      autocompleteMaximumSubcredits:
+        period && period.blocked !== 1
+          ? textMaximum(decodePeriodRates(String(period.pricebook)).text, true)
+          : null,
       pricebook: period
         ? decodePeriodRates(String(period.pricebook)).text
         : TextBook.parse(PRICEBOOK),

@@ -661,6 +661,8 @@ test("published text and autocomplete maxima match the period book across an upd
     now = 2000;
     await grant(2000);
     const status = await caller.status();
+    expect(status.autocompleteMaximumSubcredits).toBe(2_240_000);
+    expect(status.textMaximumSubcredits).toBe(3_584_000);
     expect(status.policy.disclosure).toContain(
       "Text reserves at most 3.584 credits",
     );
@@ -673,6 +675,19 @@ test("published text and autocomplete maxima match the period book across an upd
     expect(await caller.status()).toMatchObject({
       availableSubcredits: 999_996_500,
       providerCosts: { knownNanoUsd: 10500 },
+    });
+    now = 3000;
+    book = { ...book, version: "synthetic-text-v3", creditNanoUsd: 6_000_000 };
+    await grant(3000);
+    expect(await caller.status()).toMatchObject({
+      autocompleteMaximumSubcredits: 560_000,
+      textMaximumSubcredits: 896_000,
+    });
+    now = 4000;
+    expect(await caller.status()).toMatchObject({
+      entitlementPeriodId: null,
+      autocompleteMaximumSubcredits: null,
+      textMaximumSubcredits: null,
     });
   } finally {
     client.close();

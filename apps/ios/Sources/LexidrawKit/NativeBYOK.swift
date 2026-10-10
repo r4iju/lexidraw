@@ -384,7 +384,8 @@ private final class NoProviderRedirects: NSObject, URLSessionTaskDelegate, Senda
           <= (path == "/api/v1/audio/speech"
             ? 5_760_000 : path == "/api/v1/images" ? 3 << 20 : 1 << 20)
       else { throw NativeAIError.unavailable }
-      try NativeCredentialGuard.shared.check(data)
+      if path == "/api/v1/audio/speech" { try NativeCredentialGuard.shared.checkPCM(data) }
+      else { try NativeCredentialGuard.shared.check(data) }
       return data
     } catch let error as NativeAIError { throw error } catch is CancellationError {
       throw NativeAIError.cancelled

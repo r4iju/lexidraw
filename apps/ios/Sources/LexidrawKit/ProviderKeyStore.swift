@@ -57,6 +57,7 @@ public struct KeychainProviderStore: TokenStore {
 }
 
 final class NativeAIHandle: Sendable {
+  let proSuggestions = ProSuggestionRecovery()
   let defaultStore: (any TokenStore)?
   let files: NativeTextFileStore?
   let narrationDirectory: URL?

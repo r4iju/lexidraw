@@ -64,3 +64,26 @@ private final class AgentProvider: URLProtocol, @unchecked Sendable {
  }
 
 }
+
+extension DeviceAgentTests {
+ @Test func stoppingWhileSourceReadIsSuspendedCannotPersistOrDispatch() async throws {
+  AgentProvider.requests.withLock { $0 = [] }
+  let config = URLSessionConfiguration.ephemeral; config.protocolClasses = [AgentProvider.self]
+  let runtime = NativeBYOK(store: AgentKey(), configuration: config, agentFixture: true)
+  try runtime.replaceKey("opaque-native-stop-read-288")
+  let directory = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+  defer { try? FileManager.default.removeItem(at: directory) }
+  var reply: CheckedContinuation<NativeDeviceDocument, Never>?
+  let flow = NativeDeviceAgentFlow(account: "alice", document: "doc", runtime: runtime, directory: directory, available: true, read: {
+   await withCheckedContinuation { reply = $0 }
+  }, apply: { _ in Issue.record("Edit after Stop"); return .init(revision: 2, description: "unexpected") })
+  let start = Task { try await flow.start(prompt: "Add paragraph") }
+  while reply == nil { await Task.yield() }
+  flow.stop()
+  reply?.resume(returning: .init(revision: 1, text: "Existing"))
+  try await start.value
+  #expect(flow.checkpoint == nil)
+  #expect(AgentProvider.requests.withLock { $0.isEmpty })
+  #expect(!FileManager.default.fileExists(atPath: directory.appending(path: "agent.json").path))
+ }
+}

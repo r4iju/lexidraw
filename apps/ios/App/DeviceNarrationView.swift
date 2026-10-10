@@ -4,12 +4,12 @@ import SwiftUI
 struct DeviceNarrationComposer: View {
   let session: Session
   let document: String
-  let onPlay: (ProNarrationJob) -> Void
+  let onPlay: (NarrationPlayback) -> Void
   @State private var flow: NativeDeviceNarrationFlow?
   @State private var message: String?
   init(
     session: Session, document: String, flow: NativeDeviceNarrationFlow? = nil,
-    onPlay: @escaping (ProNarrationJob) -> Void
+    onPlay: @escaping (NarrationPlayback) -> Void
   ) {
     self.session = session
     self.document = document
@@ -44,7 +44,7 @@ struct DeviceNarrationComposer: View {
                   !flow.available || !flow.keyAvailable)
               }
               if let recording = checkpoint.recording {
-                Button("Play retained audio") { onPlay(recording.job(id: checkpoint.id)) }
+                Button("Play retained audio") { onPlay(.init(job: recording.job(id: checkpoint.id), source: .device)) }
                 if checkpoint.status != "saved" {
                   Button(
                     checkpoint.status == "sync_failed" ? "Retry sync" : "Sync completed recording"
@@ -73,7 +73,7 @@ struct DeviceNarrationComposer: View {
               guard let saved = try await session.savedDeviceNarration(document: document) else {
                 throw NativeAIError.unavailable
               }
-              onPlay(saved.recording.job(id: saved.id))
+              onPlay(.init(job: saved.recording.job(id: saved.id), source: .device))
             }
           }
           if let message { Text(message) }

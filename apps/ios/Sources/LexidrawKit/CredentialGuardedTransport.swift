@@ -17,6 +17,25 @@ struct CredentialGuardedTransport: ClientTransport {
     }
   }
 
+  private func responseLimit(_ operation: String) -> Int {
+    switch operation {
+    case "generatedImage.read": return 2 << 20
+    case "drawings-fileData": return 3 << 20
+    case "document-fontData": return 4 << 20
+    case "entities-load": return 16 << 20
+    case "narration.operation", "narration.saved", "narration.generate", "narration.cancel", "deviceNarration.saved":
+      // Eight validated base64 WAV parts plus their bounded text/envelope.
+      return 64 << 20
+    case "auth.getPowerPreference", "auth.setPowerPreference", "config.getAutocompleteConfig", "config.updateAutocompleteConfig", "pro.autocomplete", "pro.operation", "pro.cancel":
+      return 1 << 16
+    default:
+      if operation.hasPrefix("pro.") || operation.hasPrefix("agentPower.") || operation.hasPrefix("narration.") || operation.hasPrefix("deviceNarration.") || operation.hasPrefix("deviceAgent.") { return 1 << 18 }
+      if operation.hasPrefix("imagePower.") { return 3 << 20 }
+      // Ordinary file/storage transfers retain their established larger sizes.
+      return 128 << 20
+    }
+  }
+
   private func sendChecked(
     _ request: HTTPRequest, body: HTTPBody?, baseURL: URL, operationID: String
   ) async throws
@@ -46,7 +65,7 @@ struct CredentialGuardedTransport: ClientTransport {
       if operationID == "chat.stream" {
         return HTTPBody(CheckedChatBody(body: $0), length: $0.length, iterationBehavior: $0.iterationBehavior)
       }
-      return HTTPBody(CheckedResponseBody(body: $0, limit: operationID == "generatedImage.read" ? 2 << 20 : Int.max), length: $0.length, iterationBehavior: $0.iterationBehavior)
+      return HTTPBody(CheckedResponseBody(body: $0, limit: responseLimit(operationID)), length: $0.length, iterationBehavior: $0.iterationBehavior)
     }
     return (response, checked)
   }

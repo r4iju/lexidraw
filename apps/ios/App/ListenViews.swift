@@ -21,13 +21,13 @@ struct ListenButton: View {
       Button("My OpenRouter narration", systemImage: "waveform") { deviceNarration = true }
         .sheet(isPresented: $deviceNarration) {
           DeviceNarrationComposer(session: listener.narrationSession, document: file.id) { job in
-            listener.playProNarration(job, to: .init(id: file.id, title: file.title))
+            listener.playNarration(job, to: .init(id: file.id, title: file.title))
           }
         }
       Button("Pro narration", systemImage: "waveform") { proNarration = true }
         .sheet(isPresented: $proNarration) {
           ProNarrationComposer(flow: listener.proNarrationFlow(for: file.id)) { job in
-            listener.playProNarration(job, to: .init(id: file.id, title: file.title))
+            listener.playNarration(job, to: .init(id: file.id, title: file.title))
           }
         }
       Button("Play Saved Recording", systemImage: "play.rectangle") {
