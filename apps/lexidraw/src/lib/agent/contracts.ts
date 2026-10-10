@@ -25,6 +25,25 @@ export const AGENT_BOOK = {
   quote: 26_629_334,
   provenance: "published-reference-unverified-account" as const,
 };
+export const SandboxTask = z.strictObject({
+  kind: z.literal("summarize_numbers"),
+  values: z
+    .array(z.number().finite().min(-1000000).max(1000000))
+    .min(1)
+    .max(100),
+});
+export type SandboxTask = z.infer<typeof SandboxTask>;
+export const SandboxBook = z.strictObject({
+  provider: z.string().min(1).max(100),
+  endpoint: z.literal("typed-task-v1"),
+  maximumNanoUsd: z.number().int().positive().max(100000000),
+  maxSteps: z.literal(2),
+  maxDurationMs: z.literal(6000),
+  maxInputBytes: z.literal(4096),
+  maxOutputBytes: z.literal(1500),
+  network: z.literal("none"),
+  secrets: z.literal("none"),
+});
 export const AgentBook = z
   .strictObject({
     version: z.string(),
@@ -43,7 +62,15 @@ export const AgentBook = z
     maxTextSteps: z.literal(13),
     maxSearchSteps: z.literal(2),
     maxImageSteps: z.union([z.literal(0), z.literal(1)]),
-    maxAttempts: z.union([z.literal(15), z.literal(16)]),
+    maxAttempts: z.number().int().min(15).max(18),
+    sandbox: SandboxBook.optional(),
+    delegation: z
+      .strictObject({
+        maxDepth: z.literal(1),
+        maxCalls: z.literal(1),
+        maxCycles: z.literal(2),
+      })
+      .optional(),
     textMaximumNanoUsd: z.number().int().positive(),
     searchMaximumNanoUsd: z.number().int().positive(),
     maximumNanoUsd: z.number().int().positive(),
@@ -60,14 +87,15 @@ export const AgentBook = z
     const maximum =
       x.maxTextSteps * x.textMaximumNanoUsd +
       x.maxSearchSteps * x.searchMaximumNanoUsd +
-      (x.image?.maximumNanoUsd ?? 0);
+      (x.image?.maximumNanoUsd ?? 0) +
+      (x.sandbox ? x.sandbox.maximumNanoUsd * x.sandbox.maxSteps : 0);
     if (
       x.textMaximumNanoUsd !== textMaximum ||
       !Number.isSafeInteger(maximum * SUBCREDITS) ||
       x.maximumNanoUsd !== maximum ||
       x.quote !== Math.ceil((maximum * SUBCREDITS) / x.creditNanoUsd) ||
       x.maxImageSteps !== (x.image ? 1 : 0) ||
-      x.maxAttempts !== (x.image ? 16 : 15) ||
+      x.maxAttempts !== 15 + (x.image ? 1 : 0) + (x.sandbox?.maxSteps ?? 0) ||
       (x.image && x.provenance !== "deterministic-whole-action-fixture")
     )
       ctx.addIssue({
@@ -95,6 +123,9 @@ export const Phase = z.enum([
   "generation",
   "search",
   "image",
+  "sandbox",
+  "delegate_plan",
+  "delegate_generation",
 ]);
 export type Phase = z.infer<typeof Phase>;
 export const AgentAttemptDescriptor = z.strictObject({
@@ -106,11 +137,73 @@ export type AgentAttemptDescriptor = z.infer<typeof AgentAttemptDescriptor>;
 export const Plan = z.strictObject({
   edits: z.array(z.string().min(1).max(200)).min(1).max(6),
 });
-export const Decision = z.object({
-  kind: z.enum(["append", "search", "image", "done"]),
-  query: z.string().max(300).optional(),
+const optionalQuery = { query: z.string().max(300).optional() };
+export const Decision = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("append"), ...optionalQuery }),
+  z.object({ kind: z.literal("search"), query: z.string().min(1).max(300) }),
+  z.object({ kind: z.literal("image"), ...optionalQuery }),
+  z.object({ kind: z.literal("sandbox"), task: SandboxTask, ...optionalQuery }),
+  z.object({
+    kind: z.literal("delegate"),
+    objective: z.string().min(1).max(300),
+    ...optionalQuery,
+  }),
+  z.object({ kind: z.literal("done"), ...optionalQuery }),
+]);
+export const DelegatedPlan = z.discriminatedUnion("kind", [
+  z.strictObject({ kind: z.literal("generate") }),
+  z.strictObject({ kind: z.literal("sandbox"), task: SandboxTask }),
+]);
+export const Delegation = z.strictObject({
+  depth: z.literal(1),
+  objective: z.string().min(1).max(300),
 });
-export const Generation = z.strictObject({ text: z.string().min(1).max(1500) });
+const requestFields = {
+  prompt: z.string().min(1).max(1500),
+  context: z.string().max(4096),
+  query: z.string().max(300).optional(),
+  progress: z
+    .strictObject({
+      planned: z.array(z.string().min(1).max(200)).max(6),
+      completed: z.number().int().min(0).max(6),
+    })
+    .optional(),
+  task: z.never().optional(),
+  delegation: z.never().optional(),
+};
+export const AgentRequest = z
+  .discriminatedUnion("phase", [
+    z.strictObject({
+      ...requestFields,
+      phase: z.enum(["plan", "decision", "generation", "search", "image"]),
+    }),
+    z.strictObject({
+      ...requestFields,
+      phase: z.literal("sandbox"),
+      task: SandboxTask,
+      delegation: Delegation.optional(),
+    }),
+    z.strictObject({
+      ...requestFields,
+      phase: z.enum(["delegate_plan", "delegate_generation"]),
+      delegation: Delegation,
+    }),
+  ])
+  .refine(
+    (x) => new TextEncoder().encode(JSON.stringify(x)).length + 1024 <= 4096,
+    "Approved bounded request required",
+  );
+export type AgentRequest = z.infer<typeof AgentRequest>;
+export const Generation = z.strictObject({
+  text: z
+    .string()
+    .min(1)
+    .max(1500)
+    .refine(
+      (x) => new TextEncoder().encode(x).length <= 1500,
+      "Output byte cap exceeded",
+    ),
+});
 export const Search = z.strictObject({
   results: z
     .array(
@@ -142,7 +235,11 @@ export const AgentCompletion = z
             ? Generation
             : x.phase === "search"
               ? Search
-              : ImageCompletion;
+              : x.phase === "delegate_plan"
+                ? DelegatedPlan
+                : x.phase === "sandbox" || x.phase === "delegate_generation"
+                  ? Generation
+                  : ImageCompletion;
     if (!schema.safeParse(x.output).success)
       ctx.addIssue({ code: "custom", message: "Invalid approved tool output" });
   });
@@ -191,10 +288,12 @@ export function agentCharge(c: AgentCompletion, book: AgentBook) {
     );
   }
   const cost =
-    c.phase === "search"
-      ? book.searchMaximumNanoUsd
-      : (c.usage.input - c.usage.cachedInput) * book.inputNanoUsd +
-        c.usage.cachedInput * book.cachedInputNanoUsd +
-        c.usage.output * book.outputNanoUsd;
+    c.phase === "sandbox"
+      ? SandboxBook.parse(book.sandbox).maximumNanoUsd
+      : c.phase === "search"
+        ? book.searchMaximumNanoUsd
+        : (c.usage.input - c.usage.cachedInput) * book.inputNanoUsd +
+          c.usage.cachedInput * book.cachedInputNanoUsd +
+          c.usage.output * book.outputNanoUsd;
   return (cost * SUBCREDITS) / book.creditNanoUsd;
 }

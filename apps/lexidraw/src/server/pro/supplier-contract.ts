@@ -6,7 +6,12 @@ import {
   NarrationPart,
 } from "~/lib/narration/contracts";
 import { ImagePricebook, ImageCompletion } from "~/lib/images/contracts";
-import { AgentBook, AGENT_BOOK, AgentCompletion } from "~/lib/agent/contracts";
+import {
+  AgentBook,
+  AGENT_BOOK,
+  AgentCompletion,
+  SandboxBook,
+} from "~/lib/agent/contracts";
 
 const money = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
 export function safeCost(...terms: number[]) {
@@ -58,7 +63,16 @@ const ContractShape = z.discriminatedUnion("feature", [
   z.strictObject({
     ...contractFields,
     feature: z.literal("agent"),
-    phase: z.enum(["plan", "decision", "generation", "search", "image"]),
+    phase: z.enum([
+      "plan",
+      "decision",
+      "generation",
+      "search",
+      "image",
+      "sandbox",
+      "delegate_plan",
+      "delegate_generation",
+    ]),
     book: AgentBook,
   }),
 ]);
@@ -67,7 +81,10 @@ export type SupplierPhase =
   | "decision"
   | "generation"
   | "search"
-  | "image";
+  | "image"
+  | "sandbox"
+  | "delegate_plan"
+  | "delegate_generation";
 export type SupplierContract = z.infer<typeof ContractShape>;
 export function supplierMaximum(
   feature: SupplierContract["feature"],
@@ -87,6 +104,10 @@ export function supplierMaximum(
     if (!phase) throw new Error("Supplier phase required");
     if (phase === "image") return ImagePricebook.parse(b.image).maximumNanoUsd;
     if (phase === "search") return b.searchMaximumNanoUsd;
+    if (phase === "sandbox") {
+      if (!b.sandbox) throw new Error("Sandbox supplier unavailable");
+      return b.sandbox.maximumNanoUsd;
+    }
     return safeCost(
       b.maxInputTokens * Math.max(b.inputNanoUsd, b.cachedInputNanoUsd),
       b.maxOutputTokens * b.outputNanoUsd,
@@ -147,6 +168,11 @@ export function archivedSupplier(
     );
   }
   if (feature === "agent") {
+    if (
+      phase &&
+      ["sandbox", "delegate_plan", "delegate_generation"].includes(phase)
+    )
+      throw new Error("Durable tool supplier contract required");
     const b = AgentBook.parse(book);
     return makeSupplierContract(
       feature,
@@ -223,7 +249,11 @@ export function validateSupplierCompletion(
       image.actualCostNanoUsd > contract.maximumNanoUsd
     )
       throw new Error("Image invoice exceeds supplier contract");
-  } else if (contract.feature === "agent" && contract.phase === "search")
+  } else if (contract.feature === "agent" && contract.phase === "sandbox")
+    measured = SandboxBook.parse(
+      AgentBook.parse(contract.book).sandbox,
+    ).maximumNanoUsd;
+  else if (contract.feature === "agent" && contract.phase === "search")
     measured = AgentBook.parse(contract.book).searchMaximumNanoUsd;
   else {
     const b =

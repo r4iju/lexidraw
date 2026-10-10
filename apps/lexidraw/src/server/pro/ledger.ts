@@ -1648,7 +1648,44 @@ export class ProLedger {
     );
     if (rows.length !== 1)
       throw new ProError("Parent paid-step authorization required");
+    const op = await this.operation(account, id);
+    const book = JSON.parse(op.pricebook);
+    const elapsed =
+      op.feature === "agent"
+        ? AgentBook.parse(book).maxElapsedMs
+        : op.feature === "narration"
+          ? NarrationBook.parse(book).maxElapsedMs
+          : op.feature === "image"
+            ? ImagePricebook.parse(book).maxElapsedMs
+            : TextBook.parse(book).maxElapsedMs;
+    if (now - op.created_at >= elapsed)
+      throw new ProError("Paid attempt expired");
     return this.supplierContract(account, id, attemptId);
+  }
+  async claimAgentDispatch(account: string, id: string, attemptId: string) {
+    await this.authorizeDispatch(id, attemptId, account);
+    await this.write(async (tx) => {
+      const action = `agent-dispatch-v1:${attemptId}`;
+      const prior = await tx.execute({
+        sql: "SELECT id FROM pro_audit WHERE action=?",
+        args: [action],
+      });
+      if (prior.rows.length)
+        throw new ProError(
+          "Paid dispatch already fenced; reconcile before replay",
+        );
+      const eligible = await tx.execute({
+        sql: `SELECT o.id FROM pro_operations o JOIN pro_attempts a ON a.operation_id=o.id
+          JOIN pro_eligibility e ON e.account_id=o.account_id
+          WHERE o.id=? AND o.account_id=? AND o.feature='agent' AND o.state='running'
+          AND o.cancel_requested=0 AND e.active=1 AND a.id=? AND a.state='started'
+          AND NOT EXISTS (SELECT 1 FROM pro_period_blocks b WHERE b.period_id=o.period_id)`,
+        args: [id, account, attemptId],
+      });
+      if (eligible.rows.length !== 1)
+        throw new ProError("Parent paid-step authorization required");
+      await this.auditWrite(tx, account, account, action, id);
+    });
   }
   async startAttempt(id: string, chunkHash?: string) {
     return this.write(async (tx) => {
@@ -1784,10 +1821,62 @@ export class ProLedger {
         const steps = attempts.map((a) =>
           AgentAttemptDescriptor.parse(JSON.parse(String(a.chunk_hash))),
         );
+        const toolPhases = [
+          "generation",
+          "search",
+          "image",
+          "sandbox",
+          "delegate_plan",
+        ];
+        if (
+          toolPhases.includes(agentStep.phase) &&
+          steps.filter((s) => toolPhases.includes(s.phase)).length >=
+            agentBook.maxTools
+        )
+          throw new ProError("Parent tool cap exhausted");
+        const cyclePhases = [
+          "decision",
+          "delegate_plan",
+          "delegate_generation",
+        ];
+        if (
+          cyclePhases.includes(agentStep.phase) &&
+          steps.filter((s) => cyclePhases.includes(s.phase)).length >=
+            agentBook.maxCycles
+        )
+          throw new ProError("Parent agent cycle cap exhausted");
+        const nested = /^delegate:([0-5]):(plan|sandbox|generation)$/.exec(
+          agentStep.key,
+        );
+        if (agentStep.phase.startsWith("delegate_") || nested) {
+          if (!agentBook.delegation || !supplierAgent.delegation || !nested)
+            throw new ProError("Delegated parent contract required");
+          const expected =
+            nested[2] === "sandbox" ? "sandbox" : `delegate_${nested[2]}`;
+          if (agentStep.phase !== expected)
+            throw new ProError("Delegated phase mismatch");
+          if (agentStep.phase === "delegate_plan") {
+            if (
+              steps.filter((s) => s.phase === "delegate_plan").length >=
+              agentBook.delegation.maxCalls
+            )
+              throw new ProError("Delegated call cap exhausted");
+          } else {
+            const parentKey = `delegate:${nested[1]}:plan`;
+            if (
+              !steps.some(
+                (s) => s.key === parentKey && s.phase === "delegate_plan",
+              )
+            )
+              throw new ProError("Delegated plan required");
+          }
+        }
+        if (steps.some((s) => s.key === agentStep.key))
+          throw new ProError("Paid step already admitted");
         const count = steps.filter((s) =>
-          agentStep.phase === "search" || agentStep.phase === "image"
+          ["search", "image", "sandbox"].includes(agentStep.phase)
             ? s.phase === agentStep.phase
-            : !["search", "image"].includes(s.phase),
+            : !["search", "image", "sandbox"].includes(s.phase),
         ).length;
         if (
           !exposure ||
@@ -1796,7 +1885,9 @@ export class ProLedger {
               ? agentBook.maxSearchSteps
               : agentStep.phase === "image"
                 ? agentBook.maxImageSteps
-                : agentBook.maxTextSteps) ||
+                : agentStep.phase === "sandbox"
+                  ? (agentBook.sandbox?.maxSteps ?? 0)
+                  : agentBook.maxTextSteps) ||
           attempts.reduce(
             (sum, a) => sum + Number(a.exposure_nano_usd),
             exposure,

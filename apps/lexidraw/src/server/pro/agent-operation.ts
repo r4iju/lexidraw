@@ -2,6 +2,7 @@ import type { SupplierContract } from "./supplier-contract";
 import { createHash } from "node:crypto";
 import {
   AgentBook,
+  AgentRequest,
   AgentAttemptDescriptor,
   AgentInput,
   AgentCompletion,
@@ -9,6 +10,9 @@ import {
   Decision,
   Generation,
   Search,
+  SandboxTask,
+  Delegation,
+  DelegatedPlan,
   Receipt,
   type Edit,
   type Phase,
@@ -29,13 +33,7 @@ export interface AgentDocuments {
     edit: Edit,
   ): Promise<ReturnType<typeof Receipt.parse>>;
 }
-export type AgentRequest = {
-  phase: Phase;
-  prompt: string;
-  context: string;
-  query?: string;
-  progress?: { planned: string[]; completed: number };
-};
+export type { AgentRequest } from "~/lib/agent/contracts";
 export type AgentTransport = (
   request: AgentRequest,
   signal: AbortSignal,
@@ -127,6 +125,7 @@ export class ProAgentOperation {
     let planned: string[] = [initialDescription];
     let revision = job.input.revision;
     let tools = 0;
+    let delegates = 0;
     const before = async () => {
       const op = await this.ledger.operation(account, id);
       if (op.cancel_requested)
@@ -148,16 +147,20 @@ export class ProAgentOperation {
       phase: Phase,
       context: string,
       query?: string,
+      task?: SandboxTask,
+      delegation?: ReturnType<typeof Delegation.parse>,
     ) => {
-      const request: AgentRequest = {
+      const request = AgentRequest.parse({
         phase,
         prompt: job.input.prompt,
         context,
         ...(query ? { query } : {}),
+        ...(task ? { task: SandboxTask.parse(task) } : {}),
+        ...(delegation ? { delegation: Delegation.parse(delegation) } : {}),
         ...(phase === "decision" || phase === "generation"
           ? { progress: { planned, completed: report.completed.length } }
           : {}),
-      };
+      });
       if (
         new TextEncoder().encode(JSON.stringify(request)).length + 1024 >
         book.maxInputTokens
@@ -244,7 +247,11 @@ export class ProAgentOperation {
       }
       if (outcome.kind !== "completed")
         throw new Stop(
-          outcome.kind === "unknown" ? "reconciling" : "failed",
+          outcome.kind === "unknown"
+            ? "reconciling"
+            : (await this.ledger.operation(account, id)).cancel_requested
+              ? "cancelled"
+              : "failed",
           "Paid step did not complete. Saved edits remain.",
         );
       return outcome.completion.output;
@@ -295,7 +302,75 @@ export class ProAgentOperation {
           context = JSON.stringify(result);
           continue;
         }
-        if (decision.kind === "image") {
+        if (decision.kind === "delegate") {
+          if (!book.delegation)
+            throw new Stop("partial", "Delegation is unavailable.");
+          if (++delegates > book.delegation.maxCalls)
+            throw new Stop("cap_exhausted", "Delegation cap reached.");
+          const scope = Delegation.parse({
+            depth: 1,
+            objective: decision.objective,
+          });
+          const delegated = DelegatedPlan.parse(
+            await paid(
+              `delegate:${cycle}:plan`,
+              "delegate_plan",
+              context,
+              undefined,
+              undefined,
+              scope,
+            ),
+          );
+          let source = context;
+          if (delegated.kind === "sandbox") {
+            if (!book.sandbox)
+              throw new Stop("partial", "Typed sandbox is unavailable.");
+            if (++tools > book.maxTools)
+              throw new Stop("cap_exhausted", "Tool cap reached.");
+            source = Generation.parse(
+              await paid(
+                `delegate:${cycle}:sandbox`,
+                "sandbox",
+                context,
+                undefined,
+                delegated.task,
+                scope,
+              ),
+            ).text;
+          }
+          const generated = Generation.parse(
+            await paid(
+              `delegate:${cycle}:generation`,
+              "delegate_generation",
+              source,
+              undefined,
+              undefined,
+              scope,
+            ),
+          );
+          await before();
+          await mutate(`edit:${cycle}`, {
+            kind: "append",
+            text: generated.text,
+          });
+        } else if (decision.kind === "sandbox") {
+          if (!book.sandbox)
+            throw new Stop("partial", "Typed sandbox is unavailable.");
+          const generated = Generation.parse(
+            await paid(
+              `sandbox:${cycle}`,
+              "sandbox",
+              context,
+              undefined,
+              decision.task,
+            ),
+          );
+          await before();
+          await mutate(`edit:${cycle}`, {
+            kind: "append",
+            text: generated.text,
+          });
+        } else if (decision.kind === "image") {
           if (!book.image)
             throw new Stop(
               "partial",

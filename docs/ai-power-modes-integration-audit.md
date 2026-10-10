@@ -13,7 +13,7 @@ Local branch `feat/276-ai-power-modes`, audited from `36e8174bbea5d5b3536d85fec7
 | `image` legacy route; `imagePower` generation/upload; dashboard cover/drawing image callers | Legacy generation closed. Pro/BYOK image generation stays unavailable. Generated images now register in a dedicated private Blob store and use an authenticated, bounded app delivery route. Saving/read access is independent of generation eligibility; actual private-store configuration remains unverified. Existing images/drawings stay untouched. |
 | `pro.chatQuote/chatAccept`, `/api/chat/stream`; web/native chat | Bounded shared CHAT preparation preserves text history/context and supports UTF-8 text attachments. Pro quotes and atomically accepts period-pinned text rates, then streams through authenticated ownership and durable attempt fences. Direct device OpenRouter SSE and native Apple Intelligence snapshots use separate credential-free adapters. Production provider chat gates remain closed pending separately authorized preflight; the complete local injected path is executable. |
 | `pro.text`, `pro.autocomplete`, pro-text workflow | Production capability is explicitly false. UI shows Coming soon, rejects before reservation, and old durable production text jobs cannot resolve a system key. Injected bounded text adapter requires attempt/account authorization again at actual HTTP dispatch. |
-| `agentPower.quote/start/current/operation/cancel`, pro-agent workflow | Production executor absent. Injected whole-action path uses one reservation and account budget for planning, decisions, generation and search. Actual dispatch requires active eligibility, current dated entitlement, original-period fence, operation ownership and started attempt. Search and SDK fetch recheck after key resolution; cancellation stops further steps. |
+| `agentPower.quote/start/current/operation/cancel`, pro-agent workflow | Production executor absent. Injected whole-action path uses one reservation and account budget for planning, decisions, generation, search and operation-bound typed sandbox/delegation. Actual dispatch requires active eligibility, current dated entitlement, original-period fence, operation ownership and started attempt. Search and SDK fetch recheck after key resolution; cancellation stops further steps. |
 | `narration.quote/start/operation/saved`, pro-narration workflow | Production executor absent. Injected bounded narration uses period customer-rate snapshots and the common ledger. Provider-free operation/saved reads check current document access and return historical account-owned audio after edits, with no generation allowance or ledger mutations. |
 | `deviceAgent` source/edit commit, web/native portable agent adapters | Device execution is disabled until actual provider/tool bounds are verified. Authenticated, versioned document commits persist generated edits without keys. No server inference or paid fallback. |
 | `deviceNarration` source/save/saved; private GeneratedRecordings | Generation capability false, native/browser adapters remain gated. Bounded private finalized audio persists through authenticated document access and quotas. Sync and keyless replay use no Pro credits. |
@@ -76,7 +76,7 @@ Frontend bars opened: state, types, data and components. Full routed grep eviden
 | 284 images | Bounded artifact/UI fixtures, document/drawing preservation and image contracts | Actual model access, routing/quality/complete pricing/output bound; private-store provisioning and externally authorized configuration proof. Private saving/delivery implemented locally; generation remains closed. Dashboard cover separate manual journey not claimed. |
 | 285 Pro narration | Ledger/permission/recovery/artifact contracts | Actual voice account access, enforceable audio billing/output bound, pronunciation/quality, hosted workflow/media capacity. Closed. |
 | 286 BYOK narration | Portable checkpoints, private artifact sync and keyless playback contracts/UI | Actual speech endpoint/account/PCM format/output-cost bounds and external recovery service. Closed. |
-| 287 Pro agents | Whole-action fixture saved edits/search/accounting; late eligibility recheck | Actual tuned mini/search account access and quality; complete paid bounds; actual private-store configuration; sandbox/delegation cost/authorization; hosted workflow. Closed. |
+| 287 Pro agents | Whole-action fixture saved edits/search/accounting; late eligibility recheck | Actual tuned mini/search account access and quality; complete paid bounds; actual private-store configuration; real sandbox service complete pricing/isolation/lifecycle and delegation provider proof; hosted workflow. Local D2 operation-bound authorization and execution are supplied below. Closed. |
 | 288 device agents | Direct controller/document commit and credential contracts | Actual provider planning/tool quality/account/bounds; image gate; external recovery. Browser/native agent transport closed. |
 | 289 web Sandbox | Real SDK/signature fixtures, persistent lifecycle/race/refund/renewal contracts | Configured Stripe checkout/portal, delivery/retry and actual Sandbox lifecycle. No external smoke or write. |
 | 290 Apple Sandbox | Real SDK synthetic trusted signatures, persistent lifecycle plus bounded status HTTP | Configured product/key/group/API/OCSP access, real Sandbox purchase/restore/notification, physical internal distribution. No actual/local StoreKit purchase. |
@@ -300,3 +300,67 @@ remain incomplete pending that work, independent review and the previously
 recorded provider, payment/store, private-storage, hardware, hosted durability,
 migration and release proofs. This follow-up makes no external calls, changes no
 PR, and authorizes no release.
+
+## Operation-bound typed sandbox and delegation (local D2 implementation)
+
+The sole writer follow-up starts at `a8f6442029b0cdfcc7a6683c1ade3f668c2bcefa`.
+The shared agent contracts now support a typed `summarize_numbers` sandbox task
+and one delegated worker at depth one. The worker can plan generation or that
+typed task, then synthesize an edit. It cannot request another worker, arbitrary
+code, a URL, a command, a model, secrets or ambient network access. The existing
+code-runner/legacy executeCode denial supplies no safe arbitrary-code host. The
+installed Sandbox SDK exposes provisioning, inherited environment, persistent
+sessions, and default internet access; its available types do not establish a
+verified complete cost bound. This implementation therefore supplies a narrow
+trusted task-port interface, not an enabled cloud VM or arbitrary-code runner.
+
+`ProAgentOperation` orchestrates each nested model/tool step itself, using the
+same authenticated account, accepted operation, period schedule and durable
+attempt contract. Delegation receives no new grant, independent reservation or
+provider credential. Sandbox reference prices and step maxima are included in
+the full customer action schedule, which the existing period envelope snapshots
+at creation. Supplier exposure uses the attempt's own immutable book. Nested
+planning/synthesis count against the parent's durable cycle and text limits;
+sandbox, search, image, generation and worker admission share the durable tool
+limit. Depth, worker count, step identity, aggregate attempts/exposure, input,
+output, time, concurrency and spend circuits stop further admission.
+
+`createAgentToolProvider` requires the ledger's account/operation/attempt and
+request-hash authorization and writes an immutable dispatch claim under the
+SQLite write lock. Concurrent delivery and a fresh adapter cannot replay that
+claim. Pure local preparation precedes a fresh authorization immediately before
+sandbox dispatch; the SDK model adapter independently rechecks immediately
+before every fixed-endpoint HTTP call and has zero automatic retries. Sandbox
+jobs contain only a typed numeric task, receipt identity and explicit no-network,
+no-secret limits. Trusted provider requests execute outside that job. No sandbox
+code receives an app/provider key or a paid-provider callback.
+
+Known pre-dispatch cancellation records zero supplier spend. A confirmed task
+failure refunds the complete customer action while retaining saved receipts and
+known supplier costs. Invalid or absent invoice evidence retains supplier
+exposure separately. Timeout after dispatch, malformed/oversized output, or a
+missing durable tool supplier contract cannot authorize replay or release an
+uncertain paid outcome. The adapter's six-second local deadline holds uncertainty
+if an injected port ignores cancellation; this is not proof that a real service
+stops spending. Existing document compare-and-swap and receipt recovery remain
+the saved-edit authority, and reports retain completed/incomplete edits.
+
+Evidence: `/tmp/lexidraw-276-implementation/291-operation-tools-v1.json` records
+actual sequential RED/GREEN logs, fresh env-free and network-disabled SQLite/
+provider/task suites, explicit web/native shared TypeScript checks, and schema
+parity checks. The injected SDK/task demo exercises parent planning, delegated
+planning, a key-free typed task, trusted synthesis and a saved document receipt
+under one reservation. Synthetic task prices and SDK responses are fixtures,
+not real supplier invoices, model quality or cloud isolation proof.
+
+Production `serverProAgent()` is still absent. Standalone system-key sandbox and
+delegation remain denied, and BYOK/local agents remain device-only with unsupported
+paid tools unavailable. Enabling a real task port still needs separately authorized
+verification of exact service/model access, complete provisioning/runtime/network/
+cleanup/retry prices, enforceable lifecycle/output/network limits, invoice evidence
+and hosted fence/receipt recovery. No real service was provisioned or called.
+No UI availability was enabled, so no new browser/device acceptance is claimed.
+D2 now has executable local operation-bound implementation; independent review
+and external proofs remain pending. #291 and #276 remain incomplete. No push,
+merge, PR edit, cloud CI/build/preview/deploy, payment/bucket/production API,
+remote migration or release preparation occurred; PR292 remains untouched.

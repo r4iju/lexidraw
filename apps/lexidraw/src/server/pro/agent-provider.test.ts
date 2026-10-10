@@ -210,6 +210,6 @@ test("eligibility is checked again at actual SDK dispatch after credential resol
         ),
       },
     ),
-  ).toEqual({ kind: "unknown" });
+  ).toEqual({ kind: "failed", actualCostNanoUsd: 0 });
   expect(calls).toBe(0);
 });
