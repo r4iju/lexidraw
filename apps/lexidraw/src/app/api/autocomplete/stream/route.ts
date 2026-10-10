@@ -2,18 +2,20 @@ import type { NextRequest } from "next/server";
 import { createOpenAI } from "@ai-sdk/openai";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
-import { streamText, type LanguageModel } from "ai";
+import type { LanguageModel } from "ai";
 import env from "@packages/env";
 import { auth } from "~/server/auth";
 import { recordLlmAudit } from "~/server/audit/llm-audit";
 import { getEffectiveLlmConfig } from "~/server/llm/get-effective-config";
 import {
-  AUTOCOMPLETE_SYSTEM,
   MAX_SUGGESTION_TOKENS,
   autocompletePrompt,
-  lowestReasoning,
 } from "~/server/llm/autocomplete";
-import { fragmentAt, stripFragment } from "~/server/llm/autocomplete-fragment";
+import {
+  createCredentialReference,
+  generateAutocomplete,
+} from "~/lib/generation/autocomplete";
+import { createSdkTextTransport } from "~/lib/generation/sdk-text-transport";
 import { generateUUID } from "~/lib/utils";
 
 type Body = {
@@ -38,6 +40,7 @@ export async function POST(req: NextRequest) {
 
   let body: Body;
   try {
+    // Each consumed field is checked by text() before entering generation.
     body = (await req.json()) as Body;
   } catch {
     return new Response("Invalid JSON", { status: 400 });
@@ -103,41 +106,47 @@ export async function POST(req: NextRequest) {
     promptLen: prompt.length,
   } as const;
 
-  const result = streamText({
-    model,
-    system: AUTOCOMPLETE_SYSTEM,
-    prompt,
-    temperature: cfg.temperature,
-    maxOutputTokens,
-    // A retried suggestion arrives after the user has typed past it.
-    maxRetries: 0,
-    providerOptions: lowestReasoning(cfg.provider, cfg.modelId),
-    abortSignal: req.signal,
-    onFinish: ({ totalUsage }) =>
-      recordLlmAudit({
-        ...audit,
-        timestampMs: Date.now(),
-        latencyMs: Date.now() - startedAt,
-        usage: {
-          promptTokens: totalUsage.inputTokens ?? 0,
-          completionTokens: totalUsage.outputTokens ?? 0,
-          totalTokens: totalUsage.totalTokens ?? 0,
-        },
-      }).catch(() => {}),
-    onError: ({ error }) =>
-      recordLlmAudit({
-        ...audit,
-        timestampMs: Date.now(),
-        latencyMs: Date.now() - startedAt,
-        usage: null,
-        errorCode: "UpstreamError",
-        errorMessage: error instanceof Error ? error.message : String(error),
-      }).catch(() => {}),
-  });
-
-  const suggestion = result.textStream
-    .pipeThrough(stripFragment(fragmentAt(before)))
-    .pipeThrough(new TextEncoderStream());
+  const credential = createCredentialReference();
+  const suggestion = generateAutocomplete(
+    {
+      title: text(body.title),
+      before,
+      after: text(body.after),
+      config: cfg,
+      credential,
+    },
+    {
+      transport: createSdkTextTransport((reference) => {
+        if (reference !== credential)
+          throw new Error("Unknown credential reference");
+        return model;
+      }),
+      execution: { run: (start) => start(req.signal) },
+      persistence: {
+        finish: (usage) =>
+          recordLlmAudit({
+            ...audit,
+            timestampMs: Date.now(),
+            latencyMs: Date.now() - startedAt,
+            usage: {
+              promptTokens: usage.inputTokens,
+              completionTokens: usage.outputTokens,
+              totalTokens: usage.totalTokens,
+            },
+          }).catch(() => {}),
+        error: (error) =>
+          recordLlmAudit({
+            ...audit,
+            timestampMs: Date.now(),
+            latencyMs: Date.now() - startedAt,
+            usage: null,
+            errorCode: "UpstreamError",
+            errorMessage:
+              error instanceof Error ? error.message : String(error),
+          }).catch(() => {}),
+      },
+    },
+  ).pipeThrough(new TextEncoderStream());
   return new Response(suggestion, {
     headers: {
       "Content-Type": "text/plain; charset=utf-8",
