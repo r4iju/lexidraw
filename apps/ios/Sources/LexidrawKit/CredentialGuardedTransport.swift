@@ -27,17 +27,25 @@ struct CredentialGuardedTransport: ClientTransport {
     for header in request.headerFields {
       try guardrail.check(Data((header.name.rawName + header.value).utf8))
     }
-    let bytes = try await body.mapAsync { try await Data(collecting: $0, upTo: 32 << 20) }
+    let bytes = try await body.mapAsync { try await Data(collecting: $0, upTo: Int.max) }
     if let bytes { try guardrail.check(bytes) }
+    // Body collection can suspend while credential custody changes.
+    try guardrail.check(Data((baseURL.absoluteString + (request.path ?? "")).utf8))
+    for header in request.headerFields {
+      try guardrail.check(Data((header.name.rawName + header.value).utf8))
+    }
     let (response, answer) = try await underlying.send(
       request, body: bytes.map { HTTPBody($0) },
       baseURL: baseURL, operationID: operationID)
     for header in response.headerFields {
       try guardrail.check(Data((header.name.rawName + header.value).utf8))
     }
-    let returned = try await answer.mapAsync { try await Data(collecting: $0, upTo: 64 << 20) }
-    if let returned { try guardrail.check(returned) }
-    return (response, returned.map { HTTPBody($0) })
+    // Preserve lazy HTTPBody consumption. Scan the complete body on first
+    // consumption so encoded values split across chunks cannot escape.
+    let checked = answer.map {
+      HTTPBody(CheckedResponseBody(body: $0), length: $0.length, iterationBehavior: $0.iterationBehavior)
+    }
+    return (response, checked)
   }
 }
 
@@ -46,4 +54,25 @@ extension Optional where Wrapped == HTTPBody {
     guard let value = self else { return nil }
     return try await transform(value)
   }
+}
+
+private struct CheckedResponseBody: AsyncSequence, Sendable {
+  typealias Element = ArraySlice<UInt8>
+  let body: HTTPBody
+  struct AsyncIterator: AsyncIteratorProtocol {
+    var body: HTTPBody?
+    mutating func next() async throws -> Element? {
+      guard let current = body else { return nil }
+      body = nil
+      do {
+        let bytes = try await Data(collecting: current, upTo: Int.max)
+        try NativeCredentialGuard.shared.check(bytes)
+        return ArraySlice(bytes)
+      } catch {
+        try NativeCredentialGuard.shared.check(error: error)
+        throw error
+      }
+    }
+  }
+  func makeAsyncIterator() -> AsyncIterator { .init(body: body) }
 }

@@ -106,7 +106,7 @@ private final class DeviceKey: TokenStore, @unchecked Sendable {
           operationID: "diagnostic")
       }
     }
-    #expect(server.requests.isEmpty)
+    #expect(server.requests.count == 0)
   }
 
   @Test func signingOutDeletesDeviceKeyAndExpiresQueuedWork() async throws {
@@ -164,7 +164,7 @@ private final class DeviceKey: TokenStore, @unchecked Sendable {
         json: Data(#"{"metadata":"unusual\u002dcredential\u002descape\u002dprobe"}"#.utf8),
         operationID: "telemetry")
     }
-    #expect(server.requests.isEmpty)
+    #expect(server.requests.count == 0)
   }
 
   @Test(arguments: [200, 302, 401])
@@ -299,6 +299,108 @@ private final class DeviceKey: TokenStore, @unchecked Sendable {
     #expect(!String(decoding: bytes, as: UTF8.self).contains("local-file-native-credential"))
     try runtime.endSession()
     #expect(try files.load() == nil)
+  }
+
+  @Test(arguments: ["OpenAI", "Anthropic", "OpenRouter"],
+    ["nested-uri-base64", "nested-json", "hex", "unicode", "html"])
+  func serializedRetiredCredentialsNeverReachAppUploadOrBridge(provider: String, encoding: String) async throws {
+    let secret = "fake-" + provider + "-boundary!retired@value:279"
+    let config = URLSessionConfiguration.ephemeral
+    config.protocolClasses = [ProviderProbe.self]
+    let runtime = NativeBYOK(store: DeviceKey(), configuration: config)
+    try runtime.replaceKey(secret)
+    let reference = try runtime.credentialReference()
+    ProviderProbe.requests = []
+    let payload: String
+    switch encoding {
+    case "nested-uri-base64":
+      let percent = secret.utf8.map { String(format: "%%%02X", $0) }.joined()
+      payload = Data(Data(percent.utf8).base64EncodedString().utf8).base64EncodedString()
+    case "nested-json":
+      let unicode = secret.utf8.map { String(format: "\\u%04x", $0) }.joined()
+      payload = Data(("{\"detail\":\"" + unicode + "\"}").utf8).base64EncodedString()
+    case "hex": payload = secret.utf8.map { String(format: "%02x", $0) }.joined()
+    case "unicode": payload = secret.utf8.map { String(format: "\\u%04x", $0) }.joined()
+    default: payload = secret.unicodeScalars.map { "&#x" + String($0.value, radix: 16) + ";" }.joined()
+    }
+    // Already-created output and queued work remain unsafe after every retirement path.
+    try runtime.removeKey()
+    try runtime.replaceKey("replacement-" + provider + "-fake-only")
+    try runtime.endSession()
+    let server = FakeServer { _ in (200, "{}") }
+    let session = try TestServer.session(server)
+    await #expect(throws: NativeAIError.self) {
+      try await session.connection.send(
+        HTTPRequest(method: .post, scheme: nil, authority: nil, path: "/telemetry"),
+        json: Data(("{\"detail\":\"" + payload.replacingOccurrences(of: "\\", with: "\\\\") + "\"}").utf8),
+        operationID: "telemetry")
+    }
+    await #expect(throws: NativeAIError.self) {
+      _ = try await session.uploadVideo(Data(payload.utf8), in: "n1", send: { _, _ in
+        Issue.record("Retired credential reached storage")
+        return 200
+      })
+    }
+    do {
+      _ = try await runtime.suggest(title: payload, before: "", after: "", reference: reference)
+      Issue.record("Credential entered the native bridge")
+    } catch {
+      if case NativeAIError.rejected = error {} else {
+        Issue.record("Credential was not rejected at the bridge boundary")
+      }
+    }
+    #expect(server.requests.count == 0)
+    #expect(ProviderProbe.requests.count == 0)
+  }
+
+  @Test func customErrorFieldsCannotEscapeThroughDiagnostics() async throws {
+    struct DetailedFailure: Error, LocalizedError {
+      let debugPayload: String
+      var errorDescription: String? { "Network unavailable" }
+    }
+    let runtime = NativeBYOK(store: DeviceKey())
+    let secret = "fake-Anthropic-custom-error!279"
+    try runtime.replaceKey(secret)
+    let encoded = Data(Data(secret.utf8).base64EncodedString().utf8).base64EncodedString()
+    try runtime.removeKey()
+    let server = FakeServer { _ in throw DetailedFailure(debugPayload: encoded) }
+    let session = try TestServer.session(server)
+    do {
+      try await session.connection.send(
+        HTTPRequest(method: .post, scheme: nil, authority: nil, path: "/diagnostic"),
+        json: Data("{}".utf8), operationID: "diagnostic")
+      Issue.record("Expected failure")
+    } catch { #expect(error is NativeAIError) }
+  }
+
+  @Test(arguments: ["OpenAI", "Anthropic", "OpenRouter"])
+  func mixedPercentTextIsBlockedAtEveryNativeBoundary(provider: String) async throws {
+    let config = URLSessionConfiguration.ephemeral
+    config.protocolClasses = [ProviderProbe.self]
+    let runtime = NativeBYOK(store: DeviceKey(), configuration: config)
+    let secret = "fake-" + provider + "-mixed!boundary:279"
+    try runtime.replaceKey(secret)
+    let once = secret.utf8.map { String(format: "%%%02X", $0) }.joined()
+    let twice = once.replacingOccurrences(of: "%", with: "%25")
+    let payload = "100% ordinary progress; " + twice
+    ProviderProbe.requests = []
+    await #expect(throws: NativeAIError.self) {
+      _ = try await runtime.suggest(title: payload, before: "", after: "")
+    }
+    #expect(ProviderProbe.requests.count == 0)
+    let server = FakeServer { _ in (200, "{}") }
+    let session = try TestServer.session(server)
+    await #expect(throws: NativeAIError.self) {
+      _ = try await session.connection.sendOutside(
+        Data(payload.utf8), method: .put,
+        to: URL(string: "https://owned-bucket.test/upload")!, headers: [:])
+    }
+    await #expect(throws: NativeAIError.self) {
+      var request = HTTPRequest(method: .post, scheme: nil, authority: nil, path: "/diagnostic")
+      request.headerFields[HTTPField.Name("x-diagnostic")!] = payload
+      try await session.connection.send(request, json: Data("{}".utf8), operationID: "diagnostic")
+    }
+    #expect(server.requests.count == 0)
   }
 
 }
