@@ -87,9 +87,10 @@ final class AccountJourneysUITests: XCTestCase {
     capture("279-key-lifecycle")
   }
 
-  func testReadAloudConsentStaysReadableAndCanCancelAtAccessibilityTextSize() {
+  func testBuiltInNarrationDisclosureIsReadableAtAccessibilityTextSize() {
     app.launchArguments = ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
-    launch()
+    launch("local-narration")
+    defer { app.terminate() }
     let actions = app.buttons["Actions for Readme"]
     XCTAssertTrue(app.buttons["Settings"].waitForExistence(timeout: 5))
     for _ in 0..<4 {
@@ -99,16 +100,17 @@ final class AccountJourneysUITests: XCTestCase {
     XCTAssertTrue(actions.exists)
     actions.tap()
     app.buttons["Listen"].tap()
-    XCTAssertTrue(app.staticTexts["Read aloud with AI"].waitForExistence(timeout: 5))
-    let allow = app.buttons["Allow Read Aloud"]
-    for _ in 0..<4 { app.swipeUp() }
-    XCTAssertFalse(app.staticTexts["Read aloud with AI"].isHittable, "The user can scroll through the disclosure to its end.")
-    XCTAssertTrue(allow.isHittable)
-    XCTAssertTrue(app.buttons["Cancel"].isHittable)
-    capture("272-consent-accessibility-end")
-    app.buttons["Cancel"].tap()
+    XCTAssertTrue(app.buttons["Pause"].waitForExistence(timeout: 30))
+    app.buttons["Pause"].tap()
+    app.buttons["Read aloud: Readme"].tap()
+    XCTAssertTrue(app.staticTexts["local-voice-description"].waitForExistence(timeout: 5))
     XCTAssertFalse(app.buttons["Allow Read Aloud"].exists)
-    XCTAssertTrue(app.buttons["Settings"].exists)
+    XCTAssertLessThanOrEqual(app.scrollViews.firstMatch.frame.maxY,
+      app.buttons["Forward 15 Seconds"].frame.minY,
+      "The scrolling narration must have its own space above the media controls.")
+    capture("281-local-disclosure-accessibility")
+    app.buttons["Done"].tap()
+    app.buttons["Stop Listening"].tap()
   }
 
   private func openSignInBrowser() {
@@ -242,7 +244,7 @@ final class AccountJourneysUITests: XCTestCase {
       settings()
       XCTAssertTrue(app.staticTexts["Native Reader"].waitForExistence(timeout: 5))
       app.buttons["Read Aloud"].tap()
-      XCTAssertTrue(app.staticTexts["Read aloud with AI"].waitForExistence(timeout: 5))
+      XCTAssertTrue(app.staticTexts["Read aloud"].waitForExistence(timeout: 5))
       XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "Your microphone is not used")).firstMatch.exists)
       XCTAssertFalse(app.buttons["Allow Read Aloud"].exists)
       app.navigationBars.buttons["BackButton"].tap()

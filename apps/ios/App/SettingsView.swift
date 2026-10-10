@@ -306,14 +306,14 @@ private struct ReadAloudInformationView: View {
   var body: some View {
     Form {
       Section {
-        Label("Read aloud with AI", systemImage: "waveform")
+        Label("Read aloud", systemImage: "waveform")
           .font(.headline)
         Text(ReadAloudDisclosure.explanation)
       } footer: {
-        Text("Before generating audio, Lexidraw asks for your permission. Allowing it applies to the current browsing session. Opening this page does not grant permission.")
+        Text("Choose Built-in local in AI Power for free document narration. Voice and language availability depend on the voices installed on your device. No cloud fallback is used.")
       }
       Section {
-        Text("Choose Listen from a document or link’s actions menu. Existing audio can play without generating a new recording.")
+        Text("Choose Listen from a document’s actions menu. Play Saved Recording preserves playback of existing cloud audio, regardless of your power source.")
       }
     }
     .navigationTitle("Read Aloud")

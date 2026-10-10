@@ -186,3 +186,22 @@ extension Listening {
     }
   }
 }
+
+/// User intent survives the system pausing a player, while an explicit Pause
+/// cancels automatic recovery from an interruption or a disconnected route.
+public struct ListeningRecovery: Sendable {
+  public private(set) var wantsPlayback = false
+  private var mayResume = false
+  public init() {}
+  public mutating func play() { wantsPlayback = true }
+  public mutating func pause() { wantsPlayback = false; mayResume = false }
+  public mutating func interrupted() {
+    mayResume = wantsPlayback
+    wantsPlayback = false
+  }
+  public mutating func ended(shouldResume: Bool) -> Bool {
+    wantsPlayback = mayResume && shouldResume
+    mayResume = false
+    return wantsPlayback
+  }
+}

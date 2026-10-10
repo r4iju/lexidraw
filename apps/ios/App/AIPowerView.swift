@@ -49,7 +49,7 @@ struct AIPowerView: View {
           Text("Pro · Coming soon")
             .foregroundStyle(.secondary)
           Text(
-            "Built-in local text is not available here yet. OpenRouter text runs directly on this device. Images, narration and paid tools are unavailable through this key."
+            "Built-in local narration is free in a document’s Listen menu, using Apple voices available on this device. It does not create a synced recording. Built-in local text is not available here yet. OpenRouter text runs directly on this device. Images, narration and paid tools are unavailable through this key."
           )
           .font(.footnote)
         }

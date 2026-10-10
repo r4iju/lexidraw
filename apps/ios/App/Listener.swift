@@ -24,10 +24,13 @@ final class Listener {
   private(set) var state = State.idle
   private(set) var position = Recording.Position.start
   private(set) var isPlaying = false
-  private(set) var generationRequest: File?
-  private var generationAuthorization: CheckedContinuation<Void, any Error>?
-  private var generationAuthorizationID: UUID?
-  private var permitsGeneration = false
+  private(set) var voiceDescription: String?
+  private var positionKey: String?
+  private let speech = NativeSpeech()
+  private var seekID: UUID?
+  private var recovery = ListeningRecovery()
+  private var savedOnly = false
+  private var routes: Task<Void, Never>?
   /// Of the part playing, once it is known.
   private(set) var duration: Double?
 
@@ -50,17 +53,22 @@ final class Listener {
         Task { @MainActor in self?.partChanged() }
       },
       player.observe(\.timeControlStatus) { [weak self] player, _ in
-        let playing = player.timeControlStatus != .paused
-        Task { @MainActor in self?.playingChanged(playing) }
+        Task { @MainActor in self?.playingChanged() }
       },
     ]
-    ticks = player.addPeriodicTimeObserver(forInterval: CMTime(seconds: 1, preferredTimescale: 600), queue: .main) {
+    ticks = player.addPeriodicTimeObserver(
+      forInterval: CMTime(seconds: 1, preferredTimescale: 600), queue: .main
+    ) {
       [weak self] time in
       MainActor.assumeIsolated { self?.ticked(time.seconds) }
     }
     endings = Task { [weak self] in
-      for await note in NotificationCenter.default.notifications(named: AVPlayerItem.didPlayToEndTimeNotification) {
-        guard let self, let item = note.object as? AVPlayerItem, item === queued.last else { continue }
+      for await note in NotificationCenter.default.notifications(
+        named: AVPlayerItem.didPlayToEndTimeNotification)
+      {
+        guard let self, let item = note.object as? AVPlayerItem, item === queued.last else {
+          continue
+        }
         finished()
       }
     }
@@ -81,28 +89,33 @@ final class Listener {
     recording?.part(at: position)
   }
 
-  /// Plays `file` from where its last listen stopped, making its audio first
-  /// when there is none yet.
-  func listen(to file: File) {
-    if self.file == file, recording != nil {
-      play()
-      return
-    }
+  /// Reads with the account power choice, or explicitly replays saved audio.
+  func listen(to file: File, savedOnly: Bool = false) {
     stop()
+    self.savedOnly = savedOnly
     state = .preparing(file, .started)
     preparing = Task {
       do {
-        let recording = try await session.recording(of: file.id, authorizeGeneration: { [weak self] in
-          guard let self else { throw CancellationError() }
-          try await self.authorizeGeneration(for: file)
-        }) { progress in
-          Task { @MainActor in
-            if case .preparing(file, _) = self.state { self.state = .preparing(file, progress) }
-          }
+        let source = try await session.narration(of: file.id, savedOnly: savedOnly)
+        try Task.checkCancellation()
+        let recording: Recording
+        switch source {
+        case .local(let narration):
+          positionKey = narration.resumeID(file: file.id)
+          recording = try await speech.recording(narration)
+          voiceDescription = speech.voiceDescription
+        case .saved(let saved):
+          recording = saved
+          positionKey = file.id
         }
         try Task.checkCancellation()
+        guard !recording.parts.isEmpty else {
+          throw ListenFailed(message: "There is no audio in this recording.")
+        }
         state = .loaded(file, recording)
-        queue(from: recording.resuming(resumePoints.position(of: file.id)), playing: true)
+        queue(
+          from: recording.resuming(resumePoints.position(of: positionKey ?? file.id)), playing: true
+        )
       } catch is CancellationError {
       } catch {
         guard !Task.isCancelled else { return }
@@ -111,48 +124,27 @@ final class Listener {
     }
   }
 
-  private func authorizeGeneration(for file: File) async throws {
-    guard !permitsGeneration else { return }
-    try Task.checkCancellation()
-    let authorizationID = UUID()
-    try await withTaskCancellationHandler {
-      try await withCheckedThrowingContinuation { continuation in
-        generationRequest = file
-        generationAuthorization = continuation
-        generationAuthorizationID = authorizationID
-      }
-    } onCancel: { [weak self] in
-      Task { @MainActor in self?.cancelGeneration(id: authorizationID) }
-    }
-  }
-
-  func allowGeneration() {
-    guard let authorization = generationAuthorization else { return }
-    permitsGeneration = true
-    generationAuthorization = nil
-    generationAuthorizationID = nil
-    generationRequest = nil
-    authorization.resume()
-  }
-
-  func cancelGeneration() {
-    guard generationAuthorization != nil else { return }
-    stop()
-  }
-
-  private func cancelGeneration(id: UUID) {
-    guard generationAuthorizationID == id else { return }
-    cancelGeneration()
+  func retry() {
+    guard let file else { return }
+    listen(to: file, savedOnly: savedOnly)
   }
 
   func play() {
     guard recording != nil else { return }
-    activateAudio()
+    recovery.play()
+    if seekID != nil { return }
+    guard activateAudio() else {
+      recovery.pause()
+      return
+    }
     player.play()
   }
 
   func pause() {
+    recovery.pause()
     player.pause()
+    isPlaying = false
+    updateNowPlaying()
     keepPosition()
   }
 
@@ -162,8 +154,9 @@ final class Listener {
 
   func skip(by seconds: Double) {
     let target = max(0, min(position.seconds + seconds, (duration ?? .infinity) - 0.5))
-    player.seek(to: CMTime(seconds: target, preferredTimescale: 600))
     position.seconds = target
+    seek(to: position, playing: isPlaying)
+    keepPosition()
     updateNowPlaying()
   }
 
@@ -179,17 +172,18 @@ final class Listener {
 
   /// Ends the listen, keeping where it stopped for next time.
   func stop() {
-    let authorization = generationAuthorization
-    generationAuthorization = nil
-    generationAuthorizationID = nil
-    generationRequest = nil
-    authorization?.resume(throwing: CancellationError())
     preparing?.cancel()
     preparing = nil
     if recording != nil { keepPosition() }
+    seekID = nil
+    recovery.pause()
     player.pause()
     player.removeAllItems()
     queued = []
+    speech.stop()
+    voiceDescription = nil
+    positionKey = nil
+    isPlaying = false
     state = .idle
     position = .start
     duration = nil
@@ -197,6 +191,8 @@ final class Listener {
     releaseRemoteCommands()
     interruptions?.cancel()
     interruptions = nil
+    routes?.cancel()
+    routes = nil
     try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
   }
 
@@ -212,18 +208,36 @@ final class Listener {
     for item in queued { player.insert(item, after: nil) }
     self.position = position
     duration = nil
-    if position.seconds > 0 {
-      player.seek(to: CMTime(seconds: position.seconds, preferredTimescale: 600))
-    }
     claimRemoteCommands()
-    if playing { play() }
+    seek(to: position, playing: playing)
     updateNowPlaying()
+  }
+
+  private func seek(to position: Recording.Position, playing: Bool) {
+    let id = UUID()
+    seekID = id
+    if playing { recovery.play() } else { recovery.pause() }
+    player.seek(
+      to: CMTime(seconds: position.seconds, preferredTimescale: 600), toleranceBefore: .zero,
+      toleranceAfter: .zero
+    ) { [weak self] completed in
+      Task { @MainActor in
+        guard let self, self.seekID == id else { return }
+        self.seekID = nil
+        if completed {
+          self.position = position
+          self.keepPosition()
+          if self.recovery.wantsPlayback { self.play() }
+          self.updateNowPlaying()
+        }
+      }
+    }
   }
 
   /// Past the last part: the next listen starts from the top.
   private func finished() {
-    guard let file else { return }
-    resumePoints.finished(file.id)
+    guard let positionKey else { return }
+    resumePoints.finished(positionKey)
     queue(from: .start, playing: false)
   }
 
@@ -233,17 +247,18 @@ final class Listener {
       position = Recording.Position(part: firstQueued + index, seconds: 0)
     }
     duration = nil
-    keepPosition()
+    if seekID == nil { keepPosition() }
     updateNowPlaying()
   }
 
-  private func playingChanged(_ playing: Bool) {
-    isPlaying = playing
+  private func playingChanged() {
+    isPlaying = recording != nil && recovery.wantsPlayback && player.timeControlStatus != .paused
     updateNowPlaying()
   }
 
-  private func ticked(_ seconds: Double) {
-    guard recording != nil, seconds.isFinite else { return }
+  private func ticked(_ observedSeconds: Double) {
+    let seconds = player.currentTime().seconds
+    guard recording != nil, seekID == nil, seconds.isFinite else { return }
     position.seconds = seconds
     if duration == nil, let known = player.currentItem?.duration.seconds, known.isFinite {
       duration = known
@@ -253,28 +268,60 @@ final class Listener {
   }
 
   private func keepPosition() {
-    guard let file, recording != nil else { return }
-    resumePoints.keep(position, of: file.id)
+    guard let positionKey, recording != nil else { return }
+    resumePoints.keep(position, of: positionKey)
   }
 
   // MARK: The system's controls
 
-  private func activateAudio() {
+  private func activateAudio() -> Bool {
     let audio = AVAudioSession.sharedInstance()
-    // Long-form spoken audio: routed as Podcasts is, and paused rather than
-    // ducked when something else speaks.
-    try? audio.setCategory(.playback, mode: .spokenAudio, policy: .longFormAudio)
-    try? audio.setActive(true)
-    guard interruptions == nil else { return }
-    interruptions = Task { [weak self] in
-      for await note in NotificationCenter.default.notifications(named: AVAudioSession.interruptionNotification) {
-        let info = note.userInfo ?? [:]
-        guard (info[AVAudioSessionInterruptionTypeKey] as? UInt).flatMap(AVAudioSession.InterruptionType.init) == .ended
-        else { continue }
-        let options = AVAudioSession.InterruptionOptions(rawValue: info[AVAudioSessionInterruptionOptionKey] as? UInt ?? 0)
-        if options.contains(.shouldResume) { self?.play() }
+    do {
+      try audio.setCategory(.playback, mode: .spokenAudio, policy: .longFormAudio)
+      try audio.setActive(true)
+    } catch {
+      if let file {
+        state = .failed(
+          file, "Audio playback is unavailable. Try again after the interruption ends.")
+      }
+      return false
+    }
+    if interruptions == nil {
+      interruptions = Task { [weak self] in
+        for await note in NotificationCenter.default.notifications(
+          named: AVAudioSession.interruptionNotification)
+        {
+          guard let self else { return }
+          let info = note.userInfo ?? [:]
+          let type = (info[AVAudioSessionInterruptionTypeKey] as? UInt).flatMap(
+            AVAudioSession.InterruptionType.init)
+          if type == .began {
+            recovery.interrupted()
+            player.pause()
+            isPlaying = false
+            keepPosition()
+            updateNowPlaying()
+          } else if type == .ended {
+            let options = AVAudioSession.InterruptionOptions(
+              rawValue: info[AVAudioSessionInterruptionOptionKey] as? UInt ?? 0)
+            if recovery.ended(shouldResume: options.contains(.shouldResume)) { play() }
+          }
+        }
       }
     }
+    if routes == nil {
+      routes = Task { [weak self] in
+        for await note in NotificationCenter.default.notifications(
+          named: AVAudioSession.routeChangeNotification)
+        {
+          let reason = note.userInfo?[AVAudioSessionRouteChangeReasonKey] as? UInt
+          if reason == AVAudioSession.RouteChangeReason.oldDeviceUnavailable.rawValue {
+            self?.pause()
+          }
+        }
+      }
+    }
+    return true
   }
 
   private func updateNowPlaying() {
@@ -320,7 +367,9 @@ final class Listener {
     center.changePlaybackPositionCommand.isEnabled = true
     center.changePlaybackPositionCommand.addTarget { [weak self] event in
       MainActor.assumeIsolated {
-        guard let self, let event = event as? MPChangePlaybackPositionCommandEvent else { return .commandFailed }
+        guard let self, let event = event as? MPChangePlaybackPositionCommandEvent else {
+          return .commandFailed
+        }
         self.skip(by: event.positionTime - self.position.seconds)
         return .success
       }
@@ -330,7 +379,8 @@ final class Listener {
   private func releaseRemoteCommands() {
     let center = MPRemoteCommandCenter.shared()
     for command in [
-      center.playCommand, center.pauseCommand, center.togglePlayPauseCommand, center.skipForwardCommand,
+      center.playCommand, center.pauseCommand, center.togglePlayPauseCommand,
+      center.skipForwardCommand,
       center.skipBackwardCommand, center.nextTrackCommand, center.previousTrackCommand,
       center.changePlaybackPositionCommand,
     ] {

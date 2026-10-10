@@ -91,6 +91,13 @@ actor HarnessServer: ClientTransport {
         Item(id: "shared-folder", title: "Reference only", type: "directory", parent: "inaccessible", access: "read", shared: true),
       ]
     }
+    if scenario == "listening" { powerPreference = ["mode": "pro"] }
+    if scenario == "local-narration" {
+      for key in UserDefaults.standard.dictionaryRepresentation().keys
+        where key.hasPrefix("listen.position.local.readme.") {
+        UserDefaults.standard.removeObject(forKey: key)
+      }
+    }
     if scenario == "empty" { items = [] }
     if ["restore-failure", "restore-delayed"].contains(scenario) {
       items.append(Item(id: "deleted", title: "Recovered notes", type: "document", parent: "missing-folder", deleted: true))
@@ -316,6 +323,10 @@ actor HarnessServer: ClientTransport {
         var table = node("table", rows)
         table["colWidths"] = [240, 240, 240, 240]
         elements = String(decoding: try JSONSerialization.data(withJSONObject: ["root": node("root", [table])]), as: UTF8.self)
+      }
+      if scenario == "local-narration", item.type == "document" {
+        let text = String(repeating: "A thoughtful plan starts here. Built-in speech reads this document on this device. ", count: 12)
+        elements = String(decoding: try JSONSerialization.data(withJSONObject: ["root": ["type": "root", "children": [["type": "paragraph", "children": [["type": "text", "text": text]]]]]]), as: UTF8.self)
       }
       answer = ["id": item.id, "title": item.title, "entityType": item.type, "appState": NSNull(),
         "elements": documents[item.id] ?? elements, "publicAccess": "PRIVATE", "shared": item.shared,
