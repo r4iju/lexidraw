@@ -9,7 +9,7 @@ export type ProviderOutcome =
 export type ProTransport = (
   text: string,
   signal: AbortSignal,
-  context: { attemptId: string; operationId: string },
+  context: { attemptId: string; operationId: string; feature?: string },
 ) => Promise<ProviderOutcome>;
 export function inputIdentity(input: unknown) {
   const parsed = TextInput.parse(input);
@@ -30,7 +30,11 @@ export class ProTextOperation {
   async execute(account: string, id: string, text: string): Promise<Operation> {
     const op = await this.ledger.operation(account, id);
     if (!(await this.ledger.claim(id))) return this.recover(account, id);
-    for (let index = 0; index < PRICEBOOK.maxAttempts; index++) {
+    for (
+      let index = 0;
+      index < (op.feature === "autocomplete" ? 1 : PRICEBOOK.maxAttempts);
+      index++
+    ) {
       let attempt: string;
       try {
         attempt = await this.ledger.startAttempt(id);
@@ -66,6 +70,7 @@ export class ProTextOperation {
           this.transport(text, controller.signal, {
             attemptId: attempt,
             operationId: id,
+            feature: op.feature,
           }),
           stop,
         ]);
@@ -77,7 +82,10 @@ export class ProTextOperation {
       }
       if (outcome.kind === "completed") {
         const completion = Completion.safeParse(outcome.completion);
-        if (!completion.success) {
+        if (
+          !completion.success ||
+          (op.feature === "autocomplete" && completion.data.usage.output > 64)
+        ) {
           await this.ledger.finishAttempt(attempt, { kind: "unknown" });
           return this.ledger.operation(account, id);
         }
@@ -97,7 +105,8 @@ export class ProTextOperation {
       if (
         !outcome.retryable ||
         current.cancel_requested ||
-        index + 1 === PRICEBOOK.maxAttempts
+        index + 1 ===
+          (op.feature === "autocomplete" ? 1 : PRICEBOOK.maxAttempts)
       )
         return this.ledger.settle(id, {
           kind: current.cancel_requested ? "cancelled" : "technical_failure",

@@ -26,6 +26,7 @@ struct BrowserHarnessApp: App {
         let store = KeychainProviderStore(
           accountID: id, origin: URL(string: "https://harness.invalid")!)
         try? store.delete()
+        if BrowserScenario.name == "autocomplete-byok" { try? store.save("sk-or-v1-283-injected-native-fixture-only") }
         return store
       },
       providerConfiguration: {
@@ -70,6 +71,8 @@ actor HarnessServer: ClientTransport {
   private var saves = 0
   private var searched = false
   private var powerPreference = ["mode": "local"]
+  private var writingSuggestions = false
+  private var suggestionCharges = 0
 
   init() {
     scenario = BrowserScenario.name ?? "basic"
@@ -91,6 +94,8 @@ actor HarnessServer: ClientTransport {
         Item(id: "shared-folder", title: "Reference only", type: "directory", parent: "inaccessible", access: "read", shared: true),
       ]
     }
+    if scenario == "autocomplete-pro" { powerPreference = ["mode": "pro"] }
+    if scenario == "autocomplete-byok" { powerPreference = ["mode": "byok", "provider": "openrouter"] }
     if scenario == "listening" { powerPreference = ["mode": "pro"] }
     if scenario == "local-narration" {
       for key in UserDefaults.standard.dictionaryRepresentation().keys
@@ -176,7 +181,20 @@ actor HarnessServer: ClientTransport {
       if scenario == "signout-local-failure" { try await Task.sleep(for: .seconds(4)) }
       if scenario == "signout-server-failure" { throw URLError(.notConnectedToInternet) }
       answer = ["id": "fixture-token"]
+    case "config.getAutocompleteConfig":
+      answer = ["result": ["data": ["json": ["enabled": writingSuggestions]]]]
+    case "config.updateAutocompleteConfig":
+      writingSuggestions = (json["json"] as? [String: Bool])?["enabled"] ?? false
+      answer = ["result": ["data": ["json": ["enabled": writingSuggestions]]]]
+    case "pro.autocomplete":
+      guard scenario == "autocomplete-pro", writingSuggestions else { throw URLError(.unsupportedURL) }
+      suggestionCharges += 31_000
+      answer = ["result": ["data": ["json": ["id": "fixture-suggestion", "state": "settled", "result": "sentence.", "charged": 31_000, "feature": "autocomplete"]]]]
     case "pro.status":
+      if scenario == "autocomplete-pro" {
+        answer = ["result": ["data": ["json": ["eligible": true, "entitled": true, "availableSubcredits": 10_000_000 - suggestionCharges, "reservedSubcredits": 0, "renewalAt": NSNull(), "history": suggestionCharges == 0 ? [] : [["id": "fixture-suggestion", "feature": "autocomplete", "state": "settled", "quote": 1_120_000, "charged": suggestionCharges, "created_at": 1000]], "policy": ["version": "private-cancellation-v1", "disclosure": "Deterministic UI fixture. Actual provider acceptance is unverified."]] as [String: Any]]]]
+        break
+      }
       if scenario == "pro-shared-local" {
         // Opt-in loopback fixture shares the actual isolated SQLite allowance with the browser. No provider endpoint is involved.
         var request = URLRequest(url: URL(string: "http://127.0.0.1:3080/api/trpc/pro.status")!)

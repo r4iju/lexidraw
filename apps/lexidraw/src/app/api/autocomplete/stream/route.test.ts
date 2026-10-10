@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 
-test("authenticated autocomplete preserves access, streamed output and provider errors", async () => {
+test("legacy autocomplete cannot bypass the authenticated operation boundary", async () => {
   // Other UI suites replace Next exports process-wide; the real route needs its own runtime.
   const result = Bun.spawn(
     [process.execPath, `${import.meta.dir}/route.contract.ts`],
@@ -15,7 +15,5 @@ test("authenticated autocomplete preserves access, streamed output and provider 
     result.exited,
   ]);
   expect({ exitCode, stderr }).toEqual({ exitCode: 0, stderr: "" });
-  expect(stdout).toContain(
-    "authenticated autocomplete retains its streamed response",
-  );
+  expect(stdout).toContain("legacy autocomplete system-key route is closed");
 });

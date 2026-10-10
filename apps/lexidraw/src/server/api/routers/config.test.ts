@@ -5,7 +5,6 @@ import {
   DEFAULT_GOOGLE_AGENT_MODEL_ID,
   DEFAULT_GOOGLE_AUTOCOMPLETE_MODEL_ID,
   DEFAULT_GOOGLE_CHAT_MODEL_ID,
-  DEFAULT_OPENAI_AUTOCOMPLETE_MODEL_ID,
 } from "~/lib/llm-models";
 import {
   createTestDatabase,
@@ -156,16 +155,7 @@ describe("a visitor with no account", () => {
   });
 
   test("reads the default autocomplete settings", async () => {
-    expect(await visitor.getAutocompleteConfig()).toEqual({
-      enabled: true,
-      delayMs: 200,
-      provider: "openai",
-      modelId: DEFAULT_OPENAI_AUTOCOMPLETE_MODEL_ID,
-      temperature: 0.3,
-      maxOutputTokens: 400,
-      reasoningEffort: "minimal",
-      verbosity: "low",
-    });
+    expect(await visitor.getAutocompleteConfig()).toEqual({ enabled: false });
   });
 
   test("is refused every settings write", async () => {
@@ -175,7 +165,7 @@ describe("a visitor with no account", () => {
       () => visitor.updateAutoSaveConfig({ enabled: true }),
       () => visitor.updateTtsConfig({}),
       () => visitor.updateArticleConfig({}),
-      () => visitor.updateAutocompleteConfig({}),
+      () => visitor.updateAutocompleteConfig({ enabled: true }),
     ];
     for (const write of writes) {
       await expect(write()).rejects.toMatchObject({ code: "UNAUTHORIZED" });
@@ -197,7 +187,7 @@ test("a signed-in reader still gets the settings they stored", async () => {
   expect(await owner.getArticleConfig()).toEqual(STORED.articles);
   // Typed by its defaults, which are narrower than what may be stored.
   const autocomplete: unknown = await owner.getAutocompleteConfig();
-  expect(autocomplete).toEqual(STORED.autocomplete);
+  expect(autocomplete).toEqual({ enabled: false });
   expect(await owner.getConfig()).toEqual(STORED.llm);
 });
 

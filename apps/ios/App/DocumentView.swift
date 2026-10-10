@@ -115,6 +115,7 @@ private final class DocumentEditorReference {
 private struct DocumentContent: View {
   @Bindable var editing: DocumentEditing
   @State private var editorReference = DocumentEditorReference()
+  @State private var suggestions = DocumentSuggestions()
   @State private var isEditing = false
   @State private var noticeHeight: CGFloat = 44
   let reload: () async -> Void
@@ -181,19 +182,41 @@ private struct DocumentContent: View {
         }
       }
       .task { await editing.followSaving() }
+      .task { await suggestions.load(session: editing.session, editor: editorReference.view, title: editing.title, language: editing.settings.language ?? Locale.autoupdatingCurrent.identifier) }
       .onDisappear {
+        suggestions.stop()
         fileNavigation?.unregister(editing)
         editorReference.view?.setEditingEnabled(false)
         isEditing = false
         Task { await editing.saveNow() }
       }
       .onChange(of: scenePhase) { _, phase in
-        if phase != .active { Task { await editing.saveNow() } }
+        if phase != .active { suggestions.stop(); Task { await editing.saveNow() } }
+        else { Task { await suggestions.load(session: editing.session, editor: editorReference.view, title: editing.title, language: editing.settings.language ?? Locale.autoupdatingCurrent.identifier) } }
       }
   }
 
   private var notice: some View {
     VStack(alignment: .leading, spacing: 10) {
+      if isEditing {
+        Toggle(
+          "Writing suggestions",
+          isOn: Binding(
+            get: { suggestions.enabled },
+            set: { value in Task { await suggestions.setEnabled(value) } })
+        )
+        .accessibilityIdentifier("writing-suggestions-opt-in")
+        Text(suggestions.message).font(.caption).accessibilityIdentifier(
+          "writing-suggestions-status")
+        if let allowance = suggestions.allowance {
+          Text(
+            "\(String(format: "%.3f", Double(allowance.availableSubcredits) / 1_000_000)) credits available · \(String(format: "%.3f", Double(allowance.reservedSubcredits) / 1_000_000)) reserved"
+          ).font(.caption)
+          Text(
+            "\(String(format: "%.3f", Double(allowance.history.filter { $0.feature == "autocomplete" }.reduce(Int64(0)) { $0 + $1.charged }) / 1_000_000)) suggestion credits in recent usage"
+          ).font(.caption)
+        }
+      }
       if !isEditing {
         Text(editing.title)
           .font(.title2.weight(.semibold))

@@ -6,10 +6,11 @@ import Synchronization
 final class NativeAIProviderFixture: URLProtocol, @unchecked Sendable {
   private let stopped = Mutex(false)
   override class func canInit(with request: URLRequest) -> Bool {
-    request.url?.scheme == "https" && request.url?.host == "openrouter.ai"
+    true
   }
   override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
   override func startLoading() {
+    guard request.url?.scheme == "https", request.url?.host == "openrouter.ai", ["/api/v1/key", "/api/v1/chat/completions"].contains(request.url?.path ?? "") else { client?.urlProtocol(self, didFailWithError: URLError(.unsupportedURL)); return }
     let validation = request.url?.path == "/api/v1/key"
     let delay = validation ? 0.0 : 6.0
     DispatchQueue.global().asyncAfter(deadline: .now() + delay) { [self] in

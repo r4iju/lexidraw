@@ -290,81 +290,25 @@ export const configRouter = createTRPCRouter({
   // --- Autocomplete (separate, minimal engine) ---
   getAutocompleteConfig: publicProcedure.query(async ({ ctx }) => {
     const config = await storedConfig(ctx);
-    const defaults = {
-      enabled: true,
-      delayMs: 200,
-      provider: "openai",
-      modelId: DEFAULT_OPENAI_AUTOCOMPLETE_MODEL_ID,
-      temperature: 0.3,
-      maxOutputTokens: 400,
-      reasoningEffort: "minimal" as const,
-      verbosity: "low" as const,
-    };
-    let cfg = (config?.autocomplete ?? null) as
-      | (typeof defaults & Record<string, unknown>)
-      | null;
-
-    // Migration: seed from old llm.autocomplete if missing
-    if (!cfg) {
-      const seed = config?.llm?.autocomplete as
-        | Partial<typeof defaults>
-        | undefined;
-      const userId = ctx.session?.user?.id;
-      if (seed && userId) {
-        cfg = { ...defaults, ...seed } as typeof defaults &
-          Record<string, unknown>;
-        await ctx.drizzle
-          .update(schema.users)
-          .set({
-            config: {
-              ...config,
-              autocomplete: cfg,
-            } as (typeof schema.users.$inferInsert)["config"],
-          })
-          .where(eq(schema.users.id, userId));
-      }
-    }
-
-    return { ...defaults, ...(cfg ?? {}) } as typeof defaults &
-      Record<string, unknown>;
+    return { enabled: config?.autocomplete?.enabled === true };
   }),
   updateAutocompleteConfig: protectedProcedure
-    .input(
-      z
-        .object({
-          enabled: z.boolean().optional(),
-          delayMs: z.number().int().min(0).max(5000).optional(),
-          provider: z.literal("openai").optional(),
-          modelId: z.string().optional(),
-          temperature: z.number().min(0).max(1).optional(),
-          maxOutputTokens: z.number().int().positive().max(2000).optional(),
-          reasoningEffort: z.enum(["minimal", "standard", "heavy"]).optional(),
-          verbosity: z.enum(["low", "medium", "high"]).optional(),
-        })
-        .partial(),
-    )
+    .input(z.strictObject({ enabled: z.boolean() }))
     .mutation(async ({ ctx, input }) => {
       const current = await ctx.drizzle.query.users.findFirst({
         where: eq(schema.users.id, ctx.session.user.id),
         columns: { config: true },
       });
-      const next = {
-        enabled: true,
-        delayMs: 200,
-        provider: "openai",
-        modelId: DEFAULT_OPENAI_AUTOCOMPLETE_MODEL_ID,
-        temperature: 0.3,
-        maxOutputTokens: 400,
-        reasoningEffort: "minimal",
-        verbosity: "low",
-        ...(current?.config?.autocomplete ?? {}),
-        ...input,
-      } as Record<string, unknown>;
       await ctx.drizzle
         .update(schema.users)
-        .set({ config: { ...(current?.config ?? {}), autocomplete: next } })
+        .set({
+          config: {
+            ...(current?.config ?? {}),
+            autocomplete: { enabled: input.enabled },
+          },
+        })
         .where(eq(schema.users.id, ctx.session.user.id));
-      return next;
+      return input;
     }),
   getConfig: publicProcedure.query(
     async ({ ctx }): Promise<StoredLlmConfig> => {

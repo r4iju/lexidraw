@@ -7,7 +7,7 @@ import {
   finishFragment,
   fragmentAt,
 } from "~/lib/generation/autocomplete-fragment";
-import { Completion, PRICEBOOK, Usage } from "./contracts";
+import { AutocompleteInput, Completion, PRICEBOOK, Usage } from "./contracts";
 import type { ProTransport } from "./operation";
 
 type SdkFetch = NonNullable<
@@ -26,15 +26,20 @@ export function createProProviderTransport(deps: {
       return { kind: "failed", retryable: false, actualCostNanoUsd: 0 };
     const key = deps.resolveServerKey();
     if (!key) return { kind: "failed", retryable: false, actualCostNanoUsd: 0 };
+    const input =
+      context.feature === "autocomplete"
+        ? AutocompleteInput.omit({ idempotencyKey: true }).parse(
+            JSON.parse(text),
+          )
+        : { title: "", before: text, after: "" };
     const prepared = prepareAutocomplete({
-      title: "",
-      before: text,
-      after: "",
+      ...input,
       config: {
         provider: PRICEBOOK.provider,
         modelId: PRICEBOOK.model,
         temperature: 0.2,
-        maxOutputTokens: PRICEBOOK.maxOutputTokens,
+        maxOutputTokens:
+          context.feature === "autocomplete" ? 64 : PRICEBOOK.maxOutputTokens,
       },
     });
     // The shared continuation prompt may repeat the final word. Bound the complete prepared request, including a 256-token message framing margin.
@@ -68,7 +73,7 @@ export function createProProviderTransport(deps: {
         (usage.input - usage.cachedInput) * PRICEBOOK.inputNanoUsd +
         usage.cachedInput * PRICEBOOK.cachedInputNanoUsd +
         usage.output * PRICEBOOK.outputNanoUsd;
-      const output = finishFragment(fragmentAt(text), result.text);
+      const output = finishFragment(fragmentAt(input.before), result.text);
       if (!output)
         return { kind: "failed", retryable: false, actualCostNanoUsd: cost };
       return {

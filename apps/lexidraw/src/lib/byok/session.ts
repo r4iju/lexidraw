@@ -178,7 +178,11 @@ export function createByokSession(network: Network, origin: string) {
       throw unavailable();
     }
   }
-  async function autocomplete(reference: CredentialReference, before: string) {
+  async function autocomplete(
+    reference: CredentialReference,
+    before: string,
+    options: { title?: string; after?: string; signal?: AbortSignal } = {},
+  ) {
     const transport: TextTransport = {
       stream(request, signal, persistence) {
         return new ReadableStream<string>({
@@ -191,6 +195,7 @@ export function createByokSession(network: Network, origin: string) {
                 request.config.maxOutputTokens,
                 signal,
               );
+              if (signal.aborted) throw unavailable();
               controller.enqueue(result);
               controller.close();
             } catch {
@@ -204,9 +209,9 @@ export function createByokSession(network: Network, origin: string) {
     };
     const stream = generateAutocomplete(
       {
-        title: "",
+        title: options.title ?? "",
         before,
-        after: "",
+        after: options.after ?? "",
         credential: reference,
         config: {
           provider: "openrouter",
@@ -217,7 +222,9 @@ export function createByokSession(network: Network, origin: string) {
       },
       {
         transport,
-        execution: { run: (start) => start(new AbortController().signal) },
+        execution: {
+          run: (start) => start(options.signal ?? new AbortController().signal),
+        },
         persistence: { finish() {}, error() {} },
       },
     );

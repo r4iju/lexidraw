@@ -4,6 +4,7 @@ import {
   PRICEBOOK,
   TRIAL_POLICY,
   TEXT_QUOTE,
+  AUTOCOMPLETE_QUOTE,
   Operation,
   referenceCharge,
   type Usage,
@@ -330,7 +331,13 @@ export class ProLedger {
     this.owner(actor);
     return this.query("SELECT * FROM pro_audit ORDER BY id");
   }
-  async reserve(account: string, key: string, inputHash: string) {
+  async reserve(
+    account: string,
+    key: string,
+    inputHash: string,
+    feature: "text" | "autocomplete" = "text",
+  ) {
+    const quote = feature === "autocomplete" ? AUTOCOMPLETE_QUOTE : TEXT_QUOTE;
     return this.write(async (tx) => {
       const access = await tx.execute({
         sql: "SELECT active FROM pro_eligibility WHERE account_id=?",
@@ -344,7 +351,7 @@ export class ProLedger {
       });
       if (existing.rows[0]) {
         const operation = Operation.parse(existing.rows[0]);
-        if (operation.input_hash !== inputHash)
+        if (operation.input_hash !== inputHash || operation.feature !== feature)
           throw new ProError("Idempotency key conflicts with prior input");
         return operation;
       }
@@ -366,21 +373,30 @@ export class ProLedger {
         Number(counts?.recent ?? 0) >= PRICEBOOK.maxRequestsPerMinute
       )
         throw new ProError("Request limit reached");
+      if (feature === "autocomplete") {
+        const active = await tx.execute({
+          sql: "SELECT id FROM pro_operations WHERE account_id=? AND feature='autocomplete' AND state IN ('reserved','running','unknown') LIMIT 1",
+          args: [account],
+        });
+        if (active.rows.length)
+          throw new ProError("Autocomplete is still running or reconciling");
+      }
       const reserved = await tx.execute({
         sql: "UPDATE pro_periods SET available=available-?,reserved=reserved+? WHERE id=? AND available>=?",
-        args: [TEXT_QUOTE, TEXT_QUOTE, period.id ?? "", TEXT_QUOTE],
+        args: [quote, quote, period.id ?? "", quote],
       });
       if (!reserved.rowsAffected) throw new ProError("Insufficient credits");
       const id = crypto.randomUUID();
       await tx.execute({
-        sql: "INSERT INTO pro_operations(id,account_id,period_id,idempotency_key,input_hash,feature,state,quote,pricebook,policy,created_at) VALUES (?,?,?,?,?,'text','reserved',?,?,?,?)",
+        sql: "INSERT INTO pro_operations(id,account_id,period_id,idempotency_key,input_hash,feature,state,quote,pricebook,policy,created_at) VALUES (?,?,?,?,?,?,'reserved',?,?,?,?)",
         args: [
           id,
           account,
           period.id ?? "",
           key,
           inputHash,
-          TEXT_QUOTE,
+          feature,
+          quote,
           String(period.pricebook),
           TRIAL_POLICY.version,
           this.config.now(),
@@ -388,7 +404,7 @@ export class ProLedger {
       });
       await tx.execute({
         sql: "INSERT INTO pro_reservations(operation_id,period_id,amount) VALUES (?,?,?)",
-        args: [id, period.id ?? "", TEXT_QUOTE],
+        args: [id, period.id ?? "", quote],
       });
       await this.entry(
         tx,
@@ -396,7 +412,7 @@ export class ProLedger {
         String(period.id),
         id,
         "reservation",
-        TEXT_QUOTE,
+        quote,
       );
       return Operation.parse(
         (
@@ -591,7 +607,8 @@ export class ProLedger {
         })
       ).rows;
       if (
-        attempts.length >= PRICEBOOK.maxAttempts ||
+        attempts.length >=
+          (op.feature === "autocomplete" ? 1 : PRICEBOOK.maxAttempts) ||
         attempts.some((a) => a.state !== "failed")
       )
         throw new ProError("Attempt limit or unresolved outcome");

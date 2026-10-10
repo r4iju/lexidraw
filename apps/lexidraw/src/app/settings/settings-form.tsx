@@ -57,11 +57,6 @@ const MODES: { mode: Mode; label: string; hint: string }[] = [
     label: "Agent",
     hint: "Edits your document when you ask it to.",
   },
-  {
-    mode: "autocomplete",
-    label: "Autocomplete",
-    hint: "Suggests the rest of your sentence as you type.",
-  },
 ];
 
 const TTS_PROVIDER_LABEL: Record<(typeof TTS_PROVIDERS)[number], string> = {
@@ -152,7 +147,7 @@ function initialValues({ user, autoSave, policies }: Props): FormValues {
     agent: model("agent"),
     autocomplete: {
       ...model("autocomplete"),
-      enabled: autocomplete.enabled !== false,
+      enabled: autocomplete.enabled === true,
       reasoningEffort: autocomplete.reasoningEffort ?? DEFAULT,
       verbosity: autocomplete.verbosity ?? DEFAULT,
     },
@@ -190,18 +185,7 @@ function toSettings(values: FormValues, policies: Policy[]): SettingsInput {
     autoSave: values.autoSave,
     chat: model("chat"),
     agent: model("agent"),
-    autocomplete: {
-      ...model("autocomplete"),
-      enabled: autocomplete.enabled,
-      reasoningEffort:
-        autocomplete.reasoningEffort === DEFAULT
-          ? null
-          : (autocomplete.reasoningEffort as "minimal" | "standard" | "heavy"),
-      verbosity:
-        autocomplete.verbosity === DEFAULT
-          ? null
-          : (autocomplete.verbosity as "low" | "medium" | "high"),
-    },
+    autocomplete: { enabled: autocomplete.enabled },
     tts: {
       provider:
         tts.provider === DEFAULT
@@ -620,6 +604,12 @@ export function SettingsForm(props: Props) {
           title="AI"
           purpose="Which models help you write. Leave them on Default to get improvements as they ship."
         >
+          <SwitchField
+            name="autocomplete.enabled"
+            label="Writing suggestions"
+            hint="Opt in to short suggestions using your account AI power source. Pro usage is metered in aggregate. Accept explicitly; writing stays yours."
+          />
+          <Link href="#settings-ai-power">Manage AI Power</Link>
           {MODES.map(({ mode, label, hint }) => (
             <ModelSettings
               key={mode}

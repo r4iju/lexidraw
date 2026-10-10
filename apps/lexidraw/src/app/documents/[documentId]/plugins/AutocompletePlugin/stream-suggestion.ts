@@ -1,37 +1,89 @@
+import type { PowerPreference } from "~/lib/byok/preference";
+import type { createByokSession } from "~/lib/byok/session";
 export type SuggestionRequest = {
   title: string;
   before: string;
   after: string;
   entityId?: string;
 };
-
-/**
- * Streams the model's raw reply, calling `onText` with all of it so far, and
- * resolves to the whole reply; to "" when autocomplete is off or failed.
- */
-export async function streamSuggestion(
-  request: SuggestionRequest,
-  signal: AbortSignal,
-  onText: (raw: string) => void,
-): Promise<string> {
-  const response = await fetch("/api/autocomplete/stream", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(request),
-    signal,
-  });
-  if (!response.ok || !response.body || response.status === 204) {
-    if (!response.ok) {
-      console.warn("[autocomplete]", response.status, await response.text());
+type ProResult = { id: string; state: string; result: string | null };
+export type ProSuggestions = {
+  start(input: {
+    idempotencyKey: string;
+    title: string;
+    before: string;
+    after: string;
+  }): Promise<ProResult>;
+  read(id: string): Promise<ProResult>;
+  cancel(id: string): Promise<unknown>;
+};
+function clipBytes(text: string, max: number, tail = false) {
+  const chars = Array.from(text);
+  while (new TextEncoder().encode(chars.join("")).length > max) {
+    if (tail) chars.shift();
+    else chars.pop();
+  }
+  return chars.join("");
+}
+export function createSuggestionSource(
+  preference: PowerPreference,
+  session: ReturnType<typeof createByokSession>,
+  pro: ProSuggestions,
+  changed: (state: string) => void = () => {},
+) {
+  return async (
+    input: SuggestionRequest,
+    signal: AbortSignal,
+  ): Promise<string> => {
+    if (signal.aborted) throw new Error("Suggestions stopped");
+    if (preference.mode === "local")
+      throw new Error(
+        "Local text is unavailable in this browser. Use a supported Apple device.",
+      );
+    const bounded = {
+      title: clipBytes(input.title, 100),
+      before: clipBytes(input.before, 900, true),
+      after: clipBytes(input.after, 150),
+    };
+    session.assertSafe(JSON.stringify(bounded));
+    if (preference.mode === "byok") {
+      const reference = session.reference();
+      if (!reference)
+        throw new Error("Set up your key on this device in AI Power.");
+      return session.autocomplete(reference, bounded.before, {
+        title: bounded.title,
+        after: bounded.after,
+        signal,
+      });
     }
-    return "";
-  }
-  const reader = response.body.pipeThrough(new TextDecoderStream()).getReader();
-  let raw = "";
-  for (;;) {
-    const { value, done } = await reader.read();
-    if (done) return raw;
-    raw += value;
-    onText(raw);
-  }
+    // Obtain the durable identity even if cancelled during submission, then release through the operation API.
+    let operation = await pro.start({
+      ...bounded,
+      idempotencyKey: crypto.randomUUID(),
+    });
+    try {
+      for (
+        let count = 0;
+        ["reserved", "running"].includes(operation.state) && count < 150;
+        count++
+      ) {
+        if (signal.aborted) throw new Error("Suggestions stopped");
+        await new Promise((resolve) => setTimeout(resolve, 200));
+        operation = await pro.read(operation.id);
+      }
+      changed(operation.state);
+      if (signal.aborted) throw new Error("Suggestions stopped");
+      if (operation.state === "settled") return operation.result ?? "";
+      throw new Error(
+        operation.state === "unknown"
+          ? "A suggestion is reconciling. Its credits remain reserved."
+          : "Suggestion unavailable. Check AI Power and allowance.",
+      );
+    } finally {
+      if (signal.aborted || ["reserved", "running"].includes(operation.state)) {
+        await pro.cancel(operation.id);
+        changed("cancelled");
+      }
+    }
+  };
 }

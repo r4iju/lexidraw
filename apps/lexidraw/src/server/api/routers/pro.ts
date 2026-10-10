@@ -1,7 +1,9 @@
 import { TRPCError } from "@trpc/server";
+import { eq } from "drizzle-orm";
+import * as schema from "@packages/drizzle/drizzle-schema";
 import { z } from "zod";
 import { createTRPCRouter, protectedProcedure } from "../trpc";
-import { TextInput, Usage } from "~/server/pro/contracts";
+import { TextInput, Usage, AutocompleteInput } from "~/server/pro/contracts";
 import { inputIdentity } from "~/server/pro/operation";
 import { ProError, type ProLedger } from "~/server/pro/ledger";
 const Identity = z.strictObject({
@@ -52,6 +54,53 @@ export function createProRouter(deps: {
         await deps.dispatch(operation.id, request.text, ctx.session.user.id);
       return ledger.operation(ctx.session.user.id, operation.id);
     }),
+    autocomplete: procedure
+      .input(AutocompleteInput)
+      .mutation(async ({ ctx, input }) => {
+        if (
+          /\b(?:sk-(?:or-v1-|ant-)?[A-Za-z0-9_-]{12,}|AIza[A-Za-z0-9_-]{20,})/.test(
+            JSON.stringify(input),
+          )
+        )
+          throw new ProError("Credential material is not accepted");
+        const [user] = await ctx.drizzle
+          .select({ config: schema.users.config })
+          .from(schema.users)
+          .where(eq(schema.users.id, ctx.session.user.id));
+        if (user?.config?.aiPower?.mode !== "pro")
+          throw new ProError("Select Pro in AI Power");
+        if (user?.config?.autocomplete?.enabled !== true)
+          throw new ProError("Opt in to writing suggestions first");
+        const text = JSON.stringify({
+          title: input.title,
+          before: input.before,
+          after: input.after,
+        });
+        const request = inputIdentity({
+          idempotencyKey: input.idempotencyKey,
+          text,
+        });
+        const ledger = deps.ledger();
+        const operation = await ledger.reserve(
+          ctx.session.user.id,
+          request.idempotencyKey,
+          request.hash,
+          "autocomplete",
+        );
+        if (operation.state === "reserved" || operation.state === "running") {
+          try {
+            await deps.dispatch(
+              operation.id,
+              request.text,
+              ctx.session.user.id,
+            );
+          } catch {
+            await ledger.cancel(ctx.session.user.id, operation.id);
+            throw new ProError("Suggestion could not start");
+          }
+        }
+        return ledger.operation(ctx.session.user.id, operation.id);
+      }),
     operation: procedure
       .input(z.strictObject({ id: z.string() }))
       .query(({ ctx, input }) =>

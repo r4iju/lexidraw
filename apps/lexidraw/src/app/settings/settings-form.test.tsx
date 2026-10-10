@@ -39,6 +39,23 @@ function props(overrides: Partial<Props> = {}): Props {
 }
 
 describe("Settings", () => {
+  test("writing suggestions start opted out and have no feature model picker", async () => {
+    const view = await render(<SettingsForm {...props()} />);
+    const label = [...document.querySelectorAll("label")].find(
+      (label) => label.textContent === "Writing suggestions",
+    );
+    expect(label).toBeDefined();
+    const control = document.getElementById(label?.htmlFor ?? "");
+    expect(control?.getAttribute("aria-checked")).toBe("false");
+    expect(
+      document.querySelector("[aria-label='Autocomplete model']"),
+    ).toBeNull();
+    expect(
+      document.querySelector("input[name='autocomplete.modelId']"),
+    ).toBeNull();
+    await view.unmount();
+  });
+
   test("the nav lists every section", async () => {
     const view = await render(<SettingsNav />);
     expect(
