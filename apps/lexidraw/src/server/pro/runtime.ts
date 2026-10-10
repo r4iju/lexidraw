@@ -3,6 +3,7 @@ import { createClient } from "@libsql/client";
 import env from "@packages/env";
 import { z } from "zod";
 import { ProLedger } from "./ledger";
+import { sandboxConfig } from "./billing-config";
 let instance: ProLedger | undefined;
 export function proLedger() {
   if (!instance) {
@@ -14,7 +15,11 @@ export function proLedger() {
     );
     instance = new ProLedger(
       createClient({ url: env.TURSO_URL, authToken: env.TURSO_TOKEN }),
-      { ownerAccountIds: owners, now: Date.now },
+      {
+        ownerAccountIds: owners,
+        now: Date.now,
+        sandboxBillingAvailable: sandboxConfig(process.env) !== null,
+      },
     );
   }
   return instance;

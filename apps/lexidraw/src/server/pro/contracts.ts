@@ -27,7 +27,7 @@ export const TEXT_QUOTE = 1_792_000;
 export const TRIAL_POLICY: { version: string; disclosure: string } = {
   version: "private-cancellation-v1",
   disclosure:
-    "Private trial: $12/month and 1,000 credits are test values, not a purchase. Text reserves at most 1.792 credits; an opt-in writing suggestion reserves at most 1.120 credits and usage is shown in aggregate. Final charges use measured input and output (including reasoning); internal retries are our cost. Technical failures return the reservation. Cancel stops new paid steps. Completed results are charged even after cancellation or disconnect; confirmed cancellation without completion is released. Uncertain provider outcomes remain reserved for owner reconciliation. Credits expire at renewal, with no rollover or top-ups. Public cancellation terms are undecided before launch.",
+    "Private trial: $12/month and 1,000 credits are test values, not a live purchase. Text reserves at most 1.792 credits; an opt-in writing suggestion reserves at most 1.120 credits and usage is shown in aggregate. Final charges use measured input and output (including reasoning); internal retries are our cost. Technical failures return the reservation. Cancel stops new paid steps. Completed results are charged even after cancellation or disconnect; confirmed cancellation without completion is released. Uncertain provider outcomes remain reserved for owner reconciliation. Credits expire at renewal, with no rollover or top-ups. Public cancellation terms are undecided before launch.",
 } as const;
 export const TextInput = z.strictObject({
   idempotencyKey: z.string().min(1).max(100),

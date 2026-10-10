@@ -1,4 +1,5 @@
 "use client";
+import { ProBillingSection } from "./pro-billing";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
@@ -121,6 +122,7 @@ export function ProTrialSection({
       ) : (
         <ProUsageDetails balance={status.data} />
       )}
+      <ProBillingSection status={status.data} />
       {status.data.eligible && (
         <p className="text-sm">
           {status.data.entitled

@@ -28,6 +28,10 @@ test("authenticated text requires separate private eligibility and entitlement; 
       "\n--> statement-breakpoint\n" +
       (await Bun.file(
         "../../packages/drizzle/drizzle/0016_pro_billing_events.sql",
+      ).text()) +
+      "\n--> statement-breakpoint\n" +
+      (await Bun.file(
+        "../../packages/drizzle/drizzle/0029_sandbox_billing.sql",
       ).text())
     ).replaceAll("--> statement-breakpoint", ""),
   );
@@ -132,6 +136,10 @@ async function operationFixture(
       "\n--> statement-breakpoint\n" +
       (await Bun.file(
         "../../packages/drizzle/drizzle/0016_pro_billing_events.sql",
+      ).text()) +
+      "\n--> statement-breakpoint\n" +
+      (await Bun.file(
+        "../../packages/drizzle/drizzle/0029_sandbox_billing.sql",
       ).text())
     ).replaceAll("--> statement-breakpoint", ""),
   );

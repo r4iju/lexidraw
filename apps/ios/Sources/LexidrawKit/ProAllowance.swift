@@ -11,6 +11,17 @@ public struct ProAllowance: Decodable, Sendable {
   public let previousPeriodReservedSubcredits: Int64?
   public let history: [Usage]
   public let policy: Policy
+  public let billing: Billing?
+  public struct Billing: Decodable, Sendable {
+    public let environment: String
+    public let available: Bool
+    public let monthlyUsd: Int
+    public let monthlyCredits: Int
+    public let state: String
+    public let cancelAtEnd: Bool
+    public let expiresAt: Int64?
+    public let customerBound: Bool
+  }
   public struct Usage: Decodable, Sendable, Identifiable {
     public let id: String
     public let feature: String

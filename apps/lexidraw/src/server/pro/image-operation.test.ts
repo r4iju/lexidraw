@@ -6,7 +6,11 @@ import { ProImageOperation } from "./image-operation";
 import { fixtureImage } from "~/test/image-fixture";
 async function fixture() {
   const client = createClient({ url: ":memory:" });
-  for (const migration of ["0015_private_pro", "0016_pro_billing_events"])
+  for (const migration of [
+    "0015_private_pro",
+    "0016_pro_billing_events",
+    "0029_sandbox_billing",
+  ])
     await client.executeMultiple(
       (
         await Bun.file(`../../packages/drizzle/drizzle/${migration}.sql`).text()

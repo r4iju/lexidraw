@@ -6,6 +6,7 @@ import { createTRPCRouter, protectedProcedure } from "../trpc";
 import { TextInput, Usage, AutocompleteInput } from "~/server/pro/contracts";
 import { inputIdentity } from "~/server/pro/operation";
 import { ProError, type ProLedger } from "~/server/pro/ledger";
+import type { SandboxBilling } from "~/server/pro/billing";
 const Identity = z.strictObject({
   accountId: z.string().min(1).max(100),
   reason: z.string().min(1).max(500),
@@ -26,6 +27,7 @@ const Outcome = z.discriminatedUnion("kind", [
 ]);
 export function createProRouter(deps: {
   ledger: () => ProLedger;
+  billing?: () => SandboxBilling;
   dispatch: (id: string, text: string, account: string) => Promise<unknown>;
 }) {
   const procedure = protectedProcedure.use(async ({ next }) => {
@@ -44,6 +46,16 @@ export function createProRouter(deps: {
     }
   });
   return createTRPCRouter({
+    sandboxCheckout: procedure.input(z.strictObject({})).mutation(({ ctx }) => {
+      if (!deps.billing) throw new ProError("Sandbox billing unavailable");
+      return deps.billing().checkout(ctx.session.user.id);
+    }),
+    sandboxManagement: procedure
+      .input(z.strictObject({}))
+      .mutation(({ ctx }) => {
+        if (!deps.billing) throw new ProError("Sandbox billing unavailable");
+        return deps.billing().portal(ctx.session.user.id);
+      }),
     status: procedure.query(({ ctx }) =>
       deps.ledger().status(ctx.session.user.id),
     ),

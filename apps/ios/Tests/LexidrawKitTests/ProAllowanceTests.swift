@@ -16,4 +16,16 @@ struct ProAllowanceTests {
     #expect(allowance.history.first?.charged == 1525)
     #expect(server.requests.first?.authorization == "Bearer lxd_kept")
   }
+  @Test func sandboxLifecycleUsesTheSameAccountContract() async throws {
+    let server = FakeServer { request in
+      #expect(request.url.path == "/api/trpc/pro.status")
+      return (200, #"{"result":{"data":{"json":{"eligible":true,"entitled":false,"availableSubcredits":0,"reservedSubcredits":0,"renewalAt":null,"history":[],"policy":{"version":"trial","disclosure":"Local and saved playback remain available."},"billing":{"environment":"sandbox","available":true,"monthlyUsd":12,"monthlyCredits":1000,"state":"expired","cancelAtEnd":true,"expiresAt":1793592000000,"customerBound":true}}}}}"#)
+    }
+    let allowance = try await TestServer.session(server).proAllowance()
+    #expect(allowance.billing?.environment == "sandbox")
+    #expect(allowance.billing?.state == "expired")
+    #expect(allowance.billing?.monthlyCredits == 1000)
+    #expect(allowance.billing?.cancelAtEnd == true)
+  }
+
 }

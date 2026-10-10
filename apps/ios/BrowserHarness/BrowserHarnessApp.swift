@@ -357,9 +357,10 @@ actor HarnessServer: ClientTransport {
         ]
         break
       }
-      if scenario == "pro-shared-local" {
+      if scenario == "pro-shared-local" || scenario == "sandbox-shared-289" {
         // Opt-in loopback fixture shares the actual isolated SQLite allowance with the browser. No provider endpoint is involved.
-        var request = URLRequest(url: URL(string: "http://127.0.0.1:3080/api/trpc/pro.status")!)
+        let port = scenario == "sandbox-shared-289" ? 3089 : 3080
+        var request = URLRequest(url: URL(string: "http://127.0.0.1:\(port)/api/trpc/pro.status")!)
         request.setValue("fixture-account=alice", forHTTPHeaderField: "Cookie")
         let (data, response) = try await URLSession.shared.data(for: request)
         guard let response = response as? HTTPURLResponse else {

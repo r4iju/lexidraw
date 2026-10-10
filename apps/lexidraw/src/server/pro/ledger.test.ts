@@ -24,9 +24,13 @@ async function fixture() {
       "../../packages/drizzle/drizzle/0015_private_pro.sql",
     ).text()) +
     "\n--> statement-breakpoint\n" +
-    (await Bun.file(
+    ((await Bun.file(
       "../../packages/drizzle/drizzle/0016_pro_billing_events.sql",
-    ).text());
+    ).text()) +
+      "\n--> statement-breakpoint\n" +
+      (await Bun.file(
+        "../../packages/drizzle/drizzle/0029_sandbox_billing.sql",
+      ).text()));
   for (const statement of sql.split("--> statement-breakpoint"))
     if (statement.trim()) await client.execute(statement);
   let now = 1000;

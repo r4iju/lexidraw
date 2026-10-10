@@ -32,6 +32,7 @@ async function fixture(transport?: import("./narration").NarrationTransport) {
   for (const name of [
     "0015_private_pro",
     "0016_pro_billing_events",
+    "0029_sandbox_billing",
     "0025_pro_narration",
   ])
     await client.executeMultiple(

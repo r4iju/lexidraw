@@ -14,6 +14,7 @@ test("synthetic complete image bound belongs to parent quote; one action include
   for (const name of [
     "0015_private_pro",
     "0016_pro_billing_events",
+    "0029_sandbox_billing",
     "0025_pro_narration",
     "0027_pro_agent",
   ])

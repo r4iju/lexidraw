@@ -16,6 +16,7 @@ async function fixture(
   for (const migration of [
     "0015_private_pro.sql",
     "0016_pro_billing_events.sql",
+    "0029_sandbox_billing.sql",
   ])
     await client.executeMultiple(
       (

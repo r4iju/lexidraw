@@ -40,7 +40,11 @@ export class ProError extends Error {}
 export class ProLedger {
   constructor(
     readonly client: Client,
-    readonly config: { ownerAccountIds: readonly string[]; now: () => number },
+    readonly config: {
+      ownerAccountIds: readonly string[];
+      now: () => number;
+      sandboxBillingAvailable?: boolean;
+    },
   ) {}
   owner(actor: string) {
     if (!this.config.ownerAccountIds.includes(actor))
@@ -185,8 +189,9 @@ export class ProLedger {
       source: string;
     },
     duplicatePeriod = false,
+    transaction?: Transaction,
   ) {
-    return this.write(async (tx) => {
+    const body = async (tx: Transaction) => {
       const eligible = await tx.execute({
         sql: "SELECT active FROM pro_eligibility WHERE account_id=?",
         args: [input.accountId],
@@ -209,23 +214,6 @@ export class ProLedger {
           throw new ProError("Billing event conflicts with prior grant");
         return String(prior.period_id);
       }
-      const overlap = await tx.execute({
-        sql: "SELECT * FROM pro_periods WHERE account_id=? AND starts_at<? AND ends_at>?",
-        args: [input.accountId, input.endsAt, input.startsAt],
-      });
-      if (overlap.rows[0]) {
-        const period = overlap.rows[0];
-        if (
-          !duplicatePeriod ||
-          period.starts_at !== input.startsAt ||
-          period.ends_at !== input.endsAt ||
-          period.environment !== input.environment ||
-          period.granted !== input.subcredits
-        )
-          throw new ProError("One allowance per period; no top-ups");
-        await this.billingEvent(tx, input, String(period.id));
-        return String(period.id);
-      }
       if (
         !Number.isSafeInteger(input.subcredits) ||
         input.subcredits < 1 ||
@@ -236,6 +224,17 @@ export class ProLedger {
         input.endsAt - input.startsAt > 32 * 86400000
       )
         throw new ProError("Invalid bounded period");
+      const overlap = await tx.execute({
+        sql: "SELECT * FROM pro_periods WHERE account_id=? AND starts_at<? AND ends_at>?",
+        args: [input.accountId, input.endsAt, input.startsAt],
+      });
+      if (overlap.rows[0]) {
+        const period = overlap.rows[0];
+        if (!duplicatePeriod)
+          throw new ProError("One allowance per period; no top-ups");
+        await this.billingEvent(tx, input, String(period.id));
+        return String(period.id);
+      }
       const id = crypto.randomUUID();
       await tx.execute({
         sql: "INSERT INTO pro_periods(id,account_id,event_id,starts_at,ends_at,environment,pricebook,granted,available) VALUES (?,?,?,?,?,?,?,?,?)",
@@ -264,7 +263,8 @@ export class ProLedger {
         input.reason,
       );
       return id;
-    });
+    };
+    return transaction ? body(transaction) : this.write(body);
   }
   private async billingEvent(
     tx: Transaction,
@@ -294,39 +294,234 @@ export class ProLedger {
       ],
     });
   }
+  async billingCustomer(account: string) {
+    const rows = await this.query(
+      "SELECT customer_id FROM pro_billing_bindings WHERE account_id=?",
+      [account],
+    );
+    return rows[0] ? String(rows[0].customer_id) : null;
+  }
+  async bindBillingCustomer(account: string, customer: string) {
+    return this.write(async (tx) => {
+      const existing = (
+        await tx.execute({
+          sql: "SELECT * FROM pro_billing_bindings WHERE account_id=? OR customer_id=?",
+          args: [account, customer],
+        })
+      ).rows[0];
+      if (
+        existing &&
+        (existing.account_id !== account || existing.customer_id !== customer)
+      )
+        throw new ProError("Billing account binding conflict");
+      await tx.execute({
+        sql: "INSERT OR IGNORE INTO pro_billing_bindings VALUES (?,?,'sandbox')",
+        args: [account, customer],
+      });
+    });
+  }
+  async reconcileSandbox(eventId: string, verify: () => Promise<unknown>) {
+    return this.write(async (tx) => {
+      if (
+        (
+          await tx.execute({
+            sql: "SELECT event_id FROM pro_lifecycle_events WHERE event_id=?",
+            args: [eventId],
+          })
+        ).rows.length
+      )
+        return;
+      // Revalidation inside the account write fence prevents concurrent old snapshots from winning after revocation.
+      const event = z
+        .strictObject({
+          accountId: z.string().min(1).max(100),
+          customerId: z.string().min(1).max(200),
+          subscriptionId: z.string().min(1).max(200),
+          source: z.enum(["stripe", "apple"]),
+          environment: z.literal("sandbox"),
+          startsAt: z.number().int().nonnegative(),
+          endsAt: z.number().int().positive(),
+          state: z.enum([
+            "active",
+            "payment_failed",
+            "cancelled",
+            "expired",
+            "revoked",
+          ]),
+          cancelAtEnd: z.boolean(),
+        })
+        .parse(await verify());
+      const binding = (
+        await tx.execute({
+          sql: "SELECT * FROM pro_billing_bindings WHERE account_id=?",
+          args: [event.accountId],
+        })
+      ).rows[0];
+      if (
+        event.source === "stripe" &&
+        binding?.customer_id !== event.customerId
+      )
+        throw new ProError("Billing account binding conflict");
+      const prior = (
+        await tx.execute({
+          sql: "SELECT * FROM pro_subscriptions WHERE source=? AND subscription_id=?",
+          args: [event.source, event.subscriptionId],
+        })
+      ).rows[0];
+      if (
+        prior &&
+        (prior.account_id !== event.accountId ||
+          prior.customer_id !== event.customerId)
+      )
+        throw new ProError("Billing account binding conflict");
+      const terminal =
+        prior?.revoked === 1 ||
+        ["revoked", "cancelled", "expired"].includes(event.state);
+      const persistedState =
+        prior?.revoked === 1 && event.state !== "revoked"
+          ? String(prior.state)
+          : event.state;
+      const stale = prior && Number(prior.starts_at) > event.startsAt;
+      if (!stale) {
+        await tx.execute({
+          sql: "INSERT INTO pro_subscriptions VALUES (?,?,?,?,?,?,?,?,?) ON CONFLICT(source,subscription_id) DO UPDATE SET state=excluded.state,starts_at=excluded.starts_at,ends_at=excluded.ends_at,cancel_at_end=excluded.cancel_at_end,revoked=excluded.revoked",
+          args: [
+            event.source,
+            event.subscriptionId,
+            event.accountId,
+            event.customerId,
+            persistedState,
+            event.startsAt,
+            event.endsAt,
+            event.cancelAtEnd ? 1 : 0,
+            terminal ? 1 : 0,
+          ],
+        });
+        if (terminal) {
+          await tx.execute({
+            sql: "INSERT INTO pro_period_blocks SELECT DISTINCT p.id,? FROM pro_periods p JOIN pro_billing_events b ON p.id=b.period_id WHERE b.source=? AND b.account_id=? ON CONFLICT(period_id) DO UPDATE SET reason=CASE WHEN pro_period_blocks.reason='payment_failed' THEN excluded.reason ELSE pro_period_blocks.reason END",
+            args: [persistedState, event.source, event.accountId],
+          });
+        } else if (event.state === "payment_failed") {
+          await tx.execute({
+            sql: "INSERT OR IGNORE INTO pro_period_blocks SELECT p.id,'payment_failed' FROM pro_periods p JOIN pro_billing_events b ON p.id=b.period_id WHERE b.source=? AND b.account_id=? AND p.starts_at=?",
+            args: [event.source, event.accountId, event.startsAt],
+          });
+        } else if (
+          event.state === "active" &&
+          event.endsAt > this.config.now() &&
+          event.startsAt <= this.config.now()
+        ) {
+          await tx.execute({
+            sql: "DELETE FROM pro_period_blocks WHERE reason='payment_failed' AND period_id IN (SELECT period_id FROM pro_billing_events WHERE source=? AND account_id=? AND starts_at=?)",
+            args: [event.source, event.accountId, event.startsAt],
+          });
+          await this.createPeriod(
+            `billing:${event.source}`,
+            {
+              accountId: event.accountId,
+              eventId: `${event.source}:period:${event.subscriptionId}:${event.startsAt}`,
+              startsAt: event.startsAt,
+              endsAt: event.endsAt,
+              environment: "sandbox",
+              source: event.source,
+              subcredits: 1_000_000_000,
+              reason: "Verified current sandbox paid subscription",
+            },
+            true,
+            tx,
+          );
+        }
+      }
+      await tx.execute({
+        sql: "INSERT INTO pro_lifecycle_events VALUES (?,?,?,?)",
+        args: [
+          eventId,
+          event.accountId,
+          event.subscriptionId,
+          this.config.now(),
+        ],
+      });
+    });
+  }
+  async sandboxSubscription(account: string) {
+    const rows = await this.query(
+      "SELECT * FROM pro_subscriptions WHERE account_id=? ORDER BY starts_at DESC LIMIT 1",
+      [account],
+    );
+    const row = rows[0];
+    return row
+      ? {
+          state: String(row.state),
+          startsAt: Number(row.starts_at),
+          expiresAt: Number(row.ends_at),
+          cancelAtEnd: row.cancel_at_end === 1,
+        }
+      : null;
+  }
   async status(account: string) {
-    const [eligible, periods, history, costs, oldReservations] =
-      await Promise.all([
-        this.query("SELECT active FROM pro_eligibility WHERE account_id=?", [
-          account,
-        ]),
-        this.query(
-          "SELECT * FROM pro_periods WHERE account_id=? AND starts_at<=? AND ends_at>? ORDER BY starts_at DESC LIMIT 1",
-          [account, this.config.now(), this.config.now()],
-        ),
-        this.query(
-          "SELECT id,feature,state,quote,charged,created_at FROM pro_operations WHERE account_id=? ORDER BY CASE WHEN state IN ('reserved','running','unknown') THEN 0 ELSE 1 END,created_at DESC,id LIMIT 50",
-          [account],
-        ),
-        this.query(
-          "SELECT SUM(a.cost_nano_usd) AS known, SUM(CASE WHEN o.state IN ('refunded','cancelled') THEN a.cost_nano_usd ELSE 0 END) AS absorbed, SUM(CASE WHEN a.cost_nano_usd IS NULL THEN a.exposure_nano_usd ELSE 0 END) AS unknown FROM pro_attempts a JOIN pro_operations o ON o.id=a.operation_id WHERE o.account_id=?",
-          [account],
-        ),
-        this.query(
-          "SELECT SUM(reserved) AS reserved FROM pro_periods WHERE account_id=? AND ends_at<=?",
-          [account, this.config.now()],
-        ),
-      ]);
+    const [
+      eligible,
+      periods,
+      history,
+      costs,
+      oldReservations,
+      subscription,
+      customer,
+    ] = await Promise.all([
+      this.query("SELECT active FROM pro_eligibility WHERE account_id=?", [
+        account,
+      ]),
+      this.query(
+        "SELECT *, EXISTS (SELECT 1 FROM pro_period_blocks WHERE period_id=pro_periods.id) AS blocked FROM pro_periods WHERE account_id=? AND starts_at<=? AND ends_at>? ORDER BY starts_at DESC LIMIT 1",
+        [account, this.config.now(), this.config.now()],
+      ),
+      this.query(
+        "SELECT id,feature,state,quote,charged,created_at FROM pro_operations WHERE account_id=? ORDER BY CASE WHEN state IN ('reserved','running','unknown') THEN 0 ELSE 1 END,created_at DESC,id LIMIT 50",
+        [account],
+      ),
+      this.query(
+        "SELECT SUM(a.cost_nano_usd) AS known, SUM(CASE WHEN o.state IN ('refunded','cancelled') THEN a.cost_nano_usd ELSE 0 END) AS absorbed, SUM(CASE WHEN a.cost_nano_usd IS NULL THEN a.exposure_nano_usd ELSE 0 END) AS unknown FROM pro_attempts a JOIN pro_operations o ON o.id=a.operation_id WHERE o.account_id=?",
+        [account],
+      ),
+      this.query(
+        "SELECT SUM(reserved) AS reserved FROM pro_periods WHERE account_id=? AND ends_at<=?",
+        [account, this.config.now()],
+      ),
+      this.sandboxSubscription(account),
+      this.billingCustomer(account),
+    ]);
     const period = periods[0];
     return {
       owner: this.config.ownerAccountIds.includes(account),
       publicState: "coming_soon" as const,
       liveCheckout: false as const,
-      paymentEnvironment: "disabled" as const,
+      paymentEnvironment: this.config.sandboxBillingAvailable
+        ? ("sandbox" as const)
+        : ("disabled" as const),
+      billing: {
+        environment: "sandbox" as const,
+        available:
+          this.config.sandboxBillingAvailable === true &&
+          eligible[0]?.active === 1,
+        monthlyUsd: 12,
+        monthlyCredits: 1000,
+        state: subscription
+          ? subscription.expiresAt <= this.config.now() &&
+            subscription.state !== "revoked"
+            ? "expired"
+            : subscription.state
+          : "none",
+        cancelAtEnd: subscription?.cancelAtEnd ?? false,
+        expiresAt: subscription?.expiresAt ?? null,
+        customerBound: !!customer,
+      },
       eligible: eligible[0]?.active === 1,
-      entitled: eligible[0]?.active === 1 && !!period,
-      entitlementPeriodId: period ? String(period.id) : null,
-      availableSubcredits: Number(period?.available ?? 0),
+      entitled: eligible[0]?.active === 1 && !!period && period.blocked !== 1,
+      entitlementPeriodId:
+        period && period.blocked !== 1 ? String(period.id) : null,
+      availableSubcredits:
+        period?.blocked === 1 ? 0 : Number(period?.available ?? 0),
       reservedSubcredits: Number(period?.reserved ?? 0),
       previousPeriodReservedSubcredits: Number(
         oldReservations[0]?.reserved ?? 0,
@@ -400,7 +595,7 @@ export class ProLedger {
       }
       const period = (
         await tx.execute({
-          sql: "SELECT * FROM pro_periods WHERE account_id=? AND starts_at<=? AND ends_at>?",
+          sql: "SELECT * FROM pro_periods WHERE account_id=? AND starts_at<=? AND ends_at>? AND NOT EXISTS (SELECT 1 FROM pro_period_blocks WHERE period_id=pro_periods.id)",
           args: [account, this.config.now(), this.config.now()],
         })
       ).rows[0];
@@ -1222,7 +1417,15 @@ export class ProLedger {
           args: [op.account_id],
         })
       ).rows[0];
+      const blocked =
+        (
+          await tx.execute({
+            sql: "SELECT period_id FROM pro_period_blocks WHERE period_id=?",
+            args: [op.period_id],
+          })
+        ).rows.length > 0;
       if (
+        blocked ||
         op.state !== "running" ||
         op.cancel_requested ||
         access?.active !== 1 ||

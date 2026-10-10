@@ -56,6 +56,20 @@ struct AIPowerView: View {
       }
       if case .ready(let preference, let runtime, let allowance) = setup {
         if preference == .local { LocalTextSection() }
+        if let billing = allowance.billing {
+          Section("Sandbox/test payment") {
+            if allowance.eligible {
+              Text("$\(billing.monthlyUsd)/month · \(billing.monthlyCredits) credits per period")
+              Text("Test payment only, no customer charge. Manage your sandbox subscription in web settings.")
+              Text("Status: \(billing.state.replacingOccurrences(of: "_", with: " "))")
+              if !billing.available { Text("Sandbox billing unavailable. External test setup is missing or unsupported.") }
+              if let expiry = billing.expiresAt {
+                LabeledContent(billing.cancelAtEnd && billing.state == "active" ? "Ends at period expiry" : "Period expiry", value: Date(timeIntervalSince1970: Double(expiry) / 1000).formatted(date: .abbreviated, time: .omitted))
+              }
+              Text("Billing does not enable unavailable Pro capabilities. No rollover, top-ups, annual plan or overage. Saved playback, local AI and your own key remain usable after expiry.").font(.footnote)
+            } else { Text("Pro Coming soon. Public purchases are unavailable.") }
+          }
+        }
         Section("Pro allowance, shared with web") {
           Text(allowance.entitled ? "Private trial active" : "No active private allowance")
           Text("Private-trial text generation is available in web settings. This screen shares the same account allowance and history.").font(.footnote)
