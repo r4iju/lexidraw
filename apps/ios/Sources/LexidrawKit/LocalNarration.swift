@@ -35,6 +35,7 @@ public struct LocalNarration: Sendable, Equatable {
 public enum NarrationSource: Sendable {
   case local(LocalNarration)
   case saved(Recording)
+  case device(ProNarrationJob)
 }
 
 extension Session {
@@ -52,6 +53,9 @@ extension Session {
         state: JSONValue(parsing: entity.elements),
         appState: try entity.appState.map { try JSONValue(parsing: $0) })
       return .local(try LocalNarration(text: settings.text, language: settings.language))
+    }
+    if let saved = try await savedDeviceNarration(document: file) {
+      return .device(saved.recording.job(id: saved.id))
     }
     return .saved(
       try await recording(

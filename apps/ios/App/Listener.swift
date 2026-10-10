@@ -105,6 +105,12 @@ final class Listener {
           positionKey = narration.resumeID(file: file.id)
           recording = try await speech.recording(narration)
           voiceDescription = speech.voiceDescription
+        case .device(let job):
+          let files = ProNarrationFiles()
+          recording = try files.recording(job)
+          proFiles = files
+          positionKey = "device.\(job.id ?? file.id)"
+          voiceDescription = "Saved device recording. Replay is free without a key."
         case .saved(let saved):
           recording = saved
           positionKey = file.id
@@ -125,6 +131,8 @@ final class Listener {
     }
   }
 
+  var narrationSession: Session { session }
+
   func proNarrationFlow(for document: String) -> NativeNarrationFlow {
     NativeNarrationFlow(session: session, document: document)
   }
@@ -136,9 +144,10 @@ final class Listener {
       let recording = try files.recording(job)
       proFiles = files
       positionKey = "pro.\(job.id ?? file.id)"
-      voiceDescription = "Saved Pro narration. Replay is free."
+      voiceDescription = job.policy
       state = .loaded(file, recording)
-      queue(from: recording.resuming(resumePoints.position(of: positionKey ?? file.id)), playing: true)
+      queue(
+        from: recording.resuming(resumePoints.position(of: positionKey ?? file.id)), playing: true)
     } catch {
       files.clear()
       state = .failed(file, "Saved narration could not be opened. Reload it without regenerating.")

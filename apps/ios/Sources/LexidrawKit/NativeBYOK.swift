@@ -37,12 +37,22 @@ private final class NoProviderRedirects: NSObject, URLSessionTaskDelegate, Senda
   private let configuration: URLSessionConfiguration
   private var generation = UUID()
   private var sessions: [UUID: URLSession] = [:]
+  private let narrationFixture: Bool
+  public var sessionActive: Bool { !ended }
+  public func isCurrent(_ reference: NativeCredentialReference) -> Bool {
+    !ended && hasKey && reference.generation == generation
+  }
   private let imageFixture: Bool
+  private var endActions: [() throws -> Void] = []
+  public func onSessionEnd(_ action: @escaping () throws -> Void) { endActions.append(action) }
   private var ended = false
   public private(set) var hasKey = false
 
-  public init(store: any TokenStore, configuration: URLSessionConfiguration = .ephemeral,
-    files: NativeTextFileStore? = nil, imageFixture: Bool = false) {
+  public init(
+    store: any TokenStore, configuration: URLSessionConfiguration = .ephemeral,
+    files: NativeTextFileStore? = nil, imageFixture: Bool = false, narrationFixture: Bool = false
+  ) {
+    self.narrationFixture = narrationFixture
     self.imageFixture = imageFixture
     self.files = files
     self.store = store
@@ -75,6 +85,8 @@ private final class NoProviderRedirects: NSObject, URLSessionTaskDelegate, Senda
     ended = true
     try removeKey()
     try files?.clear()
+    for action in endActions { try action() }
+    endActions.removeAll()
   }
 
   public func savedSuggestion() throws -> String? {
@@ -157,14 +169,40 @@ private final class NoProviderRedirects: NSObject, URLSessionTaskDelegate, Senda
     try NativeCredentialGuard.shared.check(Data(prompt.utf8))
     guard let context = JSContext() else { throw NativeImageError.unavailable }
     context.evaluateScript(nativeGenerationScript)
-    guard let prepared = context.objectForKeyedSubscript("nativeImageRequest")?.call(withArguments: [prompt])?.toString(), context.exception == nil else { throw NativeImageError.invalid }
-    let data = try await request(path: "/api/v1/images", body: Data(prepared.utf8), reference: credentialReference())
+    guard
+      let prepared = context.objectForKeyedSubscript("nativeImageRequest")?.call(withArguments: [
+        prompt
+      ])?.toString(), context.exception == nil
+    else { throw NativeImageError.invalid }
+    let data = try await request(
+      path: "/api/v1/images", body: Data(prepared.utf8), reference: credentialReference())
     struct Envelope: Decodable {
-      struct Image: Decodable { let b64_json: String; let media_type: String }
+      struct Image: Decodable {
+        let b64_json: String
+        let media_type: String
+      }
       let data: [Image]
     }
-    guard let result = try? JSONDecoder().decode(Envelope.self, from: data), result.data.count == 1, result.data[0].media_type == "image/png" else { throw NativeImageError.invalid }
+    guard let result = try? JSONDecoder().decode(Envelope.self, from: data), result.data.count == 1,
+      result.data[0].media_type == "image/png"
+    else { throw NativeImageError.invalid }
     return try NativeImageArtifact(base64: result.data[0].b64_json)
+  }
+
+  public func narrate(text: String, reference: NativeCredentialReference) async throws
+    -> DeviceAudio
+  {
+    guard narrationFixture else { throw NativeAIError.unavailable }
+    try NativeCredentialGuard.shared.check(Data(text.utf8))
+    let context = try narrationContext()
+    guard
+      let body = context.objectForKeyedSubscript("nativeNarrationRequest")?.call(withArguments: [
+        text
+      ])?.toString(), context.exception == nil
+    else { throw NativeAIError.rejected }
+    let data = try await request(
+      path: "/api/v1/audio/speech", body: Data(body.utf8), reference: reference)
+    return try DeviceAudio.pcm(data)
   }
 
   private func request(path: String, body: Data?, reference: NativeCredentialReference) async throws
@@ -172,17 +210,22 @@ private final class NoProviderRedirects: NSObject, URLSessionTaskDelegate, Senda
   {
     guard !ended, reference.generation == generation else { throw NativeAIError.expired }
     guard let key = try store.load(), hasKey else { throw NativeAIError.missingKey }
-    guard (["/api/v1/key", "/api/v1/chat/completions"].contains(path) || (imageFixture && path == "/api/v1/images")),
+    guard
+      ["/api/v1/key", "/api/v1/chat/completions"].contains(path)
+        || (imageFixture && path == "/api/v1/images")
+        || (narrationFixture && path == "/api/v1/audio/speech"),
       let url = URL(string: "https://openrouter.ai" + path)
     else { throw NativeAIError.unavailable }
     if let body { try NativeCredentialGuard.shared.check(body) }
     var request = URLRequest(url: url)
     request.httpMethod = body == nil ? "GET" : "POST"
     request.httpBody = body
-    request.timeoutInterval = 30
+    request.timeoutInterval = path == "/api/v1/audio/speech" ? 180 : 30
     request.setValue("application/json", forHTTPHeaderField: "Content-Type")
     request.setValue("Bearer " + key, forHTTPHeaderField: "Authorization")
-    guard let config = configuration.copy() as? URLSessionConfiguration else { throw NativeAIError.unavailable }
+    guard let config = configuration.copy() as? URLSessionConfiguration else {
+      throw NativeAIError.unavailable
+    }
     config.httpCookieStorage = nil
     config.httpShouldSetCookies = false
     config.urlCredentialStorage = nil
@@ -197,14 +240,37 @@ private final class NoProviderRedirects: NSObject, URLSessionTaskDelegate, Senda
       session.finishTasksAndInvalidate()
     }
     do {
-      let (data, response) = try await session.data(for: request)
+      guard !ended, hasKey, reference.generation == generation else { throw NativeAIError.expired }
+      let data: Data
+      let response: URLResponse
+      if path == "/api/v1/audio/speech" {
+        let (bytes, received) = try await session.bytes(for: request)
+        guard let http = received as? HTTPURLResponse, http.url == url,
+          (200..<300).contains(http.statusCode),
+          http.value(forHTTPHeaderField: "Content-Type")?.components(separatedBy: ";").first
+            == "audio/pcm", http.value(forHTTPHeaderField: "Content-Encoding") == nil
+        else { throw NativeAIError.unavailable }
+        var collected = Data()
+        for try await byte in bytes {
+          if collected.count >= 5_760_000 { throw NativeAIError.rejected }
+          collected.append(byte)
+        }
+        data = collected
+        response = received
+      } else {
+        (data, response) = try await session.data(for: request)
+      }
       try Task.checkCancellation()
       guard reference.generation == generation, !ended else { throw NativeAIError.expired }
       guard let http = response as? HTTPURLResponse else { throw NativeAIError.unavailable }
       guard http.url == url, (200..<300).contains(http.statusCode) else {
         throw NativeAIError.provider(http.statusCode)
       }
-      guard data.count <= (path == "/api/v1/images" ? 3 << 20 : 1 << 20) else { throw NativeAIError.unavailable }
+      guard
+        data.count
+          <= (path == "/api/v1/audio/speech"
+            ? 5_760_000 : path == "/api/v1/images" ? 3 << 20 : 1 << 20)
+      else { throw NativeAIError.unavailable }
       try NativeCredentialGuard.shared.check(data)
       return data
     } catch let error as NativeAIError { throw error } catch is CancellationError {

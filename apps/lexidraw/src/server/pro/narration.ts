@@ -1,3 +1,4 @@
+import { narrationTexts } from "~/lib/narration/portable";
 import { audioSeconds } from "./narration-audio";
 import { createHash } from "node:crypto";
 import {
@@ -29,9 +30,8 @@ export function narrationIdentity(text: string) {
   if (!text.trim() || Buffer.byteLength(text) > NARRATION_BOOK.maxDocumentBytes)
     throw new ProError("Document exceeds narration bounds");
   const chunks: NarrationPlan = [];
-  const chars = Array.from(text);
-  for (let i = 0; i < chars.length; i += 500) {
-    const text = chars.slice(i, i + 500).join("");
+  const texts = narrationTexts(text);
+  for (const text of texts) {
     chunks.push({
       text,
       hash: hash(

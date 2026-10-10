@@ -69,9 +69,11 @@ export function installBrowserBoundary(browser: Browser, session: Session) {
     password?: string | null,
   ) {
     metadata.set(this, [url, username, password]);
-    check(url);
-    check(username);
-    check(password);
+    if (session.protected()) {
+      check(url);
+      check(username);
+      check(password);
+    }
     open.call(this, method, url, async, username, password);
   };
   xhr.setRequestHeader = function (name, value) {

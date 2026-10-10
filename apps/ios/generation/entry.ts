@@ -1,4 +1,10 @@
 import {
+  narrationTexts,
+  speechRequest,
+  audioFromPCM,
+  validateWav,
+} from "../../lexidraw/src/lib/narration/portable";
+import {
   imageRequest,
   validatePng,
 } from "../../lexidraw/src/lib/images/format";
@@ -46,5 +52,25 @@ Object.assign(globalThis, {
   },
   nativeAutocompleteResult(before: string, output: string) {
     return finishFragment(fragmentAt(before), output);
+  },
+});
+
+Object.assign(globalThis, {
+  nativeNarrationPlan(text: string) {
+    return JSON.stringify(narrationTexts(text));
+  },
+  nativeNarrationRequest(text: string) {
+    return JSON.stringify(speechRequest(text));
+  },
+  nativeNarrationPCM(base64: string) {
+    const binary = atob(base64),
+      bytes = Uint8Array.from(binary, (x) => x.charCodeAt(0));
+    return JSON.stringify(audioFromPCM(bytes, () => {}));
+  },
+  nativeNarrationResult(base64: string) {
+    return JSON.stringify({
+      audio: base64,
+      seconds: validateWav(base64).seconds,
+    });
   },
 });

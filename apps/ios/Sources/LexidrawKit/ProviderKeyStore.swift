@@ -59,9 +59,14 @@ public struct KeychainProviderStore: TokenStore {
 final class NativeAIHandle: Sendable {
   let defaultStore: (any TokenStore)?
   let files: NativeTextFileStore?
-  init(defaultStore: (any TokenStore)? = nil, files: NativeTextFileStore? = nil) {
+  let narrationDirectory: URL?
+  init(
+    defaultStore: (any TokenStore)? = nil, files: NativeTextFileStore? = nil,
+    narrationDirectory: URL? = nil
+  ) {
     self.defaultStore = defaultStore
     self.files = files
+    self.narrationDirectory = narrationDirectory
   }
   @MainActor private var runtime: NativeBYOK?
   @MainActor private var ended = false
@@ -80,8 +85,15 @@ final class NativeAIHandle: Sendable {
   }
   @MainActor func endSession() throws {
     ended = true
-    if let runtime { try runtime.endSession() }
-    else { try defaultStore?.delete(); try files?.clear() }
+    if let runtime {
+      try runtime.endSession()
+    } else {
+      try defaultStore?.delete()
+      try files?.clear()
+    }
+    if let narrationDirectory, FileManager.default.fileExists(atPath: narrationDirectory.path) {
+      try FileManager.default.removeItem(at: narrationDirectory)
+    }
   }
 }
 

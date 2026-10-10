@@ -1,3 +1,4 @@
+import { clearNarrationAccount } from "../narration/device-store";
 import { installBrowserBoundary } from "./browser-boundary";
 import { createByokSession } from "./session";
 
@@ -11,11 +12,17 @@ export function browserByok(accountId?: string) {
   }
   if (accountId !== undefined && account !== accountId) {
     session.remove();
+    if (account) void clearNarrationAccount(account).catch(() => {});
     account = accountId;
   }
   return session;
 }
 export function clearBrowserByok() {
   session?.remove();
+  if (account) void clearNarrationAccount(account).catch(() => {});
   account = undefined;
+}
+
+export function browserByokAccount() {
+  return account;
 }

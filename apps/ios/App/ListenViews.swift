@@ -11,12 +11,19 @@ struct ListenButton: View {
   let file: any FileItem
   @Environment(Listener.self) private var listener
   @State private var proNarration = false
+  @State private var deviceNarration = false
 
   var body: some View {
     if file.kind.isListenable {
       Button("Listen", systemImage: "headphones") {
         listener.listen(to: .init(id: file.id, title: file.title))
       }
+      Button("My OpenRouter narration", systemImage: "waveform") { deviceNarration = true }
+        .sheet(isPresented: $deviceNarration) {
+          DeviceNarrationComposer(session: listener.narrationSession, document: file.id) { job in
+            listener.playProNarration(job, to: .init(id: file.id, title: file.title))
+          }
+        }
       Button("Pro narration", systemImage: "waveform") { proNarration = true }
         .sheet(isPresented: $proNarration) {
           ProNarrationComposer(flow: listener.proNarrationFlow(for: file.id)) { job in

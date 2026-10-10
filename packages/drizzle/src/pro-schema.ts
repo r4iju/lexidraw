@@ -200,3 +200,37 @@ export const proNarrationJobs = sqliteTable("pro_narration_jobs", {
   documentId: text("document_id").notNull(),
   plan: text("plan").notNull(),
 });
+
+export const generatedRecordings = sqliteTable(
+  "generated_recordings",
+  {
+    id: text("id").primaryKey().notNull(),
+    accountId: text("account_id").notNull(),
+    documentId: text("document_id").notNull(),
+    idempotencyKey: text("idempotency_key").notNull(),
+    contentHash: text("content_hash").notNull(),
+    size: integer("size").notNull(),
+    state: text("state").notNull(),
+    recording: text("recording"),
+    expiresAt: integer("expires_at").notNull(),
+    createdAt: integer("created_at").notNull(),
+  },
+  (t) => [
+    uniqueIndex("generated_recordings_account_key").on(
+      t.accountId,
+      t.idempotencyKey,
+    ),
+    index("generated_recordings_account").on(t.accountId, t.state),
+    index("generated_recordings_document").on(
+      t.accountId,
+      t.documentId,
+      t.state,
+    ),
+    index("generated_recordings_expiry").on(t.state, t.expiresAt),
+    check("generated_recording_size", sql`size BETWEEN 1 AND 62000000`),
+    check(
+      "generated_recording_state",
+      sql`state IN ('pending','registered','abandoned')`,
+    ),
+  ],
+);

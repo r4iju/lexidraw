@@ -1,4 +1,5 @@
 "use client";
+import { DeviceNarrationPanel } from "~/lib/narration/device-panel";
 import { ProNarrationPanel } from "~/lib/narration/panel";
 
 import { useCallback, useEffect, useMemo, useState, useRef } from "react";
@@ -349,6 +350,7 @@ function DraggablePopoverContent({
           e.preventDefault();
         }}
       >
+        <DeviceNarrationPanel documentId={documentId} />
         <ProNarrationPanel documentId={documentId} />
         {/* Sticky header + controls */}
         <div className="sticky top-0 z-20 bg-popover -mx-4 -mt-4 px-4 pt-4 pb-2">

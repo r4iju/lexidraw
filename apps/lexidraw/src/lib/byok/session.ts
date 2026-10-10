@@ -1,3 +1,9 @@
+import {
+  audioFromPCM,
+  speechRequest,
+  SPEECH_PATH,
+  DEVICE_NARRATION_UNAVAILABLE,
+} from "../narration/portable";
 import { validateImagePixels } from "../images/pixels";
 import { imageRequest } from "../images/format";
 import {
@@ -15,6 +21,15 @@ import {
   type TextTransport,
 } from "../generation/autocomplete";
 
+export const CredentialFingerprints = z
+  .array(
+    z.strictObject({
+      digest: z.string().regex(/^[a-f0-9]{64}$/),
+      prefix: z.string().max(4),
+      length: z.number().int().min(12).max(4096),
+    }),
+  )
+  .max(128);
 export type ByokProvider = "openrouter";
 type Network = (request: Request) => Promise<Response>;
 const endpoint = "https://openrouter.ai/api/v1/chat/completions";
@@ -32,7 +47,7 @@ const unavailable = () =>
 export function createByokSession(
   network: Network,
   origin: string,
-  options: { imageFixture?: true } = {},
+  options: { imageFixture?: true; narrationFixture?: true } = {},
 ) {
   let active: { reference: CredentialReference; key: string } | undefined;
   const known = new Map<string, { prefix: string; length: number }>();
@@ -43,9 +58,10 @@ export function createByokSession(
     for (const listener of listeners) listener();
   };
   function assertSafe(value: string) {
-    if (known.size === 0) return;
+    if (/sk-(?:or-v1-|ant-)?[A-Za-z0-9_-]{16,}/.test(value)) throw blocked();
     const minKeyLength = Math.min(
       ...Array.from(known.values(), (key) => key.length),
+      16,
     );
     const pending = [value];
     const seen = new Set<string>();
@@ -53,6 +69,16 @@ export function createByokSession(
       const text = pending.pop();
       if (text === undefined || seen.has(text)) continue;
       seen.add(text);
+      // Supported artifact traffic has no compressed or SDK envelopes. Opaque compressed nodes fail closed.
+      if (
+        /sk-(?:or-v1-|ant-)?[A-Za-z0-9_-]{16,}/.test(text) ||
+        // biome-ignore lint/suspicious/noControlCharactersInRegex: Detect binary compression envelopes before accepting opaque bytes.
+        /(?:^\x78[\x01\x9c\xda]|\x1f\x8b\x08|PK\x03\x04)/.test(text) ||
+        /"(?:apiKey|baseURL|providerOptions|rawResponse|providerConfig|requestBody|providerMetadata)"\s*:/.test(
+          text,
+        )
+      )
+        throw blocked();
       for (const [digest, secret] of known) {
         let offset = text.indexOf(secret.prefix);
         while (offset !== -1) {
@@ -130,6 +156,7 @@ export function createByokSession(
       input instanceof Request ? input : new URL(String(input), origin),
       init,
     );
+    if (request.headers.has("Content-Encoding")) throw blocked();
     assertSafe(request.url);
     request.headers.forEach((value, name) => {
       assertSafe(name);
@@ -270,6 +297,67 @@ export function createByokSession(
       );
     }
   }
+  async function narrate(reference: CredentialReference, text: string) {
+    if (!options.narrationFixture)
+      throw new Error(DEVICE_NARRATION_UNAVAILABLE);
+    if (active?.reference !== reference) throw unavailable();
+    assertSafe(text);
+    const body = JSON.stringify(speechRequest(text));
+    assertEgress(body);
+    const request = new Request(`https://openrouter.ai${SPEECH_PATH}`, {
+      method: "POST",
+      redirect: "error",
+      credentials: "omit",
+      signal: AbortSignal.timeout(180_000),
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${active.key}`,
+      },
+      body,
+    });
+    // No awaits between this credential check and dispatch.
+    if (active?.reference !== reference) throw unavailable();
+    try {
+      const response = await network(request);
+      if (
+        !response.ok ||
+        response.redirected ||
+        response.headers.get("Content-Type")?.split(";")[0] !== "audio/pcm" ||
+        response.headers.has("Content-Encoding")
+      )
+        throw unavailable();
+      const reader = response.body?.getReader();
+      if (!reader) throw unavailable();
+      const parts: Uint8Array[] = [];
+      let count = 0;
+      try {
+        for (;;) {
+          const next = await reader.read();
+          if (next.done) break;
+          count += next.value.length;
+          if (count > 5_760_000) {
+            await reader.cancel();
+            throw unavailable();
+          }
+          parts.push(next.value);
+        }
+      } finally {
+        reader.releaseLock();
+      }
+      const bytes = new Uint8Array(count);
+      let offset = 0;
+      for (const part of parts) {
+        bytes.set(part, offset);
+        offset += part.length;
+      }
+      // Retired fingerprints still guard late usable output after key removal.
+      return audioFromPCM(bytes, assertSafe);
+    } catch {
+      throw new Error(
+        "Provider outcome uncertain. No automatic repeat was performed.",
+      );
+    }
+  }
   async function autocomplete(
     reference: CredentialReference,
     before: string,
@@ -325,6 +413,14 @@ export function createByokSession(
     return result;
   }
   return {
+    fingerprints: () =>
+      Array.from(known, ([digest, value]) => ({ digest, ...value })),
+    restoreFingerprints(value: unknown) {
+      for (const { digest, prefix, length } of CredentialFingerprints.parse(
+        value,
+      ))
+        known.set(digest, { prefix, length });
+    },
     replace,
     remove() {
       active = undefined;
@@ -342,6 +438,7 @@ export function createByokSession(
     text: (reference: CredentialReference, prompt: string) =>
       requestText(reference, prompt),
     autocomplete,
+    narrate,
     image,
     assertSafe,
     assertEgress,

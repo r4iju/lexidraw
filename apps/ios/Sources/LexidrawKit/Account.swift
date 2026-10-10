@@ -55,7 +55,8 @@ public struct Account: Sendable {
       return value
     }
     guard let origin = URL(string: setting("LexidrawServerURL")) else {
-      fatalError("LexidrawServerURL in \(bundle.bundleURL.lastPathComponent)'s Info.plist is no address")
+      fatalError(
+        "LexidrawServerURL in \(bundle.bundleURL.lastPathComponent)'s Info.plist is no address")
     }
     return Account(
       origin: origin,
@@ -76,7 +77,8 @@ public struct Account: Sendable {
     browser: @Sendable (_ url: URL) async throws -> URL
   ) async throws -> Session {
     let pkce = PKCE()
-    var page = URLComponents(url: origin.appending(path: "native-sign-in"), resolvingAgainstBaseURL: false)!
+    var page = URLComponents(
+      url: origin.appending(path: "native-sign-in"), resolvingAgainstBaseURL: false)!
     page.queryItems = [
       URLQueryItem(name: "redirectUri", value: Self.callback.absoluteString),
       URLQueryItem(name: "codeChallenge", value: pkce.challenge),
@@ -94,7 +96,9 @@ public struct Account: Sendable {
     do {
       token = try await unwrapped {
         try await connection(token: nil).client.nativeSignInExchange(
-          body: .json(.init(code: code, codeVerifier: pkce.verifier, redirectUri: Self.callback.absoluteString))
+          body: .json(
+            .init(
+              code: code, codeVerifier: pkce.verifier, redirectUri: Self.callback.absoluteString))
         )
       }.ok.body.json.token
     } catch let refusal as Refusal where refusal.status == 400 {
@@ -111,14 +115,21 @@ public struct Account: Sendable {
   }
 
   private func session(token: String) -> Session {
-    let scope = SHA256.hash(data: Data((origin.absoluteString + "\n" + token).utf8)).map { String(format: "%02x", $0) }.joined()
+    let scope = SHA256.hash(data: Data((origin.absoluteString + "\n" + token).utf8)).map {
+      String(format: "%02x", $0)
+    }.joined()
     let files = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first.map {
       NativeTextFileStore(directory: $0.appending(path: "lexidraw/byok-text/" + scope))
     }
     return Session(
       origin: origin, connection: connection(token: token), store: store,
-      aiHandle: NativeAIHandle(defaultStore: providerKeyStore == nil
-        ? KeychainProviderStore(accountID: "api-session-" + scope, origin: origin) : nil, files: files),
+      aiHandle: NativeAIHandle(
+        defaultStore: providerKeyStore == nil
+          ? KeychainProviderStore(accountID: "api-session-" + scope, origin: origin) : nil,
+        files: files,
+        narrationDirectory: FileManager.default.urls(
+          for: .applicationSupportDirectory, in: .userDomainMask
+        ).first?.appending(path: "lexidraw/device-narration/" + scope)),
       providerKeyStore: providerKeyStore, providerConfiguration: providerConfiguration)
   }
 
@@ -180,10 +191,13 @@ struct Connection: Sendable {
 
   /// Sends `data` somewhere other than the server, so past the middlewares:
   /// neither the app's token nor the server's way of refusing belong there.
-  func sendOutside(_ data: Data, method: HTTPRequest.Method, to url: URL, headers: [String: String]) async throws
+  func sendOutside(_ data: Data, method: HTTPRequest.Method, to url: URL, headers: [String: String])
+    async throws
     -> (HTTPResponse, HTTPBody?)
   {
-    guard var parts = URLComponents(url: url, resolvingAgainstBaseURL: false) else { throw URLError(.badURL) }
+    guard var parts = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
+      throw URLError(.badURL)
+    }
     let path = parts.percentEncodedPath + (parts.percentEncodedQuery.map { "?\($0)" } ?? "")
     parts.percentEncodedPath = ""
     parts.percentEncodedQuery = nil
@@ -194,7 +208,8 @@ struct Connection: Sendable {
       fields[name] = value
     }
     return try await transport.send(
-      HTTPRequest(method: method, scheme: nil, authority: nil, path: path, headerFields: fields), body: HTTPBody(data),
+      HTTPRequest(method: method, scheme: nil, authority: nil, path: path, headerFields: fields),
+      body: HTTPBody(data),
       baseURL: origin, operationID: "outside")
   }
 }
@@ -231,7 +246,8 @@ private struct Refusals: ClientMiddleware {
         nil
       }
     throw Refusal(
-      status: response.status.code, message: said?.message ?? "The server answered \(response.status.code).")
+      status: response.status.code,
+      message: said?.message ?? "The server answered \(response.status.code).")
   }
 }
 

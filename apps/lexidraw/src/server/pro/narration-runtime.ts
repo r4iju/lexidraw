@@ -24,18 +24,20 @@ export const narrationRouter = createNarrationRouter({
       .where(eq(schema.users.id, account));
     return user?.config?.aiPower?.mode ?? "local";
   },
-  read: async (account, documentId) => {
-    const entity = await findReadableEntity(drizzle, documentId, account);
-    if (!entity) throw new ProError("Document unavailable");
-    if (entity.entityType === "document")
-      return editorStateToMarkdown(parseEditorState(entity.elements));
-    if (entity.entityType === "url") {
-      const saved = z
-        .object({ distilled: z.object({ contentHtml: z.string() }) })
-        .parse(JSON.parse(entity.elements));
-      return htmlToPlainText(saved.distilled.contentHtml);
-    }
-    throw new ProError("This file cannot be narrated");
-  },
+  read: readNarrationText,
   dispatch: (account, id) => start(proNarrationWorkflow, [account, id]),
 });
+
+export async function readNarrationText(account: string, documentId: string) {
+  const entity = await findReadableEntity(drizzle, documentId, account);
+  if (!entity) throw new ProError("Document unavailable");
+  if (entity.entityType === "document")
+    return editorStateToMarkdown(parseEditorState(entity.elements));
+  if (entity.entityType === "url") {
+    const saved = z
+      .object({ distilled: z.object({ contentHtml: z.string() }) })
+      .parse(JSON.parse(entity.elements));
+    return htmlToPlainText(saved.distilled.contentHtml);
+  }
+  throw new ProError("This file cannot be narrated");
+}
