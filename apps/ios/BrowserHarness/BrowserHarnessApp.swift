@@ -169,6 +169,16 @@ actor HarnessServer: ClientTransport {
       if scenario == "signout-local-failure" { try await Task.sleep(for: .seconds(4)) }
       if scenario == "signout-server-failure" { throw URLError(.notConnectedToInternet) }
       answer = ["id": "fixture-token"]
+    case "pro.status":
+      if scenario == "pro-shared-local" {
+        // Opt-in loopback fixture shares the actual isolated SQLite allowance with the browser. No provider endpoint is involved.
+        var request = URLRequest(url: URL(string: "http://127.0.0.1:3080/api/trpc/pro.status")!)
+        request.setValue("fixture-account=alice", forHTTPHeaderField: "Cookie")
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let response = response as? HTTPURLResponse else { throw URLError(.badServerResponse) }
+        return (HTTPResponse(status: .init(code: response.statusCode)), HTTPBody(data))
+      }
+      answer = ["result": ["data": ["json": ["eligible": false, "entitled": false, "availableSubcredits": 0, "reservedSubcredits": 0, "renewalAt": NSNull(), "history": [], "policy": ["version": "private-cancellation-v1", "disclosure": "Public Pro is coming soon. Private trial completed results are charged; uncertain outcomes stay reserved."]] as [String: Any]]]]
     case "auth.getPowerPreference":
       answer = ["result": ["data": ["json": powerPreference]]]
     case "auth.setPowerPreference":

@@ -92,6 +92,20 @@
       "when": 1761866938152,
       "tag": "0014_bright_sleeper",
       "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "6",
+      "when": 1791623795854,
+      "tag": "0015_private_pro",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "6",
+      "when": 1791623928723,
+      "tag": "0016_pro_billing_events",
+      "breakpoints": true
     }
   ]
 }

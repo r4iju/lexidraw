@@ -5,7 +5,7 @@ struct AIPowerView: View {
   let session: Session
   private enum Setup {
     case loading
-    case ready(AIPowerPreference, NativeBYOK)
+    case ready(AIPowerPreference, NativeBYOK, ProAllowance)
     case failed
   }
   @State private var setup = Setup.loading
@@ -26,7 +26,7 @@ struct AIPowerView: View {
         case .failed:
           Text("AI settings are unavailable. Connect and try again.")
           Button("Try Again") { Task { await load() } }
-        case .ready(let preference, let runtime):
+        case .ready(let preference, let runtime, let allowance):
           Picker(
             "Power source",
             selection: Binding(
@@ -34,7 +34,7 @@ struct AIPowerView: View {
               set: { choice in
                 perform(runtime) {
                   try await session.setPowerPreference(choice)
-                  setup = .ready(choice, runtime)
+                  setup = .ready(choice, runtime, allowance)
                   output = nil
                   message = "Power preference saved."
                 }
@@ -42,6 +42,7 @@ struct AIPowerView: View {
           ) {
             Text("Built-in local").tag(AIPowerPreference.local)
             Text("My OpenRouter key").tag(AIPowerPreference.byok)
+            if allowance.eligible { Text("Pro (private trial)").tag(AIPowerPreference.pro) }
           }
           .accessibilityIdentifier("ai-power-source")
           .disabled(working)
@@ -53,7 +54,29 @@ struct AIPowerView: View {
           .font(.footnote)
         }
       }
-      if case .ready(let preference, let runtime) = setup {
+      if case .ready(let preference, let runtime, let allowance) = setup {
+        Section("Pro allowance, shared with web") {
+          Text(allowance.entitled ? "Private trial active" : "No active private allowance")
+          Text("Private-trial text generation is available in web settings. This screen shares the same account allowance and history.").font(.footnote)
+          LabeledContent("Available credits", value: credits(allowance.availableSubcredits))
+          LabeledContent("Reserved credits", value: credits(allowance.reservedSubcredits))
+          if let prior = allowance.previousPeriodReservedSubcredits, prior > 0 {
+            LabeledContent("Reserved from earlier periods", value: credits(prior))
+          }
+          LabeledContent("Renewal", value: allowance.renewalAt.map { Date(timeIntervalSince1970: Double($0) / 1000).formatted(date: .abbreviated, time: .omitted) } ?? "No active allowance")
+          Text(allowance.policy.disclosure).font(.footnote)
+          Button("Refresh allowance") { Task { await load() } }
+          if allowance.history.isEmpty { Text("No Pro operations yet.") }
+          ForEach(allowance.history) { item in
+            VStack(alignment: .leading) {
+              Text("\(item.feature): \(item.state)")
+              Text("\(credits(item.charged)) credits charged").font(.footnote)
+              if ["reserved", "running", "unknown"].contains(item.state) {
+                Text("\(credits(item.quote)) credits reserved").font(.footnote)
+              }
+            }
+          }
+        }
         Section {
           Text(runtime.hasKey ? "Key saved on this device" : "No key on this device")
           SecureField("OpenRouter key", text: $key)
@@ -122,7 +145,7 @@ struct AIPowerView: View {
       }
     }
     .safeAreaInset(edge: .bottom) {
-      if working, case .ready(_, let runtime) = setup {
+      if working, case .ready(_, let runtime, _) = setup {
         HStack {
           ProgressView()
           Text("Working on this device…")
@@ -149,26 +172,32 @@ struct AIPowerView: View {
     .task { await load() }
     .onDisappear {
       task?.cancel()
-      if case .ready(_, let runtime) = setup { runtime.cancel() }
+      if case .ready(_, let runtime, _) = setup { runtime.cancel() }
       key = ""
     }
     .onReceive(
       NotificationCenter.default.publisher(for: UIApplication.willResignActiveNotification)
     ) { _ in
       task?.cancel()
-      if case .ready(_, let runtime) = setup { runtime.cancel() }
+      if case .ready(_, let runtime, _) = setup { runtime.cancel() }
       working = false
       message = "Device work interrupted. Start again when you return."
     }
   }
 
+  private func credits(_ value: Int64) -> String {
+    (Double(value) / 1_000_000).formatted(.number.precision(.fractionLength(0...6)))
+  }
+
   private func load() async {
     do {
-      let runtime = try await session.nativeAI()
-      let preference = try await session.powerPreference()
+      async let runtimeResult = session.nativeAI()
+      async let preferenceResult = session.powerPreference()
+      async let allowanceResult = session.proAllowance()
+      let (runtime, preference, allowance) = try await (runtimeResult, preferenceResult, allowanceResult)
       try Task.checkCancellation()
       output = try runtime.savedSuggestion()
-      setup = .ready(preference, runtime)
+      setup = .ready(preference, runtime, allowance)
     } catch is CancellationError {
     } catch { setup = .failed }
   }

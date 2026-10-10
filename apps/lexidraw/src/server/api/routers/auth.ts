@@ -48,15 +48,40 @@ async function identityOf(db: typeof drizzle, userId: string) {
 
 export const authRouter = createTRPCRouter({
   getPowerPreference: protectedProcedure.query(async ({ ctx }) => {
-    const [user] = await ctx.drizzle.select({ config: schema.users.config })
-      .from(schema.users).where(eq(schema.users.id, ctx.session.user.id));
-    return powerPreference(user?.config?.aiPower);
+    const [user] = await ctx.drizzle
+      .select({ config: schema.users.config })
+      .from(schema.users)
+      .where(eq(schema.users.id, ctx.session.user.id));
+    const preference = powerPreference(user?.config?.aiPower);
+    if (preference.mode === "pro") {
+      const [access] = await ctx.drizzle
+        .select()
+        .from(schema.proEligibility)
+        .where(eq(schema.proEligibility.accountId, ctx.session.user.id));
+      if (access?.active !== 1) return { mode: "local" as const };
+    }
+    return preference;
   }),
-  setPowerPreference: protectedProcedure.input(PowerPreferenceSchema)
+  setPowerPreference: protectedProcedure
+    .input(PowerPreferenceSchema)
     .mutation(async ({ ctx, input }) => {
-      await ctx.drizzle.update(schema.users).set({
-        config: sql`json_set(coalesce(${schema.users.config}, '{}'), '$.aiPower', json(${JSON.stringify(input)}))`,
-      }).where(eq(schema.users.id, ctx.session.user.id));
+      if (input.mode === "pro") {
+        const [access] = await ctx.drizzle
+          .select()
+          .from(schema.proEligibility)
+          .where(eq(schema.proEligibility.accountId, ctx.session.user.id));
+        if (access?.active !== 1)
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: "Private eligibility required",
+          });
+      }
+      await ctx.drizzle
+        .update(schema.users)
+        .set({
+          config: sql`json_set(coalesce(${schema.users.config}, '{}'), '$.aiPower', json(${JSON.stringify(input)}))`,
+        })
+        .where(eq(schema.users.id, ctx.session.user.id));
     }),
   signUp: publicProcedure
     .input(getSignUpSchema())

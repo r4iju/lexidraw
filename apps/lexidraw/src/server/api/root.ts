@@ -1,3 +1,4 @@
+import { proRouter } from "~/server/pro/router";
 import { htmlBlocksRouter } from "./routers/html-blocks";
 import { createTRPCRouter } from "~/server/api/trpc";
 import { authRouter } from "./routers/auth";
@@ -27,6 +28,7 @@ import { nativeSignInRouter } from "./routers/native-sign-in";
 import { embedRouter } from "./routers/embeds";
 
 export const appRouter = createTRPCRouter({
+  pro: proRouter,
   embeds: embedRouter,
   auth: authRouter,
   crons: cronRouter,

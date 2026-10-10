@@ -1,4 +1,5 @@
 "use client";
+import { ProTrialSection, type ProStatus } from "./pro-trial";
 import { ProviderKeyInput } from "./provider-key-input";
 import { useState, useSyncExternalStore } from "react";
 import { Button } from "~/components/ui/button";
@@ -17,9 +18,11 @@ const noCredential = () => undefined;
 export function AiPowerSection({
   preference,
   accountId,
+  proStatus,
 }: {
   preference: PowerPreference;
   accountId: string;
+  proStatus: ProStatus;
 }) {
   const query = api.auth.getPowerPreference.useQuery(undefined, {
     initialData: preference,
@@ -95,15 +98,19 @@ export function AiPowerSection({
           const next: PowerPreference =
             event.target.value === "byok"
               ? { mode: "byok", provider: "openrouter" }
-              : { mode: "local" };
-          if (next.mode === "local") session?.remove();
+              : event.target.value === "pro"
+                ? { mode: "pro" }
+                : { mode: "local" };
+          if (next.mode !== "byok") session?.remove();
           setActivity({ status: "idle" });
           save.mutate(next);
         }}
       >
         <option value="local">Local device</option>
         <option value="byok">My provider key (OpenRouter)</option>
-        <option disabled>Pro, coming soon</option>
+        <option value="pro" disabled={!proStatus.eligible}>
+          {proStatus.eligible ? "Pro (private trial)" : "Pro, coming soon"}
+        </option>
       </select>
       {save.isError && <p role="alert">Could not save the power preference.</p>}
       <p className="text-sm">
@@ -111,6 +118,7 @@ export function AiPowerSection({
         soon. This direct text connection check is independent of Pro. Other AI
         capabilities are not enabled by this check.
       </p>
+      <ProTrialSection initialStatus={proStatus} />
       {ownKey && (
         <>
           <p className="text-sm">

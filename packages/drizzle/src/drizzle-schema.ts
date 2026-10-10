@@ -1,3 +1,4 @@
+export * from "./pro-schema.js";
 import type { PublicAccess } from "@packages/types";
 import { createId } from "@paralleldrive/cuid2";
 import { sql } from "drizzle-orm";
@@ -78,7 +79,10 @@ export const users = sqliteTable(
       .$defaultFn(() => createId()),
     name: text("name").notNull(),
     config: text("config", { mode: "json" }).$type<{
-      aiPower?: { mode: "local" } | { mode: "byok"; provider: "openrouter" };
+      aiPower?:
+        | { mode: "local" }
+        | { mode: "pro" }
+        | { mode: "byok"; provider: "openrouter" };
       llm?: {
         chat?: {
           modelId: string;

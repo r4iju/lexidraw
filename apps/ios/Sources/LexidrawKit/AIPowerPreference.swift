@@ -3,7 +3,7 @@ import HTTPTypes
 import OpenAPIRuntime
 
 public enum AIPowerPreference: String, Sendable, CaseIterable {
-  case local, byok
+  case local, byok, pro
 }
 
 extension Session {
@@ -23,12 +23,13 @@ extension Session {
       let result: Result
     }
     guard let preference = try? JSONDecoder().decode(Envelope.self, from: data).result.data.json,
-      preference.mode == "local"
+      preference.mode == "local" || preference.mode == "pro"
         || (preference.mode == "byok" && preference.provider == "openrouter")
     else {
       throw NativeAIError.unavailable
     }
-    return preference.mode == "byok" ? .byok : .local
+    guard let mode = AIPowerPreference(rawValue: preference.mode) else { throw NativeAIError.unavailable }
+    return mode
   }
 
   public func setPowerPreference(_ preference: AIPowerPreference) async throws {
