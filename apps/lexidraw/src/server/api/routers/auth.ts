@@ -1,3 +1,4 @@
+import { PowerPreferenceSchema, powerPreference } from "~/lib/byok/preference";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { getSignUpSchema } from "~/app/signup/schema";
@@ -46,6 +47,17 @@ async function identityOf(db: typeof drizzle, userId: string) {
 }
 
 export const authRouter = createTRPCRouter({
+  getPowerPreference: protectedProcedure.query(async ({ ctx }) => {
+    const [user] = await ctx.drizzle.select({ config: schema.users.config })
+      .from(schema.users).where(eq(schema.users.id, ctx.session.user.id));
+    return powerPreference(user?.config?.aiPower);
+  }),
+  setPowerPreference: protectedProcedure.input(PowerPreferenceSchema)
+    .mutation(async ({ ctx, input }) => {
+      await ctx.drizzle.update(schema.users).set({
+        config: sql`json_set(coalesce(${schema.users.config}, '{}'), '$.aiPower', json(${JSON.stringify(input)}))`,
+      }).where(eq(schema.users.id, ctx.session.user.id));
+    }),
   signUp: publicProcedure
     .input(getSignUpSchema())
     .mutation(async ({ ctx, input }) => {

@@ -78,6 +78,7 @@ export const users = sqliteTable(
       .$defaultFn(() => createId()),
     name: text("name").notNull(),
     config: text("config", { mode: "json" }).$type<{
+      aiPower?: { mode: "local" } | { mode: "byok"; provider: "openrouter" };
       llm?: {
         chat?: {
           modelId: string;

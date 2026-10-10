@@ -1,3 +1,5 @@
+import { AiPowerSection } from "./ai-power";
+import { powerPreference } from "~/lib/byok/preference";
 import { Suspense } from "react";
 import { Skeleton } from "~/components/ui/skeleton";
 import { offeredProviders } from "~/server/auth";
@@ -18,6 +20,7 @@ async function SettingsContent() {
   ]);
   return (
     <>
+      <AiPowerSection accountId={user.id} preference={powerPreference(user.config?.aiPower)} />
       <SettingsFormSection
         user={user}
         policies={policies}
