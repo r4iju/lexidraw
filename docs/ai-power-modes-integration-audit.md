@@ -205,3 +205,39 @@ provider/CORS, shared hosted execution/restart durability, account/payment/store
 physical audio/lock-screen/interruption, staged migration messaging and release
 requirements remain open. This migration does not complete #291 or #276 and does
 not authorize a release or amend their scope.
+
+## Standards V2 and terminal chat failure follow-up (local)
+
+The follow-up starts at `9f3eaf92c1c2219d848c075dd80a24ebe61b7677`.
+S7 query access now distinguishes disabled, loading, error (including failed
+refreshes with cached data), and ready before deriving new-generation
+availability. Chat has no default provider while preference is unknown. Image,
+device narration, Pro text, suggestions and AI Power expose query retry. Failed
+reads block new generation while retaining chat history, completed images,
+recording playback/sync and active operation controls. Device narration retains
+its account/document controller across capability refreshes. S8 uses the existing
+file-capable design-system Input with the same accessible label and form props.
+J2 native chat uses associated-value events with required, bounded payloads and
+all six legitimate operation states. Unknown/malformed events and content after
+terminal completion fail closed; valid partial completion and cancellation remain
+covered locally.
+
+Spec V2-S1 validates failed/incomplete terminal response status, bounded identity
+and usage (including cached-token consistency) before recording technical failure.
+Response identities must agree when a creation event was supplied. Validated
+provider error events belong to the authenticated redirect-free request stream;
+no raw supplier diagnostic is returned. Known terminal failure refunds the whole
+customer operation after partial output, without automatically retrying. Measured
+supplier cost remains recorded; missing usage leaves supplier exposure unresolved
+independently of the refunded customer reservation. Malformed terminal evidence
+and disconnects without terminal evidence remain uncertain and reserved.
+
+Exact RED/GREEN and focused local checks are in
+`/tmp/lexidraw-276-implementation/291-standards-fixes-v2.json`. No external
+provider, payment, bucket, production API or release action is claimed.
+#291 and #276 remain incomplete pending parent review and remaining implementation
+and acceptance work. Spec V2-S2 supplier cost-book exposure/bounds/dispatch is the
+next sequential implementation scope. D2 operation-bound sandbox/delegation and
+D3 first-use image/agent rate books remain partial implementation requirements,
+not merely external proof gaps. Previously recorded provider, payment/store,
+hosted durability, physical audio, migration and release criteria remain open.

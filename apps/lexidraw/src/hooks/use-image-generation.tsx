@@ -10,6 +10,8 @@ import {
 import { toast } from "sonner";
 import { api } from "~/trpc/react";
 import { browserByok } from "~/lib/byok/browser-session";
+import { queryAccess } from "~/lib/generation/query-access";
+import { QueryNotice } from "~/lib/generation/query-notice";
 import { powerPreference } from "~/lib/byok/preference";
 import { ImageFlow, type ImageState } from "~/lib/images/flow";
 import { validateImage } from "~/lib/images/contracts";
@@ -74,6 +76,19 @@ export function ImageGenerationProvider({
   const capability = api.imagePower.capability.useQuery(undefined, {
     enabled: signedIn,
   });
+  const preference = queryAccess(source, signedIn, "AI power preference");
+  const access = queryAccess(capability, signedIn, "Image capability");
+  function assertReady() {
+    if (preference.kind !== "ready" || access.kind !== "ready")
+      throw new Error(
+        preference.kind === "error" || preference.kind === "loading"
+          ? preference.message
+          : access.kind === "error" || access.kind === "loading"
+            ? access.message
+            : "Sign in to generate images.",
+      );
+    return { preference: preference.data, capability: access.data };
+  }
   const utils = api.useUtils();
   const generate = api.imagePower.generate.useMutation({
     onSettled: () => utils.pro.status.invalidate(),
@@ -82,9 +97,8 @@ export function ImageGenerationProvider({
     onSuccess: () => utils.entities.invalidate(),
   });
   const ports = {
-    source: () => powerPreference(source.data),
-    availability: () =>
-      capability.data ?? { available: false, maximum: 0, fixture: false },
+    source: () => powerPreference(assertReady().preference),
+    availability: () => assertReady().capability,
     get byok() {
       return browserByok();
     },
@@ -93,6 +107,7 @@ export function ImageGenerationProvider({
       prompt: string;
       acceptedMaximum: number;
     }) => {
+      assertReady();
       const operation = await generate.mutateAsync(input);
       if (operation.state !== "settled" || !operation.result)
         throw new Error("Image is still reconciling or failed");
@@ -119,9 +134,10 @@ export function ImageGenerationProvider({
   flow.configure(ports);
   const state = useSyncExternalStore(flow.subscribe, flow.state, flow.state);
   const isConfigured =
-    signedIn &&
-    !!capability.data?.available &&
-    powerPreference(source.data).mode !== "local";
+    preference.kind === "ready" &&
+    access.kind === "ready" &&
+    access.data.available &&
+    preference.data.mode !== "local";
   const isLoading = ["quote", "generating", "saving"].includes(state.kind);
   const generateImageData = useCallback(
     async (
@@ -130,6 +146,16 @@ export function ImageGenerationProvider({
     ) => {
       if (options?.size && options.size !== "1024x1024") {
         toast.error("Only the tuned image configuration is supported.");
+        return null;
+      }
+      if (!isConfigured) {
+        toast.error(
+          preference.kind === "error" || preference.kind === "loading"
+            ? preference.message
+            : access.kind === "error" || access.kind === "loading"
+              ? access.message
+              : "Image generation is unavailable for this source.",
+        );
         return null;
       }
       await flow.generate(prompt);
@@ -146,7 +172,7 @@ export function ImageGenerationProvider({
       const result = validateImage(final.image, browserByok().assertSafe);
       return { imageData: result.bytes, mimeType: result.image.mimeType };
     },
-    [flow],
+    [flow, isConfigured, preference, access],
   );
   const uploadImageData = useCallback(async () => {
     const url = await flow.upload();
@@ -163,6 +189,8 @@ export function ImageGenerationProvider({
       value={{ isConfigured, isLoading, generateImageData, uploadImageData }}
     >
       {children}
+      <QueryNotice access={preference} retry={() => void source.refetch()} />
+      <QueryNotice access={access} retry={() => void capability.refetch()} />
       <Dialog
         open={state.kind === "quote"}
         onOpenChange={(open) => {
@@ -182,7 +210,7 @@ export function ImageGenerationProvider({
             <Button variant="outline" onClick={() => flow.decline()}>
               Decline
             </Button>
-            <Button onClick={() => void flow.accept()}>
+            <Button disabled={!isConfigured} onClick={() => void flow.accept()}>
               Accept maximum and generate
             </Button>
           </DialogFooter>

@@ -7,12 +7,66 @@ public struct ProChatQuote: Sendable {
   public let policy: String
   let json: Data
 }
+public enum OperationState: String, Decodable, Sendable {
+  case reserved, running, unknown, settled, refunded, cancelled
+}
 public struct ProChatOperation: Decodable, Sendable {
   public let id: String
-  public let state: String
+  public let state: OperationState
   public let result: String?
   public let charged: Int64
   public let quote: Int64
+  private enum Field: String, CodingKey { case id, state, result, charged, quote }
+  public init(from decoder: any Decoder) throws {
+    let container = try decoder.container(keyedBy: Field.self)
+    id = try container.decode(String.self, forKey: .id)
+    state = try container.decode(OperationState.self, forKey: .state)
+    guard container.contains(.result) else {
+      throw DecodingError.keyNotFound(Field.result, .init(codingPath: decoder.codingPath, debugDescription: "Missing chat result"))
+    }
+    result = try container.decodeIfPresent(String.self, forKey: .result)
+    charged = try container.decode(Int64.self, forKey: .charged)
+    quote = try container.decode(Int64.self, forKey: .quote)
+  }
+}
+enum ChatEvent: Decodable, Sendable {
+  case text(String)
+  case operation(ProChatOperation)
+  case error(String)
+
+  private struct Key: CodingKey {
+    let stringValue: String
+    var intValue: Int? { nil }
+    init?(stringValue: String) { self.stringValue = stringValue }
+    init?(intValue: Int) { return nil }
+  }
+  private enum Field: String, CodingKey { case kind, text, operation, message }
+  init(from decoder: any Decoder) throws {
+    let container = try decoder.container(keyedBy: Field.self)
+    let kind = try container.decode(String.self, forKey: .kind)
+    let keys = Set(try decoder.container(keyedBy: Key.self).allKeys.map(\.stringValue))
+    let expected: Set<String>
+    switch kind {
+    case "text": expected = ["kind", "text"]
+    case "operation": expected = ["kind", "operation"]
+    case "error": expected = ["kind", "message"]
+    default:
+      throw DecodingError.dataCorruptedError(forKey: .kind, in: container, debugDescription: "Unknown chat event")
+    }
+    guard keys == expected else {
+      throw DecodingError.dataCorruptedError(forKey: .kind, in: container, debugDescription: "Invalid chat event payload")
+    }
+    switch kind {
+    case "text":
+      let text = try container.decode(String.self, forKey: .text)
+      guard text.utf8.count <= 16000 else {
+        throw DecodingError.dataCorruptedError(forKey: .text, in: container, debugDescription: "Chat text exceeds bounds")
+      }
+      self = .text(text)
+    case "operation": self = .operation(try container.decode(ProChatOperation.self, forKey: .operation))
+    default: self = .error(try container.decode(String.self, forKey: .message))
+    }
+  }
 }
 extension Session {
   public func chatCapability() async throws -> ProAgentCapability {
@@ -52,7 +106,7 @@ extension Session {
     _ input: NativeChatInput, operation: ProChatOperation,
     onText: @escaping @Sendable (String) async -> Void
   ) async throws -> ProChatOperation {
-    if operation.state == "settled", let result = operation.result {
+    if operation.state == .settled, let result = operation.result {
       try NativeCredentialGuard.shared.check(Data(result.utf8))
       await onText(result)
       return operation
@@ -67,11 +121,6 @@ extension Session {
     let (response, body) = try await connection.exchange(
       request, json: data, operationID: "chat.stream", baseURL: origin)
     guard response.status.code == 200, let body else { throw NativeChatError.uncertain }
-    struct Event: Decodable {
-      let kind: String
-      let text: String?
-      let operation: ProChatOperation?
-    }
     var frame = Data()
     var size = 0
     var previous = ""
@@ -86,23 +135,25 @@ extension Session {
             frame.append(byte)
             continue
           }
+          try Task.checkCancellation()
+          guard result == nil else { throw NativeChatError.uncertain }
           try NativeCredentialGuard.shared.check(frame)
-          let event = try JSONDecoder().decode(Event.self, from: frame)
+          let event = try JSONDecoder().decode(ChatEvent.self, from: frame)
           frame.removeAll()
-          switch event.kind {
-          case "text":
-            guard let text = event.text, text.utf8.count <= 16000, text.hasPrefix(previous) else {
+          switch event {
+          case .text(let text):
+            guard text.hasPrefix(previous) else {
               throw NativeChatError.uncertain
             }
             previous = text
             await onText(text)
-          case "operation":
-            guard let op = event.operation, op.id == operation.id, op.state == "settled",
+          case .operation(let op):
+            guard op.id == operation.id, op.state == .settled,
               let text = op.result, op.charged >= 0, op.charged <= op.quote
             else { throw NativeChatError.uncertain }
             result = op
             if previous.isEmpty { await onText(text) }
-          default: throw NativeChatError.uncertain
+          case .error: throw NativeChatError.uncertain
           }
         }
       }

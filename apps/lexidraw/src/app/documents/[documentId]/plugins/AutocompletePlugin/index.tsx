@@ -4,6 +4,8 @@ import { Label } from "~/components/ui/label";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { useEntityId } from "~/hooks/use-entity-id";
+import { queryAccess } from "~/lib/generation/query-access";
+import { QueryNotice } from "~/lib/generation/query-notice";
 import { api } from "~/trpc/react";
 import { browserByok } from "~/lib/byok/browser-session";
 import { registerAutocomplete } from "./register";
@@ -35,19 +37,29 @@ export default function AutocompletePlugin({ title = "" }: { title?: string }) {
   );
   const [message, setMessage] = useState("");
   const enabled = config.data?.enabled === true;
-  const preference = power.data;
+  const powerAccess = queryAccess(power, true, "AI power preference");
+  const configAccess = queryAccess(config, true, "Suggestion settings");
+  const preference =
+    powerAccess.kind === "ready" ? powerAccess.data : undefined;
+  const access = queryAccess(
+    allowance,
+    preference?.mode === "pro",
+    "Pro suggestion allowance",
+  );
   const unavailable =
-    preference?.mode === "local"
-      ? "Local suggestions are unavailable in this browser."
-      : preference?.mode === "byok" && !reference
-        ? "Set up your key on this device in AI Power."
-        : preference?.mode === "pro" && !allowance.data?.entitled
-          ? "Pro Coming soon. Private allowance required."
-          : preference?.mode === "pro" &&
-              allowance.data &&
-              allowance.data.availableSubcredits < 1_120_000
-            ? "Not enough allowance for another suggestion. Check AI Power."
-            : "";
+    access.kind === "error" || access.kind === "loading"
+      ? access.message
+      : preference?.mode === "local"
+        ? "Local suggestions are unavailable in this browser."
+        : preference?.mode === "byok" && !reference
+          ? "Set up your key on this device in AI Power."
+          : preference?.mode === "pro" && !allowance.data?.entitled
+            ? "Pro Coming soon. Private allowance required."
+            : preference?.mode === "pro" &&
+                allowance.data &&
+                allowance.data.availableSubcredits < 1_120_000
+              ? "Not enough allowance for another suggestion. Check AI Power."
+              : "";
 
   // Lexical owns caret changes, composition, request cancellation and suggestion painting.
   useEffect(() => {
@@ -127,12 +139,17 @@ export default function AutocompletePlugin({ title = "" }: { title?: string }) {
         }
       />
       <Label htmlFor="writing-suggestions">Writing suggestions</Label>
+      <QueryNotice access={powerAccess} retry={() => void power.refetch()} />
+      <QueryNotice access={configAccess} retry={() => void config.refetch()} />
+      <QueryNotice access={access} retry={() => void allowance.refetch()} />
       <span role="status">
-        {config.error || power.error || save.error
-          ? "Suggestions unavailable. Check AI Power."
-          : !enabled
-            ? "Off · opt in to use your AI power source"
-            : unavailable || message || "On · accept with Tab"}
+        {powerAccess.kind !== "ready" || configAccess.kind !== "ready"
+          ? "Suggestions paused until settings are available."
+          : save.error
+            ? "Suggestions unavailable. Check AI Power."
+            : !enabled
+              ? "Off · opt in to use your AI power source"
+              : unavailable || message || "On · accept with Tab"}
       </span>
       {enabled && preference?.mode === "pro" && allowance.data && (
         <span>

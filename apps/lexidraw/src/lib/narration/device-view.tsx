@@ -29,6 +29,7 @@ export function RecordingControls({
 }
 export function DeviceNarrationView({
   checkpoint,
+  capabilityKnown = true,
   available,
   keyAvailable,
   onStart,
@@ -36,6 +37,7 @@ export function DeviceNarrationView({
   onSync,
 }: {
   checkpoint: DeviceCheckpoint | null;
+  capabilityKnown?: boolean;
   available: boolean;
   keyAvailable: boolean;
   onStart: () => void;
@@ -56,7 +58,7 @@ export function DeviceNarrationView({
     <section aria-label="Device narration" className="space-y-3">
       <h3>My OpenRouter narration</h3>
       <p>{DEVICE_NARRATION_POLICY}</p>
-      {!available && <p>{DEVICE_NARRATION_UNAVAILABLE}</p>}
+      {capabilityKnown && !available && <p>{DEVICE_NARRATION_UNAVAILABLE}</p>}
       {!keyAvailable && (
         <p>
           Set up your key on this device before generating or resuming. Sync and

@@ -1,4 +1,5 @@
 "use client";
+import { Input } from "~/components/ui/input";
 import { useLLM } from "../../../context/llm-context";
 import { Button } from "~/components/ui/button";
 import { Textarea } from "~/components/ui/textarea";
@@ -46,7 +47,7 @@ export function ChatComposer({
           placeholder="Ask about this document"
           disabled={llm.chatState.isStreaming}
         />
-        <input
+        <Input
           type="file"
           name="files"
           aria-label="Text attachments"

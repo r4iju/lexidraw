@@ -348,3 +348,45 @@ test("account change clears old local scope and blocks generation and sync on th
   expect(calls).toBe(1);
   expect(syncs).toBe(0);
 });
+
+test("capability refresh blocks new narration without losing completed playback or sync", async () => {
+  let calls = 0;
+  const byok = createByokSession(
+    async () => {
+      calls++;
+      return new Response(new Uint8Array(48000), {
+        headers: { "Content-Type": "audio/pcm" },
+      });
+    },
+    "https://app.test",
+    { narrationFixture: true },
+  );
+  byok.replace("openrouter", "sk-or-v1-CAPABILITY-FIXTURE");
+  let disk: string | null = null;
+  const ports = {
+    account: () => "alice",
+    available: () => true,
+    byok,
+    store: {
+      load: async () => disk,
+      save: async (_scope: string, value: string) => {
+        disk = value;
+        return true;
+      },
+      clear: async () => {
+        disk = null;
+      },
+    },
+    sync: async () => "saved",
+  };
+  const flow = new DeviceNarration("alice", "doc", ports);
+  await flow.start("Hello");
+  const retained = flow.state();
+  flow.configure({ ...ports, available: () => false });
+  expect(flow.state()).toBe(retained);
+  await flow.start("Another paid narration");
+  expect(calls).toBe(1);
+  await flow.sync();
+  expect(flow.state()?.status).toBe("saved");
+  expect(calls).toBe(1);
+});

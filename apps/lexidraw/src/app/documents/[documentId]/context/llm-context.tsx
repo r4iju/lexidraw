@@ -15,6 +15,8 @@ import {
   chatBrowserFetch,
   type ChatQuote,
 } from "~/lib/generation/chat-client";
+import { queryAccess } from "~/lib/generation/query-access";
+import { QueryNotice } from "~/lib/generation/query-notice";
 import type { ChatRuntime } from "~/lib/generation/chat-runtime";
 
 import type {
@@ -168,18 +170,41 @@ function SelectedRuntimeProvider(props: LLMProviderProps) {
     enabled: power.data?.mode === "pro",
   });
   const utils = api.useUtils();
-  const source = power.data?.mode ?? "local";
+  const preference = queryAccess(power, true, "AI power preference");
+  const access = queryAccess(
+    capability,
+    preference.kind === "ready" && preference.data.mode === "pro",
+    "Pro chat capability",
+  );
+  const source = preference.kind === "ready" ? preference.data.mode : "unknown";
   const reason =
-    source === "local"
-      ? "Built-in local chat is available only on supported Apple devices. No cloud fallback is used."
-      : source === "byok"
-        ? "Direct chat is unavailable until provider streaming and bounds are verified. Your saved history is preserved."
-        : (capability.data?.reason ?? "Checking Pro chat availability.");
+    preference.kind !== "ready"
+      ? preference.kind === "disabled"
+        ? "AI power preference is disabled."
+        : preference.message
+      : access.kind === "error" || access.kind === "loading"
+        ? access.message
+        : source === "local"
+          ? "Built-in local chat is available only on supported Apple devices. No cloud fallback is used."
+          : source === "byok"
+            ? "Direct chat is unavailable until provider streaming and bounds are verified. Your saved history is preserved."
+            : access.kind === "ready"
+              ? access.data.reason
+              : "Pro chat capability is disabled.";
   const runtime: ChatRuntime = {
     source,
-    available: source === "pro" && capability.data?.available === true,
+    available:
+      source === "pro" &&
+      access.kind === "ready" &&
+      access.data.available === true,
     reason,
     async run(input, signal, onText, confirm) {
+      if (
+        preference.kind !== "ready" ||
+        (source === "pro" &&
+          (access.kind !== "ready" || !access.data.available))
+      )
+        throw new Error(reason);
       const session = browserByok();
       if (source === "local") throw new Error(reason);
       if (source === "byok") {
@@ -213,7 +238,13 @@ function SelectedRuntimeProvider(props: LLMProviderProps) {
       }
     },
   };
-  return <RuntimeProvider {...props} runtime={runtime} />;
+  return (
+    <RuntimeProvider {...props} runtime={runtime}>
+      <QueryNotice access={preference} retry={() => void power.refetch()} />
+      <QueryNotice access={access} retry={() => void capability.refetch()} />
+      {props.children}
+    </RuntimeProvider>
+  );
 }
 function RuntimeProvider({
   children,

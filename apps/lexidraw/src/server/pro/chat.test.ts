@@ -1,8 +1,10 @@
-import { expect, test } from "bun:test";
+import { expect, mock, test } from "bun:test";
 import { createClient } from "@libsql/client";
 import { ProLedger } from "./ledger";
 import { ProChat } from "./chat";
 import { ProTextOperation } from "./operation";
+mock.module("server-only", () => ({}));
+const { createProChatTransport } = await import("./chat-provider");
 async function fixture() {
   const client = createClient({ url: ":memory:" });
   for (const migration of [
@@ -113,6 +115,70 @@ test("chat rejects encoded credential material before reservation", async () => 
       }),
     ).rejects.toThrow("Credential");
     expect((await f.ledger.status("alice")).reservedSubcredits).toBe(0);
+  } finally {
+    f.client.close();
+  }
+});
+
+test("terminal failed chat after a partial delta refunds the whole customer operation and preserves supplier cost", async () => {
+  const f = await fixture();
+  let calls = 0;
+  const updates: string[] = [];
+  const transport = createProChatTransport({
+    authorize: async () => {},
+    resolveServerKey: () => "fake-system-key",
+    fetch: async () => {
+      calls++;
+      const events = [
+        { type: "response.output_text.delta", delta: "Partial " },
+        {
+          type: "response.failed",
+          response: {
+            id: "failed-fixture",
+            status: "failed",
+            error: {
+              code: "server_error",
+              message: "Private supplier diagnostic",
+            },
+            usage: {
+              input_tokens: 100,
+              input_tokens_details: { cached_tokens: 0 },
+              output_tokens: 4,
+            },
+          },
+        },
+      ];
+      return new Response(
+        events.map((event) => `data: ${JSON.stringify(event)}\n\n`).join(""),
+        { headers: { "Content-Type": "text/event-stream" } },
+      );
+    },
+  });
+  try {
+    const chat = new ProChat(
+      f.ledger,
+      new ProTextOperation(f.ledger, transport),
+    );
+    const input = { prompt: "Hello" };
+    const quote = await chat.quote("alice", input);
+    const op = await chat.accept("alice", "failed", input, quote);
+    const result = await chat.stream("alice", op.id, input, (text) =>
+      updates.push(text),
+    );
+    expect(result).toMatchObject({
+      state: "refunded",
+      charged: 0,
+      result: null,
+    });
+    expect(await f.ledger.status("alice")).toMatchObject({
+      availableSubcredits: 10000000,
+      reservedSubcredits: 0,
+      providerCosts: { knownNanoUsd: 93000, unknownExposureNanoUsd: 0 },
+    });
+    expect(updates).toEqual(["Partial "]);
+    expect(JSON.stringify(result)).not.toContain("Private supplier diagnostic");
+    await chat.stream("alice", op.id, input, () => {});
+    expect(calls).toBe(1);
   } finally {
     f.client.close();
   }

@@ -31,6 +31,9 @@ export class DeviceNarration {
     readonly documentId: string,
     private ports: DeviceNarrationPorts,
   ) {}
+  configure(ports: DeviceNarrationPorts) {
+    this.ports = ports;
+  }
   private get scope() {
     return JSON.stringify([this.account, this.documentId]);
   }

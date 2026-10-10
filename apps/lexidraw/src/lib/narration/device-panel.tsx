@@ -2,6 +2,9 @@
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { useSession } from "next-auth/react";
 import { browserByok, browserByokAccount } from "../byok/browser-session";
+import { Button } from "~/components/ui/button";
+import { queryAccess } from "~/lib/generation/query-access";
+import { QueryNotice } from "~/lib/generation/query-notice";
 import { api } from "~/trpc/react";
 import { DeviceNarration } from "./device-flow";
 import { browserNarrationStore, registerNarration } from "./device-store";
@@ -11,11 +14,13 @@ export function DeviceNarrationController({
   available,
   keyAvailable,
   start,
+  capabilityKnown = true,
 }: {
   flow: DeviceNarration;
   available: boolean;
   keyAvailable: boolean;
   start: () => Promise<void>;
+  capabilityKnown?: boolean;
 }) {
   const checkpoint = useSyncExternalStore(
     flow.subscribe,
@@ -48,6 +53,7 @@ export function DeviceNarrationController({
       {notice && <p role="alert">{notice}</p>}
       <DeviceNarrationView
         checkpoint={checkpoint}
+        capabilityKnown={capabilityKnown}
         available={available}
         keyAvailable={keyAvailable}
         onStart={() => run(start)}
@@ -93,30 +99,33 @@ function SignedInDeviceNarration({
   const save = api.deviceNarration.save.useMutation({
     onSuccess: () => utils.deviceNarration.saved.invalidate({ documentId }),
   });
-  const available = capability.data?.available === true;
+  const access = queryAccess(capability, true, "Device narration capability");
+  const available = access.kind === "ready" && access.data.available;
   const { mutateAsync: saveRecording } = save;
+  const ports = {
+    account: browserByokAccount,
+    available: () => available,
+    byok,
+    store: browserNarrationStore,
+    sync: async (
+      id: string,
+      recording: import("./device-contracts").RecordingArtifact,
+    ) =>
+      (await saveRecording({ idempotencyKey: id, documentId, recording })).id,
+  };
+  // The account/document controller retains checkpoints across capability refreshes.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: configure supplies current ports each render; only account/document identity owns retained checkpoints.
   const flow = useMemo(
-    () =>
-      new DeviceNarration(account, documentId, {
-        account: browserByokAccount,
-        available: () => available,
-        byok,
-        store: browserNarrationStore,
-        sync: async (id, recording) =>
-          (
-            await saveRecording({
-              idempotencyKey: id,
-              documentId,
-              recording,
-            })
-          ).id,
-      }),
-    [account, documentId, available, byok, saveRecording],
+    () => new DeviceNarration(account, documentId, ports),
+    [account, documentId],
   );
+  flow.configure(ports);
   return (
     <div className="space-y-4">
+      <QueryNotice access={access} retry={() => void capability.refetch()} />
       <DeviceNarrationController
         flow={flow}
+        capabilityKnown={access.kind === "ready"}
         available={available}
         keyAvailable={!!reference}
         start={async () => {
@@ -129,17 +138,23 @@ function SignedInDeviceNarration({
         {saved.isLoading ? (
           <p>Loading saved recording…</p>
         ) : saved.error ? (
-          <p>Saved recording could not be loaded.</p>
-        ) : saved.data ? (
+          <p role="alert">
+            Saved recording could not be refreshed.{" "}
+            <Button onClick={() => void saved.refetch()}>
+              Retry saved recording
+            </Button>
+          </p>
+        ) : null}
+        {saved.data ? (
           <>
             <p>
               Replay is free on any signed-in device. No provider key is needed.
             </p>
             <RecordingControls recording={saved.data.recording} />
           </>
-        ) : (
+        ) : !saved.isPending && !saved.error ? (
           <p>No saved device recording.</p>
-        )}
+        ) : null}
       </section>
     </div>
   );

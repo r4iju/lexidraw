@@ -14,6 +14,8 @@ import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
 import { browserByok } from "~/lib/byok/browser-session";
 import type { PowerPreference } from "~/lib/byok/preference";
+import { queryAccess } from "~/lib/generation/query-access";
+import { QueryNotice } from "~/lib/generation/query-notice";
 import { api } from "~/trpc/react";
 
 type Activity =
@@ -34,6 +36,7 @@ export function AiPowerSection({
   const query = api.auth.getPowerPreference.useQuery(undefined, {
     initialData: preference,
   });
+  const access = queryAccess(query, true, "AI power preference");
   const utils = api.useUtils();
   const save = api.auth.setPowerPreference.useMutation({
     onSuccess: () => utils.auth.getPowerPreference.invalidate(),
@@ -50,7 +53,12 @@ export function AiPowerSection({
   const pending = activity.status === "pending";
   async function connect(form: HTMLFormElement) {
     const input = form.querySelector("#provider-key");
-    if (!(input instanceof HTMLInputElement) || !session) return;
+    if (
+      !(input instanceof HTMLInputElement) ||
+      !session ||
+      access.kind !== "ready"
+    )
+      return;
     const value = input.value;
     input.value = "";
     setActivity({ status: "pending" });
@@ -68,7 +76,13 @@ export function AiPowerSection({
   }
   async function complete(form: HTMLFormElement) {
     const input = form.elements.namedItem("text");
-    if (!(input instanceof HTMLInputElement) || !session || !credential) return;
+    if (
+      !(input instanceof HTMLInputElement) ||
+      !session ||
+      !credential ||
+      access.kind !== "ready"
+    )
+      return;
     setActivity({ status: "pending" });
     try {
       const text = await session.autocomplete(credential, input.value);
@@ -95,10 +109,11 @@ export function AiPowerSection({
         One account preference, one provider. Keys stay in memory on this device
         until sign out or page closure. Another device needs its own key.
       </p>
+      <QueryNotice access={access} retry={() => void query.refetch()} />
       <Label htmlFor="power-source">Preferred power source</Label>
       <Select
         value={query.data.mode}
-        disabled={save.isPending}
+        disabled={save.isPending || access.kind !== "ready"}
         onValueChange={(value) => {
           const next: PowerPreference =
             value === "byok"
@@ -151,9 +166,12 @@ export function AiPowerSection({
             }}
           >
             <Label htmlFor="provider-key">OpenRouter key</Label>
-            <ProviderKeyInput disabled={pending} />
+            <ProviderKeyInput disabled={pending || access.kind !== "ready"} />
             <div className="flex gap-2">
-              <Button type="submit" disabled={pending}>
+              <Button
+                type="submit"
+                disabled={pending || access.kind !== "ready"}
+              >
                 {credential ? "Replace and validate key" : "Validate key"}
               </Button>
               <Button
@@ -184,7 +202,10 @@ export function AiPowerSection({
               maxLength={3000}
               required
             />
-            <Button type="submit" disabled={!credential || pending}>
+            <Button
+              type="submit"
+              disabled={!credential || pending || access.kind !== "ready"}
+            >
               Generate continuation on this device
             </Button>
           </form>

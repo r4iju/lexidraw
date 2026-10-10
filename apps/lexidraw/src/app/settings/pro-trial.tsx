@@ -11,6 +11,8 @@ import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
 import type { ProLedger } from "~/server/pro/ledger";
+import { queryAccess } from "~/lib/generation/query-access";
+import { QueryNotice } from "~/lib/generation/query-notice";
 import { api } from "~/trpc/react";
 export type ProStatus = Awaited<ReturnType<ProLedger["status"]>>;
 export function credits(value: number) {
@@ -82,6 +84,7 @@ export function ProTrialSection({
     refetchInterval: 2000,
   });
   const capability = api.pro.textCapability.useQuery();
+  const access = queryAccess(capability, true, "Pro text capability");
   const utils = api.useUtils();
   const generate = api.pro.text.useMutation({
     onSuccess: () => utils.pro.status.invalidate(),
@@ -127,11 +130,11 @@ export function ProTrialSection({
             Retry
           </Button>
         </p>
-      ) : (
-        <ProUsageDetails balance={status.data} />
-      )}
+      ) : null}
+      <ProUsageDetails balance={status.data} />
       <ProBillingSection status={status.data} />
-      {capability.data?.available !== true && (
+      <QueryNotice access={access} retry={() => void capability.refetch()} />
+      {access.kind === "ready" && !access.data.available && (
         <p role="status">
           Pro text is Coming soon until provider access, quality and output
           bounds are verified. Use device-key text or built-in local
@@ -145,53 +148,73 @@ export function ProTrialSection({
             : "Private eligibility is approved, but no active allowance is granted."}
         </p>
       )}
-      {status.data.entitled && capability.data?.available && (
-        <form
-          className="flex flex-col gap-3"
-          onSubmit={(e) => {
-            e.preventDefault();
-            const text = new FormData(e.currentTarget).get("text");
-            if (typeof text === "string")
-              generate.mutate({ idempotencyKey: crypto.randomUUID(), text });
-          }}
-        >
-          <Label htmlFor="pro-text">Text to continue</Label>
-          <Input id="pro-text" name="text" required maxLength={1500} />
-          <p className="text-sm">
-            Maximum reservation: 1.792 credits. Final usage may be lower. Cancel
-            stops new paid steps; completed work is charged and uncertain
-            outcomes stay reserved.
-          </p>
-          <Button
-            disabled={working || status.data.availableSubcredits < 1_792_000}
+      {status.data.entitled &&
+        access.kind === "ready" &&
+        access.data.available &&
+        !status.isError && (
+          <form
+            className="flex flex-col gap-3"
+            onSubmit={(e) => {
+              e.preventDefault();
+              const text = new FormData(e.currentTarget).get("text");
+              if (typeof text === "string")
+                generate.mutate({ idempotencyKey: crypto.randomUUID(), text });
+            }}
           >
-            Generate with private Pro
-          </Button>
-          {working && current && (
+            <Label htmlFor="pro-text">Text to continue</Label>
+            <Input id="pro-text" name="text" required maxLength={1500} />
+            <p className="text-sm">
+              Maximum reservation: 1.792 credits. Final usage may be lower.
+              Cancel stops new paid steps; completed work is charged and
+              uncertain outcomes stay reserved.
+            </p>
             <Button
-              type="button"
-              variant="outline"
-              disabled={cancel.isPending}
-              onClick={() => cancel.mutate({ id: current.id })}
+              disabled={working || status.data.availableSubcredits < 1_792_000}
             >
-              Cancel operation
+              Generate with private Pro
             </Button>
-          )}
-        </form>
-      )}
+            {working && current && (
+              <Button
+                type="button"
+                variant="outline"
+                disabled={cancel.isPending}
+                onClick={() => cancel.mutate({ id: current.id })}
+              >
+                Cancel operation
+              </Button>
+            )}
+          </form>
+        )}
+      {working &&
+        current &&
+        (access.kind !== "ready" ||
+          !access.data.available ||
+          status.isError) && (
+          <Button
+            type="button"
+            variant="outline"
+            disabled={cancel.isPending}
+            onClick={() => cancel.mutate({ id: current.id })}
+          >
+            Cancel operation
+          </Button>
+        )}
       {generate.isError && (
         <p role="alert">
           Could not start the operation.{" "}
-          {generate.variables && (
-            <Button
-              variant="outline"
-              onClick={() => {
-                if (generate.variables) generate.mutate(generate.variables);
-              }}
-            >
-              Retry the same operation
-            </Button>
-          )}
+          {generate.variables &&
+            access.kind === "ready" &&
+            access.data.available &&
+            !status.isError && (
+              <Button
+                variant="outline"
+                onClick={() => {
+                  if (generate.variables) generate.mutate(generate.variables);
+                }}
+              >
+                Retry the same operation
+              </Button>
+            )}
         </p>
       )}
       {operation.isError && (

@@ -6,24 +6,62 @@ import {
   CHAT_INPUT_BYTES,
 } from "~/lib/generation/chat";
 import { createByokSession } from "~/lib/byok/session";
-import { Completion, TextBook } from "./contracts";
+import { Completion, TextBook, Usage } from "./contracts";
 import type { ProTransport } from "./operation";
+const ResponseId = z.string().min(1).max(200);
+const WireUsage = z
+  .object({
+    input_tokens: z.number().int().nonnegative().max(4096),
+    input_tokens_details: z.object({
+      cached_tokens: z.number().int().nonnegative().max(4096),
+    }),
+    output_tokens: z.number().int().nonnegative().max(512),
+  })
+  .refine(
+    (usage) => usage.input_tokens_details.cached_tokens <= usage.input_tokens,
+  );
 const Event = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("response.output_text.delta"),
     delta: z.string(),
   }),
   z.object({
+    type: z.literal("response.created"),
+    response: z.object({
+      id: ResponseId,
+      status: z.enum(["queued", "in_progress"]),
+    }),
+  }),
+  z.object({
     type: z.literal("response.completed"),
     response: z.object({
-      id: z.string(),
+      id: ResponseId,
       status: z.literal("completed"),
-      usage: z.object({
-        input_tokens: z.number().int(),
-        input_tokens_details: z.object({ cached_tokens: z.number().int() }),
-        output_tokens: z.number().int(),
-      }),
+      usage: WireUsage,
     }),
+  }),
+  z.object({
+    type: z.literal("response.failed"),
+    response: z.object({
+      id: ResponseId,
+      status: z.literal("failed"),
+      usage: WireUsage.nullish(),
+    }),
+  }),
+  z.object({
+    type: z.literal("response.incomplete"),
+    response: z.object({
+      id: ResponseId,
+      status: z.literal("incomplete"),
+      usage: WireUsage.nullish(),
+    }),
+  }),
+  z.object({
+    type: z.literal("error"),
+    code: z.string().min(1).max(200),
+    message: z.string().max(16000),
+    param: z.string().nullable(),
+    sequence_number: z.number().int().nonnegative(),
   }),
 ]);
 export function createProChatTransport(deps: {
@@ -91,6 +129,7 @@ export function createProChatTransport(deps: {
         wire = "",
         bytes = 0,
         emitted = 0;
+      let responseId: string | undefined;
       const abort = () => {
         void reader?.cancel().catch(() => {});
       };
@@ -119,14 +158,51 @@ export function createProChatTransport(deps: {
             const raw: unknown = JSON.parse(data);
             const event = Event.safeParse(raw);
             if (!event.success) {
+              const type = z.object({ type: z.string() }).parse(raw).type;
               if (
-                z
-                  .object({ type: z.string() })
-                  .parse(raw)
-                  .type.match(/failed|error|incomplete/)
+                /failed|error|incomplete/.test(type) ||
+                [
+                  "response.failed",
+                  "response.incomplete",
+                  "response.completed",
+                  "response.created",
+                  "error",
+                ].includes(type)
               )
                 return { kind: "unknown" };
               continue;
+            }
+            if (event.data.type === "error") {
+              // The validated error belongs to this authenticated, redirect-free request stream; it has no response payload or metered usage.
+              return { kind: "failed", retryable: false };
+            }
+            if ("response" in event.data) {
+              if (responseId && responseId !== event.data.response.id)
+                return { kind: "unknown" };
+              responseId = event.data.response.id;
+            }
+            if (event.data.type === "response.created") continue;
+            if (
+              event.data.type === "response.failed" ||
+              event.data.type === "response.incomplete"
+            ) {
+              const usage = event.data.response.usage;
+              // Known technical failure releases customer credits even when supplier cost needs reconciliation.
+              return {
+                kind: "failed",
+                retryable: false,
+                ...(usage
+                  ? {
+                      actualCostNanoUsd:
+                        (usage.input_tokens -
+                          usage.input_tokens_details.cached_tokens) *
+                          book.inputNanoUsd +
+                        usage.input_tokens_details.cached_tokens *
+                          book.cachedInputNanoUsd +
+                        usage.output_tokens * book.outputNanoUsd,
+                    }
+                  : {}),
+              };
             }
             if (event.data.type === "response.output_text.delta") {
               output += event.data.delta;
@@ -139,12 +215,12 @@ export function createProChatTransport(deps: {
                 emitted = safeEnd;
               }
             } else {
-              const usage = {
+              const usage = Usage.parse({
                 input: event.data.response.usage.input_tokens,
                 cachedInput:
                   event.data.response.usage.input_tokens_details.cached_tokens,
                 output: event.data.response.usage.output_tokens,
-              };
+              });
               guard.assertSafe(output);
               if (output.length > emitted) context.onText?.(output);
               return {
