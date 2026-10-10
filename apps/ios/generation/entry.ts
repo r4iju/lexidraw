@@ -1,3 +1,4 @@
+import { prepareLocalContinuation, finishLocalContinuation } from "./local";
 import { prepareAutocomplete } from "../../lexidraw/src/lib/generation/autocomplete";
 import {
   fragmentAt,
@@ -20,6 +21,12 @@ Object.assign(globalThis, {
         },
       }),
     );
+  },
+  nativeLocalAutocompleteRequest(title: string, before: string, after: string) {
+    return JSON.stringify(prepareLocalContinuation({ title, before, after }));
+  },
+  nativeLocalAutocompleteResult(before: string, output: string) {
+    return finishLocalContinuation(before, output);
   },
   nativeAutocompleteResult(before: string, output: string) {
     return finishFragment(fragmentAt(before), output);

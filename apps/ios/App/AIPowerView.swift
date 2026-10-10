@@ -49,12 +49,13 @@ struct AIPowerView: View {
           Text("Pro · Coming soon")
             .foregroundStyle(.secondary)
           Text(
-            "Built-in local narration is free in a document’s Listen menu, using Apple voices available on this device. It does not create a synced recording. Built-in local text is not available here yet. OpenRouter text runs directly on this device. Images, narration and paid tools are unavailable through this key."
+            "Built-in local narration is free in a document’s Listen menu, using Apple voices available on this device. It does not create a synced recording. Apple Intelligence text has separate device, model and language requirements. OpenRouter text runs directly on this device. Images, narration and paid tools are unavailable through this key."
           )
           .font(.footnote)
         }
       }
       if case .ready(let preference, let runtime, let allowance) = setup {
+        if preference == .local { LocalTextSection() }
         Section("Pro allowance, shared with web") {
           Text(allowance.entitled ? "Private trial active" : "No active private allowance")
           Text("Private-trial text generation is available in web settings. This screen shares the same account allowance and history.").font(.footnote)
