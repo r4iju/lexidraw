@@ -1,7 +1,21 @@
 "use client";
 
-import { createContext, useContext } from "react";
+import { createContext, useContext, useState, useRef, useEffect } from "react";
 import type { PropsWithChildren } from "react";
+import { api } from "~/trpc/react";
+import { browserByok } from "~/lib/byok/browser-session";
+import {
+  ChatInput,
+  CHAT_CAPABILITY,
+  prepareChat,
+  runChat,
+} from "~/lib/generation/chat";
+import {
+  proChatPort,
+  chatBrowserFetch,
+  type ChatQuote,
+} from "~/lib/generation/chat-client";
+import type { ChatRuntime } from "~/lib/generation/chat-runtime";
 
 import type {
   LanguageModel,
@@ -70,6 +84,7 @@ export type AutocompleteLLMState = {
 
 export type LLMOptions = {
   prompt: string;
+  context?: string;
   messages?: ModelMessage[];
   system?: string;
   temperature?: number;
@@ -120,18 +135,195 @@ type LLMContextValue = {
     },
   ) => Promise<void>;
   chatState: ChatLLMState;
+  chatSource: string;
+  chatCapability: string | null;
+  chatQuote: ChatQuote | null;
+  acceptChatQuote: (accepted: boolean) => void;
+  cancelChat: () => void;
 };
 
 const LLMContext = createContext<LLMContextValue | null>(null);
 
 type LLMProviderProps = PropsWithChildren<{
   initialConfig: StoredLlmConfig;
+  chatRuntime?: ChatRuntime;
 }>;
 
-export const LEGACY_CHAT_UNAVAILABLE =
-  "Chat is unavailable while AI Power is being updated. Use supported writing suggestions or document actions. Your saved chat history and documents are preserved.";
+type Turn =
+  | { status: "idle" }
+  | { status: "running"; text: string }
+  | { status: "review"; text: string; quote: ChatQuote }
+  | { status: "complete"; text: string }
+  | { status: "error"; text: string; message: string };
+export function LLMProvider(props: LLMProviderProps) {
+  return props.chatRuntime ? (
+    <RuntimeProvider {...props} runtime={props.chatRuntime} />
+  ) : (
+    <SelectedRuntimeProvider {...props} />
+  );
+}
+function SelectedRuntimeProvider(props: LLMProviderProps) {
+  const power = api.auth.getPowerPreference.useQuery();
+  const capability = api.pro.chatCapability.useQuery(undefined, {
+    enabled: power.data?.mode === "pro",
+  });
+  const utils = api.useUtils();
+  const source = power.data?.mode ?? "local";
+  const reason =
+    source === "local"
+      ? "Built-in local chat is available only on supported Apple devices. No cloud fallback is used."
+      : source === "byok"
+        ? "Direct chat is unavailable until provider streaming and bounds are verified. Your saved history is preserved."
+        : (capability.data?.reason ?? "Checking Pro chat availability.");
+  const runtime: ChatRuntime = {
+    source,
+    available: source === "pro" && capability.data?.available === true,
+    reason,
+    async run(input, signal, onText, confirm) {
+      const session = browserByok();
+      if (source === "local") throw new Error(reason);
+      if (source === "byok") {
+        const reference = session?.reference();
+        if (!session || !reference)
+          throw new Error(
+            "Set up your OpenRouter key in AI Power on this device.",
+          );
+        return runChat(input, session.chat(reference), {
+          signal,
+          onText,
+          assertSafe: session.assertSafe,
+        });
+      }
+      try {
+        return await runChat(
+          input,
+          proChatPort(input, {
+            quote: (input) => utils.client.pro.chatQuote.mutate(input),
+            confirm,
+            accept: (input) => utils.client.pro.chatAccept.mutate(input),
+            cancel: (id) => utils.client.pro.cancel.mutate({ id }),
+            fetch: (request) => chatBrowserFetch(session, request),
+            origin: window.location.origin,
+            idempotencyKey: crypto.randomUUID(),
+          }),
+          { signal, onText, assertSafe: session?.assertSafe },
+        );
+      } finally {
+        await utils.pro.status.invalidate();
+      }
+    },
+  };
+  return <RuntimeProvider {...props} runtime={runtime} />;
+}
+function RuntimeProvider({
+  children,
+  initialConfig,
+  runtime,
+}: LLMProviderProps & { runtime: ChatRuntime }) {
+  const [turn, setTurn] = useState<Turn>({ status: "idle" });
+  const active = useRef<AbortController | null>(null);
+  const pending = useRef<((accepted: boolean) => void) | null>(null);
+  // Abort-controller lifecycle belongs to the mounted chat surface.
+  useEffect(
+    () => () => {
+      active.current?.abort();
+      pending.current?.(false);
+    },
+    [],
+  );
+  function acceptChatQuote(accepted: boolean) {
+    const resolve = pending.current;
+    pending.current = null;
+    setTurn({ status: "running", text: "" });
+    resolve?.(accepted);
+  }
+  function cancelChat() {
+    active.current?.abort();
+    acceptChatQuote(false);
+  }
+  async function generate(
+    options: LLMOptions,
+    onText?: (text: string) => void,
+  ) {
+    if (active.current) throw new Error("A chat turn is already running.");
+    if (!runtime.available)
+      throw new Error(
+        runtime.reason ?? "Chat unavailable for the selected AI Power source.",
+      );
+    if (options.tools || options.toolChoice || options.system)
+      throw new Error(CHAT_CAPABILITY);
+    const files = Array.from(options.files ?? []);
+    if (
+      files.length > 2 ||
+      files.some(
+        (file) =>
+          !["text/plain", "text/markdown"].includes(file.type) ||
+          file.size > 1500,
+      )
+    )
+      throw new Error(CHAT_CAPABILITY);
+    const controller = new AbortController();
+    active.current = controller;
+    const signal = options.signal
+      ? AbortSignal.any([options.signal, controller.signal])
+      : controller.signal;
+    setTurn({ status: "running", text: "" });
+    const abort = () => {
+      pending.current?.(false);
+      pending.current = null;
+    };
+    signal.addEventListener("abort", abort, { once: true });
+    try {
+      const input = ChatInput.safeParse({
+        prompt: options.prompt,
+        context: options.context ?? "",
+        messages: options.messages ?? [],
+        files: await Promise.all(
+          files.map(async (file) => ({
+            name: file.name,
+            type: file.type,
+            text: await file.text(),
+          })),
+        ),
+      });
+      if (!input.success) throw new Error(CHAT_CAPABILITY);
+      prepareChat(input.data);
 
-export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
+      const text = await runtime.run(
+        input.data,
+        signal,
+        (text) => {
+          setTurn({ status: "running", text });
+          onText?.(text);
+        },
+        async (value) =>
+          new Promise<boolean>((resolve) => {
+            if (signal.aborted) {
+              resolve(false);
+              return;
+            }
+            pending.current = resolve;
+            setTurn({ status: "review", text: "", quote: value });
+          }),
+      );
+      setTurn({ status: "complete", text });
+      return { text };
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Chat could not complete.";
+      setTurn({ status: "error", text: "", message });
+      throw new Error(message);
+    } finally {
+      signal.removeEventListener("abort", abort);
+      active.current = null;
+    }
+  }
+  const chatState: ChatLLMState = {
+    isError: turn.status === "error",
+    text: "text" in turn ? turn.text : "",
+    error: turn.status === "error" ? turn.message : null,
+    isStreaming: turn.status === "running" || turn.status === "review",
+  };
   return (
     <LLMContext.Provider
       value={{
@@ -147,17 +339,28 @@ export function LLMProvider({ children, initialConfig }: LLMProviderProps) {
           error: null,
           isLoading: false,
         },
-        chatState: {
-          isError: false,
-          text: "",
-          error: null,
-          isStreaming: false,
-        },
-        generateChatResponse: async () => {
-          throw new Error(LEGACY_CHAT_UNAVAILABLE);
-        },
-        generateChatStream: async ({ callbacks }) => {
-          callbacks.onError?.(new Error(LEGACY_CHAT_UNAVAILABLE));
+        chatState,
+        chatSource: runtime.source,
+        chatCapability: runtime.available
+          ? null
+          : (runtime.reason ?? "Chat unavailable"),
+        chatQuote: turn.status === "review" ? turn.quote : null,
+        acceptChatQuote,
+        cancelChat,
+        generateChatResponse: generate,
+        generateChatStream: async ({ callbacks, ...options }) => {
+          try {
+            const result = await generate(options, callbacks.onTextUpdate);
+            callbacks.onFinish?.(result);
+          } catch (error) {
+            callbacks.onError?.(
+              new Error(
+                error instanceof Error
+                  ? error.message
+                  : "Chat could not complete.",
+              ),
+            );
+          }
         },
       }}
     >

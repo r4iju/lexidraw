@@ -744,8 +744,15 @@ export class ProLedger {
     account: string,
     key: string,
     inputHash: string,
-    feature: "text" | "autocomplete" | "image" | "narration" | "agent" = "text",
+    feature:
+      | "text"
+      | "chat"
+      | "autocomplete"
+      | "image"
+      | "narration"
+      | "agent" = "text",
     imageSnapshot?: unknown,
+    acceptedText?: { periodId: string; maximum: number; book: unknown },
   ) {
     const agent =
       feature === "agent"
@@ -785,6 +792,14 @@ export class ProLedger {
       ).rows[0];
       if (!period) throw new ProError("Private entitlement required");
       const rates = decodePeriodRates(String(period.pricebook));
+      if (
+        acceptedText &&
+        (acceptedText.periodId !== String(period.id) ||
+          acceptedText.maximum !== textMaximum(rates.text) ||
+          JSON.stringify(acceptedText.book) !== JSON.stringify(rates.text))
+      )
+        throw new ProError("Chat period or rates changed. Review a new quote.");
+
       for (const feature of ["image", "agent"] as const) {
         if (rates[feature]) continue;
         await this.pinFeature(

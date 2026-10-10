@@ -1,9 +1,10 @@
+import { useSendQuery } from "../use-send-query";
 import Link from "next/link";
 import { useEntityId } from "~/hooks/use-entity-id";
 import type React from "react";
 import { ModeTabs } from "./mode-tabs";
 import { MessageList } from "./message-list";
-import { LEGACY_CHAT_UNAVAILABLE } from "../../../context/llm-context";
+import { ChatComposer } from "./chat-composer";
 import { Reset } from "./reset";
 import { useChatState } from "../llm-chat-context";
 import { DebugPanel } from "./debug-panel";
@@ -13,6 +14,7 @@ export const Sidebar: React.FC = () => {
   const { mode: chosen } = useChatState();
   const documentId = useEntityId();
   const developer = useDeveloperFlag();
+  const send = useSendQuery();
   const mode = chosen === "debug" && !developer ? "chat" : chosen;
 
   return (
@@ -37,13 +39,10 @@ export const Sidebar: React.FC = () => {
       {mode === "chat" && (
         <>
           <MessageList />
-          <div className="space-y-3 p-4" role="status">
-            <p>{LEGACY_CHAT_UNAVAILABLE}</p>
-            <Link href="/settings#settings-ai-power">Manage AI Power</Link>
-            <Link href={`/documents/${encodeURIComponent(documentId)}/agent`}>
-              Open document action
-            </Link>
-          </div>
+          <ChatComposer send={send} />
+          <Link className="p-3" href="/settings#settings-ai-power">
+            Manage AI Power
+          </Link>
         </>
       )}
     </div>

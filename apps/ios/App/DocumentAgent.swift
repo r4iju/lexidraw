@@ -53,3 +53,15 @@ struct AgentComposerContent:View {
   }
  }
 }
+
+struct DocumentChatComposer: View {
+  let session: Session
+  let document: String
+  let context: String
+  @State private var flow = NativeChatFlow()
+  var body: some View {
+    NativeChatView(flow: flow).task {
+      await flow.load(session: session, document: document, context: context)
+    }
+  }
+}

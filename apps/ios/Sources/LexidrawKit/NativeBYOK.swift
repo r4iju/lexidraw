@@ -37,6 +37,7 @@ private final class NoProviderRedirects: NSObject, URLSessionTaskDelegate, Senda
   private let configuration: URLSessionConfiguration
   private var generation = UUID()
   private var sessions: [UUID: URLSession] = [:]
+  private let chatFixture: Bool
   private let agentFixture: Bool
   private let narrationFixture: Bool
   public var sessionActive: Bool { !ended }
@@ -51,8 +52,10 @@ private final class NoProviderRedirects: NSObject, URLSessionTaskDelegate, Senda
 
   public init(
     store: any TokenStore, configuration: URLSessionConfiguration = .ephemeral,
-    files: NativeTextFileStore? = nil, imageFixture: Bool = false, narrationFixture: Bool = false, agentFixture: Bool = false
+    files: NativeTextFileStore? = nil, imageFixture: Bool = false, narrationFixture: Bool = false,
+    agentFixture: Bool = false, chatFixture: Bool = false
   ) {
+    self.chatFixture = chatFixture
     self.agentFixture = agentFixture
     self.narrationFixture = narrationFixture
     self.imageFixture = imageFixture
@@ -166,11 +169,106 @@ private final class NoProviderRedirects: NSObject, URLSessionTaskDelegate, Senda
     return output
   }
 
+  public func chat(
+    _ input: NativeChatInput, reference: NativeCredentialReference,
+    onText: @escaping @MainActor (String) -> Void
+  ) async throws -> String {
+    guard chatFixture else { throw NativeChatError.unavailable }
+    let body = try nativeChatPrepared(input)
+    guard isCurrent(reference), let key = try store.load() else { throw NativeAIError.expired }
+    guard let config = configuration.copy() as? URLSessionConfiguration else {
+      throw NativeChatError.unavailable
+    }
+    config.httpCookieStorage = nil
+    config.httpShouldSetCookies = false
+    config.urlCredentialStorage = nil
+    config.urlCache = nil
+    config.httpAdditionalHeaders = nil
+    let url = URL(string: "https://openrouter.ai/api/v1/chat/completions")!
+    var request = URLRequest(url: url)
+    request.httpMethod = "POST"
+    request.httpBody = Data(body.utf8)
+    request.timeoutInterval = 30
+    request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    request.setValue("Bearer " + key, forHTTPHeaderField: "Authorization")
+    let session = URLSession(
+      configuration: config, delegate: NoProviderRedirects(), delegateQueue: nil)
+    let id = UUID()
+    sessions[id] = session
+    defer {
+      sessions.removeValue(forKey: id)
+      session.invalidateAndCancel()
+    }
+    do {
+      guard isCurrent(reference), !Task.isCancelled else { throw NativeChatError.cancelled }
+      let (bytes, response) = try await session.bytes(for: request)
+      guard let http = response as? HTTPURLResponse, http.url == url, http.statusCode == 200,
+        http.value(forHTTPHeaderField: "Content-Type")?.components(separatedBy: ";").first
+          == "text/event-stream", http.value(forHTTPHeaderField: "Content-Encoding") == nil
+      else { throw NativeChatError.uncertain }
+      var wire = Data()
+      var frame = Data()
+      var output = ""
+      var emitted = 0
+      var done = false
+      struct Delta: Decodable {
+        struct Choice: Decodable {
+          struct Content: Decodable { let content: String? }
+          let delta: Content
+        }
+        let choices: [Choice]
+      }
+      for try await byte in bytes {
+        try Task.checkCancellation()
+        guard isCurrent(reference) else { throw NativeAIError.expired }
+        wire.append(byte)
+        frame.append(byte)
+        guard wire.count <= 131072 else { throw NativeChatError.uncertain }
+        guard frame.suffix(2) == Data([10, 10]) || frame.suffix(4) == Data([13, 10, 13, 10]) else {
+          continue
+        }
+        try NativeCredentialGuard.shared.check(wire)
+        let lines = String(decoding: frame, as: UTF8.self).split(separator: "\n")
+        frame.removeAll()
+        let data = lines.filter { $0.hasPrefix("data:") }.map {
+          $0.dropFirst(5).trimmingCharacters(in: .whitespacesAndNewlines)
+        }.joined(separator: "\n")
+        if data.isEmpty { continue }
+        if data == "[DONE]" {
+          done = true
+          break
+        }
+        let event = try JSONDecoder().decode(Delta.self, from: Data(data.utf8))
+        guard event.choices.count <= 1 else { throw NativeChatError.uncertain }
+        output += event.choices.first?.delta.content ?? ""
+        guard output.utf8.count <= 16000 else { throw NativeChatError.uncertain }
+        try NativeCredentialGuard.shared.check(Data(output.utf8))
+        if let last = output.lastIndex(where: { $0.isWhitespace }) {
+          let safe = String(output[...last])
+          if safe.count > emitted {
+            onText(safe)
+            emitted = safe.count
+          }
+        }
+      }
+      guard done, isCurrent(reference), !Task.isCancelled else { throw NativeChatError.uncertain }
+      try NativeCredentialGuard.shared.check(Data(output.utf8))
+      if output.count > emitted { onText(output) }
+      return output
+    } catch {
+      if Task.isCancelled { throw NativeChatError.cancelled }
+      throw NativeChatError.uncertain
+    }
+  }
   public func agent(state: String, reference: NativeCredentialReference) async throws -> String {
     guard agentFixture else { throw NativeAIError.unavailable }
     let body = try nativeAgentCall("nativeAgentRequest", [state])
-    let data = try await request(path: "/api/v1/chat/completions", body: Data(body.utf8), reference: reference)
-    guard data.count <= 16_384, let response = try? JSONDecoder().decode(Completion.self, from: data), let output = response.choices.first?.message.content, output.utf8.count <= 3000 else { throw NativeAIError.rejected }
+    let data = try await request(
+      path: "/api/v1/chat/completions", body: Data(body.utf8), reference: reference)
+    guard data.count <= 16_384,
+      let response = try? JSONDecoder().decode(Completion.self, from: data),
+      let output = response.choices.first?.message.content, output.utf8.count <= 3000
+    else { throw NativeAIError.rejected }
     try NativeCredentialGuard.shared.check(Data(output.utf8))
     return output
   }
@@ -258,11 +356,16 @@ private final class NoProviderRedirects: NSObject, URLSessionTaskDelegate, Senda
         let (bytes, received) = try await session.bytes(for: request)
         guard let http = received as? HTTPURLResponse, http.url == url,
           (200..<300).contains(http.statusCode),
-          (path != "/api/v1/audio/speech" || http.value(forHTTPHeaderField: "Content-Type")?.components(separatedBy: ";").first == "audio/pcm"), http.value(forHTTPHeaderField: "Content-Encoding") == nil
+          path != "/api/v1/audio/speech"
+            || http.value(forHTTPHeaderField: "Content-Type")?.components(separatedBy: ";").first
+              == "audio/pcm",
+          http.value(forHTTPHeaderField: "Content-Encoding") == nil
         else { throw NativeAIError.unavailable }
         var collected = Data()
         for try await byte in bytes {
-          if collected.count >= (path == "/api/v1/audio/speech" ? 5_760_000 : 16_384) { throw NativeAIError.rejected }
+          if collected.count >= (path == "/api/v1/audio/speech" ? 5_760_000 : 16_384) {
+            throw NativeAIError.rejected
+          }
           collected.append(byte)
         }
         data = collected

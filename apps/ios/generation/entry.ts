@@ -133,3 +133,13 @@ Object.assign(globalThis, {
     return JSON.stringify(deviceAgentRestore(JSON.parse(state)));
   },
 });
+
+import { nativeChatRequest, nativeLocalChatRequest } from "./chat";
+Object.assign(globalThis, {
+  nativeChatRequest(json: string) {
+    return JSON.stringify(nativeChatRequest(json));
+  },
+  nativeLocalChatRequest(json: string) {
+    return JSON.stringify(nativeLocalChatRequest(json));
+  },
+});

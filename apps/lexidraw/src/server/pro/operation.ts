@@ -20,6 +20,8 @@ export type ProTransport = (
     attemptId: string;
     operationId: string;
     feature?: string;
+    onText?: (text: string) => void;
+    book?: unknown;
   },
 ) => Promise<ProviderOutcome>;
 export function inputIdentity(input: unknown) {
@@ -38,7 +40,12 @@ export class ProTextOperation {
     readonly ledger: ProLedger,
     readonly transport: ProTransport,
   ) {}
-  async execute(account: string, id: string, text: string): Promise<Operation> {
+  async execute(
+    account: string,
+    id: string,
+    text: string,
+    onText?: (text: string) => void,
+  ): Promise<Operation> {
     const op = await this.ledger.operation(account, id);
     const book = TextBook.parse(JSON.parse(op.pricebook));
     if (!(await this.ledger.claim(id))) return this.recover(account, id);
@@ -84,6 +91,8 @@ export class ProTextOperation {
             attemptId: attempt,
             operationId: id,
             feature: op.feature,
+            onText,
+            book,
           }),
           stop,
         ]);

@@ -1,3 +1,5 @@
+import { ChatRequest, type ChatPort } from "../generation/chat";
+import { providerChatStream } from "../generation/chat-stream";
 import {
   DEVICE_AGENT_UNAVAILABLE,
   deviceAgentRequest,
@@ -56,6 +58,7 @@ export function createByokSession(
     imageFixture?: true;
     narrationFixture?: true;
     agentFixture?: true;
+    chatFixture?: true;
   } = {},
 ) {
   let active: { reference: CredentialReference; key: string } | undefined;
@@ -230,6 +233,53 @@ export function createByokSession(
     } catch {
       throw unavailable();
     }
+  }
+  function chat(reference: CredentialReference): ChatPort {
+    return {
+      async *stream(value, signal) {
+        if (!options.chatFixture)
+          throw new Error(
+            "Direct chat is unavailable until provider streaming and bounds are verified. Your saved history is preserved.",
+          );
+        const input = ChatRequest.parse(value);
+        assertSafe(JSON.stringify(input));
+        if (signal.aborted || active?.reference !== reference)
+          throw unavailable();
+        const request = new Request(endpoint, {
+          method: "POST",
+          redirect: "error",
+          credentials: "omit",
+          signal: AbortSignal.any([signal, AbortSignal.timeout(30_000)]),
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${active.key}`,
+          },
+          body: JSON.stringify({
+            model: "openai/gpt-4.1-mini",
+            messages: [
+              { role: "system", content: input.system },
+              ...input.messages,
+            ],
+            max_tokens: input.maxOutputTokens,
+            temperature: 0,
+            stream: true,
+          }),
+        });
+        try {
+          const response = await network(request);
+          yield* providerChatStream(
+            response,
+            request.signal,
+            assertSafe,
+            () => active?.reference === reference,
+          );
+        } catch {
+          throw new Error(
+            "Chat provider outcome uncertain. No automatic repeat was performed.",
+          );
+        }
+      },
+    };
   }
   async function agent(reference: CredentialReference, state: AgentCheckpoint) {
     if (!options.agentFixture) throw new Error(DEVICE_AGENT_UNAVAILABLE);
@@ -514,6 +564,7 @@ export function createByokSession(
     text: (reference: CredentialReference, prompt: string) =>
       requestText(reference, prompt),
     autocomplete,
+    chat,
     narrate,
     image,
     agent,

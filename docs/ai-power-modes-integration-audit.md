@@ -8,9 +8,10 @@ Local branch `feat/276-ai-power-modes`, audited from `36e8174bbea5d5b3536d85fec7
 | --- | --- |
 | `/api/llm/generate`, `/api/llm/stream`, `/api/autocomplete/stream` | Legacy generation closed; authenticated callers get explicit unavailable responses. |
 | `/api/llm/proxy/openai/*`, `/api/llm/proxy/google/*` | All legacy forwarding deleted, including GET/model discovery, HEAD and writes. No server key resolution or upstream forwarding. |
-| `/api/llm/agent`, callback; `llm.plan`, `llm.generate` | Closed legacy planner/agent. Saved chat remains readable, composer explicitly unavailable and links to supported document actions. |
+| `/api/llm/agent`, callback; `llm.plan`, `llm.generate` | Closed legacy planner/agent. Legacy agent UI links to supported document actions; chat now uses its separate source-selected bounded contract. |
 | `web.googleSearch`, `web.extractWebpageContent`; `sandbox.search`, fetch/article and legacy tool helpers | Standalone paid search and sandbox dispatch closed. Legacy toolkit can only call denied routes. No standalone operation ID authorizes paid tools. |
 | `image` legacy route; `imagePower` generation/upload; dashboard cover/drawing image callers | Legacy generation closed. Pro/BYOK image generation stays unavailable. Generated images now register in a dedicated private Blob store and use an authenticated, bounded app delivery route. Saving/read access is independent of generation eligibility; actual private-store configuration remains unverified. Existing images/drawings stay untouched. |
+| `pro.chatQuote/chatAccept`, `/api/chat/stream`; web/native chat | Bounded shared CHAT preparation preserves text history/context and supports UTF-8 text attachments. Pro quotes and atomically accepts period-pinned text rates, then streams through authenticated ownership and durable attempt fences. Direct device OpenRouter SSE and native Apple Intelligence snapshots use separate credential-free adapters. Production provider chat gates remain closed pending separately authorized preflight; the complete local injected path is executable. |
 | `pro.text`, `pro.autocomplete`, pro-text workflow | Production capability is explicitly false. UI shows Coming soon, rejects before reservation, and old durable production text jobs cannot resolve a system key. Injected bounded text adapter requires attempt/account authorization again at actual HTTP dispatch. |
 | `agentPower.quote/start/current/operation/cancel`, pro-agent workflow | Production executor absent. Injected whole-action path uses one reservation and account budget for planning, decisions, generation and search. Actual dispatch requires active eligibility, current dated entitlement, original-period fence, operation ownership and started attempt. Search and SDK fetch recheck after key resolution; cancellation stops further steps. |
 | `narration.quote/start/operation/saved`, pro-narration workflow | Production executor absent. Injected bounded narration uses period customer-rate snapshots and the common ledger. Provider-free operation/saved reads check current document access and return historical account-owned audio after edits, with no generation allowance or ledger mutations. |
@@ -35,7 +36,7 @@ Every concrete implementation finding below has an observed failing contract bef
 - Narration operation recovery exposed account-owned audio after document permission revocation. Document access is now checked before recovery.
 - Agent dispatch trusted reservation-era eligibility. Durable attempt authorization now checks active eligibility and dated/fenced entitlement at actual dispatch, including after async key resolution.
 - Legacy GET forwarding/model discovery, direct model settings and TTS factories still bypassed the mode boundary. Forwarders and factories are closed; direct settings are strict.
-- Legacy chat reached a closed route without a coherent outcome. The transport makes no request and the composer explains the unsupported flow while preserving history.
+- Legacy chat originally reached a closed route without a coherent outcome. That initial denial preserved history but did not complete S3. The source-selected replacement and its remaining proof gaps are recorded below.
 - Stale text source accepted a paid reservation; unverified production text was selectable. Both are rejected before reservation and old production workflows have no provider runtime.
 - The injected text provider could resolve a key without authorization. Authorization now precedes key resolution and actual SDK HTTP dispatch.
 - Apple rejected freshly retrieved valid status because signedDate was older than five minutes; default SDK reads had no application response/time bound. Current reads now establish freshness with bounded transport; signatures/expiry/future-time checks remain.
@@ -103,7 +104,7 @@ The sole-writer local follow-up addresses Standards S1-S6 and the shared-documen
 
 Access reads, block construction and revision compare-and-swap are shared between Device and Pro writers. Receipt transactions remain distinct: Device scopes identity to account/document and enforces credential/quota checks; Pro scopes identity to an operation and updates its report atomically under eligibility/cancellation fences. The extraction preserves those contracts and image-dimension policies.
 
-Evidence is `/tmp/lexidraw-276-implementation/291-standards-fixes-v1.json`, with actual red/green boundary logs, fresh-process local suites, web/native shared-core typechecks, JavaScriptCore checkpoint verification, Swift credential-guard verification and T3 loopback control interaction evidence. The old ListenPlayer query fixture also failed at the pinned baseline; its fixture is updated and its five playback/focus checks pass. No release or external acceptance is claimed. S2 private image delivery now has local implementation and evidence below. S4 period-pinned narration rates and S5 saved-job read-only delivery now have local implementation and evidence below. S3 chat migration remains unfinished and is the parent’s next sequential scope. No scope revision or spec completion is claimed. Actual provider/payment, physical audio and deployment criteria remain open, and #276 is incomplete.
+Evidence is `/tmp/lexidraw-276-implementation/291-standards-fixes-v1.json`, with actual red/green boundary logs, fresh-process local suites, web/native shared-core typechecks, JavaScriptCore checkpoint verification, Swift credential-guard verification and T3 loopback control interaction evidence. The old ListenPlayer query fixture also failed at the pinned baseline; its fixture is updated and its five playback/focus checks pass. No release or external acceptance is claimed. S2 private image delivery now has local implementation and evidence below. S4 period-pinned narration rates and S5 saved-job read-only delivery now have local implementation and evidence below. S3 subsequently received the local source-selected migration below; its external provider proof remains pending. No scope revision or spec completion is claimed. Actual provider/payment, physical audio and deployment criteria remain open, and #276 is incomplete.
 
 
 ## S2 authenticated private images, local follow-up
@@ -153,9 +154,54 @@ eligibility revoked, native playback and browser media time advance, and current
 access revocation removes audio delivery. No new ledger entry or provider call is
 caused by saved playback. Silent fixtures prove media plumbing only.
 
-S3 chat migration is the next sequential task. #291 and #276 remain incomplete.
+S3 now has the local implementation and evidence below. #291 and #276 remain incomplete.
 Actual provider/account/model/quality/metering, payment/store verification, hosted
 workflow/media durability, physical audio/lock-screen/interruption and release
 criteria remain unverified. No push, merge, PR edit, cloud CI/build/preview/deploy,
 production API/payment write, real private-store call, release preparation or
 remote migration was performed. Existing draft PR292 remains untouched.
+
+
+## S3 source-selected chat migration (local implementation, external proof pending)
+
+Starting at `31fa631a37007d3d020fc336a211f43c709bfc67`, chat now has one
+portable CHAT contract shared with the native JavaScriptCore bundle. It preserves
+saved text turns and document context, accepts at most two bounded UTF-8 text
+attachments, and rejects tools, PDF, images, audio, unsupported message content
+and oversized requests before a paid dispatch. It does not truncate conversation
+history silently. Legacy settings/history and saved recordings remain intact.
+
+The web composer and native document Chat surface show the selected source,
+capability messaging, safe partial output and Stop. Native account changes clear
+the displayed conversation before authentication, retaining the prior account’s
+stored history without exposing it on authentication failure. Pro uses reviewed maximum
+quotes, unchanged-input/period/rate acceptance, account entitlement and the shared
+ledger's concurrency, spend, retry and uncertainty fences. Replays retrieve the
+existing result without paid dispatch. Lost acceptance responses get one bounded replay of the same reservation key to
+recover its ID for cancellation, never a repeated provider request. Confirmed
+internal retries are absorbed;
+completed cancellation charges once in the accepted period; unknown outcomes stay
+reserved for reconciliation. Browser/native OpenRouter transports attach the single
+device key only at the exact provider endpoint, reject redirects, stream actual
+SSE deltas and guard cumulative wire/output, withholding incomplete tokens before
+publishing. Native local chat streams Apple Intelligence response snapshots, with
+capability checks and no cloud fallback or credit debit. Credential material never
+enters the native shared task request.
+
+Evidence and exact commands are in
+`/tmp/lexidraw-276-implementation/291-chat-migration-v1.json`. Fresh local contracts
+cover shared preparation, source ports, credential echoes/encoded egress, Pro
+quotes/authentication/period changes, cancellation/retry/replay and web/native
+callbacks. T3 loopback browser and a leased pooled simulator demonstrate the actual
+web composer/context and native chat view with saved turns and provider partial
+output. These are injected provider/UI fixtures, not real provider proof. Native
+Pro API contracts and server accounting contracts complement those UI checks.
+
+Production Pro and direct-provider chat remain unavailable until separately
+authorized provider/model/streaming/usage bounds are verified. Native local chat
+is offered only when the actual OS/model/locale reports support; deterministic
+local model tests do not prove supported physical hardware quality. Actual
+provider/CORS, shared hosted execution/restart durability, account/payment/store,
+physical audio/lock-screen/interruption, staged migration messaging and release
+requirements remain open. This migration does not complete #291 or #276 and does
+not authorize a release or amend their scope.

@@ -42,7 +42,9 @@ struct BrowserHarnessApp: App {
       Group {
         switch model.state {
         case .signedIn(let session):
-          if BrowserScenario.name == "recording-integration-291" {
+          if BrowserScenario.name == "chat-migration" {
+            NativeChatFixtureScreen()
+          } else if BrowserScenario.name == "recording-integration-291" {
             SavedRecordingIntegrationScreen(session: session)
           } else if BrowserScenario.name == "device-agent" {
             DeviceAgentFixtureScreen(session: session)
@@ -812,4 +814,58 @@ private struct SavedRecordingIntegrationScreen: View {
       }
     }.nowPlayingBar(listener)
   }
+}
+
+private final class ChatFixtureKey: TokenStore, @unchecked Sendable {
+  var value: String? = "sk-or-v1-native-chat-fixture-only-123456"
+  func load() throws -> String? { value }
+  func save(_ value: String) throws { self.value = value }
+  func delete() throws { value = nil }
+}
+nonisolated private final class ChatFixtureProvider: URLProtocol, @unchecked Sendable {
+  private let stopped = Mutex(false)
+  override class func canInit(with request: URLRequest) -> Bool { true }
+  override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+  override func startLoading() {
+    guard request.url?.absoluteString == "https://openrouter.ai/api/v1/chat/completions" else {
+      client?.urlProtocol(self, didFailWithError: URLError(.unsupportedURL))
+      return
+    }
+    let response = HTTPURLResponse(
+      url: request.url!, statusCode: 200, httpVersion: nil,
+      headerFields: ["Content-Type": "text/event-stream"])!
+    client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+    client?.urlProtocol(
+      self,
+      didLoad: Data(#"data: {"choices":[{"delta":{"content":"The bridge "}}]}"#.utf8)
+        + Data([10, 10]))
+    DispatchQueue.global().asyncAfter(deadline: .now() + 4) { [self] in
+      guard !stopped.withLock({ $0 }) else { return }
+      client?.urlProtocol(
+        self,
+        didLoad: Data(#"data: {"choices":[{"delta":{"content":"is closed for repairs."}}]}"#.utf8)
+          + Data([10, 10]) + Data("data: [DONE]\n\n".utf8))
+      client?.urlProtocolDidFinishLoading(self)
+    }
+  }
+  override func stopLoading() { stopped.withLock { $0 = true } }
+}
+private struct NativeChatFixtureScreen: View {
+  @State private var flow: NativeChatFlow
+  init() {
+    let configuration = URLSessionConfiguration.ephemeral
+    configuration.protocolClasses = [ChatFixtureProvider.self]
+    let byok = NativeBYOK(store: ChatFixtureKey(), configuration: configuration, chatFixture: true)
+    _flow = State(
+      initialValue: NativeChatFlow(
+        source: .byok,
+        messages: [
+          .init(role: "user", content: "Which bridge?"),
+          .init(role: "assistant", content: "The east bridge."),
+        ], context: "The east bridge is closed for repairs."
+      ) { input, update in
+        try await byok.chat(input, reference: byok.credentialReference(), onText: update)
+      })
+  }
+  var body: some View { NativeChatView(flow: flow) }
 }

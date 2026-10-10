@@ -17,7 +17,7 @@ public enum LocalTextAvailability: Equatable, Sendable {
       "The Apple Intelligence text model is not ready or downloaded. Check Apple Intelligence in Settings."
     case .unsupportedLanguage: "Apple Intelligence text does not support this language or locale."
     case .unsupportedAction:
-      "This action is unavailable locally. Only short text continuations are supported here."
+      "This action is unavailable locally. Only bounded text continuations and chat are supported here."
     }
   }
 }
@@ -31,7 +31,7 @@ public enum LocalTextError: Error, LocalizedError, Equatable, Sendable {
     case .contextLimit:
       "This text exceeds the local model’s context limit. Try a shorter selection."
     case .cancelled: "Local text stopped. No cloud request or Pro charge was made."
-    case .refused: "Apple Intelligence could not provide this continuation. Try different text."
+    case .refused: "Apple Intelligence could not provide this text response. Try different text."
     case .failed: "Local text could not complete. Try again."
     }
   }
@@ -46,6 +46,18 @@ public struct LocalTextRequest: Sendable, Decodable {
 @MainActor public protocol LocalTextModel {
   func availability(locale: Locale) -> LocalTextAvailability
   func respond(_ request: LocalTextRequest) async throws -> String
+  func stream(_ request: LocalTextRequest, onText: @escaping @MainActor (String) -> Void)
+    async throws -> String
+}
+
+extension LocalTextModel {
+  public func stream(_ request: LocalTextRequest, onText: @escaping @MainActor (String) -> Void)
+    async throws -> String
+  {
+    let result = try await respond(request)
+    onText(result)
+    return result
+  }
 }
 
 /// This adapter owns no credential, HTTP transport, persistence or credit ledger.
@@ -63,8 +75,52 @@ public struct LocalTextRequest: Sendable, Decodable {
   public func availability(action: String = "autocomplete", locale: Locale = .autoupdatingCurrent)
     -> LocalTextAvailability
   {
-    guard action == "autocomplete" else { return .unsupportedAction }
+    guard action == "autocomplete" || action == "chat" else { return .unsupportedAction }
     return model.availability(locale: locale)
+  }
+  public func chat(
+    _ input: NativeChatInput, locale: Locale = .autoupdatingCurrent,
+    onText: @escaping @MainActor (String) -> Void
+  ) async throws -> String {
+    let status = availability(action: "chat", locale: locale)
+    guard status == .available else { throw LocalTextError.unavailable(status) }
+    let json = try nativeChatPrepared(input, local: true)
+    let request = try JSONDecoder().decode(LocalTextRequest.self, from: Data(json.utf8))
+    let started = generation
+    let id = UUID()
+    var rejected = false
+    let task = Task {
+      try await model.stream(
+        request,
+        onText: { text in
+          guard !Task.isCancelled, self.generation == started, text.utf8.count <= 16000 else {
+            rejected = true
+            return
+          }
+          do {
+            try NativeCredentialGuard.shared.check(Data(text.utf8))
+            onText(text)
+          } catch { rejected = true }
+        })
+    }
+    tasks[id] = task
+    defer { tasks.removeValue(forKey: id) }
+    do {
+      let result = try await withTaskCancellationHandler {
+        try await task.value
+      } onCancel: {
+        task.cancel()
+      }
+      guard !Task.isCancelled, generation == started else { throw LocalTextError.cancelled }
+      guard !rejected, result.utf8.count <= 16000 else { throw NativeAIError.rejected }
+      try NativeCredentialGuard.shared.check(Data(result.utf8))
+      return result
+    } catch {
+      if Task.isCancelled || task.isCancelled || generation != started {
+        throw LocalTextError.cancelled
+      }
+      throw localTextError(error)
+    }
   }
   public func suggest(
     title: String, before: String, after: String, locale: Locale = .autoupdatingCurrent
@@ -123,6 +179,24 @@ public struct LocalTextRequest: Sendable, Decodable {
     case .available: return model.supportsLocale(locale) ? .available : .unsupportedLanguage
     @unknown default: return .modelNotReady
     }
+  }
+  public func stream(_ request: LocalTextRequest, onText: @escaping @MainActor (String) -> Void)
+    async throws -> String
+  {
+    guard #available(iOS 26, macOS 26, *) else { throw LocalTextError.unavailable(.unsupportedOS) }
+    let session = LanguageModelSession(
+      model: SystemLanguageModel.default, instructions: request.system)
+    var result = ""
+    for try await partial in session.streamResponse(
+      to: request.prompt,
+      options: GenerationOptions(
+        temperature: 0, maximumResponseTokens: request.maximumResponseTokens))
+    {
+      try Task.checkCancellation()
+      result = partial.content
+      onText(result)
+    }
+    return result
   }
   public func respond(_ request: LocalTextRequest) async throws -> String {
     guard #available(iOS 26, macOS 26, *) else { throw LocalTextError.unavailable(.unsupportedOS) }

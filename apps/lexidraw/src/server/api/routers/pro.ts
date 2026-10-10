@@ -1,3 +1,5 @@
+import { ChatInput } from "~/lib/generation/chat";
+import { ChatAccept, type ProChat } from "~/server/pro/chat";
 import { TRPCError } from "@trpc/server";
 import { eq } from "drizzle-orm";
 import * as schema from "@packages/drizzle/drizzle-schema";
@@ -29,6 +31,7 @@ const Outcome = z.discriminatedUnion("kind", [
 export function createProRouter(deps: {
   ledger: () => ProLedger;
   textAvailable?: boolean;
+  chat?: () => ProChat;
   billing?: () => SandboxBilling;
   appleBilling?: () => AppleSandboxBilling;
   dispatch: (id: string, text: string, account: string) => Promise<unknown>;
@@ -55,6 +58,44 @@ export function createProRouter(deps: {
   });
   return createTRPCRouter({
     textCapability: procedure.query(textCapability),
+    chatCapability: procedure.query(() => ({
+      available: !!deps.chat,
+      reason:
+        "Pro chat is Coming soon until provider streaming, quality and billable bounds are verified. Your saved history is preserved.",
+    })),
+    chatQuote: procedure.input(ChatInput).mutation(async ({ ctx, input }) => {
+      if (!deps.chat)
+        throw new ProError(
+          "Pro chat is Coming soon. Saved history is preserved.",
+        );
+      const [user] = await ctx.drizzle
+        .select({ config: schema.users.config })
+        .from(schema.users)
+        .where(eq(schema.users.id, ctx.session.user.id));
+      if (user?.config?.aiPower?.mode !== "pro")
+        throw new ProError("Select Pro in AI Power");
+      return deps.chat().quote(ctx.session.user.id, input);
+    }),
+    chatAccept: procedure.input(ChatAccept).mutation(async ({ ctx, input }) => {
+      if (!deps.chat)
+        throw new ProError(
+          "Pro chat is Coming soon. Saved history is preserved.",
+        );
+      const [user] = await ctx.drizzle
+        .select({ config: schema.users.config })
+        .from(schema.users)
+        .where(eq(schema.users.id, ctx.session.user.id));
+      if (user?.config?.aiPower?.mode !== "pro")
+        throw new ProError("Select Pro in AI Power");
+      return deps
+        .chat()
+        .accept(
+          ctx.session.user.id,
+          input.idempotencyKey,
+          input.input,
+          input.quote,
+        );
+    }),
     appleSandboxGate: procedure.query(async ({ ctx }) => {
       if (
         !deps.appleBilling ||

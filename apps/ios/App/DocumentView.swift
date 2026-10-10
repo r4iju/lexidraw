@@ -124,8 +124,19 @@ private struct DocumentContent: View {
   @State private var leaving = false
   @State private var imageComposer = false
   @State private var agentComposer = false
+  @State private var chatComposer = false
   @Environment(\.fileNavigation) private var fileNavigation
 
+  private func chatContext() -> String {
+    func text(_ node: JSONValue) -> String {
+      let own = node["text"]?.stringValue ?? ""
+      return own + (node["children"]?.arrayValue ?? []).map(text).joined(separator: "\n")
+    }
+    guard let state = try? editing.model.serializedState(), let root = state["root"] else {
+      return ""
+    }
+    return text(root)
+  }
   var body: some View {
     GeometryReader { geometry in
       DocumentEditor(editing: editing, reference: editorReference, isEditing: isEditing)
@@ -186,11 +197,17 @@ private struct DocumentContent: View {
           }
         }
         ToolbarItem(placement: .topBarTrailing) {
+          Button("Chat", systemImage: "bubble.left") { chatComposer = true }
+        }
+        ToolbarItem(placement: .topBarTrailing) {
           Button("Comments", systemImage: "bubble.left.and.bubble.right") { editorReference.view?.presentComments() }
         }
       }
       .sheet(isPresented: $agentComposer, onDismiss: { Task { await reload() } }) {
         DocumentAgentComposer(session: editing.session, document: editing.id)
+      }
+      .sheet(isPresented: $chatComposer) {
+        DocumentChatComposer(session: editing.session, document: editing.id, context: chatContext())
       }
       .sheet(isPresented: $imageComposer) {
         DocumentImageComposer(session: editing.session, document: editing.id) { url, prompt in
