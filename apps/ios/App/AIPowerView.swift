@@ -55,12 +55,13 @@ struct AIPowerView: View {
         }
       }
       if case .ready(let preference, let runtime, let allowance) = setup {
+        StoreKitSandboxSection(session: session, eligible: allowance.eligible, refresh: load)
         if preference == .local { LocalTextSection() }
         if let billing = allowance.billing {
           Section("Sandbox/test payment") {
             if allowance.eligible {
               Text("$\(billing.monthlyUsd)/month · \(billing.monthlyCredits) credits per period")
-              Text("Test payment only, no customer charge. Manage your sandbox subscription in web settings.")
+              Text(billing.source == "apple" ? "Apple sandbox subscription. Manage renewal in your device’s sandbox account settings." : "Test payment only, no customer charge. Manage your web sandbox subscription in web settings.")
               Text("Status: \(billing.state.replacingOccurrences(of: "_", with: " "))")
               if !billing.available { Text("Sandbox billing unavailable. External test setup is missing or unsupported.") }
               if let expiry = billing.expiresAt {

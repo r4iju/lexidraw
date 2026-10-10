@@ -21,6 +21,8 @@ public struct ProAllowance: Decodable, Sendable {
     public let cancelAtEnd: Bool
     public let expiresAt: Int64?
     public let customerBound: Bool
+    public let source: String?
+    public let appleAvailable: Bool?
   }
   public struct Usage: Decodable, Sendable, Identifiable {
     public let id: String

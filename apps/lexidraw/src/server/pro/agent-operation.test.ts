@@ -15,6 +15,7 @@ export async function fixture(
     "0015_private_pro",
     "0016_pro_billing_events",
     "0029_sandbox_billing",
+    "0030_apple_sandbox",
     "0025_pro_narration",
     "0027_pro_agent",
   ])

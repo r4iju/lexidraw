@@ -14,6 +14,7 @@ test("authenticated billing router rejects public, admin and forged mode/custome
     "0015_private_pro",
     "0016_pro_billing_events",
     "0029_sandbox_billing",
+    "0030_apple_sandbox",
   ])
     await client.executeMultiple(
       (
@@ -129,5 +130,54 @@ test("raw-body webhook boundary rejects unsigned claims and oversized payloads w
     );
     expect(response.status).toBe(400);
     expect(await response.json()).toEqual({ error: "Sandbox event rejected" });
+  }
+});
+test("Apple gate and claim are authenticated, strict and never trust a client verifier flag", async () => {
+  const client = createClient({ url: ":memory:" });
+  for (const name of [
+    "0015_private_pro",
+    "0016_pro_billing_events",
+    "0029_sandbox_billing",
+    "0030_apple_sandbox",
+  ])
+    await client.executeMultiple(
+      (
+        await Bun.file(`../../packages/drizzle/drizzle/${name}.sql`).text()
+      ).replaceAll("--> statement-breakpoint", ""),
+    );
+  const ledger = new ProLedger(client, {
+    ownerAccountIds: ["owner"],
+    now: Date.now,
+  });
+  const router = createProRouter({
+    ledger: () => ledger,
+    dispatch: async () => {},
+  });
+  const caller = router.createCaller({
+    drizzle: db,
+    schema,
+    auth: { kind: "session" },
+    headers: new Headers(),
+    session: {
+      user: { id: "alice", name: "tester", email: "test@example.test" },
+      expires: "",
+    },
+  });
+  try {
+    expect(await caller.appleSandboxGate()).toEqual({
+      available: false,
+      environment: "sandbox",
+    });
+    await expect(
+      caller.appleSandboxClaim({ signedTransaction: "invalid" }),
+    ).rejects.toThrow("Apple sandbox billing unavailable");
+    await expect(
+      caller.appleSandboxClaim({
+        signedTransaction: "invalid",
+        verified: true,
+      } as never),
+    ).rejects.toThrow();
+  } finally {
+    client.close();
   }
 });

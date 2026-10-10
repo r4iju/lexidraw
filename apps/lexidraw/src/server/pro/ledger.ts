@@ -44,6 +44,7 @@ export class ProLedger {
       ownerAccountIds: readonly string[];
       now: () => number;
       sandboxBillingAvailable?: boolean;
+      appleSandboxAvailable?: boolean;
     },
   ) {}
   owner(actor: string) {
@@ -238,10 +239,17 @@ export class ProLedger {
       // A terminal observation can arrive before any purchase has mapped to an allowance.
       // Its durable group/period row must also fence later duplicate channels for that interval.
       const fenced = await tx.execute({
-        sql: "SELECT 1 FROM pro_subscriptions WHERE account_id=? AND revoked=1 AND starts_at<? AND ends_at>? LIMIT 1",
-        args: [input.accountId, input.endsAt, input.startsAt],
+        sql: "SELECT (EXISTS (SELECT 1 FROM pro_subscriptions WHERE account_id=? AND revoked=1 AND starts_at<? AND ends_at>?) OR EXISTS (SELECT 1 FROM pro_lifecycle_fences WHERE account_id=? AND starts_at<? AND ends_at>?)) AS fenced",
+        args: [
+          input.accountId,
+          input.endsAt,
+          input.startsAt,
+          input.accountId,
+          input.endsAt,
+          input.startsAt,
+        ],
       });
-      if (fenced.rows.length)
+      if (fenced.rows[0]?.fenced === 1)
         throw new ProError("Paid period permanently fenced");
       const id = crypto.randomUUID();
       await tx.execute({
@@ -328,6 +336,34 @@ export class ProLedger {
       });
     });
   }
+  async appleAccountToken(account: string) {
+    return this.write(async (tx) => {
+      const eligible = await tx.execute({
+        sql: "SELECT active FROM pro_eligibility WHERE account_id=?",
+        args: [account],
+      });
+      if (eligible.rows[0]?.active !== 1)
+        throw new ProError("Private eligibility required");
+      await tx.execute({
+        sql: "INSERT OR IGNORE INTO pro_apple_accounts VALUES (?,?)",
+        args: [account, crypto.randomUUID()],
+      });
+      const row = (
+        await tx.execute({
+          sql: "SELECT token FROM pro_apple_accounts WHERE account_id=?",
+          args: [account],
+        })
+      ).rows[0];
+      return z.uuid().parse(row?.token);
+    });
+  }
+  async appleAccount(token: string) {
+    const rows = await this.query(
+      "SELECT account_id FROM pro_apple_accounts WHERE token=?",
+      [token],
+    );
+    return rows[0] ? String(rows[0].account_id) : null;
+  }
   async reconcileSandbox(eventId: string, verify: () => Promise<unknown>) {
     return this.write(async (tx) => {
       if (
@@ -370,6 +406,16 @@ export class ProLedger {
         binding?.customer_id !== event.customerId
       )
         throw new ProError("Billing account binding conflict");
+      if (event.source === "apple") {
+        const apple = (
+          await tx.execute({
+            sql: "SELECT account_id FROM pro_apple_accounts WHERE token=?",
+            args: [event.customerId],
+          })
+        ).rows[0];
+        if (apple?.account_id !== event.accountId)
+          throw new ProError("Billing account binding conflict");
+      }
       const prior = (
         await tx.execute({
           sql: "SELECT * FROM pro_subscriptions WHERE source=? AND subscription_id=?",
@@ -404,6 +450,16 @@ export class ProLedger {
           : event.state;
       // Even a delayed refund must fence its own purchase, without blocking a later renewal.
       if (["revoked", "expired", "cancelled"].includes(event.state)) {
+        await tx.execute({
+          sql: "INSERT OR IGNORE INTO pro_lifecycle_fences VALUES (?,?,?,?,?)",
+          args: [
+            event.source,
+            event.subscriptionId,
+            event.accountId,
+            event.startsAt,
+            event.endsAt,
+          ],
+        });
         await tx.execute({
           sql: "INSERT INTO pro_period_blocks SELECT id,? FROM pro_periods WHERE id IN (SELECT period_id FROM pro_billing_events WHERE event_id=?) OR (account_id=? AND starts_at<? AND ends_at>? AND NOT EXISTS (SELECT 1 FROM pro_billing_events WHERE event_id=?)) ON CONFLICT(period_id) DO UPDATE SET reason=CASE WHEN pro_period_blocks.reason='payment_failed' THEN excluded.reason ELSE pro_period_blocks.reason END",
           args: [
@@ -442,6 +498,22 @@ export class ProLedger {
             ],
           });
         } else if (!terminal && event.state === "payment_failed") {
+          const mapping = await tx.execute({
+            sql: "SELECT period_id FROM pro_billing_events WHERE event_id=?",
+            args: [periodEventId],
+          });
+          if (!mapping.rows.length) {
+            const overlap = await tx.execute({
+              sql: "SELECT id FROM pro_periods WHERE account_id=? AND starts_at<? AND ends_at>?",
+              args: [event.accountId, event.endsAt, event.startsAt],
+            });
+            if (overlap.rows[0])
+              await this.billingEvent(
+                tx,
+                { ...event, eventId: periodEventId, subcredits: 1_000_000_000 },
+                String(overlap.rows[0].id),
+              );
+          }
           await tx.execute({
             sql: "INSERT OR IGNORE INTO pro_period_blocks SELECT period_id,'payment_failed' FROM pro_billing_events WHERE event_id=?",
             args: [periodEventId],
@@ -492,6 +564,7 @@ export class ProLedger {
     const row = rows[0];
     return row
       ? {
+          source: z.enum(["apple", "stripe"]).parse(row.source),
           state: String(row.state),
           startsAt: Number(row.starts_at),
           expiresAt: Number(row.ends_at),
@@ -555,6 +628,10 @@ export class ProLedger {
         cancelAtEnd: subscription?.cancelAtEnd ?? false,
         expiresAt: subscription?.expiresAt ?? null,
         customerBound: !!customer,
+        source: subscription?.source ?? null,
+        appleAvailable:
+          this.config.appleSandboxAvailable === true &&
+          eligible[0]?.active === 1,
       },
       eligible: eligible[0]?.active === 1,
       entitled: eligible[0]?.active === 1 && !!period && period.blocked !== 1,

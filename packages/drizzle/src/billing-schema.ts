@@ -45,3 +45,19 @@ export const proPeriodBlocks = sqliteTable("pro_period_blocks", {
     .references(() => proPeriods.id),
   reason: text("reason").notNull(),
 });
+
+export const proAppleAccounts = sqliteTable("pro_apple_accounts", {
+  accountId: text("account_id").primaryKey().notNull(),
+  token: text("token").unique().notNull(),
+});
+export const proLifecycleFences = sqliteTable(
+  "pro_lifecycle_fences",
+  {
+    source: text("source").notNull(),
+    subscriptionId: text("subscription_id").notNull(),
+    accountId: text("account_id").notNull(),
+    startsAt: integer("starts_at").notNull(),
+    endsAt: integer("ends_at").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.source, t.subscriptionId, t.startsAt] })],
+);

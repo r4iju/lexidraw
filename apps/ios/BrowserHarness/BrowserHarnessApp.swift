@@ -239,6 +239,14 @@ actor HarnessServer: ClientTransport {
       guard let response = response as? HTTPURLResponse else { throw NativeImageError.unavailable }
       return (HTTPResponse(status: .init(code: response.statusCode)), HTTPBody(data))
     }
+    if scenario == "sandbox-shared-290", operationID == "pro.appleSandboxGate" {
+      let url = URL(string: "http://127.0.0.1:3090/api/trpc/pro.appleSandboxGate")!
+      var request = URLRequest(url: url)
+      request.setValue("fixture-account=alice", forHTTPHeaderField: "Cookie")
+      let (data, response) = try await URLSession.shared.data(for: request)
+      guard let response = response as? HTTPURLResponse else { throw URLError(.badServerResponse) }
+      return (HTTPResponse(status: .init(code: response.statusCode)), HTTPBody(data))
+    }
     let components = URLComponents(string: request.path ?? "")
     let query = components?.queryItems ?? []
     let segments = (components?.path ?? "").split(separator: "/").map(String.init)
@@ -357,9 +365,9 @@ actor HarnessServer: ClientTransport {
         ]
         break
       }
-      if scenario == "pro-shared-local" || scenario == "sandbox-shared-289" {
+      if scenario == "pro-shared-local" || scenario == "sandbox-shared-289" || scenario == "sandbox-shared-290" {
         // Opt-in loopback fixture shares the actual isolated SQLite allowance with the browser. No provider endpoint is involved.
-        let port = scenario == "sandbox-shared-289" ? 3089 : 3080
+        let port = scenario == "sandbox-shared-290" ? 3090 : scenario == "sandbox-shared-289" ? 3089 : 3080
         var request = URLRequest(url: URL(string: "http://127.0.0.1:\(port)/api/trpc/pro.status")!)
         request.setValue("fixture-account=alice", forHTTPHeaderField: "Cookie")
         let (data, response) = try await URLSession.shared.data(for: request)

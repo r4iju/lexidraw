@@ -19,6 +19,8 @@ async function fixture() {
     return client;
   };
   const client = open();
+  // File fixtures use concurrent connections, without rollback-journal reader locks.
+  await client.execute("PRAGMA journal_mode=WAL");
   const sql =
     (await Bun.file(
       "../../packages/drizzle/drizzle/0015_private_pro.sql",
@@ -33,6 +35,13 @@ async function fixture() {
       ).text()));
   for (const statement of sql.split("--> statement-breakpoint"))
     if (statement.trim()) await client.execute(statement);
+  await client.executeMultiple(
+    (
+      await Bun.file(
+        "../../packages/drizzle/drizzle/0030_apple_sandbox.sql",
+      ).text()
+    ).replaceAll("--> statement-breakpoint", ""),
+  );
   let now = 1000;
   const ledger = () =>
     new ProLedger(open(), { ownerAccountIds: ["owner"], now: () => now });

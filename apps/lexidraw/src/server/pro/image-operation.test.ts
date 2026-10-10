@@ -10,6 +10,7 @@ async function fixture() {
     "0015_private_pro",
     "0016_pro_billing_events",
     "0029_sandbox_billing",
+    "0030_apple_sandbox",
   ])
     await client.executeMultiple(
       (

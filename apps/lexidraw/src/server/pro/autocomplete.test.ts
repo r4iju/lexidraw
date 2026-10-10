@@ -17,6 +17,7 @@ async function fixture(
     "0015_private_pro.sql",
     "0016_pro_billing_events.sql",
     "0029_sandbox_billing.sql",
+    "0030_apple_sandbox.sql",
   ])
     await client.executeMultiple(
       (

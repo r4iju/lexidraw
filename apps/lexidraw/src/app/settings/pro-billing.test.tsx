@@ -11,6 +11,8 @@ test("public coming soon and unavailable sandbox never offer a purchase; tester 
     cancelAtEnd: false,
     expiresAt: null,
     customerBound: false,
+    source: null,
+    appleAvailable: false,
   };
   const publicView = renderToStaticMarkup(
     <ProBillingDetails billing={inactive} eligible={false} />,
@@ -39,4 +41,26 @@ test("public coming soon and unavailable sandbox never offer a purchase; tester 
   expect(active).toContain("1,000 credits");
   expect(active).toContain("Ends at period expiry");
   expect(active).toContain("capability");
+});
+test("Apple lifecycle is labelled separately from web checkout with one shared allowance", () => {
+  const html = renderToStaticMarkup(
+    <ProBillingDetails
+      eligible
+      billing={{
+        environment: "sandbox",
+        available: false,
+        monthlyUsd: 12,
+        monthlyCredits: 1000,
+        state: "active",
+        cancelAtEnd: false,
+        expiresAt: 1793592000000,
+        customerBound: false,
+        source: "apple",
+        appleAvailable: false,
+      }}
+    />,
+  );
+  expect(html).toContain("Apple sandbox subscription");
+  expect(html).toContain("internal iOS test build");
+  expect(html).not.toContain("live purchase");
 });

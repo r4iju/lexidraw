@@ -35,6 +35,13 @@ test("authenticated text requires separate private eligibility and entitlement; 
       ).text())
     ).replaceAll("--> statement-breakpoint", ""),
   );
+  await client.executeMultiple(
+    (
+      await Bun.file(
+        "../../packages/drizzle/drizzle/0030_apple_sandbox.sql",
+      ).text()
+    ).replaceAll("--> statement-breakpoint", ""),
+  );
   const ledger = new ProLedger(client, {
     ownerAccountIds: ["owner"],
     now: () => 1000,
@@ -141,6 +148,13 @@ async function operationFixture(
       (await Bun.file(
         "../../packages/drizzle/drizzle/0029_sandbox_billing.sql",
       ).text())
+    ).replaceAll("--> statement-breakpoint", ""),
+  );
+  await client.executeMultiple(
+    (
+      await Bun.file(
+        "../../packages/drizzle/drizzle/0030_apple_sandbox.sql",
+      ).text()
     ).replaceAll("--> statement-breakpoint", ""),
   );
   const ledger = new ProLedger(client, {

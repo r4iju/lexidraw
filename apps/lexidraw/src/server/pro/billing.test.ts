@@ -18,6 +18,7 @@ async function fixture(key = "sk_test_local_fixture") {
     "0015_private_pro",
     "0016_pro_billing_events",
     "0029_sandbox_billing",
+    "0030_apple_sandbox",
   ]) {
     for (const sql of (
       await Bun.file(`../../packages/drizzle/drizzle/${file}.sql`).text()
@@ -568,6 +569,7 @@ test("a refund after payment failure is a permanent shared-period fence, another
   await f.billing.checkout("alice");
   const e = await f.event();
   await f.billing.webhook(e.raw, e.signature);
+  const appleToken = await f.ledger.appleAccountToken("alice");
   const apple = {
     accountId: "alice",
     eventId: "apple-paid",
@@ -590,7 +592,7 @@ test("a refund after payment failure is a permanent shared-period fence, another
   await f.billing.webhook(refund.raw, refund.signature);
   await f.ledger.reconcileSandbox("apple:recovery", async () => ({
     accountId: "alice",
-    customerId: "apple-original",
+    customerId: appleToken,
     subscriptionId: "apple-sub",
     source: "apple",
     environment: "sandbox",
@@ -883,11 +885,12 @@ test("refund arriving before the paid delivery fences a shared manual allowance 
     });
     await f.billing.webhook(refund.raw, refund.signature);
     expect((await f.ledger.status("alice")).entitled).toBe(false);
+    const appleToken = await f.ledger.appleAccountToken("alice");
     if (!manual)
       await expect(
         f.ledger.reconcileSandbox("apple:duplicate-after-refund", async () => ({
           accountId: "alice",
-          customerId: "apple-original",
+          customerId: appleToken,
           subscriptionId: "apple-group",
           source: "apple",
           environment: "sandbox",

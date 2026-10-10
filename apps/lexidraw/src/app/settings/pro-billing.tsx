@@ -18,6 +18,17 @@ export function ProBillingDetails({
         $12/month · 1,000 credits per period. Test payment only, no customer
         charge. No annual plan, top-ups, overage or rollover.
       </p>
+      {billing.source === "apple" && (
+        <p>
+          Apple sandbox subscription. Purchase and restore use a dedicated
+          internal iOS test build.
+        </p>
+      )}
+      <p>
+        {billing.appleAvailable
+          ? "Apple sandbox purchase and restore are available only in the internal iOS test build."
+          : "Apple sandbox billing unavailable. Use an internal iOS test build after external setup is verified."}
+      </p>
       {!billing.available && (
         <p>
           Sandbox billing unavailable. External test setup is missing or

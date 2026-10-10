@@ -6,6 +6,7 @@ import { createTRPCRouter, protectedProcedure } from "../trpc";
 import { TextInput, Usage, AutocompleteInput } from "~/server/pro/contracts";
 import { inputIdentity } from "~/server/pro/operation";
 import { ProError, type ProLedger } from "~/server/pro/ledger";
+import type { AppleSandboxBilling } from "~/server/pro/apple-billing";
 import type { SandboxBilling } from "~/server/pro/billing";
 const Identity = z.strictObject({
   accountId: z.string().min(1).max(100),
@@ -28,6 +29,7 @@ const Outcome = z.discriminatedUnion("kind", [
 export function createProRouter(deps: {
   ledger: () => ProLedger;
   billing?: () => SandboxBilling;
+  appleBilling?: () => AppleSandboxBilling;
   dispatch: (id: string, text: string, account: string) => Promise<unknown>;
 }) {
   const procedure = protectedProcedure.use(async ({ next }) => {
@@ -46,6 +48,29 @@ export function createProRouter(deps: {
     }
   });
   return createTRPCRouter({
+    appleSandboxGate: procedure.query(async ({ ctx }) => {
+      if (
+        !deps.appleBilling ||
+        !(await deps.ledger().status(ctx.session.user.id)).eligible
+      )
+        return { available: false as const, environment: "sandbox" as const };
+      try {
+        return await deps.appleBilling().gate(ctx.session.user.id);
+      } catch {
+        return { available: false as const, environment: "sandbox" as const };
+      }
+    }),
+    appleSandboxClaim: procedure
+      .input(
+        z.strictObject({ signedTransaction: z.string().min(1).max(64000) }),
+      )
+      .mutation(({ ctx, input }) => {
+        if (!deps.appleBilling)
+          throw new ProError("Apple sandbox billing unavailable");
+        return deps
+          .appleBilling()
+          .claim(ctx.session.user.id, input.signedTransaction);
+      }),
     sandboxCheckout: procedure.input(z.strictObject({})).mutation(({ ctx }) => {
       if (!deps.billing) throw new ProError("Sandbox billing unavailable");
       return deps.billing().checkout(ctx.session.user.id);

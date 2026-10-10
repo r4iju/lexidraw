@@ -4,6 +4,7 @@ import env from "@packages/env";
 import { z } from "zod";
 import { ProLedger } from "./ledger";
 import { sandboxConfig } from "./billing-config";
+import { appleSandboxConfig } from "./apple-runtime-config";
 let instance: ProLedger | undefined;
 export function proLedger() {
   if (!instance) {
@@ -19,6 +20,7 @@ export function proLedger() {
         ownerAccountIds: owners,
         now: Date.now,
         sandboxBillingAvailable: sandboxConfig(process.env) !== null,
+        appleSandboxAvailable: appleSandboxConfig(process.env) !== null,
       },
     );
   }
