@@ -1,3 +1,4 @@
+import { supplierFixture } from "~/test/supplier-fixture";
 import { afterEach, expect, test } from "bun:test";
 import { createClient, type Client } from "@libsql/client";
 import { mkdtemp, rm } from "node:fs/promises";
@@ -44,7 +45,11 @@ async function fixture() {
   );
   let now = 1000;
   const ledger = () =>
-    new ProLedger(open(), { ownerAccountIds: ["owner"], now: () => now });
+    new ProLedger(open(), {
+      ownerAccountIds: ["owner"],
+      supplierBooks: supplierFixture,
+      now: () => now,
+    });
   cleanups.push(async () => {
     for (const c of clients) c.close();
     await rm(dir, { recursive: true, force: true });

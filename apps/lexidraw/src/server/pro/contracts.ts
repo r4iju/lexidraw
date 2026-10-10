@@ -91,7 +91,12 @@ export const Completion = z.strictObject({
   text: z.string().min(1).max(16000),
   providerResponseId: z.string().max(200).optional(),
   usage: Usage,
-  actualCostNanoUsd: z.number().int().nonnegative().max(MAX_ATTEMPT_NANO_USD),
+  actualCostNanoUsd: z
+    .number()
+    .int()
+    .nonnegative()
+    .max(Number.MAX_SAFE_INTEGER)
+    .optional(),
 });
 export type Completion = z.infer<typeof Completion>;
 const ReferenceRates = z.object({
@@ -117,7 +122,14 @@ export const Operation = z.object({
   period_id: z.string(),
   idempotency_key: z.string(),
   input_hash: z.string(),
-  feature: z.string(),
+  feature: z.enum([
+    "text",
+    "chat",
+    "autocomplete",
+    "image",
+    "narration",
+    "agent",
+  ]),
   state: z.enum([
     "reserved",
     "running",

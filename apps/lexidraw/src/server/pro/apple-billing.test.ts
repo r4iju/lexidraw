@@ -1,3 +1,4 @@
+import { supplierFixture } from "~/test/supplier-fixture";
 import { afterEach, expect, test } from "bun:test";
 import { createClient } from "@libsql/client";
 import { mkdtemp, rm } from "node:fs/promises";
@@ -30,6 +31,7 @@ async function fixture() {
   let now = Date.now();
   const ledger = new ProLedger(client, {
     ownerAccountIds: ["owner"],
+    supplierBooks: supplierFixture,
     now: () => now,
   });
   await ledger.grantEligibility("owner", "alice", "approved tester");

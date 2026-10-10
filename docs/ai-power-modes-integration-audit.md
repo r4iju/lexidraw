@@ -122,9 +122,10 @@ Evidence: `/tmp/lexidraw-276-implementation/291-private-images-v1.json` and `291
 
 The sole-writer follow-up from `2870a5e7909b691a298e98790187070dd2310a37`
 adds a durable period rate envelope in the existing SQL text column. Text and
-narration books are copied at period creation. Gated image/agent books follow one
-explicit first-period-quote pin, under the same write lock; updates resolve that
-book for subsequent quotes and actions. Text/autocomplete maxima and disclosures
+narration books were copied at period creation. At that checkpoint gated
+image/agent books used a first-period-quote pin. That policy did not satisfy
+entire-period pricing stability and is superseded by the supplier-cost and D3
+follow-up below. Text/autocomplete maxima and disclosures
 use the period book, and agent charges use its credit conversion. Historical
 operation books remain valid for reservation/recovery/settlement. Text-only legacy
 v1 periods deterministically map to the archived narration v1 book; first prior
@@ -241,3 +242,61 @@ next sequential implementation scope. D2 operation-bound sandbox/delegation and
 D3 first-use image/agent rate books remain partial implementation requirements,
 not merely external proof gaps. Previously recorded provider, payment/store,
 hosted durability, physical audio, migration and release criteria remain open.
+
+
+## Supplier attempts and complete period schedules (local V2-S2 / D3)
+
+The sole-writer follow-up from `4254fe7091cf2a9c14bade533dd6fe762aff840a`
+separates the customer period/accepted-operation book from the supplier dispatch
+contract. Before each paid fence the ledger resolves a server-configured,
+verified supplier book (or an explicit synthetic injection for an owner test
+period). It derives the maximum from the exact model, token/audio/image/tool
+caps and rates, checks safe integer arithmetic and known plus unknown paid
+exposure, and atomically stores the attempt with its immutable contract in the
+existing append-only audit table. No schema or remote migration was run.
+Adapters select models and supplier costs from the durable authorization result;
+a supplied context cannot override that result. Text, autocomplete and chat,
+narration, image, and agent phases validate terminal usage/cost and historical
+recovery against their own attempt contract. Missing invoice evidence remains
+unknown supplier exposure, including after successful delivery or a customer
+refund. Invalid invoice evidence on a confirmed technical failure cannot prevent
+the customer refund. Invoice reconciliation remains bounded by the admitted
+contract. Known archived dispatch contracts can recover old attempts; unknown or
+corrupt contracts fail closed without a paid replay. Historical chat used its
+operation book for dispatch while saving the compiled v1 ceiling; recovery
+reconstructs that known dispatch contract and materializes its corrected supplier
+exposure under the accounting lock. Historical text/autocomplete instead map to
+their original compiled supplier configuration. Customer books and grants do not
+change.
+
+`period-rates-v2` snapshots the full configured customer schedule at period
+creation and renewal. Image/agent fields explicitly distinguish `available` with
+a complete book from `unavailable`. Availability requires a configured supplier
+contract as well as customer rates; synthetic schedules require an owner test
+period. A later quote or adapter does not add or reprice a feature in the same
+period. Legacy text-only v1 periods retain the archived narration v1 mapping;
+legacy v1 envelopes preserve already-pinned feature books. Where a legacy feature
+has no pin, its first existing accepted operation supplies the historical book;
+without that evidence it stays unavailable. Materialization changes only the
+period schedule, not its grant, credit counters or accepted operation books.
+Accepted historical work remains recoverable even when a later period is
+unavailable.
+
+Evidence is `/tmp/lexidraw-276-implementation/291-supplier-cost-contract-v1.json`.
+Recorded RED/GREEN cycles include authenticated raised supplier dispatch,
+first-quote period pricing, corrupt saved narration exposure, rejection of a
+supplied dispatch contract, technical-failure refunds with invalid invoice
+evidence, and text/autocomplete output-cap alignment. Fresh env-free,
+network-closed SQLite/injected suites additionally exercise lower supplier rates,
+missing invoices and cost circuits, durable recovery after supplier updates,
+higher-cost narration/image/agent results, renewal and unavailable periods, and
+legacy mapping. Web and native shared TypeScript checks are local. No UI or
+physical-device acceptance is claimed: production generation gates remain closed
+and no Swift or bundled device-generation behavior changed.
+
+D2 operation-bound sandbox/delegation is the next sequential implementation
+scope. Standalone denied routes do not fulfill that requirement. #291 and #276
+remain incomplete pending that work, independent review and the previously
+recorded provider, payment/store, private-storage, hardware, hosted durability,
+migration and release proofs. This follow-up makes no external calls, changes no
+PR, and authorizes no release.

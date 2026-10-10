@@ -1,3 +1,4 @@
+import { supplierFixture } from "~/test/supplier-fixture";
 import { afterEach, expect, test } from "bun:test";
 import Stripe from "stripe";
 import { createClient } from "@libsql/client";
@@ -28,6 +29,7 @@ async function fixture(key = "sk_test_local_fixture") {
   let now = 1_791_000_000_000;
   const ledger = new ProLedger(client, {
     ownerAccountIds: ["owner"],
+    supplierBooks: supplierFixture,
     now: () => now,
   });
   const calls: { path: string; body: string }[] = [];
@@ -261,6 +263,7 @@ async function fixture(key = "sk_test_local_fixture") {
       cleanup.unshift(async () => reopenedClient.close());
       const reopenedLedger = new ProLedger(reopenedClient, {
         ownerAccountIds: ["owner"],
+        supplierBooks: supplierFixture,
         now: () => now,
       });
       return {

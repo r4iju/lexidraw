@@ -1,3 +1,5 @@
+import { PRICEBOOK } from "./contracts";
+import { makeSupplierContract } from "./supplier-contract";
 import { expect, mock, test } from "bun:test";
 mock.module("server-only", () => ({}));
 mock.module("@packages/env", () => ({ default: {} }));
@@ -5,7 +7,12 @@ const { createProProviderTransport } = await import("./provider");
 test("approved Pro adapter uses the tuned bounded provider request and measured cached/reasoning usage through injected HTTP only", async () => {
   let dispatched = 0;
   const transport = createProProviderTransport({
-    authorize: async () => {},
+    authorize: async (scope) =>
+      makeSupplierContract(
+        scope.feature === "autocomplete" ? "autocomplete" : "text",
+        PRICEBOOK,
+        "test-injection",
+      ),
     resolveServerKey: () => "fake-server-fixture-only",
     fetch: async (url, options) => {
       dispatched++;
@@ -50,6 +57,7 @@ test("approved Pro adapter uses the tuned bounded provider request and measured 
   expect(
     await transport("hello", new AbortController().signal, {
       attemptId: "attempt-fixture",
+      supplier: makeSupplierContract("text", PRICEBOOK, "test-injection"),
       accountId: "alice",
       operationId: "operation-fixture",
     }),
@@ -67,7 +75,12 @@ test("approved Pro adapter uses the tuned bounded provider request and measured 
 
 test("confirmed provider rejection is a technical failure with no generated result, while network uncertainty is never guessed free", async () => {
   const refused = createProProviderTransport({
-    authorize: async () => {},
+    authorize: async (scope) =>
+      makeSupplierContract(
+        scope.feature === "autocomplete" ? "autocomplete" : "text",
+        PRICEBOOK,
+        "test-injection",
+      ),
     resolveServerKey: () => "fixture-only",
     fetch: async () =>
       Response.json(
@@ -84,6 +97,7 @@ test("confirmed provider rejection is a technical failure with no generated resu
   expect(
     await refused("text", new AbortController().signal, {
       attemptId: "attempt-fixture",
+      supplier: makeSupplierContract("text", PRICEBOOK, "test-injection"),
       accountId: "alice",
       operationId: "operation-fixture",
     }),
@@ -93,7 +107,12 @@ test("confirmed provider rejection is a technical failure with no generated resu
     actualCostNanoUsd: 0,
   });
   const uncertain = createProProviderTransport({
-    authorize: async () => {},
+    authorize: async (scope) =>
+      makeSupplierContract(
+        scope.feature === "autocomplete" ? "autocomplete" : "text",
+        PRICEBOOK,
+        "test-injection",
+      ),
     resolveServerKey: () => "fixture-only",
     fetch: async () => {
       throw Error("network interrupted");
@@ -102,6 +121,7 @@ test("confirmed provider rejection is a technical failure with no generated resu
   expect(
     await uncertain("text", new AbortController().signal, {
       attemptId: "attempt-fixture",
+      supplier: makeSupplierContract("text", PRICEBOOK, "test-injection"),
       accountId: "alice",
       operationId: "operation-fixture",
     }),
@@ -113,7 +133,12 @@ test("confirmed provider rejection is a technical failure with no generated resu
 test("trusted autocomplete dispatches only the pinned server provider with its shorter output ceiling", async () => {
   let dispatched = 0;
   const transport = createProProviderTransport({
-    authorize: async () => {},
+    authorize: async (scope) =>
+      makeSupplierContract(
+        scope.feature === "autocomplete" ? "autocomplete" : "text",
+        PRICEBOOK,
+        "test-injection",
+      ),
     resolveServerKey: () => "isolated-autocomplete-fixture-key",
     fetch: async (url, options) => {
       dispatched++;
@@ -163,6 +188,11 @@ test("trusted autocomplete dispatches only the pinned server provider with its s
         accountId: "alice",
         operationId: "autocomplete-operation",
         attemptId: "autocomplete-attempt",
+        supplier: makeSupplierContract(
+          "autocomplete",
+          PRICEBOOK,
+          "test-injection",
+        ),
       },
     ),
   ).toMatchObject({
@@ -190,8 +220,65 @@ test("text provider refuses forged dispatch before resolving any app-owned key",
     transport("hello", new AbortController().signal, {
       accountId: "alice",
       attemptId: "forged",
+      supplier: makeSupplierContract("text", PRICEBOOK, "test-injection"),
       operationId: "forged",
     }),
   ).rejects.toThrow("authorization");
   expect(keys).toBe(0);
+});
+
+test("dispatch uses the durable authorization contract rather than a supplied model or rate book", async () => {
+  const transport = createProProviderTransport({
+    authorize: async () =>
+      makeSupplierContract("text", PRICEBOOK, "test-injection"),
+    resolveServerKey: () => "synthetic-key",
+    fetch: async (_url, options) => {
+      const body = JSON.parse(String(options?.body));
+      expect(body.model).toBe("gpt-5.4-mini");
+      return Response.json({
+        id: "authorized",
+        object: "response",
+        created_at: 1000,
+        model: body.model,
+        status: "completed",
+        output: [
+          {
+            id: "message",
+            type: "message",
+            role: "assistant",
+            status: "completed",
+            content: [
+              { type: "output_text", text: "Hello world", annotations: [] },
+            ],
+          },
+        ],
+        usage: {
+          input_tokens: 10,
+          input_tokens_details: { cached_tokens: 0 },
+          output_tokens: 2,
+          total_tokens: 12,
+        },
+      });
+    },
+  });
+  const result = await transport("Hello", new AbortController().signal, {
+    accountId: "alice",
+    operationId: "op",
+    attemptId: "attempt",
+    supplier: makeSupplierContract(
+      "text",
+      {
+        ...PRICEBOOK,
+        version: "forged",
+        model: "unadmitted-model",
+        inputNanoUsd: 1500,
+        outputNanoUsd: 9000,
+      },
+      "test-injection",
+    ),
+  });
+  expect(result).toMatchObject({
+    kind: "completed",
+    completion: { actualCostNanoUsd: 16500 },
+  });
 });

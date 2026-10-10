@@ -29,7 +29,7 @@ export const AgentBook = z
   .strictObject({
     version: z.string(),
     provider: z.literal("openai"),
-    model: z.literal("gpt-5.4-mini"),
+    model: z.string().min(1),
     inputNanoUsd: z.number().int().nonnegative().max(1_000_000),
     cachedInputNanoUsd: z.number().int().nonnegative().max(1_000_000),
     outputNanoUsd: z.number().int().nonnegative().max(1_000_000),

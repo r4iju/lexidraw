@@ -109,6 +109,11 @@ export const ImageCompletion = z.strictObject({
   kind: z.literal("image"),
   image: ImageArtifact,
   usage: ImageUsage,
-  actualCostNanoUsd: z.number().int().min(0).max(180_000_000),
+  actualCostNanoUsd: z
+    .number()
+    .int()
+    .min(0)
+    .max(Number.MAX_SAFE_INTEGER)
+    .optional(),
 });
 export type ImageCompletion = z.infer<typeof ImageCompletion>;

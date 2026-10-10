@@ -1,3 +1,6 @@
+import { makeSupplierContract } from "./supplier-contract";
+import { PRICEBOOK } from "./contracts";
+import { supplierFixture } from "~/test/supplier-fixture";
 import { expect, mock, test } from "bun:test";
 import { createClient } from "@libsql/client";
 import { ProLedger } from "./ledger";
@@ -25,6 +28,7 @@ async function fixture() {
     );
   const ledger = new ProLedger(client, {
     ownerAccountIds: ["owner"],
+    supplierBooks: supplierFixture,
     now: () => 1000,
   });
   await ledger.grantEligibility("owner", "alice", "tester");
@@ -125,7 +129,12 @@ test("terminal failed chat after a partial delta refunds the whole customer oper
   let calls = 0;
   const updates: string[] = [];
   const transport = createProChatTransport({
-    authorize: async () => {},
+    authorize: async (scope) =>
+      makeSupplierContract(
+        scope.feature === "autocomplete" ? "autocomplete" : "chat",
+        PRICEBOOK,
+        "test-injection",
+      ),
     resolveServerKey: () => "fake-system-key",
     fetch: async () => {
       calls++;

@@ -1,3 +1,4 @@
+import { makeSupplierContract } from "./supplier-contract";
 import { expect, mock, test } from "bun:test";
 mock.module("server-only", () => ({}));
 import { prepareChat } from "~/lib/generation/chat";
@@ -7,7 +8,12 @@ test("Pro provider emits actual response deltas and records measured usage witho
   const updates: string[] = [];
   let calls = 0;
   const transport = createProChatTransport({
-    authorize: async () => {},
+    authorize: async (scope) =>
+      makeSupplierContract(
+        scope.feature === "autocomplete" ? "autocomplete" : "chat",
+        PRICEBOOK,
+        "test-injection",
+      ),
     resolveServerKey: () => "fake-system-key",
     fetch: async (request) => {
       calls++;
@@ -46,8 +52,8 @@ test("Pro provider emits actual response deltas and records measured usage witho
         accountId: "alice",
         operationId: "op",
         attemptId: "attempt",
+        supplier: makeSupplierContract("chat", PRICEBOOK, "test-injection"),
         feature: "chat",
-        book: PRICEBOOK,
         onText: (text) => updates.push(text),
       },
     ),
@@ -176,7 +182,12 @@ test("validated failed and incomplete terminals stop retries, while malformed id
   ];
   for (const item of cases) {
     const transport = createProChatTransport({
-      authorize: async () => {},
+      authorize: async (scope) =>
+        makeSupplierContract(
+          scope.feature === "autocomplete" ? "autocomplete" : "chat",
+          PRICEBOOK,
+          "test-injection",
+        ),
       resolveServerKey: () => "fake-system-key",
       fetch: async () =>
         new Response(
@@ -193,7 +204,7 @@ test("validated failed and incomplete terminals stop retries, while malformed id
         accountId: "alice",
         operationId: "op",
         attemptId: "attempt",
-        book: PRICEBOOK,
+        supplier: makeSupplierContract("chat", PRICEBOOK, "test-injection"),
       },
     );
     expect(outcome).toEqual(item.expected);

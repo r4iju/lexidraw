@@ -1,3 +1,4 @@
+import { supplierFixture } from "~/test/supplier-fixture";
 import { expect, test } from "bun:test";
 import { createClient } from "@libsql/client";
 import { ProLedger } from "./ledger";
@@ -19,6 +20,8 @@ async function fixture() {
     );
   const ledger = new ProLedger(client, {
     ownerAccountIds: ["owner"],
+    supplierBooks: supplierFixture,
+    imageBook: () => IMAGE_FIXTURE_PRICEBOOK,
     now: () => 1000,
   });
   await ledger.grantEligibility("owner", "alice", "image fixture");
@@ -207,6 +210,106 @@ test("a changed image adapter continues serving the period's accepted customer b
       availableSubcredits: 1_000_000_000,
       providerCosts: { knownNanoUsd: 14 },
     });
+  } finally {
+    client.close();
+  }
+});
+
+test("authenticated first image quote uses the creation schedule while higher supplier image costs have their own admitted contract", async () => {
+  const { mock } = await import("bun:test");
+  mock.module("@packages/env", () => ({ default: { NODE_ENV: "test" } }));
+  const { installServerRuntime } = await import("~/test/server-runtime");
+  const db = await installServerRuntime();
+  const { createImagePowerRouter } = await import("../api/routers/image-power");
+  const { client, ledger } = await fixture();
+  const changed = {
+    ...IMAGE_FIXTURE_PRICEBOOK,
+    version: "new-customer",
+    creditNanoUsd: 1500000,
+    quote: 120000000,
+  };
+  ledger.config.imageBook = () => changed;
+  ledger.config.supplierBooks = () => ({
+    ...supplierFixture(),
+    image: {
+      ...IMAGE_FIXTURE_PRICEBOOK,
+      version: "supplier-image-v2",
+      model: "synthetic-image-v2",
+      outputImageNanoUsd: 268000000,
+      maximumNanoUsd: 314000000,
+      quote: 104666667,
+    },
+  });
+  const executor = new ProImageOperation(
+    ledger,
+    changed,
+    async (_text, _signal, scope) => {
+      expect(scope.supplier.maximumNanoUsd).toBe(314000000);
+      expect(scope.supplier.book.model).toBe("synthetic-image-v2");
+      return {
+        kind: "completed",
+        completion: {
+          kind: "image",
+          image: fixtureImage(),
+          usage: {
+            inputTokens: 0,
+            thinkingTokens: 0,
+            textOutputTokens: 0,
+            outputImages: 1,
+          },
+          actualCostNanoUsd: 268000000,
+        },
+      };
+    },
+  );
+  const router = createImagePowerRouter({
+    executor,
+    images: () => {
+      throw new Error("No storage calls");
+    },
+    source: async () => "pro",
+  });
+  const caller = router.createCaller({
+    drizzle: db,
+    headers: new Headers(),
+    session: { user: { id: "alice" } },
+    auth: { kind: "session" },
+  } as never);
+  try {
+    expect((await caller.capability()).maximum).toBe(60000000);
+    const op = await caller.generate({
+      idempotencyKey: "first-configured",
+      prompt: "tree",
+      acceptedMaximum: 60000000,
+    });
+    expect(op).toMatchObject({ state: "settled", charged: 44666667 });
+    ledger.config.now = () => 2000;
+    await ledger.grantPeriod("owner", {
+      accountId: "alice",
+      eventId: "image-renewal",
+      startsAt: 2000,
+      endsAt: 3000,
+      subcredits: 1000000000,
+      reason: "renewal",
+      environment: "test",
+    });
+    expect((await caller.capability()).maximum).toBe(120000000);
+    ledger.config.now = () => 3000;
+    ledger.config.imageBook = undefined;
+    await ledger.grantPeriod("owner", {
+      accountId: "alice",
+      eventId: "image-unavailable",
+      startsAt: 3000,
+      endsAt: 4000,
+      subcredits: 1000000000,
+      reason: "unavailable",
+      environment: "test",
+    });
+    ledger.config.imageBook = () => changed;
+    await expect(caller.capability()).rejects.toThrow(
+      "unavailable for this period",
+    );
+    expect((await caller.operation({ id: op.id })).state).toBe("settled");
   } finally {
     client.close();
   }

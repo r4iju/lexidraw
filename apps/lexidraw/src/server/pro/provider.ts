@@ -1,3 +1,4 @@
+import { SupplierContract, textCost } from "./supplier-contract";
 import "server-only";
 import { createOpenAI } from "@ai-sdk/openai";
 import { APICallError, generateText } from "ai";
@@ -6,7 +7,7 @@ import {
   finishFragment,
   fragmentAt,
 } from "~/lib/generation/autocomplete-fragment";
-import { AutocompleteInput, Completion, PRICEBOOK, Usage } from "./contracts";
+import { AutocompleteInput, Completion, TextBook, Usage } from "./contracts";
 import type { ProTransport } from "./operation";
 
 type SdkFetch = NonNullable<
@@ -15,15 +16,20 @@ type SdkFetch = NonNullable<
 type ProviderFetch = (...args: Parameters<SdkFetch>) => ReturnType<SdkFetch>;
 /** This adapter alone resolves the app-owned key, after the persisted attempt fence. */
 export function createProProviderTransport(deps: {
-  authorize: (context: Parameters<ProTransport>[2]) => Promise<void>;
+  authorize: (
+    context: Parameters<ProTransport>[2],
+  ) => Promise<SupplierContract>;
   resolveServerKey: () => string | undefined;
   fetch?: ProviderFetch;
 }): ProTransport {
   if (process.env.NODE_ENV === "test" && !deps.fetch)
     throw new Error("Tests must inject Pro transport");
   return async (text, signal, context) => {
-    await deps.authorize(context);
-    if (new TextEncoder().encode(text).length > PRICEBOOK.maxInputBytes)
+    const contract = SupplierContract.parse(await deps.authorize(context));
+    if (contract.feature !== (context.feature ?? "text"))
+      throw new Error("Supplier feature mismatch");
+    const book = TextBook.parse(contract.book);
+    if (new TextEncoder().encode(text).length > book.maxInputBytes)
       return { kind: "failed", retryable: false, actualCostNanoUsd: 0 };
     const key = deps.resolveServerKey();
     if (!key) return { kind: "failed", retryable: false, actualCostNanoUsd: 0 };
@@ -36,17 +42,17 @@ export function createProProviderTransport(deps: {
     const prepared = prepareAutocomplete({
       ...input,
       config: {
-        provider: PRICEBOOK.provider,
-        modelId: PRICEBOOK.model,
+        provider: book.provider,
+        modelId: book.model,
         temperature: 0.2,
         maxOutputTokens:
-          context.feature === "autocomplete" ? 64 : PRICEBOOK.maxOutputTokens,
+          context.feature === "autocomplete" ? 64 : book.maxOutputTokens,
       },
     });
     // The shared continuation prompt may repeat the final word. Bound the complete prepared request, including a 256-token message framing margin.
     if (
       new TextEncoder().encode(prepared.system + prepared.prompt).length + 256 >
-      PRICEBOOK.maxInputTokens
+      book.maxInputTokens
     )
       return { kind: "failed", retryable: false, actualCostNanoUsd: 0 };
     try {
@@ -66,10 +72,11 @@ export function createProProviderTransport(deps: {
             },
             { preconnect: () => {} },
           ),
-        }).responses(PRICEBOOK.model),
+        }).responses(book.model),
         system: prepared.system,
         prompt: prepared.prompt,
-        maxOutputTokens: prepared.config.maxOutputTokens,
+        maxOutputTokens:
+          context.feature === "autocomplete" ? 64 : book.maxOutputTokens,
         headers: { "X-Client-Request-Id": context.attemptId },
         maxRetries: 0,
         abortSignal: signal,
@@ -80,10 +87,7 @@ export function createProProviderTransport(deps: {
         cachedInput: result.totalUsage.inputTokenDetails.cacheReadTokens ?? 0,
         output: result.totalUsage.outputTokens,
       });
-      const cost =
-        (usage.input - usage.cachedInput) * PRICEBOOK.inputNanoUsd +
-        usage.cachedInput * PRICEBOOK.cachedInputNanoUsd +
-        usage.output * PRICEBOOK.outputNanoUsd;
+      const cost = textCost(usage, book);
       const output = finishFragment(fragmentAt(input.before), result.text);
       if (!output)
         return { kind: "failed", retryable: false, actualCostNanoUsd: cost };

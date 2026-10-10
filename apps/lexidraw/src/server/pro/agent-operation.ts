@@ -1,3 +1,4 @@
+import type { SupplierContract } from "./supplier-contract";
 import { createHash } from "node:crypto";
 import {
   AgentBook,
@@ -38,7 +39,12 @@ export type AgentRequest = {
 export type AgentTransport = (
   request: AgentRequest,
   signal: AbortSignal,
-  scope: { accountId: string; operationId: string; attemptId: string },
+  scope: {
+    accountId: string;
+    operationId: string;
+    attemptId: string;
+    supplier?: SupplierContract;
+  },
 ) => Promise<
   | { kind: "completed"; completion: AgentCompletion }
   | { kind: "failed"; actualCostNanoUsd?: number }
@@ -65,9 +71,7 @@ export class ProAgentOperation {
     this.book = AgentBook.parse(book);
   }
   async periodBook(account: string) {
-    return AgentBook.parse(
-      await this.ledger.featureBook(account, "agent", this.book),
-    );
+    return AgentBook.parse(await this.ledger.featureBook(account, "agent"));
   }
   async reserve(account: string, value: unknown) {
     const input = AgentInput.parse(value);
@@ -217,6 +221,7 @@ export class ProAgentOperation {
             accountId: account,
             operationId: id,
             attemptId: attempt,
+            supplier: await this.ledger.supplierContract(account, id, attempt),
           }),
           stop,
         ]);

@@ -1,3 +1,4 @@
+import { supplierFixture } from "~/test/supplier-fixture";
 import { test, expect, mock } from "bun:test";
 import { createClient } from "@libsql/client";
 import { ProLedger } from "./ledger";
@@ -26,6 +27,27 @@ test("synthetic complete image bound belongs to parent quote; one action include
     );
   const ledger = new ProLedger(client, {
     ownerAccountIds: ["owner"],
+    supplierBooks: () => ({
+      ...supplierFixture(),
+      agent: {
+        ...AGENT_BOOK,
+        provenance: "deterministic-whole-action-fixture",
+        image: IMAGE_FIXTURE_PRICEBOOK,
+        maxImageSteps: 1,
+        maxAttempts: 16,
+        maximumNanoUsd: 259888000,
+        quote: 86629334,
+      },
+    }),
+    agentBook: () => ({
+      ...AGENT_BOOK,
+      provenance: "deterministic-whole-action-fixture",
+      image: IMAGE_FIXTURE_PRICEBOOK,
+      maxImageSteps: 1,
+      maxAttempts: 16,
+      maximumNanoUsd: 259888000,
+      quote: 86629334,
+    }),
     now: () => 1000,
   });
   await ledger.grantEligibility("owner", "alice", "fixture");

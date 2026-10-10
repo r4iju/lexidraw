@@ -1,3 +1,4 @@
+import type { SupplierContract } from "./supplier-contract";
 import { narrationTexts } from "~/lib/narration/portable";
 import { audioSeconds } from "./narration-audio";
 import { createHash } from "node:crypto";
@@ -24,6 +25,7 @@ export type NarrationTransport = (
     chunkHash: string;
     periodId: string;
     accountId: string;
+    supplier: SupplierContract;
   },
 ) => Promise<NarrationOutcome>;
 const hash = (text: string) => createHash("sha256").update(text).digest("hex");
@@ -196,6 +198,7 @@ export class ProNarration {
             chunkHash: chunk.hash,
             periodId: op.period_id,
             accountId: account,
+            supplier: await this.ledger.supplierContract(account, id, attempt),
           }),
           timeout,
         ]);
@@ -205,7 +208,12 @@ export class ProNarration {
       } finally {
         clearTimeout(timer);
       }
-      await this.ledger.finishAttempt(attempt, outcome);
+      try {
+        await this.ledger.finishAttempt(attempt, outcome);
+      } catch {
+        await this.ledger.finishAttempt(attempt, { kind: "unknown" });
+        return this.recover(account, id);
+      }
       if (outcome.kind !== "completed") return this.recover(account, id);
     }
     await this.ledger.settle(id, { kind: "narration_completed" });

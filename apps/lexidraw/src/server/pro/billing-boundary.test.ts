@@ -1,3 +1,4 @@
+import { supplierFixture } from "~/test/supplier-fixture";
 import { expect, mock, test } from "bun:test";
 import * as schema from "@packages/drizzle/drizzle-schema";
 import { installServerRuntime } from "~/test/server-runtime";
@@ -23,6 +24,7 @@ test("authenticated billing router rejects public, admin and forged mode/custome
     );
   const ledger = new ProLedger(client, {
     ownerAccountIds: ["owner"],
+    supplierBooks: supplierFixture,
     now: () => 1000,
   });
   const { SandboxBilling } = await import("./billing");
@@ -147,6 +149,7 @@ test("Apple gate and claim are authenticated, strict and never trust a client ve
     );
   const ledger = new ProLedger(client, {
     ownerAccountIds: ["owner"],
+    supplierBooks: supplierFixture,
     now: Date.now,
   });
   const router = createProRouter({

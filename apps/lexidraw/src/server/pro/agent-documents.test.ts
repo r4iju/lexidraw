@@ -1,3 +1,5 @@
+import { AGENT_BOOK } from "~/lib/agent/contracts";
+import { supplierFixture } from "~/test/supplier-fixture";
 import { test, expect, mock } from "bun:test";
 import {
   generateSQLiteDrizzleJson,
@@ -20,6 +22,8 @@ test("production document adapter atomically saves an edit receipt with permissi
     await client.execute(sql);
   const ledger = new ProLedger(client, {
     ownerAccountIds: ["owner"],
+    supplierBooks: supplierFixture,
+    agentBook: () => AGENT_BOOK,
     now: () => 1000,
   });
   await db
@@ -55,7 +59,6 @@ test("production document adapter atomically saves an edit receipt with permissi
     reason: "fixture",
     environment: "test",
   });
-  const { AGENT_BOOK } = await import("~/lib/agent/contracts");
   const op = await ledger.reserve("alice", "one", "hash", "agent", {
     book: AGENT_BOOK,
     input: {
@@ -113,6 +116,8 @@ test("a committed mutation receipt survives a losing executor's stale failure re
     await client.execute(sql);
   const ledger = new ProLedger(client, {
     ownerAccountIds: ["owner"],
+    supplierBooks: supplierFixture,
+    agentBook: () => AGENT_BOOK,
     now: () => 1000,
   });
   await db
@@ -146,7 +151,6 @@ test("a committed mutation receipt survives a losing executor's stale failure re
     reason: "fixture",
     environment: "test",
   });
-  const { AGENT_BOOK } = await import("~/lib/agent/contracts");
   const op = await ledger.reserve("alice", "one", "hash", "agent", {
     book: AGENT_BOOK,
     input: {

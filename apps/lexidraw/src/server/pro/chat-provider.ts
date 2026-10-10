@@ -1,3 +1,4 @@
+import { SupplierContract, textCost } from "./supplier-contract";
 import "server-only";
 import { z } from "zod";
 import {
@@ -65,20 +66,25 @@ const Event = z.discriminatedUnion("type", [
   }),
 ]);
 export function createProChatTransport(deps: {
-  authorize: (context: Parameters<ProTransport>[2]) => Promise<void>;
+  authorize: (
+    context: Parameters<ProTransport>[2],
+  ) => Promise<SupplierContract>;
   resolveServerKey: () => string | undefined;
   fetch: (request: Request) => Promise<Response>;
 }): ProTransport {
   return async (text, signal, context) => {
     const request = ChatRequest.parse(JSON.parse(text));
-    const book = TextBook.parse(context.book);
     if (new TextEncoder().encode(text).length > CHAT_INPUT_BYTES)
       return { kind: "failed", retryable: false, actualCostNanoUsd: 0 };
+    let contract: SupplierContract;
     try {
-      await deps.authorize(context);
+      contract = SupplierContract.parse(await deps.authorize(context));
+      if (contract.feature !== "chat")
+        throw new Error("Supplier feature mismatch");
     } catch {
       return { kind: "failed", retryable: false, actualCostNanoUsd: 0 };
     }
+    const book = TextBook.parse(contract.book);
     const key = deps.resolveServerKey();
     if (!key) return { kind: "failed", retryable: false, actualCostNanoUsd: 0 };
     const guard = createByokSession(async () => {
@@ -193,13 +199,14 @@ export function createProChatTransport(deps: {
                 retryable: false,
                 ...(usage
                   ? {
-                      actualCostNanoUsd:
-                        (usage.input_tokens -
-                          usage.input_tokens_details.cached_tokens) *
-                          book.inputNanoUsd +
-                        usage.input_tokens_details.cached_tokens *
-                          book.cachedInputNanoUsd +
-                        usage.output_tokens * book.outputNanoUsd,
+                      actualCostNanoUsd: textCost(
+                        Usage.parse({
+                          input: usage.input_tokens,
+                          cachedInput: usage.input_tokens_details.cached_tokens,
+                          output: usage.output_tokens,
+                        }),
+                        book,
+                      ),
                     }
                   : {}),
               };
@@ -228,10 +235,7 @@ export function createProChatTransport(deps: {
                 completion: Completion.parse({
                   text: output,
                   usage,
-                  actualCostNanoUsd:
-                    (usage.input - usage.cachedInput) * book.inputNanoUsd +
-                    usage.cachedInput * book.cachedInputNanoUsd +
-                    usage.output * book.outputNanoUsd,
+                  actualCostNanoUsd: textCost(usage, book),
                   providerResponseId: event.data.response.id,
                 }),
               };

@@ -1,3 +1,4 @@
+import type { SupplierContract } from "./supplier-contract";
 import { createHash } from "node:crypto";
 import {
   Completion,
@@ -21,7 +22,7 @@ export type ProTransport = (
     operationId: string;
     feature?: string;
     onText?: (text: string) => void;
-    book?: unknown;
+    supplier?: SupplierContract;
   },
 ) => Promise<ProviderOutcome>;
 export function inputIdentity(input: unknown) {
@@ -92,7 +93,7 @@ export class ProTextOperation {
             operationId: id,
             feature: op.feature,
             onText,
-            book,
+            supplier: await this.ledger.supplierContract(account, id, attempt),
           }),
           stop,
         ]);
@@ -111,17 +112,27 @@ export class ProTextOperation {
           await this.ledger.finishAttempt(attempt, { kind: "unknown" });
           return this.ledger.operation(account, id);
         }
-        await this.ledger.finishAttempt(attempt, {
-          kind: "completed",
-          completion: completion.data,
-        });
+        try {
+          await this.ledger.finishAttempt(attempt, {
+            kind: "completed",
+            completion: completion.data,
+          });
+        } catch {
+          await this.ledger.finishAttempt(attempt, { kind: "unknown" });
+          return this.ledger.operation(account, id);
+        }
         return this.ledger.settle(id, {
           kind: "completed",
           text: completion.data.text,
           usage: completion.data.usage,
         });
       }
-      await this.ledger.finishAttempt(attempt, outcome);
+      try {
+        await this.ledger.finishAttempt(attempt, outcome);
+      } catch {
+        await this.ledger.finishAttempt(attempt, { kind: "unknown" });
+        return this.ledger.operation(account, id);
+      }
       if (outcome.kind === "unknown") return this.ledger.operation(account, id);
       const current = await this.ledger.operation(account, id);
       if (
@@ -147,6 +158,7 @@ export class ProTextOperation {
       typeof last.result === "string" &&
       typeof last.usage === "string"
     ) {
+      await this.ledger.supplierContract(account, id, String(last.id));
       const completion = Completion.parse(JSON.parse(last.result));
       return this.ledger.settle(id, {
         kind: "completed",

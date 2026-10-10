@@ -1,9 +1,10 @@
+import { SupplierContract, textCost } from "./supplier-contract";
 import "server-only";
 import { createHash } from "node:crypto";
 import { createOpenAI } from "@ai-sdk/openai";
 import { generateText, APICallError } from "ai";
 import { z } from "zod";
-import { AgentCompletion, AGENT_BOOK } from "~/lib/agent/contracts";
+import { AgentCompletion, AgentBook } from "~/lib/agent/contracts";
 import type { ProLedger } from "./ledger";
 import { ProError } from "./ledger";
 import type { AgentTransport, AgentRequest } from "./agent-operation";
@@ -12,7 +13,7 @@ export function authorizeAgentAttempt(ledger: ProLedger) {
     scope: Parameters<AgentTransport>[2],
     request: AgentRequest,
   ) => {
-    await ledger.authorizeDispatch(
+    const contract = await ledger.authorizeDispatch(
       scope.operationId,
       scope.attemptId,
       scope.accountId,
@@ -36,6 +37,7 @@ export function authorizeAgentAttempt(ledger: ProLedger) {
       descriptor.hash !== hash
     )
       throw new ProError("Parent paid-step authorization required");
+    return contract;
   };
 }
 async function boundedJson(response: Response) {
@@ -68,13 +70,18 @@ export function createAgentProvider(deps: {
   authorize: (
     scope: Parameters<AgentTransport>[2],
     request: AgentRequest,
-  ) => Promise<void>;
+  ) => Promise<SupplierContract>;
   resolveKey: (provider: "openai" | "google-search") => string | undefined;
   resolveSearchEngine: () => string | undefined;
   fetch: typeof globalThis.fetch;
 }): AgentTransport {
   return async (request, signal, scope) => {
-    await deps.authorize(scope, request);
+    const contract = SupplierContract.parse(
+      await deps.authorize(scope, request),
+    );
+    if (contract.feature !== "agent" || contract.phase !== request.phase)
+      throw new Error("Supplier phase mismatch");
+    const book = AgentBook.parse(contract.book);
     if (new TextEncoder().encode(JSON.stringify(request)).length + 1024 > 4096)
       return { kind: "failed", actualCostNanoUsd: 0 };
     if (request.phase === "image")
@@ -139,7 +146,7 @@ export function createAgentProvider(deps: {
               })),
             },
             usage: { input: 0, cachedInput: 0, output: 0 },
-            estimatedCostNanoUsd: 5_000_000,
+            estimatedCostNanoUsd: book.searchMaximumNanoUsd,
           }),
         };
       }
@@ -159,7 +166,7 @@ export function createAgentProvider(deps: {
             },
             { preconnect() {} },
           ),
-        }).responses(AGENT_BOOK.model),
+        }).responses(book.model),
         system,
         prompt,
         maxOutputTokens: 512,
@@ -173,10 +180,7 @@ export function createAgentProvider(deps: {
         cachedInput: result.totalUsage.inputTokenDetails.cacheReadTokens ?? 0,
         output: result.totalUsage.outputTokens,
       };
-      const cost =
-        (usage.input ?? 0) * 750 -
-        (usage.cachedInput ?? 0) * 675 +
-        (usage.output ?? 0) * 4500;
+      const cost = textCost(AgentCompletion.shape.usage.parse(usage), book);
       return {
         kind: "completed",
         completion: AgentCompletion.parse({

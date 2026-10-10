@@ -1,3 +1,4 @@
+import type { SupplierContract } from "./supplier-contract";
 import { createHash } from "node:crypto";
 import {
   ImageCompletion,
@@ -15,7 +16,11 @@ export type ImageOutcome =
 export type ImageTransport = (
   prompt: string,
   signal: AbortSignal,
-  context: { operationId: string; attemptId: string },
+  context: {
+    operationId: string;
+    attemptId: string;
+    supplier: SupplierContract;
+  },
 ) => Promise<ImageOutcome>;
 export class ProImageOperation {
   readonly book: ReturnType<typeof ImagePricebook.parse>;
@@ -28,7 +33,7 @@ export class ProImageOperation {
   }
   async periodBook(account: string) {
     return ImagePricebook.parse(
-      await this.ledger.featureBook(account, "image", this.book),
+      await this.ledger.featureBook(account, "image"),
     );
   }
   async start(account: string, value: unknown): Promise<Operation> {
@@ -79,6 +84,7 @@ export class ProImageOperation {
         this.transport(input.prompt, controller.signal, {
           operationId: op.id,
           attemptId: attempt,
+          supplier: await this.ledger.supplierContract(account, op.id, attempt),
         }),
         new Promise<ImageOutcome>((resolve) =>
           controller.signal.addEventListener(
@@ -98,7 +104,11 @@ export class ProImageOperation {
       clearTimeout(timer);
       clearInterval(monitor);
     }
-    await this.ledger.finishAttempt(attempt, outcome);
+    try {
+      await this.ledger.finishAttempt(attempt, outcome);
+    } catch {
+      await this.ledger.finishAttempt(attempt, { kind: "unknown" });
+    }
     return this.recover(account, op.id);
   }
   async recover(account: string, id: string): Promise<Operation> {
@@ -107,11 +117,13 @@ export class ProImageOperation {
     if (!["reserved", "running", "unknown"].includes(op.state)) return op;
     const attempts = await this.ledger.attempts(account, id);
     const last = attempts.at(-1);
-    if (last?.state === "completed")
+    if (last?.state === "completed") {
+      await this.ledger.supplierContract(account, id, String(last.id));
       return this.ledger.settle(id, {
         kind: "image_completed",
         completion: ImageCompletion.parse(JSON.parse(String(last.result))),
       });
+    }
     if (last?.state === "failed" || (op.cancel_requested && !attempts.length))
       return this.ledger.settle(id, {
         kind: op.cancel_requested ? "cancelled" : "technical_failure",

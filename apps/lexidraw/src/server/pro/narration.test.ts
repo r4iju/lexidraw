@@ -1,3 +1,4 @@
+import { supplierFixture } from "~/test/supplier-fixture";
 import { expect, test, mock } from "bun:test";
 import { createClient } from "@libsql/client";
 import { installServerRuntime } from "~/test/server-runtime";
@@ -46,6 +47,7 @@ async function fixture(transport?: import("./narration").NarrationTransport) {
   let ratebook = NarrationBook.parse(NARRATION_BOOK);
   const ledger = new ProLedger(client, {
     ownerAccountIds: ["owner"],
+    supplierBooks: supplierFixture,
     now: () => now,
     narrationBook: () => ratebook,
   });
@@ -825,6 +827,78 @@ test("useful cached later parts are delivered even when the earlier missing part
       made: 1,
     });
     expect(calls).toBe(2);
+  } finally {
+    f.client.close();
+  }
+});
+
+test("authenticated narration completion and historical saved parts validate against the attempt supplier contract after rates change", async () => {
+  const f = await fixture(async (_text, _signal, scope) => {
+    expect(scope.supplier.maximumNanoUsd).toBe(77700000);
+    return {
+      kind: "completed",
+      completion: {
+        kind: "narration_part",
+        audio: wav(),
+        usage: { input: 2850, audio: 3000 },
+        actualCostNanoUsd: 77700000,
+      },
+    };
+  });
+  try {
+    await f.grant("alice");
+    f.ledger.config.supplierBooks = () => ({
+      verification: "test-injection",
+      narration: {
+        ...NARRATION_BOOK,
+        version: "supplier-narration-v2",
+        inputNanoUsd: 2000,
+        audioNanoUsd: 24000,
+      },
+    });
+    const q = await f.caller("alice").quote({ documentId: "doc" });
+    const op = await f.caller("alice").generate({
+      documentId: "doc",
+      idempotencyKey: "supplier-raised",
+      acceptedMaximum: q.maximum,
+      acceptedRevision: q.revision,
+      acceptedPeriod: q.periodId,
+    });
+    expect(op).toMatchObject({ state: "settled", charged: 12950000 });
+    f.ledger.config.supplierBooks = supplierFixture;
+    const reopened = new ProLedger(f.client, f.ledger.config);
+    const part = await reopened.narrationPart(
+      "alice",
+      String((await reopened.attempts("alice", required(op.id)))[0]?.id),
+    );
+    expect(part.actualCostNanoUsd).toBe(77700000);
+    expect(
+      (await f.reader("alice").saved({ documentId: "doc" })).parts.length,
+    ).toBeGreaterThan(0);
+  } finally {
+    f.client.close();
+  }
+});
+
+test("corrupt historical narration exposure cannot be delivered or charged as a valid supplier contract", async () => {
+  const f = await fixture();
+  try {
+    await f.grant("alice");
+    const q = await f.caller("alice").quote({ documentId: "doc" });
+    const op = await f.caller("alice").generate({
+      documentId: "doc",
+      idempotencyKey: "corrupt-contract",
+      acceptedMaximum: q.maximum,
+      acceptedRevision: q.revision,
+      acceptedPeriod: q.periodId,
+    });
+    await f.client.execute({
+      sql: "UPDATE pro_attempts SET exposure_nano_usd=1 WHERE operation_id=?",
+      args: [required(op.id)],
+    });
+    await expect(
+      f.reader("alice").saved({ documentId: "doc" }),
+    ).rejects.toThrow("Supplier contract differs");
   } finally {
     f.client.close();
   }

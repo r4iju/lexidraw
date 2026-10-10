@@ -1,3 +1,5 @@
+import { AGENT_BOOK } from "~/lib/agent/contracts";
+import { makeSupplierContract } from "./supplier-contract";
 import { test, expect, mock } from "bun:test";
 mock.module("server-only", () => ({}));
 const { createAgentProvider } = await import("./agent-provider");
@@ -8,6 +10,12 @@ test("approved paid search uses bound server scope and injected exact endpoint; 
     authorize: async (scope) => {
       if (scope.attemptId !== "fenced" || scope.accountId !== "alice")
         throw new Error("No parent authorization");
+      return makeSupplierContract(
+        "agent",
+        AGENT_BOOK,
+        "test-injection",
+        "search",
+      );
     },
     resolveKey: () => {
       keys++;
@@ -48,6 +56,12 @@ test("approved paid search uses bound server scope and injected exact endpoint; 
       accountId: "alice",
       operationId: "supplied",
       attemptId: "forged",
+      supplier: makeSupplierContract(
+        "agent",
+        AGENT_BOOK,
+        "test-injection",
+        "search",
+      ),
     }),
   ).rejects.toThrow("authorization");
   expect(keys).toBe(0);
@@ -56,6 +70,12 @@ test("approved paid search uses bound server scope and injected exact endpoint; 
     accountId: "alice",
     operationId: "parent",
     attemptId: "fenced",
+    supplier: makeSupplierContract(
+      "agent",
+      AGENT_BOOK,
+      "test-injection",
+      "search",
+    ),
   });
   expect(output).toMatchObject({
     kind: "completed",
@@ -78,7 +98,13 @@ test("approved paid search uses bound server scope and injected exact endpoint; 
 
 test("search list pricing is an estimate, never fabricated actual invoice usage", async () => {
   const adapter = createAgentProvider({
-    authorize: async () => {},
+    authorize: async (_scope, request) =>
+      makeSupplierContract(
+        "agent",
+        AGENT_BOOK,
+        "test-injection",
+        request.phase,
+      ),
     resolveKey: () => "fixture-only",
     resolveSearchEngine: () => "fixture",
     fetch: Object.assign(async () => Response.json({ items: [] }), {
@@ -88,7 +114,17 @@ test("search list pricing is an estimate, never fabricated actual invoice usage"
   const result = await adapter(
     { phase: "search", prompt: "trees", context: "document", query: "trees" },
     new AbortController().signal,
-    { accountId: "alice", operationId: "one", attemptId: "fenced" },
+    {
+      accountId: "alice",
+      operationId: "one",
+      attemptId: "fenced",
+      supplier: makeSupplierContract(
+        "agent",
+        AGENT_BOOK,
+        "test-injection",
+        "search",
+      ),
+    },
   );
   expect(result.kind).toBe("completed");
   if (result.kind === "completed") {
@@ -99,7 +135,13 @@ test("search list pricing is an estimate, never fabricated actual invoice usage"
 
 test("supplier rejection does not fabricate an actual zero invoice cost", async () => {
   const adapter = createAgentProvider({
-    authorize: async () => {},
+    authorize: async (_scope, request) =>
+      makeSupplierContract(
+        "agent",
+        AGENT_BOOK,
+        "test-injection",
+        request.phase,
+      ),
     resolveKey: () => "fixture-only",
     resolveSearchEngine: () => "fixture",
     fetch: Object.assign(
@@ -111,7 +153,17 @@ test("supplier rejection does not fabricate an actual zero invoice cost", async 
     await adapter(
       { phase: "search", prompt: "trees", context: "document", query: "trees" },
       new AbortController().signal,
-      { accountId: "alice", operationId: "one", attemptId: "fenced" },
+      {
+        accountId: "alice",
+        operationId: "one",
+        attemptId: "fenced",
+        supplier: makeSupplierContract(
+          "agent",
+          AGENT_BOOK,
+          "test-injection",
+          "search",
+        ),
+      },
     ),
   ).toEqual({ kind: "failed" });
 });
@@ -122,6 +174,12 @@ test("eligibility is checked again at actual SDK dispatch after credential resol
   const provider = createAgentProvider({
     authorize: async () => {
       if (!eligible) throw Error("Revoked");
+      return makeSupplierContract(
+        "agent",
+        AGENT_BOOK,
+        "test-injection",
+        "plan",
+      );
     },
     resolveKey: () => {
       eligible = false;
@@ -140,7 +198,17 @@ test("eligibility is checked again at actual SDK dispatch after credential resol
     await provider(
       { phase: "plan", prompt: "write", context: "doc" },
       new AbortController().signal,
-      { accountId: "alice", operationId: "parent", attemptId: "fenced" },
+      {
+        accountId: "alice",
+        operationId: "parent",
+        attemptId: "fenced",
+        supplier: makeSupplierContract(
+          "agent",
+          AGENT_BOOK,
+          "test-injection",
+          "plan",
+        ),
+      },
     ),
   ).toEqual({ kind: "unknown" });
   expect(calls).toBe(0);

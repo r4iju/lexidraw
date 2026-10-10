@@ -1,3 +1,4 @@
+import { supplierFixture } from "~/test/supplier-fixture";
 import { expect, test, mock } from "bun:test";
 import { createClient } from "@libsql/client";
 import { ProLedger } from "./ledger";
@@ -27,6 +28,8 @@ export async function fixture(
   let now = 1000;
   const ledger = new ProLedger(client, {
     ownerAccountIds: ["owner"],
+    supplierBooks: supplierFixture,
+    agentBook: () => AGENT_BOOK,
     now: () => now,
   });
   const document = { revision: 1, text: "Original" };
@@ -655,6 +658,7 @@ test("agent renewal uses its new credit conversion while original period operati
       }),
     );
     expect((await updated.periodBook("alice")).quote).toBe(26_629_334);
+    f.ledger.config.agentBook = () => updated.book;
     f.setNow(2000);
     await f.ledger.grantPeriod("owner", {
       accountId: "alice",
@@ -680,6 +684,213 @@ test("agent renewal uses its new credit conversion while original period operati
       availableSubcredits: 999_680_000,
       providerCosts: { knownNanoUsd: 480_007 },
     });
+  } finally {
+    f.client.close();
+  }
+});
+
+test("authenticated action pins configured customer rates before its first quote and unavailable periods stay unavailable", async () => {
+  const f = await fixture(async () => ({ kind: "unknown" }));
+  try {
+    await grant(f);
+    f.ledger.config.agentBook = () => ({
+      ...AGENT_BOOK,
+      version: "new-customer-rate",
+      creditNanoUsd: 1500000,
+      quote: 53258667,
+    });
+    // The adapter introduced after period creation must see the original complete schedule.
+    const updated = new ProAgentOperation(
+      f.ledger,
+      f.ledger.config.agentBook(),
+      f.executor.documents,
+      f.executor.transport,
+    );
+    const router = createAgentRouter({
+      ledger: () => f.ledger,
+      executor: () => updated,
+      selected: async () => true,
+      dispatch: async () => {},
+    });
+    const caller = router.createCaller({
+      drizzle: db,
+      headers: new Headers(),
+      session: { user: { id: "alice" } },
+    } as never);
+    expect(
+      (await caller.quote({ documentId: "doc", prompt: "Add text" })).maximum,
+    ).toBe(26629334);
+    f.setNow(2000);
+    await f.ledger.grantPeriod("owner", {
+      accountId: "alice",
+      eventId: "renewed",
+      startsAt: 2000,
+      endsAt: 3000,
+      subcredits: 1000000000,
+      reason: "renewal",
+      environment: "test",
+    });
+    expect(
+      (await caller.quote({ documentId: "doc", prompt: "Add text" })).maximum,
+    ).toBe(53258667);
+    f.setNow(3000);
+    f.ledger.config.agentBook = undefined;
+    await f.ledger.grantPeriod("owner", {
+      accountId: "alice",
+      eventId: "unavailable",
+      startsAt: 3000,
+      endsAt: 4000,
+      subcredits: 1000000000,
+      reason: "unavailable",
+      environment: "test",
+    });
+    f.ledger.config.agentBook = () => AGENT_BOOK;
+    await expect(
+      caller.quote({ documentId: "doc", prompt: "Add text" }),
+    ).rejects.toThrow("unavailable for this period");
+  } finally {
+    f.client.close();
+  }
+});
+
+test("authenticated agent dispatch selects the supplier model with raised bounds while its customer action keeps original rates", async () => {
+  const { createAgentProvider, authorizeAgentAttempt } = await import(
+    "./agent-provider"
+  );
+  let provider: ReturnType<typeof createAgentProvider>;
+  const f = await fixture((request, signal, scope) =>
+    provider(request, signal, scope),
+  );
+  let calls = 0;
+  provider = createAgentProvider({
+    authorize: authorizeAgentAttempt(f.ledger),
+    resolveKey: () => "synthetic-agent-key",
+    resolveSearchEngine: () => "synthetic-engine",
+    fetch: Object.assign(
+      async (_url: RequestInfo | URL, options?: RequestInit) => {
+        const body = JSON.parse(String(options?.body));
+        expect(body.model).toBe("synthetic-agent-v2");
+        const output =
+          ++calls === 1
+            ? { edits: ["Add text"] }
+            : calls === 2
+              ? { kind: "append" }
+              : calls === 3
+                ? { text: "New text" }
+                : { kind: "done" };
+        return Response.json({
+          id: `agent-${calls}`,
+          object: "response",
+          created_at: 1000,
+          model: body.model,
+          status: "completed",
+          output: [
+            {
+              id: "message",
+              type: "message",
+              role: "assistant",
+              status: "completed",
+              content: [
+                {
+                  type: "output_text",
+                  text: JSON.stringify(output),
+                  annotations: [],
+                },
+              ],
+            },
+          ],
+          usage: {
+            input_tokens: 4096,
+            input_tokens_details: { cached_tokens: 0 },
+            output_tokens: 512,
+            total_tokens: 4608,
+          },
+        });
+      },
+      { preconnect() {} },
+    ),
+  });
+  try {
+    await grant(f);
+    f.ledger.config.supplierBooks = () => ({
+      ...supplierFixture(),
+      agent: {
+        ...AGENT_BOOK,
+        version: "supplier-agent-v2",
+        model: "synthetic-agent-v2",
+        inputNanoUsd: 1500,
+        cachedInputNanoUsd: 150,
+        outputNanoUsd: 9000,
+        textMaximumNanoUsd: 10752000,
+        maximumNanoUsd: 149776000,
+        quote: 49925334,
+      },
+    });
+    const result = await f.caller("alice").start(input);
+    expect(result.operation).toMatchObject({
+      state: "settled",
+      charged: 7168000,
+    });
+    expect(result.report.status).toBe("complete");
+    expect(calls).toBe(4);
+    expect((await f.ledger.status("alice")).providerCosts).toMatchObject({
+      knownNanoUsd: 0,
+      unknownExposureNanoUsd: 43008000,
+    });
+  } finally {
+    f.client.close();
+  }
+});
+
+test("legacy periods recover accepted action prices and do not introduce a configured feature without historical evidence", async () => {
+  const { PRICEBOOK } = await import("./contracts");
+  const f = await fixture(async () => ({ kind: "unknown" }));
+  try {
+    await grant(f);
+    const accepted = await f.caller("alice").start(input);
+    await f.client.execute({
+      sql: "UPDATE pro_periods SET pricebook=?",
+      args: [JSON.stringify(PRICEBOOK)],
+    });
+    f.ledger.config.agentBook = () => ({
+      ...AGENT_BOOK,
+      version: "later",
+      creditNanoUsd: 1500000,
+      quote: 53258667,
+    });
+    expect((await f.executor.periodBook("alice")).quote).toBe(26629334);
+    expect(
+      (await f.caller("alice").operation({ id: accepted.operation.id }))
+        .operation.state,
+    ).toBe("unknown");
+    f.setNow(2000);
+    await f.ledger.grantPeriod("owner", {
+      accountId: "alice",
+      eventId: "legacy-empty",
+      startsAt: 2000,
+      endsAt: 3000,
+      subcredits: 1000000000,
+      reason: "legacy",
+      environment: "test",
+    });
+    await f.client.execute({
+      sql: "UPDATE pro_periods SET pricebook=? WHERE starts_at=2000",
+      args: [
+        JSON.stringify({
+          version: "period-rates-v1",
+          text: PRICEBOOK,
+          narration: supplierFixture().narration,
+          image: null,
+          agent: null,
+        }),
+      ],
+    });
+    await expect(
+      f.caller("alice").quote({ documentId: "doc", prompt: "Add text" }),
+    ).rejects.toThrow("unavailable for this period");
+    expect((await f.ledger.status("alice")).availableSubcredits).toBe(
+      1000000000,
+    );
   } finally {
     f.client.close();
   }

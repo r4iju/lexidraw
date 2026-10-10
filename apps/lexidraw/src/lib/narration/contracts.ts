@@ -82,7 +82,8 @@ export const NarrationPart = z.strictObject({
     .number()
     .int()
     .nonnegative()
-    .max(NARRATION_MAX_ATTEMPT_NANO_USD),
+    .max(Number.MAX_SAFE_INTEGER)
+    .optional(),
   providerResponseId: z.string().max(200).optional(),
 });
 export type NarrationPart = z.infer<typeof NarrationPart>;

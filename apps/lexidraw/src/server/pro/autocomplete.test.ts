@@ -1,3 +1,4 @@
+import { supplierFixture } from "~/test/supplier-fixture";
 import { expect, mock, test } from "bun:test";
 import { createClient } from "@libsql/client";
 import { installServerRuntime } from "~/test/server-runtime";
@@ -27,6 +28,7 @@ async function fixture(
     );
   const ledger = new ProLedger(client, {
     ownerAccountIds: ["owner"],
+    supplierBooks: supplierFixture,
     now: () => 1000,
   });
   await ledger.grantEligibility("owner", "alice", "tester");
@@ -270,6 +272,93 @@ test("unverified production text capability refuses requests before reservations
     ).rejects.toThrow("Coming soon");
     expect(paid).toBe(0);
     expect((await f.ledger.status("alice")).reservedSubcredits).toBe(0);
+  } finally {
+    f.client.close();
+  }
+});
+
+test("authenticated text and autocomplete use the admitted supplier model and cost while customer rates remain on the period", async () => {
+  const { PRICEBOOK } = await import("./contracts");
+  const { createProProviderTransport } = await import("./provider");
+  let selected = "";
+  let outputCap = 0;
+  const transport = createProProviderTransport({
+    authorize: (scope) =>
+      f.ledger.authorizeDispatch(
+        scope.operationId,
+        scope.attemptId,
+        scope.accountId,
+      ),
+    resolveServerKey: () => "synthetic-key",
+    fetch: async (_url, options) => {
+      const body = JSON.parse(String(options?.body));
+      selected = body.model;
+      outputCap = body.max_output_tokens;
+      // A configuration update after dispatch cannot alter terminal validation.
+      f.ledger.config.supplierBooks = supplierFixture;
+      return Response.json({
+        id: "supplier-result",
+        object: "response",
+        created_at: 1000,
+        model: body.model,
+        status: "completed",
+        output: [
+          {
+            id: "message",
+            type: "message",
+            role: "assistant",
+            status: "completed",
+            content: [
+              { type: "output_text", text: "Hello world", annotations: [] },
+            ],
+          },
+        ],
+        usage: {
+          input_tokens: 4096,
+          input_tokens_details: { cached_tokens: 0 },
+          output_tokens: outputCap,
+          total_tokens: 4096 + outputCap,
+        },
+      });
+    },
+  });
+  const f = await fixture(transport);
+  try {
+    for (const feature of ["text", "autocomplete"] as const) {
+      f.ledger.config.supplierBooks = () => ({
+        verification: "test-injection",
+        text: {
+          ...PRICEBOOK,
+          version: "supplier-v2",
+          model: "synthetic-text-v2",
+          inputNanoUsd: 1500,
+          cachedInputNanoUsd: 150,
+          outputNanoUsd: 9000,
+        },
+      });
+      const result =
+        feature === "text"
+          ? await f.caller.text({
+              idempotencyKey: "raised-text",
+              text: "Hello",
+            })
+          : await f.caller.autocomplete({
+              idempotencyKey: "raised-auto",
+              title: "Title",
+              before: "Hello",
+              after: "",
+            });
+      expect(result).toMatchObject({
+        state: "settled",
+        charged: feature === "text" ? 1792000 : 1120000,
+      });
+      expect(selected).toBe("synthetic-text-v2");
+      expect(outputCap).toBe(feature === "text" ? 512 : 64);
+      expect((await f.ledger.attempts("alice", result.id))[0]).toMatchObject({
+        exposure_nano_usd: feature === "text" ? 10752000 : 6720000,
+        cost_nano_usd: feature === "text" ? 10752000 : 6720000,
+      });
+    }
   } finally {
     f.client.close();
   }

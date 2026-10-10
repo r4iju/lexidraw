@@ -1,3 +1,4 @@
+import { supplierFixture } from "~/test/supplier-fixture";
 import { expect, test, mock } from "bun:test";
 import { createClient, type Client } from "@libsql/client";
 import { mkdtemp, rm } from "node:fs/promises";
@@ -57,6 +58,7 @@ test("authenticated text requires separate private eligibility and entitlement; 
   );
   const ledger = new ProLedger(client, {
     ownerAccountIds: ["owner"],
+    supplierBooks: supplierFixture,
     now: () => 1000,
   });
   let calls = 0;
@@ -172,6 +174,7 @@ async function operationFixture(
   );
   const ledger = new ProLedger(client, {
     ownerAccountIds: ["owner"],
+    supplierBooks: supplierFixture,
     now: () => 1000,
   });
   await ledger.grantEligibility("owner", "alice", "tester");
@@ -613,6 +616,7 @@ test("published text and autocomplete maxima match the period book across an upd
   };
   const ledger = new ProLedger(client, {
     ownerAccountIds: ["owner"],
+    supplierBooks: supplierFixture,
     now: () => now,
     textBook: () => book,
   });

@@ -1,3 +1,11 @@
+import {
+  SupplierBooks,
+  SupplierContract,
+  supplierMaximum,
+  makeSupplierContract,
+  archivedSupplier,
+  validateSupplierCompletion,
+} from "./supplier-contract";
 import { PeriodRates, decodePeriodRates } from "./period-rates";
 import {
   AgentBook,
@@ -11,7 +19,6 @@ import { audioSeconds } from "./narration-audio";
 import {
   NARRATION_BOOK,
   NarrationBook,
-  NARRATION_MAX_ATTEMPT_NANO_USD,
   NarrationReservation,
   NarrationPlan,
   NarrationPart,
@@ -28,6 +35,7 @@ import { z } from "zod";
 import type { Client, InArgs, Transaction } from "@libsql/client";
 import {
   PRICEBOOK,
+  PRICEBOOK_V1,
   TextBook,
   textMaximum,
   TRIAL_POLICY,
@@ -35,7 +43,6 @@ import {
   Operation,
   referenceCharge,
   type Usage,
-  MAX_ATTEMPT_NANO_USD,
   Completion,
 } from "./contracts";
 
@@ -50,6 +57,9 @@ export class ProLedger {
       appleSandboxAvailable?: boolean;
       narrationBook?: () => unknown;
       textBook?: () => unknown;
+      imageBook?: () => unknown;
+      agentBook?: () => unknown;
+      supplierBooks?: () => unknown;
     },
   ) {}
   owner(actor: string) {
@@ -125,7 +135,7 @@ export class ProLedger {
       throw new ProError("Explicit reason required");
   }
   async auditWrite(
-    tx: Transaction,
+    tx: Pick<Client, "execute">,
     actor: string,
     account: string,
     action: string,
@@ -256,6 +266,22 @@ export class ProLedger {
       });
       if (fenced.rows[0]?.fenced === 1)
         throw new ProError("Paid period permanently fenced");
+      const supplier = this.config.supplierBooks
+        ? SupplierBooks.parse(this.config.supplierBooks())
+        : undefined;
+      const featureSchedule = (
+        feature: "image" | "agent",
+        candidate: unknown,
+      ) => {
+        if (
+          !candidate ||
+          !supplier?.[feature] ||
+          (supplier.verification === "test-injection" &&
+            input.environment !== "test")
+        )
+          return { status: "unavailable" };
+        return { status: "available", book: candidate };
+      };
       const id = crypto.randomUUID();
       await tx.execute({
         sql: "INSERT INTO pro_periods(id,account_id,event_id,starts_at,ends_at,environment,pricebook,granted,available) VALUES (?,?,?,?,?,?,?,?,?)",
@@ -268,11 +294,11 @@ export class ProLedger {
           input.environment,
           JSON.stringify(
             PeriodRates.parse({
-              version: "period-rates-v1",
+              version: "period-rates-v2",
               text: this.config.textBook?.() ?? PRICEBOOK,
               narration: this.config.narrationBook?.() ?? NARRATION_BOOK,
-              image: null,
-              agent: null,
+              image: featureSchedule("image", this.config.imageBook?.()),
+              agent: featureSchedule("agent", this.config.agentBook?.()),
             }),
           ),
           input.subcredits,
@@ -699,25 +725,22 @@ export class ProLedger {
     periodId: string,
     rates: PeriodRates,
     feature: "image" | "agent",
-    candidate?: unknown,
   ) {
-    if (rates[feature]) return;
+    if (rates[feature].status === "available") return;
     const [prior] = (
       await tx.execute({
         sql: "SELECT pricebook FROM pro_operations WHERE period_id=? AND feature=? ORDER BY created_at,rowid LIMIT 1",
         args: [periodId, feature],
       })
     ).rows;
-    const value = prior ? JSON.parse(String(prior.pricebook)) : candidate;
+    // Legacy periods recover only evidence accepted before this policy. A later adapter cannot set customer prices.
+    const value = prior ? JSON.parse(String(prior.pricebook)) : undefined;
     if (value === undefined) return;
-    if (feature === "image") rates.image = ImagePricebook.parse(value);
-    else rates.agent = AgentBook.parse(value);
+    if (feature === "image")
+      rates.image = { status: "available", book: ImagePricebook.parse(value) };
+    else rates.agent = { status: "available", book: AgentBook.parse(value) };
   }
-  async featureBook(
-    account: string,
-    feature: "image" | "agent",
-    candidate: unknown,
-  ) {
+  async featureBook(account: string, feature: "image" | "agent") {
     return this.write(async (tx) => {
       const [period] = (
         await tx.execute({
@@ -726,16 +749,35 @@ export class ProLedger {
         })
       ).rows;
       if (!period) throw new ProError("Private entitlement required");
-      const rates = decodePeriodRates(String(period.pricebook));
-      if (rates[feature]) return rates[feature];
-      await this.pinFeature(tx, String(period.id), rates, feature, candidate);
-      await tx.execute({
-        sql: "UPDATE pro_periods SET pricebook=? WHERE id=?",
-        args: [JSON.stringify(rates), String(period.id)],
-      });
-      return rates[feature];
+      const rates = await this.periodSchedule(
+        tx,
+        String(period.id),
+        String(period.pricebook),
+      );
+      const schedule = rates[feature];
+      if (schedule.status === "unavailable")
+        throw new ProError(`${feature} unavailable for this period`);
+      return schedule.book;
     });
   }
+  private async periodSchedule(tx: Transaction, id: string, value: string) {
+    const rates = decodePeriodRates(value);
+    if (
+      z.object({ version: z.string() }).parse(JSON.parse(value)).version !==
+      "period-rates-v2"
+    ) {
+      for (const feature of ["image", "agent"] as const) {
+        if (rates[feature].status === "unavailable")
+          await this.pinFeature(tx, id, rates, feature);
+      }
+      await tx.execute({
+        sql: "UPDATE pro_periods SET pricebook=? WHERE id=?",
+        args: [JSON.stringify(rates), id],
+      });
+    }
+    return rates;
+  }
+
   async audit(actor: string) {
     this.owner(actor);
     return this.query("SELECT * FROM pro_audit ORDER BY id");
@@ -791,7 +833,11 @@ export class ProLedger {
         })
       ).rows[0];
       if (!period) throw new ProError("Private entitlement required");
-      const rates = decodePeriodRates(String(period.pricebook));
+      const rates = await this.periodSchedule(
+        tx,
+        String(period.id),
+        String(period.pricebook),
+      );
       if (
         acceptedText &&
         (acceptedText.periodId !== String(period.id) ||
@@ -800,23 +846,25 @@ export class ProLedger {
       )
         throw new ProError("Chat period or rates changed. Review a new quote.");
 
-      for (const feature of ["image", "agent"] as const) {
-        if (rates[feature]) continue;
-        await this.pinFeature(
-          tx,
-          String(period.id),
-          rates,
-          feature,
-          feature === "image" ? imageBook : agent?.book,
-        );
-      }
       const equal = (a: unknown, b: unknown) =>
         JSON.stringify(a) === JSON.stringify(b);
       if (narration && !equal(narration.book, rates.narration))
         throw new ProError("Narration rate snapshot is pinned for this period");
-      if (imageBook && !equal(imageBook, rates.image))
+      if (
+        imageBook &&
+        !equal(
+          imageBook,
+          rates.image.status === "available" ? rates.image.book : null,
+        )
+      )
         throw new ProError("Image rate snapshot is pinned for this period");
-      if (agent && !equal(agent.book, rates.agent))
+      if (
+        agent &&
+        !equal(
+          agent.book,
+          rates.agent.status === "available" ? rates.agent.book : null,
+        )
+      )
         throw new ProError("Agent rate snapshot is pinned for this period");
       const quote =
         agent?.book.quote ??
@@ -1005,10 +1053,11 @@ export class ProLedger {
       if (pending.length && !reconciled) return op;
       const completed = (
         await tx.execute({
-          sql: "SELECT result FROM pro_attempts WHERE operation_id=? AND state='completed' ORDER BY number DESC LIMIT 1",
+          sql: "SELECT * FROM pro_attempts WHERE operation_id=? AND state='completed' ORDER BY number DESC LIMIT 1",
           args: [id],
         })
       ).rows[0];
+      if (completed) await this.contractForAttempt(tx, completed, true);
       // Durable completion outranks a losing executor's failure/cancellation verdict.
       // Read it under the settlement write lock so no refund can race its commit.
       const narration =
@@ -1249,6 +1298,10 @@ export class ProLedger {
         !["running", "unknown"].includes(op.state)
       )
         throw new ProError("Unresolved agent step required");
+      validateSupplierCompletion(
+        await this.contractForAttempt(tx, a),
+        completion,
+      );
       if (
         completion.phase !==
           AgentAttemptDescriptor.parse(JSON.parse(String(a.chunk_hash)))
@@ -1357,6 +1410,7 @@ export class ProLedger {
     ).rows;
     const book = AgentBook.parse(JSON.parse(op.pricebook));
     for (const attempt of attempts) {
+      await this.contractForAttempt(tx, attempt);
       const descriptor = AgentAttemptDescriptor.parse(
         JSON.parse(String(attempt.chunk_hash)),
       );
@@ -1441,12 +1495,19 @@ export class ProLedger {
       ).rows[0];
       if (!a || !["started", "unknown"].includes(String(a.state)))
         throw new ProError("Unresolved narration part required");
-      if (completion.actualCostNanoUsd > Number(a.exposure_nano_usd))
+      validateSupplierCompletion(
+        await this.contractForAttempt(tx, a),
+        completion,
+      );
+      if (
+        completion.actualCostNanoUsd !== undefined &&
+        completion.actualCostNanoUsd > Number(a.exposure_nano_usd)
+      )
         throw new ProError("Invalid attempt cost");
       await tx.execute({
         sql: "UPDATE pro_attempts SET state='completed',cost_nano_usd=?,usage=?,result=? WHERE id=?",
         args: [
-          completion.actualCostNanoUsd,
+          completion.actualCostNanoUsd ?? null,
           JSON.stringify(completion.usage),
           JSON.stringify(completion),
           attemptId,
@@ -1493,6 +1554,7 @@ export class ProLedger {
             (a) => a.chunk_hash === chunk.hash && a.state === "completed",
           );
       if (!a) return { complete: false, charge: 0, attemptIds: [] };
+      await this.contractForAttempt(tx, a);
       attemptIds.push(String(a.id));
     }
     for (const a of attempts)
@@ -1534,6 +1596,7 @@ export class ProLedger {
       )
     )[0];
     if (!row) throw new ProError("Narration part not found");
+    await this.supplierContract(account, String(row.operation_id), attempt);
     return NarrationPart.parse(JSON.parse(String(row.result)));
   }
   async entries(account: string) {
@@ -1585,6 +1648,7 @@ export class ProLedger {
     );
     if (rows.length !== 1)
       throw new ProError("Parent paid-step authorization required");
+    return this.supplierContract(account, id, attemptId);
   }
   async startAttempt(id: string, chunkHash?: string) {
     return this.write(async (tx) => {
@@ -1615,16 +1679,6 @@ export class ProLedger {
         !isNarration && !agentBook && !imageBook
           ? TextBook.parse(JSON.parse(op.pricebook))
           : undefined;
-      const exposure =
-        agentBook && agentStep
-          ? agentStep.phase === "image"
-            ? (agentBook.image?.maximumNanoUsd ?? 0)
-            : agentStep.phase === "search"
-              ? agentBook.searchMaximumNanoUsd
-              : agentBook.textMaximumNanoUsd
-          : isNarration
-            ? NARRATION_MAX_ATTEMPT_NANO_USD
-            : (imageBook?.maximumNanoUsd ?? MAX_ATTEMPT_NANO_USD);
       if (isNarration) {
         const plan = NarrationPlan.parse(
           JSON.parse(
@@ -1672,6 +1726,33 @@ export class ProLedger {
                 PRICEBOOK.maxElapsedMs)))
       )
         throw new ProError("Paid steps stopped");
+      const configured = SupplierBooks.parse(this.config.supplierBooks?.());
+      const [period] = (
+        await tx.execute({
+          sql: "SELECT environment FROM pro_periods WHERE id=?",
+          args: [op.period_id],
+        })
+      ).rows;
+      if (
+        configured.verification === "test-injection" &&
+        period?.environment !== "test"
+      )
+        throw new ProError("Synthetic supplier requires test entitlement");
+      const supplierBook =
+        configured[
+          op.feature === "chat" || op.feature === "autocomplete"
+            ? "text"
+            : op.feature
+        ];
+      if (!supplierBook)
+        throw new ProError("Verified supplier contract unavailable");
+      const contract = makeSupplierContract(
+        op.feature,
+        supplierBook,
+        configured.verification,
+        agentStep?.phase,
+      );
+      const exposure = contract.maximumNanoUsd;
       const attempts = (
         await tx.execute({
           sql: "SELECT * FROM pro_attempts WHERE operation_id=? ORDER BY number",
@@ -1699,6 +1780,7 @@ export class ProLedger {
       )
         throw new ProError("Attempt limit or unresolved outcome");
       if (agentBook && agentStep) {
+        const supplierAgent = AgentBook.parse(contract.book);
         const steps = attempts.map((a) =>
           AgentAttemptDescriptor.parse(JSON.parse(String(a.chunk_hash))),
         );
@@ -1715,18 +1797,29 @@ export class ProLedger {
               : agentStep.phase === "image"
                 ? agentBook.maxImageSteps
                 : agentBook.maxTextSteps) ||
-          steps.reduce(
-            (sum, s) =>
-              sum +
-              (s.phase === "image"
-                ? (agentBook.image?.maximumNanoUsd ?? 0)
-                : s.phase === "search"
-                  ? agentBook.searchMaximumNanoUsd
-                  : agentBook.textMaximumNanoUsd),
+          attempts.reduce(
+            (sum, a) => sum + Number(a.exposure_nano_usd),
             exposure,
-          ) > agentBook.maximumNanoUsd
+          ) > supplierAgent.maximumNanoUsd
         )
           throw new ProError("Action cap exhausted");
+      }
+      const historical = (
+        await tx.execute({
+          sql: "SELECT a.* FROM pro_attempts a JOIN pro_operations o ON o.id=a.operation_id WHERE (o.account_id=? AND o.period_id=?) OR a.created_at>?",
+          args: [op.account_id, op.period_id, this.config.now() - 86400000],
+        })
+      ).rows;
+      for (const a of historical) {
+        await this.contractForAttempt(tx, a, true);
+        const cost = a.cost_nano_usd;
+        if (
+          cost !== null &&
+          (!Number.isSafeInteger(Number(cost)) ||
+            Number(cost) < 0 ||
+            Number(cost) > Number(a.exposure_nano_usd))
+        )
+          throw new ProError("Corrupt historical supplier cost");
       }
       const accountSpend = (
         await tx.execute({
@@ -1780,8 +1873,96 @@ export class ProLedger {
               ]
             : [attempt, id, attempts.length + 1, exposure, this.config.now()],
       });
+      // The existing append-only audit table makes this snapshot immutable and atomic with its paid fence, without a remote schema migration.
+      await this.auditWrite(
+        tx,
+        "supplier-contract",
+        op.account_id,
+        `supplier-attempt:${attempt}`,
+        JSON.stringify(contract),
+      );
       return attempt;
     });
+  }
+  async supplierContract(
+    account: string,
+    operationId: string,
+    attemptId: string,
+  ) {
+    await this.operation(account, operationId);
+    const [attempt] = await this.query(
+      "SELECT * FROM pro_attempts WHERE id=? AND operation_id=?",
+      [attemptId, operationId],
+    );
+    if (!attempt) throw new ProError("Attempt not found");
+    return this.contractForAttempt(this.client, attempt);
+  }
+
+  private async contractForAttempt(
+    tx: Pick<Client, "execute">,
+    attempt: Awaited<ReturnType<ProLedger["query"]>>[number],
+    materializeHistorical = false,
+  ) {
+    const op = Operation.parse(
+      (
+        await tx.execute({
+          sql: "SELECT * FROM pro_operations WHERE id=?",
+          args: [attempt.operation_id ?? ""],
+        })
+      ).rows[0],
+    );
+    const rows = (
+      await tx.execute({
+        sql: "SELECT reason FROM pro_audit WHERE action=? AND account_id=?",
+        args: [`supplier-attempt:${attempt.id}`, op.account_id],
+      })
+    ).rows;
+    if (rows.length > 1) throw new ProError("Ambiguous supplier contract");
+    const phase =
+      op.feature === "agent"
+        ? AgentAttemptDescriptor.parse(JSON.parse(String(attempt.chunk_hash)))
+            .phase
+        : undefined;
+    const contract = rows[0]
+      ? SupplierContract.parse(JSON.parse(String(rows[0].reason)))
+      : archivedSupplier(op.feature, JSON.parse(String(op.pricebook)), phase);
+    // Historical autocomplete reserved the full v1 text ceiling, which remains the paid exposure.
+    const historicalAutocomplete =
+      !rows[0] &&
+      op.feature === "autocomplete" &&
+      Number(attempt.exposure_nano_usd) ===
+        supplierMaximum("text", PRICEBOOK_V1);
+    const historicalChatCeiling =
+      !rows[0] &&
+      op.feature === "chat" &&
+      Number(attempt.exposure_nano_usd) ===
+        supplierMaximum("text", PRICEBOOK_V1);
+    if (
+      contract.feature !== op.feature ||
+      (contract.feature === "agent" ? contract.phase : undefined) !== phase ||
+      (!historicalAutocomplete &&
+        !historicalChatCeiling &&
+        contract.maximumNanoUsd !== Number(attempt.exposure_nano_usd))
+    )
+      throw new ProError("Supplier contract differs from paid fence");
+    if (attempt.state === "completed")
+      validateSupplierCompletion(contract, JSON.parse(String(attempt.result)));
+    // The old chat adapter dispatched the operation book, but recorded the compiled v1 ceiling. Recover that known dispatch contract; do not alter customer rates.
+    if (historicalChatCeiling && materializeHistorical) {
+      await tx.execute({
+        sql: "UPDATE pro_attempts SET exposure_nano_usd=? WHERE id=?",
+        args: [contract.maximumNanoUsd, attempt.id ?? ""],
+      });
+      await this.auditWrite(
+        tx,
+        "supplier-contract",
+        op.account_id,
+        `supplier-attempt:${attempt.id}`,
+        JSON.stringify(contract),
+      );
+      attempt.exposure_nano_usd = contract.maximumNanoUsd;
+    }
+    return contract;
   }
   async finishAttempt(
     id: string,
@@ -1819,6 +2000,7 @@ export class ProLedger {
         )
       )
         return;
+      const contract = await this.contractForAttempt(tx, attempt, true);
       const descriptor =
         operation?.feature === "agent"
           ? AgentAttemptDescriptor.parse(JSON.parse(String(attempt.chunk_hash)))
@@ -1864,7 +2046,8 @@ export class ProLedger {
         completed.estimatedCostNanoUsd > Number(attempt.exposure_nano_usd)
       )
         throw new ProError("Estimated supplier spend exceeds bound");
-      const cost =
+      if (completed) validateSupplierCompletion(contract, completed);
+      let cost =
         completed?.actualCostNanoUsd ??
         (outcome.kind !== "completed" ? outcome.actualCostNanoUsd : undefined);
       if (
@@ -1872,8 +2055,10 @@ export class ProLedger {
         (!Number.isSafeInteger(cost) ||
           cost < 0 ||
           cost > Number(attempt.exposure_nano_usd))
-      )
-        throw new ProError("Invalid attempt cost");
+      ) {
+        if (outcome.kind === "failed") cost = undefined;
+        else throw new ProError("Invalid attempt cost");
+      }
       await tx.execute({
         sql: "UPDATE pro_attempts SET state=?,cost_nano_usd=?,usage=?,result=? WHERE id=?",
         args: [
@@ -1978,7 +2163,7 @@ export class ProLedger {
     await this.write(async (tx) => {
       const attempt = (
         await tx.execute({
-          sql: "SELECT a.state,o.account_id FROM pro_attempts a JOIN pro_operations o ON o.id=a.operation_id WHERE a.id=?",
+          sql: "SELECT a.*,o.account_id FROM pro_attempts a JOIN pro_operations o ON o.id=a.operation_id WHERE a.id=?",
           args: [attemptId],
         })
       ).rows[0];
@@ -1986,6 +2171,9 @@ export class ProLedger {
         throw new ProError(
           "Resolve provider outcome before reconciling invoice cost",
         );
+      await this.contractForAttempt(tx, attempt, true);
+      if (costNanoUsd > Number(attempt.exposure_nano_usd))
+        throw new ProError("Invoice exceeds admitted supplier exposure");
       await tx.execute({
         sql: "UPDATE pro_attempts SET cost_nano_usd=? WHERE id=?",
         args: [costNanoUsd, attemptId],
