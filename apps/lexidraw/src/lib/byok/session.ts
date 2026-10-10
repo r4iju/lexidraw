@@ -40,10 +40,12 @@ export const CredentialFingerprints = z
 export type ByokProvider = "openrouter";
 type Network = (request: Request) => Promise<Response>;
 const endpoint = "https://openrouter.ai/api/v1/chat/completions";
+const TEXT_WIRE_BYTES = 64 * 1024;
+const TEXT_OUTPUT_BYTES = { text: 256, autocomplete: 1024 };
 const ProviderTextResponse = z.object({
   choices: z
-    .array(z.object({ message: z.object({ content: z.string() }) }))
-    .min(1),
+    .array(z.object({ message: z.object({ content: z.string().max(1024) }) }))
+    .length(1),
 });
 const blocked = () => new Error("Credential egress blocked");
 const unavailable = () =>
@@ -195,6 +197,7 @@ export function createByokSession(
     system = "",
     maxTokens = 16,
     signal?: AbortSignal,
+    maxOutputBytes = TEXT_OUTPUT_BYTES.text,
   ) {
     if (active?.reference !== reference) throw unavailable();
     if (prompt.length > 5000 || system.length > 4000) throw unavailable();
@@ -223,13 +226,46 @@ export function createByokSession(
     });
     try {
       const response = await network(request);
-      if (!response.ok || response.redirected) throw unavailable();
-      const body = await response.text();
-      if (active?.reference !== reference) throw unavailable();
-      assertSafe(body);
+      if (
+        !response.ok ||
+        response.redirected ||
+        response.headers.has("Content-Encoding")
+      )
+        throw unavailable();
+      const reader = response.body?.getReader();
+      if (!reader) throw unavailable();
+      const abort = () => {
+        void reader.cancel().catch(() => {});
+      };
+      request.signal.addEventListener("abort", abort, { once: true });
+      let body = "";
+      let size = 0;
+      const decoder = new TextDecoder("utf-8", { fatal: true });
+      try {
+        for (;;) {
+          if (request.signal.aborted || active?.reference !== reference)
+            throw unavailable();
+          const next = await reader.read();
+          if (request.signal.aborted || active?.reference !== reference)
+            throw unavailable();
+          if (next.done) break;
+          size += next.value.byteLength;
+          if (size > TEXT_WIRE_BYTES) throw unavailable();
+          body += decoder.decode(next.value, { stream: true });
+        }
+        body += decoder.decode();
+      } finally {
+        request.signal.removeEventListener("abort", abort);
+        await reader.cancel().catch(() => {});
+        reader.releaseLock();
+      }
       const result = ProviderTextResponse.safeParse(JSON.parse(body));
       if (!result.success) throw unavailable();
-      return result.data.choices[0]?.message.content ?? "";
+      const content = result.data.choices[0]?.message.content ?? "";
+      if (new TextEncoder().encode(content).byteLength > maxOutputBytes)
+        throw unavailable();
+      assertSafe(body);
+      return content;
     } catch {
       throw unavailable();
     }
@@ -500,6 +536,7 @@ export function createByokSession(
                 request.system,
                 request.config.maxOutputTokens,
                 signal,
+                TEXT_OUTPUT_BYTES.autocomplete,
               );
               if (signal.aborted) throw unavailable();
               controller.enqueue(result);

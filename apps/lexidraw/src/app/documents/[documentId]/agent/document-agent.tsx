@@ -1,5 +1,6 @@
 "use client";
 import { DeviceAgentPanel } from "~/lib/agent/device-panel";
+import { Button } from "~/components/ui/button";
 import { useState } from "react";
 import { api } from "~/trpc/react";
 import { AgentActionView, type AgentViewState } from "~/lib/agent/action-view";
@@ -131,12 +132,37 @@ function ProDocumentAgent({ documentId }: { documentId: string }) {
     }
   }
   return (
-    <AgentActionView
-      state={state}
-      onSubmit={(prompt) => void submit(prompt)}
-      onAccept={() => void accept()}
-      onCancel={() => void stop()}
-      onDecline={() => setActivity({ kind: "ready", restore: false })}
-    />
+    <>
+      {state.kind === "result" && operation.isError && (
+        <div className="space-y-2 p-4">
+          <p role="alert">
+            Could not refresh document action progress. Showing the last known
+            progress.
+          </p>
+          <Button
+            onClick={() => void operation.refetch()}
+            pending={operation.isFetching}
+          >
+            Retry progress
+          </Button>
+        </div>
+      )}
+      {state.kind === "result" &&
+        !operation.isError &&
+        (operation.isPending || operation.isFetching) && (
+          <p className="p-4" role="status">
+            {operation.data
+              ? "Refreshing document action progress. Showing the last known progress."
+              : "Loading document action progress. Showing the last known progress."}
+          </p>
+        )}
+      <AgentActionView
+        state={state}
+        onSubmit={(prompt) => void submit(prompt)}
+        onAccept={() => void accept()}
+        onCancel={() => void stop()}
+        onDecline={() => setActivity({ kind: "ready", restore: false })}
+      />
+    </>
   );
 }

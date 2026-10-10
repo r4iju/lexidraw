@@ -40,13 +40,60 @@ struct CredentialGuardedTransport: ClientTransport {
     for header in response.headerFields {
       try guardrail.check(Data((header.name.rawName + header.value).utf8))
     }
-    // Preserve lazy HTTPBody consumption. Scan the complete body on first
-    // consumption so encoded values split across chunks cannot escape.
+    // Chat publishes only complete guarded NDJSON frames. Other responses keep
+    // whole-body scanning so artifact and ordinary API guards remain unchanged.
     let checked = answer.map {
-      HTTPBody(CheckedResponseBody(body: $0, limit: operationID == "generatedImage.read" ? 2 << 20 : Int.max), length: $0.length, iterationBehavior: $0.iterationBehavior)
+      if operationID == "chat.stream" {
+        return HTTPBody(CheckedChatBody(body: $0), length: $0.length, iterationBehavior: $0.iterationBehavior)
+      }
+      return HTTPBody(CheckedResponseBody(body: $0, limit: operationID == "generatedImage.read" ? 2 << 20 : Int.max), length: $0.length, iterationBehavior: $0.iterationBehavior)
     }
     return (response, checked)
   }
+}
+
+private struct CheckedChatBody: AsyncSequence, Sendable {
+  typealias Element = ArraySlice<UInt8>
+  let body: HTTPBody
+  struct AsyncIterator: AsyncIteratorProtocol {
+    var underlying: HTTPBody.AsyncIterator
+    var wire = Data()
+    var delivered = 0
+    var finished = false
+    mutating func next() async throws -> Element? {
+      guard !finished else { return nil }
+      do {
+        while true {
+          try Task.checkCancellation()
+          if let newline = wire[delivered...].firstIndex(of: 10) {
+            guard newline - delivered <= 128 << 10 else { throw NativeAIError.rejected }
+            let frame = wire[delivered...newline]
+            // Retain the bounded wire prefix for encoded/raw values spanning
+            // transport chunks, and scan each JSON frame's decoded strings too.
+            try NativeCredentialGuard.shared.check(wire)
+            try NativeCredentialGuard.shared.check(Data(frame))
+            delivered = newline + 1
+            return ArraySlice(frame)
+          }
+          guard wire.count - delivered <= 128 << 10 else { throw NativeAIError.rejected }
+          guard let chunk = try await underlying.next() else {
+            finished = true
+            try NativeCredentialGuard.shared.check(wire)
+            guard delivered == wire.count else { throw NativeAIError.rejected }
+            return nil
+          }
+          try Task.checkCancellation()
+          guard chunk.count <= (1 << 20) - wire.count else { throw NativeAIError.rejected }
+          wire.append(contentsOf: chunk)
+        }
+      } catch {
+        finished = true
+        try NativeCredentialGuard.shared.check(error: error)
+        throw error
+      }
+    }
+  }
+  func makeAsyncIterator() -> AsyncIterator { .init(underlying: body.makeAsyncIterator()) }
 }
 
 extension Optional where Wrapped == HTTPBody {

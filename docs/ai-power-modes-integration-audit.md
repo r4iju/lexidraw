@@ -364,3 +364,51 @@ D2 now has executable local operation-bound implementation; independent review
 and external proofs remain pending. #291 and #276 remain incomplete. No push,
 merge, PR edit, cloud CI/build/preview/deploy, payment/bucket/production API,
 remote migration or release preparation occurred; PR292 remains untouched.
+
+## Standards S9 and targeted Spec V3 follow-up (local)
+
+The sole-writer follow-up starts at `62d67690f8a8eedf48ecfd899c8044e937763572`,
+on the same integration branch, with ancestry from the original base verified.
+S9 keeps retained Pro document-action progress, saved edits and cancellation
+visible when its detail query fails. A fixed stale-progress notice offers a
+read-only query refetch. Initial detail loading and a cached-detail refresh have
+distinct notices. Retry cannot quote, accept, start or debit another action.
+Existing account/document/source ownership and query keys are preserved.
+
+Spec V3-S1 bounds browser BYOK text responses while consuming the body: at most
+64 KiB of wire bytes, exactly one choice, and UTF-8 content ceilings of 256 bytes
+for key-validation text and 1,024 bytes for autocomplete. Outbound token limits
+remain in place. Content is validated before credential scanning and publication;
+oversized, malformed, truncated or cancelled responses use fixed safe diagnostics.
+An abort cancels a pending body read. Both callers of the common `requestText`
+path use these limits; direct chat, agent, image and narration paths retain their
+separate existing guards and closed production capability gates.
+
+Spec V3-S2 replaces whole-response buffering only for native `chat.stream` with
+a guarded NDJSON sequence. It holds incomplete frames, bounds the cumulative
+wire to 1 MiB and individual frames to 128 KiB, and checks the retained raw wire
+and each complete frame's encoded/decoded values before publication. Active and
+retired fingerprints remain effective across transport chunks. Safe complete
+text frames reach `Session.streamChat` before EOF; later errors/cancellation keep
+already delivered text. Ordinary API and artifact whole-body guards are preserved,
+and no BYOK credential is attached to account transport.
+
+Evidence is `/tmp/lexidraw-276-implementation/291-standards-fixes-v3.json` and
+its `291-standards-fixes-v3-evidence/` logs. Production component render/click
+tests and injected provider-body tests have observed RED then GREEN results.
+Native timing tests traverse actual `Account` credential transport and
+`Session.streamChat`, holding EOF open rather than supplying a complete string.
+Twenty-six relevant web tests pass in six fresh env-free Bun processes;
+the explicit web TypeScript check passes. Twenty native tests in six suites
+pass, including existing ordinary/artifact credential guards and chat account
+isolation. No browser/device or actual provider acceptance is claimed.
+
+The Spec V3 reviewer explicitly did not exhaustively read the full 351-file
+original-base diff. This targeted fix is not full-diff approval. The next
+independent review must explicitly cover the complete original-base-to-final-tip
+diff before approval. #291 and #276 remain incomplete pending independent review
+and the previously recorded provider/model/invoice, private storage, hosted
+durability, Stripe/Apple Sandbox, physical audio, migration and release proofs.
+No push, merge, PR edit, cloud CI/build/preview/deploy, production/provider/payment/
+bucket call, remote migration or release preparation occurred. PR292 and the
+read-only pinned review checkouts remain untouched.
