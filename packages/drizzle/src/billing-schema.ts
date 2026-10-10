@@ -27,6 +27,7 @@ export const proSubscriptions = sqliteTable(
     startsAt: integer("starts_at").notNull(),
     endsAt: integer("ends_at").notNull(),
     cancelAtEnd: integer("cancel_at_end").notNull(),
+    // Fence for the recorded paid period; state=cancelled additionally terminates the provider group.
     revoked: integer("revoked").notNull().default(0),
   },
   (t) => [primaryKey({ columns: [t.source, t.subscriptionId] })],

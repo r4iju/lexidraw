@@ -235,6 +235,14 @@ export class ProLedger {
         await this.billingEvent(tx, input, String(period.id));
         return String(period.id);
       }
+      // A terminal observation can arrive before any purchase has mapped to an allowance.
+      // Its durable group/period row must also fence later duplicate channels for that interval.
+      const fenced = await tx.execute({
+        sql: "SELECT 1 FROM pro_subscriptions WHERE account_id=? AND revoked=1 AND starts_at<? AND ends_at>? LIMIT 1",
+        args: [input.accountId, input.endsAt, input.startsAt],
+      });
+      if (fenced.rows.length)
+        throw new ProError("Paid period permanently fenced");
       const id = crypto.randomUUID();
       await tx.execute({
         sql: "INSERT INTO pro_periods(id,account_id,event_id,starts_at,ends_at,environment,pricebook,granted,available) VALUES (?,?,?,?,?,?,?,?,?)",
@@ -374,15 +382,42 @@ export class ProLedger {
           prior.customer_id !== event.customerId)
       )
         throw new ProError("Billing account binding conflict");
+      const periodEventId = `${event.source}:period:${event.subscriptionId}:${event.startsAt}`;
+      const stale = prior && Number(prior.starts_at) > event.startsAt;
+      // The row is a purchase-group high-water mark. A fence belongs to its paid period,
+      // except cancellation, which ends the provider subscription identity itself.
+      const laterPeriod =
+        prior &&
+        event.startsAt > Number(prior.starts_at) &&
+        event.startsAt >= Number(prior.ends_at);
+      const groupCancelled =
+        prior?.state === "cancelled" || event.state === "cancelled";
+      const priorPeriodFenced = prior?.revoked === 1 && !laterPeriod;
       const terminal =
-        prior?.revoked === 1 ||
-        ["revoked", "cancelled", "expired"].includes(event.state);
-      const persistedState =
-        prior?.revoked === 1 && event.state !== "revoked"
+        groupCancelled ||
+        priorPeriodFenced ||
+        ["revoked", "expired"].includes(event.state);
+      const persistedState = groupCancelled
+        ? "cancelled"
+        : priorPeriodFenced
           ? String(prior.state)
           : event.state;
-      const stale = prior && Number(prior.starts_at) > event.startsAt;
-      if (!stale) {
+      // Even a delayed refund must fence its own purchase, without blocking a later renewal.
+      if (["revoked", "expired", "cancelled"].includes(event.state)) {
+        await tx.execute({
+          sql: "INSERT INTO pro_period_blocks SELECT id,? FROM pro_periods WHERE id IN (SELECT period_id FROM pro_billing_events WHERE event_id=?) OR (account_id=? AND starts_at<? AND ends_at>? AND NOT EXISTS (SELECT 1 FROM pro_billing_events WHERE event_id=?)) ON CONFLICT(period_id) DO UPDATE SET reason=CASE WHEN pro_period_blocks.reason='payment_failed' THEN excluded.reason ELSE pro_period_blocks.reason END",
+          args: [
+            event.state,
+            periodEventId,
+            event.accountId,
+            event.endsAt,
+            event.startsAt,
+            periodEventId,
+          ],
+        });
+      }
+      if (!stale || groupCancelled) {
+        const keepPriorPeriod = prior && (stale || priorPeriodFenced);
         await tx.execute({
           sql: "INSERT INTO pro_subscriptions VALUES (?,?,?,?,?,?,?,?,?) ON CONFLICT(source,subscription_id) DO UPDATE SET state=excluded.state,starts_at=excluded.starts_at,ends_at=excluded.ends_at,cancel_at_end=excluded.cancel_at_end,revoked=excluded.revoked",
           args: [
@@ -391,36 +426,41 @@ export class ProLedger {
             event.accountId,
             event.customerId,
             persistedState,
-            event.startsAt,
-            event.endsAt,
+            keepPriorPeriod ? Number(prior.starts_at) : event.startsAt,
+            keepPriorPeriod ? Number(prior.ends_at) : event.endsAt,
             event.cancelAtEnd ? 1 : 0,
             terminal ? 1 : 0,
           ],
         });
-        if (terminal) {
+        if (groupCancelled) {
           await tx.execute({
-            sql: "INSERT INTO pro_period_blocks SELECT DISTINCT p.id,? FROM pro_periods p JOIN pro_billing_events b ON p.id=b.period_id WHERE b.source=? AND b.account_id=? ON CONFLICT(period_id) DO UPDATE SET reason=CASE WHEN pro_period_blocks.reason='payment_failed' THEN excluded.reason ELSE pro_period_blocks.reason END",
-            args: [persistedState, event.source, event.accountId],
+            sql: "INSERT INTO pro_period_blocks SELECT period_id,'cancelled' FROM pro_billing_events WHERE event_id=? ON CONFLICT(period_id) DO UPDATE SET reason='cancelled'",
+            args: [
+              keepPriorPeriod
+                ? `${event.source}:period:${event.subscriptionId}:${prior.starts_at}`
+                : periodEventId,
+            ],
           });
-        } else if (event.state === "payment_failed") {
+        } else if (!terminal && event.state === "payment_failed") {
           await tx.execute({
-            sql: "INSERT OR IGNORE INTO pro_period_blocks SELECT p.id,'payment_failed' FROM pro_periods p JOIN pro_billing_events b ON p.id=b.period_id WHERE b.source=? AND b.account_id=? AND p.starts_at=?",
-            args: [event.source, event.accountId, event.startsAt],
+            sql: "INSERT OR IGNORE INTO pro_period_blocks SELECT period_id,'payment_failed' FROM pro_billing_events WHERE event_id=?",
+            args: [periodEventId],
           });
         } else if (
+          !terminal &&
           event.state === "active" &&
           event.endsAt > this.config.now() &&
           event.startsAt <= this.config.now()
         ) {
           await tx.execute({
-            sql: "DELETE FROM pro_period_blocks WHERE reason='payment_failed' AND period_id IN (SELECT period_id FROM pro_billing_events WHERE source=? AND account_id=? AND starts_at=?)",
-            args: [event.source, event.accountId, event.startsAt],
+            sql: "DELETE FROM pro_period_blocks WHERE reason='payment_failed' AND period_id IN (SELECT period_id FROM pro_billing_events WHERE event_id=?)",
+            args: [periodEventId],
           });
           await this.createPeriod(
             `billing:${event.source}`,
             {
               accountId: event.accountId,
-              eventId: `${event.source}:period:${event.subscriptionId}:${event.startsAt}`,
+              eventId: periodEventId,
               startsAt: event.startsAt,
               endsAt: event.endsAt,
               environment: "sandbox",

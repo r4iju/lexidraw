@@ -97,6 +97,18 @@ async function fixture(key = "sk_test_local_fixture") {
     amount: 1200,
     currency: "usd",
   };
+  const payment = {
+    id: "pi_local",
+    livemode: false,
+    customer: "cus_local",
+    status: "succeeded",
+    amount: 1200,
+    currency: "usd",
+    latest_charge: "ch_local",
+  };
+  const archivedInvoices = new Map<string, typeof invoice>();
+  const archivedPayments = new Map<string, typeof payment>();
+  const archivedCharges = new Map<string, typeof charge>();
   const subscription = {
     id: "sub_local",
     object: "subscription",
@@ -176,19 +188,16 @@ async function fixture(key = "sk_test_local_fixture") {
                     : path.includes("/subscriptions/")
                       ? subscription
                       : path.includes("/invoices/")
-                        ? invoice
+                        ? (archivedInvoices.get(path.split("/").at(-1) ?? "") ??
+                          invoice)
                         : path.includes("/payment_intents/")
-                          ? {
-                              id: "pi_local",
-                              livemode: false,
-                              customer: "cus_local",
-                              status: "succeeded",
-                              amount: 1200,
-                              currency: "usd",
-                              latest_charge: "ch_local",
-                            }
+                          ? (archivedPayments.get(
+                              path.split("/").at(-1) ?? "",
+                            ) ?? payment)
                           : path.includes("/charges/")
-                            ? charge
+                            ? (archivedCharges.get(
+                                path.split("/").at(-1) ?? "",
+                              ) ?? charge)
                             : path.includes("/checkout/sessions")
                               ? {
                                   id: "cs_test_local",
@@ -206,19 +215,15 @@ async function fixture(key = "sk_test_local_fixture") {
       { preconnect() {} },
     ),
   );
-  const billing = new SandboxBilling(
-    ledger,
-    {
-      key,
-      webhookSecret: secret,
-      priceId: "price_trial",
-      productId: "prod_trial",
-      origin: "https://lexidraw.test",
-      portalConfigurationId: "bpc_local",
-    },
-    http,
-    () => now,
-  );
+  const config = {
+    key,
+    webhookSecret: secret,
+    priceId: "price_trial",
+    productId: "prod_trial",
+    origin: "https://lexidraw.test",
+    portalConfigurationId: "bpc_local",
+  };
+  const billing = new SandboxBilling(ledger, config, http, () => now);
   const event = async (
     type = "invoice.paid",
     id = crypto.randomUUID(),
@@ -250,6 +255,18 @@ async function fixture(key = "sk_test_local_fixture") {
   return {
     ledger,
     billing,
+    reopen: () => {
+      const reopenedClient = createClient({ url: `file:${dir}/db` });
+      cleanup.unshift(async () => reopenedClient.close());
+      const reopenedLedger = new ProLedger(reopenedClient, {
+        ownerAccountIds: ["owner"],
+        now: () => now,
+      });
+      return {
+        ledger: reopenedLedger,
+        billing: new SandboxBilling(reopenedLedger, config, http, () => now),
+      };
+    },
     calls,
     price,
     customer,
@@ -259,6 +276,16 @@ async function fixture(key = "sk_test_local_fixture") {
     invoicePayment,
     invoice,
     charge,
+    payment,
+    archive: () => {
+      const oldInvoice = structuredClone(invoice),
+        oldPayment = structuredClone(payment),
+        oldCharge = structuredClone(charge);
+      archivedInvoices.set(oldInvoice.id, oldInvoice);
+      archivedPayments.set(oldPayment.id, oldPayment);
+      archivedCharges.set(oldCharge.id, oldCharge);
+      return { invoice: oldInvoice, payment: oldPayment, charge: oldCharge };
+    },
     event,
     clock: (n: number) => {
       now = n;
@@ -679,4 +706,197 @@ test("live invoice-payment linkage cannot revoke or bind a sandbox subscription"
     "Sandbox event rejected",
   );
   expect((await f.ledger.status("alice")).entitled).toBe(true);
+});
+
+test("expired paid period can renew on the same subscription without reviving or rolling over the old allowance", async () => {
+  const f = await fixture();
+  await f.ledger.grantEligibility("owner", "alice", "tester");
+  await f.billing.checkout("alice");
+  const paid = await f.event();
+  await f.billing.webhook(paid.raw, paid.signature);
+  const operation = await f.ledger.reserve("alice", "old-reservation", "hash");
+  const oldStart = f.item.current_period_start;
+  const end = f.item.current_period_end * 1000;
+  f.clock(end);
+  const expired = await f.event(
+    "customer.subscription.updated",
+    "expired-old",
+    { id: "sub_local" },
+  );
+  await f.billing.webhook(expired.raw, expired.signature);
+  expect((await f.ledger.status("alice")).billing.state).toBe("expired");
+  const persisted = f.reopen();
+
+  // A signed delivery with an old paid snapshot cannot revive that period, even after a clock rollback.
+  f.clock(end - 1000);
+  const stale = await f.event();
+  await f.billing.webhook(stale.raw, stale.signature);
+  expect((await f.ledger.status("alice")).entitled).toBe(false);
+  f.clock(end + 1000);
+  f.item.current_period_start = end / 1000;
+  f.item.current_period_end = end / 1000 + 30 * 86400;
+  const line = f.invoice.lines.data[0];
+  if (!line) throw new Error("Missing invoice line");
+  line.period.start = f.item.current_period_start;
+  line.period.end = f.item.current_period_end;
+  f.invoice.id = "in_renewal";
+  f.subscription.latest_invoice = "in_renewal";
+  const renewalPayment = f.invoice.payments.data[0];
+  if (!renewalPayment) throw new Error("Missing renewal payment");
+  renewalPayment.payment.payment_intent =
+    f.payment.id =
+    f.charge.payment_intent =
+      "pi_renewal";
+  f.payment.latest_charge = f.charge.id = "ch_renewal";
+  const renewal = await f.event("invoice.paid", "renewal", {
+    id: "in_renewal",
+  });
+  await persisted.billing.webhook(renewal.raw, renewal.signature);
+  await persisted.billing.webhook(renewal.raw, renewal.signature);
+  const reordered = await f.event(
+    "customer.subscription.updated",
+    "delayed-expiry",
+    { id: "sub_local" },
+  );
+  await f.billing.webhook(reordered.raw, reordered.signature);
+  expect(await persisted.ledger.status("alice")).toMatchObject({
+    entitled: true,
+    availableSubcredits: 1_000_000_000,
+    billing: { state: "active" },
+  });
+  await f.ledger.consumePurchase({}, async () => ({
+    accountId: "alice",
+    eventId: "apple-renewal",
+    source: "apple",
+    environment: "sandbox",
+    startsAt: end,
+    endsAt: f.item.current_period_end * 1000,
+  }));
+  expect(await f.ledger.status("alice")).toMatchObject({
+    entitled: true,
+    availableSubcredits: 1_000_000_000,
+    previousPeriodReservedSubcredits: 1_792_000,
+    reservedSubcredits: 0,
+    billing: { state: "active" },
+  });
+  expect(
+    (await f.ledger.entries("alice")).filter((x) => x.kind === "grant"),
+  ).toHaveLength(2);
+  await f.ledger.settle(operation.id, {
+    kind: "completed",
+    text: "old work",
+    usage: { input: 1, cachedInput: 0, output: 1 },
+  });
+  expect((await f.ledger.operation("alice", operation.id)).period_id).toBe(
+    operation.period_id,
+  );
+  expect((await f.ledger.status("alice")).availableSubcredits).toBe(
+    1_000_000_000,
+  );
+  // Revalidation actually returning the older period cannot change current allowance or lifecycle.
+  f.item.current_period_start = oldStart;
+  f.item.current_period_end = end / 1000;
+  line.period.start = oldStart;
+  line.period.end = end / 1000;
+  const old = await f.event("invoice.paid", "older-provider-snapshot", {
+    id: "in_renewal",
+  });
+  await f.billing.webhook(old.raw, old.signature);
+  expect((await f.ledger.status("alice")).billing.state).toBe("active");
+  expect(
+    (await f.ledger.entries("alice")).filter((x) => x.kind === "grant"),
+  ).toHaveLength(2);
+});
+
+test("a delayed refund belongs to the old purchase and cannot revoke an independently paid renewal", async () => {
+  const f = await fixture();
+  await f.ledger.grantEligibility("owner", "alice", "tester");
+  await f.billing.checkout("alice");
+  const paid = await f.event();
+  await f.billing.webhook(paid.raw, paid.signature);
+  const old = f.archive();
+  const next = f.item.current_period_end;
+  f.clock(next * 1000);
+  f.item.current_period_start = next;
+  f.item.current_period_end = next + 30 * 86400;
+  const line = f.invoice.lines.data[0],
+    invoicePayment = f.invoice.payments.data[0];
+  if (!line || !invoicePayment) throw new Error("Missing invoice fixture");
+  line.period.start = next;
+  line.period.end = f.item.current_period_end;
+  f.invoice.id = f.subscription.latest_invoice = "in_new";
+  invoicePayment.payment.payment_intent =
+    f.payment.id =
+    f.charge.payment_intent =
+      "pi_new";
+  f.payment.latest_charge = f.charge.id = "ch_new";
+  const renewal = await f.event("invoice.paid", "new-purchase", {
+    id: "in_new",
+  });
+  await f.billing.webhook(renewal.raw, renewal.signature);
+  const work = await f.ledger.reserve("alice", "new-work", "h");
+  old.charge.refunded = true;
+  old.charge.amount_refunded = 1200;
+  const refund = await f.event("charge.refunded", "old-refund", {
+    id: "ch_local",
+  });
+  await f.billing.webhook(refund.raw, refund.signature);
+  await f.billing.webhook(refund.raw, refund.signature);
+  expect(await f.ledger.status("alice")).toMatchObject({
+    entitled: true,
+    availableSubcredits: 998_208_000,
+    billing: { state: "active" },
+  });
+  const after = await f.event("invoice.paid", "after-refund", { id: "in_new" });
+  await f.billing.webhook(after.raw, after.signature);
+  expect(
+    (await f.ledger.entries("alice")).filter((x) => x.kind === "grant"),
+  ).toHaveLength(2);
+  await f.ledger.settle(work.id, {
+    kind: "completed",
+    text: "renewal work",
+    usage: { input: 1, cachedInput: 0, output: 1 },
+  });
+});
+
+test("refund arriving before the paid delivery fences a shared manual allowance and rejects an Apple duplicate", async () => {
+  for (const manual of [true, false]) {
+    const f = await fixture();
+    await f.ledger.grantEligibility("owner", "alice", "tester");
+    await f.billing.checkout("alice");
+    const startsAt = f.item.current_period_start * 1000,
+      endsAt = f.item.current_period_end * 1000;
+    if (manual)
+      await f.ledger.grantPeriod("owner", {
+        accountId: "alice",
+        eventId: "manual-before-refund",
+        startsAt,
+        endsAt,
+        subcredits: 1_000_000_000,
+        reason: "trial",
+        environment: "test",
+      });
+    f.charge.refunded = true;
+    f.charge.amount_refunded = 1200;
+    const refund = await f.event("charge.refunded", "refund-first", {
+      id: "ch_local",
+    });
+    await f.billing.webhook(refund.raw, refund.signature);
+    expect((await f.ledger.status("alice")).entitled).toBe(false);
+    if (!manual)
+      await expect(
+        f.ledger.reconcileSandbox("apple:duplicate-after-refund", async () => ({
+          accountId: "alice",
+          customerId: "apple-original",
+          subscriptionId: "apple-group",
+          source: "apple",
+          environment: "sandbox",
+          startsAt,
+          endsAt,
+          state: "active",
+          cancelAtEnd: false,
+        })),
+      ).rejects.toThrow("Paid period permanently fenced");
+    expect((await f.ledger.status("alice")).entitled).toBe(false);
+  }
 });

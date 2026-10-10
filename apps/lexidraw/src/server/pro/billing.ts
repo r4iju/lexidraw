@@ -236,6 +236,9 @@ export class SandboxBilling {
         let subscriptionId: string;
         let eventRevoked = false;
         let eventCustomer: string | undefined;
+        let revokedPurchase:
+          | { invoiceId: string; paymentId: string; chargeId: string }
+          | undefined;
         if (type.startsWith("customer.subscription."))
           subscriptionId = object.id;
         else if (type.startsWith("invoice.")) {
@@ -300,7 +303,14 @@ export class SandboxBilling {
               subscription_details: z.object({ subscription: Id }),
             }),
           }).parse(await this.stripe.invoices.retrieve(linked.invoice));
+          if (invoice.id !== linked.invoice) throw new Error();
           subscriptionId = invoice.parent.subscription_details.subscription;
+          if (eventRevoked)
+            revokedPurchase = {
+              invoiceId: linked.invoice,
+              paymentId: charge.payment_intent,
+              chargeId,
+            };
         }
         const sub = TestObject.extend({
           customer: Id,
@@ -389,12 +399,15 @@ export class SandboxBilling {
               .max(1),
           }),
         }).parse(
-          await this.stripe.invoices.retrieve(sub.latest_invoice, {
-            expand: ["payments"],
-          }),
+          await this.stripe.invoices.retrieve(
+            revokedPurchase?.invoiceId ?? sub.latest_invoice,
+            {
+              expand: ["payments"],
+            },
+          ),
         );
         if (
-          invoice.id !== sub.latest_invoice ||
+          invoice.id !== (revokedPurchase?.invoiceId ?? sub.latest_invoice) ||
           invoice.customer !== sub.customer ||
           invoice.parent.subscription_details.subscription !== sub.id
         )
@@ -402,8 +415,9 @@ export class SandboxBilling {
         const line = invoice.lines.data[0];
         if (
           !line ||
-          line.period.start !== item.current_period_start ||
-          line.period.end !== item.current_period_end ||
+          (!revokedPurchase &&
+            (line.period.start !== item.current_period_start ||
+              line.period.end !== item.current_period_end)) ||
           line.pricing.price_details.price !== this.config.priceId ||
           line.pricing.price_details.product !== this.config.productId ||
           line.parent.subscription_item_details.subscription !== sub.id
@@ -412,7 +426,11 @@ export class SandboxBilling {
         let revoked = eventRevoked;
         if (invoice.status === "paid") {
           const paymentId = invoice.payments.data[0]?.payment.payment_intent;
-          if (!paymentId) throw new Error();
+          if (
+            !paymentId ||
+            (revokedPurchase && paymentId !== revokedPurchase.paymentId)
+          )
+            throw new Error();
           const payment = TestObject.extend({
             customer: Id,
             status: z.literal("succeeded"),
@@ -432,6 +450,7 @@ export class SandboxBilling {
           if (
             payment.id !== paymentId ||
             charge.id !== payment.latest_charge ||
+            (revokedPurchase && charge.id !== revokedPurchase.chargeId) ||
             payment.customer !== sub.customer ||
             charge.customer !== sub.customer
           )
@@ -442,8 +461,8 @@ export class SandboxBilling {
             charge.amount_refunded > 0 ||
             charge.disputed;
         }
-        const startsAt = item.current_period_start * 1000,
-          endsAt = item.current_period_end * 1000;
+        const startsAt = line.period.start * 1000,
+          endsAt = line.period.end * 1000;
         if (endsAt <= startsAt || endsAt - startsAt > 32 * 86400000)
           throw new Error();
         const state = revoked
