@@ -2,6 +2,46 @@ import { expect, test } from "bun:test";
 import { JSDOM } from "jsdom";
 import { installBrowserBoundary } from "./browser-boundary";
 import { createByokSession } from "./session";
+test("mixed percent text cannot persist active or retired encoded credentials", () => {
+  const dom = new JSDOM("", { url: "https://app.test" });
+  const window = dom.window;
+  const session = createByokSession(
+    async () => new Response(),
+    window.location.origin,
+  );
+  installBrowserBoundary(
+    window as unknown as Window & typeof globalThis,
+    session,
+  );
+  const secret = "opaque-synthetic-storage-credential-291";
+  session.replace("openrouter", secret);
+  const encoded = [...secret]
+    .map((c) => `%${c.charCodeAt(0).toString(16)}`)
+    .join("");
+  try {
+    for (const retired of [false, true]) {
+      if (retired) session.remove();
+      for (const representation of [
+        encoded,
+        encoded.replaceAll("%", "%25"),
+        btoa(encoded),
+        `%ff${encoded}`,
+      ]) {
+        expect(() =>
+          window.localStorage.setItem(
+            "document",
+            `${representation} 100% complete %zz`,
+          ),
+        ).toThrow("Credential egress blocked");
+        expect(window.localStorage.getItem("document")).toBeNull();
+      }
+    }
+    window.localStorage.setItem("document", "100% complete %zz");
+    expect(window.localStorage.getItem("document")).toBe("100% complete %zz");
+  } finally {
+    window.close();
+  }
+});
 
 test("browser fetch, XHR, beacon, diagnostics and storage reject secrets before dispatch", async () => {
   const dom = new JSDOM("", { url: "https://lexidraw.test" });

@@ -99,11 +99,17 @@ export function createByokSession(
         }
       }
 
-      try {
-        pending.push(decodeURIComponent(text));
-      } catch {
-        /* Not URI encoded. */
-      }
+      // Decode independent runs so unrelated malformed escapes cannot hide a key.
+      // Replacement UTF-8 decoding also preserves ASCII keys beside invalid bytes.
+      const percentDecoded = text.replace(/(?:%[a-f0-9]{2})+/gi, (run) =>
+        new TextDecoder().decode(
+          Uint8Array.from(run.match(/[a-f0-9]{2}/gi) ?? [], (byte) =>
+            Number.parseInt(byte, 16),
+          ),
+        ),
+      );
+      // Every percent pass shrinks the input, bounding nested decoding by its size.
+      if (percentDecoded.length < text.length) pending.push(percentDecoded);
       pending.push(
         text.replace(/\\u([a-f0-9]{4})/gi, (_, hex: string) =>
           String.fromCharCode(Number.parseInt(hex, 16)),

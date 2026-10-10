@@ -38,6 +38,20 @@ mock.module("~/trpc/react", () => ({
       getAudioConfig: { useQuery: () => ({ data: undefined }) },
       updateAudioConfig: { useMutation: () => ({ mutate() {} }) },
     },
+    narration: {
+      capability: {
+        useQuery: () => ({
+          data: { available: false, fixture: false, reason: "Unavailable" },
+          isPending: false,
+        }),
+      },
+      latest: { useQuery: () => ({ data: null, isPending: false }) },
+      quote: { useQuery: () => ({ isPending: true }) },
+      operation: { useQuery: () => ({ isPending: true }) },
+      saved: { useQuery: () => ({ isPending: true }) },
+      generate: { useMutation: () => ({ mutate() {} }) },
+      cancel: { useMutation: () => ({ mutate() {} }) },
+    },
     tts: {
       startDocumentTts: {
         useMutation: () => ({ mutateAsync: async () => ({}) }),

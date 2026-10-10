@@ -530,3 +530,55 @@ test("revocation between paid fence and actual agent dispatch prevents resolving
     f.client.close();
   }
 });
+
+test("corrupt persisted action descriptors fail closed before another paid step or settlement", async () => {
+  for (const corrupt of [
+    { key: "plan", phase: "other", hash: "a".repeat(64) },
+    { key: "plan", phase: "plan", hash: "z".repeat(64) },
+    { key: "plan", phase: "plan" },
+    { key: "plan", phase: "plan", hash: "a".repeat(64), extra: true },
+  ]) {
+    const f = await fixture();
+    try {
+      await grant(f);
+      const op = await f.executor.reserve("alice", input);
+      await f.ledger.claim(op.id);
+      const attempt = await f.ledger.startAttempt(
+        op.id,
+        JSON.stringify({ key: "plan", phase: "plan", hash: "a".repeat(64) }),
+      );
+      await f.ledger.finishAttempt(attempt, {
+        kind: "completed",
+        completion: {
+          kind: "agent",
+          phase: "plan",
+          output: { edits: ["Add paragraph"] },
+          usage: { input: 100, cachedInput: 0, output: 10 },
+          actualCostNanoUsd: 120000,
+        },
+      });
+      await f.client.execute({
+        sql: "UPDATE pro_attempts SET chunk_hash=? WHERE id=?",
+        args: [JSON.stringify(corrupt), attempt],
+      });
+      await expect(
+        f.ledger.startAttempt(
+          op.id,
+          JSON.stringify({
+            key: "decision:0",
+            phase: "decision",
+            hash: "b".repeat(64),
+          }),
+        ),
+      ).rejects.toThrow();
+      await expect(f.ledger.attempts("alice", op.id)).rejects.toThrow();
+      await expect(
+        f.ledger.settle(op.id, { kind: "technical_failure" }),
+      ).rejects.toThrow();
+      expect((await f.ledger.operation("alice", op.id)).state).toBe("running");
+      expect(f.calls()).toBe(0);
+    } finally {
+      f.client.close();
+    }
+  }
+});

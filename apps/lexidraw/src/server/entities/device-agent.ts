@@ -1,23 +1,16 @@
 import { createHash } from "node:crypto";
 import type { Client, Transaction } from "@libsql/client";
-import { z } from "zod";
-import { PublicAccess, AccessLevel } from "@packages/types";
 import { DeviceMutation, DeviceReceipt } from "~/lib/agent/device-core";
 import { createByokSession } from "~/lib/byok/session";
+import { parseEditorState, editorStateToMarkdown } from "../documents/markdown";
 import {
-  appendBlocks,
-  parseEditorState,
-  editorStateToMarkdown,
-  markdownToEditorState,
-} from "../documents/markdown";
+  readEditableDocument,
+  appendDocumentEdit,
+} from "../documents/agent-edits";
+const failure = (message: string) => new Error(message);
 const guard = createByokSession(async () => {
   throw new Error("No provider transport");
 }, "https://invalid.local");
-const Row = z.object({
-  elements: z.string(),
-  updatedAt: z.number(),
-  parentId: z.string().nullable(),
-});
 export class DeviceAgentDocuments {
   constructor(
     readonly client: Client,
@@ -33,14 +26,7 @@ export class DeviceAgentDocuments {
     document: string,
     tx: Pick<Transaction, "execute"> = this.client,
   ) {
-    const [row] = (
-      await tx.execute({
-        sql: "SELECT e.elements,e.updatedAt,e.parentId FROM Entities e WHERE e.id=? AND e.entityType='document' AND e.deletedAt IS NULL AND (e.userId=? OR e.publicAccess=? OR EXISTS (SELECT 1 FROM SharedEntities s WHERE s.entityId=e.id AND s.userId=? AND s.accessLevel=?))",
-        args: [document, account, PublicAccess.EDIT, account, AccessLevel.EDIT],
-      })
-    ).rows;
-    if (!row) throw new Error("Document not found or edit access revoked");
-    return Row.parse(row);
+    return readEditableDocument(tx, account, document, failure);
   }
   async read(account: string, document: string) {
     const row = await this.row(account, document);
@@ -102,48 +88,16 @@ export class DeviceAgentDocuments {
       ).rows;
       if (Number(count?.n) >= 5000)
         throw new Error("Document receipt quota reached");
-      if (row.updatedAt !== input.revision) throw new Error("Document changed");
-      const edit = input.edit;
-      const blocks =
-        edit.kind === "append"
-          ? markdownToEditorState(edit.text).root.children
-          : [
-              {
-                type: "image",
-                version: 1,
-                src: url,
-                altText: "Generated image",
-                width: 1024,
-                height: 1024,
-                maxWidth: 1024,
-                showCaption: false,
-                caption: {
-                  editorState: {
-                    root: {
-                      type: "root",
-                      version: 1,
-                      children: [],
-                      direction: null,
-                      format: "",
-                      indent: 0,
-                    },
-                  },
-                },
-              },
-            ];
-      const elements = JSON.stringify(
-        appendBlocks(parseEditorState(row.elements), blocks),
+      const receipt = await appendDocumentEdit(
+        tx,
+        row,
+        input.documentId,
+        input.revision,
+        this.now(),
+        input.edit,
+        url ? { url, width: 1024, height: 1024 } : undefined,
+        failure,
       );
-      const revision = Math.max(input.revision + 1, this.now());
-      const written = await tx.execute({
-        sql: "UPDATE Entities SET elements=?,updatedAt=?,thumbnailStatus='pending' WHERE id=? AND updatedAt=? AND deletedAt IS NULL",
-        args: [elements, revision, input.documentId, input.revision],
-      });
-      if (written.rowsAffected !== 1) throw new Error("Document changed");
-      const receipt = {
-        revision,
-        description: edit.kind === "append" ? edit.text : "Image inserted",
-      };
       await tx.execute({
         sql: "INSERT INTO device_agent_edits VALUES (?,?,?,?,?,?)",
         args: [

@@ -1,4 +1,11 @@
 "use client";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "~/components/ui/select";
 import { ProBillingSection } from "./pro-billing";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
@@ -283,15 +290,18 @@ export function ProOwnerTools() {
         <Label htmlFor="trial-reason">Authorization reason</Label>
         <Input id="trial-reason" name="reason" required maxLength={500} />
         <Label htmlFor="trial-action">Action</Label>
-        <select
-          id="trial-action"
-          name="action"
-          className="rounded-md border bg-background p-2"
-        >
-          <option value="grant">Grant private eligibility</option>
-          <option value="revoke">Revoke private eligibility</option>
-          <option value="trial">Grant one bounded 1,000-credit period</option>
-        </select>
+        <Select name="action" defaultValue="grant">
+          <SelectTrigger id="trial-action">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="grant">Grant private eligibility</SelectItem>
+            <SelectItem value="revoke">Revoke private eligibility</SelectItem>
+            <SelectItem value="trial">
+              Grant one bounded 1,000-credit period
+            </SelectItem>
+          </SelectContent>
+        </Select>
         <Label htmlFor="trial-start">Period start (for allowance grant)</Label>
         <Input id="trial-start" type="date" name="start" />
         <Label htmlFor="trial-end">Period end (maximum 32 days)</Label>

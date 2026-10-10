@@ -1,4 +1,11 @@
 "use client";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "~/components/ui/select";
 import { ProTrialSection, type ProStatus } from "./pro-trial";
 import { ProviderKeyInput } from "./provider-key-input";
 import { useState, useSyncExternalStore } from "react";
@@ -89,16 +96,14 @@ export function AiPowerSection({
         until sign out or page closure. Another device needs its own key.
       </p>
       <Label htmlFor="power-source">Preferred power source</Label>
-      <select
-        id="power-source"
-        className="rounded-md border bg-background p-2"
+      <Select
         value={query.data.mode}
         disabled={save.isPending}
-        onChange={(event) => {
+        onValueChange={(value) => {
           const next: PowerPreference =
-            event.target.value === "byok"
+            value === "byok"
               ? { mode: "byok", provider: "openrouter" }
-              : event.target.value === "pro"
+              : value === "pro"
                 ? { mode: "pro" }
                 : { mode: "local" };
           if (next.mode !== "byok") session?.remove();
@@ -106,12 +111,17 @@ export function AiPowerSection({
           save.mutate(next);
         }}
       >
-        <option value="local">Local device</option>
-        <option value="byok">My provider key (OpenRouter)</option>
-        <option value="pro" disabled={!proStatus.eligible}>
-          {proStatus.eligible ? "Pro (private trial)" : "Pro, coming soon"}
-        </option>
-      </select>
+        <SelectTrigger id="power-source">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="local">Local device</SelectItem>
+          <SelectItem value="byok">My provider key (OpenRouter)</SelectItem>
+          <SelectItem value="pro" disabled={!proStatus.eligible}>
+            {proStatus.eligible ? "Pro (private trial)" : "Pro, coming soon"}
+          </SelectItem>
+        </SelectContent>
+      </Select>
       {save.isError && <p role="alert">Could not save the power preference.</p>}
       <p className="text-sm">
         Local text generation is unavailable in this browser. Pro is coming

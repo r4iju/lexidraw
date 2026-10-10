@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import {
   AgentBook,
+  AgentAttemptDescriptor,
   AgentInput,
   AgentCompletion,
   Plan,
@@ -148,7 +149,9 @@ export class ProAgentOperation {
       const descriptor = JSON.stringify({ key, phase, hash: hash(request) });
       const attempts = await this.ledger.attempts(account, id);
       const prior = attempts.find(
-        (a) => JSON.parse(String(a.chunk_hash)).key === key,
+        (a) =>
+          AgentAttemptDescriptor.parse(JSON.parse(String(a.chunk_hash))).key ===
+          key,
       );
       if (prior) {
         if (prior.chunk_hash !== descriptor)

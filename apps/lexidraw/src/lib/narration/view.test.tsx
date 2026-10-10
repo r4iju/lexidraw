@@ -23,7 +23,7 @@ test("narration UI discloses maximum, partial failure recovery, reserved uncerta
         cached: 1,
         maxSeconds: 240,
         revision: "r",
-        version: "v",
+        version: "private-narration-2026-10-v1",
         policy: "Technical failures return all credits.",
       },
     }),

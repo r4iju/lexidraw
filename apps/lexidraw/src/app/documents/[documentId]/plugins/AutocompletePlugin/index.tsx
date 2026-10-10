@@ -1,4 +1,6 @@
 "use client";
+import { Checkbox } from "~/components/ui/checkbox";
+import { Label } from "~/components/ui/label";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { useEntityId } from "~/hooks/use-entity-id";
@@ -116,15 +118,15 @@ export default function AutocompletePlugin({ title = "" }: { title?: string }) {
       className="text-muted-foreground flex flex-wrap items-center gap-2 text-xs"
       contentEditable={false}
     >
-      <label>
-        <input
-          type="checkbox"
-          checked={enabled}
-          disabled={config.isPending || save.isPending}
-          onChange={(event) => save.mutate({ enabled: event.target.checked })}
-        />{" "}
-        Writing suggestions
-      </label>
+      <Checkbox
+        id="writing-suggestions"
+        checked={enabled}
+        disabled={config.isPending || save.isPending}
+        onCheckedChange={(checked) =>
+          save.mutate({ enabled: checked === true })
+        }
+      />
+      <Label htmlFor="writing-suggestions">Writing suggestions</Label>
       <span role="status">
         {config.error || power.error || save.error
           ? "Suggestions unavailable. Check AI Power."

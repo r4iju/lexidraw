@@ -2,14 +2,9 @@
 import { useState } from "react";
 import { api } from "~/trpc/react";
 import { NarrationView } from "./view";
-import type { NarrationScreen } from "./ui";
-type Activity =
-  | { kind: "idle" }
-  | { kind: "quote"; key: string }
-  | { kind: "job"; id: string }
-  | { kind: "saved" };
+import { narrationScreen, type NarrationActivity } from "./query-screen";
 export function ProNarrationPanel({ documentId }: { documentId: string }) {
-  const [activity, setActivity] = useState<Activity>({ kind: "idle" });
+  const [activity, setActivity] = useState<NarrationActivity>({ kind: "idle" });
   const utils = api.useUtils();
   const capability = api.narration.capability.useQuery();
   const quote = api.narration.quote.useQuery(
@@ -21,10 +16,12 @@ export function ProNarrationPanel({ documentId }: { documentId: string }) {
     { retry: false },
   );
   const id = activity.kind === "job" ? activity.id : latest.data?.id;
+  const operationEnabled =
+    !!id && activity.kind !== "quote" && activity.kind !== "saved";
   const operation = api.narration.operation.useQuery(
     { id: id ?? "" },
     {
-      enabled: !!id && activity.kind !== "quote" && activity.kind !== "saved",
+      enabled: operationEnabled,
       retry: false,
       refetchInterval: (q) =>
         ["running", "reserved"].includes(q.state.data?.state ?? "")
@@ -53,26 +50,16 @@ export function ProNarrationPanel({ documentId }: { documentId: string }) {
       ]);
     },
   });
-  let screen: NarrationScreen;
-  if (generate.isPending || cancel.isPending) screen = { kind: "busy" };
-  else if (activity.kind === "quote")
-    screen = quote.error
-      ? { kind: "error", message: quote.error.message }
-      : quote.data
-        ? { kind: "quote", quote: quote.data }
-        : { kind: "busy" };
-  else if (activity.kind === "saved")
-    screen = saved.error
-      ? { kind: "error", message: saved.error.message }
-      : saved.data
-        ? { kind: "job", job: saved.data }
-        : { kind: "busy" };
-  else if (operation.data) screen = { kind: "job", job: operation.data };
-  else if (operation.error)
-    screen = { kind: "error", message: operation.error.message };
-  else if (capability.data?.available === false)
-    screen = { kind: "unavailable", message: capability.data.reason };
-  else screen = { kind: "idle" };
+  const screen = narrationScreen({
+    activity,
+    mutating: generate.isPending || cancel.isPending,
+    capability,
+    quote,
+    latest,
+    operation,
+    saved,
+    operationEnabled,
+  });
   return (
     <div>
       {generate.error && (

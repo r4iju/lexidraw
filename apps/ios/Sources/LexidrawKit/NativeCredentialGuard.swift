@@ -100,7 +100,11 @@ public final class NativeCredentialGuard: @unchecked Sendable {
       }
       enqueue(
         Self.replace(text, pattern: #"(?:%[a-fA-F0-9]{2})+"#) { match in
-          match[0].removingPercentEncoding ?? match[0]
+          let bytes = Self.matches(match[0], pattern: #"%([a-fA-F0-9]{2})"#).compactMap {
+            UInt8($0[1], radix: 16)
+          }
+          // Invalid UTF-8 next to ASCII credentials must not discard the valid bytes.
+          return String(decoding: bytes, as: UTF8.self)
         })
       enqueue(
         Self.replace(text, pattern: #"\\u([a-fA-F0-9]{4})"#) { match in

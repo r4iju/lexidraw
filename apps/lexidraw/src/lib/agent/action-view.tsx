@@ -1,5 +1,6 @@
 "use client";
 import type { FormEvent } from "react";
+import type { RouterOutputs } from "~/trpc/shared";
 import type { Report } from "./contracts";
 import { Button } from "~/components/ui/button";
 import { Textarea } from "~/components/ui/textarea";
@@ -11,7 +12,10 @@ export type AgentViewState =
   | { kind: "quote"; maximum: number }
   | {
       kind: "result";
-      operation: { id: string; state: string; charged: number; quote: number };
+      operation: Pick<
+        RouterOutputs["agentPower"]["start"]["operation"],
+        "id" | "state" | "charged" | "quote"
+      >;
       report: Report;
     };
 export function AgentActionView({

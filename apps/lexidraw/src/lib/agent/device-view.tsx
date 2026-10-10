@@ -1,3 +1,6 @@
+import { Button } from "~/components/ui/button";
+import { Textarea } from "~/components/ui/textarea";
+import { Label } from "~/components/ui/label";
 import type { AgentCheckpoint } from "./device-core";
 import { DEVICE_AGENT_UNAVAILABLE } from "./device-core";
 export function DeviceAgentView({
@@ -66,7 +69,7 @@ export function DeviceAgentView({
             </p>
           ) : (
             !["complete", "blocked", "running"].includes(checkpoint.status) && (
-              <button
+              <Button
                 type="button"
                 onClick={onResume}
                 disabled={
@@ -77,20 +80,20 @@ export function DeviceAgentView({
                 {checkpoint.phase === "mutation"
                   ? "Retry retained edit"
                   : "Resume on this device"}
-              </button>
+              </Button>
             )
           )}
           {["complete", "blocked"].includes(checkpoint.status) &&
             !checkpoint.pending &&
             !checkpoint.fence && (
-              <button type="button" onClick={onNewAction}>
+              <Button type="button" onClick={onNewAction}>
                 Start a new action
-              </button>
+              </Button>
             )}
           {checkpoint.status === "running" && (
-            <button type="button" onClick={onStop}>
+            <Button type="button" onClick={onStop}>
               Stop further work
-            </button>
+            </Button>
           )}
         </>
       ) : (
@@ -101,13 +104,16 @@ export function DeviceAgentView({
             if (typeof value === "string") onStart(value);
           }}
         >
-          <label>
-            Describe the edits{" "}
-            <textarea name="prompt" maxLength={1500} required />
-          </label>
-          <button type="submit" disabled={!available || !keyAvailable}>
+          <Label htmlFor="device-action-prompt">Describe the edits </Label>
+          <Textarea
+            id="device-action-prompt"
+            name="prompt"
+            maxLength={1500}
+            required
+          />
+          <Button type="submit" disabled={!available || !keyAvailable}>
             Run on this device
-          </button>
+          </Button>
         </form>
       )}
     </section>

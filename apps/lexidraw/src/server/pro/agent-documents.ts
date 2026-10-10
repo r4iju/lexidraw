@@ -1,21 +1,17 @@
 import { createHash } from "node:crypto";
-import { z } from "zod";
 import type { Transaction } from "@libsql/client";
-import { PublicAccess, AccessLevel } from "@packages/types";
 import {
-  appendBlocks,
   parseEditorState,
   editorStateToMarkdown,
-  markdownToEditorState,
 } from "~/server/documents/markdown";
 import { Receipt, Edit, Report } from "~/lib/agent/contracts";
 import { ProError, type ProLedger } from "./ledger";
 import type { AgentDocuments } from "./agent-operation";
-const DocumentRow = z.object({
-  elements: z.string(),
-  updatedAt: z.number(),
-  parentId: z.string().nullable(),
-});
+import {
+  readEditableDocument,
+  appendDocumentEdit,
+} from "~/server/documents/agent-edits";
+const failure = (message: string) => new ProError(message);
 export class SqlAgentDocuments implements AgentDocuments {
   constructor(
     readonly ledger: ProLedger,
@@ -30,16 +26,7 @@ export class SqlAgentDocuments implements AgentDocuments {
     readonly invalidate?: (document: string, parent: string | null) => void,
   ) {}
   private async row(account: string, id: string, tx?: Transaction) {
-    const sql =
-      "SELECT e.elements,e.updatedAt,e.parentId FROM Entities e WHERE e.id=? AND e.entityType='document' AND e.deletedAt IS NULL AND (e.userId=? OR e.publicAccess=? OR EXISTS (SELECT 1 FROM SharedEntities s WHERE s.entityId=e.id AND s.userId=? AND s.accessLevel=?))";
-    const args = [id, account, PublicAccess.EDIT, account, AccessLevel.EDIT];
-    const row = (
-      tx
-        ? (await tx.execute({ sql, args })).rows
-        : await this.ledger.query(sql, args)
-    )[0];
-    if (!row) throw new ProError("Document not found or edit access revoked");
-    return DocumentRow.parse(row);
+    return readEditableDocument(tx ?? this.ledger.client, account, id, failure);
   }
   async read(account: string, id: string) {
     const row = await this.row(account, id);
@@ -105,46 +92,22 @@ export class SqlAgentDocuments implements AgentDocuments {
       ).rows[0];
       if (op?.state !== "running" || op.cancel_requested || op.active !== 1)
         throw new ProError("Document actions stopped");
-      if (row.updatedAt !== revision) throw new ProError("Document changed");
-      const state = parseEditorState(row.elements);
-      const blocks =
-        edit.kind === "append"
-          ? markdownToEditorState(edit.text).root.children
-          : [
-              {
-                type: "image",
-                version: 1,
-                src: imageUrl,
-                altText: "Generated image",
-                width: edit.image.width,
-                height: edit.image.height,
-                maxWidth: 1024,
-                showCaption: false,
-                caption: {
-                  editorState: {
-                    root: {
-                      type: "root",
-                      version: 1,
-                      children: [],
-                      direction: null,
-                      format: "",
-                      indent: 0,
-                    },
-                  },
-                },
-              },
-            ];
-      const elements = JSON.stringify(appendBlocks(state, blocks));
-      const next = Math.max(revision + 1, this.ledger.config.now());
-      const written = await tx.execute({
-        sql: "UPDATE Entities SET elements=?,updatedAt=?,thumbnailStatus='pending' WHERE id=? AND updatedAt=? AND deletedAt IS NULL",
-        args: [elements, next, id, revision],
-      });
-      if (written.rowsAffected !== 1) throw new ProError("Document changed");
-      const receipt = {
-        revision: next,
-        description: edit.kind === "append" ? edit.text : "Image inserted",
-      };
+      const receipt = await appendDocumentEdit(
+        tx,
+        row,
+        id,
+        revision,
+        this.ledger.config.now(),
+        edit,
+        imageUrl && edit.kind === "image"
+          ? {
+              url: imageUrl,
+              width: edit.image.width,
+              height: edit.image.height,
+            }
+          : undefined,
+        failure,
+      );
       await tx.execute({
         sql: "INSERT INTO pro_agent_edits VALUES (?,?,?,?)",
         args: [operation, key, hash, JSON.stringify(receipt)],

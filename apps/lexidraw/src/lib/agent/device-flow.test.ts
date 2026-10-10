@@ -385,3 +385,28 @@ test("image paid fences hash the complete fixed provider request", async () => {
     deviceAgentHash(imageRequest("A tree")),
   );
 });
+
+test("restoring an unknown request requires an unknown fence and a phase-specific payload", async () => {
+  const {
+    deviceAgentStart,
+    deviceAgentRestore,
+    deviceAgentHash,
+    deviceAgentRequest,
+  } = await import("./device-core");
+  const started = deviceAgentStart("alice", "doc", "scoped", 1000, "Add", {
+    revision: 1,
+    text: "Original",
+  });
+  expect(() =>
+    deviceAgentRestore({
+      ...started,
+      status: "unknown",
+      fence: {
+        kind: "started",
+        hash: deviceAgentHash(deviceAgentRequest(started)),
+      },
+    }),
+  ).toThrow();
+  expect(() => deviceAgentRestore({ ...started, phase: "image" })).toThrow();
+  expect(() => deviceAgentRestore({ ...started, phase: "mutation" })).toThrow();
+});

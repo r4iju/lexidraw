@@ -4,7 +4,7 @@ import {
   AgentCompletion,
   Report,
   agentCharge,
-  type Phase,
+  AgentAttemptDescriptor,
 } from "~/lib/agent/contracts";
 import { audioSeconds } from "./narration-audio";
 import {
@@ -1158,7 +1158,9 @@ export class ProLedger {
       )
         throw new ProError("Unresolved agent step required");
       if (
-        completion.phase !== JSON.parse(String(a.chunk_hash)).phase ||
+        completion.phase !==
+          AgentAttemptDescriptor.parse(JSON.parse(String(a.chunk_hash)))
+            .phase ||
         completion.actualCostNanoUsd === undefined ||
         completion.actualCostNanoUsd > Number(a.exposure_nano_usd)
       )
@@ -1262,6 +1264,17 @@ export class ProLedger {
       })
     ).rows;
     const book = AgentBook.parse(JSON.parse(op.pricebook));
+    for (const attempt of attempts) {
+      const descriptor = AgentAttemptDescriptor.parse(
+        JSON.parse(String(attempt.chunk_hash)),
+      );
+      if (
+        attempt.state === "completed" &&
+        AgentCompletion.parse(JSON.parse(String(attempt.result))).phase !==
+          descriptor.phase
+      )
+        throw new ProError("Agent step modality mismatch");
+    }
     const completions = attempts
       .filter((a) => a.state === "completed")
       .map((a) => AgentCompletion.parse(JSON.parse(String(a.result))));
@@ -1500,19 +1513,7 @@ export class ProLedger {
           ? AgentBook.parse(JSON.parse(op.pricebook))
           : undefined;
       const agentStep = agentBook
-        ? z
-            .strictObject({
-              key: z.string().max(100),
-              phase: z.enum([
-                "plan",
-                "decision",
-                "generation",
-                "search",
-                "image",
-              ]),
-              hash: z.string().length(64),
-            })
-            .parse(JSON.parse(chunkHash ?? "null"))
+        ? AgentAttemptDescriptor.parse(JSON.parse(chunkHash ?? "null"))
         : undefined;
       const isNarration = op.feature === "narration";
       const exposure =
@@ -1597,8 +1598,8 @@ export class ProLedger {
       )
         throw new ProError("Attempt limit or unresolved outcome");
       if (agentBook && agentStep) {
-        const steps = attempts.map(
-          (a) => JSON.parse(String(a.chunk_hash)) as { phase: Phase },
+        const steps = attempts.map((a) =>
+          AgentAttemptDescriptor.parse(JSON.parse(String(a.chunk_hash))),
         );
         const count = steps.filter((s) =>
           agentStep.phase === "search" || agentStep.phase === "image"
@@ -1717,6 +1718,10 @@ export class ProLedger {
         )
       )
         return;
+      const descriptor =
+        operation?.feature === "agent"
+          ? AgentAttemptDescriptor.parse(JSON.parse(String(attempt.chunk_hash)))
+          : undefined;
       const completed =
         outcome.kind === "completed"
           ? (operation?.feature === "agent"
@@ -1747,7 +1752,7 @@ export class ProLedger {
         completed &&
         "kind" in completed &&
         completed.kind === "agent" &&
-        completed.phase !== JSON.parse(String(attempt.chunk_hash)).phase
+        completed.phase !== descriptor?.phase
       )
         throw new ProError("Agent step modality mismatch");
       if (
@@ -1794,11 +1799,15 @@ export class ProLedger {
     });
   }
   async attempts(account: string, id: string) {
-    await this.operation(account, id);
-    return this.query(
+    const op = await this.operation(account, id);
+    const attempts = await this.query(
       "SELECT * FROM pro_attempts WHERE operation_id=? ORDER BY number",
       [id],
     );
+    if (op.feature === "agent")
+      for (const attempt of attempts)
+        AgentAttemptDescriptor.parse(JSON.parse(String(attempt.chunk_hash)));
+    return attempts;
   }
   async cancel(account: string, id: string) {
     const op = await this.operation(account, id);

@@ -55,17 +55,36 @@ type TtsSegment = {
  * stopping the audio or asking for it again. It opens beside `anchor`, the
  * control showing now, or at the foot of the screen when none is in sight.
  */
-export function ListenPlayer({
-  documentId,
-  open,
-  onOpenChange,
-  anchor,
-}: {
+export function ListenPlayer(props: {
   documentId: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   anchor: HTMLElement | null;
 }) {
+  // Keep the popover's route/focus lifetime stable while playback resets on close.
+  const shown =
+    props.anchor && !props.anchor.closest("[inert]") ? props.anchor : null;
+  const anchored = useMemo(() => shown && { current: shown }, [shown]);
+  return (
+    <Popover open={props.open} onOpenChange={props.onOpenChange}>
+      {anchored ? (
+        <PopoverAnchor virtualRef={anchored} />
+      ) : (
+        <PopoverAnchor className="fixed bottom-0 right-4" />
+      )}
+      <ListenPlayerSession
+        key={`${props.documentId}:${props.open}`}
+        documentId={props.documentId}
+        open={props.open}
+      />
+    </Popover>
+  );
+}
+
+function ListenPlayerSession({
+  documentId,
+  open,
+}: Pick<React.ComponentProps<typeof ListenPlayer>, "documentId" | "open">) {
   const [editor] = useLexicalComposerContext();
   const [segments, setSegments] = useState<TtsSegment[]>([]);
   const [initialIndex, setInitialIndex] = useState<number>(0);
@@ -73,9 +92,6 @@ export function ListenPlayer({
     x: 0,
     y: 0,
   });
-  // A control folded into a More menu is still there, but out of sight.
-  const shown = anchor && !anchor.closest("[inert]") ? anchor : null;
-  const anchored = useMemo(() => shown && { current: shown }, [shown]);
   const statusQuery = api.tts.getDocumentTtsStatus.useQuery(
     { documentId },
     {
@@ -194,14 +210,6 @@ export function ListenPlayer({
     }
   }, []);
 
-  // The external player surface resets when closed. Opening never starts paid synthesis.
-  useEffect(() => {
-    if (open) return;
-    setSegments([]);
-    setInitialIndex(0);
-    setPosition({ x: 0, y: 0 });
-  }, [open]);
-
   // Plays the parts as they are listed, from the first made; once all are,
   // from the heading nearest the caret.
   useEffect(() => {
@@ -228,23 +236,16 @@ export function ListenPlayer({
   ]);
 
   return (
-    <Popover open={open} onOpenChange={onOpenChange}>
-      {anchored ? (
-        <PopoverAnchor virtualRef={anchored} />
-      ) : (
-        <PopoverAnchor className="fixed bottom-0 right-4" />
-      )}
-      <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
-        <DraggablePopoverContent
-          position={position}
-          documentId={documentId}
-          loading={statusQuery.isLoading}
-          segments={segments}
-          initialIndex={initialIndex}
-          making={making}
-        />
-      </DndContext>
-    </Popover>
+    <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+      <DraggablePopoverContent
+        position={position}
+        documentId={documentId}
+        loading={statusQuery.isLoading}
+        segments={segments}
+        initialIndex={initialIndex}
+        making={making}
+      />
+    </DndContext>
   );
 }
 

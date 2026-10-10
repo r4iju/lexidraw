@@ -1,14 +1,6 @@
 import type { NarrationSnapshot } from "./contracts";
-export type NarrationQuote = {
-  periodId: string | null;
-  maximum: number;
-  missing: number;
-  cached: number;
-  maxSeconds: number;
-  revision: string;
-  version: string;
-  policy: string;
-};
+import type { RouterOutputs } from "~/trpc/shared";
+export type NarrationQuote = RouterOutputs["narration"]["quote"];
 export type NarrationScreen =
   | { kind: "idle" }
   | { kind: "busy" }

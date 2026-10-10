@@ -90,6 +90,12 @@ export const Phase = z.enum([
   "image",
 ]);
 export type Phase = z.infer<typeof Phase>;
+export const AgentAttemptDescriptor = z.strictObject({
+  key: z.string().min(1).max(100),
+  phase: Phase,
+  hash: z.string().regex(/^[a-f0-9]{64}$/),
+});
+export type AgentAttemptDescriptor = z.infer<typeof AgentAttemptDescriptor>;
 export const Plan = z.strictObject({
   edits: z.array(z.string().min(1).max(200)).min(1).max(6),
 });

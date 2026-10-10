@@ -58,6 +58,21 @@ private final class BoundaryKey: TokenStore, @unchecked Sendable {
 }
 
 struct CredentialGuardedTransportTests {
+  @Test func mixedPercentTextCannotHideRetiredCredentialFingerprints() throws {
+    let guarder = NativeCredentialGuard()
+    let secret = "opaque-synthetic-native-credential-291"
+    guarder.remember(secret)
+    let encoded = secret.utf8.map { String(format: "%%%02x", $0) }.joined()
+    let restored = NativeCredentialGuard()
+    try restored.restore(guarder.snapshot())
+    for value in [encoded, encoded.replacingOccurrences(of: "%", with: "%25"), "%ff" + encoded] {
+      #expect(throws: NativeAIError.self) {
+        try restored.check(Data((value + " 100% complete %zz").utf8))
+      }
+    }
+    try restored.check(Data("100% complete %zz".utf8))
+  }
+
   @Test func fileTransfersKeepExistingSizesAndResponseConsumptionIsLazy() async throws {
     let received = Counter()
     let responseRead = Counter()

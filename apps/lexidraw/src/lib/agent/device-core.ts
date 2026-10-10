@@ -63,14 +63,6 @@ const CheckpointShape = z.strictObject({
   tools: z.number().int().min(0).max(6),
   plan: z.array(bounded(200)).max(6),
   receipts: z.array(DeviceReceipt).max(6),
-  pending: DeviceMutation.optional(),
-  imagePrompt: bounded(300).optional(),
-  fence: z
-    .strictObject({
-      hash: z.string().regex(/^[a-f0-9]{64}$/),
-      kind: z.enum(["started", "unknown"]),
-    })
-    .optional(),
   reason: z.string().max(300).optional(),
   fingerprints: z
     .array(
@@ -82,37 +74,110 @@ const CheckpointShape = z.strictObject({
     )
     .max(128),
 });
-export const AgentCheckpoint = CheckpointShape.superRefine((state, ctx) => {
-  const pending = state.pending;
-  if (
-    (state.phase === "mutation") !== !!pending ||
-    (pending &&
-      (pending.accountId !== state.account ||
-        pending.documentId !== state.documentId ||
-        pending.revision !== state.document.revision ||
-        pending.idempotencyKey !== `${state.id}:${state.receipts.length}`)) ||
-    (state.phase === "image" && !state.imagePrompt) ||
-    (state.fence && state.phase === "mutation") ||
-    (state.status === "unknown" && !state.fence) ||
-    state.tools !== state.receipts.length ||
-    (state.phase === "plan" &&
-      (state.receipts.length || state.plan.length || state.cycles)) ||
-    (state.receipts.length > 0 &&
-      state.document.revision !== state.receipts.at(-1)?.revision) ||
-    state.receipts.some(
-      (receipt, index) =>
-        index > 0 &&
-        receipt.revision <= (state.receipts[index - 1]?.revision ?? -1),
-    ) ||
-    (state.status === "complete" &&
-      (state.fence ||
-        state.pending ||
-        state.phase !== "decision" ||
-        !state.plan.length ||
-        state.receipts.length < state.plan.length))
-  )
-    ctx.addIssue({ code: "custom", message: "Invalid scoped action progress" });
+const Fence = z.strictObject({
+  hash: z.string().regex(/^[a-f0-9]{64}$/),
+  kind: z.enum(["started", "unknown"]),
 });
+const noPending = { pending: z.never().optional() };
+// Version-one checkpoints can retain an earlier image prompt after its edit is saved.
+const priorImage = { imagePrompt: bounded(300).optional() };
+const PhasedCheckpoint = z.discriminatedUnion("phase", [
+  CheckpointShape.extend({
+    fence: Fence.optional(),
+    phase: z.literal("plan"),
+    ...noPending,
+    ...priorImage,
+  }),
+  CheckpointShape.extend({
+    fence: Fence.optional(),
+    phase: z.literal("decision"),
+    ...noPending,
+    ...priorImage,
+  }),
+  CheckpointShape.extend({
+    fence: Fence.optional(),
+    phase: z.literal("image"),
+    ...noPending,
+    imagePrompt: bounded(300),
+  }),
+  CheckpointShape.extend({
+    fence: z.never().optional(),
+    phase: z.literal("mutation"),
+    pending: DeviceMutation,
+    ...priorImage,
+  }),
+]);
+// Intersect status contracts with the strict phase shape, so both discriminants
+// narrow required payloads without weakening the storage boundary.
+const StatusCheckpoint = z.discriminatedUnion("status", [
+  z.object({ status: z.literal("paused"), fence: z.never().optional() }),
+  z.discriminatedUnion("phase", [
+    z.object({
+      status: z.literal("running"),
+      phase: z.literal("plan"),
+      fence: Fence.extend({ kind: z.literal("started") }),
+    }),
+    z.object({
+      status: z.literal("running"),
+      phase: z.literal("decision"),
+      fence: Fence.extend({ kind: z.literal("started") }),
+    }),
+    z.object({
+      status: z.literal("running"),
+      phase: z.literal("image"),
+      fence: Fence.extend({ kind: z.literal("started") }),
+    }),
+    z.object({
+      status: z.literal("running"),
+      phase: z.literal("mutation"),
+      fence: z.never().optional(),
+    }),
+  ]),
+  z.object({
+    status: z.literal("unknown"),
+    phase: z.enum(["plan", "decision", "image"]),
+    fence: Fence.extend({ kind: z.literal("unknown") }),
+  }),
+  z.object({
+    status: z.literal("complete"),
+    phase: z.literal("decision"),
+    fence: z.never().optional(),
+  }),
+  z.object({ status: z.literal("blocked"), fence: z.never().optional() }),
+  z.object({
+    status: z.literal("sync_failed"),
+    phase: z.literal("mutation"),
+    fence: z.never().optional(),
+  }),
+]);
+export const AgentCheckpoint = z
+  .intersection(PhasedCheckpoint, StatusCheckpoint)
+  .superRefine((state, ctx) => {
+    const pending = state.pending;
+    if (
+      (pending &&
+        (pending.accountId !== state.account ||
+          pending.documentId !== state.documentId ||
+          pending.revision !== state.document.revision ||
+          pending.idempotencyKey !== `${state.id}:${state.receipts.length}`)) ||
+      state.tools !== state.receipts.length ||
+      (state.phase === "plan" &&
+        (state.receipts.length || state.plan.length || state.cycles)) ||
+      (state.receipts.length > 0 &&
+        state.document.revision !== state.receipts.at(-1)?.revision) ||
+      state.receipts.some(
+        (receipt, index) =>
+          index > 0 &&
+          receipt.revision <= (state.receipts[index - 1]?.revision ?? -1),
+      ) ||
+      (state.status === "complete" &&
+        (!state.plan.length || state.receipts.length < state.plan.length))
+    )
+      ctx.addIssue({
+        code: "custom",
+        message: "Invalid scoped action progress",
+      });
+  });
 export type AgentCheckpoint = z.infer<typeof AgentCheckpoint>;
 export function deviceAgentStart(
   account: string,
@@ -170,7 +235,7 @@ export function deviceAgentHash(value: unknown) {
   return bytesToHex(sha256(utf8(JSON.stringify(value))));
 }
 export function deviceAgentFence(state: AgentCheckpoint, now: number) {
-  if (state.fence || state.status === "unknown")
+  if (state.fence)
     throw new Error("Provider outcome uncertain; never automatically repeat");
   if (
     now - state.created > 120_000 ||
@@ -185,7 +250,7 @@ export function deviceAgentFence(state: AgentCheckpoint, now: number) {
     });
   const input =
     state.phase === "image"
-      ? imageRequest(state.imagePrompt ?? "")
+      ? imageRequest(state.imagePrompt)
       : deviceAgentRequest(state);
   return AgentCheckpoint.parse({
     ...state,
@@ -200,7 +265,7 @@ export function deviceAgentRestore(value: unknown) {
   if (state.fence) {
     const input =
       state.phase === "image"
-        ? imageRequest(state.imagePrompt ?? "")
+        ? imageRequest(state.imagePrompt)
         : deviceAgentRequest(state);
     if (state.fence.hash !== deviceAgentHash(input))
       throw new Error("Saved request input changed");
@@ -275,13 +340,14 @@ export function deviceAgentImage(state: AgentCheckpoint, image: unknown) {
   if (
     state.phase !== "image" ||
     !state.fence ||
-    state.fence.hash !== deviceAgentHash(imageRequest(state.imagePrompt ?? ""))
+    state.fence.hash !== deviceAgentHash(imageRequest(state.imagePrompt))
   )
     throw new Error("Image fence mismatch");
   return AgentCheckpoint.parse({
     ...state,
     fence: undefined,
     phase: "mutation",
+    imagePrompt: undefined,
     status: "paused",
     pending: {
       accountId: state.account,

@@ -2,6 +2,41 @@ import { describe, expect, test } from "bun:test";
 import { createByokSession } from "./session";
 
 const key = "sk-or-v1-distinctive-browser-boundary-secret";
+test("mixed malformed percent text cannot dispatch active or retired encoded credentials", async () => {
+  const sent: Request[] = [];
+  const session = createByokSession(async (request) => {
+    sent.push(request);
+    return Response.json({
+      choices: [{ message: { content: "Safe response" } }],
+    });
+  }, "https://app.test");
+  const secret = "opaque-synthetic-percent-credential-291";
+  session.replace("openrouter", secret);
+  const encoded = [...secret]
+    .map((c) => `%${c.charCodeAt(0).toString(16)}`)
+    .join("");
+  for (const retired of [false, true]) {
+    if (retired) session.remove();
+    for (const representation of [
+      encoded,
+      encoded.replaceAll("%", "%25"),
+      btoa(encoded),
+      `%ff${encoded}`,
+    ]) {
+      await expect(
+        session.fetch("/api/document", {
+          method: "POST",
+          body: JSON.stringify({ text: `${representation} 100% complete %zz` }),
+        }),
+      ).rejects.toThrow("Credential egress blocked");
+    }
+  }
+  expect(sent).toHaveLength(0);
+  const approved = session.replace("openrouter", secret);
+  expect(await session.text(approved, "100% complete")).toBe("Safe response");
+  expect(sent).toHaveLength(1);
+  expect(sent[0]?.url).toBe("https://openrouter.ai/api/v1/chat/completions");
+});
 describe("device credential network boundary", () => {
   test("only the fixed provider transport can dispatch a credential", async () => {
     const sent: Request[] = [];

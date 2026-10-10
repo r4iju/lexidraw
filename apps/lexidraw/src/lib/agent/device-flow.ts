@@ -149,7 +149,6 @@ export class DeviceAgent {
         const state = this.current;
         if (["unknown", "complete", "blocked"].includes(state.status)) return;
         if (state.phase === "mutation") {
-          if (!state.pending) throw new Error("Missing mutation");
           // Retained output can be committed/reconciled without a provider key.
           const data = DeviceMutation.parse(state.pending);
           this.ports.byok.assertEgress(JSON.stringify(data));
@@ -172,16 +171,25 @@ export class DeviceAgent {
           continue;
         }
         if (!this.ports.available() || !this.ports.byok.reference()) {
-          await this.persist({ ...state, status: "paused" });
+          await this.persist(
+            AgentCheckpoint.parse({
+              ...state,
+              fence: undefined,
+              status: "paused",
+            }),
+          );
           return;
         }
         if (state.phase === "image" && !this.ports.images?.()) {
-          await this.persist({
-            ...state,
-            status: "blocked",
-            reason:
-              "Images await verified provider access and a complete billable bound. No fallback was used.",
-          });
+          await this.persist(
+            AgentCheckpoint.parse({
+              ...state,
+              fence: undefined,
+              status: "blocked",
+              reason:
+                "Images await verified provider access and a complete billable bound. No fallback was used.",
+            }),
+          );
           return;
         }
         const reference = this.ports.byok.reference();
@@ -195,11 +203,14 @@ export class DeviceAgent {
           reference !== this.ports.byok.reference() ||
           !this.ports.available()
         ) {
-          await this.persist({
-            ...state,
-            fingerprints: this.ports.byok.fingerprints(),
-            status: "paused",
-          });
+          await this.persist(
+            AgentCheckpoint.parse({
+              ...state,
+              fence: undefined,
+              fingerprints: this.ports.byok.fingerprints(),
+              status: "paused",
+            }),
+          );
           return;
         }
         try {
@@ -207,10 +218,7 @@ export class DeviceAgent {
             state.phase === "image"
               ? deviceAgentImage(
                   fenced,
-                  await this.ports.byok.image(
-                    reference,
-                    state.imagePrompt ?? "",
-                  ),
+                  await this.ports.byok.image(reference, state.imagePrompt),
                 )
               : deviceAgentOutput(
                   fenced,
