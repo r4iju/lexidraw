@@ -1,5 +1,8 @@
 import { expect, test, mock } from "bun:test";
-import { createClient } from "@libsql/client";
+import { createClient, type Client } from "@libsql/client";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { installServerRuntime } from "~/test/server-runtime";
 import { ProLedger } from "./ledger";
 mock.module("@packages/env", () => ({
@@ -117,8 +120,10 @@ test("authenticated text requires separate private eligibility and entitlement; 
   }
 });
 
-async function operationFixture(transport: import("./operation").ProTransport) {
-  const client = createClient({ url: ":memory:" });
+async function operationFixture(
+  transport: import("./operation").ProTransport,
+  client: Client = createClient({ url: ":memory:" }),
+) {
   await client.executeMultiple(
     (
       (await Bun.file(
@@ -315,6 +320,237 @@ test("restart between reservation claim and attempt fence resumes safely; persis
       result: "persisted",
     });
     expect(calls).toBe(1);
+  } finally {
+    f.client.close();
+  }
+});
+
+function gate() {
+  let open = () => {};
+  const ready = new Promise<void>((resolve) => {
+    open = resolve;
+  });
+  return { ready, open };
+}
+
+test("authenticated duplicate execution charges persisted completion once even when the losing fence returns before winner settlement", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "pro-completion-race-"));
+  const storage = createClient({ url: `file:${join(directory, "ledger.db")}` });
+  const claimed = gate();
+  const completed = gate();
+  const releaseLoser = gate();
+  const releaseWinner = gate();
+  let claims = 0;
+  let afterClaims = 0;
+  // Pause storage acknowledgements/acquisition after real SQLite commits.
+  // Both claims precede the fence. The losing fence runs after completion
+  // while the winner waits for its completion acknowledgement.
+  const scheduled = new Proxy(storage, {
+    get(target, key) {
+      if (key !== "transaction") {
+        const value = Reflect.get(target, key);
+        return typeof value === "function" ? value.bind(target) : value;
+      }
+      return async (...args: Parameters<Client["transaction"]>) => {
+        if (claims === 2 && ++afterClaims === 2) {
+          await completed.ready;
+          await releaseLoser.ready;
+        }
+        const tx = await target.transaction(...args);
+        let isClaim = false;
+        let isCompletion = false;
+        return new Proxy(tx, {
+          get(transaction, method) {
+            if (method === "execute")
+              return async (statement: Parameters<typeof tx.execute>[0]) => {
+                const sql =
+                  typeof statement === "string" ? statement : statement.sql;
+                isClaim ||= sql.startsWith(
+                  "UPDATE pro_operations SET state='running'",
+                );
+                isCompletion ||= sql.startsWith(
+                  "UPDATE pro_attempts SET state=?,cost_nano_usd=",
+                );
+                return transaction.execute(statement);
+              };
+            if (method === "commit")
+              return async () => {
+                await transaction.commit();
+                if (isClaim) {
+                  if (++claims === 2) claimed.open();
+                  await claimed.ready;
+                }
+                if (isCompletion) {
+                  completed.open();
+                  await releaseWinner.ready;
+                }
+              };
+            const value = Reflect.get(transaction, method);
+            return typeof value === "function"
+              ? value.bind(transaction)
+              : value;
+          },
+        });
+      };
+    },
+  });
+  let calls = 0;
+  const f = await operationFixture(async () => {
+    calls++;
+    return {
+      kind: "completed",
+      completion: {
+        text: "durable result",
+        usage: { input: 1, cachedInput: 0, output: 1 },
+        actualCostNanoUsd: 5250,
+      },
+    };
+  }, scheduled);
+  const caller = createProRouter({
+    ledger: () => f.ledger,
+    dispatch: (id, text, account) => f.executor.execute(account, id, text),
+  }).createCaller({
+    drizzle: db,
+    schema: {},
+    session: { user: { id: "alice" } },
+    auth: { kind: "session" },
+    headers: new Headers(),
+  } as never);
+  const executions = [
+    caller.text({ idempotencyKey: "duplicate", text: "hello" }),
+    caller.text({ idempotencyKey: "duplicate", text: "hello" }),
+  ];
+  try {
+    await completed.ready;
+    expect(await caller.status()).toMatchObject({
+      reservedSubcredits: 1_792_000,
+      availableSubcredits: 998_208_000,
+      history: [{ state: "running", charged: 0 }],
+    });
+    releaseLoser.open();
+    const duplicate = await Promise.race(executions);
+    expect(duplicate).toMatchObject({
+      state: "settled",
+      charged: 1750,
+      result: "durable result",
+    });
+    expect(await caller.status()).toMatchObject({
+      reservedSubcredits: 0,
+      availableSubcredits: 999_998_250,
+      history: [{ id: duplicate.id, state: "settled", charged: 1750 }],
+    });
+    releaseWinner.open();
+    expect(await Promise.all(executions)).toEqual([duplicate, duplicate]);
+    const reopened = createClient({
+      url: `file:${join(directory, "ledger.db")}`,
+    });
+    try {
+      const recovery = new ProTextOperation(
+        new ProLedger(reopened, f.ledger.config),
+        async () => {
+          throw new Error("Recovery must not dispatch");
+        },
+      );
+      expect(await recovery.execute("alice", duplicate.id, "hello")).toEqual(
+        duplicate,
+      );
+      expect(await recovery.ledger.status("alice")).toEqual(
+        await caller.status(),
+      );
+    } finally {
+      reopened.close();
+    }
+    expect(
+      await caller.text({ idempotencyKey: "duplicate", text: "hello" }),
+    ).toEqual(duplicate);
+    expect(calls).toBe(1);
+    expect(
+      (await f.ledger.entries("alice")).map((entry) => [
+        entry.kind,
+        entry.subcredits,
+      ]),
+    ).toEqual([
+      ["grant", 1_000_000_000],
+      ["reservation", 1_792_000],
+      ["release", 1_792_000],
+      ["debit", 1750],
+    ]);
+  } finally {
+    releaseLoser.open();
+    releaseWinner.open();
+    await Promise.allSettled(executions);
+    storage.close();
+    await rm(directory, { recursive: true, force: true });
+  }
+}, 10000);
+
+test("authenticated replay releases cancellation after claim but before a paid attempt, including revoked queued work", async () => {
+  let calls = 0;
+  const f = await operationFixture(async () => {
+    calls++;
+    throw new Error("Cancelled work must not dispatch");
+  });
+  const router = createProRouter({
+    ledger: () => f.ledger,
+    dispatch: (id, text, account) => f.executor.execute(account, id, text),
+  });
+  const caller = router.createCaller({
+    drizzle: db,
+    schema: {},
+    session: { user: { id: "alice" } },
+    auth: { kind: "session" },
+    headers: new Headers(),
+  } as never);
+  try {
+    const { hash } = (await import("./operation")).inputIdentity({
+      idempotencyKey: "before-cancel",
+      text: "hello",
+    });
+    const op = await f.ledger.reserve("alice", "before-cancel", hash);
+    await f.ledger.claim(op.id);
+    expect(await caller.cancel({ id: op.id })).toMatchObject({
+      state: "running",
+      cancel_requested: 1,
+    });
+    expect(
+      await caller.text({ idempotencyKey: "before-cancel", text: "hello" }),
+    ).toMatchObject({
+      id: op.id,
+      state: "cancelled",
+      charged: 0,
+    });
+    const queued = await f.ledger.reserve("alice", "revoked", hash);
+    await f.ledger.revoke("owner", "alice", "end trial before dispatch");
+    expect(await f.executor.execute("alice", queued.id, "hello")).toMatchObject(
+      {
+        state: "cancelled",
+        charged: 0,
+      },
+    );
+    expect(await f.executor.execute("alice", op.id, "hello")).toMatchObject({
+      state: "cancelled",
+      charged: 0,
+    });
+    expect(await caller.status()).toMatchObject({
+      reservedSubcredits: 0,
+      availableSubcredits: 1_000_000_000,
+      history: [
+        { state: "cancelled", charged: 0 },
+        { state: "cancelled", charged: 0 },
+      ],
+    });
+    expect(
+      (await f.ledger.entries("alice")).map((entry) => entry.kind),
+    ).toEqual([
+      "grant",
+      "reservation",
+      "release",
+      "cancellation",
+      "reservation",
+      "release",
+      "cancellation",
+    ]);
+    expect(calls).toBe(0);
   } finally {
     f.client.close();
   }

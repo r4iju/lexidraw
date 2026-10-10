@@ -455,16 +455,34 @@ export class ProLedger {
         })
       ).rows;
       if (pending.length && !reconciled) return op;
+      const completed = (
+        await tx.execute({
+          sql: "SELECT result FROM pro_attempts WHERE operation_id=? AND state='completed' ORDER BY number DESC LIMIT 1",
+          args: [id],
+        })
+      ).rows[0];
+      // Durable completion outranks a losing executor's failure/cancellation verdict.
+      // Read it under the settlement write lock so no refund can race its commit.
+      const completion = completed
+        ? Completion.parse(JSON.parse(String(completed.result)))
+        : undefined;
+      const resolved = completion
+        ? {
+            kind: "completed" as const,
+            text: completion.text,
+            usage: completion.usage,
+          }
+        : outcome;
       const charge =
-        outcome.kind === "completed"
-          ? referenceCharge(outcome.usage, JSON.parse(op.pricebook))
+        resolved.kind === "completed"
+          ? referenceCharge(resolved.usage, JSON.parse(op.pricebook))
           : 0;
       if (charge > op.quote)
         throw new ProError("Settlement exceeds accepted quote");
       const state =
-        outcome.kind === "completed"
+        resolved.kind === "completed"
           ? "settled"
-          : outcome.kind === "technical_failure"
+          : resolved.kind === "technical_failure"
             ? "refunded"
             : "cancelled";
       await tx.execute({
@@ -480,7 +498,7 @@ export class ProLedger {
         args: [
           state,
           charge,
-          outcome.kind === "completed" ? outcome.text : null,
+          resolved.kind === "completed" ? resolved.text : null,
           id,
         ],
       });

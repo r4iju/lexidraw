@@ -107,8 +107,10 @@ export class ProTextOperation {
   }
   async recover(account: string, id: string) {
     const op = await this.ledger.operation(account, id);
-    if (op.state !== "running" && op.state !== "unknown") return op;
+    if (!["reserved", "running", "unknown"].includes(op.state)) return op;
     const attempts = await this.ledger.attempts(account, id);
+    if (op.cancel_requested && !attempts.length)
+      return this.ledger.settle(id, { kind: "cancelled" });
     const last = attempts.at(-1);
     if (
       last?.state === "completed" &&
