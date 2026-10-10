@@ -1,13 +1,7 @@
 "use client";
+import { ProNarrationPanel } from "~/lib/narration/panel";
 
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useState,
-  useRef,
-  useEffectEvent,
-} from "react";
+import { useCallback, useEffect, useMemo, useState, useRef } from "react";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import {
   $getSelection,
@@ -30,8 +24,6 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "~/components/ui/accordion";
-import { useMarkdownTools } from "../utils/markdown";
-import { toast } from "sonner";
 import { api } from "~/trpc/react";
 import { PopoverClose } from "@radix-ui/react-popover";
 import { X, Play } from "lucide-react";
@@ -76,8 +68,6 @@ export function ListenPlayer({
   const [editor] = useLexicalComposerContext();
   const [segments, setSegments] = useState<TtsSegment[]>([]);
   const [initialIndex, setInitialIndex] = useState<number>(0);
-  const [loading, setLoading] = useState(false);
-  const hasTriggeredTts = useRef(false);
   const [position, setPosition] = useState<{ x: number; y: number }>({
     x: 0,
     y: 0,
@@ -85,8 +75,6 @@ export function ListenPlayer({
   // A control folded into a More menu is still there, but out of sight.
   const shown = anchor && !anchor.closest("[inert]") ? anchor : null;
   const anchored = useMemo(() => shown && { current: shown }, [shown]);
-  const { convertEditorStateToMarkdown } = useMarkdownTools();
-  const startTts = api.tts.startDocumentTts.useMutation();
   const statusQuery = api.tts.getDocumentTtsStatus.useQuery(
     { documentId },
     {
@@ -205,33 +193,11 @@ export function ListenPlayer({
     }
   }, []);
 
-  // Stable callback for TTS generation that can access latest values
-  const generateTts = useEffectEvent(async () => {
-    if (hasTriggeredTts.current) return;
-    hasTriggeredTts.current = true;
-    try {
-      setLoading(true);
-      const md = convertEditorStateToMarkdown(editor.getEditorState());
-      await startTts.mutateAsync({ documentId, markdown: md });
-    } catch (e) {
-      console.warn("[play-from-here] error", e);
-      toast.error("Failed to load audio.");
-      hasTriggeredTts.current = false; // Allow retry on error
-    } finally {
-      setLoading(false);
-    }
-  });
-
-  // Asks for the audio as it opens, and forgets it as it closes, whichever
-  // control opened or closed it.
+  // The external player surface resets when closed. Opening never starts paid synthesis.
   useEffect(() => {
-    if (open) {
-      generateTts();
-      return;
-    }
+    if (open) return;
     setSegments([]);
     setInitialIndex(0);
-    hasTriggeredTts.current = false;
     setPosition({ x: 0, y: 0 });
   }, [open]);
 
@@ -270,7 +236,8 @@ export function ListenPlayer({
       <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
         <DraggablePopoverContent
           position={position}
-          loading={loading}
+          documentId={documentId}
+          loading={statusQuery.isLoading}
           segments={segments}
           initialIndex={initialIndex}
           making={making}
@@ -311,12 +278,14 @@ function typingOutside(target: EventTarget | null) {
 }
 
 function DraggablePopoverContent({
+  documentId,
   position,
   loading,
   segments,
   initialIndex,
   making,
 }: {
+  documentId: string;
   position: { x: number; y: number };
   loading: boolean;
   segments: TtsSegment[];
@@ -380,6 +349,7 @@ function DraggablePopoverContent({
           e.preventDefault();
         }}
       >
+        <ProNarrationPanel documentId={documentId} />
         {/* Sticky header + controls */}
         <div className="sticky top-0 z-20 bg-popover -mx-4 -mt-4 px-4 pt-4 pb-2">
           <div className="relative min-w-xs">

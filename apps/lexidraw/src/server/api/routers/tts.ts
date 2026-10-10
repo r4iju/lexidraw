@@ -1,3 +1,4 @@
+import { NARRATION_UNAVAILABLE } from "~/lib/narration/contracts";
 import { z } from "zod";
 import { drizzle, schema } from "@packages/drizzle";
 import { and, eq, or, isNull, ne, desc } from "drizzle-orm";
@@ -227,92 +228,6 @@ const running = (job: TtsJob) =>
   (job.status === "queued" || job.status === "processing") &&
   Date.now() - new Date(job.updatedAt).getTime() < STALLED_AFTER;
 
-/**
- * The job that makes `entityId`'s audio as `key`. One whose audio is made or
- * being made is answered as it is, whoever started it, so asking again pays
- * for nothing. Otherwise a run is started, from what `prepareStarter` gives
- * back; it is asked only then, since reading a file for its text may fail.
- * With `replacing`, the caller's runs in other voices are cancelled first,
- * as the web's voice picker has always done.
- */
-async function startTtsJob({
-  entityId,
-  userId,
-  key,
-  cfg,
-  prepareStarter,
-  replacing = false,
-}: {
-  entityId: string;
-  userId: string;
-  key: string;
-  cfg: VoiceConfig;
-  prepareStarter: () => Starter | Promise<Starter>;
-  replacing?: boolean;
-}): Promise<TtsJob> {
-  if (replacing) {
-    await drizzle
-      .update(schema.ttsJobs)
-      .set({ status: "cancelled", updatedAt: new Date() })
-      .where(
-        and(
-          eq(schema.ttsJobs.entityId, entityId),
-          eq(schema.ttsJobs.userId, userId),
-          ne(schema.ttsJobs.id, key),
-          or(
-            eq(schema.ttsJobs.status, "queued"),
-            eq(schema.ttsJobs.status, "processing"),
-          ),
-        ),
-      )
-      .execute();
-  }
-  const existing = await drizzle.query.ttsJobs.findFirst({
-    where: (t) => and(eq(t.id, key), eq(t.entityId, entityId)),
-  });
-  if (
-    existing &&
-    ((existing.status === "ready" && existing.manifestUrl) || running(existing))
-  ) {
-    return existing;
-  }
-  const startRun = await prepareStarter();
-  const runId = crypto.randomUUID();
-  const fresh = {
-    status: "queued" as const,
-    runId,
-    ttsConfig: cfg,
-    manifestUrl: null,
-    stitchedUrl: null,
-    segmentCount: null,
-    plannedCount: null,
-    error: null,
-    updatedAt: new Date(),
-  };
-  const [queued] = await drizzle
-    .insert(schema.ttsJobs)
-    .values({ id: key, entityId, userId, createdAt: new Date(), ...fresh })
-    .onConflictDoUpdate({ target: schema.ttsJobs.id, set: fresh })
-    .returning();
-  if (!queued) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-  try {
-    await startRun(runId);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    await drizzle
-      .update(schema.ttsJobs)
-      .set({ status: "error", error: message, updatedAt: new Date() })
-      .where(and(eq(schema.ttsJobs.id, key), eq(schema.ttsJobs.runId, runId)))
-      .execute();
-    throw new TRPCError({
-      code: "INTERNAL_SERVER_ERROR",
-      message: "The audio couldn't be started",
-      cause: error,
-    });
-  }
-  return queued;
-}
-
 const documentRun =
   (documentId: string, markdown: string, cfg: VoiceConfig): Starter =>
   (runId) =>
@@ -342,14 +257,6 @@ function distilledHtmlOf(elements: string | null | undefined) {
     return undefined;
   }
   return SavedLink.safeParse(parsed).data?.distilled?.contentHtml;
-}
-
-async function articleHtmlOf(articleId: string) {
-  const entity = await drizzle.query.entities.findFirst({
-    where: (t) => eq(t.id, articleId),
-    columns: { elements: true },
-  });
-  return distilledHtmlOf(entity?.elements);
 }
 
 /** The caller's read-aloud settings, read fresh rather than from the session. */
@@ -559,20 +466,11 @@ export const ttsRouter = createTRPCRouter({
         sampleRate: z.number().optional(),
       }),
     )
-    .mutation(async ({ input, ctx }) => {
-      const userId = ctx.session.user.id;
-      await assertCanAccessDocumentOrThrow(userId, input.documentId);
-      const cfg = ttsConfigFor(input, await storedTtsOf(userId));
-      const job = await startTtsJob({
-        entityId: input.documentId,
-        userId,
-        key: computeDocKey(input.documentId, cfg),
-        cfg,
-        prepareStarter: () =>
-          documentRun(input.documentId, input.markdown ?? "", cfg),
-        replacing: true,
+    .mutation(async (): Promise<TtsJobSnapshot> => {
+      throw new TRPCError({
+        code: "PRECONDITION_FAILED",
+        message: NARRATION_UNAVAILABLE,
       });
-      return snapshotOf(job);
     }),
 
   getDocumentTtsStatus: protectedProcedure
@@ -619,25 +517,11 @@ export const ttsRouter = createTRPCRouter({
         sampleRate: z.number().optional(),
       }),
     )
-    .mutation(async ({ input, ctx }) => {
-      const userId = ctx.session.user.id;
-      await assertCanAccessArticleOrThrow(userId, input.articleId);
-      const cfg = ttsConfigFor(input, await storedTtsOf(userId));
-      const job = await startTtsJob({
-        entityId: input.articleId,
-        userId,
-        key: computeArticleKey(input.articleId, cfg),
-        cfg,
-        prepareStarter: async () =>
-          articleRun(
-            input.articleId,
-            input.plainText ?? "",
-            await articleHtmlOf(input.articleId),
-            cfg,
-          ),
-        replacing: true,
+    .mutation(async (): Promise<TtsJobSnapshot> => {
+      throw new TRPCError({
+        code: "PRECONDITION_FAILED",
+        message: NARRATION_UNAVAILABLE,
       });
-      return snapshotOf(job);
     }),
 
   getArticleTtsStatus: protectedProcedure
@@ -685,13 +569,14 @@ export const ttsRouter = createTRPCRouter({
     .mutation(async ({ input, ctx }) => {
       const userId = ctx.session.user.id;
       const listenable = await listenableOrNotFound(input.id, userId);
-      const job = await startTtsJob({
-        entityId: input.id,
-        userId,
-        key: listenable.key,
-        cfg: listenable.cfg,
-        prepareStarter: listenable.runOf,
+      const job = await drizzle.query.ttsJobs.findFirst({
+        where: (t) => and(eq(t.id, listenable.key), eq(t.entityId, input.id)),
       });
+      if (job?.status !== "ready")
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: NARRATION_UNAVAILABLE,
+        });
       return listeningOf(job);
     }),
 

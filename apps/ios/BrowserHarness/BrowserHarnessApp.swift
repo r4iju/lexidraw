@@ -40,7 +40,8 @@ struct BrowserHarnessApp: App {
       Group {
         switch model.state {
         case .signedIn(let session):
-          if BrowserScenario.name == "image" { ImageFixtureScreen(session: session) }
+          if BrowserScenario.name == "narration" { NarrationFixtureScreen(session: session) }
+          else if BrowserScenario.name == "image" { ImageFixtureScreen(session: session) }
           else { BrowserView(session: session) }
         case .signedOut: NavigationStack { SignInView() }
         }
@@ -134,6 +135,19 @@ actor HarnessServer: ClientTransport {
   func send(_ request: HTTPRequest, body: HTTPBody?, baseURL: URL, operationID: String) async throws
     -> (HTTPResponse, HTTPBody?)
   {
+    if scenario == "narration", operationID.hasPrefix("narration.") || operationID == "auth.getPowerPreference" {
+      if operationID == "auth.getPowerPreference" {
+        return (HTTPResponse(status: .ok), HTTPBody(Data(#"{"result":{"data":{"json":{"mode":"pro"}}}}"#.utf8)))
+      }
+      var forwarded = URLRequest(url: URL(string: "http://127.0.0.1:3085/api/trpc" + (request.path ?? ""))!)
+      forwarded.httpMethod = request.method.rawValue
+      forwarded.setValue("application/json", forHTTPHeaderField: "Content-Type")
+      if let body { forwarded.httpBody = try await Data(collecting: body, upTo: 1 << 20) }
+      try NativeCredentialGuard.shared.check(forwarded, body: forwarded.httpBody ?? Data())
+      let (data, response) = try await URLSession.shared.data(for: forwarded)
+      guard let response = response as? HTTPURLResponse else { throw NativeAIError.unavailable }
+      return (HTTPResponse(status: .init(code: response.statusCode)), HTTPBody(data))
+    }
     if scenario == "image", ["imagePower.capability", "imagePower.generate", "imagePower.save", "auth.getPowerPreference", "auth.setPowerPreference", "pro.status"].contains(operationID) {
       var forwarded = URLRequest(url: URL(string: "http://127.0.0.1:3084/api/trpc" + (request.path ?? ""))!)
       forwarded.httpMethod = request.method.rawValue
@@ -428,5 +442,20 @@ final class AccountHarnessToken: TokenStore {
       }
       $0.token = nil
     }
+  }
+}
+
+private struct NarrationFixtureScreen: View {
+  @State private var listener: Listener
+  @State private var flow: NativeNarrationFlow
+  init(session: Session) {
+    _listener = State(initialValue: Listener(session: session))
+    _flow = State(initialValue: NativeNarrationFlow(session: session, document: "doc"))
+  }
+  var body: some View {
+    VStack {
+      Text("Injected silent audio fixture. No actual provider generation.").font(.caption)
+      ProNarrationComposer(flow: flow) { job in listener.playProNarration(job, to: .init(id: "doc", title: "Private narration fixture")) }
+    }.nowPlayingBar(listener)
   }
 }

@@ -24,3 +24,22 @@ test("legacy server-key proxies reject image paths before key lookup or any prov
     expect(response.status).toBe(410);
   }
 });
+
+test("legacy provider reads cannot retrieve unowned narration or restart paid audio work before key lookup", async () => {
+  for (const [module, path] of [
+    ["./openai/[...path]/route", ["audio", "speech"]],
+    ["./google/[...path]/route", ["v1beta", "interactions", "unowned"]],
+    ["./google/[...path]/route", ["v1beta", "operations", "unowned"]],
+    [
+      "./google/[...path]/route",
+      ["v1beta", "models", "gemini-3.8-flash-lite-tts"],
+    ],
+  ] as const) {
+    const route = await import(module);
+    const response = await route.GET(
+      new Request("http://localhost/api/llm/proxy"),
+      { params: Promise.resolve({ path: [...path] }) },
+    );
+    expect(response.status).toBe(410);
+  }
+});

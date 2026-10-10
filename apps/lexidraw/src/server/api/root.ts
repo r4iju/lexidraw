@@ -1,3 +1,4 @@
+import { narrationRouter } from "~/server/pro/narration-runtime";
 import { imagePowerRouter } from "~/server/pro/image-runtime";
 import { proRouter } from "~/server/pro/router";
 import { htmlBlocksRouter } from "./routers/html-blocks";
@@ -29,6 +30,7 @@ import { nativeSignInRouter } from "./routers/native-sign-in";
 import { embedRouter } from "./routers/embeds";
 
 export const appRouter = createTRPCRouter({
+  narration: narrationRouter,
   pro: proRouter,
   imagePower: imagePowerRouter,
   embeds: embedRouter,

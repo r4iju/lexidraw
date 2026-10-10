@@ -27,6 +27,7 @@ final class Listener {
   private(set) var voiceDescription: String?
   private var positionKey: String?
   private let speech = NativeSpeech()
+  private var proFiles: ProNarrationFiles?
   private var seekID: UUID?
   private var recovery = ListeningRecovery()
   private var savedOnly = false
@@ -124,6 +125,26 @@ final class Listener {
     }
   }
 
+  func proNarrationFlow(for document: String) -> NativeNarrationFlow {
+    NativeNarrationFlow(session: session, document: document)
+  }
+
+  func playProNarration(_ job: ProNarrationJob, to file: File) {
+    stop()
+    let files = ProNarrationFiles()
+    do {
+      let recording = try files.recording(job)
+      proFiles = files
+      positionKey = "pro.\(job.id ?? file.id)"
+      voiceDescription = "Saved Pro narration. Replay is free."
+      state = .loaded(file, recording)
+      queue(from: recording.resuming(resumePoints.position(of: positionKey ?? file.id)), playing: true)
+    } catch {
+      files.clear()
+      state = .failed(file, "Saved narration could not be opened. Reload it without regenerating.")
+    }
+  }
+
   func retry() {
     guard let file else { return }
     listen(to: file, savedOnly: savedOnly)
@@ -180,6 +201,8 @@ final class Listener {
     player.pause()
     player.removeAllItems()
     queued = []
+    proFiles?.clear()
+    proFiles = nil
     speech.stop()
     voiceDescription = nil
     positionKey = nil

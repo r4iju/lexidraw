@@ -104,6 +104,7 @@ export const proAttempts = sqliteTable(
       .notNull()
       .references(() => proOperations.id),
     number: integer("number").notNull(),
+    chunkHash: text("chunk_hash"),
     state: text("state").notNull(),
     costNanoUsd: integer("cost_nano_usd"),
     exposureNanoUsd: integer("exposure_nano_usd").notNull(),
@@ -113,6 +114,7 @@ export const proAttempts = sqliteTable(
   },
   (t) => [
     uniqueIndex("pro_attempts_operation_number").on(t.operationId, t.number),
+    uniqueIndex("pro_narration_attempt_chunk").on(t.operationId, t.chunkHash),
     index("pro_attempts_created").on(t.createdAt),
     check(
       "pro_attempt_state",
@@ -189,3 +191,12 @@ export const generatedImages = sqliteTable(
     ),
   ],
 );
+
+export const proNarrationJobs = sqliteTable("pro_narration_jobs", {
+  operationId: text("operation_id")
+    .primaryKey()
+    .notNull()
+    .references(() => proOperations.id),
+  documentId: text("document_id").notNull(),
+  plan: text("plan").notNull(),
+});

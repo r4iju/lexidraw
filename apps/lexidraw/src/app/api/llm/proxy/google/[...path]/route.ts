@@ -8,6 +8,16 @@ async function handle(req: NextRequest, pathSegsParam?: string[]) {
     return new Response("Unauthorized", { status: 401 });
   }
 
+  if (
+    (pathSegsParam ?? []).some((part) =>
+      /audio|speech|tts|interactions|operations/i.test(part),
+    )
+  )
+    return new Response(
+      "Cloud narration is unavailable; use the authenticated narration operation",
+      { status: 410 },
+    );
+
   if ((pathSegsParam ?? []).some((part) => /image|imagen/i.test(part)))
     return new Response(
       "Image generation is unavailable; use the selected account power source",

@@ -10,12 +10,19 @@ import SwiftUI
 struct ListenButton: View {
   let file: any FileItem
   @Environment(Listener.self) private var listener
+  @State private var proNarration = false
 
   var body: some View {
     if file.kind.isListenable {
       Button("Listen", systemImage: "headphones") {
         listener.listen(to: .init(id: file.id, title: file.title))
       }
+      Button("Pro narration", systemImage: "waveform") { proNarration = true }
+        .sheet(isPresented: $proNarration) {
+          ProNarrationComposer(flow: listener.proNarrationFlow(for: file.id)) { job in
+            listener.playProNarration(job, to: .init(id: file.id, title: file.title))
+          }
+        }
       Button("Play Saved Recording", systemImage: "play.rectangle") {
         listener.listen(to: .init(id: file.id, title: file.title), savedOnly: true)
       }
