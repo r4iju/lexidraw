@@ -123,6 +123,7 @@ private struct DocumentContent: View {
   @Environment(\.dismiss) private var dismiss
   @State private var leaving = false
   @State private var imageComposer = false
+  @State private var agentComposer = false
   @Environment(\.fileNavigation) private var fileNavigation
 
   var body: some View {
@@ -175,9 +176,21 @@ private struct DocumentContent: View {
             Button("Generate image", systemImage: "photo.badge.plus") { imageComposer = true }
           }
         }
+        if editing.mode == .editing {
+          ToolbarItem(placement: .topBarTrailing) {
+            Button("Document action", systemImage: "wand.and.stars") {
+              editorReference.view?.setEditingEnabled(false)
+              isEditing = false
+              Task { await editing.saveNow(); if editing.status == .saved && !editing.conflict { agentComposer = true } }
+            }
+          }
+        }
         ToolbarItem(placement: .topBarTrailing) {
           Button("Comments", systemImage: "bubble.left.and.bubble.right") { editorReference.view?.presentComments() }
         }
+      }
+      .sheet(isPresented: $agentComposer, onDismiss: { Task { await reload() } }) {
+        DocumentAgentComposer(session: editing.session, document: editing.id)
       }
       .sheet(isPresented: $imageComposer) {
         DocumentImageComposer(session: editing.session, document: editing.id) { url, prompt in

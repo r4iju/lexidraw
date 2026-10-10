@@ -28,6 +28,16 @@ async function handle(req: NextRequest, pathSegsParam?: string[]) {
     return new Response("Legacy generation proxy is unavailable", {
       status: 410,
     });
+  // Only approved read-only model metadata survives the legacy proxy.
+  if (
+    !new Set(["models", "models/gpt-5.4-mini"]).has(
+      (pathSegsParam ?? []).join("/"),
+    )
+  )
+    return new Response(
+      "Provider state requires the authenticated parent operation",
+      { status: 410 },
+    );
   const apiKey = env.OPENAI_API_KEY;
   if (!apiKey) {
     return new Response("Server missing OPENAI_API_KEY", { status: 500 });
@@ -35,9 +45,8 @@ async function handle(req: NextRequest, pathSegsParam?: string[]) {
 
   const pathSegs = Array.isArray(pathSegsParam) ? pathSegsParam : [];
   const upstreamPath = pathSegs.join("/");
-  const url = new URL(req.url);
   const upstreamUrl = new URL(`https://api.openai.com/v1/${upstreamPath}`);
-  upstreamUrl.search = url.search; // preserve query
+  upstreamUrl.search = "";
 
   const incomingHeaders = new Headers(req.headers);
   // Build outbound headers
@@ -52,7 +61,7 @@ async function handle(req: NextRequest, pathSegsParam?: string[]) {
   const init: RequestInit = {
     method: req.method,
     headers: outboundHeaders,
-    redirect: "follow",
+    redirect: "error",
   };
   if (req.method !== "GET" && req.method !== "HEAD") {
     const arr = await req.arrayBuffer();

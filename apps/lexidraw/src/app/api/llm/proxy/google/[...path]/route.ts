@@ -27,6 +27,14 @@ async function handle(req: NextRequest, pathSegsParam?: string[]) {
     return new Response("Legacy Google generation proxy is unavailable", {
       status: 410,
     });
+  // Only approved read-only model metadata survives the legacy proxy.
+  if (
+    !new Set(["models", "v1beta/models"]).has((pathSegsParam ?? []).join("/"))
+  )
+    return new Response(
+      "Provider state requires the authenticated parent operation",
+      { status: 410 },
+    );
   const apiKey = env.GOOGLE_API_KEY;
   if (!apiKey) {
     return new Response("Server missing GOOGLE_API_KEY", { status: 500 });
@@ -37,14 +45,13 @@ async function handle(req: NextRequest, pathSegsParam?: string[]) {
   const upstreamPathWithVersion = upstreamPath.startsWith("v")
     ? upstreamPath
     : `v1beta/${upstreamPath}`;
-  const url = new URL(req.url);
 
   // Google Generative AI base URL; the SDK usually hits /v1beta/*
   const upstreamUrl = new URL(
     `https://generativelanguage.googleapis.com/${upstreamPathWithVersion}`,
   );
   // Preserve incoming query, but enforce server key
-  upstreamUrl.search = url.search;
+  upstreamUrl.search = "";
   upstreamUrl.searchParams.set("key", apiKey);
 
   const incomingHeaders = new Headers(req.headers);
@@ -55,7 +62,7 @@ async function handle(req: NextRequest, pathSegsParam?: string[]) {
   const init: RequestInit = {
     method: req.method,
     headers: outboundHeaders,
-    redirect: "follow",
+    redirect: "error",
   };
 
   if (req.method !== "GET" && req.method !== "HEAD") {

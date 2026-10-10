@@ -234,3 +234,26 @@ export const generatedRecordings = sqliteTable(
     ),
   ],
 );
+
+export const proAgentJobs = sqliteTable("pro_agent_jobs", {
+  operationId: text("operation_id")
+    .primaryKey()
+    .notNull()
+    .references(() => proOperations.id),
+  documentId: text("document_id").notNull(),
+  request: text("request").notNull(),
+  report: text("report").notNull(),
+  leaseUntil: integer("lease_until").notNull().default(0),
+});
+export const proAgentEdits = sqliteTable(
+  "pro_agent_edits",
+  {
+    operationId: text("operation_id")
+      .notNull()
+      .references(() => proOperations.id),
+    stepKey: text("step_key").notNull(),
+    inputHash: text("input_hash").notNull(),
+    receipt: text("receipt").notNull(),
+  },
+  (t) => [uniqueIndex("pro_agent_edit_identity").on(t.operationId, t.stepKey)],
+);

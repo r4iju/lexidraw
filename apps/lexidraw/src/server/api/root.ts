@@ -1,3 +1,4 @@
+import { agentPowerRouter } from "~/server/pro/agent-runtime";
 import { deviceNarrationRouter } from "~/server/entities/recording-runtime";
 import { narrationRouter } from "~/server/pro/narration-runtime";
 import { imagePowerRouter } from "~/server/pro/image-runtime";
@@ -34,6 +35,7 @@ export const appRouter = createTRPCRouter({
   deviceNarration: deviceNarrationRouter,
   narration: narrationRouter,
   pro: proRouter,
+  agentPower: agentPowerRouter,
   imagePower: imagePowerRouter,
   embeds: embedRouter,
   auth: authRouter,

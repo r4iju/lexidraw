@@ -94,6 +94,7 @@ function SignedInDeviceNarration({
     onSuccess: () => utils.deviceNarration.saved.invalidate({ documentId }),
   });
   const available = capability.data?.available === true;
+  const { mutateAsync: saveRecording } = save;
   const flow = useMemo(
     () =>
       new DeviceNarration(account, documentId, {
@@ -103,14 +104,14 @@ function SignedInDeviceNarration({
         store: browserNarrationStore,
         sync: async (id, recording) =>
           (
-            await save.mutateAsync({
+            await saveRecording({
               idempotencyKey: id,
               documentId,
               recording,
             })
           ).id,
       }),
-    [account, documentId, available, byok, save.mutateAsync],
+    [account, documentId, available, byok, saveRecording],
   );
   return (
     <div className="space-y-4">

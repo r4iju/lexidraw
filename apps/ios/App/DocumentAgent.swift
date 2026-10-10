@@ -1,0 +1,41 @@
+import LexidrawKit
+import SwiftUI
+struct DocumentAgentComposer:View {
+ let session:Session
+ let document:String
+ @State private var flow:NativeAgentFlow?
+ var body:some View {
+  Group {if let flow {AgentComposerContent(flow:flow)}else{ProgressView("Checking document actions...")}}
+   .task {let value=NativeAgentFlow(session:session,document:document);flow=value;await value.load()}
+ }
+}
+struct AgentComposerContent:View {
+ @Bindable var flow:NativeAgentFlow
+ @State private var prompt=""
+ var body:some View {
+  Form {
+   Section("Pro document action") {
+    Text("One maximum covers planning, decisions, generation and supported paid search. Saved edits remain if work stops. Technical failures return the reservation. A fully completed action is charged; uncertain paid outcomes remain reserved.")
+    Text("Images and sandbox delegation are unavailable. Public Pro is Coming soon.")
+   }
+   switch flow.state {
+   case .loading,.quoting:ProgressView("Checking action...")
+   case .unavailable(let reason),.error(let reason):Text(reason)
+   case .ready:
+    TextField("Describe the edits",text:$prompt,axis:.vertical).accessibilityIdentifier("agent prompt")
+    Button("Review maximum"){Task{await flow.quote(prompt)}}.disabled(prompt.isEmpty)
+   case .quote(_,let quote,_):
+    Text("Maximum reservation: \(Double(quote.maximum)/1_000_000) credits. Final consumption can be lower.")
+    Button("Decline"){flow.decline()}
+    Button("Accept maximum"){Task{await flow.accept()}}
+   case .running:ProgressView("Running document action...")
+   case .result(let result):
+    Text("Action: \(result.report.status). Charged \(Double(result.operation.charged)/1_000_000) credits.")
+    if let reason=result.report.reason{Text(reason)}
+    Section("Saved edits"){if result.report.completed.isEmpty{Text("No edits saved.")}else{ForEach(Array(result.report.completed.enumerated()),id:\.offset){_,edit in Text(edit.description)}}}
+    Section("Incomplete edits"){if result.report.incomplete.isEmpty{Text("No incomplete edits.")}else{ForEach(Array(result.report.incomplete.enumerated()),id:\.offset){_,edit in Text(edit)}}}
+    if ["reserved","running","unknown"].contains(result.operation.state){Button("Refresh status"){Task{await flow.refresh()}};Button("Stop further work"){Task{await flow.cancel()}}}else{Button("New action"){flow.decline()}}
+   }
+  }
+ }
+}

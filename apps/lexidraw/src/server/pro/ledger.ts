@@ -1,3 +1,11 @@
+import {
+  AgentBook,
+  AgentInput,
+  AgentCompletion,
+  Report,
+  agentCharge,
+  type Phase,
+} from "~/lib/agent/contracts";
 import { audioSeconds } from "./narration-audio";
 import {
   NARRATION_BOOK,
@@ -353,9 +361,15 @@ export class ProLedger {
     account: string,
     key: string,
     inputHash: string,
-    feature: "text" | "autocomplete" | "image" | "narration" = "text",
+    feature: "text" | "autocomplete" | "image" | "narration" | "agent" = "text",
     imageSnapshot?: unknown,
   ) {
+    const agent =
+      feature === "agent"
+        ? z
+            .strictObject({ book: AgentBook, input: AgentInput })
+            .parse(imageSnapshot)
+        : undefined;
     const narration =
       feature === "narration"
         ? NarrationReservation.parse(imageSnapshot)
@@ -363,6 +377,7 @@ export class ProLedger {
     const imageBook =
       feature === "image" ? ImagePricebook.parse(imageSnapshot) : undefined;
     const quote =
+      agent?.book.quote ??
       narration?.quote ??
       imageBook?.quote ??
       (feature === "autocomplete" ? AUTOCOMPLETE_QUOTE : TEXT_QUOTE);
@@ -390,6 +405,24 @@ export class ProLedger {
         })
       ).rows[0];
       if (!period) throw new ProError("Private entitlement required");
+      if (agent) {
+        const pinned = (
+          await tx.execute({
+            sql: "SELECT pricebook FROM pro_operations WHERE period_id=? AND feature='agent' LIMIT 1",
+            args: [period.id ?? ""],
+          })
+        ).rows[0];
+        if (pinned && String(pinned.pricebook) !== JSON.stringify(agent.book))
+          throw new ProError("Agent rate snapshot is pinned for this period");
+        const active = (
+          await tx.execute({
+            sql: "SELECT id FROM pro_operations WHERE account_id=? AND feature='agent' AND state IN ('reserved','running','unknown')",
+            args: [account],
+          })
+        ).rows;
+        if (active.length)
+          throw new ProError("Agent is still running or reconciling");
+      }
       if (imageBook) {
         const pinned = (
           await tx.execute({
@@ -460,15 +493,31 @@ export class ProLedger {
           inputHash,
           feature,
           quote,
-          narration
-            ? JSON.stringify(narration.book)
-            : imageBook
-              ? JSON.stringify(imageBook)
-              : String(period.pricebook),
+          agent
+            ? JSON.stringify(agent.book)
+            : narration
+              ? JSON.stringify(narration.book)
+              : imageBook
+                ? JSON.stringify(imageBook)
+                : String(period.pricebook),
           TRIAL_POLICY.version,
           this.config.now(),
         ],
       });
+      if (agent)
+        await tx.execute({
+          sql: "INSERT INTO pro_agent_jobs(operation_id,document_id,request,report) VALUES (?,?,?,?)",
+          args: [
+            id,
+            agent.input.documentId,
+            JSON.stringify(agent.input),
+            JSON.stringify({
+              status: "pending",
+              completed: [],
+              incomplete: [agent.input.prompt.slice(0, 200)],
+            }),
+          ],
+        });
       if (narration)
         await tx.execute({
           sql: "INSERT INTO pro_narration_jobs VALUES (?,?,?)",
@@ -524,7 +573,13 @@ export class ProLedger {
     outcome:
       | { kind: "completed"; text: string; usage: Usage }
       | { kind: "image_completed"; completion: ImageCompletion }
-      | { kind: "technical_failure" | "cancelled" | "narration_completed" },
+      | {
+          kind:
+            | "technical_failure"
+            | "cancelled"
+            | "narration_completed"
+            | "agent_completed";
+        },
     reconciled = false,
   ) {
     return this.write(async (tx) => {
@@ -556,23 +611,27 @@ export class ProLedger {
         op.feature === "narration"
           ? await this.narrationEvidence(tx, op)
           : undefined;
+      const agent =
+        op.feature === "agent" ? await this.agentEvidence(tx, op) : undefined;
       const completion =
-        completed && op.feature !== "narration"
+        completed && op.feature !== "narration" && op.feature !== "agent"
           ? (op.feature === "image" ? ImageCompletion : Completion).parse(
               JSON.parse(String(completed.result)),
             )
           : undefined;
-      const resolved = narration?.complete
-        ? { kind: "narration_completed" as const }
-        : completion
-          ? "kind" in completion
-            ? { kind: "image_completed" as const, completion }
-            : {
-                kind: "completed" as const,
-                text: completion.text,
-                usage: completion.usage,
-              }
-          : outcome;
+      const resolved = agent?.complete
+        ? { kind: "agent_completed" as const }
+        : narration?.complete
+          ? { kind: "narration_completed" as const }
+          : completion
+            ? "kind" in completion
+              ? { kind: "image_completed" as const, completion }
+              : {
+                  kind: "completed" as const,
+                  text: completion.text,
+                  usage: completion.usage,
+                }
+            : outcome;
       if (
         (resolved.kind === "image_completed") !== (op.feature === "image") &&
         ["completed", "image_completed"].includes(resolved.kind)
@@ -583,21 +642,33 @@ export class ProLedger {
         ["completed", "image_completed"].includes(resolved.kind)
       )
         throw new ProError("Completion modality mismatch");
+      if (
+        op.feature === "agent" &&
+        ["completed", "image_completed", "narration_completed"].includes(
+          resolved.kind,
+        )
+      )
+        throw new ProError("Agent completion evidence required");
+      if (resolved.kind === "agent_completed" && !agent?.complete)
+        throw new ProError("Incomplete agent cannot settle");
       if (resolved.kind === "image_completed")
         validateImagePixels(validateImage(resolved.completion.image).bytes);
       if (resolved.kind === "narration_completed" && !narration?.complete)
         throw new ProError("Incomplete narration cannot settle");
       const charge =
-        resolved.kind === "narration_completed"
-          ? (narration?.charge ?? 0)
-          : resolved.kind === "image_completed"
-            ? imageCharge(resolved.completion.usage, JSON.parse(op.pricebook))
-            : resolved.kind === "completed"
-              ? referenceCharge(resolved.usage, JSON.parse(op.pricebook))
-              : 0;
+        resolved.kind === "agent_completed"
+          ? (agent?.charge ?? 0)
+          : resolved.kind === "narration_completed"
+            ? (narration?.charge ?? 0)
+            : resolved.kind === "image_completed"
+              ? imageCharge(resolved.completion.usage, JSON.parse(op.pricebook))
+              : resolved.kind === "completed"
+                ? referenceCharge(resolved.usage, JSON.parse(op.pricebook))
+                : 0;
       if (charge > op.quote)
         throw new ProError("Settlement exceeds accepted quote");
       const state =
+        resolved.kind === "agent_completed" ||
         resolved.kind === "completed" ||
         resolved.kind === "image_completed" ||
         resolved.kind === "narration_completed"
@@ -618,13 +689,15 @@ export class ProLedger {
         args: [
           state,
           charge,
-          resolved.kind === "narration_completed"
-            ? JSON.stringify(narration?.attemptIds)
-            : resolved.kind === "image_completed"
-              ? JSON.stringify(resolved.completion.image)
-              : resolved.kind === "completed"
-                ? resolved.text
-                : null,
+          op.feature === "agent"
+            ? JSON.stringify(agent?.report)
+            : resolved.kind === "narration_completed"
+              ? JSON.stringify(narration?.attemptIds)
+              : resolved.kind === "image_completed"
+                ? JSON.stringify(resolved.completion.image)
+                : resolved.kind === "completed"
+                  ? resolved.text
+                  : null,
           id,
         ],
       });
@@ -653,6 +726,270 @@ export class ProLedger {
         ).rows[0],
       );
     });
+  }
+  async agentJob(account: string, id: string) {
+    const operation = await this.operation(account, id);
+    if (operation.feature !== "agent")
+      throw new ProError("Agent operation required");
+    const row = (
+      await this.query("SELECT * FROM pro_agent_jobs WHERE operation_id=?", [
+        id,
+      ])
+    )[0];
+    return {
+      operation,
+      input: AgentInput.parse(JSON.parse(String(row?.request))),
+      report: Report.parse(JSON.parse(String(row?.report))),
+    };
+  }
+  async recoverAgent(account: string, id: string) {
+    await this.operation(account, id);
+    const verdict = await this.write(async (tx) => {
+      const op = Operation.parse(
+        (
+          await tx.execute({
+            sql: "SELECT * FROM pro_operations WHERE id=? AND account_id=?",
+            args: [id, account],
+          })
+        ).rows[0],
+      );
+      if (
+        op.feature !== "agent" ||
+        !["reserved", "running", "unknown"].includes(op.state)
+      )
+        return "active";
+      const evidence = await this.agentEvidence(tx, op);
+      if (evidence.complete) return "complete";
+      const row = (
+        await tx.execute({
+          sql: "SELECT lease_until FROM pro_agent_jobs WHERE operation_id=?",
+          args: [id],
+        })
+      ).rows[0];
+      if (
+        Number(row?.lease_until ?? 0) <= 0 ||
+        Number(row?.lease_until) > this.config.now()
+      )
+        return "active";
+      const attempts = (
+        await tx.execute({
+          sql: "SELECT * FROM pro_attempts WHERE operation_id=? AND state IN ('started','unknown')",
+          args: [id],
+        })
+      ).rows;
+      const report = evidence.report;
+      report.status = attempts.length
+        ? "reconciling"
+        : op.cancel_requested
+          ? "cancelled"
+          : "failed";
+      report.reason = attempts.length
+        ? "Interrupted paid work requires owner reconciliation. Saved edits remain."
+        : "Interrupted action stopped. Saved edits remain.";
+      await tx.execute({
+        sql: "UPDATE pro_agent_jobs SET report=? WHERE operation_id=?",
+        args: [JSON.stringify(report), id],
+      });
+      if (attempts.length) {
+        await tx.execute({
+          sql: "UPDATE pro_attempts SET state='unknown' WHERE operation_id=? AND state='started'",
+          args: [id],
+        });
+        await tx.execute({
+          sql: "UPDATE pro_operations SET state='unknown' WHERE id=?",
+          args: [id],
+        });
+        return "active";
+      }
+      return op.cancel_requested ? "cancelled" : "failed";
+    });
+    if (verdict !== "active")
+      await this.settle(id, {
+        kind:
+          verdict === "complete"
+            ? "agent_completed"
+            : verdict === "cancelled"
+              ? "cancelled"
+              : "technical_failure",
+      });
+  }
+  async reconcileAgentStep(
+    actor: string,
+    id: string,
+    attemptId: string,
+    value: unknown,
+    evidence: string,
+  ) {
+    this.owner(actor);
+    this.reason(evidence);
+    const completion = AgentCompletion.parse(value);
+    await this.write(async (tx) => {
+      const op = Operation.parse(
+        (
+          await tx.execute({
+            sql: "SELECT * FROM pro_operations WHERE id=?",
+            args: [id],
+          })
+        ).rows[0],
+      );
+      const a = (
+        await tx.execute({
+          sql: "SELECT * FROM pro_attempts WHERE id=? AND operation_id=?",
+          args: [attemptId, id],
+        })
+      ).rows[0];
+      if (
+        op.feature !== "agent" ||
+        !a ||
+        !["started", "unknown"].includes(String(a.state)) ||
+        !["running", "unknown"].includes(op.state)
+      )
+        throw new ProError("Unresolved agent step required");
+      if (
+        completion.phase !== JSON.parse(String(a.chunk_hash)).phase ||
+        completion.actualCostNanoUsd === undefined ||
+        completion.actualCostNanoUsd > Number(a.exposure_nano_usd)
+      )
+        throw new ProError("Agent reconciliation exceeds bound");
+      await tx.execute({
+        sql: "UPDATE pro_attempts SET state='completed',result=?,usage=?,cost_nano_usd=? WHERE id=?",
+        args: [
+          JSON.stringify(completion),
+          JSON.stringify(completion.usage),
+          completion.actualCostNanoUsd,
+          attemptId,
+        ],
+      });
+      await this.auditWrite(
+        tx,
+        actor,
+        op.account_id,
+        "agent_step_reconciled",
+        `${attemptId}: ${evidence}`,
+      );
+    });
+  }
+  async agentLease(account: string, id: string) {
+    await this.operation(account, id);
+    return this.write(
+      async (tx) =>
+        (
+          await tx.execute({
+            sql: "UPDATE pro_agent_jobs SET lease_until=? WHERE operation_id=? AND lease_until<=? AND EXISTS (SELECT 1 FROM pro_operations WHERE id=? AND state IN ('reserved','running') AND cancel_requested=0)",
+            args: [this.config.now() + 125000, id, this.config.now(), id],
+          })
+        ).rowsAffected === 1,
+    );
+  }
+  async agentReport(account: string, id: string, report: unknown) {
+    await this.operation(account, id);
+    const parsed = Report.parse(report);
+    await this.write(async (tx) => {
+      const row = (
+        await tx.execute({
+          sql: "SELECT report,request FROM pro_agent_jobs WHERE operation_id=?",
+          args: [id],
+        })
+      ).rows[0];
+      if (Report.parse(JSON.parse(String(row?.report))).status === "complete")
+        return;
+      const receipts = (
+        await tx.execute({
+          sql: "SELECT receipt FROM pro_agent_edits WHERE operation_id=?",
+          args: [id],
+        })
+      ).rows;
+      if (receipts.length) {
+        parsed.completed = receipts
+          .map((r) =>
+            z
+              .object({ revision: z.number(), description: z.string() })
+              .parse(JSON.parse(String(r.receipt))),
+          )
+          .sort((a, b) => a.revision - b.revision);
+        const plan = (
+          await tx.execute({
+            sql: "SELECT result FROM pro_attempts WHERE operation_id=? AND state='completed' ORDER BY number LIMIT 1",
+            args: [id],
+          })
+        ).rows[0];
+        const intended = plan
+          ? z
+              .object({ output: z.object({ edits: z.array(z.string()) }) })
+              .safeParse(JSON.parse(String(plan.result)))
+          : undefined;
+        parsed.incomplete = (
+          intended?.success
+            ? intended.data.output.edits
+            : [
+                AgentInput.parse(JSON.parse(String(row?.request))).prompt.slice(
+                  0,
+                  200,
+                ),
+              ]
+        ).slice(parsed.completed.length);
+      }
+      await tx.execute({
+        sql: "UPDATE pro_agent_jobs SET report=? WHERE operation_id=?",
+        args: [JSON.stringify(parsed), id],
+      });
+    });
+  }
+  async agentEvidence(tx: Transaction, op: Operation) {
+    const row = (
+      await tx.execute({
+        sql: "SELECT report FROM pro_agent_jobs WHERE operation_id=?",
+        args: [op.id],
+      })
+    ).rows[0];
+    const report = Report.parse(JSON.parse(String(row?.report)));
+    const attempts = (
+      await tx.execute({
+        sql: "SELECT * FROM pro_attempts WHERE operation_id=? ORDER BY number",
+        args: [op.id],
+      })
+    ).rows;
+    const book = AgentBook.parse(JSON.parse(op.pricebook));
+    const completions = attempts
+      .filter((a) => a.state === "completed")
+      .map((a) => AgentCompletion.parse(JSON.parse(String(a.result))));
+    const last = completions.at(-1);
+    const plan = completions.find((c) => c.phase === "plan");
+    const intended = plan
+      ? z.object({ edits: z.array(z.string()).min(1) }).parse(plan.output).edits
+      : [];
+    const done =
+      last?.phase === "decision" &&
+      z.object({ kind: z.literal("done") }).safeParse(last.output).success;
+    const complete =
+      !!done &&
+      intended.length > 0 &&
+      report.completed.length >= intended.length;
+    if (report.status === "complete" && !complete)
+      throw new ProError("Complete agent evidence required");
+    if (complete && report.status !== "complete") {
+      report.status = "complete";
+      report.incomplete = [];
+      delete report.reason;
+      await tx.execute({
+        sql: "UPDATE pro_agent_jobs SET report=? WHERE operation_id=?",
+        args: [JSON.stringify(report), op.id],
+      });
+    }
+    const charge = Math.ceil(
+      attempts
+        .filter((a) => a.state === "completed")
+        .reduce(
+          (sum, a) =>
+            sum +
+            agentCharge(
+              AgentCompletion.parse(JSON.parse(String(a.result))),
+              book,
+            ),
+          0,
+        ),
+    );
+    return { complete, charge, report };
   }
   async reconcileNarrationPart(
     actor: string,
@@ -829,10 +1166,36 @@ export class ProLedger {
         op.feature === "image"
           ? ImagePricebook.parse(JSON.parse(op.pricebook))
           : undefined;
+      const agentBook =
+        op.feature === "agent"
+          ? AgentBook.parse(JSON.parse(op.pricebook))
+          : undefined;
+      const agentStep = agentBook
+        ? z
+            .strictObject({
+              key: z.string().max(100),
+              phase: z.enum([
+                "plan",
+                "decision",
+                "generation",
+                "search",
+                "image",
+              ]),
+              hash: z.string().length(64),
+            })
+            .parse(JSON.parse(chunkHash ?? "null"))
+        : undefined;
       const isNarration = op.feature === "narration";
-      const exposure = isNarration
-        ? CHUNK_MAXIMUM * 3
-        : (imageBook?.maximumNanoUsd ?? MAX_ATTEMPT_NANO_USD);
+      const exposure =
+        agentBook && agentStep
+          ? agentStep.phase === "image"
+            ? (agentBook.image?.maximumNanoUsd ?? 0)
+            : agentStep.phase === "search"
+              ? agentBook.searchMaximumNanoUsd
+              : agentBook.textMaximumNanoUsd
+          : isNarration
+            ? CHUNK_MAXIMUM * 3
+            : (imageBook?.maximumNanoUsd ?? MAX_ATTEMPT_NANO_USD);
       if (isNarration) {
         const plan = NarrationPlan.parse(
           JSON.parse(
@@ -851,7 +1214,8 @@ export class ProLedger {
           !plan.some((p) => p.hash === chunkHash && !p.cachedAttempt)
         )
           throw new ProError("Unknown narration chunk");
-      } else if (chunkHash) throw new ProError("Narration chunk required");
+      } else if (chunkHash && !agentBook)
+        throw new ProError("Narration chunk required");
       const access = (
         await tx.execute({
           sql: "SELECT active FROM pro_eligibility WHERE account_id=?",
@@ -863,9 +1227,10 @@ export class ProLedger {
         op.cancel_requested ||
         access?.active !== 1 ||
         this.config.now() - op.created_at >=
-          (isNarration
-            ? NARRATION_BOOK.maxElapsedMs
-            : (imageBook?.maxElapsedMs ?? PRICEBOOK.maxElapsedMs))
+          (agentBook?.maxElapsedMs ??
+            (isNarration
+              ? NARRATION_BOOK.maxElapsedMs
+              : (imageBook?.maxElapsedMs ?? PRICEBOOK.maxElapsedMs)))
       )
         throw new ProError("Paid steps stopped");
       const attempts = (
@@ -876,17 +1241,54 @@ export class ProLedger {
       ).rows;
       if (
         attempts.length >=
-          (isNarration
-            ? NARRATION_BOOK.maxAttempts
-            : (imageBook?.maxAttempts ??
-              (op.feature === "autocomplete" ? 1 : PRICEBOOK.maxAttempts))) ||
-        (isNarration
+          (agentBook?.maxAttempts ??
+            (isNarration
+              ? NARRATION_BOOK.maxAttempts
+              : (imageBook?.maxAttempts ??
+                (op.feature === "autocomplete"
+                  ? 1
+                  : PRICEBOOK.maxAttempts)))) ||
+        (agentBook
           ? attempts.some(
               (a) => a.state !== "completed" || a.chunk_hash === chunkHash,
             )
-          : attempts.some((a) => a.state !== "failed"))
+          : isNarration
+            ? attempts.some(
+                (a) => a.state !== "completed" || a.chunk_hash === chunkHash,
+              )
+            : attempts.some((a) => a.state !== "failed"))
       )
         throw new ProError("Attempt limit or unresolved outcome");
+      if (agentBook && agentStep) {
+        const steps = attempts.map(
+          (a) => JSON.parse(String(a.chunk_hash)) as { phase: Phase },
+        );
+        const count = steps.filter((s) =>
+          agentStep.phase === "search" || agentStep.phase === "image"
+            ? s.phase === agentStep.phase
+            : !["search", "image"].includes(s.phase),
+        ).length;
+        if (
+          !exposure ||
+          count >=
+            (agentStep.phase === "search"
+              ? agentBook.maxSearchSteps
+              : agentStep.phase === "image"
+                ? agentBook.maxImageSteps
+                : agentBook.maxTextSteps) ||
+          steps.reduce(
+            (sum, s) =>
+              sum +
+              (s.phase === "image"
+                ? (agentBook.image?.maximumNanoUsd ?? 0)
+                : s.phase === "search"
+                  ? agentBook.searchMaximumNanoUsd
+                  : agentBook.textMaximumNanoUsd),
+            exposure,
+          ) > agentBook.maximumNanoUsd
+        )
+          throw new ProError("Action cap exhausted");
+      }
       const accountSpend = (
         await tx.execute({
           sql: "SELECT SUM(COALESCE(a.cost_nano_usd,a.exposure_nano_usd)) AS spend FROM pro_attempts a JOIN pro_operations o ON o.id=a.operation_id WHERE o.account_id=? AND o.period_id=?",
@@ -923,19 +1325,21 @@ export class ProLedger {
         throw new ProError("Provider spend circuit open");
       const attempt = crypto.randomUUID();
       await tx.execute({
-        sql: isNarration
-          ? "INSERT INTO pro_attempts(id,operation_id,number,state,exposure_nano_usd,created_at,chunk_hash) VALUES (?,?,?,'started',?,?,?)"
-          : "INSERT INTO pro_attempts(id,operation_id,number,state,exposure_nano_usd,created_at) VALUES (?,?,?,'started',?,?)",
-        args: isNarration
-          ? [
-              attempt,
-              id,
-              attempts.length + 1,
-              exposure,
-              this.config.now(),
-              chunkHash ?? null,
-            ]
-          : [attempt, id, attempts.length + 1, exposure, this.config.now()],
+        sql:
+          isNarration || agentBook
+            ? "INSERT INTO pro_attempts(id,operation_id,number,state,exposure_nano_usd,created_at,chunk_hash) VALUES (?,?,?,'started',?,?,?)"
+            : "INSERT INTO pro_attempts(id,operation_id,number,state,exposure_nano_usd,created_at) VALUES (?,?,?,'started',?,?)",
+        args:
+          isNarration || agentBook
+            ? [
+                attempt,
+                id,
+                attempts.length + 1,
+                exposure,
+                this.config.now(),
+                chunkHash ?? null,
+              ]
+            : [attempt, id, attempts.length + 1, exposure, this.config.now()],
       });
       return attempt;
     });
@@ -945,7 +1349,11 @@ export class ProLedger {
     outcome:
       | {
           kind: "completed";
-          completion: Completion | ImageCompletion | NarrationPart;
+          completion:
+            | Completion
+            | ImageCompletion
+            | NarrationPart
+            | AgentCompletion;
         }
       | { kind: "failed" | "unknown"; actualCostNanoUsd?: number },
   ) {
@@ -966,7 +1374,7 @@ export class ProLedger {
       if (
         attempt.state !== "started" &&
         !(
-          operation?.feature === "narration" &&
+          ["narration", "agent"].includes(String(operation?.feature)) &&
           attempt.state === "unknown" &&
           outcome.kind === "completed"
         )
@@ -974,16 +1382,19 @@ export class ProLedger {
         return;
       const completed =
         outcome.kind === "completed"
-          ? (operation?.feature === "narration"
-              ? NarrationPart
-              : operation?.feature === "image"
-                ? ImageCompletion
-                : Completion
+          ? (operation?.feature === "agent"
+              ? AgentCompletion
+              : operation?.feature === "narration"
+                ? NarrationPart
+                : operation?.feature === "image"
+                  ? ImageCompletion
+                  : Completion
             ).parse(outcome.completion)
           : undefined;
       if (
         completed &&
         "kind" in completed &&
+        completed.kind !== "agent" &&
         completed.kind !== "narration_part"
       ) {
         validateImage(completed.image);
@@ -995,6 +1406,21 @@ export class ProLedger {
         completed.kind === "narration_part"
       )
         audioSeconds(completed);
+      if (
+        completed &&
+        "kind" in completed &&
+        completed.kind === "agent" &&
+        completed.phase !== JSON.parse(String(attempt.chunk_hash)).phase
+      )
+        throw new ProError("Agent step modality mismatch");
+      if (
+        completed &&
+        "kind" in completed &&
+        completed.kind === "agent" &&
+        completed.estimatedCostNanoUsd !== undefined &&
+        completed.estimatedCostNanoUsd > Number(attempt.exposure_nano_usd)
+      )
+        throw new ProError("Estimated supplier spend exceeds bound");
       const cost =
         completed?.actualCostNanoUsd ??
         (outcome.kind !== "completed" ? outcome.actualCostNanoUsd : undefined);
@@ -1015,7 +1441,10 @@ export class ProLedger {
           id,
         ],
       });
-      if (operation?.feature === "narration" && outcome.kind === "completed")
+      if (
+        ["narration", "agent"].includes(String(operation?.feature)) &&
+        outcome.kind === "completed"
+      )
         await tx.execute({
           sql: "UPDATE pro_operations SET state='running' WHERE id=? AND state='unknown' AND NOT EXISTS (SELECT 1 FROM pro_attempts WHERE operation_id=? AND state IN ('started','unknown'))",
           args: [attempt.operation_id ?? "", attempt.operation_id ?? ""],

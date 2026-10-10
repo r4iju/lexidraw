@@ -71,6 +71,7 @@ targets:
       - App/DocumentView.swift
       - App/DocumentSuggestions.swift
       - App/DocumentImages.swift
+      - App/DocumentAgent.swift
       - App/MediaCaptionEditor.swift
       - App/DocumentTypography.swift
       - App/Loaded.swift
