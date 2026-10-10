@@ -42,7 +42,9 @@ struct BrowserHarnessApp: App {
       Group {
         switch model.state {
         case .signedIn(let session):
-          if BrowserScenario.name == "agent" {
+          if BrowserScenario.name == "device-agent" {
+            DeviceAgentFixtureScreen(session: session)
+          } else if BrowserScenario.name == "agent" {
             AgentFixtureScreen(session: session)
           } else if BrowserScenario.name == "device-narration" {
             DeviceNarrationFixtureScreen(session: session)
@@ -165,6 +167,16 @@ actor HarnessServer: ClientTransport {
   func send(_ request: HTTPRequest, body: HTTPBody?, baseURL: URL, operationID: String) async throws
     -> (HTTPResponse, HTTPBody?)
   {
+    if scenario == "device-agent", operationID.hasPrefix("deviceAgent.") || operationID == "pro.status" {
+      var forwarded = URLRequest(url: URL(string: "http://127.0.0.1:3088/api/trpc" + (request.path ?? ""))!)
+      forwarded.httpMethod = request.method.rawValue
+      forwarded.setValue("application/json", forHTTPHeaderField: "Content-Type")
+      if let body { forwarded.httpBody = try await Data(collecting: body, upTo: 4 << 20) }
+      try NativeCredentialGuard.shared.check(forwarded, body: forwarded.httpBody ?? Data())
+      let (data, response) = try await URLSession.shared.data(for: forwarded)
+      guard let response = response as? HTTPURLResponse else { throw NativeAIError.unavailable }
+      return (HTTPResponse(status: .init(code: response.statusCode)), HTTPBody(data))
+    }
     if scenario == "agent", operationID.hasPrefix("agentPower.") || operationID == "pro.status" {
       var forwarded=URLRequest(url:URL(string:"http://127.0.0.1:3087/api/trpc"+(request.path ?? ""))!)
       forwarded.httpMethod=request.method.rawValue

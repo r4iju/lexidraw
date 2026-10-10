@@ -55,8 +55,24 @@ export const browserNarrationStore = {
       db.close();
     }
   },
-  async clear(scope: string) {
-    await transact("readwrite", (s) => s.delete(scope));
+  async clear(scope: string, expected?: string | null) {
+    const db = await open();
+    try {
+      await new Promise<void>((resolve, reject) => {
+        const tx = db.transaction("checkpoints", "readwrite"),
+          store = tx.objectStore("checkpoints"),
+          request = store.get(scope);
+        request.onsuccess = () => {
+          if (expected === undefined || (request.result ?? null) === expected)
+            store.delete(scope);
+        };
+        tx.oncomplete = () => resolve();
+        tx.onerror = tx.onabort = () =>
+          reject(new Error("Local checkpoint cleanup failed"));
+      });
+    } finally {
+      db.close();
+    }
   },
 };
 const active = new Map<string, Set<() => Promise<void>>>();

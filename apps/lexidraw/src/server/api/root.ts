@@ -1,3 +1,4 @@
+import { deviceAgentRouter } from "~/server/entities/device-agent-runtime";
 import { agentPowerRouter } from "~/server/pro/agent-runtime";
 import { deviceNarrationRouter } from "~/server/entities/recording-runtime";
 import { narrationRouter } from "~/server/pro/narration-runtime";
@@ -32,6 +33,7 @@ import { nativeSignInRouter } from "./routers/native-sign-in";
 import { embedRouter } from "./routers/embeds";
 
 export const appRouter = createTRPCRouter({
+  deviceAgent: deviceAgentRouter,
   deviceNarration: deviceNarrationRouter,
   narration: narrationRouter,
   pro: proRouter,

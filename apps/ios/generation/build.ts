@@ -9,7 +9,13 @@ if (!build.success || build.outputs.length !== 1)
 const artifact = build.outputs[0];
 if (!artifact) throw new Error("Missing native generation bundle");
 const script = await artifact.text();
-if (/\b(?:fetch|XMLHttpRequest|console|process|require)\b/.test(script))
+// Hash compression methods and schema export keys named process are inert in JavaScriptCore.
+// Reject the Node global object and all networking, console and module globals.
+if (
+  /\b(?:fetch|XMLHttpRequest|console|require)\b|(?<!\.)\bprocess\b(?!\s*[:(])/.test(
+    script,
+  )
+)
   throw new Error("Unexpected native generation capability");
 await Bun.write(
   new URL(

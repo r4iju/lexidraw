@@ -74,3 +74,62 @@ Object.assign(globalThis, {
     });
   },
 });
+
+import {
+  deviceAgentStart,
+  deviceAgentRequest,
+  deviceAgentFence,
+  deviceAgentOutput,
+  deviceAgentImage,
+  deviceAgentReceipt,
+  deviceAgentRestore,
+  AgentCheckpoint,
+} from "../../lexidraw/src/lib/agent/device-core";
+Object.assign(globalThis, {
+  nativeAgentStart(
+    account: string,
+    document: string,
+    id: string,
+    now: number,
+    prompt: string,
+    source: string,
+  ) {
+    return JSON.stringify(
+      deviceAgentStart(account, document, id, now, prompt, JSON.parse(source)),
+    );
+  },
+  nativeAgentRequest(state: string) {
+    return JSON.stringify(
+      deviceAgentRequest(AgentCheckpoint.parse(JSON.parse(state))),
+    );
+  },
+  nativeAgentFence(state: string, now: number) {
+    return JSON.stringify(
+      deviceAgentFence(AgentCheckpoint.parse(JSON.parse(state)), now),
+    );
+  },
+  nativeAgentOutput(state: string, output: string) {
+    return JSON.stringify(
+      deviceAgentOutput(AgentCheckpoint.parse(JSON.parse(state)), output),
+    );
+  },
+  nativeAgentImage(state: string, image: string) {
+    return JSON.stringify(
+      deviceAgentImage(
+        AgentCheckpoint.parse(JSON.parse(state)),
+        JSON.parse(image),
+      ),
+    );
+  },
+  nativeAgentReceipt(state: string, receipt: string) {
+    return JSON.stringify(
+      deviceAgentReceipt(
+        AgentCheckpoint.parse(JSON.parse(state)),
+        JSON.parse(receipt),
+      ),
+    );
+  },
+  nativeAgentRestore(state: string) {
+    return JSON.stringify(deviceAgentRestore(JSON.parse(state)));
+  },
+});

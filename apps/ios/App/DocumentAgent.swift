@@ -1,12 +1,26 @@
 import LexidrawKit
 import SwiftUI
-struct DocumentAgentComposer:View {
- let session:Session
- let document:String
- @State private var flow:NativeAgentFlow?
- var body:some View {
-  Group {if let flow {AgentComposerContent(flow:flow)}else{ProgressView("Checking document actions...")}}
-   .task {let value=NativeAgentFlow(session:session,document:document);flow=value;await value.load()}
+struct DocumentAgentComposer: View {
+ let session: Session
+ let document: String
+ private enum PowerState { case loading, ready(AIPowerPreference), failed }
+ @State private var power: PowerState = .loading
+ @State private var flow: NativeAgentFlow?
+ var body: some View {
+  Group {
+   switch power {
+   case .loading: ProgressView("Checking AI power...")
+   case .failed: Text("Could not check AI power.")
+   case .ready(.byok): DeviceAgentComposer(session: session, document: document)
+   case .ready(.local): Text("Document actions are unavailable with built-in local AI.")
+   case .ready(.pro): if let flow { AgentComposerContent(flow: flow) } else { ProgressView("Checking document actions...") }
+   }
+  }.task {
+   do {
+    let selected = try await session.powerPreference(); power = .ready(selected)
+    if selected == .pro { let value = NativeAgentFlow(session: session, document: document); flow = value; await value.load() }
+   } catch { power = .failed }
+  }
  }
 }
 struct AgentComposerContent:View {

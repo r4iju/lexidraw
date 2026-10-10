@@ -1,4 +1,5 @@
 "use client";
+import { DeviceAgentPanel } from "~/lib/agent/device-panel";
 import { useState } from "react";
 import { api } from "~/trpc/react";
 import { AgentActionView, type AgentViewState } from "~/lib/agent/action-view";
@@ -14,6 +15,16 @@ type Activity =
   | { kind: "result"; result: Result }
   | { kind: "error"; reason: string };
 export function DocumentAgent({ documentId }: { documentId: string }) {
+  const power = api.auth.getPowerPreference.useQuery();
+  if (power.isPending) return <p>Checking AI power...</p>;
+  if (power.isError) return <p>Could not check AI power.</p>;
+  if (power.data.mode === "byok")
+    return <DeviceAgentPanel documentId={documentId} />;
+  if (power.data.mode !== "pro")
+    return <p>Document actions are unavailable with built-in local AI.</p>;
+  return <ProDocumentAgent documentId={documentId} />;
+}
+function ProDocumentAgent({ documentId }: { documentId: string }) {
   const utils = api.useUtils();
   const [activity, setActivity] = useState<Activity>({
     kind: "ready",

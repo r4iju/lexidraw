@@ -1,0 +1,261 @@
+import type { createByokSession } from "../byok/session";
+import {
+  AgentCheckpoint,
+  DeviceMutation,
+  deviceAgentStart,
+  deviceAgentFence,
+  deviceAgentOutput,
+  deviceAgentImage,
+  deviceAgentReceipt,
+  deviceAgentRestore,
+  DEVICE_AGENT_CONFIG,
+} from "./device-core";
+export type DeviceAgentPorts = {
+  account: () => string | undefined;
+  session?: () => unknown;
+  available: () => boolean;
+  images?: () => boolean;
+  byok: ReturnType<typeof createByokSession>;
+  store: {
+    load(scope: string): Promise<string | null>;
+    save(
+      scope: string,
+      data: string,
+      expected: string | null,
+    ): Promise<boolean>;
+    clear(scope: string, expected?: string | null): Promise<void>;
+  };
+  read: () => Promise<unknown>;
+  apply: (data: DeviceMutation) => Promise<unknown>;
+};
+export class DeviceAgent {
+  private current: AgentCheckpoint | null = null;
+  private persisted: string | null = null;
+  private busy = false;
+  private ended = false;
+  private stopped = false;
+  private starting = false;
+  private listeners = new Set<() => void>();
+  private readonly session: unknown;
+  constructor(
+    readonly account: string,
+    readonly documentId: string,
+    private ports: DeviceAgentPorts,
+  ) {
+    this.session = ports.session?.();
+  }
+  private get scope() {
+    return JSON.stringify([this.account, this.documentId, DEVICE_AGENT_CONFIG]);
+  }
+  state = () => this.current;
+  subscribe = (listener: () => void) => {
+    this.listeners.add(listener);
+    return () => {
+      this.listeners.delete(listener);
+    };
+  };
+  private active() {
+    if (
+      this.ports.account() !== this.account ||
+      this.ports.session?.() !== this.session
+    ) {
+      this.ended = true;
+      this.current = null;
+      void this.ports.store.clear(this.scope, this.persisted).catch(() => {});
+    }
+    if (this.ended) throw new Error("Account session ended");
+  }
+  private async persist(value: AgentCheckpoint) {
+    this.active();
+    const next = AgentCheckpoint.parse({
+      ...value,
+      fingerprints: this.ports.byok.fingerprints(),
+    });
+    if (next.account !== this.account || next.documentId !== this.documentId)
+      throw new Error("Scope mismatch");
+    const data = JSON.stringify(next);
+    this.ports.byok.assertEgress(data);
+    if (!(await this.ports.store.save(this.scope, data, this.persisted)))
+      throw new Error("Local action changed. Restore before continuing.");
+    this.persisted = data;
+    try {
+      this.active();
+    } catch {
+      await this.ports.store.clear(this.scope, data);
+      throw new Error("Account session ended");
+    }
+    this.current = next;
+    for (const listener of this.listeners) listener();
+  }
+  async restore() {
+    this.active();
+    const data = await this.ports.store.load(this.scope);
+    this.active();
+    if (!data) return;
+    const state = AgentCheckpoint.parse(JSON.parse(data));
+    if (state.account !== this.account || state.documentId !== this.documentId)
+      throw new Error("Scope mismatch");
+    this.ports.byok.restoreFingerprints(state.fingerprints);
+    this.ports.byok.assertEgress(data);
+    this.persisted = data;
+    await this.persist(deviceAgentRestore(state));
+  }
+  async start(prompt: string) {
+    this.active();
+    if (
+      this.busy ||
+      this.starting ||
+      this.current ||
+      !this.ports.available() ||
+      !this.ports.byok.reference()
+    )
+      return;
+    this.starting = true;
+    try {
+      this.ports.byok.assertSafe(prompt);
+      const reference = this.ports.byok.reference();
+      const document = await this.ports.read();
+      this.active();
+      if (this.current || reference !== this.ports.byok.reference()) return;
+      this.ports.byok.assertEgress(JSON.stringify(document));
+      await this.persist(
+        deviceAgentStart(
+          this.account,
+          this.documentId,
+          crypto.randomUUID(),
+          Date.now(),
+          prompt,
+          document,
+        ),
+      );
+      await this.resume();
+    } finally {
+      this.starting = false;
+    }
+  }
+  async resume() {
+    this.active();
+    if (
+      this.busy ||
+      !this.current ||
+      ["unknown", "complete", "blocked"].includes(this.current.status)
+    )
+      return;
+    this.busy = true;
+    this.stopped = false;
+    try {
+      while (this.current && !this.stopped) {
+        this.active();
+        const state = this.current;
+        if (["unknown", "complete", "blocked"].includes(state.status)) return;
+        if (state.phase === "mutation") {
+          if (!state.pending) throw new Error("Missing mutation");
+          // Retained output can be committed/reconciled without a provider key.
+          const data = DeviceMutation.parse(state.pending);
+          this.ports.byok.assertEgress(JSON.stringify(data));
+          this.active();
+          try {
+            const receipt = await this.ports.apply(data);
+            this.active();
+            this.ports.byok.assertEgress(JSON.stringify(receipt));
+            await this.persist(deviceAgentReceipt(state, receipt));
+          } catch {
+            this.active();
+            await this.persist({
+              ...state,
+              status: "sync_failed",
+              reason:
+                "Edit not confirmed. Retry the retained edit to retrieve its receipt. Concurrent changes stop the write; saved edits remain.",
+            });
+            return;
+          }
+          continue;
+        }
+        if (!this.ports.available() || !this.ports.byok.reference()) {
+          await this.persist({ ...state, status: "paused" });
+          return;
+        }
+        if (state.phase === "image" && !this.ports.images?.()) {
+          await this.persist({
+            ...state,
+            status: "blocked",
+            reason:
+              "Images await verified provider access and a complete billable bound. No fallback was used.",
+          });
+          return;
+        }
+        const reference = this.ports.byok.reference();
+        if (!reference) return;
+        const fenced = deviceAgentFence(state, Date.now());
+        await this.persist(fenced);
+        if (fenced.status === "blocked") return;
+        this.active();
+        if (
+          this.stopped ||
+          reference !== this.ports.byok.reference() ||
+          !this.ports.available()
+        ) {
+          await this.persist({
+            ...state,
+            fingerprints: this.ports.byok.fingerprints(),
+            status: "paused",
+          });
+          return;
+        }
+        try {
+          const next =
+            state.phase === "image"
+              ? deviceAgentImage(
+                  fenced,
+                  await this.ports.byok.image(
+                    reference,
+                    state.imagePrompt ?? "",
+                  ),
+                )
+              : deviceAgentOutput(
+                  fenced,
+                  await this.ports.byok.agent(reference, fenced),
+                );
+          this.active();
+          await this.persist(next);
+          if (this.ports.byok.reference() !== reference) return;
+        } catch {
+          this.active();
+          await this.persist(deviceAgentRestore(fenced));
+          return;
+        }
+      }
+    } finally {
+      this.busy = false;
+    }
+  }
+  async newAction() {
+    this.active();
+    if (
+      this.busy ||
+      !this.current ||
+      !["complete", "blocked"].includes(this.current.status) ||
+      this.current.pending ||
+      this.current.fence
+    )
+      return;
+    await this.ports.store.clear(this.scope, this.persisted);
+    this.active();
+    if (await this.ports.store.load(this.scope))
+      throw new Error("Local action changed. Restore before continuing.");
+    this.active();
+    this.current = null;
+    this.persisted = null;
+    for (const listener of this.listeners) listener();
+  }
+  stop() {
+    this.stopped = true;
+  }
+  async end() {
+    this.ended = true;
+    this.stopped = true;
+    this.current = null;
+    await this.ports.store.clear(this.scope, this.persisted);
+    for (const listener of this.listeners) listener();
+  }
+}

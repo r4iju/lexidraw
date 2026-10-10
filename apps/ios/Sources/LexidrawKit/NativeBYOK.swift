@@ -37,6 +37,7 @@ private final class NoProviderRedirects: NSObject, URLSessionTaskDelegate, Senda
   private let configuration: URLSessionConfiguration
   private var generation = UUID()
   private var sessions: [UUID: URLSession] = [:]
+  private let agentFixture: Bool
   private let narrationFixture: Bool
   public var sessionActive: Bool { !ended }
   public func isCurrent(_ reference: NativeCredentialReference) -> Bool {
@@ -50,8 +51,9 @@ private final class NoProviderRedirects: NSObject, URLSessionTaskDelegate, Senda
 
   public init(
     store: any TokenStore, configuration: URLSessionConfiguration = .ephemeral,
-    files: NativeTextFileStore? = nil, imageFixture: Bool = false, narrationFixture: Bool = false
+    files: NativeTextFileStore? = nil, imageFixture: Bool = false, narrationFixture: Bool = false, agentFixture: Bool = false
   ) {
+    self.agentFixture = agentFixture
     self.narrationFixture = narrationFixture
     self.imageFixture = imageFixture
     self.files = files
@@ -164,6 +166,15 @@ private final class NoProviderRedirects: NSObject, URLSessionTaskDelegate, Senda
     return output
   }
 
+  public func agent(state: String, reference: NativeCredentialReference) async throws -> String {
+    guard agentFixture else { throw NativeAIError.unavailable }
+    let body = try nativeAgentCall("nativeAgentRequest", [state])
+    let data = try await request(path: "/api/v1/chat/completions", body: Data(body.utf8), reference: reference)
+    guard data.count <= 16_384, let response = try? JSONDecoder().decode(Completion.self, from: data), let output = response.choices.first?.message.content, output.utf8.count <= 3000 else { throw NativeAIError.rejected }
+    try NativeCredentialGuard.shared.check(Data(output.utf8))
+    return output
+  }
+
   public func generateImage(prompt: String) async throws -> NativeImageArtifact {
     guard imageFixture else { throw NativeImageError.unavailable }
     try NativeCredentialGuard.shared.check(Data(prompt.utf8))
@@ -243,16 +254,15 @@ private final class NoProviderRedirects: NSObject, URLSessionTaskDelegate, Senda
       guard !ended, hasKey, reference.generation == generation else { throw NativeAIError.expired }
       let data: Data
       let response: URLResponse
-      if path == "/api/v1/audio/speech" {
+      if path == "/api/v1/audio/speech" || (agentFixture && path == "/api/v1/chat/completions") {
         let (bytes, received) = try await session.bytes(for: request)
         guard let http = received as? HTTPURLResponse, http.url == url,
           (200..<300).contains(http.statusCode),
-          http.value(forHTTPHeaderField: "Content-Type")?.components(separatedBy: ";").first
-            == "audio/pcm", http.value(forHTTPHeaderField: "Content-Encoding") == nil
+          (path != "/api/v1/audio/speech" || http.value(forHTTPHeaderField: "Content-Type")?.components(separatedBy: ";").first == "audio/pcm"), http.value(forHTTPHeaderField: "Content-Encoding") == nil
         else { throw NativeAIError.unavailable }
         var collected = Data()
         for try await byte in bytes {
-          if collected.count >= 5_760_000 { throw NativeAIError.rejected }
+          if collected.count >= (path == "/api/v1/audio/speech" ? 5_760_000 : 16_384) { throw NativeAIError.rejected }
           collected.append(byte)
         }
         data = collected

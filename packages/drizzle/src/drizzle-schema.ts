@@ -858,3 +858,4 @@ export const llmPolicies = sqliteTable(
   },
   (table) => [uniqueIndex("LLMPolicies_mode_unique").on(table.mode)],
 );
+export * from "./device-agent-schema.js";

@@ -1,4 +1,9 @@
 import {
+  DEVICE_AGENT_UNAVAILABLE,
+  deviceAgentRequest,
+  type AgentCheckpoint,
+} from "../agent/device-core";
+import {
   audioFromPCM,
   speechRequest,
   SPEECH_PATH,
@@ -47,7 +52,11 @@ const unavailable = () =>
 export function createByokSession(
   network: Network,
   origin: string,
-  options: { imageFixture?: true; narrationFixture?: true } = {},
+  options: {
+    imageFixture?: true;
+    narrationFixture?: true;
+    agentFixture?: true;
+  } = {},
 ) {
   let active: { reference: CredentialReference; key: string } | undefined;
   const known = new Map<string, { prefix: string; length: number }>();
@@ -214,6 +223,67 @@ export function createByokSession(
       return result.data.choices[0]?.message.content ?? "";
     } catch {
       throw unavailable();
+    }
+  }
+  async function agent(reference: CredentialReference, state: AgentCheckpoint) {
+    if (!options.agentFixture) throw new Error(DEVICE_AGENT_UNAVAILABLE);
+    const body = JSON.stringify(deviceAgentRequest(state));
+    assertEgress(body);
+    if (active?.reference !== reference) throw unavailable();
+    const request = new Request(endpoint, {
+      method: "POST",
+      redirect: "error",
+      credentials: "omit",
+      signal: AbortSignal.timeout(30_000),
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${active.key}`,
+      },
+      body,
+    });
+    try {
+      const response = await network(request);
+      if (
+        !response.ok ||
+        response.redirected ||
+        response.headers.has("Content-Encoding")
+      )
+        throw unavailable();
+      const reader = response.body?.getReader();
+      if (!reader) throw unavailable();
+      const chunks: Uint8Array[] = [];
+      let size = 0;
+      try {
+        for (;;) {
+          const next = await reader.read();
+          if (next.done) break;
+          size += next.value.length;
+          if (size > 16_384) {
+            await reader.cancel();
+            throw unavailable();
+          }
+          chunks.push(next.value);
+        }
+      } finally {
+        reader.releaseLock();
+      }
+      const bytes = new Uint8Array(size);
+      let offset = 0;
+      for (const chunk of chunks) {
+        bytes.set(chunk, offset);
+        offset += chunk.length;
+      }
+      const text = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+      assertSafe(text);
+      const content = ProviderTextResponse.parse(JSON.parse(text)).choices[0]
+        ?.message.content;
+      if (!content || new TextEncoder().encode(content).length > 3000)
+        throw unavailable();
+      return content;
+    } catch {
+      throw new Error(
+        "Provider outcome uncertain. No automatic repeat was performed.",
+      );
     }
   }
   async function image(reference: CredentialReference, prompt: string) {
@@ -440,6 +510,7 @@ export function createByokSession(
     autocomplete,
     narrate,
     image,
+    agent,
     assertSafe,
     assertEgress,
   };
