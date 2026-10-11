@@ -30,18 +30,19 @@ struct DeviceNarrationComposer: View {
               )
             }
             if let checkpoint = flow.checkpoint {
-              Text(
-                "\(checkpoint.parts.filter{$0.kind == .completed}.count) of \(checkpoint.parts.count) parts retained locally."
-              )
-              if checkpoint.status == "unknown" {
-                Text(
-                  "Provider outcome uncertain. No automatic repeat will occur. Check the original provider result before recovering this part."
-                )
-              } else if checkpoint.status == "running" {
-                ProgressView("Generating in the foreground…")
-              } else if checkpoint.recording == nil {
+              let presentation = DeviceNarrationPresentation(checkpoint: checkpoint)
+              Text(presentation.retainedSummary)
+              switch presentation.activity {
+              case .unknown(let explanation):
+                Text(explanation)
+              case .running(let label):
+                ProgressView(label)
+              case .resume(let disclosure):
+                if let disclosure { Text(disclosure) }
                 Button("Resume generation") { run { try await flow.resume() } }.disabled(
                   !flow.available || !flow.keyAvailable)
+              case .none:
+                EmptyView()
               }
               if let job = checkpoint.retainedJob {
                 Button("Play retained audio") { onPlay(.init(job: job, source: .device, scope: checkpoint.owner?.storageKey)) }
