@@ -7,6 +7,8 @@ import type { InValue } from "@libsql/client";
 import type { MigrationExecutor } from "./file-migration-owner.js";
 import {
   captureLegacyDocuments,
+  adoptStagedLegacyDocuments,
+  type StagedLegacyDocuments,
   type OriginalDocumentBatch,
 } from "./legacy-document-retention.js";
 
@@ -16,6 +18,14 @@ export interface LegacyDocumentConversionBatch extends OriginalDocumentBatch {
   /** Explicit one-to-one existing User -> Users IDs; no identity creation. */
   userIds: readonly string[];
 }
+
+export interface ArchivedLegacyConversionBatch
+  extends Omit<LegacyDocumentConversionBatch, "destination"> {
+  destination: "atomic-modern-modeled-v1";
+}
+type ConversionBatch =
+  | LegacyDocumentConversionBatch
+  | ArchivedLegacyConversionBatch;
 
 const stop = (reason: string): never => {
   throw new Error(`Legacy document conversion STOP: ${reason}`);
@@ -510,6 +520,23 @@ async function mappedRows(
       args: [batch.sourceSetId],
     })
   ).rows;
+  return mapRawRows(
+    raw.map((r) => ({
+      sourceTable: r.sourceTable,
+      sourceValues: r.sourceValues,
+    })),
+    batch,
+    await ids(e, "User"),
+    await ids(e, "Users"),
+  );
+}
+
+function mapRawRows(
+  raw: readonly { sourceTable: unknown; sourceValues: unknown }[],
+  batch: ConversionBatch,
+  sourceIds: string[],
+  destinationIds: string[],
+) {
   const documents: Row[] = [];
   const shares: Row[] = [];
   for (const r of raw) {
@@ -546,8 +573,6 @@ async function mappedRows(
       });
     } else stop("unknown retained table");
   }
-  const sourceIds = await ids(e, "User");
-  const destinationIds = await ids(e, "Users");
   // Reject duplicate rows before sets can erase evidence of ambiguous parents.
   if (
     new Set(sourceIds).size !== sourceIds.length ||
@@ -727,6 +752,16 @@ export async function convertLegacyDocuments(
   // Reconcile every newly captured raw receipt before trusting its tuples for mapping.
   await captureLegacyDocuments(held, batch);
   const { documents, shares } = await mappedRows(held, batch);
+  return finishConversion(held, batch, master, { documents, shares });
+}
+
+async function finishConversion(
+  held: MigrationExecutor,
+  batch: ConversionBatch,
+  master: Awaited<ReturnType<typeof modernDestination>>,
+  { documents, shares }: { documents: Row[]; shares: Row[] },
+  readback = false,
+): Promise<{ documents: number; shares: number; repeated: boolean }> {
   const derived = encode({
     version: 1,
     timestampProvenance: batch.timestampProvenance,
@@ -776,6 +811,72 @@ export async function convertLegacyDocuments(
       sql: "INSERT INTO LegacyDocumentConversionV1 VALUES (?,?,1,'converted',?,?)",
       args: [batch.sourceSetId, batch.sourceIdentity, derived, values],
     });
+    if (readback)
+      await finishConversion(held, batch, master, { documents, shares });
   }
   return { documents: documents.length, shares: shares.length, repeated };
+}
+
+/** Validate a candidate while original bytes and the finite source User still exist. */
+export async function stageLegacyDocumentConversion(
+  held: MigrationExecutor,
+  batch: ArchivedLegacyConversionBatch,
+  source: StagedLegacyDocuments,
+  bounds: { maxRows: number; maxBytes: number },
+  requireDestinationUsers: boolean,
+) {
+  if (
+    batch.timestampProvenance?.unit !== "unix-milliseconds" ||
+    !nonempty(batch.timestampProvenance.evidence)
+  )
+    stop("explicit timestamp provenance required");
+  await identityParent(held, "User");
+  const inventory = (
+    await held.execute(
+      "SELECT count(*) AS count,coalesce(sum(length(CAST(id AS BLOB))),0) AS size FROM User",
+    )
+  ).rows[0];
+  if (
+    !inventory ||
+    Number(inventory.count) > bounds.maxRows ||
+    Number(inventory.size) > bounds.maxBytes
+  )
+    stop("source User staging bounds exceeded");
+  const sourceIds = await ids(held, "User");
+  return mapRawRows(
+    source.rows.map((r) => ({
+      sourceTable: r.table,
+      sourceValues: Buffer.from(r.values, "hex"),
+    })),
+    batch,
+    sourceIds,
+    requireDestinationUsers ? await ids(held, "Users") : sourceIds,
+  );
+}
+
+/** Restore from certified immutable archive bytes without reading live originals. */
+export async function restoreArchivedLegacyDocuments(
+  held: MigrationExecutor,
+  batch: ArchivedLegacyConversionBatch,
+  source: StagedLegacyDocuments,
+  verifyDestination: (
+    held: MigrationExecutor,
+  ) => ReturnType<typeof modernDestination>,
+) {
+  const master = await verifyDestination(held);
+  canonicalCollisionNames(master);
+  await adoptStagedLegacyDocuments(held, batch, source, {
+    requireExisting: true,
+    verifyOnly: true,
+  });
+  const rows = mapRawRows(
+    source.rows.map((r) => ({
+      sourceTable: r.table,
+      sourceValues: Buffer.from(r.values, "hex"),
+    })),
+    batch,
+    [...batch.userIds],
+    await ids(held, "Users"),
+  );
+  return finishConversion(held, batch, master, rows, true);
 }

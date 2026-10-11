@@ -42,7 +42,11 @@ type ArchiveRow = {
   derived: Buffer;
 };
 
-async function snapshot(executor: Executor, batch: OriginalDocumentBatch) {
+async function snapshot(
+  executor: Executor,
+  batch: OriginalDocumentBatch,
+  bounds?: { maxRows: number; maxBytes: number },
+) {
   const master = (
     await executor.execute("SELECT type,name,tbl_name,sql FROM sqlite_master")
   ).rows;
@@ -92,6 +96,19 @@ async function snapshot(executor: Executor, batch: OriginalDocumentBatch) {
       `typeof(\`${name}\`) AS t${i}`,
       `CASE WHEN typeof(\`${name}\`)='integer' THEN CAST(\`${name}\` AS TEXT) ELSE lower(hex(CAST(\`${name}\` AS BLOB))) END AS v${i}`,
     ]);
+    if (bounds) {
+      const inventory = (
+        await executor.execute(
+          `SELECT count(*) AS count,coalesce(sum(${names.map((name) => `coalesce(length(CAST(\`${name}\` AS BLOB)),0)`).join("+")}),0) AS size FROM \`${table}\``,
+        )
+      ).rows[0];
+      if (
+        !inventory ||
+        Number(inventory.count) > bounds.maxRows ||
+        Number(inventory.size) > bounds.maxBytes
+      )
+        stop("source staging bounds exceeded");
+    }
     const rows = (
       await executor.execute(
         `SELECT ${expressions.join(",")} FROM \`${table}\` ORDER BY CAST(id AS BLOB),typeof(id)`,
@@ -136,7 +153,7 @@ async function snapshot(executor: Executor, batch: OriginalDocumentBatch) {
   return { rows: result, counts };
 }
 
-async function ensureDestination(executor: Executor) {
+async function ensureDestination(executor: Executor, requireExisting = false) {
   const master = (
     await executor.execute("SELECT type,name,tbl_name,sql FROM sqlite_master")
   ).rows;
@@ -151,6 +168,7 @@ async function ensureDestination(executor: Executor) {
         new RegExp(`\\b${name}\\b`, "i").test(String(r.sql ?? "")),
     );
     if (!objects.length) {
+      if (requireExisting) stop("journal-created archive required");
       await executor.execute(ddl);
       continue;
     }
@@ -172,19 +190,81 @@ async function ensureDestination(executor: Executor) {
   }
 }
 
-/** Capture only. Caller must supply the executor of an already held migration write. */
-export async function captureLegacyDocuments(
-  heldMigrationExecutor: MigrationExecutor,
-  batch: OriginalDocumentBatch,
-): Promise<{ retainedRows: number; repeated: boolean }> {
+export interface StagedLegacyDocuments {
+  rows: {
+    table: string;
+    id: string;
+    ddl: string;
+    columns: string;
+    values: string;
+    derived: string;
+  }[];
+  counts: number[];
+}
+
+function validBatch(batch: OriginalDocumentBatch) {
   if (
     !batch.sourceSetId ||
     !batch.sourceIdentity ||
     batch.provenance !== "original0001:f741ca2490e7555f522fc4ea63fa1bffaf8af113"
   )
     stop("explicit batch identity and original provenance required");
-  const source = await snapshot(heldMigrationExecutor, batch);
-  await ensureDestination(heldMigrationExecutor);
+}
+
+/** Snapshot bytes only, with no persistent archive DDL or mutation. */
+export async function stageLegacyDocuments(
+  held: MigrationExecutor,
+  batch: OriginalDocumentBatch,
+  bounds: { maxRows: number; maxBytes: number },
+): Promise<StagedLegacyDocuments> {
+  validBatch(batch);
+  if (
+    !Number.isSafeInteger(bounds.maxRows) ||
+    !Number.isSafeInteger(bounds.maxBytes) ||
+    bounds.maxRows < 0 ||
+    bounds.maxBytes < 0
+  )
+    stop("finite staging bounds required");
+  const source = await snapshot(held, batch, bounds);
+  const staged = {
+    counts: source.counts,
+    rows: source.rows.map((r) => ({
+      table: r.table,
+      id: r.id.toString("hex"),
+      ddl: r.ddl.toString("hex"),
+      columns: r.columns.toString("hex"),
+      values: r.values.toString("hex"),
+      derived: r.derived.toString("hex"),
+    })),
+  };
+  if (
+    staged.rows.length > bounds.maxRows ||
+    Buffer.byteLength(JSON.stringify(staged)) > bounds.maxBytes
+  )
+    stop("source staging bounds exceeded");
+  return staged;
+}
+
+/** Adopt or verify certified staged bytes after the journal creates the archives. */
+export async function adoptStagedLegacyDocuments(
+  heldMigrationExecutor: MigrationExecutor,
+  batch: OriginalDocumentBatch,
+  staged: StagedLegacyDocuments,
+  options: { requireExisting?: boolean; verifyOnly?: boolean } = {},
+): Promise<{ retainedRows: number; repeated: boolean }> {
+  validBatch(batch);
+  const source = {
+    counts: staged.counts,
+    rows: staged.rows.map((r) => ({
+      table: r.table,
+      id: Buffer.from(r.id, "hex"),
+      ddl: Buffer.from(r.ddl, "hex"),
+      columns: Buffer.from(r.columns, "hex"),
+      values: Buffer.from(r.values, "hex"),
+      derived: Buffer.from(r.derived, "hex"),
+    })),
+  };
+  await ensureDestination(heldMigrationExecutor, options.requireExisting);
   const receipts = (
     await heldMigrationExecutor.execute({
       sql: "SELECT * FROM LegacyDocumentRetentionBatchV1 WHERE sourceSetId=? OR sourceIdentity=?",
@@ -236,6 +316,7 @@ export async function captureLegacyDocuments(
     return { retainedRows: source.rows.length, repeated: true };
   }
   if (archived.length) stop("archive exists without batch receipt");
+  if (options.verifyOnly) stop("archive batch receipt missing");
   await heldMigrationExecutor.execute({
     sql: "INSERT INTO LegacyDocumentRetentionBatchV1 VALUES (?,?,?,?,?)",
     args: [
@@ -261,4 +342,24 @@ export async function captureLegacyDocuments(
     });
   }
   return { retainedRows: source.rows.length, repeated: false };
+}
+
+/** Capture only. Existing live-source API and immutable archive contract. */
+export async function captureLegacyDocuments(
+  held: MigrationExecutor,
+  batch: OriginalDocumentBatch,
+): Promise<{ retainedRows: number; repeated: boolean }> {
+  validBatch(batch);
+  const source = await snapshot(held, batch);
+  return adoptStagedLegacyDocuments(held, batch, {
+    counts: source.counts,
+    rows: source.rows.map((r) => ({
+      table: r.table,
+      id: r.id.toString("hex"),
+      ddl: r.ddl.toString("hex"),
+      columns: r.columns.toString("hex"),
+      values: r.values.toString("hex"),
+      derived: r.derived.toString("hex"),
+    })),
+  });
 }

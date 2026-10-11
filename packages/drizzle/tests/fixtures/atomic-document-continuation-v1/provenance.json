@@ -1,0 +1,16 @@
+{
+  "base": "bd1a565c66e97390fb41a3d52fa7a2df469225be",
+  "qualification": "NEW synthetic stranded-original composition; modeled0014 checkpoint, modern drawings, not observed production or early lineage. Early0002 rollback only. Independent Python SQLite literal SQL/typed-byte oracle, never implementation-derived success.",
+  "timestampEvidence": "NEW synthetic literal unix-milliseconds 1710000000001..1710000000003; not actual historical provenance",
+  "userIds": ["owner", "reader"],
+  "journalCount": 28,
+  "pendingCount": 15,
+  "pendingSplits": 63,
+  "sourceIdentities": {
+    "packages/drizzle/tests/fixtures/e4-modern-0014/schema.sql": "c55ca522d3b994960ad4e2c6f64118b5f391c3b9b9b5b29777b06c1658d665af",
+    "packages/drizzle/tests/fixtures/e4-atomic/schema.sql": "ff43ea3270d17d0ec025aa5909264fce07c29a85ada203011828c0a73440efe9",
+    "packages/drizzle/tests/fixtures/e4-original-document/schema.sql": "df3bf279bbee78b23d25faf7dbafebd9a258faf83a562c1e1daeda97a389bcd4",
+    "packages/drizzle/tests/fixtures/strict-document-conversion-v1/payload.json": "41b103acfa6e3e7238e5c84d5f7f11ac7fbe14c6d7735a9966755eaa2effa590",
+    "packages/drizzle/drizzle/meta/_journal.json": "49dbea0ece2ca43b325a1d483d4168da8274901559155768e1512c34ec75f935"
+  }
+}
