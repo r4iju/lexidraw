@@ -8,7 +8,7 @@ import * as schema from "@packages/drizzle/drizzle-schema";
 import { z } from "zod";
 import { createTRPCRouter, protectedProcedure } from "../trpc";
 import { TextInput, Usage, AutocompleteInput } from "~/server/pro/contracts";
-import { inputIdentity } from "~/server/pro/operation";
+import { autocompleteIdentity, inputIdentity } from "~/server/pro/operation";
 import { ProError, type ProLedger } from "~/server/pro/ledger";
 import type { AppleSandboxBilling } from "~/server/pro/apple-billing";
 import type { SandboxBilling } from "~/server/pro/billing";
@@ -46,11 +46,16 @@ export function createProRouter(deps: {
         throw new TRPCError({
           code: "FORBIDDEN",
           message: result.error.cause.message,
+          cause: result.error.cause,
         });
       return result;
     } catch (error) {
       if (error instanceof ProError)
-        throw new TRPCError({ code: "FORBIDDEN", message: error.message });
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: error.message,
+          cause: error,
+        });
       throw error;
     }
   });
@@ -245,15 +250,7 @@ export function createProRouter(deps: {
           throw new ProError("Select Pro in AI Power");
         if (user?.config?.autocomplete?.enabled !== true)
           throw new ProError("Opt in to writing suggestions first");
-        const text = JSON.stringify({
-          title: input.title,
-          before: input.before,
-          after: input.after,
-        });
-        const request = inputIdentity({
-          idempotencyKey: input.idempotencyKey,
-          text,
-        });
+        const request = autocompleteIdentity(input);
         const ledger = deps.ledger();
         const operation = await ledger.reserve(
           ctx.session.user.id,
@@ -275,17 +272,21 @@ export function createProRouter(deps: {
         }
         return ledger.operation(ctx.session.user.id, operation.id);
       }),
+    textRecovery: procedure.input(TextInput).query(({ ctx, input }) => {
+      const request = inputIdentity(input);
+      return deps
+        .ledger()
+        .operationByKey(
+          ctx.session.user.id,
+          request.idempotencyKey,
+          request.hash,
+          "text",
+        );
+    }),
     autocompleteRecovery: procedure
       .input(AutocompleteInput)
       .query(({ ctx, input }) => {
-        const request = inputIdentity({
-          idempotencyKey: input.idempotencyKey,
-          text: JSON.stringify({
-            title: input.title,
-            before: input.before,
-            after: input.after,
-          }),
-        });
+        const request = autocompleteIdentity(input);
         return deps
           .ledger()
           .operationByKey(

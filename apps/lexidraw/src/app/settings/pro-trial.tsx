@@ -1,4 +1,6 @@
 "use client";
+import { useState } from "react";
+import { z } from "zod";
 import {
   Select,
   SelectContent,
@@ -11,7 +13,8 @@ import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
 import type { RouterOutputs } from "~/trpc/shared";
-import { TextBook, textMaximum } from "~/server/pro/contracts";
+import { TextBook, TextInput, textMaximum } from "~/server/pro/contracts";
+import { confirmedNonAcceptance } from "~/lib/generation/pro-admission";
 import { queryAccess } from "~/lib/generation/query-access";
 import { QueryNotice } from "~/lib/generation/query-notice";
 import { api } from "~/trpc/react";
@@ -75,11 +78,31 @@ export function ProUsageDetails({
     </div>
   );
 }
-export function ProTrialSection({
-  initialStatus,
-}: {
-  initialStatus: ProStatus;
-}) {
+type TextSubmission =
+  | { kind: "idle" }
+  | { kind: "submitted"; input: z.infer<typeof TextInput> };
+// One last issued identity per account/origin, retained in this browser session
+// across component remounts. Reads never replace it merely because it is missing.
+const textSubmissions = new Map<string, z.infer<typeof TextInput>>();
+type TrialProps = { initialStatus: ProStatus; accountId: string };
+export function ProTrialSection(props: TrialProps) {
+  const origin = typeof window === "undefined" ? "" : window.location.origin;
+  return (
+    <ScopedProTrial
+      key={JSON.stringify([origin, props.accountId])}
+      {...props}
+    />
+  );
+}
+function ScopedProTrial({ initialStatus, accountId }: TrialProps) {
+  const scope = JSON.stringify([
+    typeof window === "undefined" ? "" : window.location.origin,
+    accountId,
+  ]);
+  const [submission, setSubmission] = useState<TextSubmission>(() => {
+    const input = textSubmissions.get(scope);
+    return input ? { kind: "submitted", input } : { kind: "idle" };
+  });
   const status = api.pro.status.useQuery(undefined, {
     initialData: initialStatus,
     refetchInterval: 2000,
@@ -89,11 +112,46 @@ export function ProTrialSection({
   const utils = api.useUtils();
   const generate = api.pro.text.useMutation({
     onSuccess: () => utils.pro.status.invalidate(),
+    onError: (error, input) => {
+      if (
+        confirmedNonAcceptance(error, "text", input.idempotencyKey) &&
+        textSubmissions.get(scope)?.idempotencyKey === input.idempotencyKey
+      )
+        textSubmissions.delete(scope);
+    },
   });
-  const operation = api.pro.operation.useQuery(
-    { id: generate.data?.id ?? "" },
+  const rejected =
+    submission.kind === "submitted" &&
+    !!confirmedNonAcceptance(
+      generate.error,
+      "text",
+      submission.input.idempotencyKey,
+    );
+  const recovery = api.pro.textRecovery.useQuery(
+    submission.kind === "submitted"
+      ? submission.input
+      : { idempotencyKey: "", text: "" },
     {
-      enabled: !!generate.data?.id,
+      enabled:
+        submission.kind === "submitted" &&
+        (generate.isError || generate.isIdle) &&
+        !rejected,
+      retry: false,
+    },
+  );
+  const owned = (value: RouterOutputs["pro"]["operation"] | undefined) =>
+    value?.account_id === accountId &&
+    value.feature === "text" &&
+    (submission.kind === "idle" ||
+      value.idempotency_key === submission.input.idempotencyKey)
+      ? value
+      : undefined;
+  const accepted = owned(recovery.data) ?? owned(generate.data);
+  const operation = api.pro.operation.useQuery(
+    { id: accepted?.id ?? "" },
+    {
+      enabled: !!accepted?.id,
+      retry: false,
       refetchInterval: (q) =>
         q.state.data && ["reserved", "running"].includes(q.state.data.state)
           ? 1000
@@ -113,7 +171,14 @@ export function ProTrialSection({
     status.data.entitlementPeriodId && periodBook.success
       ? textMaximum(periodBook.data)
       : null;
-  const current = operation.data ?? generate.data;
+  const current = owned(operation.data) ?? accepted;
+  const outstanding =
+    !rejected &&
+    submission.kind === "submitted" &&
+    (!current ||
+      ["reserved", "running", "unknown"].includes(current.state) ||
+      operation.isError ||
+      recovery.isError);
   const working =
     generate.isPending ||
     (!!current && ["reserved", "running"].includes(current.state));
@@ -164,11 +229,22 @@ export function ProTrialSection({
               e.preventDefault();
               const text = new FormData(e.currentTarget).get("text");
               if (
+                !outstanding &&
+                !generate.isPending &&
+                !status.isError &&
                 maximum !== null &&
                 status.data.availableSubcredits >= maximum &&
                 typeof text === "string"
-              )
-                generate.mutate({ idempotencyKey: crypto.randomUUID(), text });
+              ) {
+                const parsed = TextInput.safeParse({
+                  idempotencyKey: crypto.randomUUID(),
+                  text,
+                });
+                if (!parsed.success) return;
+                textSubmissions.set(scope, parsed.data);
+                setSubmission({ kind: "submitted", input: parsed.data });
+                generate.mutate(parsed.data);
+              }
             }}
           >
             <Label htmlFor="pro-text">Text to continue</Label>
@@ -182,29 +258,17 @@ export function ProTrialSection({
             <Button
               disabled={
                 working ||
+                outstanding ||
                 maximum === null ||
                 status.data.availableSubcredits < maximum
               }
             >
               Generate with private Pro
             </Button>
-            {working && current && (
-              <Button
-                type="button"
-                variant="outline"
-                disabled={cancel.isPending}
-                onClick={() => cancel.mutate({ id: current.id })}
-              >
-                Cancel operation
-              </Button>
-            )}
           </form>
         )}
-      {working &&
-        current &&
-        (access.kind !== "ready" ||
-          !access.data.available ||
-          status.isError) && (
+      {current &&
+        ["reserved", "running", "unknown"].includes(current.state) && (
           <Button
             type="button"
             variant="outline"
@@ -216,21 +280,25 @@ export function ProTrialSection({
         )}
       {generate.isError && (
         <p role="alert">
-          Could not start the operation.{" "}
-          {generate.variables &&
-            access.kind === "ready" &&
-            access.data.available &&
-            !status.isError &&
-            maximum !== null && (
-              <Button
-                variant="outline"
-                onClick={() => {
-                  if (generate.variables) generate.mutate(generate.variables);
-                }}
-              >
-                Retry the same operation
-              </Button>
-            )}
+          {rejected
+            ? "The request was not accepted. You can submit a deliberate request when allowance and limits permit."
+            : "Acceptance could not be confirmed. The original request is retained; refresh its owned status before starting another operation."}
+        </p>
+      )}
+      {submission.kind === "submitted" && !rejected && (
+        <Button
+          type="button"
+          variant="outline"
+          disabled={generate.isPending || recovery.isFetching}
+          onClick={() => void recovery.refetch()}
+        >
+          Refresh owned text
+        </Button>
+      )}
+      {recovery.isError && (
+        <p role="alert">
+          The original request is still unconfirmed. A missing result does not
+          mean it was rejected. Retry the owned read.
         </p>
       )}
       {operation.isError && (
@@ -277,7 +345,17 @@ export function ProTrialSection({
   );
 }
 
+const OwnerForm = z.object({
+  accountId: z.string().min(1).max(100),
+  reason: z.string().min(1).max(500),
+  action: z.enum(["grant", "revoke", "trial"]),
+  start: z.string(),
+  end: z.string(),
+});
 export function ProOwnerTools() {
+  const [submittedAction, setSubmittedAction] = useState<{
+    kind: "none" | z.infer<typeof OwnerForm>["action"];
+  }>({ kind: "none" });
   const utils = api.useUtils();
   const audit = api.pro.ownerAudit.useQuery();
   const refresh = async () => {
@@ -289,6 +367,14 @@ export function ProOwnerTools() {
   const grant = api.pro.grantEligibility.useMutation({ onSuccess: refresh });
   const revoke = api.pro.revoke.useMutation({ onSuccess: refresh });
   const trial = api.pro.grantTrial.useMutation({ onSuccess: refresh });
+  const latest =
+    submittedAction.kind === "grant"
+      ? grant
+      : submittedAction.kind === "revoke"
+        ? revoke
+        : submittedAction.kind === "trial"
+          ? trial
+          : null;
   return (
     <details className="rounded-md border p-3">
       <summary className="font-medium">Owner private-trial controls</summary>
@@ -301,27 +387,23 @@ export function ProOwnerTools() {
         className="flex flex-col gap-3"
         onSubmit={(e) => {
           e.preventDefault();
-          const values = new FormData(e.currentTarget);
-          const accountId = values.get("accountId");
-          const reason = values.get("reason");
-          const action = values.get("action");
-          if (typeof accountId !== "string" || typeof reason !== "string")
-            return;
-          const input = { accountId, reason };
-          if (action === "grant") grant.mutate(input);
-          else if (action === "revoke") revoke.mutate(input);
-          else {
-            const start = values.get("start");
-            const end = values.get("end");
-            if (typeof start === "string" && typeof end === "string")
-              trial.mutate({
-                ...input,
-                eventId: crypto.randomUUID(),
-                startsAt: Date.parse(start),
-                endsAt: Date.parse(end),
-                subcredits: 1_000_000_000,
-              });
-          }
+          const parsed = OwnerForm.safeParse(
+            Object.fromEntries(new FormData(e.currentTarget)),
+          );
+          if (!parsed.success) return;
+          const values = parsed.data;
+          const input = { accountId: values.accountId, reason: values.reason };
+          setSubmittedAction({ kind: values.action });
+          if (values.action === "grant") grant.mutate(input);
+          else if (values.action === "revoke") revoke.mutate(input);
+          else
+            trial.mutate({
+              ...input,
+              eventId: crypto.randomUUID(),
+              startsAt: Date.parse(values.start),
+              endsAt: Date.parse(values.end),
+              subcredits: 1_000_000_000,
+            });
         }}
       >
         <Label htmlFor="trial-account">Account ID</Label>
@@ -351,15 +433,13 @@ export function ProOwnerTools() {
           Apply audited change
         </Button>
       </form>
-      {(grant.isError || revoke.isError || trial.isError) && (
+      {latest?.isError && (
         <p role="alert">
           Change rejected. Check eligibility, dates, existing period and
           authorization.
         </p>
       )}
-      {(grant.isSuccess || revoke.isSuccess || trial.isSuccess) && (
-        <p role="status">Audited change saved.</p>
-      )}
+      {latest?.isSuccess && <p role="status">Audited change saved.</p>}
       {audit.isPending ? (
         <p>Loading audit…</p>
       ) : audit.isError ? (

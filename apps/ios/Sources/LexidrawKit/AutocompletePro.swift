@@ -63,14 +63,17 @@ extension Session {
     }
     let request = HTTPRequest(
       method: input == nil || query ? .get : .post, scheme: nil, authority: nil, path: path)
-    let (response, body) = try await connection.exchange(
-      request, json: query ? nil : data, operationID: procedure,
-      baseURL: origin.appending(path: "api/trpc"))
-    guard (200..<300).contains(response.status.code), let body else {
-      throw AutocompleteProError.unavailable
+    let response: HTTPResponse; let body: HTTPBody?
+    do {
+      (response, body) = try await connection.exchange(request, json: query ? nil : data, operationID: procedure, baseURL: origin.appending(path: "api/trpc"))
+    } catch let refusal as Refusal {
+      if procedure == "pro.autocomplete", let rejection = refusal.nonAcceptance, rejection.feature == .autocomplete { throw rejection }
+      throw refusal
     }
+    guard let body else { throw AutocompleteProError.unavailable }
     let bytes = try await Data(collecting: body, upTo: 1 << 16)
     try NativeCredentialGuard.shared.check(bytes)
+    guard (200..<300).contains(response.status.code) else { throw AutocompleteProError.unavailable }
     return try JSONDecoder().decode(SuggestionEnvelope<Value>.self, from: bytes).result.data.json
   }
 }
@@ -117,6 +120,7 @@ actor ProSuggestionRecovery {
             return try await session.suggestionRPC("pro.autocompleteRecovery", input: input, query: true, as: SuggestionOperation.self)
           }
           do { return try await session.suggestionRPC("pro.autocomplete", input: input, as: SuggestionOperation.self) }
+          catch let rejection as ProNonAcceptance where rejection.idempotencyKey == input.idempotencyKey { throw rejection }
           catch { return try await session.suggestionRPC("pro.autocompleteRecovery", input: input, query: true, as: SuggestionOperation.self) }
         }
         let accepted = try await submitted.value
@@ -150,6 +154,10 @@ actor ProSuggestionRecovery {
       pending = nil
       return result
     } catch {
+      if let rejection = error as? ProNonAcceptance, rejection.idempotencyKey == input.idempotencyKey {
+        pending = nil
+        throw AutocompleteProError.unavailable
+      }
       if let owned = pending?.operation, Task.isCancelled || [.reserved, .running].contains(owned.state) {
         await cancelIfPending(session: session, operation: owned)
       }

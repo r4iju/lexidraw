@@ -1,6 +1,7 @@
 import type { SupplierContract } from "./supplier-contract";
 import { createHash } from "node:crypto";
 import {
+  AutocompleteInput,
   Completion,
   PRICEBOOK,
   TextBook,
@@ -33,6 +34,19 @@ export function inputIdentity(input: unknown) {
     ...parsed,
     hash: createHash("sha256").update(parsed.text).digest("hex"),
   };
+}
+
+export function autocompleteIdentity(
+  input: import("zod").infer<typeof AutocompleteInput>,
+) {
+  return inputIdentity({
+    idempotencyKey: input.idempotencyKey,
+    text: JSON.stringify({
+      title: input.title,
+      before: input.before,
+      after: input.after,
+    }),
+  });
 }
 
 /** Persisted attempts fence paid work; replay never repeats an uncertain request. */

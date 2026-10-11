@@ -47,6 +47,14 @@ import {
 } from "./contracts";
 
 export class ProError extends Error {}
+export class ProAdmissionRejected extends ProError {
+  constructor(
+    message: string,
+    readonly nonAcceptance: import("~/lib/generation/pro-admission").ProNonAcceptance,
+  ) {
+    super(message);
+  }
+}
 export class ProLedger {
   constructor(
     readonly client: Client,
@@ -944,20 +952,39 @@ export class ProLedger {
         Number(counts?.active ?? 0) >= PRICEBOOK.maxConcurrent ||
         Number(counts?.recent ?? 0) >= PRICEBOOK.maxRequestsPerMinute
       )
-        throw new ProError("Request limit reached");
+        throw new ProAdmissionRejected("Request limit reached", {
+          kind: "not_accepted",
+          feature,
+          idempotencyKey: key,
+          reason: "request_limit",
+        });
       if (feature === "autocomplete") {
         const active = await tx.execute({
           sql: "SELECT id FROM pro_operations WHERE account_id=? AND feature='autocomplete' AND state IN ('reserved','running','unknown') LIMIT 1",
           args: [account],
         });
         if (active.rows.length)
-          throw new ProError("Autocomplete is still running or reconciling");
+          throw new ProAdmissionRejected(
+            "Autocomplete is still running or reconciling",
+            {
+              kind: "not_accepted",
+              feature,
+              idempotencyKey: key,
+              reason: "active_autocomplete",
+            },
+          );
       }
       const reserved = await tx.execute({
         sql: "UPDATE pro_periods SET available=available-?,reserved=reserved+? WHERE id=? AND available>=?",
         args: [quote, quote, period.id ?? "", quote],
       });
-      if (!reserved.rowsAffected) throw new ProError("Insufficient credits");
+      if (!reserved.rowsAffected)
+        throw new ProAdmissionRejected("Insufficient credits", {
+          kind: "not_accepted",
+          feature,
+          idempotencyKey: key,
+          reason: "insufficient_credits",
+        });
       const id = crypto.randomUUID();
       await tx.execute({
         sql: "INSERT INTO pro_operations(id,account_id,period_id,idempotency_key,input_hash,feature,state,quote,pricebook,policy,created_at) VALUES (?,?,?,?,?,?,'reserved',?,?,?,?)",

@@ -3,7 +3,7 @@ import HTTPTypes
 import OpenAPIRuntime
 import Observation
 public struct ProAgentResult: Decodable, Sendable {
- public struct Operation: Decodable, Sendable { public let id:String; public let state:String; public let charged:Int64; public let quote:Int64 }
+ public struct Operation: Decodable, Sendable { public let id:String; public let idempotency_key:String?; public let state:String; public let charged:Int64; public let quote:Int64 }
  public struct Report: Decodable, Sendable {
   public struct Edit: Decodable, Sendable { public let revision:Int64; public let description:String }
   public let status:String; public let completed:[Edit]; public let incomplete:[String]; public let reason:String?
@@ -26,9 +26,9 @@ extension Session {
   return try await agentRPC("agentPower.start",input:Input(documentId:document,revision:revision,prompt:prompt,idempotencyKey:id,acceptedMaximum:maximum),as:ProAgentResult.self)
  }
  public func stopProAgent(_ id:String) async throws -> ProAgentResult {struct Input:Encodable{let id:String};return try await agentRPC("agentPower.cancel",input:Input(id:id),as:ProAgentResult.self)}
- public func currentProAgent(document:String) async throws -> ProAgentResult? {
-  struct Input:Encodable{let documentId:String}
-  let data=try JSONEncoder().encode(AgentPayload(json:Input(documentId:document)))
+ public func currentProAgent(document:String,idempotencyKey:String?=nil) async throws -> ProAgentResult? {
+  struct Input:Encodable{let documentId:String;let idempotencyKey:String?}
+  let data=try JSONEncoder().encode(AgentPayload(json:Input(documentId:document,idempotencyKey:idempotencyKey)))
   var components=URLComponents();components.path="/agentPower.current";components.queryItems=[URLQueryItem(name:"input",value:String(decoding:data,as:UTF8.self))]
   return try await agentRPC("agentPower.current",input:Optional<String>.none,as:Optional<ProAgentResult>.self,path:components.string)
  }
@@ -56,10 +56,13 @@ extension Session {
  public enum Capability { case loading, available, unavailable(String), failed }
  public private(set) var capability: Capability = .loading
  public private(set) var state:State = .loading
+ public private(set) var previousResult: ProAgentResult?
+ private var pendingSubmission: (prompt: String, quote: ProAgentQuote, key: String)?
+ private var readGeneration = UUID()
  private var generationSelected = true
  public func selectGeneration(_ selected: Bool) { generationSelected = selected }
  public var canStart: Bool {
-  guard generationSelected, case .available = capability, readState == .current else { return false }
+  guard pendingSubmission == nil, generationSelected, case .available = capability, readState == .current else { return false }
   switch state { case .ready, .quote, .acceptanceUncertain, .error: return true; case .result(let result): return !["reserved","running","unknown"].contains(result.operation.state); default: return false }
  }
  private let session:Session
@@ -67,15 +70,30 @@ extension Session {
  public init(session:Session,document:String){self.session=session;self.document=document}
  public func load() async {
   // Existing account/document-owned work is readable without a generation capability.
+  let generation = UUID()
+  readGeneration = generation
   readState = .loading
   do {
    _ = try session.aiHandle.existing()
-   if let current = try await session.currentProAgent(document: document) { state = .result(current) }
-   else if case .acceptanceUncertain = state { /* No record yet does not invalidate a submitted identity. */ }
-   else { state = .ready }
+   let current = try await session.currentProAgent(document: document, idempotencyKey: pendingSubmission?.key)
    _ = try session.aiHandle.existing()
+   guard readGeneration == generation else { return }
+   if let pending = pendingSubmission {
+    if let current, current.operation.idempotency_key == pending.key {
+     pendingSubmission = nil
+     previousResult = nil
+     state = .result(current)
+    } else {
+     previousResult = current
+     state = .acceptanceUncertain(pending.prompt, pending.quote, pending.key)
+    }
+   } else if let current { state = .result(current) }
+   else { state = .ready }
    readState = .current
-  } catch { failedRead(error, message: "Action status could not be loaded. Retry status before starting new work.") }
+  } catch {
+   guard readGeneration == generation else { return }
+   failedRead(error, message: "Action status could not be loaded. Retry status before starting new work.")
+  }
   await retryCapability()
  }
  public func retryCapability() async {
@@ -85,9 +103,9 @@ extension Session {
    capability = value.available ? .available : .unavailable(value.reason)
   } catch { capability = .failed }
  }
- public func quote(_ prompt:String) async {guard canStart else{return};state = .quoting;do{state = .quote(prompt,try await session.quoteProAgent(document:document,prompt:prompt),UUID().uuidString)}catch{state = .error("Could not quote this document action. Check Pro access and save the document first.")}}
+ public func quote(_ prompt:String) async {guard canStart else{return};readGeneration = UUID();state = .quoting;do{state = .quote(prompt,try await session.quoteProAgent(document:document,prompt:prompt),UUID().uuidString)}catch{state = .error("Could not quote this document action. Check Pro access and save the document first.")}}
  public func decline(){
-  if case .acceptanceUncertain = state { return }
+  if pendingSubmission != nil { return }
   if case .result(let result) = state, ["reserved","running","unknown"].contains(result.operation.state) { return }
   state = .ready
  }
@@ -95,34 +113,49 @@ extension Session {
   guard canStart else { return }
   let prompt: String; let quote: ProAgentQuote; let id: String
   switch state { case .quote(let p, let q, let k), .acceptanceUncertain(let p, let q, let k): prompt = p; quote = q; id = k; default: return }
+  pendingSubmission = (prompt, quote, id)
+  readGeneration = UUID()
   state = .running(id)
-  do{let result=try await session.startProAgent(document:document,revision:quote.revision,prompt:prompt,id:id,maximum:quote.maximum);state = .result(result)}catch{state = .acceptanceUncertain(prompt,quote,id)}
+  do {
+   let result = try await session.startProAgent(document:document,revision:quote.revision,prompt:prompt,id:id,maximum:quote.maximum)
+   _ = try session.aiHandle.existing()
+   guard result.operation.idempotency_key == id else { throw NativeAIError.unavailable }
+   readGeneration = UUID()
+   pendingSubmission = nil
+   previousResult = nil
+   state = .result(result)
+   readState = .current
+  } catch { readGeneration = UUID(); state = .acceptanceUncertain(prompt,quote,id); readState = .stale("Acceptance could not be confirmed. Refresh the original submission.") }
  }
  public func refresh() async {
   guard case .result(let result) = state else { await load(); return }
+  let generation = UUID(); readGeneration = generation
   readState = .loading
   do {
    _ = try session.aiHandle.existing()
    let updated = try await session.proAgentOperation(result.operation.id)
    _ = try session.aiHandle.existing()
+   guard readGeneration == generation else { return }
    guard updated.operation.id == result.operation.id else { throw NativeAIError.unavailable }
    state = .result(updated)
    readState = .current
    if !["reserved","running","unknown"].contains(updated.operation.state) { cancellationUnconfirmed = false }
-  } catch { failedRead(error, message: "Action status could not be refreshed. Displayed progress may be out of date.") }
+  } catch { guard readGeneration == generation else { return }; failedRead(error, message: "Action status could not be refreshed. Displayed progress may be out of date.") }
  }
  public func cancel() async {
   guard case .result(let result) = state else { return }
+  let generation = UUID(); readGeneration = generation
   cancellationUnconfirmed = true
   do {
    _ = try session.aiHandle.existing()
    let stopped = try await session.stopProAgent(result.operation.id)
    _ = try session.aiHandle.existing()
+   guard readGeneration == generation else { return }
    guard stopped.operation.id == result.operation.id else { throw NativeAIError.unavailable }
    state = .result(stopped)
    readState = .current
    cancellationUnconfirmed = ["reserved","running","unknown"].contains(stopped.operation.state)
-  } catch { failedRead(error, message: "Cancellation could not be confirmed. Refresh status before assuming further work stopped.") }
+  } catch { guard readGeneration == generation else { return }; failedRead(error, message: "Cancellation could not be confirmed. Refresh status before assuming further work stopped.") }
  }
  private func failedRead(_ error: any Error, message: String) {
   if proAccessDenied(error) {

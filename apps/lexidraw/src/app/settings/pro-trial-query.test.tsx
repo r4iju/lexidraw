@@ -49,6 +49,12 @@ const initialStatus: RouterOutputs["pro"]["status"] = {
   policy: trialPolicy(),
 };
 const status = { data: initialStatus, isError: false };
+let owned:
+  | Pick<
+      RouterOutputs["pro"]["operation"],
+      "id" | "account_id" | "idempotency_key" | "feature" | "state" | "result"
+    >
+  | undefined;
 const mutation = () => ({ isPending: false, mutate() {}, data: undefined });
 mock.module("~/trpc/react", () => ({
   api: {
@@ -56,7 +62,8 @@ mock.module("~/trpc/react", () => ({
     pro: {
       status: { useQuery: () => status },
       textCapability: { useQuery: () => ({ ...capability, refetch() {} }) },
-      text: { useMutation: mutation },
+      text: { useMutation: () => ({ ...mutation(), data: owned }) },
+      textRecovery: { useQuery: () => ({ data: undefined }) },
       operation: { useQuery: () => ({ data: undefined }) },
       cancel: { useMutation: mutation },
       sandboxCheckout: { useMutation: mutation },
@@ -67,7 +74,7 @@ mock.module("~/trpc/react", () => ({
 const { ProTrialSection } = await import("./pro-trial");
 test("failed cached text capability offers retry and blocks a new paid generation", () => {
   const html = renderToStaticMarkup(
-    <ProTrialSection initialStatus={status.data} />,
+    <ProTrialSection accountId="alice" initialStatus={status.data} />,
   );
   expect(html).toContain("Pro text capability could not be loaded");
   expect(html).toContain("Retry");
@@ -77,7 +84,7 @@ test("failed cached text capability offers retry and blocks a new paid generatio
 test("pending text capability shows loading instead of claiming Coming soon", () => {
   capability = { data: undefined, error: null, isPending: true };
   const html = renderToStaticMarkup(
-    <ProTrialSection initialStatus={status.data} />,
+    <ProTrialSection accountId="alice" initialStatus={status.data} />,
   );
   expect(html).toContain("Loading Pro text capability");
   expect(html).not.toContain("Pro text is Coming soon");
@@ -103,7 +110,9 @@ test("text admission and disclosures use the doubled durable period pricebook at
     policy: trialPolicy(doubled),
     availableSubcredits: 3583999,
   };
-  const view = await render(<ProTrialSection initialStatus={status.data} />);
+  const view = await render(
+    <ProTrialSection accountId="alice" initialStatus={status.data} />,
+  );
   try {
     expect(document.body.textContent).toContain(
       "Text reserves at most 3.584 credits",
@@ -116,7 +125,9 @@ test("text admission and disclosures use the doubled durable period pricebook at
     );
     expect(button("Generate with private Pro")?.disabled).toBe(true);
     status.data = { ...status.data, availableSubcredits: 3584000 };
-    await view.rerender(<ProTrialSection initialStatus={status.data} />);
+    await view.rerender(
+      <ProTrialSection accountId="alice" initialStatus={status.data} />,
+    );
     expect(button("Generate with private Pro")?.disabled).toBe(false);
     status.data = {
       ...initialStatus,
@@ -128,7 +139,9 @@ test("text admission and disclosures use the doubled durable period pricebook at
       },
       availableSubcredits: 896000,
     };
-    await view.rerender(<ProTrialSection initialStatus={status.data} />);
+    await view.rerender(
+      <ProTrialSection accountId="alice" initialStatus={status.data} />,
+    );
     expect(document.body.textContent).toContain(
       "Maximum reservation: 0.896 credits",
     );
@@ -145,7 +158,9 @@ test("an unknown entitlement period cannot authorize a text reservation using th
     isPending: false,
   };
   status.data = { ...initialStatus, entitlementPeriodId: null };
-  const view = await render(<ProTrialSection initialStatus={status.data} />);
+  const view = await render(
+    <ProTrialSection accountId="alice" initialStatus={status.data} />,
+  );
   try {
     expect(document.body.textContent).toContain(
       "Maximum reservation: unavailable",
@@ -153,5 +168,31 @@ test("an unknown entitlement period cannot authorize a text reservation using th
     expect(button("Generate with private Pro")?.disabled).toBe(true);
   } finally {
     await view.unmount();
+  }
+});
+
+test("an owned running text operation remains cancellable when entitlement closes while capability remains available", async () => {
+  capability = {
+    data: { available: true, reason: "Fixture" },
+    error: null,
+    isPending: false,
+  };
+  status.data = { ...initialStatus, entitled: false };
+  owned = {
+    id: "previously-accepted",
+    account_id: "alice",
+    idempotency_key: "original",
+    feature: "text",
+    state: "running",
+    result: null,
+  };
+  const view = await render(
+    <ProTrialSection accountId="alice" initialStatus={status.data} />,
+  );
+  try {
+    expect(button("Cancel operation")).toBeDefined();
+  } finally {
+    await view.unmount();
+    owned = undefined;
   }
 });

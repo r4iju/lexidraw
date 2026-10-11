@@ -252,3 +252,32 @@ extension NativeChatTests {
     #expect(server.requests.filter { $0.url.path.hasSuffix("pro.chatAccept") }.count == 1)
   }
 }
+
+
+extension NativeChatTests {
+  @Test(arguments: [false, true]) func realSessionLocalChatWorksWhilePaidStatusIsUnknownOrUnreadable(readFails: Bool) async throws {
+    let server = FakeServer { request in
+      switch request.url.path {
+      case "/api/v1/me": return (200, #"{"userId":"local-recovery-test","email":null,"name":null,"authKind":"token","scope":"write"}"#)
+      case "/api/trpc/auth.getPowerPreference": return (200, chatEnvelope(#"{"mode":"local"}"#))
+      case "/api/trpc/pro.chatUnscoped": return (200, chatEnvelope("[]"))
+      case "/api/trpc/pro.chatCurrent":
+        if readFails { throw URLError(.networkConnectionLost) }
+        return (200, chatEnvelope(#"[{"id":"paid-unknown","state":"unknown","result":null,"charged":0,"quote":1792000}]"#))
+      default: throw URLError(.unsupportedURL)
+      }
+    }
+    let model = ChatLocalFixture()
+    let flow = NativeChatFlow(local: NativeLocalText(model: model))
+    let document = "local-recovery-" + UUID().uuidString
+    defer { UserDefaults.standard.removeObject(forKey: "chat-v1:local-recovery-test:" + document) }
+    await flow.load(session: try TestServer.session(server), document: document, context: "")
+    flow.send("Why?")
+    for _ in 0..<100 where flow.messages.last?.content != "Local answer." { try await Task.sleep(for: .milliseconds(2)) }
+    #expect(flow.messages.last?.content == "Local answer.")
+    #expect(model.calls == 1)
+    if readFails { #expect(flow.ownedReadState != .current) }
+    else { #expect(flow.ownedOperations.first?.id == "paid-unknown") }
+    #expect(server.requests.allSatisfy { !$0.url.path.contains("chatAccept") && !$0.url.path.contains("chatQuote") && !$0.url.path.contains("chat/stream") && !$0.url.path.contains("chatCancel") })
+  }
+}

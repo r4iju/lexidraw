@@ -1,4 +1,5 @@
 "use client";
+import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
 import { Label } from "~/components/ui/label";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
@@ -7,9 +8,19 @@ import { useEntityId } from "~/hooks/use-entity-id";
 import { queryAccess } from "~/lib/generation/query-access";
 import { QueryNotice } from "~/lib/generation/query-notice";
 import { api } from "~/trpc/react";
-import { browserByok } from "~/lib/byok/browser-session";
+import { useSession } from "next-auth/react";
+import {
+  browserByok,
+  browserByokAccount,
+  browserByokSessionGeneration,
+} from "~/lib/byok/browser-session";
 import { registerAutocomplete } from "./register";
-import { createSuggestionSource } from "./stream-suggestion";
+import {
+  createSuggestionSource,
+  suggestionRecovery,
+  refreshOwnedSuggestion,
+  type ProSuggestions,
+} from "./stream-suggestion";
 
 export default function AutocompletePlugin({ title = "" }: { title?: string }) {
   const [editor] = useLexicalComposerContext();
@@ -29,7 +40,29 @@ export default function AutocompletePlugin({ title = "" }: { title?: string }) {
     },
     onSettled: () => utils.config.getAutocompleteConfig.invalidate(),
   });
-  const session = browserByok();
+  const account = useSession();
+  const accountId =
+    account.status === "authenticated" ? account.data.user.id : undefined;
+  const session = browserByok(accountId);
+  const generation = browserByokSessionGeneration();
+  const origin = typeof window === "undefined" ? "" : window.location.origin;
+  const proForOwner = (): ProSuggestions => ({
+    start: (input) => utils.client.pro.autocomplete.mutate(input),
+    recover: (input) => utils.client.pro.autocompleteRecovery.query(input),
+    read: (id) => utils.client.pro.operation.query({ id }),
+    cancel: (id) => utils.client.pro.cancel.mutate({ id }),
+    owner: {
+      id: JSON.stringify([origin, accountId, generation]),
+      current: () =>
+        !!accountId &&
+        browserByokAccount() === accountId &&
+        browserByokSessionGeneration() === generation &&
+        window.location.origin === origin,
+    },
+  });
+  const recovery = accountId
+    ? suggestionRecovery(session, proForOwner())
+    : undefined;
   const reference = useSyncExternalStore(
     session.subscribe,
     session.reference,
@@ -64,6 +97,7 @@ export default function AutocompletePlugin({ title = "" }: { title?: string }) {
   // Lexical owns caret changes, composition, request cancellation and suggestion painting.
   useEffect(() => {
     if (
+      !accountId ||
       !enabled ||
       save.isPending ||
       save.error ||
@@ -77,16 +111,16 @@ export default function AutocompletePlugin({ title = "" }: { title?: string }) {
     const source = createSuggestionSource(
       preference,
       session,
-      {
-        start: (input) => utils.client.pro.autocomplete.mutate(input),
-        read: (id) => utils.client.pro.operation.query({ id }),
-        cancel: (id) => utils.client.pro.cancel.mutate({ id }),
-      },
+      proForOwner(),
       (state) => {
         setMessage(
-          state === "unknown"
-            ? "A suggestion is reconciling; credits remain reserved."
-            : "",
+          state === "acceptanceUncertain"
+            ? "Suggestion acceptance is unconfirmed. Refresh the original request before another paid suggestion."
+            : state === "cancellationUnconfirmed"
+              ? "Cancellation is unconfirmed. Refresh owned suggestion status."
+              : state === "unknown"
+                ? "A suggestion is reconciling; credits remain reserved."
+                : "",
         );
         void utils.pro.status.invalidate();
       },
@@ -111,6 +145,9 @@ export default function AutocompletePlugin({ title = "" }: { title?: string }) {
     });
   }, [
     editor,
+    accountId,
+    generation,
+    origin,
     enabled,
     save.isPending,
     save.error,
@@ -151,6 +188,57 @@ export default function AutocompletePlugin({ title = "" }: { title?: string }) {
               ? "Off · opt in to use your AI power source"
               : unavailable || message || "On · accept with Tab"}
       </span>
+      {accountId && recovery?.pending && (
+        <>
+          <Button
+            variant="outline"
+            type="button"
+            onClick={() => {
+              void refreshOwnedSuggestion(session, proForOwner())
+                .then((operation) => {
+                  setMessage(
+                    operation?.state === "unknown"
+                      ? "A suggestion is reconciling; credits remain reserved."
+                      : "Owned suggestion status refreshed.",
+                  );
+                  void utils.pro.status.invalidate();
+                })
+                .catch(() =>
+                  setMessage(
+                    "Suggestion acceptance or status is still unconfirmed. Retry the owned read.",
+                  ),
+                );
+            }}
+          >
+            Refresh owned suggestion
+          </Button>
+          <Button
+            variant="outline"
+            type="button"
+            onClick={() => {
+              void refreshOwnedSuggestion(session, proForOwner(), true)
+                .then((operation) => {
+                  setMessage(
+                    operation &&
+                      ["reserved", "running", "unknown"].includes(
+                        operation.state,
+                      )
+                      ? "Cancellation is unconfirmed; credits remain reserved."
+                      : "Suggestion stopped.",
+                  );
+                  void utils.pro.status.invalidate();
+                })
+                .catch(() =>
+                  setMessage(
+                    "Cancellation is unconfirmed. Retry the owned read or cancellation.",
+                  ),
+                );
+            }}
+          >
+            Cancel owned suggestion
+          </Button>
+        </>
+      )}
       {enabled && preference?.mode === "pro" && allowance.data && (
         <span>
           {(allowance.data.availableSubcredits / 1_000_000).toFixed(3)} credits

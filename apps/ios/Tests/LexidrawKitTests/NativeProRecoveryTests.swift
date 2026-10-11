@@ -97,7 +97,7 @@ extension NativeProRecoveryTests {
 }
 
 extension NativeProRecoveryTests {
-  @Test func uncertainAcceptedActionCannotDiscardItsKeyByDecliningAndExplicitRetryKeepsIdentity() async throws {
+  @Test func uncertainAcceptedActionCannotDiscardItsKeyByDecliningAndAcceptDoesNotResubmit() async throws {
     let server = FakeServer { request in
       switch request.url.path {
       case "/api/trpc/agentPower.current": return (200, envelope("null"))
@@ -109,14 +109,55 @@ extension NativeProRecoveryTests {
     }
     let flow = NativeAgentFlow(session: try TestServer.session(server), document: "doc")
     await flow.load(); await flow.quote("Edit paragraph"); await flow.accept()
+    guard case .acceptanceUncertain(_, _, let originalKey) = flow.state else { Issue.record("Expected retained submission"); return }
     flow.decline()
     await flow.refresh()
     await flow.accept()
     let submissions = server.requests.filter { $0.url.path.hasSuffix("agentPower.start") }
-    #expect(submissions.count == 2)
+    #expect(submissions.count == 1)
     let first = try #require(submissions.first)
-    let last = try #require(submissions.last)
-    // JSON member order is immaterial; assert the submitted identity and all inputs.
-    #expect(try JSONSerialization.data(withJSONObject: first.object, options: [.sortedKeys]) == JSONSerialization.data(withJSONObject: last.object, options: [.sortedKeys]))
+    struct Submitted: Decodable { struct Input: Decodable { let idempotencyKey: String }; let json: Input }
+    let body = try #require(first.body)
+    #expect(try JSONDecoder().decode(Submitted.self, from: body).json.idempotencyKey == originalKey)
+    guard case .acceptanceUncertain(_, _, let retainedKey) = flow.state else { Issue.record("Missing unresolved identity"); return }
+    #expect(retainedKey == originalKey)
+  }
+}
+
+
+extension NativeProRecoveryTests {
+  @Test func olderCurrentReplyCannotEraseAmbiguousNewActionOrAuthorizeAnotherSubmission() async throws {
+    let reads = Mutex(0)
+    let readStarted = Mutex(false)
+    let releaseRead = DispatchSemaphore(value: 0)
+    let server = FakeServer { request in
+      switch request.url.path {
+      case "/api/trpc/agentPower.current":
+        if reads.withLock({ $0 += 1; return $0 }) > 1 {
+          readStarted.withLock { $0 = true }
+          _ = releaseRead.wait(timeout: .now() + 5)
+        }
+        return (200, envelope(retainedAction.replacingOccurrences(of: "unknown", with: "settled")))
+      case "/api/trpc/agentPower.capability": return (200, envelope(#"{"available":true,"reason":"Ready"}"#))
+      case "/api/trpc/agentPower.quote": return (200, envelope(#"{"maximum":10,"revision":1}"#))
+      case "/api/trpc/agentPower.start": throw URLError(.networkConnectionLost)
+      default: throw URLError(.unsupportedURL)
+      }
+    }
+    let flow = NativeAgentFlow(session: try TestServer.session(server), document: "doc")
+    await flow.load(); flow.decline(); await flow.quote("New edits"); await flow.accept()
+    guard case .acceptanceUncertain(_, _, let originalKey) = flow.state else { Issue.record("Expected uncertain acceptance"); return }
+    let read = Task { await flow.load() }
+    for _ in 0..<100 where !readStarted.withLock({ $0 }) { try await Task.sleep(for: .milliseconds(2)) }
+    #expect(readStarted.withLock { $0 })
+    releaseRead.signal()
+    await read.value
+    guard case .acceptanceUncertain(_, _, let retainedKey) = flow.state else { Issue.record("Older result erased pending submission"); return }
+    #expect(retainedKey == originalKey)
+    #expect(flow.previousResult != nil)
+    #expect(server.requests.last(where: { $0.url.path.hasSuffix("agentPower.current") })?.url.query?.contains(originalKey) == true)
+    flow.decline(); await flow.quote("Replacement edits"); await flow.accept()
+    #expect(server.requests.filter { $0.url.path.hasSuffix("agentPower.quote") }.count == 1)
+    #expect(server.requests.filter { $0.url.path.hasSuffix("agentPower.start") }.count == 1)
   }
 }

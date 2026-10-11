@@ -954,3 +954,66 @@ test("owned action reads and cancellation survive removed executor without paid 
     f.client.close();
   }
 });
+
+test("owned action recovery reads the requested key even when another action is current, independent of admission", async () => {
+  const awaitSchema = await import("@packages/drizzle/drizzle-schema");
+  const f = await fixture();
+  try {
+    await grant(f);
+    const original = await f.executor.reserve("alice", {
+      ...input,
+      idempotencyKey: "original-pending",
+    });
+    await f.ledger.cancel("alice", original.id);
+    await f.executor.reserve("alice", {
+      ...input,
+      idempotencyKey: "newer-action",
+    });
+    const router = createAgentRouter({
+      ledger: () => f.ledger,
+      executor: () => undefined,
+      documents: () => f.executor.documents,
+      selected: async () => false,
+      dispatch: async () => {
+        throw Error("Recovery cannot dispatch");
+      },
+    });
+    const caller = (account: string) =>
+      router.createCaller({
+        drizzle: db,
+        schema: awaitSchema,
+        auth: { kind: "session" },
+        headers: new Headers(),
+        session: { user: { id: account }, expires: "2099-01-01" },
+      });
+    expect(
+      (
+        await caller("alice").current({
+          documentId: "doc",
+          idempotencyKey: "original-pending",
+        })
+      )?.operation.id,
+    ).toBe(original.id);
+    expect(
+      await caller("alice").current({
+        documentId: "doc",
+        idempotencyKey: "not-inserted-yet",
+      }),
+    ).toBeNull();
+    await expect(
+      caller("bob").current({
+        documentId: "doc",
+        idempotencyKey: "original-pending",
+      }),
+    ).rejects.toThrow();
+    await expect(
+      caller("alice").current({
+        documentId: "other-doc",
+        idempotencyKey: "original-pending",
+      }),
+    ).rejects.toThrow();
+    expect(f.calls()).toBe(0);
+  } finally {
+    f.client.close();
+  }
+});

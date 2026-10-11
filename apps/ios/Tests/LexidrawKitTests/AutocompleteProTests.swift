@@ -160,3 +160,46 @@ extension AutocompleteProTests {
     #expect(server.requests.filter { $0.url.path == "/api/trpc/pro.autocomplete" }.count == 1)
   }
 }
+
+
+extension AutocompleteProTests {
+  @Test(arguments: ["request_limit", "active_autocomplete", "insufficient_credits"])
+  func confirmedPreReservationRefusalAllowsOnlyALaterDeliberateSuggestion(reason: String) async throws {
+    let submissions = Mutex<[String]>([])
+    let server = FakeServer { request in
+      guard request.url.path == "/api/trpc/pro.autocomplete" else { return (404, #"{"error":{"json":{"data":{"code":"NOT_FOUND"}}}}"#) }
+      let key = (request.object["json"] as? [String: String])?["idempotencyKey"] ?? "missing"
+      let count = submissions.withLock { $0.append(key); return $0.count }
+      if count == 1 {
+        return (403, #"{"error":{"json":{"data":{"proNonAcceptance":{"kind":"not_accepted","feature":"autocomplete","idempotencyKey":"\#(key)","reason":"\#(reason)"}}}}}"#)
+      }
+      return (200, #"{"result":{"data":{"json":{"id":"next","state":"settled","result":" next deliberate output"}}}}"#)
+    }
+    let session = try TestServer.session(server)
+    await #expect(throws: AutocompleteProError.unavailable) { try await session.autocompletePro(title: "", before: "Hello", after: "") }
+    #expect(try await session.autocompletePro(title: "", before: "Hello again", after: "") == " next deliberate output")
+    #expect(submissions.withLock { $0.count == 2 && Set($0).count == 2 })
+    #expect(!server.requests.contains { $0.url.path.contains("Recovery") })
+  }
+
+  @Test func notFoundAndMismatchedRejectionCannotClearPotentiallyDelayedAcceptance() async throws {
+    let keys = Mutex<[String]>([])
+    let server = FakeServer { request in
+      if request.url.path == "/api/trpc/pro.autocomplete" {
+        let key = (request.object["json"] as? [String: String])?["idempotencyKey"] ?? "missing"
+        keys.withLock { $0.append(key) }
+        return (403, #"{"error":{"json":{"data":{"proNonAcceptance":{"kind":"not_accepted","feature":"autocomplete","idempotencyKey":"unrelated-key","reason":"request_limit"}}}}}"#)
+      }
+      #expect(request.url.path == "/api/trpc/pro.autocompleteRecovery")
+      let json = try JSONSerialization.jsonObject(with: Data((request.url[query: "input"] ?? "{}").utf8)) as? [String: [String: String]]
+      keys.withLock { $0.append(json?["json"]?["idempotencyKey"] ?? "missing") }
+      return (404, #"{"error":{"json":{"data":{"code":"NOT_FOUND"}}}}"#)
+    }
+    let session = try TestServer.session(server)
+    for before in ["Hello", "Changed context"] {
+      await #expect(throws: AutocompleteProError.reconciling) { try await session.autocompletePro(title: "", before: before, after: "") }
+    }
+    #expect(keys.withLock { $0.count == 3 && Set($0).count == 1 })
+    #expect(server.requests.filter { $0.url.path == "/api/trpc/pro.autocomplete" }.count == 1)
+  }
+}

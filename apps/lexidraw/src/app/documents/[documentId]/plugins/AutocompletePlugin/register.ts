@@ -129,6 +129,7 @@ export function registerAutocomplete(
   let dismissed: string | null = null;
   let pending: Target | null = null;
   let disposed = false;
+  let intent = 0;
 
   const paint = () => {
     const element = shown ? editor.getElementByKey(shown.textKey) : null;
@@ -153,14 +154,15 @@ export function registerAutocomplete(
   };
 
   const cancel = () => {
+    intent++;
     clearTimeout(timer);
     request?.abort();
     pending = null;
     asked = null;
   };
 
-  const ask = (target: Target) => {
-    if (disposed) return;
+  const ask = (target: Target, generation: number) => {
+    if (disposed || intent !== generation) return;
     if (request) {
       pending = target;
       return;
@@ -168,7 +170,8 @@ export function registerAutocomplete(
     const previous = deviceRequest ?? outstanding.get(editor);
     if (previous) {
       void previous.finally(() => {
-        if (!disposed) timer = setTimeout(() => ask(target), delayMs);
+        if (!disposed && intent === generation)
+          timer = setTimeout(() => ask(target, generation), delayMs);
       });
       return;
     }
@@ -188,7 +191,7 @@ export function registerAutocomplete(
               (Date.now() - (lastStarted.get(editor) ?? -Infinity)),
           );
     if (wait > 0) {
-      timer = setTimeout(() => ask(target), wait);
+      timer = setTimeout(() => ask(target, generation), wait);
       return;
     }
     const controller = new AbortController();
@@ -200,7 +203,12 @@ export function registerAutocomplete(
       controller.signal,
     )
       .then((raw) => {
-        if (disposed || controller.signal.aborted || editor.isComposing())
+        if (
+          disposed ||
+          intent !== generation ||
+          controller.signal.aborted ||
+          editor.isComposing()
+        )
           return;
         const now = editor.getEditorState().read($target);
         if (now?.textKey !== target.textKey || now.prefix !== target.prefix)
@@ -216,7 +224,10 @@ export function registerAutocomplete(
         if (deviceRequest === work) deviceRequest = undefined;
         const next = pending;
         pending = null;
-        if (next && !disposed) timer = setTimeout(() => ask(next), delayMs);
+        if (next && !disposed) {
+          const nextGeneration = intent;
+          timer = setTimeout(() => ask(next, nextGeneration), delayMs);
+        }
       });
     outstanding.set(editor, work);
     deviceRequest = work;
@@ -252,7 +263,8 @@ export function registerAutocomplete(
     if (dismissed === target.prefix) return;
     dismissed = null;
     asked = target;
-    timer = setTimeout(() => ask(target), delayMs);
+    const generation = intent;
+    timer = setTimeout(() => ask(target, generation), delayMs);
   };
 
   /** Types `part` of the suggestion; the update that follows shows the rest. */

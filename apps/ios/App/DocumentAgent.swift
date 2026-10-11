@@ -82,10 +82,13 @@ struct AgentComposerContent:View {
    case .quote(_,let quote,_), .acceptanceUncertain(_,let quote,_):
     Text("Maximum reservation: \(Double(quote.maximum)/1_000_000) credits. Final consumption can be lower.")
     if case .acceptanceUncertain = flow.state {
-     Text("Acceptance could not be confirmed. This quoted identity is retained. An explicit retry uses the same identity; no automatic new action was started.")
+     Text("Acceptance could not be confirmed. This quoted identity is retained. Refresh checks the original submission without starting another action.")
      Button("Refresh owned action") { Task { await flow.load() } }
-    } else { Button("Decline"){flow.decline()} }
-    Button("Accept maximum"){Task{await flow.accept()}}.disabled(!flow.canStart)
+    } else {
+     Button("Decline"){flow.decline()}
+     Button("Accept maximum"){Task{await flow.accept()}}.disabled(!flow.canStart)
+    }
+    if let previous = flow.previousResult { Text("Earlier action: \(previous.report.status). The new submission is still unconfirmed.") }
    case .running:ProgressView("Running document action...")
    case .result(let result):
     Text("Action: \(result.report.status). Charged \(Double(result.operation.charged)/1_000_000) credits.")

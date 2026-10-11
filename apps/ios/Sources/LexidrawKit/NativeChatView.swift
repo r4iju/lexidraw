@@ -20,7 +20,7 @@ import UniformTypeIdentifiers
   public private(set) var cancellationUnconfirmed: Set<String> = []
   private var document: String?
   private var session: Session?
-  private let local = NativeLocalText()
+  private let local: NativeLocalText
   private var byok: NativeBYOK?
   private var historyKey: String?
   private var context = ""
@@ -31,13 +31,14 @@ import UniformTypeIdentifiers
   private var pendingAcceptance: (input: NativeChatInput, key: String, document: String, scope: ObjectIdentifier)?
   private var fixture:
     (@MainActor (NativeChatInput, @escaping @MainActor (String) -> Void) async throws -> String)?
-  public init() {}
+  public init(local: NativeLocalText = NativeLocalText()) { self.local = local }
   public init(
     source: AIPowerPreference, messages: [NativeChatMessage], context: String = "",
     stream:
       @escaping @MainActor (NativeChatInput, @escaping @MainActor (String) -> Void) async throws ->
       String
   ) {
+    self.local = NativeLocalText()
     self.source = source
     self.messages = messages
     self.context = context
@@ -94,8 +95,8 @@ import UniformTypeIdentifiers
     }
   }
   public func send(_ prompt: String, files: [NativeChatFile] = []) {
-    guard task == nil, pendingAcceptance == nil else { return }
-    if fixture == nil && (ownedReadState != .current || (ownedOperations + unscopedOperations).contains(where: { [.reserved, .running, .unknown].contains($0.state) })) { return }
+    guard task == nil else { return }
+    if source == .pro && (pendingAcceptance != nil || (fixture == nil && (ownedReadState != .current || (ownedOperations + unscopedOperations).contains(where: { [.reserved, .running, .unknown].contains($0.state) })))) { return }
     stopRequested = false
     let input = NativeChatInput(
       prompt: prompt, messages: messages.filter { !$0.content.isEmpty }, context: context,

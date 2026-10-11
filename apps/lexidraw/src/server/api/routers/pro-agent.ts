@@ -81,7 +81,12 @@ export function createAgentRouter(deps: {
       .input(identity)
       .query(({ ctx, input }) => reader().view(ctx.session.user.id, input.id)),
     current: procedure
-      .input(z.strictObject({ documentId: z.string().min(1).max(100) }))
+      .input(
+        z.strictObject({
+          documentId: z.string().min(1).max(100),
+          idempotencyKey: z.string().min(1).max(100).optional(),
+        }),
+      )
       .query(async ({ ctx, input }) => {
         const account = ctx.session.user.id;
         const action = reader();
@@ -89,8 +94,13 @@ export function createAgentRouter(deps: {
         const [row] = await deps
           .ledger()
           .query(
-            "SELECT o.id FROM pro_operations o JOIN pro_agent_jobs j ON j.operation_id=o.id WHERE o.account_id=? AND j.document_id=? ORDER BY o.created_at DESC,o.id DESC LIMIT 1",
-            [account, input.documentId],
+            "SELECT o.id FROM pro_operations o JOIN pro_agent_jobs j ON j.operation_id=o.id WHERE o.account_id=? AND j.document_id=? AND (? IS NULL OR o.idempotency_key=?) ORDER BY o.created_at DESC,o.id DESC LIMIT 1",
+            [
+              account,
+              input.documentId,
+              input.idempotencyKey ?? null,
+              input.idempotencyKey ?? null,
+            ],
           );
         return row ? action.view(account, String(row.id)) : null;
       }),

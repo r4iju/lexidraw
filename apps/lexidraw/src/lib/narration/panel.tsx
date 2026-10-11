@@ -63,6 +63,23 @@ export function ProNarrationPanel({ documentId }: { documentId: string }) {
   });
   return (
     <div>
+      {cancel.error &&
+        cancel.variables?.id === id &&
+        ["reserved", "running", "unknown"].includes(
+          operation.data?.state ?? "",
+        ) && (
+          <p role="alert">
+            Cancellation is not confirmed. Further work may still be running;
+            retained audio remains available.
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => void operation.refetch()}
+            >
+              Refresh cancellation status
+            </Button>
+          </p>
+        )}
       {generate.error && (
         <p role="alert">
           {generate.error.message} Retry acceptance to recover the same action.

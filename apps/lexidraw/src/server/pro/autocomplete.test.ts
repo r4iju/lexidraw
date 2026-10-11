@@ -36,7 +36,7 @@ async function fixture(
     accountId: "alice",
     eventId: "trial",
     startsAt: 1000,
-    endsAt: 2000,
+    endsAt: 100000,
     subcredits: 10_000_000,
     reason: "trial",
     environment: "test",
@@ -68,7 +68,7 @@ async function fixture(
     auth: { kind: "session" },
     headers: new Headers(),
   } as never);
-  return { caller, ledger, client };
+  return { caller, ledger, client, router };
 }
 
 test("trusted autocomplete charges fractional usage once and records its feature, never accepting provider secrets or billable settings", async () => {
@@ -422,6 +422,199 @@ test("owned suggestion recovery survives opt-out, source change and closed capab
     await expect(foreign.autocompleteRecovery(input)).rejects.toThrow();
     expect((await reader.status()).reservedSubcredits).toBe(1120000);
     expect(calls).toBe(1);
+  } finally {
+    f.client.close();
+  }
+});
+
+function authenticatedContext(
+  account: string,
+): Awaited<ReturnType<typeof import("../api/trpc").createTRPCContext>> {
+  return {
+    drizzle: db,
+    schema,
+    session: { user: { id: account }, expires: "2099-01-01" },
+    auth: { kind: "session" },
+    headers: new Headers(),
+  };
+}
+
+test("authenticated pre-reservation refusal carries exact typed nonacceptance, no row, and permits a later deliberate request", async () => {
+  const { fetchRequestHandler } = await import("@trpc/server/adapters/fetch");
+  for (const reason of [
+    "active_autocomplete",
+    "insufficient_credits",
+    "request_limit",
+  ] as const) {
+    let dispatches = 0;
+    const f = await fixture(async () => {
+      dispatches++;
+      return {
+        kind: "completed",
+        completion: {
+          text: " next",
+          usage: { input: 10, cachedInput: 0, output: 2 },
+          actualCostNanoUsd: 16500,
+        },
+      };
+    });
+    const input = {
+      idempotencyKey: "rejected-" + reason,
+      title: "Title",
+      before: "Hello",
+      after: "",
+    };
+    try {
+      let active: string | undefined;
+      if (reason === "active_autocomplete")
+        active = (
+          await f.ledger.reserve(
+            "alice",
+            "other-device",
+            "different",
+            "autocomplete",
+          )
+        ).id;
+      if (reason === "insufficient_credits")
+        await f.client.execute("UPDATE pro_periods SET available=0");
+      if (reason === "request_limit")
+        for (let i = 0; i < 10; i++) {
+          const operation = await f.ledger.reserve(
+            "alice",
+            "recent-" + i,
+            "different",
+            "text",
+          );
+          await f.ledger.cancel("alice", operation.id);
+        }
+      const response = await fetchRequestHandler({
+        endpoint: "/api/trpc",
+        router: f.router,
+        req: new Request("https://app.test/api/trpc/autocomplete", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ json: input }),
+        }),
+        createContext: async () => authenticatedContext("alice"),
+      });
+      const body = await response.json();
+      expect(body.error.json.data.proNonAcceptance).toEqual({
+        kind: "not_accepted",
+        feature: "autocomplete",
+        idempotencyKey: input.idempotencyKey,
+        reason,
+      });
+      await expect(f.caller.autocompleteRecovery(input)).rejects.toThrow(
+        "Operation not found",
+      );
+      expect(dispatches).toBe(0);
+      if (active) await f.ledger.cancel("alice", active);
+      if (reason === "insufficient_credits")
+        await f.client.execute("UPDATE pro_periods SET available=10000000");
+      if (reason === "request_limit") f.ledger.config.now = () => 61001;
+      expect(
+        await f.caller.autocomplete({
+          ...input,
+          idempotencyKey: "deliberate-next",
+        }),
+      ).toMatchObject({ state: "settled", result: " next" });
+      expect(dispatches).toBe(1);
+    } finally {
+      f.client.close();
+    }
+  }
+});
+
+test("authenticated text read by key survives admission closure with exact account, feature and input and never dispatches", async () => {
+  const { fetchRequestHandler } = await import("@trpc/server/adapters/fetch");
+  let dispatches = 0;
+  const f = await fixture(async () => {
+    dispatches++;
+    return { kind: "unknown" };
+  });
+  const input = {
+    idempotencyKey: "lost-text-acceptance",
+    text: "Continue this text",
+  };
+  try {
+    const accepted = await f.caller.text(input);
+    await f.ledger.revoke("owner", "alice", "No new generation");
+    const router = createProRouter({
+      ledger: () => f.ledger,
+      textAvailable: false,
+      dispatch: async () => {
+        throw Error("Reader cannot dispatch");
+      },
+    });
+    const read = async (account: string, value: unknown) =>
+      fetchRequestHandler({
+        endpoint: "/api/trpc",
+        router,
+        req: new Request(
+          "https://app.test/api/trpc/textRecovery?input=" +
+            encodeURIComponent(JSON.stringify({ json: value })),
+        ),
+        createContext: async () => authenticatedContext(account),
+      });
+    const response = await read("alice", input);
+    expect(response.status).toBe(200);
+    expect((await response.json()).result.data.json).toMatchObject({
+      id: accepted.id,
+      state: "unknown",
+      feature: "text",
+    });
+    for (const [account, value] of [
+      ["bob", input],
+      ["alice", { ...input, text: "Changed input" }],
+      ["alice", { ...input, unexpected: "field" }],
+    ] as const)
+      expect((await read(account, value)).status).not.toBe(200);
+    const autoc = {
+      idempotencyKey: "wrong-feature",
+      title: "",
+      before: "Hello",
+      after: "",
+    };
+    // Exact text identity is checked together with the stored feature.
+    const { inputIdentity } = await import("./operation");
+    // Use a separate entitled fixture to construct an autocomplete row with the same text hash.
+    const other = await fixture(async () => {
+      throw Error("No dispatch");
+    });
+    try {
+      await other.ledger.reserve(
+        "alice",
+        autoc.idempotencyKey,
+        inputIdentity({
+          idempotencyKey: autoc.idempotencyKey,
+          text: input.text,
+        }).hash,
+        "autocomplete",
+      );
+      const ownRouter = createProRouter({
+        ledger: () => other.ledger,
+        dispatch: async () => {
+          throw Error("No dispatch");
+        },
+      });
+      const mismatch = await fetchRequestHandler({
+        endpoint: "/api/trpc",
+        router: ownRouter,
+        req: new Request(
+          "https://app.test/api/trpc/textRecovery?input=" +
+            encodeURIComponent(
+              JSON.stringify({
+                json: { ...input, idempotencyKey: autoc.idempotencyKey },
+              }),
+            ),
+        ),
+        createContext: async () => authenticatedContext("alice"),
+      });
+      expect(mismatch.status).not.toBe(200);
+    } finally {
+      other.client.close();
+    }
+    expect(dispatches).toBe(1);
   } finally {
     f.client.close();
   }

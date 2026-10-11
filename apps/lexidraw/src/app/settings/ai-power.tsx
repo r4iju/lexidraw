@@ -143,7 +143,7 @@ export function AiPowerSection({
         soon. This direct text connection check is independent of Pro. Other AI
         capabilities are not enabled by this check.
       </p>
-      <ProTrialSection initialStatus={proStatus} />
+      <ProTrialSection accountId={accountId} initialStatus={proStatus} />
       {ownKey && (
         <>
           <p className="text-sm">

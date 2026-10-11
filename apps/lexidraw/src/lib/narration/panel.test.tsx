@@ -64,7 +64,10 @@ const reads = {
   saved: mock(async () => {}),
 };
 const generate = mock(() => {});
-const cancel = mock(() => {});
+let cancelError: Error | null = null;
+const cancel = mock((_input: { id: string }) => {
+  cancelError = new Error("Cancellation reply lost");
+});
 const invalidate = async () => {};
 mock.module("~/trpc/react", () => ({
   api: {
@@ -85,7 +88,14 @@ mock.module("~/trpc/react", () => ({
       },
       saved: { useQuery: () => ({ ...queries.saved, refetch: reads.saved }) },
       generate: { useMutation: () => ({ isPending: false, mutate: generate }) },
-      cancel: { useMutation: () => ({ isPending: false, mutate: cancel }) },
+      cancel: {
+        useMutation: () => ({
+          isPending: false,
+          mutate: cancel,
+          error: cancelError,
+          variables: cancel.mock.calls.at(-1)?.[0],
+        }),
+      },
     },
   },
 }));
@@ -120,6 +130,7 @@ test("cached running narration warns about stale progress and retries only its r
 });
 
 test("cached narration reads retain useful content, disclose failures, and never accept generation before a successful refresh", async () => {
+  cancelError = null;
   queries.operation.error = null;
   const view = await render(<ProNarrationPanel documentId="owned-document" />);
   try {
@@ -170,6 +181,30 @@ test("cached narration reads retain useful content, disclose failures, and never
     await view.rerender(<ProNarrationPanel documentId="owned-document" />);
     expect(button("Accept maximum 12.950 credits")?.disabled).toBe(true);
     expect(generate).not.toHaveBeenCalled();
+  } finally {
+    await view.unmount();
+  }
+});
+
+test("failed owned narration cancellation remains visible with retained audio and read/cancel retries", async () => {
+  cancelError = null;
+  queries.operation.error = null;
+  queries.capability.error = null;
+  queries.latest.error = null;
+  queries.quote.error = null;
+  queries.saved.error = null;
+  const before = generate.mock.calls.length;
+  const view = await render(<ProNarrationPanel documentId="owned-document" />);
+  try {
+    await click(button("Cancel generation"));
+    await view.rerender(<ProNarrationPanel documentId="owned-document" />);
+    expect(document.body.textContent).toContain(
+      "Cancellation is not confirmed",
+    );
+    expect(document.querySelector("audio[controls]")).not.toBeNull();
+    await click(button("Refresh cancellation status"));
+    expect(button("Cancel generation")).toBeDefined();
+    expect(generate.mock.calls.length).toBe(before);
   } finally {
     await view.unmount();
   }

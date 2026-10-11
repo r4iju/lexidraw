@@ -15,6 +15,10 @@ public enum SignInError: Error, Equatable {
 public struct Refusal: Error, LocalizedError, Sendable, Equatable {
   public let status: Int
   public let message: String
+  public let nonAcceptance: ProNonAcceptance?
+  public init(status: Int, message: String, nonAcceptance: ProNonAcceptance? = nil) {
+    self.status = status; self.message = message; self.nonAcceptance = nonAcceptance
+  }
 
   public var errorDescription: String? { message }
 }
@@ -260,15 +264,14 @@ private struct Refusals: ClientMiddleware {
   ) async throws -> (HTTPResponse, HTTPBody?) {
     let (response, answer) = try await next(request, body, baseURL)
     guard response.status.kind != .successful else { return (response, answer) }
-    let said: Said? =
-      if let answer, let data = try? await Data(collecting: answer, upTo: 1 << 16) {
-        try? JSONDecoder().decode(Said.self, from: data)
-      } else {
-        nil
-      }
+    let data: Data? = if let answer { try? await Data(collecting: answer, upTo: 1 << 16) } else { nil }
+    let said = data.flatMap { try? JSONDecoder().decode(Said.self, from: $0) }
+    let nonAcceptance = operationID == "pro.autocomplete" && response.status.code == 403 ? data.flatMap(ProNonAcceptance.fromRPC) : nil
     throw Refusal(
       status: response.status.code,
-      message: said?.message ?? "The server answered \(response.status.code).")
+      message: said?.message ?? "The server answered \(response.status.code).",
+      nonAcceptance: nonAcceptance)
+
   }
 }
 
