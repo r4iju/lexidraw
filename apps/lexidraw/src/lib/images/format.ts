@@ -1,13 +1,8 @@
+import { utf8Bytes as imagePromptBytes } from "../generation/utf8";
+export { utf8Bytes as imagePromptBytes } from "../generation/utf8";
+
 export const IMAGE_MAX_BYTES = 2 * 1024 * 1024;
 export const IMAGE_MAX_PROMPT_BYTES = 1500;
-export function imagePromptBytes(text: string) {
-  let length = 0;
-  for (const character of text) {
-    const code = character.codePointAt(0) ?? 0;
-    length += code <= 127 ? 1 : code <= 2047 ? 2 : code <= 65535 ? 3 : 4;
-  }
-  return length;
-}
 export function imageRequest(prompt: string) {
   if (!prompt.trim() || imagePromptBytes(prompt) > IMAGE_MAX_PROMPT_BYTES)
     throw new Error("Image exceeds bounded prompt");

@@ -124,7 +124,17 @@ extension Session {
   /// signed out even when this device won't let go of it.
   public func deleteAccount(confirmation: String) async throws {
     _ = try await ask { try await $0.authDeleteAccount(body: .json(.init(confirmation: confirmation))) }.ok
-    try? await aiHandle.endSession()
-    try? store.delete()
+    NativeAppTokenResidue.shared.mark(store)
+    var failures = Set<NativeCleanupFailure.Step>()
+    do { try await aiHandle.endSession() }
+    catch let failure as NativeCleanupFailure { failures.formUnion(failure.steps) }
+    catch { failures.insert(.sessionActions) }
+    do {
+      try store.delete()
+      NativeAppTokenResidue.shared.clear(store)
+    } catch { failures.insert(.appToken) }
+    if !failures.isEmpty {
+      throw NativeCleanupFailure(steps: failures, signedOut: true, accountDeleted: true)
+    }
   }
 }

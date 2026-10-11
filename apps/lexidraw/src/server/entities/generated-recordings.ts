@@ -22,10 +22,7 @@ export class GeneratedRecordings {
       canRead: (account: string, document: string) => Promise<boolean>;
     },
   ) {}
-  private validate(
-    value: unknown,
-    check: (text: string) => void = guard.assertEgress,
-  ) {
+  validate(value: unknown, check: (text: string) => void = guard.assertEgress) {
     const input = SaveRecording.parse(value);
     check(JSON.stringify(input));
     validateRecording(input.recording, check);

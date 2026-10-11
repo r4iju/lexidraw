@@ -157,6 +157,9 @@ private struct SettingsView: View {
           "Lexidraw couldn’t confirm with the server that this \(UIDevice.current.model)’s token was revoked. Revoke it under API tokens in Settings on the web."
       }
       model.state = .signedOut
+    } catch let failure as NativeCleanupFailure where failure.signedOut {
+      model.state = .signedOut
+      model.notice = failure.localizedDescription
     } catch {
       signOutFailure = "Your sign-in couldn’t be removed from this \(UIDevice.current.model). You’re still signed in here. Please try again.\n\n\(error.localizedDescription)"
     }
@@ -296,6 +299,9 @@ private struct DeleteAccountView: View {
       try await session.deleteAccount(confirmation: typed)
       model.notice = "Your account and everything that was yours are deleted."
       model.state = .signedOut
+    } catch let failure as NativeCleanupFailure where failure.accountDeleted {
+      model.state = .signedOut
+      model.notice = failure.localizedDescription
     } catch {
       phase = .refused(confirmation, error.localizedDescription)
     }

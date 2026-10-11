@@ -10,7 +10,7 @@ public enum NativeAIError: Error, LocalizedError, Sendable {
     case .missingKey: "Set up your OpenRouter key on this device."
     case .unavailable: "Text generation is unavailable on this device."
     case .expired: "The key changed or this session ended. Start again."
-    case .rejected: "A request or result contained a provider credential and was blocked."
+    case .rejected: "The request was blocked because it contained a provider credential or exceeded a safety limit."
     case .provider(let status):
       "OpenRouter could not complete the request (\(status)). Check your key and provider access."
     case .cancelled: "Generation stopped. An issued provider request may still be billed."
@@ -33,6 +33,7 @@ private final class NoProviderRedirects: NSObject, URLSessionTaskDelegate, Senda
 
 @MainActor public final class NativeBYOK {
   private let store: any TokenStore
+  private let credentialGuard: NativeCredentialGuard
   private let files: NativeTextFileStore?
   private let configuration: URLSessionConfiguration
   private var generation = UUID()
@@ -49,12 +50,15 @@ private final class NoProviderRedirects: NSObject, URLSessionTaskDelegate, Senda
   public func onSessionEnd(_ action: @escaping () throws -> Void) { endActions.append(action) }
   private var ended = false
   public private(set) var hasKey = false
+  public private(set) var cleanupPending = false
 
   public init(
     store: any TokenStore, configuration: URLSessionConfiguration = .ephemeral,
     files: NativeTextFileStore? = nil, imageFixture: Bool = false, narrationFixture: Bool = false,
-    agentFixture: Bool = false, chatFixture: Bool = false
+    agentFixture: Bool = false, chatFixture: Bool = false,
+    credentialGuard: NativeCredentialGuard = .shared
   ) {
+    self.credentialGuard = credentialGuard
     self.chatFixture = chatFixture
     self.agentFixture = agentFixture
     self.narrationFixture = narrationFixture
@@ -62,9 +66,9 @@ private final class NoProviderRedirects: NSObject, URLSessionTaskDelegate, Senda
     self.files = files
     self.store = store
     self.configuration = configuration
-    if let key = try? store.load() {
-      hasKey = true
-      NativeCredentialGuard.shared.remember(key)
+    cleanupPending = NativeProviderResidue.contains(store)
+    if !cleanupPending, let key = try? store.load() {
+      if (try? credentialGuard.remember(key)) != nil { hasKey = true }
     }
   }
 
@@ -74,24 +78,37 @@ private final class NoProviderRedirects: NSObject, URLSessionTaskDelegate, Senda
     else {
       throw NativeAIError.missingKey
     }
+    try credentialGuard.remember(key)
     cancel()
     try store.save(key)
-    NativeCredentialGuard.shared.remember(key)
+    NativeProviderResidue.clear(store)
+    cleanupPending = false
     hasKey = true
   }
 
   public func removeKey() throws {
     cancel()
     hasKey = false
-    try store.delete()
+    NativeProviderResidue.mark(store)
+    cleanupPending = true
+    do { try store.delete() }
+    catch { throw NativeCleanupFailure(steps: [.providerKey]) }
+    NativeProviderResidue.clear(store)
+    cleanupPending = false
   }
 
   public func endSession() throws {
     ended = true
-    try removeKey()
-    try files?.clear()
-    for action in endActions { try action() }
-    endActions.removeAll()
+    var failures = Set<NativeCleanupFailure.Step>()
+    do { try removeKey() } catch { failures.insert(.providerKey) }
+    do { try files?.clear() } catch { failures.insert(.textFiles) }
+    var pending: [() throws -> Void] = []
+    for action in endActions {
+      do { try action() }
+      catch { failures.insert(.sessionActions); pending.append(action) }
+    }
+    endActions = pending
+    if !failures.isEmpty { throw NativeCleanupFailure(steps: failures) }
   }
 
   public func savedSuggestion() throws -> String? {
@@ -140,7 +157,7 @@ private final class NoProviderRedirects: NSObject, URLSessionTaskDelegate, Senda
     guard let context = JSContext() else { throw NativeAIError.unavailable }
     context.evaluateScript(nativeGenerationScript)
     guard context.exception == nil else { throw NativeAIError.unavailable }
-    for text in [title, before, after] { try NativeCredentialGuard.shared.check(Data(text.utf8)) }
+    for text in [title, before, after] { try credentialGuard.check(Data(text.utf8)) }
     guard
       let json = context.objectForKeyedSubscript("nativeAutocompleteRequest")?
         .call(withArguments: [title, before, after])?.toString(), context.exception == nil,
@@ -158,13 +175,14 @@ private final class NoProviderRedirects: NSObject, URLSessionTaskDelegate, Senda
         temperature: prepared.config.temperature, max_tokens: prepared.config.maxOutputTokens))
     let data = try await request(path: "/api/v1/chat/completions", body: body, reference: reference)
     guard let response = try? JSONDecoder().decode(Completion.self, from: data),
-      let content = response.choices.first?.message.content,
+      response.choices.count == 1,
+      let content = response.choices.first?.message.content, content.utf8.count <= 1024,
       let output = context.objectForKeyedSubscript("nativeAutocompleteResult")?
         .call(withArguments: [before, content])?.toString(), context.exception == nil
     else {
       throw NativeAIError.unavailable
     }
-    try NativeCredentialGuard.shared.check(Data(output.utf8))
+    try credentialGuard.check(Data(output.utf8))
     try files?.save(output)
     return output
   }
@@ -176,14 +194,6 @@ private final class NoProviderRedirects: NSObject, URLSessionTaskDelegate, Senda
     guard chatFixture else { throw NativeChatError.unavailable }
     let body = try nativeChatPrepared(input)
     guard isCurrent(reference), let key = try store.load() else { throw NativeAIError.expired }
-    guard let config = configuration.copy() as? URLSessionConfiguration else {
-      throw NativeChatError.unavailable
-    }
-    config.httpCookieStorage = nil
-    config.httpShouldSetCookies = false
-    config.urlCredentialStorage = nil
-    config.urlCache = nil
-    config.httpAdditionalHeaders = nil
     let url = URL(string: "https://openrouter.ai/api/v1/chat/completions")!
     var request = URLRequest(url: url)
     request.httpMethod = "POST"
@@ -191,8 +201,9 @@ private final class NoProviderRedirects: NSObject, URLSessionTaskDelegate, Senda
     request.timeoutInterval = 30
     request.setValue("application/json", forHTTPHeaderField: "Content-Type")
     request.setValue("Bearer " + key, forHTTPHeaderField: "Authorization")
-    let session = URLSession(
-      configuration: config, delegate: NoProviderRedirects(), delegateQueue: nil)
+    guard let session = providerSession(timeout: request.timeoutInterval) else {
+      throw NativeChatError.unavailable
+    }
     let id = UUID()
     sessions[id] = session
     defer {
@@ -227,7 +238,7 @@ private final class NoProviderRedirects: NSObject, URLSessionTaskDelegate, Senda
         guard frame.suffix(2) == Data([10, 10]) || frame.suffix(4) == Data([13, 10, 13, 10]) else {
           continue
         }
-        try NativeCredentialGuard.shared.check(wire)
+        try credentialGuard.check(wire)
         let lines = String(decoding: frame, as: UTF8.self).split(separator: "\n")
         frame.removeAll()
         let data = lines.filter { $0.hasPrefix("data:") }.map {
@@ -242,7 +253,7 @@ private final class NoProviderRedirects: NSObject, URLSessionTaskDelegate, Senda
         guard event.choices.count <= 1 else { throw NativeChatError.uncertain }
         output += event.choices.first?.delta.content ?? ""
         guard output.utf8.count <= 16000 else { throw NativeChatError.uncertain }
-        try NativeCredentialGuard.shared.check(Data(output.utf8))
+        try credentialGuard.check(Data(output.utf8))
         if let last = output.lastIndex(where: { $0.isWhitespace }) {
           let safe = String(output[...last])
           if safe.count > emitted {
@@ -252,7 +263,7 @@ private final class NoProviderRedirects: NSObject, URLSessionTaskDelegate, Senda
         }
       }
       guard done, isCurrent(reference), !Task.isCancelled else { throw NativeChatError.uncertain }
-      try NativeCredentialGuard.shared.check(Data(output.utf8))
+      try credentialGuard.check(Data(output.utf8))
       if output.count > emitted { onText(output) }
       return output
     } catch {
@@ -269,13 +280,13 @@ private final class NoProviderRedirects: NSObject, URLSessionTaskDelegate, Senda
       let response = try? JSONDecoder().decode(Completion.self, from: data),
       let output = response.choices.first?.message.content, output.utf8.count <= 3000
     else { throw NativeAIError.rejected }
-    try NativeCredentialGuard.shared.check(Data(output.utf8))
+    try credentialGuard.check(Data(output.utf8))
     return output
   }
 
   public func generateImage(prompt: String) async throws -> NativeImageArtifact {
     guard imageFixture else { throw NativeImageError.unavailable }
-    try NativeCredentialGuard.shared.check(Data(prompt.utf8))
+    try credentialGuard.check(Data(prompt.utf8))
     guard let context = JSContext() else { throw NativeImageError.unavailable }
     context.evaluateScript(nativeGenerationScript)
     guard
@@ -302,7 +313,7 @@ private final class NoProviderRedirects: NSObject, URLSessionTaskDelegate, Senda
     -> DeviceAudio
   {
     guard narrationFixture else { throw NativeAIError.unavailable }
-    try NativeCredentialGuard.shared.check(Data(text.utf8))
+    try credentialGuard.check(Data(text.utf8))
     let context = try narrationContext()
     guard
       let body = context.objectForKeyedSubscript("nativeNarrationRequest")?.call(withArguments: [
@@ -312,6 +323,17 @@ private final class NoProviderRedirects: NSObject, URLSessionTaskDelegate, Senda
     let data = try await request(
       path: "/api/v1/audio/speech", body: Data(body.utf8), reference: reference)
     return try DeviceAudio.pcm(data)
+  }
+
+  private func providerSession(timeout: TimeInterval) -> URLSession? {
+    guard let config = configuration.copy() as? URLSessionConfiguration else { return nil }
+    config.httpCookieStorage = nil
+    config.httpShouldSetCookies = false
+    config.urlCredentialStorage = nil
+    config.urlCache = nil
+    config.httpAdditionalHeaders = nil
+    config.timeoutIntervalForResource = timeout
+    return URLSession(configuration: config, delegate: NoProviderRedirects(), delegateQueue: nil)
   }
 
   private func request(path: String, body: Data?, reference: NativeCredentialReference) async throws
@@ -325,53 +347,41 @@ private final class NoProviderRedirects: NSObject, URLSessionTaskDelegate, Senda
         || (narrationFixture && path == "/api/v1/audio/speech"),
       let url = URL(string: "https://openrouter.ai" + path)
     else { throw NativeAIError.unavailable }
-    if let body { try NativeCredentialGuard.shared.check(body) }
+    if let body { try credentialGuard.check(body) }
     var request = URLRequest(url: url)
     request.httpMethod = body == nil ? "GET" : "POST"
     request.httpBody = body
     request.timeoutInterval = path == "/api/v1/audio/speech" ? 180 : 30
     request.setValue("application/json", forHTTPHeaderField: "Content-Type")
     request.setValue("Bearer " + key, forHTTPHeaderField: "Authorization")
-    guard let config = configuration.copy() as? URLSessionConfiguration else {
+    guard let session = providerSession(timeout: request.timeoutInterval) else {
       throw NativeAIError.unavailable
     }
-    config.httpCookieStorage = nil
-    config.httpShouldSetCookies = false
-    config.urlCredentialStorage = nil
-    config.urlCache = nil
-    config.httpAdditionalHeaders = nil
-    let session = URLSession(
-      configuration: config, delegate: NoProviderRedirects(), delegateQueue: nil)
     let id = UUID()
     sessions[id] = session
     defer {
       sessions.removeValue(forKey: id)
-      session.finishTasksAndInvalidate()
+      session.invalidateAndCancel()
     }
     do {
       guard !ended, hasKey, reference.generation == generation else { throw NativeAIError.expired }
-      let data: Data
-      let response: URLResponse
-      if path == "/api/v1/audio/speech" || (agentFixture && path == "/api/v1/chat/completions") {
-        let (bytes, received) = try await session.bytes(for: request)
-        guard let http = received as? HTTPURLResponse, http.url == url,
-          (200..<300).contains(http.statusCode),
-          path != "/api/v1/audio/speech"
-            || http.value(forHTTPHeaderField: "Content-Type")?.components(separatedBy: ";").first
-              == "audio/pcm",
-          http.value(forHTTPHeaderField: "Content-Encoding") == nil
-        else { throw NativeAIError.unavailable }
-        var collected = Data()
-        for try await byte in bytes {
-          if collected.count >= (path == "/api/v1/audio/speech" ? 5_760_000 : 16_384) {
-            throw NativeAIError.rejected
-          }
-          collected.append(byte)
-        }
-        data = collected
-        response = received
-      } else {
-        (data, response) = try await session.data(for: request)
+      let budget = path == "/api/v1/audio/speech" ? 5_760_000
+        : path == "/api/v1/images" ? 3 << 20
+        : (agentFixture && path == "/api/v1/chat/completions") ? 16_384 : 64 << 10
+      let (bytes, response) = try await session.bytes(for: request)
+      guard let http = response as? HTTPURLResponse, http.url == url,
+        (200..<300).contains(http.statusCode),
+        path != "/api/v1/audio/speech"
+          || http.value(forHTTPHeaderField: "Content-Type")?.components(separatedBy: ";").first
+            == "audio/pcm",
+        http.value(forHTTPHeaderField: "Content-Encoding") == nil
+      else { throw NativeAIError.unavailable }
+      var data = Data()
+      for try await byte in bytes {
+        try Task.checkCancellation()
+        guard isCurrent(reference) else { throw NativeAIError.expired }
+        guard data.count < budget else { throw NativeAIError.rejected }
+        data.append(byte)
       }
       try Task.checkCancellation()
       guard reference.generation == generation, !ended else { throw NativeAIError.expired }
@@ -379,13 +389,8 @@ private final class NoProviderRedirects: NSObject, URLSessionTaskDelegate, Senda
       guard http.url == url, (200..<300).contains(http.statusCode) else {
         throw NativeAIError.provider(http.statusCode)
       }
-      guard
-        data.count
-          <= (path == "/api/v1/audio/speech"
-            ? 5_760_000 : path == "/api/v1/images" ? 3 << 20 : 1 << 20)
-      else { throw NativeAIError.unavailable }
-      if path == "/api/v1/audio/speech" { try NativeCredentialGuard.shared.checkPCM(data) }
-      else { try NativeCredentialGuard.shared.check(data) }
+      if path == "/api/v1/audio/speech" { try credentialGuard.checkPCM(data) }
+      else { try credentialGuard.check(data) }
       return data
     } catch let error as NativeAIError { throw error } catch is CancellationError {
       throw NativeAIError.cancelled

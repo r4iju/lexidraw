@@ -1,5 +1,6 @@
 import CryptoKit
 import Foundation
+import zlib
 
 /// Fingerprints survive retirement to detect late results and queued egress,
 /// without extending the lifetime of recoverable Keychain material.
@@ -13,33 +14,48 @@ public final class NativeCredentialGuard: @unchecked Sendable {
   private let lock = NSLock()
   private var fingerprints = Set<Fingerprint>()
 
-  public func remember(_ key: String) {
+  public init() {}
+  private static func encoded(_ values: Set<Fingerprint>) throws -> Data {
+    guard values.count <= 128,
+      values.allSatisfy({
+        $0.digest.count == 32 && $0.prefix.count <= 4 && (1...4096).contains($0.length)
+      })
+    else { throw NativeAIError.rejected }
+    let encoder = JSONEncoder()
+    encoder.outputFormatting = .sortedKeys
+    let data = try encoder.encode(values.sorted { $0.digest.lexicographicallyPrecedes($1.digest) })
+    guard data.count <= 32_000 else { throw NativeAIError.rejected }
+    return data
+  }
+
+  public func remember(_ key: String) throws {
     let bytes = Data(key.utf8)
     let fingerprint = Fingerprint(
       digest: Data(SHA256.hash(data: bytes)),
       prefix: Data(bytes.prefix(min(4, bytes.count / 2))), length: bytes.count)
     lock.lock()
     defer { lock.unlock() }
-    fingerprints.insert(fingerprint)
+    let admitted = fingerprints.union([fingerprint])
+    _ = try Self.encoded(admitted)
+    fingerprints = admitted
   }
 
   public func snapshot() throws -> Data {
     lock.lock()
-    let values = Array(fingerprints)
-    lock.unlock()
-    return try JSONEncoder().encode(values)
+    defer { lock.unlock() }
+    return try Self.encoded(fingerprints)
   }
   public func restore(_ data: Data) throws {
     guard data.count <= 32_000 else { throw NativeAIError.rejected }
     let values = try JSONDecoder().decode([Fingerprint].self, from: data)
-    guard values.count <= 128,
-      values.allSatisfy({
-        $0.digest.count == 32 && $0.prefix.count <= 4 && (1...4096).contains($0.length)
-      })
-    else { throw NativeAIError.rejected }
+    guard values.count <= 128 else { throw NativeAIError.rejected }
+    let restored = Set(values)
+    _ = try Self.encoded(restored)
     lock.lock()
-    fingerprints.formUnion(values)
-    lock.unlock()
+    defer { lock.unlock() }
+    let union = fingerprints.union(restored)
+    _ = try Self.encoded(union)
+    fingerprints = union
   }
   public func check(_ data: Data) throws {
     try scan(data, audioSamples: NativeAudioFormat.isCanonicalWAV(data))
@@ -49,10 +65,48 @@ public final class NativeCredentialGuard: @unchecked Sendable {
     guard !data.isEmpty, data.count <= 5_760_000, data.count % 2 == 0 else { throw NativeAIError.rejected }
     try scan(data, audioSamples: true)
   }
+  // Preserve the established metadata-free PNG/IDAT contract. This audio fix
+  // does not change image pixel validation or image persistence policy.
+  private static func boundedPNG(_ raw: Data) -> Bool {
+    guard raw.count >= 57, raw.count <= 2 << 20,
+      raw.prefix(8) == Data([137, 80, 78, 71, 13, 10, 26, 10]) else { return false }
+    let data = Data(raw)
+    func word(_ offset: Int) -> Int {
+      (0..<4).reduce(0) { $0 * 256 + Int(data[offset + $1]) }
+    }
+    func crc(_ range: Range<Int>) -> UInt32 {
+      var value: UInt32 = 0xffff_ffff
+      for byte in data[range] {
+        value ^= UInt32(byte)
+        for _ in 0..<8 { value = (value >> 1) ^ (value & 1 == 1 ? 0xedb8_8320 : 0) }
+      }
+      return value ^ 0xffff_ffff
+    }
+    var offset = 8, chunks = 0, pixels = false
+    while offset + 12 <= data.count {
+      let size = word(offset)
+      guard size <= 2 << 20, offset + size + 12 <= data.count,
+        crc(offset + 4..<offset + size + 8) == UInt32(word(offset + size + 8)) else { return false }
+      let type = String(decoding: data[offset + 4..<offset + 8], as: UTF8.self)
+      if chunks == 0 {
+        guard type == "IHDR", size == 13, word(offset + 8) == 1024, word(offset + 12) == 1024,
+          data[offset + 16] == 8, [2, 6].contains(data[offset + 17]),
+          data[offset + 18...offset + 20] == Data([0, 0, 0]) else { return false }
+      } else if type == "IDAT" { pixels = true }
+      else if type == "IEND" { return pixels && size == 0 && offset + 12 == data.count }
+      else { return false }
+      chunks += 1
+      offset += size + 12
+    }
+    return false
+  }
   private func scan(_ data: Data, audioSamples: Bool) throws {
+    // Enforce the scan budget before candidate searches, hashing or decoding.
+    guard data.count <= 512 << 20 else { throw NativeAIError.rejected }
     lock.lock()
     let known = fingerprints
     lock.unlock()
+    var fingerprintChecks = 0
     func checkBytes(_ bytes: Data) throws {
       for key in known where bytes.count >= key.length {
         var offset = bytes.startIndex
@@ -63,6 +117,8 @@ public final class NativeCredentialGuard: @unchecked Sendable {
             else { break }
             offset = range.lowerBound
           }
+          fingerprintChecks += 1
+          guard fingerprintChecks <= 16_384 else { throw NativeAIError.rejected }
           if Data(SHA256.hash(data: bytes[offset..<(offset + key.length)])) == key.digest {
             throw NativeAIError.rejected
           }
@@ -70,27 +126,127 @@ public final class NativeCredentialGuard: @unchecked Sendable {
         }
       }
     }
-    if !audioSamples && (data.range(of: Data([0x1f, 0x8b, 0x08])) != nil
-      || data.range(of: Data([0x50, 0x4b, 0x03, 0x04])) != nil
-      || (data.first == 0x78 && data.count > 1
-        && [0x01, 0x9c, 0xda].contains(data[data.startIndex + 1])))
-    {
-      throw NativeAIError.rejected
+    // PCM/WAV validates the format, never the confidentiality of its samples.
+    // A valid (or partially recoverable) compressed node is not PCM content.
+    // Invalid incidental markers are allowed only at the independently typed audio boundary.
+    var candidates = 0
+    var inflatedWork = 0
+    var compressedDecoded: [Data] = []
+    var audioContext = audioSamples
+    func compressed(_ bytes: Data, samples: Bool, depth: Int = 0) throws {
+      guard depth <= 8 else { throw NativeAIError.rejected }
+      guard bytes.count >= 2 else { return }
+      if samples { audioContext = true }
+      // Decoded images cannot grant a compression exception inside audio.
+      let png = !audioContext && Self.boundedPNG(bytes)
+      var offsets = Set<Int>()
+      // Foundation's byte search avoids a Swift loop over every sample in a
+      // large ordinary transfer. Only plausible headers reach zlib.
+      for lead in [UInt8](arrayLiteral: 0x1f, 0x08, 0x18, 0x28, 0x38, 0x48, 0x58, 0x68, 0x78, 0x50) {
+        var cursor = bytes.startIndex
+        while cursor < bytes.endIndex,
+          let range = bytes.range(of: Data([lead]), in: cursor..<bytes.endIndex) {
+          let offset = range.lowerBound
+          cursor = offset + 1
+          guard offset + 1 < bytes.endIndex else { break }
+          let gzip = lead == 0x1f && bytes[offset + 1] == 0x8b
+            && offset + 2 < bytes.endIndex && bytes[offset + 2] == 8
+          let header = lead & 15 == 8 && lead >> 4 <= 7
+            && (Int(lead) * 256 + Int(bytes[offset + 1])) % 31 == 0
+          let zip = lead == 0x50 && offset + 3 < bytes.endIndex
+            && bytes[offset...offset + 3] == Data([0x50, 0x4b, 3, 4])
+          if zip {
+            // PCM can contain magic bytes. Recognize an actual bounded local
+            // file header before treating typed samples as an archive.
+            let remaining = bytes.endIndex - offset
+            func word(_ index: Int) -> Int {
+              Int(bytes[offset + index]) + Int(bytes[offset + index + 1]) * 256
+            }
+            if !samples { throw NativeAIError.rejected }
+            if remaining >= 30 {
+              let version = word(4), name = word(26), extra = word(28)
+              if (10...63).contains(version) && (1...4096).contains(name)
+                && extra <= 16_384 && 30 + name + extra <= remaining {
+                throw NativeAIError.rejected
+              }
+            }
+          }
+          guard gzip || (header && !png) else { continue }
+          candidates += 1
+          guard candidates <= 4096 else { throw NativeAIError.rejected }
+          if !samples && (gzip || (offset == bytes.startIndex && lead == 0x78 && [0x01, 0x9c, 0xda].contains(bytes[offset + 1]))) { throw NativeAIError.rejected }
+          offsets.insert(offset)
+        }
+      }
+      for offset in offsets.sorted() {
+        var stream = z_stream()
+        guard inflateInit2_(&stream, 47, ZLIB_VERSION, Int32(MemoryLayout<z_stream>.size)) == Z_OK
+        else { throw NativeAIError.rejected }
+        defer { inflateEnd(&stream) }
+        var output = [UInt8](repeating: 0, count: 4096)
+        let result = bytes.withUnsafeBytes { raw in
+          let source = raw.bindMemory(to: UInt8.self)
+          return output.withUnsafeMutableBufferPointer { destination in
+            stream.next_in = UnsafeMutablePointer(mutating: source.baseAddress! + offset - bytes.startIndex)
+            stream.avail_in = uInt(min(bytes.endIndex - offset, 65_536))
+            stream.next_out = destination.baseAddress!
+            stream.avail_out = uInt(destination.count)
+            return inflate(&stream, Z_NO_FLUSH)
+          }
+        }
+        inflatedWork += Int(stream.total_out)
+        guard inflatedWork <= 262_144 else { throw NativeAIError.rejected }
+        // Even an incomplete stream with recoverable output can contain a key.
+        if stream.total_out > 0 {
+          try checkBytes(Data(output.prefix(Int(stream.total_out))))
+          let plain = String(decoding: output.prefix(Int(stream.total_out)), as: UTF8.self)
+          if result == Z_STREAM_END || stream.avail_out == 0
+            || plain.range(of: #"sk-(?:or-v1-|ant-)?[A-Za-z0-9_-]{16,}"#, options: .regularExpression) != nil {
+            throw NativeAIError.rejected
+          }
+          let recovered = Data(output.prefix(Int(stream.total_out)))
+          try compressed(recovered, samples: false, depth: depth + 1)
+          compressedDecoded.append(recovered)
+        }
+        if result == Z_STREAM_END || (result == Z_OK && stream.avail_in == 0 && bytes.endIndex - offset > 65_536) {
+          throw NativeAIError.rejected
+        }
+      }
     }
+    try compressed(data, samples: audioSamples)
     try checkBytes(data)
+    if data.allSatisfy({ $0 == 0 || $0 == 32 }) { return }
     let initial = String(decoding: data, as: UTF8.self)
-    // Each decoding step shrinks its input. No node cap rejects legitimate
-    // large artifacts merely because they contain many encoded safe fields.
-    var pending = [(initial, audioSamples)]
+    // Decode within a finite total work budget; sample status never propagates to a decoded node.
+    var pending = [(initial, false)]
     var seen = Set<Data>()
     let minimum = known.map(\.length).min() ?? 16
-    while let (text, audioSamples) = pending.popLast() {
+    var decodedWork = 0
+    while !pending.isEmpty || !compressedDecoded.isEmpty {
+      for bytes in compressedDecoded { pending.append((String(decoding: bytes, as: UTF8.self), false)) }
+      compressedDecoded.removeAll(keepingCapacity: true)
+      guard let (text, inspectOctets) = pending.popLast() else { break }
+      decodedWork += text.utf8.count
+      guard decodedWork <= 512 << 20 else { throw NativeAIError.rejected }
       guard seen.insert(Data(SHA256.hash(data: Data(text.utf8)))).inserted else { continue }
       try checkBytes(Data(text.utf8))
-      if (!audioSamples && text.range(
-        of: #"(?:^\x{78}[\x{01}\x{9c}\x{da}]|\x{1f}\x{8b}\x{08}|PK\x{03}\x{04})"#,
-        options: .regularExpression) != nil)
-        || text.range(
+      // JSON/Unicode/hex decoding can represent binary octets as Latin-1
+      // scalars. Inspect those bytes before a UTF-8 conversion changes them.
+      if inspectOctets && text.utf8.contains(where: { $0 >= 128 }) {
+        var octets = Data()
+        func inspectRun() throws {
+          guard !octets.isEmpty else { return }
+          try checkBytes(octets)
+          try compressed(octets, samples: NativeAudioFormat.isCanonicalWAV(octets))
+          octets.removeAll(keepingCapacity: true)
+        }
+        for scalar in text.unicodeScalars {
+          if scalar.value <= 255 { octets.append(UInt8(scalar.value)) }
+          else { try inspectRun() }
+        }
+        try inspectRun()
+      }
+      if text.range(
           of:
             #""(?:apiKey|baseURL|providerOptions|rawResponse|providerConfig|requestBody|providerMetadata)"\s*:"#,
           options: .regularExpression) != nil
@@ -102,9 +258,13 @@ public final class NativeCredentialGuard: @unchecked Sendable {
       {
         throw NativeAIError.rejected
       }
-      guard !known.isEmpty else { continue }
-      func enqueue(_ decoded: String, samples: Bool? = nil) {
-        if decoded.utf8.count < text.utf8.count { pending.append((decoded, samples ?? audioSamples)) }
+      func enqueue(_ decoded: String, octets: Bool = true) {
+        if decoded.utf8.count < text.utf8.count { pending.append((decoded, octets)) }
+      }
+      for run in Self.matches(text, pattern: #"(?:%[a-fA-F0-9]{2})+"#) {
+        let bytes = Data(Self.matches(run[0], pattern: #"%([a-fA-F0-9]{2})"#).compactMap { UInt8($0[1], radix: 16) })
+        try checkBytes(bytes)
+        try compressed(bytes, samples: NativeAudioFormat.isCanonicalWAV(bytes))
       }
       enqueue(
         Self.replace(text, pattern: #"(?:%[a-fA-F0-9]{2})+"#) { match in
@@ -140,7 +300,9 @@ public final class NativeCredentialGuard: @unchecked Sendable {
             bytes.append(byte)
           }
         }
-        enqueue(String(decoding: bytes, as: UTF8.self))
+        try compressed(bytes, samples: NativeAudioFormat.isCanonicalWAV(bytes))
+        try checkBytes(bytes)
+        enqueue(String(decoding: bytes, as: UTF8.self), octets: false)
       }
       for token in Self.matches(text, pattern: #"[A-Za-z0-9+/_-]{8,}={0,2}"#)
       where token[0].count >= (minimum * 4 + 2) / 3 {
@@ -149,7 +311,8 @@ public final class NativeCredentialGuard: @unchecked Sendable {
         base64 += String(repeating: "=", count: (4 - base64.count % 4) % 4)
         if let bytes = Data(base64Encoded: base64) {
           try checkBytes(bytes)
-          enqueue(String(decoding: bytes, as: UTF8.self), samples: audioSamples || NativeAudioFormat.isCanonicalWAV(bytes))
+          try compressed(bytes, samples: NativeAudioFormat.isCanonicalWAV(bytes))
+          enqueue(String(decoding: bytes, as: UTF8.self), octets: false)
         }
       }
       if let json = try? JSONSerialization.jsonObject(

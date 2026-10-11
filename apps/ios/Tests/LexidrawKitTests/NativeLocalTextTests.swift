@@ -23,9 +23,9 @@ import Testing
       title: "", before: String(repeating: "x", count: 1300), after: "")
     #expect(output == "done")
   }
-  @Test func credentialInLocalModelResultIsBlockedBeforeFragmentCleanup() async {
+  @Test func credentialInLocalModelResultIsBlockedBeforeFragmentCleanup() async throws {
     let credential = "sk-local-boundary-282-distinct-fixture"
-    NativeCredentialGuard.shared.remember(credential)
+    try NativeCredentialGuard.shared.remember(credential)
     let model = LocalModelFixture()
     model.output = credential
     let runtime = NativeLocalText(model: model)

@@ -23,16 +23,16 @@ private final class BinarySpeechProbe: URLProtocol, @unchecked Sendable {
   override func stopLoading() {}
 }
 @Suite(.serialized) @MainActor struct TypedDeviceAudioTests {
-  @Test(arguments: [[UInt8](arrayLiteral: 0, 0, 0x1f, 0x8b, 8, 0, 0, 0), [0, 0, 0x50, 0x4b, 3, 4, 0, 0]])
+  @Test(arguments: [[UInt8](arrayLiteral: 0, 0, 0x1f, 0x8b, 8, 0, 0, 0), [0, 0, 0x50, 0x4b, 3, 4, 0, 0], [0, 0, 0x50, 0x4b, 3, 4, 0, 0] + Array(repeating: 0, count: 40)])
   func incidentalCompressionSignaturesAreSamplesInValidatedPCMAndCanonicalWAV(samples: [UInt8]) throws {
     let result = try DeviceAudio.pcm(Data(samples))
     let validated = try result.validated()
-    #expect(validated.seconds == 8.0 / 48_000)
-    #expect(Data(base64Encoded: result.audio)?.suffix(8) == Data(samples))
+    #expect(validated.seconds == Double(samples.count) / 48_000)
+    #expect(Data(base64Encoded: result.audio)?.suffix(samples.count) == Data(samples))
   }
   @Test func typedAudioPreservesRawAndEncodedCredentialEchoAndContainerRejection() throws {
     let secret = "typed-binary-credential-echo-291"
-    NativeCredentialGuard.shared.remember(secret)
+    try NativeCredentialGuard.shared.remember(secret)
     for text in [secret, Data(secret.utf8).base64EncodedString()] {
       var bytes = Data(text.utf8)
       if bytes.count % 2 != 0 { bytes.append(0) }
@@ -52,15 +52,26 @@ private final class BinarySpeechProbe: URLProtocol, @unchecked Sendable {
     let directory = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
     defer { try? FileManager.default.removeItem(at: directory) }
     let files = NativeDeviceNarrationStore(directory: directory)
-    let flow = NativeDeviceNarrationFlow(account: "alice", document: "doc", runtime: runtime, files: files, available: true, save: { _, _ in "saved" })
+    let app = FakeServer { request in
+      #expect(request.authorization == "Bearer lxd_incidental_audio_fixture")
+      #expect(request.url.path == "/api/trpc/deviceNarration.save")
+      #expect(!String(decoding: request.body ?? Data(), as: UTF8.self).contains("typed-native-retained-audio-291"))
+      return (200, #"{"result":{"data":{"json":{"id":"saved"}}}}"#)
+    }
+    let session = try #require(try Account(origin: TestServer.origin, store: InMemoryTokenStore("lxd_incidental_audio_fixture"), transport: app).restore())
+    let save: (String, DeviceRecording) async throws -> String = { id, recording in
+      try await session.saveDeviceNarration(recording, id: id, document: "doc")
+    }
+    let flow = NativeDeviceNarrationFlow(account: "alice", document: "doc", runtime: runtime, files: files, available: true, save: save)
     try await flow.start(text: "Hello")
     #expect(flow.checkpoint?.status == "completed")
-    let restored = NativeDeviceNarrationFlow(account: "alice", document: "doc", runtime: runtime, files: files, available: true, save: { _, _ in "saved" })
+    let restored = NativeDeviceNarrationFlow(account: "alice", document: "doc", runtime: runtime, files: files, available: true, save: save)
     try restored.restore()
     #expect(restored.checkpoint?.recording?.parts.count == 1)
     try runtime.removeKey()
     await restored.sync()
     #expect(restored.checkpoint?.status == "saved")
+    #expect(app.requests.count == 1)
   }
   @Test func providerTransportAdmitsDeclaredRawPCMAndRejectsCompressedEnvelope() async throws {
     BinarySpeechProbe.compressed.withLock { $0 = false }

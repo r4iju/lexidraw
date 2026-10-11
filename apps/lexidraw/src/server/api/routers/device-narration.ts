@@ -23,6 +23,7 @@ export function createDeviceNarrationRouter(deps: {
       .input(SaveRecording)
       .mutation(async ({ ctx, input }) => {
         try {
+          deps.records().validate(input);
           await deps.records().cleanup();
           return await deps.records().save(ctx.session.user.id, input);
         } catch (error) {

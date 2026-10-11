@@ -58,10 +58,22 @@ private final class BoundaryKey: TokenStore, @unchecked Sendable {
 }
 
 struct CredentialGuardedTransportTests {
+  @Test @MainActor func prefixHeavyInputStopsBeforeAppDispatchInsteadOfUnboundedFingerprintWork() async throws {
+    let runtime = NativeBYOK(store: BoundaryKey())
+    try runtime.replaceKey("hashwork-synthetic-credential-fixture")
+    let received = Counter(), responseRead = Counter()
+    let transport = CredentialGuardedTransport(underlying: BodyBoundary(received: received, responseRead: responseRead))
+    let body = try JSONEncoder().encode(["message": String(repeating: "hash", count: 30_000)])
+    await #expect(throws: NativeAIError.self) {
+      _ = try await transport.send(HTTPRequest(method: .post, scheme: nil, authority: nil, path: "/diagnostic"), body: HTTPBody(body), baseURL: URL(string: "https://app.test")!, operationID: "diagnostic")
+    }
+    #expect(received.value.withLock { $0 } == 0)
+  }
+
   @Test func mixedPercentTextCannotHideRetiredCredentialFingerprints() throws {
     let guarder = NativeCredentialGuard()
     let secret = "opaque-synthetic-native-credential-291"
-    guarder.remember(secret)
+    try guarder.remember(secret)
     let encoded = secret.utf8.map { String(format: "%%%02x", $0) }.joined()
     let restored = NativeCredentialGuard()
     try restored.restore(guarder.snapshot())

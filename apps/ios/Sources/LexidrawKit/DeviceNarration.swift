@@ -66,8 +66,12 @@ public struct DeviceNarrationCheckpoint: Codable, Sendable {
 }
 @MainActor public struct NativeDeviceNarrationStore {
   private let directory: URL
+  private let credentialGuard: NativeCredentialGuard
   private var file: URL { directory.appending(path: "checkpoint.json") }
-  public init(directory: URL) { self.directory = directory }
+  public init(directory: URL, credentialGuard: NativeCredentialGuard = .shared) {
+    self.directory = directory
+    self.credentialGuard = credentialGuard
+  }
   public func save(_ value: DeviceNarrationCheckpoint, expected: String? = nil) throws {
     if FileManager.default.fileExists(atPath: file.path) {
       let size = try FileManager.default.attributesOfItem(atPath: file.path)[.size] as? NSNumber
@@ -75,14 +79,16 @@ public struct DeviceNarrationCheckpoint: Codable, Sendable {
       let existing = try JSONDecoder().decode(
         DeviceNarrationCheckpoint.self, from: Data(contentsOf: file))
       guard existing.revision == expected else { throw NativeAIError.expired }
+      try credentialGuard.restore(existing.fingerprints)
     } else if expected != nil {
       throw NativeAIError.expired
     }
+    if !value.fingerprints.isEmpty { try credentialGuard.restore(value.fingerprints) }
     var checkpoint = try value.validated()
-    checkpoint.fingerprints = try NativeCredentialGuard.shared.snapshot()
+    checkpoint.fingerprints = try credentialGuard.snapshot()
     let data = try JSONEncoder().encode(checkpoint)
     guard data.count <= 63_000_000 else { throw NativeAIError.rejected }
-    try NativeCredentialGuard.shared.check(data)
+    try credentialGuard.check(data)
     try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
     var folder = directory
     var attributes = URLResourceValues()
@@ -102,8 +108,8 @@ public struct DeviceNarrationCheckpoint: Codable, Sendable {
     }
     let data = try Data(contentsOf: file)
     let value = try JSONDecoder().decode(DeviceNarrationCheckpoint.self, from: data)
-    try NativeCredentialGuard.shared.restore(value.fingerprints)
-    try NativeCredentialGuard.shared.check(data)
+    try credentialGuard.restore(value.fingerprints)
+    try credentialGuard.check(data)
     return try value.validated()
   }
   public func clear() throws {
@@ -186,12 +192,16 @@ public struct DeviceNarrationCheckpoint: Codable, Sendable {
       !value.parts.contains(where: { $0.kind == .started || $0.kind == .unknown }),
       value.recording == nil
     else { return }
+    let reference = try runtime.credentialReference()
     busy = true
+    notice = nil
     defer { busy = false }
     for index in value.parts.indices where value.parts[index].kind == .pending {
       try active()
-      guard runtime.hasKey else { break }
-      let reference = try runtime.credentialReference()
+      guard runtime.isCurrent(reference) else {
+        notice = "Your key changed. Completed audio is retained. Resume explicitly to use the current key."
+        break
+      }
       value.parts[index].kind = .started
       value.status = "running"
       try persist(value)

@@ -42,8 +42,8 @@ public struct Account: Sendable {
     self.providerKeyStore = providerKeyStore
     self.origin = origin
     self.store = store
-    self.transport = CredentialGuardedTransport(underlying: transport)
-    self.savedImageTransport = CredentialGuardedTransport(underlying: savedImageTransport ?? privateImageTransport())
+    self.transport = transport
+    self.savedImageTransport = savedImageTransport ?? privateImageTransport()
   }
 
   /// The server and the Keychain item that `bundle`'s Info.plist names, so
@@ -69,7 +69,8 @@ public struct Account: Sendable {
 
   /// Signed in with the token kept from an earlier launch, if there is one.
   public func restore() throws -> Session? {
-    try store.load().map(session(token:))
+    guard !NativeAppTokenResidue.shared.contains(store) else { return nil }
+    return try store.load().map(session(token:))
   }
 
   /// Signs in through the web's own sign-in page. `browser` opens `url` in a
@@ -109,6 +110,7 @@ public struct Account: Sendable {
     }
     do {
       try store.save(token)
+      NativeAppTokenResidue.shared.clear(store)
     } catch {
       // Otherwise the token would stay live with no device holding it.
       _ = try? await connection(token: token).client.tokensRevokeCurrent(body: .json(.init()))
@@ -124,26 +126,37 @@ public struct Account: Sendable {
     let files = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first.map {
       NativeTextFileStore(directory: $0.appending(path: "lexidraw/byok-text/" + scope))
     }
+    let lifetime = NativeAIHandle(
+      defaultStore: providerKeyStore == nil
+        ? KeychainProviderStore(accountID: "api-session-" + scope, origin: origin) : nil,
+      files: files,
+      narrationDirectory: FileManager.default.urls(
+        for: .applicationSupportDirectory, in: .userDomainMask
+      ).first?.appending(path: "lexidraw/device-narration/" + scope))
     return Session(
-      origin: origin, connection: connection(token: token), store: store,
-      savedImageTransport: savedImageTransport,
-      aiHandle: NativeAIHandle(
-        defaultStore: providerKeyStore == nil
-          ? KeychainProviderStore(accountID: "api-session-" + scope, origin: origin) : nil,
-        files: files,
-        narrationDirectory: FileManager.default.urls(
-          for: .applicationSupportDirectory, in: .userDomainMask
-        ).first?.appending(path: "lexidraw/device-narration/" + scope)),
+      origin: origin, connection: connection(token: token, lifetime: lifetime), store: store,
+      revokeToken: {
+        _ = try await unwrapped {
+          try await connection(token: token).client.tokensRevokeCurrent(body: .json(.init()))
+        }.ok
+      },
+      savedImageTransport: CredentialGuardedTransport(
+        underlying: SessionBoundTransport(underlying: savedImageTransport, lifetime: lifetime)),
+      aiHandle: lifetime,
       providerKeyStore: providerKeyStore, providerConfiguration: providerConfiguration)
   }
 
-  private func connection(token: String?) -> Connection {
-    Connection(
+  private func connection(token: String?, lifetime: NativeAIHandle? = nil) -> Connection {
+    let authorized: any ClientTransport = lifetime.map {
+      SessionBoundTransport(underlying: transport, lifetime: $0) as any ClientTransport
+    } ?? transport
+    return Connection(
       serverURL: origin.appending(path: "api/v1"),
-      transport: transport,
+      transport: CredentialGuardedTransport(underlying: authorized),
       middlewares: [Refusals(), JSONContentType()] + (token.map { [BearerToken(token: $0)] } ?? [])
     )
   }
+
 }
 
 /// The server as this app reaches it: the generated client, and the same

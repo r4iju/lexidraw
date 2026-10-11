@@ -19,6 +19,7 @@ import {
   IMAGE_UNAVAILABLE,
 } from "../images/contracts";
 import { z } from "zod";
+import { canonicalWav, compressionInspector } from "./audio-safety";
 import { sha256 } from "@noble/hashes/sha2.js";
 import { bytesToHex } from "@noble/hashes/utils.js";
 import {
@@ -71,23 +72,33 @@ export function createByokSession(
   const notify = () => {
     for (const listener of listeners) listener();
   };
-  function assertSafe(value: string) {
+  function assertSafe(value: string, pcm = false) {
+    if (value.length > 512 * 1024 * 1024) throw blocked();
+    const inspectCompression = compressionInspector(pcm || canonicalWav(value));
+    const initialDecoded = inspectCompression(
+      value,
+      pcm || canonicalWav(value),
+    );
+    let decodedWork = 0;
+    let fingerprintChecks = 0;
     if (/sk-(?:or-v1-|ant-)?[A-Za-z0-9_-]{16,}/.test(value)) throw blocked();
     const minKeyLength = Math.min(
       ...Array.from(known.values(), (key) => key.length),
       16,
     );
-    const pending = [value];
+    const pending = [value, ...initialDecoded];
     const seen = new Set<string>();
     while (pending.length) {
       const text = pending.pop();
       if (text === undefined || seen.has(text)) continue;
       seen.add(text);
-      // Supported artifact traffic has no compressed or SDK envelopes. Opaque compressed nodes fail closed.
+      decodedWork += text.length;
+      if (decodedWork > 512 * 1024 * 1024) throw blocked();
+      if (text !== value)
+        pending.push(...inspectCompression(text, canonicalWav(text)));
+      // Every decoded node has its own format check; sample status is never inherited.
       if (
         /sk-(?:or-v1-|ant-)?[A-Za-z0-9_-]{16,}/.test(text) ||
-        // biome-ignore lint/suspicious/noControlCharactersInRegex: Detect binary compression envelopes before accepting opaque bytes.
-        /(?:^\x78[\x01\x9c\xda]|\x1f\x8b\x08|PK\x03\x04)/.test(text) ||
         /"(?:apiKey|baseURL|providerOptions|rawResponse|providerConfig|requestBody|providerMetadata)"\s*:/.test(
           text,
         )
@@ -96,6 +107,7 @@ export function createByokSession(
       for (const [digest, secret] of known) {
         let offset = text.indexOf(secret.prefix);
         while (offset !== -1) {
+          if (++fingerprintChecks > 16_384) throw blocked();
           if (
             fingerprint(text.slice(offset, offset + secret.length)) === digest
           )
@@ -513,7 +525,7 @@ export function createByokSession(
         offset += part.length;
       }
       // Retired fingerprints still guard late usable output after key removal.
-      return audioFromPCM(bytes, assertSafe);
+      return audioFromPCM(bytes, (text) => assertSafe(text, true));
     } catch {
       throw new Error(
         "Provider outcome uncertain. No automatic repeat was performed.",
@@ -605,7 +617,7 @@ export function createByokSession(
     narrate,
     image,
     agent,
-    assertSafe,
+    assertSafe: (text: string) => assertSafe(text),
     assertEgress,
   };
 }

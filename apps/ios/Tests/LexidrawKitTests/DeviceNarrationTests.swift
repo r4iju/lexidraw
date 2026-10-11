@@ -1,4 +1,5 @@
 import Foundation
+import Observation
 import Synchronization
 import Testing
 
@@ -27,6 +28,25 @@ private final class SpeechProbe: URLProtocol, @unchecked Sendable {
     }
   }
   override func stopLoading() {}
+}
+@MainActor private final class ChunkReplacementObserver {
+  let flow: NativeDeviceNarrationFlow
+  let runtime: NativeBYOK
+  var replaced = false
+  init(flow: NativeDeviceNarrationFlow, runtime: NativeBYOK) {
+    self.flow = flow
+    self.runtime = runtime
+  }
+  func arm() {
+    withObservationTracking { _ = flow.checkpoint } onChange: {
+      Task(priority: .high) { @MainActor in
+        if self.flow.checkpoint?.parts.first?.kind == .completed {
+          do { try self.runtime.replaceKey("yield-replacement-narration-fixture"); self.replaced = true }
+          catch { Issue.record("Fixture key replacement failed") }
+        } else { self.arm() }
+      }
+    }
+  }
 }
 @Suite(.serialized) @MainActor struct DeviceNarrationTests {
   @Test func directNativeSpeechUsesSharedJSCAndRetiredReferenceCannotDispatch() async throws {
@@ -136,6 +156,36 @@ private final class SpeechProbe: URLProtocol, @unchecked Sendable {
     try third.restore()
     #expect(third.checkpoint?.recording != nil)
     #expect(SpeechProbe.requests.withLock { $0.count } == 1)
+  }
+
+  @Test func replacementAtCompletedChunkYieldRequiresExplicitResumeAndRetainsAudio() async throws {
+    SpeechProbe.requests.withLock { $0 = [] }
+    let directory = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let config = URLSessionConfiguration.ephemeral
+    config.protocolClasses = [SpeechProbe.self]
+    let runtime = NativeBYOK(store: NarrationKey(), configuration: config, narrationFixture: true)
+    try runtime.replaceKey("yield-original-narration-fixture")
+    let flow = NativeDeviceNarrationFlow(account: "alice", document: "doc", runtime: runtime,
+      files: NativeDeviceNarrationStore(directory: directory), available: true, save: { _, _ in "saved" })
+    let observer = ChunkReplacementObserver(flow: flow, runtime: runtime)
+    observer.arm()
+    try await flow.start(text: String(repeating: "Hello reader. ", count: 60))
+    #expect(observer.replaced)
+    #expect(flow.checkpoint?.status == "paused")
+    #expect(flow.checkpoint?.parts.first?.kind == .completed)
+    #expect(flow.checkpoint?.parts.dropFirst().allSatisfy { $0.kind == .pending } == true)
+    #expect(SpeechProbe.requests.withLock { $0.count } == 1)
+    let retained = try #require(flow.checkpoint?.parts.first?.output)
+    try await flow.resume()
+    #expect(flow.checkpoint?.status == "completed")
+    #expect(flow.checkpoint?.parts.first?.output?.audio == retained.audio)
+    #expect(SpeechProbe.requests.withLock { requests in
+      requests.first?.value(forHTTPHeaderField: "Authorization") == "Bearer yield-original-narration-fixture"
+        && requests.dropFirst().allSatisfy {
+          $0.value(forHTTPHeaderField: "Authorization") == "Bearer yield-replacement-narration-fixture"
+        }
+    })
   }
 
 }

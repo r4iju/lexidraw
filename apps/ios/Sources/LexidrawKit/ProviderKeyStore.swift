@@ -11,10 +11,13 @@ public struct KeychainProviderStore: TokenStore {
     self.accountID = accountID
     self.origin = origin.absoluteString
   }
-  var query: [String: Any] {
-    let scope = SHA256.hash(data: Data((origin + "\n" + accountID).utf8)).map {
+  var custodyScope: String {
+    SHA256.hash(data: Data((origin + "\n" + accountID).utf8)).map {
       String(format: "%02x", $0)
     }.joined()
+  }
+  var query: [String: Any] {
+    let scope = custodyScope
     return [
       kSecClass as String: kSecClassGenericPassword,
       kSecAttrService as String: "xyz.raiju.lexidraw.byok.openrouter",
@@ -80,22 +83,59 @@ final class NativeAIHandle: Sendable {
   {
     guard !ended else { throw NativeAIError.expired }
     if let runtime { return runtime }
+    do { try restoreRetiredDetectors() }
+    catch { throw NativeAIError.rejected }
     let created = NativeBYOK(store: store, configuration: configuration, files: files)
     runtime = created
     return created
   }
+  @MainActor private func restoreRetiredDetectors() throws {
+    guard let narrationDirectory, FileManager.default.fileExists(atPath: narrationDirectory.path) else { return }
+    struct History: Decodable { let fingerprints: Data }
+    var failed = false
+    guard let entries = FileManager.default.enumerator(at: narrationDirectory,
+      includingPropertiesForKeys: [.fileSizeKey, .isRegularFileKey, .isSymbolicLinkKey],
+      options: [.skipsHiddenFiles, .skipsPackageDescendants], errorHandler: { _, _ in failed = true; return false }) else { throw NativeAIError.rejected }
+    var count = 0, bytes = 0
+    for case let file as URL in entries where file.lastPathComponent == "checkpoint.json" {
+      let values = try file.resourceValues(forKeys: [.fileSizeKey, .isRegularFileKey, .isSymbolicLinkKey])
+      guard values.isRegularFile == true, values.isSymbolicLink != true, let size = values.fileSize,
+        size <= 63_000_000 else { throw NativeAIError.rejected }
+      count += 1
+      bytes += size
+      // Admission has its own finite read/work budget; existing audio format
+      // limits and checkpoint bytes remain unchanged and are never overwritten.
+      guard count <= 128, bytes <= 128 << 20 else { throw NativeAIError.rejected }
+      let history = try JSONDecoder().decode(History.self, from: Data(contentsOf: file))
+      try NativeCredentialGuard.shared.restore(history.fingerprints)
+    }
+    guard !failed else { throw NativeAIError.rejected }
+  }
+  @MainActor func requireActive() throws {
+    guard !ended else { throw NativeAIError.expired }
+  }
   @MainActor func endSession() throws {
     ended = true
+    var failures = Set<NativeCleanupFailure.Step>()
     if let runtime {
-      try runtime.endSession()
+      do { try runtime.endSession() }
+      catch let failure as NativeCleanupFailure { failures.formUnion(failure.steps) }
+      catch { failures.insert(.sessionActions) }
     } else {
-      try defaultStore?.delete()
-      try files?.clear()
+      if let defaultStore {
+        NativeProviderResidue.mark(defaultStore)
+        do { try defaultStore.delete(); NativeProviderResidue.clear(defaultStore) }
+        catch { failures.insert(.providerKey) }
+      }
+      do { try files?.clear() } catch { failures.insert(.textFiles) }
     }
     if let narrationDirectory, FileManager.default.fileExists(atPath: narrationDirectory.path) {
-      try FileManager.default.removeItem(at: narrationDirectory)
+      do { try FileManager.default.removeItem(at: narrationDirectory) }
+      catch { failures.insert(.narrationFiles) }
     }
+    if !failures.isEmpty { throw NativeCleanupFailure(steps: failures) }
   }
+
 }
 
 extension Session {
