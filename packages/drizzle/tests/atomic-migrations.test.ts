@@ -34,11 +34,13 @@ async function bounded<T>(promise: Promise<T>): Promise<T> {
 test("empty original 0002 inspection excludes competing file writes, commits original rows and repeats without duplicate receipts", async () => {
   const directory = await mkdtemp("/tmp/lexidraw-atomic-migration-");
   const url = pathToFileURL(join(directory, "fixture.sqlite")).href;
-  const competitor = createClient({ url, concurrency: 1, timeout: 0 });
+  let competitor = createClient({ url, concurrency: 1, timeout: 0 });
   const inspected = signal();
   const resume = signal();
   let running: Promise<void> | undefined;
   try {
+    // WAL prevents the observer's retained read snapshot from blocking commit.
+    await competitor.executeMultiple("PRAGMA journal_mode=WAL");
     for (const name of ["schema.sql", "rows.sql"]) {
       const contents = await readFile(join(fixture, name), "utf8");
       for (const statement of contents.split("--> statement-breakpoint"))
@@ -91,8 +93,10 @@ test("empty original 0002 inspection excludes competing file writes, commits ori
       (await competitor.execute("SELECT count(*) AS n FROM Document")).rows[0]
         ?.n,
     ).toBe(0);
+    competitor.close();
     resume.resolve();
     await bounded(running);
+    competitor = createClient({ url, concurrency: 1, timeout: 0 });
     expect(
       (
         await competitor.execute(

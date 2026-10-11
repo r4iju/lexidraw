@@ -56,7 +56,7 @@ export async function runAtomicMigrations(
       if (!latest || Number(latest.created_at) < migration.folderMillis) {
         for (const [index, statement] of migration.sql.entries()) {
           try {
-            await executor.execute(statement);
+            await executor.executeMultiple(statement);
           } catch (cause) {
             throw new Error(
               `Migration ${migration.folderMillis} split statement ${index} failed`,

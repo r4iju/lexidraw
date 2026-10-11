@@ -1,15 +1,45 @@
 import { createClient } from "@libsql/client/sqlite3";
 import type { Transaction } from "@libsql/client";
 
-export type MigrationExecutor = Pick<Transaction, "execute">;
+export type MigrationExecutor = Pick<
+  Transaction,
+  "execute" | "executeMultiple"
+>;
 
 /** Owns each write's private connection through settlement and disposal. */
 export interface MigrationOwner {
   write<T>(work: (executor: MigrationExecutor) => Promise<T>): Promise<T>;
 }
 
+/** Wraps disposal operations without exposing the private connection. */
+export interface MigrationCleanup {
+  restoreForeignKeys?(restore: () => Promise<void>): Promise<void>;
+  close?(close: () => void): void;
+}
+
+export class FileMigrationError extends AggregateError {
+  constructor(
+    failures: unknown[],
+    readonly committed: boolean | "unknown",
+  ) {
+    super(
+      failures,
+      committed === true
+        ? "Migration committed, but settlement cleanup failed"
+        : committed === "unknown"
+          ? "Migration commit outcome is unknown; settlement failed"
+          : "Migration failed before commit",
+      { cause: failures[0] },
+    );
+    this.name = "FileMigrationError";
+  }
+}
+
 /** Only explicit, non-replicated local file URLs are supported. */
-export function createFileMigrationOwner(url: string): MigrationOwner {
+export function createFileMigrationOwner(
+  url: string,
+  cleanup: MigrationCleanup = {},
+): MigrationOwner {
   const file = new URL(url);
   if (
     file.protocol !== "file:" ||
@@ -28,6 +58,7 @@ export function createFileMigrationOwner(url: string): MigrationOwner {
     async write(work) {
       const client = createClient({ url, concurrency: 1, timeout: 0 });
       let transaction: Transaction | undefined;
+      let committed: boolean | "unknown" = false;
       let value: Awaited<ReturnType<typeof work>> | undefined;
       const failures: unknown[] = [];
       try {
@@ -39,8 +70,13 @@ export function createFileMigrationOwner(url: string): MigrationOwner {
           throw new Error("Could not disable foreign keys before migration");
         }
         transaction = await client.transaction("write");
-        value = await work({ execute: transaction.execute.bind(transaction) });
+        value = await work({
+          execute: transaction.execute.bind(transaction),
+          executeMultiple: transaction.executeMultiple.bind(transaction),
+        });
+        committed = "unknown";
         await transaction.commit();
+        committed = true;
       } catch (error) {
         failures.push(error);
         if (transaction && !transaction.closed) {
@@ -57,32 +93,31 @@ export function createFileMigrationOwner(url: string): MigrationOwner {
           failures.push(cleanup);
         }
         try {
-          await client.execute("PRAGMA foreign_keys=on");
-          if (
-            (await client.execute("PRAGMA foreign_keys")).rows[0]
-              ?.foreign_keys !== 1
-          ) {
-            failures.push(
-              new Error(
+          const restore = async () => {
+            await client.execute("PRAGMA foreign_keys=on");
+            if (
+              (await client.execute("PRAGMA foreign_keys")).rows[0]
+                ?.foreign_keys !== 1
+            ) {
+              throw new Error(
                 "Could not restore foreign keys after migration settlement",
-              ),
-            );
-          }
+              );
+            }
+          };
+          if (cleanup.restoreForeignKeys)
+            await cleanup.restoreForeignKeys(restore);
+          else await restore();
         } catch (cleanup) {
           failures.push(cleanup);
         }
         try {
-          client.close();
+          if (cleanup.close) cleanup.close(() => client.close());
+          else client.close();
         } catch (cleanup) {
           failures.push(cleanup);
         }
       }
-      if (failures.length === 1) throw failures[0];
-      if (failures.length > 1)
-        throw new AggregateError(
-          failures,
-          "Migration or settlement cleanup failed; commit may already have succeeded",
-        );
+      if (failures.length) throw new FileMigrationError(failures, committed);
       return value as Awaited<ReturnType<typeof work>>;
     },
   };
