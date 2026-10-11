@@ -44,6 +44,18 @@ export async function migrate<TSchema extends Record<string, unknown>>(
 ): Promise<void> {
   const transaction = await db.$client.transaction("write");
   try {
+    const legacyDocuments = (
+      await transaction.execute(
+        "SELECT name FROM sqlite_master WHERE name COLLATE NOCASE IN ('Document', 'SharedDocument') LIMIT 1",
+      )
+    ).rows;
+    // Empty checks cannot safely precede the separately connected Drizzle runner.
+    // Retain every legacy object until conversion and atomic continuation exist.
+    if (legacyDocuments.length > 0) {
+      throw new Error(
+        "Legacy Document/SharedDocument object detected; migration stopped before 0002_flippant_red_ghost. Original data is retained. An authoritative document conversion is required before continuing; atomic empty continuation is unavailable for empty, partial or unsupported legacy schemas.",
+      );
+    }
     const columns = (await transaction.execute("PRAGMA table_xinfo(TtsJobs)"))
       .rows;
     if (

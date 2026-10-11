@@ -1,0 +1,53 @@
+{
+  "User": [
+    [
+      "owner"
+    ],
+    [
+      "reader"
+    ]
+  ],
+  "Document": [
+    [
+      "doc-one",
+      "Synthetic original document",
+      "  {\"root\":{\"type\":\"root\",\"children\":[]},\"tts\":{\"text\":\"Synthetic text\",\"audioUrl\":\"https://example.invalid/saved.mp3\"},\"unknown\":{\"retain\":\"\\u2603\"}}\n",
+      1710000000001,
+      1710000000002,
+      null,
+      "owner",
+      "private"
+    ]
+  ],
+  "SharedDocument": [
+    [
+      "share-doc",
+      "doc-one",
+      "reader",
+      "view",
+      1710000000003
+    ]
+  ],
+  "Drawing": [
+    [
+      "drawing-one",
+      "Synthetic drawing",
+      " [{\"id\":\"shape\",\"unknown\":\"retain\"}] ",
+      "{\"retain\":42}",
+      1710000000004,
+      1710000000005,
+      1710000000006,
+      "owner",
+      "private"
+    ]
+  ],
+  "SharedDrawing": [
+    [
+      "share-drawing",
+      "drawing-one",
+      "reader",
+      "edit",
+      1710000000007
+    ]
+  ]
+}
