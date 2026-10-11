@@ -139,6 +139,7 @@ private final class NoProviderRedirects: NSObject, URLSessionTaskDelegate, Senda
   }
 
   public func cancel() {
+    credentialGuard.invalidateReviews()
     generation = UUID()
     for session in sessions.values { session.invalidateAndCancel() }
     sessions.removeAll()

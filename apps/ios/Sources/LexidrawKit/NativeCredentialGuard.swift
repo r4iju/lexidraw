@@ -13,6 +13,17 @@ public final class NativeCredentialGuard: @unchecked Sendable {
   }
   private let lock = NSLock()
   private var fingerprints = Set<Fingerprint>()
+  private var reviewGeneration = UUID()
+  var reviewRevision: UUID {
+    lock.lock()
+    defer { lock.unlock() }
+    return reviewGeneration
+  }
+  func invalidateReviews() {
+    lock.lock()
+    defer { lock.unlock() }
+    reviewGeneration = UUID()
+  }
 
   public init() {}
   private static func encoded(_ values: Set<Fingerprint>) throws -> Data {
@@ -38,6 +49,7 @@ public final class NativeCredentialGuard: @unchecked Sendable {
     let admitted = fingerprints.union([fingerprint])
     _ = try Self.encoded(admitted)
     fingerprints = admitted
+    reviewGeneration = UUID()
   }
 
   public func snapshot() throws -> Data {
@@ -55,6 +67,7 @@ public final class NativeCredentialGuard: @unchecked Sendable {
     defer { lock.unlock() }
     let union = fingerprints.union(restored)
     _ = try Self.encoded(union)
+    if union != fingerprints { reviewGeneration = UUID() }
     fingerprints = union
   }
   public func check(_ data: Data) throws {

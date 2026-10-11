@@ -1,5 +1,11 @@
 "use client";
-import { useCallback, useRef } from "react";
+import {
+  useCallback,
+  useRef,
+  useMemo,
+  useSyncExternalStore,
+  useEffect,
+} from "react";
 import { useChatDispatch, useChatState } from "./llm-chat-context";
 import { useLLM } from "../../context/llm-context";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
@@ -13,7 +19,13 @@ import {
   type ChatInput,
   type ChatSelection,
 } from "~/lib/generation/chat";
-import { browserByok } from "~/lib/byok/browser-session";
+import {
+  browserByok,
+  browserByokAccount,
+  browserByokSessionGeneration,
+  useBrowserByok,
+} from "~/lib/byok/browser-session";
+import { useEntityId } from "~/hooks/use-entity-id";
 interface SendQueryParams {
   prompt: string;
   selectedInput?: ChatInput;
@@ -23,11 +35,87 @@ interface SendQueryParams {
 export const useSendQuery = () => {
   const dispatch = useChatDispatch();
   const { mode, messages } = useChatState();
-  const { generateChatStream } = useLLM();
+  const { generateChatStream, chatSource, chatCapability } = useLLM();
   const [editor] = useLexicalComposerContext();
   const { convertEditorStateToMarkdown } = useMarkdownTools();
   const { runAgentWorkflow } = useAgentWorkflow({ onError: () => {} });
   const inFlight = useRef(false);
+  const mounted = useRef(true);
+  const reviewSequence = useRef(0);
+  // External system: asynchronous file reviews belong to this mounted send surface.
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      reviewSequence.current++;
+    };
+  }, []);
+  const documentId = useEntityId();
+  const account = browserByokAccount();
+  const owner = useBrowserByok(account);
+  const generation = browserByokSessionGeneration();
+  const credentialGeneration = useSyncExternalStore(
+    owner?.subscribe ?? (() => () => {}),
+    owner?.revision ?? (() => 0),
+    () => 0,
+  );
+  const subscribeEditor = useCallback(
+    (notify: () => void) => editor.registerUpdateListener(notify),
+    [editor],
+  );
+  const editorState = useSyncExternalStore(
+    subscribeEditor,
+    () => editor.getEditorState(),
+    () => editor.getEditorState(),
+  );
+  // Scope uses immutable source references and non-secret semantic values; it is never serialized.
+  const scope = useMemo(
+    () => ({
+      messages,
+      mode,
+      editorState,
+      documentId,
+      account,
+      generation,
+      credentialGeneration,
+      chatSource,
+      chatCapability,
+    }),
+    [
+      messages,
+      mode,
+      editorState,
+      documentId,
+      account,
+      generation,
+      credentialGeneration,
+      chatSource,
+      chatCapability,
+    ],
+  );
+  const current = useRef(scope);
+  current.current = scope;
+  const isCurrent = useCallback(
+    (value: object) =>
+      mounted.current &&
+      current.current === value &&
+      editor.getEditorState() === editorState &&
+      browserByokAccount() === account &&
+      browserByokSessionGeneration() === generation &&
+      browserByok().revision() === credentialGeneration,
+    [editor, editorState, account, generation, credentialGeneration],
+  );
+  const reviews = useRef(
+    new WeakMap<
+      ChatInput,
+      {
+        scope: object;
+        sequence: number;
+        prompt: string;
+        files: ChatInput["files"];
+      }
+    >(),
+  );
   const send = useCallback(
     async ({
       prompt,
@@ -35,9 +123,10 @@ export const useSendQuery = () => {
       files,
       selectedInput,
     }: SendQueryParams) => {
-      if (inFlight.current || !prompt.trim()) return;
+      if (!mounted.current || inFlight.current || !prompt.trim()) return;
       inFlight.current = true;
       try {
+        if (selectedInput && mode !== "chat") throw new Error(CHAT_CAPABILITY);
         if (mode !== "chat") {
           await runAgentWorkflow({
             prompt,
@@ -53,6 +142,23 @@ export const useSendQuery = () => {
           return;
         }
         if (!selectedInput) throw new Error(CHAT_CAPABILITY);
+        const reviewed = reviews.current.get(selectedInput);
+        if (!reviewed) throw new Error(CHAT_CAPABILITY);
+        // Guard the CURRENT full candidate before trusting any omitted/excerpted wire.
+        browserByok().assertSafe(
+          JSON.stringify({
+            prompt: reviewed.prompt,
+            messages,
+            context: convertEditorStateToMarkdown(editor.getEditorState()),
+            files: reviewed.files,
+          }),
+        );
+        if (
+          !isCurrent(reviewed.scope) ||
+          reviewed.sequence !== reviewSequence.current
+        )
+          throw new Error(CHAT_CAPABILITY);
+        reviewSequence.current++;
         browserByok().assertSafe(JSON.stringify(prepareChat(selectedInput)));
         const attachments = selectedInput.files ?? [];
         dispatch({
@@ -117,14 +223,22 @@ export const useSendQuery = () => {
       runAgentWorkflow,
       convertEditorStateToMarkdown,
       editor,
+      messages,
+      isCurrent,
     ],
   );
   return Object.assign(send, {
+    scope,
+    invalidateReview() {
+      reviewSequence.current++;
+    },
     async review({
       prompt,
       files,
       selection,
     }: SendQueryParams & { selection: ChatSelection }) {
+      const captured = scope;
+      const sequence = ++reviewSequence.current;
       const attachments = await Promise.all(
         Array.from(files ?? []).map(async (file) => {
           if (
@@ -135,7 +249,9 @@ export const useSendQuery = () => {
           return { name: file.name, type: file.type, text: await file.text() };
         }),
       );
-      return prepareChatSelection(
+      if (!isCurrent(captured) || sequence !== reviewSequence.current)
+        return { kind: "needs_selection" as const, message: CHAT_CAPABILITY };
+      const result = prepareChatSelection(
         {
           prompt,
           messages,
@@ -145,6 +261,20 @@ export const useSendQuery = () => {
         selection,
         browserByok().assertSafe,
       );
+      if (result.kind === "ready") {
+        for (const message of result.input.messages) Object.freeze(message);
+        for (const file of result.input.files) Object.freeze(file);
+        Object.freeze(result.input.messages);
+        Object.freeze(result.input.files);
+        Object.freeze(result.input);
+        reviews.current.set(result.input, {
+          scope: captured,
+          sequence,
+          prompt,
+          files: result.input.files,
+        });
+      }
+      return result;
     },
   });
 };

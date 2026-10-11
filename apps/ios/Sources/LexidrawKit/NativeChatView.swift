@@ -27,6 +27,7 @@ import UniformTypeIdentifiers
   private var historyOwner: NativeArtifactOwner?
   private struct History: Codable { let owner: NativeArtifactOwner; let messages: [NativeChatMessage] }
   private var context = ""
+  private var reviewRevision: UUID?
   private var operation: ProChatOperation?
   private var task: Task<Void, Never>?
   private var stopRequested = false
@@ -108,16 +109,32 @@ import UniformTypeIdentifiers
     let indices = turnIndices ?? Array(messages.indices.suffix(2))
     do {
       switch try nativeChatSelection(sourceInput, turnIndices: indices, documentExcerpt: documentExcerpt) {
-      case .ready(let input, let summary): state = .contextReview(input, summary)
+      case .ready(let input, let summary):
+        reviewRevision = NativeCredentialGuard.shared.reviewRevision
+        state = .contextReview(input, summary)
       case .needsSelection(let message): state = .result(message)
       }
     } catch { state = .result(NativeChatError.capability.localizedDescription) }
   }
   public func sendReviewed() {
     guard task == nil, case .contextReview(let input, _) = state else { return }
+    do {
+      let candidate = NativeChatInput(prompt: input.prompt, messages: messages, context: context, files: input.files)
+      try NativeCredentialGuard.shared.check(JSONEncoder().encode(candidate))
+      guard reviewRevision == NativeCredentialGuard.shared.reviewRevision else { throw NativeChatError.capability }
+      _ = try nativeChatPrepared(input)
+    } catch {
+      state = .result(NativeChatError.capability.localizedDescription)
+      return
+    }
+    let revision = reviewRevision
     stopRequested = false
     task = Task {
       defer { task = nil }
+      guard !Task.isCancelled, revision == NativeCredentialGuard.shared.reviewRevision else {
+        state = .result(NativeChatError.capability.localizedDescription)
+        return
+      }
       if source == .pro, fixture == nil {
         do {
           guard let session else { throw NativeChatError.unavailable }

@@ -1,5 +1,5 @@
 "use client";
-import { useContext, useState } from "react";
+import { useContext, useState, useRef } from "react";
 import {
   chatInclusionSummary,
   type ChatPreparation,
@@ -18,13 +18,27 @@ export function ChatComposer({
     prompt: string;
     files?: FileList | null;
     selectedInput?: ChatInput;
-  }) => Promise<void>) & { review?: ReturnType<typeof useSendQuery>["review"] };
+  }) => Promise<void>) & {
+    review?: ReturnType<typeof useSendQuery>["review"];
+    scope?: object;
+    invalidateReview?: () => void;
+  };
 }) {
   const llm = useLLM();
   const messages = useContext(ChatStateCtx)?.messages ?? [];
-  const [review, setReview] = useState<
-    ChatPreparation | { kind: "idle" | "preparing" }
-  >({ kind: "idle" });
+  const [reviewState, setReviewState] = useState<{
+    scope: object | undefined;
+    result: ChatPreparation | { kind: "idle" | "preparing" };
+  }>({ scope: send.scope, result: { kind: "idle" } });
+  const currentScope = useRef(send.scope);
+  currentScope.current = send.scope;
+  const revision = useRef(0);
+  const review =
+    reviewState.scope === send.scope
+      ? reviewState.result
+      : { kind: "idle" as const };
+  const setReview = (result: typeof reviewState.result) =>
+    setReviewState({ scope: send.scope, result });
   return (
     <div className="space-y-3 p-3">
       <p role="status">
@@ -48,7 +62,11 @@ export function ChatComposer({
         </div>
       )}
       <form
-        onChange={() => setReview({ kind: "idle" })}
+        onChange={() => {
+          revision.current++;
+          send.invalidateReview?.();
+          setReview({ kind: "idle" });
+        }}
         onSubmit={async (event) => {
           event.preventDefault();
           const form = event.currentTarget;
@@ -70,23 +88,27 @@ export function ChatComposer({
             });
             return;
           }
+          const scope = send.scope;
+          const version = ++revision.current;
           setReview({ kind: "preparing" });
           try {
-            setReview(
-              await send.review({
-                prompt,
-                files: input.files,
-                selection: {
-                  turnIds: data
-                    .getAll("turn")
-                    .filter(
-                      (value): value is string => typeof value === "string",
-                    ),
-                  documentExcerpt,
-                },
-              }),
-            );
+            const result = await send.review({
+              prompt,
+              files: input.files,
+              selection: {
+                turnIds: data
+                  .getAll("turn")
+                  .filter(
+                    (value): value is string => typeof value === "string",
+                  ),
+                documentExcerpt,
+              },
+            });
+            if (currentScope.current === scope && revision.current === version)
+              setReview(result);
           } catch {
+            if (currentScope.current !== scope || revision.current !== version)
+              return;
             setReview({
               kind: "needs_selection",
               message:

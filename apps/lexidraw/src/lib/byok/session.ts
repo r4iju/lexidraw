@@ -69,7 +69,9 @@ export function createByokSession(
   const fingerprint = (text: string) =>
     bytesToHex(sha256(new TextEncoder().encode(text)));
   const listeners = new Set<() => void>();
+  let revision = 0;
   const notify = () => {
+    revision++;
     for (const listener of listeners) listener();
   };
   function assertSafe(value: string, pcm = false) {
@@ -600,11 +602,14 @@ export function createByokSession(
   return {
     fingerprints: () =>
       Array.from(known, ([digest, value]) => ({ digest, ...value })),
+    revision: () => revision,
     restoreFingerprints(value: unknown) {
+      const size = known.size;
       for (const { digest, prefix, length } of CredentialFingerprints.parse(
         value,
       ))
         known.set(digest, { prefix, length });
+      if (known.size !== size) notify();
     },
     replace,
     remove() {

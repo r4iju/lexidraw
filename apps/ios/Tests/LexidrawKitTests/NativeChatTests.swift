@@ -329,3 +329,37 @@ extension NativeChatTests {
     #expect(String(describing: flow.state).contains("contextReview"))
   }
 }
+
+extension NativeChatTests {
+  @Test func reviewedContextRejectsNewCredentialOutsideSelectedExcerpt() async throws {
+    let excluded = "NativeD2ExcludedSyntheticKeyQXYZ"
+    var sent: [NativeChatInput] = []
+    let flow = NativeChatFlow(source: .byok, messages: [.init(role: "user", content: "Saved.")], context: "Document " + excluded) { input, _ in
+      sent.append(input)
+      return "Done."
+    }
+    flow.send("Why?", documentExcerpt: "Document")
+    guard case .contextReview = flow.state else { Issue.record("Expected context review"); return }
+    try NativeCredentialGuard.shared.remember(excluded)
+    flow.sendReviewed()
+    try await Task.sleep(for: .milliseconds(30))
+    #expect(sent.isEmpty)
+    #expect(flow.messages == [.init(role: "user", content: "Saved.")])
+  }
+}
+
+extension NativeChatTests {
+  @Test func queuedReviewedContextRejectsCredentialChangeBeforeDispatch() async throws {
+    var dispatched = false
+    let flow = NativeChatFlow(source: .byok, messages: [], context: "Benign document") { _, _ in
+      dispatched = true
+      return "Done."
+    }
+    flow.send("Why?")
+    flow.sendReviewed()
+    try NativeCredentialGuard.shared.remember("NativeD2QueuedSyntheticKeyQXYZ")
+    try await Task.sleep(for: .milliseconds(30))
+    #expect(!dispatched)
+    #expect(flow.messages.isEmpty)
+  }
+}
