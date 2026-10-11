@@ -1,7 +1,8 @@
+import { readListenContent } from "~/lib/narration/read-listen-content";
 import { NARRATION_UNAVAILABLE } from "~/lib/narration/contracts";
 import { z } from "zod";
 import { drizzle, schema } from "@packages/drizzle";
-import { and, eq, or, isNull, ne, desc } from "drizzle-orm";
+import { and, eq, or, isNull, ne, desc, sql } from "drizzle-orm";
 import { createTRPCRouter, protectedProcedure } from "~/server/api/trpc";
 import { listenSettings, servedFormat } from "~/app/settings/schema";
 import { computeDocKey, computeArticleKey } from "~/server/tts/id";
@@ -499,7 +500,27 @@ export const ttsRouter = createTRPCRouter({
         ctx.session?.user?.id,
         input.documentId,
       );
-      return manifestOf(await latestJob(input.documentId, ctx.session.user.id));
+      return readListenContent(
+        async () => {
+          const [document] = await drizzle
+            .select({
+              raw: sql<unknown>`cast(${schema.entities.elements} as blob)`,
+              storageType: sql<string>`typeof(${schema.entities.elements})`,
+            })
+            .from(schema.entities)
+            .where(
+              and(
+                eq(schema.entities.id, input.documentId),
+                eq(schema.entities.entityType, "document"),
+                isNull(schema.entities.deletedAt),
+              ),
+            )
+            .limit(1);
+          return document;
+        },
+        async () =>
+          manifestOf(await latestJob(input.documentId, ctx.session.user.id)),
+      );
     }),
 
   deleteDocumentTts: protectedProcedure

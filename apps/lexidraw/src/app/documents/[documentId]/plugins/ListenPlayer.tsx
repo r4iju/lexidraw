@@ -43,6 +43,11 @@ import {
   ListenSegments,
   type ListenSegment as TtsSegment,
 } from "~/lib/narration/listen-contracts";
+import { SavedRecordingProjection } from "~/lib/narration/saved-recording";
+import {
+  SavedRecordingPlayback,
+  type SavedAudioScreen,
+} from "./SavedRecordingPlayback";
 type AudioScreen =
   | { kind: "loading" }
   | { kind: "error" }
@@ -121,7 +126,7 @@ function ListenPlayerSession({
   const manifestQuery = api.tts.getDocumentTtsManifest.useQuery(
     { documentId },
     {
-      enabled: open && (making || status === "ready"),
+      enabled: open,
       refetchInterval: (query) =>
         making ||
         (status === "ready" && (query.state.data?.segments.length ?? 0) < made)
@@ -130,7 +135,7 @@ function ListenPlayerSession({
     },
   );
   const refetchManifest = manifestQuery.refetch;
-  // The last parts are listed once the job is ready.
+  // The generated manifest query follows the external job store to its final parts.
   useEffect(() => {
     if (open && status === "ready") void refetchManifest();
   }, [open, status, refetchManifest]);
@@ -215,6 +220,17 @@ function ListenPlayerSession({
       error?.data?.code === "FORBIDDEN" || error?.data?.code === "UNAUTHORIZED",
   );
   const parsed = ListenSegments.safeParse(manifestQuery.data?.segments ?? []);
+  const saved = SavedRecordingProjection.safeParse(
+    manifestQuery.data?.savedRecording,
+  );
+  const savedScreen: SavedAudioScreen =
+    denied || manifestQuery.error
+      ? { kind: "read-error" }
+      : manifestQuery.isPending || !manifestQuery.data
+        ? { kind: "loading" }
+        : saved.success
+          ? saved.data
+          : { kind: "stop", reason: "corrupt-payload" };
   const invalidManifest = !parsed.success;
   const segments = denied || !parsed.success ? [] : parsed.data;
   const stale = !!statusQuery.error || !!manifestQuery.error || invalidManifest;
@@ -244,6 +260,7 @@ function ListenPlayerSession({
         position={position}
         documentId={documentId}
         screen={screen}
+        savedScreen={savedScreen}
         initialIndex={initialIndex}
         denied={denied}
         invalidManifest={invalidManifest}
@@ -292,6 +309,7 @@ function DraggablePopoverContent({
   position,
   screen,
   initialIndex,
+  savedScreen,
   denied,
   invalidManifest,
   statusError,
@@ -303,6 +321,7 @@ function DraggablePopoverContent({
   documentId: string;
   position: { x: number; y: number };
   screen: AudioScreen;
+  savedScreen: SavedAudioScreen;
   initialIndex: () => number;
   denied: boolean;
   invalidManifest: boolean;
@@ -414,6 +433,7 @@ function DraggablePopoverContent({
             </p>
           )}
         </div>
+        <SavedRecordingPlayback documentId={documentId} screen={savedScreen} />
         {screen.kind === "playable" && (
           <RecordingPlayback
             key={screen.segments[0]?.audioUrl ?? "recording"}
@@ -422,7 +442,7 @@ function DraggablePopoverContent({
             making={making}
           />
         )}
-        {screen.kind === "empty" && (
+        {screen.kind === "empty" && savedScreen.kind === "none" && (
           <p>
             No saved audio is available. The source controls above show whether
             new narration is available.

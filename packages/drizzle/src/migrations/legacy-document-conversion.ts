@@ -1,3 +1,7 @@
+import {
+  assertSupportedDocumentRootV1,
+  assertSupportedLegacyAudioV1,
+} from "../document-payload-v1.js";
 import type { InValue } from "@libsql/client";
 import type { MigrationExecutor } from "./file-migration-owner.js";
 import {
@@ -89,62 +93,15 @@ function strictJSON(raw: string): unknown {
     return stop("corrupt JSON");
   }
 }
-function object(v: unknown): Record<string, unknown> {
-  if (!v || typeof v !== "object" || Array.isArray(v))
-    return stop("expected object");
-  return v as Record<string, unknown>;
-}
-function keys(v: Record<string, unknown>, expected: readonly string[]) {
-  if (
-    Object.keys(v).length !== expected.length ||
-    expected.some((k) => !Object.hasOwn(v, k))
-  )
-    stop("unknown or missing nested fields");
-}
 function nonempty(v: unknown): v is string {
   return typeof v === "string" && v.length > 0;
 }
 function payload(raw: string) {
-  const envelope = object(strictJSON(raw));
-  const node = (input: unknown, type: "root" | "paragraph" | "text") => {
-    const n = object(input);
-    keys(
-      n,
-      type === "text"
-        ? ["detail", "format", "mode", "style", "text", "type", "version"]
-        : ["children", "direction", "format", "indent", "type", "version"],
-    );
-    if (n.type !== type || n.version !== 1) stop("unsupported node or version");
-    if (type === "text") {
-      if (
-        n.detail !== 0 ||
-        n.format !== 0 ||
-        n.mode !== "normal" ||
-        n.style !== "" ||
-        !nonempty(n.text)
-      )
-        stop("unsupported text fields");
-    } else if (
-      n.direction !== null ||
-      n.format !== "" ||
-      n.indent !== 0 ||
-      !Array.isArray(n.children) ||
-      !n.children.length
-    )
-      stop("unsupported or empty element");
-    return n;
-  };
-  const root = node(envelope.root, "root");
-  for (const p of root.children as unknown[]) {
-    const paragraph = node(p, "paragraph");
-    for (const text of paragraph.children as unknown[]) node(text, "text");
-  }
-  if (Object.hasOwn(envelope, "tts")) {
-    const audio = object(envelope.tts);
-    keys(audio, ["text", "audioUrl"]);
-    if (!nonempty(audio.text) || !nonempty(audio.audioUrl))
-      stop("unsupported audio metadata");
-  }
+  const envelope = strictJSON(raw);
+  assertSupportedDocumentRootV1(envelope);
+  // The root classifier has established an object envelope.
+  const value = envelope as Record<string, unknown>;
+  if (Object.hasOwn(value, "tts")) assertSupportedLegacyAudioV1(value.tts);
 }
 
 const documentDefaults = {
