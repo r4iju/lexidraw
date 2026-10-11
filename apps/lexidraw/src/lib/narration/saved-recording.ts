@@ -1,7 +1,5 @@
-import {
-  assertSupportedDocumentRootV1,
-  assertSupportedLegacyAudioV1,
-} from "../../../../../packages/drizzle/src/document-payload-v1";
+import { assertSupportedLegacyAudioV1 } from "../../../../../packages/drizzle/src/document-payload-v1";
+import { assertSupportedPersistedEditorRootV1 } from "./persisted-editor-root-v1";
 import { normalizeDocumentBytes } from "../document-payload";
 import { z } from "zod";
 
@@ -46,7 +44,7 @@ export function projectSavedRecording(
     return { kind: "stop", reason: "corrupt-payload" };
   }
   try {
-    assertSupportedDocumentRootV1(envelope);
+    assertSupportedPersistedEditorRootV1(envelope);
   } catch {
     return { kind: "stop", reason: "unsupported-payload" };
   }
