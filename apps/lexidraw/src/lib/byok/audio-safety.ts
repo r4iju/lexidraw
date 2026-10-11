@@ -34,7 +34,7 @@ export function canonicalWav(binary: string) {
 /** Valid compressed containers are unsupported inside declared PCM.
  * Reject them even without a device key registry (the server never gets one).
  * Recoverable fragments from invalid candidates still pass the known-key scanner.
- * Invalid incidental signatures are allowed only in independently typed audio.
+ * Invalid incidental signatures are allowed in typed audio and PNG channel bytes.
  */
 export function compressionInspector(
   audioContext = false,
@@ -45,7 +45,12 @@ export function compressionInspector(
   let compressedWork = 0;
   let imageWork = 0;
   const blocked = () => new Error("Credential egress blocked");
-  function inspect(binary: string, samples: boolean, depth = 0): string[] {
+  function inspect(
+    binary: string,
+    samples: boolean,
+    depth = 0,
+    typedPixels = false,
+  ): string[] {
     if (depth > 8) throw blocked();
     const recovered: string[] = [];
     let octets: Uint8Array | undefined;
@@ -67,7 +72,7 @@ export function compressionInspector(
       const view = new DataView(png.buffer, png.byteOffset, png.byteLength);
       const idat: Uint8Array[] = [];
       let size = 0;
-      for (let offset = 8; offset + 12 <= png.length;) {
+      for (let offset = 8; offset + 12 <= png.length; ) {
         const length = view.getUint32(offset);
         if (view.getUint32(offset + 4) === 0x49444154) {
           const part = png.subarray(offset + 8, offset + 8 + length);
@@ -107,6 +112,9 @@ export function compressionInspector(
         for (const byte of bytes) text += String.fromCharCode(byte);
         checkPixels(text);
         checkPixels(new TextDecoder().decode(bytes));
+        // Typed channels can contain incidental headers. Recoverable compressed
+        // nodes still use the same finite scanner before image admission.
+        recovered.push(...inspect(text, false, depth + 1, true));
       };
       check(output);
       const pixels = new Uint8Array(expected - 1024);
@@ -161,10 +169,10 @@ export function compressionInspector(
         const version = word(4),
           name = word(26),
           extra = word(28);
-        // A magic byte sequence alone is ordinary PCM noise. A bounded local
+        // A magic byte sequence alone can be ordinary samples. A bounded local
         // file header with an actual filename identifies an unsupported archive.
         if (
-          !samples ||
+          (!samples && !typedPixels) ||
           (binary.length - i >= 30 &&
             version >= 10 &&
             version <= 63 &&
@@ -179,6 +187,7 @@ export function compressionInspector(
       if (!gzip && !zlib) continue;
       if (
         !audioContext &&
+        !typedPixels &&
         (gzip || (i === 0 && a === 0x78 && [1, 0x9c, 0xda].includes(b)))
       )
         throw blocked();

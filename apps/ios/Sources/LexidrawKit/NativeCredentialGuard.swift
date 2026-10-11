@@ -132,14 +132,14 @@ public final class NativeCredentialGuard: @unchecked Sendable {
     }
     // PCM/WAV validates the format, never the confidentiality of its samples.
     // A valid (or partially recoverable) compressed node is not PCM content.
-    // Invalid incidental markers are allowed only at the independently typed audio boundary.
+    // Invalid incidental markers are allowed in typed audio and PNG channel bytes.
     var candidates = 0
     var inflatedWork = 0
     var compressedWork = 0
     var imageWork = 0
     var compressedDecoded: [Data] = []
     var audioContext = audioSamples
-    func compressed(_ bytes: Data, samples: Bool, depth: Int = 0) throws {
+    func compressed(_ bytes: Data, samples: Bool, depth: Int = 0, typedPixels: Bool = false) throws {
       guard depth <= 8 else { throw NativeAIError.rejected }
       guard bytes.count >= 2 else { return }
       if samples { audioContext = true }
@@ -162,6 +162,9 @@ public final class NativeCredentialGuard: @unchecked Sendable {
         }
         recovered.count = expected
         try checkBytes(recovered)
+        // Typed channels can contain incidental headers. Recoverable compressed
+        // nodes still use the same finite scanner before image admission.
+        try compressed(recovered, samples: false, depth: depth + 1, typedPixels: true)
         // Inspect both the inflated IDAT bytes and reconstructed channel bytes.
         // PNG filters are reversible and cannot hide the supplied credential.
         var pixels = Data(capacity: expected - 1024)
@@ -190,6 +193,7 @@ public final class NativeCredentialGuard: @unchecked Sendable {
           pixels.append(recovered[start + 1..<start + stride])
         }
         try checkBytes(pixels)
+        try compressed(pixels, samples: false, depth: depth + 1, typedPixels: true)
         // Standard textual representations in channel bytes use the same
         // finite decoder queue as text and audio, without treating pixels as UTF-8.
         pixels.withUnsafeBytes { raw in
@@ -227,13 +231,13 @@ public final class NativeCredentialGuard: @unchecked Sendable {
           let zip = lead == 0x50 && offset + 3 < bytes.endIndex
             && bytes[offset...offset + 3] == Data([0x50, 0x4b, 3, 4])
           if zip {
-            // PCM can contain magic bytes. Recognize an actual bounded local
+            // Samples can contain magic bytes. Recognize an actual bounded local
             // file header before treating typed samples as an archive.
             let remaining = bytes.endIndex - offset
             func word(_ index: Int) -> Int {
               Int(bytes[offset + index]) + Int(bytes[offset + index + 1]) * 256
             }
-            if !samples { throw NativeAIError.rejected }
+            if !samples && !typedPixels { throw NativeAIError.rejected }
             if remaining >= 30 {
               let version = word(4), name = word(26), extra = word(28)
               if (10...63).contains(version) && (1...4096).contains(name)
@@ -243,7 +247,7 @@ public final class NativeCredentialGuard: @unchecked Sendable {
             }
           }
           guard gzip || header else { continue }
-          if !audioContext && (gzip || (offset == bytes.startIndex && lead == 0x78 && [0x01, 0x9c, 0xda].contains(bytes[offset + 1]))) { throw NativeAIError.rejected }
+          if !audioContext && !typedPixels && (gzip || (offset == bytes.startIndex && lead == 0x78 && [0x01, 0x9c, 0xda].contains(bytes[offset + 1]))) { throw NativeAIError.rejected }
           offsets.insert(offset)
         }
       }

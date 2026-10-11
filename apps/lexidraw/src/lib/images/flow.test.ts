@@ -242,3 +242,137 @@ test("known provider credential in valid RGB pixel rows never reaches completed 
     expect(uploaded).toBe(echoed ? null : "https://storage.test/image");
   }
 }, 20_000);
+
+test.each([
+  [3, 0],
+  [4, 1],
+] as const)(
+  "compressed credentials in PNG channels never become image checkpoints or guarded uploads (%i channels, filter %i)",
+  async (channels, filter) => {
+    const { deflateSync } = await import("node:zlib");
+    const { crc32 } = await import("./format");
+    const key = "nested-pixel-known-synthetic-device-credential-291";
+    const packedKey = deflateSync(key);
+    for (const echoed of [false, true]) {
+      const width = 1024 * channels,
+        stride = width + 1;
+      const pixels = new Uint8Array(width * 1024);
+      // Cross a row boundary in the filtered case: only reconstructed channels
+      // contain the complete compressed node without interleaved filter bytes.
+      const offset = width * 100 + width - 20;
+      const payload = echoed
+        ? packedKey
+        : new Uint8Array([
+            0x1f, 0x8b, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x50, 0x4b, 3,
+            4, 0, 0, 0, 0,
+          ]);
+      pixels.set(payload, offset);
+      const rows = new Uint8Array(stride * 1024);
+      for (let row = 0; row < 1024; row++) {
+        rows[row * stride] = filter;
+        for (let column = 0; column < width; column++) {
+          const index = row * width + column;
+          rows[row * stride + column + 1] =
+            ((pixels[index] ?? 0) -
+              (filter && column >= channels
+                ? (pixels[index - channels] ?? 0)
+                : 0)) &
+            255;
+        }
+      }
+      function chunk(type: string, data: Uint8Array) {
+        const bytes = new Uint8Array(data.length + 12),
+          view = new DataView(bytes.buffer);
+        view.setUint32(0, data.length);
+        bytes.set(new TextEncoder().encode(type), 4);
+        bytes.set(data, 8);
+        view.setUint32(
+          data.length + 8,
+          crc32(bytes.subarray(4, data.length + 8)),
+        );
+        return bytes;
+      }
+      const header = new Uint8Array(13),
+        view = new DataView(header.buffer);
+      view.setUint32(0, 1024);
+      view.setUint32(4, 1024);
+      header.set([8, channels === 3 ? 2 : 6, 0, 0, 0], 8);
+      const packedRows = deflateSync(rows);
+      const png = Buffer.concat([
+        new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]),
+        chunk("IHDR", header),
+        chunk("IDAT", packedRows),
+        chunk("IEND", new Uint8Array()),
+      ]);
+      // Independently recover the fixture from its IDAT before testing admission.
+      const decodedRows = inflateSync(packedRows),
+        decodedPixels = new Uint8Array(pixels.length);
+      for (let row = 0; row < 1024; row++)
+        for (let column = 0; column < width; column++) {
+          const index = row * width + column;
+          decodedPixels[index] =
+            ((decodedRows[row * stride + column + 1] ?? 0) +
+              (filter && column >= channels
+                ? (decodedPixels[index - channels] ?? 0)
+                : 0)) &
+            255;
+        }
+      if (echoed)
+        expect(
+          inflateSync(
+            decodedPixels.subarray(offset, offset + packedKey.length),
+          ).toString(),
+        ).toBe(key);
+      let providers = 0,
+        uploads = 0;
+      const byok = createByokSession(
+        async (request) => {
+          if (request.url === "https://openrouter.ai/api/v1/images") {
+            expect(request.redirect).toBe("error");
+            expect(request.headers.get("Authorization")).toBe(`Bearer ${key}`);
+            providers++;
+            return Response.json({
+              data: [
+                { b64_json: png.toString("base64"), media_type: "image/png" },
+              ],
+            });
+          }
+          if (request.url !== "https://storage.test/image")
+            throw new Error("Unexpected network");
+          expect(JSON.parse(await request.text()).base64).toBe(
+            png.toString("base64"),
+          );
+          uploads++;
+          return new Response(null, { status: 200 });
+        },
+        "https://app.test",
+        { imageFixture: true },
+      );
+      byok.replace("openrouter", key);
+      const flow = new ImageFlow({
+        source: () => ({ mode: "byok", provider: "openrouter" }),
+        availability: () => ({ available: true, maximum: 0, fixture: true }),
+        byok,
+        pro: async () => {
+          throw new Error("No fallback");
+        },
+        save: async (_id, image) => {
+          await byok.fetch("https://storage.test/image", {
+            method: "PUT",
+            body: JSON.stringify(image),
+          });
+          return "https://storage.test/image";
+        },
+      });
+      await flow.generate("tree");
+      const checkpoint = flow.state();
+      const uploaded = await flow.upload();
+      expect(providers).toBe(1);
+      expect(uploads).toBe(echoed ? 0 : 1);
+      expect(checkpoint.kind).toBe(echoed ? "failed" : "completed");
+      expect("image" in checkpoint).toBe(!echoed);
+      expect(uploaded).toBe(echoed ? null : "https://storage.test/image");
+    }
+  },
+  20_000,
+);
