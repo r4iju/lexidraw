@@ -400,9 +400,56 @@ function canonicalCollisionNames(
 }
 
 async function identityParent(e: MigrationExecutor, table: "User" | "Users") {
-  const master = (await e.execute("SELECT type,name FROM sqlite_master")).rows;
-  if (!master.some((r) => r.name === table && r.type === "table"))
+  const master = (await e.execute("SELECT type,name,sql FROM sqlite_master"))
+    .rows;
+  const parent =
+    master.find((r) => r.name === table && r.type === "table") ??
     stop("unsupported identity parent table");
+  // Index collation does not prove the declared parent collation used by SQLite FKs.
+  // Accept only these complete standalone DDL token sequences, never unknown clauses.
+  const ddl = String(parent.sql);
+  if (ddl.length > 512) stop("unsupported identity parent DDL");
+  const token =
+    /[A-Za-z]+|`(?:User|Users|id)`|"(?:User|Users|id)"|\[(?:User|Users|id)\]|[(),]/iy;
+  const tokens: string[] = [];
+  let at = 0;
+  while (at < ddl.length) {
+    if (/[\t\r\n ]/.test(ddl[at] ?? "")) {
+      at++;
+      continue;
+    }
+    token.lastIndex = at;
+    const match =
+      token.exec(ddl)?.[0] ?? stop("unsupported identity parent DDL");
+    tokens.push(
+      (/^[`"[]/.test(match) ? match.slice(1, -1) : match).toUpperCase(),
+    );
+    at = token.lastIndex;
+  }
+  const definitions = [
+    "ID TEXT PRIMARY KEY NOT NULL",
+    "ID TEXT NOT NULL PRIMARY KEY",
+    "ID TEXT UNIQUE NOT NULL",
+    "ID TEXT NOT NULL UNIQUE",
+    "ID TEXT NOT NULL",
+    "ID TEXT NOT NULL , PRIMARY KEY ( ID )",
+    "ID TEXT NOT NULL , UNIQUE ( ID )",
+    "ID TEXT COLLATE BINARY PRIMARY KEY NOT NULL",
+    "ID TEXT COLLATE BINARY NOT NULL PRIMARY KEY",
+    "ID TEXT COLLATE BINARY UNIQUE NOT NULL",
+    "ID TEXT COLLATE BINARY NOT NULL UNIQUE",
+    "ID TEXT COLLATE BINARY NOT NULL",
+    "ID TEXT COLLATE BINARY NOT NULL , PRIMARY KEY ( ID )",
+    "ID TEXT COLLATE BINARY NOT NULL , UNIQUE ( ID )",
+  ];
+  if (
+    !definitions.some(
+      (definition) =>
+        tokens.join(" ") ===
+        `CREATE TABLE ${table.toUpperCase()} ( ${definition} )`,
+    )
+  )
+    stop("unsupported identity parent DDL");
   const info = (await e.execute(`PRAGMA table_xinfo(${table})`)).rows;
   const id = info[0];
   if (
@@ -541,8 +588,6 @@ async function mappedRows(
       });
     } else stop("unknown retained table");
   }
-  await identityParent(e, "User");
-  await identityParent(e, "Users");
   const sourceIds = await ids(e, "User");
   const destinationIds = await ids(e, "Users");
   // Reject duplicate rows before sets can erase evidence of ambiguous parents.
@@ -712,6 +757,8 @@ export async function convertLegacyDocuments(
     stop("explicit destination, identities and timestamp provenance required");
   const master = await modernDestination(held);
   canonicalCollisionNames(master);
+  await identityParent(held, "User");
+  await identityParent(held, "Users");
   await captureLegacyDocuments(held, batch);
   // Reconcile every newly captured raw receipt before trusting its tuples for mapping.
   await captureLegacyDocuments(held, batch);
