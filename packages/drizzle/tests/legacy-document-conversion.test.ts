@@ -115,7 +115,6 @@ async function rejected(
   expect(await state(db)).toEqual(before);
 }
 
-// Every case below is authored and executed against the callable no-op before implementation.
 test("copies exact parents then shares, preserves original bytes, records all derivations after verification", async () => {
   const db = await database();
   try {
