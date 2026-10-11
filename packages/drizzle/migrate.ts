@@ -1,4 +1,4 @@
-import { migrate } from 'drizzle-orm/libsql/migrator';
+import { migrate } from './src/migrations/migrate.js';
 import { db } from './src/drizzle.js';
 
 // This will run migrations on the database, skipping the ones already applied
