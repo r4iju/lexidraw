@@ -177,3 +177,36 @@ test("another account's operation and malformed authorization never reach the pr
   expect(providerRequests).toBe(before);
   expect((await ledger.operation(ALICE, operation.id)).state).toBe("reserved");
 });
+
+test("D2 authenticated escaped selected input streams intact and actual envelope overflow never dispatches", async () => {
+  cookieAccount = null;
+  const selected = { prompt: "\u0000".repeat(1000) };
+  const op = await chat.accept(
+    BOB,
+    "d2-escaped",
+    selected,
+    await chat.quote(BOB, selected),
+  );
+  const before = providerRequests;
+  const body = JSON.stringify({ id: op.id, input: selected });
+  expect(new TextEncoder().encode(body).length).toBeGreaterThan(4096);
+  const response = await POST(
+    new Request("https://app.test/api/chat/stream", {
+      method: "POST",
+      headers: { authorization: `Bearer ${BOB_TOKEN}` },
+      body,
+    }) as never,
+  );
+  expect(response.status).toBe(200);
+  expect(await response.text()).toContain('"state":"settled"');
+  expect(providerRequests).toBe(before + 1);
+  const overflow = await POST(
+    new Request("https://app.test/api/chat/stream", {
+      method: "POST",
+      headers: { authorization: `Bearer ${BOB_TOKEN}` },
+      body: " ".repeat(16385),
+    }) as never,
+  );
+  expect(overflow.status).toBe(413);
+  expect(providerRequests).toBe(before + 1);
+});

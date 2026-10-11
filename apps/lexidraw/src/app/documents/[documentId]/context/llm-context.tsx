@@ -94,6 +94,7 @@ export type AutocompleteLLMState = {
 };
 
 export type LLMOptions = {
+  selectedInput?: ChatInput;
   prompt: string;
   context?: string;
   messages?: ModelMessage[];
@@ -390,18 +391,20 @@ function RuntimeProvider({
     };
     signal.addEventListener("abort", abort, { once: true });
     try {
-      const input = ChatInput.safeParse({
-        prompt: options.prompt,
-        context: options.context ?? "",
-        messages: options.messages ?? [],
-        files: await Promise.all(
-          files.map(async (file) => ({
-            name: file.name,
-            type: file.type,
-            text: await file.text(),
-          })),
-        ),
-      });
+      const input = ChatInput.safeParse(
+        options.selectedInput ?? {
+          prompt: options.prompt,
+          context: options.context ?? "",
+          messages: options.messages ?? [],
+          files: await Promise.all(
+            files.map(async (file) => ({
+              name: file.name,
+              type: file.type,
+              text: await file.text(),
+            })),
+          ),
+        },
+      );
       if (!input.success) throw new Error(CHAT_CAPABILITY);
       prepareChat(input.data);
 

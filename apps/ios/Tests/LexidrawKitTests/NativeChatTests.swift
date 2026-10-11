@@ -14,7 +14,7 @@ import Testing
     #expect(!request.contains("credential"))
     #expect(throws: NativeChatError.self) {
       try nativeChatPrepared(
-        NativeChatInput(prompt: "x", context: String(repeating: "x", count: 1500)))
+        NativeChatInput(prompt: "x", context: String(repeating: "x", count: 1501)))
     }
   }
   @Test func localChatStreamsWithoutCloudAndUnsupportedModelCannotFallback() async throws {
@@ -169,6 +169,7 @@ extension NativeChatTests {
     let flow = NativeChatFlow()
     await flow.load(session: try TestServer.session(server), document: "doc", context: "")
     flow.send("Hello")
+    flow.sendReviewed()
     for _ in 0..<200 {
       if case .quote = flow.state { break }
       try await Task.sleep(for: .milliseconds(5))
@@ -273,6 +274,7 @@ extension NativeChatTests {
     defer { UserDefaults.standard.removeObject(forKey: "chat-v1:local-recovery-test:" + document) }
     await flow.load(session: try TestServer.session(server), document: document, context: "")
     flow.send("Why?")
+    flow.sendReviewed()
     for _ in 0..<100 where flow.messages.last?.content != "Local answer." { try await Task.sleep(for: .milliseconds(2)) }
     #expect(flow.messages.last?.content == "Local answer.")
     #expect(model.calls == 1)
@@ -302,5 +304,28 @@ extension NativeChatTests {
     await flow.load(session: try TestServer.session(server), document: doc, context: "")
     #expect(flow.messages.isEmpty)
     #expect(defaults.data(forKey: key) == original)
+  }
+}
+
+extension NativeChatTests {
+  @Test func finiteFollowupRetainsCompleteTwoThousandByteReply() throws {
+    let reply = String(repeating: "a", count: 2000)
+    let input = NativeChatInput(prompt: "Why?", messages: [.init(role: "user", content: "Explain"), .init(role: "assistant", content: reply)])
+    let request = try nativeChatPrepared(input)
+    #expect(request.contains(reply))
+    #expect(request.contains("Why?"))
+  }
+}
+
+extension NativeChatTests {
+  @Test func contextIsReviewedBeforeNativeDispatchWithoutChangingSavedHistory() async throws {
+    let saved = [NativeChatMessage(role: "user", content: "Explain"), NativeChatMessage(role: "assistant", content: "Earlier.")]
+    var requests = 0
+    let flow = NativeChatFlow(source: .byok, messages: saved, context: "Document") { _, _ in requests += 1; return "Done." }
+    flow.send("Why?")
+    try await Task.sleep(for: .milliseconds(30))
+    #expect(requests == 0)
+    #expect(flow.messages == saved)
+    #expect(String(describing: flow.state).contains("contextReview"))
   }
 }

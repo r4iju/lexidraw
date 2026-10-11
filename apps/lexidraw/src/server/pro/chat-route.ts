@@ -1,6 +1,10 @@
 import { z } from "zod";
 import { ChatInput } from "~/lib/generation/chat";
 import type { ProChat } from "./chat";
+// Selected canonical wire is at most 8192 bytes; splitting its final turn into
+// prompt/context/two files adds less than 1024 bytes, and an escaped 100-unit ID
+// adds at most 600 bytes. The reader enforces the actual envelope byte count.
+const CHAT_STREAM_ENVELOPE_BYTES = 16384;
 export const ChatStreamInput = z.strictObject({
   id: z.string().min(1).max(100),
   input: ChatInput,
@@ -15,7 +19,8 @@ export function createChatStreamRoute(deps: {
     const account = await deps.authorize(request);
     if (!account) return new Response(null, { status: 401 });
     const length = Number(request.headers.get("Content-Length") ?? 0);
-    if (length > 4096) return new Response(null, { status: 413 });
+    if (length > CHAT_STREAM_ENVELOPE_BYTES)
+      return new Response(null, { status: 413 });
     const reader = request.body?.getReader();
     if (!reader) return new Response(null, { status: 400 });
     let raw = "",
@@ -26,7 +31,7 @@ export function createChatStreamRoute(deps: {
         const chunk = await reader.read();
         if (chunk.done) break;
         size += chunk.value.length;
-        if (size > 4096) {
+        if (size > CHAT_STREAM_ENVELOPE_BYTES) {
           await reader.cancel();
           return new Response(null, { status: 413 });
         }

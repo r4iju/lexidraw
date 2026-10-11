@@ -192,3 +192,86 @@ test("terminal failed chat after a partial delta refunds the whole customer oper
     f.client.close();
   }
 });
+
+test("D2 paid follow-up and full attachment keep the accepted maximum and original replay identity", async () => {
+  const f = await fixture();
+  const bodies: unknown[] = [];
+  const transport = createProChatTransport({
+    authorize: async () =>
+      makeSupplierContract("chat", PRICEBOOK, "test-injection"),
+    resolveServerKey: () => "fake-system-key",
+    fetch: async (request) => {
+      bodies.push(await request.json());
+      return new Response(
+        [
+          { type: "response.output_text.delta", delta: "Yes indeed." },
+          {
+            type: "response.completed",
+            response: {
+              id: "fixture",
+              status: "completed",
+              usage: {
+                input_tokens: 100,
+                input_tokens_details: { cached_tokens: 0 },
+                output_tokens: 4,
+              },
+            },
+          },
+        ]
+          .map((event) => `data: ${JSON.stringify(event)}\n\n`)
+          .join(""),
+        { headers: { "Content-Type": "text/event-stream" } },
+      );
+    },
+  });
+  const chat = new ProChat(f.ledger, new ProTextOperation(f.ledger, transport));
+  try {
+    for (const [index, input] of [
+      {
+        prompt: "Why?",
+        messages: [
+          { role: "user", content: "Explain" },
+          { role: "assistant", content: "a".repeat(2000) },
+        ],
+      },
+      {
+        prompt: "Read",
+        files: [
+          { name: "note.txt", type: "text/plain", text: "b".repeat(1500) },
+        ],
+      },
+    ].entries()) {
+      const quote = await chat.quote("alice", input);
+      expect(quote.maximum).toBe(1792000);
+      const operation = await chat.accept("alice", `d2-${index}`, input, quote);
+      const result = await chat.stream("alice", operation.id, input, () => {});
+      expect(result).toMatchObject({
+        state: "settled",
+        result: "Yes indeed.",
+        charged: 31000,
+      });
+      expect(
+        await chat.accept("alice", `d2-${index}`, input, quote),
+      ).toMatchObject({ id: operation.id });
+      await chat.stream("alice", operation.id, input, () => {});
+    }
+    expect(bodies).toMatchObject([
+      {
+        max_output_tokens: 512,
+        input: [
+          { content: "Explain" },
+          { content: "a".repeat(2000) },
+          { content: "Why?" },
+        ],
+      },
+      {
+        max_output_tokens: 512,
+        input: [
+          { content: "Read\n\nAttachment note.txt:\n" + "b".repeat(1500) },
+        ],
+      },
+    ]);
+  } finally {
+    f.client.close();
+  }
+});

@@ -4,7 +4,7 @@ import { z } from "zod";
 import {
   ChatRequest,
   CHAT_OUTPUT_BYTES,
-  CHAT_INPUT_BYTES,
+  CHAT_WIRE_BYTES,
 } from "~/lib/generation/chat";
 import { createByokSession } from "~/lib/byok/session";
 import { Completion, TextBook, Usage } from "./contracts";
@@ -74,7 +74,7 @@ export function createProChatTransport(deps: {
 }): ProTransport {
   return async (text, signal, context) => {
     const request = ChatRequest.parse(JSON.parse(text));
-    if (new TextEncoder().encode(text).length > CHAT_INPUT_BYTES)
+    if (new TextEncoder().encode(text).length > CHAT_WIRE_BYTES)
       return { kind: "failed", retryable: false, actualCostNanoUsd: 0 };
     let contract: SupplierContract;
     try {
@@ -91,6 +91,12 @@ export function createProChatTransport(deps: {
       throw new Error("No device network");
     }, "https://app.invalid");
     guard.replace("openrouter", key);
+    try {
+      guard.assertSafe(text);
+    } catch {
+      guard.remove();
+      return { kind: "failed", retryable: false, actualCostNanoUsd: 0 };
+    }
     let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
     try {
       const response = await deps.fetch(

@@ -134,8 +134,15 @@ Object.assign(globalThis, {
   },
 });
 
-import { nativeChatRequest, nativeLocalChatRequest } from "./chat";
+import {
+  nativeChatRequest,
+  nativeLocalChatRequest,
+  nativeChatSelection,
+} from "./chat";
 Object.assign(globalThis, {
+  nativeChatSelection(source: string, selection: string) {
+    return JSON.stringify(nativeChatSelection(source, selection));
+  },
   nativeChatRequest(json: string) {
     return JSON.stringify(nativeChatRequest(json));
   },

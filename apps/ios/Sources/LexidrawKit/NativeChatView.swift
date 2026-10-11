@@ -7,6 +7,7 @@ import UniformTypeIdentifiers
   public enum State {
     case loading, ready
     case unavailable(String)
+    case contextReview(NativeChatInput, String)
     case quote(NativeChatInput, ProChatQuote)
     case running
     case result(String)
@@ -100,17 +101,21 @@ import UniformTypeIdentifiers
       state = .unavailable("Could not check chat availability. Saved history is preserved.")
     }
   }
-  public func send(_ prompt: String, files: [NativeChatFile] = []) {
+  public func send(_ prompt: String, files: [NativeChatFile] = [], turnIndices: [Int]? = nil, documentExcerpt: String = "") {
     guard task == nil else { return }
     if source == .pro && (pendingAcceptance != nil || (fixture == nil && (ownedReadState != .current || (ownedOperations + unscopedOperations).contains(where: { [.reserved, .running, .unknown].contains($0.state) })))) { return }
+    let sourceInput = NativeChatInput(prompt: prompt, messages: messages, context: context, files: files)
+    let indices = turnIndices ?? Array(messages.indices.suffix(2))
+    do {
+      switch try nativeChatSelection(sourceInput, turnIndices: indices, documentExcerpt: documentExcerpt) {
+      case .ready(let input, let summary): state = .contextReview(input, summary)
+      case .needsSelection(let message): state = .result(message)
+      }
+    } catch { state = .result(NativeChatError.capability.localizedDescription) }
+  }
+  public func sendReviewed() {
+    guard task == nil, case .contextReview(let input, _) = state else { return }
     stopRequested = false
-    let input = NativeChatInput(
-      prompt: prompt, messages: messages.filter { !$0.content.isEmpty }, context: context,
-      files: files)
-    do { _ = try nativeChatPrepared(input) } catch {
-      state = .result(NativeChatError.capability.localizedDescription)
-      return
-    }
     task = Task {
       defer { task = nil }
       if source == .pro, fixture == nil {
@@ -162,6 +167,7 @@ import UniformTypeIdentifiers
     local.cancel()
     byok?.cancel()
     if case .quote = state { decline() }
+    if case .contextReview = state { decline() }
   }
   /// The explicit Stop: also cancels an accepted Pro operation under its disclosed policy.
   public func stop() {
@@ -301,13 +307,15 @@ public struct NativeChatView: View {
   @State private var prompt = ""
   @State private var files: [NativeChatFile] = []
   @State private var importing = false
+  @State private var selectedTurns: Set<Int>?
+  @State private var documentExcerpt = ""
   @State private var fileMessage: String?
   public init(flow: NativeChatFlow) { self.flow = flow }
   public var body: some View {
     Form {
       Section("Chat · \(flow.source.rawValue)") {
         Text(
-          "Saved conversation and document context are included. Text attachments only; images, PDF, audio and tools are unavailable. No automatic source fallback."
+          "Review selected complete saved turns before sending. Current prompt and text attachments are included in full. Document context is excluded unless you choose an exact excerpt. Saved history remains intact. Text attachments only; images, PDF, audio and tools are unavailable. No automatic source fallback."
         )
         if flow.messages.isEmpty { Text("No saved conversation.") }
         ForEach(Array(flow.messages.enumerated()), id: \.offset) { _, message in
@@ -341,6 +349,10 @@ public struct NativeChatView: View {
       switch flow.state {
       case .loading: ProgressView("Checking chat...")
       case .unavailable(let message): Text(message)
+      case .contextReview(_, let summary):
+        Text(summary)
+        Button("Send reviewed context") { selectedTurns = nil; flow.sendReviewed() }
+        Button("Change context") { flow.decline() }
       case .quote(_, let quote):
         Text("Maximum reservation: \(Double(quote.maximum)/1_000_000) credits.")
         Text(quote.policy)
@@ -358,7 +370,19 @@ public struct NativeChatView: View {
         if let fileMessage { Text(fileMessage) }
         ForEach(Array(files.enumerated()), id: \.offset) { _, file in Text(file.name) }
         Button("Text attachment") { importing = true }
-        Button("Send") { flow.send(prompt, files: files) }.disabled(
+        Text("Complete saved turns (default: two most recent). Choose up to 24; oversized replies may be explicitly excluded.")
+        ForEach(Array(flow.messages.enumerated()), id: \.offset) { index, message in
+          Toggle("\(message.role): saved turn \(index + 1)", isOn: Binding(
+            get: { (selectedTurns ?? Set(flow.messages.indices.suffix(2))).contains(index) },
+            set: { included in
+              var choice = selectedTurns ?? Set(flow.messages.indices.suffix(2))
+              if included { choice.insert(index) } else { choice.remove(index) }
+              selectedTurns = choice
+            }
+          ))
+        }
+        TextField("Exact document excerpt (empty excludes document)", text: $documentExcerpt, axis: .vertical)
+        Button("Review context") { flow.send(prompt, files: files, turnIndices: selectedTurns.map { $0.sorted() }, documentExcerpt: documentExcerpt) }.disabled(
           fileMessage != nil || prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
       }
     }.fileImporter(

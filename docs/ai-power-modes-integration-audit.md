@@ -166,11 +166,27 @@ remote migration was performed. Existing draft PR292 remains untouched.
 ## S3 source-selected chat migration (local implementation, external proof pending)
 
 Starting at `31fa631a37007d3d020fc336a211f43c709bfc67`, chat now has one
-portable CHAT contract shared with the native JavaScriptCore bundle. It preserves
-saved text turns and document context, accepts at most two bounded UTF-8 text
-attachments, and rejects tools, PDF, images, audio, unsupported message content
-and oversized requests before a paid dispatch. It does not truncate conversation
-history silently. Legacy settings/history and saved recordings remain intact.
+portable CHAT contract shared with the native JavaScriptCore bundle. The full
+saved transcript stays visible and stored under existing quotas; it is separate
+from the finite selected request. Web and native review an inclusion summary
+before dispatch, default to two recent complete turns, allow deliberate older
+turn selection (at most 24 prior / 25 total), and include document content only
+through an explicit exact excerpt. Oversized selections require another visible
+choice; no saved turn is clipped or deleted. The current prompt and up to two
+text attachments stay full (1500 UTF-8 bytes each); document excerpts are bounded
+to 1500 bytes and attachment names to 100 bytes. Selected model text, including
+the exact system and attachment/document labels, is bounded to 3584 UTF-8 bytes;
+canonical wire is bounded to 8192 bytes and the authenticated stream envelope to
+16384 actual bytes. Safe Unicode scalars are required. Configured-key guards
+inspect the full archive/document/attachments before any omission, then final
+wire and cumulative output. Existing valid canonical encoding and frozen selected
+quote/accept/stream identity are unchanged, including owned recovery. The 3584
+byte policy plus proposed 512 token framing reserve is not validated tokenizer
+or supplier proof: production chat remains unavailable pending an exact audited
+model/API input bound. Paid limits remain 4096 input / 512 output tokens, 16000
+output bytes, two attempts and 30 seconds with unchanged cost/rate/concurrency
+ceilings; ordinary text/autocomplete retain the global 1500-byte book. Legacy
+settings/history and saved recordings remain intact.
 
 The web composer and native document Chat surface show the selected source,
 capability messaging, safe partial output and Stop. Native account changes clear

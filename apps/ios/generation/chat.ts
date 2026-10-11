@@ -1,4 +1,8 @@
-import { prepareChat } from "../../lexidraw/src/lib/generation/chat";
+import {
+  prepareChat,
+  prepareChatSelection,
+  chatInclusionSummary,
+} from "../../lexidraw/src/lib/generation/chat";
 export function nativeChatRequest(json: string) {
   const request = prepareChat(JSON.parse(json));
   return {
@@ -21,4 +25,16 @@ export function nativeLocalChatRequest(json: string) {
       .join("\n\n"),
     maximumResponseTokens: request.maxOutputTokens,
   };
+}
+
+export function nativeChatSelection(source: string, selection: string) {
+  // NativeCredentialGuard checks the full source before crossing this credential-free bridge.
+  const result = prepareChatSelection(
+    JSON.parse(source),
+    JSON.parse(selection),
+    () => {},
+  );
+  return result.kind === "ready"
+    ? { ...result, summary: chatInclusionSummary(result.inclusion) }
+    : result;
 }

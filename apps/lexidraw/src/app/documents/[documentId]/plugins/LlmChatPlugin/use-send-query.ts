@@ -6,9 +6,17 @@ import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext
 import { useMarkdownTools } from "../../utils/markdown";
 import { generateUUID } from "~/lib/utils";
 import { useAgentWorkflow } from "./use-agent-workflow";
-import { CHAT_CAPABILITY, prepareChat } from "~/lib/generation/chat";
+import {
+  CHAT_CAPABILITY,
+  prepareChat,
+  prepareChatSelection,
+  type ChatInput,
+  type ChatSelection,
+} from "~/lib/generation/chat";
+import { browserByok } from "~/lib/byok/browser-session";
 interface SendQueryParams {
   prompt: string;
+  selectedInput?: ChatInput;
   editorStateJson?: string;
   files?: File[] | FileList | null;
 }
@@ -20,8 +28,13 @@ export const useSendQuery = () => {
   const { convertEditorStateToMarkdown } = useMarkdownTools();
   const { runAgentWorkflow } = useAgentWorkflow({ onError: () => {} });
   const inFlight = useRef(false);
-  return useCallback(
-    async ({ prompt, editorStateJson, files }: SendQueryParams) => {
+  const send = useCallback(
+    async ({
+      prompt,
+      editorStateJson,
+      files,
+      selectedInput,
+    }: SendQueryParams) => {
       if (inFlight.current || !prompt.trim()) return;
       inFlight.current = true;
       try {
@@ -39,50 +52,16 @@ export const useSendQuery = () => {
           });
           return;
         }
-        if (
-          messages.some(
-            (message) =>
-              (message.toolCalls?.length ?? 0) > 0 ||
-              (message.toolResults?.length ?? 0) > 0 ||
-              message.role === "system",
-          )
-        ) {
-          dispatch({
-            type: "push",
-            msg: {
-              id: generateUUID(),
-              role: "assistant",
-              content: CHAT_CAPABILITY,
-            },
-          });
-          return;
-        }
-        const history = messages
-          .filter((message) => message.content.trim())
-          .map(({ role, content }) => ({ role, content }));
-        const attachments = await Promise.all(
-          Array.from(files ?? []).map(async (file) => {
-            if (
-              !["text/plain", "text/markdown"].includes(file.type) ||
-              file.size > 1500
-            )
-              throw new Error(CHAT_CAPABILITY);
-            return {
-              name: file.name,
-              type: file.type,
-              text: await file.text(),
-            };
-          }),
-        );
-        const context = convertEditorStateToMarkdown(editor.getEditorState());
-        prepareChat({ prompt, messages: history, context, files: attachments });
+        if (!selectedInput) throw new Error(CHAT_CAPABILITY);
+        browserByok().assertSafe(JSON.stringify(prepareChat(selectedInput)));
+        const attachments = selectedInput.files ?? [];
         dispatch({
           type: "push",
           msg: {
             id: generateUUID(),
             role: "user",
             content:
-              prompt +
+              selectedInput.prompt +
               attachments
                 .map((file) => `\n\nAttachment ${file.name}:\n${file.text}`)
                 .join(""),
@@ -93,10 +72,8 @@ export const useSendQuery = () => {
         dispatch({ type: "push", msg: { id, role: "assistant", content: "" } });
         dispatch({ type: "startStreaming", id });
         await generateChatStream({
-          prompt,
-          messages: history,
-          context,
-          files,
+          prompt: selectedInput.prompt,
+          selectedInput,
           callbacks: {
             onTextUpdate(text) {
               partial = text;
@@ -136,11 +113,38 @@ export const useSendQuery = () => {
     [
       dispatch,
       mode,
-      messages,
       generateChatStream,
       runAgentWorkflow,
       convertEditorStateToMarkdown,
       editor,
     ],
   );
+  return Object.assign(send, {
+    async review({
+      prompt,
+      files,
+      selection,
+    }: SendQueryParams & { selection: ChatSelection }) {
+      const attachments = await Promise.all(
+        Array.from(files ?? []).map(async (file) => {
+          if (
+            !["text/plain", "text/markdown"].includes(file.type) ||
+            file.size > 1500
+          )
+            throw new Error(CHAT_CAPABILITY);
+          return { name: file.name, type: file.type, text: await file.text() };
+        }),
+      );
+      return prepareChatSelection(
+        {
+          prompt,
+          messages,
+          context: convertEditorStateToMarkdown(editor.getEditorState()),
+          files: attachments,
+        },
+        selection,
+        browserByok().assertSafe,
+      );
+    },
+  });
 };

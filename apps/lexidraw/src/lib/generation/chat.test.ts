@@ -74,3 +74,101 @@ test("unsupported turns, media and oversized context stop before any transport a
   ).rejects.toThrow("Chat stopped");
   expect(calls).toBe(0);
 });
+
+test("D2 follow-up sends a complete 2000-byte prior reply and full permitted attachment separately", async () => {
+  for (const input of [
+    {
+      prompt: "Why?",
+      messages: [
+        { role: "user", content: "Explain" },
+        { role: "assistant", content: "a".repeat(2000) },
+      ],
+    },
+    {
+      prompt: "Read",
+      files: [{ name: "note.txt", type: "text/plain", text: "b".repeat(1500) }],
+    },
+  ]) {
+    const sent: import("./chat").ChatRequest[] = [];
+    const updates: string[] = [];
+    expect(
+      await runChat(
+        input,
+        {
+          async *stream(request) {
+            sent.push(request);
+            yield "Yes ";
+            yield "indeed.";
+          },
+        },
+        { onText: (text) => updates.push(text) },
+      ),
+    ).toBe("Yes indeed.");
+    expect(sent[0]?.maxOutputTokens).toBe(512);
+    if ("messages" in input)
+      expect(sent[0]?.messages[1]?.content).toBe("a".repeat(2000));
+    else
+      expect(sent[0]?.messages[0]?.content).toBe(
+        "Read\n\nAttachment note.txt:\n" + "b".repeat(1500),
+      );
+    expect(updates).toEqual(["Yes ", "Yes indeed."]);
+  }
+});
+
+test("D2 finite selection guards the full source before omissions and retains the archive", async () => {
+  const { prepareChatSelection } = await import("./chat");
+  const archive = Array.from({ length: 30 }, (_, index) => ({
+    id: `turn-${index}`,
+    role: index % 2 ? ("assistant" as const) : ("user" as const),
+    content: index === 29 ? "a".repeat(16000) : `Saved ${index}`,
+  }));
+  const original = JSON.stringify(archive);
+  const source = {
+    prompt: "Why?",
+    messages: archive,
+    context: "Document ".repeat(200),
+    files: [],
+  };
+  const selection = {
+    turnIds: ["turn-0", "turn-1"],
+    documentExcerpt: "Document",
+  };
+  const ready = prepareChatSelection(source, selection, () => {});
+  expect(ready).toMatchObject({
+    kind: "ready",
+    input: {
+      prompt: "Why?",
+      messages: [
+        { role: "user", content: "Saved 0" },
+        { role: "assistant", content: "Saved 1" },
+      ],
+      context: "Document",
+    },
+    inclusion: {
+      turnIds: ["turn-0", "turn-1"],
+      excludedTurns: 28,
+      documentBytes: 8,
+      attachmentNames: [],
+    },
+  });
+  expect(
+    prepareChatSelection(
+      source,
+      { turnIds: ["turn-29"], documentExcerpt: "" },
+      () => {},
+    ),
+  ).toMatchObject({ kind: "needs_selection" });
+  expect(
+    prepareChatSelection(
+      source,
+      { turnIds: archive.map((turn) => turn.id), documentExcerpt: "" },
+      () => {},
+    ),
+  ).toMatchObject({ kind: "needs_selection" });
+  expect(JSON.stringify(archive)).toBe(original);
+  expect(() =>
+    prepareChatSelection(source, selection, (text) => {
+      if (text.includes("Saved 28")) throw new Error("Configured key");
+    }),
+  ).toThrow("Configured key");
+});

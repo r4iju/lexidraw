@@ -1,4 +1,12 @@
 "use client";
+import { useContext, useState } from "react";
+import {
+  chatInclusionSummary,
+  type ChatPreparation,
+  type ChatInput,
+} from "~/lib/generation/chat";
+import { ChatStateCtx } from "../llm-chat-context";
+import type { useSendQuery } from "../use-send-query";
 import { Input } from "~/components/ui/input";
 import { useLLM } from "../../../context/llm-context";
 import { Button } from "~/components/ui/button";
@@ -6,15 +14,23 @@ import { Textarea } from "~/components/ui/textarea";
 export function ChatComposer({
   send,
 }: {
-  send: (input: { prompt: string; files?: FileList | null }) => Promise<void>;
+  send: ((input: {
+    prompt: string;
+    files?: FileList | null;
+    selectedInput?: ChatInput;
+  }) => Promise<void>) & { review?: ReturnType<typeof useSendQuery>["review"] };
 }) {
   const llm = useLLM();
+  const messages = useContext(ChatStateCtx)?.messages ?? [];
+  const [review, setReview] = useState<
+    ChatPreparation | { kind: "idle" | "preparing" }
+  >({ kind: "idle" });
   return (
     <div className="space-y-3 p-3">
       <p role="status">
         AI Power: {llm.chatSource}.{" "}
         {llm.chatCapability ??
-          "Bounded text chat. Saved history is included. Text attachments only."}
+          "Finite text context. Review selected complete saved turns before sending. Text attachments only."}
       </p>
       {llm.chatQuote && (
         <div role="dialog" aria-label="Review chat maximum">
@@ -32,20 +48,58 @@ export function ChatComposer({
         </div>
       )}
       <form
-        onSubmit={(event) => {
+        onChange={() => setReview({ kind: "idle" })}
+        onSubmit={async (event) => {
           event.preventDefault();
           const form = event.currentTarget;
-          const prompt = new FormData(form).get("prompt");
+          const data = new FormData(form);
+          const prompt = data.get("prompt");
+          const documentExcerpt = data.get("excerpt");
           const input = form.elements.namedItem("files");
-          if (typeof prompt === "string" && input instanceof HTMLInputElement)
-            void send({ prompt, files: input.files });
+          if (
+            typeof prompt !== "string" ||
+            typeof documentExcerpt !== "string" ||
+            !(input instanceof HTMLInputElement)
+          )
+            return;
+          if (!send.review) {
+            setReview({
+              kind: "needs_selection",
+              message:
+                "Context review is unavailable on this surface. Saved history is preserved.",
+            });
+            return;
+          }
+          setReview({ kind: "preparing" });
+          try {
+            setReview(
+              await send.review({
+                prompt,
+                files: input.files,
+                selection: {
+                  turnIds: data
+                    .getAll("turn")
+                    .filter(
+                      (value): value is string => typeof value === "string",
+                    ),
+                  documentExcerpt,
+                },
+              }),
+            );
+          } catch {
+            setReview({
+              kind: "needs_selection",
+              message:
+                "Context could not be reviewed. Check device credential ownership and choose supported text context. Saved history is preserved.",
+            });
+          }
         }}
       >
         <Textarea
           name="prompt"
           aria-label="Chat input"
           placeholder="Ask about this document"
-          disabled={llm.chatState.isStreaming}
+          disabled={llm.chatState.isStreaming || review.kind === "preparing"}
         />
         <Input
           type="file"
@@ -53,14 +107,74 @@ export function ChatComposer({
           aria-label="Text attachments"
           accept=".txt,.md,text/plain,text/markdown"
           multiple
-          disabled={llm.chatState.isStreaming}
+          disabled={llm.chatState.isStreaming || review.kind === "preparing"}
         />
+        <fieldset
+          key={messages.at(-1)?.id ?? "empty"}
+          disabled={llm.chatState.isStreaming || review.kind === "preparing"}
+        >
+          <legend>Complete saved turns (default: two most recent)</legend>
+          <p>
+            Choose up to 24 complete turns. Older saved turns remain available.
+            Oversized replies may be explicitly excluded here.
+          </p>
+          {messages.length === 0 && <p>No saved turns.</p>}
+          {messages.map((message, index) => (
+            <label key={message.id} className="block">
+              <input
+                type="checkbox"
+                name="turn"
+                value={message.id}
+                defaultChecked={index >= messages.length - 2}
+              />
+              {message.role}: {message.content.length} characters (saved turn{" "}
+              {index + 1})
+            </label>
+          ))}
+        </fieldset>
+        <Textarea
+          name="excerpt"
+          aria-label="Document excerpt"
+          placeholder="Paste an exact document excerpt to include, or leave empty to omit document context"
+          disabled={llm.chatState.isStreaming || review.kind === "preparing"}
+        />
+        <p>
+          Current prompt and text attachments are included in full. Document
+          context is excluded unless you choose an exact excerpt. Saved history
+          remains intact.
+        </p>
         <Button
           type="submit"
-          disabled={!!llm.chatCapability || llm.chatState.isStreaming}
+          disabled={
+            !!llm.chatCapability ||
+            llm.chatState.isStreaming ||
+            review.kind === "preparing"
+          }
         >
-          Send
+          Review context
         </Button>
+        {review.kind === "needs_selection" && (
+          <p role="alert">{review.message}</p>
+        )}
+        {review.kind === "ready" && (
+          <div role="status">
+            <p>{chatInclusionSummary(review.inclusion)}</p>
+            <p>
+              Selected turns: {review.inclusion.turnIds.join(", ") || "none"}.
+            </p>
+            <Button
+              type="button"
+              disabled={!!llm.chatCapability || llm.chatState.isStreaming}
+              onClick={() => {
+                const input = review.input;
+                setReview({ kind: "idle" });
+                void send({ prompt: input.prompt, selectedInput: input });
+              }}
+            >
+              Send reviewed context
+            </Button>
+          </div>
+        )}
         {llm.chatState.isStreaming && (
           <Button type="button" variant="outline" onClick={llm.cancelChat}>
             Stop
