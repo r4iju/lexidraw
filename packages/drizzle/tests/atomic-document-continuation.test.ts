@@ -359,11 +359,12 @@ for (const [name, pattern] of boundaries)
     const db = await database();
     let seen = 0;
     let matches = 0;
-    const target = name.includes("last raw")
-      ? 2
-      : name.includes("last ledger")
-        ? 15
-        : 1;
+    const target =
+      name.includes("last raw") || name === "B8 receipt readback"
+        ? 2
+        : name.includes("last ledger")
+          ? 15
+          : 1;
     try {
       const owner = decorated(db.owner, async (e, s) => {
         if (pattern.test(s.trim()) && ++matches === target) {
@@ -391,6 +392,10 @@ for (const [name, pattern] of boundaries)
               manifestUrl: "https://example.invalid/manifest",
               ttsConfig: ' {"keep":1.00} ',
             });
+          if (name === "B8 receipt readback")
+            expect(state.tables.LegacyDocumentConversionV1.rows).toEqual(
+              expected.final.tables.LegacyDocumentConversionV1.rows,
+            );
           seen++;
           throw fault;
         }
@@ -436,6 +441,7 @@ for (const [name, pattern] of [
   ],
 ] as const)
   test(`B2 early actual0002 ${name}: full schema, typed rows and absent ledger rollback only`, async () => {
+    await control();
     const db = await database(true);
     let seen = 0;
     try {
@@ -448,6 +454,14 @@ for (const [name, pattern] of [
               expect(st.tables.Entity.rows).toEqual(
                 expected.earlyBaseline.tables.Drawing.rows,
               );
+            if (name === "B3 actual shared column rename") {
+              expect(st.tables.Entity.rows).toEqual(
+                expected.earlyBaseline.tables.Drawing.rows,
+              );
+              expect(st.tables.SharedEntity.rows).toEqual(
+                expected.earlyBaseline.tables.SharedDrawing.rows,
+              );
+            }
             expect(st.tables).not.toHaveProperty("LegacyDocumentRetentionV1");
             seen++;
             throw fault;

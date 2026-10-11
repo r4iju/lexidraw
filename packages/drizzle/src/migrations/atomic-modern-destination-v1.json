@@ -65,18 +65,6 @@
         },
         {
           "type": "table",
-          "name": "Drawing",
-          "tbl_name": "Drawing",
-          "sql": "CREATE TABLE `Drawing` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`title` text NOT NULL,\n\t`elements` text NOT NULL,\n\t`appState` text,\n\t`createdAt` integer NOT NULL,\n\t`updatedAt` integer NOT NULL,\n\t`deletedAt` integer,\n\t`userId` text NOT NULL,\n\t`publicAccess` text NOT NULL,\n\tFOREIGN KEY (`userId`) REFERENCES `User`(`id`) ON UPDATE cascade ON DELETE cascade\n)"
-        },
-        {
-          "type": "index",
-          "name": "Drawing_userId_idx",
-          "tbl_name": "Drawing",
-          "sql": "CREATE INDEX `Drawing_userId_idx` ON `Drawing` (`userId`)"
-        },
-        {
-          "type": "table",
           "name": "Entities",
           "tbl_name": "Entities",
           "sql": "CREATE TABLE `Entities` (\n  `id` text PRIMARY KEY NOT NULL,\n  `title` text NOT NULL,\n  `elements` text NOT NULL,\n  `appState` text,\n  `entityType` text NOT NULL DEFAULT 'drawing',\n  `parentId` text,\n  `screenShotLight` text NOT NULL DEFAULT '',\n  `screenShotDark` text NOT NULL DEFAULT '',\n  `createdAt` integer NOT NULL,\n  `updatedAt` integer NOT NULL,\n  `deletedAt` integer,\n  `userId` text NOT NULL,\n  `publicAccess` text NOT NULL,\n  `isActive` integer NOT NULL DEFAULT 1,\n  `thumbnailStatus` text DEFAULT 'pending',\n  `thumbnailUpdatedAt` integer,\n  `thumbnailVersion` text,\n  FOREIGN KEY (`parentId`) REFERENCES `Entities` (`id`) ON UPDATE cascade ON DELETE cascade,\n  FOREIGN KEY (`userId`) REFERENCES `Users` (`id`) ON UPDATE cascade ON DELETE cascade\n)"
@@ -206,30 +194,6 @@
           "name": "Sessions",
           "tbl_name": "Sessions",
           "sql": "CREATE TABLE `Sessions` (\n  `id` text PRIMARY KEY NOT NULL,\n  `sessionToken` text NOT NULL,\n  `userId` text NOT NULL,\n  `expires` numeric NOT NULL,\n  `createdAt` integer NOT NULL,\n  `updatedAt` integer NOT NULL,\n  `deletedAt` integer,\n  FOREIGN KEY (`userId`) REFERENCES `Users` (`id`) ON UPDATE cascade ON DELETE cascade\n)"
-        },
-        {
-          "type": "table",
-          "name": "SharedDrawing",
-          "tbl_name": "SharedDrawing",
-          "sql": "CREATE TABLE `SharedDrawing` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`drawingId` text NOT NULL,\n\t`userId` text NOT NULL,\n\t`accessLevel` text NOT NULL,\n\t`createdAt` integer NOT NULL,\n\tFOREIGN KEY (`drawingId`) REFERENCES `Drawing`(`id`) ON UPDATE cascade ON DELETE cascade,\n\tFOREIGN KEY (`userId`) REFERENCES `User`(`id`) ON UPDATE cascade ON DELETE cascade\n)"
-        },
-        {
-          "type": "index",
-          "name": "SharedDrawing_drawingId_idx",
-          "tbl_name": "SharedDrawing",
-          "sql": "CREATE INDEX `SharedDrawing_drawingId_idx` ON `SharedDrawing` (`drawingId`)"
-        },
-        {
-          "type": "index",
-          "name": "SharedDrawing_drawingId_userId_key",
-          "tbl_name": "SharedDrawing",
-          "sql": "CREATE UNIQUE INDEX `SharedDrawing_drawingId_userId_key` ON `SharedDrawing` (`drawingId`,`userId`)"
-        },
-        {
-          "type": "index",
-          "name": "SharedDrawing_userId_idx",
-          "tbl_name": "SharedDrawing",
-          "sql": "CREATE INDEX `SharedDrawing_userId_idx` ON `SharedDrawing` (`userId`)"
         },
         {
           "type": "table",
@@ -761,12 +725,6 @@
         },
         {
           "type": "index",
-          "name": "sqlite_autoindex_Drawing_1",
-          "tbl_name": "Drawing",
-          "sql": null
-        },
-        {
-          "type": "index",
           "name": "sqlite_autoindex_Entities_1",
           "tbl_name": "Entities",
           "sql": null
@@ -781,12 +739,6 @@
           "type": "index",
           "name": "sqlite_autoindex_Sessions_1",
           "tbl_name": "Sessions",
-          "sql": null
-        },
-        {
-          "type": "index",
-          "name": "sqlite_autoindex_SharedDrawing_1",
-          "tbl_name": "SharedDrawing",
           "sql": null
         },
         {
@@ -1510,155 +1462,6 @@
                   "seqno": 0,
                   "cid": 1,
                   "name": "city",
-                  "desc": 0,
-                  "coll": "BINARY",
-                  "key": 1
-                },
-                {
-                  "seqno": 1,
-                  "cid": -1,
-                  "name": null,
-                  "desc": 0,
-                  "coll": "BINARY",
-                  "key": 0
-                }
-              ]
-            }
-          ]
-        },
-        "Drawing": {
-          "columns": [
-            {
-              "cid": 0,
-              "name": "id",
-              "type": "TEXT",
-              "notnull": 1,
-              "dflt_value": null,
-              "pk": 1,
-              "hidden": 0
-            },
-            {
-              "cid": 1,
-              "name": "title",
-              "type": "TEXT",
-              "notnull": 1,
-              "dflt_value": null,
-              "pk": 0,
-              "hidden": 0
-            },
-            {
-              "cid": 2,
-              "name": "elements",
-              "type": "TEXT",
-              "notnull": 1,
-              "dflt_value": null,
-              "pk": 0,
-              "hidden": 0
-            },
-            {
-              "cid": 3,
-              "name": "appState",
-              "type": "TEXT",
-              "notnull": 0,
-              "dflt_value": null,
-              "pk": 0,
-              "hidden": 0
-            },
-            {
-              "cid": 4,
-              "name": "createdAt",
-              "type": "INTEGER",
-              "notnull": 1,
-              "dflt_value": null,
-              "pk": 0,
-              "hidden": 0
-            },
-            {
-              "cid": 5,
-              "name": "updatedAt",
-              "type": "INTEGER",
-              "notnull": 1,
-              "dflt_value": null,
-              "pk": 0,
-              "hidden": 0
-            },
-            {
-              "cid": 6,
-              "name": "deletedAt",
-              "type": "INTEGER",
-              "notnull": 0,
-              "dflt_value": null,
-              "pk": 0,
-              "hidden": 0
-            },
-            {
-              "cid": 7,
-              "name": "userId",
-              "type": "TEXT",
-              "notnull": 1,
-              "dflt_value": null,
-              "pk": 0,
-              "hidden": 0
-            },
-            {
-              "cid": 8,
-              "name": "publicAccess",
-              "type": "TEXT",
-              "notnull": 1,
-              "dflt_value": null,
-              "pk": 0,
-              "hidden": 0
-            }
-          ],
-          "foreignKeys": [
-            {
-              "id": 0,
-              "seq": 0,
-              "table": "User",
-              "from": "userId",
-              "to": "id",
-              "on_update": "CASCADE",
-              "on_delete": "CASCADE",
-              "match": "NONE"
-            }
-          ],
-          "indexes": [
-            {
-              "seq": 0,
-              "name": "Drawing_userId_idx",
-              "unique": 0,
-              "origin": "c",
-              "partial": 0,
-              "keys": [
-                {
-                  "seqno": 0,
-                  "cid": 7,
-                  "name": "userId",
-                  "desc": 0,
-                  "coll": "BINARY",
-                  "key": 1
-                },
-                {
-                  "seqno": 1,
-                  "cid": -1,
-                  "name": null,
-                  "desc": 0,
-                  "coll": "BINARY",
-                  "key": 0
-                }
-              ]
-            },
-            {
-              "seq": 1,
-              "name": "sqlite_autoindex_Drawing_1",
-              "unique": 1,
-              "origin": "pk",
-              "partial": 0,
-              "keys": [
-                {
-                  "seqno": 0,
-                  "cid": 0,
-                  "name": "id",
                   "desc": 0,
                   "coll": "BINARY",
                   "key": 1
@@ -3012,187 +2815,6 @@
             {
               "seq": 1,
               "name": "sqlite_autoindex_Sessions_1",
-              "unique": 1,
-              "origin": "pk",
-              "partial": 0,
-              "keys": [
-                {
-                  "seqno": 0,
-                  "cid": 0,
-                  "name": "id",
-                  "desc": 0,
-                  "coll": "BINARY",
-                  "key": 1
-                },
-                {
-                  "seqno": 1,
-                  "cid": -1,
-                  "name": null,
-                  "desc": 0,
-                  "coll": "BINARY",
-                  "key": 0
-                }
-              ]
-            }
-          ]
-        },
-        "SharedDrawing": {
-          "columns": [
-            {
-              "cid": 0,
-              "name": "id",
-              "type": "TEXT",
-              "notnull": 1,
-              "dflt_value": null,
-              "pk": 1,
-              "hidden": 0
-            },
-            {
-              "cid": 1,
-              "name": "drawingId",
-              "type": "TEXT",
-              "notnull": 1,
-              "dflt_value": null,
-              "pk": 0,
-              "hidden": 0
-            },
-            {
-              "cid": 2,
-              "name": "userId",
-              "type": "TEXT",
-              "notnull": 1,
-              "dflt_value": null,
-              "pk": 0,
-              "hidden": 0
-            },
-            {
-              "cid": 3,
-              "name": "accessLevel",
-              "type": "TEXT",
-              "notnull": 1,
-              "dflt_value": null,
-              "pk": 0,
-              "hidden": 0
-            },
-            {
-              "cid": 4,
-              "name": "createdAt",
-              "type": "INTEGER",
-              "notnull": 1,
-              "dflt_value": null,
-              "pk": 0,
-              "hidden": 0
-            }
-          ],
-          "foreignKeys": [
-            {
-              "id": 0,
-              "seq": 0,
-              "table": "User",
-              "from": "userId",
-              "to": "id",
-              "on_update": "CASCADE",
-              "on_delete": "CASCADE",
-              "match": "NONE"
-            },
-            {
-              "id": 1,
-              "seq": 0,
-              "table": "Drawing",
-              "from": "drawingId",
-              "to": "id",
-              "on_update": "CASCADE",
-              "on_delete": "CASCADE",
-              "match": "NONE"
-            }
-          ],
-          "indexes": [
-            {
-              "seq": 0,
-              "name": "SharedDrawing_drawingId_idx",
-              "unique": 0,
-              "origin": "c",
-              "partial": 0,
-              "keys": [
-                {
-                  "seqno": 0,
-                  "cid": 1,
-                  "name": "drawingId",
-                  "desc": 0,
-                  "coll": "BINARY",
-                  "key": 1
-                },
-                {
-                  "seqno": 1,
-                  "cid": -1,
-                  "name": null,
-                  "desc": 0,
-                  "coll": "BINARY",
-                  "key": 0
-                }
-              ]
-            },
-            {
-              "seq": 1,
-              "name": "SharedDrawing_userId_idx",
-              "unique": 0,
-              "origin": "c",
-              "partial": 0,
-              "keys": [
-                {
-                  "seqno": 0,
-                  "cid": 2,
-                  "name": "userId",
-                  "desc": 0,
-                  "coll": "BINARY",
-                  "key": 1
-                },
-                {
-                  "seqno": 1,
-                  "cid": -1,
-                  "name": null,
-                  "desc": 0,
-                  "coll": "BINARY",
-                  "key": 0
-                }
-              ]
-            },
-            {
-              "seq": 2,
-              "name": "SharedDrawing_drawingId_userId_key",
-              "unique": 1,
-              "origin": "c",
-              "partial": 0,
-              "keys": [
-                {
-                  "seqno": 0,
-                  "cid": 1,
-                  "name": "drawingId",
-                  "desc": 0,
-                  "coll": "BINARY",
-                  "key": 1
-                },
-                {
-                  "seqno": 1,
-                  "cid": 2,
-                  "name": "userId",
-                  "desc": 0,
-                  "coll": "BINARY",
-                  "key": 1
-                },
-                {
-                  "seqno": 2,
-                  "cid": -1,
-                  "name": null,
-                  "desc": 0,
-                  "coll": "BINARY",
-                  "key": 0
-                }
-              ]
-            },
-            {
-              "seq": 3,
-              "name": "sqlite_autoindex_SharedDrawing_1",
               "unique": 1,
               "origin": "pk",
               "partial": 0,
@@ -7790,18 +7412,6 @@
         },
         {
           "type": "table",
-          "name": "Drawing",
-          "tbl_name": "Drawing",
-          "sql": "CREATE TABLE `Drawing` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`title` text NOT NULL,\n\t`elements` text NOT NULL,\n\t`appState` text,\n\t`createdAt` integer NOT NULL,\n\t`updatedAt` integer NOT NULL,\n\t`deletedAt` integer,\n\t`userId` text NOT NULL,\n\t`publicAccess` text NOT NULL,\n\tFOREIGN KEY (`userId`) REFERENCES `User`(`id`) ON UPDATE cascade ON DELETE cascade\n)"
-        },
-        {
-          "type": "index",
-          "name": "Drawing_userId_idx",
-          "tbl_name": "Drawing",
-          "sql": "CREATE INDEX `Drawing_userId_idx` ON `Drawing` (`userId`)"
-        },
-        {
-          "type": "table",
           "name": "Entities",
           "tbl_name": "Entities",
           "sql": "CREATE TABLE `Entities` (\n  `id` text PRIMARY KEY NOT NULL,\n  `title` text NOT NULL,\n  `elements` text NOT NULL,\n  `appState` text,\n  `entityType` text NOT NULL DEFAULT 'drawing',\n  `parentId` text,\n  `screenShotLight` text NOT NULL DEFAULT '',\n  `screenShotDark` text NOT NULL DEFAULT '',\n  `createdAt` integer NOT NULL,\n  `updatedAt` integer NOT NULL,\n  `deletedAt` integer,\n  `userId` text NOT NULL,\n  `publicAccess` text NOT NULL,\n  `isActive` integer NOT NULL DEFAULT 1,\n  `thumbnailStatus` text DEFAULT 'pending',\n  `thumbnailUpdatedAt` integer,\n  `thumbnailVersion` text,\n  FOREIGN KEY (`parentId`) REFERENCES `Entities` (`id`) ON UPDATE cascade ON DELETE cascade,\n  FOREIGN KEY (`userId`) REFERENCES `Users` (`id`) ON UPDATE cascade ON DELETE cascade\n)"
@@ -7931,30 +7541,6 @@
           "name": "Sessions",
           "tbl_name": "Sessions",
           "sql": "CREATE TABLE `Sessions` (\n  `id` text PRIMARY KEY NOT NULL,\n  `sessionToken` text NOT NULL,\n  `userId` text NOT NULL,\n  `expires` numeric NOT NULL,\n  `createdAt` integer NOT NULL,\n  `updatedAt` integer NOT NULL,\n  `deletedAt` integer,\n  FOREIGN KEY (`userId`) REFERENCES `Users` (`id`) ON UPDATE cascade ON DELETE cascade\n)"
-        },
-        {
-          "type": "table",
-          "name": "SharedDrawing",
-          "tbl_name": "SharedDrawing",
-          "sql": "CREATE TABLE `SharedDrawing` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`drawingId` text NOT NULL,\n\t`userId` text NOT NULL,\n\t`accessLevel` text NOT NULL,\n\t`createdAt` integer NOT NULL,\n\tFOREIGN KEY (`drawingId`) REFERENCES `Drawing`(`id`) ON UPDATE cascade ON DELETE cascade,\n\tFOREIGN KEY (`userId`) REFERENCES `User`(`id`) ON UPDATE cascade ON DELETE cascade\n)"
-        },
-        {
-          "type": "index",
-          "name": "SharedDrawing_drawingId_idx",
-          "tbl_name": "SharedDrawing",
-          "sql": "CREATE INDEX `SharedDrawing_drawingId_idx` ON `SharedDrawing` (`drawingId`)"
-        },
-        {
-          "type": "index",
-          "name": "SharedDrawing_drawingId_userId_key",
-          "tbl_name": "SharedDrawing",
-          "sql": "CREATE UNIQUE INDEX `SharedDrawing_drawingId_userId_key` ON `SharedDrawing` (`drawingId`,`userId`)"
-        },
-        {
-          "type": "index",
-          "name": "SharedDrawing_userId_idx",
-          "tbl_name": "SharedDrawing",
-          "sql": "CREATE INDEX `SharedDrawing_userId_idx` ON `SharedDrawing` (`userId`)"
         },
         {
           "type": "table",
@@ -8486,12 +8072,6 @@
         },
         {
           "type": "index",
-          "name": "sqlite_autoindex_Drawing_1",
-          "tbl_name": "Drawing",
-          "sql": null
-        },
-        {
-          "type": "index",
           "name": "sqlite_autoindex_Entities_1",
           "tbl_name": "Entities",
           "sql": null
@@ -8506,12 +8086,6 @@
           "type": "index",
           "name": "sqlite_autoindex_Sessions_1",
           "tbl_name": "Sessions",
-          "sql": null
-        },
-        {
-          "type": "index",
-          "name": "sqlite_autoindex_SharedDrawing_1",
-          "tbl_name": "SharedDrawing",
           "sql": null
         },
         {
@@ -9235,155 +8809,6 @@
                   "seqno": 0,
                   "cid": 1,
                   "name": "city",
-                  "desc": 0,
-                  "coll": "BINARY",
-                  "key": 1
-                },
-                {
-                  "seqno": 1,
-                  "cid": -1,
-                  "name": null,
-                  "desc": 0,
-                  "coll": "BINARY",
-                  "key": 0
-                }
-              ]
-            }
-          ]
-        },
-        "Drawing": {
-          "columns": [
-            {
-              "cid": 0,
-              "name": "id",
-              "type": "TEXT",
-              "notnull": 1,
-              "dflt_value": null,
-              "pk": 1,
-              "hidden": 0
-            },
-            {
-              "cid": 1,
-              "name": "title",
-              "type": "TEXT",
-              "notnull": 1,
-              "dflt_value": null,
-              "pk": 0,
-              "hidden": 0
-            },
-            {
-              "cid": 2,
-              "name": "elements",
-              "type": "TEXT",
-              "notnull": 1,
-              "dflt_value": null,
-              "pk": 0,
-              "hidden": 0
-            },
-            {
-              "cid": 3,
-              "name": "appState",
-              "type": "TEXT",
-              "notnull": 0,
-              "dflt_value": null,
-              "pk": 0,
-              "hidden": 0
-            },
-            {
-              "cid": 4,
-              "name": "createdAt",
-              "type": "INTEGER",
-              "notnull": 1,
-              "dflt_value": null,
-              "pk": 0,
-              "hidden": 0
-            },
-            {
-              "cid": 5,
-              "name": "updatedAt",
-              "type": "INTEGER",
-              "notnull": 1,
-              "dflt_value": null,
-              "pk": 0,
-              "hidden": 0
-            },
-            {
-              "cid": 6,
-              "name": "deletedAt",
-              "type": "INTEGER",
-              "notnull": 0,
-              "dflt_value": null,
-              "pk": 0,
-              "hidden": 0
-            },
-            {
-              "cid": 7,
-              "name": "userId",
-              "type": "TEXT",
-              "notnull": 1,
-              "dflt_value": null,
-              "pk": 0,
-              "hidden": 0
-            },
-            {
-              "cid": 8,
-              "name": "publicAccess",
-              "type": "TEXT",
-              "notnull": 1,
-              "dflt_value": null,
-              "pk": 0,
-              "hidden": 0
-            }
-          ],
-          "foreignKeys": [
-            {
-              "id": 0,
-              "seq": 0,
-              "table": "User",
-              "from": "userId",
-              "to": "id",
-              "on_update": "CASCADE",
-              "on_delete": "CASCADE",
-              "match": "NONE"
-            }
-          ],
-          "indexes": [
-            {
-              "seq": 0,
-              "name": "Drawing_userId_idx",
-              "unique": 0,
-              "origin": "c",
-              "partial": 0,
-              "keys": [
-                {
-                  "seqno": 0,
-                  "cid": 7,
-                  "name": "userId",
-                  "desc": 0,
-                  "coll": "BINARY",
-                  "key": 1
-                },
-                {
-                  "seqno": 1,
-                  "cid": -1,
-                  "name": null,
-                  "desc": 0,
-                  "coll": "BINARY",
-                  "key": 0
-                }
-              ]
-            },
-            {
-              "seq": 1,
-              "name": "sqlite_autoindex_Drawing_1",
-              "unique": 1,
-              "origin": "pk",
-              "partial": 0,
-              "keys": [
-                {
-                  "seqno": 0,
-                  "cid": 0,
-                  "name": "id",
                   "desc": 0,
                   "coll": "BINARY",
                   "key": 1
@@ -10737,187 +10162,6 @@
             {
               "seq": 1,
               "name": "sqlite_autoindex_Sessions_1",
-              "unique": 1,
-              "origin": "pk",
-              "partial": 0,
-              "keys": [
-                {
-                  "seqno": 0,
-                  "cid": 0,
-                  "name": "id",
-                  "desc": 0,
-                  "coll": "BINARY",
-                  "key": 1
-                },
-                {
-                  "seqno": 1,
-                  "cid": -1,
-                  "name": null,
-                  "desc": 0,
-                  "coll": "BINARY",
-                  "key": 0
-                }
-              ]
-            }
-          ]
-        },
-        "SharedDrawing": {
-          "columns": [
-            {
-              "cid": 0,
-              "name": "id",
-              "type": "TEXT",
-              "notnull": 1,
-              "dflt_value": null,
-              "pk": 1,
-              "hidden": 0
-            },
-            {
-              "cid": 1,
-              "name": "drawingId",
-              "type": "TEXT",
-              "notnull": 1,
-              "dflt_value": null,
-              "pk": 0,
-              "hidden": 0
-            },
-            {
-              "cid": 2,
-              "name": "userId",
-              "type": "TEXT",
-              "notnull": 1,
-              "dflt_value": null,
-              "pk": 0,
-              "hidden": 0
-            },
-            {
-              "cid": 3,
-              "name": "accessLevel",
-              "type": "TEXT",
-              "notnull": 1,
-              "dflt_value": null,
-              "pk": 0,
-              "hidden": 0
-            },
-            {
-              "cid": 4,
-              "name": "createdAt",
-              "type": "INTEGER",
-              "notnull": 1,
-              "dflt_value": null,
-              "pk": 0,
-              "hidden": 0
-            }
-          ],
-          "foreignKeys": [
-            {
-              "id": 0,
-              "seq": 0,
-              "table": "User",
-              "from": "userId",
-              "to": "id",
-              "on_update": "CASCADE",
-              "on_delete": "CASCADE",
-              "match": "NONE"
-            },
-            {
-              "id": 1,
-              "seq": 0,
-              "table": "Drawing",
-              "from": "drawingId",
-              "to": "id",
-              "on_update": "CASCADE",
-              "on_delete": "CASCADE",
-              "match": "NONE"
-            }
-          ],
-          "indexes": [
-            {
-              "seq": 0,
-              "name": "SharedDrawing_drawingId_idx",
-              "unique": 0,
-              "origin": "c",
-              "partial": 0,
-              "keys": [
-                {
-                  "seqno": 0,
-                  "cid": 1,
-                  "name": "drawingId",
-                  "desc": 0,
-                  "coll": "BINARY",
-                  "key": 1
-                },
-                {
-                  "seqno": 1,
-                  "cid": -1,
-                  "name": null,
-                  "desc": 0,
-                  "coll": "BINARY",
-                  "key": 0
-                }
-              ]
-            },
-            {
-              "seq": 1,
-              "name": "SharedDrawing_userId_idx",
-              "unique": 0,
-              "origin": "c",
-              "partial": 0,
-              "keys": [
-                {
-                  "seqno": 0,
-                  "cid": 2,
-                  "name": "userId",
-                  "desc": 0,
-                  "coll": "BINARY",
-                  "key": 1
-                },
-                {
-                  "seqno": 1,
-                  "cid": -1,
-                  "name": null,
-                  "desc": 0,
-                  "coll": "BINARY",
-                  "key": 0
-                }
-              ]
-            },
-            {
-              "seq": 2,
-              "name": "SharedDrawing_drawingId_userId_key",
-              "unique": 1,
-              "origin": "c",
-              "partial": 0,
-              "keys": [
-                {
-                  "seqno": 0,
-                  "cid": 1,
-                  "name": "drawingId",
-                  "desc": 0,
-                  "coll": "BINARY",
-                  "key": 1
-                },
-                {
-                  "seqno": 1,
-                  "cid": 2,
-                  "name": "userId",
-                  "desc": 0,
-                  "coll": "BINARY",
-                  "key": 1
-                },
-                {
-                  "seqno": 2,
-                  "cid": -1,
-                  "name": null,
-                  "desc": 0,
-                  "coll": "BINARY",
-                  "key": 0
-                }
-              ]
-            },
-            {
-              "seq": 3,
-              "name": "sqlite_autoindex_SharedDrawing_1",
               "unique": 1,
               "origin": "pk",
               "partial": 0,
