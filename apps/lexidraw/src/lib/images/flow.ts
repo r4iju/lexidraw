@@ -81,7 +81,7 @@ export type ImageRetention = {
   owner: string;
   load: () => Promise<string | null>;
   save: (value: string, expected: string | null) => Promise<boolean>;
-  clear: (expected: string) => Promise<void>;
+  clear: (expected: string) => Promise<boolean>;
 };
 const RetainedImage = z.strictObject({
   version: z.literal(1),
@@ -124,6 +124,7 @@ export class ImageFlow {
   private ended = false;
   private quarantined = false;
   private intent = 0;
+  private persistence: Promise<unknown> = Promise.resolve();
   private listeners = new Set<() => void>();
   constructor(
     private ports: ImagePorts = unavailablePorts,
@@ -209,7 +210,20 @@ export class ImageFlow {
     })();
     return this.restored;
   }
-  private async retain(state: Completed & { url?: string }) {
+  // A document ACK must clear the revision produced by every earlier owner write.
+  private persist<T>(work: () => Promise<T>): Promise<T> {
+    const result = this.persistence.then(work);
+    this.persistence = result.catch(() => {});
+    return result;
+  }
+  private retain(state: Completed & { url?: string }) {
+    const intent = this.intent;
+    return this.persist(async () => {
+      this.check(intent);
+      await this.writeArtifact(state);
+    });
+  }
+  private async writeArtifact(state: Completed & { url?: string }) {
     if (!this.retention) return;
     const value = JSON.stringify(
       RetainedImage.parse({
@@ -235,22 +249,26 @@ export class ImageFlow {
     source: "pro" | "byok",
     operation?: ImageOperation,
   ) {
-    if (!this.retention) return;
-    const raw = JSON.stringify(
-      PendingImage.parse({
-        version: 1,
-        owner: this.retention.owner,
-        fingerprints: this.ports.byok.fingerprints(),
-        key,
-        prompt,
-        source,
-        operation,
-      }),
-    );
-    this.ports.byok.assertSafe(raw);
-    if (!(await this.retention.save(raw, this.retained)))
-      throw new Error("Cannot retain image admission");
-    this.retained = raw;
+    const intent = this.intent;
+    return this.persist(async () => {
+      this.check(intent);
+      if (!this.retention) return;
+      const raw = JSON.stringify(
+        PendingImage.parse({
+          version: 1,
+          owner: this.retention.owner,
+          fingerprints: this.ports.byok.fingerprints(),
+          key,
+          prompt,
+          source,
+          operation,
+        }),
+      );
+      this.ports.byok.assertSafe(raw);
+      if (!(await this.retention.save(raw, this.retained)))
+        throw new Error("Cannot retain image admission");
+      this.retained = raw;
+    });
   }
   async recover() {
     await this.restore();
@@ -333,12 +351,27 @@ export class ImageFlow {
       return false;
     }
     if (imageCount(document.root, state.url) !== 1) return false;
-    if (this.retention && this.retained)
-      await this.retention.clear(this.retained);
-    this.check(intent);
-    this.retained = null;
-    this.set({ kind: "idle" });
-    return true;
+    return this.persist(async () => {
+      this.check(intent);
+      const current = this.current;
+      if (
+        current.kind !== "saved" ||
+        current.uploadId !== state.uploadId ||
+        current.url !== state.url
+      )
+        return false;
+      if (
+        this.retention &&
+        this.retained &&
+        !(await this.retention.clear(this.retained))
+      )
+        return false;
+      this.check(intent);
+      this.retained = null;
+      this.intent++;
+      this.set({ kind: "idle" });
+      return true;
+    });
   }
   async insert(
     insert: (
@@ -490,18 +523,21 @@ export class ImageFlow {
     const state = this.current;
     if (this.ended || !("image" in state) || state.kind === "saving") return;
     const intent = this.intent;
-    try {
-      await this.retain(state);
-      this.check(intent);
-      this.set({ ...state, durability: "durable" });
-    } catch {
+    await this.persist(async () => {
+      if (this.ended || intent !== this.intent || this.current !== state)
+        return;
       try {
         this.check(intent);
+        await this.writeArtifact(state);
+        this.check(intent);
+        if (this.current === state)
+          this.set({ ...state, durability: "durable" });
       } catch {
-        return;
+        if (this.ended || intent !== this.intent || this.current !== state)
+          return;
+        this.set({ ...state, durability: "memory_only" });
       }
-      this.set({ ...state, durability: "memory_only" });
-    }
+    });
   }
   async accept() {
     const quote = this.current;

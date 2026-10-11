@@ -187,14 +187,15 @@ function OwnedDeviceNarration({
         checkOwner();
         return saved;
       },
-      clear: (scope, expected) =>
-        browserNarrationStore.clear(
+      clear: async (scope, expected) => {
+        await browserNarrationStore.clear(
           scope,
           expected,
           () =>
             browserByokAccount() === account &&
             browserByokSessionGeneration() === generation,
-        ),
+        );
+      },
     },
     sync: async (
       id: string,

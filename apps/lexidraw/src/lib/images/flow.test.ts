@@ -26,6 +26,99 @@ import { expect, test } from "bun:test";
 import { ImageFlow, type ImagePorts } from "./flow";
 import { fixtureImage } from "~/test/image-fixture";
 import { createByokSession } from "~/lib/byok/session";
+function checkpointGate() {
+  let resolve = () => {};
+  const promise = new Promise<void>((r) => {
+    resolve = r;
+  });
+  return { promise, resolve };
+}
+
+test("document ACK waits for checkpoint retry cleanup and cannot reopen an acknowledged image", async () => {
+  let stored: string | null = null;
+  let failReceipt = true;
+  let held = false;
+  const entered = checkpointGate(),
+    release = checkpointGate();
+  let calls = 0;
+  const byok = createByokSession(async () => {
+    throw Error("No provider");
+  }, "https://app.test");
+  const ports: ImagePorts = {
+    source: () => ({ mode: "pro" }),
+    availability: () => ({ available: true, maximum: 1, fixture: true }),
+    byok,
+    pro: async () => {
+      calls++;
+      return fixtureImage();
+    },
+    save: async () => "https://app.test/original-receipt",
+  };
+  const retention = {
+    owner: "ack-retry-owner",
+    load: async () => stored,
+    save: async (value: string, expected: string | null) => {
+      if (failReceipt && value.includes('"url"'))
+        throw Error("Receipt disk failure");
+      if (expected !== stored) return false;
+      stored = value;
+      if (held) {
+        held = false;
+        entered.resolve();
+        await release.promise;
+      }
+      return true;
+    },
+    clear: async (expected: string) => {
+      if (stored !== expected) return false;
+      stored = null;
+      return true;
+    },
+  };
+  const flow = new ImageFlow(ports, retention);
+  await flow.generate("Tree");
+  await flow.accept();
+  await flow.upload();
+  const saved = flow.state();
+  expect(saved.kind).toBe("saved");
+  expect("durability" in saved && saved.durability).toBe("memory_only");
+  failReceipt = false;
+  held = true;
+  const retry = flow.retryCheckpoint();
+  await entered.promise;
+  let acknowledged = false;
+  const ack = flow
+    .acknowledge({
+      kind: "saved",
+      revision: new Date(1001),
+      elements: JSON.stringify({
+        root: {
+          type: "root",
+          children: [
+            { type: "image", src: "https://app.test/original-receipt" },
+          ],
+        },
+      }),
+    })
+    .then((value) => {
+      acknowledged = value;
+      return value;
+    });
+  // A public second admission cannot dispatch while cleanup is unconfirmed.
+  await flow.generate("Too early");
+  expect(calls).toBe(1);
+  release.resolve();
+  await retry;
+  expect(await ack).toBe(true);
+  expect(acknowledged).toBe(true);
+  const reopened = new ImageFlow(ports, retention);
+  await reopened.restore();
+  expect(reopened.state().kind).toBe("idle");
+  expect(flow.state().kind).toBe("idle");
+  await flow.generate("Fresh image");
+  await flow.accept();
+  expect(calls).toBe(2);
+}, 20000);
 test("selected BYOK uses approved direct request, rejects encoded echoes, retains completed image across key removal and failed sync", async () => {
   let generated = 0,
     uploads = 0,
@@ -404,6 +497,7 @@ test("reopened image retries the same admitted upload after a lost response with
       },
       clear: async () => {
         await rm(file, { force: true });
+        return true;
       },
     };
     let generations = 0;
@@ -482,6 +576,7 @@ test("running image admission keeps owned operation identity across reopening", 
     },
     clear: async () => {
       stored = null;
+      return true;
     },
   };
   const ports = {
@@ -543,6 +638,7 @@ test("failed completed byte checkpoint exposes memory-only output and retries th
     },
     clear: async () => {
       stored = null;
+      return true;
     },
   };
   const flow = new ImageFlow(ports, retention);
@@ -602,7 +698,7 @@ test("failed image receipt checkpoint preserves received URL and upload identity
       stored = value;
       return true;
     },
-    clear: async () => {},
+    clear: async () => false,
   };
   const flow = new ImageFlow(ports, retention);
   await flow.generate("Tree");
@@ -662,7 +758,7 @@ test("session retirement during failed image retention cannot publish a late mem
       active = false;
       throw Error("Owner retired during write");
     },
-    clear: async () => {},
+    clear: async () => false,
   });
   await flow.restore();
   const publications: string[] = [];

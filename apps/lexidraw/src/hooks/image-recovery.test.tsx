@@ -52,7 +52,9 @@ mock.module("~/lib/narration/device-store", () => ({
       return true;
     },
     clear: async (_: string, expected: string) => {
-      if (stored === expected) stored = null;
+      if (stored !== expected) return false;
+      stored = null;
+      return true;
     },
   },
 }));

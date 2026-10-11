@@ -162,14 +162,15 @@ function OwnedDeviceAgent({
             browserByokSessionGeneration() === generation,
         );
       },
-      clear: (scope, expected) =>
-        browserNarrationStore.clear(
+      clear: async (scope, expected) => {
+        await browserNarrationStore.clear(
           scope,
           expected,
           () =>
             browserByokAccount() === account &&
             browserByokSessionGeneration() === generation,
-        ),
+        );
+      },
     },
     read: () => utils.deviceAgent.source.fetch({ documentId }),
     apply: (data) => commitEdit(data),

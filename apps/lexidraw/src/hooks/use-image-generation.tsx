@@ -465,18 +465,21 @@ export const LexicalImageGenerationProvider = ({
   const { isConfigured, generateImageData, retained, insertImage } =
     useImageGeneration();
   const [isLoading, setIsLoading] = useState(false);
+  const insertAndAcknowledge = useCallback(async () => {
+    if (
+      !(await insertImage((url, prompt, check) =>
+        insertRetainedImage(editor, url, prompt, persist, check),
+      ))
+    )
+      toast.error(
+        "Image retained. Document save did not confirm its insertion.",
+      );
+  }, [insertImage, editor, persist]);
 
   const retryInsertion = async () => {
     setIsLoading(true);
     try {
-      if (
-        !(await insertImage((url, prompt, check) =>
-          insertRetainedImage(editor, url, prompt, persist, check),
-        ))
-      )
-        toast.error(
-          "Image retained. Document save did not confirm its insertion.",
-        );
+      await insertAndAcknowledge();
     } catch {
       toast.error(
         "Image retained. Retry document save when this document is ready.",
@@ -500,13 +503,7 @@ export const LexicalImageGenerationProvider = ({
       try {
         const gen = await generateImageData(prompt, options);
         if (!gen) return;
-        const acknowledged = await insertImage((url, prompt, check) =>
-          insertRetainedImage(editor, url, prompt, persist, check),
-        );
-        if (!acknowledged)
-          toast.error(
-            "Image retained. Document save did not confirm its insertion.",
-          );
+        await insertAndAcknowledge();
       } catch (err) {
         toast.error("Process Failed", {
           description: err instanceof Error ? err.message : "Unknown error",
@@ -515,7 +512,7 @@ export const LexicalImageGenerationProvider = ({
         setIsLoading(false);
       }
     },
-    [isConfigured, generateImageData, insertImage, editor, persist],
+    [isConfigured, generateImageData, insertAndAcknowledge],
   );
 
   return (
