@@ -35,6 +35,7 @@ export class DeviceAgent {
   private ended = false;
   private stopped = false;
   private starting = false;
+  private intent = 0;
   private listeners = new Set<() => void>();
   private readonly session: unknown;
   constructor(
@@ -43,6 +44,13 @@ export class DeviceAgent {
     private ports: DeviceAgentPorts,
   ) {
     this.session = ports.session?.();
+  }
+  configure(ports: DeviceAgentPorts) {
+    this.ports = ports;
+  }
+  admitting = () => this.starting;
+  private publish() {
+    for (const listener of this.listeners) listener();
   }
   private get scope() {
     return JSON.stringify([this.account, this.documentId, DEVICE_AGENT_CONFIG]);
@@ -111,12 +119,22 @@ export class DeviceAgent {
     )
       return;
     this.starting = true;
+    const intent = ++this.intent;
+    this.stopped = false;
+    this.publish();
     try {
       this.ports.byok.assertSafe(prompt);
       const reference = this.ports.byok.reference();
       const document = await this.ports.read();
       this.active();
-      if (this.current || reference !== this.ports.byok.reference()) return;
+      if (
+        intent !== this.intent ||
+        this.stopped ||
+        this.current ||
+        reference !== this.ports.byok.reference() ||
+        !this.ports.available()
+      )
+        return;
       this.ports.byok.assertEgress(JSON.stringify(document));
       await this.persist(
         deviceAgentStart(
@@ -128,23 +146,32 @@ export class DeviceAgent {
           document,
         ),
       );
-      await this.resume();
+      if (intent === this.intent && !this.stopped)
+        await this.run(intent, reference);
     } finally {
       this.starting = false;
+      this.publish();
     }
   }
   async resume() {
     this.active();
     if (
       this.busy ||
+      this.starting ||
       !this.current ||
       ["unknown", "complete", "blocked"].includes(this.current.status)
     )
       return;
-    this.busy = true;
     this.stopped = false;
+    await this.run(++this.intent, this.ports.byok.reference());
+  }
+  private async run(
+    intent: number,
+    reference: ReturnType<DeviceAgentPorts["byok"]["reference"]>,
+  ) {
+    this.busy = true;
     try {
-      while (this.current && !this.stopped) {
+      while (this.current && !this.stopped && intent === this.intent) {
         this.active();
         const state = this.current;
         if (["unknown", "complete", "blocked"].includes(state.status)) return;
@@ -170,7 +197,11 @@ export class DeviceAgent {
           }
           continue;
         }
-        if (!this.ports.available() || !this.ports.byok.reference()) {
+        if (
+          !this.ports.available() ||
+          !reference ||
+          reference !== this.ports.byok.reference()
+        ) {
           await this.persist(
             AgentCheckpoint.parse({
               ...state,
@@ -192,7 +223,6 @@ export class DeviceAgent {
           );
           return;
         }
-        const reference = this.ports.byok.reference();
         if (!reference) return;
         const fenced = deviceAgentFence(state, Date.now());
         await this.persist(fenced);
@@ -200,6 +230,7 @@ export class DeviceAgent {
         this.active();
         if (
           this.stopped ||
+          intent !== this.intent ||
           reference !== this.ports.byok.reference() ||
           !this.ports.available()
         ) {
@@ -257,7 +288,9 @@ export class DeviceAgent {
     for (const listener of this.listeners) listener();
   }
   stop() {
+    ++this.intent;
     this.stopped = true;
+    this.publish();
   }
   async end() {
     this.ended = true;

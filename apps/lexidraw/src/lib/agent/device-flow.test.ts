@@ -410,3 +410,49 @@ test("restoring an unknown request requires an unknown fence and a phase-specifi
   expect(() => deviceAgentRestore({ ...started, phase: "image" })).toThrow();
   expect(() => deviceAgentRestore({ ...started, phase: "mutation" })).toThrow();
 });
+
+for (const boundary of ["read", "save"] as const)
+  test(`Stop during ${boundary} admission does not dispatch until explicit resume`, async () => {
+    const h = harness();
+    let reached = () => {},
+      release = () => {};
+    const gate = new Promise<void>((r) => {
+      release = r;
+    });
+    const waiting = new Promise<void>((r) => {
+      reached = r;
+    });
+    if (boundary === "read")
+      h.ports.read = async () => {
+        reached();
+        await gate;
+        return { revision: 1, text: "Existing" };
+      };
+    else {
+      const save = h.ports.store.save;
+      let first = true;
+      h.ports.store.save = async (...args) => {
+        const result = await save(...args);
+        if (first) {
+          first = false;
+          reached();
+          await gate;
+        }
+        return result;
+      };
+    }
+    const flow = h.flow(),
+      running = flow.start("Add paragraph");
+    await waiting;
+    flow.stop();
+    release();
+    await running;
+    expect(h.count()).toEqual({ calls: 0, writes: 0 });
+    if (flow.state()) {
+      await flow.resume();
+      expect(h.count()).toEqual({ calls: 3, writes: 1 });
+    } else {
+      await flow.start("Add paragraph");
+      expect(h.count()).toEqual({ calls: 3, writes: 1 });
+    }
+  });

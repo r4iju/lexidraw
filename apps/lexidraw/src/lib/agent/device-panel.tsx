@@ -1,6 +1,14 @@
 "use client";
-import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import { useSession } from "next-auth/react";
+import { queryAccess } from "~/lib/generation/query-access";
+import { QueryNotice } from "~/lib/generation/query-notice";
 import { api } from "~/trpc/react";
 import {
   useBrowserByok,
@@ -28,6 +36,12 @@ export function DeviceAgentController({
     flow.state,
     () => null,
   );
+  const admitting = useSyncExternalStore(
+    flow.subscribe,
+    flow.admitting,
+    () => false,
+  );
+  // Event failures are feedback for the requested action, independent of query state.
   const [notice, setNotice] = useState<string | null>(null);
   const run = (action: () => Promise<void>) => {
     setNotice(null);
@@ -57,9 +71,10 @@ export function DeviceAgentController({
       {notice && <p role="alert">{notice}</p>}
       <DeviceAgentView
         checkpoint={checkpoint}
+        admitting={admitting}
         available={available}
         keyAvailable={keyAvailable}
-        onStart={(prompt) => run(() => flow.start(prompt))}
+        onStart={({ prompt }) => run(() => flow.start(prompt))}
         onResume={() => run(() => flow.resume())}
         onStop={() => flow.stop()}
         onNewAction={() => run(() => flow.newAction())}
@@ -89,7 +104,12 @@ function SignedInDeviceAgent({
   const byok = useBrowserByok(account);
   if (!byok) return <p>Preparing this account's device session...</p>;
   return (
-    <OwnedDeviceAgent account={account} documentId={documentId} byok={byok} />
+    <OwnedDeviceAgent
+      key={browserByokSessionGeneration()}
+      account={account}
+      documentId={documentId}
+      byok={byok}
+    />
   );
 }
 function OwnedDeviceAgent({
@@ -113,43 +133,50 @@ function OwnedDeviceAgent({
     onSettled: () => utils.entities.load.invalidate(),
   });
   const commitEdit = apply.mutateAsync;
-  const available = capability.data?.available === true;
+  const access = queryAccess(capability, true, "Device action capability");
+  const available = access.kind === "ready" && access.data.available;
+  const ports: import("./device-flow").DeviceAgentPorts = {
+    account: browserByokAccount,
+    session: browserByokSessionGeneration,
+    available: () => available,
+    byok,
+    store: {
+      load: async (scope) => {
+        await browserByokStorageReady(account);
+        return browserNarrationStore.load(scope);
+      },
+      save: async (scope, data, expected) => {
+        const generation = browserByokSessionGeneration();
+        await browserByokStorageReady(account);
+        if (
+          generation !== browserByokSessionGeneration() ||
+          browserByokAccount() !== account
+        )
+          throw new Error("Account session ended");
+        return browserNarrationStore.save(scope, data, expected);
+      },
+      clear: browserNarrationStore.clear,
+    },
+    read: () => utils.deviceAgent.source.fetch({ documentId }),
+    apply: (data) => commitEdit(data),
+  };
+  // The committed account/document/credential owner controls this controller's lifetime.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: committed ports refresh callbacks; query changes do not replace the owner.
   const flow = useMemo(
-    () =>
-      new DeviceAgent(account, documentId, {
-        account: browserByokAccount,
-        session: browserByokSessionGeneration,
-        available: () => available,
-        byok,
-        store: {
-          load: async (scope) => {
-            await browserByokStorageReady(account);
-            return browserNarrationStore.load(scope);
-          },
-          save: async (scope, data, expected) => {
-            const generation = browserByokSessionGeneration();
-            await browserByokStorageReady(account);
-            if (
-              generation !== browserByokSessionGeneration() ||
-              browserByokAccount() !== account
-            )
-              throw new Error("Account session ended");
-            return browserNarrationStore.save(scope, data, expected);
-          },
-          clear: browserNarrationStore.clear,
-        },
-        read: () => utils.deviceAgent.source.fetch({ documentId }),
-        apply: (data) => commitEdit(data),
-      }),
-    [account, documentId, available, byok, utils, commitEdit],
+    () => new DeviceAgent(account, documentId, ports),
+    [account, documentId, byok],
   );
-  if (capability.isPending) return <p>Checking device actions...</p>;
-  if (capability.isError) return <p>Could not check device actions.</p>;
+  useLayoutEffect(() => {
+    flow.configure(ports);
+  });
   return (
-    <DeviceAgentController
-      flow={flow}
-      available={available}
-      keyAvailable={!!reference}
-    />
+    <>
+      <QueryNotice access={access} retry={() => void capability.refetch()} />
+      <DeviceAgentController
+        flow={flow}
+        available={available}
+        keyAvailable={!!reference}
+      />
+    </>
   );
 }

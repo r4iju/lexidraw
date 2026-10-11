@@ -64,8 +64,18 @@ public enum SandboxPurchaseOutcome: Sendable, Equatable { case verified, pending
   public func restore() async throws -> SandboxPurchaseOutcome {
     let (product, token) = try await prepare()
     let transactions = try await store.restore(productID: product)
-    for transaction in transactions { try await accept(transaction, product: product, token: token) }
-    return .restored(transactions.count)
+    guard transactions.count <= 100 else { throw NativeAIError.unavailable }
+    var accepted = 0
+    var failure: (any Error)?
+    for transaction in transactions {
+      try Task.checkCancellation()
+      // Store history is device-wide; foreign entries remain untouched.
+      guard transaction.environment == .sandbox, transaction.productID == product, transaction.accountToken == token else { continue }
+      do { try await accept(transaction, product: product, token: token); accepted += 1 }
+      catch { failure = failure ?? error }
+    }
+    if let failure { throw failure }
+    return .restored(accepted)
   }
   public func observeUpdates(onVerified: @MainActor () async -> Void = {}) async {
     for await result in StoreKit.Transaction.updates {

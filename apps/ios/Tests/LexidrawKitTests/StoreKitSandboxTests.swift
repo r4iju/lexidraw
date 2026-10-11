@@ -43,7 +43,7 @@ struct StoreKitSandboxTests {
     #expect(try await purchase.restore() == .restored(2))
     #expect(finishes == 3)
     store.restored = [SandboxStoreTransaction(signedTransaction: "stolen", environment: .sandbox, productID: transaction.productID, accountToken: UUID(), finish: { finishes += 1 })]
-    await #expect(throws: (any Error).self) { try await purchase.restore() }
+     #expect(try await purchase.restore() == .restored(0))
     #expect(server.claims.count == 3)
     #expect(finishes == 3)
   }
@@ -85,4 +85,23 @@ struct AppleSandboxWireTests {
     let session = try TestServer.session(server)
     await #expect(throws: (any Error).self) { try await session.appleSandboxClaim("fixture.signed.transport") }
   }
+}
+
+extension StoreKitSandboxTests {
+ @Test func mixedAccountRestoreSkipsForeignEntriesAndFinishesOnlyOwnedAcceptedClaims() async throws {
+  let store = FixtureStore(environment: .sandbox), server = FixtureAppleServer()
+  let purchase = StoreKitSandbox(store: store, server: server)
+  let token = try #require(try await server.gate().appAccountToken)
+  var finishes: [String] = []
+  func transaction(_ id: String, _ owner: UUID?) -> SandboxStoreTransaction {
+   SandboxStoreTransaction(signedTransaction:id,environment:.sandbox,productID:"xyz.raiju.lexidraw.pro.monthly",accountToken:owner,finish:{finishes.append(id)})
+  }
+  store.restored = [transaction("foreign-first",UUID()),transaction("owned-a",token),transaction("foreign-middle",nil),transaction("owned-b",token)]
+  #expect(try await purchase.restore() == .restored(2))
+  #expect(server.claims == ["owned-a","owned-b"])
+  #expect(finishes == ["owned-a","owned-b"])
+  server.reject = true
+  await #expect(throws: (any Error).self) { try await purchase.restore() }
+  #expect(finishes == ["owned-a","owned-b"])
+ }
 }

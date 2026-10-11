@@ -86,6 +86,12 @@ export function DeviceNarrationView({
           recovering this part.
         </p>
       )}
+      {checkpoint?.status === "paused" && !all && !unknown && (
+        <p role="status">
+          Paused on this device. Choose Resume generation to continue with the
+          current key.
+        </p>
+      )}
       {checkpoint?.status === "running" && (
         <p role="status">Generating in the foreground…</p>
       )}

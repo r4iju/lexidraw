@@ -24,6 +24,8 @@ export type DeviceNarrationPorts = {
 export class DeviceNarration {
   private current: DeviceCheckpoint | null = null;
   private busy = false;
+  private intent = 0;
+  private starting = false;
   private ended = false;
   private quarantined = false;
   private persisted: string | null = null;
@@ -108,21 +110,46 @@ export class DeviceNarration {
     await this.persist({ ...value, parts, status });
     this.quarantined = false;
   }
-  async start(text: string) {
+  async start(source: string | (() => Promise<string>)) {
     this.checkScope();
-    if (this.busy || this.current || this.quarantined) return;
-    this.ports.byok.assertSafe(text);
-    await this.persist({
-      version: 1,
-      fingerprints: [],
-      account: this.account,
-      documentId: this.documentId,
-      id: crypto.randomUUID(),
-      created: Date.now(),
-      status: "paused",
-      parts: narrationTexts(text).map((text) => ({ kind: "pending", text })),
-    });
-    await this.resume();
+    if (
+      this.busy ||
+      this.starting ||
+      this.current ||
+      this.quarantined ||
+      !this.ports.available()
+    )
+      return;
+    const reference = this.ports.byok.reference();
+    if (!reference) return;
+    const intent = ++this.intent;
+    this.starting = true;
+    try {
+      const text = typeof source === "string" ? source : await source();
+      this.checkScope();
+      if (
+        intent !== this.intent ||
+        this.current ||
+        reference !== this.ports.byok.reference() ||
+        !this.ports.available()
+      )
+        return;
+      this.ports.byok.assertSafe(text);
+      await this.persist({
+        version: 1,
+        fingerprints: [],
+        account: this.account,
+        documentId: this.documentId,
+        id: crypto.randomUUID(),
+        created: Date.now(),
+        status: "paused",
+        parts: narrationTexts(text).map((text) => ({ kind: "pending", text })),
+      });
+      if (intent === this.intent && reference === this.ports.byok.reference())
+        await this.resume();
+    } finally {
+      this.starting = false;
+    }
   }
   async resume() {
     this.checkScope();
@@ -139,14 +166,21 @@ export class DeviceNarration {
       Date.now() - this.current.created > 1_200_000
     )
       return;
+    const reference = this.ports.byok.reference();
+    const intent = ++this.intent;
     this.busy = true;
     try {
       for (let index = 0; index < this.current.parts.length; index++) {
         this.checkScope();
         const part = this.current.parts[index];
         if (part?.kind !== "pending") continue;
-        const reference = this.ports.byok.reference();
-        if (!reference) break;
+        if (
+          !reference ||
+          intent !== this.intent ||
+          reference !== this.ports.byok.reference() ||
+          !this.ports.available()
+        )
+          break;
         this.ports.byok.assertSafe(part.text);
         await this.persist({
           ...this.current,
@@ -158,6 +192,7 @@ export class DeviceNarration {
         // Persistence may yield to removal/logout; check immediately before transport dispatch.
         this.checkScope();
         if (
+          intent !== this.intent ||
           this.ports.byok.reference() !== reference ||
           !this.ports.available()
         ) {
@@ -272,7 +307,11 @@ export class DeviceNarration {
       this.busy = false;
     }
   }
+  stop() {
+    ++this.intent;
+  }
   async end() {
+    this.stop();
     this.ended = true;
     this.current = null;
     await this.ports.store.clear(this.scope);

@@ -1,10 +1,13 @@
+"use client";
+import { useState } from "react";
 import { Button } from "~/components/ui/button";
 import { Textarea } from "~/components/ui/textarea";
 import { Label } from "~/components/ui/label";
 import type { AgentCheckpoint } from "./device-core";
-import { DEVICE_AGENT_UNAVAILABLE } from "./device-core";
+import { DeviceAgentForm, DEVICE_AGENT_UNAVAILABLE } from "./device-core";
 export function DeviceAgentView({
   checkpoint,
+  admitting = false,
   available,
   keyAvailable,
   onStart,
@@ -13,13 +16,16 @@ export function DeviceAgentView({
   onNewAction,
 }: {
   checkpoint: AgentCheckpoint | null;
+  admitting?: boolean;
   available: boolean;
   keyAvailable: boolean;
-  onStart(prompt: string): void;
+  onStart(input: DeviceAgentForm): void;
   onResume(): void;
   onStop(): void;
   onNewAction?(): void;
 }) {
+  // Validation feedback belongs to this submission event; the DOM owns the prompt.
+  const [validation, setValidation] = useState<string | null>(null);
   return (
     <section aria-label="Device document action">
       <h2>My OpenRouter document action</h2>
@@ -98,12 +104,27 @@ export function DeviceAgentView({
         </>
       ) : (
         <form
-          onSubmit={(event) => {
-            event.preventDefault();
-            const value = new FormData(event.currentTarget).get("prompt");
-            if (typeof value === "string") onStart(value);
+          action={(data) => {
+            const parsed = DeviceAgentForm.safeParse(Object.fromEntries(data));
+            if (!parsed.success) {
+              setValidation(
+                "Enter a nonblank request of at most 1500 UTF-8 bytes.",
+              );
+              return;
+            }
+            setValidation(null);
+            onStart(parsed.data);
           }}
         >
+          {validation && <p role="alert">{validation}</p>}
+          {admitting && (
+            <p role="status">Reading this document before admission…</p>
+          )}
+          {admitting && (
+            <Button type="button" onClick={onStop}>
+              Stop further work
+            </Button>
+          )}
           <Label htmlFor="device-action-prompt">Describe the edits </Label>
           <Textarea
             id="device-action-prompt"
@@ -111,7 +132,10 @@ export function DeviceAgentView({
             maxLength={1500}
             required
           />
-          <Button type="submit" disabled={!available || !keyAvailable}>
+          <Button
+            type="submit"
+            disabled={admitting || !available || !keyAvailable}
+          >
             Run on this device
           </Button>
         </form>

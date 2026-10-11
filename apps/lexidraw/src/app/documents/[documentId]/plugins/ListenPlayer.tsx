@@ -39,14 +39,15 @@ import {
 } from "@dnd-kit/core";
 import { cn } from "~/lib/utils";
 
-type TtsSegment = {
-  index: number;
-  audioUrl: string;
-  text: string;
-  sectionTitle?: string;
-  sectionId?: string;
-  sectionIndex?: number;
-};
+import {
+  ListenSegments,
+  type ListenSegment as TtsSegment,
+} from "~/lib/narration/listen-contracts";
+type AudioScreen =
+  | { kind: "loading" }
+  | { kind: "error" }
+  | { kind: "empty" }
+  | { kind: "playable"; segments: TtsSegment[]; stale: boolean };
 
 /**
  * The document's one read-aloud player. It is held by `ListenProvider`, above
@@ -86,8 +87,7 @@ function ListenPlayerSession({
   open,
 }: Pick<React.ComponentProps<typeof ListenPlayer>, "documentId" | "open">) {
   const [editor] = useLexicalComposerContext();
-  const [segments, setSegments] = useState<TtsSegment[]>([]);
-  const [initialIndex, setInitialIndex] = useState<number>(0);
+  // Drag position is a user event, owned by this open document session.
   const [position, setPosition] = useState<{ x: number; y: number }>({
     x: 0,
     y: 0,
@@ -210,39 +210,47 @@ function ListenPlayerSession({
     }
   }, []);
 
-  // Plays the parts as they are listed, from the first made; once all are,
-  // from the heading nearest the caret.
-  useEffect(() => {
-    if (!open) return;
-    if (!manifestQuery.data) return;
-    const segs = (manifestQuery.data.segments ?? []) as TtsSegment[];
-    if (segs.length <= segments.length) return;
-    if (segments.length === 0) {
-      const { sectionId } =
-        status === "ready" ? findNearestHeadingSlug(editor) : {};
-      const idx = sectionId
-        ? segs.findIndex((s) => s.sectionId === sectionId)
-        : -1;
-      setInitialIndex(idx >= 0 ? idx : 0);
-    }
-    setSegments(segs);
-  }, [
-    open,
-    status,
-    manifestQuery.data,
-    segments.length,
-    editor,
-    findNearestHeadingSlug,
-  ]);
+  const denied = [statusQuery.error, manifestQuery.error].some(
+    (error) =>
+      error?.data?.code === "FORBIDDEN" || error?.data?.code === "UNAUTHORIZED",
+  );
+  const parsed = ListenSegments.safeParse(manifestQuery.data?.segments ?? []);
+  const invalidManifest = !parsed.success;
+  const segments = denied || !parsed.success ? [] : parsed.data;
+  const stale = !!statusQuery.error || !!manifestQuery.error || invalidManifest;
+  const screen: AudioScreen = segments.length
+    ? { kind: "playable", segments, stale }
+    : stale || denied
+      ? { kind: "error" }
+      : statusQuery.isPending ||
+          ((making || status === "ready") &&
+            (manifestQuery.isPending || !manifestQuery.data))
+        ? { kind: "loading" }
+        : { kind: "empty" };
+  // The first immutable audio URL identifies a recording. Appends keep that identity.
+  // The caret is read only when that recording first becomes playable.
+  const initialIndex = () => {
+    const { sectionId } =
+      status === "ready" ? findNearestHeadingSlug(editor) : {};
+    const index = sectionId
+      ? segments.findIndex((segment) => segment.sectionId === sectionId)
+      : -1;
+    return Math.max(0, index);
+  };
 
   return (
     <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
       <DraggablePopoverContent
         position={position}
         documentId={documentId}
-        loading={statusQuery.isLoading}
-        segments={segments}
+        screen={screen}
         initialIndex={initialIndex}
+        denied={denied}
+        invalidManifest={invalidManifest}
+        statusError={!!statusQuery.error}
+        manifestError={!!manifestQuery.error}
+        retryStatus={() => void statusQuery.refetch()}
+        retryManifest={() => void manifestQuery.refetch()}
         making={making}
       />
     </DndContext>
@@ -282,16 +290,26 @@ function typingOutside(target: EventTarget | null) {
 function DraggablePopoverContent({
   documentId,
   position,
-  loading,
-  segments,
+  screen,
   initialIndex,
+  denied,
+  invalidManifest,
+  statusError,
+  manifestError,
+  retryStatus,
+  retryManifest,
   making,
 }: {
   documentId: string;
   position: { x: number; y: number };
-  loading: boolean;
-  segments: TtsSegment[];
-  initialIndex: number;
+  screen: AudioScreen;
+  initialIndex: () => number;
+  denied: boolean;
+  invalidManifest: boolean;
+  statusError: boolean;
+  manifestError: boolean;
+  retryStatus: () => void;
+  retryManifest: () => void;
   /** Whether more parts are being made, to follow the ones listed. */
   making: boolean;
 }) {
@@ -301,16 +319,6 @@ function DraggablePopoverContent({
     });
   // What opened the player, which has the focus back when it closes.
   const opener = useRef<HTMLElement | null>(null);
-
-  // Starts at initialIndex each time parts are first listed; parts listed
-  // later only follow on. Past the last part listed, it waits for the next.
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const listed = segments.length > 0;
-  useEffect(() => {
-    if (listed) setCurrentIndex(Math.max(0, initialIndex));
-  }, [listed, initialIndex]);
-  const current = segments[currentIndex];
-  const waiting = listed && !current;
 
   const finalTransform = transform
     ? {
@@ -376,100 +384,151 @@ function DraggablePopoverContent({
               </Button>
             </PopoverClose>
           </div>
-          {loading && (
-            <div className="text-sm text-muted-foreground">Loading audio…</div>
+          {screen.kind === "loading" && <p role="status">Loading audio…</p>}
+          {invalidManifest && (
+            <p role="alert">
+              Audio segments could not be read safely.{" "}
+              <Button onClick={retryManifest}>Retry audio segments</Button>
+            </p>
           )}
-          {!loading && segments.length > 0 && (
-            <div className="space-y-2">
-              {current?.sectionTitle && (
-                <div className="text-sm text-muted-foreground font-medium">
-                  {current.sectionTitle}
-                </div>
-              )}
-              <AudioPlayer
-                // Waiting, it keeps the part that ended, and plays the next
-                // as it arrives.
-                src={(current ?? segments.at(-1))?.audioUrl ?? ""}
-                autoPlay
-                onEnded={() => {
-                  if (currentIndex < segments.length - 1 || making) {
-                    setCurrentIndex(currentIndex + 1);
-                  }
-                }}
-                className="min-w-xs"
-              />
-              {waiting && making && (
-                <div className="text-sm text-muted-foreground">
-                  Making the next part…
-                </div>
-              )}
-            </div>
+          {denied && (
+            <p role="alert">
+              Audio access could not be confirmed. Cached media is hidden.
+            </p>
+          )}
+          {statusError && (
+            <p role="alert">
+              Audio status could not be refreshed.{" "}
+              <Button onClick={retryStatus}>Retry audio status</Button>
+            </p>
+          )}
+          {manifestError && (
+            <p role="alert">
+              Audio segments could not be refreshed.{" "}
+              <Button onClick={retryManifest}>Retry audio segments</Button>
+            </p>
+          )}
+          {screen.kind === "playable" && screen.stale && (
+            <p role="status">
+              Cached audio may be stale. Refresh before relying on its progress.
+            </p>
           )}
         </div>
-
-        {/* Scrollable segments list */}
-        {!loading && segments.length > 0 && (
-          <Accordion
-            type="single"
-            collapsible
-            className="border border-border rounded-md w-full max-w-xs min-w-xs mt-4"
-          >
-            <AccordionItem value="segments">
-              <AccordionTrigger className="px-4">Segments</AccordionTrigger>
-              <AccordionContent className="flex flex-col gap-0 divide-y divide-border pb-0">
-                {segments.map((s, i) => {
-                  const isCurrent = i === currentIndex;
-                  const isLast = i === segments.length - 1;
-                  const segmentName = (() => {
-                    if (s.sectionTitle) {
-                      let chunkCount = 0;
-                      for (let j = 0; j <= i; j++) {
-                        if (
-                          segments[j]?.sectionTitle === s.sectionTitle &&
-                          (s.sectionIndex === undefined ||
-                            segments[j]?.sectionIndex === s.sectionIndex)
-                        ) {
-                          chunkCount++;
-                        }
-                      }
-                      return chunkCount === 1
-                        ? s.sectionTitle
-                        : `${s.sectionTitle} (${chunkCount})`;
-                    }
-                    return `Block ${i + 1}`;
-                  })();
-                  return (
-                    <Button
-                      key={s.index}
-                      variant={isCurrent ? "default" : "secondary"}
-                      onClick={() => setCurrentIndex(i)}
-                      className={cn(
-                        "w-full flex flex-row items-center justify-start gap-2 rounded-none",
-                        {
-                          "rounded-b-md": isLast,
-                        },
-                      )}
-                    >
-                      <Play
-                        className={`size-4 mr-2 ${
-                          isCurrent ? "text-primary-foreground" : "text-primary"
-                        }`}
-                      />
-                      <span className="font-mono">{i + 1}.</span>
-                      <span className="truncate">{segmentName}</span>
-                    </Button>
-                  );
-                })}
-              </AccordionContent>
-            </AccordionItem>
-          </Accordion>
+        {screen.kind === "playable" && (
+          <RecordingPlayback
+            key={screen.segments[0]?.audioUrl ?? "recording"}
+            segments={screen.segments}
+            initialIndex={initialIndex}
+            making={making}
+          />
         )}
-        {!loading && segments.length === 0 && (
-          <div className="text-sm text-muted-foreground">
-            No audio segments found. Generate audio first.
-          </div>
+        {screen.kind === "empty" && (
+          <p>
+            No saved audio is available. The source controls above show whether
+            new narration is available.
+          </p>
         )}
       </PopoverContent>
     </div>
+  );
+}
+
+function RecordingPlayback({
+  segments,
+  initialIndex,
+  making,
+}: {
+  segments: TtsSegment[];
+  initialIndex: () => number;
+  making: boolean;
+}) {
+  // The first-arrival caret snapshot initializes event-owned playback; appends preserve it.
+  const [currentIndex, setCurrentIndex] = useState(initialIndex);
+  const current =
+    segments[currentIndex] ?? (making ? undefined : segments.at(-1));
+  const waiting = !current;
+  return (
+    <>
+      <div className="space-y-2">
+        {current?.sectionTitle && (
+          <div className="text-sm text-muted-foreground font-medium">
+            {current.sectionTitle}
+          </div>
+        )}
+        <AudioPlayer
+          // Waiting, it keeps the part that ended, and plays the next
+          // as it arrives.
+          src={(current ?? segments.at(-1))?.audioUrl ?? ""}
+          autoPlay
+          onEnded={() => {
+            if (currentIndex < segments.length - 1 || making) {
+              setCurrentIndex(currentIndex + 1);
+            }
+          }}
+          className="min-w-xs"
+        />
+        {waiting && making && (
+          <div className="text-sm text-muted-foreground">
+            Making the next part…
+          </div>
+        )}
+      </div>
+
+      {/* Scrollable segments list */}
+      <Accordion
+        type="single"
+        collapsible
+        className="border border-border rounded-md w-full max-w-xs min-w-xs mt-4"
+      >
+        <AccordionItem value="segments">
+          <AccordionTrigger className="px-4">Segments</AccordionTrigger>
+          <AccordionContent className="flex flex-col gap-0 divide-y divide-border pb-0">
+            {segments.map((s, i) => {
+              const isCurrent = i === currentIndex;
+              const isLast = i === segments.length - 1;
+              const segmentName = (() => {
+                if (s.sectionTitle) {
+                  let chunkCount = 0;
+                  for (let j = 0; j <= i; j++) {
+                    if (
+                      segments[j]?.sectionTitle === s.sectionTitle &&
+                      (s.sectionIndex === undefined ||
+                        segments[j]?.sectionIndex === s.sectionIndex)
+                    ) {
+                      chunkCount++;
+                    }
+                  }
+                  return chunkCount === 1
+                    ? s.sectionTitle
+                    : `${s.sectionTitle} (${chunkCount})`;
+                }
+                return `Block ${i + 1}`;
+              })();
+              return (
+                <Button
+                  key={s.index}
+                  variant={isCurrent ? "default" : "secondary"}
+                  onClick={() => setCurrentIndex(i)}
+                  className={cn(
+                    "w-full flex flex-row items-center justify-start gap-2 rounded-none",
+                    {
+                      "rounded-b-md": isLast,
+                    },
+                  )}
+                >
+                  <Play
+                    className={`size-4 mr-2 ${
+                      isCurrent ? "text-primary-foreground" : "text-primary"
+                    }`}
+                  />
+                  <span className="font-mono">{i + 1}.</span>
+                  <span className="truncate">{segmentName}</span>
+                </Button>
+              );
+            })}
+          </AccordionContent>
+        </AccordionItem>
+      </Accordion>
+    </>
   );
 }

@@ -1,7 +1,17 @@
 "use client";
-import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import { useSession } from "next-auth/react";
-import { useBrowserByok, browserByokAccount } from "../byok/browser-session";
+import {
+  useBrowserByok,
+  browserByokAccount,
+  browserByokSessionGeneration,
+} from "../byok/browser-session";
 import { Button } from "~/components/ui/button";
 import { queryAccess } from "~/lib/generation/query-access";
 import { QueryNotice } from "~/lib/generation/query-notice";
@@ -46,7 +56,10 @@ export function DeviceNarrationController({
           "Local checkpoint could not be safely restored. No provider request was made.",
         ),
       );
-    return unregister;
+    return () => {
+      flow.stop();
+      unregister();
+    };
   }, [flow]);
   return (
     <>
@@ -86,6 +99,7 @@ function SignedInDeviceNarration({
   if (!byok) return <p>Preparing this account's device session...</p>;
   return (
     <OwnedDeviceNarration
+      key={browserByokSessionGeneration()}
       account={account}
       documentId={documentId}
       byok={byok}
@@ -133,12 +147,14 @@ function OwnedDeviceNarration({
       (await saveRecording({ idempotencyKey: id, documentId, recording })).id,
   };
   // The account/document controller retains checkpoints across capability refreshes.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: configure supplies current ports each render; only account/document identity owns retained checkpoints.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: committed ports refresh callbacks; query changes do not replace the owner.
   const flow = useMemo(
     () => new DeviceNarration(account, documentId, ports),
-    [account, documentId],
+    [account, documentId, byok],
   );
-  flow.configure(ports);
+  useLayoutEffect(() => {
+    flow.configure(ports);
+  });
   return (
     <div className="space-y-4">
       <QueryNotice access={access} retry={() => void capability.refetch()} />
@@ -147,10 +163,9 @@ function OwnedDeviceNarration({
         capabilityKnown={access.kind === "ready"}
         available={available}
         keyAvailable={!!reference}
-        start={async () => {
-          const text = await utils.deviceNarration.source.fetch({ documentId });
-          await flow.start(text);
-        }}
+        start={() =>
+          flow.start(() => utils.deviceNarration.source.fetch({ documentId }))
+        }
       />
       <section aria-label="Saved account narration">
         <h3>Saved device recording</h3>

@@ -475,3 +475,110 @@ test("a quarantined malformed paid fence cannot be overwritten by a new narratio
   expect(calls).toBe(0);
   expect(retained).toBe(original);
 });
+
+test("key rotation while completed audio is persisted pauses the original resume before the next part", async () => {
+  let calls = 0,
+    disk: string | null = null,
+    rotated = false;
+  const byok = createByokSession(
+    async () => {
+      calls++;
+      return new Response(new Uint8Array(48000), {
+        headers: { "Content-Type": "audio/pcm" },
+      });
+    },
+    "https://app.test",
+    { narrationFixture: true },
+  );
+  byok.replace("openrouter", "synthetic-original-resume-key");
+  const flow = new DeviceNarration("alice", "doc", {
+    account: () => "alice",
+    available: () => true,
+    byok,
+    store: {
+      load: async () => disk,
+      save: async (_, data, expected) => {
+        if (disk !== expected) return false;
+        disk = data;
+        if (!rotated && data.includes('"kind":"completed"')) {
+          rotated = true;
+          byok.replace("openrouter", "synthetic-replacement-resume-key");
+        }
+        return true;
+      },
+      clear: async () => {
+        disk = null;
+      },
+    },
+    sync: async () => "saved",
+  });
+  await flow.start("a".repeat(501));
+  expect(calls).toBe(1);
+  expect(flow.state()?.status).toBe("paused");
+  expect(flow.state()?.parts.map((p) => p.kind)).toEqual([
+    "completed",
+    "pending",
+  ]);
+  await flow.resume();
+  expect(calls).toBe(2);
+  expect(flow.state()?.status).toBe("completed");
+  expect(disk).not.toContain("synthetic-original-resume-key");
+  expect(disk).not.toContain("synthetic-replacement-resume-key");
+});
+
+test("unmount Stop during narration admission retains pending parts without dispatch", async () => {
+  let stored: string | null = null,
+    reached = () => {},
+    release = () => {},
+    calls = 0;
+  const gate = new Promise<void>((r) => {
+      release = r;
+    }),
+    waiting = new Promise<void>((r) => {
+      reached = r;
+    });
+  const byok = createByokSession(
+    async () => {
+      calls++;
+      return new Response(new Uint8Array(48000), {
+        headers: { "Content-Type": "audio/pcm" },
+      });
+    },
+    "https://app.test",
+    { narrationFixture: true },
+  );
+  byok.replace("openrouter", "synthetic-stopped-narration-key");
+  const flow = new DeviceNarration("alice", "doc", {
+    account: () => "alice",
+    available: () => true,
+    byok,
+    store: {
+      load: async () => stored,
+      save: async (_, data, expected) => {
+        if (expected !== stored) return false;
+        stored = data;
+        if (
+          data.includes('"status":"paused"') &&
+          data.includes('"kind":"pending"')
+        ) {
+          reached();
+          await gate;
+        }
+        return true;
+      },
+      clear: async () => {
+        stored = null;
+      },
+    },
+    sync: async () => "saved",
+  });
+  const running = flow.start("Retain this narration");
+  await waiting;
+  flow.stop();
+  release();
+  await running;
+  expect(calls).toBe(0);
+  expect(flow.state()?.parts[0]?.kind).toBe("pending");
+  await flow.resume();
+  expect(calls).toBe(1);
+});

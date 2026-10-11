@@ -14,6 +14,11 @@ const bounded = (max: number) =>
     .min(1)
     .max(max)
     .refine((x) => utf8(x).length <= max);
+export const DeviceAgentPrompt = bounded(1500).refine(
+  (text) => text.trim().length > 0,
+);
+export const DeviceAgentForm = z.strictObject({ prompt: DeviceAgentPrompt });
+export type DeviceAgentForm = z.infer<typeof DeviceAgentForm>;
 export const DeviceDocument = z.strictObject({
   revision: z.number().int().nonnegative(),
   text: z.string().max(200_000),
@@ -47,7 +52,7 @@ const CheckpointShape = z.strictObject({
   documentId: bounded(100),
   id: bounded(80),
   created: z.number().nonnegative(),
-  prompt: bounded(1500),
+  prompt: DeviceAgentPrompt,
   document: DeviceDocument,
   phase: z.enum(["plan", "decision", "image", "mutation"]),
   status: z.enum([
