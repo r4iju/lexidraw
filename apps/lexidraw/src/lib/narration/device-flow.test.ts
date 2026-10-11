@@ -1,4 +1,4 @@
-import { expect, test } from "bun:test";
+import { expect, spyOn, test } from "bun:test";
 import { createByokSession } from "../byok/session";
 import { DeviceNarration } from "./device-flow";
 
@@ -633,4 +633,161 @@ test("old same-account session cannot publish late audio or delete a newer check
   stored = "new-generation-checkpoint";
   await flow.end();
   expect(stored).toBe("new-generation-checkpoint");
+});
+
+test("E1 Resume after days retains original completed audio and synthesizes only pending parts", async () => {
+  const clock = spyOn(Date, "now").mockReturnValue(259_200_000);
+  try {
+    const requests: string[] = [];
+    const byok = createByokSession(
+      async (request) => {
+        requests.push(JSON.parse(await new Request(request).text()).input);
+        return new Response(new Uint8Array(48000), {
+          headers: { "Content-Type": "audio/pcm" },
+        });
+      },
+      "https://app.test",
+      { narrationFixture: true },
+    );
+    byok.replace("openrouter", "synthetic-later-continuation-reference");
+    const { audioFromPCM } = await import("./portable");
+    const retained = {
+      kind: "completed" as const,
+      text: "Retained chapter",
+      ...audioFromPCM(new Uint8Array(48000), () => {}),
+    };
+    let disk = JSON.stringify({
+      version: 1,
+      fingerprints: [],
+      account: "alice",
+      documentId: "doc",
+      id: "original-checkpoint",
+      created: 1000,
+      status: "paused",
+      parts: [retained, { kind: "pending", text: "Remaining chapter" }],
+    });
+    const flow = new DeviceNarration("alice", "doc", {
+      account: () => "alice",
+      available: () => true,
+      byok,
+      store: {
+        load: async () => disk,
+        save: async (_scope, data, expected) => {
+          if (disk !== expected) return false;
+          disk = data;
+          return true;
+        },
+        clear: async () => {},
+      },
+      sync: async () => "unused",
+    });
+    await flow.restore();
+    const progress: string[] = [];
+    const unsubscribe = flow.subscribe(() =>
+      progress.push(flow.state()?.status ?? "empty"),
+    );
+    await flow.resume();
+    unsubscribe();
+    expect(flow.state()).toMatchObject({
+      id: "original-checkpoint",
+      created: 1000,
+      status: "completed",
+    });
+    expect(flow.state()?.parts[0]).toEqual(retained);
+    expect(flow.state()?.parts.map((p) => p.kind)).toEqual([
+      "completed",
+      "completed",
+    ]);
+    expect(requests).toEqual(["Remaining chapter"]);
+    expect(progress).toContain("running");
+    expect(progress.at(-1)).toBe("completed");
+  } finally {
+    clock.mockRestore();
+  }
+});
+
+test("E1 active continuation pauses at twenty minutes and explicit Resume renews the bound", async () => {
+  let now = 259_200_000;
+  const clock = spyOn(Date, "now").mockImplementation(() => now);
+  try {
+    const requests: string[] = [];
+    const byok = createByokSession(
+      async (request) => {
+        requests.push(JSON.parse(await new Request(request).text()).input);
+        if (requests.length === 1) now += 1_200_000;
+        return new Response(new Uint8Array(48000), {
+          headers: { "Content-Type": "audio/pcm" },
+        });
+      },
+      "https://app.test",
+      { narrationFixture: true },
+    );
+    byok.replace("openrouter", "synthetic-bounded-continuation-reference");
+    const { audioFromPCM } = await import("./portable");
+    const retained = {
+      kind: "completed" as const,
+      text: "Retained chapter",
+      ...audioFromPCM(new Uint8Array(48000), () => {}),
+    };
+    let disk = JSON.stringify({
+      version: 1,
+      fingerprints: [],
+      account: "alice",
+      documentId: "doc",
+      id: "bounded-checkpoint",
+      created: 1000,
+      status: "paused",
+      parts: [
+        retained,
+        { kind: "pending", text: "Middle chapter" },
+        { kind: "pending", text: "Last chapter" },
+      ],
+    });
+    let delayDispatch = false;
+    const flow = new DeviceNarration("alice", "doc", {
+      account: () => "alice",
+      available: () => true,
+      byok,
+      store: {
+        load: async () => disk,
+        save: async (_scope, data, expected) => {
+          if (disk !== expected) return false;
+          disk = data;
+          if (delayDispatch && JSON.parse(data).parts[2].kind === "started") {
+            delayDispatch = false;
+            now += 1_200_000;
+          }
+          return true;
+        },
+        clear: async () => {},
+      },
+      sync: async () => "unused",
+    });
+    await flow.restore();
+    await flow.resume();
+    expect(requests).toEqual(["Middle chapter"]);
+    expect(flow.state()?.status).toBe("paused");
+    expect(flow.state()?.parts.map((p) => p.kind)).toEqual([
+      "completed",
+      "completed",
+      "pending",
+    ]);
+    const middle = flow.state()?.parts[1];
+    now += 86_400_000;
+    delayDispatch = true;
+    await flow.resume();
+    expect(requests).toEqual(["Middle chapter"]);
+    expect(flow.state()?.status).toBe("paused");
+    expect(flow.state()?.parts[2]?.kind).toBe("pending");
+    now += 86_400_000;
+    await flow.resume();
+    expect(requests).toEqual(["Middle chapter", "Last chapter"]);
+    expect(flow.state()?.status).toBe("completed");
+    expect(flow.state()?.id).toBe("bounded-checkpoint");
+    expect(flow.state()?.created).toBe(1000);
+    expect(flow.state()?.parts[0]).toEqual(retained);
+    expect(flow.state()?.parts[1]).toEqual(middle);
+  } finally {
+    clock.mockRestore();
+  }
 });

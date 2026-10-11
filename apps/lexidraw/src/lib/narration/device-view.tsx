@@ -89,7 +89,8 @@ export function DeviceNarrationView({
       {checkpoint?.status === "paused" && !all && !unknown && (
         <p role="status">
           Paused on this device. Choose Resume generation to continue with the
-          current key.
+          current key. Each Resume starts a new 20-minute continuation for
+          pending parts only; completed audio is kept.
         </p>
       )}
       {checkpoint?.status === "running" && (

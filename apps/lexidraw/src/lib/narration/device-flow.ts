@@ -189,12 +189,12 @@ export class DeviceNarration {
       this.current.parts.some(
         (p) => p.kind === "unknown" || p.kind === "started",
       ) ||
-      this.current.parts.every((p) => p.kind === "completed") ||
-      Date.now() - this.current.created > 1_200_000
+      this.current.parts.every((p) => p.kind === "completed")
     )
       return;
     const reference = this.ports.byok.reference();
     const intent = ++this.intent;
+    const continuationStarted = Date.now();
     this.busy = true;
     try {
       for (let index = 0; index < this.current.parts.length; index++) {
@@ -205,7 +205,8 @@ export class DeviceNarration {
           !reference ||
           intent !== this.intent ||
           reference !== this.ports.byok.reference() ||
-          !this.ports.available()
+          !this.ports.available() ||
+          Date.now() - continuationStarted >= 1_200_000
         )
           break;
         this.ports.byok.assertSafe(part.text);
@@ -221,7 +222,8 @@ export class DeviceNarration {
         if (
           intent !== this.intent ||
           this.ports.byok.reference() !== reference ||
-          !this.ports.available()
+          !this.ports.available() ||
+          Date.now() - continuationStarted >= 1_200_000
         ) {
           await this.persist({
             ...this.current,
