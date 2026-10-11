@@ -1,0 +1,6 @@
+{
+  "source": "conversion-production-adoption-v1.json standaloneReceiptDDL; independently literal expected physical metadata",
+  "runtimePin": "781187c26511230b99eedc5aee7ad35069e3e640",
+  "qualification": "Cached synthetic offline declaration subset and public compiler/differ only. No configured schema or production observation.",
+  "physicalUniqueness": "Inline UNIQUE, SQLite origin=u autoindex, metadata logical name is not a physical named index."
+}

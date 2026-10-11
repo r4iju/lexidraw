@@ -14,7 +14,7 @@ const root = resolve(import.meta.dir, "..");
 const batch = "LegacyDocumentRetentionBatchV1";
 const uniqueName = `${batch}_sourceIdentity_unique`;
 const baseline = JSON.parse(
-  await readFile(join(root, "drizzle/meta/0035_snapshot.json"), "utf8"),
+  await readFile(join(root, "drizzle/meta/0036_snapshot.json"), "utf8"),
 ) as DrizzleSQLiteSnapshotJSON;
 const ddl = await readFile(
   join(root, "drizzle/0035_legacy_document_retention.sql"),
@@ -29,6 +29,9 @@ async function compile(
   const declarations = source.slice(
     source.indexOf("export const legacyDocumentRetentionV1"),
     source.indexOf("export type LegacyDocumentRetentionV1"),
+  ) + source.slice(
+    source.indexOf("export const legacyDocumentConversionV1"),
+    source.indexOf("export type LegacyDocumentConversionV1"),
   );
   const directory = await mkdtemp("/tmp/retention-declarations-");
   try {

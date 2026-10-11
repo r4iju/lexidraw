@@ -190,6 +190,13 @@
       "when": 1791698049491,
       "tag": "0035_legacy_document_retention",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "6",
+      "when": 1791698049492,
+      "tag": "0036_legacy_document_conversion_receipt",
+      "breakpoints": true
     }
   ]
 }

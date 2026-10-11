@@ -901,3 +901,30 @@ export type LegacyDocumentRetentionV1 = typeof legacyDocumentRetentionV1.$inferS
 export type NewLegacyDocumentRetentionV1 = typeof legacyDocumentRetentionV1.$inferInsert;
 export type LegacyDocumentRetentionBatchV1 = typeof legacyDocumentRetentionBatchV1.$inferSelect;
 export type NewLegacyDocumentRetentionBatchV1 = typeof legacyDocumentRetentionBatchV1.$inferInsert;
+
+export const legacyDocumentConversionV1 = sqliteTable(
+  "LegacyDocumentConversionV1",
+  {
+    sourceSetId: text("sourceSetId").primaryKey().notNull(),
+    sourceIdentity: text("sourceIdentity").notNull(),
+    contractVersion: integer("contractVersion").notNull(),
+    status: text("status", { enum: ["converted"] }).notNull(),
+    derivedFields: blob("derivedFields", { mode: "buffer" }).notNull(),
+    destinationValues: blob("destinationValues", { mode: "buffer" }).notNull(),
+  },
+  (table) => [
+    unique("LegacyDocumentConversionV1_sourceIdentity_unique").on(
+      table.sourceIdentity,
+    ),
+    check(
+      "LegacyDocumentConversionV1_contractVersion",
+      sql`contractVersion = 1`,
+    ),
+    check("LegacyDocumentConversionV1_status", sql`status = 'converted'`),
+  ],
+);
+
+export type LegacyDocumentConversionV1 =
+  typeof legacyDocumentConversionV1.$inferSelect;
+export type NewLegacyDocumentConversionV1 =
+  typeof legacyDocumentConversionV1.$inferInsert;

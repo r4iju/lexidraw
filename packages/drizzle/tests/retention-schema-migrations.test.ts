@@ -23,7 +23,7 @@ async function content(client: ReturnType<typeof createClient>) {
     (await client.execute(`SELECT * FROM ${table} ORDER BY id`)).rows));
 }
 async function ledger(client: ReturnType<typeof createClient>) {
-  return (await client.execute("SELECT hash,created_at FROM __drizzle_migrations ORDER BY rowid")).rows;
+  return (await client.execute("SELECT hash,created_at FROM __drizzle_migrations ORDER BY rowid")).rows.map((row) => ({ hash: row.hash, created_at: row.created_at }));
 }
 async function master(client: ReturnType<typeof createClient>) {
   return (await client.execute("SELECT type,name,tbl_name,sql FROM sqlite_master ORDER BY name")).rows;
@@ -57,11 +57,13 @@ test("actual atomic journal preserves modern generic literals and receipts, crea
       expect((await client.execute(`PRAGMA foreign_key_list(${name})`)).rows).toEqual([]);
     }
     const migrations = readMigrationFiles(config);
-    const retention = migrations.at(-1)!;
+    const retention = migrations.find((migration) => migration.folderMillis === 1791698049491)!;
+    const conversion = migrations.find((migration) => migration.folderMillis === 1791698049492)!;
     expect(retention.folderMillis).toBe(1791698049491);
     expect(retention.sql).toHaveLength(2);
     expect(await ledger(client)).toEqual([
       checkpoint, ...priorLedger, { hash: retention.hash, created_at: 1791698049491 },
+      { hash: conversion.hash, created_at: 1791698049492 },
     ]);
     const receipts = await ledger(client);
     await runAtomicMigrations(owner, config, preflight);

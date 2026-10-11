@@ -10,15 +10,16 @@ const names = Object.keys(
 ) as (keyof typeof contract.physical)[];
 
 /**
- * V1 archives are manual-migration-only: their exact sqlite_master DDL and inline
- * identity constraint are capture's durable contract. Kit compiles unique() as
- * an explicit index, so only validated, unchanged archives may be carried across
+ * V1 raw archives and conversion receipts are manual-migration-only. Their exact
+ * sqlite_master DDL and inline identity constraints are durable contracts. Kit
+ * compiles unique() as
+ * an explicit index, so only validated, unchanged tables may be carried across
  * ordinary generation. The supported uniqueConstraints field records the table
  * constraint with a logical name, not a droppable physical index. Neither Kit's
- * CREATE TABLE nor its recreation SQL may regenerate these archives.
+ * CREATE TABLE nor its recreation SQL may regenerate these tables.
  *
- * An archive change needs a separately reviewed manual migration and a new
- * versioned capture contract. There is deliberately no force/custom bypass.
+ * An archive or receipt change needs a separately reviewed manual migration and
+ * a new versioned capture/conversion contract. There is deliberately no force/custom bypass.
  */
 export async function planRetentionSafeMigration(
   previousInput: DrizzleSQLiteSnapshotJSON,
