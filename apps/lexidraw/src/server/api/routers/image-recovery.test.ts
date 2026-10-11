@@ -7,6 +7,7 @@ import { supplierFixture } from "~/test/supplier-fixture";
 import { IMAGE_FIXTURE_PRICEBOOK } from "~/lib/images/contracts";
 mock.module("@packages/env", () => ({ default: { NODE_ENV: "test" } }));
 const db = await installServerRuntime();
+const { schema } = await import("@packages/drizzle");
 const { createImagePowerRouter } = await import("./image-power");
 test("owned image read survives removal of generation executor without reserve or dispatch", async () => {
   const client = createClient({ url: ":memory:" });
@@ -63,11 +64,11 @@ test("owned image read survives removal of generation executor without reserve o
     });
     const caller = router.createCaller({
       drizzle: db,
-      schema: {},
-      session: { user: { id: "alice" } },
+      schema,
+      session: { user: { id: "alice" }, expires: "2099-01-01T00:00:00Z" },
       auth: { kind: "session" },
       headers: new Headers(),
-    } as never);
+    });
     expect((await caller.operation({ id: owned.id })).id).toBe(owned.id);
     expect(
       (await caller.current({ idempotencyKey: "original-image" }))?.id,
@@ -77,11 +78,11 @@ test("owned image read survives removal of generation executor without reserve o
     ).toBeNull();
     const other = router.createCaller({
       drizzle: db,
-      schema: {},
-      session: { user: { id: "bob" } },
+      schema,
+      session: { user: { id: "bob" }, expires: "2099-01-01T00:00:00Z" },
       auth: { kind: "session" },
       headers: new Headers(),
-    } as never);
+    });
     expect(
       await other.current({ idempotencyKey: "original-image" }),
     ).toBeNull();

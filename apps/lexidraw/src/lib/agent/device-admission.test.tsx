@@ -95,10 +95,15 @@ mock.module("../narration/device-store", () => ({
     },
   },
 }));
-let capability = {
+let capability: {
+  data: { available: boolean };
+  isPending: boolean;
+  error: Error | null;
+  isError: boolean;
+} = {
   data: { available: true },
   isPending: false,
-  error: null as Error | null,
+  error: null,
   isError: false,
 };
 const retry = mock(async () => {}),
@@ -120,26 +125,24 @@ const { createDeviceAgentRouter } = await import(
 await db
   .insert(schema.users)
   .values({ id: "alice", name: "Alice", email: "panel@fixture.test" });
-await db
-  .insert(schema.entities)
-  .values({
-    id: "doc",
-    userId: "alice",
-    title: "Fixture",
-    entityType: "document",
-    publicAccess: PublicAccess.PRIVATE,
-    updatedAt: new Date(1),
-    elements: JSON.stringify({
-      root: {
-        type: "root",
-        version: 1,
-        children: [],
-        direction: null,
-        format: "",
-        indent: 0,
-      },
-    }),
-  });
+await db.insert(schema.entities).values({
+  id: "doc",
+  userId: "alice",
+  title: "Fixture",
+  entityType: "document",
+  publicAccess: PublicAccess.PRIVATE,
+  updatedAt: new Date(1),
+  elements: JSON.stringify({
+    root: {
+      type: "root",
+      version: 1,
+      children: [],
+      direction: null,
+      format: "",
+      indent: 0,
+    },
+  }),
+});
 const documents = new DeviceAgentDocuments(db.$client, () => 2);
 const caller = createDeviceAgentRouter(() => documents).createCaller({
   drizzle: db,

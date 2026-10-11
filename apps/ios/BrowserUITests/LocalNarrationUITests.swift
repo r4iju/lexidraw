@@ -46,3 +46,25 @@ import XCTest
     app.buttons["Done"].tap()
   }
 }
+
+@MainActor final class AB8RecordingUITests: XCTestCase {
+  func testSavedComposerResumesCanonicalReceiptPosition() throws {
+    let app = XCUIApplication()
+    app.launchEnvironment["BROWSER_SCENARIO"] = "ab8-recording"
+    app.launch()
+    let retained = app.buttons["Play retained audio"]
+    XCTAssertTrue(retained.waitForExistence(timeout: 30))
+    retained.tap()
+    let evidence = app.staticTexts["ab8-playback-evidence"]
+    XCTAssertTrue(evidence.label.contains("seconds 0.4"))
+    app.buttons["Play saved device recording"].tap()
+    let converged = NSPredicate(format: "label CONTAINS %@ AND label CONTAINS %@", "Playback 2", "seconds 0.4")
+    let result = XCTWaiter.wait(for: [expectation(for: converged, evaluatedWith: evidence)], timeout: 5)
+    XCTAssertEqual(result, .completed)
+    XCTAssertTrue(evidence.label.contains("canonical-receipt-ab8"))
+    app.buttons["Ordinary saved Listen"].tap()
+    let ordinary = app.staticTexts["ab8-ordinary-position"]
+    let resumed = NSPredicate(format: "label CONTAINS %@", "0.4")
+    XCTAssertEqual(XCTWaiter.wait(for: [expectation(for: resumed, evaluatedWith: ordinary)], timeout: 5), .completed)
+  }
+}

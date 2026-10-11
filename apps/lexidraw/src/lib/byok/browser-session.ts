@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from "react";
-import { clearNarrationAccount } from "../narration/device-store";
+import { captureNarrationAccountCleanup } from "../narration/device-store";
 import { installBrowserBoundary } from "./browser-boundary";
 import { createByokSession } from "./session";
 
@@ -8,9 +8,10 @@ let account: string | undefined;
 let generation = 0;
 let expirationLease = 0;
 const cleanup = new Map<string, Promise<void>>();
-function clearAccount(id: string) {
+function clearAccount(id: string, endedGeneration: number) {
+  const clear = captureNarrationAccountCleanup(id, endedGeneration);
   const previous = cleanup.get(id) ?? Promise.resolve();
-  const pending = previous.then(() => clearNarrationAccount(id));
+  const pending = previous.then(clear);
   cleanup.set(id, pending);
   void pending.catch(() => {});
 }
@@ -47,7 +48,7 @@ export function commitBrowserByok(accountId: string) {
   if (accountId !== undefined && account !== accountId) {
     session.remove();
     generation++;
-    if (account) clearAccount(account);
+    if (account) clearAccount(account, generation - 1);
     account = accountId;
   }
   expirationLease++;
@@ -77,7 +78,7 @@ export function clearBrowserByok(
   if (expectedLease !== undefined && expirationLease !== expectedLease) return;
   session?.remove();
   generation++;
-  if (account) clearAccount(account);
+  if (account) clearAccount(account, generation - 1);
   account = undefined;
   notify();
 }

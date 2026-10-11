@@ -7,6 +7,7 @@ import { AGENT_BOOK, AgentCompletion } from "~/lib/agent/contracts";
 import { supplierFixture } from "~/test/supplier-fixture";
 mock.module("@packages/env", () => ({ default: { NODE_ENV: "test" } }));
 const db = await installServerRuntime();
+const { schema } = await import("@packages/drizzle");
 const { createAgentRouter } = await import("./pro-agent");
 
 test("production exact B reader returns null while earlier A saved edits remain independently readable", async () => {
@@ -102,10 +103,10 @@ test("production exact B reader returns null while earlier A saved edits remain 
     const caller = router.createCaller({
       drizzle: db,
       headers: new Headers(),
-      session: { user: { id: "alice" } },
+      session: { user: { id: "alice" }, expires: "2099-01-01T00:00:00Z" },
       auth: { kind: "session" },
-      schema: {},
-    } as never);
+      schema,
+    });
     const count = dispatches;
     const earlier = await caller.current({ documentId: "doc" });
     if (!earlier) throw new Error("Missing actual earlier report");

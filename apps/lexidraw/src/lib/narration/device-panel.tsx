@@ -11,6 +11,7 @@ import {
   useBrowserByok,
   browserByokAccount,
   browserByokSessionGeneration,
+  browserByokStorageReady,
 } from "../byok/browser-session";
 import { Button } from "~/components/ui/button";
 import { queryAccess } from "~/lib/generation/query-access";
@@ -48,17 +49,29 @@ export function DeviceNarrationController({
   };
   // The device checkpoint store supplies persisted progress and account lifecycle cleanup.
   useEffect(() => {
-    const unregister = registerNarration(flow.account, () => flow.end());
+    let disposed = false;
+    let unregister: (() => void) | undefined;
     void flow
-      .restore()
-      .catch(() =>
-        setNotice(
-          "Local checkpoint could not be safely restored. No provider request was made.",
-        ),
-      );
+      .prepare()
+      .then(async () => {
+        if (disposed) return;
+        unregister = registerNarration(
+          flow.account,
+          () => flow.end(),
+          flow.generation,
+        );
+        await flow.restore();
+      })
+      .catch(() => {
+        if (!disposed)
+          setNotice(
+            "Local checkpoint could not be safely restored. No provider request was made.",
+          );
+      });
     return () => {
+      disposed = true;
       flow.stop();
-      unregister();
+      unregister?.();
     };
   }, [flow]);
   return (
@@ -135,23 +148,75 @@ function OwnedDeviceNarration({
   const access = queryAccess(capability, true, "Device narration capability");
   const available = access.kind === "ready" && access.data.available;
   const { mutateAsync: saveRecording } = save;
-  const ports = {
+  const generation = browserByokSessionGeneration();
+  const checkOwner = () => {
+    if (
+      browserByokAccount() !== account ||
+      browserByokSessionGeneration() !== generation
+    )
+      throw new Error("Account session ended");
+  };
+  const ready = async () => {
+    checkOwner();
+    await browserByokStorageReady(account);
+    checkOwner();
+  };
+  const ports: import("./device-flow").DeviceNarrationPorts = {
     account: browserByokAccount,
+    session: browserByokSessionGeneration,
+    ready,
     available: () => available,
     byok,
-    store: browserNarrationStore,
+    store: {
+      load: async (scope) => {
+        await ready();
+        const value = await browserNarrationStore.load(scope);
+        checkOwner();
+        return value;
+      },
+      save: async (scope, data, expected) => {
+        await ready();
+        const saved = await browserNarrationStore.save(
+          scope,
+          data,
+          expected,
+          () =>
+            browserByokAccount() === account &&
+            browserByokSessionGeneration() === generation,
+        );
+        checkOwner();
+        return saved;
+      },
+      clear: (scope, expected) =>
+        browserNarrationStore.clear(
+          scope,
+          expected,
+          () =>
+            browserByokAccount() === account &&
+            browserByokSessionGeneration() === generation,
+        ),
+    },
     sync: async (
       id: string,
       recording: import("./device-contracts").RecordingArtifact,
-    ) =>
-      (await saveRecording({ idempotencyKey: id, documentId, recording })).id,
+    ) => {
+      await ready();
+      const receipt = await saveRecording({
+        idempotencyKey: id,
+        documentId,
+        recording,
+      });
+      checkOwner();
+      return receipt.id;
+    },
   };
   // The account/document controller retains checkpoints across capability refreshes.
   // biome-ignore lint/correctness/useExhaustiveDependencies: committed ports refresh callbacks; query changes do not replace the owner.
   const flow = useMemo(
     () => new DeviceNarration(account, documentId, ports),
-    [account, documentId, byok],
+    [account, documentId, byok, generation],
   );
+  // DeviceNarration receives external query and storage ports after React commits.
   useLayoutEffect(() => {
     flow.configure(ports);
   });

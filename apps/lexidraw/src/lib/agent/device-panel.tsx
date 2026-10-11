@@ -135,6 +135,7 @@ function OwnedDeviceAgent({
   const commitEdit = apply.mutateAsync;
   const access = queryAccess(capability, true, "Device action capability");
   const available = access.kind === "ready" && access.data.available;
+  const generation = browserByokSessionGeneration();
   const ports: import("./device-flow").DeviceAgentPorts = {
     account: browserByokAccount,
     session: browserByokSessionGeneration,
@@ -146,16 +147,29 @@ function OwnedDeviceAgent({
         return browserNarrationStore.load(scope);
       },
       save: async (scope, data, expected) => {
-        const generation = browserByokSessionGeneration();
         await browserByokStorageReady(account);
         if (
           generation !== browserByokSessionGeneration() ||
           browserByokAccount() !== account
         )
           throw new Error("Account session ended");
-        return browserNarrationStore.save(scope, data, expected);
+        return browserNarrationStore.save(
+          scope,
+          data,
+          expected,
+          () =>
+            browserByokAccount() === account &&
+            browserByokSessionGeneration() === generation,
+        );
       },
-      clear: browserNarrationStore.clear,
+      clear: (scope, expected) =>
+        browserNarrationStore.clear(
+          scope,
+          expected,
+          () =>
+            browserByokAccount() === account &&
+            browserByokSessionGeneration() === generation,
+        ),
     },
     read: () => utils.deviceAgent.source.fetch({ documentId }),
     apply: (data) => commitEdit(data),
@@ -164,8 +178,9 @@ function OwnedDeviceAgent({
   // biome-ignore lint/correctness/useExhaustiveDependencies: committed ports refresh callbacks; query changes do not replace the owner.
   const flow = useMemo(
     () => new DeviceAgent(account, documentId, ports),
-    [account, documentId, byok],
+    [account, documentId, byok, generation],
   );
+  // DeviceAgent receives external query and storage ports after React commits.
   useLayoutEffect(() => {
     flow.configure(ports);
   });

@@ -9,6 +9,8 @@ import { narrationTexts } from "./portable";
 export type DeviceNarrationPorts = {
   account: () => string | undefined;
   available: () => boolean;
+  session?: () => number;
+  ready?: () => Promise<void>;
   byok: ReturnType<typeof createByokSession>;
   store: {
     load(scope: string): Promise<string | null>;
@@ -17,7 +19,7 @@ export type DeviceNarrationPorts = {
       data: string,
       expected: string | null,
     ): Promise<boolean>;
-    clear(scope: string): Promise<void>;
+    clear(scope: string, expected?: string | null): Promise<void>;
   };
   sync: (id: string, recording: RecordingArtifact) => Promise<string>;
 };
@@ -29,17 +31,25 @@ export class DeviceNarration {
   private ended = false;
   private quarantined = false;
   private persisted: string | null = null;
+  private restoring?: Promise<void>;
   private listeners = new Set<() => void>();
+  readonly generation: number | undefined;
   constructor(
     readonly account: string,
     readonly documentId: string,
     private ports: DeviceNarrationPorts,
-  ) {}
+  ) {
+    this.generation = ports.session?.();
+  }
   configure(ports: DeviceNarrationPorts) {
     this.ports = ports;
   }
   private get scope() {
     return JSON.stringify([this.account, this.documentId]);
+  }
+  async prepare() {
+    await this.ports.ready?.();
+    this.checkScope();
   }
   state = () => this.current;
   subscribe = (listener: () => void) => {
@@ -49,10 +59,14 @@ export class DeviceNarration {
     };
   };
   private checkScope() {
-    if (this.ports.account() !== this.account && !this.ended) {
+    if (
+      (this.ports.account() !== this.account ||
+        this.ports.session?.() !== this.generation) &&
+      !this.ended
+    ) {
       this.ended = true;
       this.current = null;
-      void this.ports.store.clear(this.scope).catch(() => {});
+      void this.ports.store.clear(this.scope, this.persisted).catch(() => {});
       for (const listener of this.listeners) listener();
     }
     if (this.ended) throw new Error("Account session ended");
@@ -88,9 +102,17 @@ export class DeviceNarration {
     this.current = validated;
     for (const listener of this.listeners) listener();
   }
-  async restore() {
-    this.checkScope();
+  restore() {
+    if (this.restoring) return this.restoring;
+    this.restoring = this.restoreCheckpoint().finally(() => {
+      this.restoring = undefined;
+    });
+    return this.restoring;
+  }
+  private async restoreCheckpoint() {
+    await this.prepare();
     const data = await this.ports.store.load(this.scope);
+    this.checkScope();
     if (!data) return;
     this.quarantined = true;
     this.persisted = data;
@@ -111,7 +133,10 @@ export class DeviceNarration {
     this.quarantined = false;
   }
   async start(source: string | (() => Promise<string>)) {
-    this.checkScope();
+    if (this.quarantined) return;
+    const admitted = this.intent;
+    await this.restore();
+    if (admitted !== this.intent || this.ended) return;
     if (
       this.busy ||
       this.starting ||
@@ -152,7 +177,9 @@ export class DeviceNarration {
     }
   }
   async resume() {
-    this.checkScope();
+    const admitted = this.intent;
+    await this.prepare();
+    if (admitted !== this.intent || this.ended) return;
     if (
       this.busy ||
       this.quarantined ||
@@ -236,6 +263,7 @@ export class DeviceNarration {
     const id = this.current.id,
       text = this.current.parts[index]?.text;
     const data = await this.ports.store.load(this.scope);
+    this.checkScope();
     if (!data) throw new Error("Local fence missing");
     const latest = DeviceCheckpoint.parse(JSON.parse(data));
     this.ports.byok.restoreFingerprints(latest.fingerprints);
@@ -249,6 +277,7 @@ export class DeviceNarration {
     )
       throw new Error("Local fence changed");
     const { validateWav } = await import("./portable");
+    this.checkScope();
     const { seconds } = validateWav(audio, this.ports.byok.assertSafe);
     this.persisted = data;
     this.current = latest;
@@ -271,7 +300,7 @@ export class DeviceNarration {
     await this.complete(index, audio);
   }
   async sync() {
-    this.checkScope();
+    await this.prepare();
     if (this.busy || !this.current || this.current.status === "saved") return;
     const parts = this.current.parts.flatMap((p) =>
       p.kind === "completed"
@@ -314,7 +343,7 @@ export class DeviceNarration {
     this.stop();
     this.ended = true;
     this.current = null;
-    await this.ports.store.clear(this.scope);
+    await this.ports.store.clear(this.scope, this.persisted);
     for (const listener of this.listeners) listener();
   }
 }

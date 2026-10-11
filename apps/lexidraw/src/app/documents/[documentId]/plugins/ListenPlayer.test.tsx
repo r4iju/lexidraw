@@ -13,12 +13,31 @@ type Part = import("~/lib/narration/listen-contracts").ListenSegment;
  * The document's audio as the server answers it; none until a test sets it,
  * so the player opens on "No audio segments found".
  */
-const server = {
-  status: undefined as string | undefined,
-  segments: undefined as Part[] | undefined,
+type QueryError = (Error & { data?: { code: string } }) | null;
+type ServerFixture = {
+  status: string | undefined;
+  segments: Part[] | undefined;
+  version: number;
+  statusError: QueryError;
+  manifestError: QueryError;
+  statusPending: boolean;
+  manifestPending: boolean;
+  listeners: Set<() => void>;
+  set: (next: {
+    status?: string;
+    segments?: Part[];
+    statusError?: QueryError;
+    manifestError?: QueryError;
+    statusPending?: boolean;
+    manifestPending?: boolean;
+  }) => void;
+};
+const server: ServerFixture = {
+  status: undefined,
+  segments: undefined,
   version: 0,
-  statusError: null as (Error & { data?: { code: string } }) | null,
-  manifestError: null as (Error & { data?: { code: string } }) | null,
+  statusError: null,
+  manifestError: null,
   statusPending: false,
   manifestPending: false,
   listeners: new Set<() => void>(),

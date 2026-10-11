@@ -23,7 +23,7 @@ if (typeof DecompressionStream === "undefined")
     },
   });
 import { expect, test } from "bun:test";
-import { ImageFlow } from "./flow";
+import { ImageFlow, type ImagePorts } from "./flow";
 import { fixtureImage } from "~/test/image-fixture";
 import { createByokSession } from "~/lib/byok/session";
 test("selected BYOK uses approved direct request, rejects encoded echoes, retains completed image across key removal and failed sync", async () => {
@@ -508,4 +508,168 @@ test("running image admission keeps owned operation identity across reopening", 
     kind: "uncertain",
     operation: { id: "owned-a", state: "running" },
   });
+});
+
+test("failed completed byte checkpoint exposes memory-only output and retries the exact checkpoint without generation", async () => {
+  let stored: string | null = null;
+  let fail = true;
+  let calls = 0;
+  const byok = createByokSession(
+    async () => {
+      calls++;
+      return Response.json({
+        data: [{ b64_json: fixtureImage().base64, media_type: "image/png" }],
+      });
+    },
+    "https://app.test",
+    { imageFixture: true },
+  );
+  byok.replace("openrouter", "synthetic-image-memory-retention-key");
+  const ports = {
+    source: () => ({ mode: "byok" as const, provider: "openrouter" as const }),
+    availability: () => ({ available: true, maximum: 1, fixture: true }),
+    byok,
+    pro: async () => fixtureImage(),
+    save: async () => "https://app.test/image",
+  };
+  const retention = {
+    owner: "memory-only-owner",
+    load: async () => stored,
+    save: async (value: string, expected: string | null) => {
+      if (fail && value.includes('"image"')) throw Error("Disk full");
+      if (stored !== expected) return false;
+      stored = value;
+      return true;
+    },
+    clear: async () => {
+      stored = null;
+    },
+  };
+  const flow = new ImageFlow(ports, retention);
+  await flow.generate("Tree");
+  const state = flow.state();
+  expect("image" in state && state.image.base64).toBe(fixtureImage().base64);
+  expect("durability" in state && state.durability).toBe("memory_only");
+  const reopened = new ImageFlow(ports, retention);
+  await reopened.restore();
+  expect(reopened.state().kind).toBe("uncertain");
+  byok.remove();
+  fail = false;
+  // The public action retries checkpointing, not paid transport.
+  expect("retryCheckpoint" in flow).toBe(true);
+  if ("retryCheckpoint" in flow && typeof flow.retryCheckpoint === "function")
+    await flow.retryCheckpoint();
+  const restored = new ImageFlow(ports, retention);
+  await restored.restore();
+  const restoredState = restored.state();
+  expect(
+    "uploadId" in restoredState &&
+      "uploadId" in state &&
+      restoredState.uploadId === state.uploadId,
+  ).toBe(true);
+  expect(
+    "generationKey" in restoredState &&
+      "generationKey" in state &&
+      restoredState.generationKey === state.generationKey,
+  ).toBe(true);
+  expect(calls).toBe(1);
+});
+
+test("failed image receipt checkpoint preserves received URL and upload identity for explicit checkpoint retry", async () => {
+  let stored: string | null = null;
+  let receiptFailure = true;
+  const uploads: string[] = [];
+  const byok = createByokSession(async () => {
+    throw Error("No provider");
+  }, "https://app.test");
+  const ports = {
+    source: () => ({ mode: "pro" as const }),
+    availability: () => ({ available: true, maximum: 1, fixture: true }),
+    byok,
+    pro: async () => fixtureImage(),
+    save: async (id: string) => {
+      uploads.push(id);
+      return "https://app.test/original-receipt";
+    },
+  };
+  const retention = {
+    owner: "receipt-owner",
+    load: async () => stored,
+    save: async (value: string, expected: string | null) => {
+      if (receiptFailure && value.includes('"url"'))
+        throw Error("Receipt disk failure");
+      if (expected !== stored) return false;
+      stored = value;
+      return true;
+    },
+    clear: async () => {},
+  };
+  const flow = new ImageFlow(ports, retention);
+  await flow.generate("Tree");
+  await flow.accept();
+  const before = flow.state();
+  expect(await flow.upload()).toBe("https://app.test/original-receipt");
+  const saved = flow.state();
+  expect(saved.kind).toBe("saved");
+  expect("durability" in saved && saved.durability).toBe("memory_only");
+  const reopened = new ImageFlow(ports, retention);
+  await reopened.restore();
+  expect(reopened.state().kind).toBe("completed");
+  receiptFailure = false;
+  await flow.retryCheckpoint();
+  const final = new ImageFlow(ports, retention);
+  await final.restore();
+  expect(await final.upload()).toBe("https://app.test/original-receipt");
+  expect(uploads).toEqual("uploadId" in before ? [before.uploadId] : []);
+}, 20000);
+
+test("session retirement during failed image retention cannot publish a late memory-only artifact", async () => {
+  const byok = createByokSession(
+    async () => {
+      throw Error("No generation");
+    },
+    "https://app.test",
+    { imageFixture: true },
+  );
+  let active = true;
+  const ports: ImagePorts = {
+    source: () => ({ mode: "local" }),
+    availability: () => ({ available: false, maximum: 1, fixture: true }),
+    get byok() {
+      if (!active) throw Error("Owner retired");
+      return byok;
+    },
+    pro: async () => {
+      throw Error("No Pro");
+    },
+    save: async () => {
+      throw Error("No upload");
+    },
+  };
+  const owner = "retiring-image-owner";
+  const raw = JSON.stringify({
+    version: 1,
+    owner,
+    fingerprints: [],
+    image: fixtureImage(),
+    uploadId: crypto.randomUUID(),
+    prompt: "Tree",
+  });
+  const flow = new ImageFlow(ports, {
+    owner,
+    load: async () => raw,
+    save: async () => {
+      active = false;
+      throw Error("Owner retired during write");
+    },
+    clear: async () => {},
+  });
+  await flow.restore();
+  const publications: string[] = [];
+  const unsubscribe = flow.subscribe(() => {
+    publications.push(flow.state().kind);
+  });
+  expect(await flow.upload()).toBeNull();
+  expect(publications).toEqual(["saving"]);
+  unsubscribe();
 });

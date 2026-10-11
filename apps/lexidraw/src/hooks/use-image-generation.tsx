@@ -6,6 +6,7 @@ import {
   useSyncExternalStore,
   useState,
   useEffect,
+  useLayoutEffect,
   type ReactNode,
 } from "react";
 import { toast } from "sonner";
@@ -40,6 +41,14 @@ import {
 
 type ImageGenerationContextValue = {
   acknowledgeImage: (receipt: SaveReceipt) => Promise<boolean>;
+  retained: boolean;
+  insertImage: (
+    insert: (
+      url: string,
+      prompt: string,
+      check: () => void,
+    ) => Promise<SaveReceipt | null>,
+  ) => Promise<boolean>;
   isConfigured: boolean;
   isLoading: boolean;
   generateImageData: (
@@ -129,6 +138,14 @@ export function ImageGenerationProvider({
   const save = api.imagePower.save.useMutation({
     onSuccess: () => utils.entities.invalidate(),
   });
+  const cancel = api.imagePower.cancel.useMutation({
+    onSettled: (_data, _error, input) =>
+      Promise.all([
+        utils.pro.status.invalidate(),
+        utils.imagePower.operation.invalidate({ id: input.id }),
+        utils.imagePower.current.invalidate(),
+      ]),
+  });
   const ports = {
     source: () => powerPreference(assertReady().preference),
     availability: () => assertReady().capability,
@@ -156,7 +173,7 @@ export function ImageGenerationProvider({
     },
     cancelPro: async (id: string) => {
       assertOwner();
-      const operation = await utils.client.imagePower.cancel.mutate({ id });
+      const operation = await cancel.mutateAsync({ id });
       assertOwner();
       return operation;
     },
@@ -211,15 +228,32 @@ export function ImageGenerationProvider({
       },
       save: (data, expected) => {
         currentOwner();
-        return browserNarrationStore.save(owner, data, expected);
+        return browserNarrationStore.save(
+          owner,
+          data,
+          expected,
+          () =>
+            browserByokAccount() === accountId &&
+            browserByokSessionGeneration() === generation,
+        );
       },
       clear: (expected) => {
         currentOwner();
-        return browserNarrationStore.clear(owner, expected);
+        return browserNarrationStore.clear(
+          owner,
+          expected,
+          () =>
+            browserByokAccount() === accountId &&
+            browserByokSessionGeneration() === generation,
+        );
       },
     });
   }, [entityId, accountId, generation]);
-  flow.configure(ports);
+  // ImageFlow receives external query and account ports only after React commits.
+  useLayoutEffect(() => {
+    flow.configure(ports);
+  });
+  // ImageFlow and IndexedDB registration share the committed document/session lifetime.
   useEffect(() => {
     flow.activate();
     let disposed = false;
@@ -227,10 +261,19 @@ export function ImageGenerationProvider({
     if (accountId)
       void browserByokStorageReady(accountId)
         .then(() => {
-          if (disposed) return;
-          unregister = registerNarration(accountId, async () => {
-            flow.end();
-          });
+          if (
+            disposed ||
+            browserByokAccount() !== accountId ||
+            browserByokSessionGeneration() !== generation
+          )
+            return;
+          unregister = registerNarration(
+            accountId,
+            async () => {
+              flow.end();
+            },
+            generation,
+          );
           void flow.restore();
         })
         .catch(() => {});
@@ -239,7 +282,7 @@ export function ImageGenerationProvider({
       unregister?.();
       flow.end();
     };
-  }, [flow, accountId]);
+  }, [flow, accountId, generation]);
   const state = useSyncExternalStore(flow.subscribe, flow.state, flow.state);
   const isConfigured =
     !!byok &&
@@ -302,6 +345,8 @@ export function ImageGenerationProvider({
       value={{
         isConfigured,
         isLoading,
+        retained: completed(state),
+        insertImage: (insert) => flow.insert(insert),
         generateImageData,
         uploadImageData,
         acknowledgeImage: (receipt) => flow.acknowledge(receipt),
@@ -350,6 +395,17 @@ export function ImageGenerationProvider({
               Stop original image work
             </Button>
           )}
+        </div>
+      )}
+      {"image" in state && state.durability === "memory_only" && (
+        <div role="alert">
+          <p>
+            Image retained in memory only. Reopen recovery is unconfirmed. Keep
+            this document open and retry checkpointing.
+          </p>
+          <Button onClick={() => void flow.retryCheckpoint()}>
+            Retry image checkpoint
+          </Button>
         </div>
       )}
       {state.kind === "saved" && (
@@ -406,9 +462,29 @@ export const LexicalImageGenerationProvider = ({
   persist: (state: import("lexical").EditorState) => Promise<SaveReceipt>;
 }) => {
   const [editor] = useLexicalComposerContext();
-  const { isConfigured, generateImageData, uploadImageData, acknowledgeImage } =
+  const { isConfigured, generateImageData, retained, insertImage } =
     useImageGeneration();
   const [isLoading, setIsLoading] = useState(false);
+
+  const retryInsertion = async () => {
+    setIsLoading(true);
+    try {
+      if (
+        !(await insertImage((url, prompt, check) =>
+          insertRetainedImage(editor, url, prompt, persist, check),
+        ))
+      )
+        toast.error(
+          "Image retained. Document save did not confirm its insertion.",
+        );
+    } catch {
+      toast.error(
+        "Image retained. Retry document save when this document is ready.",
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const generateAndInsertImage = useCallback(
     async (
@@ -424,16 +500,10 @@ export const LexicalImageGenerationProvider = ({
       try {
         const gen = await generateImageData(prompt, options);
         if (!gen) return;
-        const url = await uploadImageData(gen.imageData, gen.mimeType, prompt);
-        if (!url) return;
-        toast.info("Inserting Image...", { description: "" });
-        const receipt = await insertRetainedImage(
-          editor,
-          url,
-          gen.prompt,
-          persist,
+        const acknowledged = await insertImage((url, prompt, check) =>
+          insertRetainedImage(editor, url, prompt, persist, check),
         );
-        if (!receipt || !(await acknowledgeImage(receipt)))
+        if (!acknowledged)
           toast.error(
             "Image retained. Document save did not confirm its insertion.",
           );
@@ -445,14 +515,7 @@ export const LexicalImageGenerationProvider = ({
         setIsLoading(false);
       }
     },
-    [
-      isConfigured,
-      generateImageData,
-      uploadImageData,
-      editor,
-      persist,
-      acknowledgeImage,
-    ],
+    [isConfigured, generateImageData, insertImage, editor, persist],
   );
 
   return (
@@ -460,6 +523,11 @@ export const LexicalImageGenerationProvider = ({
       value={{ isLoading, isConfigured, generateAndInsertImage }}
     >
       {children}
+      {retained && (
+        <Button disabled={isLoading} onClick={() => void retryInsertion()}>
+          Insert retained image / retry document save
+        </Button>
+      )}
     </LexicalImageContext.Provider>
   );
 };

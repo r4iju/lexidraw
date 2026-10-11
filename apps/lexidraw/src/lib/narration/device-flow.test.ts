@@ -582,3 +582,55 @@ test("unmount Stop during narration admission retains pending parts without disp
   await flow.resume();
   expect(calls).toBe(1);
 });
+
+test("old same-account session cannot publish late audio or delete a newer checkpoint", async () => {
+  let generation = 1;
+  let release = () => {};
+  let entered = () => {};
+  const dispatched = new Promise<void>((r) => {
+    entered = r;
+  });
+  const wait = new Promise<void>((r) => {
+    release = r;
+  });
+  const session = createByokSession(
+    async () => {
+      entered();
+      await wait;
+      return new Response(new Uint8Array(48000), {
+        headers: { "Content-Type": "audio/pcm" },
+      });
+    },
+    "https://app.test",
+    { narrationFixture: true },
+  );
+  session.replace("openrouter", "synthetic-old-generation-narration-key");
+  let stored: string | null = null;
+  const flow = new DeviceNarration("alice", "doc", {
+    account: () => "alice",
+    session: () => generation,
+    available: () => true,
+    byok: session,
+    store: {
+      load: async () => stored,
+      save: async (_scope, data, expected) => {
+        if (expected !== stored) return false;
+        stored = data;
+        return true;
+      },
+      clear: async (_scope, expected) => {
+        if (expected === undefined || stored === expected) stored = null;
+      },
+    },
+    sync: async () => "receipt",
+  });
+  const running = flow.start("Old audio").catch(() => {});
+  await dispatched;
+  generation = 2;
+  release();
+  await running;
+  expect(flow.state()).toBeNull();
+  stored = "new-generation-checkpoint";
+  await flow.end();
+  expect(stored).toBe("new-generation-checkpoint");
+});

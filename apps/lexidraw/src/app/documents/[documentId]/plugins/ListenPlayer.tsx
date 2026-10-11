@@ -442,7 +442,6 @@ function RecordingPlayback({
   initialIndex: () => number;
   making: boolean;
 }) {
-  // The first-arrival caret snapshot initializes event-owned playback; appends preserve it.
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
   const current =
     segments[currentIndex] ?? (making ? undefined : segments.at(-1));

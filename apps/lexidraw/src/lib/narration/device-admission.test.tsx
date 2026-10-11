@@ -26,6 +26,7 @@ mock.module("../byok/browser-session", () => ({
   useBrowserByok: () => byok,
   browserByokAccount: () => "alice",
   browserByokSessionGeneration: () => 1,
+  browserByokStorageReady: async () => {},
 }));
 mock.module("./device-store", () => ({
   registerNarration: () => () => {},

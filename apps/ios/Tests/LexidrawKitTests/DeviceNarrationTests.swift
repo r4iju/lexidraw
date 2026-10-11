@@ -256,3 +256,34 @@ extension DeviceNarrationTests {
   #expect(try Data(contentsOf: legacy.appending(path: "checkpoint.json")) == original)
   #expect(try store.load()?.id == checkpoint.id)
 }
+
+extension DeviceNarrationTests {
+  @Test func confirmedPartRemainsPlayableWhenAtomicCheckpointReplacementFails() async throws {
+    let directory = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+    defer { try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: directory.path); try? FileManager.default.removeItem(at: directory) }
+    let config = URLSessionConfiguration.ephemeral; config.protocolClasses = [SpeechProbe.self]
+    let runtime = NativeBYOK(store: NarrationKey(), configuration: config, narrationFixture: true)
+    try runtime.replaceKey("synthetic-memory-only-confirmed-audio-key")
+    let output = try await runtime.narrate(text: "Confirmed part", reference: runtime.credentialReference())
+    let files = NativeDeviceNarrationStore(directory: directory)
+    let prior = DeviceNarrationCheckpoint(version: 1, account: "alice", document: "doc", id: UUID().uuidString, created: .now, status: "unknown", parts: [.init(kind: .unknown, text: "Confirmed part", output: nil), .init(kind: .pending, text: "Unfinished part", output: nil)], fingerprints: Data())
+    try files.save(prior)
+    let flow = NativeDeviceNarrationFlow(account: "alice", document: "doc", runtime: runtime, files: files, available: true, save: { _, _ in "receipt" })
+    try flow.restore()
+    let durable = try #require(try files.load())
+    try runtime.removeKey()
+    try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: directory.path)
+    do { try flow.confirm(index: 0, audio: output) } catch {}
+    #expect(flow.checkpoint?.usefulRecording?.parts.first?.audio == output.audio)
+    #expect(try files.load()?.parts.first?.kind == .unknown)
+    #expect(flow.checkpoint?.revision == durable.revision)
+    #expect(flow.notice?.contains("memory only") == true)
+    try await flow.resume()
+    #expect(flow.checkpoint?.parts.last?.kind == .pending)
+    try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: directory.path)
+    try flow.retryCheckpoint()
+    #expect(!flow.memoryOnly)
+    #expect(try files.load()?.usefulRecording?.parts.first?.audio == output.audio)
+    #expect(flow.checkpoint?.revision != durable.revision)
+  }
+}

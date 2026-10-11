@@ -34,7 +34,12 @@ export const browserNarrationStore = {
       throw new Error("Invalid local checkpoint");
     return value;
   },
-  async save(scope: string, data: string, expected: string | null) {
+  async save(
+    scope: string,
+    data: string,
+    expected: string | null,
+    allowed: () => boolean = () => true,
+  ) {
     const db = await open();
     try {
       return await new Promise<boolean>((resolve, reject) => {
@@ -43,7 +48,7 @@ export const browserNarrationStore = {
           request = store.get(scope);
         let committed = false;
         request.onsuccess = () => {
-          if ((request.result ?? null) !== expected) return;
+          if (!allowed() || (request.result ?? null) !== expected) return;
           store.put(data, scope);
           committed = true;
         };
@@ -55,7 +60,11 @@ export const browserNarrationStore = {
       db.close();
     }
   },
-  async clear(scope: string, expected?: string | null) {
+  async clear(
+    scope: string,
+    expected?: string | null,
+    allowed: () => boolean = () => true,
+  ) {
     const db = await open();
     try {
       await new Promise<void>((resolve, reject) => {
@@ -63,7 +72,10 @@ export const browserNarrationStore = {
           store = tx.objectStore("checkpoints"),
           request = store.get(scope);
         request.onsuccess = () => {
-          if (expected === undefined || (request.result ?? null) === expected)
+          if (
+            allowed() &&
+            (expected === undefined || (request.result ?? null) === expected)
+          )
             store.delete(scope);
         };
         tx.oncomplete = () => resolve();
@@ -75,38 +87,63 @@ export const browserNarrationStore = {
     }
   },
 };
-const active = new Map<string, Set<() => Promise<void>>>();
-export function registerNarration(account: string, end: () => Promise<void>) {
-  const set = active.get(account) ?? new Set();
-  set.add(end);
+type Registration = { end: () => Promise<void>; generation?: number };
+const active = new Map<string, Set<Registration>>();
+export function registerNarration(
+  account: string,
+  end: () => Promise<void>,
+  generation?: number,
+) {
+  const set = active.get(account) ?? new Set<Registration>();
+  const registration = { end, generation };
+  set.add(registration);
   active.set(account, set);
   return () => {
-    set.delete(end);
+    set.delete(registration);
   };
 }
-export async function clearNarrationAccount(account: string) {
-  await Promise.all(Array.from(active.get(account) ?? [], (end) => end()));
-  active.delete(account);
-  const db = await open();
-  try {
-    await new Promise<void>((resolve, reject) => {
-      const tx = db.transaction("checkpoints", "readwrite"),
-        request = tx.objectStore("checkpoints").openCursor();
-      request.onsuccess = () => {
-        const cursor = request.result;
-        if (!cursor) return;
-        const key = String(cursor.key);
-        try {
-          const scope: unknown = JSON.parse(key);
-          if (Array.isArray(scope) && scope[0] === account) cursor.delete();
-        } catch {}
-        cursor.continue();
-      };
-      tx.oncomplete = () => resolve();
-      tx.onerror = tx.onabort = () =>
-        reject(new Error("Local narration cleanup failed"));
-    });
-  } finally {
-    db.close();
-  }
+// Capture retiring owners synchronously, before the session cleanup queue yields.
+export function captureNarrationAccountCleanup(
+  account: string,
+  generation?: number,
+) {
+  const set = active.get(account);
+  const retiring = Array.from(set ?? []).filter(
+    (r) =>
+      generation === undefined ||
+      r.generation === undefined ||
+      r.generation <= generation,
+  );
+  for (const registration of retiring) set?.delete(registration);
+  return async () => {
+    await Promise.all(retiring.map((r) => r.end()));
+    const db = await open();
+    try {
+      await new Promise<void>((resolve, reject) => {
+        const tx = db.transaction("checkpoints", "readwrite"),
+          request = tx.objectStore("checkpoints").openCursor();
+        request.onsuccess = () => {
+          const cursor = request.result;
+          if (!cursor) return;
+          const key = String(cursor.key);
+          try {
+            const scope: unknown = JSON.parse(key);
+            if (Array.isArray(scope) && scope[0] === account) cursor.delete();
+          } catch {}
+          cursor.continue();
+        };
+        tx.oncomplete = () => resolve();
+        tx.onerror = tx.onabort = () =>
+          reject(new Error("Local narration cleanup failed"));
+      });
+    } finally {
+      db.close();
+    }
+  };
+}
+export async function clearNarrationAccount(
+  account: string,
+  generation?: number,
+) {
+  await captureNarrationAccountCleanup(account, generation)();
 }

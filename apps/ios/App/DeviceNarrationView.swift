@@ -64,6 +64,9 @@ struct DeviceNarrationComposer: View {
                 }
               }.disabled(!flow.available || !flow.keyAvailable)
             }
+            if flow.memoryOnly {
+              Button("Retry audio checkpoint") { run { try flow.retryCheckpoint() } }
+            }
             if let notice = flow.notice { Text(notice) }
           } else {
             ProgressView("Loading local progress…")
@@ -73,7 +76,8 @@ struct DeviceNarrationComposer: View {
               guard let saved = try await session.savedDeviceNarration(document: document) else {
                 throw NativeAIError.unavailable
               }
-              onPlay(.init(job: saved.recording.job(id: saved.id), source: .device))
+              let scope = try await session.deviceNarrationPlaybackScope(document: document)
+              onPlay(.init(job: saved.recording.job(id: saved.id), source: .device, scope: scope))
             }
           }
           if let message { Text(message) }

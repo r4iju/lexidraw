@@ -64,11 +64,14 @@ public struct DeviceNarrationCheckpoint: Codable, Sendable {
     return self
   }
   public var playbackID: String { recordingId ?? id }
-  public var usefulRecording: DeviceRecording? {
-    let ready = parts.compactMap { part -> DeviceRecording.Part? in
+  private var readyParts: [DeviceRecording.Part] {
+    return parts.compactMap { part -> DeviceRecording.Part? in
       guard part.kind == .completed, let output = part.output else { return nil }
       return .init(text: part.text, audio: output.audio, seconds: output.seconds)
     }
+  }
+  public var usefulRecording: DeviceRecording? {
+    let ready = readyParts
     return ready.isEmpty ? nil : DeviceRecording(mimeType: "audio/wav", parts: ready)
   }
   public var retainedJob: ProNarrationJob? {
@@ -79,10 +82,7 @@ public struct DeviceNarrationCheckpoint: Codable, Sendable {
       policy: status == "saved" ? "Saved device recording. Replay is free." : "Retained completed parts. Unfinished or unsynced work remains on this device.")
   }
   public var recording: DeviceRecording? {
-    let ready = parts.compactMap { part -> DeviceRecording.Part? in
-      guard part.kind == .completed, let output = part.output else { return nil }
-      return .init(text: part.text, audio: output.audio, seconds: output.seconds)
-    }
+    let ready = readyParts
     return ready.count == parts.count ? DeviceRecording(mimeType: "audio/wav", parts: ready) : nil
   }
 }
@@ -170,6 +170,7 @@ public struct DeviceNarrationCheckpoint: Codable, Sendable {
 @MainActor @Observable public final class NativeDeviceNarrationFlow {
   public private(set) var checkpoint: DeviceNarrationCheckpoint?
   public private(set) var notice: String?
+  public private(set) var memoryOnly = false
   private let account: String, document: String
   private let runtime: NativeBYOK
   private let files: NativeDeviceNarrationStore
@@ -201,6 +202,7 @@ public struct DeviceNarrationCheckpoint: Codable, Sendable {
     updated.revision = UUID().uuidString
     try files.save(updated, expected: checkpoint?.revision)
     checkpoint = updated
+    memoryOnly = false
   }
   public func restore() throws {
     quarantined = true
@@ -242,7 +244,7 @@ public struct DeviceNarrationCheckpoint: Codable, Sendable {
   }
   public func resume() async throws {
     try active()
-    guard !busy, available, runtime.hasKey, var value = checkpoint,
+    guard !busy, !memoryOnly, available, runtime.hasKey, var value = checkpoint,
       value.created.timeIntervalSinceNow >= -1200,
       !value.parts.contains(where: { $0.kind == .started || $0.kind == .unknown }),
       value.recording == nil
@@ -267,6 +269,7 @@ public struct DeviceNarrationCheckpoint: Codable, Sendable {
       do {
         let output = try await runtime.narrate(text: value.parts[index].text, reference: reference)
         try complete(index: index, audio: output)
+        if memoryOnly { return }
         guard let confirmed = checkpoint else { throw NativeAIError.expired }
         value = confirmed
       } catch {
@@ -293,7 +296,18 @@ public struct DeviceNarrationCheckpoint: Codable, Sendable {
     latest.parts[index].output = validated
     latest.parts[index].kind = .completed
     latest.status = latest.recording == nil ? "paused" : "completed"
-    try persist(latest)
+    do { try persist(latest) }
+    catch {
+      checkpoint = latest
+      memoryOnly = true
+      notice = "Confirmed audio retained in memory only. Reopen recovery is unconfirmed. Retry checkpointing before continuing."
+    }
+  }
+  public func retryCheckpoint() throws {
+    try active()
+    guard memoryOnly, let checkpoint else { return }
+    try persist(checkpoint)
+    notice = nil
   }
   public func confirm(index: Int, audio: DeviceAudio) throws {
     try active()
@@ -303,7 +317,7 @@ public struct DeviceNarrationCheckpoint: Codable, Sendable {
     try complete(index: index, audio: audio)
   }
   public func sync() async {
-    guard !busy, var value = checkpoint, value.status != "saved", let recording = value.recording
+    guard !busy, !memoryOnly, var value = checkpoint, value.status != "saved", let recording = value.recording
     else { return }
     busy = true
     defer { busy = false }

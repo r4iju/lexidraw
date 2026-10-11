@@ -24,6 +24,7 @@ export type ImageAvailability = {
   reason?: string;
 };
 type Completed = {
+  durability: "durable" | "memory_only";
   image: ImageArtifact;
   uploadId: string;
   prompt: string;
@@ -102,17 +103,18 @@ const PendingImage = z.strictObject({
   source: z.enum(["pro", "byok"]),
   operation: ImageOperation.optional(),
 });
-function imageCount(node: unknown, url: string): number {
-  if (!node || typeof node !== "object") return 0;
-  const value = node as { type?: unknown; src?: unknown; children?: unknown };
+const ReceiptNode = z.looseObject({
+  type: z.string(),
+  src: z.string().optional(),
+  get children(): z.ZodOptional<z.ZodArray<typeof ReceiptNode>> {
+    return z.array(ReceiptNode).optional();
+  },
+});
+const ReceiptDocument = z.looseObject({ root: ReceiptNode });
+function imageCount(node: z.infer<typeof ReceiptNode>, url: string): number {
   return (
-    (value.type === "image" && value.src === url ? 1 : 0) +
-    (Array.isArray(value.children)
-      ? value.children.reduce(
-          (n: number, child: unknown) => n + imageCount(child, url),
-          0,
-        )
-      : 0)
+    (node.type === "image" && node.src === url ? 1 : 0) +
+    (node.children?.reduce((n, child) => n + imageCount(child, url), 0) ?? 0)
   );
 }
 export class ImageFlow {
@@ -135,6 +137,12 @@ export class ImageFlow {
   end() {
     this.ended = true;
     this.intent++;
+    this.set({ kind: "idle" });
+  }
+  private check(intent: number, ports = this.ports) {
+    if (this.ended || intent !== this.intent)
+      throw new Error("Image action ended");
+    ports.byok.assertSafe("");
   }
   restore() {
     const intent = this.intent;
@@ -173,6 +181,7 @@ export class ImageFlow {
           value.url
             ? {
                 kind: "saved",
+                durability: "durable",
                 image,
                 uploadId: value.uploadId,
                 prompt: value.prompt,
@@ -182,6 +191,7 @@ export class ImageFlow {
               }
             : {
                 kind: "completed",
+                durability: "durable",
                 image,
                 uploadId: value.uploadId,
                 prompt: value.prompt,
@@ -272,6 +282,8 @@ export class ImageFlow {
     prompt: string,
     expectedId?: string,
   ) {
+    const intent = this.intent;
+    this.check(intent);
     const parsed = ImageOperation.safeParse(outcome);
     if (!parsed.success) {
       await this.complete(outcome, prompt, key);
@@ -281,6 +293,7 @@ export class ImageFlow {
     if (expectedId && operation.id !== expectedId)
       throw new Error("Owned image identity changed");
     await this.pending(key, prompt, "pro", operation);
+    this.check(intent);
     this.set({ kind: "uncertain", key, prompt, source: "pro", operation });
     if (operation.state === "settled" && operation.result)
       await this.complete(JSON.parse(operation.result), prompt, key, operation);
@@ -312,17 +325,40 @@ export class ImageFlow {
     const state = this.current;
     if (this.ended || state.kind !== "saved" || receipt.kind !== "saved")
       return false;
-    let root: unknown;
+    const intent = this.intent;
+    let document: z.infer<typeof ReceiptDocument>;
     try {
-      root = (JSON.parse(receipt.elements) as { root: unknown }).root;
+      document = ReceiptDocument.parse(JSON.parse(receipt.elements));
     } catch {
       return false;
     }
-    if (imageCount(root, state.url) !== 1) return false;
+    if (imageCount(document.root, state.url) !== 1) return false;
     if (this.retention && this.retained)
       await this.retention.clear(this.retained);
+    this.check(intent);
     this.retained = null;
+    this.set({ kind: "idle" });
     return true;
+  }
+  async insert(
+    insert: (
+      url: string,
+      prompt: string,
+      check: () => void,
+    ) => Promise<SaveReceipt | null>,
+  ) {
+    const url = await this.upload();
+    if (!url || this.ended || this.current.kind !== "saved") return false;
+    const intent = this.intent;
+    const check = () => {
+      if (this.ended || intent !== this.intent)
+        throw new Error("Image document action ended");
+      this.ports.byok.assertSafe(url);
+    };
+    check();
+    const receipt = await insert(url, this.current.prompt, check);
+    check();
+    return !!receipt && this.acknowledge(receipt);
   }
   configure(ports: ImagePorts) {
     this.ports = ports;
@@ -395,14 +431,18 @@ export class ImageFlow {
       });
       return;
     }
+    const ports = this.ports;
     const key = crypto.randomUUID();
     const intent = ++this.intent;
     this.set({ kind: "generating" });
     try {
       await this.pending(key, prompt, "byok");
-      const image = await this.ports.byok.image(reference, prompt);
+      this.check(intent, ports);
+      if (reference !== ports.byok.reference())
+        throw new Error("Image credential changed before dispatch");
+      const image = await ports.byok.image(reference, prompt);
       if (this.ended || intent !== this.intent) return;
-      await this.complete(image, prompt);
+      await this.complete(image, prompt, key);
     } catch {
       if (
         this.ended ||
@@ -427,20 +467,45 @@ export class ImageFlow {
     generationKey?: string,
     operation?: ImageOperation,
   ) {
-    const state = {
-      kind: "completed" as const,
+    const intent = this.intent;
+    const state: Completed & { kind: "completed" } = {
+      durability: "memory_only",
+      kind: "completed",
       image: validateImage(image, this.ports.byok.assertSafe).image,
       prompt,
       uploadId: crypto.randomUUID(),
       generationKey,
       operation,
     };
+    try {
+      await this.retain(state);
+      state.durability = "durable";
+    } catch {
+      /* Safe output remains in memory; the durable pending fence stays unchanged. */
+    }
+    this.check(intent);
     this.set(state);
-    await this.retain(state);
+  }
+  async retryCheckpoint() {
+    const state = this.current;
+    if (this.ended || !("image" in state) || state.kind === "saving") return;
+    const intent = this.intent;
+    try {
+      await this.retain(state);
+      this.check(intent);
+      this.set({ ...state, durability: "durable" });
+    } catch {
+      try {
+        this.check(intent);
+      } catch {
+        return;
+      }
+      this.set({ ...state, durability: "memory_only" });
+    }
   }
   async accept() {
     const quote = this.current;
-    if (quote.kind !== "quote") return;
+    if (this.ended || quote.kind !== "quote") return;
     if (
       this.ports.source().mode !== "pro" ||
       !this.ports.availability().available ||
@@ -452,11 +517,13 @@ export class ImageFlow {
       });
       return;
     }
+    const ports = this.ports;
     const intent = ++this.intent;
     this.set({ kind: "generating" });
     try {
       await this.pending(quote.operationId, quote.prompt, "pro");
-      const image = await this.ports.pro({
+      this.check(intent, ports);
+      const image = await ports.pro({
         idempotencyKey: quote.operationId,
         prompt: quote.prompt,
         acceptedMaximum: quote.maximum,
@@ -492,19 +559,27 @@ export class ImageFlow {
     const state = this.current;
     if (state.kind === "saved") return state.url;
     if (state.kind !== "completed" && state.kind !== "sync_failed") return null;
+    const ports = this.ports;
     const intent = ++this.intent;
     this.set({ ...state, kind: "saving" });
     try {
       await this.retain(state);
+      this.check(intent, ports);
       const image = validateImage(
         state.image,
         this.ports.byok.assertSafe,
       ).image;
       this.ports.byok.assertEgress(JSON.stringify(image));
-      const url = await this.ports.save(state.uploadId, image);
+      const url = await ports.save(state.uploadId, image);
       if (this.ended || intent !== this.intent) return null;
       const saved = { ...state, kind: "saved" as const, url };
-      await this.retain(saved);
+      try {
+        await this.retain(saved);
+        saved.durability = "durable";
+      } catch {
+        saved.durability = "memory_only";
+      }
+      this.check(intent, ports);
       this.set(saved);
       return url;
     } catch (error) {
@@ -518,9 +593,15 @@ export class ImageFlow {
       };
       try {
         await this.retain(retained);
-        this.set(retained);
+        this.check(intent, ports);
+        this.set({ ...retained, durability: "durable" });
       } catch {
-        this.set({ ...state, kind: "sync_failed" });
+        try {
+          this.check(intent, ports);
+        } catch {
+          return null;
+        }
+        this.set({ ...state, kind: "sync_failed", durability: "memory_only" });
       }
       return null;
     }

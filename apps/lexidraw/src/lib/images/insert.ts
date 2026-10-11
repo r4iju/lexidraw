@@ -15,12 +15,15 @@ export async function insertRetainedImage(
   url: string,
   prompt: string,
   persist: (state: EditorState) => Promise<SaveReceipt>,
+  check: () => void = () => {},
 ): Promise<SaveReceipt | null> {
+  check();
   if (!editor.isEditable() || !editor.hasNodes([ImageNode])) return null;
   await new Promise<void>((resolve, reject) => {
     try {
       editor.update(
         () => {
+          check();
           const existing = $nodesOfType(ImageNode).filter(
             (node) => node.getSrc() === url,
           );
@@ -41,5 +44,6 @@ export async function insertRetainedImage(
       reject(error);
     }
   });
+  check();
   return persist(editor.getEditorState());
 }

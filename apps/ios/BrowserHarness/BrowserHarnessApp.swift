@@ -42,7 +42,9 @@ struct BrowserHarnessApp: App {
       Group {
         switch model.state {
         case .signedIn(let session):
-          if BrowserScenario.name == "native-pro-recovery" {
+          if BrowserScenario.name == "ab8-recording" {
+            AB8RecordingFixture()
+          } else if BrowserScenario.name == "native-pro-recovery" {
             NativeProRecoveryFixtureScreen()
           } else if BrowserScenario.name == "chat-migration" {
             NativeChatFixtureScreen()
@@ -873,4 +875,69 @@ private struct NativeChatFixtureScreen: View {
       })
   }
   var body: some View { NativeChatView(flow: flow) }
+}
+
+private struct AB8RecordingFixture: View {
+  @State private var session: Session?
+  @State private var flow: NativeDeviceNarrationFlow?
+  @State private var evidence = "Preparing synthetic retained audio"
+  @State private var playbackCount = 0
+  @State private var listener: Listener?
+  private let points = ResumePoints()
+  var body: some View {
+    VStack {
+      Text(evidence).accessibilityIdentifier("ab8-playback-evidence")
+      if let listener {
+        Button("Ordinary saved Listen") { listener.listen(to: .init(id: "doc", title: "Synthetic"), savedOnly: true) }
+        Text("Ordinary seconds \(listener.position.seconds)").accessibilityIdentifier("ab8-ordinary-position")
+      }
+      if let session, let flow {
+        DeviceNarrationComposer(session: session, document: "doc", flow: flow) { playback in
+          let id = playback.resumeID(file: "doc")
+          let position = points.position(of: id)
+          playbackCount += 1
+          evidence = "Playback \(playbackCount), resume part \(position?.part ?? -1), seconds \(position?.seconds ?? -1), id \(id)"
+        }
+      }
+    }.task {
+      do {
+        let transport = AB8RecordingTransport()
+        guard let session = try Account(origin: URL(string: "https://harness.invalid")!, store: AccountHarnessToken(), transport: transport).restore() else { throw NativeAIError.unavailable }
+        let owner = try NativeArtifactOwner(origin: URL(string: "https://harness.invalid")!, account: "reader", document: "doc", namespace: "narration-v2")
+        let config = URLSessionConfiguration.ephemeral; config.protocolClasses = [NativeAIProviderFixture.self]
+        let runtime = NativeBYOK(store: NarrationHarnessKey(), configuration: config, narrationFixture: true)
+        try runtime.replaceKey("sk-or-v1-286-native-narration-fixture")
+        let root = FileManager.default.temporaryDirectory.appending(path: "ab8-" + UUID().uuidString)
+        let files = NativeDeviceNarrationStore(directory: root, owner: owner)
+        let flow = NativeDeviceNarrationFlow(account: "reader", document: "doc", runtime: runtime, files: files, available: true, resumePoints: points, save: { _, recording in await transport.keep(recording); return "canonical-receipt-ab8" })
+        try await flow.start(text: "Retained synthetic audio")
+        var checkpoint = flow.checkpoint!
+        checkpoint.uploadKey = "distinct-upload-key-ab8"
+        try files.save(checkpoint, expected: checkpoint.revision)
+        try flow.restore()
+        let local = flow.checkpoint!.id
+        points.keep(.init(part: 0, seconds: 0.4), of: "device.\(owner.storageKey).\(local)")
+        await flow.sync()
+        try runtime.removeKey()
+        let reopened = NativeDeviceNarrationFlow(account: "reader", document: "doc", runtime: runtime, files: NativeDeviceNarrationStore(directory: root, owner: owner), available: true, resumePoints: points, save: { _, _ in throw NativeAIError.unavailable })
+        try reopened.restore()
+        self.session = session; self.flow = reopened; self.listener = Listener(session: session)
+        evidence = "Local \(local), upload distinct-upload-key-ab8, receipt canonical-receipt-ab8; expected seconds 0.4"
+      } catch { evidence = "Fixture failed: \(error)" }
+    }
+  }
+}
+private actor AB8RecordingTransport: ClientTransport {
+  var recording: DeviceRecording?
+  func keep(_ value: DeviceRecording) { recording = value }
+  func send(_ request: HTTPRequest, body: HTTPBody?, baseURL: URL, operationID: String) async throws -> (HTTPResponse, HTTPBody?) {
+    let data: Data
+    if operationID == "auth-me" {
+      data = Data(#"{"userId":"reader","name":"Synthetic","email":"synthetic@fixture.test","authKind":"token","scope":"write"}"#.utf8)
+    } else if operationID == "deviceNarration.saved", let recording {
+      let audio = String(decoding: try JSONEncoder().encode(recording), as: UTF8.self)
+      data = Data("{\"result\":{\"data\":{\"json\":{\"id\":\"canonical-receipt-ab8\",\"recording\":\(audio)}}}}".utf8)
+    } else { throw URLError(.unsupportedURL) }
+    return (HTTPResponse(status: .ok), HTTPBody(data))
+  }
 }

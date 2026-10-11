@@ -52,6 +52,7 @@ test("an abandoned account render cannot retire the committed account credential
 test("an old expiry callback cannot clear a newer committed same-account session", async () => {
   const original = window.setTimeout;
   const callbacks: (() => void)[] = [];
+  // This deterministic browser timer omits the host Node timer overload and returns a DOM handle.
   window.setTimeout = ((handler: TimerHandler) => {
     if (typeof handler === "function") callbacks.push(() => handler());
     return callbacks.length;
