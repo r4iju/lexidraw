@@ -2,10 +2,11 @@ import {
   generateSQLiteDrizzleJson,
   type DrizzleSQLiteSnapshotJSON,
 } from "drizzle-kit/api";
-import { readFile, writeFile, rm } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import { resolve, join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { planRetentionSafeMigration } from "./retention-migration.js";
+import { publishGeneration } from "./publish-generation.js";
 
 type Input = {
   previous: DrizzleSQLiteSnapshotJSON;
@@ -25,7 +26,8 @@ type Journal = {
 
 // No configured Kit CLI, dotenv, credentials or database loader is used here.
 // The same mandatory planner is used for offline input and ordinary generation.
-async function main() {
+async function main(signal: AbortSignal) {
+  signal.throwIfAborted();
   const args = process.argv.slice(2);
   const argument = args[1];
   if (args.length === 2 && args[0] === "--offline-input" && argument) {
@@ -67,7 +69,9 @@ async function main() {
     ),
     previous.id,
   );
+  signal.throwIfAborted();
   const plan = await planRetentionSafeMigration(previous, current);
+  signal.throwIfAborted();
   if (!plan.sql.length) {
     console.log("No schema changes");
     return;
@@ -77,45 +81,45 @@ async function main() {
   const tag = `${prefix}_${args[1] ?? "generated"}`;
   const sqlPath = join(folder, `${tag}.sql`);
   const snapshotPath = join(folder, `meta/${prefix}_snapshot.json`);
-  const created: string[] = [];
-  try {
-    await writeFile(
+  journal.entries.push({
+    idx,
+    version: plan.snapshot.version,
+    when: Math.max(Date.now(), last.when + 1),
+    tag,
+    breakpoints: true,
+  });
+  await publishGeneration(
+    {
       sqlPath,
-      `${plan.sql.join("\n--> statement-breakpoint\n")}\n`,
-      { flag: "wx" },
-    );
-    created.push(sqlPath);
-    await writeFile(
       snapshotPath,
-      `${JSON.stringify(plan.snapshot, null, 2)}\n`,
-      { flag: "wx" },
-    );
-    created.push(snapshotPath);
-    journal.entries.push({
-      idx,
-      version: plan.snapshot.version,
-      when: Math.max(Date.now(), last.when + 1),
-      tag,
-      breakpoints: true,
-    });
-    await writeFile(journalPath, `${JSON.stringify(journal, null, 2)}\n`);
-  } catch (error) {
-    for (const file of created) await rm(file);
-    throw error;
-  }
+      journalPath,
+      sql: `${plan.sql.join("\n--> statement-breakpoint\n")}\n`,
+      snapshot: `${JSON.stringify(plan.snapshot, null, 2)}\n`,
+      journal: `${JSON.stringify(journal, null, 2)}\n`,
+    },
+    { signal },
+  );
   console.log(
     `Generated ${tag}; immutable V1 archive metadata carried forward`,
   );
 }
 
+const controller = new AbortController();
+const cancel = () =>
+  controller.abort(new Error("Migration generation cancelled"));
+process.on("SIGINT", cancel);
+process.on("SIGTERM", cancel);
 const timer = setTimeout(() => {
-  console.error(
-    "Migration generation exceeded 60 seconds; no unscoped generation fallback",
+  controller.abort(
+    new Error(
+      "Migration generation exceeded 60 seconds; no unscoped generation fallback",
+    ),
   );
-  process.exit(1);
 }, 60000);
 try {
-  await main();
+  await main(controller.signal);
 } finally {
   clearTimeout(timer);
+  process.removeListener("SIGINT", cancel);
+  process.removeListener("SIGTERM", cancel);
 }

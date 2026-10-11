@@ -6,8 +6,8 @@ import {
   type DrizzleSQLiteSnapshotJSON,
 } from "drizzle-kit/api";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
-import { resolve, join } from "node:path";
-import { pathToFileURL } from "node:url";
+import { resolve, join, dirname } from "node:path";
+import { pathToFileURL, fileURLToPath } from "node:url";
 import { planRetentionSafeMigration } from "../src/generation/retention-migration";
 
 const root = resolve(import.meta.dir, "..");
@@ -114,16 +114,18 @@ test("generation entrypoint stops future archive constraint changes before produ
         "run",
         "--no-env-file",
         "--preload",
-        "/Users/emanuel/.ai/working/lexidraw-276-recovery/evidence/recovery-refuse-network.ts",
+        fileURLToPath(
+          new URL("./fixtures/generation/offline-preload.ts", import.meta.url),
+        ),
         join(root, "src/generation/generate.ts"),
         "--offline-input",
         input,
       ],
       {
         env: {
-          HOME: "/Users/emanuel",
-          PATH: "/Users/emanuel/.bun/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin",
-          TMPDIR: "/tmp",
+          HOME: directory,
+          PATH: dirname(process.execPath),
+          TMPDIR: directory,
           LEXIDRAW_TEST_SYNTHETIC: "1",
         },
         stdout: "pipe",
