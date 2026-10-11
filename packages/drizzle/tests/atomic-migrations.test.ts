@@ -39,8 +39,9 @@ test("empty original 0002 inspection excludes competing file writes, commits ori
   const resume = signal();
   let running: Promise<void> | undefined;
   try {
-    // WAL prevents the observer's retained read snapshot from blocking commit.
-    await competitor.executeMultiple("PRAGMA journal_mode=WAL");
+    expect(
+      (await competitor.execute("PRAGMA journal_mode")).rows[0]?.journal_mode,
+    ).toBe("delete");
     for (const name of ["schema.sql", "rows.sql"]) {
       const contents = await readFile(join(fixture, name), "utf8");
       for (const statement of contents.split("--> statement-breakpoint"))
@@ -76,7 +77,7 @@ test("empty original 0002 inspection excludes competing file writes, commits ori
     );
     let competingError: unknown;
     try {
-      await competitor.execute(
+      await competitor.executeMultiple(
         "INSERT INTO Document VALUES ('race','race','{}',1,1,NULL,'user-atomic','private')",
       );
     } catch (error) {
