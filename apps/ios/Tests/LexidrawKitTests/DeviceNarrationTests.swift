@@ -287,3 +287,123 @@ extension DeviceNarrationTests {
     #expect(flow.checkpoint?.revision != durable.revision)
   }
 }
+
+@MainActor private struct ContinuationFixture {
+  let runtime: NativeBYOK
+  let files: NativeDeviceNarrationStore
+  let original: DeviceNarrationCheckpoint
+  init(directory: URL, created: Date, pending: [String]) async throws {
+    let config = URLSessionConfiguration.ephemeral
+    config.protocolClasses = [SpeechProbe.self]
+    runtime = NativeBYOK(store: NarrationKey(), configuration: config, narrationFixture: true)
+    try runtime.replaceKey("synthetic-continuation-fixture-key")
+    let retained = try await runtime.narrate(text: "Retained chapter", reference: runtime.credentialReference())
+    files = NativeDeviceNarrationStore(directory: directory)
+    original = DeviceNarrationCheckpoint(version: 1, account: "alice", document: "doc",
+      id: "retained-continuation", created: created, status: "paused",
+      parts: [.init(kind: .completed, text: "Retained chapter", output: retained)]
+        + pending.map { .init(kind: .pending, text: $0, output: nil) }, fingerprints: Data())
+    try files.save(original)
+    SpeechProbe.requests.withLock { $0 = [] }
+  }
+  func expectRetained(_ value: DeviceNarrationCheckpoint?) throws {
+    let value = try #require(value)
+    #expect(value.id == original.id)
+    #expect(value.created == original.created)
+    #expect(value.parts.first?.output?.audio == original.parts.first?.output?.audio)
+    #expect(value.parts.first?.output?.seconds == original.parts.first?.output?.seconds)
+  }
+}
+
+extension DeviceNarrationTests {
+  @Test func oldCheckpointResumesOnlyPendingAndRetainsOriginalAudio() async throws {
+    let directory = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let fixture = try await ContinuationFixture(directory: directory,
+      created: Date().addingTimeInterval(-3 * 24 * 60 * 60), pending: ["Pending chapter"])
+    let flow = NativeDeviceNarrationFlow(account: "alice", document: "doc", runtime: fixture.runtime,
+      files: fixture.files, available: true, save: { _, _ in "unused" })
+    try flow.restore()
+    #expect(flow.checkpoint?.status == "paused")
+    try fixture.expectRetained(flow.checkpoint)
+    try await flow.resume()
+    #expect(flow.checkpoint?.status == "completed")
+    #expect(flow.checkpoint?.parts.last?.kind == .completed)
+    #expect(flow.notice == nil)
+    try fixture.expectRetained(flow.checkpoint)
+    try fixture.expectRetained(try fixture.files.load())
+    try await flow.resume()
+    #expect(SpeechProbe.requests.withLock { $0.count } == 1)
+  }
+}
+
+@MainActor private final class ContinuationClock {
+  var instant = Date()
+  var advance: (() -> Bool)?
+  func read() -> Date {
+    if advance?() == true {
+      instant = instant.addingTimeInterval(1201)
+      advance = nil
+    }
+    return instant
+  }
+}
+
+extension DeviceNarrationTests {
+  @Test func expiredContinuationPausesBeforeNextPartAndLaterResumeRenewsBound() async throws {
+    let directory = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let clock = ContinuationClock()
+    let fixture = try await ContinuationFixture(directory: directory, created: clock.instant,
+      pending: ["First pending chapter", "Second pending chapter"])
+    let flow = NativeDeviceNarrationFlow(account: "alice", document: "doc", runtime: fixture.runtime,
+      files: fixture.files, available: true, now: { clock.read() }, save: { _, _ in "unused" })
+    try flow.restore()
+    clock.advance = { (try? fixture.files.load())?.parts[1].kind == .completed }
+    try await flow.resume()
+    #expect(flow.checkpoint?.status == "paused")
+    #expect(flow.checkpoint?.parts[1].kind == .completed)
+    #expect(flow.checkpoint?.parts[2].kind == .pending)
+    #expect(flow.notice == "Continuation paused after 20 minutes. Completed audio is retained. Resume explicitly to continue pending parts.")
+    #expect(try fixture.files.load()?.status == "paused")
+    #expect(SpeechProbe.requests.withLock { $0.count } == 1)
+    try fixture.expectRetained(flow.checkpoint)
+    let firstOutput = try #require(flow.checkpoint?.parts[1].output)
+    clock.instant = clock.instant.addingTimeInterval(3 * 24 * 60 * 60)
+    try await flow.resume()
+    #expect(flow.checkpoint?.status == "completed")
+    #expect(flow.checkpoint?.parts[1].output?.audio == firstOutput.audio)
+    #expect(flow.notice == nil)
+    #expect(SpeechProbe.requests.withLock { $0.count } == 2)
+    try fixture.expectRetained(try fixture.files.load())
+  }
+}
+
+extension DeviceNarrationTests {
+  @Test func expiryAfterStartedPersistenceReturnsUndispatchedPartToPending() async throws {
+    let directory = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let clock = ContinuationClock()
+    let fixture = try await ContinuationFixture(directory: directory, created: clock.instant,
+      pending: ["Undispatched chapter"])
+    let flow = NativeDeviceNarrationFlow(account: "alice", document: "doc", runtime: fixture.runtime,
+      files: fixture.files, available: true, now: { clock.read() }, save: { _, _ in "unused" })
+    try flow.restore()
+    clock.advance = { (try? fixture.files.load())?.parts[1].kind == .started }
+    try await flow.resume()
+    #expect(flow.checkpoint?.status == "paused")
+    #expect(flow.checkpoint?.parts[1].kind == .pending)
+    #expect(flow.notice == "Continuation paused after 20 minutes. Completed audio is retained. Resume explicitly to continue pending parts.")
+    #expect(SpeechProbe.requests.withLock { $0.isEmpty })
+    let durable = try #require(try fixture.files.load())
+    #expect(durable.status == "paused")
+    #expect(durable.parts[1].kind == .pending)
+    try fixture.expectRetained(durable)
+    clock.instant = clock.instant.addingTimeInterval(3 * 24 * 60 * 60)
+    try await flow.resume()
+    #expect(flow.checkpoint?.status == "completed")
+    #expect(flow.notice == nil)
+    #expect(SpeechProbe.requests.withLock { $0.count } == 1)
+    try fixture.expectRetained(try fixture.files.load())
+  }
+}

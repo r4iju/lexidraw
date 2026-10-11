@@ -174,6 +174,7 @@ public struct DeviceNarrationCheckpoint: Codable, Sendable {
   private let account: String, document: String
   private let runtime: NativeBYOK
   private let files: NativeDeviceNarrationStore
+  private let now: () -> Date
   public let available: Bool
   private let resumePoints: ResumePoints
   private let save: (String, DeviceRecording) async throws -> String
@@ -182,12 +183,13 @@ public struct DeviceNarrationCheckpoint: Codable, Sendable {
   public var keyAvailable: Bool { runtime.hasKey }
   public init(
     account: String, document: String, runtime: NativeBYOK, files: NativeDeviceNarrationStore,
-    available: Bool = false, resumePoints: ResumePoints = ResumePoints(), save: @escaping (String, DeviceRecording) async throws -> String
+    available: Bool = false, resumePoints: ResumePoints = ResumePoints(), now: @escaping () -> Date = Date.init, save: @escaping (String, DeviceRecording) async throws -> String
   ) {
     self.account = account
     self.document = document
     self.runtime = runtime
     self.files = files
+    self.now = now
     self.available = available
     self.resumePoints = resumePoints
     self.save = save
@@ -245,16 +247,21 @@ public struct DeviceNarrationCheckpoint: Codable, Sendable {
   public func resume() async throws {
     try active()
     guard !busy, !memoryOnly, available, runtime.hasKey, var value = checkpoint,
-      value.created.timeIntervalSinceNow >= -1200,
       !value.parts.contains(where: { $0.kind == .started || $0.kind == .unknown }),
       value.recording == nil
     else { return }
     let reference = try runtime.credentialReference()
+    let continuationStarted = now()
     busy = true
     notice = nil
     defer { busy = false }
+    let expirationNotice = "Continuation paused after 20 minutes. Completed audio is retained. Resume explicitly to continue pending parts."
     for index in value.parts.indices where value.parts[index].kind == .pending {
       try active()
+      guard now().timeIntervalSince(continuationStarted) < 1200 else {
+        notice = expirationNotice
+        break
+      }
       guard runtime.isCurrent(reference) else {
         notice = "Your key changed. Completed audio is retained. Resume explicitly to use the current key."
         break
@@ -262,6 +269,11 @@ public struct DeviceNarrationCheckpoint: Codable, Sendable {
       value.parts[index].kind = .started
       value.status = "running"
       try persist(value)
+      guard now().timeIntervalSince(continuationStarted) < 1200 else {
+        value.parts[index].kind = .pending
+        notice = expirationNotice
+        break
+      }
       guard runtime.isCurrent(reference) else {
         value.parts[index].kind = .pending
         break
