@@ -1,3 +1,4 @@
+import { generatedThumbnailProcedures } from "~/server/entities/generated-thumbnail";
 import { queueThumbnail } from "~/server/entities/queue-thumbnail";
 import { z } from "zod";
 import {
@@ -448,6 +449,7 @@ function createdContent(input: CreateEntity) {
 }
 
 export const entityRouter = createTRPCRouter({
+  ...generatedThumbnailProcedures,
   create: protectedProcedure
     .meta({
       openapi: {

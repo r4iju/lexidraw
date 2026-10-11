@@ -3,7 +3,7 @@
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import type React from "react";
-import { useState } from "react";
+import { useState, useEffect, useLayoutEffect, useRef } from "react";
 import { Button } from "~/components/ui/button";
 import {
   Dialog,
@@ -17,12 +17,16 @@ import {
 import { Input } from "~/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { toast } from "sonner";
-import { useImageGeneration } from "~/hooks/use-image-generation";
+import {
+  useImageGeneration,
+  type GeneratedImageOutcome,
+} from "~/hooks/use-image-generation";
 import { useUnsplashImage } from "~/hooks/use-image-insertion";
 import { Skeleton } from "~/components/ui/skeleton";
 import { api } from "~/trpc/react";
 import type { RouterOutputs } from "~/trpc/shared";
 import { revalidateDashboard } from "../server-actions";
+import { loadThumbnailSource } from "~/lib/images/thumbnail-source";
 import { put } from "@vercel/blob/client";
 
 type Props = {
@@ -31,10 +35,46 @@ type Props = {
   onOpenChange: (open: boolean) => void;
 };
 
-const ThumbnailModal = ({ entity, isOpen, onOpenChange }: Props) => {
-  const [selectedThumbnail, setSelectedThumbnail] = useState<string | null>(
-    entity.screenShotLight ?? null,
+type Draft =
+  | { kind: "existing" | "search"; url: string }
+  | { kind: "file"; url: string; file: File }
+  | {
+      kind: "generated";
+      url: string;
+      result: Extract<GeneratedImageOutcome, { kind: "completed" }>;
+    };
+
+const ThumbnailModal = (props: Props) => {
+  const { owner } = useImageGeneration();
+  return props.isOpen ? (
+    <ThumbnailDraft key={JSON.stringify([props.entity.id, owner])} {...props} />
+  ) : null;
+};
+const ThumbnailDraft = ({ entity, isOpen, onOpenChange }: Props) => {
+  const [draft, setDraft] = useState<Draft>({
+    kind: "existing",
+    url: entity.screenShotLight ?? "",
+  });
+  const intent = useRef(0);
+  // The mounted modal owns its asynchronous selection lifetime.
+  useLayoutEffect(
+    () => () => {
+      intent.current++;
+    },
+    [],
   );
+  // Blob URLs belong to this draft preview, independently of retained image bytes.
+  useEffect(
+    () => () => {
+      if (draft.kind === "generated" || draft.kind === "file")
+        URL.revokeObjectURL(draft.url);
+    },
+    [draft],
+  );
+  const close = (open: boolean) => {
+    if (!open) intent.current++;
+    onOpenChange(open);
+  };
   const { mutate: generateTokens } =
     api.snapshot.generateClientUploadTokens.useMutation();
   const { mutate: updateEntity } = api.entities.update.useMutation();
@@ -42,7 +82,9 @@ const ThumbnailModal = ({ entity, isOpen, onOpenChange }: Props) => {
   const [generateQuery, setGenerateQuery] = useState<string>("");
   const {
     generateImageData,
-    uploadImageData,
+    previewRetainedImage,
+    saveThumbnail,
+    retained,
     isLoading: isGenerating,
   } = useImageGeneration();
   const { searchImage, isLoading: isSearching } = useUnsplashImage();
@@ -51,25 +93,29 @@ const ThumbnailModal = ({ entity, isOpen, onOpenChange }: Props) => {
 
   const handleSearch = async (event: React.FormEvent) => {
     event.preventDefault();
+    const selection = ++intent.current;
     const image = await searchImage(searchQuery);
-    if (image) {
-      setSelectedThumbnail(image.url);
+    if (image && selection === intent.current) {
+      setDraft({ kind: "search", url: image.url });
     }
   };
 
-  const handleGenerate = async (event: React.FormEvent) => {
-    event.preventDefault();
-    const image = await generateImageData(generateQuery);
-    if (!image) {
-      toast.error("Couldn’t generate an image. Try again.");
+  const chooseGenerated = (result: GeneratedImageOutcome | null) => {
+    if (!result || result.kind === "declined") return;
+    if (result.kind !== "completed") {
+      toast.error(result.message);
       return;
     }
-    const url = await uploadImageData(
-      image.imageData,
-      image.mimeType,
-      generateQuery,
+    const url = URL.createObjectURL(
+      new Blob([new Uint8Array(result.imageData)], { type: result.mimeType }),
     );
-    if (url) setSelectedThumbnail(url);
+    setDraft({ kind: "generated", url, result });
+  };
+  const handleGenerate = async (event: React.FormEvent) => {
+    event.preventDefault();
+    const selection = ++intent.current;
+    const result = await generateImageData(generateQuery);
+    if (selection === intent.current) chooseGenerated(result);
   };
 
   const handleSelectFile = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -78,41 +124,51 @@ const ThumbnailModal = ({ entity, isOpen, onOpenChange }: Props) => {
       return;
     }
     const url = URL.createObjectURL(file);
-    setSelectedThumbnail(url);
+    intent.current++;
+    setDraft({ kind: "file", url, file });
   };
-
-  const allowedTypes = [
-    "image/svg+xml",
-    "image/jpeg",
-    "image/png",
-    "image/webp",
-    "image/avif",
-  ] as const;
-  type AllowedContentType = (typeof allowedTypes)[number];
 
   /** common for all upload methods */
   const handleUpload = async () => {
-    if (!selectedThumbnail) return;
-
-    const res = await fetch(selectedThumbnail);
-    if (!res.ok) {
-      toast.error("Couldn’t load that image. Pick another one.");
+    if (!draft.url) return;
+    if (draft.kind === "generated") {
+      const selection = intent.current;
+      setIsUploading(true);
+      try {
+        if (!(await saveThumbnail(draft.result.identity)))
+          throw Error("Thumbnail save did not confirm this retained image.");
+        if (selection !== intent.current) return;
+        toast.success(`Changed the thumbnail of “${entity.title}”.`);
+        await revalidateDashboard();
+        router.refresh();
+        close(false);
+      } catch {
+        if (selection === intent.current)
+          toast.error(
+            "Thumbnail save failed. Your image is retained; retry Save without generating again.",
+          );
+      } finally {
+        if (selection === intent.current) setIsUploading(false);
+      }
       return;
     }
-    const blob = await res.blob();
 
-    if (!allowedTypes.includes(blob.type as AllowedContentType)) {
-      toast.error("That image type isn’t supported", {
-        description: `Unsupported type: ${blob.type || "unknown"}`,
-      });
+    let source: Awaited<ReturnType<typeof loadThumbnailSource>>;
+    try {
+      source = await loadThumbnailSource(draft.url);
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Couldn’t load that image.",
+      );
       return;
     }
+    const { blob, contentType } = source;
 
     setIsUploading(true);
 
     /* 1️⃣  get upload tokens (one for dark & light) */
     generateTokens(
-      { entityId: entity.id, contentType: blob.type as AllowedContentType },
+      { entityId: entity.id, contentType },
       {
         onError: (e) => {
           toast.error("Couldn’t upload the thumbnail. Try again.", {
@@ -156,11 +212,10 @@ const ThumbnailModal = ({ entity, isOpen, onOpenChange }: Props) => {
             toast.success(`Changed the thumbnail of “${entity.title}”.`);
             await revalidateDashboard();
             router.refresh();
-            onOpenChange(false);
+            close(false);
           } catch (e) {
-            console.error("Error uploading thumbnail in icon-modal.tsx", e);
             toast.error("Couldn’t upload the thumbnail. Try again.", {
-              description: (e as Error).message,
+              description: e instanceof Error ? e.message : "Unknown error",
             });
           } finally {
             setIsUploading(false);
@@ -171,7 +226,7 @@ const ThumbnailModal = ({ entity, isOpen, onOpenChange }: Props) => {
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={onOpenChange}>
+    <Dialog open={isOpen} onOpenChange={close}>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Change Thumbnail</DialogTitle>
@@ -241,7 +296,8 @@ const ThumbnailModal = ({ entity, isOpen, onOpenChange }: Props) => {
               <Skeleton className="aspect-square w-full max-w-64" />
             ) : (
               <Image
-                src={selectedThumbnail ?? ""}
+                src={draft.url}
+                unoptimized={draft.url.startsWith("/api/generated-images/")}
                 alt="Thumbnail"
                 width={100}
                 height={100}
@@ -250,14 +306,22 @@ const ThumbnailModal = ({ entity, isOpen, onOpenChange }: Props) => {
             )}
           </div>
         </div>
+        {retained && (
+          <Button
+            onClick={() => {
+              intent.current++;
+              chooseGenerated(previewRetainedImage());
+            }}
+          >
+            Use retained image
+          </Button>
+        )}
         <DialogFooter>
           <DialogClose asChild>
             <Button variant="ghost">Cancel</Button>
           </DialogClose>
           <Button
-            disabled={
-              isUploading || selectedThumbnail === entity.screenShotLight
-            }
+            disabled={isUploading || draft.kind === "existing"}
             onClick={handleUpload}
             pending={isUploading}
           >

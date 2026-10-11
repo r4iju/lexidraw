@@ -95,6 +95,15 @@ mock.module("~/trpc/react", () => ({
         }),
       },
     },
+    entities: {
+      commitGeneratedThumbnail: {
+        useMutation: () => ({
+          mutateAsync: async () => {
+            throw Error("No thumbnail commit in this recovery fixture");
+          },
+        }),
+      },
+    },
     imagePower: {
       capability: {
         useQuery: () => ({

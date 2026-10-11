@@ -1,3 +1,4 @@
+import { ThumbnailReceipt } from "./thumbnail-receipt";
 import { z } from "zod";
 import { Operation } from "~/server/pro/contracts";
 export const ImageOperation = Operation.pick({
@@ -32,7 +33,7 @@ type Completed = {
   operation?: ImageOperation;
 };
 export type ImageState =
-  | { kind: "idle" }
+  | { kind: "idle" | "declined" }
   | { kind: "unavailable" | "failed"; message: string }
   | {
       kind: "quote";
@@ -339,18 +340,35 @@ export class ImageFlow {
       /* Cancellation is unconfirmed; preserve the original paid fence. */
     }
   }
-  async acknowledge(receipt: SaveReceipt) {
+  async commitThumbnail(
+    identity: string,
+    entityId: string,
+    previousRevision: number | null,
+    commit: () => Promise<unknown>,
+  ) {
+    const url = await this.upload(identity);
     const state = this.current;
-    if (this.ended || state.kind !== "saved" || receipt.kind !== "saved")
+    if (!url || state.kind !== "saved" || state.uploadId !== identity)
       return false;
     const intent = this.intent;
-    let document: z.infer<typeof ReceiptDocument>;
-    try {
-      document = ReceiptDocument.parse(JSON.parse(receipt.elements));
-    } catch {
+    const parsed = ThumbnailReceipt.safeParse(await commit());
+    this.check(intent);
+    if (!parsed.success) return false;
+    const receipt = parsed.data;
+    if (
+      receipt.entityId !== entityId ||
+      receipt.uploadId !== identity ||
+      receipt.revision <= (previousRevision ?? 0) ||
+      new URL(receipt.light, url).href !== url ||
+      new URL(receipt.dark, url).href !== url
+    )
       return false;
-    }
-    if (imageCount(document.root, state.url) !== 1) return false;
+    return this.clearSaved(state, intent);
+  }
+  private clearSaved(
+    state: Extract<ImageState, { kind: "saved" }>,
+    intent: number,
+  ) {
     return this.persist(async () => {
       this.check(intent);
       const current = this.current;
@@ -373,6 +391,21 @@ export class ImageFlow {
       return true;
     });
   }
+  async acknowledge(receipt: SaveReceipt) {
+    const state = this.current;
+    if (this.ended || state.kind !== "saved" || receipt.kind !== "saved")
+      return false;
+    const intent = this.intent;
+    let document: z.infer<typeof ReceiptDocument>;
+    try {
+      document = ReceiptDocument.parse(JSON.parse(receipt.elements));
+    } catch {
+      return false;
+    }
+    if (imageCount(document.root, state.url) !== 1) return false;
+    return this.clearSaved(state, intent);
+  }
+
   async insert(
     insert: (
       url: string,
@@ -408,7 +441,7 @@ export class ImageFlow {
     for (const listener of this.listeners) listener();
   }
   decline() {
-    if (this.current.kind === "quote") this.set({ kind: "idle" });
+    if (this.current.kind === "quote") this.set({ kind: "declined" });
   }
   async generate(prompt: string) {
     await this.restore();
@@ -594,10 +627,15 @@ export class ImageFlow {
       });
     }
   }
-  async upload(): Promise<string | null> {
+  async upload(identity?: string): Promise<string | null> {
     await this.restore();
     if (this.ended) return null;
     const state = this.current;
+    if (
+      identity !== undefined &&
+      (!("uploadId" in state) || state.uploadId !== identity)
+    )
+      return null;
     if (state.kind === "saved") return state.url;
     if (state.kind !== "completed" && state.kind !== "sync_failed") return null;
     const ports = this.ports;

@@ -79,6 +79,15 @@ mock.module("~/trpc/react", () => ({
         }),
       },
     },
+    entities: {
+      commitGeneratedThumbnail: {
+        useMutation: () => ({
+          mutateAsync: async () => {
+            throw Error("No thumbnail commit in this recovery fixture");
+          },
+        }),
+      },
+    },
     imagePower: {
       capability: {
         useQuery: () => ({
@@ -309,7 +318,7 @@ test("key rotation while image admission is checkpointing settles the UI without
   expect(document.body.textContent).toContain(
     "original image outcome is uncertain",
   );
-  expect(await running).toBeNull();
+  expect(await running).toMatchObject({ kind: "uncertain" });
   deferred = undefined;
   enabled = false;
   await view.unmount();

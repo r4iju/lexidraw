@@ -26,6 +26,10 @@ import type { SaveReceipt } from "~/lib/open-entity-sync";
 import { insertRetainedImage } from "~/lib/images/insert";
 import { queryAccess } from "~/lib/generation/query-access";
 import { powerPreference } from "~/lib/byok/preference";
+import {
+  ThumbnailSnapshot,
+  ThumbnailReceipt,
+} from "~/lib/images/thumbnail-receipt";
 import { ImageFlow, type ImageState } from "~/lib/images/flow";
 import { validateImage } from "~/lib/images/contracts";
 import { Button } from "~/components/ui/button";
@@ -42,6 +46,17 @@ export type ImageGenerationAccess =
   | { kind: "loading" | "error" | "unavailable"; message: string }
   | { kind: "ready" };
 
+export type GeneratedImageOutcome =
+  | {
+      kind: "completed";
+      identity: string;
+      imageData: Uint8Array;
+      mimeType: string;
+      prompt: string;
+    }
+  | { kind: "declined" }
+  | { kind: "unavailable" | "uncertain" | "failed"; message: string };
+
 type ImageGenerationContextValue = {
   access: ImageGenerationAccess;
   retryAccess: () => void;
@@ -56,19 +71,14 @@ type ImageGenerationContextValue = {
   ) => Promise<boolean>;
   isConfigured: boolean;
   isLoading: boolean;
+  saveThumbnail: (identity: string) => Promise<boolean>;
+  owner: string;
+  previewRetainedImage: () => GeneratedImageOutcome | null;
   generateImageData: (
     prompt: string,
     options?: { size?: "256x256" | "512x512" | "1024x1024" },
-  ) => Promise<{
-    imageData: Uint8Array;
-    mimeType: string;
-    prompt: string;
-  } | null>;
-  uploadImageData: (
-    imageData: Uint8Array,
-    mimeType: string,
-    prompt: string,
-  ) => Promise<string | null>;
+  ) => Promise<GeneratedImageOutcome>;
+  uploadImageData: (identity: string) => Promise<string | null>;
 };
 const ImageGenerationContext =
   createContext<ImageGenerationContextValue | null>(null);
@@ -178,6 +188,9 @@ export function ImageGenerationProvider({
     onSettled: () => utils.pro.status.invalidate(),
   });
   const save = api.imagePower.save.useMutation({
+    onSuccess: () => utils.entities.invalidate(),
+  });
+  const commitThumbnail = api.entities.commitGeneratedThumbnail.useMutation({
     onSuccess: () => utils.entities.invalidate(),
   });
   const cancel = api.imagePower.cancel.useMutation({
@@ -328,52 +341,104 @@ export function ImageGenerationProvider({
   const state = useSyncExternalStore(flow.subscribe, flow.state, flow.state);
   const isConfigured = generationAccess.kind === "ready";
   const isLoading = ["quote", "generating", "saving"].includes(state.kind);
+  const previewRetainedImage = useCallback((): GeneratedImageOutcome | null => {
+    const final = flow.state();
+    if (!completed(final) || !("image" in final)) return null;
+    const result = validateImage(final.image, assertOwner().assertSafe);
+    return {
+      kind: "completed",
+      identity: final.uploadId,
+      imageData: result.bytes,
+      mimeType: result.image.mimeType,
+      prompt: final.prompt,
+    };
+  }, [flow, assertOwner]);
   const generateImageData = useCallback(
     async (
       prompt: string,
       options?: { size?: "256x256" | "512x512" | "1024x1024" },
-    ) => {
-      if (options?.size && options.size !== "1024x1024") {
-        toast.error("Only the tuned image configuration is supported.");
-        return null;
-      }
-      if (!isConfigured) {
-        toast.error(generationAccess.message);
-        return null;
-      }
-      await flow.generate(prompt);
-      const final = await waitFor(
-        flow,
-        (x) => !["quote", "generating"].includes(x.kind),
-      );
-      if (!completed(final)) {
+    ): Promise<GeneratedImageOutcome> => {
+      if (options?.size && options.size !== "1024x1024")
+        return {
+          kind: "unavailable",
+          message: "Only the tuned image configuration is supported.",
+        };
+      if (generationAccess.kind !== "ready")
+        return { kind: "unavailable", message: generationAccess.message };
+      try {
+        await flow.generate(prompt);
+        const final = await waitFor(
+          flow,
+          (x) => !["quote", "generating"].includes(x.kind),
+        );
+        const result = previewRetainedImage();
+        if (result) return result;
         if (final.kind === "failed" || final.kind === "unavailable")
-          toast.error(final.message);
-        return null;
+          return final;
+        if (final.kind === "uncertain")
+          return {
+            kind: "uncertain",
+            message:
+              "The original image outcome is uncertain. Check recovery before generating again.",
+          };
+        if (final.kind === "declined") return { kind: "declined" };
+        return {
+          kind: "failed",
+          message:
+            "Image action ended. Check retained recovery before generating again.",
+        };
+      } catch {
+        return {
+          kind: "failed",
+          message:
+            "Image action ended. Check retained recovery before generating again.",
+        };
       }
-      if (!("image" in final)) return null;
-      const result = validateImage(final.image, assertOwner().assertSafe);
-      return {
-        imageData: result.bytes,
-        mimeType: result.image.mimeType,
-        prompt: final.prompt,
-      };
     },
-    [flow, isConfigured, generationAccess, assertOwner],
+    [flow, generationAccess, previewRetainedImage],
   );
-  const uploadImageData = useCallback(async () => {
-    const url = await flow.upload();
-    if (url) return url;
-    if (flow.state().kind !== "sync_failed") return null;
-    const final = await waitFor(
-      flow,
-      (x) => x.kind === "saved" || x.kind === "idle",
-    );
-    return final.kind === "saved" ? final.url : null;
-  }, [flow]);
+  const uploadImageData = useCallback(
+    (identity: string) => flow.upload(identity),
+    [flow],
+  );
   return (
     <ImageGenerationContext.Provider
       value={{
+        saveThumbnail: async (identity) => {
+          assertOwner();
+          const expected = ThumbnailSnapshot.parse(
+            await utils.entities.generatedThumbnail.fetch({ entityId }),
+          );
+          assertOwner();
+          return flow.commitThumbnail(
+            identity,
+            entityId,
+            expected.revision,
+            async (): Promise<ThumbnailReceipt | null> => {
+              assertOwner();
+              const receipt = await commitThumbnail.mutateAsync({
+                entityId,
+                uploadId: identity,
+                expected,
+              });
+              assertOwner();
+              const parsed = ThumbnailReceipt.parse(receipt);
+              const current = ThumbnailSnapshot.parse(
+                await utils.entities.generatedThumbnail.fetch({ entityId }),
+              );
+              assertOwner();
+              if (
+                current.light !== parsed.light ||
+                current.dark !== parsed.dark ||
+                current.revision !== parsed.revision
+              )
+                return null;
+              return parsed;
+            },
+          );
+        },
+        owner: JSON.stringify([entityId, accountId, generation]),
+        previewRetainedImage,
         access: generationAccess,
         retryAccess,
         isConfigured,
@@ -551,7 +616,10 @@ export const LexicalImageGenerationProvider = ({
       toast.info("Generating Image...", { description: prompt });
       try {
         const gen = await generateImageData(prompt, options);
-        if (!gen) return;
+        if (gen.kind !== "completed") {
+          if (gen.kind !== "declined") toast.error(gen.message);
+          return;
+        }
         await insertAndAcknowledge();
       } catch (err) {
         toast.error("Process Failed", {

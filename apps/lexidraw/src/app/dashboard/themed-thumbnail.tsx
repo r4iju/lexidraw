@@ -38,6 +38,7 @@ export function ThemedThumbnail({
   const image = (src: string, theme: string) => (
     <Image
       src={src}
+      unoptimized={src.startsWith("/api/generated-images/")}
       alt={alt}
       fill
       sizes={sizes}
