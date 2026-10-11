@@ -8,6 +8,8 @@ export const ChatStreamInput = z.strictObject({
 export function createChatStreamRoute(deps: {
   authorize: (request: Request) => Promise<string | null>;
   chat: () => ProChat;
+  /** Extends the host's request lifetime so a run outlives a dropped subscriber. */
+  retain: (work: Promise<unknown>) => void;
 }) {
   return async (request: Request) => {
     const account = await deps.authorize(request);
@@ -53,20 +55,28 @@ export function createChatStreamRoute(deps: {
       return new Response("Chat unavailable", { status: 503 });
     }
     const encoder = new TextEncoder();
-    let connected = true;
-    const cancel = () => {
-      connected = false;
-      void chat.ledger.cancel(account, parsed.data.id).catch(() => {});
+    // A dropped connection only detaches this subscriber. The provider run and its settlement continue; only the cancel endpoint stops paid work.
+    let subscriber: ReadableStreamDefaultController<Uint8Array> | undefined;
+    const detach = () => {
+      subscriber = undefined;
     };
-    request.signal.addEventListener("abort", cancel, { once: true });
+    const send = (event: unknown) => {
+      try {
+        subscriber?.enqueue(encoder.encode(JSON.stringify(event) + "\n"));
+      } catch {
+        detach();
+      }
+    };
     const stream = new ReadableStream<Uint8Array>({
-      async start(controller) {
-        const send = (event: unknown) => {
-          if (connected)
-            controller.enqueue(encoder.encode(JSON.stringify(event) + "\n"));
-        };
+      start(controller) {
+        subscriber = controller;
+      },
+      cancel: detach,
+    });
+    request.signal.addEventListener("abort", detach, { once: true });
+    deps.retain(
+      (async () => {
         try {
-          if (request.signal.aborted) cancel();
           const result = await chat.stream(
             account,
             parsed.data.id,
@@ -81,12 +91,16 @@ export function createChatStreamRoute(deps: {
               "Chat could not complete. Check the existing operation; no automatic repeat was performed.",
           });
         } finally {
-          request.signal.removeEventListener("abort", cancel);
-          if (connected) controller.close();
+          request.signal.removeEventListener("abort", detach);
+          try {
+            subscriber?.close();
+          } catch {
+            detach();
+          }
+          detach();
         }
-      },
-      cancel,
-    });
+      })(),
+    );
     return new Response(stream, {
       headers: {
         "Content-Type": "application/x-ndjson",

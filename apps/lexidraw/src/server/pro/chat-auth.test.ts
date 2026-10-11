@@ -178,6 +178,7 @@ test("uncertain cancelled chat remains reserved and replay never repeats paid di
     const route = createChatStreamRoute({
       authorize: async () => "alice",
       chat: () => f.chat,
+      retain: () => {},
     });
     const response = await route(
       new Request("https://app.test/api/chat/stream", {
@@ -195,6 +196,7 @@ test("uncertain cancelled chat remains reserved and replay never repeats paid di
     const denied = createChatStreamRoute({
       authorize: async () => null,
       chat: () => f.chat,
+      retain: () => {},
     });
     expect(
       (
@@ -579,5 +581,210 @@ test("legacy higher-rate chat recovery reconstructs its known dispatch bound ins
     ).toBe(10752000);
   } finally {
     f.client.close();
+  }
+});
+
+function deferredProvider() {
+  const encoder = new TextEncoder();
+  let upstream: ReadableStreamDefaultController<Uint8Array> | undefined;
+  let observed: AbortSignal | undefined;
+  let requests = 0;
+  const body = new ReadableStream<Uint8Array>({
+    start(controller) {
+      upstream = controller;
+    },
+  });
+  return {
+    requests: () => requests,
+    aborted: () => observed?.aborted,
+    send(event: unknown) {
+      try {
+        upstream?.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`));
+      } catch {
+        // The transport already cancelled its reader.
+      }
+    },
+    end() {
+      try {
+        upstream?.close();
+      } catch {
+        // The transport already cancelled its reader.
+      }
+    },
+    fetch: async (request: Request) => {
+      requests++;
+      observed = request.signal;
+      return new Response(body, {
+        headers: { "Content-Type": "text/event-stream" },
+      });
+    },
+  };
+}
+const delta = (text: string) => ({
+  type: "response.output_text.delta",
+  delta: text,
+});
+const completed = {
+  type: "response.completed",
+  response: {
+    id: "detached",
+    status: "completed",
+    usage: {
+      input_tokens: 100,
+      input_tokens_details: { cached_tokens: 0 },
+      output_tokens: 4,
+    },
+  },
+};
+async function detachedStream() {
+  const provider = deferredProvider();
+  const retained: Promise<unknown>[] = [];
+  const unhandled: unknown[] = [];
+  const track = (reason: unknown) => unhandled.push(reason);
+  process.on("unhandledRejection", track);
+  const { createProChatTransport } = await import("./chat-provider");
+  let f: Awaited<ReturnType<typeof fixture>>;
+  f = await fixture(
+    createProChatTransport({
+      authorize: async (scope) =>
+        f.ledger.authorizeDispatch(
+          scope.operationId,
+          scope.attemptId,
+          scope.accountId,
+        ),
+      resolveServerKey: () => "synthetic-only",
+      fetch: provider.fetch,
+    }),
+  );
+  const input = { prompt: "Hello" };
+  const op = await f.caller.chatAccept({
+    idempotencyKey: "detached",
+    input,
+    quote: await f.caller.chatQuote(input),
+  });
+  const route = createChatStreamRoute({
+    authorize: async () => "alice",
+    chat: () => f.chat,
+    retain: (work) => {
+      retained.push(work);
+    },
+  });
+  const post = (signal?: AbortSignal) =>
+    route(
+      new Request("https://app.test/api/chat/stream", {
+        method: "POST",
+        signal,
+        body: JSON.stringify({ id: op.id, input }),
+      }),
+    );
+  const disconnect = new AbortController();
+  const body = (await post(disconnect.signal)).body;
+  if (!body) throw new Error("Stream response has no body");
+  const subscriber = body.getReader();
+  provider.send(delta("Hello "));
+  expect(new TextDecoder().decode((await subscriber.read()).value)).toContain(
+    '"text":"Hello "',
+  );
+  return {
+    f,
+    op,
+    provider,
+    post,
+    async settled() {
+      await Promise.all(retained);
+      // The in-memory ledger has one connection, so poll through a busy transaction.
+      for (let attempt = 0; attempt < 40; attempt++) {
+        try {
+          const { state } = await f.ledger.operation("alice", op.id);
+          if (state !== "reserved" && state !== "running") return;
+        } catch {
+          // Retry after the in-flight transaction ends.
+        }
+        await Bun.sleep(50);
+      }
+    },
+    unhandled,
+    async detach() {
+      disconnect.abort();
+      await subscriber.cancel();
+    },
+    finish() {
+      process.off("unhandledRejection", track);
+      f.client.close();
+    },
+  };
+}
+test("a subscriber that disconnects mid-stream is detached, not cancelled, so the provider completion settles and charges", async () => {
+  const run = await detachedStream();
+  try {
+    await run.detach();
+    run.provider.send(delta("world"));
+    run.provider.send(completed);
+    run.provider.end();
+    await run.settled();
+    expect(await run.f.ledger.operation("alice", run.op.id)).toMatchObject({
+      state: "settled",
+      cancel_requested: 0,
+      result: "Hello world",
+    });
+    expect((await run.f.ledger.status("alice")).reservedSubcredits).toBe(0);
+    expect(run.provider.aborted()).toBe(false);
+    expect(run.unhandled).toEqual([]);
+  } finally {
+    run.finish();
+  }
+});
+test("only the explicit cancel endpoint stops provider work after the subscriber detached", async () => {
+  const run = await detachedStream();
+  try {
+    await run.detach();
+    await Bun.sleep(400);
+    expect(run.provider.aborted()).toBe(false);
+    await run.f.caller.cancel({ id: run.op.id });
+    await run.settled();
+    expect(run.provider.aborted()).toBe(true);
+    expect(await run.f.ledger.operation("alice", run.op.id)).toMatchObject({
+      state: "unknown",
+      cancel_requested: 1,
+    });
+  } finally {
+    run.finish();
+  }
+});
+test("a repeated stream request while a detached run is active never dispatches the provider again", async () => {
+  const run = await detachedStream();
+  try {
+    await run.detach();
+    const repeated = await (await run.post()).text();
+    expect(repeated).toContain('"state":"running"');
+    run.provider.send(delta("world"));
+    run.provider.send(completed);
+    run.provider.end();
+    await run.settled();
+    expect(run.provider.requests()).toBe(1);
+    expect((await run.f.ledger.operation("alice", run.op.id)).state).toBe(
+      "settled",
+    );
+  } finally {
+    run.finish();
+  }
+});
+test("a detached run whose provider outcome is uncertain stays reserved without an explicit cancellation", async () => {
+  const run = await detachedStream();
+  try {
+    await run.detach();
+    run.provider.end();
+    await run.settled();
+    expect(await run.f.ledger.operation("alice", run.op.id)).toMatchObject({
+      state: "unknown",
+      cancel_requested: 0,
+    });
+    expect((await run.f.ledger.status("alice")).reservedSubcredits).toBe(
+      1792000,
+    );
+    await (await run.post()).text();
+    expect(run.provider.requests()).toBe(1);
+  } finally {
+    run.finish();
   }
 });

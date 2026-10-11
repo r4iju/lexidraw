@@ -504,3 +504,33 @@ unrelated workflow, README, package, Vercel, environment and release files are
 excluded. No push, merge, PR edit, cloud CI/build/preview/deploy, production API,
 paid provider, payment/bucket call, remote migration, release preparation, secret
 environment read, or master integration ran.
+
+## Chat lifecycle and authorization follow-up (local, hosted proof pending)
+
+Starting at `7c8aa92c0f90a3cf830abdf381e7455f09fdeb87`, the Pro chat stream
+route enforces token mutation scope at its own authenticated wrapper: a
+read-scope API token receives 401 and no paid dispatch, while write-scope tokens
+and cookie sessions keep their current ownership checks. The route test drives
+the real `POST` with real token resolution; only the closed capability and the
+provider network are substituted.
+
+A dropped connection now detaches the subscriber only. The provider run and its
+ledger settlement continue under a request-lifetime adapter (`retain`, bound to
+Next `after()` in production with a 60 second `maxDuration` above the 30 second
+pricebook bound), and only the explicit `pro.cancel` endpoint aborts further
+provider work. Uncertain outcomes stay reserved without a cancellation request,
+and a repeated stream request for a running operation never dispatches again.
+Web and native clients distinguish an explicit Stop from leaving the surface:
+Stop cancels under the existing disclosed policy, while unmount, navigation,
+document switching and an acceptance ID arriving after detach issue no
+cancellation. A declined quote is a typed non-failure with no reservation, and
+Stop with no active turn no longer reports a busy chat.
+
+Open: whether `after()` keeps a serverless invocation alive to provider
+completion after a client disconnect is not proven locally and needs hosted
+proof before the Pro chat gate opens. A reservation accepted but never streamed
+after a detach stays reserved until a recovery surface exists. The coherent
+conversation/context budget, private-image cleanup and anonymous image ACL,
+Unicode slicing, native recovery UI/storage/admission and StoreKit restore
+findings remain queued. Manifest:
+`/tmp/lexidraw-276-implementation/291-chat-lifecycle-auth-fixes.json`.

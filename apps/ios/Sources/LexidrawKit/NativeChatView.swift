@@ -21,6 +21,7 @@ import UniformTypeIdentifiers
   private var context = ""
   private var operation: ProChatOperation?
   private var task: Task<Void, Never>?
+  private var stopRequested = false
   private var fixture:
     (@MainActor (NativeChatInput, @escaping @MainActor (String) -> Void) async throws -> String)?
   public init() {}
@@ -38,7 +39,7 @@ import UniformTypeIdentifiers
   }
   public func load(session: Session, document: String, context: String) async {
     let pending = task
-    stop()
+    detach()
     await pending?.value
     messages = []
     historyKey = nil
@@ -75,6 +76,7 @@ import UniformTypeIdentifiers
   }
   public func send(_ prompt: String, files: [NativeChatFile] = []) {
     guard task == nil else { return }
+    stopRequested = false
     let input = NativeChatInput(
       prompt: prompt, messages: messages.filter { !$0.content.isEmpty }, context: context,
       files: files)
@@ -96,6 +98,7 @@ import UniformTypeIdentifiers
   }
   public func accept() {
     guard case .quote(let input, let quote) = state, let session, task == nil else { return }
+    stopRequested = false
     state = .running
     task = Task {
       defer { task = nil }
@@ -106,7 +109,7 @@ import UniformTypeIdentifiers
       do {
         operation = try await submitted.value
         if Task.isCancelled, let operation {
-          try? await session.cancelChat(operation.id)
+          if stopRequested { try? await session.cancelChat(operation.id) }
           state = .result(NativeChatError.cancelled.localizedDescription)
           return
         }
@@ -115,12 +118,18 @@ import UniformTypeIdentifiers
     }
   }
   public func decline() { state = .ready }
-  public func stop() {
+  /// Drops this client's request when the surface is left. An accepted Pro operation keeps settling on the server.
+  public func detach() {
     task?.cancel()
     local.cancel()
     byok?.cancel()
-    if let session, let operation { Task { try? await session.cancelChat(operation.id) } }
     if case .quote = state { decline() }
+  }
+  /// The explicit Stop: also cancels an accepted Pro operation under its disclosed policy.
+  public func stop() {
+    stopRequested = true
+    detach()
+    if let session, let operation { Task { try? await session.cancelChat(operation.id) } }
   }
   private func save() throws {
     let data = try JSONEncoder().encode(messages)
@@ -241,6 +250,6 @@ public struct NativeChatView: View {
         }
         fileMessage = nil
       } catch { fileMessage = NativeChatError.capability.localizedDescription }
-    }.onDisappear { flow.stop() }
+    }.onDisappear { flow.detach() }
   }
 }

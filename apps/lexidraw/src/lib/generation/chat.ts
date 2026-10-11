@@ -39,6 +39,19 @@ export const CHAT_UNCERTAIN =
   "Chat outcome is uncertain. No automatic repeat was performed. Check the existing operation before starting another request.";
 export const CHAT_CANCELLED =
   "Chat stopped. An issued request may still complete or be billed. No automatic repeat was performed.";
+export const CHAT_DETACHED =
+  "Chat connection closed. A request that was already issued may still complete or be billed. No automatic repeat was performed.";
+export const CHAT_DECLINED =
+  "Chat not sent. No request was started and nothing was reserved.";
+/** A declined quote: nothing was accepted or dispatched, so it is neither a failure nor an uncertain outcome. */
+export class ChatDeclined extends Error {
+  constructor() {
+    super(CHAT_DECLINED);
+  }
+}
+/** The abort reason of an explicit Stop. Any other abort, such as leaving the page, only detaches this client. */
+export const CHAT_STOP = Symbol("chat.stop");
+export const chatStopped = (signal: AbortSignal) => signal.reason === CHAT_STOP;
 export function prepareChat(value: unknown): ChatRequest {
   const parsed = ChatInput.safeParse(value);
   if (!parsed.success) throw new Error(CHAT_CAPABILITY);
@@ -74,11 +87,13 @@ export async function runChat(
   const request = prepareChat(value);
   options.assertSafe?.(JSON.stringify(request));
   const signal = options.signal ?? new AbortController().signal;
-  if (signal.aborted) throw new Error(CHAT_CANCELLED);
+  if (signal.aborted)
+    throw new Error(chatStopped(signal) ? CHAT_CANCELLED : CHAT_DETACHED);
   let text = "";
   try {
     for await (const part of port.stream(request, signal)) {
-      if (signal.aborted) throw new Error(CHAT_CANCELLED);
+      if (signal.aborted)
+        throw new Error(chatStopped(signal) ? CHAT_CANCELLED : CHAT_DETACHED);
       text += part;
       if (chatBytes(text) > CHAT_OUTPUT_BYTES) throw new Error(CHAT_UNCERTAIN);
       options.assertSafe?.(text);
@@ -86,7 +101,14 @@ export async function runChat(
     }
     if (!text) throw new Error(CHAT_UNCERTAIN);
     return text;
-  } catch {
-    throw new Error(signal.aborted ? CHAT_CANCELLED : CHAT_UNCERTAIN);
+  } catch (error) {
+    if (error instanceof ChatDeclined && !signal.aborted) throw error;
+    throw new Error(
+      !signal.aborted
+        ? CHAT_UNCERTAIN
+        : chatStopped(signal)
+          ? CHAT_CANCELLED
+          : CHAT_DETACHED,
+    );
   }
 }

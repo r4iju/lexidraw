@@ -97,7 +97,8 @@ private struct CountedChatBytes: AsyncSequence, Sendable {
       try await job.value
     }
     #expect(await updates.values == ["Safe partial"])
-    #expect(boundary.operations.withLock { $0 }.filter { $0 == "pro.cancel" }.count == (cancel ? 1 : 0))
+    // Cancelling the stream task only detaches; an explicit Stop issues pro.cancel itself.
+    #expect(boundary.operations.withLock { $0 }.filter { $0 == "pro.cancel" }.isEmpty)
   }
 
   @Test @MainActor func splitActiveAndRetiredEncodedEchoNeverPublishesAnUnsafeFrame() async throws {

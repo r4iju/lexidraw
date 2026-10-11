@@ -7,6 +7,8 @@ import { browserByok } from "~/lib/byok/browser-session";
 import {
   ChatInput,
   CHAT_CAPABILITY,
+  CHAT_STOP,
+  ChatDeclined,
   prepareChat,
   runChat,
 } from "~/lib/generation/chat";
@@ -254,7 +256,7 @@ function RuntimeProvider({
   const [turn, setTurn] = useState<Turn>({ status: "idle" });
   const active = useRef<AbortController | null>(null);
   const pending = useRef<((accepted: boolean) => void) | null>(null);
-  // Abort-controller lifecycle belongs to the mounted chat surface.
+  // The in-flight request is an external system tied to the mounted surface. Leaving detaches it; only cancelChat cancels the paid operation.
   useEffect(
     () => () => {
       active.current?.abort();
@@ -264,13 +266,13 @@ function RuntimeProvider({
   );
   function acceptChatQuote(accepted: boolean) {
     const resolve = pending.current;
+    if (!resolve) return;
     pending.current = null;
-    setTurn({ status: "running", text: "" });
-    resolve?.(accepted);
+    if (accepted) setTurn({ status: "running", text: "" });
+    resolve(accepted);
   }
   function cancelChat() {
-    active.current?.abort();
-    acceptChatQuote(false);
+    active.current?.abort(CHAT_STOP);
   }
   async function generate(
     options: LLMOptions,
@@ -342,7 +344,11 @@ function RuntimeProvider({
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Chat could not complete.";
-      setTurn({ status: "error", text: "", message });
+      setTurn(
+        error instanceof ChatDeclined
+          ? { status: "idle" }
+          : { status: "error", text: "", message },
+      );
       throw new Error(message);
     } finally {
       signal.removeEventListener("abort", abort);

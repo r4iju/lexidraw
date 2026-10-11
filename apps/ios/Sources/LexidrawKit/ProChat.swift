@@ -160,10 +160,8 @@ extension Session {
       guard let result, frame.isEmpty else { throw NativeChatError.uncertain }
       return result
     } catch {
-      if Task.isCancelled {
-        _ = try? await Task { try await cancelChat(operation.id) }.value
-        throw NativeChatError.cancelled
-      }
+      // Cancelling this task only drops the connection; an explicit Stop issues cancelChat itself.
+      if Task.isCancelled { throw NativeChatError.cancelled }
       throw NativeChatError.uncertain
     }
   }

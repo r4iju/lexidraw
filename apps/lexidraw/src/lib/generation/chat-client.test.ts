@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { proChatPort } from "./chat-client";
-import { runChat } from "./chat";
+import { CHAT_STOP, runChat } from "./chat";
 import { PRICEBOOK, Operation } from "~/server/pro/contracts";
 test("lost acceptance response recovers only the same reservation and cancellation never dispatches a paid stream", async () => {
   const controller = new AbortController();
@@ -38,7 +38,7 @@ test("lost acceptance response recovers only the same reservation and cancellati
       accept: async (request) => {
         keys.push(request.idempotencyKey);
         if (keys.length === 1) {
-          controller.abort();
+          controller.abort(CHAT_STOP);
           throw new Error("lost response with private diagnostic");
         }
         return operation;

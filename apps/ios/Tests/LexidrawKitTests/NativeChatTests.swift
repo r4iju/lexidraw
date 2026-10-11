@@ -143,3 +143,57 @@ extension NativeChatTests {
     #expect(flow.messages.isEmpty)
   }
 }
+
+private func chatEnvelope(_ json: String) -> String { #"{"result":{"data":{"json":\#(json)}}}"# }
+private func proChatServer() -> FakeServer {
+  FakeServer { request in
+    switch request.url.path {
+    case "/api/v1/me":
+      return (200, #"{"userId":"reader","email":null,"name":null,"authKind":"token","scope":"write"}"#)
+    case "/api/trpc/auth.getPowerPreference": return (200, chatEnvelope(#"{"mode":"pro"}"#))
+    case "/api/trpc/pro.chatCapability": return (200, chatEnvelope(#"{"available":true,"reason":""}"#))
+    case "/api/trpc/pro.chatQuote":
+      return (200, chatEnvelope(#"{"maximum":1792000,"policy":"Disclosed.","periodId":"period","inputHash":"hash","book":{"version":"fixture"}}"#))
+    case "/api/trpc/pro.chatAccept":
+      return (200, chatEnvelope(#"{"id":"chat","state":"reserved","result":null,"charged":0,"quote":1792000}"#))
+    case "/api/trpc/pro.cancel": return (200, chatEnvelope("{}"))
+    default: return (500, "unavailable")
+    }
+  }
+}
+extension NativeChatTests {
+  private func quotedProChat(_ server: FakeServer) async throws -> NativeChatFlow {
+    let flow = NativeChatFlow()
+    await flow.load(session: try TestServer.session(server), document: "doc", context: "")
+    flow.send("Hello")
+    for _ in 0..<200 {
+      if case .quote = flow.state { break }
+      try await Task.sleep(for: .milliseconds(5))
+    }
+    guard case .quote = flow.state else { throw NativeChatError.unavailable }
+    return flow
+  }
+  private func cancellations(_ server: FakeServer) -> Int {
+    server.requests.filter { $0.url.path.hasSuffix("pro.cancel") }.count
+  }
+  @Test func leavingWhileAcceptancePendingKeepsTheServerOperationAndNeverDispatches() async throws {
+    let server = proChatServer()
+    let flow = try await quotedProChat(server)
+    flow.accept()
+    await flow.load(session: try TestServer.session(server), document: "other", context: "")
+    #expect(cancellations(server) == 0)
+    #expect(server.requests.filter { $0.url.path == "/api/chat/stream" }.isEmpty)
+  }
+  @Test func stopWhileAcceptancePendingCancelsTheAcceptedOperationOnceWithoutDispatch() async throws {
+    let server = proChatServer()
+    let flow = try await quotedProChat(server)
+    flow.accept()
+    flow.stop()
+    for _ in 0..<200 {
+      if case .result = flow.state { break }
+      try await Task.sleep(for: .milliseconds(5))
+    }
+    #expect(cancellations(server) == 1)
+    #expect(server.requests.filter { $0.url.path == "/api/chat/stream" }.isEmpty)
+  }
+}

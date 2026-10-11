@@ -44,7 +44,7 @@ extension ProChatWireTests {
     #expect(await updates.values == ["Hello ", "Hello world"])
     #expect(server.requests.count == 1)
   }
-  @Test func cancellationRetainsPartialTextAndRequestsOnlyCancellation() async throws {
+  @Test func cancelledStreamRetainsPartialTextAndLeavesCancellationToExplicitStop() async throws {
     let server = FakeServer { request in
       if request.url.path.hasSuffix("pro.cancel") { return (200, #"{"result":{"data":{"json":{}}}}"#) }
       return (200, #"{"kind":"text","text":"Partial "}"# + "\n")
@@ -56,7 +56,7 @@ extension ProChatWireTests {
       })
     }
     await #expect(throws: NativeChatError.cancelled) { try await task.value }
-    #expect(server.requests.filter { $0.url.path.hasSuffix("pro.cancel") }.count == 1)
+    #expect(server.requests.filter { $0.url.path.hasSuffix("pro.cancel") }.isEmpty)
     #expect(server.requests.filter { $0.url.path.hasSuffix("/chat/stream") }.count == 1)
   }
   @Test func textAfterTerminalCompletionFailsClosed() async throws {

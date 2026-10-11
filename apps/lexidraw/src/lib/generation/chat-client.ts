@@ -1,5 +1,11 @@
 import { z } from "zod";
-import { CHAT_UNCERTAIN, type ChatInput, type ChatPort } from "./chat";
+import {
+  CHAT_UNCERTAIN,
+  ChatDeclined,
+  chatStopped,
+  type ChatInput,
+  type ChatPort,
+} from "./chat";
 import { Operation } from "~/server/pro/contracts";
 import { ChatQuote as ChatQuoteSchema } from "./chat-contracts";
 export type ChatQuote = z.infer<typeof ChatQuoteSchema>;
@@ -28,8 +34,8 @@ export function proChatPort(
     async *stream(_request, signal) {
       const quote = ChatQuoteSchema.parse(await deps.quote(input));
       if (signal.aborted || !(await deps.confirm(quote)))
-        throw new Error("Chat declined");
-      // Await the ID even after cancellation so the durable reservation is never orphaned.
+        throw new ChatDeclined();
+      // Await the ID even after the abort so the durable reservation is never orphaned.
       const acceptance = { idempotencyKey: deps.idempotencyKey, input, quote };
       let accepted: unknown;
       try {
@@ -39,8 +45,9 @@ export function proChatPort(
         accepted = await deps.accept(acceptance);
       }
       const operation = Operation.parse(accepted);
+      // Only an explicit Stop cancels. Leaving the page detaches while the server settles the operation.
       const cancel = () => {
-        void deps.cancel(operation.id).catch(() => {});
+        if (chatStopped(signal)) void deps.cancel(operation.id).catch(() => {});
       };
       signal.addEventListener("abort", cancel, { once: true });
       let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;

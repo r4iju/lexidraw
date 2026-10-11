@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { runChat } from "./chat";
+import { CHAT_STOP, runChat } from "./chat";
 
 test("chat preserves saved turns, document context and bounded text attachments and emits real partial updates", async () => {
   const input = {
@@ -68,7 +68,7 @@ test("unsupported turns, media and oversized context stop before any transport a
       "Chat supports bounded text",
     );
   const controller = new AbortController();
-  controller.abort();
+  controller.abort(CHAT_STOP);
   await expect(
     runChat({ prompt: "hello" }, port, { signal: controller.signal }),
   ).rejects.toThrow("Chat stopped");
