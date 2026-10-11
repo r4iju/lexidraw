@@ -9,6 +9,7 @@ import {
 import { protectedProcedure } from "~/server/api/trpc";
 import { revalidateEntitiesAndParents } from "~/server/api/entity-cache";
 import { findEntityFor } from "./readable";
+import { nextThumbnailRevision } from "./thumbnail-revision";
 
 async function readThumbnail(
   db: typeof drizzle,
@@ -76,13 +77,12 @@ export const generatedThumbnailProcedures = {
           message: "Registered entity image required",
         });
       const url = `/api/generated-images/${image.id}`;
-      const revision = Math.max(Date.now(), (input.expected.revision ?? 0) + 1);
       const stored = await ctx.drizzle
         .update(schema.entities)
         .set({
           screenShotLight: url,
           screenShotDark: url,
-          thumbnailUpdatedAt: new Date(revision),
+          thumbnailUpdatedAt: nextThumbnailRevision(),
         })
         .where(
           and(
@@ -98,7 +98,7 @@ export const generatedThumbnailProcedures = {
                 ),
           ),
         )
-        .returning({ id: schema.entities.id });
+        .returning({ at: schema.entities.thumbnailUpdatedAt });
       if (!stored.length)
         throw new TRPCError({
           code: "CONFLICT",
@@ -112,7 +112,7 @@ export const generatedThumbnailProcedures = {
       if (
         snapshot.light !== url ||
         snapshot.dark !== url ||
-        snapshot.revision !== revision
+        snapshot.revision !== stored[0]?.at?.getTime()
       )
         throw new TRPCError({
           code: "CONFLICT",
