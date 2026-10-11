@@ -1,0 +1,3 @@
+CREATE TABLE LegacyDocumentRetentionV1 (sourceSetId TEXT NOT NULL, sourceTable TEXT NOT NULL, sourceId BLOB NOT NULL, sourceDDL BLOB NOT NULL, sourceColumns BLOB NOT NULL, sourceValues BLOB NOT NULL, mappedEntityId TEXT, contractVersion INTEGER NOT NULL CHECK(contractVersion = 1), status TEXT NOT NULL CHECK(status IN ('retained','converted')), derivedFields BLOB NOT NULL, PRIMARY KEY(sourceSetId,sourceTable,sourceId));
+--> statement-breakpoint
+CREATE TABLE LegacyDocumentRetentionBatchV1 (sourceSetId TEXT PRIMARY KEY NOT NULL, sourceIdentity TEXT NOT NULL UNIQUE, provenance TEXT NOT NULL, documentCount INTEGER NOT NULL, sharedDocumentCount INTEGER NOT NULL);

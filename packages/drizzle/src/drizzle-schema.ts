@@ -5,6 +5,8 @@ import { createId } from "@paralleldrive/cuid2";
 import { sql } from "drizzle-orm";
 import {
   type AnySQLiteColumn,
+  blob,
+  check,
   index,
   integer,
   numeric,
@@ -13,6 +15,7 @@ import {
   sqliteTable,
   text,
   uniqueIndex,
+  unique,
 } from "drizzle-orm/sqlite-core";
 export const accounts = sqliteTable(
   "Accounts",
@@ -859,3 +862,42 @@ export const llmPolicies = sqliteTable(
 export * from "./device-agent-schema.js";
 
 export * from "./billing-schema.js";
+
+// Keep this schema aligned with the capture contract's exact, additive archive DDL.
+export const legacyDocumentRetentionV1 = sqliteTable(
+  "LegacyDocumentRetentionV1",
+  {
+    sourceSetId: text("sourceSetId").notNull(),
+    sourceTable: text("sourceTable").notNull(),
+    sourceId: blob("sourceId", { mode: "buffer" }).notNull(),
+    sourceDDL: blob("sourceDDL", { mode: "buffer" }).notNull(),
+    sourceColumns: blob("sourceColumns", { mode: "buffer" }).notNull(),
+    sourceValues: blob("sourceValues", { mode: "buffer" }).notNull(),
+    mappedEntityId: text("mappedEntityId"),
+    contractVersion: integer("contractVersion").notNull(),
+    status: text("status", { enum: ["retained", "converted"] }).notNull(),
+    derivedFields: blob("derivedFields", { mode: "buffer" }).notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.sourceSetId, table.sourceTable, table.sourceId] }),
+    check("LegacyDocumentRetentionV1_contractVersion", sql`contractVersion = 1`),
+    check("LegacyDocumentRetentionV1_status", sql`status IN ('retained','converted')`),
+  ],
+);
+
+export const legacyDocumentRetentionBatchV1 = sqliteTable(
+  "LegacyDocumentRetentionBatchV1",
+  {
+    sourceSetId: text("sourceSetId").primaryKey().notNull(),
+    sourceIdentity: text("sourceIdentity").notNull(),
+    provenance: text("provenance").notNull(),
+    documentCount: integer("documentCount").notNull(),
+    sharedDocumentCount: integer("sharedDocumentCount").notNull(),
+  },
+  (table) => [unique("LegacyDocumentRetentionBatchV1_sourceIdentity_unique").on(table.sourceIdentity)],
+);
+
+export type LegacyDocumentRetentionV1 = typeof legacyDocumentRetentionV1.$inferSelect;
+export type NewLegacyDocumentRetentionV1 = typeof legacyDocumentRetentionV1.$inferInsert;
+export type LegacyDocumentRetentionBatchV1 = typeof legacyDocumentRetentionBatchV1.$inferSelect;
+export type NewLegacyDocumentRetentionBatchV1 = typeof legacyDocumentRetentionBatchV1.$inferInsert;
