@@ -2,6 +2,7 @@
 export class Inflate {
   constructor(options: { chunkSize: number; windowBits: number });
   strm: {
+    total_in: number;
     total_out: number;
     avail_in: number;
     avail_out: number;

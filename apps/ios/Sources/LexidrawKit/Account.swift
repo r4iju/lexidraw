@@ -31,13 +31,16 @@ public struct Account: Sendable {
   let savedImageTransport: any ClientTransport
   let providerKeyStore: (@Sendable (String) -> any TokenStore)?
   let providerConfiguration: @Sendable () -> URLSessionConfiguration
+  let providerCredentialGuard: NativeCredentialGuard
 
   public init(
     origin: URL, store: any TokenStore, transport: any ClientTransport = URLSessionTransport(),
     savedImageTransport: (any ClientTransport)? = nil,
     providerKeyStore: (@Sendable (String) -> any TokenStore)? = nil,
-    providerConfiguration: @escaping @Sendable () -> URLSessionConfiguration = { .ephemeral }
+    providerConfiguration: @escaping @Sendable () -> URLSessionConfiguration = { .ephemeral },
+    providerCredentialGuard: NativeCredentialGuard = .shared
   ) {
+    self.providerCredentialGuard = providerCredentialGuard
     self.providerConfiguration = providerConfiguration
     self.providerKeyStore = providerKeyStore
     self.origin = origin
@@ -132,7 +135,8 @@ public struct Account: Sendable {
       files: files,
       narrationDirectory: FileManager.default.urls(
         for: .applicationSupportDirectory, in: .userDomainMask
-      ).first?.appending(path: "lexidraw/device-narration/" + scope))
+      ).first?.appending(path: "lexidraw/device-narration/" + scope),
+      credentialGuard: providerCredentialGuard)
     return Session(
       origin: origin, connection: connection(token: token, lifetime: lifetime), store: store,
       revokeToken: {

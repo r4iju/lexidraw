@@ -13,6 +13,7 @@ private final class BudgetKey: TokenStore, @unchecked Sendable {
 private final class BudgetProbe: URLProtocol, @unchecked Sendable {
   struct State: Sendable {
     var payload = Data()
+    var status = 200
     var requests: [URLRequest] = []
     var holdTail = false
     var finished = false
@@ -27,7 +28,7 @@ private final class BudgetProbe: URLProtocol, @unchecked Sendable {
       state.requests.append(request)
       return (state.payload, state.holdTail)
     }
-    let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil,
+    let response = HTTPURLResponse(url: request.url!, statusCode: Self.state.withLock { $0.status }, httpVersion: nil,
       headerFields: ["Content-Type": "application/json"])!
     client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
     for offset in stride(from: 0, to: payload.count, by: 4096) {
@@ -94,6 +95,18 @@ private final class BudgetProbe: URLProtocol, @unchecked Sendable {
     await #expect(throws: NativeAIError.self) {
       _ = try await byok.suggest(title: "", before: "A ", after: "")
     }
+  }
+
+  @Test(arguments: [401, 402, 429])
+  func providerStatusIsActionableBeforeAnUnfinishedErrorBody(status: Int) async throws {
+    BudgetProbe.state.withLock { $0 = .init(payload: Data(), status: status, holdTail: true) }
+    let byok = try runtime()
+    do {
+      try await byok.validate()
+      Issue.record("Provider refusal was accepted")
+    } catch NativeAIError.provider(let actual) { #expect(actual == status) }
+      catch { Issue.record("Provider refusal lost its actionable HTTP status") }
+    #expect(BudgetProbe.state.withLock { !$0.finished })
   }
 
 }

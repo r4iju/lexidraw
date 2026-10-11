@@ -23,6 +23,19 @@ public struct NativeCredentialReference: Sendable {
   fileprivate let generation: UUID
 }
 
+public enum NativeCredentialCustody: Sendable {
+  case none, active, unadmitted, removalPending
+  public var canRemove: Bool { self != .none }
+  public var description: String {
+    switch self {
+    case .none: "No key on this device"
+    case .active: "Key saved on this device"
+    case .unadmitted: "A stored key could not be enabled. Remove it or replace it before generating."
+    case .removalPending: "Key removal failed. The remaining key is disabled. Retry Remove Key."
+    }
+  }
+}
+
 private final class NoProviderRedirects: NSObject, URLSessionTaskDelegate, Sendable {
   func urlSession(
     _ session: URLSession, task: URLSessionTask,
@@ -49,8 +62,9 @@ private final class NoProviderRedirects: NSObject, URLSessionTaskDelegate, Senda
   private var endActions: [() throws -> Void] = []
   public func onSessionEnd(_ action: @escaping () throws -> Void) { endActions.append(action) }
   private var ended = false
-  public private(set) var hasKey = false
-  public private(set) var cleanupPending = false
+  public private(set) var custody: NativeCredentialCustody = .none
+  public var hasKey: Bool { custody == .active }
+  public var cleanupPending: Bool { custody == .unadmitted || custody == .removalPending }
 
   public init(
     store: any TokenStore, configuration: URLSessionConfiguration = .ephemeral,
@@ -66,9 +80,19 @@ private final class NoProviderRedirects: NSObject, URLSessionTaskDelegate, Senda
     self.files = files
     self.store = store
     self.configuration = configuration
-    cleanupPending = NativeProviderResidue.contains(store)
-    if !cleanupPending, let key = try? store.load() {
-      if (try? credentialGuard.remember(key)) != nil { hasKey = true }
+    if NativeProviderResidue.contains(store) {
+      custody = .removalPending
+    } else {
+      do {
+        if let key = try store.load() {
+          custody = .unadmitted
+          try credentialGuard.remember(key)
+          custody = .active
+        }
+      } catch {
+        // A failed load cannot prove the Keychain entry is absent.
+        custody = .unadmitted
+      }
     }
   }
 
@@ -82,19 +106,17 @@ private final class NoProviderRedirects: NSObject, URLSessionTaskDelegate, Senda
     cancel()
     try store.save(key)
     NativeProviderResidue.clear(store)
-    cleanupPending = false
-    hasKey = true
+    custody = .active
   }
 
   public func removeKey() throws {
     cancel()
-    hasKey = false
+    custody = .removalPending
     NativeProviderResidue.mark(store)
-    cleanupPending = true
     do { try store.delete() }
     catch { throw NativeCleanupFailure(steps: [.providerKey]) }
     NativeProviderResidue.clear(store)
-    cleanupPending = false
+    custody = .none
   }
 
   public func endSession() throws {
@@ -370,11 +392,15 @@ private final class NoProviderRedirects: NSObject, URLSessionTaskDelegate, Senda
         : (agentFixture && path == "/api/v1/chat/completions") ? 16_384 : 64 << 10
       let (bytes, response) = try await session.bytes(for: request)
       guard let http = response as? HTTPURLResponse, http.url == url,
-        (200..<300).contains(http.statusCode),
-        path != "/api/v1/audio/speech"
-          || http.value(forHTTPHeaderField: "Content-Type")?.components(separatedBy: ";").first
-            == "audio/pcm",
         http.value(forHTTPHeaderField: "Content-Encoding") == nil
+      else { throw NativeAIError.unavailable }
+      // Refusals need only the trusted status, never an unbounded error body.
+      guard (200..<300).contains(http.statusCode) else {
+        throw NativeAIError.provider(http.statusCode)
+      }
+      guard path != "/api/v1/audio/speech"
+          || http.value(forHTTPHeaderField: "Content-Type")?.components(separatedBy: ";").first
+            == "audio/pcm"
       else { throw NativeAIError.unavailable }
       var data = Data()
       for try await byte in bytes {
@@ -385,10 +411,6 @@ private final class NoProviderRedirects: NSObject, URLSessionTaskDelegate, Senda
       }
       try Task.checkCancellation()
       guard reference.generation == generation, !ended else { throw NativeAIError.expired }
-      guard let http = response as? HTTPURLResponse else { throw NativeAIError.unavailable }
-      guard http.url == url, (200..<300).contains(http.statusCode) else {
-        throw NativeAIError.provider(http.statusCode)
-      }
       if path == "/api/v1/audio/speech" { try credentialGuard.checkPCM(data) }
       else { try credentialGuard.check(data) }
       return data

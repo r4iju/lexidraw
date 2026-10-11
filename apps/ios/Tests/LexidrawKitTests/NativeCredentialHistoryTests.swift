@@ -13,10 +13,11 @@ private final class HistoryKey: TokenStore, @unchecked Sendable {
   @Test func coldSessionAdmissionLoadsRetiredCheckpointDetectorsBeforePersistingANewKey() async throws {
     let keys = HistoryKey()
     keys.value = "cold-checkpoint-credential-128"
+    let admitted = NativeCredentialGuard()
     let server = FakeServer { _ in
       (200, #"{"userId":"cold-history-reader","email":null,"name":null,"authKind":"token","scope":"write"}"#)
     }
-    let session = try #require(try Account(origin: TestServer.origin, store: InMemoryTokenStore("lxd_cold_history_fixture"), transport: server, providerKeyStore: { _ in keys }).restore())
+    let session = try #require(try Account(origin: TestServer.origin, store: InMemoryTokenStore("lxd_cold_history_fixture"), transport: server, providerKeyStore: { _ in keys }, providerCredentialGuard: admitted).restore())
     let root = try #require(session.aiHandle.narrationDirectory)
     defer { try? FileManager.default.removeItem(at: root) }
     let directory = root.appending(path: UUID().uuidString)
@@ -26,18 +27,21 @@ private final class HistoryKey: TokenStore, @unchecked Sendable {
     try NativeDeviceNarrationStore(directory: directory, credentialGuard: retired).save(checkpoint)
     let file = directory.appending(path: "checkpoint.json")
     let prior = try Data(contentsOf: file)
+    // The injected detector is the exact subject, independent of process-wide capacity.
+    let runtime = try await session.nativeAI()
+    #expect(runtime.hasKey)
     do {
-      let runtime = try await session.nativeAI()
-      #expect(throws: NativeAIError.self) { try runtime.replaceKey("cold-checkpoint-credential-129") }
-    } catch NativeAIError.rejected {
-      // Other running fixtures may already occupy shared detector capacity;
-      // rejection during cold attachment must also precede any key persistence.
-    }
+      try runtime.replaceKey("cold-checkpoint-credential-129")
+      Issue.record("129th cold-history key was persisted")
+    } catch NativeAIError.rejected {} catch { Issue.record("Unexpected admission refusal") }
     #expect(keys.value == "cold-checkpoint-credential-128")
     #expect(try Data(contentsOf: file) == prior)
     let reopen = NativeCredentialGuard()
     #expect(try NativeDeviceNarrationStore(directory: directory, credentialGuard: reopen).load()?.id == "retained")
-    #expect(throws: NativeAIError.self) { try reopen.check(Data("cold-checkpoint-credential-1".utf8)) }
+    for index in 1...128 {
+      #expect(throws: NativeAIError.self) { try admitted.check(Data("cold-checkpoint-credential-\(index)".utf8)) }
+      #expect(throws: NativeAIError.self) { try reopen.check(Data("cold-checkpoint-credential-\(index)".utf8)) }
+    }
   }
   @Test func credentialAdmissionLimitPreservesSavedCheckpointAndPriorKeyOnReopen() throws {
     let directory = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)

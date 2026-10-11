@@ -94,11 +94,7 @@ struct AIPowerView: View {
           }
         }
         Section {
-          if runtime.cleanupPending {
-            Text("Key removal failed. The remaining key is disabled. Retry Remove Key.")
-          } else {
-            Text(runtime.hasKey ? "Key saved on this device" : "No key on this device")
-          }
+          Text(runtime.custody.description)
           SecureField("OpenRouter key", text: $key)
             .focused($focused, equals: .key)
             .textInputAutocapitalization(.never)
@@ -123,7 +119,7 @@ struct AIPowerView: View {
             }
             .disabled(working)
           }
-          if runtime.hasKey || runtime.cleanupPending {
+          if runtime.custody.canRemove {
             Button("Remove Key", role: .destructive) {
               perform(runtime) {
                 try runtime.removeKey()

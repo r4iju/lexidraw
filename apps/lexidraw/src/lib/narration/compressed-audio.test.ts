@@ -142,3 +142,61 @@ test("prefix-heavy browser egress stops before app network instead of unbounded 
   ).rejects.toThrow();
   expect(calls).toBe(0);
 });
+
+test("sixty seconds of canonical tone can checkpoint and sync without a provider key", async () => {
+  const pcm = new Uint8Array(60 * 48000);
+  const view = new DataView(pcm.buffer);
+  for (let i = 0; i < pcm.length / 2; i++)
+    view.setInt16(
+      i * 2,
+      Math.round(2000 * Math.sin((2 * Math.PI * 220 * i) / 24000)),
+      true,
+    );
+  let appCalls = 0;
+  const byok = createByokSession(
+    async (request) => {
+      if (request.url === "https://openrouter.ai/api/v1/audio/speech")
+        return new Response(pcm, { headers: { "Content-Type": "audio/pcm" } });
+      if (request.url !== "https://app.test/recordings")
+        throw new Error("Unexpected network");
+      appCalls++;
+      return Response.json({ id: "saved" });
+    },
+    "https://app.test",
+    { narrationFixture: true },
+  );
+  byok.replace("openrouter", key);
+  const disk = new Map<string, string>();
+  const ports = {
+    account: () => "alice",
+    available: () => true,
+    byok,
+    store: {
+      load: async (scope: string) => disk.get(scope) ?? null,
+      save: async (scope: string, value: string, expected: string | null) => {
+        if ((disk.get(scope) ?? null) !== expected) return false;
+        disk.set(scope, value);
+        return true;
+      },
+      clear: async (scope: string) => {
+        disk.delete(scope);
+      },
+    },
+    sync: async (_id: string, recording: unknown) => {
+      await byok.fetch("/recordings", {
+        method: "POST",
+        body: JSON.stringify(recording),
+      });
+      return "saved";
+    },
+  };
+  const flow = new DeviceNarration("alice", "doc", ports);
+  await flow.start("Hello");
+  expect(flow.state()?.status).toBe("completed");
+  byok.remove();
+  const reopened = new DeviceNarration("alice", "doc", ports);
+  await reopened.restore();
+  await reopened.sync();
+  expect(reopened.state()?.status).toBe("saved");
+  expect(appCalls).toBe(1);
+}, 20_000);

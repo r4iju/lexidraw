@@ -74,13 +74,31 @@ export function createByokSession(
   };
   function assertSafe(value: string, pcm = false) {
     if (value.length > 512 * 1024 * 1024) throw blocked();
-    const inspectCompression = compressionInspector(pcm || canonicalWav(value));
-    const initialDecoded = inspectCompression(
-      value,
-      pcm || canonicalWav(value),
-    );
     let decodedWork = 0;
     let fingerprintChecks = 0;
+    const pixelTexts: string[] = [];
+    function checkKnown(text: string) {
+      for (const [digest, secret] of known) {
+        let offset = text.indexOf(secret.prefix);
+        while (offset !== -1) {
+          if (++fingerprintChecks > 16_384) throw blocked();
+          if (
+            fingerprint(text.slice(offset, offset + secret.length)) === digest
+          )
+            throw blocked();
+          offset = text.indexOf(secret.prefix, offset + 1);
+        }
+      }
+    }
+    const samples = pcm || canonicalWav(value);
+    const inspectCompression = compressionInspector(samples, (binary) => {
+      checkKnown(binary);
+      // Only textual runs enter the canonical decoder; binary pixel samples
+      // retain byte inspection without acquiring text-format assumptions.
+      for (const match of binary.matchAll(/[\x09\x0a\x0d\x20-\x7e]{8,}/g))
+        pixelTexts.push(match[0]);
+    });
+    const initialDecoded = inspectCompression(value, samples);
     if (/sk-(?:or-v1-|ant-)?[A-Za-z0-9_-]{16,}/.test(value)) throw blocked();
     const minKeyLength = Math.min(
       ...Array.from(known.values(), (key) => key.length),
@@ -88,7 +106,9 @@ export function createByokSession(
     );
     const pending = [value, ...initialDecoded];
     const seen = new Set<string>();
-    while (pending.length) {
+    while (pending.length || pixelTexts.length) {
+      // Append individually: a bounded image can still have many short runs.
+      while (pixelTexts.length) pending.push(pixelTexts.pop() ?? "");
       const text = pending.pop();
       if (text === undefined || seen.has(text)) continue;
       seen.add(text);
@@ -104,17 +124,7 @@ export function createByokSession(
         )
       )
         throw blocked();
-      for (const [digest, secret] of known) {
-        let offset = text.indexOf(secret.prefix);
-        while (offset !== -1) {
-          if (++fingerprintChecks > 16_384) throw blocked();
-          if (
-            fingerprint(text.slice(offset, offset + secret.length)) === digest
-          )
-            throw blocked();
-          offset = text.indexOf(secret.prefix, offset + 1);
-        }
-      }
+      checkKnown(text);
 
       // Decode independent runs so unrelated malformed escapes cannot hide a key.
       // Replacement UTF-8 decoding also preserves ASCII keys beside invalid bytes.

@@ -164,3 +164,81 @@ test("direct browser image rejects an encoded SDK envelope before retaining outp
     "Image provider unavailable",
   );
 });
+
+test("known provider credential in valid RGB pixel rows never reaches completed image or guarded upload", async () => {
+  const { deflateSync } = await import("node:zlib");
+  const { crc32 } = await import("./format");
+  const key = "pixel-custody-synthetic-supplied-provider-credential-291";
+  for (const payload of [
+    null,
+    key,
+    btoa(key),
+    Buffer.from(key).toString("hex"),
+  ]) {
+    const echoed = payload !== null;
+    const pixels = new Uint8Array(3073 * 1024);
+    if (payload) pixels.set(new TextEncoder().encode(payload), 3073 * 100 + 1);
+    function chunk(type: string, data: Uint8Array) {
+      const bytes = new Uint8Array(data.length + 12),
+        view = new DataView(bytes.buffer);
+      view.setUint32(0, data.length);
+      bytes.set(new TextEncoder().encode(type), 4);
+      bytes.set(data, 8);
+      view.setUint32(
+        data.length + 8,
+        crc32(bytes.subarray(4, data.length + 8)),
+      );
+      return bytes;
+    }
+    const header = new Uint8Array(13),
+      view = new DataView(header.buffer);
+    view.setUint32(0, 1024);
+    view.setUint32(4, 1024);
+    header.set([8, 2, 0, 0, 0], 8);
+    const png = Buffer.concat([
+      new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]),
+      chunk("IHDR", header),
+      chunk("IDAT", deflateSync(pixels)),
+      chunk("IEND", new Uint8Array()),
+    ]);
+    let uploads = 0;
+    const byok = createByokSession(
+      async (request) => {
+        if (request.url === "https://openrouter.ai/api/v1/images")
+          return Response.json({
+            data: [
+              { b64_json: png.toString("base64"), media_type: "image/png" },
+            ],
+          });
+        if (request.url !== "https://storage.test/image")
+          throw new Error("Unexpected network");
+        uploads++;
+        return new Response(null, { status: 200 });
+      },
+      "https://app.test",
+      { imageFixture: true },
+    );
+    byok.replace("openrouter", key);
+    const flow = new ImageFlow({
+      source: () => ({ mode: "byok", provider: "openrouter" }),
+      availability: () => ({ available: true, maximum: 0, fixture: true }),
+      byok,
+      pro: async () => {
+        throw new Error("No fallback");
+      },
+      save: async (_id, image) => {
+        await byok.fetch("https://storage.test/image", {
+          method: "PUT",
+          body: JSON.stringify(image),
+        });
+        return "https://storage.test/image";
+      },
+    });
+    await flow.generate("tree");
+    const state = flow.state().kind;
+    const uploaded = await flow.upload();
+    expect(uploads).toBe(echoed ? 0 : 1);
+    expect(state).toBe(echoed ? "failed" : "completed");
+    expect(uploaded).toBe(echoed ? null : "https://storage.test/image");
+  }
+}, 20_000);

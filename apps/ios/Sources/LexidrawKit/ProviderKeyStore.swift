@@ -64,10 +64,12 @@ final class NativeAIHandle: Sendable {
   let defaultStore: (any TokenStore)?
   let files: NativeTextFileStore?
   let narrationDirectory: URL?
+  private let credentialGuard: NativeCredentialGuard
   init(
     defaultStore: (any TokenStore)? = nil, files: NativeTextFileStore? = nil,
-    narrationDirectory: URL? = nil
+    narrationDirectory: URL? = nil, credentialGuard: NativeCredentialGuard = .shared
   ) {
+    self.credentialGuard = credentialGuard
     self.defaultStore = defaultStore
     self.files = files
     self.narrationDirectory = narrationDirectory
@@ -85,7 +87,8 @@ final class NativeAIHandle: Sendable {
     if let runtime { return runtime }
     do { try restoreRetiredDetectors() }
     catch { throw NativeAIError.rejected }
-    let created = NativeBYOK(store: store, configuration: configuration, files: files)
+    let created = NativeBYOK(store: store, configuration: configuration, files: files,
+      credentialGuard: credentialGuard)
     runtime = created
     return created
   }
@@ -107,7 +110,7 @@ final class NativeAIHandle: Sendable {
       // limits and checkpoint bytes remain unchanged and are never overwritten.
       guard count <= 128, bytes <= 128 << 20 else { throw NativeAIError.rejected }
       let history = try JSONDecoder().decode(History.self, from: Data(contentsOf: file))
-      try NativeCredentialGuard.shared.restore(history.fingerprints)
+      try credentialGuard.restore(history.fingerprints)
     }
     guard !failed else { throw NativeAIError.rejected }
   }

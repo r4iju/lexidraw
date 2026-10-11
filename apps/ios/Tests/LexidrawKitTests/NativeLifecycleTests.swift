@@ -23,6 +23,17 @@ private final class FailingAppToken: TokenStore, @unchecked Sendable {
   func save(_ token: String) throws {}
   func delete() throws { deleteAttempts += 1; throw NativeAIError.unavailable }
 }
+private final class UnadmittedKey: TokenStore, @unchecked Sendable {
+  var value: String? = "stored-unadmitted-custody-fixture"
+  let failLoad: Bool
+  init(failLoad: Bool) { self.failLoad = failLoad }
+  func load() throws -> String? {
+    if failLoad { throw NativeAIError.unavailable }
+    return value
+  }
+  func save(_ token: String) throws { value = token }
+  func delete() throws { value = nil }
+}
 @Suite(.serialized) @MainActor struct NativeLifecycleTests {
   @Test func failedLocalTokenDeletionAndOfflineRevocationCannotRestoreUsableAuthentication() async throws {
     let tokens = FailingAppToken()
@@ -128,6 +139,21 @@ private final class FailingAppToken: TokenStore, @unchecked Sendable {
     let priorRequests = server.requests.count
     await #expect(throws: NativeAIError.self) { try await session.move("doc", to: nil) }
     #expect(server.requests.count == priorRequests)
+  }
+
+  @Test(arguments: [false, true])
+  func storedOrUnreadableKeyRemainsVisibleForRemovalWhenAdmissionFails(failLoad: Bool) throws {
+    let keys = UnadmittedKey(failLoad: failLoad)
+    let guarder = NativeCredentialGuard()
+    for index in 1...128 { try guarder.remember("custody-retired-fixture-\(index)") }
+    let runtime = NativeBYOK(store: keys, credentialGuard: guarder)
+    #expect(!runtime.hasKey)
+    // The existing device UI exposes removal only for these public custody flags.
+    #expect(runtime.hasKey || runtime.cleanupPending)
+    #expect(throws: NativeAIError.self) { try runtime.credentialReference() }
+    try runtime.removeKey()
+    #expect(keys.value == nil)
+    #expect(!runtime.hasKey && !runtime.cleanupPending)
   }
 
 }
