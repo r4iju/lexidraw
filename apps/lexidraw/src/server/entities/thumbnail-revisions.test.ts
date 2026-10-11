@@ -9,6 +9,7 @@ const { entityRouter } = await import("~/server/api/routers/entities");
 const OWNER = "thumbr_owner";
 const ID = "thumbr_entity";
 const CLOCK = 1_800_000_000_000;
+// The synthetic session supplies only user.id, the sole session field these procedures consume.
 const caller = entityRouter.createCaller({
   drizzle: db,
   schema,
