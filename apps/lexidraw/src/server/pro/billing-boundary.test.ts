@@ -1,5 +1,9 @@
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { SandboxBilling } from "./billing";
 import { supplierFixture } from "~/test/supplier-fixture";
-import { expect, mock, test } from "bun:test";
+import { afterEach, expect, mock, test } from "bun:test";
 import * as schema from "@packages/drizzle/drizzle-schema";
 import { installServerRuntime } from "~/test/server-runtime";
 mock.module("@packages/env", () => ({ default: { NODE_ENV: "test" } }));
@@ -182,5 +186,110 @@ test("Apple gate and claim are authenticated, strict and never trust a client ve
     ).rejects.toThrow();
   } finally {
     client.close();
+  }
+});
+
+const cleanup: (() => Promise<void>)[] = [];
+afterEach(async () => {
+  for (const dispose of cleanup.splice(0)) await dispose();
+});
+async function fixture(available = true) {
+  const dir = await mkdtemp(join(tmpdir(), "billing-d1-"));
+  const client = createClient({ url: `file:${dir}/db` });
+  cleanup.push(async () => {
+    client.close();
+    await rm(dir, { recursive: true, force: true });
+  });
+  for (const file of [
+    "0015_private_pro",
+    "0016_pro_billing_events",
+    "0029_sandbox_billing",
+    "0030_apple_sandbox",
+  ])
+    for (const sql of (
+      await Bun.file(`../../packages/drizzle/drizzle/${file}.sql`).text()
+    ).split("--> statement-breakpoint"))
+      if (sql.trim()) await client.execute(sql);
+  let now = 1_791_000_000_000;
+  const ledger = new ProLedger(client, {
+    ownerAccountIds: ["owner"],
+    now: () => now,
+    sandboxBillingAvailable: available,
+    supplierBooks: supplierFixture,
+  });
+  await ledger.grantEligibility("owner", "alice", "D1 synthetic tester");
+  return {
+    ledger,
+    advance() {
+      now += 2000;
+    },
+    async subscription(
+      source: "apple" | "stripe",
+      state: "active" | "payment_failed" | "expired" | "revoked" | "cancelled",
+    ) {
+      const customerId =
+        source === "apple"
+          ? await ledger.appleAccountToken("alice")
+          : "cus_fixture";
+      if (source === "stripe")
+        await ledger.bindBillingCustomer("alice", customerId);
+      await ledger.reconcileSandbox(crypto.randomUUID(), async () => ({
+        accountId: "alice",
+        customerId,
+        subscriptionId: "sub_fixture",
+        source,
+        environment: "sandbox",
+        startsAt: now - 1000,
+        endsAt: now + 1000,
+        state,
+        cancelAtEnd: false,
+      }));
+    },
+  };
+}
+test("billing status never authorizes Stripe controls for Apple and preserves the raw checkout guard after clock expiry", async () => {
+  for (const source of ["apple", "stripe"] as const) {
+    for (const state of ["active", "payment_failed"] as const) {
+      const f = await fixture();
+      await f.subscription(source, state);
+      if (source === "apple")
+        await f.ledger.bindBillingCustomer("alice", "cus_old");
+      let status = await f.ledger.status("alice");
+      expect(status.billing.canCheckout).toBe(false);
+      expect(status.billing.canManageWeb).toBe(source === "stripe");
+      f.advance();
+      status = await f.ledger.status("alice");
+      expect(status.billing.state).toBe("expired");
+      expect(status.billing.canCheckout).toBe(false);
+      const billing = new SandboxBilling(f.ledger, {
+        key: "sk_test_fixture",
+        webhookSecret: "whsec_fixture",
+        priceId: "price_fixture",
+        productId: "prod_fixture",
+        portalConfigurationId: "bpc_fixture",
+        origin: "https://app.test",
+      });
+      await expect(billing.checkout("alice")).rejects.toThrow(
+        "Manage the existing sandbox subscription",
+      );
+    }
+  }
+  const f = await fixture();
+  expect((await f.ledger.status("alice")).billing.canCheckout).toBe(true);
+  expect((await f.ledger.status("public")).billing.canCheckout).toBe(false);
+  expect((await f.ledger.status("public")).billing.canManageWeb).toBe(false);
+  const disabled = await fixture(false);
+  expect((await disabled.ledger.status("alice")).billing.canCheckout).toBe(
+    false,
+  );
+  for (const state of ["expired", "revoked", "cancelled"] as const) {
+    const terminal = await fixture();
+    await terminal.subscription("stripe", state);
+    expect((await terminal.ledger.status("alice")).billing.canCheckout).toBe(
+      true,
+    );
+    expect((await terminal.ledger.status("alice")).billing.canManageWeb).toBe(
+      true,
+    );
   }
 });

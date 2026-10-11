@@ -5,9 +5,11 @@ import type { ProStatus } from "./pro-trial";
 export function ProBillingDetails({
   billing,
   eligible,
+  renewalAt = null,
 }: {
   billing: ProStatus["billing"];
   eligible: ProStatus["eligible"];
+  renewalAt?: ProStatus["renewalAt"];
 }) {
   if (!eligible)
     return <p>Pro Coming soon. Public purchases are unavailable.</p>;
@@ -15,8 +17,13 @@ export function ProBillingDetails({
     <div className="flex flex-col gap-2 text-sm">
       <h4 className="font-semibold">Sandbox/test payment</h4>
       <p>
-        $12/month · 1,000 credits per period. Test payment only, no customer
-        charge. No annual plan, top-ups, overage or rollover.
+        {renewalAt !== null
+          ? "Current allowance period"
+          : "Current sandbox trial offer"}
+        : ${billing.monthlyUsd.toLocaleString("en-US")}/month ·{" "}
+        {billing.monthlyCredits.toLocaleString("en-US")} credits per period.
+        Test payment only, no customer charge. No annual plan, top-ups, overage
+        or rollover.
       </p>
       {billing.source === "apple" && (
         <p>
@@ -31,7 +38,7 @@ export function ProBillingDetails({
       </p>
       {!billing.available && (
         <p>
-          Sandbox billing unavailable. External test setup is missing or
+          Web sandbox checkout unavailable. External test setup is missing or
           unsupported.
         </p>
       )}
@@ -74,16 +81,19 @@ export function ProBillingSection({ status }: { status: ProStatus }) {
   const pending = checkout.isPending || management.isPending;
   return (
     <section className="flex flex-col gap-3" aria-label="Sandbox billing">
-      <ProBillingDetails billing={status.billing} eligible={status.eligible} />
-      {status.billing.available && (
+      <ProBillingDetails
+        billing={status.billing}
+        eligible={status.eligible}
+        renewalAt={status.renewalAt}
+      />
+      {status.eligible && status.billing.available && (
         <div className="flex gap-2">
-          {!status.billing.customerBound ||
-          !["active", "payment_failed"].includes(status.billing.state) ? (
+          {status.billing.canCheckout === true ? (
             <Button disabled={pending} onClick={() => checkout.mutate({})}>
               Buy sandbox subscription
             </Button>
           ) : null}
-          {status.billing.customerBound && (
+          {status.billing.canManageWeb === true && (
             <Button
               variant="outline"
               disabled={pending}

@@ -28,6 +28,8 @@ const initialStatus: RouterOutputs["pro"]["status"] = {
   billing: {
     environment: "sandbox",
     available: false,
+    canCheckout: false,
+    canManageWeb: false,
     monthlyUsd: 12,
     monthlyCredits: 1000,
     state: "none",

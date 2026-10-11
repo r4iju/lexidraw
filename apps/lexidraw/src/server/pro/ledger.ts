@@ -715,6 +715,11 @@ export class ProLedger {
     const previousReserved = z
       .object({ reserved: SqlSum })
       .parse(oldReservations[0]).reserved;
+    const textBook = period
+      ? decodePeriodRates(period.pricebook).text
+      : TextBook.parse(PRICEBOOK);
+    const webAvailable =
+      this.config.sandboxBillingAvailable === true && eligibility?.active === 1;
     return {
       owner: this.config.ownerAccountIds.includes(account),
       publicState: "coming_soon" as const,
@@ -724,11 +729,15 @@ export class ProLedger {
         : ("disabled" as const),
       billing: {
         environment: "sandbox" as const,
-        available:
-          this.config.sandboxBillingAvailable === true &&
-          eligibility?.active === 1,
-        monthlyUsd: 12,
-        monthlyCredits: 1000,
+        available: webAvailable,
+        canCheckout:
+          webAvailable &&
+          subscription?.source !== "apple" &&
+          !["active", "payment_failed"].includes(subscription?.state ?? "none"),
+        canManageWeb:
+          webAvailable && !!customer && subscription?.source !== "apple",
+        monthlyUsd: textBook.monthlyUsd,
+        monthlyCredits: textBook.monthlyCredits,
         state: subscription
           ? subscription.expiresAt <= this.config.now() &&
             subscription.state !== "revoked"
@@ -767,20 +776,12 @@ export class ProLedger {
         absorbedNanoUsd: providerCosts.absorbed,
         unknownExposureNanoUsd: providerCosts.unknown,
       },
-      policy: trialPolicy(
-        period ? decodePeriodRates(period.pricebook).text : PRICEBOOK,
-      ),
+      policy: trialPolicy(textBook),
       textMaximumSubcredits:
-        period && period.blocked !== 1
-          ? textMaximum(decodePeriodRates(period.pricebook).text)
-          : null,
+        period && period.blocked !== 1 ? textMaximum(textBook) : null,
       autocompleteMaximumSubcredits:
-        period && period.blocked !== 1
-          ? textMaximum(decodePeriodRates(period.pricebook).text, true)
-          : null,
-      pricebook: period
-        ? decodePeriodRates(period.pricebook).text
-        : TextBook.parse(PRICEBOOK),
+        period && period.blocked !== 1 ? textMaximum(textBook, true) : null,
+      pricebook: textBook,
     };
   }
   async periodRates(account: string) {
