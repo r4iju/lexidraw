@@ -390,3 +390,88 @@ test("capability refresh blocks new narration without losing completed playback 
   expect(flow.state()?.status).toBe("saved");
   expect(calls).toBe(1);
 });
+
+test("finalized recording keeps its canonical server receipt across reopening", async () => {
+  const session = createByokSession(
+    async () =>
+      new Response(new Uint8Array(48000), {
+        headers: { "Content-Type": "audio/pcm" },
+      }),
+    "https://app.test",
+    { narrationFixture: true },
+  );
+  session.replace("openrouter", "synthetic-canonical-recording-reference");
+  const disk = new Map<string, string>();
+  const ports = {
+    account: () => "fixture-a",
+    available: () => true,
+    byok: session,
+    store: {
+      load: async (scope: string) => disk.get(scope) ?? null,
+      save: async (scope: string, data: string, expected: string | null) => {
+        if ((disk.get(scope) ?? null) !== expected) return false;
+        disk.set(scope, data);
+        return true;
+      },
+      clear: async (scope: string) => {
+        disk.delete(scope);
+      },
+    },
+    sync: async () => "server-canonical-recording",
+  };
+  const first = new DeviceNarration("fixture-a", "fixture-d", ports);
+  await first.start("Saved recording");
+  const local = first.state()?.id;
+  await first.sync();
+  const reopened = new DeviceNarration("fixture-a", "fixture-d", ports);
+  await reopened.restore();
+  expect(reopened.state()).toMatchObject({
+    id: local,
+    status: "saved",
+    recordingId: "server-canonical-recording",
+  });
+});
+
+test("a quarantined malformed paid fence cannot be overwritten by a new narration dispatch", async () => {
+  let calls = 0;
+  const session = createByokSession(
+    async () => {
+      calls++;
+      return new Response(new Uint8Array(48000), {
+        headers: { "Content-Type": "audio/pcm" },
+      });
+    },
+    "https://app.test",
+    { narrationFixture: true },
+  );
+  session.replace("openrouter", "synthetic-quarantined-narration-reference");
+  const original = JSON.stringify({
+    version: 1,
+    account: "fixture-a",
+    documentId: "fixture-d",
+    id: "original-paid-fence",
+    created: Date.now(),
+    status: "saved",
+    parts: [{ kind: "started", text: "Original request", unexpected: true }],
+  });
+  let retained = original;
+  const flow = new DeviceNarration("fixture-a", "fixture-d", {
+    account: () => "fixture-a",
+    available: () => true,
+    byok: session,
+    store: {
+      load: async () => retained,
+      save: async (_scope, data, expected) => {
+        if (retained !== expected) return false;
+        retained = data;
+        return true;
+      },
+      clear: async () => {},
+    },
+    sync: async () => "unused",
+  });
+  await expect(flow.restore()).rejects.toThrow();
+  await flow.start("Replacement must remain blocked");
+  expect(calls).toBe(0);
+  expect(retained).toBe(original);
+});

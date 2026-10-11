@@ -84,7 +84,6 @@ extension Session {
      previousResult = nil
      state = .result(current)
     } else {
-     previousResult = current
      state = .acceptanceUncertain(pending.prompt, pending.quote, pending.key)
     }
    } else if let current { state = .result(current) }
@@ -103,11 +102,15 @@ extension Session {
    capability = value.available ? .available : .unavailable(value.reason)
   } catch { capability = .failed }
  }
- public func quote(_ prompt:String) async {guard canStart else{return};readGeneration = UUID();state = .quoting;do{state = .quote(prompt,try await session.quoteProAgent(document:document,prompt:prompt),UUID().uuidString)}catch{state = .error("Could not quote this document action. Check Pro access and save the document first.")}}
+ public func quote(_ prompt:String) async {guard canStart else{return};retainReport();readGeneration = UUID();state = .quoting;do{state = .quote(prompt,try await session.quoteProAgent(document:document,prompt:prompt),UUID().uuidString)}catch{state = .error("Could not quote this document action. Check Pro access and save the document first.")}}
  public func decline(){
   if pendingSubmission != nil { return }
   if case .result(let result) = state, ["reserved","running","unknown"].contains(result.operation.state) { return }
+  retainReport()
   state = .ready
+ }
+ private func retainReport() {
+  if case .result(let result) = state { previousResult = result }
  }
  public func accept() async {
   guard canStart else { return }
@@ -159,6 +162,7 @@ extension Session {
  }
  private func failedRead(_ error: any Error, message: String) {
   if proAccessDenied(error) {
+   previousResult = nil
    state = .error("Access to this action is no longer available.")
    readState = .denied
    capability = .failed

@@ -53,6 +53,7 @@ struct NativeProRecoveryFixtureScreen: View {
   guard let session = try? Account(origin: URL(string: "https://recovery.invalid")!, store: AccountHarnessToken(), transport: transport).restore() else { return }
   let nextAgent = NativeAgentFlow(session: session, document: scope)
   let nextNarration = NativeNarrationFlow(session: session, document: scope)
+  nextAgent.selectGeneration(true)
   agent = nextAgent; narration = nextNarration
   await nextAgent.load(); await nextNarration.restore()
  }
@@ -67,8 +68,14 @@ private actor RecoveryFixtureTransport: ClientTransport {
   if offline { throw URLError(.notConnectedToInternet) }
   let json: String
   switch operationID {
-  case "agentPower.capability": json = #"{"available":false,"reason":"New actions unavailable; existing work is retained."}"#
-  case "agentPower.current": json = hasOwnedWork ? Self.action : "null"
+  case "agentPower.capability": json = #"{"available":true,"reason":"Synthetic bounded private fixture."}"#
+  case "agentPower.quote": json = #"{"maximum":26629334,"revision":2}"#
+  case "agentPower.start": throw URLError(.networkConnectionLost)
+  case "agentPower.current":
+   let input = URLComponents(string: request.path ?? "")?.queryItems?.first(where: { $0.name == "input" })?.value
+   let envelope = input.flatMap { try? JSONSerialization.jsonObject(with: Data($0.utf8)) as? [String: Any] }
+   let key = (envelope?["json"] as? [String: Any])?["idempotencyKey"] as? String
+   json = hasOwnedWork && key == nil ? Self.action : "null"
   case "agentPower.operation", "agentPower.cancel": json = Self.action
   case "narration.latest": json = hasOwnedWork ? #"{"id":"owned-audio"}"# : "null"
   case "narration.operation", "narration.cancel": json = Self.audio
@@ -76,6 +83,6 @@ private actor RecoveryFixtureTransport: ClientTransport {
   }
   return (HTTPResponse(status: .ok), HTTPBody(Data("{\"result\":{\"data\":{\"json\":\(json)}}}".utf8)))
  }
- private static let action = #"{"operation":{"id":"owned","state":"unknown","charged":0,"quote":26629334},"report":{"status":"reconciling","completed":[{"revision":2,"description":"Saved paragraph"}],"incomplete":["Next edit"],"reason":"Outcome held"}}"#
+ private static let action = #"{"operation":{"id":"owned","state":"settled","charged":0,"quote":26629334},"report":{"status":"partial","completed":[{"revision":2,"description":"Saved paragraph"}],"incomplete":["Next edit"],"reason":"Outcome held"}}"#
  private static let audio = #"{"id":"owned-audio","state":"running","charged":0,"quote":12950000,"made":1,"planned":2,"parts":[{"text":"Saved audio","audio":"UklGRg==","seconds":1}],"policy":"Uncertain outcomes remain reserved."}"#
 }

@@ -1,7 +1,10 @@
 "use client";
 import { useSession } from "next-auth/react";
 import { useEffect } from "react";
-import { browserByok, clearBrowserByok } from "~/lib/byok/browser-session";
+import {
+  commitBrowserByok,
+  clearBrowserByok,
+} from "~/lib/byok/browser-session";
 
 export function ByokSessionLifecycle() {
   const { data, status } = useSession();
@@ -12,14 +15,14 @@ export function ByokSessionLifecycle() {
       return;
     }
     if (status !== "authenticated") return;
-    browserByok(data.user.id);
+    const owner = commitBrowserByok(data.user.id);
     const remaining = new Date(data.expires).getTime() - Date.now();
     if (remaining <= 0) {
-      clearBrowserByok();
+      clearBrowserByok(owner.generation, owner.expirationLease);
       return;
     }
     const timer = window.setTimeout(
-      clearBrowserByok,
+      () => clearBrowserByok(owner.generation, owner.expirationLease),
       Math.min(remaining, 2_147_483_647),
     );
     return () => window.clearTimeout(timer);

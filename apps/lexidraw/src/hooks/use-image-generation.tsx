@@ -5,11 +5,24 @@ import {
   useMemo,
   useSyncExternalStore,
   useState,
+  useEffect,
   type ReactNode,
 } from "react";
 import { toast } from "sonner";
 import { api } from "~/trpc/react";
-import { browserByok } from "~/lib/byok/browser-session";
+import { useSession } from "next-auth/react";
+import {
+  useBrowserByok,
+  browserByokAccount,
+  browserByokSessionGeneration,
+} from "~/lib/byok/browser-session";
+import {
+  browserNarrationStore,
+  registerNarration,
+} from "~/lib/narration/device-store";
+import { browserByokStorageReady } from "~/lib/byok/browser-session";
+import type { SaveReceipt } from "~/lib/open-entity-sync";
+import { insertRetainedImage } from "~/lib/images/insert";
 import { queryAccess } from "~/lib/generation/query-access";
 import { QueryNotice } from "~/lib/generation/query-notice";
 import { powerPreference } from "~/lib/byok/preference";
@@ -26,12 +39,17 @@ import {
 } from "~/components/ui/dialog";
 
 type ImageGenerationContextValue = {
+  acknowledgeImage: (receipt: SaveReceipt) => Promise<boolean>;
   isConfigured: boolean;
   isLoading: boolean;
   generateImageData: (
     prompt: string,
     options?: { size?: "256x256" | "512x512" | "1024x1024" },
-  ) => Promise<{ imageData: Uint8Array; mimeType: string } | null>;
+  ) => Promise<{
+    imageData: Uint8Array;
+    mimeType: string;
+    prompt: string;
+  } | null>;
   uploadImageData: (
     imageData: Uint8Array,
     mimeType: string,
@@ -70,6 +88,21 @@ export function ImageGenerationProvider({
   signedIn: boolean;
   children: ReactNode;
 }) {
+  const identity = useSession();
+  const accountId =
+    identity.status === "authenticated" ? identity.data.user.id : undefined;
+  const byok = useBrowserByok(accountId);
+  const generation = browserByokSessionGeneration();
+  const assertOwner = useCallback(() => {
+    if (
+      !byok ||
+      !accountId ||
+      browserByokAccount() !== accountId ||
+      browserByokSessionGeneration() !== generation
+    )
+      throw new Error("Device account session is not ready.");
+    return byok;
+  }, [byok, accountId, generation]);
   const source = api.auth.getPowerPreference.useQuery(undefined, {
     enabled: signedIn,
   });
@@ -100,7 +133,7 @@ export function ImageGenerationProvider({
     source: () => powerPreference(assertReady().preference),
     availability: () => assertReady().capability,
     get byok() {
-      return browserByok();
+      return assertOwner();
     },
     pro: async (input: {
       idempotencyKey: string;
@@ -108,32 +141,111 @@ export function ImageGenerationProvider({
       acceptedMaximum: number;
     }) => {
       assertReady();
+      assertOwner();
       const operation = await generate.mutateAsync(input);
+      assertOwner();
       if (operation.state !== "settled" || !operation.result)
         throw new Error("Image is still reconciling or failed");
       return validateImage(
         JSON.parse(operation.result),
-        browserByok().assertSafe,
+        assertOwner().assertSafe,
+      ).image;
+    },
+    readPro: async (key: string) => {
+      assertOwner();
+      const operation = await utils.imagePower.current.fetch({
+        idempotencyKey: key,
+      });
+      assertOwner();
+      if (operation?.state !== "settled" || !operation.result) return null;
+      return validateImage(
+        JSON.parse(operation.result),
+        assertOwner().assertSafe,
       ).image;
     },
     save: async (
       uploadId: string,
       image: import("~/lib/images/contracts").ImageArtifact,
     ) => {
-      browserByok().assertEgress(JSON.stringify(image));
-      return (
-        await save.mutateAsync({ entityId, idempotencyKey: uploadId, image })
-      ).url;
+      assertOwner().assertEgress(JSON.stringify(image));
+      const receipt = await save.mutateAsync({
+        entityId,
+        idempotencyKey: uploadId,
+        image,
+      });
+      assertOwner();
+      const url = new URL(receipt.url, window.location.origin);
+      if (
+        url.origin !== window.location.origin ||
+        url.pathname !== `/api/generated-images/${receipt.id}` ||
+        url.username ||
+        url.password ||
+        url.search ||
+        url.hash
+      )
+        throw new Error("Image receipt is invalid.");
+      return url.href;
     },
   };
   // The flow owns event lifetimes and retained image memory for this entity.
   const flow = useMemo(() => {
     if (!entityId) throw new Error("Image document identity required");
-    return new ImageFlow();
-  }, [entityId]);
+    if (!accountId) return new ImageFlow();
+    const currentOwner = () => {
+      if (
+        browserByokAccount() !== accountId ||
+        browserByokSessionGeneration() !== generation
+      )
+        throw new Error("Image account owner ended");
+    };
+    const owner = JSON.stringify([
+      accountId,
+      entityId,
+      "images-v1",
+      new URL(window.location.origin).origin,
+    ]);
+    return new ImageFlow(undefined, {
+      owner,
+      load: async () => {
+        currentOwner();
+        await browserByokStorageReady(accountId);
+        currentOwner();
+        return browserNarrationStore.load(owner);
+      },
+      save: (data, expected) => {
+        currentOwner();
+        return browserNarrationStore.save(owner, data, expected);
+      },
+      clear: (expected) => {
+        currentOwner();
+        return browserNarrationStore.clear(owner, expected);
+      },
+    });
+  }, [entityId, accountId, generation]);
   flow.configure(ports);
+  useEffect(() => {
+    flow.activate();
+    let disposed = false;
+    let unregister: (() => void) | undefined;
+    if (accountId)
+      void browserByokStorageReady(accountId)
+        .then(() => {
+          if (disposed) return;
+          unregister = registerNarration(accountId, async () => {
+            flow.end();
+          });
+          void flow.restore();
+        })
+        .catch(() => {});
+    return () => {
+      disposed = true;
+      unregister?.();
+      flow.end();
+    };
+  }, [flow, accountId]);
   const state = useSyncExternalStore(flow.subscribe, flow.state, flow.state);
   const isConfigured =
+    !!byok &&
     preference.kind === "ready" &&
     access.kind === "ready" &&
     access.data.available &&
@@ -169,10 +281,14 @@ export function ImageGenerationProvider({
         return null;
       }
       if (!("image" in final)) return null;
-      const result = validateImage(final.image, browserByok().assertSafe);
-      return { imageData: result.bytes, mimeType: result.image.mimeType };
+      const result = validateImage(final.image, assertOwner().assertSafe);
+      return {
+        imageData: result.bytes,
+        mimeType: result.image.mimeType,
+        prompt: final.prompt,
+      };
     },
-    [flow, isConfigured, preference, access],
+    [flow, isConfigured, preference, access, assertOwner],
   );
   const uploadImageData = useCallback(async () => {
     const url = await flow.upload();
@@ -186,7 +302,13 @@ export function ImageGenerationProvider({
   }, [flow]);
   return (
     <ImageGenerationContext.Provider
-      value={{ isConfigured, isLoading, generateImageData, uploadImageData }}
+      value={{
+        isConfigured,
+        isLoading,
+        generateImageData,
+        uploadImageData,
+        acknowledgeImage: (receipt) => flow.acknowledge(receipt),
+      }}
     >
       {children}
       <QueryNotice access={preference} retry={() => void source.refetch()} />
@@ -216,6 +338,23 @@ export function ImageGenerationProvider({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      {state.kind === "uncertain" && (
+        <div role="alert">
+          <p>
+            The original image outcome is uncertain. New generation is blocked.
+          </p>
+          {state.source === "pro" && (
+            <Button onClick={() => void flow.recover()}>
+              Read original image
+            </Button>
+          )}
+        </div>
+      )}
+      {state.kind === "saved" && (
+        <div role="status">
+          Image artifact retained until document persistence is confirmed.
+        </div>
+      )}
       {state.kind === "sync_failed" && (
         <div
           role="alert"
@@ -242,14 +381,6 @@ export function useImageGeneration() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
-import {
-  $insertNodes,
-  $isRootOrShadowRoot,
-  $createParagraphNode,
-} from "lexical";
-import { ImageNode } from "~/app/documents/[documentId]/nodes/ImageNode/ImageNode";
-import { $wrapNodeInElement } from "@lexical/utils";
-
 type LexicalImageContextValue = {
   isLoading: boolean;
   isConfigured: boolean;
@@ -267,33 +398,15 @@ const LexicalImageContext = createContext<LexicalImageContextValue | null>(
 
 export const LexicalImageGenerationProvider = ({
   children,
+  persist,
 }: {
   children: ReactNode;
+  persist: (state: import("lexical").EditorState) => Promise<SaveReceipt>;
 }) => {
   const [editor] = useLexicalComposerContext();
-  const { isConfigured, generateImageData, uploadImageData } =
+  const { isConfigured, generateImageData, uploadImageData, acknowledgeImage } =
     useImageGeneration();
   const [isLoading, setIsLoading] = useState(false);
-
-  const insertImageNodeFromUrl = useCallback(
-    (imageUrl: string, prompt: string) => {
-      editor.update(() => {
-        if (!editor.hasNodes([ImageNode])) {
-          toast.error("ImageNode not registered.");
-          return;
-        }
-        const img = ImageNode.$createImageNode({
-          src: imageUrl,
-          altText: prompt,
-        });
-        $insertNodes([img]);
-        if ($isRootOrShadowRoot(img.getParentOrThrow())) {
-          $wrapNodeInElement(img, $createParagraphNode).selectEnd();
-        }
-      });
-    },
-    [editor],
-  );
 
   const generateAndInsertImage = useCallback(
     async (
@@ -312,7 +425,16 @@ export const LexicalImageGenerationProvider = ({
         const url = await uploadImageData(gen.imageData, gen.mimeType, prompt);
         if (!url) return;
         toast.info("Inserting Image...", { description: "" });
-        insertImageNodeFromUrl(url, prompt);
+        const receipt = await insertRetainedImage(
+          editor,
+          url,
+          gen.prompt,
+          persist,
+        );
+        if (!receipt || !(await acknowledgeImage(receipt)))
+          toast.error(
+            "Image retained. Document save did not confirm its insertion.",
+          );
       } catch (err) {
         toast.error("Process Failed", {
           description: err instanceof Error ? err.message : "Unknown error",
@@ -321,7 +443,14 @@ export const LexicalImageGenerationProvider = ({
         setIsLoading(false);
       }
     },
-    [isConfigured, generateImageData, uploadImageData, insertImageNodeFromUrl],
+    [
+      isConfigured,
+      generateImageData,
+      uploadImageData,
+      editor,
+      persist,
+      acknowledgeImage,
+    ],
   );
 
   return (

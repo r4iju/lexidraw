@@ -88,6 +88,22 @@ struct DocumentScreen: View {
     if status == .conflict { conflict = true }
   }
 
+  func saveImage(_ url: URL, prompt: String, in view: EditorView?) async throws -> DocumentSaveReceipt? {
+    guard mode == .editing, !conflict, let view else { return nil }
+    let count = DocumentSaveReceipt.imageCount(try model.serializedState()["root"], url: url)
+    guard count <= 1 else { return nil }
+    if count == 0 {
+      view.setEditingEnabled(true)
+      guard view.insertGeneratedImage(url, altText: prompt) else { return nil }
+    }
+    changed()
+    await sending?.value
+    let receipt = await saver.saveNow()
+    status = await saver.status
+    if status == .conflict { conflict = true }
+    return receipt
+  }
+
   func keepMineAsCopy() async {
     guard !copying else { return }
     copying = true
@@ -211,8 +227,8 @@ private struct DocumentContent: View {
       }
       .sheet(isPresented: $imageComposer) {
         DocumentImageComposer(session: editing.session, document: editing.id) { url, prompt in
-          editorReference.view?.insertGeneratedImage(url, altText: prompt)
-          Task { await editing.saveNow() }
+          isEditing = true
+          return try await editing.saveImage(url, prompt: prompt, in: editorReference.view)
         }
       }
       .onAppear {

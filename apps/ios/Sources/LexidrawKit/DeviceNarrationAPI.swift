@@ -38,18 +38,25 @@ extension Session {
     if let result { _ = try result.recording.validated() }
     return result
   }
+  public func deviceNarrationPlaybackScope(document: String) async throws -> String {
+    let identity = try await accountIdentity()
+    return try NativeArtifactOwner(origin: origin, account: identity.id, document: document, namespace: "narration-v2").storageKey
+  }
   @MainActor public func deviceNarrationFlow(document: String) async throws
     -> NativeDeviceNarrationFlow
   {
+    _ = try await deviceNarrationSource(document: document)
     let runtime = try await nativeAI()
     let identity = try await accountIdentity()
     guard let root = aiHandle.narrationDirectory else { throw NativeAIError.unavailable }
     let scope = SHA256.hash(data: Data((identity.id + "\n" + document).utf8)).map {
       String(format: "%02x", $0)
     }.joined()
+    let owner = try NativeArtifactOwner(origin: origin, account: identity.id, document: document, namespace: "narration-v2")
+    let directory = root.appending(path: owner.storageKey)
     return NativeDeviceNarrationFlow(
       account: identity.id, document: document, runtime: runtime,
-      files: NativeDeviceNarrationStore(directory: root.appending(path: scope)),
+      files: NativeDeviceNarrationStore(directory: directory, owner: owner, legacyDirectory: root.appending(path: scope)),
       save: { id, recording in
         try await self.saveDeviceNarration(recording, id: id, document: document)
       })

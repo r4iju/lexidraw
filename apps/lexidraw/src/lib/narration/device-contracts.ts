@@ -22,31 +22,74 @@ export const DevicePart = z.discriminatedUnion("kind", [
     seconds: z.number().positive().max(120),
   }),
 ]);
+const checkpointFields = {
+  fingerprints: CredentialFingerprints.default([]),
+  version: z.literal(1),
+  account: z.string().min(1).max(100),
+  documentId: z.string().min(1).max(100),
+  id: z.string().min(1).max(100),
+  uploadKey: z.string().min(1).max(100).optional(),
+  created: z.number().int().nonnegative(),
+};
+const CompletedPart = DevicePart.options[3];
+const completedParts = z.array(CompletedPart).min(1).max(8);
 export const DeviceCheckpoint = z
-  .strictObject({
-    fingerprints: CredentialFingerprints.default([]),
-    version: z.literal(1),
-    account: z.string().min(1).max(100),
-    documentId: z.string().min(1).max(100),
-    id: z.string().min(1).max(100),
-    created: z.number().int().nonnegative(),
-    status: z.enum([
-      "paused",
-      "running",
-      "unknown",
-      "completed",
-      "syncing",
-      "sync_failed",
-      "saved",
-    ]),
-    parts: z.array(DevicePart).min(1).max(8),
-  })
+  .discriminatedUnion("status", [
+    z.strictObject({
+      ...checkpointFields,
+      status: z.enum(["paused", "running", "unknown"]),
+      parts: z.array(DevicePart).min(1).max(8),
+    }),
+    z.strictObject({
+      ...checkpointFields,
+      status: z.enum(["completed", "syncing", "sync_failed"]),
+      parts: completedParts,
+    }),
+    z.strictObject({
+      ...checkpointFields,
+      status: z.literal("saved"),
+      parts: completedParts,
+      recordingId: z.string().min(1).max(100),
+    }),
+  ])
   .refine(
     (value) =>
       imagePromptBytes(value.parts.map((p) => p.text).join("")) <= 6000,
     "Document exceeds narration bounds",
   );
 export type DeviceCheckpoint = z.infer<typeof DeviceCheckpoint>;
+const LegacyCheckpoint = z.strictObject({
+  ...checkpointFields,
+  status: z.enum([
+    "paused",
+    "running",
+    "unknown",
+    "completed",
+    "syncing",
+    "sync_failed",
+    "saved",
+  ]),
+  parts: z.array(DevicePart).min(1).max(8),
+});
+export function restoreDeviceCheckpoint(input: unknown): DeviceCheckpoint {
+  const parsed = DeviceCheckpoint.safeParse(input);
+  if (parsed.success) return parsed.data;
+  const legacy = LegacyCheckpoint.parse(input);
+  const parts = legacy.parts.map((p) =>
+    p.kind === "started" ? { ...p, kind: "unknown" as const } : p,
+  );
+  const status = parts.some((p) => p.kind === "unknown")
+    ? "unknown"
+    : parts.every((p) => p.kind === "completed")
+      ? "sync_failed"
+      : "paused";
+  return DeviceCheckpoint.parse({
+    ...legacy,
+    uploadKey: legacy.uploadKey ?? legacy.id,
+    status,
+    parts,
+  });
+}
 export const RecordingArtifact = z
   .strictObject({
     mimeType: z.literal("audio/wav"),

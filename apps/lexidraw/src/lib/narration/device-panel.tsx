@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { useSession } from "next-auth/react";
-import { browserByok, browserByokAccount } from "../byok/browser-session";
+import { useBrowserByok, browserByokAccount } from "../byok/browser-session";
 import { Button } from "~/components/ui/button";
 import { queryAccess } from "~/lib/generation/query-access";
 import { QueryNotice } from "~/lib/generation/query-notice";
@@ -82,8 +82,27 @@ function SignedInDeviceNarration({
   account: string;
   documentId: string;
 }) {
-  const utils = api.useUtils(),
-    byok = browserByok(account);
+  const byok = useBrowserByok(account);
+  if (!byok) return <p>Preparing this account's device session...</p>;
+  return (
+    <OwnedDeviceNarration
+      account={account}
+      documentId={documentId}
+      byok={byok}
+    />
+  );
+}
+function OwnedDeviceNarration({
+  account,
+  documentId,
+  byok,
+}: {
+  account: string;
+  documentId: string;
+  byok: ReturnType<typeof import("../byok/browser-session").browserByok>;
+}) {
+  const utils = api.useUtils();
+
   const reference = useSyncExternalStore(
     byok.subscribe,
     byok.reference,

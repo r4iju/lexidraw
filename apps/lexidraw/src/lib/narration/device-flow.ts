@@ -1,6 +1,7 @@
 import type { createByokSession } from "../byok/session";
 import {
   DeviceCheckpoint,
+  restoreDeviceCheckpoint,
   validateRecording,
   type RecordingArtifact,
 } from "./device-contracts";
@@ -24,6 +25,7 @@ export class DeviceNarration {
   private current: DeviceCheckpoint | null = null;
   private busy = false;
   private ended = false;
+  private quarantined = false;
   private persisted: string | null = null;
   private listeners = new Set<() => void>();
   constructor(
@@ -53,12 +55,10 @@ export class DeviceNarration {
     }
     if (this.ended) throw new Error("Account session ended");
   }
-  private async persist(value: DeviceCheckpoint) {
+  private async persist(value: unknown) {
     this.checkScope();
-    const validated = DeviceCheckpoint.parse({
-      ...value,
-      fingerprints: this.ports.byok.fingerprints(),
-    });
+    const validated = DeviceCheckpoint.parse(value);
+    validated.fingerprints = this.ports.byok.fingerprints();
     if (
       validated.account !== this.account ||
       validated.documentId !== this.documentId
@@ -90,25 +90,27 @@ export class DeviceNarration {
     this.checkScope();
     const data = await this.ports.store.load(this.scope);
     if (!data) return;
+    this.quarantined = true;
     this.persisted = data;
-    const value = DeviceCheckpoint.parse(JSON.parse(data));
+    const value = restoreDeviceCheckpoint(JSON.parse(data));
     this.ports.byok.restoreFingerprints(value.fingerprints);
     this.ports.byok.assertEgress(data);
-    value.parts = value.parts.map((part) =>
+    const parts = value.parts.map((part) =>
       part.kind === "started" ? { ...part, kind: "unknown" } : part,
     );
-    value.status = value.parts.some((p) => p.kind === "unknown")
+    const status = parts.some((p) => p.kind === "unknown")
       ? "unknown"
       : value.status === "running"
         ? "paused"
         : value.status === "syncing"
           ? "sync_failed"
           : value.status;
-    await this.persist(value);
+    await this.persist({ ...value, parts, status });
+    this.quarantined = false;
   }
   async start(text: string) {
     this.checkScope();
-    if (this.busy || this.current) return;
+    if (this.busy || this.current || this.quarantined) return;
     this.ports.byok.assertSafe(text);
     await this.persist({
       version: 1,
@@ -126,6 +128,7 @@ export class DeviceNarration {
     this.checkScope();
     if (
       this.busy ||
+      this.quarantined ||
       !this.current ||
       !this.ports.available() ||
       !this.ports.byok.reference() ||
@@ -250,16 +253,19 @@ export class DeviceNarration {
       );
       this.checkScope();
       this.ports.byok.assertEgress(JSON.stringify(recording));
-      await this.ports.sync(this.current.id, recording);
-      await this.persist({ ...this.current, status: "saved" });
+      const recordingId = await this.ports.sync(
+        this.current.uploadKey ?? this.current.id,
+        recording,
+      );
+      await this.persist({ ...this.current, status: "saved", recordingId });
     } catch (error) {
       this.checkScope();
       await this.persist({
         ...this.current,
-        id:
+        uploadKey:
           error instanceof Error && error.message.startsWith("Upload expired")
             ? crypto.randomUUID()
-            : this.current.id,
+            : (this.current.uploadKey ?? this.current.id),
         status: "sync_failed",
       });
     } finally {

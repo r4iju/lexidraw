@@ -49,6 +49,23 @@ private final class SpeechProbe: URLProtocol, @unchecked Sendable {
   }
 }
 @Suite(.serialized) @MainActor struct DeviceNarrationTests {
+  @Test func checkpointOriginProvenanceRejectsAnotherOriginAndUnscopedLegacy() throws {
+    let directory = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let first = try NativeArtifactOwner(origin: URL(string: "https://APP.test:443/")!, account: "alice", document: "n1", namespace: "narration-v2")
+    let equivalent = try NativeArtifactOwner(origin: URL(string: "https://app.test")!, account: "alice", document: "n1", namespace: "narration-v2")
+    let other = try NativeArtifactOwner(origin: URL(string: "https://other.test")!, account: "alice", document: "n1", namespace: "narration-v2")
+    #expect(first == equivalent)
+    let checkpoint = DeviceNarrationCheckpoint(version: 1, account: "alice", document: "n1", id: UUID().uuidString, created: .now, status: "unknown", parts: [.init(kind: .unknown, text: "Pending private narration", output: nil)], fingerprints: Data())
+    let files = NativeDeviceNarrationStore(directory: directory, owner: first)
+    try files.save(checkpoint)
+    #expect(try NativeDeviceNarrationStore(directory: directory, owner: equivalent).load()?.id == checkpoint.id)
+    #expect(throws: Error.self) { try NativeDeviceNarrationStore(directory: directory, owner: other).load() }
+    try files.clear()
+    try NativeDeviceNarrationStore(directory: directory).save(checkpoint)
+    #expect(throws: Error.self) { try files.load() }
+  }
+
   @Test func directNativeSpeechUsesSharedJSCAndRetiredReferenceCannotDispatch() async throws {
     SpeechProbe.requests.withLock { $0 = [] }
     let config = URLSessionConfiguration.ephemeral
@@ -188,4 +205,36 @@ private final class SpeechProbe: URLProtocol, @unchecked Sendable {
     })
   }
 
+}
+
+@Test @MainActor func terminalNarrationCannotContainUnfinishedParts() throws {
+  for status in ["saved", "completed", "syncing", "sync_failed"] {
+    let checkpoint = DeviceNarrationCheckpoint(version: 1, account: "fixture-account", document: "fixture-document", id: UUID().uuidString, created: .now, status: status, parts: [.init(kind: .unknown, text: "Unconfirmed", output: nil)], fingerprints: Data())
+    #expect(throws: Error.self) { try checkpoint.validated() }
+  }
+}
+
+extension DeviceNarrationTests {
+  @Test func syncedCheckpointRetainsActualServerRecordingIdentityOnReopen() async throws {
+    let directory = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let config = URLSessionConfiguration.ephemeral; config.protocolClasses = [SpeechProbe.self]
+    let runtime = NativeBYOK(store: NarrationKey(), configuration: config, narrationFixture: true)
+    try runtime.replaceKey("synthetic-recording-recovery-key")
+    let owner = try NativeArtifactOwner(origin: URL(string: "https://app.test")!, account: "fixture-a", document: "fixture-d", namespace: "narration-v2")
+    let files = NativeDeviceNarrationStore(directory: directory, owner: owner)
+    let defaults = try #require(UserDefaults(suiteName: UUID().uuidString))
+    let points = ResumePoints(defaults: defaults)
+    let flow = NativeDeviceNarrationFlow(account: "fixture-a", document: "fixture-d", runtime: runtime, files: files, available: true, resumePoints: points, save: { _, _ in "actual-server-recording" })
+    try await flow.start(text: "Saved recording")
+    let local = try #require(flow.checkpoint?.id)
+    let position = Recording.Position(part: 0, seconds: 0.4)
+    points.keep(position, of: "device.\(owner.storageKey).\(local)")
+    await flow.sync()
+    #expect(points.position(of: "device.\(owner.storageKey).actual-server-recording") == position)
+    let restored = try #require(try files.load())
+    let json = try #require(try JSONSerialization.jsonObject(with: JSONEncoder().encode(restored)) as? [String: Any])
+    #expect(json["recordingId"] as? String == "actual-server-recording")
+    #expect(restored.id == local)
+  }
 }

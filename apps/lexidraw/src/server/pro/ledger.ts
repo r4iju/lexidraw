@@ -1131,6 +1131,19 @@ export class ProLedger {
       throw new ProError("Idempotency key conflicts with prior input");
     return operation;
   }
+  async ownedOperationByKey(
+    account: string,
+    key: string,
+    feature: Operation["feature"],
+  ) {
+    const row = (
+      await this.query(
+        "SELECT * FROM pro_operations WHERE account_id=? AND idempotency_key=? AND feature=?",
+        [account, key, feature],
+      )
+    )[0];
+    return row ? Operation.parse(row) : null;
+  }
   async operation(account: string, id: string) {
     const row = (
       await this.query(

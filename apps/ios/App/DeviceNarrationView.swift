@@ -43,13 +43,13 @@ struct DeviceNarrationComposer: View {
                 Button("Resume generation") { run { try await flow.resume() } }.disabled(
                   !flow.available || !flow.keyAvailable)
               }
-              if let recording = checkpoint.recording {
-                Button("Play retained audio") { onPlay(.init(job: recording.job(id: checkpoint.id), source: .device)) }
-                if checkpoint.status != "saved" {
+              if let job = checkpoint.retainedJob {
+                Button("Play retained audio") { onPlay(.init(job: job, source: .device, scope: checkpoint.owner?.storageKey)) }
+                if checkpoint.status != "saved", checkpoint.recording != nil {
                   Button(
                     checkpoint.status == "sync_failed" ? "Retry sync" : "Sync completed recording"
                   ) { Task { await flow.sync() } }.disabled(checkpoint.status == "syncing")
-                } else {
+                } else if checkpoint.status == "saved" {
                   Text("Saved to your account. Replay is free without a key.")
                 }
               }

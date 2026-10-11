@@ -278,9 +278,10 @@ public struct NarrationPlayback: Sendable {
   public enum Source: Sendable { case pro, device }
   public let job: ProNarrationJob
   public let source: Source
+  public let scope: String?
   public func resumeID(file: String) -> String {
     let prefix = switch source { case .pro: "pro"; case .device: "device" }
-    return "\(prefix).\(job.id ?? file)"
+    return "\(prefix)." + (scope.map { $0 + "." } ?? "") + (job.id ?? file)
   }
-  public init(job: ProNarrationJob, source: Source) { self.job = job; self.source = source }
+  public init(job: ProNarrationJob, source: Source, scope: String? = nil) { self.job = job; self.source = source; self.scope = scope }
 }

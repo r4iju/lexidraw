@@ -12,7 +12,7 @@ import { useState, useSyncExternalStore } from "react";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
-import { browserByok } from "~/lib/byok/browser-session";
+import { useBrowserByok } from "~/lib/byok/browser-session";
 import type { PowerPreference } from "~/lib/byok/preference";
 import { queryAccess } from "~/lib/generation/query-access";
 import { QueryNotice } from "~/lib/generation/query-notice";
@@ -42,8 +42,7 @@ export function AiPowerSection({
     onSuccess: () => utils.auth.getPowerPreference.invalidate(),
   });
   const [activity, setActivity] = useState<Activity>({ status: "idle" });
-  const session =
-    typeof window === "undefined" ? undefined : browserByok(accountId);
+  const session = useBrowserByok(accountId);
   const credential = useSyncExternalStore(
     session?.subscribe ?? (() => () => {}),
     session?.reference ?? noCredential,

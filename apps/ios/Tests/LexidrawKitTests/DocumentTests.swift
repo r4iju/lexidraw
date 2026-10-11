@@ -121,6 +121,21 @@ import Testing
 }
 
 @Suite struct DocumentSaverTests {
+  @Test func saveAcknowledgesActualCoalescedJSONAndRevision() async throws {
+    let server = FakeServer { _ in (200, #"{"id":"n1","updatedAt":"2026-09-25T09:31:00.456Z"}"#) }
+    let saver = DocumentSaver(session: try TestServer.session(server), document: "n1", readAt: .now,
+      pause: { try await Task.sleep(for: .seconds(60)) })
+    let inserted = try JSONValue(parsing: #"{"root":{"children":[{"type":"image","src":"https://storage.test/receipt"}]}}"#)
+    let removed = try JSONValue(parsing: #"{"root":{"children":[]}}"#)
+    await saver.changed { inserted }
+    await saver.changed { removed }
+    let receipt = try #require(await saver.saveNow())
+    #expect(receipt.document == "n1")
+    #expect(receipt.state == removed)
+    #expect(receipt.revision == Date(timeIntervalSince1970: 1_790_328_660.456))
+    #expect(try #require(server.requests.only).json["elements"] == receipt.state.stringified)
+  }
+
   @Test func retryingAnAmbiguousCopyCreationReusesItsID() async throws {
     let attempts = Mutex(0)
     let server = FakeServer { request in

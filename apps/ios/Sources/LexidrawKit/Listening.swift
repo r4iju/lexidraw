@@ -96,16 +96,30 @@ public struct ResumePoints {
 
   private static func key(_ file: String) -> String { "listen.position.\(file)" }
 
+  private func resolved(_ file: String) -> String {
+    var current = file
+    var seen = Set<String>()
+    for _ in 0..<4 {
+      guard seen.insert(current).inserted, let next = defaults.string(forKey: "listen.alias." + current), !next.isEmpty, next.utf8.count <= 2048 else { break }
+      current = next
+    }
+    return current
+  }
+  public func migrate(from local: String, to canonical: String) {
+    guard local != canonical, !canonical.isEmpty, canonical.utf8.count <= 2048 else { return }
+    if position(of: canonical) == nil, let point = position(of: local) { keep(point, of: canonical) }
+    defaults.set(canonical, forKey: "listen.alias." + local)
+  }
   public func position(of file: String) -> Recording.Position? {
-    defaults.data(forKey: Self.key(file)).flatMap { try? JSONDecoder().decode(Recording.Position.self, from: $0) }
+    defaults.data(forKey: Self.key(resolved(file))).flatMap { try? JSONDecoder().decode(Recording.Position.self, from: $0) }
   }
 
   public func keep(_ position: Recording.Position, of file: String) {
-    defaults.set(try? JSONEncoder().encode(position), forKey: Self.key(file))
+    defaults.set(try? JSONEncoder().encode(position), forKey: Self.key(resolved(file)))
   }
 
   public func finished(_ file: String) {
-    defaults.removeObject(forKey: Self.key(file))
+    defaults.removeObject(forKey: Self.key(resolved(file)))
   }
 }
 

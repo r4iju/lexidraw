@@ -3,14 +3,14 @@ import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
 import { Label } from "~/components/ui/label";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import { useEntityId } from "~/hooks/use-entity-id";
 import { queryAccess } from "~/lib/generation/query-access";
 import { QueryNotice } from "~/lib/generation/query-notice";
 import { api } from "~/trpc/react";
 import { useSession } from "next-auth/react";
 import {
-  browserByok,
+  useBrowserByok,
   browserByokAccount,
   browserByokSessionGeneration,
 } from "~/lib/byok/browser-session";
@@ -43,29 +43,33 @@ export default function AutocompletePlugin({ title = "" }: { title?: string }) {
   const account = useSession();
   const accountId =
     account.status === "authenticated" ? account.data.user.id : undefined;
-  const session = browserByok(accountId);
+  const session = useBrowserByok(accountId);
   const generation = browserByokSessionGeneration();
   const origin = typeof window === "undefined" ? "" : window.location.origin;
-  const proForOwner = (): ProSuggestions => ({
-    start: (input) => utils.client.pro.autocomplete.mutate(input),
-    recover: (input) => utils.client.pro.autocompleteRecovery.query(input),
-    read: (id) => utils.client.pro.operation.query({ id }),
-    cancel: (id) => utils.client.pro.cancel.mutate({ id }),
-    owner: {
-      id: JSON.stringify([origin, accountId, generation]),
-      current: () =>
-        !!accountId &&
-        browserByokAccount() === accountId &&
-        browserByokSessionGeneration() === generation &&
-        window.location.origin === origin,
-    },
-  });
-  const recovery = accountId
-    ? suggestionRecovery(session, proForOwner())
-    : undefined;
+  const proForOwner = useCallback(
+    (): ProSuggestions => ({
+      start: (input) => utils.client.pro.autocomplete.mutate(input),
+      recover: (input) => utils.client.pro.autocompleteRecovery.query(input),
+      read: (id) => utils.client.pro.operation.query({ id }),
+      cancel: (id) => utils.client.pro.cancel.mutate({ id }),
+      owner: {
+        id: JSON.stringify([origin, accountId, generation]),
+        current: () =>
+          !!accountId &&
+          browserByokAccount() === accountId &&
+          browserByokSessionGeneration() === generation &&
+          window.location.origin === origin,
+      },
+    }),
+    [utils, accountId, generation, origin],
+  );
+  const recovery =
+    accountId && session
+      ? suggestionRecovery(session, proForOwner())
+      : undefined;
   const reference = useSyncExternalStore(
-    session.subscribe,
-    session.reference,
+    session?.subscribe ?? (() => () => {}),
+    session?.reference ?? (() => undefined),
     () => undefined,
   );
   const [message, setMessage] = useState("");
@@ -98,6 +102,7 @@ export default function AutocompletePlugin({ title = "" }: { title?: string }) {
   useEffect(() => {
     if (
       !accountId ||
+      !session ||
       !enabled ||
       save.isPending ||
       save.error ||
@@ -146,8 +151,7 @@ export default function AutocompletePlugin({ title = "" }: { title?: string }) {
   }, [
     editor,
     accountId,
-    generation,
-    origin,
+    proForOwner,
     enabled,
     save.isPending,
     save.error,
@@ -194,6 +198,7 @@ export default function AutocompletePlugin({ title = "" }: { title?: string }) {
             variant="outline"
             type="button"
             onClick={() => {
+              if (!session) return;
               void refreshOwnedSuggestion(session, proForOwner())
                 .then((operation) => {
                   setMessage(
@@ -216,6 +221,7 @@ export default function AutocompletePlugin({ title = "" }: { title?: string }) {
             variant="outline"
             type="button"
             onClick={() => {
+              if (!session) return;
               void refreshOwnedSuggestion(session, proForOwner(), true)
                 .then((operation) => {
                   setMessage(

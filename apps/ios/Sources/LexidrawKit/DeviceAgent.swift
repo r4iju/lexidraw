@@ -27,7 +27,7 @@ public struct NativeAgentCheckpoint: Decodable, Sendable {
  public let imagePrompt: String?
  public let reason: String?
 }
-private struct AgentFile: Codable { let state: String; let fingerprints: Data; let revision: String }
+private struct AgentFile: Codable { let state: String; let fingerprints: Data; let revision: String; var owner: NativeArtifactOwner? = nil }
 @MainActor @Observable public final class NativeDeviceAgentFlow {
  public private(set) var checkpoint: NativeAgentCheckpoint?
  public private(set) var notice: String?
@@ -37,6 +37,9 @@ private struct AgentFile: Codable { let state: String; let fingerprints: Data; l
  private let document: String
  private let runtime: NativeBYOK
  private let directory: URL
+ private let owner: NativeArtifactOwner?
+ private let legacyDirectory: URL?
+ private var quarantined = false
  private let read: () async throws -> NativeDeviceDocument
  private let apply: (NativeDeviceMutation) async throws -> NativeDeviceReceipt
  private var state: String?
@@ -46,16 +49,17 @@ private struct AgentFile: Codable { let state: String; let fingerprints: Data; l
  private var starting = false
  private var intent = UUID()
  public var keyAvailable: Bool { runtime.hasKey }
- public init(account: String, document: String, runtime: NativeBYOK, directory: URL, available: Bool = false, images: Bool = false, read: @escaping () async throws -> NativeDeviceDocument, apply: @escaping (NativeDeviceMutation) async throws -> NativeDeviceReceipt) {
-  self.account = account; self.document = document; self.runtime = runtime; self.directory = directory; self.available = available; self.images = images; self.read = read; self.apply = apply
+ public init(account: String, document: String, runtime: NativeBYOK, directory: URL, owner: NativeArtifactOwner? = nil, legacyDirectory: URL? = nil, available: Bool = false, images: Bool = false, read: @escaping () async throws -> NativeDeviceDocument, apply: @escaping (NativeDeviceMutation) async throws -> NativeDeviceReceipt) {
+  self.owner = owner; self.legacyDirectory = legacyDirectory; self.account = account; self.document = document; self.runtime = runtime; self.directory = directory; self.available = available; self.images = images; self.read = read; self.apply = apply
   runtime.onSessionEnd { [weak self] in self?.checkpoint = nil; self?.state = nil; self?.stopped = true; if FileManager.default.fileExists(atPath: directory.path) { try FileManager.default.removeItem(at: directory) } }
  }
  private var file: URL { directory.appending(path: "agent.json") }
  private func active() throws { guard runtime.sessionActive else { throw NativeAIError.expired } }
  private func loadFile() throws -> AgentFile? {
+  if let legacyDirectory, FileManager.default.fileExists(atPath: legacyDirectory.appending(path: "agent.json").path) { throw NativeAIError.rejected }
   guard FileManager.default.fileExists(atPath: file.path) else { return nil }
   guard let size = try FileManager.default.attributesOfItem(atPath: file.path)[.size] as? NSNumber, size.intValue <= 4_500_000 else { throw NativeAIError.rejected }
-  let value = try JSONDecoder().decode(AgentFile.self, from: Data(contentsOf: file)); try NativeCredentialGuard.shared.restore(value.fingerprints); try NativeCredentialGuard.shared.check(Data(value.state.utf8)); return value
+  let value = try JSONDecoder().decode(AgentFile.self, from: Data(contentsOf: file)); guard owner == nil || value.owner == owner else { throw NativeAIError.rejected }; try NativeCredentialGuard.shared.restore(value.fingerprints); try NativeCredentialGuard.shared.check(Data(value.state.utf8)); return value
  }
  private func persist(_ value: String) throws {
   try active()
@@ -64,7 +68,7 @@ private struct AgentFile: Codable { let state: String; let fingerprints: Data; l
   guard cp.account == account, cp.documentId == document else { throw NativeAIError.rejected }
   try NativeCredentialGuard.shared.check(Data(value.utf8))
   let nextRevision = UUID().uuidString
-  let data = try JSONEncoder().encode(AgentFile(state: value, fingerprints: NativeCredentialGuard.shared.snapshot(), revision: nextRevision))
+  let data = try JSONEncoder().encode(AgentFile(state: value, fingerprints: NativeCredentialGuard.shared.snapshot(), revision: nextRevision, owner: owner))
   guard data.count <= 4_500_000 else { throw NativeAIError.rejected }
   try NativeCredentialGuard.shared.check(data)
   try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
@@ -77,11 +81,13 @@ private struct AgentFile: Codable { let state: String; let fingerprints: Data; l
   state = value; revision = nextRevision; checkpoint = cp
  }
  public func restore() throws {
-  try active(); guard let value = try loadFile() else { return }; revision = value.revision
+  quarantined = true
+  try active(); guard let value = try loadFile() else { quarantined = false; return }; revision = value.revision
   try persist(nativeAgentCall("nativeAgentRestore", [value.state]))
+  quarantined = false
  }
  public func start(prompt: String) async throws {
-  try active(); guard !busy, !starting, state == nil, available, runtime.hasKey else { return }
+  try active(); guard !quarantined, !busy, !starting, state == nil, available, runtime.hasKey else { return }
   try Task.checkCancellation()
   starting = true; stopped = false
   intent = UUID(); let run = intent
@@ -143,10 +149,13 @@ private struct AgentFile: Codable { let state: String; let fingerprints: Data; l
 }
 extension Session {
  @MainActor public func deviceAgentFlow(document: String) async throws -> NativeDeviceAgentFlow {
+  _ = try await deviceAgentSource(document: document)
   let runtime = try await nativeAI(), identity = try await accountIdentity()
   guard let root = aiHandle.narrationDirectory else { throw NativeAIError.unavailable }
   let scope = SHA256.hash(data: Data((identity.id + "\n" + document + "\nopenrouter-gpt41mini-agent-v1").utf8)).map { String(format: "%02x", $0) }.joined()
-  return NativeDeviceAgentFlow(account: identity.id, document: document, runtime: runtime, directory: root.appending(path: scope), read: {
+  let owner = try NativeArtifactOwner(origin: origin, account: identity.id, document: document, namespace: "agent-v2")
+  let directory = root.appending(path: owner.storageKey)
+  return NativeDeviceAgentFlow(account: identity.id, document: document, runtime: runtime, directory: directory, owner: owner, legacyDirectory: root.appending(path: scope), read: {
    try await self.deviceAgentSource(document: document)
   }, apply: { input in
    try await self.commitDeviceAgentEdit(input)

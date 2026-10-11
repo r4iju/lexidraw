@@ -161,3 +161,39 @@ extension NativeProRecoveryTests {
     #expect(server.requests.filter { $0.url.path.hasSuffix("agentPower.start") }.count == 1)
   }
 }
+
+
+extension NativeProRecoveryTests {
+  @Test func exactPendingNullAndErrorReadsPreserveEarlierSavedReport() async throws {
+    let keyedReads = Mutex(0)
+    let server = FakeServer { request in
+      switch request.url.path {
+      case "/api/trpc/agentPower.current":
+        if request.url.query?.contains("idempotencyKey") == true {
+          if keyedReads.withLock({ $0 += 1; return $0 }) > 1 { throw URLError(.networkConnectionLost) }
+          return (200, envelope("null"))
+        }
+        return (200, envelope(retainedAction.replacingOccurrences(of: "unknown", with: "settled").replacingOccurrences(of: "reconciling", with: "partial")))
+      case "/api/trpc/agentPower.capability": return (200, envelope(#"{"available":true,"reason":"Ready"}"#))
+      case "/api/trpc/agentPower.quote": return (200, envelope(#"{"maximum":10,"revision":1}"#))
+      case "/api/trpc/agentPower.start": throw URLError(.networkConnectionLost)
+      default: throw URLError(.unsupportedURL)
+      }
+    }
+    let flow = NativeAgentFlow(session: try TestServer.session(server), document: "doc")
+    await flow.load(); flow.decline(); await flow.quote("New edits"); await flow.accept()
+    guard case .acceptanceUncertain(_, _, let key) = flow.state else { Issue.record("Missing B uncertainty"); return }
+    for _ in 0..<2 {
+      await flow.load()
+      #expect(flow.previousResult?.report.completed.first?.description == "Saved paragraph")
+      #expect(flow.previousResult?.report.completed.first?.revision == 2)
+      #expect(flow.previousResult?.report.incomplete == ["Next edit"])
+      #expect(flow.previousResult?.report.reason == "Outcome held")
+      guard case .acceptanceUncertain(_, _, let pending) = flow.state else { Issue.record("Lost B"); return }
+      #expect(pending == key)
+      flow.decline(); await flow.quote("Forbidden C"); await flow.accept()
+    }
+    #expect(server.requests.filter { $0.url.path.hasSuffix("agentPower.quote") }.count == 1)
+    #expect(server.requests.filter { $0.url.path.hasSuffix("agentPower.start") }.count == 1)
+  }
+}

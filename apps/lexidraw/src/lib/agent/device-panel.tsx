@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { useSession } from "next-auth/react";
 import { api } from "~/trpc/react";
 import {
-  browserByok,
+  useBrowserByok,
   browserByokAccount,
   browserByokSessionGeneration,
   browserByokStorageReady,
@@ -86,8 +86,23 @@ function SignedInDeviceAgent({
   account: string;
   documentId: string;
 }) {
-  const utils = api.useUtils(),
-    byok = browserByok(account);
+  const byok = useBrowserByok(account);
+  if (!byok) return <p>Preparing this account's device session...</p>;
+  return (
+    <OwnedDeviceAgent account={account} documentId={documentId} byok={byok} />
+  );
+}
+function OwnedDeviceAgent({
+  account,
+  documentId,
+  byok,
+}: {
+  account: string;
+  documentId: string;
+  byok: ReturnType<typeof import("../byok/browser-session").browserByok>;
+}) {
+  const utils = api.useUtils();
+
   const reference = useSyncExternalStore(
     byok.subscribe,
     byok.reference,

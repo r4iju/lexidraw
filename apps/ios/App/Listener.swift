@@ -109,7 +109,8 @@ final class Listener {
           let files = ProNarrationFiles()
           recording = try files.recording(job)
           proFiles = files
-          positionKey = NarrationPlayback(job: job, source: .device).resumeID(file: file.id)
+          let scope = try await session.deviceNarrationPlaybackScope(document: file.id)
+          positionKey = NarrationPlayback(job: job, source: .device, scope: scope).resumeID(file: file.id)
           voiceDescription = "Saved device recording. Replay is free without a key."
         case .saved(let saved):
           recording = saved

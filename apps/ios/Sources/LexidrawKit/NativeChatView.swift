@@ -23,6 +23,8 @@ import UniformTypeIdentifiers
   private let local: NativeLocalText
   private var byok: NativeBYOK?
   private var historyKey: String?
+  private var historyOwner: NativeArtifactOwner?
+  private struct History: Codable { let owner: NativeArtifactOwner; let messages: [NativeChatMessage] }
   private var context = ""
   private var operation: ProChatOperation?
   private var task: Task<Void, Never>?
@@ -69,11 +71,15 @@ import UniformTypeIdentifiers
       let selected = try await session.powerPreference()
       guard self.document == document, self.session?.scopeID == session.scopeID else { return }
       source = selected
-      let key = "chat-v1:" + account.id + ":" + document
+      let owner = try NativeArtifactOwner(origin: session.origin, account: account.id, document: document, namespace: "chat-v2")
+      let key = "chat-v2:" + owner.storageKey
+      historyOwner = owner
       historyKey = key
       if let data = UserDefaults.standard.data(forKey: key), data.count <= 1_048_576 {
         try NativeCredentialGuard.shared.check(data)
-        messages = try JSONDecoder().decode([NativeChatMessage].self, from: data)
+        let history = try JSONDecoder().decode(History.self, from: data)
+        guard history.owner == owner else { throw NativeAIError.rejected }
+        messages = history.messages
       }
       switch source {
       case .local:
@@ -236,7 +242,8 @@ import UniformTypeIdentifiers
       ownedReadState = .stale("Cancellation is not confirmed. Further work may still be running. Refresh owned chat status.") }
   }
   private func save() throws {
-    let data = try JSONEncoder().encode(messages)
+    guard let historyOwner else { return }
+    let data = try JSONEncoder().encode(History(owner: historyOwner, messages: messages))
     guard data.count <= 1_048_576 else { throw NativeChatError.capability }
     try NativeCredentialGuard.shared.check(data)
     if let historyKey { UserDefaults.standard.set(data, forKey: historyKey) }

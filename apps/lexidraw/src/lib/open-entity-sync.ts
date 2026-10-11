@@ -67,6 +67,9 @@ export type SaveContent = { elements: string; appState?: string };
  * place, or dropped because the user reloaded what was written elsewhere.
  */
 export type SaveOutcome = "saved" | "dropped";
+export type SaveReceipt =
+  | { kind: "saved"; revision: Date; elements: string }
+  | { kind: "dropped" };
 
 export interface SyncSource {
   /**
@@ -118,7 +121,7 @@ const UNANSWERED_KEPT = 8;
 type QueuedSave = {
   content: SaveContent;
   waiters: {
-    resolve(outcome: SaveOutcome): void;
+    resolve(receipt: SaveReceipt): void;
     reject(error: unknown): void;
   }[];
 };
@@ -336,15 +339,20 @@ export class OpenEntitySync {
    * goes out over the revision the user kept their edits over, or is dropped
    * with the edits.
    */
-  save(content: SaveContent): Promise<SaveOutcome> {
-    return new Promise((resolve, reject) => {
+  save(content: SaveContent): Promise<SaveOutcome>;
+  save(content: SaveContent, options: { receipt: true }): Promise<SaveReceipt>;
+  save(
+    content: SaveContent,
+    options?: { receipt: true },
+  ): Promise<SaveReceipt | SaveOutcome> {
+    return new Promise<SaveReceipt>((resolve, reject) => {
       this.queued = {
         content,
         waiters: [...(this.queued?.waiters ?? []), { resolve, reject }],
       };
       this.sendQueued();
       this.changed();
-    });
+    }).then((receipt) => (options?.receipt ? receipt : receipt.kind));
   }
 
   private sendQueued(): void {
@@ -382,7 +390,12 @@ export class OpenEntitySync {
       this.unanswered = [];
       this.held = { updatedAt, elements: save.content.elements };
       this.editor?.saved(save.content.elements, save.content.appState);
-      for (const waiter of save.waiters) waiter.resolve("saved");
+      for (const waiter of save.waiters)
+        waiter.resolve({
+          kind: "saved",
+          revision: updatedAt,
+          elements: save.content.elements,
+        });
       return;
     }
     // Refused: this content, or anything newer asked for meanwhile, waits
@@ -404,7 +417,16 @@ export class OpenEntitySync {
 
   /** Answers everyone waiting on a save that will not be sent. */
   private finishQueued(outcome: SaveOutcome): void {
-    for (const waiter of this.takeQueued()) waiter.resolve(outcome);
+    for (const waiter of this.takeQueued())
+      waiter.resolve(
+        outcome === "saved"
+          ? {
+              kind: "saved",
+              revision: this.held.updatedAt,
+              elements: this.held.elements,
+            }
+          : { kind: "dropped" },
+      );
   }
 
   private takeQueued(): QueuedSave["waiters"] {

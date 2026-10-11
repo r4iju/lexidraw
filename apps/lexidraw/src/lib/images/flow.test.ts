@@ -376,3 +376,93 @@ test.each([
   },
   20_000,
 );
+
+test("reopened image retries the same admitted upload after a lost response without regeneration", async () => {
+  const { mkdtemp, readFile, writeFile, rm } = await import("node:fs/promises");
+  const directory = await mkdtemp("/tmp/lexidraw-image-reopen-");
+  try {
+    const file = `${directory}/checkpoint.json`;
+    const load = async () => {
+      try {
+        return await readFile(file, "utf8");
+      } catch {
+        return null;
+      }
+    };
+    const retention = {
+      owner: JSON.stringify([
+        "https://app.test",
+        "alice",
+        "document",
+        "images-v1",
+      ]),
+      load,
+      save: async (value: string, expected: string | null) => {
+        if ((await load()) !== expected) return false;
+        await writeFile(file, value);
+        return true;
+      },
+      clear: async () => {
+        await rm(file, { force: true });
+      },
+    };
+    let generations = 0;
+    const uploads: string[] = [];
+    const byok = createByokSession(
+      async () => {
+        generations++;
+        return Response.json({
+          data: [{ b64_json: fixtureImage().base64, media_type: "image/png" }],
+        });
+      },
+      "https://app.test",
+      { imageFixture: true },
+    );
+    byok.replace("openrouter", "sk-or-v1-SYNTHETIC-REOPEN");
+    const ports = {
+      source: () => ({
+        mode: "byok" as const,
+        provider: "openrouter" as const,
+      }),
+      availability: () => ({ available: true, maximum: 1, fixture: true }),
+      byok,
+      pro: async () => {
+        throw new Error("No Pro");
+      },
+      save: async (id: string) => {
+        uploads.push(id);
+        throw new Error("Lost response");
+      },
+    };
+    let flow: ImageFlow | null = new ImageFlow(ports, retention);
+    await flow.generate("Retained image");
+    await flow.upload();
+    flow = null;
+    flow = new ImageFlow(ports, retention);
+    await flow.upload();
+    expect(uploads).toHaveLength(2);
+    expect(uploads[1]).toBe(uploads[0]);
+    expect(generations).toBe(1);
+    expect(await load()).not.toContain("SYNTHETIC-REOPEN");
+    await retention.clear();
+    const paidKeys: string[] = [];
+    const paid = {
+      ...ports,
+      source: () => ({ mode: "pro" as const }),
+      pro: async (input: { idempotencyKey: string }) => {
+        paidKeys.push(input.idempotencyKey);
+        throw new Error("Lost generation response");
+      },
+    };
+    flow = new ImageFlow(paid, retention);
+    await flow.generate("Paid image");
+    await flow.accept();
+    flow = null;
+    flow = new ImageFlow(paid, retention);
+    await flow.generate("Another paid image");
+    await flow.accept();
+    expect(paidKeys).toHaveLength(1);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});

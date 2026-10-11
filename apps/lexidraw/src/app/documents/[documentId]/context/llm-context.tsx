@@ -5,7 +5,11 @@ import type { PropsWithChildren } from "react";
 import { useSession } from "next-auth/react";
 import { OwnedChatRecovery } from "~/lib/generation/chat-recovery";
 import { api } from "~/trpc/react";
-import { browserByok } from "~/lib/byok/browser-session";
+import {
+  useBrowserByok,
+  browserByokAccount,
+  browserByokSessionGeneration,
+} from "~/lib/byok/browser-session";
 import {
   ChatInput,
   CHAT_CAPABILITY,
@@ -188,6 +192,11 @@ function SelectedRuntimeProvider(props: LLMProviderProps) {
 function AccountRuntimeProvider(
   props: LLMProviderProps & { authenticated: boolean },
 ) {
+  const identity = useSession();
+  const accountId =
+    identity.status === "authenticated" ? identity.data.user.id : undefined;
+  const session = useBrowserByok(accountId);
+  const generation = browserByokSessionGeneration();
   const submission = useRef(new OwnedChatSubmission());
   const power = api.auth.getPowerPreference.useQuery(undefined, {
     enabled: props.authenticated,
@@ -235,7 +244,13 @@ function AccountRuntimeProvider(
           (access.kind !== "ready" || !access.data.available))
       )
         throw new Error(reason);
-      const session = browserByok();
+      if (
+        !session ||
+        !accountId ||
+        browserByokAccount() !== accountId ||
+        browserByokSessionGeneration() !== generation
+      )
+        throw new Error("Device account session is not ready.");
       if (source === "local") throw new Error(reason);
       if (source === "byok") {
         const reference = session?.reference();

@@ -28,6 +28,19 @@ export function useSaveAndExportDocument({
   const { defaultFontFamily, lang } = useDocumentSettings();
   const { convertEditorStateToMarkdown } = useMarkdownTools();
 
+  const persistImage = (editorState: EditorState) =>
+    openDocument.sync.save(
+      {
+        elements: JSON.stringify(editorState),
+        appState: JSON.stringify({
+          ...documentSettings(entity.appState),
+          defaultFontFamily,
+          lang,
+        }),
+      },
+      { receipt: true },
+    );
+
   /** Saves what the editor holds; see `OpenEntitySync.save`. */
   const save = (
     editorState: EditorState,
@@ -171,6 +184,7 @@ export function useSaveAndExportDocument({
   ]);
 
   return {
+    persistImage,
     saveBeforeLeaving,
     handleSave,
     handleSilentSave,

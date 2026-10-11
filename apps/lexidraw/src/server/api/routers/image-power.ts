@@ -1,3 +1,4 @@
+import type { ProLedger } from "~/server/pro/ledger";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { ImageInput, IMAGE_UNAVAILABLE } from "~/lib/images/contracts";
@@ -9,6 +10,7 @@ import {
 import { createTRPCRouter, protectedProcedure } from "../trpc";
 export function createImagePowerRouter(deps: {
   executor?: ProImageOperation;
+  ledger?: () => ProLedger;
   images: () => GeneratedImages;
   source: (account: string) => Promise<string>;
 }) {
@@ -41,14 +43,33 @@ export function createImagePowerRouter(deps: {
         return deps.executor.start(ctx.session.user.id, input);
       }),
     operation: protectedProcedure
-      .input(z.strictObject({ id: z.string() }))
-      .query(({ ctx, input }) => {
-        if (!deps.executor)
+      .input(z.strictObject({ id: z.string().min(1).max(100) }))
+      .query(async ({ ctx, input }) => {
+        const ledger = deps.ledger?.() ?? deps.executor?.ledger;
+        if (!ledger)
           throw new TRPCError({
             code: "PRECONDITION_FAILED",
-            message: IMAGE_UNAVAILABLE,
+            message: "Owned image history unavailable",
           });
-        return deps.executor.recover(ctx.session.user.id, input.id);
+        const operation = await ledger.operation(ctx.session.user.id, input.id);
+        if (operation.feature !== "image")
+          throw new TRPCError({ code: "NOT_FOUND" });
+        return operation;
+      }),
+    current: protectedProcedure
+      .input(z.strictObject({ idempotencyKey: z.string().min(1).max(100) }))
+      .query(async ({ ctx, input }) => {
+        const ledger = deps.ledger?.() ?? deps.executor?.ledger;
+        if (!ledger)
+          throw new TRPCError({
+            code: "PRECONDITION_FAILED",
+            message: "Owned image history unavailable",
+          });
+        return ledger.ownedOperationByKey(
+          ctx.session.user.id,
+          input.idempotencyKey,
+          "image",
+        );
       }),
     save: protectedProcedure
       .input(SaveImageInput)

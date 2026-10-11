@@ -1,4 +1,5 @@
 import "server-only";
+import { proLedger } from "./runtime";
 import { drizzle, schema, eq } from "@packages/drizzle";
 import { GeneratedImages } from "~/server/entities/generated-images";
 import { createImagePowerRouter } from "~/server/api/routers/image-power";
@@ -31,6 +32,7 @@ export function generatedImages(): GeneratedImages {
 // No environment switch, arbitrary model, or server credential can activate image generation.
 export const imagePowerRouter = createImagePowerRouter({
   images: generatedImages,
+  ledger: proLedger,
   source: async (account) => {
     const [user] = await drizzle
       .select({ config: schema.users.config })

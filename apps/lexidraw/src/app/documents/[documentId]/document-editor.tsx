@@ -170,6 +170,9 @@ type EditorProps = {
 };
 
 type ExtendedEditorProps = EditorProps & {
+  persistImage: (
+    state: EditorState,
+  ) => Promise<import("~/lib/open-entity-sync").SaveReceipt>;
   handleSave: (onSaveSuccessCallback?: (sent: SentSettings) => void) => void;
   handleSilentSave: (
     onSaveSuccessCallback?: (sent: SentSettings) => void,
@@ -236,6 +239,7 @@ function EditorHandler({
   initialLlmConfig,
   handleSave,
   handleSilentSave,
+  persistImage,
   exportMarkdown,
   editorStateRef,
   setEditorStateRef,
@@ -522,7 +526,7 @@ function EditorHandler({
         <ToolbarContext>
           <LLMProvider initialConfig={initialLlmConfig} documentId={entity.id}>
             <ImageGenerationProvider entityId={entity.id} signedIn={signedIn}>
-              <LexicalImageGenerationProvider>
+              <LexicalImageGenerationProvider persist={persistImage}>
                 <ImageProvider>
                   <LexicalImageProvider>
                     <CommentPluginProvider>
@@ -1027,6 +1031,11 @@ function EditorScaffold({
                 initialLlmConfig={initialLlmConfig}
                 handleSave={handleSave}
                 handleSilentSave={handleSilentSave}
+                persistImage={
+                  canEdit
+                    ? saveAndExport.persistImage
+                    : async () => ({ kind: "dropped" })
+                }
                 exportMarkdown={saveAndExport.exportMarkdown}
                 editorStateRef={editorStateRef}
                 setEditorStateRef={setEditorStateRef}

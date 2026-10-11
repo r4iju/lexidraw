@@ -73,6 +73,9 @@ struct AgentComposerContent:View {
    if flow.cancellationUnconfirmed {
     Text("Cancellation is not confirmed. Further work may still be running. Refresh status to check.")
    }
+   if let previous = flow.previousResult {
+    Section("Earlier saved action") { AgentSavedReport(result: previous) }
+   }
    switch flow.state {
    case .loading,.quoting:ProgressView("Checking action...")
    case .unavailable(let reason),.error(let reason):Text(reason)
@@ -88,16 +91,23 @@ struct AgentComposerContent:View {
      Button("Decline"){flow.decline()}
      Button("Accept maximum"){Task{await flow.accept()}}.disabled(!flow.canStart)
     }
-    if let previous = flow.previousResult { Text("Earlier action: \(previous.report.status). The new submission is still unconfirmed.") }
+
    case .running:ProgressView("Running document action...")
    case .result(let result):
-    Text("Action: \(result.report.status). Charged \(Double(result.operation.charged)/1_000_000) credits.")
-    if let reason=result.report.reason{Text(reason)}
-    Section("Saved edits"){if result.report.completed.isEmpty{Text("No edits saved.")}else{ForEach(Array(result.report.completed.enumerated()),id:\.offset){_,edit in Text(edit.description)}}}
-    Section("Incomplete edits"){if result.report.incomplete.isEmpty{Text("No incomplete edits.")}else{ForEach(Array(result.report.incomplete.enumerated()),id:\.offset){_,edit in Text(edit)}}}
+    AgentSavedReport(result: result)
     if ["reserved","running","unknown"].contains(result.operation.state){Button("Refresh status"){Task{await flow.refresh()}};Button("Stop further work"){Task{await flow.cancel()}}}else{Button("New action"){flow.decline()}.disabled(!flow.canStart)}
    }
   }
+ }
+}
+
+struct AgentSavedReport: View {
+ let result: ProAgentResult
+ var body: some View {
+    Text("Action: \(result.report.status). Charged \(Double(result.operation.charged)/1_000_000) credits.")
+    if let reason=result.report.reason{Text(reason)}
+    Section("Saved edits"){if result.report.completed.isEmpty{Text("No edits saved.")}else{ForEach(Array(result.report.completed.enumerated()),id:\.offset){_,edit in Text("\(edit.description) (saved revision \(edit.revision))")}}}
+    Section("Incomplete edits"){if result.report.incomplete.isEmpty{Text("No incomplete edits.")}else{ForEach(Array(result.report.incomplete.enumerated()),id:\.offset){_,edit in Text(edit)}}}
  }
 }
 

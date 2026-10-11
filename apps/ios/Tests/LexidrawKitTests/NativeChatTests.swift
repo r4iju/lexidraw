@@ -281,3 +281,26 @@ extension NativeChatTests {
     #expect(server.requests.allSatisfy { !$0.url.path.contains("chatAccept") && !$0.url.path.contains("chatQuote") && !$0.url.path.contains("chat/stream") && !$0.url.path.contains("chatCancel") })
   }
 }
+
+extension NativeChatTests {
+  @Test func unknownOriginLegacyChatHistoryIsQuarantined() async throws {
+    let doc = UUID().uuidString
+    let key = "chat-v1:fixture-account:" + doc
+    let defaults = UserDefaults.standard
+    let original = try JSONEncoder().encode([NativeChatMessage(role: "assistant", content: "Unknown origin private history")])
+    defaults.set(original, forKey: key)
+    defer { defaults.removeObject(forKey: key) }
+    let server = FakeServer { request in
+      switch request.url.path {
+      case "/api/v1/me": return (200, #"{"userId":"fixture-account","name":null,"email":null,"authKind":"token","scope":"write"}"#)
+      case "/api/trpc/auth.getPowerPreference": return (200, #"{"result":{"data":{"json":{"mode":"local"}}}}"#)
+      case "/api/trpc/pro.chatCurrent": return (200, #"{"result":{"data":{"json":[]}}}"#)
+      default: throw URLError(.unsupportedURL)
+      }
+    }
+    let flow = NativeChatFlow()
+    await flow.load(session: try TestServer.session(server), document: doc, context: "")
+    #expect(flow.messages.isEmpty)
+    #expect(defaults.data(forKey: key) == original)
+  }
+}

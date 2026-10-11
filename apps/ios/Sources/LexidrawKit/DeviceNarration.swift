@@ -39,9 +39,12 @@ public struct DeviceNarrationCheckpoint: Codable, Sendable {
   public let account: String
   public let document: String
   public var id: String
+  public var uploadKey: String? = nil
+  public var recordingId: String? = nil
   public let created: Date
   public var status: String
   public var parts: [Part]
+  public var owner: NativeArtifactOwner? = nil
   public var fingerprints: Data
   @MainActor public func validated() throws -> Self {
     guard version == 1, parts.reduce(0, { $0 + $1.text.utf8.count }) <= 6000, !account.isEmpty,
@@ -49,12 +52,31 @@ public struct DeviceNarrationCheckpoint: Codable, Sendable {
       ["paused", "running", "unknown", "completed", "syncing", "sync_failed", "saved"].contains(
         status)
     else { throw NativeAIError.rejected }
+    if ["saved", "completed", "syncing", "sync_failed"].contains(status) {
+      guard parts.allSatisfy({ $0.kind == .completed && $0.output != nil }) else { throw NativeAIError.rejected }
+    }
+    if status == "saved" { guard let recordingId, !recordingId.isEmpty, recordingId.utf8.count <= 100 else { throw NativeAIError.rejected } }
     for part in parts {
       guard !part.text.isEmpty, part.text.count <= 500 else { throw NativeAIError.rejected }
       guard (part.kind == .completed) == (part.output != nil) else { throw NativeAIError.rejected }
       if let output = part.output { _ = try output.validated() }
     }
     return self
+  }
+  public var playbackID: String { recordingId ?? id }
+  public var usefulRecording: DeviceRecording? {
+    let ready = parts.compactMap { part -> DeviceRecording.Part? in
+      guard part.kind == .completed, let output = part.output else { return nil }
+      return .init(text: part.text, audio: output.audio, seconds: output.seconds)
+    }
+    return ready.isEmpty ? nil : DeviceRecording(mimeType: "audio/wav", parts: ready)
+  }
+  public var retainedJob: ProNarrationJob? {
+    guard let recording = usefulRecording else { return nil }
+    return ProNarrationJob(id: playbackID, state: status == "saved" ? "saved" : "retained", charged: 0, quote: 0,
+      made: recording.parts.count, planned: parts.count,
+      parts: recording.parts.map { .init(text: $0.text, audio: $0.audio, seconds: $0.seconds) },
+      policy: status == "saved" ? "Saved device recording. Replay is free." : "Retained completed parts. Unfinished or unsynced work remains on this device.")
   }
   public var recording: DeviceRecording? {
     let ready = parts.compactMap { part -> DeviceRecording.Part? in
@@ -67,17 +89,23 @@ public struct DeviceNarrationCheckpoint: Codable, Sendable {
 @MainActor public struct NativeDeviceNarrationStore {
   private let directory: URL
   private let credentialGuard: NativeCredentialGuard
+  public let owner: NativeArtifactOwner?
+  private let legacyDirectory: URL?
   private var file: URL { directory.appending(path: "checkpoint.json") }
-  public init(directory: URL, credentialGuard: NativeCredentialGuard = .shared) {
+  public init(directory: URL, owner: NativeArtifactOwner? = nil, legacyDirectory: URL? = nil, credentialGuard: NativeCredentialGuard = .shared) {
     self.directory = directory
+    self.owner = owner
+    self.legacyDirectory = legacyDirectory
     self.credentialGuard = credentialGuard
   }
   public func save(_ value: DeviceNarrationCheckpoint, expected: String? = nil) throws {
+    if let legacyDirectory, FileManager.default.fileExists(atPath: legacyDirectory.appending(path: "checkpoint.json").path) { throw NativeAIError.rejected }
     if FileManager.default.fileExists(atPath: file.path) {
       let size = try FileManager.default.attributesOfItem(atPath: file.path)[.size] as? NSNumber
       guard let size, size.intValue <= 63_000_000 else { throw NativeAIError.rejected }
       let existing = try JSONDecoder().decode(
         DeviceNarrationCheckpoint.self, from: Data(contentsOf: file))
+      guard owner == nil || existing.owner == owner else { throw NativeAIError.rejected }
       guard existing.revision == expected else { throw NativeAIError.expired }
       try credentialGuard.restore(existing.fingerprints)
     } else if expected != nil {
@@ -85,6 +113,10 @@ public struct DeviceNarrationCheckpoint: Codable, Sendable {
     }
     if !value.fingerprints.isEmpty { try credentialGuard.restore(value.fingerprints) }
     var checkpoint = try value.validated()
+    if let owner {
+      guard checkpoint.owner == nil || checkpoint.owner == owner, checkpoint.account == owner.account, checkpoint.document == owner.document else { throw NativeAIError.rejected }
+      checkpoint.owner = owner
+    }
     checkpoint.fingerprints = try credentialGuard.snapshot()
     let data = try JSONEncoder().encode(checkpoint)
     guard data.count <= 63_000_000 else { throw NativeAIError.rejected }
@@ -101,15 +133,22 @@ public struct DeviceNarrationCheckpoint: Codable, Sendable {
     #endif
   }
   public func load() throws -> DeviceNarrationCheckpoint? {
+    if let legacyDirectory, FileManager.default.fileExists(atPath: legacyDirectory.appending(path: "checkpoint.json").path) { throw NativeAIError.rejected }
     guard FileManager.default.fileExists(atPath: file.path) else { return nil }
     let attributes = try FileManager.default.attributesOfItem(atPath: file.path)
     guard let size = attributes[.size] as? NSNumber, size.intValue <= 63_000_000 else {
       throw NativeAIError.rejected
     }
     let data = try Data(contentsOf: file)
-    let value = try JSONDecoder().decode(DeviceNarrationCheckpoint.self, from: data)
+    var value = try JSONDecoder().decode(DeviceNarrationCheckpoint.self, from: data)
+    guard owner == nil || value.owner == owner else { throw NativeAIError.rejected }
     try credentialGuard.restore(value.fingerprints)
     try credentialGuard.check(data)
+    if ["saved", "completed", "syncing", "sync_failed"].contains(value.status),
+      !value.parts.allSatisfy({ $0.kind == .completed && $0.output != nil }) || (value.status == "saved" && value.recordingId == nil) {
+      value.parts = value.parts.map { part in var part = part; if part.kind == .started { part.kind = .unknown }; return part }
+      value.status = value.parts.contains(where: { $0.kind == .unknown }) ? "unknown" : value.parts.allSatisfy({ $0.kind == .completed }) ? "sync_failed" : "paused"
+    }
     return try value.validated()
   }
   public func clear() throws {
@@ -125,18 +164,21 @@ public struct DeviceNarrationCheckpoint: Codable, Sendable {
   private let runtime: NativeBYOK
   private let files: NativeDeviceNarrationStore
   public let available: Bool
+  private let resumePoints: ResumePoints
   private let save: (String, DeviceRecording) async throws -> String
+  private var quarantined = false
   private var busy = false
   public var keyAvailable: Bool { runtime.hasKey }
   public init(
     account: String, document: String, runtime: NativeBYOK, files: NativeDeviceNarrationStore,
-    available: Bool = false, save: @escaping (String, DeviceRecording) async throws -> String
+    available: Bool = false, resumePoints: ResumePoints = ResumePoints(), save: @escaping (String, DeviceRecording) async throws -> String
   ) {
     self.account = account
     self.document = document
     self.runtime = runtime
     self.files = files
     self.available = available
+    self.resumePoints = resumePoints
     self.save = save
     runtime.onSessionEnd { try files.clear() }
   }
@@ -145,13 +187,15 @@ public struct DeviceNarrationCheckpoint: Codable, Sendable {
     try active()
     guard value.account == account, value.document == document else { throw NativeAIError.rejected }
     var updated = value
+    updated.owner = files.owner
     updated.revision = UUID().uuidString
     try files.save(updated, expected: checkpoint?.revision)
     checkpoint = updated
   }
   public func restore() throws {
+    quarantined = true
     try active()
-    guard var value = try files.load() else { return }
+    guard var value = try files.load() else { quarantined = false; return }
     guard value.account == account, value.document == document else { throw NativeAIError.rejected }
     checkpoint = value
     value.parts = value.parts.map { part in
@@ -167,10 +211,11 @@ public struct DeviceNarrationCheckpoint: Codable, Sendable {
       value.status = "sync_failed"
     }
     try persist(value)
+    quarantined = false
   }
   public func start(text: String) async throws {
     try active()
-    guard checkpoint == nil, !busy else { return }
+    guard !quarantined, checkpoint == nil, !busy else { return }
     try NativeCredentialGuard.shared.check(Data(text.utf8))
     let context = try narrationContext()
     guard
@@ -259,7 +304,11 @@ public struct DeviceNarrationCheckpoint: Codable, Sendable {
       let validated = try recording.validated()
       try NativeCredentialGuard.shared.check(JSONEncoder().encode(validated))
       try active()
-      _ = try await save(value.id, validated)
+      let recordingId = try await save(value.uploadKey ?? value.id, validated)
+      guard !recordingId.isEmpty, recordingId.utf8.count <= 100 else { throw NativeAIError.rejected }
+      let prefix = value.owner.map { "device.\($0.storageKey)." } ?? "device."
+      resumePoints.migrate(from: prefix + value.id, to: prefix + recordingId)
+      value.recordingId = recordingId
       try active()
       value.status = "saved"
       try persist(value)
@@ -268,7 +317,7 @@ public struct DeviceNarrationCheckpoint: Codable, Sendable {
         checkpoint = nil
         return
       }
-      if case DeviceNarrationError.uploadExpired = error { value.id = UUID().uuidString }
+      if case DeviceNarrationError.uploadExpired = error { value.uploadKey = UUID().uuidString }
       value.status = "sync_failed"
       try? persist(value)
       notice = "Sync failed. Retry retained audio without regenerating."
