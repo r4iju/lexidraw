@@ -1,0 +1,8 @@
+{
+  "kind": "Independent synthetic literal fixtures, not historical dataset or journal proof",
+  "payload": "Exact hand-authored independentExample from approved legacy-document-conversion-v1 plan; not converter output",
+  "source": "Original0001 four-table cached DDL plus minimal synthetic User(id), copied from existing independent retention fixture",
+  "destination": "Hand-authored modern Entities/SharedEntities contract from cached conversion-modern-schema excerpt; minimal Users(id); standalone disposable schema only",
+  "timestampContract": "synthetic fixture dates explicitly milliseconds since Unix epoch; no magnitude inference",
+  "expected": "Literal independently prescribed plan mapping/defaults; deleted and no-audio variants asserted explicitly in tests"
+}
