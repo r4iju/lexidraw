@@ -33,6 +33,10 @@ const Row = z.discriminatedUnion("state", [
     url: z.string().nullable(),
   }),
 ]);
+const CleanupCandidate = z.strictObject({
+  id: z.uuid(),
+  pathname: z.string().regex(/^generated-images\/[0-9a-f-]{36}\.png$/),
+});
 export class GeneratedImages {
   constructor(
     readonly client: Client,
@@ -234,7 +238,7 @@ export class GeneratedImages {
     const attempted = new Set<string>();
     for (let attempt = 0; attempt < 3; attempt++) {
       const claim = await this.client.transaction("write");
-      let candidate: { id: string; pathname: string } | undefined;
+      let candidate: z.infer<typeof CleanupCandidate> | undefined;
       try {
         const cursor = z
           .strictObject({ last_attempted_id: z.uuid().nullable() })
@@ -258,14 +262,7 @@ export class GeneratedImages {
             )
           ).rows[0];
         if (next) {
-          const parsed = z
-            .strictObject({
-              id: z.uuid(),
-              pathname: z
-                .string()
-                .regex(/^generated-images\/[0-9a-f-]{36}\.png$/),
-            })
-            .parse(next);
+          const parsed = CleanupCandidate.parse(next);
           if (!attempted.has(parsed.id)) {
             candidate = parsed;
             await claim.execute({
