@@ -11,10 +11,10 @@ export interface MigrationOwner {
   write<T>(work: (executor: MigrationExecutor) => Promise<T>): Promise<T>;
 }
 
-/** Wraps disposal operations without exposing the private connection. */
+/** Fault notifications after owner-controlled cleanup attempts; no lifecycle authority. */
 export interface MigrationCleanup {
-  restoreForeignKeys?(restore: () => Promise<void>): Promise<void>;
-  close?(close: () => void): void;
+  restoreForeignKeys?(): Promise<void>;
+  close?(): void;
 }
 
 export class FileMigrationError extends AggregateError {
@@ -93,26 +93,32 @@ export function createFileMigrationOwner(
           failures.push(cleanup);
         }
         try {
-          const restore = async () => {
-            await client.execute("PRAGMA foreign_keys=on");
-            if (
-              (await client.execute("PRAGMA foreign_keys")).rows[0]
-                ?.foreign_keys !== 1
-            ) {
-              throw new Error(
+          await client.execute("PRAGMA foreign_keys=on");
+          if (
+            (await client.execute("PRAGMA foreign_keys")).rows[0]
+              ?.foreign_keys !== 1
+          ) {
+            failures.push(
+              new Error(
                 "Could not restore foreign keys after migration settlement",
-              );
-            }
-          };
-          if (cleanup.restoreForeignKeys)
-            await cleanup.restoreForeignKeys(restore);
-          else await restore();
+              ),
+            );
+          }
         } catch (cleanup) {
           failures.push(cleanup);
         }
         try {
-          if (cleanup.close) cleanup.close(() => client.close());
-          else client.close();
+          await cleanup.restoreForeignKeys?.();
+        } catch (cleanup) {
+          failures.push(cleanup);
+        }
+        try {
+          client.close();
+        } catch (cleanup) {
+          failures.push(cleanup);
+        }
+        try {
+          cleanup.close?.();
         } catch (cleanup) {
           failures.push(cleanup);
         }

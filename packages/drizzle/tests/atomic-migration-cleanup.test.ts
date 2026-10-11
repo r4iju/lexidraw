@@ -19,14 +19,12 @@ test.each([false, true])(
       const owner = createFileMigrationOwner(url, {
         ...(restorationFault
           ? {
-              async restoreForeignKeys(restore: () => Promise<void>) {
-                await restore();
+              async restoreForeignKeys() {
                 throw restoreFailure;
               },
             }
           : {}),
-        close(close) {
-          close();
+        close() {
           throw closeFailure;
         },
       });
@@ -54,6 +52,56 @@ test.each([false, true])(
       );
     } finally {
       observer?.close();
+      await rm(directory, { recursive: true, force: true });
+    }
+  },
+  15000,
+);
+
+test.each([false, true])(
+  "cleanup notifications have no operation authority and preserve all failures (work rejects: %s)",
+  async (workRejects) => {
+    const directory = await mkdtemp("/tmp/lexidraw-atomic-migration-");
+    const url = pathToFileURL(join(directory, "notifications.sqlite")).href;
+    const workFailure = new Error("Synthetic work failure");
+    const restoreFailure = new Error("Synthetic after-restoration failure");
+    const closeFailure = new Error("Synthetic after-close failure");
+    const notifications: { phase: string; args: unknown[] }[] = [];
+    try {
+      const owner = createFileMigrationOwner(url, {
+        async restoreForeignKeys(...args: unknown[]) {
+          notifications.push({ phase: "restored", args });
+          throw restoreFailure;
+        },
+        close(...args: unknown[]) {
+          notifications.push({ phase: "closed", args });
+          throw closeFailure;
+        },
+      });
+      let rejection: unknown;
+      try {
+        await owner.write(async (executor) => {
+          await executor.execute("CREATE TABLE SyntheticRow (value TEXT)");
+          if (workRejects) throw workFailure;
+        });
+      } catch (error) {
+        rejection = error;
+      }
+      expect(notifications).toEqual([
+        { phase: "restored", args: [] },
+        { phase: "closed", args: [] },
+      ]);
+      expect(rejection).toBeInstanceOf(AggregateError);
+      expect(rejection).toMatchObject({ committed: !workRejects });
+      expect((rejection as AggregateError).errors).toEqual(
+        workRejects
+          ? [workFailure, restoreFailure, closeFailure]
+          : [restoreFailure, closeFailure],
+      );
+      expect((rejection as Error).cause).toBe(
+        workRejects ? workFailure : restoreFailure,
+      );
+    } finally {
       await rm(directory, { recursive: true, force: true });
     }
   },
