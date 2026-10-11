@@ -202,25 +202,31 @@ function AccountRuntimeProvider(
   const power = api.auth.getPowerPreference.useQuery(undefined, {
     enabled: props.authenticated,
   });
-  const capability = api.pro.chatCapability.useQuery(undefined, {
-    enabled: power.data?.mode === "pro",
-  });
-  const utils = api.useUtils();
   const preference = queryAccess(
     power,
     props.authenticated,
     "AI power preference",
   );
+  const capabilityEnabled =
+    props.authenticated &&
+    preference.kind === "ready" &&
+    preference.data.mode === "pro";
+  const capability = api.pro.chatCapability.useQuery(undefined, {
+    enabled: capabilityEnabled,
+  });
+  const utils = api.useUtils();
   const access = queryAccess(
     capability,
-    preference.kind === "ready" && preference.data.mode === "pro",
+    capabilityEnabled,
     "Pro chat capability",
   );
   const source = preference.kind === "ready" ? preference.data.mode : "unknown";
   const reason =
     preference.kind !== "ready"
       ? preference.kind === "disabled"
-        ? "AI power preference is disabled."
+        ? identity.status === "loading"
+          ? "Checking your account before loading AI Power."
+          : "Sign in to use AI Power."
         : preference.message
       : access.kind === "error" || access.kind === "loading"
         ? access.message

@@ -25,7 +25,6 @@ import { browserByokStorageReady } from "~/lib/byok/browser-session";
 import type { SaveReceipt } from "~/lib/open-entity-sync";
 import { insertRetainedImage } from "~/lib/images/insert";
 import { queryAccess } from "~/lib/generation/query-access";
-import { QueryNotice } from "~/lib/generation/query-notice";
 import { powerPreference } from "~/lib/byok/preference";
 import { ImageFlow, type ImageState } from "~/lib/images/flow";
 import { validateImage } from "~/lib/images/contracts";
@@ -39,7 +38,13 @@ import {
   DialogFooter,
 } from "~/components/ui/dialog";
 
+export type ImageGenerationAccess =
+  | { kind: "loading" | "error" | "unavailable"; message: string }
+  | { kind: "ready" };
+
 type ImageGenerationContextValue = {
+  access: ImageGenerationAccess;
+  retryAccess: () => void;
   acknowledgeImage: (receipt: SaveReceipt) => Promise<boolean>;
   retained: boolean;
   insertImage: (
@@ -112,14 +117,51 @@ export function ImageGenerationProvider({
       throw new Error("Device account session is not ready.");
     return byok;
   }, [byok, accountId, generation]);
+  const authenticated = signedIn && identity.status === "authenticated";
   const source = api.auth.getPowerPreference.useQuery(undefined, {
-    enabled: signedIn,
+    enabled: authenticated,
   });
   const capability = api.imagePower.capability.useQuery(undefined, {
-    enabled: signedIn,
+    enabled: authenticated,
   });
-  const preference = queryAccess(source, signedIn, "AI power preference");
-  const access = queryAccess(capability, signedIn, "Image capability");
+  const preference = queryAccess(source, authenticated, "AI power preference");
+  const access = queryAccess(capability, authenticated, "Image capability");
+  const generationAccess: ImageGenerationAccess = !authenticated
+    ? identity.status === "loading"
+      ? {
+          kind: "loading",
+          message: "Checking your account before loading image access.",
+        }
+      : { kind: "unavailable", message: "Sign in to generate images." }
+    : preference.kind === "loading" || preference.kind === "error"
+      ? preference
+      : access.kind === "loading" || access.kind === "error"
+        ? access
+        : preference.kind !== "ready" || access.kind !== "ready"
+          ? { kind: "unavailable", message: "Sign in to generate images." }
+          : preference.data.mode === "local"
+            ? {
+                kind: "unavailable",
+                message:
+                  "Local image generation is unavailable on this device.",
+              }
+            : !access.data.available
+              ? {
+                  kind: "unavailable",
+                  message:
+                    access.data.reason ??
+                    "Image generation is unavailable for this source.",
+                }
+              : !byok
+                ? {
+                    kind: "loading",
+                    message: "Device account session is not ready.",
+                  }
+                : { kind: "ready" };
+  const retryAccess = () => {
+    if (preference.kind === "error") void source.refetch();
+    if (access.kind === "error") void capability.refetch();
+  };
   function assertReady() {
     if (preference.kind !== "ready" || access.kind !== "ready")
       throw new Error(
@@ -284,12 +326,7 @@ export function ImageGenerationProvider({
     };
   }, [flow, accountId, generation]);
   const state = useSyncExternalStore(flow.subscribe, flow.state, flow.state);
-  const isConfigured =
-    !!byok &&
-    preference.kind === "ready" &&
-    access.kind === "ready" &&
-    access.data.available &&
-    preference.data.mode !== "local";
+  const isConfigured = generationAccess.kind === "ready";
   const isLoading = ["quote", "generating", "saving"].includes(state.kind);
   const generateImageData = useCallback(
     async (
@@ -301,13 +338,7 @@ export function ImageGenerationProvider({
         return null;
       }
       if (!isConfigured) {
-        toast.error(
-          preference.kind === "error" || preference.kind === "loading"
-            ? preference.message
-            : access.kind === "error" || access.kind === "loading"
-              ? access.message
-              : "Image generation is unavailable for this source.",
-        );
+        toast.error(generationAccess.message);
         return null;
       }
       await flow.generate(prompt);
@@ -328,7 +359,7 @@ export function ImageGenerationProvider({
         prompt: final.prompt,
       };
     },
-    [flow, isConfigured, preference, access, assertOwner],
+    [flow, isConfigured, generationAccess, assertOwner],
   );
   const uploadImageData = useCallback(async () => {
     const url = await flow.upload();
@@ -343,6 +374,8 @@ export function ImageGenerationProvider({
   return (
     <ImageGenerationContext.Provider
       value={{
+        access: generationAccess,
+        retryAccess,
         isConfigured,
         isLoading,
         retained: completed(state),
@@ -353,8 +386,16 @@ export function ImageGenerationProvider({
       }}
     >
       {children}
-      <QueryNotice access={preference} retry={() => void source.refetch()} />
-      <QueryNotice access={access} retry={() => void capability.refetch()} />
+      {generationAccess.kind !== "ready" && (
+        <div role={generationAccess.kind === "error" ? "alert" : "status"}>
+          <p>{generationAccess.message}</p>
+          {generationAccess.kind === "error" && (
+            <Button type="button" variant="outline" onClick={retryAccess}>
+              Retry
+            </Button>
+          )}
+        </div>
+      )}
       <Dialog
         open={state.kind === "quote"}
         onOpenChange={(open) => {
@@ -440,6 +481,8 @@ export function useImageGeneration() {
 
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 type LexicalImageContextValue = {
+  access: ImageGenerationAccess;
+  retryAccess: () => void;
   isLoading: boolean;
   isConfigured: boolean;
   generateAndInsertImage: (
@@ -462,8 +505,14 @@ export const LexicalImageGenerationProvider = ({
   persist: (state: import("lexical").EditorState) => Promise<SaveReceipt>;
 }) => {
   const [editor] = useLexicalComposerContext();
-  const { isConfigured, generateImageData, retained, insertImage } =
-    useImageGeneration();
+  const {
+    access,
+    retryAccess,
+    isConfigured,
+    generateImageData,
+    retained,
+    insertImage,
+  } = useImageGeneration();
   const [isLoading, setIsLoading] = useState(false);
   const insertAndAcknowledge = useCallback(async () => {
     if (
@@ -494,8 +543,8 @@ export const LexicalImageGenerationProvider = ({
       prompt: string,
       options?: { size?: "256x256" | "512x512" | "1024x1024" },
     ) => {
-      if (!isConfigured) {
-        toast.error("Not configured.");
+      if (access.kind !== "ready") {
+        toast.error(access.message);
         return;
       }
       setIsLoading(true);
@@ -512,12 +561,18 @@ export const LexicalImageGenerationProvider = ({
         setIsLoading(false);
       }
     },
-    [isConfigured, generateImageData, insertAndAcknowledge],
+    [access, generateImageData, insertAndAcknowledge],
   );
 
   return (
     <LexicalImageContext.Provider
-      value={{ isLoading, isConfigured, generateAndInsertImage }}
+      value={{
+        access,
+        retryAccess,
+        isLoading,
+        isConfigured,
+        generateAndInsertImage,
+      }}
     >
       {children}
       {retained && (

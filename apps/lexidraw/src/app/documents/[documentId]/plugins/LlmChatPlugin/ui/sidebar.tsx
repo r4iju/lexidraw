@@ -1,4 +1,4 @@
-import { useSendQuery } from "../use-send-query";
+import { useSendQuery, DOCUMENT_ACTION_GUIDANCE } from "../use-send-query";
 import Link from "next/link";
 import { useEntityId } from "~/hooks/use-entity-id";
 import type React from "react";
@@ -24,13 +24,9 @@ export const Sidebar: React.FC = () => {
         <Reset />
       </div>
       {mode === "debug" && <DebugPanel />}
-      {mode === "agent" && (
+      {chosen !== "chat" && (
         <div className="space-y-3 p-4">
-          <p>
-            Document actions use your selected AI Power source. Save your
-            document before opening it. Images and sandbox tools are
-            unavailable.
-          </p>
+          <p>{DOCUMENT_ACTION_GUIDANCE}</p>
           <Link href={`/documents/${encodeURIComponent(documentId)}/agent`}>
             Open document action
           </Link>

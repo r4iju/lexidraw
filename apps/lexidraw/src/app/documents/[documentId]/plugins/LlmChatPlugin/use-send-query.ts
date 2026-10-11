@@ -11,7 +11,6 @@ import { useLLM } from "../../context/llm-context";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { useMarkdownTools } from "../../utils/markdown";
 import { generateUUID } from "~/lib/utils";
-import { useAgentWorkflow } from "./use-agent-workflow";
 import {
   CHAT_CAPABILITY,
   prepareChat,
@@ -26,9 +25,13 @@ import {
   useBrowserByok,
 } from "~/lib/byok/browser-session";
 import { useEntityId } from "~/hooks/use-entity-id";
+export const DOCUMENT_ACTION_GUIDANCE =
+  "Document actions use your selected AI Power source. Save your document, then open the bounded document action. Images and sandbox tools are unavailable.";
+
 interface SendQueryParams {
   prompt: string;
   selectedInput?: ChatInput;
+  // Retained legacy MessageInput callers may supply this field; it is never read or forwarded.
   editorStateJson?: string;
   files?: File[] | FileList | null;
 }
@@ -38,7 +41,6 @@ export const useSendQuery = () => {
   const { generateChatStream, chatSource, chatCapability } = useLLM();
   const [editor] = useLexicalComposerContext();
   const { convertEditorStateToMarkdown } = useMarkdownTools();
-  const { runAgentWorkflow } = useAgentWorkflow({ onError: () => {} });
   const inFlight = useRef(false);
   const mounted = useRef(true);
   const reviewSequence = useRef(0);
@@ -117,27 +119,19 @@ export const useSendQuery = () => {
     >(),
   );
   const send = useCallback(
-    async ({
-      prompt,
-      editorStateJson,
-      files,
-      selectedInput,
-    }: SendQueryParams) => {
+    async ({ prompt, selectedInput }: SendQueryParams) => {
       if (!mounted.current || inFlight.current || !prompt.trim()) return;
       inFlight.current = true;
       try {
         if (selectedInput && mode !== "chat") throw new Error(CHAT_CAPABILITY);
         if (mode !== "chat") {
-          await runAgentWorkflow({
-            prompt,
-            originalPrompt: prompt,
-            documentMarkdown: convertEditorStateToMarkdown(
-              editor.getEditorState(),
-            ),
-            documentJson: editorStateJson
-              ? JSON.parse(editorStateJson)
-              : undefined,
-            files,
+          dispatch({
+            type: "push",
+            msg: {
+              id: generateUUID(),
+              role: "assistant",
+              content: `${DOCUMENT_ACTION_GUIDANCE} Open document action: /documents/${encodeURIComponent(documentId)}/agent`,
+            },
           });
           return;
         }
@@ -220,7 +214,7 @@ export const useSendQuery = () => {
       dispatch,
       mode,
       generateChatStream,
-      runAgentWorkflow,
+      documentId,
       convertEditorStateToMarkdown,
       editor,
       messages,

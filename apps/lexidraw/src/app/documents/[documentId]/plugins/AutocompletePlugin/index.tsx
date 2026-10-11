@@ -3,7 +3,13 @@ import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
 import { Label } from "~/components/ui/label";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
-import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import { useEntityId } from "~/hooks/use-entity-id";
 import { queryAccess } from "~/lib/generation/query-access";
 import { QueryNotice } from "~/lib/generation/query-notice";
@@ -72,7 +78,6 @@ export default function AutocompletePlugin({ title = "" }: { title?: string }) {
     session?.reference ?? (() => undefined),
     () => undefined,
   );
-  const [message, setMessage] = useState("");
   const enabled = config.data?.enabled === true;
   const powerAccess = queryAccess(power, true, "AI power preference");
   const configAccess = queryAccess(config, true, "Suggestion settings");
@@ -98,6 +103,56 @@ export default function AutocompletePlugin({ title = "" }: { title?: string }) {
               ? "Not enough allowance for another suggestion. Check AI Power."
               : "";
 
+  const provider =
+    preference?.mode === "byok" ? preference.provider : undefined;
+  const registrationScope = useMemo(
+    () => ({
+      editor,
+      entityId,
+      title,
+      accountId,
+      generation,
+      session,
+      source: preference?.mode,
+      provider,
+      reference,
+    }),
+    [
+      editor,
+      entityId,
+      title,
+      accountId,
+      generation,
+      session,
+      preference?.mode,
+      provider,
+      reference,
+    ],
+  );
+  const recoveryScope = useMemo(
+    () => ({ accountId, generation, session }),
+    [accountId, generation, session],
+  );
+  const [notice, setNotice] = useState<{
+    scope: typeof registrationScope;
+    message: string;
+  } | null>(null);
+  const [ownedNotice, setOwnedNotice] = useState<{
+    scope: typeof recoveryScope;
+    message: string;
+  } | null>(null);
+  const message = notice?.scope === registrationScope ? notice.message : "";
+  const ownedMessage =
+    ownedNotice?.scope === recoveryScope ? ownedNotice.message : "";
+
+  const recoveryMessage =
+    ownedMessage ||
+    (recovery?.pending
+      ? recovery.pending.kind === "acceptanceUncertain"
+        ? "Owned suggestion acceptance is unconfirmed. Refresh its original request."
+        : "An owned suggestion requires reconciliation; credits may remain reserved. Refresh or cancel its original request."
+      : "");
+
   // Lexical owns caret changes, composition, request cancellation and suggestion painting.
   useEffect(() => {
     if (
@@ -113,11 +168,16 @@ export default function AutocompletePlugin({ title = "" }: { title?: string }) {
       (preference.mode === "byok" && !reference)
     )
       return;
+    let disposed = false;
+    const setMessage = (message: string) => {
+      if (!disposed) setNotice({ scope: registrationScope, message });
+    };
     const source = createSuggestionSource(
       preference,
       session,
       proForOwner(),
       (state) => {
+        if (disposed) return;
         setMessage(
           state === "acceptanceUncertain"
             ? "Suggestion acceptance is unconfirmed. Refresh the original request before another paid suggestion."
@@ -130,7 +190,7 @@ export default function AutocompletePlugin({ title = "" }: { title?: string }) {
         void utils.pro.status.invalidate();
       },
     );
-    return registerAutocomplete(editor, {
+    const unregister = registerAutocomplete(editor, {
       title,
       entityId,
       delayMs: 600,
@@ -138,7 +198,7 @@ export default function AutocompletePlugin({ title = "" }: { title?: string }) {
         try {
           return await source(input, signal);
         } catch (error) {
-          if (!signal.aborted)
+          if (!disposed && !signal.aborted)
             setMessage(
               error instanceof Error
                 ? error.message
@@ -148,7 +208,12 @@ export default function AutocompletePlugin({ title = "" }: { title?: string }) {
         }
       },
     });
+    return () => {
+      disposed = true;
+      unregister();
+    };
   }, [
+    registrationScope,
     editor,
     accountId,
     proForOwner,
@@ -192,6 +257,7 @@ export default function AutocompletePlugin({ title = "" }: { title?: string }) {
               ? "Off · opt in to use your AI power source"
               : unavailable || message || "On · accept with Tab"}
       </span>
+      {recoveryMessage && <span role="status">{recoveryMessage}</span>}
       {accountId && recovery?.pending && (
         <>
           <Button
@@ -199,6 +265,8 @@ export default function AutocompletePlugin({ title = "" }: { title?: string }) {
             type="button"
             onClick={() => {
               if (!session) return;
+              const setMessage = (message: string) =>
+                setOwnedNotice({ scope: recoveryScope, message });
               void refreshOwnedSuggestion(session, proForOwner())
                 .then((operation) => {
                   setMessage(
@@ -222,6 +290,8 @@ export default function AutocompletePlugin({ title = "" }: { title?: string }) {
             type="button"
             onClick={() => {
               if (!session) return;
+              const setMessage = (message: string) =>
+                setOwnedNotice({ scope: recoveryScope, message });
               void refreshOwnedSuggestion(session, proForOwner(), true)
                 .then((operation) => {
                   setMessage(

@@ -324,8 +324,7 @@ export function InsertImageGeneratedDialogBody({
     >
       {!isConfigured && (
         <p className="text-center text-sm text-destructive p-4 border border-destructive rounded-md">
-          Image generation is not configured.
-          {disabledReason ? ` ${disabledReason}` : ""}
+          {disabledReason ?? "Image generation is unavailable."}
         </p>
       )}
       <Label htmlFor={imagePromptTextareaId}>Image Prompt</Label>
@@ -367,12 +366,12 @@ export function InsertImageDialog({
   const {
     generateAndInsertImage,
     isLoading: isGenerating,
-    isConfigured: isGenerationConfigured,
+    access: generationAccess,
+    retryAccess,
   } = useLexicalImageGeneration();
-  const { data: aiStatus } = api.imagePower.capability.useQuery();
+  const isGenerationConfigured = generationAccess.kind === "ready";
   const disabledReason =
-    aiStatus?.reason ??
-    "Image generation is unavailable for the selected power source.";
+    generationAccess.kind === "ready" ? undefined : generationAccess.message;
 
   const handleUnsplashImageSelect = useCallback(
     (image: UnsplashImageResult) => {
@@ -435,6 +434,11 @@ export function InsertImageDialog({
             Generate (AI)
           </Button>
           {!isGenerationConfigured && <p>{disabledReason}</p>}
+          {generationAccess.kind === "error" && (
+            <Button type="button" variant="outline" onClick={retryAccess}>
+              Retry image access
+            </Button>
+          )}
         </div>
       )}
       {mode === "url" && (
