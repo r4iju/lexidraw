@@ -17,7 +17,7 @@ test("production document adapter atomically saves an edit receipt with permissi
   const db = drizzle(client, { schema });
   for (const sql of await generateSQLiteMigration(
     await generateSQLiteDrizzleJson({}),
-    await generateSQLiteDrizzleJson(schema as never),
+    await generateSQLiteDrizzleJson(schema),
   ))
     await client.execute(sql);
   const ledger = new ProLedger(client, {
@@ -47,7 +47,11 @@ test("production document adapter atomically saves an edit receipt with permissi
       },
     }),
   });
-  const docs = new SqlAgentDocuments(ledger);
+  let invalidations = 0;
+  const docs = new SqlAgentDocuments(ledger, undefined, () => {
+    invalidations++;
+    if (invalidations === 1) throw new Error("Cache unavailable after commit");
+  });
   await expect(docs.read("bob", "doc")).rejects.toThrow();
   await ledger.grantEligibility("owner", "alice", "fixture");
   await ledger.grantPeriod("owner", {
@@ -70,10 +74,17 @@ test("production document adapter atomically saves an edit receipt with permissi
     },
   });
   await ledger.claim(op.id);
+  await expect(
+    docs.apply("alice", "doc", `${op.id}:edit:0`, 1, {
+      kind: "append",
+      text: "Saved paragraph",
+    }),
+  ).rejects.toThrow("Cache unavailable after commit");
   const receipt = await docs.apply("alice", "doc", `${op.id}:edit:0`, 1, {
     kind: "append",
     text: "Saved paragraph",
   });
+  expect(invalidations).toBe(2);
   expect(await docs.read("alice", "doc")).toMatchObject({
     text: "Saved paragraph",
     revision: receipt.revision,
@@ -111,7 +122,7 @@ test("a committed mutation receipt survives a losing executor's stale failure re
   const db = drizzle(client, { schema });
   for (const sql of await generateSQLiteMigration(
     await generateSQLiteDrizzleJson({}),
-    await generateSQLiteDrizzleJson(schema as never),
+    await generateSQLiteDrizzleJson(schema),
   ))
     await client.execute(sql);
   const ledger = new ProLedger(client, {

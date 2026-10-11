@@ -310,25 +310,33 @@ export class SavedNarrationReader {
     return this.snapshot(account, String(saved.id));
   }
   async snapshot(account: string, id: string) {
-    const { operation: op, plan } = await this.ledger.narrationPlan(
-      account,
-      id,
-    );
-    const attempts = await this.ledger.attempts(account, id);
-    const parts: NarrationSnapshot["parts"] = [];
-    for (const p of plan) {
+    const [{ operation: op, plan }, attempts] = await Promise.all([
+      this.ledger.narrationPlan(account, id),
+      this.ledger.attempts(account, id),
+    ]);
+    const selected = plan.flatMap((p) => {
       const attempt =
         p.cachedAttempt ??
         attempts.find((a) => a.chunk_hash === p.hash && a.state === "completed")
           ?.id;
-      if (!attempt) continue;
-      const part = await this.ledger.narrationPart(account, String(attempt));
-      parts.push({
-        id: `${p.hash}:${parts.length}`,
-        text: p.text,
-        audio: part.audio,
-        seconds: audioSeconds(part),
-      });
+      return attempt ? [{ plan: p, attempt }] : [];
+    });
+    const parts: NarrationSnapshot["parts"] = [];
+    for (let offset = 0; offset < selected.length; offset += 8) {
+      const batch = await Promise.all(
+        selected
+          .slice(offset, offset + 8)
+          .map(async ({ plan: p, attempt }, index) => {
+            const part = await this.ledger.narrationPart(account, attempt);
+            return {
+              id: `${p.hash}:${offset + index}`,
+              text: p.text,
+              audio: part.audio,
+              seconds: audioSeconds(part),
+            };
+          }),
+      );
+      parts.push(...batch);
     }
     return NarrationSnapshot.parse({
       id,

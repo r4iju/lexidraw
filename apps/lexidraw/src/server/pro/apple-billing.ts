@@ -36,7 +36,7 @@ const Renewal = z.object({
   productId: z.string(),
   autoRenewProductId: z.string(),
   autoRenewStatus: z.union([z.literal(0), z.literal(1)]),
-  isInBillingRetryPeriod: z.boolean(),
+  isInBillingRetryPeriod: z.boolean().optional(),
   signedDate: z.number().int().positive(),
 });
 export class AppleSandboxBilling {
@@ -182,7 +182,7 @@ export class AppleSandboxBilling {
           ? "revoked"
           : current.status === 3 ||
               current.status === 4 ||
-              renewal.isInBillingRetryPeriod
+              renewal.isInBillingRetryPeriod === true
             ? "payment_failed"
             : paid.expiresDate <= this.now() || current.status === 2
               ? "expired"

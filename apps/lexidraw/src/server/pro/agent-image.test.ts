@@ -4,7 +4,7 @@ import { createClient } from "@libsql/client";
 import { ProLedger } from "./ledger";
 import { fixtureImage } from "~/test/image-fixture";
 import { IMAGE_FIXTURE_PRICEBOOK } from "~/lib/images/contracts";
-import { AGENT_BOOK } from "~/lib/agent/contracts";
+import { AgentCompletion, AGENT_BOOK } from "~/lib/agent/contracts";
 import { ProAgentOperation } from "./agent-operation";
 mock.module("@packages/env", () => ({ default: { NODE_ENV: "test" } }));
 const { installServerRuntime } = await import("~/test/server-runtime");
@@ -109,7 +109,7 @@ test("synthetic complete image bound belongs to parent quote; one action include
               : image;
       return {
         kind: "completed",
-        completion: {
+        completion: AgentCompletion.parse({
           kind: "agent",
           phase: request.phase,
           output,
@@ -120,7 +120,7 @@ test("synthetic complete image bound belongs to parent quote; one action include
               : request.phase === "search"
                 ? 5000000
                 : 120000,
-        },
+        }),
       };
     },
   );
@@ -134,6 +134,7 @@ test("synthetic complete image bound belongs to parent quote; one action include
     drizzle: db,
     headers: new Headers(),
     session: { user: { id: "alice" }, expires: "2099" },
+    // Abbreviated caller context omits fields unused by this router.
   } as never);
   try {
     const result = await caller.start({

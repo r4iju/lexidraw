@@ -89,6 +89,7 @@ test("authenticated text requires separate private eligibility and entitlement; 
         : null,
       auth: { kind: "session" },
       headers: new Headers(),
+      // Abbreviated caller context omits fields unused by this router.
     } as never);
   try {
     await expect(
@@ -134,6 +135,7 @@ test("authenticated text requires separate private eligibility and entitlement; 
         idempotencyKey: "y",
         text: "hello",
         apiKey: "unexpected",
+        // Intentionally hostile input must reach the runtime strict schema.
       } as never),
     ).rejects.toThrow();
     expect(calls).toBe(1);
@@ -240,6 +242,11 @@ test("absorbed retry costs stay separate from fractional customer credits; refun
       state: "settled",
       charged: 1525,
     });
+    expect((await f.ledger.status("alice")).providerCosts).toEqual({
+      knownNanoUsd: 4675,
+      absorbedNanoUsd: 100,
+      unknownExposureNanoUsd: 0,
+    });
     for (let i = 0; i < 3; i++) {
       const op = await f.ledger.reserve("alice", `failed-${i}`, `h${i}`);
       expect(await f.executor.execute("alice", op.id, "text")).toMatchObject({
@@ -251,7 +258,11 @@ test("absorbed retry costs stay separate from fractional customer credits; refun
     expect(await f.ledger.status("alice")).toMatchObject({
       availableSubcredits: 999_998_475,
       reservedSubcredits: 0,
-      providerCosts: { knownNanoUsd: 5075, unknownExposureNanoUsd: 0 },
+      providerCosts: {
+        knownNanoUsd: 5075,
+        absorbedNanoUsd: 500,
+        unknownExposureNanoUsd: 0,
+      },
     });
   } finally {
     f.client.close();
@@ -308,16 +319,18 @@ test("Pro preference is non-secret and gated by durable private eligibility, nev
     session: { user: { id: "pro_preference_test", role: "admin" } },
     auth: { kind: "session" },
     headers: new Headers(),
+    // Abbreviated caller context omits fields unused by this router.
   } as never);
-  await expect(
-    caller.setPowerPreference({ mode: "pro" } as never),
-  ).rejects.toThrow("Private eligibility required");
+  await expect(caller.setPowerPreference({ mode: "pro" })).rejects.toThrow(
+    "Private eligibility required",
+  );
   await db
     .insert(schema.proEligibility)
     .values({ accountId: "pro_preference_test", active: 1 });
-  await caller.setPowerPreference({ mode: "pro" } as never);
+  await caller.setPowerPreference({ mode: "pro" });
   expect(await caller.getPowerPreference()).toEqual({ mode: "pro" });
   await expect(
+    // Intentionally hostile input must reach the runtime strict schema.
     caller.setPowerPreference({ mode: "pro", key: "unexpected" } as never),
   ).rejects.toThrow();
 });
@@ -453,6 +466,7 @@ test("authenticated duplicate execution charges persisted completion once even w
     session: { user: { id: "alice" } },
     auth: { kind: "session" },
     headers: new Headers(),
+    // Abbreviated caller context omits fields unused by this router.
   } as never);
   const executions = [
     caller.text({ idempotencyKey: "duplicate", text: "hello" }),
@@ -538,6 +552,7 @@ test("authenticated replay releases cancellation after claim but before a paid a
     session: { user: { id: "alice" } },
     auth: { kind: "session" },
     headers: new Headers(),
+    // Abbreviated caller context omits fields unused by this router.
   } as never);
   try {
     const { hash } = (await import("./operation")).inputIdentity({
@@ -637,6 +652,7 @@ test("published text and autocomplete maxima match the period book across an upd
     session: { user: { id: "alice" } },
     auth: { kind: "session" },
     headers: new Headers(),
+    // Abbreviated caller context omits fields unused by this router.
   } as never);
   const grant = (start: number) =>
     ledger.grantPeriod("owner", {
@@ -691,5 +707,40 @@ test("published text and autocomplete maxima match the period book across an upd
     });
   } finally {
     client.close();
+  }
+});
+
+test("failed supplier attempts remain absorbed through replay and terminal cancellation without counting twice", async () => {
+  const f = await operationFixture(async () => {
+    throw new Error("No supplier dispatch expected");
+  });
+  try {
+    const op = await f.ledger.reserve("alice", "cancel-cost", "hash");
+    await f.ledger.claim(op.id);
+    const attempt = await f.ledger.startAttempt(op.id);
+    await f.ledger.finishAttempt(attempt, {
+      kind: "failed",
+      actualCostNanoUsd: 100,
+    });
+    await f.ledger.finishAttempt(attempt, {
+      kind: "failed",
+      actualCostNanoUsd: 200,
+    });
+    expect((await f.ledger.status("alice")).providerCosts).toEqual({
+      knownNanoUsd: 100,
+      absorbedNanoUsd: 100,
+      unknownExposureNanoUsd: 0,
+    });
+    await f.ledger.cancel("alice", op.id);
+    await f.ledger.settle(op.id, { kind: "cancelled" });
+    await f.ledger.settle(op.id, { kind: "cancelled" });
+    expect((await f.ledger.operation("alice", op.id)).state).toBe("cancelled");
+    expect((await f.ledger.status("alice")).providerCosts).toEqual({
+      knownNanoUsd: 100,
+      absorbedNanoUsd: 100,
+      unknownExposureNanoUsd: 0,
+    });
+  } finally {
+    f.client.close();
   }
 });

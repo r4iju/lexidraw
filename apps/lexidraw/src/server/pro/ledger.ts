@@ -1,3 +1,4 @@
+import { SqlInteger, SqlSum, SqlFlag } from "~/server/sql-row";
 import {
   SupplierBooks,
   SupplierContract,
@@ -46,6 +47,58 @@ import {
   Completion,
 } from "./contracts";
 
+const SubscriptionRow = z.object({
+  source: z.enum(["apple", "stripe"]),
+  state: z.enum([
+    "active",
+    "expired",
+    "revoked",
+    "payment_failed",
+    "cancelled",
+  ]),
+  starts_at: SqlInteger,
+  ends_at: SqlInteger,
+  cancel_at_end: SqlFlag,
+});
+const StatusPeriodRow = z.object({
+  id: z.string(),
+  pricebook: z.string(),
+  blocked: SqlFlag,
+  available: SqlInteger,
+  reserved: SqlInteger,
+  ends_at: SqlInteger,
+});
+const CostsRow = z.object({ known: SqlSum, absorbed: SqlSum, unknown: SqlSum });
+const AttemptRow = z.object({
+  id: z.string(),
+  operation_id: z.string(),
+  number: SqlInteger,
+  state: z.enum(["started", "completed", "failed", "unknown"]),
+  cost_nano_usd: SqlInteger.nullable(),
+  exposure_nano_usd: SqlInteger,
+  usage: z.string().nullable(),
+  result: z.string().nullable(),
+  chunk_hash: z.string().nullable().optional(),
+  created_at: SqlInteger,
+});
+const AuditRow = z.object({
+  id: SqlInteger,
+  actor_id: z.string(),
+  account_id: z.string(),
+  action: z.string(),
+  reason: z.string(),
+  created_at: SqlInteger,
+});
+const EntryRow = z.object({
+  id: SqlInteger,
+  account_id: z.string(),
+  period_id: z.string(),
+  operation_id: z.string().nullable(),
+  kind: z.string(),
+  subcredits: SqlInteger,
+  created_at: SqlInteger,
+});
+const NarrationJobRow = z.object({ document_id: z.string(), plan: z.string() });
 export class ProError extends Error {}
 export class ProAdmissionRejected extends ProError {
   constructor(
@@ -362,7 +415,9 @@ export class ProLedger {
       "SELECT customer_id FROM pro_billing_bindings WHERE account_id=?",
       [account],
     );
-    return rows[0] ? String(rows[0].customer_id) : null;
+    return rows[0]
+      ? z.object({ customer_id: z.string() }).parse(rows[0]).customer_id
+      : null;
   }
   async bindBillingCustomer(account: string, customer: string) {
     return this.write(async (tx) => {
@@ -409,7 +464,9 @@ export class ProLedger {
       "SELECT account_id FROM pro_apple_accounts WHERE token=?",
       [token],
     );
-    return rows[0] ? String(rows[0].account_id) : null;
+    return rows[0]
+      ? z.object({ account_id: z.string() }).parse(rows[0]).account_id
+      : null;
   }
   async reconcileSandbox(eventId: string, verify: () => Promise<unknown>) {
     return this.write(async (tx) => {
@@ -608,16 +665,15 @@ export class ProLedger {
       "SELECT * FROM pro_subscriptions WHERE account_id=? ORDER BY starts_at DESC LIMIT 1",
       [account],
     );
-    const row = rows[0];
-    return row
-      ? {
-          source: z.enum(["apple", "stripe"]).parse(row.source),
-          state: String(row.state),
-          startsAt: Number(row.starts_at),
-          expiresAt: Number(row.ends_at),
-          cancelAtEnd: row.cancel_at_end === 1,
-        }
-      : null;
+    if (!rows[0]) return null;
+    const row = SubscriptionRow.parse(rows[0]);
+    return {
+      source: row.source,
+      state: row.state,
+      startsAt: row.starts_at,
+      expiresAt: row.ends_at,
+      cancelAtEnd: row.cancel_at_end === 1,
+    };
   }
   async status(account: string) {
     const [
@@ -641,7 +697,7 @@ export class ProLedger {
         [account],
       ),
       this.query(
-        "SELECT SUM(a.cost_nano_usd) AS known, SUM(CASE WHEN o.state IN ('refunded','cancelled') THEN a.cost_nano_usd ELSE 0 END) AS absorbed, SUM(CASE WHEN a.cost_nano_usd IS NULL THEN a.exposure_nano_usd ELSE 0 END) AS unknown FROM pro_attempts a JOIN pro_operations o ON o.id=a.operation_id WHERE o.account_id=?",
+        "SELECT SUM(a.cost_nano_usd) AS known, SUM(CASE WHEN a.state='failed' OR o.state IN ('refunded','cancelled') THEN a.cost_nano_usd ELSE 0 END) AS absorbed, SUM(CASE WHEN a.cost_nano_usd IS NULL THEN a.exposure_nano_usd ELSE 0 END) AS unknown FROM pro_attempts a JOIN pro_operations o ON o.id=a.operation_id WHERE o.account_id=?",
         [account],
       ),
       this.query(
@@ -651,7 +707,14 @@ export class ProLedger {
       this.sandboxSubscription(account),
       this.billingCustomer(account),
     ]);
-    const period = periods[0];
+    const period = periods[0] ? StatusPeriodRow.parse(periods[0]) : undefined;
+    const eligibility = eligible[0]
+      ? z.object({ active: SqlFlag }).parse(eligible[0])
+      : undefined;
+    const providerCosts = CostsRow.parse(costs[0]);
+    const previousReserved = z
+      .object({ reserved: SqlSum })
+      .parse(oldReservations[0]).reserved;
     return {
       owner: this.config.ownerAccountIds.includes(account),
       publicState: "coming_soon" as const,
@@ -663,7 +726,7 @@ export class ProLedger {
         environment: "sandbox" as const,
         available:
           this.config.sandboxBillingAvailable === true &&
-          eligible[0]?.active === 1,
+          eligibility?.active === 1,
         monthlyUsd: 12,
         monthlyCredits: 1000,
         state: subscription
@@ -678,19 +741,15 @@ export class ProLedger {
         source: subscription?.source ?? null,
         appleAvailable:
           this.config.appleSandboxAvailable === true &&
-          eligible[0]?.active === 1,
+          eligibility?.active === 1,
       },
-      eligible: eligible[0]?.active === 1,
-      entitled: eligible[0]?.active === 1 && !!period && period.blocked !== 1,
-      entitlementPeriodId:
-        period && period.blocked !== 1 ? String(period.id) : null,
-      availableSubcredits:
-        period?.blocked === 1 ? 0 : Number(period?.available ?? 0),
-      reservedSubcredits: Number(period?.reserved ?? 0),
-      previousPeriodReservedSubcredits: Number(
-        oldReservations[0]?.reserved ?? 0,
-      ),
-      renewalAt: period ? Number(period.ends_at) : null,
+      eligible: eligibility?.active === 1,
+      entitled: eligibility?.active === 1 && !!period && period.blocked !== 1,
+      entitlementPeriodId: period && period.blocked !== 1 ? period.id : null,
+      availableSubcredits: period?.blocked === 1 ? 0 : (period?.available ?? 0),
+      reservedSubcredits: period?.reserved ?? 0,
+      previousPeriodReservedSubcredits: previousReserved,
+      renewalAt: period ? period.ends_at : null,
       history: z
         .array(
           Operation.pick({
@@ -704,23 +763,23 @@ export class ProLedger {
         )
         .parse(history),
       providerCosts: {
-        knownNanoUsd: Number(costs[0]?.known ?? 0),
-        absorbedNanoUsd: Number(costs[0]?.absorbed ?? 0),
-        unknownExposureNanoUsd: Number(costs[0]?.unknown ?? 0),
+        knownNanoUsd: providerCosts.known,
+        absorbedNanoUsd: providerCosts.absorbed,
+        unknownExposureNanoUsd: providerCosts.unknown,
       },
       policy: trialPolicy(
-        period ? decodePeriodRates(String(period.pricebook)).text : PRICEBOOK,
+        period ? decodePeriodRates(period.pricebook).text : PRICEBOOK,
       ),
       textMaximumSubcredits:
         period && period.blocked !== 1
-          ? textMaximum(decodePeriodRates(String(period.pricebook)).text)
+          ? textMaximum(decodePeriodRates(period.pricebook).text)
           : null,
       autocompleteMaximumSubcredits:
         period && period.blocked !== 1
-          ? textMaximum(decodePeriodRates(String(period.pricebook)).text, true)
+          ? textMaximum(decodePeriodRates(period.pricebook).text, true)
           : null,
       pricebook: period
-        ? decodePeriodRates(String(period.pricebook)).text
+        ? decodePeriodRates(period.pricebook).text
         : TextBook.parse(PRICEBOOK),
     };
   }
@@ -729,12 +788,11 @@ export class ProLedger {
       "SELECT id,pricebook FROM pro_periods WHERE account_id=? AND starts_at<=? AND ends_at>? ORDER BY starts_at DESC LIMIT 1",
       [account, this.config.now(), this.config.now()],
     );
-    return period
-      ? {
-          id: String(period.id),
-          rates: decodePeriodRates(String(period.pricebook)),
-        }
-      : null;
+    if (!period) return null;
+    const row = z
+      .object({ id: z.string(), pricebook: z.string() })
+      .parse(period);
+    return { id: row.id, rates: decodePeriodRates(row.pricebook) };
   }
   private async pinFeature(
     tx: Transaction,
@@ -796,7 +854,9 @@ export class ProLedger {
 
   async audit(actor: string) {
     this.owner(actor);
-    return this.query("SELECT * FROM pro_audit ORDER BY id");
+    return z
+      .array(AuditRow)
+      .parse(await this.query("SELECT * FROM pro_audit ORDER BY id"));
   }
   async reserve(
     account: string,
@@ -1643,16 +1703,18 @@ export class ProLedger {
     const op = await this.operation(account, id);
     if (op.feature !== "narration")
       throw new ProError("Narration operation required");
-    const row = (
-      await this.query(
-        "SELECT * FROM pro_narration_jobs WHERE operation_id=?",
-        [id],
-      )
-    )[0];
+    const row = NarrationJobRow.parse(
+      (
+        await this.query(
+          "SELECT * FROM pro_narration_jobs WHERE operation_id=?",
+          [id],
+        )
+      )[0],
+    );
     return {
       operation: op,
-      documentId: String(row?.document_id),
-      plan: NarrationPlan.parse(JSON.parse(String(row?.plan))),
+      documentId: row.document_id,
+      plan: NarrationPlan.parse(JSON.parse(row.plan)),
     };
   }
   async narrationCache(account: string, hash: string) {
@@ -1674,10 +1736,14 @@ export class ProLedger {
     return NarrationPart.parse(JSON.parse(String(row.result)));
   }
   async entries(account: string) {
-    return this.query(
-      "SELECT * FROM pro_ledger WHERE account_id=? ORDER BY id",
-      [account],
-    );
+    return z
+      .array(EntryRow)
+      .parse(
+        await this.query(
+          "SELECT * FROM pro_ledger WHERE account_id=? ORDER BY id",
+          [account],
+        ),
+      );
   }
 
   async revoke(actor: string, account: string, reason: string) {
@@ -2251,13 +2317,17 @@ export class ProLedger {
   }
   async attempts(account: string, id: string) {
     const op = await this.operation(account, id);
-    const attempts = await this.query(
-      "SELECT * FROM pro_attempts WHERE operation_id=? ORDER BY number",
-      [id],
-    );
+    const attempts = z
+      .array(AttemptRow)
+      .parse(
+        await this.query(
+          "SELECT * FROM pro_attempts WHERE operation_id=? ORDER BY number",
+          [id],
+        ),
+      );
     if (op.feature === "agent")
       for (const attempt of attempts)
-        AgentAttemptDescriptor.parse(JSON.parse(String(attempt.chunk_hash)));
+        AgentAttemptDescriptor.parse(JSON.parse(attempt.chunk_hash ?? ""));
     return attempts;
   }
   async cancel(account: string, id: string) {

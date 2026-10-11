@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { fixture, grant, input } from "./agent-operation.test";
-import { AGENT_BOOK } from "~/lib/agent/contracts";
+import { AgentCompletion, AGENT_BOOK } from "~/lib/agent/contracts";
 import type { AgentTransport } from "./agent-operation";
 import { supplierFixture } from "~/test/supplier-fixture";
 export const TOOL_BOOK = {
@@ -36,13 +36,13 @@ const task = { kind: "summarize_numbers" as const, values: [2, 4, 6] };
 const accepted = { ...input, acceptedMaximum: 27296000 };
 const complete = (request: Parameters<AgentTransport>[0], output: unknown) => ({
   kind: "completed" as const,
-  completion: {
+  completion: AgentCompletion.parse({
     kind: "agent" as const,
     phase: request.phase,
     output,
     usage: { input: 100, cachedInput: 0, output: 10 },
     actualCostNanoUsd: request.phase === "sandbox" ? 1000000 : 120000,
-  },
+  }),
 });
 test("authenticated sandbox action includes tool cost and saved mutation in one parent charge", async () => {
   let calls = 0;

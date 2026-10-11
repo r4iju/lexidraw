@@ -1,5 +1,5 @@
 /// <reference types="bun" />
-import { createClient } from "@libsql/client";
+import { createClient, type Client } from "@libsql/client";
 import * as schema from "@packages/drizzle/drizzle-schema";
 import { mock } from "bun:test";
 import {
@@ -64,13 +64,13 @@ export async function installServerRuntime(): Promise<
  * `createCaller`, and needs to know every row in it.
  */
 export async function createTestDatabase(): Promise<
-  LibSQLDatabase<typeof schema>
+  LibSQLDatabase<typeof schema> & { $client: Client }
 > {
   const client = createClient({ url: ":memory:" });
   const db = drizzle(client, { schema });
   const statements = await generateSQLiteMigration(
     await generateSQLiteDrizzleJson({}),
-    await generateSQLiteDrizzleJson(schema as never),
+    await generateSQLiteDrizzleJson(schema),
   );
   for (const statement of statements) await client.execute(statement);
   return db;

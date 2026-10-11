@@ -11,6 +11,7 @@ import {
   AGENT_BOOK,
   AgentCompletion,
   SandboxBook,
+  Phase,
 } from "~/lib/agent/contracts";
 
 const money = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
@@ -63,28 +64,11 @@ const ContractShape = z.discriminatedUnion("feature", [
   z.strictObject({
     ...contractFields,
     feature: z.literal("agent"),
-    phase: z.enum([
-      "plan",
-      "decision",
-      "generation",
-      "search",
-      "image",
-      "sandbox",
-      "delegate_plan",
-      "delegate_generation",
-    ]),
+    phase: Phase,
     book: AgentBook,
   }),
 ]);
-export type SupplierPhase =
-  | "plan"
-  | "decision"
-  | "generation"
-  | "search"
-  | "image"
-  | "sandbox"
-  | "delegate_plan"
-  | "delegate_generation";
+export type SupplierPhase = Phase;
 export type SupplierContract = z.infer<typeof ContractShape>;
 export function supplierMaximum(
   feature: SupplierContract["feature"],

@@ -9,7 +9,7 @@ import {
   publicProcedure,
 } from "~/server/api/trpc";
 import { schema } from "@packages/drizzle";
-import { eq } from "@packages/drizzle";
+import { eq, sql } from "@packages/drizzle";
 import {
   DEFAULT_GOOGLE_AGENT_MODEL_ID,
   DEFAULT_GOOGLE_AUTOCOMPLETE_MODEL_ID,
@@ -158,6 +158,20 @@ async function storedConfig(
   return user?.config ?? undefined;
 }
 
+// Each path is applied to the current row in the UPDATE, so another request's
+// source or settings cannot be restored from a captured account config.
+function patchConfigSubtree(
+  section: "tts" | "articles" | "audio" | "autoSave",
+  patch: Record<string, unknown>,
+) {
+  const current = sql`coalesce(nullif(${schema.users.config}, 'null'), '{}')`;
+  let subtree = sql`coalesce(json_extract(${current}, ${`$.${section}`}), '{}')`;
+  for (const [key, value] of Object.entries(patch)) {
+    subtree = sql`json_set(${subtree}, ${`$.${key}`}, json(${JSON.stringify(value)}))`;
+  }
+  return sql`json_set(${current}, ${`$.${section}`}, json(${subtree}))`;
+}
+
 export const configRouter = createTRPCRouter({
   getAutocompleteModelOptions: protectedProcedure.query(async ({ ctx }) => {
     const [policy] = await ctx.drizzle
@@ -208,17 +222,10 @@ export const configRouter = createTRPCRouter({
   updateAutocompleteConfig: protectedProcedure
     .input(z.strictObject({ enabled: z.boolean() }))
     .mutation(async ({ ctx, input }) => {
-      const current = await ctx.drizzle.query.users.findFirst({
-        where: eq(schema.users.id, ctx.session.user.id),
-        columns: { config: true },
-      });
       await ctx.drizzle
         .update(schema.users)
         .set({
-          config: {
-            ...(current?.config ?? {}),
-            autocomplete: { enabled: input.enabled },
-          },
+          config: sql`json_set(coalesce(nullif(${schema.users.config}, 'null'), '{}'), '$.autocomplete', json(${JSON.stringify(input)}))`,
         })
         .where(eq(schema.users.id, ctx.session.user.id));
       return input;
@@ -227,9 +234,7 @@ export const configRouter = createTRPCRouter({
     async ({ ctx }): Promise<StoredLlmConfig> => {
       const config = await storedConfig(ctx);
 
-      const existingLlm = (config?.llm ?? {}) as Partial<
-        z.infer<typeof LlmConfigSchema>
-      >;
+      const existingLlm: Partial<StoredLlmConfig> = config?.llm ?? {};
       const llmConfigUnnormalized = {
         ...defaultChatBaseConfig,
         ...existingLlm,
@@ -262,7 +267,7 @@ export const configRouter = createTRPCRouter({
   getAudioConfig: publicProcedure.query(async ({ ctx }) => {
     const config = await storedConfig(ctx);
     const preferredPlaybackRate = config?.audio?.preferredPlaybackRate ?? 1;
-    return { preferredPlaybackRate } as { preferredPlaybackRate: number };
+    return { preferredPlaybackRate };
   }),
 
   updateAudioConfig: protectedProcedure
@@ -272,25 +277,9 @@ export const configRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      const current = await ctx.drizzle.query.users.findFirst({
-        where: eq(schema.users.id, ctx.session.user.id),
-        columns: { config: true },
-      });
-
-      const nextConfig = {
-        ...(current?.config ?? {}),
-        audio: {
-          ...(current?.config?.audio ?? {}),
-          preferredPlaybackRate: input.preferredPlaybackRate,
-        },
-      } as (typeof schema.users.$inferInsert)["config"];
-
       await ctx.drizzle
         .update(schema.users)
-        .set({
-          config:
-            nextConfig as unknown as (typeof schema.users.$inferInsert)["config"],
-        })
+        .set({ config: patchConfigSubtree("audio", input) })
         .where(eq(schema.users.id, ctx.session.user.id));
 
       return { preferredPlaybackRate: input.preferredPlaybackRate };
@@ -309,25 +298,9 @@ export const configRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      const current = await ctx.drizzle.query.users.findFirst({
-        where: eq(schema.users.id, ctx.session.user.id),
-        columns: { config: true },
-      });
-
-      const nextConfig = {
-        ...(current?.config ?? {}),
-        autoSave: {
-          ...(current?.config?.autoSave ?? {}),
-          enabled: input.enabled,
-        },
-      } as (typeof schema.users.$inferInsert)["config"];
-
       await ctx.drizzle
         .update(schema.users)
-        .set({
-          config:
-            nextConfig as unknown as (typeof schema.users.$inferInsert)["config"],
-        })
+        .set({ config: patchConfigSubtree("autoSave", input) })
         .where(eq(schema.users.id, ctx.session.user.id));
 
       return { enabled: input.enabled };
@@ -364,16 +337,12 @@ export const configRouter = createTRPCRouter({
   updateTtsConfig: protectedProcedure
     .input(TtsPatchSchema)
     .mutation(async ({ ctx, input }) => {
-      const current = await ctx.drizzle.query.users.findFirst({
-        where: eq(schema.users.id, ctx.session.user.id),
-        columns: { config: true },
-      });
-      const next = { ...listenSettings(current?.config?.tts), ...input };
-      await ctx.drizzle
+      const [saved] = await ctx.drizzle
         .update(schema.users)
-        .set({ config: { ...(current?.config ?? {}), tts: next } })
-        .where(eq(schema.users.id, ctx.session.user.id));
-      return TtsConfigSchema.parse(next);
+        .set({ config: patchConfigSubtree("tts", input) })
+        .where(eq(schema.users.id, ctx.session.user.id))
+        .returning({ config: schema.users.config });
+      return TtsConfigSchema.parse(listenSettings(saved?.config?.tts));
     }),
 
   // --- Article config ---
@@ -385,20 +354,15 @@ export const configRouter = createTRPCRouter({
   updateArticleConfig: protectedProcedure
     .input(ArticlePatchSchema)
     .mutation(async ({ ctx, input }) => {
-      const current = await ctx.drizzle.query.users.findFirst({
-        where: eq(schema.users.id, ctx.session.user.id),
-        columns: { config: true },
-      });
-      const next = {
-        ...defaultArticles,
-        ...(current?.config?.articles ?? {}),
-        ...input,
-      };
-      await ctx.drizzle
+      const [saved] = await ctx.drizzle
         .update(schema.users)
-        .set({ config: { ...(current?.config ?? {}), articles: next } })
-        .where(eq(schema.users.id, ctx.session.user.id));
-      return ArticleConfigSchema.parse(next);
+        .set({ config: patchConfigSubtree("articles", input) })
+        .where(eq(schema.users.id, ctx.session.user.id))
+        .returning({ config: schema.users.config });
+      return ArticleConfigSchema.parse({
+        ...defaultArticles,
+        ...saved?.config?.articles,
+      });
     }),
 
   updateLlmConfig: protectedProcedure

@@ -4,6 +4,7 @@ import { createHash } from "node:crypto";
 import { createOpenAI } from "@ai-sdk/openai";
 import { generateText, APICallError } from "ai";
 import { z } from "zod";
+import { Usage } from "./contracts";
 import {
   AgentCompletion,
   AgentBook,
@@ -211,7 +212,7 @@ export function createAgentProvider(deps: {
         cachedInput: result.totalUsage.inputTokenDetails.cacheReadTokens ?? 0,
         output: result.totalUsage.outputTokens,
       };
-      const cost = textCost(AgentCompletion.shape.usage.parse(usage), book);
+      const cost = textCost(Usage.parse(usage), book);
       return {
         kind: "completed",
         completion: AgentCompletion.parse({

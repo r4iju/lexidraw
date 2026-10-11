@@ -215,34 +215,61 @@ export const Search = z.strictObject({
     )
     .max(5),
 });
-export const AgentCompletion = z
-  .strictObject({
-    kind: z.literal("agent"),
-    phase: Phase,
-    output: z.unknown(),
-    usage: Usage,
-    actualCostNanoUsd: z.number().int().nonnegative().optional(),
-    estimatedCostNanoUsd: z.number().int().nonnegative().optional(),
-    providerResponseId: z.string().max(200).optional(),
-  })
-  .superRefine((x, ctx) => {
-    const schema =
-      x.phase === "plan"
-        ? Plan
-        : x.phase === "decision"
-          ? Decision
-          : x.phase === "generation"
-            ? Generation
-            : x.phase === "search"
-              ? Search
-              : x.phase === "delegate_plan"
-                ? DelegatedPlan
-                : x.phase === "sandbox" || x.phase === "delegate_generation"
-                  ? Generation
-                  : ImageCompletion;
-    if (!schema.safeParse(x.output).success)
-      ctx.addIssue({ code: "custom", message: "Invalid approved tool output" });
-  });
+// Completion validation has historically retained decision payloads, including
+// extra fields accepted by Decision's non-strict branches. Keep that contract.
+const DecisionOutput = z.custom<z.infer<typeof Decision>>(
+  (value) => Decision.safeParse(value).success,
+  "Invalid approved tool output",
+);
+const completionFields = {
+  kind: z.literal("agent"),
+  usage: Usage,
+  actualCostNanoUsd: z.number().int().nonnegative().optional(),
+  estimatedCostNanoUsd: z.number().int().nonnegative().optional(),
+  providerResponseId: z.string().max(200).optional(),
+};
+export const AgentCompletion = z.discriminatedUnion("phase", [
+  z.strictObject({
+    ...completionFields,
+    phase: z.literal("plan"),
+    output: Plan,
+  }),
+  z.strictObject({
+    ...completionFields,
+    phase: z.literal("decision"),
+    output: DecisionOutput,
+  }),
+  z.strictObject({
+    ...completionFields,
+    phase: z.literal("generation"),
+    output: Generation,
+  }),
+  z.strictObject({
+    ...completionFields,
+    phase: z.literal("search"),
+    output: Search,
+  }),
+  z.strictObject({
+    ...completionFields,
+    phase: z.literal("image"),
+    output: ImageCompletion,
+  }),
+  z.strictObject({
+    ...completionFields,
+    phase: z.literal("sandbox"),
+    output: Generation,
+  }),
+  z.strictObject({
+    ...completionFields,
+    phase: z.literal("delegate_plan"),
+    output: DelegatedPlan,
+  }),
+  z.strictObject({
+    ...completionFields,
+    phase: z.literal("delegate_generation"),
+    output: Generation,
+  }),
+]);
 export type AgentCompletion = z.infer<typeof AgentCompletion>;
 export const Receipt = z.strictObject({
   revision: z.number().int().nonnegative(),

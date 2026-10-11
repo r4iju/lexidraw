@@ -8,18 +8,31 @@ export const SaveImageInput = z.strictObject({
   entityId: z.string().min(1).max(100),
   image: ImageArtifact,
 });
-const Row = z.object({
+const rowFields = {
   id: z.string(),
   account_id: z.string(),
   entity_id: z.string(),
   content_hash: z.string(),
   pathname: z.string(),
-  state: z.enum(["pending", "registered", "abandoned"]),
-  url: z.string().nullable(),
   expires_at: z.number(),
   lease_until: z.number(),
   size: z.number().int().positive().max(2097152),
-});
+};
+const Row = z.discriminatedUnion("state", [
+  z.object({
+    ...rowFields,
+    state: z.literal("registered"),
+    url: z.union([
+      z.url(),
+      z.string().regex(/^\/api\/generated-images\/[^/?#]+$/),
+    ]),
+  }),
+  z.object({
+    ...rowFields,
+    state: z.enum(["pending", "abandoned"]),
+    url: z.string().nullable(),
+  }),
+]);
 export class GeneratedImages {
   constructor(
     readonly client: Client,
@@ -59,7 +72,7 @@ export class GeneratedImages {
         row = Row.parse(prior);
         if (row.content_hash !== hash || row.entity_id !== input.entityId)
           throw new Error("Artifact idempotency conflict");
-        if (row.state === "registered" && row.url) {
+        if (row.state === "registered") {
           await tx.commit();
           return { id: row.id, url: this.url(row.id) };
         }
@@ -135,7 +148,7 @@ export class GeneratedImages {
             })
           ).rows[0],
         );
-        if (prior.state === "registered" && prior.url)
+        if (prior.state === "registered")
           return { id: prior.id, url: this.url(prior.id) };
         await this.deps.store.remove(row.pathname);
         throw new Error("Upload expired");

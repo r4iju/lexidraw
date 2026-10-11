@@ -1,3 +1,4 @@
+import type { PowerPreference } from "@packages/types/power-preference";
 export * from "./pro-schema.js";
 import type { PublicAccess } from "@packages/types";
 import { createId } from "@paralleldrive/cuid2";
@@ -79,10 +80,7 @@ export const users = sqliteTable(
       .$defaultFn(() => createId()),
     name: text("name").notNull(),
     config: text("config", { mode: "json" }).$type<{
-      aiPower?:
-        | { mode: "local" }
-        | { mode: "pro" }
-        | { mode: "byok"; provider: "openrouter" };
+      aiPower?: PowerPreference;
       llm?: {
         chat?: {
           modelId: string;

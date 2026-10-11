@@ -162,6 +162,13 @@
       "when": 1791660000000,
       "tag": "0031_pro_chat_recovery",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "6",
+      "when": 1791685237782,
+      "tag": "0032_backend_migration_repair",
+      "breakpoints": true
     }
   ]
 }

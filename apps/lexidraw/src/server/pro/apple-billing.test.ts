@@ -340,3 +340,48 @@ test("fresh server status reads may contain older signed transaction and renewal
     f.client.close();
   }
 });
+
+test("signed active renewal may omit the SDK optional retry flag without granting terminal statuses", async () => {
+  const f = await fixture();
+  try {
+    const gate = await f.billing.gate("alice");
+    f.signed.transaction.appAccountToken = gate.appAccountToken;
+    const { isInBillingRetryPeriod: _retry, ...renewal } = f.signed.renewal;
+    const api = {
+      ...f.signed.api,
+      getAllSubscriptionStatuses: async (id: string) => {
+        const response = await f.signed.api.getAllSubscriptionStatuses(id);
+        for (const group of response.data)
+          for (const current of group.lastTransactions)
+            current.signedRenewalInfo = f.signed.sign(renewal);
+        return response;
+      },
+    };
+    const billing = new AppleSandboxBilling(
+      f.ledger,
+      f.signed.config,
+      f.signed.verifier,
+      api,
+    );
+    expect(
+      (
+        await f.signed.verifier.verifyAndDecodeRenewalInfo(
+          f.signed.sign(renewal),
+        )
+      ).isInBillingRetryPeriod,
+    ).toBeUndefined();
+    expect(
+      (await billing.claim("alice", f.signed.sign(f.signed.transaction)))
+        .entitled,
+    ).toBe(true);
+    for (const status of [2, 3, 4, 5]) {
+      f.signed.state.status = status;
+      expect(
+        (await billing.claim("alice", f.signed.sign(f.signed.transaction)))
+          .entitled,
+      ).toBe(false);
+    }
+  } finally {
+    f.client.close();
+  }
+});

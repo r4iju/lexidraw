@@ -7,7 +7,7 @@ mock.module("@packages/env", () => ({ default: { NODE_ENV: "test" } }));
 const db = await installServerRuntime();
 const { createAgentRouter } = await import("../api/routers/pro-agent");
 const { ProAgentOperation } = await import("./agent-operation");
-const { AGENT_BOOK } = await import("~/lib/agent/contracts");
+const { AGENT_BOOK, AgentCompletion } = await import("~/lib/agent/contracts");
 export async function fixture(
   transport?: ConstructorParameters<typeof ProAgentOperation>[3],
 ) {
@@ -99,13 +99,13 @@ export async function fixture(
                 : { text: "Trees grow." };
         return {
           kind: "completed",
-          completion: {
+          completion: AgentCompletion.parse({
             kind: "agent",
             phase: request.phase,
             output,
             usage: { input: 100, cachedInput: 0, output: 10 },
             actualCostNanoUsd: request.phase === "search" ? 5_000_000 : 120_000,
-          },
+          }),
         };
       }),
   );
@@ -120,6 +120,7 @@ export async function fixture(
       drizzle: db,
       headers: new Headers(),
       session: { user: { id: account, role: "admin" }, expires: "2099-01-01" },
+      // Abbreviated caller context omits fields unused by this router.
     } as never);
   return {
     client,
@@ -205,13 +206,13 @@ test("interrupted action retains per-edit receipts, refunds customer credits and
           : { text: "First saved edit" };
     return {
       kind: "completed",
-      completion: {
+      completion: AgentCompletion.parse({
         kind: "agent",
         phase: request.phase,
         output,
         usage: { input: 100, cachedInput: 0, output: 10 },
         actualCostNanoUsd: 120000,
-      },
+      }),
     };
   });
   try {
@@ -274,13 +275,13 @@ test("cancel before next mutation never claims unsaved edits; completion committ
           : { text: "Must not save" };
     return {
       kind: "completed",
-      completion: {
+      completion: AgentCompletion.parse({
         kind: "agent",
         phase: request.phase,
         output,
         usage: { input: 100, cachedInput: 0, output: 10 },
         actualCostNanoUsd: 120000,
-      },
+      }),
     };
   });
   try {
@@ -315,13 +316,13 @@ test("concurrent edit stops mutation and refunds without overwriting; unsupporte
           : { text: "AI edit" };
     return {
       kind: "completed",
-      completion: {
+      completion: AgentCompletion.parse({
         kind: "agent",
         phase: request.phase,
         output,
         usage: { input: 100, cachedInput: 0, output: 10 },
         actualCostNanoUsd: 120000,
-      },
+      }),
     };
   });
   try {
@@ -644,7 +645,7 @@ test("agent renewal uses its new credit conversion while original period operati
       f.executor.documents,
       async (request) => ({
         kind: "completed",
-        completion: {
+        completion: AgentCompletion.parse({
           kind: "agent",
           phase: request.phase,
           output:
@@ -655,7 +656,7 @@ test("agent renewal uses its new credit conversion while original period operati
                 : { text: "New text" },
           usage: { input: 100, cachedInput: 0, output: 10 },
           actualCostNanoUsd: 120_000,
-        },
+        }),
       }),
     );
     expect((await updated.periodBook("alice")).quote).toBe(26_629_334);
@@ -717,6 +718,7 @@ test("authenticated action pins configured customer rates before its first quote
       drizzle: db,
       headers: new Headers(),
       session: { user: { id: "alice" } },
+      // Abbreviated caller context omits fields unused by this router.
     } as never);
     expect(
       (await caller.quote({ documentId: "doc", prompt: "Add text" })).maximum,
@@ -928,6 +930,7 @@ test("owned action reads and cancellation survive removed executor without paid 
         drizzle: db,
         headers: new Headers(),
         session: { user: { id: account } },
+        // Abbreviated caller context omits fields unused by this router.
       } as never);
     const before = await f.ledger.operation("alice", op.id);
     expect(

@@ -13,6 +13,7 @@ import {
 
 await installServerRuntime();
 const { configRouter } = await import("./config");
+const { authRouter } = await import("./auth");
 
 // Its own database, where the one user is the row a lookup that forgot to
 // filter by the caller would land on.
@@ -78,7 +79,7 @@ function callerFor(userId: string | null) {
     session: userId ? { user: { id: userId }, expires: "2099-01-01" } : null,
     auth: { kind: "session" },
     headers: new Headers(),
-  } as never);
+  });
 }
 
 const visitor = callerFor(null);
@@ -203,4 +204,49 @@ describe("auto-save", () => {
       enabled: false,
     });
   });
+});
+
+test("concurrent authenticated settings and source writes both survive", async () => {
+  const id = "config_concurrent_user";
+  await db
+    .insert(schema.users)
+    .values({ id, name: "Concurrent", config: null });
+  const context = {
+    drizzle: db,
+    schema,
+    session: { user: { id }, expires: "2099-01-01" },
+    auth: { kind: "session" as const },
+    headers: new Headers(),
+  };
+  const settings = configRouter.createCaller(context);
+  const auth = authRouter.createCaller(context);
+  const client = db.$client;
+  const execute = client.execute.bind(client);
+  const reached = Promise.withResolvers<void>();
+  const release = Promise.withResolvers<void>();
+  let paused = false;
+  client.execute = async (statement) => {
+    const sql = typeof statement === "string" ? statement : statement.sql;
+    if (!paused && /^update "Users"/i.test(sql)) {
+      paused = true;
+      reached.resolve();
+      await release.promise;
+    }
+    return execute(statement);
+  };
+  try {
+    const pending = settings.updateAutocompleteConfig({ enabled: true });
+    await reached.promise;
+    await auth.setPowerPreference({ mode: "byok", provider: "openrouter" });
+    release.resolve();
+    expect(await pending).toEqual({ enabled: true });
+    expect(await settings.getAutocompleteConfig()).toEqual({ enabled: true });
+    expect(await auth.getPowerPreference()).toEqual({
+      mode: "byok",
+      provider: "openrouter",
+    });
+  } finally {
+    release.resolve();
+    client.execute = execute;
+  }
 });

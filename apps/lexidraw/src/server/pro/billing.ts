@@ -19,14 +19,8 @@ const Price = TestObject.extend({
     usage_type: z.literal("licensed"),
   }),
 });
-export type SandboxConfig = {
-  key: string;
-  webhookSecret: string;
-  priceId: string;
-  productId: string;
-  origin: string;
-  portalConfigurationId: string;
-};
+import { SandboxConfigSchema, type SandboxConfig } from "./billing-config";
+export type { SandboxConfig } from "./billing-config";
 export class SandboxBilling {
   private readonly stripe: Stripe;
   constructor(
@@ -42,32 +36,11 @@ export class SandboxBilling {
     });
   }
   private configured() {
-    const c = this.config;
-    if (
-      !/^sk_test_[A-Za-z0-9_]+$/.test(c.key) ||
-      !c.webhookSecret.startsWith("whsec_") ||
-      !c.priceId.startsWith("price_") ||
-      !c.productId.startsWith("prod_") ||
-      !c.portalConfigurationId.startsWith("bpc_")
-    )
-      throw new ProError("Sandbox billing unavailable");
-    let origin: URL;
     try {
-      origin = new URL(c.origin);
+      SandboxConfigSchema.parse(this.config);
     } catch {
       throw new ProError("Sandbox billing unavailable");
     }
-    if (
-      origin.origin !== c.origin ||
-      origin.username ||
-      origin.password ||
-      !(
-        origin.protocol === "https:" ||
-        (origin.protocol === "http:" &&
-          ["localhost", "127.0.0.1"].includes(origin.hostname))
-      )
-    )
-      throw new ProError("Sandbox billing unavailable");
   }
   private async account(account: string | null) {
     if (!account) throw new ProError("Authentication required");
@@ -77,11 +50,13 @@ export class SandboxBilling {
     return account;
   }
   private async plan() {
-    const price = Price.parse(
-      await this.stripe.prices.retrieve(this.config.priceId),
-    );
+    const [rawPrice, rawProduct] = await Promise.all([
+      this.stripe.prices.retrieve(this.config.priceId),
+      this.stripe.products.retrieve(this.config.productId),
+    ]);
+    const price = Price.parse(rawPrice);
     const product = TestObject.extend({ active: z.literal(true) }).parse(
-      await this.stripe.products.retrieve(this.config.productId),
+      rawProduct,
     );
     if (
       price.id !== this.config.priceId ||

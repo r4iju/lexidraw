@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import type { Client, Transaction } from "@libsql/client";
 import { z } from "zod";
+import { SqlInteger, SqlSum } from "~/server/sql-row";
 import {
   SaveRecording,
   validateRecording,
@@ -13,6 +14,16 @@ export const RecordingGrant = z.strictObject({
   kind: z.literal("recording_upload"),
   id: z.string().min(1).max(100),
 });
+const UploadRow = z.object({
+  id: z.string(),
+  document_id: z.string(),
+  content_hash: z.string(),
+  state: z.enum(["pending", "registered", "abandoned"]),
+  expires_at: SqlInteger,
+  size: SqlInteger,
+});
+const QuotaRow = z.object({ count: SqlInteger, size: SqlSum });
+const SavedRow = z.object({ id: z.string(), recording: z.string() });
 export class GeneratedRecordings {
   constructor(
     readonly client: Client,
@@ -75,13 +86,14 @@ export class GeneratedRecordings {
     if (!(await this.deps.canEdit(account, input.documentId)))
       throw new Error("Edit access required");
     return this.write(async (tx) => {
-      const prior = (
+      const rawPrior = (
         await tx.execute({
           sql: "SELECT * FROM generated_recordings WHERE account_id=? AND idempotency_key=?",
           args: [account, input.idempotencyKey],
         })
       ).rows[0];
-      if (prior) {
+      if (rawPrior) {
+        const prior = UploadRow.parse(rawPrior);
         if (
           prior.document_id !== input.documentId ||
           prior.content_hash !== input.hash
@@ -89,22 +101,20 @@ export class GeneratedRecordings {
           throw new Error("Idempotency conflict");
         if (
           prior.state !== "registered" &&
-          (prior.state === "abandoned" ||
-            Number(prior.expires_at) <= this.deps.now())
+          (prior.state === "abandoned" || prior.expires_at <= this.deps.now())
         )
           throw new Error("Upload expired");
         return RecordingGrant.parse({ kind: "recording_upload", id: prior.id });
       }
-      const quota = (
-        await tx.execute({
-          sql: "SELECT COUNT(*) count,COALESCE(SUM(size),0) size FROM generated_recordings WHERE account_id=? AND state IN ('pending','registered')",
-          args: [account],
-        })
-      ).rows[0];
-      if (
-        Number(quota?.count) >= 10 ||
-        Number(quota?.size) + input.size > 100 * 1024 * 1024
-      )
+      const quota = QuotaRow.parse(
+        (
+          await tx.execute({
+            sql: "SELECT COUNT(*) count,COALESCE(SUM(size),0) size FROM generated_recordings WHERE account_id=? AND state IN ('pending','registered')",
+            args: [account],
+          })
+        ).rows[0],
+      );
+      if (quota.count >= 10 || quota.size + input.size > 100 * 1024 * 1024)
         throw new Error("Recording quota reached");
       const id = crypto.randomUUID();
       await tx.execute({
@@ -134,27 +144,22 @@ export class GeneratedRecordings {
       data = JSON.stringify(parsed),
       hash = createHash("sha256").update(data).digest("hex");
     return this.write(async (tx) => {
-      const current = (
+      const rawCurrent = (
         await tx.execute({
           sql: "SELECT * FROM generated_recordings WHERE id=? AND account_id=?",
           args: [grant.id, account],
         })
       ).rows[0];
-      if (
-        !current ||
-        !(await this.deps.canEdit(account, String(current.document_id)))
-      )
+      const current = rawCurrent ? UploadRow.parse(rawCurrent) : undefined;
+      if (!current || !(await this.deps.canEdit(account, current.document_id)))
         throw new Error("Edit access required");
       if (
         current.content_hash !== hash ||
-        Number(current.size) !== Buffer.byteLength(data)
+        current.size !== Buffer.byteLength(data)
       )
         throw new Error("Idempotency conflict");
       if (current.state === "registered") return { id: grant.id };
-      if (
-        current.state !== "pending" ||
-        Number(current.expires_at) <= this.deps.now()
-      )
+      if (current.state !== "pending" || current.expires_at <= this.deps.now())
         throw new Error("Upload expired");
       check(data);
       await tx.execute({
@@ -180,17 +185,18 @@ export class GeneratedRecordings {
   async saved(account: string, document: string) {
     if (!(await this.deps.canRead(account, document)))
       throw new Error("Read access required");
-    const row = (
+    const rawRow = (
       await this.client.execute({
         sql: "SELECT id,recording FROM generated_recordings WHERE account_id=? AND document_id=? AND state='registered' ORDER BY created_at DESC,rowid DESC LIMIT 1",
         args: [account, document],
       })
     ).rows[0];
-    if (!row) return null;
+    if (!rawRow) return null;
+    const row = SavedRow.parse(rawRow);
     return {
-      id: String(row.id),
+      id: row.id,
       recording: validateRecording(
-        JSON.parse(String(row.recording)),
+        JSON.parse(row.recording),
         guard.assertEgress,
       ),
     };

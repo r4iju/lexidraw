@@ -1,4 +1,27 @@
-import type { SandboxConfig } from "./billing";
+import { z } from "zod";
+export const SandboxConfigSchema = z.object({
+  key: z.string().regex(/^sk_test_[A-Za-z0-9_]+$/),
+  webhookSecret: z.string().startsWith("whsec_"),
+  priceId: z.string().startsWith("price_"),
+  productId: z.string().startsWith("prod_"),
+  portalConfigurationId: z.string().startsWith("bpc_"),
+  origin: z.string().refine((value) => {
+    try {
+      const origin = new URL(value);
+      return (
+        origin.origin === value &&
+        !origin.username &&
+        !origin.password &&
+        (origin.protocol === "https:" ||
+          (origin.protocol === "http:" &&
+            ["localhost", "127.0.0.1"].includes(origin.hostname)))
+      );
+    } catch {
+      return false;
+    }
+  }),
+});
+export type SandboxConfig = z.infer<typeof SandboxConfigSchema>;
 export function sandboxConfig(
   environment: Readonly<Record<string, string | undefined>>,
 ): SandboxConfig | null {
@@ -12,29 +35,6 @@ export function sandboxConfig(
     portalConfigurationId:
       environment.STRIPE_SANDBOX_PORTAL_CONFIGURATION_ID ?? "",
   };
-  if (
-    !/^sk_test_[A-Za-z0-9_]+$/.test(config.key) ||
-    !config.webhookSecret.startsWith("whsec_") ||
-    !config.priceId.startsWith("price_") ||
-    !config.productId.startsWith("prod_") ||
-    !config.portalConfigurationId.startsWith("bpc_")
-  )
-    return null;
-  try {
-    const origin = new URL(config.origin);
-    if (
-      origin.origin !== config.origin ||
-      origin.username ||
-      origin.password ||
-      !(
-        origin.protocol === "https:" ||
-        (origin.protocol === "http:" &&
-          ["localhost", "127.0.0.1"].includes(origin.hostname))
-      )
-    )
-      return null;
-  } catch {
-    return null;
-  }
-  return config;
+  const parsed = SandboxConfigSchema.safeParse(config);
+  return parsed.success ? parsed.data : null;
 }

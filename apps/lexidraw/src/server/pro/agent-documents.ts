@@ -50,7 +50,7 @@ export class SqlAgentDocuments implements AgentDocuments {
     const hash = createHash("sha256")
       .update(JSON.stringify({ revision, edit }))
       .digest("hex");
-    await this.row(account, id);
+    const accessible = await this.row(account, id);
     const prior = (
       await this.ledger.query(
         "SELECT input_hash,receipt FROM pro_agent_edits WHERE operation_id=? AND step_key=?",
@@ -60,7 +60,9 @@ export class SqlAgentDocuments implements AgentDocuments {
     if (prior) {
       if (prior.input_hash !== hash)
         throw new ProError("Edit identity conflicts");
-      return Receipt.parse(JSON.parse(String(prior.receipt)));
+      const receipt = Receipt.parse(JSON.parse(String(prior.receipt)));
+      this.invalidate?.(id, accessible.parentId);
+      return receipt;
     }
     let imageUrl: string | undefined;
     if (edit.kind === "image") {
@@ -69,6 +71,7 @@ export class SqlAgentDocuments implements AgentDocuments {
     }
     const tx = await this.ledger.client.transaction("write");
     let parent: string | null = null;
+    let committed = false;
     try {
       const row = await this.row(account, id, tx);
       parent = row.parentId;
@@ -81,8 +84,11 @@ export class SqlAgentDocuments implements AgentDocuments {
       if (existing) {
         if (existing.input_hash !== hash)
           throw new ProError("Edit identity conflicts");
+        const receipt = Receipt.parse(JSON.parse(String(existing.receipt)));
         await tx.commit();
-        return Receipt.parse(JSON.parse(String(existing.receipt)));
+        committed = true;
+        this.invalidate?.(id, parent);
+        return receipt;
       }
       const op = (
         await tx.execute({
@@ -125,10 +131,11 @@ export class SqlAgentDocuments implements AgentDocuments {
         args: [JSON.stringify(report), operation],
       });
       await tx.commit();
+      committed = true;
       this.invalidate?.(id, parent);
       return receipt;
     } catch (error) {
-      await tx.rollback();
+      if (!committed) await tx.rollback();
       throw error;
     } finally {
       tx.close();
