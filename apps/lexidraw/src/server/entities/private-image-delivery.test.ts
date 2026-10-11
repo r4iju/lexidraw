@@ -68,6 +68,11 @@ test("Pro agent image storage uses private registration and retries a partial up
     ).text(),
   );
   const objects = new Map<string, Uint8Array>();
+  await client.executeMultiple(
+    await Bun.file(
+      "../../packages/drizzle/drizzle/0033_generated_image_cleanup_cursor.sql",
+    ).text(),
+  );
   let now = 1000,
     fail = true;
   const images = new GeneratedImages(client, {

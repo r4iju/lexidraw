@@ -10,6 +10,11 @@ test("artifact upload is access checked, bounded, key-free, idempotent and retry
       "../../packages/drizzle/drizzle/0024_generated_images.sql",
     ).text(),
   );
+  await client.executeMultiple(
+    await Bun.file(
+      "../../packages/drizzle/drizzle/0033_generated_image_cleanup_cursor.sql",
+    ).text(),
+  );
   const blobs = new Map<string, Uint8Array>();
   let failed = true,
     writes = 0,

@@ -169,6 +169,13 @@
       "when": 1791685237782,
       "tag": "0032_backend_migration_repair",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "6",
+      "when": 1791698049489,
+      "tag": "0033_generated_image_cleanup_cursor",
+      "breakpoints": true
     }
   ]
 }

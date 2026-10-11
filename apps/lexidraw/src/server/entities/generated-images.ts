@@ -204,18 +204,90 @@ export class GeneratedImages {
     return live.rows.length ? bytes : null;
   }
   async cleanup() {
-    const expired = await this.client.execute({
-      sql: "UPDATE generated_images SET state='abandoned' WHERE state='pending' AND expires_at<=? AND lease_until<=? RETURNING pathname",
-      args: [this.deps.now(), this.deps.now()],
-    });
-    for (const row of expired.rows)
-      await this.deps.store.remove(String(row.pathname));
-    // Repeat deletions after a storage outage, including uploads that completed after expiry.
-    const abandoned = await this.client.execute(
-      "SELECT pathname FROM generated_images WHERE state='abandoned' LIMIT 100",
-    );
-    for (const row of abandoned.rows)
-      await this.deps.store.remove(String(row.pathname));
-    return expired.rows.length;
+    const now = this.deps.now();
+    const tx = await this.client.transaction("write");
+    let expiredCount: number;
+    try {
+      const candidates = z.array(z.strictObject({ id: z.uuid() })).parse(
+        (
+          await tx.execute({
+            sql: "SELECT id FROM generated_images WHERE state='pending' AND expires_at<=? AND lease_until<=? ORDER BY expires_at,id LIMIT 100",
+            args: [now, now],
+          })
+        ).rows,
+      );
+      expiredCount = 0;
+      for (const row of candidates) {
+        const result = await tx.execute({
+          sql: "UPDATE generated_images SET state='abandoned' WHERE id=? AND state='pending' AND expires_at<=? AND lease_until<=?",
+          args: [row.id, now, now],
+        });
+        expiredCount += result.rowsAffected;
+      }
+      await tx.commit();
+    } catch (error) {
+      await tx.rollback();
+      throw error;
+    } finally {
+      tx.close();
+    }
+    const attempted = new Set<string>();
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const claim = await this.client.transaction("write");
+      let candidate: { id: string; pathname: string } | undefined;
+      try {
+        const cursor = z
+          .strictObject({ last_attempted_id: z.uuid().nullable() })
+          .parse(
+            (
+              await claim.execute(
+                "SELECT last_attempted_id FROM generated_image_cleanup_cursor WHERE singleton=1",
+              )
+            ).rows[0],
+          );
+        let next = (
+          await claim.execute({
+            sql: "SELECT id,pathname FROM generated_images WHERE state='abandoned' AND id>? ORDER BY id LIMIT 1",
+            args: [cursor.last_attempted_id ?? ""],
+          })
+        ).rows[0];
+        if (!next)
+          next = (
+            await claim.execute(
+              "SELECT id,pathname FROM generated_images WHERE state='abandoned' ORDER BY id LIMIT 1",
+            )
+          ).rows[0];
+        if (next) {
+          const parsed = z
+            .strictObject({
+              id: z.uuid(),
+              pathname: z
+                .string()
+                .regex(/^generated-images\/[0-9a-f-]{36}\.png$/),
+            })
+            .parse(next);
+          if (!attempted.has(parsed.id)) {
+            candidate = parsed;
+            await claim.execute({
+              sql: "UPDATE generated_image_cleanup_cursor SET last_attempted_id=? WHERE singleton=1",
+              args: [parsed.id],
+            });
+          }
+        }
+        await claim.commit();
+      } catch {
+        await claim.rollback();
+        throw new Error("Image cleanup unavailable");
+      } finally {
+        claim.close();
+      }
+      if (!candidate) break;
+      attempted.add(candidate.id);
+      // Commit rotation before storage: failures and restarts must not starve later tombstones.
+      try {
+        await this.deps.store.remove(candidate.pathname);
+      } catch {}
+    }
+    return expiredCount;
   }
 }
