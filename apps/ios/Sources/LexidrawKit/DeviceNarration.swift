@@ -99,7 +99,7 @@ public struct DeviceNarrationCheckpoint: Codable, Sendable {
     self.credentialGuard = credentialGuard
   }
   public func save(_ value: DeviceNarrationCheckpoint, expected: String? = nil) throws {
-    if let legacyDirectory, FileManager.default.fileExists(atPath: legacyDirectory.appending(path: "checkpoint.json").path) { throw NativeAIError.rejected }
+    if !FileManager.default.fileExists(atPath: file.path), let legacyDirectory, FileManager.default.fileExists(atPath: legacyDirectory.appending(path: "checkpoint.json").path) { throw NativeAIError.rejected }
     if FileManager.default.fileExists(atPath: file.path) {
       let size = try FileManager.default.attributesOfItem(atPath: file.path)[.size] as? NSNumber
       guard let size, size.intValue <= 63_000_000 else { throw NativeAIError.rejected }
@@ -133,7 +133,17 @@ public struct DeviceNarrationCheckpoint: Codable, Sendable {
     #endif
   }
   public func load() throws -> DeviceNarrationCheckpoint? {
-    if let legacyDirectory, FileManager.default.fileExists(atPath: legacyDirectory.appending(path: "checkpoint.json").path) { throw NativeAIError.rejected }
+    // Only Session supplies a legacy directory under its authenticated origin/token root.
+    // Account/document-only files in an arbitrary old cache are never adopted.
+    if !FileManager.default.fileExists(atPath: file.path), let legacyDirectory,
+      FileManager.default.fileExists(atPath: legacyDirectory.appending(path: "checkpoint.json").path) {
+      guard let owner, var legacy = try NativeDeviceNarrationStore(directory: legacyDirectory, credentialGuard: credentialGuard).load(),
+        legacy.owner == nil || legacy.owner == owner, legacy.account == owner.account, legacy.document == owner.document else { throw NativeAIError.rejected }
+      legacy.owner = owner
+      let replacement = NativeDeviceNarrationStore(directory: directory, owner: owner, credentialGuard: credentialGuard)
+      try replacement.save(legacy)
+      return try replacement.load()
+    }
     guard FileManager.default.fileExists(atPath: file.path) else { return nil }
     let attributes = try FileManager.default.attributesOfItem(atPath: file.path)
     guard let size = attributes[.size] as? NSNumber, size.intValue <= 63_000_000 else {

@@ -144,12 +144,7 @@ export function ImageGenerationProvider({
       assertOwner();
       const operation = await generate.mutateAsync(input);
       assertOwner();
-      if (operation.state !== "settled" || !operation.result)
-        throw new Error("Image is still reconciling or failed");
-      return validateImage(
-        JSON.parse(operation.result),
-        assertOwner().assertSafe,
-      ).image;
+      return operation;
     },
     readPro: async (key: string) => {
       assertOwner();
@@ -157,11 +152,13 @@ export function ImageGenerationProvider({
         idempotencyKey: key,
       });
       assertOwner();
-      if (operation?.state !== "settled" || !operation.result) return null;
-      return validateImage(
-        JSON.parse(operation.result),
-        assertOwner().assertSafe,
-      ).image;
+      return operation;
+    },
+    cancelPro: async (id: string) => {
+      assertOwner();
+      const operation = await utils.client.imagePower.cancel.mutate({ id });
+      assertOwner();
+      return operation;
     },
     save: async (
       uploadId: string,
@@ -346,6 +343,11 @@ export function ImageGenerationProvider({
           {state.source === "pro" && (
             <Button onClick={() => void flow.recover()}>
               Read original image
+            </Button>
+          )}
+          {state.operation && (
+            <Button onClick={() => void flow.cancel()}>
+              Stop original image work
             </Button>
           )}
         </div>

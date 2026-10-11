@@ -87,3 +87,25 @@ extension DeviceAgentTests {
   #expect(!FileManager.default.fileExists(atPath: directory.appending(path: "agent.json").path))
  }
 }
+
+extension DeviceAgentTests {
+ @Test func provenScopedLegacyActionRetainsItsSavedReceiptsWithoutProviderReplay() async throws {
+  AgentProvider.requests.withLock { $0 = [] }
+  let config = URLSessionConfiguration.ephemeral; config.protocolClasses = [AgentProvider.self]
+  let runtime = NativeBYOK(store: AgentKey(), configuration: config, agentFixture: true)
+  try runtime.replaceKey("synthetic-proven-legacy-agent-key")
+  let root = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+  defer { try? FileManager.default.removeItem(at: root) }
+  let legacy = root.appending(path: "authenticated-session-root/legacy")
+  let flow = NativeDeviceAgentFlow(account: "alice", document: "doc", runtime: runtime, directory: legacy, available: true, read: { .init(revision: 1, text: "Original") }, apply: { _ in .init(revision: 2, description: "Native saved edit") })
+  try await flow.start(prompt: "Add paragraph")
+  let bytes = try Data(contentsOf: legacy.appending(path: "agent.json"))
+  try runtime.removeKey()
+  let owner = try NativeArtifactOwner(origin: URL(string: "https://app.test")!, account: "alice", document: "doc", namespace: "agent-v2")
+  let migrated = NativeDeviceAgentFlow(account: "alice", document: "doc", runtime: runtime, directory: root.appending(path: "canonical"), owner: owner, legacyDirectory: legacy, read: { throw NativeAIError.unavailable }, apply: { _ in throw NativeAIError.unavailable })
+  try migrated.restore(); try await migrated.resume()
+  #expect(migrated.checkpoint?.receipts.count == 1)
+  #expect(AgentProvider.requests.withLock { $0.count } == 3)
+  #expect(try Data(contentsOf: legacy.appending(path: "agent.json")) == bytes)
+ }
+}

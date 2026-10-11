@@ -25,11 +25,12 @@ public struct ImageCapability: Decodable, Sendable {
   public private(set) var checkpoint: NativeImageCheckpoint?
   public private(set) var durable = false
   public private(set) var pendingGeneration: NativeImagePending?
-  private let readPro: ((String) async throws -> NativeImageArtifact?)?
+  private let readPro: ((String) async throws -> NativeImageOperation?)?
+  private let cancelPro: ((String) async throws -> NativeImageOperation)?
   private var admittedPrompt = ""
   private let source: () async throws -> AIPowerPreference
   private let capability: () async throws -> ImageCapability
-  private let generatePro: (String, String, Int64) async throws -> NativeImageArtifact
+  private let generatePro: (String, String, Int64) async throws -> NativeImageOperation
   private let generateBYOK: (String) async throws -> NativeImageArtifact
   private let save: (String, NativeImageArtifact) async throws -> URL
   private var intent = UUID()
@@ -38,10 +39,10 @@ public struct ImageCapability: Decodable, Sendable {
   private let document: String?
   private let files: NativeImageFileStore?
   public init(source: @escaping () async throws -> AIPowerPreference, capability: @escaping () async throws -> ImageCapability,
-    generatePro: @escaping (String, String, Int64) async throws -> NativeImageArtifact,
+    generatePro: @escaping (String, String, Int64) async throws -> NativeImageOperation,
     generateBYOK: @escaping (String) async throws -> NativeImageArtifact,
-    save: @escaping (String, NativeImageArtifact) async throws -> URL, files: NativeImageFileStore? = nil, readPro: ((String) async throws -> NativeImageArtifact?)? = nil, document: String? = nil, ownerCurrent: @escaping () -> Bool = { true }) {
-    self.readPro = readPro; self.source = source; self.capability = capability; self.generatePro = generatePro; self.generateBYOK = generateBYOK; self.save = save; self.files = files; self.document = document; self.ownerCurrent = ownerCurrent
+    save: @escaping (String, NativeImageArtifact) async throws -> URL, files: NativeImageFileStore? = nil, readPro: ((String) async throws -> NativeImageOperation?)? = nil, cancelPro: ((String) async throws -> NativeImageOperation)? = nil, document: String? = nil, ownerCurrent: @escaping () -> Bool = { true }) {
+    self.cancelPro = cancelPro; self.readPro = readPro; self.source = source; self.capability = capability; self.generatePro = generatePro; self.generateBYOK = generateBYOK; self.save = save; self.files = files; self.document = document; self.ownerCurrent = ownerCurrent
     do {
       pendingGeneration = try files?.loadPending()
       if let restored = try files?.loadCheckpoint() {
@@ -92,9 +93,9 @@ public struct ImageCapability: Decodable, Sendable {
       guard current(invocation) else { return }
       guard selected == .pro, config.available, config.maximum == maximum else { throw NativeImageError.unavailable }
       try beginPending(key: id, prompt: prompt, source: "pro")
-      let image = try await generatePro(prompt, id, maximum)
+      let operation = try await generatePro(prompt, id, maximum)
       guard current(invocation) else { return }
-      try complete(image)
+      try receive(operation)
     } catch { guard current(invocation) else { return }; state = pendingGeneration == nil ? .failed("Image admission failed before generation.") : .uncertain }
   }
   private func beginPending(key: String, prompt: String, source: String) throws {
@@ -107,16 +108,36 @@ public struct ImageCapability: Decodable, Sendable {
       pendingGeneration.source == "pro", let readPro else { return }
     let invocation = UUID(); intent = invocation
     do {
-      let image = try await readPro(pendingGeneration.key)
-      guard current(invocation), let image else { return }
+      let operation = try await readPro(pendingGeneration.key)
+      guard current(invocation), let operation else { return }
       admittedPrompt = pendingGeneration.prompt
-      try complete(image)
+      try receive(operation)
     } catch { /* An owned read cannot dispatch or erase an uncertain generation. */ }
+  }
+  private func receive(_ operation: NativeImageOperation) throws {
+    let image = try operation.artifact()
+    guard var pending = pendingGeneration else { throw NativeImageError.invalid }
+    if let known = pending.operation, known.id != operation.id { throw NativeImageError.invalid }
+    pending.operation = NativeImageOperation(id: operation.id, state: operation.state, result: nil)
+    pendingGeneration = pending
+    try files?.savePending(pending)
+    if let image { try complete(image) }
+    else { state = .uncertain }
+  }
+  public func cancel() async {
+    guard !ended, ownerCurrent(), let operation = pendingGeneration?.operation, let cancelPro else { return }
+    let invocation = UUID(); intent = invocation
+    do {
+      let result = try await cancelPro(operation.id)
+      guard current(invocation), result.id == operation.id else { return }
+      try receive(result)
+    } catch { /* Cancellation cannot release an uncertain paid fence. */ }
   }
   private func complete(_ image: NativeImageArtifact) throws {
     let validated = try image.validated()
     var value = NativeImageCheckpoint(version: 2, image: validated, uploadKey: UUID().uuidString, prompt: admittedPrompt, receipt: nil)
     value.generationKey = pendingGeneration?.key
+    value.operationID = pendingGeneration?.operation?.id
     checkpoint = value
     persistCheckpoint()
     state = .completed(validated, value.uploadKey)
@@ -164,6 +185,7 @@ public struct ImageCapability: Decodable, Sendable {
       guard let previous = checkpoint else { state = .syncFailed(image, id); return nil }
       var rotated = NativeImageCheckpoint(version: previous.version, image: previous.image, uploadKey: UUID().uuidString, prompt: previous.prompt, receipt: nil)
       rotated.generationKey = previous.generationKey
+      rotated.operationID = previous.operationID
       do { try files?.saveCheckpoint(rotated, expectedUploadKey: previous.uploadKey); checkpoint = rotated; state = .syncFailed(image, rotated.uploadKey) }
       catch { state = .syncFailed(image, id) }
       return nil

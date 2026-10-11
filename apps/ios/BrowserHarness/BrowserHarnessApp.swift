@@ -126,6 +126,7 @@ actor HarnessServer: ClientTransport {
           access: "read", shared: true),
       ]
     }
+    if scenario == "image" { items.append(Item(id: "fixture", title: "Synthetic image document", type: "document", parent: nil)) }
     if scenario == "autocomplete-pro" { powerPreference = ["mode": "pro"] }
     if scenario == "autocomplete-byok" {
       powerPreference = ["mode": "byok", "provider": "openrouter"]

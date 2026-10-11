@@ -8,7 +8,7 @@ import Testing
   let artifact = try NativeImageArtifact(base64: bytes.base64EncodedString())
   var generations = 0, uploads = 0, fail = true
   let flow = NativeImageFlow(source: { .pro }, capability: { .init(available: true, maximum: 60_000_000, fixture: true, reason: "fixture") }, generatePro: { _, _, maximum in
-    #expect(maximum == 60_000_000); generations += 1; return artifact
+    #expect(maximum == 60_000_000); generations += 1; return try .completed(artifact)
   }, generateBYOK: { _ in throw NativeImageError.unavailable }, save: { _, _ in
     uploads += 1; if fail { throw NativeImageError.syncFailed }; return URL(string: "https://storage.test/image.png")!
   })
@@ -35,7 +35,7 @@ import Testing
   let image = try NativeImageArtifact(base64: bytes.base64EncodedString())
   var waits: [CheckedContinuation<AIPowerPreference, Never>] = []
   var dispatches = 0
-  let flow = NativeImageFlow(source: { await withCheckedContinuation { waits.append($0) } }, capability: { .init(available: true, maximum: 1, fixture: true, reason: "Fixture") }, generatePro: { _, _, _ in image }, generateBYOK: { _ in dispatches += 1; return image }, save: { _, _ in URL(string: "https://app.test/image")! })
+  let flow = NativeImageFlow(source: { await withCheckedContinuation { waits.append($0) } }, capability: { .init(available: true, maximum: 1, fixture: true, reason: "Fixture") }, generatePro: { _, _, _ in try .completed(image) }, generateBYOK: { _ in dispatches += 1; return image }, save: { _, _ in URL(string: "https://app.test/image")! })
   let first = Task { await flow.generate("First image") }
   while waits.isEmpty { await Task.yield() }
   let second = Task { await flow.generate("Second image") }
@@ -69,7 +69,7 @@ import Testing
 @Test @MainActor func endedImageLifetimeCannotPublishALateUploadReceipt() async throws {
   let artifact = try NativeImageArtifact(base64: Data(contentsOf: #require(Bundle.module.url(forResource: "generated-image", withExtension: "png", subdirectory: "Fixtures"))).base64EncodedString())
   var reply: CheckedContinuation<URL, Never>?
-  let flow = NativeImageFlow(source: { .byok }, capability: { .init(available: true, maximum: 1, fixture: true, reason: "Fixture") }, generatePro: { _, _, _ in artifact }, generateBYOK: { _ in artifact }, save: { _, _ in await withCheckedContinuation { reply = $0 } })
+  let flow = NativeImageFlow(source: { .byok }, capability: { .init(available: true, maximum: 1, fixture: true, reason: "Fixture") }, generatePro: { _, _, _ in try .completed(artifact) }, generateBYOK: { _ in artifact }, save: { _, _ in await withCheckedContinuation { reply = $0 } })
   await flow.generate("Synthetic image")
   let upload = Task { await flow.upload() }
   while reply == nil { await Task.yield() }
@@ -90,7 +90,7 @@ import Testing
   let server = FakeServer { _ in (200, #"{"id":"n1","updatedAt":"2026-09-25T09:31:00.456Z"}"#) }
   let saver = DocumentSaver(session: try TestServer.session(server), document: "n1", readAt: .now, pause: { try await Task.sleep(for: .seconds(60)) })
   var uploads = 0
-  let flow = NativeImageFlow(source: { .byok }, capability: { .init(available: true, maximum: 1, fixture: true, reason: "Fixture") }, generatePro: { _, _, _ in image }, generateBYOK: { _ in image }, save: { _, _ in uploads += 1; return url }, files: files)
+  let flow = NativeImageFlow(source: { .byok }, capability: { .init(available: true, maximum: 1, fixture: true, reason: "Fixture") }, generatePro: { _, _, _ in try .completed(image) }, generateBYOK: { _ in image }, save: { _, _ in uploads += 1; return url }, files: files)
   await flow.generate("Synthetic image")
   _ = await flow.upload(confirm: { _, _ in
     await saver.changed { .object(["root": .object(["children": .array([])])]) }
@@ -134,7 +134,7 @@ import Testing
   let server = FakeServer { _ in (200, #"{"id":"n1","updatedAt":"2026-09-25T09:31:00.456Z"}"#) }
   let saver = DocumentSaver(session: try TestServer.session(server), document: "n1", readAt: .now, pause: { try await Task.sleep(for: .seconds(60)) })
   func reopen() -> NativeImageFlow {
-    NativeImageFlow(source: { .byok }, capability: { .init(available: true, maximum: 1, fixture: true, reason: "Fixture") }, generatePro: { _, _, _ in image }, generateBYOK: { _ in image }, save: { _, _ in url }, files: files, document: "n1")
+    NativeImageFlow(source: { .byok }, capability: { .init(available: true, maximum: 1, fixture: true, reason: "Fixture") }, generatePro: { _, _, _ in try .completed(image) }, generateBYOK: { _ in image }, save: { _, _ in url }, files: files, document: "n1")
   }
   let old = reopen()
   await old.generate("Image A"); _ = await old.upload()
@@ -152,4 +152,14 @@ import Testing
   release?.resume()
   _ = await delayed.value
   #expect(try files.loadCheckpoint()?.prompt == "Image B")
+}
+
+@Test @MainActor func nativeImageAdmissionRetainsRunningOperationInsteadOfAnonymousFailure() async throws {
+  let server = FakeServer { _ in (200, #"{"result":{"data":{"json":{"id":"operation-a","state":"running","result":null}}}}"#) }
+  let session = try TestServer.session(server)
+  let outcome = try await session.generateProImage(prompt: "Synthetic image", id: UUID().uuidString, acceptedMaximum: 1)
+  let data = try JSONEncoder().encode(outcome)
+  let encoded = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+  #expect(encoded["id"] as? String == "operation-a")
+  #expect(encoded["state"] as? String == "running")
 }

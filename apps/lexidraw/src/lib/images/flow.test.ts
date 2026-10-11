@@ -466,3 +466,46 @@ test("reopened image retries the same admitted upload after a lost response with
     await rm(directory, { recursive: true, force: true });
   }
 });
+
+test("running image admission keeps owned operation identity across reopening", async () => {
+  let stored: string | null = null;
+  const byok = createByokSession(async () => {
+    throw new Error("No provider");
+  }, "https://app.test");
+  const retention = {
+    owner: JSON.stringify(["https://app.test", "alice", "doc", "images-v1"]),
+    load: async () => stored,
+    save: async (value: string, expected: string | null) => {
+      if (stored !== expected) return false;
+      stored = value;
+      return true;
+    },
+    clear: async () => {
+      stored = null;
+    },
+  };
+  const ports = {
+    source: () => ({ mode: "pro" as const }),
+    availability: () => ({ available: true, maximum: 1, fixture: true }),
+    byok,
+    // This is the public router's nonterminal outcome, not a PNG artifact.
+    pro: async () => ({
+      id: "owned-a",
+      state: "running" as const,
+      result: null,
+    }),
+    save: async () => {
+      throw new Error("No upload");
+    },
+  };
+  let flow = new ImageFlow(ports, retention);
+  await flow.generate("Owned image");
+  await flow.accept();
+  expect(JSON.parse(stored ?? "null").operation?.id).toBe("owned-a");
+  flow = new ImageFlow(ports, retention);
+  await flow.restore();
+  expect(flow.state()).toMatchObject({
+    kind: "uncertain",
+    operation: { id: "owned-a", state: "running" },
+  });
+});

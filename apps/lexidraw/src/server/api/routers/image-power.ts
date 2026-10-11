@@ -71,6 +71,20 @@ export function createImagePowerRouter(deps: {
           "image",
         );
       }),
+    cancel: protectedProcedure
+      .input(z.strictObject({ id: z.string().min(1).max(100) }))
+      .mutation(async ({ ctx, input }) => {
+        const ledger = deps.ledger?.() ?? deps.executor?.ledger;
+        if (!ledger)
+          throw new TRPCError({
+            code: "PRECONDITION_FAILED",
+            message: "Owned image history unavailable",
+          });
+        const operation = await ledger.operation(ctx.session.user.id, input.id);
+        if (operation.feature !== "image")
+          throw new TRPCError({ code: "NOT_FOUND" });
+        return ledger.cancel(ctx.session.user.id, input.id);
+      }),
     save: protectedProcedure
       .input(SaveImageInput)
       .mutation(async ({ ctx, input }) => {

@@ -238,3 +238,21 @@ extension DeviceNarrationTests {
     #expect(restored.id == local)
   }
 }
+
+@Test @MainActor func provenScopedLegacyNarrationKeepsUnknownFenceDuringAtomicOwnerMigration() throws {
+  let root = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+  defer { try? FileManager.default.removeItem(at: root) }
+  let legacy = root.appending(path: "authenticated-session-root/legacy-document")
+  let target = root.appending(path: "canonical-owner")
+  let owner = try NativeArtifactOwner(origin: URL(string: "https://app.test")!, account: "alice", document: "doc", namespace: "narration-v2")
+  let checkpoint = DeviceNarrationCheckpoint(version: 1, account: "alice", document: "doc", id: UUID().uuidString, created: .now, status: "unknown", parts: [.init(kind: .unknown, text: "Uncertain retained request", output: nil)], fingerprints: Data())
+  try NativeDeviceNarrationStore(directory: legacy).save(checkpoint)
+  let original = try Data(contentsOf: legacy.appending(path: "checkpoint.json"))
+  let store = NativeDeviceNarrationStore(directory: target, owner: owner, legacyDirectory: legacy)
+  let recovered = try #require(try store.load())
+  #expect(recovered.owner == owner)
+  #expect(recovered.id == checkpoint.id)
+  #expect(recovered.parts.first?.kind == .unknown)
+  #expect(try Data(contentsOf: legacy.appending(path: "checkpoint.json")) == original)
+  #expect(try store.load()?.id == checkpoint.id)
+}

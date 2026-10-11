@@ -46,6 +46,7 @@ public struct NativeImagePending: Codable, Sendable {
   public let key: String
   public let prompt: String
   public let source: String
+  public var operation: NativeImageOperation? = nil
   public var fingerprints: Data? = nil
   public var owner: NativeArtifactOwner? = nil
 }
@@ -55,6 +56,7 @@ public struct NativeImageCheckpoint: Codable, Sendable {
   public let uploadKey: String
   public let prompt: String
   public var generationKey: String? = nil
+  public var operationID: String? = nil
   public var fingerprints: Data? = nil
   public var receipt: NativeImageReceipt?
   public var owner: NativeArtifactOwner? = nil

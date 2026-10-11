@@ -56,7 +56,22 @@ private struct AgentFile: Codable { let state: String; let fingerprints: Data; l
  private var file: URL { directory.appending(path: "agent.json") }
  private func active() throws { guard runtime.sessionActive else { throw NativeAIError.expired } }
  private func loadFile() throws -> AgentFile? {
-  if let legacyDirectory, FileManager.default.fileExists(atPath: legacyDirectory.appending(path: "agent.json").path) { throw NativeAIError.rejected }
+  if !FileManager.default.fileExists(atPath: file.path), let legacyDirectory,
+    FileManager.default.fileExists(atPath: legacyDirectory.appending(path: "agent.json").path) {
+   guard let owner else { throw NativeAIError.rejected }
+   let legacyFile = legacyDirectory.appending(path: "agent.json")
+   guard let size = try FileManager.default.attributesOfItem(atPath: legacyFile.path)[.size] as? NSNumber, size.intValue <= 4_500_000 else { throw NativeAIError.rejected }
+   var legacy = try JSONDecoder().decode(AgentFile.self, from: Data(contentsOf: legacyFile))
+   guard legacy.owner == nil || legacy.owner == owner else { throw NativeAIError.rejected }
+   try NativeCredentialGuard.shared.restore(legacy.fingerprints)
+   try NativeCredentialGuard.shared.check(Data(legacy.state.utf8))
+   let validated = try nativeAgentCall("nativeAgentRestore", [legacy.state])
+   let cp = try JSONDecoder().decode(NativeAgentCheckpoint.self, from: Data(validated.utf8))
+   guard cp.account == owner.account, cp.documentId == owner.document else { throw NativeAIError.rejected }
+   legacy.owner = owner
+   // The old file remains until the atomic, owner-validated replacement is readable.
+   try writeFile(try JSONEncoder().encode(legacy))
+  }
   guard FileManager.default.fileExists(atPath: file.path) else { return nil }
   guard let size = try FileManager.default.attributesOfItem(atPath: file.path)[.size] as? NSNumber, size.intValue <= 4_500_000 else { throw NativeAIError.rejected }
   let value = try JSONDecoder().decode(AgentFile.self, from: Data(contentsOf: file)); guard owner == nil || value.owner == owner else { throw NativeAIError.rejected }; try NativeCredentialGuard.shared.restore(value.fingerprints); try NativeCredentialGuard.shared.check(Data(value.state.utf8)); return value
@@ -71,6 +86,10 @@ private struct AgentFile: Codable { let state: String; let fingerprints: Data; l
   let data = try JSONEncoder().encode(AgentFile(state: value, fingerprints: NativeCredentialGuard.shared.snapshot(), revision: nextRevision, owner: owner))
   guard data.count <= 4_500_000 else { throw NativeAIError.rejected }
   try NativeCredentialGuard.shared.check(data)
+  try writeFile(data)
+  state = value; revision = nextRevision; checkpoint = cp
+ }
+ private func writeFile(_ data: Data) throws {
   try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
   var folder = directory; var attrs = URLResourceValues(); attrs.isExcludedFromBackup = true; try folder.setResourceValues(attrs)
   #if os(iOS)
@@ -78,7 +97,6 @@ private struct AgentFile: Codable { let state: String; let fingerprints: Data; l
   #else
   try data.write(to: file, options: .atomic)
   #endif
-  state = value; revision = nextRevision; checkpoint = cp
  }
  public func restore() throws {
   quarantined = true

@@ -1,4 +1,11 @@
 import { z } from "zod";
+import { Operation } from "~/server/pro/contracts";
+export const ImageOperation = Operation.pick({
+  id: true,
+  state: true,
+  result: true,
+});
+export type ImageOperation = z.infer<typeof ImageOperation>;
 import { CredentialFingerprints } from "../byok/session";
 import { ImageArtifact as ArtifactSchema } from "./contracts";
 import type { SaveReceipt } from "../open-entity-sync";
@@ -16,7 +23,13 @@ export type ImageAvailability = {
   fixture: boolean;
   reason?: string;
 };
-type Completed = { image: ImageArtifact; uploadId: string; prompt: string };
+type Completed = {
+  image: ImageArtifact;
+  uploadId: string;
+  prompt: string;
+  generationKey?: string;
+  operation?: ImageOperation;
+};
 export type ImageState =
   | { kind: "idle" }
   | { kind: "unavailable" | "failed"; message: string }
@@ -27,7 +40,13 @@ export type ImageState =
       maximum: number;
       fixture: boolean;
     }
-  | { kind: "uncertain"; key: string; prompt: string; source: "pro" | "byok" }
+  | {
+      kind: "uncertain";
+      key: string;
+      prompt: string;
+      source: "pro" | "byok";
+      operation?: ImageOperation;
+    }
   | { kind: "generating" }
   | ({ kind: "completed" | "saving" | "sync_failed" } & Completed)
   | ({ kind: "saved"; url: string } & Completed);
@@ -39,8 +58,9 @@ export type ImagePorts = {
     idempotencyKey: string;
     prompt: string;
     acceptedMaximum: number;
-  }) => Promise<ImageArtifact>;
-  readPro?: (key: string) => Promise<ImageArtifact | null>;
+  }) => Promise<ImageArtifact | ImageOperation>;
+  readPro?: (key: string) => Promise<ImageOperation | null>;
+  cancelPro?: (id: string) => Promise<ImageOperation>;
   save: (uploadId: string, image: ImageArtifact) => Promise<string>;
 };
 const unavailablePorts: ImagePorts = {
@@ -70,6 +90,8 @@ const RetainedImage = z.strictObject({
   uploadId: z.uuid(),
   prompt: z.string().min(1).max(1500),
   url: z.url().optional(),
+  generationKey: z.uuid().optional(),
+  operation: ImageOperation.optional(),
 });
 const PendingImage = z.strictObject({
   version: z.literal(1),
@@ -78,6 +100,7 @@ const PendingImage = z.strictObject({
   key: z.uuid(),
   prompt: z.string().min(1).max(1500),
   source: z.enum(["pro", "byok"]),
+  operation: ImageOperation.optional(),
 });
 function imageCount(node: unknown, url: string): number {
   if (!node || typeof node !== "object") return 0;
@@ -135,6 +158,7 @@ export class ImageFlow {
             key: pending.data.key,
             prompt: pending.data.prompt,
             source: pending.data.source,
+            operation: pending.data.operation,
           });
           return;
         }
@@ -152,6 +176,8 @@ export class ImageFlow {
                 image,
                 uploadId: value.uploadId,
                 prompt: value.prompt,
+                generationKey: value.generationKey,
+                operation: value.operation,
                 url: value.url,
               }
             : {
@@ -159,6 +185,8 @@ export class ImageFlow {
                 image,
                 uploadId: value.uploadId,
                 prompt: value.prompt,
+                generationKey: value.generationKey,
+                operation: value.operation,
               },
         );
       } catch {
@@ -182,6 +210,8 @@ export class ImageFlow {
         prompt: state.prompt,
         uploadId: state.uploadId,
         ...(state.url ? { url: state.url } : {}),
+        generationKey: state.generationKey,
+        operation: state.operation,
       }),
     );
     this.ports.byok.assertSafe(value);
@@ -189,7 +219,12 @@ export class ImageFlow {
       throw new Error("Image retention changed or unavailable");
     this.retained = value;
   }
-  private async pending(key: string, prompt: string, source: "pro" | "byok") {
+  private async pending(
+    key: string,
+    prompt: string,
+    source: "pro" | "byok",
+    operation?: ImageOperation,
+  ) {
     if (!this.retention) return;
     const raw = JSON.stringify(
       PendingImage.parse({
@@ -199,6 +234,7 @@ export class ImageFlow {
         key,
         prompt,
         source,
+        operation,
       }),
     );
     this.ports.byok.assertSafe(raw);
@@ -218,11 +254,58 @@ export class ImageFlow {
       return;
     const intent = this.intent;
     try {
-      const image = await this.ports.readPro(state.key);
-      if (!this.ended && intent === this.intent && image)
-        await this.complete(image, state.prompt);
+      const operation = await this.ports.readPro(state.key);
+      if (!this.ended && intent === this.intent && operation)
+        await this.receive(
+          operation,
+          state.key,
+          state.prompt,
+          state.operation?.id,
+        );
     } catch {
       /* An owned read preserves uncertainty and cannot dispatch. */
+    }
+  }
+  private async receive(
+    outcome: ImageArtifact | ImageOperation,
+    key: string,
+    prompt: string,
+    expectedId?: string,
+  ) {
+    const parsed = ImageOperation.safeParse(outcome);
+    if (!parsed.success) {
+      await this.complete(outcome, prompt, key);
+      return;
+    }
+    const operation = parsed.data;
+    if (expectedId && operation.id !== expectedId)
+      throw new Error("Owned image identity changed");
+    await this.pending(key, prompt, "pro", operation);
+    this.set({ kind: "uncertain", key, prompt, source: "pro", operation });
+    if (operation.state === "settled" && operation.result)
+      await this.complete(JSON.parse(operation.result), prompt, key, operation);
+  }
+  async cancel() {
+    const state = this.current;
+    if (
+      this.ended ||
+      state.kind !== "uncertain" ||
+      !state.operation ||
+      !this.ports.cancelPro
+    )
+      return;
+    const intent = this.intent;
+    try {
+      const operation = await this.ports.cancelPro(state.operation.id);
+      if (!this.ended && intent === this.intent)
+        await this.receive(
+          operation,
+          state.key,
+          state.prompt,
+          state.operation.id,
+        );
+    } catch {
+      /* Cancellation is unconfirmed; preserve the original paid fence. */
     }
   }
   async acknowledge(receipt: SaveReceipt) {
@@ -338,12 +421,19 @@ export class ImageFlow {
       });
     }
   }
-  private async complete(image: ImageArtifact, prompt: string) {
+  private async complete(
+    image: unknown,
+    prompt: string,
+    generationKey?: string,
+    operation?: ImageOperation,
+  ) {
     const state = {
       kind: "completed" as const,
       image: validateImage(image, this.ports.byok.assertSafe).image,
       prompt,
       uploadId: crypto.randomUUID(),
+      generationKey,
+      operation,
     };
     this.set(state);
     await this.retain(state);
@@ -372,7 +462,7 @@ export class ImageFlow {
         acceptedMaximum: quote.maximum,
       });
       if (this.ended || intent !== this.intent) return;
-      await this.complete(image, quote.prompt);
+      await this.receive(image, quote.operationId, quote.prompt);
     } catch {
       if (
         this.ended ||

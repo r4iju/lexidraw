@@ -58,6 +58,7 @@ struct ImageComposerContent: View {
         Section("Image outcome uncertain") {
           Text("The original generation is retained. New generation is blocked while its outcome is uncertain.")
           Button("Read original Pro image") { Task { await flow.recover() } }
+          if flow.pendingGeneration?.operation != nil { Button("Stop original image work") { Task { await flow.cancel() } } }
         }
       case .generating: ProgressView("Generating image…")
       case .uploading: ProgressView("Syncing completed image…")

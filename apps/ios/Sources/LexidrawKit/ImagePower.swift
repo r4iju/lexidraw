@@ -5,23 +5,39 @@ private struct ImageEnvelope<Value: Decodable>: Decodable {
   struct Result: Decodable { struct Body: Decodable { let json: Value }; let data: Body }; let result: Result
 }
 private struct ImagePayload<Value: Encodable>: Encodable { let json: Value }
+public struct NativeImageOperation: Codable, Sendable {
+  public let id: String
+  public let state: String
+  public let result: String?
+  @MainActor public static func completed(_ image: NativeImageArtifact) throws -> Self {
+    Self(id: UUID().uuidString, state: "settled", result: String(decoding: try JSONEncoder().encode(image), as: UTF8.self))
+  }
+  @MainActor public func artifact() throws -> NativeImageArtifact? {
+    guard ["reserved", "running", "unknown", "settled", "refunded", "cancelled"].contains(state), !id.isEmpty, id.utf8.count <= 100 else { throw NativeImageError.invalid }
+    guard state == "settled" else { return nil }
+    guard let result else { throw NativeImageError.invalid }
+    return try JSONDecoder().decode(NativeImageArtifact.self, from: Data(result.utf8)).validated()
+  }
+}
 extension Session {
   public func imageCapability() async throws -> ImageCapability {
     try await imageRPC("imagePower.capability", input: Optional<String>.none, as: ImageCapability.self)
   }
-  @MainActor public func generateProImage(prompt: String, id: String, acceptedMaximum: Int64) async throws -> NativeImageArtifact {
+  @MainActor public func generateProImage(prompt: String, id: String, acceptedMaximum: Int64) async throws -> NativeImageOperation {
     struct Input: Encodable { let idempotencyKey: String; let prompt: String; let acceptedMaximum: Int64 }
-    struct Operation: Decodable { let id: String; let state: String; let result: String? }
-    let result = try await imageRPC("imagePower.generate", input: Input(idempotencyKey: id, prompt: prompt, acceptedMaximum: acceptedMaximum), as: Operation.self)
-    guard result.state == "settled", let json = result.result else { throw NativeImageError.reconciling }
-    return try JSONDecoder().decode(NativeImageArtifact.self, from: Data(json.utf8)).validated()
+    let result = try await imageRPC("imagePower.generate", input: Input(idempotencyKey: id, prompt: prompt, acceptedMaximum: acceptedMaximum), as: NativeImageOperation.self)
+    _ = try result.artifact()
+    return result
   }
-  @MainActor public func readProImage(key: String) async throws -> NativeImageArtifact? {
+  @MainActor public func readProImage(key: String) async throws -> NativeImageOperation? {
     struct Input: Encodable { let idempotencyKey: String }
-    struct Operation: Decodable { let id: String; let state: String; let result: String? }
-    let operation = try await imageRPC("imagePower.current", input: Input(idempotencyKey: key), as: Optional<Operation>.self)
-    guard let operation, operation.state == "settled", let json = operation.result else { return nil }
-    return try JSONDecoder().decode(NativeImageArtifact.self, from: Data(json.utf8)).validated()
+    let operation = try await imageRPC("imagePower.current", input: Input(idempotencyKey: key), as: Optional<NativeImageOperation>.self)
+    _ = try operation?.artifact()
+    return operation
+  }
+  @MainActor public func cancelProImage(_ id: String) async throws -> NativeImageOperation {
+    struct Input: Encodable { let id: String }
+    return try await imageRPC("imagePower.cancel", input: Input(id: id), as: NativeImageOperation.self)
   }
   @MainActor public func saveGeneratedImage(_ image: NativeImageArtifact, id: String, document: String) async throws -> URL {
     struct Input: Encodable { let idempotencyKey: String; let entityId: String; let image: NativeImageArtifact }
@@ -69,7 +85,7 @@ extension Session {
     let flow = NativeImageFlow(source: { try await self.powerPreference() }, capability: { try await self.imageCapability() },
       generatePro: { prompt, id, maximum in try await self.generateProImage(prompt: prompt, id: id, acceptedMaximum: maximum) },
       generateBYOK: { prompt in try await byok.generateImage(prompt: prompt) },
-      save: { id, image in try await self.saveGeneratedImage(image, id: id, document: document) }, files: files, readPro: { key in try await self.readProImage(key: key) }, document: document, ownerCurrent: { (try? self.aiHandle.existing()) != nil })
+      save: { id, image in try await self.saveGeneratedImage(image, id: id, document: document) }, files: files, readPro: { key in try await self.readProImage(key: key) }, cancelPro: { id in try await self.cancelProImage(id) }, document: document, ownerCurrent: { (try? self.aiHandle.existing()) != nil })
     byok.onSessionEnd { flow.end(); try files.clear(); try files.clearPending() }
     return flow
   }
