@@ -24,10 +24,9 @@ export async function GET(
   } catch {
     return new Response(null, { status: 401, headers });
   }
-  if (!account) return new Response(null, { status: 401, headers });
   try {
     const { id } = await context.params;
-    const bytes = await generatedImages().read(account, id);
+    const bytes = await generatedImages().read(account ?? "", id);
     if (!bytes) return new Response(null, { status: 404, headers });
     return new Response(new Uint8Array(bytes), {
       headers: {

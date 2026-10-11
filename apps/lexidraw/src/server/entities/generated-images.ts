@@ -168,7 +168,7 @@ export class GeneratedImages {
     return `/api/generated-images/${id}`;
   }
   async read(account: string, id: string): Promise<Uint8Array | null> {
-    if (!account || !z.uuid().safeParse(id).success) return null;
+    if (!z.uuid().safeParse(id).success) return null;
     const value = (
       await this.client.execute({
         sql: "SELECT * FROM generated_images WHERE id=? AND state='registered'",

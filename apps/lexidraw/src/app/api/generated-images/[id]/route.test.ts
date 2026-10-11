@@ -18,6 +18,7 @@ mock.module("~/server/auth", () => ({
     cookieAccount ? { user: { id: cookieAccount } } : null,
 }));
 let corrupt = false;
+let readGate: (() => Promise<void>) | undefined;
 const blobs = new Map<string, Uint8Array>();
 const client = createClient({ url: ":memory:" });
 await client.executeMultiple(
@@ -38,6 +39,7 @@ const images = new GeneratedImages(client, {
       blobs.delete(path);
     },
     async read(path) {
+      await readGate?.();
       return corrupt ? new Uint8Array([1]) : (blobs.get(path) ?? null);
     },
   },
@@ -51,26 +53,22 @@ test("authenticated image route supports web cookies/native tokens, current shar
     { id: "alice", name: "Alice", email: "alice@images.test" },
     { id: "bob", name: "Bob", email: "bob@images.test" },
   ]);
-  await db
-    .insert(schema.entities)
-    .values({
-      id: "document",
-      userId: "alice",
-      title: "Image",
-      entityType: "document",
-      publicAccess: PublicAccess.PRIVATE,
-      elements: "{}",
-      appState: "{}",
-    });
-  await db
-    .insert(schema.apiTokens)
-    .values({
-      id: "token",
-      userId: "alice",
-      tokenHash: hashApiToken("lxd_image_read"),
-      name: "native",
-      scope: "read",
-    });
+  await db.insert(schema.entities).values({
+    id: "document",
+    userId: "alice",
+    title: "Image",
+    entityType: "document",
+    publicAccess: PublicAccess.PRIVATE,
+    elements: "{}",
+    appState: "{}",
+  });
+  await db.insert(schema.apiTokens).values({
+    id: "token",
+    userId: "alice",
+    tokenHash: hashApiToken("lxd_image_read"),
+    name: "native",
+    scope: "read",
+  });
   const image = fixtureImage();
   const saved = await images.save("alice", {
     entityId: "document",
@@ -81,7 +79,7 @@ test("authenticated image route supports web cookies/native tokens, current shar
     GET(new Request(`https://app.test${saved.url}`, { headers }), {
       params: Promise.resolve({ id: saved.id }),
     });
-  expect((await get()).status).toBe(401);
+  expect((await get()).status).toBe(404);
   cookieAccount = "alice";
   const web = await get({ cookie: "synthetic-session" });
   expect(web.status).toBe(200);
@@ -100,14 +98,12 @@ test("authenticated image route supports web cookies/native tokens, current shar
   expect((await get({ authorization: "Bearer lxd_revoked" })).status).toBe(401);
   cookieAccount = "bob";
   expect((await get()).status).toBe(404);
-  await db
-    .insert(schema.sharedEntities)
-    .values({
-      id: "share",
-      entityId: "document",
-      userId: "bob",
-      accessLevel: AccessLevel.READ,
-    });
+  await db.insert(schema.sharedEntities).values({
+    id: "share",
+    entityId: "document",
+    userId: "bob",
+    accessLevel: AccessLevel.READ,
+  });
   expect((await get()).status).toBe(200);
   await expect(
     images.save("bob", {
@@ -132,3 +128,150 @@ test("authenticated image route supports web cookies/native tokens, current shar
     .where(eq(schema.entities.id, "document"));
   expect((await get()).status).toBe(404);
 });
+
+test("anonymous image delivery follows live nonprivate document ACL and supplied auth remains strict", async () => {
+  await db.insert(schema.users).values({
+    id: "public-owner",
+    name: "Owner",
+    email: "public-owner@images.test",
+  });
+  cookieAccount = null;
+  for (const access of [
+    PublicAccess.READ,
+    PublicAccess.EDIT,
+    PublicAccess.PRIVATE,
+  ]) {
+    const entityId = `public-image-${access}`;
+    await db.insert(schema.entities).values({
+      id: entityId,
+      userId: "public-owner",
+      title: "Public image",
+      entityType: "document",
+      publicAccess: access,
+      elements: "{}",
+      appState: "{}",
+    });
+    const image = fixtureImage();
+    const saved = await images.save("public-owner", {
+      entityId,
+      idempotencyKey: entityId,
+      image,
+    });
+    const get = (headers: HeadersInit = {}, id = saved.id) =>
+      GET(new Request(`https://app.test${saved.url}`, { headers }), {
+        params: Promise.resolve({ id }),
+      });
+    const response = await get();
+    expect(response.status).toBe(access === PublicAccess.PRIVATE ? 404 : 200);
+    expect(response.headers.get("cache-control")).toBe(
+      "private, no-store, max-age=0",
+    );
+    expect(response.headers.get("vary")).toBe("Cookie, Authorization");
+    expect(response.headers.get("location")).toBeNull();
+    if (access !== PublicAccess.PRIVATE) {
+      expect(response.headers.get("content-type")).toBe("image/png");
+      expect(response.headers.get("x-content-type-options")).toBe("nosniff");
+      expect(Buffer.from(await response.arrayBuffer())).toEqual(
+        Buffer.from(image.base64, "base64"),
+      );
+      cookieAccount = "public-owner";
+      for (const authorization of [
+        "",
+        "Basic synthetic",
+        "Bearer malformed",
+        "Bearer lxd_revoked_public",
+      ]) {
+        const denied = await get({
+          authorization,
+          cookie: "synthetic-valid-session",
+        });
+        expect(denied.status).toBe(401);
+        expect(denied.headers.get("cache-control")).toBe(
+          "private, no-store, max-age=0",
+        );
+      }
+      cookieAccount = null;
+    }
+    expect((await get({}, crypto.randomUUID())).status).toBe(404);
+    expect((await get({}, "invalid")).status).toBe(404);
+    await db
+      .update(schema.entities)
+      .set({ deletedAt: new Date() })
+      .where(eq(schema.entities.id, entityId));
+    expect((await get()).status).toBe(404);
+  }
+});
+
+for (const revoke of ["privacy", "deletion", "registration"] as const) {
+  test(`anonymous in-flight image read rejects ${revoke} changes after awaited storage`, async () => {
+    cookieAccount = null;
+    const entityId = `inflight-${revoke}`;
+    await db.insert(schema.users).values({
+      id: entityId,
+      name: "Owner",
+      email: `${entityId}@images.test`,
+    });
+    await db.insert(schema.entities).values({
+      id: entityId,
+      userId: entityId,
+      title: "Public",
+      entityType: "document",
+      publicAccess: PublicAccess.READ,
+      elements: "{}",
+      appState: "{}",
+    });
+    const saved = await images.save(entityId, {
+      entityId,
+      idempotencyKey: entityId,
+      image: fixtureImage(),
+    });
+    let admit: () => void = () => {};
+    let release: () => void = () => {};
+    const admitted = new Promise<void>((resolve) => {
+      admit = resolve;
+    });
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    readGate = async () => {
+      admit();
+      await gate;
+    };
+    try {
+      const pending = GET(new Request(`https://app.test${saved.url}`), {
+        params: Promise.resolve({ id: saved.id }),
+      });
+      expect(
+        await Promise.race([
+          admitted.then(() => true),
+          pending.then(() => false),
+        ]),
+      ).toBe(true);
+      if (revoke === "registration") {
+        await client.execute({
+          sql: "UPDATE generated_images SET state='abandoned' WHERE id=?",
+          args: [saved.id],
+        });
+      } else {
+        await db
+          .update(schema.entities)
+          .set(
+            revoke === "privacy"
+              ? { publicAccess: PublicAccess.PRIVATE }
+              : { deletedAt: new Date() },
+          )
+          .where(eq(schema.entities.id, entityId));
+      }
+      release();
+      const response = await pending;
+      expect(response.status).toBe(404);
+      expect(await response.text()).toBe("");
+      expect(response.headers.get("cache-control")).toBe(
+        "private, no-store, max-age=0",
+      );
+    } finally {
+      release();
+      readGate = undefined;
+    }
+  });
+}
