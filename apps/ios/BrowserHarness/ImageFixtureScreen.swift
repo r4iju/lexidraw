@@ -47,10 +47,14 @@ struct ImageFixtureScreen: View {
       let runtime = NativeBYOK(store: store, configuration: config, imageFixture: true)
       try? runtime.replaceKey("sk-or-v1-284-native-image-fixture")
       byok = runtime
+      guard let owner = try? NativeArtifactOwner(origin: URL(string: "https://harness.invalid")!, account: "fixture-account", document: "fixture", namespace: "images-v2"),
+        let root = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else { return }
+      let directory = root.appending(path: "291-synthetic-image-recovery")
+      let files = NativeImageFileStore(directory: directory, owner: owner)
       flow = NativeImageFlow(source: { try await session.powerPreference() }, capability: { try await session.imageCapability() },
         generatePro: { prompt,id,maximum in try await session.generateProImage(prompt:prompt,id:id,acceptedMaximum:maximum) },
         generateBYOK: { prompt in try await runtime.generateImage(prompt:prompt) },
-        save: { id,image in try await session.saveGeneratedImage(image,id:id,document:"fixture") })
+        save: { id,image in try await session.saveGeneratedImage(image,id:id,document:"fixture") }, files: files, document: "fixture")
     }.onDisappear { try? byok?.removeKey() }
   }
   private func control(_ fail: Bool) async {
