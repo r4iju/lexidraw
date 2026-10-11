@@ -1,3 +1,4 @@
+import { decodeSaveEntityContent, saveEntityContentColumns } from "./save-content";
 import {
   and,
   type drizzle,
@@ -74,15 +75,30 @@ async function findEntity(
   id: string,
   userId: string,
   reach: SQL | undefined,
+  saveContent = false,
 ) {
   const rows = await db
-    .select(entityColumns)
+    .select({
+      ...entityColumns,
+      ...(saveContent ? saveEntityContentColumns : {}),
+    })
     .from(schema.entities)
     .where(live(id, reach))
     .leftJoin(schema.sharedEntities, callersShare(userId))
     .leftJoin(schema.users, eq(schema.users.id, schema.entities.userId))
     .execute();
-  return rows[0] ?? null;
+  const row = rows[0];
+  return row
+    ? {
+        ...row,
+        elements: saveContent
+          ? decodeSaveEntityContent({
+              ...row,
+              elementsStorageType: row.elementsStorageType,
+            })
+          : (row.elements as string),
+      }
+    : null;
 }
 
 /** Who reaches an entity with at least each access. */
@@ -182,8 +198,13 @@ export async function findReadableRevision(db: Db, id: string, userId: string) {
  * access do not qualify, so a reader is told the entity does not exist rather
  * than that it exists and is out of reach.
  */
-export async function findWritableEntity(db: Db, id: string, userId: string) {
-  return findEntity(db, id, userId, reachWith.edit(userId));
+export async function findWritableEntity(
+  db: Db,
+  id: string,
+  userId: string,
+  saveContent = false,
+) {
+  return findEntity(db, id, userId, reachWith.edit(userId), saveContent);
 }
 
 /** The directory `id` when `userId` may write into it, otherwise null. */

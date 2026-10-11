@@ -563,6 +563,7 @@ export const documentRouter = createTRPCRouter({
         ctx.drizzle,
         input.id,
         ctx.session.user.id,
+      true,
       );
       if (entity?.entityType !== "document") {
         throw new TRPCError({

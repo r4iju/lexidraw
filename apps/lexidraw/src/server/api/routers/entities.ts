@@ -1,3 +1,4 @@
+import { readEntityConflictContent } from "~/server/entities/save-content";
 import {
   editorRootPayload,
   InvalidDocumentPayloadError,
@@ -61,7 +62,6 @@ import {
 } from "@vercel/blob/client";
 import { headers } from "next/headers";
 import {
-  drizzleDocumentStore,
   nextUpdatedAt,
 } from "~/server/documents/document-store";
 import { measureImages } from "~/server/documents/measure-images";
@@ -588,6 +588,7 @@ export const entityRouter = createTRPCRouter({
         ctx.drizzle,
         input.id,
         ctx.session?.user.id ?? "",
+      true,
       );
       if (!entity) throw notFound();
       const parentId =
@@ -661,10 +662,12 @@ export const entityRouter = createTRPCRouter({
         )
         .returning();
       if (!saved[0]) {
-        const current = await drizzleDocumentStore(
+        const current = await readEntityConflictContent(
           ctx.drizzle,
+          input.id,
           ctx.session?.user.id ?? "",
-        ).read(input.id);
+          entity.entityType,
+        );
         if (!current) throw notFound();
         const stale = new StaleDocumentError(
           current.updatedAt,
