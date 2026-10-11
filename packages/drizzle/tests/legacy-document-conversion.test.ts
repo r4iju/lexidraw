@@ -15,7 +15,7 @@ import { captureLegacyDocuments } from "../src/migrations/legacy-document-retent
 
 const fixture = join(import.meta.dir, "fixtures/strict-document-conversion-v1");
 const artifactRoot =
-  "/Users/emanuel/.ai/working/lexidraw-276-recovery/evidence/strict-document-conversion-v1";
+  "/Users/emanuel/.ai/working/lexidraw-276-recovery/evidence/conversion-preflight-repairs-v1";
 const payload = await readFile(join(fixture, "payload.json"), "utf8");
 const expected = JSON.parse(
   await readFile(join(fixture, "expected.json"), "utf8"),

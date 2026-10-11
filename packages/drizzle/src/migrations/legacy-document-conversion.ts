@@ -376,6 +376,81 @@ async function modernDestination(e: MigrationExecutor) {
   return master;
 }
 
+// SQLite folds ASCII letters in identifiers, not arbitrary Unicode case pairs.
+const sqliteIdentifier = (name: string) =>
+  name.replace(/[A-Z]/g, (letter) => letter.toLowerCase());
+
+function canonicalCollisionNames(
+  master: Awaited<ReturnType<typeof modernDestination>>,
+) {
+  for (const table of [
+    "Drawing",
+    "Entity",
+    "Entities",
+    "SharedDrawing",
+    "SharedEntity",
+    "SharedEntities",
+  ]) {
+    const objects = master.filter(
+      (r) => sqliteIdentifier(String(r.name)) === sqliteIdentifier(table),
+    );
+    if (objects.some((r) => r.name !== table || r.type !== "table"))
+      stop("unsupported collision table name or object");
+  }
+}
+
+async function identityParent(e: MigrationExecutor, table: "User" | "Users") {
+  const master = (await e.execute("SELECT type,name FROM sqlite_master")).rows;
+  if (!master.some((r) => r.name === table && r.type === "table"))
+    stop("unsupported identity parent table");
+  const info = (await e.execute(`PRAGMA table_xinfo(${table})`)).rows;
+  const id = info[0];
+  if (
+    info.length !== 1 ||
+    id?.name !== "id" ||
+    id.type !== "TEXT" ||
+    id.notnull !== 1 ||
+    id.hidden !== 0 ||
+    id.dflt_value !== null ||
+    (id.pk !== 0 && id.pk !== 1)
+  )
+    stop("unsupported identity parent columns");
+  const indexes = (await e.execute(`PRAGMA index_list(${table})`)).rows;
+  let unique = false;
+  for (const index of indexes) {
+    if (index.unique !== 1 || index.partial !== 0) continue;
+    const name = String(index.name).replaceAll('"', '""');
+    const keys = (await e.execute(`PRAGMA index_xinfo("${name}")`)).rows.filter(
+      (r) => r.key === 1,
+    );
+    if (
+      keys.length === 1 &&
+      keys[0]?.name === "id" &&
+      keys[0].coll === "BINARY" &&
+      keys[0].desc === 0
+    )
+      unique = true;
+  }
+  if (!unique) stop("unique BINARY identity parent ID required");
+}
+
+async function collisionColumns(
+  e: MigrationExecutor,
+  table: string,
+  columns: string[],
+) {
+  const info = (await e.execute(`PRAGMA table_xinfo(${table})`)).rows;
+  if (
+    columns.some(
+      (name) =>
+        !info.some(
+          (c) => c.name === name && c.type === "TEXT" && c.hidden === 0,
+        ),
+    )
+  )
+    stop("unsupported collision table columns");
+}
+
 async function ids(e: MigrationExecutor, table: string): Promise<string[]> {
   const rows = (
     await e.execute(
@@ -466,13 +541,24 @@ async function mappedRows(
       });
     } else stop("unknown retained table");
   }
+  await identityParent(e, "User");
+  await identityParent(e, "Users");
   const sourceIds = await ids(e, "User");
-  const modernIds = new Set(await ids(e, "Users"));
+  const destinationIds = await ids(e, "Users");
+  // Reject duplicate rows before sets can erase evidence of ambiguous parents.
+  if (
+    new Set(sourceIds).size !== sourceIds.length ||
+    new Set(destinationIds).size !== destinationIds.length
+  )
+    stop("duplicate identity parent ID");
+  const modernIds = new Set(destinationIds);
+  const sourceSet = new Set(sourceIds);
   const selected = new Set(batch.userIds);
   if (
     selected.size !== batch.userIds.length ||
     sourceIds.length !== selected.size ||
-    sourceIds.some((id) => !selected.has(id) || !modernIds.has(id))
+    sourceIds.some((id) => !selected.has(id) || !modernIds.has(id)) ||
+    batch.userIds.some((id) => !sourceSet.has(id))
   )
     stop("explicit one-to-one existing identity mapping required");
   if (!documents.length && !shares.length && selected.size)
@@ -498,6 +584,7 @@ async function collisions(
   for (const table of ["Drawing", "Entity", "Entities"]) {
     if (!master.some((r) => r.name === table && r.type === "table")) continue;
     if (table === "Entities" && repeated) continue;
+    await collisionColumns(e, table, ["id"]);
     const existing = new Set(await ids(e, table));
     if (documents.some((r) => existing.has(text(r.id))))
       stop("document ID collision");
@@ -505,15 +592,18 @@ async function collisions(
   for (const table of ["SharedDrawing", "SharedEntity", "SharedEntities"]) {
     if (!master.some((r) => r.name === table && r.type === "table")) continue;
     if (table === "SharedEntities" && repeated) continue;
+    const column = table === "SharedDrawing" ? "drawingId" : "entityId";
+    await collisionColumns(e, table, ["id", column, "userId"]);
     const existing = new Set(await ids(e, table));
     if (shares.some((r) => existing.has(text(r.id))))
       stop("share ID collision");
-    const column = table === "SharedDrawing" ? "drawingId" : "entityId";
     const pairs = (
       await e.execute(
-        `SELECT hex(CAST(${column} AS BLOB)) AS entity,hex(CAST(userId AS BLOB)) AS user FROM ${table}`,
+        `SELECT typeof(${column}) AS entityType,typeof(userId) AS userType,hex(CAST(${column} AS BLOB)) AS entity,hex(CAST(userId AS BLOB)) AS user FROM ${table}`,
       )
     ).rows;
+    if (pairs.some((p) => p.entityType !== "text" || p.userType !== "text"))
+      stop("unsupported collision pair storage type");
     if (
       shares.some((s) =>
         pairs.some(
@@ -621,6 +711,7 @@ export async function convertLegacyDocuments(
   )
     stop("explicit destination, identities and timestamp provenance required");
   const master = await modernDestination(held);
+  canonicalCollisionNames(master);
   await captureLegacyDocuments(held, batch);
   // Reconcile every newly captured raw receipt before trusting its tuples for mapping.
   await captureLegacyDocuments(held, batch);

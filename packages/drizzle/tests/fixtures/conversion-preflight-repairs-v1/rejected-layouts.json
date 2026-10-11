@@ -1,0 +1,114 @@
+[
+  {
+    "name": "entity document ID collision",
+    "sql": "CREATE TABLE entity (id TEXT); INSERT INTO entity VALUES ('doc')"
+  },
+  {
+    "name": "EnTiTy document ID collision",
+    "sql": "CREATE TABLE EnTiTy (id TEXT); INSERT INTO EnTiTy VALUES ('doc')"
+  },
+  {
+    "name": "drawing document ID collision",
+    "sql": "DROP TABLE Drawing; CREATE TABLE drawing (id TEXT); INSERT INTO drawing VALUES ('doc')"
+  },
+  {
+    "name": "DrAwInG document ID collision",
+    "sql": "DROP TABLE Drawing; CREATE TABLE DrAwInG (id TEXT); INSERT INTO DrAwInG VALUES ('doc')"
+  },
+  {
+    "name": "sharedentity share ID collision",
+    "sql": "CREATE TABLE sharedentity (id TEXT,entityId TEXT,userId TEXT); INSERT INTO sharedentity VALUES ('share','other','reader')"
+  },
+  {
+    "name": "sharedentity share pair collision",
+    "sql": "CREATE TABLE sharedentity (id TEXT,entityId TEXT,userId TEXT); INSERT INTO sharedentity VALUES ('other','doc','reader')"
+  },
+  {
+    "name": "ShArEdEnTiTy share ID collision",
+    "sql": "CREATE TABLE ShArEdEnTiTy (id TEXT,entityId TEXT,userId TEXT); INSERT INTO ShArEdEnTiTy VALUES ('share','other','reader')"
+  },
+  {
+    "name": "ShArEdEnTiTy share pair collision",
+    "sql": "CREATE TABLE ShArEdEnTiTy (id TEXT,entityId TEXT,userId TEXT); INSERT INTO ShArEdEnTiTy VALUES ('other','doc','reader')"
+  },
+  {
+    "name": "shareddrawing share ID collision",
+    "sql": "DROP TABLE SharedDrawing; CREATE TABLE shareddrawing (id TEXT,drawingId TEXT,userId TEXT); INSERT INTO shareddrawing VALUES ('share','other','reader')"
+  },
+  {
+    "name": "shareddrawing share pair collision",
+    "sql": "DROP TABLE SharedDrawing; CREATE TABLE shareddrawing (id TEXT,drawingId TEXT,userId TEXT); INSERT INTO shareddrawing VALUES ('other','doc','reader')"
+  },
+  {
+    "name": "ShArEdDrAwInG share ID collision",
+    "sql": "DROP TABLE SharedDrawing; CREATE TABLE ShArEdDrAwInG (id TEXT,drawingId TEXT,userId TEXT); INSERT INTO ShArEdDrAwInG VALUES ('share','other','reader')"
+  },
+  {
+    "name": "ShArEdDrAwInG share pair collision",
+    "sql": "DROP TABLE SharedDrawing; CREATE TABLE ShArEdDrAwInG (id TEXT,drawingId TEXT,userId TEXT); INSERT INTO ShArEdDrAwInG VALUES ('other','doc','reader')"
+  },
+  {
+    "name": "Entity unsupported columns",
+    "sql": "CREATE TABLE Entity (future TEXT)"
+  },
+  {
+    "name": "entity unsupported layout",
+    "sql": "CREATE TABLE entity (future TEXT)"
+  },
+  {
+    "name": "SharedEntity unsupported columns",
+    "sql": "CREATE TABLE SharedEntity (future TEXT)"
+  },
+  {
+    "name": "sharedentity unsupported layout",
+    "sql": "CREATE TABLE sharedentity (future TEXT)"
+  },
+  {
+    "name": "duplicate source disguises omitted reader",
+    "sql": "DROP TABLE User; CREATE TABLE User (id TEXT); INSERT INTO User VALUES ('owner'),('owner')"
+  },
+  {
+    "name": "duplicate destination identity",
+    "sql": "DROP TABLE Users; CREATE TABLE Users (id TEXT); INSERT INTO Users VALUES ('owner'),('owner'),('reader')"
+  },
+  {
+    "name": "User unconstrained identity parent",
+    "sql": "DROP TABLE User; CREATE TABLE User (id TEXT NOT NULL); INSERT INTO User VALUES ('owner'),('reader')"
+  },
+  {
+    "name": "User nullable unique identity parent",
+    "sql": "DROP TABLE User; CREATE TABLE User (id TEXT UNIQUE); INSERT INTO User VALUES ('owner'),('reader')"
+  },
+  {
+    "name": "User composite key identity parent",
+    "sql": "DROP TABLE User; CREATE TABLE User (id TEXT NOT NULL, other TEXT NOT NULL, PRIMARY KEY(id,other)); INSERT INTO User VALUES ('owner','a'),('reader','b')"
+  },
+  {
+    "name": "User nonbinary unique identity parent",
+    "sql": "DROP TABLE User; CREATE TABLE User (id TEXT COLLATE NOCASE NOT NULL UNIQUE); INSERT INTO User VALUES ('owner'),('reader')"
+  },
+  {
+    "name": "User partial unique identity parent",
+    "sql": "DROP TABLE User; CREATE TABLE User (id TEXT NOT NULL); INSERT INTO User VALUES ('owner'),('reader'); CREATE UNIQUE INDEX User_partial ON User(id) WHERE id='owner'"
+  },
+  {
+    "name": "Users unconstrained identity parent",
+    "sql": "DROP TABLE Users; CREATE TABLE Users (id TEXT NOT NULL); INSERT INTO Users VALUES ('owner'),('reader')"
+  },
+  {
+    "name": "Users nullable unique identity parent",
+    "sql": "DROP TABLE Users; CREATE TABLE Users (id TEXT UNIQUE); INSERT INTO Users VALUES ('owner'),('reader')"
+  },
+  {
+    "name": "Users composite key identity parent",
+    "sql": "DROP TABLE Users; CREATE TABLE Users (id TEXT NOT NULL, other TEXT NOT NULL, PRIMARY KEY(id,other)); INSERT INTO Users VALUES ('owner','a'),('reader','b')"
+  },
+  {
+    "name": "Users nonbinary unique identity parent",
+    "sql": "DROP TABLE Users; CREATE TABLE Users (id TEXT COLLATE NOCASE NOT NULL UNIQUE); INSERT INTO Users VALUES ('owner'),('reader')"
+  },
+  {
+    "name": "Users partial unique identity parent",
+    "sql": "DROP TABLE Users; CREATE TABLE Users (id TEXT NOT NULL); INSERT INTO Users VALUES ('owner'),('reader'); CREATE UNIQUE INDEX Users_partial ON Users(id) WHERE id='owner'"
+  }
+]
