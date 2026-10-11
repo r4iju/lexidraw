@@ -4091,18 +4091,17 @@
           "autoincrement": false
         }
       },
-      "indexes": {
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
         "LegacyDocumentRetentionBatchV1_sourceIdentity_unique": {
           "name": "LegacyDocumentRetentionBatchV1_sourceIdentity_unique",
           "columns": [
             "sourceIdentity"
-          ],
-          "isUnique": true
+          ]
         }
       },
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
       "checkConstraints": {}
     },
     "LegacyDocumentRetentionV1": {
