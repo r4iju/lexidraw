@@ -20,6 +20,7 @@ struct AIPowerView: View {
 
   var body: some View {
     Form {
+      MigrationNoticeSection(phase: .advance)
       Section("Power source") {
         switch setup {
         case .loading: ProgressView("Loading AI settings…")

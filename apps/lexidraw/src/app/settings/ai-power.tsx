@@ -6,6 +6,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "~/components/ui/select";
+import { MigrationNotice } from "./migration-notice";
 import { ProTrialSection, type ProStatus } from "./pro-trial";
 import { ProviderKeyInput } from "./provider-key-input";
 import { useState, useSyncExternalStore } from "react";
@@ -104,6 +105,7 @@ export function AiPowerSection({
       <h2 id="ai-power-title" className="text-title font-semibold">
         AI power
       </h2>
+      <MigrationNotice phase="advance" />
       <p className="text-sm text-muted-foreground">
         One account preference, one provider. Keys stay in memory on this device
         until sign out or page closure. Another device needs its own key.
