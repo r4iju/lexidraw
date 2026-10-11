@@ -1,0 +1,156 @@
+{
+  "behavioralExecutions": 0,
+  "cases": [
+    {
+      "RED": "Accepting callable no-op receives genuine complete bb7 source; full independent target/receipt assertion fails for missing end-to-end conversion, not missing names alone.",
+      "assertions": [
+        "Nine complete Users columns and both typed rows exact",
+        "Every 17-column entity and six-column share tuple exact, including doc tombstone and certified sx updatedAt 722",
+        "All companion/opaque Drawing/evidence/ledger/sequence exact",
+        "Both empty tag structures and complete physical metadata exact",
+        "Document-only validated receipt has doc-1/sx-1 only; complete target receipt binds all rows"
+      ],
+      "id": "FULL-SOURCE-TO-FULL-TARGET"
+    },
+    {
+      "RED": "Accepting bridge placeholder returns incomplete/wrong projection; direct independently literal old envelope assertion fails before bridge implementation.",
+      "assertions": [
+        "Exact old object envelope vs retention [1,pairs] mismatch handled only by explicit bridge",
+        "One Document eight-column and one SharedDocument five-column projection",
+        "Certified share timestamp distinct from createdAt",
+        "Document old bytes + a56 additions + bb7 live lineage exact; no Drawing reinterpretation"
+      ],
+      "id": "OLD-RAW-BRIDGE"
+    },
+    {
+      "RED": "New accepting validation placeholder with independently shaped mutated complete source reaches behavior; expected rejection and unchanged state fail before new validation. Already rejected profiles are regression only.",
+      "assertions": [
+        "Altered non-ID User field or metadata, parent collation/PK/index, missing/duplicate source identity cannot be erased by same-ID checks",
+        "Well-shaped altered old raw BLOB, derivation updatedAt, prior receipt binding or ledger cell mismatches fail",
+        "Unknown objects/default/ordinal/FK/index changes cannot pass column-name-only equality"
+      ],
+      "id": "COMPLETE-PARENT-AND-ANCESTRY"
+    },
+    {
+      "RED": "Use independently shaped selected invalid-content fixture with complete setup baseline at new bridge seam. Callable accepting placeholder reports successful conversion; expected unsupported-content rejection fails before new bridge classification. Exact unchanged-state/no-receipt assertions accompany it. Existing already-rejecting strict-validator paths are regressions only, not new RED.",
+      "assertions": [
+        "Malformed UTF8/duplicate decoded key/unsupported nested root or tts remain unsupported",
+        "No newly completed receipt, no rewritten archive/live/companion state",
+        "Existing strict validator rejection is old regression unless the new bridge acceptance gap is actually reached"
+      ],
+      "id": "NO-LOSS-ON-CONTENT-FAILURE"
+    },
+    {
+      "RED": "Genuine new completed baseline succeeds first; callable completion placeholder returns wrong repeated result or permits damaged ancestry. Repeat/no-write and full unchanged-state assertions fail before completion validation.",
+      "assertions": [
+        "Full complete target/receipt exact, zero writes",
+        "Shaped changed receipt/typed state/sequence rejected unchanged",
+        "Do not claim future arbitrary live edits compatible with this finite completion profile"
+      ],
+      "id": "COMPLETE-REPEAT"
+    },
+    {
+      "RED": "Future new pure-codec fixture assertion first, compare exact independent literal splice bytes against callable seam before implementing any proposed codec change. Existing passing codec behaviors are regressions only.",
+      "assertions": [
+        "Initial root supports Legacy hello; tts text/audioUrl and unknown decoded semantics exact",
+        "Two separately fixed root replacements preserve outer bytes, raw 1.00 and escaped snowman, existing tts",
+        "Do not derive expected output from normalizeDocumentBytes or replaceDocumentRoot calls"
+      ],
+      "id": "CODEC-CONSUMER-PREPARATION"
+    }
+  ],
+  "mutations": [
+    {
+      "column": "name",
+      "id": "NON_ID_PARENT_CELL",
+      "key": [
+        "text",
+        "752d6f776e6572"
+      ],
+      "replacement": [
+        "text",
+        "416c7465726564"
+      ],
+      "table": "Users",
+      "witness": "one typed cell changed in independent source; pure data equality only"
+    },
+    {
+      "id": "RAW_ENVELOPE_CONTENT",
+      "mutation": "change title typed TEXT bytes in well-shaped envelope, preserve grammar/version/columns; exact original BLOB mismatch",
+      "sourceTable": "Document",
+      "table": "HistoricalStructuralRawV1"
+    },
+    {
+      "id": "DERIVATION_722",
+      "mutation": "well-shaped updatedAt addition 1700000000700, exact ancestry mismatch",
+      "sourceTable": "SharedDocument",
+      "table": "HistoricalDataDerivationV1"
+    },
+    {
+      "id": "LEDGER_LITERAL",
+      "mutation": "created_at typed INTEGER +1, NULL id retained; require one-row witness",
+      "selector": {
+        "created_at": [
+          "integer",
+          "1710770910405"
+        ]
+      },
+      "table": "__drizzle_migrations"
+    },
+    {
+      "id": "SEQUENCE_HIGHWATER",
+      "mutation": "105 to 106 INTEGER; require one-row witness",
+      "selector": {
+        "name": [
+          "text",
+          "416e616c7974696373"
+        ]
+      },
+      "table": "sqlite_sequence"
+    },
+    {
+      "expected": "unsupported-content at new pure bridge seam, no behavior RED until callable baseline reaches seam",
+      "id": "PAYLOAD_INVALID_UTF8",
+      "literalHex": "ff"
+    },
+    {
+      "expected": "unsupported-content",
+      "id": "PAYLOAD_DUPLICATE_DECODED_KEY",
+      "literalUTF8": "{\"root\":{},\"r\\u006fot\":{}}"
+    },
+    {
+      "expected": "unsupported-content",
+      "id": "PAYLOAD_UNSUPPORTED_NESTED_ROOT",
+      "literalUTF8": "{\"root\":{\"type\":\"root\",\"version\":1,\"children\":[{\"type\":\"unsupported\",\"version\":1}]}}"
+    },
+    {
+      "expected": "unsupported-content",
+      "id": "PAYLOAD_UNSUPPORTED_TTS",
+      "literalUTF8": "{\"root\":{\"type\":\"root\",\"version\":1,\"children\":[]},\"tts\":{\"text\":17}}"
+    },
+    {
+      "id": "PHYSICAL_INDEX_ORDER",
+      "mutation": "swap two Entities index_list tuples including native seq; do not sort away"
+    },
+    {
+      "id": "COMPLETION_RECEIPT_BINDING",
+      "mutation": "alter transformManifestIdentity TEXT at completed new receipt; require typed change witness"
+    }
+  ],
+  "negativeStateRule": "Expected rejection plus complete unchanged state/no receipt. Existing validator rejection is regression only. No missing APIs/setup/imports earn RED. No races, lifecycle, enforcement or permission behavior.",
+  "priorFindings": {
+    "CONVERSION-DE6-STANDARDS-01": "OPEN unchanged",
+    "DrawingEditorPlayback": "UNPROVED",
+    "P3": "HISTORICAL-PREFIX-STANDARDS-03 and PAYLOAD-15AD-SMELL-01 retained",
+    "PAYLOAD-15AD-STANDARDS-01": "OPEN unchanged",
+    "PUBLICATION-026-STANDARDS-01": "OPEN unchanged",
+    "SPEC_a56_digest_deviation": "Disclosed in /Users/emanuel/.ai/working/lexidraw-276-recovery/reviews/historical-adapter-a56-spec-v1.json#/method/restrictionDeviation and retained by parent acceptance. Reviewer computed in-memory JSON digests despite no-hash scope; this design computes none and neither erases nor repeats it.",
+    "finiteContinuationNativeAcceptance": "UNCHANGED at exact a23/native scope; no transfer to new checkpoint",
+    "historicalPrefixFindings": "HP-SPEC-01/02/03 and HISTORICAL-PREFIX-STANDARDS-01/02 retained, no retrospective closure",
+    "realOriginsUnits": "ABSENT, production STOP",
+    "tail": "STOP",
+    "whole276": "NOT_ACCEPTED",
+    "whole291": "NOT_ACCEPTED"
+  },
+  "prospectiveOnly": true
+}

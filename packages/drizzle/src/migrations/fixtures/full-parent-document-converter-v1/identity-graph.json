@@ -1,0 +1,47 @@
+{
+  "bindings": {
+    "bridgeManifestIdentity": "sha256:328323e17d1a92994747c25ecebaf27634406f0b5db239f43b83eaa020f4b24f",
+    "conversionContractIdentity": "sha256:1792bc825fb4a1615c935cc367983e234565847dfce279abcf859c0b036b4979",
+    "derivationManifestIdentity": "sha256:97438fd3ef2ac02b6abd8aa842aba693866ac433db3ab0e4e364e3f1c8716877",
+    "documentOnlyOutputIdentity": "sha256:01b2fe201d62baf79f102e7d091cd342faa7ca3936b6924af7f7f46cf7a32555",
+    "fullParentCertificateIdentity": "sha256:9b570cd71022dc702439f0b534df8509ea8b78dc9f74865150f64e0b4984e623",
+    "originalBootstrapLedgerIdentity": "sha256:15b686a6a8637880a4859340b74a58e0b69de86a571bd0dbb819152011a26929",
+    "originalSourceIdentity": "sha256:0749214304ce98730c643688821a3a7d46dd2a42a5e7ba96769b86ef7fb033d5",
+    "priorAdapterReceiptIdentity": "sha256:ef714fa029617d6f46019de097be96a0f67670a7be15711cc44d719478064372",
+    "priorContinuationReceiptIdentity": "sha256:09db9cdf60b90e758932ab6669c22c66e10c9827c147b2b5016044d33aff6bfe",
+    "rawArchiveManifestIdentity": "sha256:881191615690ce4414cd2d85e5e3c199136121de354afe55cbf98c4fc46ad9fa",
+    "sourceCompletedBb7Identity": "sha256:c00236c5e1b608154847757b976d282f75fde6d3e22c8cb1149711e523700514",
+    "syntheticSupplyCertificateIdentity": "sha256:b019013c1dfa025788029101de255ce43abbc59d52be949fffe11353666ffb7d",
+    "targetPhysicalCertificateIdentity": "sha256:3aaa5beeb419f59ab05917d899c14fbc8e339fb6b2bbbb75e4fedf103680ef02",
+    "targetRowsAndSequenceIdentity": "sha256:28bfdeb9637f72424ca6bd36cb6b2e105d9e6e9712a6972e464adf9928084905",
+    "timestampCertificateIdentity": "sha256:1d5019c74da96b1a805df4671ae44125fc235521b6dfb44488e4213f8b68d500",
+    "transformManifestIdentity": "sha256:c067fff633e370289176654c7a915a1545e3b1310121fe2043d6be058ddd2dda"
+  },
+  "canonicalEncoding": "ASCII JSON sorted keys compact separators; arrays retain independently authored native metadata order and typed row order",
+  "completedTargetIdentity": "sha256:2556d7a799ca5aa30039039fdd390f5e78aff57d98b0ea64f2307277bf0e449c",
+  "executionProvenance": "Separate from semantic graph",
+  "nodes": {
+    "bridgeManifestIdentity": "old-raw-codec-bridge-oracle.json entire value",
+    "completedTargetIdentity": "target-typed-oracle.json entire value",
+    "conversionContractIdentity": "conversion-contract-semantics.json entire value",
+    "documentOnlyOutputIdentity": "document-only-output-oracle.json typedProjection",
+    "fullParentCertificateIdentity": "full-users-parent-certificate.json entire value",
+    "receiptIdentity": "conversion-receipt-oracle.json typedTuple",
+    "sourceCompletedBb7Identity": "source-completed-bb7-oracle.json entire value",
+    "syntheticSupplyCertificateIdentity": "synthetic-supply-certificate.json entire value",
+    "targetPhysicalCertificateIdentity": "target-physical-certificate.json entire value, metadata only",
+    "targetRowsAndSequenceIdentity": "target orderedColumns/rows excluding new receipt table; sqlite_sequence included",
+    "transformManifestIdentity": "transform-manifest.json entire value"
+  },
+  "noncircularGraph": [
+    "Contract contains authored semantics without downstream identities.",
+    "Complete source includes bb7 receipt and all old evidence/ledger/sequence.",
+    "Target physical includes new receipt metadata but no data.",
+    "Target rows/sequence and document-only projection exclude new receipt.",
+    "Receipt binds source, old lineage, bridge, complete parent, supply, transforms and independent target/output.",
+    "Completed target identity may include new receipt; downstream only, never embedded in that receipt.",
+    "Execution pin/closure is separate provenance, not semantic identity."
+  ],
+  "priorIdentities": "Copied recorded ancestral bindings; not recomputed from old original artifacts",
+  "receiptIdentity": "sha256:b0b9f6c8045a44d8d8cca735788073486760739821c93693de7c57f26e30e2e3"
+}

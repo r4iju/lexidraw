@@ -1,0 +1,89 @@
+{
+  "certificateId": "synthetic-bb7-minimum-content-supply-v1",
+  "defaultVsCell": "SharedEntities DDL defaults 1735950685000 are copied actual schema constants, never used for existing rows. Entities/Tags/EntityTags timestamps have no default. All NULL newly added temporal cells remain NULL. Full source temporal cells have keyed ancestry to the old 22-entry synthetic certificate.",
+  "entityKeyedAdditions": [
+    {
+      "id": "doc-1",
+      "values": {
+        "isActive": [
+          "integer",
+          "1"
+        ],
+        "parentId": [
+          "null",
+          null
+        ],
+        "thumbnailStatus": [
+          "text",
+          "70656e64696e67"
+        ],
+        "thumbnailUpdatedAt": [
+          "null",
+          null
+        ],
+        "thumbnailVersion": [
+          "null",
+          null
+        ]
+      }
+    },
+    {
+      "id": "draw-1",
+      "values": {
+        "isActive": [
+          "integer",
+          "1"
+        ],
+        "parentId": [
+          "null",
+          null
+        ],
+        "thumbnailStatus": [
+          "text",
+          "70656e64696e67"
+        ],
+        "thumbnailUpdatedAt": [
+          "null",
+          null
+        ],
+        "thumbnailVersion": [
+          "null",
+          null
+        ]
+      }
+    }
+  ],
+  "kind": "INDEPENDENT_SYNTHETIC_DESIGN_CERTIFICATE_NOT_PRODUCTION_EVIDENCE",
+  "noNewNonNullTimestamps": true,
+  "preservedDocumentDates": {
+    "createdAt": "1700000000300",
+    "deletedAt": "1700000000500",
+    "updatedAt": "1700000000400"
+  },
+  "preservedShareDates": {
+    "sd-1": {
+      "createdAt": "1700000000600",
+      "updatedAt": "1700000000611"
+    },
+    "sx-1": {
+      "createdAt": "1700000000700",
+      "updatedAt": "1700000000722"
+    }
+  },
+  "productionAbsences": [
+    "Real original/source/ledger lineage",
+    "Real timestamp origins/units and required added values",
+    "Real parent relationships/active/thumbnail facts",
+    "Real broader payload families and recording media evidence"
+  ],
+  "productionDisposition": "STOP only for production. Independently certified synthetic additions above are sufficient for this design; do not postpone synthetic preparation awaiting real facts.",
+  "scope": "Only two existing Entities rows and newly empty Tags/EntityTags structures; no fabricated timestamps or inferred origins",
+  "semanticReasons": {
+    "isActive": "Synthetic ordinary entity active flag INTEGER 1, including preserved deleted document; deletedAt remains an independent existing tombstone and is never cleared.",
+    "parentId": "No parent relationship supplied by finite source; independently certify root-level NULL, not historical inference.",
+    "thumbnailStatus": "Synthetic content metadata TEXT pending; no thumbnail worker or generation behavior invoked.",
+    "thumbnailUpdatedAt": "NULL means no new timestamp assertion.",
+    "thumbnailVersion": "NULL means no invented version."
+  },
+  "units": "All live integer temporal cells retain original certified unix_milliseconds. Original ledger created_at retains literal original epoch record values separately; no use as content-time origin. Non-temporal INTEGER IDs/flags/sequences have no timestamp unit."
+}

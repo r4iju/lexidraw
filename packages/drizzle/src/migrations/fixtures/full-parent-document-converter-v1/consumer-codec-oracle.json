@@ -1,0 +1,84 @@
+{
+  "initialPayload": "  {\"root\":{\"children\":[{\"children\":[{\"detail\":0,\"format\":0,\"mode\":\"normal\",\"style\":\"\",\"text\":\"Legacy hello\",\"type\":\"text\",\"version\":1}],\"direction\":null,\"format\":\"\",\"indent\":0,\"type\":\"paragraph\",\"version\":1}],\"direction\":null,\"format\":\"\",\"indent\":0,\"type\":\"root\",\"version\":1},\"tts\":{\"text\":\"Legacy hello\",\"audioUrl\":\"https://example.invalid/saved.mp3\"},\"unknown\":{\"retain\":\"\\u2603\",\"number\":1.00}}\n",
+  "initialPayloadUTF8Hex": "20207b22726f6f74223a7b226368696c6472656e223a5b7b226368696c6472656e223a5b7b2264657461696c223a302c22666f726d6174223a302c226d6f6465223a226e6f726d616c222c227374796c65223a22222c2274657874223a224c65676163792068656c6c6f222c2274797065223a2274657874222c2276657273696f6e223a317d5d2c22646972656374696f6e223a6e756c6c2c22666f726d6174223a22222c22696e64656e74223a302c2274797065223a22706172616772617068222c2276657273696f6e223a317d5d2c22646972656374696f6e223a6e756c6c2c22666f726d6174223a22222c22696e64656e74223a302c2274797065223a22726f6f74222c2276657273696f6e223a317d2c22747473223a7b2274657874223a224c65676163792068656c6c6f222c22617564696f55726c223a2268747470733a2f2f6578616d706c652e696e76616c69642f73617665642e6d7033227d2c22756e6b6e6f776e223a7b2272657461696e223a225c7532363033222c226e756d626572223a312e30307d7d0a",
+  "initialRootSpanUTF8": {
+    "endExclusive": 275,
+    "start": 10
+  },
+  "payloadSemantics": {
+    "audio": "Retained text/audioUrl metadata only; no URL request, media decode or playback evidence.",
+    "initialConversion": "No root/tts transform or JSON reserialization; exact leading two spaces, final newline, nested fields, key order and numeric/escape tokens retained.",
+    "rawUnknownTokens": "\\u2603 and 1.00 remain exact; parsed snowman and numeric 1 are semantic observations only.",
+    "root": {
+      "children": [
+        {
+          "children": [
+            {
+              "detail": 0,
+              "format": 0,
+              "mode": "normal",
+              "style": "",
+              "text": "Legacy hello",
+              "type": "text",
+              "version": 1
+            }
+          ],
+          "direction": null,
+          "format": "",
+          "indent": 0,
+          "type": "paragraph",
+          "version": 1
+        }
+      ],
+      "direction": null,
+      "format": "",
+      "indent": 0,
+      "type": "root",
+      "version": 1
+    },
+    "rootText": "Legacy hello",
+    "tts": {
+      "audioUrl": "https://example.invalid/saved.mp3",
+      "text": "Legacy hello"
+    },
+    "unknown": {
+      "number": 1.0,
+      "retain": "\u2603"
+    }
+  },
+  "scope": "Pure codec success cannot prove store/editor/playback; retained Drawing opaque",
+  "seam": "Pure data codec only; no app/store/editor/media execution assigned",
+  "separateActiveSyntheticSupply": {
+    "createdAt": "1700000000300",
+    "deletedAt": null,
+    "id": "synthetic-active-content-consumer-v1",
+    "kind": "NEW_INDEPENDENT_SYNTHETIC_CONSUMER_FIXTURE_ONLY_NOT_ACCEPTED_BB7_SOURCE",
+    "origin": "Explicit independent synthetic certificate, no current-clock/magnitude/default inference",
+    "payloadOrigin": "Exact independent 398-byte literal and two replacement roots above",
+    "rule": "Separate fixture/oracle and receipt lineage, never modify accepted doc-1 source or use consumer fixture to credit exact bb7 conversion. Implementation author may prepare this finite fixture without waiting for production facts.",
+    "saveRevision1": "1700000000801",
+    "saveRevision2": "1700000000802",
+    "unit": "unix_milliseconds",
+    "updatedAt": "1700000000400"
+  },
+  "status": "PREPARED_NOT_EXECUTED",
+  "tombstoneRule": "Accepted doc-1 deletedAt is non-NULL. Do not clear it to make a read pass or pretend it is an active-record read fixture. Existing deleted-row content reading semantics and app/store read/write behavior on this new profile are unproved.",
+  "twoLiteralEdits": [
+    {
+      "expectedRetainedPrefixUTF8Hex": "20207b22726f6f74223a",
+      "expectedRetainedSuffixUTF8Hex": "2c22747473223a7b2274657874223a224c65676163792068656c6c6f222c22617564696f55726c223a2268747470733a2f2f6578616d706c652e696e76616c69642f73617665642e6d7033227d2c22756e6b6e6f776e223a7b2272657461696e223a225c7532363033222c226e756d626572223a312e30307d7d0a",
+      "expectedWholePayload": "  {\"root\":{\"children\":[{\"children\":[{\"detail\":0,\"format\":0,\"mode\":\"normal\",\"style\":\"\",\"text\":\"First bounded edit\",\"type\":\"text\",\"version\":1}],\"direction\":null,\"format\":\"\",\"indent\":0,\"type\":\"paragraph\",\"version\":1}],\"direction\":null,\"format\":\"\",\"indent\":0,\"type\":\"root\",\"version\":1},\"tts\":{\"text\":\"Legacy hello\",\"audioUrl\":\"https://example.invalid/saved.mp3\"},\"unknown\":{\"retain\":\"\\u2603\",\"number\":1.00}}\n",
+      "expectedWholePayloadUTF8Hex": "20207b22726f6f74223a7b226368696c6472656e223a5b7b226368696c6472656e223a5b7b2264657461696c223a302c22666f726d6174223a302c226d6f6465223a226e6f726d616c222c227374796c65223a22222c2274657874223a22466972737420626f756e6465642065646974222c2274797065223a2274657874222c2276657273696f6e223a317d5d2c22646972656374696f6e223a6e756c6c2c22666f726d6174223a22222c22696e64656e74223a302c2274797065223a22706172616772617068222c2276657273696f6e223a317d5d2c22646972656374696f6e223a6e756c6c2c22666f726d6174223a22222c22696e64656e74223a302c2274797065223a22726f6f74222c2276657273696f6e223a317d2c22747473223a7b2274657874223a224c65676163792068656c6c6f222c22617564696f55726c223a2268747470733a2f2f6578616d706c652e696e76616c69642f73617665642e6d7033227d2c22756e6b6e6f776e223a7b2272657461696e223a225c7532363033222c226e756d626572223a312e30307d7d0a",
+      "incomingRootOnlyEnvelope": "{\"root\":{\"children\":[{\"children\":[{\"detail\":0,\"format\":0,\"mode\":\"normal\",\"style\":\"\",\"text\":\"First bounded edit\",\"type\":\"text\",\"version\":1}],\"direction\":null,\"format\":\"\",\"indent\":0,\"type\":\"paragraph\",\"version\":1}],\"direction\":null,\"format\":\"\",\"indent\":0,\"type\":\"root\",\"version\":1}}",
+      "text": "First bounded edit"
+    },
+    {
+      "expectedRetainedPrefixUTF8Hex": "20207b22726f6f74223a",
+      "expectedRetainedSuffixUTF8Hex": "2c22747473223a7b2274657874223a224c65676163792068656c6c6f222c22617564696f55726c223a2268747470733a2f2f6578616d706c652e696e76616c69642f73617665642e6d7033227d2c22756e6b6e6f776e223a7b2272657461696e223a225c7532363033222c226e756d626572223a312e30307d7d0a",
+      "expectedWholePayload": "  {\"root\":{\"children\":[{\"children\":[{\"detail\":0,\"format\":0,\"mode\":\"normal\",\"style\":\"\",\"text\":\"Second bounded edit\",\"type\":\"text\",\"version\":1}],\"direction\":null,\"format\":\"\",\"indent\":0,\"type\":\"paragraph\",\"version\":1}],\"direction\":null,\"format\":\"\",\"indent\":0,\"type\":\"root\",\"version\":1},\"tts\":{\"text\":\"Legacy hello\",\"audioUrl\":\"https://example.invalid/saved.mp3\"},\"unknown\":{\"retain\":\"\\u2603\",\"number\":1.00}}\n",
+      "expectedWholePayloadUTF8Hex": "20207b22726f6f74223a7b226368696c6472656e223a5b7b226368696c6472656e223a5b7b2264657461696c223a302c22666f726d6174223a302c226d6f6465223a226e6f726d616c222c227374796c65223a22222c2274657874223a225365636f6e6420626f756e6465642065646974222c2274797065223a2274657874222c2276657273696f6e223a317d5d2c22646972656374696f6e223a6e756c6c2c22666f726d6174223a22222c22696e64656e74223a302c2274797065223a22706172616772617068222c2276657273696f6e223a317d5d2c22646972656374696f6e223a6e756c6c2c22666f726d6174223a22222c22696e64656e74223a302c2274797065223a22726f6f74222c2276657273696f6e223a317d2c22747473223a7b2274657874223a224c65676163792068656c6c6f222c22617564696f55726c223a2268747470733a2f2f6578616d706c652e696e76616c69642f73617665642e6d7033227d2c22756e6b6e6f776e223a7b2272657461696e223a225c7532363033222c226e756d626572223a312e30307d7d0a",
+      "incomingRootOnlyEnvelope": "{\"root\":{\"children\":[{\"children\":[{\"detail\":0,\"format\":0,\"mode\":\"normal\",\"style\":\"\",\"text\":\"Second bounded edit\",\"type\":\"text\",\"version\":1}],\"direction\":null,\"format\":\"\",\"indent\":0,\"type\":\"paragraph\",\"version\":1}],\"direction\":null,\"format\":\"\",\"indent\":0,\"type\":\"root\",\"version\":1}}",
+      "text": "Second bounded edit"
+    }
+  ]
+}

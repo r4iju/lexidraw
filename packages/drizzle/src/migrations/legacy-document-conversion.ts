@@ -114,6 +114,7 @@ function payload(raw: string) {
   const value = envelope as Record<string, unknown>;
   if (Object.hasOwn(value, "tts")) assertSupportedLegacyAudioV1(value.tts);
 }
+export { payload as validateLegacyDocumentPayload };
 
 const documentDefaults = {
   entityType: "document",
