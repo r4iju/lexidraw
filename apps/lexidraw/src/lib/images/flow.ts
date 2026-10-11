@@ -535,6 +535,11 @@ export class ImageFlow {
       } catch {
         if (this.ended || intent !== this.intent || this.current !== state)
           return;
+        try {
+          this.check(intent);
+        } catch {
+          return;
+        }
         this.set({ ...state, durability: "memory_only" });
       }
     });
