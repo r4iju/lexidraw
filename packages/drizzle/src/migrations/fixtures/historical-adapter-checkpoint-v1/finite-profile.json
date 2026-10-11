@@ -1,0 +1,29 @@
+{
+  "documentBytes": 398,
+  "drawing": "OPAQUE",
+  "emptyStructuralTables": [
+    "Account",
+    "permissions",
+    "Role",
+    "role_permissions",
+    "Session",
+    "UploadedImage",
+    "user_roles",
+    "VerificationToken"
+  ],
+  "finiteBounds": {
+    "hostSafeMaximumDecimal": "9007199254740991",
+    "hostSafeMinimumDecimal": "-9007199254740991",
+    "integerMaximumDecimal": "9007199254740991",
+    "integerMinimumDecimal": "-9007199254740991",
+    "maxEncodedBytes": 1048576,
+    "maxRowsPerTable": 32,
+    "maxTotalRows": 128,
+    "realEligibility": "Only binary64 4041c00000000000 and 4061700000000000. All zero, nonfinite, other REAL and outside-host-safe INTEGER inputs STOP before writes.",
+    "requiresExactBigIntTransportBeyondHostSafe": false
+  },
+  "initialOnly": true,
+  "newCheckpointEpoch": "NEW_RECONSTRUCTION_NO_HISTORICAL_JOURNAL_ENTRY",
+  "pendingOriginalEntries": [],
+  "profileId": "synthetic-historical-adapter-plural-checkpoint-v1"
+}

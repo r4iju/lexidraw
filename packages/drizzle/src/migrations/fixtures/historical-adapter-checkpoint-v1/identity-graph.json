@@ -1,0 +1,30 @@
+{
+  "bindings": {
+    "contextualCurrentEpochManifestIdentity": "sha256:f83061ff7b4b1da1da3d5990bfa4b994d2d06dc147eb9cc322528043e3e9c26e",
+    "continuationContractIdentity": "sha256:28aae7d953e07ce651b9dca325ace00dec92addddd63f916ce3609ec9c2f4086",
+    "originalBootstrapEpochManifestIdentity": "sha256:a6f8a8531a7d3489940ca095b98c891b6c046258836970f3e780c89a07cf02ce",
+    "originalBootstrapLedgerIdentity": "sha256:15b686a6a8637880a4859340b74a58e0b69de86a571bd0dbb819152011a26929",
+    "priorAdapterReceiptIdentity": "sha256:ef714fa029617d6f46019de097be96a0f67670a7be15711cc44d719478064372",
+    "priorAdapterSourceIdentity": "sha256:0749214304ce98730c643688821a3a7d46dd2a42a5e7ba96769b86ef7fb033d5",
+    "priorDerivationManifestIdentity": "sha256:97438fd3ef2ac02b6abd8aa842aba693866ac433db3ab0e4e364e3f1c8716877",
+    "priorRawArchiveManifestIdentity": "sha256:881191615690ce4414cd2d85e5e3c199136121de354afe55cbf98c4fc46ad9fa",
+    "sourceCompletedCheckpointIdentity": "sha256:67f2419b49433f357b001c81aae48166f4376d455504362e10ce30d2c3c76084",
+    "sourceLiveRowsIdentity": "sha256:b081fb8c404022b94b3460288fdd1bed8a8dc6309b8a0fd0695a63c9a41e757b",
+    "sourcePhysicalCertificateIdentity": "sha256:6da4310283de709d93ed3a3e40adbf6f1dd44313009cf2818af73ef1dfe9de26",
+    "targetPhysicalCertificateIdentity": "sha256:175f2166b8463ae3c6911815e72562babb8f8b26b352859731e89b5987f694d7",
+    "targetRowsAndSequenceIdentity": "sha256:be5babf64bc8e03a3fe8424fa7e938076f6e2ed8e009f0cfb65464f8f6ce2372",
+    "timestampCertificateIdentity": "sha256:1d5019c74da96b1a805df4671ae44125fc235521b6dfb44488e4213f8b68d500",
+    "transformManifestIdentity": "sha256:b47944fcb5dff3078b05935193dae590c43e028d3fb55df6b1997d731293e807"
+  },
+  "canonicalEncoding": "ASCII JSON sorted keys compact separators; no array sorting except authored row multiset construction",
+  "completedTargetIdentity": "sha256:c00236c5e1b608154847757b976d282f75fde6d3e22c8cb1149711e523700514",
+  "exclusions": {
+    "contract": "authored semantics, no derived physical/row/receipt identity",
+    "sourceCompletedCheckpoint": "full completed source physical, all typed tuples/sequence/old receipt/ledger, excludes qualification text",
+    "targetPhysical": "contains new receipt metadata, no data rows",
+    "targetRowsAndSequence": "all live/old evidence/ledger/sequence, excludes new receipt"
+  },
+  "executionProvenance": "separate from semantic identities",
+  "priorIdentityQualification": "old receipt/source/raw/derivation/timestamp bindings copied exactly, not reissued; targetPhysical describes new target only",
+  "receiptIdentity": "sha256:09db9cdf60b90e758932ab6669c22c66e10c9827c147b2b5016044d33aff6bfe"
+}

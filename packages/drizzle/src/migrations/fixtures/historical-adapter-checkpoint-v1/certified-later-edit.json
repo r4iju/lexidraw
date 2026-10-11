@@ -1,0 +1,14 @@
+{
+  "qualification": "Exact separately prescribed completion title edit only; no other live edits certified",
+  "table": "Entities",
+  "keyColumn": "id",
+  "keyCell": [
+    "text",
+    "646f632d31"
+  ],
+  "column": "title",
+  "cell": [
+    "text",
+    "4c617465722063657274696669656420706c7572616c207469746c65"
+  ]
+}
