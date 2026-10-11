@@ -1,6 +1,7 @@
 import type { MigrationExecutor } from "./file-migration-owner.js";
 import {
   atomicEqual,
+  type AtomicPhysicalState,
   inspectAtomicState,
 } from "./atomic-modern-destination-v1.js";
 import contract from "./atomic-modern-destination-v1.json" with {
@@ -45,6 +46,40 @@ export type HeldTtsProfile = {
   layout: "legacyNormalized" | "absentCreated";
   rows: Record<string, unknown>[];
 };
+
+/** Exact completed metadata chooses one of the two closed generic variants. */
+export function recognizeGenericTtsLayoutV1(
+  state: AtomicPhysicalState,
+): HeldTtsProfile["layout"] {
+  const table = state.tables.TtsJobs;
+  if (!table) return stop();
+  const objects = state.master.filter(
+    (r) =>
+      r.tbl_name.toLowerCase() === "ttsjobs" ||
+      /\bTtsJobs\b/i.test(r.sql ?? ""),
+  );
+  const { rows: _rows, ...physical } = table;
+  const candidates = Object.entries(contract.profiles) as [
+    HeldTtsProfile["layout"],
+    typeof contract.profiles.legacyNormalized,
+  ][];
+  // Compare canonically, since object property order is not a schema property.
+  let matched: HeldTtsProfile["layout"] | undefined;
+  for (const [name, c] of candidates) {
+    try {
+      atomicEqual(physical, c.tables.TtsJobs, "generic TTS physical");
+      atomicEqual(
+        objects,
+        c.master.filter((r) => r.tbl_name === "TtsJobs"),
+        "generic TTS objects",
+      );
+      matched = name;
+      break;
+    } catch {}
+  }
+  if (!matched) return stop();
+  return matched;
+}
 
 /** Recognition and referential inventory only, before any SQL mutation. */
 export async function inspectHeldTtsV1(
@@ -104,27 +139,7 @@ export async function inspectHeldTtsV1(
       "legacy TTS objects",
     );
   } else {
-    const { rows: _rows, ...physical } = table;
-    const candidates = Object.entries(contract.profiles) as [
-      HeldTtsProfile["layout"],
-      typeof contract.profiles.legacyNormalized,
-    ][];
-    // Compare canonically, since object property order is not a schema property.
-    let matched: HeldTtsProfile["layout"] | undefined;
-    for (const [name, c] of candidates) {
-      try {
-        atomicEqual(physical, c.tables.TtsJobs, "generic TTS physical");
-        atomicEqual(
-          objects,
-          c.master.filter((r) => r.tbl_name === "TtsJobs"),
-          "generic TTS objects",
-        );
-        matched = name;
-        break;
-      } catch {}
-    }
-    if (!matched) return stop();
-    layout = matched;
+    layout = recognizeGenericTtsLayoutV1(state);
   }
   const entity = legacy ? "documentId" : "entityId";
   const current = (

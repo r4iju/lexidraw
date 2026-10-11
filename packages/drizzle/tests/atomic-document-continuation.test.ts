@@ -802,3 +802,229 @@ for (const mode of ["absent", "generic"] as const)
       await db.close();
     }
   });
+
+for (const mutation of [
+  "sql bytes",
+  "split order",
+  "hash",
+  "tag",
+  "when",
+  "version",
+  "breakpoints",
+  "actual selected idx",
+  "duplicate actual entry",
+] as const)
+  test(`review repair early ${mutation} rejects before any mutation`, async () => {
+    const db = await database(true);
+    let mutations = 0;
+    let splits = 0;
+    let forwardedMutations = 0;
+    try {
+      const p = clone(db.p);
+      const entry = p.pending[0];
+      const actualEntry = p.journal[0];
+      if (!entry || !actualEntry)
+        throw new Error("literal early entry missing");
+      if (mutation === "sql bytes")
+        entry.sql.unshift(
+          "UPDATE Document SET title='unapproved pending bytes'",
+        );
+      if (mutation === "split order") entry.sql.reverse();
+      if (mutation === "hash") entry.hash = "unapproved hash";
+      if (mutation === "tag") entry.tag = "unapproved tag";
+      if (mutation === "when") entry.when++;
+      if (mutation === "version") entry.version = "unapproved version";
+      if (mutation === "breakpoints") entry.breakpoints = false;
+      if (
+        mutation === "actual selected idx" ||
+        mutation === "duplicate actual entry"
+      ) {
+        const path = join(db.config.migrationsFolder, "meta/_journal.json");
+        const journal = JSON.parse(await readFile(path, "utf8"));
+        if (mutation === "actual selected idx") {
+          journal.entries[0].idx = 3;
+          actualEntry.idx = 3;
+        } else {
+          journal.entries.push(clone(journal.entries[0]));
+          p.journal.push(clone(actualEntry));
+        }
+        await writeFile(path, JSON.stringify(journal));
+      }
+      let rejection: unknown;
+      try {
+        await run(
+          {
+            write: (work) =>
+              db.owner.write((held) =>
+                work({
+                  execute: async (statement) => {
+                    const sql =
+                      typeof statement === "string" ? statement : statement.sql;
+                    if (
+                      /^(INSERT|CREATE|ALTER|DROP|UPDATE|DELETE)/i.test(
+                        sql.trim(),
+                      )
+                    )
+                      mutations++;
+                    return held.execute(statement);
+                  },
+                  executeMultiple: async (sql) => {
+                    splits++;
+                    if (
+                      /^(INSERT|CREATE|ALTER|DROP|UPDATE|DELETE)/i.test(
+                        sql.trim(),
+                      )
+                    )
+                      mutations++;
+                    await held.executeMultiple(sql);
+                    if (
+                      /^(INSERT|CREATE|ALTER|DROP|UPDATE|DELETE)/i.test(
+                        sql.trim(),
+                      )
+                    )
+                      forwardedMutations++;
+                    if (
+                      sql ===
+                      "UPDATE Document SET title='unapproved pending bytes'"
+                    )
+                      expect(
+                        (
+                          await held.execute(
+                            "SELECT hex(CAST(title AS BLOB)) AS title FROM Document",
+                          )
+                        ).rows.map((row) => ({ title: row.title })),
+                      ).toEqual([
+                        {
+                          title:
+                            "756E617070726F7665642070656E64696E67206279746573",
+                        },
+                      ]);
+                  },
+                }),
+              ),
+          },
+          db.config,
+          p,
+        );
+      } catch (error) {
+        rejection = error;
+      }
+      console.info(
+        JSON.stringify({
+          repair: mutation,
+          mutations,
+          forwardedMutations,
+          splits,
+          rejection: String(rejection),
+        }),
+      );
+      expect(await observe(db.url)).toEqual(expected.earlyBaseline);
+      expect(mutations).toBe(0);
+      expect(forwardedMutations).toBe(0);
+      expect(splits).toBe(0);
+      expect(rejection).toMatchObject({ committed: false });
+    } finally {
+      await db.close();
+    }
+  });
+
+test("review repair preexisting absentCreated generic TTS completes then fresh repeats with live edits", async () => {
+  const oracle = JSON.parse(
+    await readFile(join(fixture, "generic-absent-created.json"), "utf8"),
+  ) as {
+    baseline: State;
+    completed: State;
+  };
+  const db = await database();
+  let normalization = 0;
+  try {
+    const c = createClient({ url: db.url });
+    try {
+      await c.execute("PRAGMA foreign_keys=off");
+      await c.executeMultiple(
+        await readFile(join(fixture, "generic-absent-created.sql"), "utf8"),
+      );
+    } finally {
+      c.close();
+    }
+    const p = db.p;
+    p.baseline = clone(oracle.baseline);
+    p.completed = clone(oracle.completed);
+    expect(await observe(db.url)).toEqual(oracle.baseline);
+    expect(
+      await run(
+        decorated(db.owner, async (_e, sql) => {
+          if (
+            /^(ALTER TABLE TtsJobs|DROP INDEX TtsJobs|CREATE INDEX TtsJobs)/.test(
+              sql.trim(),
+            )
+          )
+            normalization++;
+        }),
+        db.config,
+        p,
+      ),
+    ).toEqual({ documents: 1, shares: 1, repeated: false });
+    expect(normalization).toBe(0);
+    expect(await observe(db.url)).toEqual(oracle.completed);
+    console.info(
+      "review repair absentCreated first run complete and literal full state equal",
+    );
+    for (let attempt = 0; attempt < 3; attempt++) {
+      if (attempt > 0) {
+        const editor = createClient({ url: db.url });
+        try {
+          await editor.execute(
+            `UPDATE Entities SET title='Live edit ${attempt}' WHERE id='conversion-doc-v1'`,
+          );
+        } finally {
+          editor.close();
+        }
+      }
+      const edited = clone(oracle.completed);
+      if (attempt > 0) {
+        const row = edited.tables.Entities?.rows.find(
+          (r) => r.v0 === "636F6E76657273696F6E2D646F632D7631",
+        );
+        if (!row) throw new Error("literal converted row missing");
+        row.v1 = Buffer.from(`Live edit ${attempt}`)
+          .toString("hex")
+          .toUpperCase();
+      }
+      expect(await observe(db.url)).toEqual(edited);
+      let writes = 0;
+      let splits = 0;
+      const fresh = createFileMigrationOwner(db.url);
+      const owner: MigrationOwner = {
+        write: (work) =>
+          fresh.write((held) =>
+            work({
+              execute: async (statement) => {
+                const sql =
+                  typeof statement === "string" ? statement : statement.sql;
+                if (
+                  /^(INSERT|CREATE|ALTER|DROP|UPDATE|DELETE)/i.test(sql.trim())
+                )
+                  writes++;
+                return held.execute(statement);
+              },
+              executeMultiple: async (sql) => {
+                splits++;
+                await held.executeMultiple(sql);
+              },
+            }),
+          ),
+      };
+      expect(await run(owner, db.config, p)).toEqual({
+        documents: 1,
+        shares: 1,
+        repeated: true,
+      });
+      expect(writes).toBe(0);
+      expect(splits).toBe(0);
+      expect(await observe(db.url)).toEqual(edited);
+    }
+  } finally {
+    await db.close();
+  }
+});

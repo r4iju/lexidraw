@@ -22,6 +22,7 @@ import {
 } from "./atomic-modern-destination-v1.js";
 import {
   inspectHeldTtsV1,
+  recognizeGenericTtsLayoutV1,
   normalizeHeldLegacyTtsV1,
 } from "./legacy-tts-normalization.js";
 
@@ -89,11 +90,18 @@ function validateCertificates(
     stop("explicit synthetic source timestamps and destination required");
   if (p.kind === "synthetic-original0002-rollback-v1") {
     if (
+      p.journal.length !== 1 ||
+      p.journal[0]?.idx !== 2 ||
       p.pending.length !== 1 ||
       p.pending[0]?.idx !== 2 ||
       p.baseline.tables[table]
     )
       stop("unsupported early rollback baseline");
+    atomicEqual(
+      p.pending,
+      p.journal,
+      "exact actual0002 pending metadata and splits",
+    );
     return;
   }
   const checkpoint = p.baseline.tables[table];
@@ -280,9 +288,7 @@ export async function runAtomicDocumentContinuationV1(
           `completed ${name} full bytes`,
         );
       }
-      const layout = p.baseline.tables.TtsJobs
-        ? "legacyNormalized"
-        : "absentCreated";
+      const layout = recognizeGenericTtsLayoutV1(before);
       const result = await restoreArchivedLegacyDocuments(
         held,
         p.batch,
