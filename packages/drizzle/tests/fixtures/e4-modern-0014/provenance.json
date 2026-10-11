@@ -1,0 +1,181 @@
+{
+  "mode": "modeled0014 checkpoint, not historical replay 0..14",
+  "source": {
+    "path": "packages/drizzle/drizzle/meta/0014_snapshot.json",
+    "sourcePin": "429124e2e37315ebaf5b25f5991ca97d181722aa",
+    "sourceBlobSHA": "2f60739410ac9a7b91486681daa1c8569ffc6f05",
+    "ranges": [
+      [
+        1,
+        2140
+      ]
+    ],
+    "rangeMeaning": "complete committed file inventoried; no execution",
+    "history": {
+      "introducedAt": "be017d3af3303ae103e787a3df33edd77da870e5",
+      "lastChangedAt": "9c1a5f8f299a2932ba80026edefbf8031af40ad1",
+      "historyScope": "ancestors of sourcePin in cached Git only"
+    },
+    "id": "9d6eaaec-3986-4d40-aeef-0a487c33f1ff",
+    "prevId": "2b92e6ff-7dcd-40cd-a8bf-11c3bbb58d14",
+    "version": "6",
+    "tableCount": 23,
+    "bindingQualification": "Numeric filename association plus UUID predecessor metadata; not evidence every alternate same-number SQL ran."
+  },
+  "schemaSha256": "c55ca522d3b994960ad4e2c6f64118b5f391c3b9b9b5b29777b06c1658d665af",
+  "derivation": "Mechanical ordered rendering of all tables, columns/types/defaults/nullability/PK/autoincrement/FK actions, composite PKs, unique/check constraints and indexes including partial predicates from pinned JSON. No current TS input.",
+  "ledger": {
+    "hash": "78ab410710c6ad4e7969c31273fccb3e8f226c2fa8ad7ad94b7e20c0b7e6c54c",
+    "created_at": 1761866938152
+  },
+  "genericInputs": [
+    {
+      "sql": {
+        "path": "packages/drizzle/drizzle/0015_tts_jobs.sql",
+        "sourcePin": "429124e2e37315ebaf5b25f5991ca97d181722aa",
+        "sourceBlobSHA": "05397a0110f7ad8915c4455330b0ebc19b37fd2a",
+        "ranges": [
+          [
+            1,
+            18
+          ]
+        ],
+        "rangeMeaning": "complete committed file inventoried; no execution"
+      },
+      "history": {
+        "introducedAt": "c0f3f625e8644d00753e2f6604dfe5271b69bff0",
+        "lastChangedAt": "c0f3f625e8644d00753e2f6604dfe5271b69bff0",
+        "historyScope": "ancestors of sourcePin in cached Git only"
+      },
+      "journaled": false,
+      "createdTables": [
+        "TtsJobs"
+      ],
+      "sameNumberJournalTags": [
+        "0015_private_pro"
+      ],
+      "snapshotBinding": "No tag-specific committed snapshot; numeric snapshot, if present, belongs to journaled alternate.",
+      "schemaStatements": [
+        {
+          "line": 1,
+          "text": "CREATE TABLE IF NOT EXISTS `TtsJobs` ("
+        },
+        {
+          "line": 17,
+          "text": "CREATE INDEX IF NOT EXISTS `TtsJobs_documentId_idx` ON `TtsJobs` (`documentId`);"
+        },
+        {
+          "line": 18,
+          "text": "CREATE INDEX IF NOT EXISTS `TtsJobs_status_idx` ON `TtsJobs` (`status`);"
+        }
+      ]
+    },
+    {
+      "sql": {
+        "path": "packages/drizzle/drizzle/0016_add_planned_count_to_tts_jobs.sql",
+        "sourcePin": "429124e2e37315ebaf5b25f5991ca97d181722aa",
+        "sourceBlobSHA": "7c809a9370db4cb7bddcbcf0e6fa531d624b645a",
+        "ranges": [
+          [
+            1,
+            2
+          ]
+        ],
+        "rangeMeaning": "complete committed file inventoried; no execution"
+      },
+      "history": {
+        "introducedAt": "c0f3f625e8644d00753e2f6604dfe5271b69bff0",
+        "lastChangedAt": "c0f3f625e8644d00753e2f6604dfe5271b69bff0",
+        "historyScope": "ancestors of sourcePin in cached Git only"
+      },
+      "journaled": false,
+      "createdTables": [],
+      "sameNumberJournalTags": [
+        "0016_pro_billing_events"
+      ],
+      "snapshotBinding": "No tag-specific committed snapshot; numeric snapshot, if present, belongs to journaled alternate.",
+      "schemaStatements": [
+        {
+          "line": 1,
+          "text": "ALTER TABLE `TtsJobs` ADD COLUMN `plannedCount` integer;"
+        }
+      ]
+    },
+    {
+      "sql": {
+        "path": "packages/drizzle/drizzle/0017_make_tts_jobs_generic.sql",
+        "sourcePin": "429124e2e37315ebaf5b25f5991ca97d181722aa",
+        "sourceBlobSHA": "a7f680163cb6cebb780a4c5811fcf032eb47e39b",
+        "ranges": [
+          [
+            1,
+            6
+          ]
+        ],
+        "rangeMeaning": "complete committed file inventoried; no execution"
+      },
+      "history": {
+        "introducedAt": "04bb63ca7f294c45f1cb6881f98298ebcc50fab6",
+        "lastChangedAt": "04bb63ca7f294c45f1cb6881f98298ebcc50fab6",
+        "historyScope": "ancestors of sourcePin in cached Git only"
+      },
+      "journaled": false,
+      "createdTables": [],
+      "sameNumberJournalTags": [],
+      "snapshotBinding": "No tag-specific committed snapshot; numeric snapshot, if present, belongs to journaled alternate.",
+      "schemaStatements": [
+        {
+          "line": 2,
+          "text": "ALTER TABLE `TtsJobs` RENAME COLUMN `documentId` TO `entityId`;"
+        },
+        {
+          "line": 5,
+          "text": "DROP INDEX IF EXISTS `TtsJobs_documentId_idx`;"
+        },
+        {
+          "line": 6,
+          "text": "CREATE INDEX `TtsJobs_entityId_idx` ON `TtsJobs` (`entityId`);"
+        }
+      ]
+    },
+    {
+      "sql": {
+        "path": "packages/drizzle/drizzle/0023_tts_job_runs.sql",
+        "sourcePin": "429124e2e37315ebaf5b25f5991ca97d181722aa",
+        "sourceBlobSHA": "3749a78c857f8957a3dd7f8c26ff622f9274d402",
+        "ranges": [
+          [
+            1,
+            1
+          ]
+        ],
+        "rangeMeaning": "complete committed file inventoried; no execution"
+      },
+      "history": {
+        "introducedAt": "0e9f97874677e26cbefc7dbbb7a0c394bebdb49f",
+        "lastChangedAt": "0e9f97874677e26cbefc7dbbb7a0c394bebdb49f",
+        "historyScope": "ancestors of sourcePin in cached Git only"
+      },
+      "journaled": false,
+      "createdTables": [],
+      "sameNumberJournalTags": [],
+      "snapshotBinding": "No tag-specific committed snapshot; numeric snapshot, if present, belongs to journaled alternate.",
+      "schemaStatements": [
+        {
+          "line": 1,
+          "text": "ALTER TABLE `TtsJobs` ADD `runId` text;"
+        }
+      ]
+    }
+  ],
+  "supportedTtsShapes": [
+    "absent",
+    "exact complete generic"
+  ],
+  "excluded": [
+    "partial",
+    "legacy documentId",
+    "historical component replay"
+  ],
+  "seed": "Synthetic literal rows only; saved elements.tts follows committed persist-to-entity contract; storage.test strings are never fetched."
+}
