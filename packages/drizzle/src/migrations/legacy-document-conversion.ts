@@ -2,6 +2,7 @@ import {
   assertSupportedDocumentRootV1,
   assertSupportedLegacyAudioV1,
 } from "../document-payload-v1.js";
+import { verifyCachedModernDestinationV1 } from "./cached-modern-destination-v1.js";
 import type { InValue } from "@libsql/client";
 import type { MigrationExecutor } from "./file-migration-owner.js";
 import {
@@ -11,7 +12,7 @@ import {
 
 export interface LegacyDocumentConversionBatch extends OriginalDocumentBatch {
   timestampProvenance: { unit: "unix-milliseconds"; evidence: string };
-  destination: "standalone-modern-v1";
+  destination: "standalone-modern-v1" | "cached-modern-0036-v1";
   /** Explicit one-to-one existing User -> Users IDs; no identity creation. */
   userIds: readonly string[];
 }
@@ -699,23 +700,29 @@ async function verify(
   }
 }
 
-/** Standalone modern projection only. Caller owns the already-held atomic write and settlement. */
+/** Explicit bounded destination projection. Caller owns the held atomic write and settlement. */
 export async function convertLegacyDocuments(
   held: MigrationExecutor,
   batch: LegacyDocumentConversionBatch,
 ): Promise<{ documents: number; shares: number; repeated: boolean }> {
   if (
-    batch.destination !== "standalone-modern-v1" ||
+    !["standalone-modern-v1", "cached-modern-0036-v1"].includes(
+      batch.destination,
+    ) ||
     batch.timestampProvenance?.unit !== "unix-milliseconds" ||
     !nonempty(batch.timestampProvenance.evidence) ||
     !Array.isArray(batch.userIds) ||
     batch.userIds.some((id) => typeof id !== "string")
   )
     stop("explicit destination, identities and timestamp provenance required");
-  const master = await modernDestination(held);
+  const master =
+    batch.destination === "cached-modern-0036-v1"
+      ? await verifyCachedModernDestinationV1(held)
+      : await modernDestination(held);
   canonicalCollisionNames(master);
   await identityParent(held, "User");
-  await identityParent(held, "Users");
+  if (batch.destination === "standalone-modern-v1")
+    await identityParent(held, "Users");
   await captureLegacyDocuments(held, batch);
   // Reconcile every newly captured raw receipt before trusting its tuples for mapping.
   await captureLegacyDocuments(held, batch);
