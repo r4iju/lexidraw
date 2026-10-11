@@ -14,6 +14,30 @@ const Event = z.discriminatedUnion("kind", [
   z.strictObject({ kind: z.literal("operation"), operation: Operation }),
   z.strictObject({ kind: z.literal("error"), message: z.string() }),
 ]);
+/** Scoped client submission identity; recovery reads cannot turn into another generation. */
+export class OwnedChatSubmission {
+  private pending: { idempotencyKey: string; input: ChatInput } | null = null;
+  submitted(idempotencyKey: string, input: ChatInput) {
+    this.pending = { idempotencyKey, input };
+  }
+  confirmed() {
+    this.pending = null;
+  }
+  async beforeNewTurn(
+    read: (input: {
+      idempotencyKey: string;
+      input: ChatInput;
+    }) => Promise<z.infer<typeof Operation>>,
+  ) {
+    if (!this.pending) return;
+    const operation = Operation.parse(await read(this.pending));
+    if (["settled", "cancelled", "refunded"].includes(operation.state))
+      this.pending = null;
+    throw new Error(
+      "Refresh the owned chat result or cancel the owned chat before starting another turn.",
+    );
+  }
+}
 export function proChatPort(
   input: ChatInput,
   deps: {
@@ -24,27 +48,42 @@ export function proChatPort(
       input: ChatInput;
       quote: ChatQuote;
     }): Promise<z.infer<typeof Operation>>;
+    recover?(input: {
+      idempotencyKey: string;
+      input: ChatInput;
+    }): Promise<z.infer<typeof Operation>>;
     cancel(id: string): Promise<unknown>;
     fetch(request: Request): Promise<Response>;
     origin: string;
     idempotencyKey: string;
+    submission?: OwnedChatSubmission;
   },
 ): ChatPort {
   return {
     async *stream(_request, signal) {
+      await deps.submission?.beforeNewTurn(async (input) => {
+        if (!deps.recover) throw new Error(CHAT_UNCERTAIN);
+        return deps.recover(input);
+      });
       const quote = ChatQuoteSchema.parse(await deps.quote(input));
       if (signal.aborted || !(await deps.confirm(quote)))
         throw new ChatDeclined();
       // Await the ID even after the abort so the durable reservation is never orphaned.
       const acceptance = { idempotencyKey: deps.idempotencyKey, input, quote };
+      deps.submission?.submitted(deps.idempotencyKey, input);
       let accepted: unknown;
       try {
         accepted = await deps.accept(acceptance);
       } catch {
-        // Acceptance only reserves. Replaying the same key recovers a lost ID without provider dispatch.
-        accepted = await deps.accept(acceptance);
+        // Recover only existing work. A lost reply must never admit or dispatch another operation.
+        if (!deps.recover) throw new Error(CHAT_UNCERTAIN);
+        accepted = await deps.recover({
+          idempotencyKey: deps.idempotencyKey,
+          input,
+        });
       }
       const operation = Operation.parse(accepted);
+      deps.submission?.confirmed();
       // Only an explicit Stop cancels. Leaving the page detaches while the server settles the operation.
       const cancel = () => {
         if (chatStopped(signal)) void deps.cancel(operation.id).catch(() => {});

@@ -1,5 +1,7 @@
 import { ChatInput } from "~/lib/generation/chat";
-import { ChatAccept, type ProChat } from "~/server/pro/chat";
+import { ChatAccept, chatIdentity, type ProChat } from "~/server/pro/chat";
+import { Operation } from "~/server/pro/contracts";
+import type { AgentDocuments } from "~/server/pro/agent-operation";
 import { TRPCError } from "@trpc/server";
 import { eq } from "drizzle-orm";
 import * as schema from "@packages/drizzle/drizzle-schema";
@@ -32,6 +34,7 @@ export function createProRouter(deps: {
   ledger: () => ProLedger;
   textAvailable?: boolean;
   chat?: () => ProChat;
+  documents?: () => Pick<AgentDocuments, "read">;
   billing?: () => SandboxBilling;
   appleBilling?: () => AppleSandboxBilling;
   dispatch: (id: string, text: string, account: string) => Promise<unknown>;
@@ -56,7 +59,75 @@ export function createProRouter(deps: {
     reason:
       "Pro text is Coming soon until provider access, quality and output bounds are verified. Local and device-key alternatives remain available.",
   });
+  const documentScope = z.strictObject({
+    documentId: z.string().min(1).max(100),
+  });
+  const readDocument = async (account: string, document: string) => {
+    if (!deps.documents) throw new ProError("Document reads unavailable");
+    await deps.documents().read(account, document);
+  };
+  const scopedChat = async (account: string, document: string, id: string) => {
+    await readDocument(account, document);
+    const operation = await deps.ledger().operation(account, id);
+    const [binding] = await deps
+      .ledger()
+      .query(
+        "SELECT document_id FROM pro_chat_documents WHERE operation_id=?",
+        [id],
+      );
+    if (operation.feature !== "chat" || binding?.document_id !== document)
+      throw new ProError("Chat document identity does not match");
+    return operation;
+  };
   return createTRPCRouter({
+    chatUnscoped: procedure.query(async ({ ctx }) => {
+      const account = ctx.session.user.id;
+      const rows = await deps
+        .ledger()
+        .query(
+          "SELECT o.* FROM pro_operations o WHERE o.account_id=? AND o.feature='chat' AND NOT EXISTS (SELECT 1 FROM pro_chat_documents d WHERE d.operation_id=o.id) AND (o.state IN ('reserved','running','unknown') OR o.id=(SELECT x.id FROM pro_operations x WHERE x.account_id=? AND x.feature='chat' AND x.state IN ('settled','cancelled','refunded') AND NOT EXISTS (SELECT 1 FROM pro_chat_documents y WHERE y.operation_id=x.id) ORDER BY x.created_at DESC,x.rowid DESC LIMIT 1)) ORDER BY o.created_at DESC,o.rowid DESC",
+          [account, account],
+        );
+      return rows.map((row) => Operation.parse(row));
+    }),
+    chatCurrent: procedure
+      .input(documentScope)
+      .query(async ({ ctx, input }) => {
+        const account = ctx.session.user.id;
+        await readDocument(account, input.documentId);
+        // Preserve every outstanding identity plus the latest terminal result. Reads never dispatch or expire work.
+        const rows = await deps
+          .ledger()
+          .query(
+            "SELECT o.* FROM pro_operations o JOIN pro_chat_documents d ON d.operation_id=o.id WHERE o.account_id=? AND d.document_id=? AND (o.state IN ('reserved','running','unknown') OR o.id=(SELECT x.id FROM pro_operations x JOIN pro_chat_documents y ON y.operation_id=x.id WHERE x.account_id=? AND y.document_id=? AND x.state IN ('settled','cancelled','refunded') ORDER BY x.created_at DESC,x.rowid DESC LIMIT 1)) ORDER BY o.created_at DESC,o.rowid DESC",
+            [account, input.documentId, account, input.documentId],
+          );
+        return rows.map((row) => Operation.parse(row));
+      }),
+    chatRecovery: procedure
+      .input(
+        documentScope.extend({
+          idempotencyKey: z.string().min(1).max(100),
+          input: ChatInput,
+        }),
+      )
+      .query(async ({ ctx, input }) => {
+        const operation = await deps
+          .ledger()
+          .operationByKey(
+            ctx.session.user.id,
+            input.idempotencyKey,
+            chatIdentity(input.input).hash,
+            "chat",
+          );
+        return scopedChat(ctx.session.user.id, input.documentId, operation.id);
+      }),
+    chatCancel: procedure
+      .input(documentScope.extend({ id: z.string().min(1).max(100) }))
+      .mutation(async ({ ctx, input }) => {
+        await scopedChat(ctx.session.user.id, input.documentId, input.id);
+        return deps.ledger().cancel(ctx.session.user.id, input.id);
+      }),
     textCapability: procedure.query(textCapability),
     chatCapability: procedure.query(() => ({
       available: !!deps.chat,
@@ -87,6 +158,8 @@ export function createProRouter(deps: {
         .where(eq(schema.users.id, ctx.session.user.id));
       if (user?.config?.aiPower?.mode !== "pro")
         throw new ProError("Select Pro in AI Power");
+      if (input.documentId)
+        await readDocument(ctx.session.user.id, input.documentId);
       return deps
         .chat()
         .accept(
@@ -94,6 +167,7 @@ export function createProRouter(deps: {
           input.idempotencyKey,
           input.input,
           input.quote,
+          input.documentId,
         );
     }),
     appleSandboxGate: procedure.query(async ({ ctx }) => {
@@ -200,6 +274,26 @@ export function createProRouter(deps: {
           }
         }
         return ledger.operation(ctx.session.user.id, operation.id);
+      }),
+    autocompleteRecovery: procedure
+      .input(AutocompleteInput)
+      .query(({ ctx, input }) => {
+        const request = inputIdentity({
+          idempotencyKey: input.idempotencyKey,
+          text: JSON.stringify({
+            title: input.title,
+            before: input.before,
+            after: input.after,
+          }),
+        });
+        return deps
+          .ledger()
+          .operationByKey(
+            ctx.session.user.id,
+            request.idempotencyKey,
+            request.hash,
+            "autocomplete",
+          );
       }),
     operation: procedure
       .input(z.strictObject({ id: z.string() }))

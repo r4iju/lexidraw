@@ -5,8 +5,10 @@ import { proTextWorkflow } from "~/workflows/pro-text/workflow";
 import { proLedger } from "./runtime";
 import { sandboxBilling } from "./billing-runtime";
 import { appleSandboxBilling } from "./apple-runtime";
+import { SqlAgentDocuments } from "./agent-documents";
 export const proRouter = createProRouter({
   ledger: proLedger,
+  documents: () => new SqlAgentDocuments(proLedger()),
   textAvailable: false,
   chat: PRO_CHAT_AVAILABLE ? proChat : undefined,
   billing: sandboxBilling,

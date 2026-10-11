@@ -50,15 +50,17 @@ extension Session {
  }
 }
 @MainActor @Observable public final class NativeAgentFlow {
- public enum State {case loading,ready,unavailable(String),quoting,quote(String,ProAgentQuote,String),running(String),result(ProAgentResult),error(String)}
+ public enum State {case loading,ready,unavailable(String),quoting,quote(String,ProAgentQuote,String),acceptanceUncertain(String,ProAgentQuote,String),running(String),result(ProAgentResult),error(String)}
  public private(set) var readState: ProReadState = .current
  public private(set) var cancellationUnconfirmed = false
  public enum Capability { case loading, available, unavailable(String), failed }
  public private(set) var capability: Capability = .loading
  public private(set) var state:State = .loading
+ private var generationSelected = true
+ public func selectGeneration(_ selected: Bool) { generationSelected = selected }
  public var canStart: Bool {
-  guard case .available = capability, readState == .current else { return false }
-  switch state { case .ready, .quote, .error: return true; case .result(let result): return !["reserved","running","unknown"].contains(result.operation.state); default: return false }
+  guard generationSelected, case .available = capability, readState == .current else { return false }
+  switch state { case .ready, .quote, .acceptanceUncertain, .error: return true; case .result(let result): return !["reserved","running","unknown"].contains(result.operation.state); default: return false }
  }
  private let session:Session
  private let document:String
@@ -69,6 +71,7 @@ extension Session {
   do {
    _ = try session.aiHandle.existing()
    if let current = try await session.currentProAgent(document: document) { state = .result(current) }
+   else if case .acceptanceUncertain = state { /* No record yet does not invalidate a submitted identity. */ }
    else { state = .ready }
    _ = try session.aiHandle.existing()
    readState = .current
@@ -84,13 +87,16 @@ extension Session {
  }
  public func quote(_ prompt:String) async {guard canStart else{return};state = .quoting;do{state = .quote(prompt,try await session.quoteProAgent(document:document,prompt:prompt),UUID().uuidString)}catch{state = .error("Could not quote this document action. Check Pro access and save the document first.")}}
  public func decline(){
+  if case .acceptanceUncertain = state { return }
   if case .result(let result) = state, ["reserved","running","unknown"].contains(result.operation.state) { return }
   state = .ready
  }
  public func accept() async {
-  guard canStart, case .quote(let prompt,let quote,let id)=state else{return}
+  guard canStart else { return }
+  let prompt: String; let quote: ProAgentQuote; let id: String
+  switch state { case .quote(let p, let q, let k), .acceptanceUncertain(let p, let q, let k): prompt = p; quote = q; id = k; default: return }
   state = .running(id)
-  do{let result=try await session.startProAgent(document:document,revision:quote.revision,prompt:prompt,id:id,maximum:quote.maximum);state = .result(result)}catch{state = .quote(prompt,quote,id)}
+  do{let result=try await session.startProAgent(document:document,revision:quote.revision,prompt:prompt,id:id,maximum:quote.maximum);state = .result(result)}catch{state = .acceptanceUncertain(prompt,quote,id)}
  }
  public func refresh() async {
   guard case .result(let result) = state else { await load(); return }

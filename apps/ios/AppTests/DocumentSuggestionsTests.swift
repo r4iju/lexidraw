@@ -184,3 +184,42 @@ extension DocumentSuggestionsTests {
 private struct FailingSuggestionFixture: ClientTransport {
   func send(_ request: HTTPRequest, body: HTTPBody?, baseURL: URL, operationID: String) async throws -> (HTTPResponse, HTTPBody?) { throw URLError(.notConnectedToInternet) }
 }
+
+extension DocumentSuggestionsTests {
+  func testAuthenticatedNativeEditorAcceptanceUsesProductionRouterAndRealLedger() async throws {
+    guard ProcessInfo.processInfo.environment["LEXIDRAW_OWNED_RECOVERY_HTTP_BRIDGE"] == "1" else { throw XCTSkip("Explicit local authenticated bridge only") }
+    let origin = URL(string: "http://127.0.0.1:3091")!
+    let session = try XCTUnwrap(Account(origin: origin, store: RecoveryBridgeToken()).restore())
+    let before = try await session.proAllowance()
+    XCTAssertEqual(before.availableSubcredits, 10_000_000)
+    XCTAssertEqual(before.reservedSubcredits, 0)
+    let model = Editor()
+    try model.load(["root": ["type": "root", "version": 1, "children": [["type": "paragraph", "version": 1, "children": [["type": "text", "version": 1, "text": "Hello", "mode": "normal", "format": 0, "style": "", "detail": 0]]]]]])
+    try model.apply(.caret(Point(path: [0, 0], offset: 5, type: .text)))
+    let editor = EditorView(model: model)
+    let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 500, height: 900))
+    editor.frame = window.bounds; window.addSubview(editor); window.makeKeyAndVisible()
+    defer { window.isHidden = true }
+    editor.becomeFirstResponder()
+    editor.selectedTextRange = editor.textRange(from: editor.endOfDocument, to: editor.endOfDocument)
+    let suggestions = DocumentSuggestions()
+    await suggestions.load(session: session, editor: editor, title: "", language: "en_US")
+    defer { suggestions.stop() }
+    for _ in 0..<160 where editor.writingSuggestion == nil { try await Task.sleep(for: .milliseconds(50)) }
+    XCTAssertEqual(editor.writingSuggestion, " paid output")
+    XCTAssertEqual(try model.node(at: [0, 0])["text"], "Hello", "Paid suggestion is not inserted before acceptance")
+    XCTAssertTrue(editor.acceptWritingSuggestion())
+    XCTAssertEqual(try model.node(at: [0, 0])["text"], "Hello paid output")
+    let settled = try await session.proAllowance()
+    XCTAssertEqual(settled.availableSubcredits, 9_969_000)
+    XCTAssertEqual(settled.reservedSubcredits, 0)
+    XCTAssertEqual(settled.history.count, 1)
+    let image = UIGraphicsImageRenderer(bounds: editor.bounds).image { _ in editor.drawHierarchy(in: editor.bounds, afterScreenUpdates: true) }
+    let attachment = XCTAttachment(image: image); attachment.name = "authenticated-native-editor-accepted-paid-output"; attachment.lifetime = .keepAlways; add(attachment)
+  }
+}
+private struct RecoveryBridgeToken: TokenStore {
+  func load() throws -> String? { "lxd_291_owned_recovery_local_synthetic" }
+  func save(_ token: String) throws {}
+  func delete() throws {}
+}

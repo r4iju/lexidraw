@@ -257,3 +257,15 @@ export const proAgentEdits = sqliteTable(
   },
   (t) => [uniqueIndex("pro_agent_edit_identity").on(t.operationId, t.stepKey)],
 );
+
+export const proChatDocuments = sqliteTable(
+  "pro_chat_documents",
+  {
+    operationId: text("operation_id")
+      .primaryKey()
+      .notNull()
+      .references(() => proOperations.id),
+    documentId: text("document_id").notNull(),
+  },
+  (t) => [index("pro_chat_documents_document").on(t.documentId)],
+);

@@ -95,3 +95,28 @@ extension NativeProRecoveryTests {
     #expect(job.pending)
   }
 }
+
+extension NativeProRecoveryTests {
+  @Test func uncertainAcceptedActionCannotDiscardItsKeyByDecliningAndExplicitRetryKeepsIdentity() async throws {
+    let server = FakeServer { request in
+      switch request.url.path {
+      case "/api/trpc/agentPower.current": return (200, envelope("null"))
+      case "/api/trpc/agentPower.capability": return (200, envelope(#"{"available":true,"reason":"Ready"}"#))
+      case "/api/trpc/agentPower.quote": return (200, envelope(#"{"maximum":10,"revision":1}"#))
+      case "/api/trpc/agentPower.start": throw URLError(.networkConnectionLost)
+      default: throw URLError(.unsupportedURL)
+      }
+    }
+    let flow = NativeAgentFlow(session: try TestServer.session(server), document: "doc")
+    await flow.load(); await flow.quote("Edit paragraph"); await flow.accept()
+    flow.decline()
+    await flow.refresh()
+    await flow.accept()
+    let submissions = server.requests.filter { $0.url.path.hasSuffix("agentPower.start") }
+    #expect(submissions.count == 2)
+    let first = try #require(submissions.first)
+    let last = try #require(submissions.last)
+    // JSON member order is immaterial; assert the submitted identity and all inputs.
+    #expect(try JSONSerialization.data(withJSONObject: first.object, options: [.sortedKeys]) == JSONSerialization.data(withJSONObject: last.object, options: [.sortedKeys]))
+  }
+}

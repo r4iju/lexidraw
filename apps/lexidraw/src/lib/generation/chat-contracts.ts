@@ -10,6 +10,7 @@ export const ChatQuote = z.strictObject({
 });
 export const ChatAccept = z.strictObject({
   idempotencyKey: z.string().min(1).max(100),
+  documentId: z.string().min(1).max(100).optional(),
   input: ChatInput,
   quote: ChatQuote,
 });

@@ -534,3 +534,47 @@ conversation/context budget, private-image cleanup and anonymous image ACL,
 Unicode slicing, native recovery UI/storage/admission and StoreKit restore
 findings remain queued. Manifest:
 `/tmp/lexidraw-276-implementation/291-chat-lifecycle-auth-fixes.json`.
+
+## Owned operation recovery (local follow-up from 12c02429)
+
+Owned autocomplete lookup now checks account, feature, original key and bounded
+input identity independently of opt-in, selected source, entitlement and new
+provider admission. Native submission loss uses this reader rather than another
+submission. Known-ID lookup failure and explicit editor cancellation reach a
+shielded owner cancellation, retaining uncertain outcomes. Narration saved reads
+cannot replace a pending acceptance. Web and native outer document-action
+composers retain owned reports and cancellation when preference/capability reads
+fail or the source changes; failed acceptance retains its quoted key, and a read
+retry does not discard that key or decline the action.
+
+New chat reservations bind a non-secret document ID atomically with the existing
+account operation in local migration `0031_pro_chat_recovery`. Account/document
+read and explicit cancellation require current document access, independently of
+new-generation admission; reads never dispatch, repeat generation or expire an
+issued attempt. Web and native recovery surfaces expose every outstanding
+operation and the latest terminal result, including accepted-before-stream
+navigation detach. Unissued reservations release only on explicit owner cancel;
+completed work remains charged and unknown issued work remains reserved. Earlier
+hash-only reservations remain separately labelled account-owned work, with no
+invented document origin. No prompts or attachment content were added to durable
+storage. A lost native/web acceptance retains its original client submission
+identity; recovery reads never replace it with a new paid key.
+
+The existing BrowserHarness autocomplete journey passed after its active-period
+fixture was aligned. A separate native EditorView acceptance test used the real
+HTTP bearer resolver, production Pro router and file-backed ledger, with a
+synthetic provider adapter: one provider attempt, 31,000 subcredits charged,
+remaining reservation released, and text inserted only on explicit acceptance.
+This is local integration proof, not real supplier or hosted execution proof.
+Exact RED/GREEN logs, setup failures, owned paths and checks are in
+`/tmp/lexidraw-276-implementation/291-owned-recovery-fixes.json`.
+
+#276/#291 remain incomplete and production gates stay closed. Hosted `after()`
+lifetime, real provider/hardware/storage/payment/migration/release evidence and
+all unrelated prior objections remain open. Audio S-D1/S-D2 (D728-S1/S2), the
+possible corrupt/oversized cold-checkpoint attach lock S-D5, web deferred blur
+V5-B08-S1, web lost-submission adapter V5-B08-R2 and period quote floor remain
+queued; this slice does not claim those requirements met. Native detector
+saturation testing runs in a separate process. The new migration was applied only
+to local synthetic ledgers. No push, merge, cloud/provider/payment/storage call,
+production migration, release preparation or master integration occurred.

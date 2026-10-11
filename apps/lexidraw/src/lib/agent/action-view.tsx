@@ -9,7 +9,7 @@ export type AgentViewState =
   | { kind: "unavailable"; reason: string }
   | { kind: "busy" }
   | { kind: "error"; reason: string }
-  | { kind: "quote"; maximum: number }
+  | { kind: "quote" | "acceptanceUncertain"; maximum: number }
   | {
       kind: "result";
       operation: Pick<
@@ -24,12 +24,14 @@ export function AgentActionView({
   onAccept,
   onDecline,
   onCancel,
+  onRetry = onDecline,
 }: {
   state: AgentViewState;
   onSubmit: (prompt: string) => void;
   onAccept: () => void;
   onDecline: () => void;
   onCancel: () => void;
+  onRetry?: () => void;
 }) {
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -65,20 +67,28 @@ export function AgentActionView({
       {state.kind === "error" && (
         <>
           <p role="alert">{state.reason}</p>
-          <Button onClick={onDecline}>Try again</Button>
+          <Button onClick={onRetry}>Try again</Button>
         </>
       )}
       {state.kind === "busy" && (
         <p role="status">Checking or running the document action...</p>
       )}
-      {state.kind === "quote" && (
+      {(state.kind === "quote" || state.kind === "acceptanceUncertain") && (
         <div>
           <p>
             Maximum reservation: {state.maximum / 1_000_000} credits. Final
             consumption can be lower. This maximum includes all supported paid
             steps.
           </p>
-          <Button onClick={onDecline}>Decline</Button>
+          {state.kind === "acceptanceUncertain" ? (
+            <p role="alert">
+              Acceptance could not be confirmed. This quoted identity is
+              retained. An explicit retry uses the same identity; no automatic
+              new action was started.
+            </p>
+          ) : (
+            <Button onClick={onDecline}>Decline</Button>
+          )}
           <Button onClick={onAccept}>Accept maximum</Button>
         </div>
       )}

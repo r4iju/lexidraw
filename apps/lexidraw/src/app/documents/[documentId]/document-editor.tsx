@@ -520,7 +520,7 @@ function EditorHandler({
       />
       <EditorRegistryProvider>
         <ToolbarContext>
-          <LLMProvider initialConfig={initialLlmConfig}>
+          <LLMProvider initialConfig={initialLlmConfig} documentId={entity.id}>
             <ImageGenerationProvider entityId={entity.id} signedIn={signedIn}>
               <LexicalImageGenerationProvider>
                 <ImageProvider>

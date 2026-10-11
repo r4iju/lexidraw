@@ -350,6 +350,8 @@ actor HarnessServer: ClientTransport {
             "data": [
               "json": [
                 "eligible": true, "entitled": true,
+                "entitlementPeriodId": "fixture-active-period",
+                "autocompleteMaximumSubcredits": 1_120_000,
                 "availableSubcredits": 10_000_000 - suggestionCharges, "reservedSubcredits": 0,
                 "renewalAt": NSNull(),
                 "history": suggestionCharges == 0

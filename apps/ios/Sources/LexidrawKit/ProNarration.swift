@@ -238,6 +238,7 @@ public enum ProReadState: Equatable, Sendable {
     }
   }
   public func saved() async {
+    if case .accepting = state { return }
     if case .job(let job) = state, job.pending || job.state == "unknown" { await refresh(); return }
     if case .acceptanceUncertain = state { return }
     if case .job = state {} else { state = .loading }

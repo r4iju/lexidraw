@@ -84,20 +84,43 @@ extension Session {
     guard quote.maximum > 0, quote.maximum <= 1_000_000_000 else { throw NativeChatError.uncertain }
     return ProChatQuote(maximum: quote.maximum, policy: quote.policy, json: data)
   }
-  public func acceptChat(_ input: NativeChatInput, quote: ProChatQuote, idempotencyKey: String)
+  public func acceptChat(_ input: NativeChatInput, quote: ProChatQuote, idempotencyKey: String, document: String? = nil)
     async throws -> ProChatOperation
   {
-    let body = try JSONSerialization.data(withJSONObject: [
+    var object: [String: Any] = try [
       "input": JSONSerialization.jsonObject(with: JSONEncoder().encode(input)),
       "quote": JSONSerialization.jsonObject(with: quote.json), "idempotencyKey": idempotencyKey,
-    ])
+    ]
+    if let document { object["documentId"] = document }
+    let body = try JSONSerialization.data(withJSONObject: object)
     let response: Data
     do { response = try await chatRPC("pro.chatAccept", json: body) }
     catch {
-      // Acceptance only reserves; one replay with the same key recovers its ID without paid dispatch.
-      response = try await chatRPC("pro.chatAccept", json: body)
+      guard let document else { throw NativeChatError.uncertain }
+      return try await recoverChat(input, idempotencyKey: idempotencyKey, document: document)
     }
     return try JSONDecoder().decode(ProChatOperation.self, from: response)
+  }
+  public func recoverChat(_ input: NativeChatInput, idempotencyKey: String, document: String) async throws -> ProChatOperation {
+    let lookup = try JSONSerialization.data(withJSONObject: ["documentId": document, "idempotencyKey": idempotencyKey, "input": JSONSerialization.jsonObject(with: JSONEncoder().encode(input))])
+    let response = try await chatRPC("pro.chatRecovery", json: lookup, query: true)
+    return try JSONDecoder().decode(ProChatOperation.self, from: response)
+  }
+  public func unscopedChats() async throws -> [ProChatOperation] {
+    let data = try await chatRPC("pro.chatUnscoped", json: nil)
+    return try JSONDecoder().decode([ProChatOperation].self, from: data)
+  }
+  public func cancelUnscopedChat(_ id: String) async throws -> ProChatOperation {
+    let data = try await chatRPC("pro.cancel", json: JSONEncoder().encode(["id": id]))
+    return try JSONDecoder().decode(ProChatOperation.self, from: data)
+  }
+  public func ownedChats(document: String) async throws -> [ProChatOperation] {
+    let data = try await chatRPC("pro.chatCurrent", json: JSONEncoder().encode(["documentId": document]), query: true)
+    return try JSONDecoder().decode([ProChatOperation].self, from: data)
+  }
+  public func cancelOwnedChat(document: String, id: String) async throws -> ProChatOperation {
+    let data = try await chatRPC("pro.chatCancel", json: JSONEncoder().encode(["documentId": document, "id": id]))
+    return try JSONDecoder().decode(ProChatOperation.self, from: data)
   }
   public func cancelChat(_ id: String) async throws {
     _ = try await chatRPC("pro.cancel", json: JSONEncoder().encode(["id": id]))
@@ -165,15 +188,22 @@ extension Session {
       throw NativeChatError.uncertain
     }
   }
-  private func chatRPC(_ procedure: String, json: Data?) async throws -> Data {
+  private func chatRPC(_ procedure: String, json: Data?, query: Bool = false) async throws -> Data {
     let data = try json.map {
       try JSONSerialization.data(withJSONObject: ["json": JSONSerialization.jsonObject(with: $0)])
     }
     if let data { try NativeCredentialGuard.shared.check(data) }
+    var path = "/" + procedure
+    if query, let data {
+      var components = URLComponents(); components.path = path
+      components.queryItems = [.init(name: "input", value: String(decoding: data, as: UTF8.self))]
+      guard let encoded = components.string else { throw NativeChatError.uncertain }
+      path = encoded
+    }
     let request = HTTPRequest(
-      method: data == nil ? .get : .post, scheme: nil, authority: nil, path: "/" + procedure)
+      method: data == nil || query ? .get : .post, scheme: nil, authority: nil, path: path)
     let (response, body) = try await connection.exchange(
-      request, json: data, operationID: procedure, baseURL: origin.appending(path: "api/trpc"))
+      request, json: query ? nil : data, operationID: procedure, baseURL: origin.appending(path: "api/trpc"))
     guard (200..<300).contains(response.status.code), let body else {
       throw NativeChatError.unavailable
     }

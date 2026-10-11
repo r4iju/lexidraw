@@ -23,6 +23,7 @@ async function fixture(
     "0016_pro_billing_events.sql",
     "0029_sandbox_billing.sql",
     "0030_apple_sandbox.sql",
+    "0031_pro_chat_recovery.sql",
   ])
     await client.executeMultiple(
       (
@@ -55,6 +56,13 @@ async function fixture(
   const chat = new ProChat(ledger, new ProTextOperation(ledger, transport));
   const router = createProRouter({
     ledger: () => ledger,
+    documents: () => ({
+      read: async (account: string, document: string) => {
+        if (account !== "alice" || document !== "doc")
+          throw Error("Document access denied");
+        return { revision: 1, text: "" };
+      },
+    }),
     chat: enabled ? () => chat : undefined,
     dispatch: async () => {},
   });
@@ -786,5 +794,181 @@ test("a detached run whose provider outcome is uncertain stays reserved without 
     expect(run.provider.requests()).toBe(1);
   } finally {
     run.finish();
+  }
+});
+
+test("accepted document chat recovers after detach and closed generation, releasing only unissued owned work on explicit cancel", async () => {
+  let calls = 0;
+  const f = await fixture(async () => {
+    calls++;
+    return { kind: "unknown" };
+  });
+  try {
+    const input = { prompt: "Hello" };
+    const quote = await f.caller.chatQuote(input);
+    const accepted = await f.caller.chatAccept({
+      idempotencyKey: "detached",
+      documentId: "doc",
+      input,
+      quote,
+    });
+    const closed = createProRouter({
+      ledger: () => f.ledger,
+      chat: undefined,
+      dispatch: async () => {
+        throw Error("Reader cannot dispatch");
+      },
+      documents: () => ({
+        read: async (account: string, document: string) => {
+          if (account !== "alice" || document !== "doc")
+            throw Error("Document denied");
+          return { revision: 1, text: "" };
+        },
+      }),
+    });
+    const caller = (account: string) =>
+      closed.createCaller({
+        drizzle: db,
+        schema: {},
+        session: { user: { id: account } },
+        auth: { kind: "session" },
+        headers: new Headers(),
+      } as never);
+    await db
+      .update(schema.users)
+      .set({ config: { aiPower: { mode: "local" } } })
+      .where(eq(schema.users.id, "alice"));
+    await f.ledger.revoke("owner", "alice", "No new generation");
+    expect(
+      await caller("alice").chatRecovery({
+        documentId: "doc",
+        idempotencyKey: "detached",
+        input,
+      }),
+    ).toMatchObject({ id: accepted.id, state: "reserved" });
+    expect(
+      await caller("alice").chatCurrent({ documentId: "doc" }),
+    ).toMatchObject([{ id: accepted.id, state: "reserved" }]);
+    await expect(
+      caller("foreign").chatRecovery({
+        documentId: "doc",
+        idempotencyKey: "detached",
+        input,
+      }),
+    ).rejects.toThrow();
+    await expect(
+      caller("alice").chatRecovery({
+        documentId: "doc",
+        idempotencyKey: "detached",
+        input: { prompt: "Changed" },
+      }),
+    ).rejects.toThrow();
+    await expect(
+      caller("alice").chatCancel({ documentId: "other", id: accepted.id }),
+    ).rejects.toThrow();
+    expect(
+      await caller("alice").chatCancel({ documentId: "doc", id: accepted.id }),
+    ).toMatchObject({ id: accepted.id, state: "cancelled" });
+    expect((await caller("alice").status()).reservedSubcredits).toBe(0);
+    expect(calls).toBe(0);
+    expect(
+      await caller("alice").chatCurrent({ documentId: "doc" }),
+    ).toMatchObject([{ state: "cancelled" }]);
+  } finally {
+    f.client.close();
+  }
+});
+
+test("legacy hash-only accepted chats remain recoverable by their account without inventing document provenance", async () => {
+  const f = await fixture(async () => {
+    throw Error("Reader cannot dispatch");
+  });
+  try {
+    const input = { prompt: "Before document binding" };
+    const quote = await f.caller.chatQuote(input);
+    const old = await f.caller.chatAccept({
+      idempotencyKey: "legacy-unscoped",
+      input,
+      quote,
+    });
+    expect(await f.caller.chatUnscoped()).toMatchObject([
+      { id: old.id, state: "reserved" },
+    ]);
+    await f.caller.cancel({ id: old.id });
+    expect((await f.caller.status()).reservedSubcredits).toBe(0);
+  } finally {
+    f.client.close();
+  }
+});
+
+test("fresh closed recovery router retains the latest completed result beside an uncertain newer turn without dispatch or refund", async () => {
+  let calls = 0;
+  const f = await fixture(async () =>
+    ++calls === 1
+      ? {
+          kind: "completed",
+          completion: {
+            text: "Recovered result",
+            usage: { input: 100, cachedInput: 0, output: 4 },
+            actualCostNanoUsd: 93000,
+          },
+        }
+      : { kind: "unknown" },
+  );
+  try {
+    const input = { prompt: "Hello" };
+    const quote = await f.caller.chatQuote(input);
+    const complete = await f.caller.chatAccept({
+      documentId: "doc",
+      idempotencyKey: "completed",
+      input,
+      quote,
+    });
+    await f.chat.stream("alice", complete.id, input, () => {});
+    const unknown = await f.caller.chatAccept({
+      documentId: "doc",
+      idempotencyKey: "uncertain-newer",
+      input,
+      quote,
+    });
+    await f.chat.stream("alice", unknown.id, input, () => {});
+    await f.ledger.revoke("owner", "alice", "Closed after issuance");
+    const restarted = new ProLedger(f.client, {
+      ownerAccountIds: ["owner"],
+      now: () => 1000,
+      supplierBooks: supplierFixture,
+    });
+    const closed = createProRouter({
+      ledger: () => restarted,
+      textAvailable: false,
+      documents: () => ({ read: async () => ({ text: "", revision: 1 }) }),
+      dispatch: async () => {
+        throw Error("Recovery cannot dispatch");
+      },
+    }).createCaller({
+      drizzle: db,
+      schema: {},
+      session: { user: { id: "alice" } },
+      auth: { kind: "session" },
+      headers: new Headers(),
+    } as never);
+    const recovered = await closed.chatCurrent({ documentId: "doc" });
+    expect(recovered.map((operation) => operation.id)).toEqual([
+      unknown.id,
+      complete.id,
+    ]);
+    expect(
+      recovered.find((operation) => operation.id === complete.id)?.result,
+    ).toBe("Recovered result");
+    expect(
+      (await closed.chatCancel({ documentId: "doc", id: unknown.id })).state,
+    ).toBe("unknown");
+    expect((await restarted.status("alice")).reservedSubcredits).toBe(1792000);
+    expect((await restarted.operation("alice", complete.id)).charged).toBe(
+      31000,
+    );
+    expect(calls).toBe(2);
+  } finally {
+    f.client.close();
   }
 });

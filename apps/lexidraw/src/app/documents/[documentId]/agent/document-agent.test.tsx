@@ -1,3 +1,4 @@
+import { act } from "react";
 import { afterAll, expect, mock, test } from "bun:test";
 import type { AgentViewState } from "~/lib/agent/action-view";
 import { button, click, installDom, render } from "~/test/dom";
@@ -41,6 +42,11 @@ let detail: {
   isError: boolean;
 } = { data: undefined, isPending: false, isFetching: false, isError: true };
 let accountId = "owned-account";
+let sessionStatus = "authenticated";
+let power = { isPending: false, isError: false, data: { mode: "pro" } };
+let restoreFailed = false;
+let currentEmpty = false;
+const restoreRefetch = mock(async () => {});
 let capability = {
   isPending: false,
   isError: false,
@@ -50,14 +56,14 @@ const capabilityRefetch = mock(async () => {});
 const refetch = mock(async () => {});
 mock.module("next-auth/react", () => ({
   useSession: () => ({
-    status: "authenticated",
+    status: sessionStatus,
     data: { user: { id: accountId } },
   }),
 }));
-const quote = mock(async () => {
+const quote = mock(async (): Promise<{ maximum: number; revision: number }> => {
   throw new Error("Retry must not quote a new action");
 });
-const start = mock(async () => {
+const start = mock(async (_input: unknown) => {
   throw new Error("Retry must not start or debit a new action");
 });
 const cancel = mock(async () => retained);
@@ -69,11 +75,7 @@ mock.module("~/trpc/react", () => ({
   api: {
     auth: {
       getPowerPreference: {
-        useQuery: () => ({
-          isPending: false,
-          isError: false,
-          data: { mode: "pro" },
-        }),
+        useQuery: () => ({ ...power, refetch: async () => {} }),
       },
     },
     useUtils: () => ({
@@ -87,9 +89,15 @@ mock.module("~/trpc/react", () => ({
       },
       current: {
         useQuery: ({ documentId }: { documentId: string }) => ({
-          data: documentId === "synthetic-document" ? retained : null,
+          data:
+            !restoreFailed &&
+            !currentEmpty &&
+            documentId === "synthetic-document"
+              ? retained
+              : null,
           isPending: false,
-          isError: false,
+          isError: restoreFailed,
+          refetch: restoreRefetch,
         }),
       },
       operation: { useQuery: () => ({ ...detail, refetch }) },
@@ -241,5 +249,112 @@ test("switching documents clears event-owned action data even when its operation
     expect(button("Stop further work")).toBeUndefined();
   } finally {
     await view.unmount();
+  }
+});
+
+test.each(["failed", "pending", "byok", "local"])(
+  "outer %s preference keeps owned report and cancellation accessible",
+  async (kind) => {
+    power = {
+      isPending: kind === "pending",
+      isError: kind === "failed",
+      data: { mode: kind === "local" ? "local" : "byok" },
+    };
+    const view = await render(
+      <DocumentAgent documentId="synthetic-document" />,
+    );
+    try {
+      expect(document.body.textContent).toContain("Saved paragraph");
+      expect(button("Stop further work")).toBeDefined();
+      expect(button("Review maximum")).toBeUndefined();
+      await click(button("Stop further work"));
+      expect(cancel).toHaveBeenLastCalledWith({ id: "synthetic-action" });
+    } finally {
+      await view.unmount();
+      power = { isPending: false, isError: false, data: { mode: "pro" } };
+    }
+  },
+);
+test("failed restore Try again refetches owned status without admitting new work", async () => {
+  capability = {
+    isPending: false,
+    isError: false,
+    data: { available: true, reason: "" },
+  };
+  restoreFailed = true;
+  const view = await render(<DocumentAgent documentId="synthetic-document" />);
+  try {
+    await click(button("Try again"));
+    expect(restoreRefetch).toHaveBeenCalledTimes(1);
+    expect(button("Review maximum")).toBeUndefined();
+  } finally {
+    await view.unmount();
+    restoreFailed = false;
+  }
+});
+test("signed-out outer composer provides sign-in guidance instead of permanent loading", async () => {
+  sessionStatus = "unauthenticated";
+  const view = await render(<DocumentAgent documentId="synthetic-document" />);
+  try {
+    expect(document.body.textContent).toContain("Sign in");
+    expect(document.body.textContent).not.toContain("Checking account access");
+  } finally {
+    await view.unmount();
+    sessionStatus = "authenticated";
+  }
+});
+
+test("lost cancel reply discloses uncertainty and retains the owned cancellation identity", async () => {
+  cancel.mockRejectedValueOnce(new Error("Connection lost"));
+  const view = await render(<DocumentAgent documentId="synthetic-document" />);
+  try {
+    await click(button("Stop further work"));
+    expect(document.body.textContent).toContain(
+      "Cancellation is not confirmed",
+    );
+    expect(document.body.textContent).toContain("Saved paragraph");
+    expect(button("Stop further work")).toBeDefined();
+  } finally {
+    await view.unmount();
+  }
+});
+test("lost accepted-start reply shows uncertainty and keeps the same quoted key for explicit retry", async () => {
+  currentEmpty = true;
+  capability = {
+    isPending: false,
+    isError: false,
+    data: { available: true, reason: "" },
+  };
+  quote.mockResolvedValueOnce({ maximum: 10, revision: 1 });
+  const saved = globalThis.FormData;
+  globalThis.FormData = window.FormData;
+  const view = await render(<DocumentAgent documentId="synthetic-document" />);
+  try {
+    const form = document.querySelector("form");
+    if (!form) throw Error("Missing action form");
+    const text = form.querySelector("textarea");
+    if (!text) throw Error("Missing action prompt");
+    text.value = "Edit paragraph";
+    await act(async () => {
+      form.dispatchEvent(
+        new window.Event("submit", { bubbles: true, cancelable: true }),
+      );
+    });
+    await click(button("Accept maximum"));
+    expect(document.body.textContent).toContain(
+      "Acceptance could not be confirmed",
+    );
+    const first = start.mock.calls.at(-1)?.[0];
+    expect(button("Refresh owned action")).toBeDefined();
+    await click(button("Refresh owned action"));
+    expect(document.body.textContent).toContain(
+      "Acceptance could not be confirmed",
+    );
+    await click(button("Accept maximum"));
+    expect(start.mock.calls.at(-1)?.[0]).toEqual(first);
+  } finally {
+    await view.unmount();
+    currentEmpty = false;
+    globalThis.FormData = saved;
   }
 });

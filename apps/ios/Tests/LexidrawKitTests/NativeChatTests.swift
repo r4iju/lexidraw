@@ -151,11 +151,14 @@ private func proChatServer() -> FakeServer {
     case "/api/v1/me":
       return (200, #"{"userId":"reader","email":null,"name":null,"authKind":"token","scope":"write"}"#)
     case "/api/trpc/auth.getPowerPreference": return (200, chatEnvelope(#"{"mode":"pro"}"#))
+    case "/api/trpc/pro.chatUnscoped": return (200, chatEnvelope("[]"))
+    case "/api/trpc/pro.chatCurrent": return (200, chatEnvelope("[]"))
     case "/api/trpc/pro.chatCapability": return (200, chatEnvelope(#"{"available":true,"reason":""}"#))
     case "/api/trpc/pro.chatQuote":
       return (200, chatEnvelope(#"{"maximum":1792000,"policy":"Disclosed.","periodId":"period","inputHash":"hash","book":{"version":"fixture"}}"#))
     case "/api/trpc/pro.chatAccept":
       return (200, chatEnvelope(#"{"id":"chat","state":"reserved","result":null,"charged":0,"quote":1792000}"#))
+    case "/api/trpc/pro.chatCancel": return (200, chatEnvelope(#"{"id":"chat","state":"cancelled","result":null,"charged":0,"quote":1792000}"#))
     case "/api/trpc/pro.cancel": return (200, chatEnvelope("{}"))
     default: return (500, "unavailable")
     }
@@ -174,7 +177,7 @@ extension NativeChatTests {
     return flow
   }
   private func cancellations(_ server: FakeServer) -> Int {
-    server.requests.filter { $0.url.path.hasSuffix("pro.cancel") }.count
+    server.requests.filter { $0.url.path.hasSuffix("pro.cancel") || $0.url.path.hasSuffix("pro.chatCancel") }.count
   }
   @Test func leavingWhileAcceptancePendingKeepsTheServerOperationAndNeverDispatches() async throws {
     let server = proChatServer()
@@ -195,5 +198,57 @@ extension NativeChatTests {
     }
     #expect(cancellations(server) == 1)
     #expect(server.requests.filter { $0.url.path == "/api/chat/stream" }.isEmpty)
+  }
+}
+
+extension NativeChatTests {
+  @Test func remountReadsAcceptedChatAndExplicitStopCanReleaseItAfterPreferenceCloses() async throws {
+    let server = FakeServer { request in
+      switch request.url.path {
+      case "/api/v1/me": return (200, #"{"userId":"reader","email":null,"name":null,"authKind":"token","scope":"write"}"#)
+      case "/api/trpc/auth.getPowerPreference": throw URLError(.notConnectedToInternet)
+      case "/api/trpc/pro.chatUnscoped": return (200, chatEnvelope("[]"))
+      case "/api/trpc/pro.chatCurrent":
+        #expect(request.method == .get)
+        #expect(request.url.query?.contains("doc") == true)
+        return (200, chatEnvelope(#"[{"id":"accepted-before-detach","state":"reserved","result":null,"charged":0,"quote":1792000}]"#))
+      case "/api/trpc/pro.chatCancel":
+        #expect((request.object["json"] as? [String: String])?["id"] == "accepted-before-detach")
+        #expect((request.object["json"] as? [String: String])?["documentId"] == "doc")
+        return (200, chatEnvelope(#"{"id":"accepted-before-detach","state":"cancelled","result":null,"charged":0,"quote":1792000}"#))
+      default: throw URLError(.unsupportedURL)
+      }
+    }
+    let flow = NativeChatFlow()
+    await flow.load(session: try TestServer.session(server), document: "doc", context: "")
+    flow.stop()
+    for _ in 0..<100 where !server.requests.contains(where: { $0.url.path == "/api/trpc/pro.chatCancel" }) { try await Task.sleep(for: .milliseconds(2)) }
+    #expect(server.requests.contains { $0.url.path == "/api/trpc/pro.chatCurrent" })
+    #expect(server.requests.contains { $0.url.path == "/api/trpc/pro.chatCancel" })
+    #expect(server.requests.allSatisfy { !$0.url.path.contains("chatAccept") && !$0.url.path.contains("chat/stream") })
+  }
+}
+
+extension NativeChatTests {
+  @Test func twoLostAcceptanceReadsRetainSubmissionAndNeverAllowAReplacementKey() async throws {
+    let server = FakeServer { request in
+      switch request.url.path {
+      case "/api/v1/me": return (200, #"{"userId":"reader","email":null,"name":null,"authKind":"token","scope":"write"}"#)
+      case "/api/trpc/auth.getPowerPreference": return (200, chatEnvelope(#"{"mode":"pro"}"#))
+      case "/api/trpc/pro.chatCapability": return (200, chatEnvelope(#"{"available":true,"reason":""}"#))
+      case "/api/trpc/pro.chatCurrent", "/api/trpc/pro.chatUnscoped": return (200, chatEnvelope("[]"))
+      case "/api/trpc/pro.chatQuote": return (200, chatEnvelope(#"{"maximum":1792000,"policy":"Disclosed.","periodId":"period","inputHash":"hash","book":{"version":"fixture"}}"#))
+      case "/api/trpc/pro.chatAccept", "/api/trpc/pro.chatRecovery": throw URLError(.networkConnectionLost)
+      default: throw URLError(.unsupportedURL)
+      }
+    }
+    let flow = try await quotedProChat(server)
+    flow.accept()
+    for _ in 0..<100 { if case .result = flow.state { break }; try await Task.sleep(for: .milliseconds(5)) }
+    await flow.refreshOwnedChats()
+    flow.decline(); flow.send("Hello again")
+    try await Task.sleep(for: .milliseconds(50))
+    #expect(server.requests.filter { $0.url.path.hasSuffix("pro.chatQuote") }.count == 1)
+    #expect(server.requests.filter { $0.url.path.hasSuffix("pro.chatAccept") }.count == 1)
   }
 }

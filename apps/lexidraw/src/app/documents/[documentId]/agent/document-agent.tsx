@@ -14,33 +14,51 @@ type Activity =
   | { kind: "ready"; restore: boolean }
   | { kind: "busy" }
   | { kind: "quote"; input: Input }
-  | { kind: "result"; result: Result }
+  | { kind: "acceptanceUncertain"; input: Input }
+  | { kind: "result"; result: Result; cancellation: "current" | "uncertain" }
   | { kind: "error"; reason: string };
 export function DocumentAgent({ documentId }: { documentId: string }) {
   const session = useSession();
-  const power = api.auth.getPowerPreference.useQuery();
+  const power = api.auth.getPowerPreference.useQuery(undefined, {
+    enabled: session.status === "authenticated",
+  });
+  if (session.status === "loading") return <p>Checking account access...</p>;
   if (session.status !== "authenticated")
-    return <p>Checking account access...</p>;
-  if (power.isPending) return <p>Checking AI power...</p>;
-  if (power.isError) return <p>Could not check AI power.</p>;
-  if (power.data.mode === "byok")
-    return <DeviceAgentPanel documentId={documentId} />;
-  if (power.data.mode !== "pro")
-    return <p>Document actions are unavailable with built-in local AI.</p>;
+    return <p>Sign in to read or run document actions.</p>;
+  const selected =
+    !power.isPending && !power.isError && power.data?.mode === "pro";
   return (
-    <ProDocumentAgent
-      key={JSON.stringify([session.data.user.id, documentId])}
-      accountId={session.data.user.id}
-      documentId={documentId}
-    />
+    <>
+      {power.isPending ? (
+        <p>Checking AI power...</p>
+      ) : power.isError ? (
+        <p role="alert">
+          Could not check AI power.{" "}
+          <Button onClick={() => void power.refetch()}>Retry AI power</Button>
+        </p>
+      ) : power.data.mode === "byok" ? (
+        <DeviceAgentPanel documentId={documentId} />
+      ) : power.data.mode === "local" ? (
+        <p>Document actions are unavailable with built-in local AI.</p>
+      ) : null}
+      <ProDocumentAgent
+        key={JSON.stringify([session.data.user.id, documentId])}
+        accountId={session.data.user.id}
+        documentId={documentId}
+        generationSelected={selected}
+      />
+    </>
   );
 }
+
 function ProDocumentAgent({
   documentId,
   accountId,
+  generationSelected,
 }: {
   documentId: string;
   accountId: string;
+  generationSelected: boolean;
 }) {
   const utils = api.useUtils();
   const [activity, setActivity] = useState<Activity>({
@@ -60,15 +78,22 @@ function ProDocumentAgent({
   const current = api.agentPower.current.useQuery(
     { documentId },
     {
-      enabled: activity.kind === "ready" && activity.restore,
+      enabled:
+        (activity.kind === "ready" && activity.restore) ||
+        activity.kind === "acceptanceUncertain",
     },
   );
   const candidate =
     activity.kind === "result"
       ? activity.result
-      : activity.kind === "ready" && activity.restore
-        ? current.data
-        : null;
+      : activity.kind === "acceptanceUncertain"
+        ? current.data?.operation.idempotency_key ===
+          activity.input.idempotencyKey
+          ? current.data
+          : null
+        : activity.kind === "ready" && activity.restore
+          ? current.data
+          : null;
   const result =
     candidate?.operation.account_id === accountId ? candidate : null;
   const operation = api.agentPower.operation.useQuery(
@@ -89,34 +114,56 @@ function ProDocumentAgent({
       ? operation.data
       : null;
   const generationAllowed =
+    generationSelected &&
     !capability.isPending &&
     !capability.isError &&
     capability.data?.available === true;
   const state: AgentViewState = result
     ? { kind: "result", ...(detail ?? result) }
-    : capability.isPending
+    : activity.kind === "ready" && activity.restore && current.isPending
       ? { kind: "busy" }
-      : capability.isError
-        ? { kind: "error", reason: "Could not check document actions." }
-        : !capability.data?.available
-          ? {
-              kind: "unavailable",
-              reason:
-                capability.data?.reason ??
-                "Document action capability is unknown.",
-            }
-          : activity.kind === "quote"
-            ? { kind: "quote", maximum: activity.input.acceptedMaximum }
-            : activity.kind === "ready" && activity.restore && current.isPending
-              ? { kind: "busy" }
-              : activity.kind === "ready" && activity.restore && current.isError
-                ? {
-                    kind: "error",
-                    reason: "Could not restore the document action. Try again.",
-                  }
-                : activity.kind === "error" || activity.kind === "busy"
-                  ? activity
-                  : { kind: "ready" };
+      : activity.kind === "ready" && activity.restore && current.isError
+        ? {
+            kind: "error",
+            reason: "Could not restore the document action. Try again.",
+          }
+        : activity.kind === "busy" || activity.kind === "error"
+          ? activity
+          : activity.kind === "quote" || activity.kind === "acceptanceUncertain"
+            ? { kind: activity.kind, maximum: activity.input.acceptedMaximum }
+            : !generationSelected
+              ? {
+                  kind: "unavailable",
+                  reason:
+                    "Select Pro to start a new Pro action. Owned work remains available.",
+                }
+              : capability.isPending
+                ? { kind: "busy" }
+                : capability.isError
+                  ? {
+                      kind: "error",
+                      reason: "Could not check document actions.",
+                    }
+                  : !capability.data?.available
+                    ? {
+                        kind: "unavailable",
+                        reason:
+                          capability.data?.reason ??
+                          "Document action capability is unknown.",
+                      }
+                    : { kind: "ready" };
+  function retry() {
+    if (activity.kind === "ready" && activity.restore && current.isError) {
+      void current.refetch();
+      return;
+    }
+    if (capability.isError) {
+      void capability.refetch();
+      return;
+    }
+    setActivity({ kind: "ready", restore: true });
+  }
+
   async function submit(prompt: string) {
     if (!generationAllowed) return;
     setActivity({ kind: "busy" });
@@ -141,28 +188,57 @@ function ProDocumentAgent({
     }
   }
   async function accept() {
-    if (!generationAllowed || activity.kind !== "quote") return;
+    if (
+      !generationAllowed ||
+      (activity.kind !== "quote" && activity.kind !== "acceptanceUncertain")
+    )
+      return;
     const input = activity.input;
     setActivity({ kind: "busy" });
     try {
-      setActivity({ kind: "result", result: await start.mutateAsync(input) });
+      setActivity({
+        kind: "result",
+        result: await start.mutateAsync(input),
+        cancellation: "current",
+      });
     } catch {
-      setActivity({ kind: "quote", input });
+      setActivity({ kind: "acceptanceUncertain", input });
     }
   }
   async function stop() {
-    if (state.kind !== "result") return;
+    if (state.kind !== "result" || !result) return;
     try {
       setActivity({
         kind: "result",
         result: await cancel.mutateAsync({ id: state.operation.id }),
+        cancellation: "current",
       });
     } catch {
+      if (state.kind === "result")
+        setActivity({
+          kind: "result",
+          result: detail ?? result,
+          cancellation: "uncertain",
+        });
       await invalidate();
     }
   }
   return (
     <>
+      {activity.kind === "acceptanceUncertain" && (
+        <Button
+          onClick={() => void current.refetch()}
+          pending={current.isFetching}
+        >
+          Refresh owned action
+        </Button>
+      )}
+      {activity.kind === "result" && activity.cancellation === "uncertain" && (
+        <p role="alert">
+          Cancellation is not confirmed. Further work may still be running.
+          Refresh progress before assuming it stopped.
+        </p>
+      )}
       {!generationAllowed && (
         <div
           className="space-y-2 p-4"
@@ -215,6 +291,7 @@ function ProDocumentAgent({
         onSubmit={(prompt) => void submit(prompt)}
         onAccept={() => void accept()}
         onCancel={() => void stop()}
+        onRetry={retry}
         onDecline={() => setActivity({ kind: "ready", restore: false })}
       />
     </>

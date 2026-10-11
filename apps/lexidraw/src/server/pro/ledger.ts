@@ -804,6 +804,12 @@ export class ProLedger {
     imageSnapshot?: unknown,
     acceptedText?: { periodId: string; maximum: number; book: unknown },
   ) {
+    const chat =
+      feature === "chat" && imageSnapshot !== undefined
+        ? z
+            .strictObject({ documentId: z.string().min(1).max(100) })
+            .parse(imageSnapshot)
+        : undefined;
     const agent =
       feature === "agent"
         ? z
@@ -832,6 +838,16 @@ export class ProLedger {
         const operation = Operation.parse(existing.rows[0]);
         if (operation.input_hash !== inputHash || operation.feature !== feature)
           throw new ProError("Idempotency key conflicts with prior input");
+        if (chat) {
+          const bound = (
+            await tx.execute({
+              sql: "SELECT document_id FROM pro_chat_documents WHERE operation_id=?",
+              args: [operation.id],
+            })
+          ).rows[0];
+          if (bound?.document_id !== chat.documentId)
+            throw new ProError("Chat document identity conflicts");
+        }
         return operation;
       }
       const period = (
@@ -964,6 +980,11 @@ export class ProLedger {
           this.config.now(),
         ],
       });
+      if (chat)
+        await tx.execute({
+          sql: "INSERT INTO pro_chat_documents(operation_id,document_id) VALUES (?,?)",
+          args: [id, chat.documentId],
+        });
       if (agent)
         await tx.execute({
           sql: "INSERT INTO pro_agent_jobs(operation_id,document_id,request,report) VALUES (?,?,?,?)",
@@ -1004,6 +1025,24 @@ export class ProLedger {
         ).rows[0],
       );
     });
+  }
+  async operationByKey(
+    account: string,
+    key: string,
+    inputHash: string,
+    feature: Operation["feature"],
+  ) {
+    const row = (
+      await this.query(
+        "SELECT * FROM pro_operations WHERE account_id=? AND idempotency_key=?",
+        [account, key],
+      )
+    )[0];
+    if (!row) throw new ProError("Operation not found");
+    const operation = Operation.parse(row);
+    if (operation.input_hash !== inputHash || operation.feature !== feature)
+      throw new ProError("Idempotency key conflicts with prior input");
+    return operation;
   }
   async operation(account: string, id: string) {
     const row = (

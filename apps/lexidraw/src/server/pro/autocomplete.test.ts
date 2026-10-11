@@ -363,3 +363,66 @@ test("authenticated text and autocomplete use the admitted supplier model and co
     f.client.close();
   }
 });
+
+test("owned suggestion recovery survives opt-out, source change and closed capability without new dispatch or reservation", async () => {
+  let calls = 0;
+  const f = await fixture(async () => {
+    calls++;
+    return { kind: "unknown" };
+  });
+  const input = {
+    idempotencyKey: "issued",
+    title: "",
+    before: "Hello",
+    after: "",
+  };
+  try {
+    const accepted = await f.caller.autocomplete(input);
+    await db
+      .update(schema.users)
+      .set({
+        config: {
+          aiPower: { mode: "local" },
+          autocomplete: { enabled: false },
+        },
+      })
+      .where(eq(schema.users.id, "alice"));
+    await f.ledger.revoke("owner", "alice", "Generation access closed");
+    const closed = createProRouter({
+      ledger: () => f.ledger,
+      textAvailable: false,
+      dispatch: async () => {
+        throw Error("Recovery cannot dispatch");
+      },
+    });
+    const context = {
+      drizzle: db,
+      schema: {},
+      session: { user: { id: "alice" } },
+      auth: { kind: "session" },
+      headers: new Headers(),
+    };
+    const reader = closed.createCaller(context as never);
+    expect(await reader.autocompleteRecovery(input)).toMatchObject({
+      id: accepted.id,
+      state: "unknown",
+    });
+    await expect(reader.autocomplete(input)).rejects.toThrow("Coming soon");
+    for (const bad of [
+      { ...input, before: "Changed" },
+      { ...input, idempotencyKey: "new" },
+      { ...input, accountId: "alice" },
+      { ...input, before: "sk-or-v1-distinctive-test-secret" },
+    ])
+      await expect(reader.autocompleteRecovery(bad)).rejects.toThrow();
+    const foreign = closed.createCaller({
+      ...context,
+      session: { user: { id: "foreign" } },
+    } as never);
+    await expect(foreign.autocompleteRecovery(input)).rejects.toThrow();
+    expect((await reader.status()).reservedSubcredits).toBe(1120000);
+    expect(calls).toBe(1);
+  } finally {
+    f.client.close();
+  }
+});

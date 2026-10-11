@@ -64,3 +64,35 @@ import Testing
     #expect(server.requests.allSatisfy { $0.authorization == "Bearer lxd_kept" })
   }
 }
+
+@Suite("Narration acceptance ownership") struct NarrationAcceptanceOwnershipTests {
+  @Test @MainActor func lateSavedReadCannotReplaceAcceptedPendingIdentityOrItsCancellation() async throws {
+    let server = FakeServer { request in
+      if request.url.path.hasSuffix("auth.getPowerPreference") { return (200, #"{"result":{"data":{"json":{"mode":"pro"}}}}"#) }
+      if request.url.path.hasSuffix("narration.quote") { return (200, #"{"result":{"data":{"json":{"maximum":10,"missing":1,"cached":0,"maxSeconds":120,"revision":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","version":"test","policy":"Uncertain remains reserved."}}}}"#) }
+      if request.url.path.hasSuffix("narration.generate") {
+        Thread.sleep(forTimeInterval: 0.1)
+        return (200, #"{"result":{"data":{"json":{"id":"new-owned","state":"running","charged":0,"quote":10,"made":0,"planned":1,"parts":[],"policy":"Pending."}}}}"#)
+      }
+      if request.url.path.hasSuffix("narration.saved") {
+        Thread.sleep(forTimeInterval: 0.2)
+        return (200, #"{"result":{"data":{"json":{"id":"old-saved","state":"saved","charged":0,"quote":0,"made":0,"planned":1,"parts":[],"policy":"Free replay."}}}}"#)
+      }
+      #expect(request.url.path.hasSuffix("narration.cancel"))
+      #expect((request.object["json"] as? [String: String])?["id"] == "new-owned")
+      return (200, #"{"result":{"data":{"json":{"id":"new-owned","state":"cancelled","charged":0,"quote":10,"made":0,"planned":1,"parts":[],"policy":"Stopped."}}}}"#)
+    }
+    let flow = NativeNarrationFlow(session: try TestServer.session(server), document: "doc")
+    await flow.review()
+    let accepted = Task { await flow.accept() }
+    for _ in 0..<100 where !server.requests.contains(where: { $0.url.path.hasSuffix("narration.generate") }) { try await Task.sleep(for: .milliseconds(2)) }
+    let saved = Task { await flow.saved() }
+    await accepted.value
+    await saved.value
+    guard case .job(let job) = flow.state else { Issue.record("Missing owned operation"); return }
+    #expect(job.id == "new-owned")
+    #expect(job.pending)
+    await flow.cancel()
+    #expect(server.requests.last?.url.path.hasSuffix("narration.cancel") == true)
+  }
+}

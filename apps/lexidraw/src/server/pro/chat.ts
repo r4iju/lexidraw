@@ -6,7 +6,7 @@ import { ProError, type ProLedger } from "./ledger";
 import type { ProTextOperation } from "./operation";
 export { ChatQuote, ChatAccept } from "~/lib/generation/chat-contracts";
 import { ChatQuote } from "~/lib/generation/chat-contracts";
-function identity(input: unknown) {
+export function chatIdentity(input: unknown) {
   const text = JSON.stringify(prepareChat(input));
   try {
     createByokSession(async () => {
@@ -23,7 +23,7 @@ export class ProChat {
     readonly executor: ProTextOperation,
   ) {}
   async quote(account: string, input: unknown) {
-    const request = identity(input);
+    const request = chatIdentity(input);
     const status = await this.ledger.status(account);
     if (!status.entitled || !status.entitlementPeriodId)
       throw new ProError("Private entitlement required");
@@ -35,9 +35,15 @@ export class ProChat {
       policy: trialPolicy(status.pricebook).disclosure,
     });
   }
-  async accept(account: string, key: string, input: unknown, offered: unknown) {
+  async accept(
+    account: string,
+    key: string,
+    input: unknown,
+    offered: unknown,
+    documentId?: string,
+  ) {
     const quote = ChatQuote.parse(offered);
-    const request = identity(input);
+    const request = chatIdentity(input);
     if (request.hash !== quote.inputHash)
       throw new ProError("Chat input changed. Review a new quote.");
     return this.ledger.reserve(
@@ -45,7 +51,7 @@ export class ProChat {
       key,
       request.hash,
       "chat",
-      undefined,
+      documentId ? { documentId } : undefined,
       quote,
     );
   }
@@ -55,7 +61,7 @@ export class ProChat {
     input: unknown,
     onText: (text: string) => void,
   ) {
-    const request = identity(input);
+    const request = chatIdentity(input);
     const operation = await this.ledger.operation(account, id);
     if (operation.feature !== "chat" || operation.input_hash !== request.hash)
       throw new ProError("Chat input does not match accepted operation");

@@ -2,6 +2,8 @@
 
 import { createContext, useContext, useState, useRef, useEffect } from "react";
 import type { PropsWithChildren } from "react";
+import { useSession } from "next-auth/react";
+import { OwnedChatRecovery } from "~/lib/generation/chat-recovery";
 import { api } from "~/trpc/react";
 import { browserByok } from "~/lib/byok/browser-session";
 import {
@@ -14,6 +16,7 @@ import {
 } from "~/lib/generation/chat";
 import {
   proChatPort,
+  OwnedChatSubmission,
   chatBrowserFetch,
   type ChatQuote,
 } from "~/lib/generation/chat-client";
@@ -150,6 +153,7 @@ const LLMContext = createContext<LLMContextValue | null>(null);
 
 type LLMProviderProps = PropsWithChildren<{
   initialConfig: StoredLlmConfig;
+  documentId?: string;
   chatRuntime?: ChatRuntime;
 }>;
 
@@ -160,19 +164,43 @@ type Turn =
   | { status: "complete"; text: string }
   | { status: "error"; text: string; message: string };
 export function LLMProvider(props: LLMProviderProps) {
-  return props.chatRuntime ? (
-    <RuntimeProvider {...props} runtime={props.chatRuntime} />
-  ) : (
-    <SelectedRuntimeProvider {...props} />
+  return (
+    <>
+      {props.documentId && <OwnedChatRecovery documentId={props.documentId} />}
+      {props.chatRuntime ? (
+        <RuntimeProvider {...props} runtime={props.chatRuntime} />
+      ) : (
+        <SelectedRuntimeProvider {...props} key={props.documentId} />
+      )}
+    </>
   );
 }
 function SelectedRuntimeProvider(props: LLMProviderProps) {
-  const power = api.auth.getPowerPreference.useQuery();
+  const account = useSession();
+  return (
+    <AccountRuntimeProvider
+      {...props}
+      key={JSON.stringify([account.data?.user.id, props.documentId])}
+      authenticated={account.status === "authenticated"}
+    />
+  );
+}
+function AccountRuntimeProvider(
+  props: LLMProviderProps & { authenticated: boolean },
+) {
+  const submission = useRef(new OwnedChatSubmission());
+  const power = api.auth.getPowerPreference.useQuery(undefined, {
+    enabled: props.authenticated,
+  });
   const capability = api.pro.chatCapability.useQuery(undefined, {
     enabled: power.data?.mode === "pro",
   });
   const utils = api.useUtils();
-  const preference = queryAccess(power, true, "AI power preference");
+  const preference = queryAccess(
+    power,
+    props.authenticated,
+    "AI power preference",
+  );
   const access = queryAccess(
     capability,
     preference.kind === "ready" && preference.data.mode === "pro",
@@ -222,21 +250,61 @@ function SelectedRuntimeProvider(props: LLMProviderProps) {
         });
       }
       try {
+        if (!props.documentId)
+          throw new Error("Document chat context unavailable.");
+        const owned = await utils.client.pro.chatCurrent.query({
+          documentId: props.documentId,
+        });
+        if (
+          owned.some((operation) =>
+            ["reserved", "running", "unknown"].includes(operation.state),
+          )
+        )
+          throw new Error(
+            "Read or cancel the owned chat before starting another turn.",
+          );
         return await runChat(
           input,
           proChatPort(input, {
             quote: (input) => utils.client.pro.chatQuote.mutate(input),
             confirm,
-            accept: (input) => utils.client.pro.chatAccept.mutate(input),
-            cancel: (id) => utils.client.pro.cancel.mutate({ id }),
+            accept: (input) => {
+              if (!props.documentId)
+                throw new Error("Document chat context unavailable.");
+              return utils.client.pro.chatAccept.mutate({
+                ...input,
+                documentId: props.documentId,
+              });
+            },
+            recover: (input) => {
+              if (!props.documentId)
+                throw new Error("Document chat context unavailable.");
+              return utils.client.pro.chatRecovery.query({
+                ...input,
+                documentId: props.documentId,
+              });
+            },
+            cancel: (id) => {
+              if (!props.documentId)
+                throw new Error("Document chat context unavailable.");
+              return utils.client.pro.chatCancel.mutate({
+                id,
+                documentId: props.documentId,
+              });
+            },
             fetch: (request) => chatBrowserFetch(session, request),
             origin: window.location.origin,
             idempotencyKey: crypto.randomUUID(),
+            submission: submission.current,
           }),
           { signal, onText, assertSafe: session?.assertSafe },
         );
       } finally {
-        await utils.pro.status.invalidate();
+        await Promise.all([
+          utils.pro.status.invalidate(),
+          utils.pro.chatCurrent.invalidate(),
+          utils.pro.chatUnscoped.invalidate(),
+        ]);
       }
     },
   };

@@ -90,6 +90,7 @@ actor ProSuggestionRecovery {
   private struct Pending: Sendable {
     let input: ProSuggestionInput
     var operation: SuggestionOperation?
+    var submitted = false
   }
   private var pending: Pending?
   private var busy = false
@@ -101,24 +102,28 @@ actor ProSuggestionRecovery {
     let input = pending?.input ?? ProSuggestionInput(idempotencyKey: UUID().uuidString, title: title, before: before, after: after)
     let matches = input.matches(title: title, before: before, after: after)
     if pending == nil { pending = Pending(input: input) }
-    var operation: SuggestionOperation
-    if let saved = pending?.operation {
-      operation = saved
-      do {
-        operation = try await session.suggestionRPC("pro.operation", input: ["id": saved.id], query: true, as: SuggestionOperation.self)
-        guard operation.id == saved.id else { throw AutocompleteProError.reconciling }
-        pending?.operation = operation
-      } catch { throw AutocompleteProError.reconciling }
-    } else {
-      // One bounded same-key replay recovers the reservation, never a fresh paid identity.
-      let submitted = Task {
-        do { return try await session.suggestionRPC("pro.autocomplete", input: input, as: SuggestionOperation.self) }
-        catch { return try await session.suggestionRPC("pro.autocomplete", input: input, as: SuggestionOperation.self) }
-      }
-      do { operation = try await submitted.value; pending?.operation = operation }
-      catch { throw AutocompleteProError.reconciling }
-    }
+    var operation = pending?.operation
     do {
+      if let saved = operation {
+        let updated: SuggestionOperation = try await session.suggestionRPC("pro.operation", input: ["id": saved.id], query: true, as: SuggestionOperation.self)
+        guard updated.id == saved.id else { throw AutocompleteProError.reconciling }
+        operation = updated
+        pending?.operation = updated
+      } else {
+        let recovering = pending?.submitted == true
+        pending?.submitted = true
+        let submitted = Task {
+          if recovering {
+            return try await session.suggestionRPC("pro.autocompleteRecovery", input: input, query: true, as: SuggestionOperation.self)
+          }
+          do { return try await session.suggestionRPC("pro.autocomplete", input: input, as: SuggestionOperation.self) }
+          catch { return try await session.suggestionRPC("pro.autocompleteRecovery", input: input, query: true, as: SuggestionOperation.self) }
+        }
+        let accepted = try await submitted.value
+        operation = accepted
+        pending?.operation = accepted
+      }
+      guard var operation else { throw AutocompleteProError.reconciling }
       try Task.checkCancellation()
       guard matches else {
         await cancelIfPending(session: session, operation: operation)
@@ -145,10 +150,12 @@ actor ProSuggestionRecovery {
       pending = nil
       return result
     } catch {
-      if Task.isCancelled || [.reserved, .running].contains(operation.state) {
-        await cancelIfPending(session: session, operation: operation)
+      if let owned = pending?.operation, Task.isCancelled || [.reserved, .running].contains(owned.state) {
+        await cancelIfPending(session: session, operation: owned)
       }
-      throw error
+      if Task.isCancelled { throw CancellationError() }
+      if error is CancellationError || (error as? AutocompleteProError) == .unavailable { throw error }
+      throw AutocompleteProError.reconciling
     }
   }
   private func cancelIfPending(session: Session, operation: SuggestionOperation) async {

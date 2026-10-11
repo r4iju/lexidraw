@@ -13,22 +13,35 @@ private struct ScopedDocumentAgentComposer: View {
  let document: String
  private enum PowerState { case loading, ready(AIPowerPreference), failed }
  @State private var power: PowerState = .loading
- @State private var flow: NativeAgentFlow?
+ @State private var flow: NativeAgentFlow
+ init(session: Session, document: String) {
+  self.session = session; self.document = document
+  let value = NativeAgentFlow(session: session, document: document)
+  value.selectGeneration(false)
+  _flow = State(initialValue: value)
+ }
  var body: some View {
-  Group {
+  VStack {
    switch power {
    case .loading: ProgressView("Checking AI power...")
-   case .failed: Text("Could not check AI power.")
+   case .failed: Text("Could not check AI power."); Button("Retry AI power") { Task { await readPower() } }
    case .ready(.byok): DeviceAgentComposer(session: session, document: document)
    case .ready(.local): Text("Document actions are unavailable with built-in local AI.")
-   case .ready(.pro): if let flow { AgentComposerContent(flow: flow) } else { ProgressView("Checking document actions...") }
+   case .ready(.pro): EmptyView()
    }
+   AgentComposerContent(flow: flow)
   }.task {
-   do {
-    let selected = try await session.powerPreference(); try Task.checkCancellation(); power = .ready(selected)
-    if selected == .pro { let value = NativeAgentFlow(session: session, document: document); flow = value; await value.load() }
-   } catch { if !Task.isCancelled { power = .failed } }
+   async let owned: Void = flow.load()
+   await readPower()
+   await owned
   }
+ }
+ private func readPower() async {
+  flow.selectGeneration(false)
+  do {
+   let selected = try await session.powerPreference(); try Task.checkCancellation()
+   power = .ready(selected); flow.selectGeneration(selected == .pro)
+  } catch { if !Task.isCancelled { power = .failed } }
  }
 }
 struct AgentComposerContent:View {
@@ -66,9 +79,12 @@ struct AgentComposerContent:View {
    case .ready:
     TextField("Describe the edits",text:$prompt,axis:.vertical).accessibilityIdentifier("agent prompt")
     Button("Review maximum"){Task{await flow.quote(prompt)}}.disabled(prompt.isEmpty || !flow.canStart)
-   case .quote(_,let quote,_):
+   case .quote(_,let quote,_), .acceptanceUncertain(_,let quote,_):
     Text("Maximum reservation: \(Double(quote.maximum)/1_000_000) credits. Final consumption can be lower.")
-    Button("Decline"){flow.decline()}
+    if case .acceptanceUncertain = flow.state {
+     Text("Acceptance could not be confirmed. This quoted identity is retained. An explicit retry uses the same identity; no automatic new action was started.")
+     Button("Refresh owned action") { Task { await flow.load() } }
+    } else { Button("Decline"){flow.decline()} }
     Button("Accept maximum"){Task{await flow.accept()}}.disabled(!flow.canStart)
    case .running:ProgressView("Running document action...")
    case .result(let result):
