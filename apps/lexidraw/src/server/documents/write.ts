@@ -1,3 +1,4 @@
+import { editorRootPayload, replaceDocumentRoot } from "~/lib/document-payload";
 import { documentHeaderOf, withDocumentHeader } from "@packages/lexical-nodes";
 import type { SerializedEditorState } from "lexical";
 import { StaleDocumentError } from "./conflict";
@@ -79,7 +80,14 @@ function documentChange(
   state: SerializedEditorState,
   fields: DocumentFields,
 ): DocumentChange {
-  const change: DocumentChange = { elements: JSON.stringify(state) };
+  const change: DocumentChange = {
+    elements: new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(
+      replaceDocumentRoot(new TextEncoder().encode(revision.elements), {
+        kind: "replace-root",
+        elements: editorRootPayload(JSON.stringify(state)),
+      }),
+    ),
+  };
   if (fields.title !== undefined && fields.title !== revision.title)
     change.title = fields.title;
   if (fields.tags !== undefined && !sameTags(fields.tags, revision.tags))

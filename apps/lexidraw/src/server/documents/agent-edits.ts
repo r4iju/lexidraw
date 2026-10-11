@@ -1,3 +1,8 @@
+import {
+  editorRootPayload,
+  normalizeDocumentBytes,
+  replaceDocumentRoot,
+} from "~/lib/document-payload";
 import type { Transaction } from "@libsql/client";
 import { z } from "zod";
 import { AccessLevel, PublicAccess } from "@packages/types";
@@ -22,12 +27,17 @@ export async function readEditableDocument(
 ) {
   const [row] = (
     await tx.execute({
-      sql: "SELECT e.elements,e.updatedAt,e.parentId FROM Entities e WHERE e.id=? AND e.entityType='document' AND e.deletedAt IS NULL AND (e.userId=? OR e.publicAccess=? OR EXISTS (SELECT 1 FROM SharedEntities s WHERE s.entityId=e.id AND s.userId=? AND s.accessLevel=?))",
+      sql: "SELECT CAST(e.elements AS BLOB) AS raw,typeof(e.elements) AS storageType,e.updatedAt,e.parentId FROM Entities e WHERE e.id=? AND e.entityType='document' AND e.deletedAt IS NULL AND (e.userId=? OR e.publicAccess=? OR EXISTS (SELECT 1 FROM SharedEntities s WHERE s.entityId=e.id AND s.userId=? AND s.accessLevel=?))",
       args: [document, account, PublicAccess.EDIT, account, AccessLevel.EDIT],
     })
   ).rows;
   if (!row) throw failure("Document not found or edit access revoked");
-  return EditableDocument.parse(row);
+  const current = normalizeDocumentBytes(row.raw, row.storageType);
+  return EditableDocument.parse({
+    elements: current.text,
+    updatedAt: row.updatedAt,
+    parentId: row.parentId,
+  });
 }
 // The caller owns the transaction and stores its mode-specific receipt before commit.
 export async function appendDocumentEdit(
@@ -70,13 +80,29 @@ export async function appendDocumentEdit(
             },
           },
         ];
-  const elements = JSON.stringify(
-    appendBlocks(parseEditorState(row.elements), blocks),
+  const [base] = (
+    await tx.execute({
+      sql: "SELECT CAST(elements AS BLOB) AS raw,typeof(elements) AS storageType,updatedAt FROM Entities WHERE id=? AND deletedAt IS NULL",
+      args: [document],
+    })
+  ).rows;
+  if (!base || base.updatedAt !== revision) throw failure("Document changed");
+  const current = normalizeDocumentBytes(base.raw, base.storageType);
+  const elements = new TextDecoder("utf-8", {
+    fatal: true,
+    ignoreBOM: true,
+  }).decode(
+    replaceDocumentRoot(current.bytes, {
+      kind: "replace-root",
+      elements: editorRootPayload(
+        JSON.stringify(appendBlocks(parseEditorState(current.text), blocks)),
+      ),
+    }),
   );
   const next = Math.max(revision + 1, now);
   const written = await tx.execute({
-    sql: "UPDATE Entities SET elements=?,updatedAt=?,thumbnailStatus='pending' WHERE id=? AND updatedAt=? AND deletedAt IS NULL",
-    args: [elements, next, document, revision],
+    sql: "UPDATE Entities SET elements=?,updatedAt=?,thumbnailStatus='pending' WHERE id=? AND updatedAt=? AND CAST(elements AS BLOB)=? AND typeof(elements)='text' AND deletedAt IS NULL",
+    args: [elements, next, document, revision, current.bytes],
   });
   if (written.rowsAffected !== 1) throw failure("Document changed");
   return {

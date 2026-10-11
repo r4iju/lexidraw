@@ -1,3 +1,4 @@
+import { editorRootPayload } from "~/lib/document-payload";
 import { documentSettings } from "~/lib/document-fonts";
 import { toast } from "sonner";
 import type { OpenEntity } from "~/hooks/use-open-entity-sync";
@@ -29,7 +30,7 @@ export function useSaveAndExportDocument({
   const { convertEditorStateToMarkdown } = useMarkdownTools();
 
   const savePayload = (editorState: EditorState) => ({
-    elements: JSON.stringify(editorState),
+    elements: editorRootPayload(JSON.stringify(editorState)),
     appState: JSON.stringify({
       ...documentSettings(entity.appState),
       defaultFontFamily,

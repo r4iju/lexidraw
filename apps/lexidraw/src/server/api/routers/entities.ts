@@ -1,3 +1,12 @@
+import {
+  editorRootPayload,
+  InvalidDocumentPayloadError,
+} from "~/lib/document-payload";
+import {
+  readDocumentMergeBase,
+  documentMergeBasePredicate,
+  mergedDocumentElements,
+} from "~/server/documents/document-store";
 import { generatedThumbnailProcedures } from "~/server/entities/generated-thumbnail";
 import { queueThumbnail } from "~/server/entities/queue-thumbnail";
 import { z } from "zod";
@@ -607,6 +616,19 @@ export const entityRouter = createTRPCRouter({
         });
       }
 
+      const documentBase =
+        entity.entityType === "document"
+          ? await readDocumentMergeBase(ctx.drizzle, input.id)
+          : null;
+      if (entity.entityType === "document" && !documentBase)
+        throw new InvalidDocumentPayloadError();
+      const projectedElements = documentBase
+        ? editorRootPayload(input.elements)
+        : input.elements;
+      const preparedElements =
+        entity.entityType === "document" && ctx.auth.kind === "token"
+          ? await measureImages(projectedElements)
+          : projectedElements;
       const saved = await ctx.drizzle
         .update(schema.entities)
         .set({
@@ -615,10 +637,9 @@ export const entityRouter = createTRPCRouter({
           ...(appState !== undefined ? { appState } : {}),
           // The browser measures its own pictures as they load, and saves
           // again soon after, so only a caller without one waits on the network.
-          elements:
-            entity.entityType === "document" && ctx.auth.kind === "token"
-              ? await measureImages(input.elements)
-              : input.elements,
+          elements: documentBase
+            ? mergedDocumentElements(documentBase, preparedElements)
+            : preparedElements,
           ...(parentId !== undefined ? { parentId } : {}),
           // Strictly increasing, so a compare-and-set caller can tell this save
           // apart from its own; see nextUpdatedAt.
@@ -630,14 +651,12 @@ export const entityRouter = createTRPCRouter({
         .where(
           and(
             eq(schema.entities.id, input.id),
+            documentBase ? documentMergeBasePredicate(documentBase) : undefined,
             isNull(schema.entities.deletedAt),
             // The same compare-and-set as the document and drawing writes.
             input.ifUnmodifiedSince === undefined
               ? undefined
-              : eq(
-                  schema.entities.updatedAt,
-                  new Date(input.ifUnmodifiedSince),
-                ),
+              : eq(schema.entities.updatedAt, new Date(input.ifUnmodifiedSince)),
           ),
         )
         .returning();

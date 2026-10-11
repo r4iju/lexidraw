@@ -1,3 +1,9 @@
+import { InvalidDocumentPayloadError } from "~/lib/document-payload";
+import {
+  readDocumentMergeBase,
+  documentMergeBasePredicate,
+  mergedDocumentElements,
+} from "~/server/documents/document-store";
 import { queueThumbnail } from "~/server/entities/queue-thumbnail";
 import {
   revalidateEntities,
@@ -564,15 +570,22 @@ export const documentRouter = createTRPCRouter({
           message: "Document not found",
         });
       }
+      const documentBase = await readDocumentMergeBase(ctx.drizzle, input.id);
+      if (!documentBase) throw new InvalidDocumentPayloadError();
       const saved = await ctx.drizzle
         .update(schema.entities)
         .set({
           // Strictly increasing, so a compare-and-set caller can tell this
           // save apart from its own; see nextUpdatedAt.
           updatedAt: nextUpdatedAt(),
-          elements: input.elements,
+          elements: mergedDocumentElements(documentBase, input.elements),
         })
-        .where(eq(schema.entities.id, input.id))
+        .where(
+          and(
+            eq(schema.entities.id, input.id),
+            documentMergeBasePredicate(documentBase),
+          ),
+        )
         .returning();
       for (const row of saved) await queueThumbnail(ctx.drizzle, row);
       revalidateEntities(input.id, entity.parentId);
