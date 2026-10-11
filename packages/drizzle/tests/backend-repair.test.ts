@@ -114,8 +114,13 @@ for (const history of [
           )
         ).rows,
       ).toEqual(records);
-      // IF NOT EXISTS also protects a repeated statement execution on already repaired histories.
-      const repairs = journal.entries.filter((entry) => entry.idx > 31);
+      // Only these repairs promise statement-level idempotence; ordinary and future
+      // migrations rely on the full-journal migrator repeat above to skip applied SQL.
+      const repairs = journal.entries.filter(
+        (entry) =>
+          entry.tag === "0032_backend_migration_repair" ||
+          entry.tag === "0034_tts_jobs_baseline",
+      );
       for (const entry of repairs)
         for (const sql of (
           await readFile(join(source, `${entry.tag}.sql`), "utf8")
