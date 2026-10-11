@@ -73,15 +73,16 @@ private final class MeasurementImageProtocol: URLProtocol, @unchecked Sendable {
       }
       let elapsed = start.duration(to: clock.now)
       let result = artifact.bytes
-      #expect(result == fixture)
-      #expect(artifact.width == 1024 && artifact.height == 1024)
-      #expect(artifact.mimeType == "image/png")
-      #expect(MeasurementImageProtocol.requests.count == 1)
-      let request = try #require(MeasurementImageProtocol.requests.first)
-      #expect(request.url?.absoluteString == "https://openrouter.ai/api/v1/images")
-      #expect(request.httpMethod == "POST")
+      try #require(result == fixture)
+      try #require(artifact.width == 1024 && artifact.height == 1024)
+      try #require(artifact.mimeType == "image/png")
+      let requests = MeasurementImageProtocol.requests
+      try #require(requests.count == 1)
+      let request = try #require(requests.first)
+      try #require(request.url?.absoluteString == "https://openrouter.ai/api/v1/images")
+      try #require(request.httpMethod == "POST")
       let seconds = Double(elapsed.components.seconds) + Double(elapsed.components.attoseconds) / 1e18
-      print("E3_MEASUREMENT repetition=\(repetition) seconds=\(seconds) response_bytes=\(response.count) result_bytes=\(result.count) valid=true intercepted_requests=1")
+      print("E3_MEASUREMENT repetition=\(repetition) seconds=\(seconds) response_bytes=\(response.count) result_bytes=\(result.count) valid=true intercepted_requests=\(requests.count)")
     }
   }
 
