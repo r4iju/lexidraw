@@ -23,6 +23,21 @@ import Testing
       title: "", before: String(repeating: "x", count: 1300), after: "")
     #expect(output == "done")
   }
+  @Test func unicodeBoundaryWindowsDecodeAndFinishWithoutSplitScalars() async throws {
+    let model = LocalModelFixture()
+    let suffix = String(repeating: "x", count: 1199)
+    model.output = suffix + "done"
+    let runtime = NativeLocalText(model: model)
+    let output = try await runtime.suggest(
+      title: String(repeating: "a", count: 199) + "😀tail",
+      before: "😀" + suffix,
+      after: String(repeating: "z", count: 299) + "😀tail")
+    #expect(output == "done")
+    #expect(model.request?.prompt ==
+      "Document title: " + String(repeating: "a", count: 199) + "\n\n" + suffix
+      + "<cursor/>" + String(repeating: "z", count: 299) + "\n\n<fragment>" + suffix + "</fragment>")
+    #expect(model.request?.maximumResponseTokens == 32)
+  }
   @Test func credentialInLocalModelResultIsBlockedBeforeFragmentCleanup() async throws {
     let credential = "sk-local-boundary-282-distinct-fixture"
     try NativeCredentialGuard.shared.remember(credential)
