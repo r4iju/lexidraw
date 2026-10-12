@@ -131,6 +131,11 @@ export function registerAutocomplete(
   let disposed = false;
   let intent = 0;
 
+  const focused = () => {
+    const root = editor.getRootElement();
+    return root?.contains(root.ownerDocument.activeElement) ?? false;
+  };
+
   const paint = () => {
     const element = shown ? editor.getElementByKey(shown.textKey) : null;
     if (painted && painted !== element) {
@@ -162,7 +167,7 @@ export function registerAutocomplete(
   };
 
   const ask = (target: Target, generation: number) => {
-    if (disposed || intent !== generation) return;
+    if (disposed || intent !== generation || !focused()) return;
     if (request) {
       pending = target;
       return;
@@ -207,7 +212,8 @@ export function registerAutocomplete(
           disposed ||
           intent !== generation ||
           controller.signal.aborted ||
-          editor.isComposing()
+          editor.isComposing() ||
+          !focused()
         )
           return;
         const now = editor.getEditorState().read($target);
@@ -234,7 +240,7 @@ export function registerAutocomplete(
   };
 
   const onUpdate = () => {
-    if (editor.isComposing()) {
+    if (editor.isComposing() || !focused()) {
       cancel();
       hide();
       return;
