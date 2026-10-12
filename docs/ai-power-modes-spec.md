@@ -1,5 +1,8 @@
 ## Problem Statement
 
+Execution, parallel workstreams, ticket status, and completion gates for the whole
+initiative are tracked in [the delivery tracker](ai-power-modes-delivery-tracker.md).
+
 Lexidraw's cloud AI features currently use app-owned provider credentials without a shared subscription allowance. Users need a simple way to choose who supplies AI compute without choosing models for individual tasks. The owner needs predictable costs and protection against excessive or repeated requests, including failures that still incur provider charges.
 
 Pro cannot be offered publicly yet. The owner and approved testers nevertheless need to exercise its real entitlement, credit, and billing behavior now, without charging customers or exposing app-owned APIs to everyone.
