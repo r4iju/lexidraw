@@ -27,7 +27,7 @@ remain in [the integration audit](ai-power-modes-integration-audit.md).
 ## Current state
 
 Recorded 2026-10-13. Integration branch: `feat/276-ai-power-modes`, code checkpoint
-`ece921fab32721717a467f43e0670a49831233a6`. Store evidence remains pinned to the
+`157793fb` (batch route-config repair). Store evidence remains pinned to the
 unchanged protected sources at `639f6cba`. **Incomplete and unshipped.**
 
 | Workstream | Verified state | Next prerequisite |
@@ -41,11 +41,14 @@ unchanged protected sources at `639f6cba`. **Incomplete and unshipped.**
 | Pure autocomplete request preparation | Four frozen cases passed; parent reviewed source, frozen expectations, raw outputs, launch records, and all seven matching byte-copy pairs after both delegated reviews were cancelled | Bounded pure assembly evidence accepted; no adapter, provider, visible-editor, or whole #277 acceptance |
 | Editor obligations | Focus admission fixed in `c7066ad7`; genuine RED then two passing focused tests, refocus behavior and separate deferred-blur check passed; missing `and` import fixed in `e76860d3` | Drizzle declaration repair active; lost-submission adapter disposition and whole-editor acceptance remain pending |
 | Whole-spec reconciliation | GPT reconciliation complete: 114 child criteria, 62 overlapping parent stories, and 26 dependency edges accounted for | All tickets remain open; root #277 whole-contract acceptance and product obligations remain beyond the Store subset |
-| Local shipping checks | Types package check/build, six iOS TypeScript projects and iOS reference bundle passed; Drizzle declaration build and focused Fetch compiler passed; bounded Spec and Standards reviews of four repair commits passed with no blockers | Closed web production types and remaining local builds active; full web/native and initiative acceptance remain pending |
+| Local shipping checks | Production web types and offline unsigned iOS Simulator build passed; native bundle committed in `9614cc93`; unsupported chat-stream/generated-image config exports fixed in `cf88977d` and `157793fb`; route inventory and isolated compile show no remaining route-config errors | Isolated web compile still fails on Google Fonts fetches blocked by the offline guard; full prerender, original-base initiative review and external acceptance remain pending |
 
 The autocomplete repository writer and focused independent review are finished.
-The selected direct Store verification passed. Local shipping checks and focused
-editor acceptance now proceed with separate GPT agents. Redundant bundled-harness
+The selected direct Store verification, focused editor repair and native build passed.
+The local repair reviews passed; their fixed scope does not cover the original
+initiative. No delegated task remains active. The web compile awaits narrowly
+authorized font fetching; full prerender and external acceptance remain pending.
+Redundant bundled-harness
 preparation was stopped following the user's time constraint. Independent product
 checks should continue in parallel where they can establish acceptance. Shared pure-text observation
 and both evidence reviews are complete as bounded evidence. Shipping-check planning, requirements
