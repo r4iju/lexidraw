@@ -17,6 +17,25 @@ export const AUTOCOMPLETE_SYSTEM = [
   "If there is no confident continuation, reply with nothing.",
 ].join("\n");
 
+// Exclude a split scalar without widening the UTF-16 context budget.
+function scalarWindow(text: string, start: number, end: number): string {
+  const high = (unit: number) => unit >= 0xd800 && unit <= 0xdbff;
+  const low = (unit: number) => unit >= 0xdc00 && unit <= 0xdfff;
+  if (
+    start > 0 &&
+    high(text.charCodeAt(start - 1)) &&
+    low(text.charCodeAt(start))
+  )
+    start++;
+  if (
+    end < text.length &&
+    high(text.charCodeAt(end - 1)) &&
+    low(text.charCodeAt(end))
+  )
+    end--;
+  return text.slice(start, end);
+}
+
 export function autocompletePrompt({
   title,
   before,
@@ -28,7 +47,17 @@ export function autocompletePrompt({
 }): string {
   const heading = title ? `Document title: ${title}\n\n` : "";
   const fragment = `<fragment>${fragmentAt(before)}</fragment>`;
-  return `${heading}${before.slice(-MAX_BEFORE_CHARS)}<cursor/>${after.slice(0, MAX_AFTER_CHARS)}\n\n${fragment}`;
+  const beforeContext = scalarWindow(
+    before,
+    Math.max(0, before.length - MAX_BEFORE_CHARS),
+    before.length,
+  );
+  const afterContext = scalarWindow(
+    after,
+    0,
+    Math.min(after.length, MAX_AFTER_CHARS),
+  );
+  return `${heading}${beforeContext}<cursor/>${afterContext}\n\n${fragment}`;
 }
 
 /**
