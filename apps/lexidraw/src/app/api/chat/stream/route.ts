@@ -8,7 +8,6 @@ import {
 } from "~/server/auth/api-token-format";
 import { createChatStreamRoute } from "~/server/pro/chat-route";
 import { proChat } from "~/server/pro/chat-runtime";
-export const dynamic = "force-dynamic";
 // A detached run still has to reach provider completion and settlement, bounded by the pricebook's 30 second maximum.
 export const maxDuration = 60;
 export const POST = createChatStreamRoute({
