@@ -1,7 +1,6 @@
 import { createTRPCContext } from "~/server/api/trpc";
 import { readBearerApiToken } from "~/server/auth/api-token-format";
 import { generatedImages } from "~/server/pro/image-runtime";
-export const dynamic = "force-dynamic";
 const headers = {
   "Cache-Control": "private, no-store, max-age=0",
   Vary: "Cookie, Authorization",
