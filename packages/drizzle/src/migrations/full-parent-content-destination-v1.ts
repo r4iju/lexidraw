@@ -1,6 +1,6 @@
 import type { MigrationExecutor } from "./file-migration-owner.js";
 import { Buffer } from "node:buffer";
-import literal from "./full-parent-content-destination-v1.json";
+import literal from "./full-parent-content-destination-v1.json" with { type: "json" };
 
 export type TypedCell = [string, string | null];
 export type ContentState = {

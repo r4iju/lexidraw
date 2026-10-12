@@ -789,7 +789,8 @@ async function finishConversion(
   if (
     repeated &&
     (receipts.length !== 1 ||
-      receipt?.sourceSetId !== batch.sourceSetId ||
+      !receipt ||
+      receipt.sourceSetId !== batch.sourceSetId ||
       receipt.sourceIdentity !== batch.sourceIdentity ||
       receipt.contractVersion !== 1 ||
       receipt.status !== "converted" ||

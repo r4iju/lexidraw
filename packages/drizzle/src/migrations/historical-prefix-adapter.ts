@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import type { Client, Transaction } from "@libsql/client";
-import frozen from "./fixtures/historical-prefix-v1/contract.json";
+import frozen from "./fixtures/historical-prefix-v1/contract.json" with { type: "json" };
 
 type Cell = ["null", null] | ["integer" | "real" | "text" | "blob", string];
 type Rows = Record<string, Cell[][]>;

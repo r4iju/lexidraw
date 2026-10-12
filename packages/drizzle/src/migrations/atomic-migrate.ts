@@ -2,7 +2,7 @@ import { sql, type SQL } from "drizzle-orm";
 import { readMigrationFiles, type MigrationConfig } from "drizzle-orm/migrator";
 import { SQLiteAsyncDialect } from "drizzle-orm/sqlite-core";
 import type { InStatement, Row } from "@libsql/client";
-import type { MigrationExecutor, MigrationOwner } from "./file-migration-owner";
+import type { MigrationExecutor, MigrationOwner } from "./file-migration-owner.js";
 
 export type MigrationPreflight = (
   executor: MigrationExecutor,

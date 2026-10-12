@@ -1,11 +1,11 @@
-import type { MigrationOwner, MigrationExecutor } from "./file-migration-owner";
-import sourceLiteral from "./fixtures/historical-adapter-checkpoint-v1/source-completed-checkpoint-oracle.json";
-import targetLiteral from "./fixtures/historical-adapter-checkpoint-v1/target-checkpoint-typed-oracle.json";
-import targetDDL from "./fixtures/historical-adapter-checkpoint-v1/target-ddl.json";
-import transform from "./fixtures/historical-adapter-checkpoint-v1/transform-manifest.json";
-import receipt from "./fixtures/historical-adapter-checkpoint-v1/continuation-receipt-oracle.json";
-import laterEdit from "./fixtures/historical-adapter-checkpoint-v1/certified-later-edit.json";
-import finite from "./fixtures/historical-adapter-checkpoint-v1/finite-profile.json";
+import type { MigrationOwner, MigrationExecutor } from "./file-migration-owner.js";
+import sourceLiteral from "./fixtures/historical-adapter-checkpoint-v1/source-completed-checkpoint-oracle.json" with { type: "json" };
+import targetLiteral from "./fixtures/historical-adapter-checkpoint-v1/target-checkpoint-typed-oracle.json" with { type: "json" };
+import targetDDL from "./fixtures/historical-adapter-checkpoint-v1/target-ddl.json" with { type: "json" };
+import transform from "./fixtures/historical-adapter-checkpoint-v1/transform-manifest.json" with { type: "json" };
+import receipt from "./fixtures/historical-adapter-checkpoint-v1/continuation-receipt-oracle.json" with { type: "json" };
+import laterEdit from "./fixtures/historical-adapter-checkpoint-v1/certified-later-edit.json" with { type: "json" };
+import finite from "./fixtures/historical-adapter-checkpoint-v1/finite-profile.json" with { type: "json" };
 
 type Cell = [string, string | null];
 type Rows = Record<string, Cell[][]>;

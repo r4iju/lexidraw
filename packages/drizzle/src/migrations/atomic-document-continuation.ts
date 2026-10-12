@@ -105,11 +105,11 @@ function validateCertificates(
     return;
   }
   const checkpoint = p.baseline.tables[table];
-  if (!checkpoint || checkpoint.rows.length !== 1)
+  const r = checkpoint?.rows[0];
+  if (!checkpoint || checkpoint.rows.length !== 1 || !r)
     stop(
       "modeled0014 complete checkpoint required; absent late ledger unsupported",
     );
-  const r = checkpoint.rows[0];
   atomicEqual(
     r,
     {
@@ -135,7 +135,7 @@ function validateCertificates(
   );
   const receipt = p.completed.tables.LegacyDocumentConversionV1?.rows[0];
   if (!receipt || receipt.t4 !== "blob")
-    stop("bound immutable conversion certificate required");
+    return stop("bound immutable conversion certificate required");
   let derived: Record<string, unknown>;
   try {
     derived = JSON.parse(
@@ -197,7 +197,7 @@ function completedSourceObjects(
     );
     const a = state.tables[renamed];
     const b = expected.tables.User;
-    if (!a || !b) stop("missing renamed source User");
+    if (!a || !b) return stop("missing renamed source User");
     const copied = JSON.parse(JSON.stringify(b)) as typeof b;
     for (const i of copied.indexes)
       i.name = String(i.name).replace("User", renamed);
