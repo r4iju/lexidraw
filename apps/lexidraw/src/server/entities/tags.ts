@@ -1,10 +1,9 @@
-import * as schema from "@packages/drizzle/drizzle-schema";
+import * as schema from "@packages/drizzle/document-data-schema";
 import { and, eq, inArray } from "drizzle-orm";
 import type { LibSQLDatabase } from "drizzle-orm/libsql";
 import { v4 as uuidV4 } from "uuid";
 
-// The schema module rather than the @packages/drizzle barrel, so the document
-// store can use this without building the Turso client on import.
+// Direct table ownership keeps unrelated schema initialization out of these queries.
 type Db = LibSQLDatabase<typeof schema>;
 
 /**

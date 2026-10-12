@@ -1,4 +1,4 @@
-import * as schema from "@packages/drizzle/drizzle-schema";
+import * as schema from "@packages/drizzle/document-data-schema";
 import { and, eq, isNull, sql } from "drizzle-orm";
 import type { LibSQLDatabase } from "drizzle-orm/libsql";
 import {
@@ -10,8 +10,7 @@ import {
 import { ownTagNames, replaceOwnTags } from "~/server/entities/tags";
 import type { DocumentStore } from "./write";
 
-// The schema module rather than the @packages/drizzle barrel: the barrel
-// builds the Turso client, and with it the whole environment, on import.
+// Direct table ownership keeps unrelated schema initialization out of this store.
 type Db = LibSQLDatabase<typeof schema>;
 
 /** A data-only merge base. Never include native TEXT in the first projection. */
