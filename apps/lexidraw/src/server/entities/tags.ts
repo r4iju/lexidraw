@@ -1,17 +1,17 @@
 import * as schema from "@packages/drizzle/document-data-schema";
 import { and, eq, inArray } from "drizzle-orm";
-import type { LibSQLDatabase } from "drizzle-orm/libsql";
+import type { BaseSQLiteDatabase } from "drizzle-orm/sqlite-core";
 import { v4 as uuidV4 } from "uuid";
 
 // Direct table ownership keeps unrelated schema initialization out of these queries.
-type Db = LibSQLDatabase<typeof schema>;
+type Db<TRunResult> = BaseSQLiteDatabase<"async", TRunResult, typeof schema>;
 
 /**
  * The tag names `userId` has put on `entityId`, sorted. Tags are per user, so
  * these are the only ones a reader of the entity is shown.
  */
-export async function ownTagNames(
-  db: Db,
+export async function ownTagNames<TRunResult>(
+  db: Db<TRunResult>,
   entityId: string,
   userId: string,
 ): Promise<string[]> {
@@ -34,8 +34,8 @@ export async function ownTagNames(
  * Makes `names` the tags `userId` has on `entityId`. Tags are per user:
  * another user's associations with the entity are neither read nor touched.
  */
-export async function replaceOwnTags(
-  db: Db,
+export async function replaceOwnTags<TRunResult>(
+  db: Db<TRunResult>,
   entityId: string,
   userId: string,
   names: string[],

@@ -1,6 +1,6 @@
 import * as schema from "@packages/drizzle/document-data-schema";
 import { and, eq, isNull, sql } from "drizzle-orm";
-import type { LibSQLDatabase } from "drizzle-orm/libsql";
+import type { BaseSQLiteDatabase } from "drizzle-orm/sqlite-core";
 import {
   editorRootPayload,
   normalizeDocumentBytes,
@@ -11,10 +11,13 @@ import { ownTagNames, replaceOwnTags } from "~/server/entities/tags";
 import type { DocumentStore } from "./write";
 
 // Direct table ownership keeps unrelated schema initialization out of this store.
-type Db = LibSQLDatabase<typeof schema>;
+type Db<TRunResult> = BaseSQLiteDatabase<"async", TRunResult, typeof schema>;
 
 /** A data-only merge base. Never include native TEXT in the first projection. */
-export async function readDocumentMergeBase(db: Db, id: string) {
+export async function readDocumentMergeBase<TRunResult>(
+  db: Db<TRunResult>,
+  id: string,
+) {
   const row = await db
     .select({
       raw: sql<unknown>`CAST(${schema.entities.elements} AS BLOB)`,
@@ -78,8 +81,8 @@ export const nextUpdatedAt = () =>
  * read shows and a write replaces. Kept apart from the write itself so the algorithm carries
  * no database with it.
  */
-export function drizzleDocumentStore(
-  db: Db,
+export function drizzleDocumentStore<TRunResult>(
+  db: Db<TRunResult>,
   userId: string,
   afterWrite?: (row: typeof schema.entities.$inferSelect) => Promise<void>,
   options: { prepareRoot?: (elements: string) => Promise<string> } = {},
