@@ -12,7 +12,7 @@ import {
 import { createTRPCRouter, protectedProcedure, publicProcedure } from "../trpc";
 import { AfterHeading, CreateDocument, MarkdownBody } from "./documents-schema";
 import { PublicAccess } from "@packages/types";
-import { eq, schema } from "@packages/drizzle";
+import { and, eq, schema } from "@packages/drizzle";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { ownTagNames } from "~/server/entities/tags";
