@@ -14,9 +14,73 @@ const {
   $isTextNode,
   $createParagraphNode,
   $createTextNode,
+  KEY_TAB_COMMAND,
 } = await import("lexical");
 const { registerAutocomplete } = await import("./register");
 const pause = () => new Promise((resolve) => setTimeout(resolve, 40));
+
+test("Tab accepts only complete Unicode scalars at the suggestion limit", async () => {
+  for (const { suggestion, accepted } of [
+    { suggestion: `${"A".repeat(511)}😀tail`, accepted: "A".repeat(511) },
+    {
+      suggestion: `${"A".repeat(510)}😀tail`,
+      accepted: `${"A".repeat(510)}😀`,
+    },
+  ]) {
+    const editor = createEditor({
+      namespace: "suggestion-scalar-acceptance",
+      onError(error) {
+        throw error;
+      },
+    });
+    const root = document.createElement("div");
+    root.setAttribute("contenteditable", "true");
+    root.tabIndex = 0;
+    document.body.append(root);
+    editor.setRootElement(root);
+    root.focus();
+    const stop = registerAutocomplete(editor, {
+      title: "",
+      delayMs: 0,
+      minIntervalMs: 0,
+      suggest: async () => suggestion,
+    });
+
+    editor.update(
+      () => {
+        const text = $createTextNode("Hello");
+        $getRoot().append($createParagraphNode().append(text));
+        text.selectEnd();
+      },
+      { discrete: true },
+    );
+    await pause();
+    expect(
+      root.querySelector("[data-suggestion]")?.getAttribute("data-suggestion"),
+    ).toBe(accepted);
+    expect(
+      editor.dispatchCommand(
+        KEY_TAB_COMMAND,
+        new KeyboardEvent("keydown", { key: "Tab" }),
+      ),
+    ).toBe(true);
+    await pause();
+
+    const serialized = JSON.stringify(editor.getEditorState().toJSON());
+    const restored = editor.parseEditorState(serialized);
+    const text = restored.read(() => $getRoot().getTextContent());
+    expect(text).toBe(`Hello${accepted}`);
+    expect(
+      /(?:[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF])/u.test(
+        text,
+      ),
+    ).toBe(false);
+
+    stop();
+    editor.setRootElement(null);
+    root.remove();
+  }
+});
 
 test("an update after outside focus does not request or paint a suggestion", async () => {
   const editor = createEditor({

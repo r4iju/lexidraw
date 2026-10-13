@@ -219,7 +219,8 @@ export function registerAutocomplete(
         const now = editor.getEditorState().read($target);
         if (now?.textKey !== target.textKey || now.prefix !== target.prefix)
           return;
-        show(now, normalizeCompletion(target.before, raw).slice(0, 512));
+        const clipped = normalizeCompletion(target.before, raw).slice(0, 512);
+        show(now, clipped.replace(/[\uD800-\uDBFF]$/, ""));
       })
       .catch(() => {
         if (request === controller) hide();
