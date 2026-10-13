@@ -70,18 +70,23 @@ The physical iPhone 14 Plus now runs TestFlight 0.1.0 (13). Local Samantha
 narration visibly progressed, paused/resumed, skipped both directions and
 continued in the background. Unsupported Apple Intelligence hardware displays
 an accurate unavailable message. Supported hardware, locked-screen playback,
-headphone routes and interruptions remain unverified. Stop/reopen position had
-an observed mismatch, currently under bounded investigation. TestFlight's normal
+headphone routes and interruptions remain unverified. A healthy bounded stop/reopen repeat preserved position: paused at 0:41,
+reopened and paused within 3.64 seconds, then displayed 0:43. The earlier
+mismatch did not reproduce; no source defect was established. TestFlight's normal
 older-version installation disabled automatic updates for this app; the existing
 App Store review was unchanged.
 
-The native AI Power panel fails to load. Authenticated hosted preference reading
+The native AI Power panel initially failed to load. Authenticated hosted preference reading
 returned 200/local, while `pro.status` returned 500. Read-only production schema
 inspection confirmed all 22 targeted AI/Pro tables are absent. A narrow additive
 migration has been prepared from the owned AI migrations and validated locally:
 53 schema objects, no existing data changed, one cleanup cursor row, no foreign
-key violations, and all additions removed on rollback. Production execution is
-pending separate approval. Unrelated historical migrations, including the email
+key violations, and all additions removed on rollback. The owner approved execution. A production SDK transaction first applied and
+rolled back the complete batch, verifying exact object restoration. The same
+batch was then committed: 22 tables, 53 objects and one cleanup cursor row,
+with all new application tables empty, existing schema unchanged and no foreign
+key violations. `pro.status` now returns 200 with checkout disabled and no Pro
+entitlement; the physical AI Power panel loads with Built-in local selected. Unrelated historical migrations, including the email
 verification update, are excluded.
 
 Stripe/Apple dedicated Sandbox environment variables are absent from the
@@ -148,3 +153,21 @@ Fresh Spec and Standards repair reviews found no blocking defects.
 A broad test-name filter accidentally also executed a revocation-race test.
 This was contrary to the exclusion; subsequent checks use exact new test names.
 The prohibited thumbnail test file was not accessed.
+
+## Migration lifecycle guard
+
+Production's existing `__drizzle_migrations` table has no records. The narrow
+rollout deliberately did not invent a baseline marker, skip unrelated migrations,
+or claim the historical schema is fully reconciled. Commit `6ab631d5` makes the
+ordinary `db:migrate` command reject existing untracked schemas and AI tables
+ahead of the journal. Future ordinary migrations require baseline/receipt
+reconciliation first. The managed rollout receipt and exact manifest are retained
+privately under `~/.ai/working/lexidraw-294/hosted/ai-schema-commit.json` and
+`ai-schema-migration-manifest.json`.
+
+Three local baseline-guard cases and package types pass; a fresh focused source
+review found no blocking defect. The initial test command used an invalid package
+script, so it did not observe a failure before the implementation was first
+written. A subsequent behavioral rollback check observed the two refusal cases
+fail with the guard removed and pass with it restored. This does not retroactively
+establish ideal test-first chronology.
