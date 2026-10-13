@@ -48,10 +48,14 @@ The autocomplete repository writer and focused independent review are finished.
 The selected direct Store verification, focused editor repair and native build passed.
 The local repair reviews passed; their fixed scope does not cover the original
 initiative. The local repair phase is complete and no delegated task remains active.
-**Shipping decision: no-go for the full public release.** Full prerender,
+**Release authorization:** the user explicitly requested shipment now and accepted
+the remaining verification gaps as follow-ups. Batched local Linux preparation,
+release-scope inventory and manual native-release readiness are in progress.
+Full prerender,
 provider/device/payment/hosted acceptance, excluded original-base review coverage,
-and the BYOK `Inflate`/queue warnings remain open. The successful isolated compile
-is compile-only evidence. No push, PR, merge, deployment or release occurred.
+and the BYOK `Inflate`/queue warnings remain open as follow-ups. The successful
+isolated compile is compile-only evidence. No push, PR, merge, deployment or
+release has occurred yet.
 Public Pro remains Coming soon and purchases remain disabled. Following the user's
 time constraint, no further exploratory or harness review loops are planned.
 Redundant bundled-harness
