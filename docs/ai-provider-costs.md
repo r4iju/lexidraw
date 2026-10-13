@@ -38,6 +38,16 @@ Text prices per million tokens:
 
 Flash and Flash-Lite TTS rates above double January 1, 2027. TTS produces 25 audio tokens/second: output costs $0.54/hour now, $1.08/hour from January, plus text input. Gemini 3 Pro Image lists $0.134 per 1K/2K image or $0.24 per 4K image, plus input/text output. The exact older `gemini-3-pro-preview` and `gemini-3-pro-image-preview` IDs in this checkout were not found in the current pricing page; do not assign newer aliases' prices or availability to them without verification.
 
+## Paid search availability
+
+Checked 2026-10-13: [Google Custom Search JSON API](https://developers.google.com/custom-search/v1/overview)
+is closed to new customers and will be discontinued on January 1, 2027.
+Its $5 per 1,000 paid queries applies to existing customers until that date.
+Before enabling private Pro agent search, verify that the configured account
+has existing-customer access and record the migration decision for the cutoff.
+The current closed agent capability is not proof of supplier access; this does
+not substitute another provider or authorize a paid request.
+
 ## Billing overhead
 
 [Stripe US Payments](https://stripe.com/pricing) lists domestic cards at 2.9% + $0.30 per successful transaction. [Stripe Billing](https://stripe.com/billing/pricing) adds 0.7% of billing volume on its pay-as-you-go plan. This is a US domestic example, not confirmation of the merchant's country or contract; taxes, currency conversion, international cards and other products may add cost.

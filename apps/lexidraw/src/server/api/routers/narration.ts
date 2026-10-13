@@ -70,7 +70,14 @@ export function createNarrationRouter(deps: {
           input.acceptedPeriod,
         );
         if (result.id && ["reserved", "running"].includes(result.state)) {
-          await deps.dispatch(account, result.id);
+          const ledger = deps.ledger();
+          if (!(await ledger.operation(account, result.id)).cancel_requested) {
+            try {
+              await deps.dispatch(account, result.id);
+            } catch {
+              await ledger.failDispatch(account, result.id);
+            }
+          }
           return e.recover(account, result.id);
         }
         return result;

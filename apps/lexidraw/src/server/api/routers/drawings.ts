@@ -6,7 +6,7 @@ import { v4 as uuidV4 } from "uuid";
 import { z } from "zod";
 
 import { StaleDocumentError } from "~/server/documents/conflict";
-import { drizzleDocumentStore } from "~/server/documents/document-store";
+import { drizzleDrawingStore } from "~/server/drawings/drawing-store";
 import { DocumentGoneError } from "~/server/documents/write";
 import { drawingTools } from "~/server/drawings/converter";
 import {
@@ -359,7 +359,7 @@ export const drawingRouter = createTRPCRouter({
       const elements = await normalize(input);
       try {
         const written = await replaceDrawingElements(
-          drizzleDocumentStore(ctx.drizzle, ctx.session.user.id, (row) =>
+          drizzleDrawingStore(ctx.drizzle, ctx.session.user.id, (row) =>
             queueThumbnail(ctx.drizzle, row),
           ),
           drawing,

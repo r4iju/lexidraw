@@ -3,6 +3,7 @@ import { test, expect } from "bun:test";
 import { createClient } from "@libsql/client/sqlite3";
 import * as schema from "@packages/drizzle/drizzle-schema";
 import { drizzle } from "drizzle-orm/libsql";
+import { PublicAccess } from "@packages/types";
 import { createHeadlessEditor } from "@lexical/headless";
 import { CORE_NODES } from "@packages/lexical-nodes/nodes";
 import { $getRoot, $isTextNode } from "lexical";
@@ -73,7 +74,7 @@ async function setup(elements = fixture("legacy-metadata.json")) {
     createdAt: AT,
     updatedAt: AT,
     userId: "synthetic",
-    publicAccess: "private",
+    publicAccess: PublicAccess.PRIVATE,
   });
   return { client, db };
 }

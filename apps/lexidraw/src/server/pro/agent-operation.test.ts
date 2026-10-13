@@ -1020,3 +1020,93 @@ test("owned action recovery reads the requested key even when another action is 
     f.client.close();
   }
 });
+
+test("agent dispatch rejection refunds before paid work and reports the intended edits as incomplete", async () => {
+  const f = await fixture();
+  let dispatches = 0;
+  const router = createAgentRouter({
+    ledger: () => f.ledger,
+    executor: () => f.executor,
+    selected: async () => true,
+    dispatch: async () => {
+      dispatches++;
+      throw new Error("Synthetic startup failure");
+    },
+  });
+  const caller = router.createCaller({
+    drizzle: db,
+    headers: new Headers(),
+    session: { user: { id: "alice" } },
+  } as never);
+  try {
+    await grant(f);
+    const result = await caller.start(input);
+    expect(result.operation).toMatchObject({ state: "refunded", charged: 0 });
+    expect(result.report).toMatchObject({
+      status: "failed",
+      completed: [],
+      incomplete: [input.prompt],
+    });
+    expect((await f.ledger.status("alice")).reservedSubcredits).toBe(0);
+    expect((await caller.start(input)).operation.id).toBe(result.operation.id);
+    expect(dispatches).toBe(1);
+    expect(f.calls()).toBe(0);
+  } finally {
+    f.client.close();
+  }
+});
+
+test("agent dispatch rejection reports reconciliation while admitted paid work remains held", async () => {
+  let started = () => {};
+  const ready = new Promise<void>((resolve) => {
+    started = resolve;
+  });
+  let release = () => {};
+  const pending = new Promise<{ kind: "unknown" }>((resolve) => {
+    release = () => resolve({ kind: "unknown" });
+  });
+  const f = await fixture(async () => {
+    started();
+    return pending;
+  });
+  let execution: Promise<unknown> | undefined;
+  let dispatches = 0;
+  const router = createAgentRouter({
+    ledger: () => f.ledger,
+    executor: () => f.executor,
+    selected: async () => true,
+    dispatch: async (account, id) => {
+      dispatches++;
+      execution = f.executor.execute(account, id);
+      await ready;
+      throw new Error("Synthetic lost workflow response");
+    },
+  });
+  const caller = router.createCaller({
+    drizzle: db,
+    headers: new Headers(),
+    session: { user: { id: "alice" } },
+  } as never);
+  try {
+    await grant(f);
+    const result = await caller.start(input);
+    expect(result.operation).toMatchObject({
+      state: "running",
+      cancel_requested: 1,
+    });
+    expect(result.report).toMatchObject({
+      status: "reconciling",
+      completed: [],
+      incomplete: [input.prompt],
+    });
+    expect((await f.ledger.status("alice")).reservedSubcredits).toBe(
+      input.acceptedMaximum,
+    );
+    expect((await caller.start(input)).operation.id).toBe(result.operation.id);
+    expect(dispatches).toBe(1);
+  } finally {
+    release();
+    await execution;
+    f.client.close();
+  }
+});
