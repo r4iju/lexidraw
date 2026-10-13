@@ -66,12 +66,23 @@ value was unsuitable and a distinct existing development credential returned
 no successful usage was reported. Output, usage and recovery acceptance remain
 open until a working provider credential is configured.
 
-The physical iPhone 14 Plus is connected and unlocked. Its installed app is
-1.0 (12), with no TestFlight app installed; the physical target is unsupported
-by the current T3 control session. No new-build narration or lock-screen result
-is claimed. This hardware also cannot establish supported Apple Intelligence
-acceptance. Candidate installation/control and route-change/interruption
-operation remain prerequisites.
+The physical iPhone 14 Plus now runs TestFlight 0.1.0 (13). Local Samantha
+narration visibly progressed, paused/resumed, skipped both directions and
+continued in the background. Unsupported Apple Intelligence hardware displays
+an accurate unavailable message. Supported hardware, locked-screen playback,
+headphone routes and interruptions remain unverified. Stop/reopen position had
+an observed mismatch, currently under bounded investigation. TestFlight's normal
+older-version installation disabled automatic updates for this app; the existing
+App Store review was unchanged.
+
+The native AI Power panel fails to load. Authenticated hosted preference reading
+returned 200/local, while `pro.status` returned 500. Read-only production schema
+inspection confirmed all 22 targeted AI/Pro tables are absent. A narrow additive
+migration has been prepared from the owned AI migrations and validated locally:
+53 schema objects, no existing data changed, one cleanup cursor row, no foreign
+key violations, and all additions removed on rollback. Production execution is
+pending separate approval. Unrelated historical migrations, including the email
+verification update, are excluded.
 
 Stripe/Apple dedicated Sandbox environment variables are absent from the
 inspected configuration. App Store Connect has no subscription groups and no
@@ -81,7 +92,9 @@ build flag. No purchase, configuration change or entitlement grant was made.
 
 On 2026-10-13 the owner expanded independent source review to auth, security,
 accounting and provider transports. Standards and Spec reviews against the
-original integration base are active. Permission-race tests and the prohibited
+original integration base found two concrete accounting/dispatch defects. Both
+have been repaired, with a fresh repair review passing at `5479cefa`. The broad
+original review has documented partial coverage rather than exhaustive approval. Permission-race tests and the prohibited
 file remain excluded. Historical test-first gaps cannot be recreated by new
 green evidence. These narrow repairs do not claim the full review is finished.
 
@@ -117,6 +130,21 @@ was not edited.
 ## Physical control authorization
 
 The cached signed physical runner reached iOS's “Enable UI Automation” XCTest
-passcode prompt. The owner approved that prompt directly on the phone. The
-control attempt is being retried; candidate installation and actual audio
-checks remain pending until observed. No passcode is handled by the agent.
+passcode prompt. The owner approved it directly on the phone, allowing the
+physical observations above. No passcode was handled by the agent.
+
+## Accounting and dispatch repairs
+
+Commit `f7f29634` records owner-audited actual supplier invoice overruns without
+changing customer charges. Further paid attempts remain fenced when exposure is
+exceeded. Commit `5479cefa` settles workflow dispatch failures as technical
+refunds when no paid attempt started. Started or unknown supplier attempts retain
+their reservation and a cancellation fence; agent reports show reconciliation.
+Repeated submissions do not dispatch again, and durable completion retains
+precedence over failure. Seven new regressions were observed failing before the
+fixes and passing afterward; the two invoice regressions and full web types pass.
+Fresh Spec and Standards repair reviews found no blocking defects.
+
+A broad test-name filter accidentally also executed a revocation-race test.
+This was contrary to the exclusion; subsequent checks use exact new test names.
+The prohibited thumbnail test file was not accessed.
