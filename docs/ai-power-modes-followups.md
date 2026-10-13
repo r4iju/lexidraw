@@ -29,7 +29,7 @@ rendering; they do not establish hosted storage or physical playback acceptance.
 | Native speech and local text | Phone available; candidate build and physical control path | Background/lock-screen speech, route changes, interruptions, controls and supported Apple Intelligence behavior |
 | Web Sandbox billing | Configured Stripe Sandbox and approved tester | Actual checkout/portal, renewal, restore-equivalent account state and verified event lifecycle |
 | Apple Sandbox billing | Configured subscription product and Sandbox tester | Actual purchase/restore and notification lifecycle with the shared allowance |
-| Previously excluded integration domains | Scope resolution for the historical review exclusions | Independent source review of those domains; old test-first gaps remain historical facts |
+| Previously excluded integration domains | Owner has expanded review scope; reviews active | Independent source review of those domains; old test-first gaps remain historical facts |
 
 Paid agent search additionally requires existing-customer Google Custom Search
 access and a migration decision before its January 1, 2027 discontinuation;
@@ -79,8 +79,11 @@ Sandbox server-notification URL. Apple purchases require the separately opted-in
 physical DEBUG Sandbox build; normal TestFlight build 13 does not supply that
 build flag. No purchase, configuration change or entitlement grant was made.
 
-Original review exclusions and historical test-first gaps remain unresolved;
-these narrow repairs do not claim review of the complete original integration.
+On 2026-10-13 the owner expanded independent source review to auth, security,
+accounting and provider transports. Standards and Spec reviews against the
+original integration base are active. Permission-race tests and the prohibited
+file remain excluded. Historical test-first gaps cannot be recreated by new
+green evidence. These narrow repairs do not claim the full review is finished.
 
 ## Review and editor disposition
 
@@ -110,3 +113,10 @@ custody or enable any capability gate.
 The hosted disposable documents/drawings were moved to trash after their
 responses and rendered artifacts were retained locally. Existing user content
 was not edited.
+
+## Physical control authorization
+
+The cached signed physical runner reached iOS's “Enable UI Automation” XCTest
+passcode prompt. The owner approved that prompt directly on the phone. The
+control attempt is being retried; candidate installation and actual audio
+checks remain pending until observed. No passcode is handled by the agent.
