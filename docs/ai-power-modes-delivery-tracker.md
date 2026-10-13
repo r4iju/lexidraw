@@ -27,27 +27,33 @@ remain in [the integration audit](ai-power-modes-integration-audit.md).
 ## Current state
 
 Recorded 2026-10-13. Integration branch: `feat/276-ai-power-modes`, code checkpoint
-`157793fb` (batch route-config repair). Store evidence remains pinned to the
+`49d0c121` (React Compiler repair). Store evidence remains pinned to the
 unchanged protected sources at `639f6cba`. **Incomplete and unshipped.**
 
 | Workstream | Verified state | Next prerequisite |
 | --- | --- | --- |
 | Save-hook/content preservation | Two edits and saves, latest settings, exact preserved bytes, and fresh headless reopens verified by both evidence reviews | Retain qualified acceptance; original post-run reporter STOP remains recorded |
 | Summary reporter | Replacement code and integration coverage passed both static reviews | Integrate into a future complete package before execution; no retroactive reset of old evidence |
+| Saved audio in rich documents | Fixed in `e63fd17f`; 28 tests pass; final independent Spec and Standards reviews resolve the original P1 finding | Hardware/player and full-ticket acceptance remain pending |
 | Store/content persistence | Both v21 static reviews passed; the runner stopped before any verification phase on capture-directory setup; redundant v22 preparation stopped with partial work preserved | Prioritize direct genuine Store behavior; no further bundled-harness rebuild/review loop planned |
 | Direct-source Store verification | v7 passed: three Store constructions, two headless edits, two writes, two fresh reopens, 18 SQL callbacks and 154 matching comparisons; only the DDL-backed fixture metadata expectation was corrected | Selected present-row content-preservation path verified; missing-row, historical conversion, default media and whole-ticket acceptance remain open |
-| Autocomplete scalar boundaries | Fixed locally in `7dbc7ab8`; genuine RED, four focused GREEN tests, scoped types/whitespace, and independent Spec/Standards review passed | Focused repair complete; whole #277 acceptance remains pending |
+| Autocomplete scalar boundaries | Prompt boundaries fixed in `7dbc7ab8`; output clipping fixed in `d24c3965` with RED then 3 passing tests; final independent reviews resolve the original finding | Whole #277 acceptance remains pending |
 | Shared pure-text contracts | Nine frozen cases and both independent GPT evidence reviews passed for ordinary AC2/AC4 subset | Bounded evidence accepted; assembled configuration, adapters, visible editor behavior, and whole #277 remain unverified |
 | Pure autocomplete request preparation | Four frozen cases passed; parent reviewed source, frozen expectations, raw outputs, launch records, and all seven matching byte-copy pairs after both delegated reviews were cancelled | Bounded pure assembly evidence accepted; no adapter, provider, visible-editor, or whole #277 acceptance |
 | Editor obligations | Focus admission fixed in `c7066ad7`; genuine RED then two passing focused tests, refocus behavior and separate deferred-blur check passed; missing `and` import fixed in `e76860d3` | Drizzle declaration repair active; lost-submission adapter disposition and whole-editor acceptance remain pending |
 | Whole-spec reconciliation | GPT reconciliation complete: 114 child criteria, 62 overlapping parent stories, and 26 dependency edges accounted for | All tickets remain open; root #277 whole-contract acceptance and product obligations remain beyond the Store subset |
-| Local shipping checks | Production web types and offline unsigned iOS Simulator build passed; native bundle committed in `9614cc93`; unsupported chat-stream/generated-image config exports fixed in `cf88977d` and `157793fb`; route inventory and isolated compile show no remaining route-config errors | Isolated web compile still fails on Google Fonts fetches blocked by the offline guard; full prerender, original-base initiative review and external acceptance remain pending |
+| Local shipping checks | Latest production web types and isolated Next webpack compile passed; offline iOS build passed; final Spec and Standards reviews accept the local repairs with no blocking findings | Full prerender, provider/device/payment/hosted acceptance, excluded review coverage and BYOK `Inflate`/queue warning disposition remain pending |
 
 The autocomplete repository writer and focused independent review are finished.
 The selected direct Store verification, focused editor repair and native build passed.
 The local repair reviews passed; their fixed scope does not cover the original
-initiative. No delegated task remains active. The web compile awaits narrowly
-authorized font fetching; full prerender and external acceptance remain pending.
+initiative. The local repair phase is complete and no delegated task remains active.
+**Shipping decision: no-go for the full public release.** Full prerender,
+provider/device/payment/hosted acceptance, excluded original-base review coverage,
+and the BYOK `Inflate`/queue warnings remain open. The successful isolated compile
+is compile-only evidence. No push, PR, merge, deployment or release occurred.
+Public Pro remains Coming soon and purchases remain disabled. Following the user's
+time constraint, no further exploratory or harness review loops are planned.
 Redundant bundled-harness
 preparation was stopped following the user's time constraint. Independent product
 checks should continue in parallel where they can establish acceptance. Shared pure-text observation
