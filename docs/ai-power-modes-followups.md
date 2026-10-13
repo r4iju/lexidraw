@@ -95,3 +95,18 @@ All account/budget authorization recorded above persists; it is not requested
 again. The remaining prerequisites concern working configuration, distribution
 and available controls. The local drawing repair still needs a separately
 approved release before its hosted update can be rechecked.
+
+## Successful OpenRouter text preflight
+
+One actual `openai/gpt-4.1-mini` request through OpenRouter returned HTTP 200,
+with coherent concise English/Japanese output, 40 input tokens and 26 output
+tokens. Independently calculated US$0.0000576 exactly matched its reported
+cost. There were no retries or provider fallbacks. All three provider attempts
+(including the rejected OpenAI attempts) conservatively reserved US$0.0084608,
+well within the US$5 cap. This uses an existing app-owned development credential
+for supplier verification; it does not prove browser/native BYOK credential
+custody or enable any capability gate.
+
+The hosted disposable documents/drawings were moved to trash after their
+responses and rendered artifacts were retained locally. Existing user content
+was not edited.
