@@ -227,8 +227,16 @@ export function createProRouter(deps: {
         request.idempotencyKey,
         request.hash,
       );
-      if (operation.state === "reserved" || operation.state === "running")
-        await deps.dispatch(operation.id, request.text, ctx.session.user.id);
+      if (
+        !operation.cancel_requested &&
+        ["reserved", "running"].includes(operation.state)
+      ) {
+        try {
+          await deps.dispatch(operation.id, request.text, ctx.session.user.id);
+        } catch {
+          await ledger.failDispatch(ctx.session.user.id, operation.id);
+        }
+      }
       return ledger.operation(ctx.session.user.id, operation.id);
     }),
     autocomplete: procedure
@@ -258,7 +266,10 @@ export function createProRouter(deps: {
           request.hash,
           "autocomplete",
         );
-        if (operation.state === "reserved" || operation.state === "running") {
+        if (
+          !operation.cancel_requested &&
+          ["reserved", "running"].includes(operation.state)
+        ) {
           try {
             await deps.dispatch(
               operation.id,
@@ -266,8 +277,7 @@ export function createProRouter(deps: {
               ctx.session.user.id,
             );
           } catch {
-            await ledger.cancel(ctx.session.user.id, operation.id);
-            throw new ProError("Suggestion could not start");
+            await ledger.failDispatch(ctx.session.user.id, operation.id);
           }
         }
         return ledger.operation(ctx.session.user.id, operation.id);

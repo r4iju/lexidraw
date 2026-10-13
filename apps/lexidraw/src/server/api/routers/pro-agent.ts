@@ -73,8 +73,13 @@ export function createAgentRouter(deps: {
         throw new ProError("Select Pro in AI Power");
       const action = executor();
       const op = await action.reserve(account, input);
-      if (["reserved", "running"].includes(op.state))
-        await deps.dispatch(account, op.id);
+      if (!op.cancel_requested && ["reserved", "running"].includes(op.state)) {
+        try {
+          await deps.dispatch(account, op.id);
+        } catch {
+          await deps.ledger().failDispatch(account, op.id);
+        }
+      }
       return action.view(account, op.id);
     }),
     operation: procedure

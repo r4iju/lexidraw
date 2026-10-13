@@ -903,3 +903,55 @@ test("corrupt historical narration exposure cannot be delivered or charged as a 
     f.client.close();
   }
 });
+
+for (const uncertain of [false, true]) {
+  test(`narration dispatch rejection ${uncertain ? "holds uncertain synthesis" : "refunds before synthesis"} and prevents redispatch`, async () => {
+    const f = await fixture();
+    let dispatches = 0;
+    const router = createNarrationRouter({
+      ledger: () => f.ledger,
+      executor: f.executor,
+      source: async () => "pro",
+      read: async () => "A calm reading.",
+      dispatch: async (account, id) => {
+        dispatches++;
+        if (uncertain) {
+          await f.ledger.claim(id);
+          const plan = await f.ledger.narrationPlan(account, id);
+          const chunk = plan.plan[0];
+          if (!chunk) throw new Error("Missing quoted narration chunk");
+          await f.ledger.startAttempt(id, chunk.hash);
+        }
+        throw new Error("Synthetic lost workflow response");
+      },
+    });
+    const caller = router.createCaller({
+      drizzle: db,
+      schema: {},
+      session: { user: { id: "alice" } },
+      auth: { kind: "session" },
+      headers: new Headers(),
+    } as never);
+    try {
+      await f.grant("alice");
+      const quote = await caller.quote({ documentId: "doc" });
+      const request = {
+        documentId: "doc",
+        idempotencyKey: "dispatch-failure",
+        acceptedMaximum: quote.maximum,
+        acceptedRevision: quote.revision,
+        acceptedPeriod: quote.periodId,
+      };
+      const result = await caller.generate(request);
+      expect(result.state).toBe(uncertain ? "running" : "refunded");
+      expect((await f.ledger.status("alice")).reservedSubcredits).toBe(
+        uncertain ? quote.maximum : 0,
+      );
+      expect((await caller.generate(request)).id).toBe(result.id);
+      expect(dispatches).toBe(1);
+      expect(f.calls()).toBe(0);
+    } finally {
+      f.client.close();
+    }
+  });
+}

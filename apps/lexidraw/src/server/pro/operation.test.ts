@@ -744,3 +744,141 @@ test("failed supplier attempts remain absorbed through replay and terminal cance
     f.client.close();
   }
 });
+
+async function dispatchFixture(
+  dispatch: (ledger: ProLedger, id: string) => Promise<void>,
+) {
+  const client = createClient({ url: ":memory:" });
+  for (const name of [
+    "0015_private_pro",
+    "0016_pro_billing_events",
+    "0029_sandbox_billing",
+    "0030_apple_sandbox",
+  ])
+    await client.executeMultiple(
+      (
+        await Bun.file(`../../packages/drizzle/drizzle/${name}.sql`).text()
+      ).replaceAll("--> statement-breakpoint", ""),
+    );
+  const ledger = new ProLedger(client, {
+    ownerAccountIds: ["owner"],
+    supplierBooks: supplierFixture,
+    now: () => 1000,
+  });
+  await ledger.grantEligibility("owner", "alice", "dispatch fixture");
+  await ledger.grantPeriod("owner", {
+    accountId: "alice",
+    eventId: "dispatch-trial",
+    startsAt: 1000,
+    endsAt: 2000,
+    subcredits: 1_000_000_000,
+    reason: "dispatch fixture",
+    environment: "test",
+  });
+  const router = createProRouter({
+    ledger: () => ledger,
+    dispatch: (id) => dispatch(ledger, id),
+  });
+  const caller = router.createCaller({
+    drizzle: db,
+    schema: {},
+    session: { user: { id: "alice" } },
+    auth: { kind: "session" },
+    headers: new Headers(),
+  } as never);
+  return { client, ledger, caller };
+}
+
+test("text dispatch rejection refunds a reservation before any provider attempt and repeated submission remains refunded", async () => {
+  let dispatches = 0;
+  const f = await dispatchFixture(async () => {
+    dispatches++;
+    throw new Error("Synthetic startup failure");
+  });
+  try {
+    const request = { idempotencyKey: "failed-dispatch", text: "hello" };
+    const result = await f.caller.text(request);
+    expect(result).toMatchObject({ state: "refunded", charged: 0 });
+    expect(await f.ledger.status("alice")).toMatchObject({
+      reservedSubcredits: 0,
+      availableSubcredits: 1_000_000_000,
+    });
+    expect(await f.caller.text(request)).toMatchObject({
+      id: result.id,
+      state: "refunded",
+    });
+    expect(dispatches).toBe(1);
+  } finally {
+    f.client.close();
+  }
+});
+
+test("text dispatch rejection fences future paid work while an admitted uncertain attempt stays reserved", async () => {
+  let dispatches = 0;
+  const f = await dispatchFixture(async (ledger, id) => {
+    dispatches++;
+    await ledger.claim(id);
+    await ledger.startAttempt(id);
+    throw new Error("Synthetic lost dispatch response");
+  });
+  try {
+    const request = { idempotencyKey: "uncertain-dispatch", text: "hello" };
+    const result = await f.caller.text(request);
+    expect(result).toMatchObject({ state: "running", cancel_requested: 1 });
+    expect(await f.ledger.status("alice")).toMatchObject({
+      reservedSubcredits: 1_792_000,
+      availableSubcredits: 998_208_000,
+    });
+    await expect(f.ledger.startAttempt(result.id)).rejects.toThrow();
+    expect(await f.caller.text(request)).toMatchObject({
+      id: result.id,
+      state: "running",
+      cancel_requested: 1,
+    });
+    expect(dispatches).toBe(1);
+  } finally {
+    f.client.close();
+  }
+});
+
+test("autocomplete dispatch rejection reports a technical refund without retrying the submission", async () => {
+  await db
+    .insert(schema.users)
+    .values({
+      id: "alice",
+      name: "Alice",
+      config: { aiPower: { mode: "pro" }, autocomplete: { enabled: true } },
+    })
+    .onConflictDoUpdate({
+      target: schema.users.id,
+      set: {
+        config: { aiPower: { mode: "pro" }, autocomplete: { enabled: true } },
+      },
+    });
+  let dispatches = 0;
+  const f = await dispatchFixture(async () => {
+    dispatches++;
+    throw new Error("Synthetic startup failure");
+  });
+  try {
+    const request = {
+      idempotencyKey: "autocomplete-startup-failure",
+      title: "Notes",
+      before: "A calm",
+      after: "",
+    };
+    const result = await f.caller.autocomplete(request);
+    expect(result).toMatchObject({ state: "refunded", charged: 0 });
+    expect(await f.ledger.status("alice")).toMatchObject({
+      reservedSubcredits: 0,
+      availableSubcredits: 1_000_000_000,
+    });
+    expect(await f.caller.autocomplete(request)).toMatchObject({
+      id: result.id,
+      state: "refunded",
+    });
+    expect(dispatches).toBe(1);
+  } finally {
+    f.client.close();
+  }
+});

@@ -2344,6 +2344,43 @@ export class ProLedger {
         AgentAttemptDescriptor.parse(JSON.parse(attempt.chunk_hash ?? ""));
     return attempts;
   }
+  async failDispatch(account: string, id: string) {
+    await this.operation(account, id);
+    await this.write(async (tx) => {
+      const fenced = await tx.execute({
+        sql: "UPDATE pro_operations SET cancel_requested=1 WHERE account_id=? AND id=? AND state IN ('reserved','running','unknown')",
+        args: [account, id],
+      });
+      if (fenced.rowsAffected)
+        await this.auditWrite(
+          tx,
+          account,
+          account,
+          "workflow_dispatch_failed",
+          id,
+        );
+    });
+    const operation = await this.operation(account, id);
+    if (
+      operation.feature === "agent" &&
+      ["reserved", "running", "unknown"].includes(operation.state)
+    ) {
+      const job = await this.agentJob(account, id);
+      const pending = (await this.attempts(account, id)).some(
+        (attempt) => attempt.state === "started" || attempt.state === "unknown",
+      );
+      await this.agentReport(account, id, {
+        ...job.report,
+        status: pending ? "reconciling" : "failed",
+        reason: pending
+          ? "Workflow dispatch failed. Paid work requires reconciliation. Saved edits remain."
+          : "The action could not start. No new paid work will run.",
+      });
+    }
+    // A lost queue response cannot release an already admitted uncertain attempt.
+    return this.settle(id, { kind: "technical_failure" });
+  }
+
   async cancel(account: string, id: string) {
     const op = await this.operation(account, id);
     await this.write(async (tx) => {
