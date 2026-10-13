@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "bun x tsgo --watch --project tsconfig.json",
     "db:generate": "bun run --no-env-file ./src/generation/generate.ts",
-    "db:migrate": "drizzle-kit migrate",
+    "db:migrate": "bun ./src/migrations/check-baseline-cli.ts && drizzle-kit migrate",
     "db:pull": "drizzle-kit introspect",
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio --port 3100",
