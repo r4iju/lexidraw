@@ -1,12 +1,12 @@
 import { createClient, type Client } from "@libsql/client/sqlite3";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
+import { tmpdir } from "node:os";
 import { pathToFileURL } from "node:url";
 import { createFileMigrationOwner } from "../../../src/migrations/file-migration-owner.js";
 import type { LegacyDocumentConversionBatch } from "../../../src/migrations/legacy-document-conversion.js";
 
-export const evidence =
-  "/Users/emanuel/.ai/working/lexidraw-276-recovery/evidence/conversion-modern-destination-v1";
+export const evidence = tmpdir();
 export const payload = await readFile(
   join(import.meta.dir, "../strict-document-conversion-v1/payload.json"),
   "utf8",

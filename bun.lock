@@ -214,6 +214,7 @@
       },
       "devDependencies": {
         "@ai-sdk/provider": "^4.0.17",
+        "@lexical/headless": "^0.51.0",
         "@next/bundle-analyzer": "16.3.6",
         "@tailwindcss/postcss": "^4.3.3",
         "@types/bcrypt": "^6.0.0",
@@ -308,11 +309,15 @@
         "drizzle-orm": "^0.45.3",
       },
       "devDependencies": {
+        "@lexical/headless": "^0.51.0",
+        "@packages/lexical-nodes": "workspace:*",
         "@packages/types": "workspace:*",
         "@types/node": "^22.20.4",
         "@typescript/native-preview": "^7.0.0-dev.20260707.2",
         "dotenv-cli": "latest",
         "drizzle-kit": "^0.31.11",
+        "lexical": "^0.51.0",
+        "typescript": "^7.0.2",
       },
     },
     "packages/env": {

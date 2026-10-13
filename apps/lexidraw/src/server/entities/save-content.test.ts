@@ -44,7 +44,9 @@ async function setup(content: string, type = "document") {
   const queries: string[] = [];
   const execute = client.execute.bind(client);
   // Reject unsafe TEXT at the driver boundary, never execute native corrupt TEXT.
-  client.execute = async (statement: Parameters<typeof execute>[0]) => {
+  client.execute = async (
+    statement: string | import("@libsql/client").InStatement,
+  ) => {
     const query = typeof statement === "string" ? statement : statement.sql;
     queries.push(query);
     if (
@@ -71,7 +73,7 @@ for (const route of ["entities.save", "documents.save"]) {
       ),
     ],
     ["missing root", Buffer.from('{"tts":null}').toString("hex")],
-  ]) {
+  ] as const) {
     test(`${route} rejects ${kind} in its earlier projection without native TEXT or writes`, async () => {
       const { client, execute, queries, db } = await setup(CURRENT);
       try {
@@ -174,7 +176,7 @@ for (const [type, content] of [
     "link",
     '{"url":"https://example.invalid/current","distilled":{"text":"Current"}}',
   ],
-]) {
+] as const) {
   test(`stale ${type} conflict returns current content, fields and revision`, async () => {
     const { client, execute, db } = await setup(content, type);
     try {

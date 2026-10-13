@@ -37,7 +37,11 @@
     "@types/node": "^22.20.4",
     "@typescript/native-preview": "^7.0.0-dev.20260707.2",
     "dotenv-cli": "latest",
-    "drizzle-kit": "^0.31.11"
+    "drizzle-kit": "^0.31.11",
+    "@lexical/headless": "^0.51.0",
+    "lexical": "^0.51.0",
+    "@packages/lexical-nodes": "workspace:*",
+    "typescript": "^7.0.2"
   },
   "typesVersions": {
     "*": {

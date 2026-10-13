@@ -35,7 +35,11 @@ for (const { name, before, after, expectedBefore, expectedAfter } of [
     const prompt = autocompletePrompt({ title: "Notes", before, after });
     const context = prompt.slice("Document title: Notes\n\n".length);
     const [retainedBefore, tail] = context.split("<cursor/>");
+    if (retainedBefore === undefined || tail === undefined)
+      throw new Error("missing autocomplete context delimiter");
     const retainedAfter = tail.split("\n\n<fragment>")[0];
+    if (retainedAfter === undefined)
+      throw new Error("missing autocomplete suffix");
     expect(retainedBefore.length).toBeLessThanOrEqual(3000);
     expect(retainedAfter.length).toBeLessThanOrEqual(600);
     expect(retainedBefore).not.toMatch(/[\uD800-\uDFFF]/u);

@@ -11,12 +11,9 @@ import {
   payload,
   state,
 } from "./fixtures/conversion-modern-v1/database.js";
-import { createHeadlessEditor } from "/Users/emanuel/.ai/working/lexidraw-276-recovery/evidence/legacy-lexical-compatibility-v1/node_modules/@lexical/headless/dist/LexicalHeadless.js";
-import {
-  $getRoot,
-  $isTextNode,
-} from "/Users/emanuel/.ai/working/lexidraw-276-recovery/evidence/legacy-lexical-compatibility-v1/node_modules/lexical/dist/Lexical.js";
-import { CORE_NODES } from "/Users/emanuel/.ai/working/lexidraw-276-recovery/evidence/legacy-lexical-compatibility-v1/pinned/packages/lexical-nodes/src/nodes.ts";
+import { createHeadlessEditor } from "@lexical/headless";
+import { $getRoot, $isTextNode } from "lexical";
+import { CORE_NODES } from "@packages/lexical-nodes/nodes";
 const suffix =
   ',"tts":{"text":"Legacy hello","audioUrl":"https://example.invalid/saved.mp3"},"unknown":{"retain":"\\u2603","number":1.00}}\n';
 function editor(raw: string, text: string) {

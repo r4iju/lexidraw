@@ -7,7 +7,7 @@ import {
   uniqueIndex,
   type AnySQLiteColumn,
 } from "drizzle-orm/sqlite-core";
-type PublicAccess = string;
+import type { PublicAccess } from "@packages/types";
 const users = sqliteTable("Users", { id: text("id").primaryKey().notNull() });
 export const entities = sqliteTable(
   "Entities",
