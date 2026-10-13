@@ -1,5 +1,5 @@
 /** Cached pako 2.0.3 inflate-only build; upstream MIT/Zlib notices are preserved. */
-export class Inflate {
+declare class Inflate {
   constructor(options: { chunkSize: number; windowBits: number });
   strm: {
     total_in: number;
@@ -14,3 +14,6 @@ export class Inflate {
   onData: (chunk: Uint8Array) => void;
   push(bytes: Uint8Array, final: boolean): boolean;
 }
+
+declare const pako: { Inflate: typeof Inflate };
+export = pako;

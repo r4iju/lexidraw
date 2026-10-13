@@ -1,5 +1,7 @@
 import { validatePng } from "../images/format";
-import { Inflate } from "./vendor/pako-inflate.js";
+import pako from "./vendor/pako-inflate.cjs";
+
+const { Inflate } = pako;
 
 /** Independently recognize only the fixed uncompressed audio adapter's container. */
 export function canonicalWav(binary: string) {
