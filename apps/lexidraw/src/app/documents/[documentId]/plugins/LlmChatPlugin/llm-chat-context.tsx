@@ -312,7 +312,9 @@ export const LlmChatProvider: React.FC<React.PropsWithChildren> = ({
   }, [documentId, state.mode, state.messages, saveMessagesDebounced]);
 
   const cancelSaveRef = useRef(cancelSaveMessages);
-  cancelSaveRef.current = cancelSaveMessages;
+  useEffect(() => {
+    cancelSaveRef.current = cancelSaveMessages;
+  }, [cancelSaveMessages]);
 
   // External system: persist local chat storage when this document surface unmounts.
   useEffect(() => {

@@ -1,5 +1,5 @@
 "use client";
-import { useContext, useState, useRef } from "react";
+import { useContext, useLayoutEffect, useState, useRef } from "react";
 import {
   chatInclusionSummary,
   type ChatPreparation,
@@ -31,7 +31,9 @@ export function ChatComposer({
     result: ChatPreparation | { kind: "idle" | "preparing" };
   }>({ scope: send.scope, result: { kind: "idle" } });
   const currentScope = useRef(send.scope);
-  currentScope.current = send.scope;
+  useLayoutEffect(() => {
+    currentScope.current = send.scope;
+  }, [send.scope]);
   const revision = useRef(0);
   const review =
     reviewState.scope === send.scope

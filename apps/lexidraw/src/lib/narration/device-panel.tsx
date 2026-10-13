@@ -2,7 +2,6 @@
 import {
   useEffect,
   useLayoutEffect,
-  useMemo,
   useState,
   useSyncExternalStore,
 } from "react";
@@ -211,11 +210,9 @@ function OwnedDeviceNarration({
       return receipt.id;
     },
   };
-  // The account/document controller retains checkpoints across capability refreshes.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: committed ports refresh callbacks; query changes do not replace the owner.
-  const flow = useMemo(
+  // The keyed owner retains checkpoints; query changes only refresh committed ports.
+  const [flow] = useState(
     () => new DeviceNarration(account, documentId, ports),
-    [account, documentId, byok, generation],
   );
   // DeviceNarration receives external query and storage ports after React commits.
   useLayoutEffect(() => {

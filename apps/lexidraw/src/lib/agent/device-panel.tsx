@@ -2,7 +2,6 @@
 import {
   useEffect,
   useLayoutEffect,
-  useMemo,
   useState,
   useSyncExternalStore,
 } from "react";
@@ -175,12 +174,8 @@ function OwnedDeviceAgent({
     read: () => utils.deviceAgent.source.fetch({ documentId }),
     apply: (data) => commitEdit(data),
   };
-  // The committed account/document/credential owner controls this controller's lifetime.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: committed ports refresh callbacks; query changes do not replace the owner.
-  const flow = useMemo(
-    () => new DeviceAgent(account, documentId, ports),
-    [account, documentId, byok, generation],
-  );
+  // The keyed owner controls lifetime; query changes only refresh committed ports.
+  const [flow] = useState(() => new DeviceAgent(account, documentId, ports));
   // DeviceAgent receives external query and storage ports after React commits.
   useLayoutEffect(() => {
     flow.configure(ports);
