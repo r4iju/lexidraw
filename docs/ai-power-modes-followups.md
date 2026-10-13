@@ -24,9 +24,9 @@ rendering; they do not establish hosted storage or physical playback acceptance.
 
 | Workstream | Prerequisite | Completion evidence still required |
 | --- | --- | --- |
-| Hosted persisted content | Approved disposable tester data and configured artifact storage | Save/reopen documents and drawings, saved recording delivery and second-device playback through the deployed clients |
-| Provider output/cost/recovery | Approved account, verified model contract and bounded provider-spend budget | Actual browser/native/provider access, parameters, representative output, complete usage and uncertain-outcome recovery |
-| Native speech and local text | Available compatible physical device and operator | Background/lock-screen speech, route changes, interruptions, controls and supported Apple Intelligence behavior |
+| Hosted persisted content | Disposable hosted data tested; remaining artifact storage/playback setup | Save/reopen documents and drawings, saved recording delivery and second-device playback through the deployed clients |
+| Provider output/cost/recovery | Account/budget approved; working credential and verified model contract | Actual browser/native/provider access, parameters, representative output, complete usage and uncertain-outcome recovery |
+| Native speech and local text | Phone available; candidate build and physical control path | Background/lock-screen speech, route changes, interruptions, controls and supported Apple Intelligence behavior |
 | Web Sandbox billing | Configured Stripe Sandbox and approved tester | Actual checkout/portal, renewal, restore-equivalent account state and verified event lifecycle |
 | Apple Sandbox billing | Configured subscription product and Sandbox tester | Actual purchase/restore and notification lifecycle with the shared allowance |
 | Previously excluded integration domains | Scope resolution for the historical review exclusions | Independent source review of those domains; old test-first gaps remain historical facts |
@@ -81,3 +81,17 @@ build flag. No purchase, configuration change or entitlement grant was made.
 
 Original review exclusions and historical test-first gaps remain unresolved;
 these narrow repairs do not claim review of the complete original integration.
+
+## Review and editor disposition
+
+Independent Standards and Spec reviews of `af05908f...6c4cf4d3` found no new
+implementation defect. Their incomplete-acceptance findings above remain open.
+Two existing ordinary editor regressions (deferred caret after blur and an
+outside-focus update) passed at `6c4cf4d3`, with 17 assertions. No new editor
+patch or test backfill was justified. Matching mounted lost-submission recovery
+remains unverified within the permitted scope.
+
+All account/budget authorization recorded above persists; it is not requested
+again. The remaining prerequisites concern working configuration, distribution
+and available controls. The local drawing repair still needs a separately
+approved release before its hosted update can be rechecked.

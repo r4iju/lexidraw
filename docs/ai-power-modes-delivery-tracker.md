@@ -1,3 +1,8 @@
+Current release and follow-up acceptance are recorded in
+[the #294 follow-up report](ai-power-modes-followups.md). The earlier checkpoints
+below retain their historical qualifications; current production availability
+is recorded in [#294](https://github.com/r4iju/lexidraw/issues/294).
+
 # AI Power Modes delivery tracker (#276)
 
 This tracker applies to the **whole spec and project**, issues #277–#291, rather
